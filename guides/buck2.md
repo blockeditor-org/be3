@@ -224,7 +224,9 @@ sysroot.
 
 Most tests run on the workers, including beui-renderer-wgpu's, be-dmabuf's, be-wayland's and
 beui-adapter-drm's, which draw
-through lavapipe from `buck/sysroot:amd64-test`; a test whose `env` names
+through lavapipe from `buck/sysroot:amd64-test` (beui-xr's from
+`buck/sysroot:amd64-xr`, the same set with Monado's OpenXR runtime and
+service, which its test runs headless); a test whose `env` names
 `LD_LIBRARY_PATH` is built as a harness binary and run through
 `library_path_test`, since the workers replace that variable
 (guides/build_server.md). buck2 runs a test again every
@@ -290,7 +292,10 @@ turns.
 | `wasi_guest` | the WASI sysroot | rust-lld through crates/wasm-link (the plugins and their SDK) |
 | `wasm32` | nothing | rust-lld (the games, the gpu shim) |
 
-All of them build on the same Linux workers. CI ships nothing built for a
+All of them build on the same Linux workers. `./scripts/verify` also runs
+rustc's check pass over beui for Windows x86_64 (`_CROSS_CHECKS` in
+`buck/dev/verify.bxl`), where beui-xr's first headset is, in its one buck2
+command. CI ships nothing built for a
 device: the build helper (guides/build_server.md) builds the Android app and
 launcher (`:android-dist`) and the desktop app for any platform when
 be-launcher asks for a commit; releases are built by hand. Apple's SDK licence allows it on Apple hardware only, so release builds

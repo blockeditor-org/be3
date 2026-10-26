@@ -79,7 +79,7 @@ pub use beui_font_freetype::{
 };
 pub use beui_inspector::install as install_inspector;
 #[cfg(feature = "render")]
-pub use beui_renderer_wgpu::present::{GpuSetup, OpenDevice};
+pub use beui_renderer_wgpu::present::{GpuSetup, OpenDevice, OpenGpu, open_vulkan_device};
 #[cfg(feature = "render")]
 pub use beui_renderer_wgpu::{
     Draw, DrawAt, Renderer, Repaint, Repainting, drawing, painted_drawing, renderer_info,

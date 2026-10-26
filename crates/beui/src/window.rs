@@ -5,18 +5,21 @@ use beui_core::app::App;
 use beui_core::renderer::{Loaded, WindowHandle, any_loaded};
 use beui_renderer_wgpu::present::OpenDevice;
 use beui_renderer_wgpu::window::WindowSurface;
+use beui_xr::Xr;
 
 use beui_core::runner::{Adapter, Launch, RunOptions};
 
 use beui_core::runner::environment::{Base, Choice};
 
 pub enum WindowRenderer {
-    Wgpu { open_device: Option<OpenDevice> },
+    Wgpu { open_device: OpenDevice },
 }
 
 impl WindowRenderer {
     pub fn wgpu() -> Self {
-        Self::Wgpu { open_device: None }
+        Self::Wgpu {
+            open_device: OpenDevice::default(),
+        }
     }
 }
 
@@ -26,13 +29,24 @@ pub fn run_with(options: RunOptions, app: impl App + 'static) -> Result<(), Box<
 
 pub fn run_with_renderers(
     mut options: RunOptions,
-    renderers: Vec<WindowRenderer>,
+    mut renderers: Vec<WindowRenderer>,
     app: impl App + 'static,
 ) -> Result<(), Box<dyn Error>> {
-    let open_device = renderers.iter().find_map(|renderer| match renderer {
-        WindowRenderer::Wgpu { open_device } => open_device.clone(),
-    });
     let choice = from_environment(&mut options, NATIVE)?;
+    let xr = open_xr(choice.as_ref());
+    if let Some(xr) = &xr {
+        for renderer in &mut renderers {
+            let WindowRenderer::Wgpu { open_device } = renderer;
+            *open_device = xr.open_device(open_device.extensions);
+        }
+    }
+    let open_device = renderers
+        .iter()
+        .map(|renderer| match renderer {
+            WindowRenderer::Wgpu { open_device } => open_device.clone(),
+        })
+        .next()
+        .unwrap_or_default();
     let app: Box<dyn App> = match (&choice, options.saved_preferences.clone()) {
         (
             Some(Choice {
@@ -44,7 +58,7 @@ pub fn run_with_renderers(
         ) => Box::new(crate::saved_preferences::SavedPreferences::new(app, path)),
         _ => Box::new(app),
     };
-    let adapter = adapt(choice, open_device, || window_adapter(renderers));
+    let adapter = adapt(choice, xr, open_device, || window_adapter(renderers));
     let launch = Launch {
         options,
         context: crate::system_context(),
@@ -81,9 +95,26 @@ fn from_environment(
     Ok(None)
 }
 
+fn open_xr(choice: Option<&Choice>) -> Option<Xr> {
+    if !choice.is_some_and(|choice| choice.xr) {
+        return None;
+    }
+    match Xr::open("beui") {
+        Ok(xr) => {
+            eprintln!("beui: showing space on {}", xr.runtime());
+            Some(xr)
+        }
+        Err(error) => {
+            eprintln!("beui: no headset, so space runs as the simulator: {error}");
+            None
+        }
+    }
+}
+
 fn adapt(
     choice: Option<Choice>,
-    open_device: Option<OpenDevice>,
+    xr: Option<Xr>,
+    open_device: OpenDevice,
     native: impl FnOnce() -> Box<dyn Adapter>,
 ) -> Box<dyn Adapter> {
     let Some(choice) = choice else {
@@ -107,10 +138,12 @@ fn adapt(
     if !choice.space {
         return adapter;
     }
-    Box::new(beui_core::runner::HostedAdapter {
-        adapter,
-        host: Box::new(beui_adapter_space::Space::new()),
-    })
+    let space = beui_adapter_space::Space::new();
+    let host: Box<dyn beui_core::runner::WindowHost> = match xr {
+        Some(xr) => Box::new(beui_xr::XrSpace::new(space, xr.headset())),
+        None => Box::new(space),
+    };
+    Box::new(beui_core::runner::HostedAdapter { adapter, host })
 }
 
 #[cfg(all(unix, not(target_os = "android")))]
@@ -161,7 +194,10 @@ pub fn run_on(
     app: impl App + 'static,
 ) -> Result<(), Box<dyn Error>> {
     let choice = from_environment(&mut options, adapter.name())?;
-    let adapter = adapt(choice, None, || adapter);
+    if choice.as_ref().is_some_and(|choice| choice.xr) {
+        eprintln!("beui: {} cannot show space on a headset", adapter.name());
+    }
+    let adapter = adapt(choice, None, OpenDevice::default(), || adapter);
     let launch = Launch {
         options,
         context: crate::system_context(),

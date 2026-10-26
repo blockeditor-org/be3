@@ -43,6 +43,7 @@ members = [
     "crates/beui-macros",
     "crates/beui-renderer-dom",
     "crates/beui-renderer-wgpu",
+    "crates/beui-xr",
     "crates/beui-tree",
     "crates/beui-html",
     "crates/beui-view",

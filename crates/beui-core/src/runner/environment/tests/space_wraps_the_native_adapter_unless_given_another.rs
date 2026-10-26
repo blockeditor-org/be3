@@ -28,6 +28,7 @@ fn space_wraps_the_native_adapter_unless_given_another() {
                 screen: None,
             },
             space: true,
+            xr: false,
             render: true,
         })
     );

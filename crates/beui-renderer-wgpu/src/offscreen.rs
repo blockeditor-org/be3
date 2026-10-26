@@ -20,7 +20,7 @@ impl OffscreenSurface {
     pub async fn new(
         width: u32,
         height: u32,
-        open_device: Option<OpenDevice>,
+        open_device: OpenDevice,
     ) -> Result<Self, Box<dyn Error>> {
         let gpu = create_offscreen(FORMAT, open_device).await?;
         Ok(Self {

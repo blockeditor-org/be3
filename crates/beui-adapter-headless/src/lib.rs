@@ -17,7 +17,7 @@ const FRAME_INTERVAL: Duration = Duration::from_micros(16_667);
 pub struct Headless {
     pub window: WindowSize,
     pub screen: Option<Vec2>,
-    pub open_device: Option<OpenDevice>,
+    pub open_device: OpenDevice,
     pub render: bool,
 }
 

@@ -5,7 +5,7 @@ use std::future::Future;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::pin::Pin;
 use std::sync::mpsc::{self, Receiver, Sender};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use accesskit::TreeUpdate;
 
@@ -192,6 +192,7 @@ pub struct Runner {
     raster: Option<f32>,
     output: Option<FrameOutput>,
     reports_screens: bool,
+    paced: Option<Instant>,
     exited: bool,
     failure: Option<String>,
 }
@@ -251,6 +252,7 @@ impl Runner {
             raster: None,
             output: None,
             reports_screens: false,
+            paced: None,
             exited: false,
             failure: None,
         }
@@ -512,10 +514,20 @@ impl Runner {
             (None, Some(raster)) => raster * scale / self.native,
             _ => scale,
         };
+        let paced = self.host.as_mut().and_then(|host| host.pace());
+        renderers.set_vsync(paced.is_none());
+        let now = match paced {
+            Some(at) if !self.context.clock_stopped() => {
+                let at = self.paced.map_or(at, |last| at.max(last));
+                self.paced = Some(at);
+                at
+            }
+            _ => self.context.frame_time(),
+        };
         let view = HostView {
             platform: physical,
             pixels_per_point: scale,
-            now: self.context.frame_time(),
+            now,
         };
         if let Some(host) = &mut self.host {
             host.input(&mut self.intake.incoming, &view);

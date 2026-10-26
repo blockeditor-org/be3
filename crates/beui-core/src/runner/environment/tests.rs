@@ -8,6 +8,7 @@ mod no_variables_choose_the_native_adapter_drawn_with_wgpu;
 mod space_wraps_the_native_adapter_unless_given_another;
 mod the_headless_adapter_takes_its_window_and_screen;
 mod the_native_adapter_is_chosen_by_its_own_name;
+mod xr_needs_space_and_names_its_runtime;
 
 fn with(pairs: &[(&str, &str)]) -> impl Fn(&str) -> Option<String> {
     let pairs: Vec<(String, String)> = pairs
@@ -25,5 +26,6 @@ fn with(pairs: &[(&str, &str)]) -> impl Fn(&str) -> Option<String> {
 const NATIVE: Choice = Choice {
     adapter: Base::Native,
     space: false,
+    xr: false,
     render: true,
 };

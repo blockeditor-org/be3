@@ -2,8 +2,9 @@ load("//buck/cargo/buckify.bxl", buckify = "generate")
 
 # Everything ./scripts/verify and ./scripts/ci build, in one buck2 command: the
 # generated rules and Cargo.lock, the sysroot's lockfile, the autofixes
-# (fix.sh), every test and plugin test, which of crates/bootstrap's binaries
-# scripts/internal/pins does not name (and with --bootstrap those binaries),
+# (fix.sh), every test and plugin test, beui checked for Windows
+# (_CROSS_CHECKS), which of crates/bootstrap's binaries scripts/internal/pins
+# does not name (and with --bootstrap those binaries),
 # and on request the paint preview renderer; and
 # crates/verify, for the machine that asked (--host, a platform in
 # buck/platforms), which reads the rest afterwards, running crates/local-tools
@@ -39,6 +40,22 @@ def _host_output(ctx, target: str, host: str) -> Artifact:
 def _outputs(ctx, kind: str, universe: str) -> list[Artifact]:
     targets = ctx.cquery().kind(kind, ctx.cquery().eval(universe))
     return [ctx.analysis(target).providers()[DefaultInfo].default_outputs[0] for target in targets]
+
+# rustc's check pass over beui for the platforms the build server's tests do not
+# run on, so that beui-xr's OpenXR and the rest of beui's native stack keep
+# compiling there: Windows, where the first headset is.
+_CROSS_CHECKS = {
+    "root//crates/beui:beui": ["windows_x86_64"],
+}
+
+def _cross_checks(ctx) -> list[Artifact]:
+    checks = []
+    for target, platforms in _CROSS_CHECKS.items():
+        for platform in platforms:
+            for configured in ctx.cquery(target_platform = "root//buck/platforms:" + platform).eval(target):
+                sub_targets = ctx.analysis(configured).providers()[DefaultInfo].sub_targets
+                checks.append(sub_targets["check"][DefaultInfo].default_outputs[0])
+    return checks
 
 # The package that owns a file: the deepest crate directory above it.
 def _owner(path: str, crate_dirs: list[str]) -> str:
@@ -148,6 +165,7 @@ def _impl(ctx: bxl.Context):
         printed.append(("fix", _starlark_fix(ctx, actions)))
     if args.tests:
         built.extend(_outputs(ctx, "^test_run$", "//crates/... + //compile_fail/..."))
+        built.extend(_cross_checks(ctx))
     if args.plugin_tests:
         printed.extend([("paintings", paintings) for paintings in _outputs(ctx, "^(plugin_test_run|painting_test_run)$", "//crates/...")])
     if args.previews:

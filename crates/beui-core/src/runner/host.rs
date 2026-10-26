@@ -21,6 +21,10 @@ pub struct Hosted {
 pub trait WindowHost {
     fn setup(&mut self, _setup: &Setup) {}
 
+    fn pace(&mut self) -> Option<Instant> {
+        None
+    }
+
     fn input(&mut self, incoming: &mut Vec<Incoming>, view: &HostView);
 
     fn frame(&mut self, output: &FrameOutput, view: &HostView) -> Hosted;

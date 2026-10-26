@@ -141,7 +141,10 @@ fn run_shell(options: beui::RunOptions, shell: Shell, session: bool) -> Result<(
         return beui::run_on(Box::new(beui_adapter_drm::Drm), options, shell);
     }
     let renderer = beui::WindowRenderer::Wgpu {
-        open_device: Some(std::sync::Arc::new(be_dmabuf::open_device)),
+        open_device: beui::OpenDevice {
+            extensions: &be_dmabuf::DEVICE_EXTENSIONS,
+            gpu: None,
+        },
     };
     beui::run_with_renderers(options, vec![renderer], shell)
 }

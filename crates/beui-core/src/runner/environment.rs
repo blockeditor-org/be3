@@ -7,6 +7,7 @@ pub const RENDERER: &str = "BEUI_RENDERER";
 pub const HEADLESS_WINDOW: &str = "BEUI_HEADLESS_WINDOW";
 pub const HEADLESS_SCREEN: &str = "BEUI_HEADLESS_SCREEN";
 pub const AUTOMATION: &str = "BEUI_AUTOMATION";
+pub const XR: &str = "BEUI_XR";
 
 pub const VARIABLES: &[&str] = &[
     ADAPTER,
@@ -15,6 +16,7 @@ pub const VARIABLES: &[&str] = &[
     HEADLESS_WINDOW,
     HEADLESS_SCREEN,
     AUTOMATION,
+    XR,
 ];
 
 pub const HEADLESS_WINDOW_SIZE: &str = "1100x720";
@@ -23,6 +25,7 @@ pub const HEADLESS_WINDOW_SIZE: &str = "1100x720";
 pub struct Choice {
     pub adapter: Base,
     pub space: bool,
+    pub xr: bool,
     pub render: bool,
 }
 
@@ -110,9 +113,16 @@ pub fn choose(native: &str, var: impl Fn(&str) -> Option<String>) -> Result<Choi
             return Err(format!("{RENDERER} takes wgpu or none, not {other}"));
         }
     };
+    let xr = match var(XR).as_deref() {
+        None => false,
+        Some("openxr") if space => true,
+        Some("openxr") => return Err(format!("{XR} is for {ADAPTER}=space only")),
+        Some(other) => return Err(format!("{XR} takes openxr, not {other}")),
+    };
     Ok(Choice {
         adapter,
         space,
+        xr,
         render,
     })
 }

@@ -36,7 +36,9 @@ own to be driven:
 - `BEUI_AUTOMATION=PATH` answers `drive` on the Unix socket PATH. It works in a window too.
 - `BEUI_ADAPTER=space` shows it as a panel in the VR simulator (guides/beui.md, "Space: the VR
   simulator host"), on the adapter `BEUI_SPACE_ADAPTER` names (the platform's own by default,
-  or `headless`); `drive shot` takes the 3D view, every other command the app.
+  or `headless`); `drive shot` takes the 3D view, every other command the app. With
+  `BEUI_XR=openxr` it shows space on an OpenXR headset as well (guides/beui.md, "Headsets"),
+  falling back to the simulator without one; the window is then the headset's mirror.
   Targets, clicks and `find` are in the app's main window only: drive cannot reach what is in
   its other windows (the other panels), since only the 3D host knows where they are on screen.
   Test those through `Space` and a `Runner` instead (`InSpace` in crates/beui/src/tests.rs).

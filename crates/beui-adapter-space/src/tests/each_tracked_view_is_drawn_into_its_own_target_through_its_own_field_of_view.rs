@@ -6,7 +6,7 @@ use crate::head::{Fov, View, Views};
 fn each_tracked_view_is_drawn_into_its_own_target_through_its_own_field_of_view() {
     let gpu = pollster::block_on(beui_renderer_wgpu::present::create_offscreen(
         beui_renderer_wgpu::offscreen::FORMAT,
-        None,
+        Default::default(),
     ))
     .expect("no graphics adapter is available");
     let mut setup = beui_core::app::Setup::new(beui_core::app::Waker::new(|| {}));

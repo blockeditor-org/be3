@@ -307,6 +307,7 @@ direction:
 | `beui-adapter-winit`, `beui-adapter-android`, `beui-adapter-web` | each platform's `Adapter` and `Platform`: its event loop, window or view, input, IME, clipboard, file picker and accessibility adapter (winit's is its own `accessibility.rs` over `accesskit_unix`, `accesskit_windows` and `accesskit_macos`, since `accesskit_winit` has no release for winit 0.31) |
 | `beui-adapter-drm` | Linux's displays and input devices through DRM/KMS and libinput: an `Adapter`, `Platform` and `Renderer` whose screens each keep a retained frame and are drawn when their display flips (the app's frames are paced to the flips too, by `pacing.rs`: at most one per flip, none while nothing changes), handing the flip a fence (or, without atomic fences, waiting for it in the event loop) instead of blocking on the GPU; callers run it with `beui::run_on` |
 | `beui-adapter-space` | the VR simulator `WindowHost` that `BEUI_ADAPTER=space` wraps around a native or headless adapter: the app's windows as panels in a 3D scene ("Space: the VR simulator host" below) |
+| `beui-xr` | space on an OpenXR headset (`BEUI_XR=openxr`): the runtime, the Vulkan device it picks, its session, swapchains and frame pacing, and `XrSpace`, the `WindowHost` that drives `Space` from them ("Headsets" in the space section below) |
 | `beui-adapter-plugin` | the `Adapter`, `Platform` and `Renderer` for one region of a block editor plugin, which the plugin framework drives frame by frame (guides/adding_a_plugin_editor.md); it depends on the plugin framework, so the facade does not offer it |
 
 Core cannot see the crates above it, so the few places it used to reach up are
@@ -3081,6 +3082,48 @@ all its 3D (`glam`) stays in the crate.
   multisampled pass per view resolved into the texture, after painting any
   window that changed; the platform window is still drawn by the `Drawing`
   `Space::frame` returns.
+- Headsets: `BEUI_XR=openxr` (with `BEUI_ADAPTER=space` only) shows space on
+  an OpenXR headset through `crates/beui-xr`; with no runtime or no headset
+  `beui::window`'s `open_xr` says why and space runs as the simulator, and a
+  session the runtime ends later (`Headset::lost`) leaves the simulator's
+  head where the headset left it. `Xr::open` loads the runtime with the
+  `openxr` crate's `loaded` feature: the system's `openxr_loader` if there is
+  one, else the active runtime's own library, found as the Khronos loader
+  finds it (`XR_RUNTIME_JSON`, then `active_runtime.json` under the XDG
+  config directories on Linux, the `ActiveRuntime` registry value on
+  Windows) and negotiated with directly (`runtime.rs`), since Windows has no
+  system loader and SteamVR ships none. It builds on Linux and Windows; on
+  other platforms `Xr::open` refuses. The runtime picks the GPU, so `Xr`
+  is an `OpenGpu` (`beui_renderer_wgpu::present`): `OpenDevice { extensions,
+  gpu }` says how a renderer opens its device, the Vulkan device extensions
+  it wants where the adapter has them (be-dmabuf's `DEVICE_EXTENSIONS`, which
+  block-app passes, enabled through `open_vulkan_device`) and, when set, the
+  `OpenGpu` that makes the instance, adapter and device itself. `Xr` makes
+  the VkInstance and VkDevice through `XR_KHR_vulkan_enable2` with the
+  extensions wgpu wants (`desired_extensions`, `required_device_extensions`)
+  and those, and hands them to wgpu (`Instance::from_raw`, `expose_adapter`,
+  `device_from_raw`), so the window, the panels, dmabufs and the headset
+  share one device; it then starts the session. `XrSpace` wraps `Space` as
+  the host. Frames are paced by the headset: `WindowHost::pace`, which the
+  runner calls before each frame, blocks in `xrWaitFrame` and returns the
+  predicted display time, which becomes `HostView::now` and the frame clock
+  (unless automation stopped it; never earlier than the last), and while a
+  host paces the runner turns the window's vsync off
+  (`Renderer::set_vsync`, `AutoNoVsync`) and the host asks for the next
+  frame at once. Input locates the eyes in a `LOCAL_FLOOR` space (`STAGE`,
+  else `LOCAL` lowered by eye height) and hands them to `Space::set_views`;
+  the frame then draws them into each eye's swapchain image (imported with
+  `create_texture_from_hal`, one swapchain per eye, sRGB where offered),
+  submits, releases the images and ends the frame with a projection layer.
+  A frame begun and not submitted is ended empty at the next `pace`. While
+  the session is idle the host polls the runtime every `IDLE_POLL` (100 ms).
+  The mouse and keyboard work exactly as in the simulator: the mirror window
+  keeps the keyboard focus and the pointer, and the cursor's screen is the
+  mirror, the centre eye at `FOV_Y`, which lies inside a headset's field, so
+  the cursor never strays into the periphery. Steering is the headset's: the
+  simulator's Ctrl+Shift look and walk are overwritten by the next frame's
+  pose. `beui-xr`'s test runs Monado's service with its null compositor on
+  lavapipe (`//buck/sysroot:amd64-xr`) and has it show frames.
 - Carry: on `WindowRequest::BeginMove` (for any window) the panel keeps its pose relative to the
   head, with the grabbed point on the cursor's ray at a fixed distance, so
   moving the mouse or steering carries it. As the mouse swings the ray around

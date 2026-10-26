@@ -378,7 +378,7 @@ mod bench {
             pollster::block_on(OffscreenSurface::new(
                 VIEWPORT.x as u32,
                 VIEWPORT.y as u32,
-                None,
+                Default::default(),
             ))
             .expect("an offscreen GPU")
         });

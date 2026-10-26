@@ -15,47 +15,37 @@ pointer, per-window rasters that change without relayout, and placements
 (PR #691); nothing keeps them across restarts yet. It draws through any
 number of views, each a pose with an off-axis field of view (`head::View`,
 `head::Fov`): the simulator's one, or tracked views an XR host hands
-`Space::set_views` and draws with `Space::draw` (guides/beui.md, "Views").
+`Space::set_views` and draws with `Space::draw` (guides/beui.md, "Views"), and
+`BEUI_XR=openxr` shows it on an OpenXR headset (`crates/beui-xr`, "Headsets").
 Input is one mouse pointer and a keyboard.
 
 The simulator stays a first-class backend throughout: every space test keeps
 running without a headset.
 
-## M1. OpenXR on Linux
+## M1 follow-ups: OpenXR
 
-A new `beui-xr` crate on the `openxr` crate's `loaded` feature (dlopen the
-loader; no C++ build).
+`BEUI_XR=openxr` shows space on a headset through `crates/beui-xr` on Linux
+and Windows (guides/beui.md, "Headsets"), checked in CI against Monado's null
+compositor and compiled for Windows by `./scripts/verify`. What remains:
 
-- **Device.** Widen `beui_renderer_wgpu::present::OpenDevice` so XR creates
-  the VkInstance and VkDevice (`XR_KHR_vulkan_enable2`) and hands them to wgpu
-  through `wgpu::hal::vulkan::Instance::from_raw`, `expose_adapter` and
-  `device_from_raw`, merging the extensions `be_dmabuf::open_device` adds in
-  its `open_with_callback`.
-- **Swapchains.** Import swapchain images as `be-dmabuf` imports buffers
-  (`create_texture_from_hal`).
-- **Pacing.** A host pacing hook: `xrWaitFrame` drives frames, winit runs in
-  `Poll`, the mirror presents without vsync, and the predicted display time
-  is `HostView::now` and the frame clock.
-- **Views.** `xrLocateViews` against a `LOCAL_FLOOR` or `STAGE` space at the
-  predicted display time, handed to `Space::set_views` as `head::Views`
-  (`Fov::from_angles` takes `XrFovf`), and each eye drawn with `Space::draw`
-  into its swapchain image.
-- **Drawing.** Multiview (wgpu 29's `multiview_mask`, `@builtin(view_index)`)
-  with a two-pass fallback; MSAA resolves into the swapchain.
-- **Mirror.** A desktop window mirrors the view and keeps keyboard focus.
-
-Risks:
-
-- hal interop is unsafe and breaks across wgpu upgrades;
-- swapchain acquire and release must be ordered around wgpu's submits;
-- XR picks the GPU, and dmabuf import (Wayland clients) needs that same device;
-- `xrWaitFrame` blocks the main loop, which also runs plugins and the Wayland
-  server.
-
-About 3-4k lines.
-
-CI: a smoke test against Monado's headless (null) compositor on lavapipe,
-landed with M1.
+- **Hardware.** Untried on a real headset: SteamVR on Windows with the
+  Bigscreen Beyond first, then SteamVR and Monado on Linux.
+- **Multiview.** Each eye is its own pass and swapchain; one pass with
+  wgpu's `multiview_mask` and `@builtin(view_index)` into a two-layer
+  swapchain would halve the draw calls.
+- **A hidden mirror.** The runner skips a frame while the platform window has
+  no size (`Renderers::physical`), so minimising the mirror stops the
+  headset's frames; a paced host should keep running then.
+- **Blocking.** `xrWaitFrame` blocks the main loop, which also runs plugins and
+  the Wayland server; waiting on another thread and waking the loop would
+  free it.
+- **Late poses.** The eyes are located when input begins, before the app's
+  frame; locating them again just before drawing would cut latency.
+- **A lost session** falls back to the simulator for the rest of the run;
+  nothing opens a new one when the runtime comes back.
+- **Body offset.** The simulator's Ctrl+Shift look and walk do nothing on a
+  headset; turning and walking (M10's snap turn and recenter) need an offset
+  between the tracking space and the world.
 
 ## M3. Controllers as lasers
 

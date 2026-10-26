@@ -18,12 +18,11 @@ pub struct WindowSurface {
 impl WindowSurface {
     pub async fn new(
         window: Arc<dyn WindowHandle>,
-        open_device: Option<OpenDevice>,
+        open_device: OpenDevice,
     ) -> Result<Self, Box<dyn Error>> {
-        let instance =
-            wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
+        let (instance, adapter) = open_device.instance()?;
         let probe = instance.create_surface(window.clone())?;
-        let gpu = create_gpu(instance, &probe, open_device).await?;
+        let gpu = create_gpu(instance, adapter, &probe, open_device).await?;
         drop(probe);
         Ok(Self {
             target: Target::new(gpu.format),
@@ -94,6 +93,10 @@ impl Renderer for WindowSurface {
 
     fn note(&mut self, output: &WindowOutput, scale: f32, background: Color32) {
         self.target.note(output, scale, background);
+    }
+
+    fn set_vsync(&mut self, vsync: bool) {
+        self.target.set_vsync(&self.gpu, vsync);
     }
 
     fn present(&mut self, background: Color32) -> bool {

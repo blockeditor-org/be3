@@ -13,6 +13,7 @@ window = [
     "dep:beui-adapter-headless",
     "dep:beui-adapter-space",
     "dep:beui-adapter-winit",
+    "dep:beui-xr",
     "dep:pollster",
     "dep:serde_json",
 ]
@@ -45,6 +46,7 @@ reactive = { path = "../reactive" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 beui-adapter-space = { path = "../beui-adapter-space", optional = true }
+beui-xr = { path = "../beui-xr", optional = true }
 pollster = { version = "0.4", optional = true }
 serde_json = { version = "1", optional = true }
 

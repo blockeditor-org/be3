@@ -1366,6 +1366,7 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//third-party/rust:ash-0.38.0+1.3.281",
                     "//third-party/rust:pollster-0.4.0",
                     "//third-party/rust:rustix-1.1.4",
@@ -1380,6 +1381,7 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//third-party/rust:ash-0.38.0+1.3.281",
                     "//third-party/rust:pollster-0.4.0",
                     "//third-party/rust:rustix-1.1.4",
@@ -1394,6 +1396,7 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//third-party/rust:ash-0.38.0+1.3.281",
                     "//third-party/rust:pollster-0.4.0",
                     "//third-party/rust:rustix-1.1.4",
@@ -1408,6 +1411,7 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//third-party/rust:ash-0.38.0+1.3.281",
                     "//third-party/rust:pollster-0.4.0",
                     "//third-party/rust:rustix-1.1.4",
@@ -1422,6 +1426,7 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//third-party/rust:ash-0.38.0+1.3.281",
                     "//third-party/rust:pollster-0.4.0",
                     "//third-party/rust:rustix-1.1.4",
@@ -1436,6 +1441,7 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//third-party/rust:ash-0.38.0+1.3.281",
                     "//third-party/rust:pollster-0.4.0",
                     "//third-party/rust:rustix-1.1.4",
@@ -1450,6 +1456,7 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//third-party/rust:ash-0.38.0+1.3.281",
                     "//third-party/rust:pollster-0.4.0",
                     "//third-party/rust:rustix-1.1.4",
@@ -5618,6 +5625,7 @@ crates = {
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-view:beui-view",
+                    "//crates/beui-xr:beui-xr",
                     "//crates/reactive:reactive",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:pollster-0.4.0",
@@ -5637,6 +5645,7 @@ crates = {
                             "//crates/beui-macros:beui_macros",
                             "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                             "//crates/beui-view:beui-view",
+                            "//crates/beui-xr:beui-xr",
                             "//crates/reactive:reactive",
                             "//crates/text-editor-core:text-editor-core",
                             "//third-party/rust:accesskit-0.24.1",
@@ -5664,6 +5673,7 @@ crates = {
                             "//crates/beui-macros:beui_macros",
                             "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                             "//crates/beui-view:beui-view",
+                            "//crates/beui-xr:beui-xr",
                             "//crates/reactive:reactive",
                             "//crates/text-editor-core:text-editor-core",
                             "//third-party/rust:accesskit-0.24.1",
@@ -5710,6 +5720,7 @@ crates = {
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-view:beui-view",
+                    "//crates/beui-xr:beui-xr",
                     "//crates/reactive:reactive",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:pollster-0.4.0",
@@ -5730,6 +5741,7 @@ crates = {
                             "//crates/beui-macros:beui_macros",
                             "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                             "//crates/beui-view:beui-view",
+                            "//crates/beui-xr:beui-xr",
                             "//crates/reactive:reactive",
                             "//crates/text-editor-core:text-editor-core",
                             "//third-party/rust:accesskit-0.24.1",
@@ -5758,6 +5770,7 @@ crates = {
                             "//crates/beui-macros:beui_macros",
                             "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                             "//crates/beui-view:beui-view",
+                            "//crates/beui-xr:beui-xr",
                             "//crates/reactive:reactive",
                             "//crates/text-editor-core:text-editor-core",
                             "//third-party/rust:accesskit-0.24.1",
@@ -5804,6 +5817,7 @@ crates = {
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-view:beui-view",
+                    "//crates/beui-xr:beui-xr",
                     "//crates/reactive:reactive",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:pollster-0.4.0",
@@ -5824,6 +5838,7 @@ crates = {
                             "//crates/beui-macros:beui_macros",
                             "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                             "//crates/beui-view:beui-view",
+                            "//crates/beui-xr:beui-xr",
                             "//crates/reactive:reactive",
                             "//crates/text-editor-core:text-editor-core",
                             "//third-party/rust:accesskit-0.24.1",
@@ -5852,6 +5867,7 @@ crates = {
                             "//crates/beui-macros:beui_macros",
                             "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                             "//crates/beui-view:beui-view",
+                            "//crates/beui-xr:beui-xr",
                             "//crates/reactive:reactive",
                             "//crates/text-editor-core:text-editor-core",
                             "//third-party/rust:accesskit-0.24.1",
@@ -5898,6 +5914,7 @@ crates = {
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-view:beui-view",
+                    "//crates/beui-xr:beui-xr",
                     "//crates/reactive:reactive",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:pollster-0.4.0",
@@ -5918,6 +5935,7 @@ crates = {
                             "//crates/beui-macros:beui_macros",
                             "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                             "//crates/beui-view:beui-view",
+                            "//crates/beui-xr:beui-xr",
                             "//crates/reactive:reactive",
                             "//crates/text-editor-core:text-editor-core",
                             "//third-party/rust:accesskit-0.24.1",
@@ -5946,6 +5964,7 @@ crates = {
                             "//crates/beui-macros:beui_macros",
                             "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                             "//crates/beui-view:beui-view",
+                            "//crates/beui-xr:beui-xr",
                             "//crates/reactive:reactive",
                             "//crates/text-editor-core:text-editor-core",
                             "//third-party/rust:accesskit-0.24.1",
@@ -5992,6 +6011,7 @@ crates = {
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-view:beui-view",
+                    "//crates/beui-xr:beui-xr",
                     "//crates/reactive:reactive",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:pollster-0.4.0",
@@ -6012,6 +6032,7 @@ crates = {
                             "//crates/beui-macros:beui_macros",
                             "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                             "//crates/beui-view:beui-view",
+                            "//crates/beui-xr:beui-xr",
                             "//crates/reactive:reactive",
                             "//crates/text-editor-core:text-editor-core",
                             "//third-party/rust:accesskit-0.24.1",
@@ -6040,6 +6061,7 @@ crates = {
                             "//crates/beui-macros:beui_macros",
                             "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                             "//crates/beui-view:beui-view",
+                            "//crates/beui-xr:beui-xr",
                             "//crates/reactive:reactive",
                             "//crates/text-editor-core:text-editor-core",
                             "//third-party/rust:accesskit-0.24.1",
@@ -6135,6 +6157,7 @@ crates = {
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-view:beui-view",
+                    "//crates/beui-xr:beui-xr",
                     "//crates/reactive:reactive",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:pollster-0.4.0",
@@ -6155,6 +6178,7 @@ crates = {
                             "//crates/beui-macros:beui_macros",
                             "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                             "//crates/beui-view:beui-view",
+                            "//crates/beui-xr:beui-xr",
                             "//crates/reactive:reactive",
                             "//crates/text-editor-core:text-editor-core",
                             "//third-party/rust:accesskit-0.24.1",
@@ -6183,6 +6207,7 @@ crates = {
                             "//crates/beui-macros:beui_macros",
                             "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                             "//crates/beui-view:beui-view",
+                            "//crates/beui-xr:beui-xr",
                             "//crates/reactive:reactive",
                             "//crates/text-editor-core:text-editor-core",
                             "//third-party/rust:accesskit-0.24.1",
@@ -6229,6 +6254,7 @@ crates = {
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-view:beui-view",
+                    "//crates/beui-xr:beui-xr",
                     "//crates/reactive:reactive",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:pollster-0.4.0",
@@ -6249,6 +6275,7 @@ crates = {
                             "//crates/beui-macros:beui_macros",
                             "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                             "//crates/beui-view:beui-view",
+                            "//crates/beui-xr:beui-xr",
                             "//crates/reactive:reactive",
                             "//crates/text-editor-core:text-editor-core",
                             "//third-party/rust:accesskit-0.24.1",
@@ -6277,6 +6304,7 @@ crates = {
                             "//crates/beui-macros:beui_macros",
                             "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                             "//crates/beui-view:beui-view",
+                            "//crates/beui-xr:beui-xr",
                             "//crates/reactive:reactive",
                             "//crates/text-editor-core:text-editor-core",
                             "//third-party/rust:accesskit-0.24.1",
@@ -9550,6 +9578,156 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/beui-xr": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "beui_xr",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "beui-xr",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-adapter-space:beui-adapter-space",
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                    "//third-party/rust:glam-0.30.10",
+                    "//third-party/rust:wgpu-29.0.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/beui-font-freetype:beui-font-freetype",
+                    "//third-party/rust:pollster-0.4.0",
+                ],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-adapter-space:beui-adapter-space",
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                    "//third-party/rust:ash-0.38.0+1.3.281",
+                    "//third-party/rust:glam-0.30.10",
+                    "//third-party/rust:libloading-0.9.0",
+                    "//third-party/rust:openxr-0.22.0",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:wgpu-29.0.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/beui-font-freetype:beui-font-freetype",
+                    "//third-party/rust:pollster-0.4.0",
+                ],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-adapter-space:beui-adapter-space",
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                    "//third-party/rust:ash-0.38.0+1.3.281",
+                    "//third-party/rust:glam-0.30.10",
+                    "//third-party/rust:libloading-0.9.0",
+                    "//third-party/rust:openxr-0.22.0",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:wgpu-29.0.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/beui-font-freetype:beui-font-freetype",
+                    "//third-party/rust:pollster-0.4.0",
+                ],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-adapter-space:beui-adapter-space",
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                    "//third-party/rust:glam-0.30.10",
+                    "//third-party/rust:wgpu-29.0.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/beui-font-freetype:beui-font-freetype",
+                    "//third-party/rust:pollster-0.4.0",
+                ],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-adapter-space:beui-adapter-space",
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                    "//third-party/rust:glam-0.30.10",
+                    "//third-party/rust:wgpu-29.0.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/beui-font-freetype:beui-font-freetype",
+                    "//third-party/rust:pollster-0.4.0",
+                ],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-adapter-space:beui-adapter-space",
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                    "//third-party/rust:ash-0.38.0+1.3.281",
+                    "//third-party/rust:glam-0.30.10",
+                    "//third-party/rust:libloading-0.9.0",
+                    "//third-party/rust:openxr-0.22.0",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:wgpu-29.0.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/beui-font-freetype:beui-font-freetype",
+                    "//third-party/rust:pollster-0.4.0",
+                ],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-adapter-space:beui-adapter-space",
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                    "//third-party/rust:ash-0.38.0+1.3.281",
+                    "//third-party/rust:glam-0.30.10",
+                    "//third-party/rust:libloading-0.9.0",
+                    "//third-party/rust:openxr-0.22.0",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:wgpu-29.0.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/beui-font-freetype:beui-font-freetype",
+                    "//third-party/rust:pollster-0.4.0",
+                ],
                 "test_features": [],
             },
         },
@@ -47230,6 +47408,68 @@ third_party = {
         "size_bytes": 30222,
         "version": "0.8.9",
     },
+    "libloading-0.9.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Simonas Kazlauskas <libloading@kazlauskas.me>",
+            "CARGO_PKG_DESCRIPTION": "Bindings around the platform's dynamic library loading primitives with greatly improved memory safety.",
+            "CARGO_PKG_LICENSE": "ISC",
+            "CARGO_PKG_README": "README.mkd",
+            "CARGO_PKG_REPOSITORY": "https://github.com/nagisa/rust_libloading/",
+            "CARGO_PKG_RUST_VERSION": "1.88.0",
+        },
+        "library": {
+            "crate": "libloading",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "libloading",
+        "platforms": {
+            "linux-arm64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":windows-link-0.2.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":windows-link-0.2.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "754ca22de805bb5744484a5b151a9e1a8e837d5dc232c2d7d8c2e3492edc8b60",
+        "size_bytes": 33816,
+        "version": "0.9.0",
+    },
     "libm-0.2.16": {
         "build_script": {
             "crate_root": "build.rs",
@@ -52572,6 +52812,132 @@ third_party = {
         "sha256": "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381",
         "size_bytes": 7066,
         "version": "0.3.1",
+    },
+    "openxr-0.22.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Benjamin Saunders <ben.e.saunders@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "High-level, mostly-safe OpenXR bindings",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/Ralith/openxrs",
+        },
+        "library": {
+            "crate": "openxr",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "openxr",
+        "platforms": {
+            "linux-arm64": {
+                "deps": [
+                    ":libc-0.2.186",
+                    ":libloading-0.9.0",
+                ],
+                "features": [
+                    "libloading",
+                    "loaded",
+                ],
+                "named_deps": {
+                    "sys": ":openxr-sys-0.14.0",
+                },
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":libc-0.2.186",
+                    ":libloading-0.9.0",
+                ],
+                "features": [
+                    "libloading",
+                    "loaded",
+                ],
+                "named_deps": {
+                    "sys": ":openxr-sys-0.14.0",
+                },
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":libc-0.2.186",
+                    ":libloading-0.9.0",
+                ],
+                "features": [
+                    "libloading",
+                    "loaded",
+                ],
+                "named_deps": {
+                    "sys": ":openxr-sys-0.14.0",
+                },
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":libc-0.2.186",
+                    ":libloading-0.9.0",
+                ],
+                "features": [
+                    "libloading",
+                    "loaded",
+                ],
+                "named_deps": {
+                    "sys": ":openxr-sys-0.14.0",
+                },
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "53770c8f7d3f185bcb577b78f2ed8e33bbf7cdf5cd57fb68b5ec0b4117b79de6",
+        "size_bytes": 96869,
+        "version": "0.22.0",
+    },
+    "openxr-sys-0.14.0": {
+        "build_script": {
+            "crate_root": "build.rs",
+            "edition": "2024",
+        },
+        "env": {
+            "CARGO_PKG_AUTHORS": "Benjamin Saunders <ben.e.saunders@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "OpenXR FFI bindings",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/Ralith/openxrs",
+        },
+        "library": {
+            "crate": "openxr_sys",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "links": "openxr_loader",
+        "name": "openxr-sys",
+        "platforms": {
+            "linux-arm64": {
+                "deps": [
+                    ":libc-0.2.186",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":libc-0.2.186",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":libc-0.2.186",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":libc-0.2.186",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "febb5d50cee7b964b69d5b7a810ed9620fc64f41382ffefe05434754c7a48877",
+        "size_bytes": 850888,
+        "version": "0.14.0",
     },
     "ordered-float-5.3.0": {
         "build_script": None,

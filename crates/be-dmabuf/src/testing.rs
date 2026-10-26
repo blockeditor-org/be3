@@ -15,7 +15,7 @@ pub fn vulkan_device() -> (wgpu::Device, wgpu::Queue) {
         compatible_surface: None,
     }))
     .expect("a Vulkan adapter is available");
-    crate::open_device(
+    beui_renderer_wgpu::present::open_vulkan_device(
         &adapter,
         &wgpu::DeviceDescriptor {
             label: Some("dmabuf test device"),
@@ -25,6 +25,7 @@ pub fn vulkan_device() -> (wgpu::Device, wgpu::Queue) {
             memory_hints: wgpu::MemoryHints::Performance,
             trace: wgpu::Trace::Off,
         },
+        &crate::DEVICE_EXTENSIONS,
     )
     .expect("the Vulkan device opens")
 }
