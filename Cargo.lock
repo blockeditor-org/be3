@@ -1143,6 +1143,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-win32-input"
+version = "0.1.0"
+dependencies = [
+ "beui-core",
+ "windows 0.62.2",
+]
+
+[[package]]
 name = "bench"
 version = "0.1.0"
 

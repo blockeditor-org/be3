@@ -25,6 +25,7 @@ members = [
     "crates/be-vcs",
     "crates/be-wayland",
     "crates/be-win32",
+    "crates/be-win32-input",
     "crates/bench",
     "crates/beui",
     "crates/beui-platform-android",
