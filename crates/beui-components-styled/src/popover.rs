@@ -1,6 +1,6 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
-use beui_view::types::icons::Glyph;
 use beui_macros::{component, view};
+use beui_view::types::icons::Glyph;
 
 use crate::button::{ButtonSize, ButtonVariant};
 use crate::menu_button::PopupButtonFace;

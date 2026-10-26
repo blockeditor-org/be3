@@ -1,11 +1,11 @@
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
+use beui_view::primitives::*;
+use beui_view::reactive::NodeId;
+use beui_view::reactive::*;
 use beui_view::types::Vec2;
 use beui_view::types::{CursorIcon, Key, KeyPress};
-use beui_view::reactive::NodeId;
-use beui_view::primitives::*;
-use beui_view::reactive::*;
 
 pub struct PointerLockHandle {
     pub locked: Binding<bool>,

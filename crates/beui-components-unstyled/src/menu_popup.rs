@@ -3,10 +3,10 @@ use beui_macros::{component, view};
 use crate::anchored::{Anchored, AnchoredHandle, AnchoredSheetHandle, AnchoredStyle, SheetWhen};
 use crate::button::ButtonHandle;
 use crate::menu::{MenuItem, MenuList, MenuRowHandle, MenuThen};
-use beui_view::reactive::OverlayAnchor;
-use beui_view::types::Placement;
 use beui_view::reactive::NodeId;
+use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
+use beui_view::types::Placement;
 
 #[derive(Clone, Copy)]
 pub struct MenuStyle {

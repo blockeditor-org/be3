@@ -12,7 +12,9 @@ const SPAN_LINE_THICKNESS: f32 = 1.0 / 16.0;
 pub const TAB_COLUMNS: f32 = 4.0;
 const WRAP_SLACK: f32 = 1.0 / 1024.0;
 
-pub use beui_types::text::{CaretHandle, SpanBackground, SpanStyle, TextCaret, TextGlyph, TextMark};
+pub use beui_types::text::{
+    CaretHandle, SpanBackground, SpanStyle, TextCaret, TextGlyph, TextMark,
+};
 
 pub const OBJECT: &str = "\u{fffc}";
 
@@ -87,7 +89,6 @@ struct TextSpan {
     kind: SpanKind,
     break_after: bool,
 }
-
 
 pub const HANDLE_RADIUS: f32 = 9.0;
 pub const HANDLE_GAP: f32 = 4.0;

@@ -43,7 +43,6 @@ impl Default for FrameStyle {
     }
 }
 
-
 pub struct FrameNode {
     pub child: Option<NodeId>,
     pub width: Extent,

@@ -3,15 +3,15 @@ use std::rc::Rc;
 
 use beui_macros::{component, view};
 
-use beui_view::reactive::Draw;
-use beui_view::types::{Direction, ScrollPosition};
-use beui_view::types::Color32;
-use beui_view::types::{Pos2, Rect, pos2};
-use beui_view::types::PointerPress;
-use beui_view::reactive::NodeId;
 use beui_core::painter::Painter;
 use beui_view::primitives::*;
+use beui_view::reactive::Draw;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::Color32;
+use beui_view::types::PointerPress;
+use beui_view::types::{Direction, ScrollPosition};
+use beui_view::types::{Pos2, Rect, pos2};
 
 const MINIMUM_THUMB: f32 = 0.08;
 

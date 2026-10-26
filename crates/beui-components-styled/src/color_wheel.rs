@@ -9,12 +9,12 @@ use beui_macros::{component, view};
 use crate::color_picker::thumb;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ColorPickerState, ColorWheelHandle, WheelGeometry, WheelPoint};
-use beui_view::types::{Color32, Hsva, Oklch};
-use beui_view::types::{Rect, Vec2};
-use beui_view::reactive::NodeId;
 use beui_core::painter::Painter;
 use beui_view::primitives::Drawing;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::{Color32, Hsva, Oklch};
+use beui_view::types::{Rect, Vec2};
 
 pub const WHEEL_SIZE: f32 = 200.0;
 const RING_WIDTH: f32 = 22.0;

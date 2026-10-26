@@ -1,6 +1,6 @@
 use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
-use beui_view::types::Overflow;
 use beui_macros::{component, view};
+use beui_view::types::Overflow;
 
 use crate::button::{Button, ButtonVariant};
 use crate::calendar::{CALENDAR_WIDTH, Calendar};
@@ -21,10 +21,10 @@ use beui_components_unstyled::{
     DateTimeTriggerHandle, PopoverPlacement, PopupTriggerHandle, TimeOptionHandle, grid_columns,
     narrower_than,
 };
-use beui_view::types::{Align, Direction, Justify, TextAlign};
-use beui_view::types::icons::{ICON_CALENDAR_DAYS, ICON_CLOCK};
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::icons::{ICON_CALENDAR_DAYS, ICON_CLOCK};
+use beui_view::types::{Align, Direction, Justify, TextAlign};
 
 const HEIGHT: Size = Size::Field;
 const PADDING_HORIZONTAL: Space = Space::Md;

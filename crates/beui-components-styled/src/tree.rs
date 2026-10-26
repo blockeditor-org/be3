@@ -17,11 +17,13 @@ use beui_components_unstyled::{
     ButtonHandle, Edge, PopupTriggerHandle, TextInputHandle, TreeItem, TreeMenu, TreeRevealHandle,
     TreeRowEdit, TreeRowHandle, TreeToggleHandle,
 };
-use beui_view::types::TextAlign;
-use beui_view::types::icons::{ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_CHEVRON_DOWN, ICON_CHEVRON_RIGHT, ICON_ELLIPSIS};
-use beui_view::reactive::NodeId;
 use beui_view::primitives::Spacer;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::TextAlign;
+use beui_view::types::icons::{
+    ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_CHEVRON_DOWN, ICON_CHEVRON_RIGHT, ICON_ELLIPSIS,
+};
 
 const INDENT: Space = Space::Lg;
 const CHEVRON_RADIUS: Radius = Radius::Sm;

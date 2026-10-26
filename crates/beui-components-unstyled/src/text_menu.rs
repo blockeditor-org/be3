@@ -6,11 +6,11 @@ use crate::ContextMenu;
 use crate::MenuItem;
 use crate::TextAreaState;
 use crate::menu_popup::MenuStyle;
+use beui_view::primitives::*;
+use beui_view::reactive::NodeId;
+use beui_view::reactive::*;
 use beui_view::types::ItemSize;
 use beui_view::types::Rect;
-use beui_view::reactive::NodeId;
-use beui_view::primitives::*;
-use beui_view::reactive::*;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 enum MenuAction {

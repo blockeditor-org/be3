@@ -2,12 +2,12 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use accesskit::{Node, Role, Toggled};
-use beui_view::types::Color32;
-use beui_view::types::icons::Glyph;
-use beui_view::types::Image;
-use beui_view::reactive::NodeId;
 use beui_macros::{component, view};
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::Color32;
+use beui_view::types::Image;
+use beui_view::types::icons::Glyph;
 
 use crate::modal::{Modal, ModalHandle, ModalMotion};
 use crate::scroll::ScrollbarStyle;

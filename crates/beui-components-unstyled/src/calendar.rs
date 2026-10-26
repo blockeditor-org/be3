@@ -6,11 +6,11 @@ use beui_macros::{component, view};
 use crate as unstyled;
 use crate::ButtonHandle;
 use crate::datetime::{Date, Weekday};
+use beui_view::primitives::*;
+use beui_view::reactive::NodeId;
+use beui_view::reactive::*;
 use beui_view::types::Direction;
 use beui_view::types::{Key, KeyPress};
-use beui_view::reactive::NodeId;
-use beui_view::primitives::*;
-use beui_view::reactive::*;
 
 const WEEKS: usize = 6;
 const DAYS_PER_WEEK: usize = 7;

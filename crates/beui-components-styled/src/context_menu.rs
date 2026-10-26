@@ -1,7 +1,7 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
+use beui_macros::{component, view};
 use beui_view::types::Overflow;
 use beui_view::types::icons::Glyph;
-use beui_macros::{component, view};
 
 use crate::border::Separator;
 use crate::button::{ButtonFace, ButtonVariant};
@@ -15,13 +15,15 @@ use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     ButtonHandle, MenuItem, MenuRowHandle, MenuRowKind, MenuStyle, ScrollbarStyle, SheetWhen,
 };
-use beui_view::types::TextAlign;
-use beui_view::reactive::OverlayAnchor;
-use beui_view::types::Placement;
-use beui_view::types::{Pos2, Rect};
-use beui_view::types::icons::{ICON_CHECK, ICON_CHEVRON_DOWN, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_DOT};
 use beui_view::reactive::NodeId;
+use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
+use beui_view::types::Placement;
+use beui_view::types::TextAlign;
+use beui_view::types::icons::{
+    ICON_CHECK, ICON_CHEVRON_DOWN, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_DOT,
+};
+use beui_view::types::{Pos2, Rect};
 
 const PADDING_HORIZONTAL: Space = Space::Lg;
 const PADDING_VERTICAL: Space = Space::Sm;

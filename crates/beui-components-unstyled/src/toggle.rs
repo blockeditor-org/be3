@@ -1,11 +1,11 @@
 use accesskit::{Node, Role, Toggled};
-use beui_view::types::icons::Glyph;
 use beui_macros::{component, view};
+use beui_view::types::icons::Glyph;
 
 use beui_view::types::CursorIcon;
 
-use beui_view::reactive::NodeId;
 use beui_view::primitives::*;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
 pub struct ToggleHandle {

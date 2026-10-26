@@ -1,9 +1,9 @@
 use beui_macros::component;
 
 use beui_components_unstyled::SyntaxColors;
-use beui_view::types::Color32;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::Color32;
 
 use crate::frame::{Border, ColorRole};
 use crate::tokens::{Size, Space};

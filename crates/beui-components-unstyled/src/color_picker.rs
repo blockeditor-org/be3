@@ -6,12 +6,12 @@ use beui_macros::{component, view};
 use crate::choice::{Choice, ChoiceKind, ChoiceOption, ChoiceOptionHandle};
 use crate::color_area::{ColorArea, ColorAreaHandle};
 use crate::slider::{Slider, SliderHandle};
-use beui_view::types::Direction;
-use beui_view::types::{Color32, Hsva, Oklch, format_hex, parse_hex};
-use beui_view::types::{Rect, pos2};
-use beui_view::types::Image;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::Direction;
+use beui_view::types::Image;
+use beui_view::types::{Color32, Hsva, Oklch, format_hex, parse_hex};
+use beui_view::types::{Rect, pos2};
 
 const HUE_TEXELS: u32 = 96;
 const PLANE_TEXELS: u32 = 32;

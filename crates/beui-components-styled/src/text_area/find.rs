@@ -10,10 +10,12 @@ use crate::TextInput;
 use crate::ToggleButton;
 use crate::text::{Text, TextColor, TextStyle};
 use beui_components_unstyled::TextAreaState;
-use beui_view::types::TextAlign;
-use beui_view::types::icons::{ICON_CASE_SENSITIVE, ICON_CHEVRON_DOWN, ICON_CHEVRON_UP, ICON_SEARCH, ICON_X};
-use beui_view::reactive::NodeId;
 use beui_view::primitives::BackHandler;
+use beui_view::reactive::NodeId;
+use beui_view::types::TextAlign;
+use beui_view::types::icons::{
+    ICON_CASE_SENSITIVE, ICON_CHEVRON_DOWN, ICON_CHEVRON_UP, ICON_SEARCH, ICON_X,
+};
 
 use crate::list::List;
 use crate::tokens::{Padding, Size, Space};

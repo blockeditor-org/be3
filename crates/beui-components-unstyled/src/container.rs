@@ -1,9 +1,9 @@
 use beui_macros::{component, view};
 
-use beui_view::types::Vec2;
-use beui_view::reactive::NodeId;
 use beui_view::primitives::*;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::Vec2;
 
 #[derive(Clone, Copy)]
 pub struct ContainerSize(pub ReadSignal<Vec2>);

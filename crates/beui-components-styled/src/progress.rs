@@ -2,8 +2,8 @@ use crate::frame::{ColorRole, Frame, Radius};
 use beui_components_unstyled::{Progress as Bare, ProgressHandle};
 use beui_macros::{component, view};
 
-use beui_view::reactive::NodeId;
 use beui_view::primitives::Spacer;
+use beui_view::reactive::NodeId;
 
 use crate::list::List;
 use crate::tokens::{Length, Size, Space};

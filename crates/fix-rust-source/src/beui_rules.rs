@@ -35,7 +35,12 @@ const COMPONENT_CRATES: [&str; 8] = [
     "crates\\beui-keyboard\\",
 ];
 
-const BASE_CRATES: [&str; 2] = ["crates/beui-core/", "crates\\beui-core\\"];
+const BASE_CRATES: [&str; 4] = [
+    "crates/beui-core/",
+    "crates/beui-types/",
+    "crates\\beui-core\\",
+    "crates\\beui-types\\",
+];
 
 const DOCUMENT_ACCESS: [&str; 5] = [
     "with_document",

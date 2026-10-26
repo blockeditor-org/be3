@@ -5,11 +5,11 @@ use crate as unstyled;
 use crate::ButtonHandle;
 use crate::datetime::{HourCycle, MINUTES_PER_DAY, Time};
 use crate::scroll::ScrollbarStyle;
+use beui_view::primitives::*;
+use beui_view::reactive::NodeId;
+use beui_view::reactive::*;
 use beui_view::types::Direction;
 use beui_view::types::{Key, KeyPress};
-use beui_view::reactive::NodeId;
-use beui_view::primitives::*;
-use beui_view::reactive::*;
 
 const PAGE_MINUTES: u32 = 60;
 const MORNING: u32 = 9 * 60;

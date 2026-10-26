@@ -1,6 +1,6 @@
-use beui_view::reactive::NodeId;
 use beui_macros::{component, view};
 use beui_view::primitives::{self, GridCell};
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
 use crate::tokens::{Space, resolved};

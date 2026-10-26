@@ -10,15 +10,15 @@ use beui::selection::{
     RowKey, RowWatcher, SelectableRows, SelectionItem, rows_of, scroll_toward, selection_items,
     texts_under,
 };
-use beui_view::types::Color32;
-use beui_view::types::{Pos2, Rect, Vec2};
-use beui_view::types::{Key, KeyPress, PointerPress};
-use beui_view::reactive::KeyAt;
-use beui_view::types::KeyPhase;
-use beui_view::reactive::NodeId;
-use beui_view::types::CaretHandle;
 use beui_core::rich::{handle_center, toolbar_anchor};
 use beui_macros::{component, view};
+use beui_view::reactive::KeyAt;
+use beui_view::reactive::NodeId;
+use beui_view::types::CaretHandle;
+use beui_view::types::Color32;
+use beui_view::types::KeyPhase;
+use beui_view::types::{Key, KeyPress, PointerPress};
+use beui_view::types::{Pos2, Rect, Vec2};
 
 const HANDLE_HIT_RADIUS: f32 = 24.0;
 const END: usize = usize::MAX;

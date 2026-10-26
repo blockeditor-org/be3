@@ -1,14 +1,14 @@
 use accesskit::{HasPopup, Node, Role};
-use beui_view::types::icons::Glyph;
 use beui_macros::{component, view};
+use beui_view::types::icons::Glyph;
 
 use crate::menu::MenuItem;
 use crate::menu_popup::{MenuPopup, MenuStyle};
 use crate::popup_trigger::{PopupTrigger, PopupTriggerHandle};
-use beui_view::types::{PointerPress, ScrollGesture};
-use beui_view::reactive::NodeId;
 use beui_view::primitives::*;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::{PointerPress, ScrollGesture};
 
 #[component]
 pub fn MenuButton(

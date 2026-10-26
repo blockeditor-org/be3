@@ -1,6 +1,6 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
-use beui_view::types::Overflow;
 use beui_macros::{component, view};
+use beui_view::types::Overflow;
 
 use crate::focus_ring::FocusRing;
 use beui_view::types::TextAlign;
@@ -9,8 +9,8 @@ use crate::list::List;
 use crate::text::{Text, TextColor, TextSize};
 use crate::tokens::{Size, Space, Stroke};
 use beui_components_unstyled::{Toggle, ToggleHandle};
-use beui_view::reactive::NodeId;
 use beui_view::primitives::Layers;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
 const BOX_SIZE: f32 = 18.0;

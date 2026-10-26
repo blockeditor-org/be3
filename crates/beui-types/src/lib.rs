@@ -12,9 +12,9 @@ pub mod icons {
 
 pub use geometry;
 pub use geometry::{Pos2, Rect, Rotation, Vec2, pos2, vec2};
+pub use ui_types::ThemeKind;
 pub use ui_types::clipboard::{PasteKind, Pasted};
 pub use ui_types::files::PickedFile;
-pub use ui_types::ThemeKind;
 
 pub use color::{Color32, Hsva, Oklch, format_hex, parse_hex};
 pub use image::{Image, ImageFit, ImageId, Thumbhash};

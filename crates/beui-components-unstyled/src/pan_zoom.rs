@@ -1,12 +1,12 @@
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
-use beui_view::reactive::CanvasView;
-use beui_view::types::{Pos2, Rect, Vec2, pos2};
-use beui_view::types::{CursorIcon, Key, KeyPress, ScrollGesture, ZoomGesture};
-use beui_view::reactive::NodeId;
 use beui_view::primitives::*;
+use beui_view::reactive::CanvasView;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::{CursorIcon, Key, KeyPress, ScrollGesture, ZoomGesture};
+use beui_view::types::{Pos2, Rect, Vec2, pos2};
 
 pub const MIN_SCALE: f32 = 0.05;
 pub const MAX_SCALE: f32 = 32.0;

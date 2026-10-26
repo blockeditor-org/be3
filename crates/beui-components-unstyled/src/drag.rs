@@ -4,19 +4,19 @@ use std::rc::Rc;
 
 use beui_macros::{component, view};
 
-use beui_view::types::Direction;
-use beui_view::reactive::OverlayAnchor;
-use beui_view::types::Placement;
 use beui_core::drag_board::{DragPoint, Pending, Target};
-use beui_view::types::{Pos2, Vec2};
-use beui_view::types::CursorIcon;
-use beui_view::types::PointerPress;
 use beui_core::input::TOUCH_DRAG_THRESHOLD;
-use beui_view::reactive::NodeId;
 use beui_core::tree::component_node;
 use beui_view::components::overlay::Overlay;
 use beui_view::primitives::*;
+use beui_view::reactive::NodeId;
+use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
+use beui_view::types::CursorIcon;
+use beui_view::types::Direction;
+use beui_view::types::Placement;
+use beui_view::types::PointerPress;
+use beui_view::types::{Pos2, Vec2};
 
 pub const DRAG_THRESHOLD: f32 = 4.0;
 pub const DRAG_PREVIEW_OFFSET: Vec2 = Vec2::new(12.0, 14.0);

@@ -1,5 +1,5 @@
-use beui_view::types::icons::Glyph;
 use beui_macros::{component, view};
+use beui_view::types::icons::Glyph;
 
 use crate::ToggleButton;
 use beui_components_unstyled::TextAreaState;

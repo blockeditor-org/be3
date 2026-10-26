@@ -1,23 +1,23 @@
-use beui_view::types::Overflow;
 use beui_view::types::LayerPolicy;
+use beui_view::types::Overflow;
 use std::collections::HashMap;
 use std::rc::Rc;
 
 use beui_macros::{component, view};
 
-use beui_view::reactive::Draw;
-use beui_view::reactive::OverlayAnchor;
-use beui_view::types::Placement;
-use beui_view::types::{Align, ItemSize};
-use beui_view::types::Color32;
-use beui_view::types::{FontFamily, FontId, TextAlign};
-use beui_view::types::{Rect, Vec2};
-use beui_view::types::icons::{ICON_CHEVRON_DOWN, ICON_CHEVRON_RIGHT};
-use beui_view::reactive::NodeId;
 use beui_core::painter::Painter;
-use beui_view::types::{SpanStyle, TextCaret, TextGlyph, TextMark};
 use beui_core::rich::handle_shape;
 use beui_view::components::overlay::Overlay;
+use beui_view::reactive::Draw;
+use beui_view::reactive::NodeId;
+use beui_view::reactive::OverlayAnchor;
+use beui_view::types::Color32;
+use beui_view::types::Placement;
+use beui_view::types::icons::{ICON_CHEVRON_DOWN, ICON_CHEVRON_RIGHT};
+use beui_view::types::{Align, ItemSize};
+use beui_view::types::{FontFamily, FontId, TextAlign};
+use beui_view::types::{Rect, Vec2};
+use beui_view::types::{SpanStyle, TextCaret, TextGlyph, TextMark};
 use text_editor_core::{SynHlColorScope, SynHlStyle, TextLanguage};
 
 use beui_view::primitives::*;

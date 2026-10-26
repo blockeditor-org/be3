@@ -15,13 +15,13 @@ use crate::menu_popup::MenuStyle;
 use crate::popup_trigger::PopupTriggerHandle;
 use crate::text_input::{TextInput, TextInputHandle, TextInputStyle};
 use crate::typeahead::Typeahead;
-use beui_view::types::{Pos2, Rect};
-use beui_view::types::{CursorIcon, Key, KeyPress, PointerPress};
-use beui_view::reactive::KeyAt;
-use beui_view::types::KeyPhase;
-use beui_view::reactive::NodeId;
 use beui_view::primitives::*;
+use beui_view::reactive::KeyAt;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::KeyPhase;
+use beui_view::types::{CursorIcon, Key, KeyPress, PointerPress};
+use beui_view::types::{Pos2, Rect};
 
 const ROW_DRAG_THRESHOLD: f32 = 6.0;
 

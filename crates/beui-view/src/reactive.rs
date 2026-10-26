@@ -10,10 +10,10 @@ pub use beui_core::tree::{
 };
 pub use beui_tree::reactive::*;
 
+pub use beui_core::base::ImeCursor;
 use beui_core::document::Document;
 use beui_core::geometry::{Rect, Vec2};
 use beui_core::input::Key;
-pub use beui_core::base::ImeCursor;
 pub use beui_core::keys::{KeyAt, KeyEvent};
 pub use beui_core::node::NodeId;
 

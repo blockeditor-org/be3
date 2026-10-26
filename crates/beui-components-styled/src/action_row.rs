@@ -1,6 +1,6 @@
-use beui_view::types::icons::Glyph;
-use beui_view::types::Image;
 use beui_macros::{component, view};
+use beui_view::types::Image;
+use beui_view::types::icons::Glyph;
 
 use crate::row::{RowFace, RowSize, RowTrailing};
 use crate::text::TextColor;

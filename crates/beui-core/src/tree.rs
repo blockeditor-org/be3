@@ -9,6 +9,7 @@ use beui_tree::reactive::{
     create_effect, create_signal, current_component, on_cleanup,
 };
 
+use crate::base::Sizing;
 use crate::base::canvas::CanvasNode;
 use crate::base::child_list::{ChildHost, ChildItem};
 use crate::base::first_fit::FirstFitNode;
@@ -16,7 +17,6 @@ use crate::base::grid::{GridItem, GridNode};
 use crate::base::layers::LayersNode;
 use crate::base::list::{ListItem, ListNode};
 use crate::base::text::{TextNode, TextPart};
-use crate::base::Sizing;
 use crate::current::with_document;
 use crate::document::Document;
 use crate::node::{NodeId, NodeOf};
@@ -453,4 +453,3 @@ impl WithSizing for Option<NodeId> {
 pub fn with_sizing<C: WithSizing>(child: C, size: impl IntoProp<Sizing>) -> C::Sized {
     child.with_sizing(size.into_prop())
 }
-

@@ -2,8 +2,8 @@ use crate::button::ButtonVariant;
 use crate::frame::{Border, ColorRole, Frame, Radius};
 use crate::row::{RowFace, RowSize, RowTrailing};
 use crate::text::TextColor;
-use beui_view::types::icons::ICON_ELLIPSIS;
 use beui_macros::{component, view};
+use beui_view::types::icons::ICON_ELLIPSIS;
 
 use crate::border::Separator;
 use crate::button::ButtonSize;

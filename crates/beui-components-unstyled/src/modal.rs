@@ -1,14 +1,14 @@
-use beui_view::types::{Dismiss, LayerLevel, LayerPolicy};
 use beui_macros::{component, view};
+use beui_view::types::{Dismiss, LayerLevel, LayerPolicy};
 
 use super::back_slide::BackSlide;
-use beui_view::reactive::OverlayAnchor;
-use beui_view::types::Placement;
-use beui_view::types::Color32;
-use beui_view::types::Pos2;
-use beui_view::reactive::NodeId;
 use beui_view::components::overlay::{Overlay, use_overlay_presence};
+use beui_view::reactive::NodeId;
+use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
+use beui_view::types::Color32;
+use beui_view::types::Placement;
+use beui_view::types::Pos2;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ModalPlacement {

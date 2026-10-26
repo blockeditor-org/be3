@@ -2,14 +2,14 @@ use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
 use super::modal::{Modal, ModalHandle};
-use beui_view::types::Color32;
-use beui_view::types::Key;
-use beui_view::reactive::KeyAt;
-use beui_view::types::KeyPhase;
-use beui_view::reactive::NodeId;
 use beui_view::components::portal::Portal;
 use beui_view::primitives::*;
+use beui_view::reactive::KeyAt;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::Color32;
+use beui_view::types::Key;
+use beui_view::types::KeyPhase;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum DialogKind {

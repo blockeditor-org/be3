@@ -1,7 +1,7 @@
 use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
+use beui_macros::{component, view};
 use beui_view::types::Overflow;
 use beui_view::types::icons::Glyph;
-use beui_macros::{component, view};
 
 use crate::button::ButtonVariant;
 use crate::context_menu::menu_style;
@@ -9,10 +9,10 @@ use crate::text::{Icon, Text};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ButtonHandle, MenuItem, PopupTriggerHandle};
+use beui_view::primitives::Fade;
+use beui_view::reactive::NodeId;
 use beui_view::types::TextAlign;
 use beui_view::types::icons::ICON_CHEVRON_DOWN;
-use beui_view::reactive::NodeId;
-use beui_view::primitives::Fade;
 
 use crate::list::List;
 use crate::tokens::{CornerSet, Padding, Size, Space, Stroke};

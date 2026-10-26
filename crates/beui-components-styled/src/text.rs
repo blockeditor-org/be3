@@ -1,17 +1,17 @@
-use beui_view::types::Color32;
-use beui_view::types::{FontFamily, FontId, Overflow, TextAlign};
-use beui_view::reactive::NodeId;
-use beui_view::types::{TextCaret, TextMark};
 use beui_macros::{component, view};
 use beui_view::primitives;
 use beui_view::primitives::*;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::Color32;
+use beui_view::types::{FontFamily, FontId, Overflow, TextAlign};
+use beui_view::types::{TextCaret, TextMark};
 
 use crate::frame::ColorRole;
 use crate::theme::{ThemeStore, use_theme};
 use crate::tokens::{Space, use_space};
-use beui_view::types::Vec2;
 use beui_view::types::SpanBackground;
+use beui_view::types::Vec2;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum TextSize {

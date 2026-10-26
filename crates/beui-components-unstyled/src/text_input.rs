@@ -6,8 +6,8 @@ use accesskit::{Node, Role};
 
 use text_editor_core::{EditorCommand, TextBuffer, TextLanguage};
 
-use beui_view::types::ItemSize;
 use beui_view::types::Color32;
+use beui_view::types::ItemSize;
 use beui_view::types::{Pos2, Rect};
 
 use crate::ContextMenuApi;
@@ -22,8 +22,8 @@ use crate::TextAreaLook;
 use crate::TextAreaState;
 use crate::menu_popup::MenuStyle;
 use crate::text_menu::TextContextMenu;
-use beui_view::reactive::NodeId;
 use beui_macros::{component, view};
+use beui_view::reactive::NodeId;
 
 use beui_view::primitives::*;
 use beui_view::reactive::*;

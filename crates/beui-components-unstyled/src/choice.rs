@@ -6,12 +6,12 @@ use accesskit::{Node, Role, Toggled};
 use crate as unstyled;
 use crate::ButtonHandle;
 use crate::typeahead::Typeahead;
-use beui_view::types::Direction;
-use beui_view::types::{Key, KeyPress};
-use beui_view::reactive::NodeId;
 use beui_macros::{component, view};
 use beui_view::primitives::*;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::Direction;
+use beui_view::types::{Key, KeyPress};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ChoiceKind {

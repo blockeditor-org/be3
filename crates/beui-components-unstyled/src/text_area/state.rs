@@ -9,11 +9,11 @@ use text_editor_core::{
     TextIndentation, TextLanguage, TextRun,
 };
 
-use beui_view::types::FontId;
-use beui_view::types::{Pos2, Rect, Vec2};
 use beui_core::rich::{Piece, RichLayout, RichOptions};
-use beui_view::types::SpanStyle;
 use beui_view::reactive::*;
+use beui_view::types::FontId;
+use beui_view::types::SpanStyle;
+use beui_view::types::{Pos2, Rect, Vec2};
 
 use super::colors::TextAreaColors;
 use super::look::TextAreaGeometry;
