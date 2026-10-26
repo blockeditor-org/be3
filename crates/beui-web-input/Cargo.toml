@@ -1,0 +1,25 @@
+[package]
+name = "beui-web-input"
+description = "Browser input both of beui's web cores read: keys, wheel deltas and the hidden text agent IME goes through"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+beui-types = { path = "../beui-types" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+web-sys = { version = "0.3", features = [
+    "CssStyleDeclaration",
+    "Document",
+    "Element",
+    "HtmlElement",
+    "HtmlTextAreaElement",
+    "KeyboardEvent",
+    "Navigator",
+    "Window",
+] }
+
+[lints]
+workspace = true

@@ -1425,6 +1425,7 @@ name = "beui-platform-web"
 version = "0.1.0"
 dependencies = [
  "beui-core",
+ "beui-web-input",
  "futures-util",
  "js-sys",
  "wasm-bindgen",
@@ -1505,6 +1506,15 @@ dependencies = [
  "wasi-threads",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+]
+
+[[package]]
+name = "beui-web-input"
+version = "0.1.0"
+dependencies = [
+ "beui-types",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]

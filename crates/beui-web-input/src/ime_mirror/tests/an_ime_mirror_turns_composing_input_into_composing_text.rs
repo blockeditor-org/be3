@@ -1,5 +1,4 @@
-use crate::app::ime_mirror::{ImeInput, ImeMirror};
-use crate::input::{ImeEvent, ImeText, Input};
+use super::*;
 
 #[test]
 fn an_ime_mirror_turns_composing_input_into_composing_text() {

@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use crate::input::{ImeEvent, ImeText, Input};
+use beui_types::input::{ImeEvent, ImeText, Input};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ImeMirror {
@@ -205,3 +205,6 @@ fn utf16(text: &str, byte_index: usize) -> u32 {
         .map_or(0, |head| head.chars().map(char::len_utf16).sum());
     u32::try_from(units).unwrap_or(u32::MAX)
 }
+
+#[cfg(test)]
+mod tests;

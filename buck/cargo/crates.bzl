@@ -9753,6 +9753,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-web-input:beui-web-input",
                 ],
                 "examples": {},
                 "features": [],
@@ -9763,6 +9764,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-web-input:beui-web-input",
                 ],
                 "examples": {},
                 "features": [],
@@ -9773,6 +9775,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-web-input:beui-web-input",
                 ],
                 "examples": {},
                 "features": [],
@@ -9783,6 +9786,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-web-input:beui-web-input",
                 ],
                 "examples": {},
                 "features": [],
@@ -9793,6 +9797,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-web-input:beui-web-input",
                 ],
                 "examples": {},
                 "features": [],
@@ -9803,6 +9808,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-web-input:beui-web-input",
                     "//third-party/rust:futures-util-0.3.32",
                     "//third-party/rust:js-sys-0.3.99",
                     "//third-party/rust:wasm-bindgen-0.2.122",
@@ -9818,6 +9824,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-web-input:beui-web-input",
                 ],
                 "examples": {},
                 "features": [],
@@ -9828,6 +9835,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-web-input:beui-web-input",
                 ],
                 "examples": {},
                 "features": [],
@@ -10635,6 +10643,103 @@ crates = {
                     "//crates/wasi-threads:wasi-threads",
                     "//third-party/rust:wasm-bindgen-0.2.122",
                     "//third-party/rust:wasm-bindgen-futures-0.4.72",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/beui-web-input": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "beui_web_input",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "beui-web-input",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-types:beui-types",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-types:beui-types",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-types:beui-types",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-types:beui-types",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-types:beui-types",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-types:beui-types",
+                    "//third-party/rust:wasm-bindgen-0.2.122",
+                    "//third-party/rust:web-sys-0.3.99",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-types:beui-types",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-types:beui-types",
                 ],
                 "examples": {},
                 "features": [],

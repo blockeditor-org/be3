@@ -11,15 +11,14 @@ use std::time::{Duration, Instant};
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::Closure;
 
-use beui_core::app::ime_mirror::{ImeInput, ImeMirror};
 use beui_core::app::{Lifecycle, SafeArea, Setup, Waker};
 use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest, PickedFile};
 use beui_core::file_saver::{FileSaveAnswer, FileSaveRequest};
 use beui_core::geometry::{Pos2, Rect, pos2, vec2};
 use beui_core::input::{
-    CursorIcon, DroppedFile, FileDrag, ImeArea, ImeEvent, Input, Key, Keystroke, Modifiers, Pen,
-    PenPhase, PointerButton, TouchId, TouchPhase,
+    CursorIcon, DroppedFile, FileDrag, ImeArea, ImeEvent, Input, Modifiers, Pen, PenPhase,
+    PointerButton, TouchId, TouchPhase,
 };
 use beui_core::preferences::{Motion, PreferenceLayer, ThemeKind};
 use beui_core::renderer::Loaded;
@@ -27,7 +26,9 @@ use beui_core::runner::{Incoming, Launch, Platform, PlatformServices, Running};
 use beui_core::window::{Appearance, WindowReports, WindowState};
 
 use crate::lock::Lock;
-use crate::wheel::{Pinch, wheel};
+use beui_web_input::ime_mirror::{ImeInput, ImeMirror};
+use beui_web_input::keys::keystroke;
+use beui_web_input::wheel::{Pinch, wheel};
 
 type Loading = Pin<Box<dyn Future<Output = Result<Loaded, Box<dyn Error>>>>>;
 type Load = Box<dyn FnOnce(web_sys::HtmlElement) -> Loading>;
@@ -547,7 +548,12 @@ async fn run(element_id: &str, launch: Launch, load: Load) -> Result<(), Box<dyn
         .map_err(|_| format!("the element {element_id} is not an html element"))?;
     show_appearance(&Appearance::default());
     let _ = surface.style().set_property("touch-action", "none");
-    let agent = text_agent(&document)?;
+    let agent = beui_web_input::text_agent(&document).ok_or("could not create the text input")?;
+    document
+        .body()
+        .ok_or("the page has no body")?
+        .append_child(&agent)
+        .map_err(|_| "could not add the text input to the page")?;
     let loaded = load(surface.clone()).await?;
 
     let mut runner = beui_core::runner::Runner::new(launch);
@@ -618,47 +624,6 @@ fn watch_preferences(
     Ok(())
 }
 
-fn text_agent(
-    document: &web_sys::Document,
-) -> Result<web_sys::HtmlTextAreaElement, Box<dyn Error>> {
-    let agent = document
-        .create_element("textarea")
-        .map_err(|_| "could not create the text input")?
-        .dyn_into::<web_sys::HtmlTextAreaElement>()
-        .map_err(|_| "could not create the text input")?;
-    agent.set_attribute("autocapitalize", "off").ok();
-    agent.set_attribute("autocomplete", "off").ok();
-    agent.set_attribute("autocorrect", "on").ok();
-    agent.set_attribute("spellcheck", "true").ok();
-    agent.set_attribute("aria-hidden", "true").ok();
-    let style = agent.style();
-    for (property, value) in [
-        ("position", "absolute"),
-        ("left", "0px"),
-        ("top", "0px"),
-        ("width", "1px"),
-        ("height", "1px"),
-        ("opacity", "0"),
-        ("border", "none"),
-        ("padding", "0"),
-        ("resize", "none"),
-        ("outline", "none"),
-        ("background", "transparent"),
-        ("color", "transparent"),
-        ("caret-color", "transparent"),
-        ("pointer-events", "none"),
-        ("z-index", "-1"),
-    ] {
-        let _ = style.set_property(property, value);
-    }
-    document
-        .body()
-        .ok_or("the page has no body")?
-        .append_child(&agent)
-        .map_err(|_| "could not add the text input to the page")?;
-    Ok(agent)
-}
-
 fn on<E: wasm_bindgen::convert::FromWasmAbi + 'static>(
     target: &web_sys::EventTarget,
     name: &str,
@@ -718,18 +683,8 @@ fn touching(id: i32, down: bool) {
     });
 }
 
-thread_local! {
-    static APPLE: bool = web_sys::window()
-        .and_then(|window| window.navigator().platform().ok())
-        .is_some_and(|platform| platform.starts_with("Mac") || platform.starts_with("iP"));
-}
-
-fn apple() -> bool {
-    APPLE.with(|apple| *apple)
-}
-
 fn modifiers_of(alt: bool, ctrl: bool, meta: bool, shift: bool) -> Modifiers {
-    let modifiers = Modifiers::with_meta(alt, ctrl, shift, meta, apple());
+    let modifiers = beui_web_input::keys::modifiers(alt, ctrl, meta, shift);
     push(Input::Modifiers(modifiers));
     modifiers
 }
@@ -958,7 +913,12 @@ fn listen(
         let stroke = keystroke(&event, true);
         let key = stroke.key;
         push(Input::Key(stroke));
-        if crate::keys::prevents_default(key, &event.key(), modifiers, CLIPBOARD_KEYS.get()) {
+        if beui_web_input::keys::prevents_default(
+            key,
+            &event.key(),
+            modifiers,
+            CLIPBOARD_KEYS.get(),
+        ) {
             event.prevent_default();
         }
     })?;
@@ -1161,21 +1121,6 @@ fn pointer_button(button: i16) -> Option<PointerButton> {
         3 => Some(PointerButton::Back),
         4 => Some(PointerButton::Forward),
         _ => None,
-    }
-}
-
-fn key(event: &web_sys::KeyboardEvent) -> Option<Key> {
-    let physical = Key::evdev_from_code(&event.code()).and_then(Key::from_evdev);
-    Key::from_value(&event.key(), physical, apple())
-}
-
-fn keystroke(event: &web_sys::KeyboardEvent, pressed: bool) -> Keystroke {
-    Keystroke {
-        key: key(event),
-        pressed,
-        repeat: pressed && event.repeat(),
-        evdev: Key::evdev_from_code(&event.code()),
-        text: None,
     }
 }
 

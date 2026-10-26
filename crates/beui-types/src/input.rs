@@ -79,3 +79,15 @@ pub enum KeyPhase {
     Bubble,
     Held,
 }
+
+pub const SCROLL_LINE: f32 = 40.0;
+pub const SCROLL_PAGE: f32 = 800.0;
+pub const PINCH_SPEED: f32 = 0.01;
+
+pub fn scrolled(delta: ScrollDelta, scale: f32) -> Vec2 {
+    match delta {
+        ScrollDelta::Pixels(delta) => delta / scale,
+        ScrollDelta::Lines(delta) => delta * SCROLL_LINE,
+        ScrollDelta::Pages(delta) => delta * SCROLL_PAGE,
+    }
+}
