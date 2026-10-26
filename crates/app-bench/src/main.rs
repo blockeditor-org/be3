@@ -9,11 +9,10 @@ use infinite_canvas_types::{CanvasContent, CanvasEntity, CanvasShape};
 use paint_snapshot::{Painting, Snapshot};
 
 mod cores;
-mod latency;
 mod server;
 
 const SIZE: &str = "1100x720";
-const ONE_WAY: Duration = Duration::from_millis(15);
+const LATENCY: &str = "30";
 const POINTS: usize = 10_000;
 const STRETCH: usize = 400;
 const STYLUS_PER_FRAME: usize = 4;
@@ -33,6 +32,8 @@ fn main() -> ExitCode {
         _ => {
             // unsafe(env)
             unsafe { std::env::set_var("BEUI_RENDERER", "none") };
+            // unsafe(env)
+            unsafe { std::env::set_var("BE_LATENCY", LATENCY) };
             run()
         }
     };
