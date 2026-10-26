@@ -16,8 +16,7 @@ use crate::unstyled::{
 };
 use beui_components_styled::button::{Button, ButtonSize, ButtonVariant};
 use beui_components_styled::context_menu::menu_style;
-use beui_components_styled::icon_button::{IconButton, IconButtonSize};
-use beui_components_styled::menu_button::IconMenuButton;
+use beui_components_styled::menu_button::MenuButton;
 use beui_components_styled::text::{Icon, Text, TextColor, TextSize};
 use beui_components_styled::theme::{NARROW_WIDTH, POINTER_REACH, use_theme};
 use beui_components_styled::tooltip::Tooltip;
@@ -388,11 +387,12 @@ fn DockTabChrome(
                     />
                 </Show>
                 <Show condition={closable}>
-                    <IconButton
+                    <Button
+                        icon_only=true
                         @test_id={close_test_id.clone()}
                         glyph=ICON_X
                         label="Close tab"
-                        size=IconButtonSize::Compact
+                        size=ButtonSize::Small
                         variant=ButtonVariant::Ghost
                         capture_presses=true
                         on_click={close}
@@ -547,11 +547,12 @@ fn DockWindowFace(handle: DockDialogHandle) -> NodeId {
                             {title}
                         </Text>
                         <Show condition={closable}>
-                            <IconButton
+                            <Button
+                                icon_only=true
                                 @test_id={format!("dock.dialog.{}.close", tab.value())}
                                 glyph=ICON_X
                                 label="Close"
-                                size=IconButtonSize::Compact
+                                size=ButtonSize::Small
                                 variant=ButtonVariant::Ghost
                                 capture_presses=true
                                 on_click={close}
@@ -703,10 +704,10 @@ pub(crate) enum BarRoom {
 }
 
 impl BarRoom {
-    fn button(self) -> IconButtonSize {
+    fn button(self) -> ButtonSize {
         match self {
-            BarRoom::Wide | BarRoom::Narrow | BarRoom::Column => IconButtonSize::Toolbar,
-            BarRoom::Phone => IconButtonSize::Regular,
+            BarRoom::Wide | BarRoom::Narrow | BarRoom::Column => ButtonSize::Toolbar,
+            BarRoom::Phone => ButtonSize::Regular,
         }
     }
 
@@ -780,7 +781,9 @@ pub(crate) fn DockMenu(menu: Memo<Vec<MenuNode>>, room: BarRoom) -> NodeId {
             </Show>
             <ForEach keys={labels}>|key: u64| { pin(key) }</ForEach>
             <Show condition={offered}>
-                <IconMenuButton
+                <MenuButton
+                    icon_only=true
+                    variant=ButtonVariant::Ghost
                     @test_id={"dock.menu"}
                     label="More"
                     glyph=ICON_ELLIPSIS_VERTICAL
@@ -809,7 +812,8 @@ fn DockPin(action: Action, room: BarRoom) -> NodeId {
             </Frame>
         },
         false => view! {
-            <IconButton
+            <Button
+                icon_only=true
                 @test_id={id}
                 action={action}
                 variant=ButtonVariant::Ghost
@@ -859,10 +863,11 @@ fn unpinned(nodes: Vec<MenuNode>, room: BarRoom) -> Vec<MenuNode> {
 fn DockClose(closable: Memo<bool>, close: ClickCallback) -> DynamicSegment<ListChild> {
     view! {
         <Show condition={closable}>
-            <IconButton
+            <Button
+                icon_only=true
                 glyph=ICON_X
                 label="Close pane"
-                size=IconButtonSize::Toolbar
+                size=ButtonSize::Toolbar
                 variant=ButtonVariant::Ghost
                 capture_presses=true
                 on_click={close}

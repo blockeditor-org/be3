@@ -159,7 +159,8 @@ fn ResponsiveToolbar(
                             label="Height"
                         />
                     </Frame>
-                    <IconButton
+                    <Button
+                        icon_only=true
                         @test_id={"inspector.responsive.rotate"}
                         glyph=ICON_ROTATE_CW_SQUARE
                         label="Rotate"
@@ -187,7 +188,8 @@ fn ResponsiveToolbar(
                         />
                     </Frame>
                     <Spacer @sizing=ItemSize::Percent(100.0) />
-                    <IconButton
+                    <Button
+                        icon_only=true
                         @test_id={"inspector.responsive.close"}
                         glyph=ICON_X
                         label="Close responsive design mode"

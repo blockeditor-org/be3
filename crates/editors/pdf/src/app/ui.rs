@@ -88,7 +88,8 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
         <List spacing=0.0>
             <Toolbar shown={chrome}>
                 <Text>"PDF"</Text>
-                <block_editor_beui::beui::styled::IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_ARROW_LEFT
                     label="Previous page"
                     disabled={first}
@@ -96,7 +97,8 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
                     on_click={back}
                 />
                 <Text style=TextStyle::CAPTION>{page_label}</Text>
-                <block_editor_beui::beui::styled::IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_ARROW_RIGHT
                     label="Next page"
                     disabled={last}

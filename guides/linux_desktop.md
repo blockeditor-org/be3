@@ -223,7 +223,7 @@ order, each one deeper than the submenu it is in; the host builds that list stra
 dbusmenu's layout, and the shell nests it into `TrayMenuEntry` trees with
 `HostTrayItem::entries`, the helper the shell's own menus nest with (block-plugin-api's
 `nesting.rs`), which refuses a menu nested deeper than `MAX_MENU_DEPTH`. linux-desktop's `src/app/tray.rs` shows each
-item that is not `Passive` as a `PictureMenuButton` in the bar: a click is `Activate` (or opens
+item that is not `Passive` as a `MenuButton` with a picture face in the bar: a click is `Activate` (or opens
 the menu of an `ItemIsMenu` item), a right click opens the menu, a middle click is
 `SecondaryActivate` and the wheel `Scroll`s, 120 to a notch. Opening the menu sends
 `MenuOpened`, which the host turns into `AboutToShow` and the `opened` event, or into the item's

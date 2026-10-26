@@ -330,28 +330,32 @@ fn SendButtons(
     let press = |from: Side, amount: Amount| move || send.call(Some((from, amount)));
     view! {
         <List direction align=Align::Center spacing=ROW_SPACING>
-            <IconButton
+            <Button
+                icon_only=true
                 @test_id="demo.collaboration.all_right"
                 glyph={glyphs[0]}
                 label="Send every edit from the left"
                 disabled={from_left}
                 on_click={press(Side::Left, Amount::All)}
             />
-            <IconButton
+            <Button
+                icon_only=true
                 @test_id="demo.collaboration.one_right"
                 glyph={glyphs[1]}
                 label="Send one edit from the left"
                 disabled={from_left}
                 on_click={press(Side::Left, Amount::One)}
             />
-            <IconButton
+            <Button
+                icon_only=true
                 @test_id="demo.collaboration.one_left"
                 glyph={glyphs[2]}
                 label="Send one edit from the right"
                 disabled={from_right}
                 on_click={press(Side::Right, Amount::One)}
             />
-            <IconButton
+            <Button
+                icon_only=true
                 @test_id="demo.collaboration.all_left"
                 glyph={glyphs[3]}
                 label="Send every edit from the right"

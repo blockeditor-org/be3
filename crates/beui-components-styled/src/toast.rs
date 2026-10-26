@@ -2,8 +2,8 @@ use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_core::layer::{LayerLevel, LayerPolicy};
 use beui_macros::{component, view};
 
+use crate::button::ButtonSize;
 use crate::button::{Button, ButtonVariant};
-use crate::icon_button::{IconButton, IconButtonSize};
 use crate::text::{Icon, Text, TextColor, TextSize, Weight};
 use beui_components_unstyled::{Edge, Picture, Pressable};
 use beui_core::base::Justify;
@@ -192,11 +192,12 @@ fn ToastCard(
             <List spacing=SPACING>
                 <List direction=Direction::Horizontal align=Align::Start spacing=SPACING>
                     <Frame @sizing=ItemSize::Percent(100.0)>{body}</Frame>
-                    <IconButton
+                    <Button
+                        icon_only=true
                         @test_id={format!("toast.{id}.dismiss")}
                         glyph=ICON_X
                         label="Dismiss"
-                        size=IconButtonSize::Compact
+                        size=ButtonSize::Small
                         press_focus=false
                         on_click={move || on_dismiss.call(id)}
                     />

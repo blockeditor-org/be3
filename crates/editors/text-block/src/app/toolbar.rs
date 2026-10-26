@@ -203,7 +203,8 @@ pub(crate) fn FormatBar(state: State, formats: Vec<Action>) -> NodeId {
                             </Scroll>
                             <Show condition={keyboard}>
                                 <Frame padding=FORMAT_PADDING>
-                                    <IconButton
+                                    <Button
+                                        icon_only=true
                                         glyph=ICON_KEYBOARD_OFF
                                         label="Done"
                                         @test_id={"text.format.done"}
@@ -233,7 +234,7 @@ fn MarkdownControls(formats: Vec<Action>) -> NodeId {
                 let action = formats[index].clone();
                 let id = action.id().to_owned();
                 view! {
-                    <IconButton @test_id={id} action />
+                    <Button icon_only=true @test_id={id} action />
                 }
             }</ForEach>
         </List>

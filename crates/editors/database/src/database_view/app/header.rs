@@ -179,7 +179,8 @@ fn ViewTabs(data: Data) -> NodeId {
                     />
                 }
             }</ForEach>
-            <IconButton
+            <Button
+                icon_only=true
                 glyph=ICON_PLUS
                 label="New view"
                 variant=ButtonVariant::Ghost
@@ -218,7 +219,8 @@ fn NewRow(data: Data, compact: bool) -> NodeId {
     let disabled = create_memo(move || data.read_only.get() || data.title_field.get().is_none());
     match compact {
         true => view! {
-            <IconButton
+            <Button
+                icon_only=true
                 glyph=ICON_PLUS
                 label="New"
                 variant=ButtonVariant::Primary

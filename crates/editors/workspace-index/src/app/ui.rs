@@ -169,7 +169,8 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                     label="Sort"
                     @test_id={"folder.sort"}
                 />
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph={direction_glyph}
                     label={direction_label}
                     disabled={unordered}

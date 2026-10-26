@@ -991,11 +991,12 @@ fn PickToggle(state: Stored<State>, picking: Memo<bool>) -> NodeId {
 #[component]
 fn CloseButton(state: Stored<State>) -> NodeId {
     view! {
-        <IconButton
+        <Button
+            icon_only=true
             glyph=ICON_X
             label="Close inspector"
             variant=ButtonVariant::Ghost
-            size=IconButtonSize::Compact
+            size=ButtonSize::Small
             on_click={move || state.value().close()}
         />
     }

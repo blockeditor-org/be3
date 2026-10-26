@@ -76,34 +76,38 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
         <List spacing=6.0>
             <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
                 <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0)>"Moves"</Text>
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_CHEVRON_FIRST
                     label="First move"
-                    size=IconButtonSize::Compact
+                    size=ButtonSize::Small
                     disabled={at_start}
                     @test_id={"game.history.first"}
                     on_click={move || steps.first()}
                 />
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_CHEVRON_LEFT
                     label="Previous move"
-                    size=IconButtonSize::Compact
+                    size=ButtonSize::Small
                     disabled={at_start}
                     @test_id={"game.history.previous"}
                     on_click={move || steps.previous()}
                 />
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_CHEVRON_RIGHT
                     label="Next move"
-                    size=IconButtonSize::Compact
+                    size=ButtonSize::Small
                     disabled={at_end}
                     @test_id={"game.history.next"}
                     on_click={move || steps.next()}
                 />
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_CHEVRON_LAST
                     label="Latest move"
-                    size=IconButtonSize::Compact
+                    size=ButtonSize::Small
                     disabled={at_end}
                     @test_id={"game.history.last"}
                     on_click={move || steps.last()}

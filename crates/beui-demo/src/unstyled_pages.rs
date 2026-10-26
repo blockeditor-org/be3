@@ -2,9 +2,8 @@ use super::*;
 use beui::Rect;
 use beui::unstyled::{
     ButtonHandle, ChoiceKind, ChoiceOptionHandle, DisclosureHandle, DragHandle, DragPoint,
-    DropHandle, MenuButtonHandle, MenuRowHandle, PopoverTriggerHandle, ScrollHandle,
-    ScrollbarHandle, ScrollbarStyle, SliderHandle, TextInputHandle, TextInputStyle, ToggleHandle,
-    TooltipHandle,
+    DropHandle, MenuRowHandle, PopupTriggerHandle, ScrollHandle, ScrollbarHandle, ScrollbarStyle,
+    SliderHandle, TextInputHandle, TextInputStyle, ToggleHandle, TooltipHandle,
 };
 use beui::unstyled::{ColorAreaHandle, ColorPickerArea, HueSlider, SwatchHandle, Swatches};
 use beui::unstyled::{
@@ -633,7 +632,7 @@ fn InfoPopover() -> NodeId {
         <List direction=Direction::Horizontal spacing=0.0>
             <unstyled::Popover
                 label="About"
-                trigger={move |handle: PopoverTriggerHandle| view! {
+                trigger={move |handle: PopupTriggerHandle| view! {
                     <PillFace handle={handle.button} label="About" />
                 }}
             >|handle: PopoverHandle| {
@@ -699,7 +698,7 @@ fn ExportMenu() -> NodeId {
                         <unstyled::MenuItem label="PNG" />
                         <unstyled::MenuItem label="Markdown" />
                     }}
-                    trigger={move |handle: MenuButtonHandle| view! {
+                    trigger={move |handle: PopupTriggerHandle| view! {
                         <PillFace handle={handle.button} label="Export" />
                     }}
                     menu={MenuStyle::new(
@@ -747,7 +746,7 @@ fn RunSplit() -> NodeId {
                     main={move |handle: ButtonHandle| view! {
                         <PillFace handle label="Run" />
                     }}
-                    arrow={move |handle: MenuButtonHandle| view! {
+                    arrow={move |handle: PopupTriggerHandle| view! {
                         <PillFace handle={handle.button} label="More" />
                     }}
                     on_click={move || ran.set("Ran".to_owned())}

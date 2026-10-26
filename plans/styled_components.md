@@ -70,10 +70,15 @@ into a new unstyled component, then rebuild the styled one on top of it.
   rectangle with `placements().rect` and opens a context menu at that point.
   Make per-row menus a feature of `unstyled::Tree`, and make the More button a
   menu button anchored to itself.
-- **Tooltips on icon-only buttons.** "Show the tooltip only when the button is
+- **Done.** **Tooltips on icon-only buttons.** "Show the tooltip only when the button is
   icon-only and its popup is closed" is repeated in `MenuButton`, `Popover`,
   `ToggleButton` and `IconButton`. `ButtonHandle` already carries `tooltip`,
-  so let the unstyled button decide when it shows.
+  so let the unstyled button decide when it shows. `unstyled::Button` and
+  `unstyled::Toggle` take `icon_only` (and the button `expanded`), and the
+  handle's `tooltip` is empty unless the button is icon-only and its popup is
+  closed. The styled faces wrap themselves in a `Tooltip` of that text, since
+  the bubble is a look; `SplitButton`'s arrow, the date picker's and the
+  colour input's triggers lost their copies too.
 - **Dialog Enter handling**: moves with §1's `unstyled::Dialog`.
 - **Done.** **Spinner animation**: moves with §1's indeterminate progress.
 - **TextInput clear and copy.** `styled::TextInput`'s clear and copy buttons
@@ -192,12 +197,19 @@ and to grey the bar when muted, and a `width` that defaults to filling;
 
 ### 4.5 One button, one menu button
 
-- `Button` takes `icon_only` and a size, and `IconButton` goes. `ButtonFace`
-  already supports `icon_only`.
-- `MenuButton`, `IconMenuButton` and `PictureMenuButton` become one menu button
+- **Done.** `Button` takes `icon_only` and a size, and `IconButton` goes. `ButtonFace`
+  already supports `icon_only`. `ButtonSize` is `Small` (the old icon
+  `Compact`), `Compact`, `Regular` and `Toolbar`; `variant` defaults to
+  `Secondary`.
+- **Done.** `MenuButton`, `IconMenuButton` and `PictureMenuButton` become one menu button
   whose face is text, an icon or a picture. `IconMenuButton` has one product
-  user (database).
-- `Popover`'s trigger reuses the menu button's trigger instead of copying it.
+  user (database). It takes `image`, `icon_only`, `size` and the picture
+  button's click, secondary, middle-click and scroll props, and looks pressed
+  while its menu is open.
+- **Done.** `Popover`'s trigger reuses the menu button's trigger instead of copying it.
+  Both are an `unstyled::PopupTrigger` (whose `PopupTriggerHandle` replaces
+  `MenuButtonHandle` and `PopoverTriggerHandle`), and styled `Popover` paints
+  the menu button's face.
 
 ### 4.6 One row button
 
@@ -206,6 +218,11 @@ and to grey the bar when muted, and a `width` that defaults to filling;
 hover and selection. Make one styled row with the slots they need (leading
 picture or icon, label, detail, trailing chevron or check), and rebuild the
 four on it.
+
+**Done.** The row is `styled::RowFace` (`row.rs`) with a `RowSize` (`Compact`,
+`Regular`, `Large`, `Touch`) and a `RowTrailing`, and `ListRow` also takes the
+slots. The menu sheet's rows use it; the dropdown menu's rows keep their own
+face, which has shortcuts and a different highlight.
 
 ### 4.7 Dialog, Fullscreen and KeepChanges share Modal
 

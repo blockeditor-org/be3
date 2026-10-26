@@ -143,11 +143,12 @@ fn NotificationRow(
                     }</Show>
                 </List>
             </ListRow>
-            <IconButton
+            <Button
+                icon_only=true
                 glyph=ICON_X
                 label="Dismiss"
                 variant=ButtonVariant::Ghost
-                size=IconButtonSize::Compact
+                size=ButtonSize::Small
                 @test_id={format!("desktop.notifications.{id}.dismiss")}
                 on_click={move || notifications.dismiss(&[id])}
             />

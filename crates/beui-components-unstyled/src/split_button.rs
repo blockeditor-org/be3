@@ -5,8 +5,8 @@ use beui_macros::{component, view};
 use crate as unstyled;
 use crate::ButtonHandle;
 use crate::menu::MenuItem;
-use crate::menu_button::MenuButtonHandle;
 use crate::menu_popup::MenuStyle;
+use crate::popup_trigger::PopupTriggerHandle;
 use beui_core::base::Direction;
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
@@ -21,7 +21,7 @@ pub fn SplitButton(
     items: Children<MenuItem>,
     #[prop(default = MenuStyle::default())] menu: MenuStyle,
     main: Render<ButtonHandle>,
-    arrow: Render<MenuButtonHandle>,
+    arrow: Render<PopupTriggerHandle>,
     on_click: ClickCallback,
     on_select: Callback<Vec<usize>>,
 ) -> NodeId {
@@ -38,6 +38,7 @@ pub fn SplitButton(
             <unstyled::MenuButton
                 items
                 label={menu_label}
+                icon_only=true
                 disabled
                 menu
                 trigger={arrow}

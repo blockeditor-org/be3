@@ -82,8 +82,13 @@ pub(crate) fn SelectionTools(state: CanvasState) -> NodeId {
                 <Show condition={chosen}>|| {
                     let actions = actions.clone(); view! {
                         <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
-                            <IconButton @test_id={"infinite-canvas.front"} action={actions.front} />
-                            <IconButton
+                            <Button
+                                icon_only=true
+                                @test_id={"infinite-canvas.front"}
+                                action={actions.front}
+                            />
+                            <Button
+                                icon_only=true
                                 @test_id={"infinite-canvas.delete"}
                                 action={actions.delete}
                             />
@@ -92,11 +97,17 @@ pub(crate) fn SelectionTools(state: CanvasState) -> NodeId {
                 }</Show>
                 <Show condition={embedded}>|| {
                     let open = open.clone(); view! {
-                        <IconButton label="Open" @test_id={"infinite-canvas.open"} action={open} />
+                        <Button
+                            icon_only=true
+                            label="Open"
+                            @test_id={"infinite-canvas.open"}
+                            action={open}
+                        />
                     }
                 }</Show>
                 <Show condition={inspectable}>
-                    <IconButton
+                    <Button
+                        icon_only=true
                         glyph=ICON_SLIDERS_HORIZONTAL
                         label="Inspector"
                         @test_id={"infinite-canvas.inspect"}

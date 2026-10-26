@@ -8,12 +8,12 @@ use beui_view::reactive::*;
 pub fn FocusRing(
     focused: Prop<bool>,
     #[prop(default = Radius::Md)] radius: Radius,
-    #[prop(default = 0.0)] offset: f32,
+    #[prop(default = 0.0)] offset: Prop<f32>,
     children: Child,
 ) -> NodeId {
+    let ring = focus_border(focused, Border::FOCUS);
+    let border = create_memo(move || ring.get().map(|border| border.offset(offset.get())));
     view! {
-        <Frame border={focus_border(focused, Border::FOCUS.offset(offset))} radius>
-            {children}
-        </Frame>
+        <Frame border={border} radius>{children}</Frame>
     }
 }

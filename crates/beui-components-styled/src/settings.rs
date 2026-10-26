@@ -1,13 +1,13 @@
-use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
-use crate::text::{Icon, TextColor};
-use crate::theme::use_theme;
-use beui_core::color::Color32;
-use beui_core::icons::{ICON_CHEVRON_RIGHT, ICON_ELLIPSIS};
+use crate::button::ButtonVariant;
+use crate::frame::{Border, ColorRole, Frame, Radius};
+use crate::row::{RowFace, RowSize, RowTrailing};
+use crate::text::TextColor;
+use beui_core::icons::ICON_ELLIPSIS;
 use beui_macros::{component, view};
 
 use crate::border::Separator;
-use crate::icon_button::IconButtonSize;
-use crate::menu_button::IconMenuButton;
+use crate::button::ButtonSize;
+use crate::menu_button::MenuButton;
 use crate::scroll::Scroll;
 use crate::text::{Text, TextStyle};
 use beui_components_unstyled as unstyled;
@@ -156,10 +156,12 @@ pub fn SettingsRow(
                 padding={Sides::new(0.0, ROW_PADDING_VERTICAL, MENU_INSET, ROW_PADDING_VERTICAL)}
                 align={Align2::new(Align::Center, Align::Center)}
             >
-                <IconMenuButton
+                <MenuButton
+                    icon_only=true
+                    variant=ButtonVariant::Ghost
                     label="More"
                     glyph=ICON_ELLIPSIS
-                    size=IconButtonSize::Compact
+                    size=ButtonSize::Small
                     disabled={locked}
                     @test_id={menu_test_id}
                     items={menu}
@@ -246,72 +248,24 @@ pub fn SettingsLink(
                     @sizing=ItemSize::Percent(100.0)
                     padding={Sides::new(0.0, LINK_INSET, LINK_INSET, LINK_INSET)}
                 >
-                    <unstyled::Button label disabled on_click={on_click}>|handle|
-                        <SettingsLinkFace handle description={description} />
+                    <unstyled::Button
+                        label
+                        disabled
+                        on_click={on_click}
+                    >|handle: unstyled::ButtonHandle|
+                        <RowFace
+                            hovered={handle.hovered}
+                            active={handle.active}
+                            focused={handle.focused}
+                            disabled={handle.disabled}
+                            size=RowSize::Regular
+                            label={handle.label}
+                            detail={description}
+                            trailing=RowTrailing::Chevron
+                        />
                     </unstyled::Button>
                 </Frame>
             </List>
         </List>
-    }
-}
-
-#[component]
-fn SettingsLinkFace(handle: unstyled::ButtonHandle, description: Memo<String>) -> NodeId {
-    let unstyled::ButtonHandle {
-        hovered,
-        active,
-        focused,
-        disabled,
-        label,
-        ..
-    } = handle;
-    let theme = use_theme();
-    let fill = create_memo(
-        move || match (disabled.get(), active.get(), hovered.get()) {
-            (true, _, _) => Color32::TRANSPARENT,
-            (false, true, _) => theme.pressed.get(),
-            (false, false, true) => theme.hover.get(),
-            (false, false, false) => Color32::TRANSPARENT,
-        },
-    );
-    let text_color = create_memo(move || match disabled.get() {
-        true => TextColor::Muted,
-        false => TextColor::Default,
-    });
-    let described = create_memo(move || !description.get().is_empty());
-    view! {
-        <Frame
-            fill={ColorRole::custom(fill)}
-            border={focus_border(focused, Border::FOCUS)}
-            radius=Radius::Md
-        >
-            <List direction=Direction::Horizontal spacing=0.0>
-                <Frame
-                    @sizing=ItemSize::Percent(100.0)
-                    padding={Sides::new(
-                        ROW_PADDING_HORIZONTAL - MARKER_WIDTH,
-                        ROW_PADDING_VERTICAL - LINK_INSET,
-                        ROW_PADDING_HORIZONTAL - LINK_INSET,
-                        ROW_PADDING_VERTICAL - LINK_INSET,
-                    )}
-                >
-                    <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                        <List
-                            @sizing=ItemSize::Percent(100.0)
-                            justify=Justify::Center
-                            spacing=LABEL_SPACING
-                        >
-                            <Text color={text_color}>{label}</Text>
-                            <Show condition={described}>
-                                <Text style=TextStyle::CAPTION>{description}</Text>
-                            </Show>
-                        </List>
-                        <Text color=TextColor::Muted>
-                            <Icon glyph=ICON_CHEVRON_RIGHT />
-                        </Text>
-                    </List>
-                </Frame>
-            </List>
-        </Frame>
     }
 }

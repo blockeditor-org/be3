@@ -6,7 +6,8 @@ use crate::date_time_field::{
     DateDraft, DateSegment, DateSegmentHandle, DateTimeField, DateTimeParts,
 };
 use crate::datetime::{Date, DateTime, HourCycle, Time};
-use crate::popover::{Popover, PopoverHandle, PopoverPlacement, PopoverTriggerHandle};
+use crate::popover::{Popover, PopoverHandle, PopoverPlacement};
+use crate::popup_trigger::PopupTriggerHandle;
 use beui_core::geometry::Vec2;
 use beui_core::input::{CursorIcon, PointerPress};
 use beui_core::node::NodeId;
@@ -22,7 +23,7 @@ pub struct DateTimeBoxHandle {
 }
 
 pub struct DateTimeTriggerHandle {
-    pub popover: PopoverTriggerHandle,
+    pub popover: PopupTriggerHandle,
     pub label: Memo<String>,
 }
 
@@ -181,12 +182,13 @@ pub fn DateTimePicker(
                         trigger={view! {
                             <Popover
                                 label={picker_label}
+                                icon_only=true
                                 disabled={disabled}
                                 open={open}
                                 anchor=anchor
                                 placement
                                 refocus_trigger
-                                trigger={move |handle: PopoverTriggerHandle| trigger.call(DateTimeTriggerHandle {
+                                trigger={move |handle: PopupTriggerHandle| trigger.call(DateTimeTriggerHandle {
                                     popover: handle,
                                     label: picker_label,
                                 })}

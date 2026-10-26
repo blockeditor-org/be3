@@ -106,20 +106,33 @@ pub(crate) fn ViewerBar(
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
             <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0)>{position}</Text>
-            <IconButton
+            <Button
+                icon_only=true
                 glyph=ICON_CHEVRON_LEFT
                 label="Previous image"
                 disabled={first}
                 on_click={on_previous}
             />
-            <IconButton
+            <Button
+                icon_only=true
                 glyph=ICON_CHEVRON_RIGHT
                 label="Next image"
                 disabled={last}
                 on_click={on_next}
             />
-            <IconButton glyph=ICON_EXTERNAL_LINK label="Open in the browser" on_click={on_browse} />
-            <IconButton @test_id={"viewer.close"} glyph=ICON_X label="Close" on_click={on_close} />
+            <Button
+                icon_only=true
+                glyph=ICON_EXTERNAL_LINK
+                label="Open in the browser"
+                on_click={on_browse}
+            />
+            <Button
+                icon_only=true
+                @test_id={"viewer.close"}
+                glyph=ICON_X
+                label="Close"
+                on_click={on_close}
+            />
         </List>
     }
 }

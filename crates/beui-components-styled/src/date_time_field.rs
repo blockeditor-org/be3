@@ -16,7 +16,7 @@ use beui_components_unstyled::datetime::{Date, DateTime, HourCycle, Time, Weekda
 use beui_components_unstyled::{
     ButtonHandle, ChoiceOption, DateSegmentHandle, DateTimeBoxHandle, DateTimeCalendarHandle,
     DateTimePanelHandle, DateTimePanelLayout, DateTimeParts, DateTimeTimesHandle,
-    DateTimeTriggerHandle, PopoverPlacement, PopoverTriggerHandle, TimeOptionHandle, grid_columns,
+    DateTimeTriggerHandle, PopoverPlacement, PopupTriggerHandle, TimeOptionHandle, grid_columns,
     narrower_than,
 };
 use beui_core::base::{Align, Direction, Justify, TextAlign};
@@ -179,7 +179,7 @@ fn LiteralFace(text: String) -> NodeId {
 fn PickerTrigger(handle: DateTimeTriggerHandle, parts: DateTimeParts) -> NodeId {
     let DateTimeTriggerHandle {
         popover:
-            PopoverTriggerHandle {
+            PopupTriggerHandle {
                 open,
                 button:
                     ButtonHandle {
@@ -187,10 +187,11 @@ fn PickerTrigger(handle: DateTimeTriggerHandle, parts: DateTimeParts) -> NodeId 
                         active,
                         focused,
                         disabled,
+                        tooltip,
                         ..
                     },
             },
-        label,
+        ..
     } = handle;
     let theme = use_theme();
     let fill =
@@ -211,7 +212,7 @@ fn PickerTrigger(handle: DateTimeTriggerHandle, parts: DateTimeParts) -> NodeId 
         DateTimeParts::Date | DateTimeParts::DateTime => ICON_CALENDAR_DAYS,
     };
     view! {
-        <Tooltip label disabled={open}>
+        <Tooltip label={tooltip}>
             <FocusRing focused offset=1.0>
                 <Frame
                     fill={ColorRole::custom(fill)}

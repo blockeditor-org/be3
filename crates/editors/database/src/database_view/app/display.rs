@@ -227,7 +227,8 @@ fn OrderPicker(data: Data) -> NodeId {
                     on_change={picked}
                 />
                 <Show condition={sorted}>
-                    <IconButton
+                    <Button
+                        icon_only=true
                         glyph={glyph}
                         label={direction_label}
                         @test_id={"database-view.order-direction"}

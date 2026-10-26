@@ -150,7 +150,8 @@ fn Controls(review: Review) -> NodeId {
                 </Show>
                 <Show condition={many}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                        <IconButton
+                        <Button
+                            icon_only=true
                             glyph=ICON_CHEVRON_LEFT
                             label="The frame before"
                             disabled={first}
@@ -160,7 +161,8 @@ fn Controls(review: Review) -> NodeId {
                         <Text style=TextStyle::CAPTION @test_id={"paint_review.frame"}>
                             {position}
                         </Text>
-                        <IconButton
+                        <Button
+                            icon_only=true
                             glyph=ICON_CHEVRON_RIGHT
                             label="The frame after"
                             disabled={last}

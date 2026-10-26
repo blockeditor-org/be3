@@ -6,10 +6,10 @@ use crate::frame::{Border, Frame, Radius};
 use beui_macros::{component, view};
 
 use crate::button::ButtonVariant;
+use crate::button::{Button, ButtonSize};
 use crate::checkbox::Checkbox;
 use crate::context_menu::menu_style;
 use crate::frame::ColorRole;
-use crate::icon_button::{IconButton, IconButtonSize};
 use crate::scroll::scrollbar_style;
 use crate::text::{Text, TextColor, TextSize};
 use crate::theme::use_theme;
@@ -296,12 +296,13 @@ pub fn DocumentLine(line: TextLine) -> NodeId {
                 <Frame padding=corner align={Align2::new(Align::End, Align::Start)}>
                     <List direction=Direction::Horizontal spacing=COPY_INSET align=Align::Center>
                         <Text size=TextSize::Xs color=TextColor::Muted>{language}</Text>
-                        <IconButton
+                        <Button
+                            icon_only=true
                             @test_id={format!("text.copy_code.{}", line.line.get_untracked())}
                             glyph={ICON_COPY.to_owned()}
                             label="Copy code"
                             variant=ButtonVariant::Ghost
-                            size=IconButtonSize::Compact
+                            size=ButtonSize::Small
                             capture_presses=true
                             press_focus=false
                             on_click={move || copy_text(line.code_text())}

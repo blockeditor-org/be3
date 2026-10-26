@@ -350,7 +350,8 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
     view! {
         <List spacing=8.0>
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_ARROW_LEFT
                     label="Back to all points"
                     @test_id={"map.point.back"}
@@ -377,7 +378,8 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
                         }
                     }}
                 />
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_LOCATE_FIXED
                     label="Centre the map here"
                     on_click={move || {
@@ -386,7 +388,8 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
                         }
                     }}
                 />
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_TRASH
                     label="Remove this point of interest"
                     @test_id={"map.point.remove"}

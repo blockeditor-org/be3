@@ -215,11 +215,12 @@ fn GroupHeader(data: Data, groups: Memo<Vec<Group>>, key: GroupKey) -> NodeId {
             padding={Sides::vertical(2.0).left(GUTTER * 0.5).right(GUTTER * 0.5)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_CHEVRON_DOWN
                     label={chevron}
                     variant=ButtonVariant::Ghost
-                    size=IconButtonSize::Compact
+                    size=ButtonSize::Small
                     @test_id={format!("database-view.group.{test_key}.toggle")}
                     on_click={toggle}
                 />
@@ -229,11 +230,12 @@ fn GroupHeader(data: Data, groups: Memo<Vec<Group>>, key: GroupKey) -> NodeId {
                 <Text>{label}</Text>
                 <Text style=TextStyle::CAPTION>{count}</Text>
                 <Frame @sizing=ItemSize::Percent(100.0) />
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_PLUS
                     label="Add a row to this group"
                     variant=ButtonVariant::Ghost
-                    size=IconButtonSize::Compact
+                    size=ButtonSize::Small
                     disabled={read_only}
                     @test_id={format!("database-view.group.{test_key}.add")}
                     on_click={add}

@@ -454,7 +454,8 @@ fn ControlButton(game: Stored<Rc<dyn GameModel>>, action: Action, editable: Memo
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
             <Show condition={asking}>
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph={glyph}
                     label={label.clone()}
                     disabled={disabled}
@@ -466,14 +467,16 @@ fn ControlButton(game: Stored<Rc<dyn GameModel>>, action: Action, editable: Memo
                 let confirm = confirm.clone(); let effect = effect.clone(); let question = question.clone(); view! {
                     <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                         <Text style=TextStyle::CAPTION>{question}</Text>
-                        <IconButton
+                        <Button
+                            icon_only=true
                             glyph=ICON_CHECK
                             label={confirm}
                             disabled={disabled}
                             @test_id={format!("game.control.{index}.confirm")}
                             on_click={move || game.value().choose(effect.clone())}
                         />
-                        <IconButton
+                        <Button
+                            icon_only=true
                             glyph=ICON_X
                             label="Cancel"
                             @test_id={format!("game.control.{index}.cancel")}
@@ -520,10 +523,11 @@ fn Banner(anchor: NodeRef, table: Memo<Table>) -> NodeId {
                 >
                     <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
                         <Text size=TextSize::Lg weight=Weight::Bold color={color}>{text}</Text>
-                        <IconButton
+                        <Button
+                            icon_only=true
                             glyph=ICON_X
                             label="Close"
-                            size=IconButtonSize::Compact
+                            size=ButtonSize::Small
                             capture_presses=true
                             @test_id={"game.banner.close"}
                             on_click={move || dismissed.set(true)}

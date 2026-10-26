@@ -2,9 +2,9 @@ use crate::frame::{Border, ColorRole, Frame, Radius};
 use accesskit::Node;
 use beui_macros::{component, view};
 
+use crate::button::{Button, ButtonSize};
 use crate::button::{ButtonFace, ButtonVariant};
 use crate::focus_ring::FocusRing;
-use crate::icon_button::{IconButton, IconButtonSize};
 use crate::text::{Text, TextColor, TextSize};
 use crate::theme::{ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
@@ -86,10 +86,11 @@ fn CalendarHeader(handle: CalendarHeaderHandle) -> NodeId {
     let month_shown = create_memo(move || !years_open.get());
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
-            <IconButton
+            <Button
+                icon_only=true
                 glyph=ICON_CHEVRON_LEFT
                 label={previous_label}
-                size=IconButtonSize::Compact
+                size=ButtonSize::Small
                 variant=ButtonVariant::Ghost
                 disabled={no_previous}
                 on_click={move || previous.call(())}
@@ -115,10 +116,11 @@ fn CalendarHeader(handle: CalendarHeaderHandle) -> NodeId {
                     on_click={move || show_years.call(())}
                 />
             </List>
-            <IconButton
+            <Button
+                icon_only=true
                 glyph=ICON_CHEVRON_RIGHT
                 label={next_label}
-                size=IconButtonSize::Compact
+                size=ButtonSize::Small
                 variant=ButtonVariant::Ghost
                 disabled={no_next}
                 on_click={move || next.call(())}

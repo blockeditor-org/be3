@@ -128,21 +128,24 @@ pub(crate) fn ArtifactBar(
                         <Show condition={running}>
                             <Text style=TextStyle::CAPTION>"Regenerating…"</Text>
                         </Show>
-                        <IconButton
+                        <Button
+                            icon_only=true
                             @test_id={"workspace.artifact.settings"}
                             glyph=ICON_SETTINGS
                             label="Settings"
                             disabled={settings_off}
                             on_click={settings}
                         />
-                        <IconButton
+                        <Button
+                            icon_only=true
                             @test_id={"workspace.artifact.regenerate"}
                             glyph=ICON_REFRESH_CW
                             label="Regenerate"
                             disabled={regenerate_off}
                             on_click={regenerate}
                         />
-                        <IconButton
+                        <Button
+                            icon_only=true
                             @test_id={"workspace.artifact.unlink"}
                             glyph=ICON_UNLINK
                             label="Unlink from the source block"

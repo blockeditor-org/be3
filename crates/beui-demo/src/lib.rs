@@ -835,7 +835,8 @@ fn DemoToolbar(pages: Pages) -> NodeId {
                     });
                 })}
             />
-            <IconButton
+            <Button
+                icon_only=true
                 @test_id={"demo.inspector"}
                 glyph=ICON_BUG
                 label="Open the inspector"

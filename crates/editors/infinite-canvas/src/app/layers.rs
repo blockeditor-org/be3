@@ -85,10 +85,11 @@ fn LayerRow(state: CanvasState, id: Uuid) -> NodeId {
                     border={create_memo(move || handle.over.get().then_some(Border::new(ColorRole::Accent).width(1.0)))}
                 >
                     <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
-                        <IconButton
+                        <Button
+                            icon_only=true
                             glyph={glyph}
                             label={toggle_label}
-                            size=IconButtonSize::Compact
+                            size=ButtonSize::Small
                             variant=ButtonVariant::Ghost
                             capture_presses=true
                             @test_id={format!("infinite-canvas.layer.{id}.visibility")}

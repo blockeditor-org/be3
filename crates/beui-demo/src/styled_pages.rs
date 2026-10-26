@@ -5,7 +5,7 @@ use beui::icons::Glyph;
 use beui::icons::{
     ICON_A_LARGE_SMALL, ICON_CIRCLE_CHECK, ICON_CLOCK, ICON_COPY_PLUS, ICON_FILE_UP, ICON_FOLDER,
     ICON_IMAGE, ICON_INFO, ICON_PAPERCLIP, ICON_PLUS, ICON_QUOTE, ICON_SAVE, ICON_TABLE,
-    ICON_TEXT_ALIGN_START, ICON_TRIANGLE_ALERT, ICON_UNDO_2, ICON_X,
+    ICON_TEXT_ALIGN_START, ICON_TRIANGLE_ALERT, ICON_UNDO_2, ICON_WIFI, ICON_X,
 };
 use beui::keyboard::styled::SoftwareKeyboard;
 use beui::unstyled::MenuThen;
@@ -311,7 +311,8 @@ pub(crate) fn AttachedCard() -> NodeId {
                     <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0)>
                         "Choose something"
                     </Text>
-                    <IconButton
+                    <Button
+                        icon_only=true
                         @test_id={format!("demo.card.{id}.close")}
                         glyph=ICON_X
                         label="Close"
@@ -670,6 +671,9 @@ pub(crate) fn ButtonsPage() -> NodeId {
             <Sample title="Icon buttons" code={vec![IconButtons::SOURCE]}>
                 <IconButtons />
             </Sample>
+            <Sample title="Row buttons" code={vec![RowButtons::SOURCE, badge::SOURCE]}>
+                <RowButtons />
+            </Sample>
             <Sample title="Toggle button" code={vec![PinToggle::SOURCE]}>
                 <PinToggle />
             </Sample>
@@ -753,37 +757,73 @@ fn ButtonVariants() -> NodeId {
 
 #[sample]
 #[component]
+fn RowButtons() -> NodeId {
+    let chosen = create_signal(0usize);
+    view! {
+        <Frame width={Extent::at_most(360.0)}>
+            <List spacing=2.0>
+                <ListRow
+                    label="Wi-Fi"
+                    detail="Home network"
+                    glyph=ICON_WIFI
+                    trailing=RowTrailing::Chevron
+                    on_click={move || chosen.set(0)}
+                />
+                <ListRow
+                    label="Chat"
+                    detail="3 unread"
+                    image={Some(badge(Color32::from_rgb(0x58, 0x65, 0xf2)))}
+                    selected={create_memo(move || chosen.get() == 1)}
+                    on_click={move || chosen.set(1)}
+                />
+                <ListRow
+                    label="Dark theme"
+                    glyph=ICON_CONTRAST
+                    trailing=RowTrailing::Check
+                    on_click={move || chosen.set(2)}
+                />
+            </List>
+        </Frame>
+    }
+}
+
+#[sample]
+#[component]
 fn IconButtons() -> NodeId {
     let clicked = create_signal("Nothing clicked yet".to_owned());
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0 wrap=true>
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_COPY
                     label="Copy"
                     variant=ButtonVariant::Primary
                     on_click={move || clicked.set("Clicked Copy".to_owned())}
                 />
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_SHARE_2
                     label="Share"
                     on_click={move || clicked.set("Clicked Share".to_owned())}
                 />
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_TRASH
                     label="Delete"
                     variant=ButtonVariant::Ghost
-                    size=IconButtonSize::Compact
+                    size=ButtonSize::Small
                     on_click={move || clicked.set("Clicked Delete".to_owned())}
                 />
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_UNDO_2
                     label="Undo"
                     variant=ButtonVariant::Ghost
-                    size=IconButtonSize::Toolbar
+                    size=ButtonSize::Toolbar
                     on_click={move || clicked.set("Clicked Undo".to_owned())}
                 />
-                <IconButton glyph=ICON_PENCIL label="Edit" disabled=true />
+                <Button icon_only=true glyph=ICON_PENCIL label="Edit" disabled=true />
             </List>
             <Text style=TextStyle::CAPTION>
                 "Hover an icon button to see its label as a tooltip."
@@ -1698,7 +1738,11 @@ fn TrayIcons() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                <PictureMenuButton
+                <MenuButton
+                    icon_only=true
+                    variant=ButtonVariant::Ghost
+                    size=ButtonSize::Compact
+                    secondary_opens=true
                     label="Chat"
                     image={Some(badge(Color32::from_rgb(0x58, 0x65, 0xf2)))}
                     click_opens=false
@@ -1717,7 +1761,11 @@ fn TrayIcons() -> NodeId {
                         outcome.set(format!("Chose {label}"));
                     }}
                 />
-                <PictureMenuButton
+                <MenuButton
+                    icon_only=true
+                    variant=ButtonVariant::Ghost
+                    size=ButtonSize::Compact
+                    secondary_opens=true
                     label="Sync"
                     open={sync_open}
                     image={None}

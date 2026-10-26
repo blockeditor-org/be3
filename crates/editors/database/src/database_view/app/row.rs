@@ -128,7 +128,8 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                     <Frame padding={Sides::symmetric(SPACING, 6.0)}>
                         <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
                             <Show condition={narrow}>
-                                <IconButton
+                                <Button
+                                    icon_only=true
                                     glyph=ICON_ARROW_LEFT
                                     label="Back to the list"
                                     variant=ButtonVariant::Ghost
@@ -136,14 +137,16 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                                     on_click={close}
                                 />
                             </Show>
-                            <IconButton
+                            <Button
+                                icon_only=true
                                 glyph=ICON_CHEVRON_UP
                                 label="Previous row"
                                 variant=ButtonVariant::Ghost
                                 @test_id={"database-view.detail.previous"}
                                 on_click={move || step(-1)}
                             />
-                            <IconButton
+                            <Button
+                                icon_only=true
                                 glyph=ICON_CHEVRON_DOWN
                                 label="Next row"
                                 variant=ButtonVariant::Ghost
@@ -156,14 +159,17 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                                 </Text>
                             </Frame>
                             <Frame @sizing=ItemSize::Percent(100.0) />
-                            <IconButton
+                            <Button
+                                icon_only=true
                                 glyph=ICON_EXTERNAL_LINK
                                 label="Open the page"
                                 variant=ButtonVariant::Ghost
                                 @test_id={"database-view.detail.open"}
                                 on_click={open_page}
                             />
-                            <IconMenuButton
+                            <MenuButton
+                                icon_only=true
+                                variant=ButtonVariant::Ghost
                                 label="More"
                                 glyph=ICON_ELLIPSIS
                                 @test_id={"database-view.detail.more"}
@@ -179,7 +185,8 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                                 }}
                             />
                             <Show condition={wide}>
-                                <IconButton
+                                <Button
+                                    icon_only=true
                                     glyph=ICON_X
                                     label="Close"
                                     variant=ButtonVariant::Ghost
@@ -514,7 +521,8 @@ fn LinkedRow(
                     </Text>
                 </List>
             </ListRow>
-            <IconButton
+            <Button
+                icon_only=true
                 glyph=ICON_X
                 label="Remove link"
                 variant=ButtonVariant::Ghost

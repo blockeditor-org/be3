@@ -71,7 +71,8 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
                     <Frame fill={ColorRole::custom(page)}>
                         <List spacing=0.0>
                             <Frame padding={Sides::symmetric(8.0, 4.0)}>
-                                <IconButton
+                                <Button
+                                    icon_only=true
                                     glyph=ICON_ARROW_LEFT
                                     label="Back to the pull requests"
                                     on_click={back}
@@ -180,12 +181,18 @@ fn Sidebar(model: Model) -> NodeId {
                             <Text style=TextStyle::HEADING>"Pull requests"</Text>
                             <Text style=TextStyle::CAPTION>{repository}</Text>
                         </List>
-                        <IconButton
+                        <Button
+                            icon_only=true
                             glyph=ICON_SCAN_SEARCH
                             label="Open the inspector"
                             on_click={|| with_document(Document::open_inspector)}
                         />
-                        <IconButton glyph=ICON_REFRESH_CW label="Refresh" on_click={refresh} />
+                        <Button
+                            icon_only=true
+                            glyph=ICON_REFRESH_CW
+                            label="Refresh"
+                            on_click={refresh}
+                        />
                     </List>
                     <MainActions model={model} />
                     <Tabs

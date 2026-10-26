@@ -113,11 +113,12 @@ fn FoldedColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId
             <List align=Align::Center spacing=8.0>
                 <ChoiceMark option={option} size=MARK />
                 <Text style=TextStyle::CAPTION>{count}</Text>
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_CHEVRONS_UP_DOWN
                     label={name}
                     variant=ButtonVariant::Ghost
-                    size=IconButtonSize::Compact
+                    size=ButtonSize::Small
                     @test_id={format!("database-view.kanban.unfold.{}", group_test_key(key))}
                     on_click={unfold}
                 />
@@ -195,11 +196,12 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
                                 <Text>{label}</Text>
                                 <Text style=TextStyle::CAPTION>{count}</Text>
                                 <Frame @sizing=ItemSize::Percent(100.0) />
-                                <IconButton
+                                <Button
+                                    icon_only=true
                                     glyph=ICON_PLUS
                                     label="Add card"
                                     variant=ButtonVariant::Ghost
-                                    size=IconButtonSize::Compact
+                                    size=ButtonSize::Small
                                     disabled={read_only}
                                     @test_id={format!("database-view.kanban.add.{test_key}")}
                                     on_click={add}

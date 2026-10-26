@@ -6,10 +6,10 @@ use crate::styled::{BarRoom, DockMenu, title_action};
 use crate::unstyled::{DockStackHandle, DockSwitcherCardHandle, DockSwitcherHandle, TabId};
 use beui_components_styled::action_row::ActionRow;
 use beui_components_styled::border::Separator;
+use beui_components_styled::button::Button;
 use beui_components_styled::button::ButtonVariant;
-use beui_components_styled::icon_button::IconButton;
 use beui_components_styled::list_row::ListRow;
-use beui_components_styled::menu_button::IconMenuButton;
+use beui_components_styled::menu_button::MenuButton;
 use beui_components_styled::sheet::ModalSheet;
 use beui_components_styled::text::{Icon, Text, TextColor, TextSize, TextStyle};
 use beui_components_styled::theme::use_theme;
@@ -58,7 +58,8 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
             <Frame fill=ColorRole::Surface padding=BAR_PADDING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
                     <Show condition={backward}>
-                        <IconButton
+                        <Button
+                            icon_only=true
                             @test_id={"dock.back"}
                             glyph=ICON_ARROW_LEFT
                             label="Back"
@@ -314,7 +315,8 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
                 </ListRow>
                 <List spacing=0.0>
                     <Show condition={closable}>
-                        <IconButton
+                        <Button
+                            icon_only=true
                             @test_id={format!("dock.switcher.close.{id}")}
                             glyph=ICON_X
                             label="Close tab"
@@ -323,7 +325,9 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
                         />
                     </Show>
                     <Show condition={offered}>
-                        <IconMenuButton
+                        <MenuButton
+                            icon_only=true
+                            variant=ButtonVariant::Ghost
                             @test_id={format!("dock.switcher.menu.{id}")}
                             label="More"
                             glyph=ICON_ELLIPSIS_VERTICAL

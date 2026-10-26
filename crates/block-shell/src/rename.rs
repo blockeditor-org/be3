@@ -193,7 +193,8 @@ fn RenameBody(
                         <Text @sizing=ItemSize::Percent(100.0) style=TextStyle::TITLE>
                             "Rename"
                         </Text>
-                        <IconButton
+                        <Button
+                            icon_only=true
                             @test_id={"rename.close"}
                             glyph=ICON_X
                             label="Close"
@@ -310,6 +311,7 @@ fn Swatch<F: Fn() + 'static>(
         <unstyled::Button
             @test_id={format!("rename.color.{id}")}
             label
+            icon_only=true
             on_click={on_pick}
         >|handle: ButtonHandle| {
             let ringed = create_memo(move || chosen.get() || handle.focused.get() || handle.hovered.get());
@@ -362,6 +364,7 @@ fn IconTile(
         <unstyled::Button
             @test_id={format!("rename.icon.{id}")}
             label
+            icon_only=true
             on_click={move || set_icon.call(match tile {
                 Tile::Default => None,
                 Tile::Icon(name) => Some(name),

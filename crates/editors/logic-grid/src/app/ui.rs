@@ -134,10 +134,15 @@ fn GridToolbar(session: Session, shown: ReadSignal<bool>) -> DynamicSegment<List
                 </Text>
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
-            <IconButton glyph=ICON_ZOOM_OUT label="Zoom out" on_click={zoom_out} />
+            <Button icon_only=true glyph=ICON_ZOOM_OUT label="Zoom out" on_click={zoom_out} />
             <Text style=TextStyle::CAPTION>{percent}</Text>
-            <IconButton glyph=ICON_ZOOM_IN label="Zoom in" on_click={zoom_in} />
-            <IconButton glyph=ICON_SCAN label="Return to the origin" on_click={recenter} />
+            <Button icon_only=true glyph=ICON_ZOOM_IN label="Zoom in" on_click={zoom_in} />
+            <Button
+                icon_only=true
+                glyph=ICON_SCAN
+                label="Return to the origin"
+                on_click={recenter}
+            />
         </Toolbar>
     }
 }

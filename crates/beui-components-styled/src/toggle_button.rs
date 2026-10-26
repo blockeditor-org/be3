@@ -1,6 +1,5 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
 use accesskit::Role;
-use beui_core::font::Overflow;
 use beui_core::icons::Glyph;
 use beui_macros::{component, view};
 
@@ -10,7 +9,7 @@ use crate::theme::{ThemeStore, use_theme};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled::{Toggle, ToggleHandle};
 use beui_core::color::Color32;
-use beui_core::font::TextAlign;
+use beui_core::font::{Overflow, TextAlign};
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -26,27 +25,24 @@ pub fn ToggleButton(
     #[prop(default = false)] disabled: Prop<bool>,
     action: Option<Action>,
 ) -> NodeId {
-    let icon_only = create_memo(move || icon_only.get());
-    let named = create_memo(move || !icon_only.get());
     view! {
         <Toggle
             api
             checked={pressed}
             label
             glyph
+            icon_only
             role=Role::Button
             action
             disabled
         >|handle: ToggleHandle|
-            <Tooltip label={handle.tooltip} disabled={named}>
-                <ToggleButtonFace handle icon_only />
-            </Tooltip>
+            <ToggleButtonFace handle />
         </Toggle>
     }
 }
 
 #[component]
-fn ToggleButtonFace(handle: ToggleHandle, icon_only: Memo<bool>) -> NodeId {
+fn ToggleButtonFace(handle: ToggleHandle) -> NodeId {
     let ToggleHandle {
         checked,
         hovered,
@@ -54,6 +50,8 @@ fn ToggleButtonFace(handle: ToggleHandle, icon_only: Memo<bool>) -> NodeId {
         disabled,
         label,
         glyph,
+        icon_only,
+        tooltip,
         ..
     } = handle;
     let theme = use_theme();
@@ -78,25 +76,27 @@ fn ToggleButtonFace(handle: ToggleHandle, icon_only: Memo<bool>) -> NodeId {
     });
 
     view! {
-        <FocusRing focused offset=3.0>
-            <Frame
-                fill={ColorRole::custom(fill_color)}
-                border={create_memo(move || Some(Border::new(ColorRole::Custom(border_color.get())).width(1.0)))}
-                radius=Radius::Md
-                padding={padding}
-            >
-                <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                    <Show condition={has_glyph}>
-                        <Text color={text_color} align=TextAlign::Center>
-                            <Icon glyph={glyph} />
-                        </Text>
-                    </Show>
-                    <Show condition={named}>
-                        <Text overflow=Overflow::Ellipsis color={text_color}>{label}</Text>
-                    </Show>
-                </List>
-            </Frame>
-        </FocusRing>
+        <Tooltip label={tooltip}>
+            <FocusRing focused offset=3.0>
+                <Frame
+                    fill={ColorRole::custom(fill_color)}
+                    border={create_memo(move || Some(Border::new(ColorRole::Custom(border_color.get())).width(1.0)))}
+                    radius=Radius::Md
+                    padding={padding}
+                >
+                    <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+                        <Show condition={has_glyph}>
+                            <Text color={text_color} align=TextAlign::Center>
+                                <Icon glyph={glyph} />
+                            </Text>
+                        </Show>
+                        <Show condition={named}>
+                            <Text overflow=Overflow::Ellipsis color={text_color}>{label}</Text>
+                        </Show>
+                    </List>
+                </Frame>
+            </FocusRing>
+        </Tooltip>
     }
 }
 

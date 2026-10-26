@@ -2,7 +2,7 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::context_menu::menu_style;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{self, ButtonHandle, MenuButtonHandle, MenuItem};
+use block_editor_beui::beui::unstyled::{self, ButtonHandle, MenuItem, PopupTriggerHandle};
 use block_editor_beui::database::{ChoiceMark, choice_glyph};
 use database_types::database_schema::DatabaseField;
 use uuid::Uuid;
@@ -114,7 +114,7 @@ pub fn ChoicePicker(
                         on_click={move || on_pick.call(None)}
                     />
                 }}
-                trigger={move |handle: MenuButtonHandle| {
+                trigger={move |handle: PopupTriggerHandle| {
                     view! {
                         <ControlFace handle={handle.button}>
                             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>

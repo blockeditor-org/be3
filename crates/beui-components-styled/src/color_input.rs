@@ -7,7 +7,7 @@ use crate::popover::PopoverPanel;
 use crate::text_input::TextInput;
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::{ButtonHandle, HexText, PopoverHandle, PopoverTriggerHandle};
+use beui_components_unstyled::{ButtonHandle, HexText, PopoverHandle, PopupTriggerHandle};
 use beui_core::base::{Align, Direction};
 use beui_core::color::Color32;
 use beui_core::node::NodeId;
@@ -40,9 +40,10 @@ pub fn ColorInput(
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
             <unstyled::Popover
                 label={picker_label}
+                icon_only=true
                 disabled={disabled}
-                trigger={move |handle: PopoverTriggerHandle| view! {
-                    <SwatchTrigger handle color={shown} label={picker_label} />
+                trigger={move |handle: PopupTriggerHandle| view! {
+                    <SwatchTrigger handle color={shown} />
                 }}
             >|popover: PopoverHandle|
                 <PopoverPanel>
@@ -70,17 +71,12 @@ pub fn ColorInput(
 }
 
 #[component]
-fn SwatchTrigger(
-    handle: PopoverTriggerHandle,
-    color: Memo<Color32>,
-    label: Memo<String>,
-) -> NodeId {
-    let PopoverTriggerHandle {
-        open,
-        button: ButtonHandle { focused, .. },
-    } = handle;
+fn SwatchTrigger(handle: PopupTriggerHandle, color: Memo<Color32>) -> NodeId {
+    let ButtonHandle {
+        focused, tooltip, ..
+    } = handle.button;
     view! {
-        <Tooltip label disabled={open}>
+        <Tooltip label={tooltip}>
             <FocusRing
                 focused
                 radius={Radius::custom(Radius::Md.px() + 2.0)}

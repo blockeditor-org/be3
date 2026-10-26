@@ -60,7 +60,8 @@ pub(crate) fn SetupSteps(editor: Editor) -> NodeId {
                     >
                         <Text family=Family::Mono @test_id={"terminal.command"}>{command}</Text>
                     </SelectableText>
-                    <IconButton
+                    <Button
+                        icon_only=true
                         label="Copy command"
                         glyph={ICON_COPY.to_owned()}
                         variant=ButtonVariant::Ghost

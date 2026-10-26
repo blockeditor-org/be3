@@ -125,7 +125,8 @@ pub(super) fn Hotbar(session: Session) -> NodeId {
             <HotbarHeader session={session}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                     <SlotDrop session={session} target={parent} folder=true>
-                        <IconButton
+                        <Button
+                            icon_only=true
                             glyph=ICON_ARROW_UP
                             label="Up to the parent folder"
                             disabled={top}

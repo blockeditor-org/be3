@@ -325,10 +325,11 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                                         spacing=2.0
                                     >
                                         <Chip label={name} />
-                                        <IconButton
+                                        <Button
+                                            icon_only=true
                                             glyph=ICON_X
                                             label="Do not add"
-                                            size=IconButtonSize::Compact
+                                            size=ButtonSize::Small
                                             on_click={move || act.call(ShareAction::Unpick(id))}
                                         />
                                     </List>
@@ -512,10 +513,11 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                         />
                     </Show>
                     <Show condition={removable}>
-                        <IconButton
+                        <Button
+                            icon_only=true
                             glyph=ICON_X
                             label="Remove access"
-                            size=IconButtonSize::Compact
+                            size=ButtonSize::Small
                             on_click={move || {
                                 if let Some(member) = member.get_untracked() {
                                     act.call(ShareAction::SetAccess(member.id, AccessLevel::None));

@@ -94,7 +94,8 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
     view! {
         <List spacing=0.0>
             <Toolbar shown={chrome}>
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_CHEVRON_LEFT
                     label="Previous"
                     @test_id={"calendar.previous"}
@@ -106,7 +107,8 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
                     @test_id={"calendar.today"}
                     on_click={today}
                 />
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_CHEVRON_RIGHT
                     label="Next"
                     @test_id={"calendar.next"}

@@ -186,14 +186,16 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
     view! {
         <List spacing=0.0>
             <Toolbar shown={toolbar}>
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_BOXES
                     label="New workspace"
                     @test_id={"file-tree.new-workspace"}
                     on_click={new_workspace}
                 />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
-                <IconButton
+                <Button
+                    icon_only=true
                     @node_ref={&desktop_menu}
                     glyph=ICON_CIRCLE_USER_ROUND
                     label="Account and settings"
@@ -293,13 +295,15 @@ fn PhoneTitle(
                 <Frame @sizing=ItemSize::Percent(100.0) padding={Sides::symmetric(PADDING, 4.0)}>
                     <Text style=TextStyle::TITLE>"Files"</Text>
                 </Frame>
-                <IconButton
+                <Button
+                    icon_only=true
                     @test_id={"file-tree.new-workspace"}
                     glyph=ICON_BOXES
                     label="New workspace"
                     on_click={on_new_workspace}
                 />
-                <IconButton
+                <Button
+                    icon_only=true
                     @node_ref={&menu_button}
                     @test_id={"file-tree.app-menu"}
                     glyph=ICON_CIRCLE_USER_ROUND

@@ -547,7 +547,8 @@ fn SurfaceHeader(
         <Frame padding={Sides::new(SHEET_PADDING, SHEET_PADDING, SHEET_PADDING, 0.0)}>
             <List spacing=HEADER_SPACING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=HEADER_SPACING>
-                    <IconButton
+                    <Button
+                        icon_only=true
                         @test_id={"picker.back"}
                         glyph=ICON_ARROW_LEFT
                         label="Back to the menu"

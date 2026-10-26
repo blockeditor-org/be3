@@ -1,70 +1,50 @@
-use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
+use beui_core::icons::Glyph;
+use beui_core::image::Image;
 use beui_macros::{component, view};
 
-use beui_core::color::Color32;
-
-use crate::theme::{ThemeStore, use_theme};
+use crate::row::{RowFace, RowSize, RowTrailing};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::ButtonHandle;
 use beui_core::node::NodeId;
 use beui_view::reactive::*;
 
-const PADDING_HORIZONTAL: f32 = 8.0;
-const PADDING_VERTICAL: f32 = 4.0;
-
 #[component]
 pub fn ListRow(
-    children: Child,
+    #[prop(default = String::new())] label: Prop<String>,
+    #[prop(default = String::new())] detail: Prop<String>,
+    #[prop(default = None)] glyph: Prop<Option<Glyph>>,
+    #[prop(default = None)] image: Prop<Option<Image>>,
+    #[prop(default = RowTrailing::None)] trailing: Prop<RowTrailing>,
     #[prop(default = false)] selected: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
     on_click: ClickCallback,
     on_activate: ClickCallback,
+    children: Option<Child>,
 ) -> NodeId {
     let activates = !on_activate.is_empty();
+    let selected = create_memo(move || selected.get());
     view! {
         <unstyled::ListRow
-            selected
+            selected={selected}
             disabled
             activates
             on_click={on_click}
             on_activate={on_activate}
         >|handle: ButtonHandle|
-            <ListRowFace handle selected={selected}>{children}</ListRowFace>
+            <RowFace
+                hovered={handle.hovered}
+                active={handle.active}
+                focused={handle.focused}
+                disabled={handle.disabled}
+                selected={selected}
+                size=RowSize::Compact
+                label
+                detail
+                glyph
+                image
+                trailing
+                children
+            />
         </unstyled::ListRow>
-    }
-}
-
-#[component]
-fn ListRowFace(handle: ButtonHandle, selected: Prop<bool>, children: Child) -> NodeId {
-    let ButtonHandle {
-        hovered,
-        active,
-        focused,
-        disabled,
-        ..
-    } = handle;
-    let theme = use_theme();
-    let fill_color = create_memo(move || match disabled.get() {
-        true => Color32::TRANSPARENT,
-        false => background(&theme, selected.get(), hovered.get(), active.get()),
-    });
-    view! {
-        <Frame
-            fill={ColorRole::custom(fill_color)}
-            border={focus_border(focused, Border::FOCUS)}
-            radius=Radius::Md
-            padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
-        >
-            {children}
-        </Frame>
-    }
-}
-
-fn background(theme: &ThemeStore, selected: bool, hovered: bool, active: bool) -> Color32 {
-    match (selected, hovered, active) {
-        (_, _, true) => theme.pressed.get(),
-        (_, true, false) => theme.hover.get(),
-        (true, false, false) => theme.accent_soft.get(),
-        (false, false, false) => Color32::TRANSPARENT,
     }
 }

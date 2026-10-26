@@ -14,8 +14,8 @@ use beui_view::primitives::*;
 use beui_view::reactive::*;
 
 use beui_components_styled::border::Separator;
+use beui_components_styled::button::{Button, ButtonSize};
 use beui_components_styled::frame::{ColorRole, Frame, Radius};
-use beui_components_styled::icon_button::{IconButton, IconButtonSize};
 use beui_components_styled::scroll::Scroll;
 use beui_components_styled::text::{Icon, Text, TextColor, TextSize};
 use beui_components_styled::theme::SEPARATOR_THICKNESS;
@@ -70,11 +70,12 @@ pub fn SoftwareKeyboard() -> NodeId {
 fn KeyboardBar() -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=0.0 justify=Justify::End align=Align::Center>
-            <IconButton
+            <Button
+                icon_only=true
                 @test_id="keyboard.close"
                 glyph=icons::ICON_KEYBOARD_OFF
                 label="Close the keyboard"
-                size=IconButtonSize::Toolbar
+                size=ButtonSize::Toolbar
                 press_focus=false
                 on_click={close_keyboard}
             />

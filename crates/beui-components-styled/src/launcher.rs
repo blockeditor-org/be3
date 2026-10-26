@@ -1,21 +1,19 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
-use beui_core::font::Overflow;
-use beui_core::icons::Glyph;
 use beui_core::layer::Dismiss;
 use std::rc::Rc;
 
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
+use crate::row::{RowFace, RowSize};
 use crate::scroll::scrollbar_style;
-use crate::text::{Icon, Text, TextColor, TextStyle};
+use crate::text::{Icon, Text, TextColor};
 use crate::text_input::text_input_style;
 use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::{ButtonHandle, Picture, TextInputHandle};
+use beui_components_unstyled::{ButtonHandle, TextInputHandle};
 use beui_core::base::TextAlign;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
-use beui_core::color::Color32;
 use beui_core::geometry::Pos2;
 use beui_core::icons::{ICON_LAYOUT_GRID, ICON_SEARCH, ICON_TERMINAL};
 use beui_core::image::Image;
@@ -32,9 +30,7 @@ const MARGIN: f32 = 12.0;
 const PADDING: f32 = 6.0;
 const SEARCH_HEIGHT: f32 = 40.0;
 const ROW_PADDING_HORIZONTAL: f32 = 10.0;
-const ROW_PADDING_VERTICAL: f32 = 6.0;
 const ROW_SPACING: f32 = 12.0;
-const PICTURE_SIZE: f32 = 32.0;
 const PAGE: usize = 8;
 
 const EXACT: u32 = 100;
@@ -382,63 +378,16 @@ fn LauncherRow(state: State, items: Prop<Rc<Vec<LauncherItem>>>, row: Row) -> No
                 }
             });
             view! {
-                <LauncherRowFace title={title} detail={detail} image={image} glyph lit={lit} />
+                <RowFace
+                    selected={lit}
+                    size=RowSize::Large
+                    label={title}
+                    detail={detail}
+                    glyph={Some(glyph)}
+                    image={image}
+                    leading=true
+                />
             }
         }</unstyled::Button>
-    }
-}
-
-#[component]
-fn LauncherRowFace(
-    title: Memo<String>,
-    detail: Memo<String>,
-    image: Memo<Option<Image>>,
-    glyph: Glyph,
-    lit: Memo<bool>,
-) -> NodeId {
-    let theme = use_theme();
-    let fill = create_memo(move || match lit.get() {
-        true => theme.accent_soft.get(),
-        false => Color32::TRANSPARENT,
-    });
-    let pictured = create_memo(move || image.get().is_some());
-    let plain = create_memo(move || !pictured.get());
-    let described = create_memo(move || !detail.get().is_empty());
-    view! {
-        <Frame
-            fill={ColorRole::custom(fill)}
-            radius=Radius::Md
-            padding={Sides::symmetric(ROW_PADDING_HORIZONTAL, ROW_PADDING_VERTICAL)}
-        >
-            <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                <Frame width=PICTURE_SIZE height=PICTURE_SIZE>
-                    <List spacing=0.0 align=Align::Center>
-                        <Show condition={pictured}>
-                            <LauncherPicture image={image} />
-                        </Show>
-                        <Show condition={plain}>
-                            <Text color=TextColor::Muted align=TextAlign::Center>
-                                <Icon glyph={glyph} />
-                            </Text>
-                        </Show>
-                    </List>
-                </Frame>
-                <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
-                    <Text align=TextAlign::Start overflow=Overflow::Ellipsis>{title}</Text>
-                    <Show condition={described}>
-                        <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{detail}</Text>
-                    </Show>
-                </List>
-            </List>
-        </Frame>
-    }
-}
-
-#[component]
-fn LauncherPicture(image: Memo<Option<Image>>) -> NodeId {
-    view! {
-        <Frame width=PICTURE_SIZE height=PICTURE_SIZE>
-            <Picture image />
-        </Frame>
     }
 }

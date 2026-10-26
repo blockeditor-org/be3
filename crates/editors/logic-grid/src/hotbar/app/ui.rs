@@ -174,7 +174,8 @@ fn SlotRow(
             <Text style=TextStyle::CAPTION>{note}</Text>
             <Spacer @sizing=ItemSize::Percent(100.0) />
             <Show condition={is_component}>
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_TRASH
                     label="Unpin"
                     disabled={read_only}

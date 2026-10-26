@@ -68,7 +68,8 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
                 <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                     <Text style=TextStyle::HEADING>"Levels"</Text>
                     <Show condition={has_hotbar}>
-                        <IconButton
+                        <Button
+                            icon_only=true
                             glyph=ICON_BLOCKS
                             label="Hotbar"
                             @test_id={"logic-game.hotbar"}
@@ -248,7 +249,12 @@ fn SolutionRow(
                 </Text>
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
-            <IconButton glyph=ICON_TRASH label="Remove from this level" on_click={remove} />
+            <Button
+                icon_only=true
+                glyph=ICON_TRASH
+                label="Remove from this level"
+                on_click={remove}
+            />
         </List>
     }
 }

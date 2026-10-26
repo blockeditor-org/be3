@@ -129,7 +129,10 @@ fn TrayButton(editor: Editor, listed: Memo<Vec<HostTrayItem>>, id: String) -> No
         }
     });
     view! {
-        <PictureMenuButton
+        <MenuButton
+            icon_only=true
+            variant=ButtonVariant::Ghost
+            size=ButtonSize::Compact
             label
             image
             glyph=ICON_BLOCKS

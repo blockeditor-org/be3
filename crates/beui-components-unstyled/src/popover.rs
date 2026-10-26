@@ -3,18 +3,12 @@ use beui_core::icons::Glyph;
 use beui_core::layer::{Dismiss, LayerPolicy};
 use beui_macros::{component, view};
 
-use crate as unstyled;
-use crate::ButtonHandle;
+use crate::popup_trigger::{PopupTrigger, PopupTriggerHandle};
 use beui_core::base::overlay::Placement;
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
-
-pub struct PopoverTriggerHandle {
-    pub open: Binding<bool>,
-    pub button: ButtonHandle,
-}
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum PopoverPlacement {
@@ -38,11 +32,12 @@ struct State {
 #[component]
 pub fn Popover(
     #[prop(default = ComponentRef::new())] api: ComponentRef<PopoverApi>,
-    trigger: Render<PopoverTriggerHandle>,
+    trigger: Render<PopupTriggerHandle>,
     #[prop(children)] content: Render<PopoverHandle>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = None)] glyph: Prop<Option<Glyph>>,
+    #[prop(default = false)] icon_only: Prop<bool>,
     #[prop(default = false)] open: Binding<bool>,
     anchor: Option<NodeRef>,
     #[prop(default = PopoverPlacement::Below)] placement: PopoverPlacement,
@@ -64,17 +59,6 @@ pub fn Popover(
         }
     });
 
-    let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::Button)));
-    let trigger_accessibility = create_memo(move || {
-        let mut node = accessibility.get();
-        if node.label().is_none() && !label.get().is_empty() {
-            node.set_label(label.get());
-        }
-        node.set_has_popup(HasPopup::Dialog);
-        node.set_expanded(open.get());
-        node
-    });
-
     let content = content.once();
 
     let refocus_trigger = create_memo(move || refocus_trigger.get());
@@ -92,32 +76,25 @@ pub fn Popover(
         PopoverPlacement::Over(inset) => Placement::Over(inset),
     };
     let handle = PopoverHandle { open, close };
-    let toggle = move || {
-        if !disabled.get_untracked() {
-            open.update(|open| *open = !*open);
-        }
-    };
     view! {
         <List spacing=0.0>
-            <unstyled::Button
+            <PopupTrigger
                 @node_ref=&trigger_ref
+                open
+                popup=HasPopup::Dialog
                 label={label}
                 glyph
+                icon_only
                 disabled={disabled}
                 focused={refocus}
-                accessibility={trigger_accessibility}
+                accessibility={accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::Button)))}
                 on_focus_change={move |focused: bool| {
                     if !focused {
                         refocus.set(false);
                     }
                 }}
-                on_click={toggle}
-            >|button: ButtonHandle| {
-                trigger.call(PopoverTriggerHandle {
-                    open,
-                    button,
-                })
-            }</unstyled::Button>
+                content={trigger}
+            />
             <Overlay
                 anchor=anchor
                 placement

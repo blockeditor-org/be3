@@ -13,7 +13,7 @@ use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 
-use crate::icon_button::{IconButton, IconButtonSize};
+use crate::button::{Button, ButtonSize};
 use crate::text::{Icon, Text, TextColor, TextSize};
 use beui_core::font::TextAlign;
 
@@ -148,10 +148,11 @@ fn TextInputFrame(
                     {field} @sizing=ItemSize::Percent(100.0)
                     <Show condition={clearable}>
                         <Frame padding={Sides::horizontal(CLEAR_PADDING)}>
-                            <IconButton
+                            <Button
+                                icon_only=true
                                 glyph=ICON_X
                                 label="Clear"
-                                size=IconButtonSize::Compact
+                                size=ButtonSize::Small
                                 press_focus=false
                                 capture_presses=true
                                 on_click={clear}
@@ -160,10 +161,11 @@ fn TextInputFrame(
                     </Show>
                     <Show condition={copyable}>
                         <Frame padding={Sides::horizontal(CLEAR_PADDING)}>
-                            <IconButton
+                            <Button
+                                icon_only=true
                                 glyph=ICON_COPY
                                 label={copy_label}
-                                size=IconButtonSize::Compact
+                                size=ButtonSize::Small
                                 press_focus=false
                                 capture_presses=true
                                 on_click={move || copy_text(copied.get_untracked())}

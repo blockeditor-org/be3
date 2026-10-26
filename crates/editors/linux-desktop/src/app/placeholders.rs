@@ -267,7 +267,8 @@ pub(crate) fn OpenAllButton(placeholders: Placeholders) -> NodeId {
         count => format!("Open the {count} windows from last time"),
     });
     view! {
-        <IconButton
+        <Button
+            icon_only=true
             glyph=ICON_APP_WINDOW
             label={label}
             @test_id={"desktop.placeholders.open_all"}

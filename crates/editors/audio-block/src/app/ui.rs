@@ -122,7 +122,8 @@ pub fn AudioView(editor: Editor) -> NodeId {
                         <Icon glyph=ICON_FILE_HEADPHONE />
                     </Text>
                     <Text align=TextAlign::Center>{source}</Text>
-                    <IconButton
+                    <Button
+                        icon_only=true
                         @sizing={ItemSize::Intrinsic.align(Align::Center)}
                         glyph={glyph}
                         label={action}

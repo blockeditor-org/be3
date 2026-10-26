@@ -27,6 +27,7 @@ pub mod pan_zoom;
 pub mod picture;
 pub mod pointer_lock;
 pub mod popover;
+pub mod popup_trigger;
 pub mod pressable;
 pub mod progress;
 pub mod rubber_band;
@@ -81,7 +82,7 @@ pub use list_row::ListRow;
 pub use menu::{
     MenuCaption, MenuGrid, MenuItem, MenuListApi, MenuNodes, MenuRowHandle, MenuRowKind, MenuThen,
 };
-pub use menu_button::{MenuButton, MenuButtonHandle};
+pub use menu_button::MenuButton;
 pub use menu_popup::{MenuPopup, MenuSheetHandle, MenuStyle};
 pub use number_input::{
     NumberDrag, NumberFaceHandle, NumberFieldHandle, NumberInput, NumberInputApi,
@@ -89,7 +90,8 @@ pub use number_input::{
 pub use pan_zoom::{MAX_SCALE, MIN_SCALE, PanZoom, PanZoomApi, PanZoomHandle, PanZoomView};
 pub use picture::Picture;
 pub use pointer_lock::{PointerLock, PointerLockHandle};
-pub use popover::{Popover, PopoverApi, PopoverHandle, PopoverPlacement, PopoverTriggerHandle};
+pub use popover::{Popover, PopoverApi, PopoverHandle, PopoverPlacement};
+pub use popup_trigger::{PopupTrigger, PopupTriggerHandle};
 pub use pressable::Pressable;
 pub use progress::{Progress, ProgressHandle};
 pub use scroll::{

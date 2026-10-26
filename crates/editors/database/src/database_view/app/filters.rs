@@ -6,7 +6,7 @@ use block_editor_beui::beui::icons::{ICON_LIST_FILTER, ICON_PLUS, ICON_X};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::popover::PopoverPanel;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{self, ChoiceOption, PopoverHandle, PopoverTriggerHandle};
+use block_editor_beui::beui::unstyled::{self, ChoiceOption, PopoverHandle, PopupTriggerHandle};
 use block_editor_beui::block_ui::database::{
     DatabaseValueChange, ValueLabels, database_value_text,
 };
@@ -223,7 +223,7 @@ fn FilterChip(data: Data, id: ObjectId) -> NodeId {
                 <unstyled::Popover
                     label={text}
                     @test_id={format!("database-view.filter.{}", id.as_uuid())}
-                    trigger={move |handle: PopoverTriggerHandle| {
+                    trigger={move |handle: PopupTriggerHandle| {
                         view! {
                             <ControlFace handle={handle.button}>
                                 <Text style=TextStyle::CAPTION>{text}</Text>
@@ -235,11 +235,12 @@ fn FilterChip(data: Data, id: ObjectId) -> NodeId {
                         <FilterEditor data={data} id={id} />
                     </PopoverPanel>
                 </unstyled::Popover>
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_X
                     label="Remove filter"
                     variant=ButtonVariant::Ghost
-                    size=IconButtonSize::Compact
+                    size=ButtonSize::Small
                     disabled={read_only}
                     @test_id={format!("database-view.filter.{}.remove", id.as_uuid())}
                     on_click={remove}
@@ -269,7 +270,7 @@ fn AddFilter(data: Data) -> NodeId {
             disabled={read_only}
             @test_id={"database-view.filters.add"}
             open
-            trigger={move |handle: PopoverTriggerHandle| view! {
+            trigger={move |handle: PopupTriggerHandle| view! {
                 <ControlFace handle={handle.button}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                         <Text size=TextSize::Xs color=TextColor::Muted align=TextAlign::Center>
@@ -688,7 +689,8 @@ pub fn FilterList(data: Data) -> NodeId {
                 view! {
                     <List direction=Direction::Horizontal align=Align::Start spacing=SPACING>
                         <FilterEditor @sizing=ItemSize::Percent(100.0) data={data} id={id} />
-                        <IconButton
+                        <Button
+                            icon_only=true
                             glyph=ICON_X
                             label="Remove filter"
                             variant=ButtonVariant::Ghost

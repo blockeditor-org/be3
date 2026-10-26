@@ -3,7 +3,7 @@ use block_editor_beui::be_block::Edit;
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::styled::context_menu::menu_style;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{self, MenuButtonHandle, MenuItem};
+use block_editor_beui::beui::unstyled::{self, MenuItem, PopupTriggerHandle};
 use block_editor_beui::database::{
     ChoiceMark, choice_color_label, choice_glyph, choice_icon_label,
 };
@@ -234,7 +234,8 @@ fn FieldRow(
                     @test_id={format!("database-schema.type.{id}")}
                 />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_ARROW_UP
                     label="Move up"
                     variant=ButtonVariant::Ghost
@@ -242,7 +243,8 @@ fn FieldRow(
                     @test_id={format!("database-schema.up.{id}")}
                     on_click={move || mover(-1)}
                 />
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_ARROW_DOWN
                     label="Move down"
                     variant=ButtonVariant::Ghost
@@ -250,7 +252,8 @@ fn FieldRow(
                     @test_id={format!("database-schema.down.{id}")}
                     on_click={move || mover(1)}
                 />
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_TRASH
                     label="Delete field"
                     disabled={read_only}
@@ -496,7 +499,8 @@ fn EnumOptions(
                     />
                 </ForEach>
                 <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                    <IconButton
+                    <Button
+                        icon_only=true
                         glyph=ICON_PLUS
                         label="Add option"
                         disabled={read_only}
@@ -600,7 +604,7 @@ fn EnumOptionRow(
                         }
                     }</ForEach>
                 }}
-                trigger={move |handle: MenuButtonHandle| {
+                trigger={move |handle: PopupTriggerHandle| {
                     view! {
                         <ControlFace handle={handle.button}>
                             <ChoiceMark option={option} size=TextSize::Base />
@@ -634,7 +638,7 @@ fn EnumOptionRow(
                         }
                     }</ForEach>
                 }}
-                trigger={move |handle: MenuButtonHandle| {
+                trigger={move |handle: PopupTriggerHandle| {
                     let label = create_memo(move || {
                         option.with(|option| option.as_ref().map_or("", |option| choice_color_label(option.color)).to_owned())
                     });
@@ -663,7 +667,8 @@ fn EnumOptionRow(
                 disabled={read_only}
                 @test_id={format!("database-schema.enum.{id}.{option_id}.default")}
             />
-            <IconButton
+            <Button
+                icon_only=true
                 glyph=ICON_ARROW_UP
                 label="Move up"
                 variant=ButtonVariant::Ghost
@@ -671,7 +676,8 @@ fn EnumOptionRow(
                 @test_id={format!("database-schema.enum.{id}.{option_id}.up")}
                 on_click={move || mover(-1)}
             />
-            <IconButton
+            <Button
+                icon_only=true
                 glyph=ICON_ARROW_DOWN
                 label="Move down"
                 variant=ButtonVariant::Ghost
@@ -679,7 +685,8 @@ fn EnumOptionRow(
                 @test_id={format!("database-schema.enum.{id}.{option_id}.down")}
                 on_click={move || mover(1)}
             />
-            <IconButton
+            <Button
+                icon_only=true
                 glyph=ICON_TRASH
                 label="Delete option"
                 variant=ButtonVariant::Ghost

@@ -222,6 +222,7 @@ fn Toolbar(
                         @node_ref=&more
                         label="More"
                         glyph=ICON_ELLIPSIS
+                        icon_only=true
                         tab_stop=false
                         press_focus=false
                         on_click_at={move |press: PointerPress| on_more.call(press.pos)}

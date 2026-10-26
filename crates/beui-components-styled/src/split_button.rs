@@ -9,7 +9,7 @@ use crate::text::{Icon, Text};
 use crate::theme::{ThemeStore, use_theme};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::{ButtonHandle, MenuButtonHandle, MenuItem};
+use beui_components_unstyled::{ButtonHandle, MenuItem, PopupTriggerHandle};
 use beui_core::base::TextAlign;
 use beui_core::color::Color32;
 use beui_core::icons::ICON_CHEVRON_DOWN;
@@ -57,7 +57,7 @@ pub fn SplitButton(
                 main={move |handle: ButtonHandle| view! {
                     <MainFace handle variant />
                 }}
-                arrow={move |handle: MenuButtonHandle| view! {
+                arrow={move |handle: PopupTriggerHandle| view! {
                     <ArrowFace handle variant />
                 }}
                 on_click={on_click}
@@ -99,8 +99,8 @@ fn MainFace(handle: ButtonHandle, variant: ButtonVariant) -> NodeId {
 }
 
 #[component]
-fn ArrowFace(handle: MenuButtonHandle, variant: ButtonVariant) -> NodeId {
-    let MenuButtonHandle {
+fn ArrowFace(handle: PopupTriggerHandle, variant: ButtonVariant) -> NodeId {
+    let PopupTriggerHandle {
         open,
         button:
             ButtonHandle {
@@ -108,7 +108,7 @@ fn ArrowFace(handle: MenuButtonHandle, variant: ButtonVariant) -> NodeId {
                 active,
                 focused,
                 disabled,
-                label,
+                tooltip,
                 ..
             },
     } = handle;
@@ -129,7 +129,7 @@ fn ArrowFace(handle: MenuButtonHandle, variant: ButtonVariant) -> NodeId {
             <Frame padding={Sides::vertical(DIVIDER_INSET)}>
                 <Frame width=DIVIDER_WIDTH fill={ColorRole::custom(divider)} />
             </Frame>
-            <Tooltip label disabled={open}>
+            <Tooltip label={tooltip}>
                 <HalfFace fill focused side=Side::Trailing padding=ARROW_PADDING_HORIZONTAL>
                     <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                         <Text color={ink} align=TextAlign::Center>

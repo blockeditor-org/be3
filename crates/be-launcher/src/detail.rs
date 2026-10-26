@@ -125,7 +125,8 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                                 on_click={open}
                             />
                             <Spacer @sizing=ItemSize::Percent(100.0) />
-                            <IconButton
+                            <Button
+                                icon_only=true
                                 glyph=ICON_REFRESH_CW
                                 label="Reload the conversation"
                                 on_click={refresh}

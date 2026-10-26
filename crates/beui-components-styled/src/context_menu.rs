@@ -3,9 +3,9 @@ use beui_core::font::Overflow;
 use beui_core::icons::Glyph;
 use beui_macros::{component, view};
 
-use crate::action_row::ActionRowFace;
 use crate::border::Separator;
 use crate::button::{ButtonFace, ButtonVariant};
+use crate::row::{RowFace, RowSize, RowTrailing};
 use crate::sheet::ModalSheet;
 use crate::text::{Icon, Text, TextColor, TextSize, Weight};
 use crate::theme::{SCROLL_FADE, ThemeStore, use_theme};
@@ -41,8 +41,6 @@ const TILE_PADDING: f32 = 6.0;
 const TILE_SPACING: f32 = 4.0;
 const TREE_INDENT: f32 = 12.0;
 const TREE_CHEVRON: f32 = 16.0;
-pub(crate) const SHEET_TREE_INDENT: f32 = 20.0;
-pub(crate) const SHEET_TREE_CHEVRON: f32 = 28.0;
 const MENU_MAX_HEIGHT: f32 = 420.0;
 
 #[component]
@@ -152,10 +150,8 @@ fn sized_menu_style(min_width: f32) -> MenuStyle {
 
 #[component]
 fn ToolbarButton(handle: ButtonHandle) -> NodeId {
-    let glyph = handle.glyph;
-    let icon_only = create_memo(move || glyph.get().is_some());
     view! {
-        <ButtonFace handle variant=ButtonVariant::Ghost icon_only />
+        <ButtonFace handle variant=ButtonVariant::Ghost />
     }
 }
 
@@ -300,7 +296,7 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
 }
 
 #[component]
-pub(crate) fn GlyphSlot(glyph: Memo<Option<Glyph>>, color: Memo<TextColor>) -> NodeId {
+fn GlyphSlot(glyph: Memo<Option<Glyph>>, color: Memo<TextColor>) -> NodeId {
     view! {
         <Frame width={TextSize::Base.icon_px()}>
             <Text color align=TextAlign::Center>
@@ -483,26 +479,31 @@ fn MenuSheetRowFace(handle: MenuRowHandle) -> NodeId {
         MenuRowKind::Back => Prop::Static(Some(ICON_CHEVRON_LEFT)),
         _ => glyph,
     };
+    let trailing = create_memo(move || match (has_submenu.get(), checked.get(), radio) {
+        (true, _, _) => RowTrailing::Chevron,
+        (false, Some(true), true) => RowTrailing::Radio,
+        (false, Some(true), false) => RowTrailing::Check,
+        _ => RowTrailing::None,
+    });
     view! {
         <List spacing=SHEET_SEPARATOR_SPACING>
             <Show condition={separated}>
                 <Separator />
             </Show>
-            <ActionRowFace
+            <RowFace
                 hovered
                 active
                 focused
+                disabled
+                danger
+                size=RowSize::Touch
                 label
                 lead
                 glyph
                 glyph_color={create_memo(move || glyph_color.get().map(TextColor::Custom))}
                 detail
-                disabled
-                danger
-                submenu={has_submenu}
-                checked
-                radio
-                glyphs
+                leading={glyphs}
+                trailing={trailing}
                 depth
                 expanded
                 toggle

@@ -6,7 +6,7 @@ use std::rc::Rc;
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
-use crate::icon_button::IconButton;
+use crate::button::Button;
 use crate::text::{Text, TextColor, TextStyle};
 use crate::text_input::TextInput;
 use crate::theme::use_theme;
@@ -187,7 +187,8 @@ fn LockCard(
                                 actions.with(|actions| actions.get(index).map(|action| action.label.clone()).unwrap_or_default())
                             });
                             view! {
-                                <IconButton
+                                <Button
+                                    icon_only=true
                                     glyph
                                     label
                                     @test_id={format!("{action_id}.action.{index}")}

@@ -163,7 +163,8 @@ fn MembersPanel(view: AppViewStore) -> NodeId {
                                 @test_id={format!("app.members.role.{account}")}
                                 on_click={move || send(UiCommand::SetMemberRole(account, next_role()))}
                             />
-                            <IconButton
+                            <Button
+                                icon_only=true
                                 glyph=ICON_USER_MINUS
                                 label="Remove member"
                                 disabled={unremovable}
@@ -274,7 +275,8 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
                                 <Text>{name}</Text>
                                 <Text style=TextStyle::CAPTION>{detail}</Text>
                             </List>
-                            <IconButton
+                            <Button
+                                icon_only=true
                                 glyph=ICON_TRASH
                                 label="Remove contact"
                                 @test_id={format!("app.contacts.remove.{account}")}
@@ -432,7 +434,8 @@ fn AgentsPanel(view: AppViewStore) -> NodeId {
                                     >
                                         {label}
                                     </Text>
-                                    <IconButton
+                                    <Button
+                                        icon_only=true
                                         glyph=ICON_TRASH
                                         label="Remove agent"
                                         @test_id={format!("app.agents.remove.{account}")}

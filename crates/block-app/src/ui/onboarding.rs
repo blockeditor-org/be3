@@ -217,7 +217,8 @@ fn AccountCard(account: Memo<AccountRow>) -> NodeId {
                             on_click={move || send(UiCommand::OpenAccount(key.get_untracked()))}
                         />
                     </Tooltip>
-                    <IconButton
+                    <Button
+                        icon_only=true
                         glyph=ICON_CHEVRON_DOWN
                         label="Open a different organization"
                         on_click={move || send(UiCommand::ChooseOrganization(key.get_untracked()))}
@@ -529,7 +530,8 @@ pub(super) fn AddAccountDialog(
                                                 {browser_code}
                                             </Text>
                                         </SelectableText>
-                                        <IconButton
+                                        <Button
+                                            icon_only=true
                                             label="Copy code"
                                             glyph=ICON_COPY
                                             variant=ButtonVariant::Ghost
@@ -557,7 +559,8 @@ pub(super) fn AddAccountDialog(
                                                 {browser_url}
                                             </Text>
                                         </SelectableText>
-                                        <IconButton
+                                        <Button
+                                            icon_only=true
                                             label="Copy link"
                                             glyph=ICON_COPY
                                             variant=ButtonVariant::Ghost
@@ -616,7 +619,8 @@ pub(super) fn OrganizationsScreen(view: AppViewStore) -> NodeId {
                         <MenuItem label="Log out" />
                     }}
                 />
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_REFRESH_CW
                     label="Reload organizations"
                     disabled={busy}
@@ -656,7 +660,8 @@ pub(super) fn OrganizationsScreen(view: AppViewStore) -> NodeId {
                             variant=ButtonVariant::Secondary
                             on_click={move || send(UiCommand::OpenOrganization(id))}
                         />
-                        <IconButton
+                        <Button
+                            icon_only=true
                             glyph=ICON_CHEVRON_DOWN
                             label="Choose a session or profile"
                             on_click={move || send(UiCommand::ChooseSession(id))}

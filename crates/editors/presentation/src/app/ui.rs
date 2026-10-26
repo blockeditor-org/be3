@@ -194,7 +194,8 @@ fn Toolbar(editor: Editor, slides: Slides) -> NodeId {
                     on_click={add}
                     @test_id={"presentation.add"}
                 />
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_MAXIMIZE
                     label="Present"
                     disabled={empty}
@@ -238,7 +239,8 @@ fn Playback(editor: Editor, slides: Slides) -> NodeId {
                             padding={Sides::horizontal(12.0)}
                         >
                             <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
-                                <IconButton
+                                <Button
+                                    icon_only=true
                                     glyph=ICON_ARROW_LEFT
                                     label="Previous slide"
                                     disabled={at_start}
@@ -251,14 +253,16 @@ fn Playback(editor: Editor, slides: Slides) -> NodeId {
                                 >
                                     {position}
                                 </Text>
-                                <IconButton
+                                <Button
+                                    icon_only=true
                                     glyph=ICON_ARROW_RIGHT
                                     label="Next slide"
                                     disabled={at_end}
                                     on_click={next}
                                     @test_id={"presentation.next"}
                                 />
-                                <IconButton
+                                <Button
+                                    icon_only=true
                                     glyph=ICON_X
                                     label="Stop presenting"
                                     on_click={stop}
@@ -409,7 +413,8 @@ fn SlideTile(editor: Editor, slides: Slides, selected: Prop<bool>, id: Uuid) -> 
                         >
                             {name}
                         </Text>
-                        <IconButton
+                        <Button
+                            icon_only=true
                             glyph=ICON_TRASH
                             label="Detach slide"
                             disabled={read_only}

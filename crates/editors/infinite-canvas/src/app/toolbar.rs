@@ -78,7 +78,8 @@ pub(crate) fn ToolDock(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
                     <ToolChoice state actions index />
                 }
             }</ForEach>
-            <IconButton
+            <Button
+                icon_only=true
                 @node_ref={&block_button}
                 label="Block"
                 glyph={actions.add_block.glyph().to_owned()}
@@ -116,7 +117,8 @@ pub(crate) fn ZoomPill(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
                     @test_id={"infinite-canvas.zoom-pill"}
                 >
                     <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
-                        <IconButton
+                        <Button
+                            icon_only=true
                             @test_id={"infinite-canvas.pill.zoom-out"}
                             action={actions.zoom_out}
                         />
@@ -128,11 +130,13 @@ pub(crate) fn ZoomPill(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
                                 reset.run();
                             }}
                         />
-                        <IconButton
+                        <Button
+                            icon_only=true
                             @test_id={"infinite-canvas.pill.zoom-in"}
                             action={actions.zoom_in}
                         />
-                        <IconButton
+                        <Button
+                            icon_only=true
                             @test_id={"infinite-canvas.pill.fit"}
                             action={actions.fit_all}
                         />

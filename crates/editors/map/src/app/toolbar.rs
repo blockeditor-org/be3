@@ -21,20 +21,23 @@ pub(crate) fn MapToolbar(
 
     view! {
         <Toolbar shown={shown}>
-            <IconButton
+            <Button
+                icon_only=true
                 @node_ref={&add}
                 glyph=ICON_PLUS
                 label="Add a point of interest at the centre of the view"
                 @test_id={"map.add-point"}
                 on_click={move || state.open_picker(None, node_anchor(&add))}
             />
-            <IconButton
+            <Button
+                icon_only=true
                 glyph=ICON_ZOOM_OUT
                 label="Zoom state"
                 @test_id={"map.zoom-state"}
                 on_click={move || state.zoom(1.0 / ZOOM_STEP)}
             />
-            <IconButton
+            <Button
+                icon_only=true
                 glyph=ICON_ZOOM_IN
                 label="Zoom in"
                 @test_id={"map.zoom-in"}
@@ -46,14 +49,16 @@ pub(crate) fn MapToolbar(
                 @test_id={"map.fit"}
                 on_click={move || fitting.fit()}
             />
-            <IconButton
+            <Button
+                icon_only=true
                 glyph=ICON_SCAN
                 label="Zoom to the preview region"
                 disabled={regionless}
                 @test_id={"map.zoom-region"}
                 on_click={move || state.request_fit()}
             />
-            <IconButton
+            <Button
+                icon_only=true
                 glyph=ICON_REFRESH_CW
                 label="Reload tiles"
                 @test_id={"map.reload"}

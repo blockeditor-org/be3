@@ -9,13 +9,8 @@ use beui::unstyled::ChoiceOption;
 use beui::{Color32, NodeId, Rect};
 pub use block_ui::database::ValueLabels;
 use block_ui::database::{DatabaseValueChange, block_reference_text, field_type_label};
-use database_types::database::{
-    Database, DatabaseColor, DatabaseContent, DatabaseValue, Inverse, RowRef, inverses_of, short_id,
-};
-use database_types::database_schema::{
-    DatabaseField, DatabaseFieldType, DatabaseNumberOptions, DatabaseNumberScale,
-    DatabaseSchemaContent,
-};
+use database_types::database::{Database, DatabaseColor, DatabaseContent, DatabaseValue, Inverse, RowRef, inverses_of, short_id};
+use database_types::database_schema::{DatabaseField, DatabaseFieldType, DatabaseNumberOptions, DatabaseNumberScale, DatabaseSchemaContent};
 use uuid::Uuid;
 
 mod choice;
@@ -117,7 +112,8 @@ fn DatabaseValueRow(
                 </Show>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
                 <Show condition={set}>
-                    <IconButton
+                    <Button
+                        icon_only=true
                         glyph=ICON_X
                         label="Clear"
                         @test_id={format!("{id}.clear")}
@@ -691,7 +687,8 @@ fn LinksValue(
                         <Text overflow=Overflow::Ellipsis @sizing=ItemSize::Percent(100.0)>
                             {label}
                         </Text>
-                        <IconButton
+                        <Button
+                            icon_only=true
                             glyph=ICON_X
                             label="Remove link"
                             disabled={disabled}
@@ -1047,10 +1044,7 @@ fn forward<T: 'static>(callback: Callback<T>) -> impl Fn(T) + 'static {
 
 pub fn create_database(creation: &crate::Creation) -> Uuid {
     use crate::BlockParent;
-    use database_types::database::{Database, DatabaseContent};
-    use database_types::database_schema::{
-        DatabaseFieldType, DatabaseSchema, DatabaseSchemaContent,
-    };
+    use database_types::database_schema::DatabaseSchema;
 
     let blocks = creation.blocks();
     let mut fields = DatabaseSchemaContent::default();

@@ -199,7 +199,8 @@ pub(crate) fn ZoomBar(
     view! {
         <Frame fill=ColorRole::Background padding=PADDING>
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
-                <IconButton
+                <Button
+                    icon_only=true
                     @test_id={"file-tree.back"}
                     glyph=ICON_ARROW_UP
                     label="Up one level"
@@ -210,7 +211,8 @@ pub(crate) fn ZoomBar(
                     <Text style=TextStyle::HEADING overflow=Overflow::Ellipsis>{name}</Text>
                 </List>
                 <Show condition={addable}>
-                    <IconButton
+                    <Button
+                        icon_only=true
                         @node_ref={&new_button}
                         @test_id={"file-tree.new"}
                         glyph=ICON_PLUS

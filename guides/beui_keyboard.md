@@ -182,14 +182,14 @@ let group = Action::new("canvas.group", "Group", move || state.run(Group))
     .enabled(can_group)
     .register();
 view! {
-    <IconButton action={group.clone()} />
+    <Button icon_only=true action={group.clone()} />
     <MenuItem action={group} />
 }
 ```
 
 `register` adds it to the nearest `ActionScope` (or to the document's own,
 outermost one) and removes it when the registering scope goes. `Button`,
-`IconButton`, `ToggleButton`, `ActionRow` and `MenuItem` take an `action` prop:
+`ToggleButton`, `ActionRow` and `MenuItem` take an `action` prop:
 they show its label and glyph unless they are given their own, are disabled
 while it is, show its first shortcut in their tooltip (a `MenuItem` beside its
 label), and run it when pressed; a `ToggleButton` is pressed, and a `MenuItem`
@@ -420,7 +420,7 @@ area from outside.
 `press_focus=false` is the one way to make pressing something leave the focus,
 and with it a text field's caret and selection, where it is. It is a prop on any
 `<Interactive>`, focusable or not, and on the controls built on one (`Button`,
-`IconButton`, `Toggle`, `Checkbox`), and it covers everything inside it: a press
+`Toggle`, `Checkbox`), and it covers everything inside it: a press
 anywhere in it focuses nothing, whatever focusable is under the pointer. Put it
 on a whole toolbar rather than on each of its buttons, as the text editor's
 format bar and the dock's bars do, so its padding and scroll strip keep the

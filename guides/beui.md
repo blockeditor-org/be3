@@ -755,11 +755,13 @@ and owns button semantics, disabled behavior, pointer and keyboard activation,
 and accessibility: it takes the `label`, `glyph`, `role` or `Action` and builds
 its own accessibility node from them. Its content closure receives a
 `ButtonHandle` of reactive `hovered`, `active`, `focused` and `disabled` state
-and the resolved `label`, `glyph` and `tooltip`. `styled::Button` wraps it and
+and the resolved `label`, `glyph`, `icon_only` and `tooltip`. `styled::Button` wraps it and
 uses that handle to choose fills and paint a focus outline, so every visual
-treatment sits on the same interaction behavior. Handles of controls built on a
-button, like `MenuButtonHandle` and `PopoverTriggerHandle`, carry that
-`ButtonHandle` as `button` rather than copying its fields.
+treatment sits on the same interaction behavior. A button that opens something
+(`MenuButton`, `Popover`, `SplitButton`'s arrow, the date and colour pickers) is a
+`PopupTrigger`: an `unstyled::Button` that toggles an `open` binding, marks itself
+`expanded` and with the kind of popup it opens. Its `PopupTriggerHandle` carries
+the `ButtonHandle` as `button` rather than copying its fields.
 
 Pure presentation components such as styled text and cards compose base
 components directly, because they have no interaction behavior to delegate.
@@ -1024,8 +1026,9 @@ anchors it to the button's rect, which the plugin sends from `node_anchor`, and
 sets `sheet` from `last_pointer` (`Document::last_pointer`): the host routed that
 press, so it knows whether a finger made it. `MenuButton` is the button that
 opens a menu under itself, which is what a toolbar reaches for where `Select`
-would imply the choice sticks (`IconMenuButton` is the same with an icon
-button's face); `ContextMenu` is the same menu on a secondary press, and it
+would imply the choice sticks. Its face is text, an icon (`icon_only`) or a
+picture (`image`, the tray's icons), in any `ButtonSize`, and it looks pressed
+while its menu is open; `ContextMenu` is the same menu on a secondary press, and it
 also takes an `open_at` point so a touch gesture can raise it where the finger
 was. A text selection's menu
 sets `selection` and stays beside the selection under a finger too. A finger
@@ -1100,7 +1103,7 @@ space its list gives it along it, so a divider in a row is
 `<Separator direction=Direction::Vertical />` and neither needs an `@sizing`.
 A `length` pins the long axis for a row that centres its children rather than
 stretching them. A control that can be turned off -
-`Button`, `IconButton`, `Link`, `Checkbox`, `Select`, `TextInput`,
+`Button`, `Link`, `Checkbox`, `Select`, `TextInput`,
 `NumberInput` - takes a `disabled` prop: it stops answering the pointer and the
 keyboard, leaves the tab order, publishes itself as disabled to a screen
 reader, and paints in muted colours, which is what a read-only editor binds
@@ -1503,14 +1506,17 @@ for a moment, and `styled::Tooltip` is the bubble version of it:
 ```rust
 view! {
     <Tooltip label="Reveal the block being shown">
-        <IconButton glyph=ICON_LOCATE_FIXED label="Reveal" on_click={find} />
+        <Text color=TextColor::Muted><Icon glyph=ICON_LOCATE_FIXED /></Text>
     </Tooltip>
 }
 ```
 
-`IconButton` already wraps itself in one, so an icon-only button says what it
-is without the caller doing anything: the `label` it publishes to a screen
-reader is the text the bubble shows. Wrap anything else whose meaning is not
+An icon-only button needs no wrapper: `unstyled::Button` and `unstyled::Toggle`
+take `icon_only`, and their handle's `tooltip` is the label (with the action's
+shortcut) while the button is icon-only and nothing it opened is showing, and
+empty otherwise. The styled faces wrap themselves in a `Tooltip` of that text,
+so the `label` a button publishes to a screen reader is the text the bubble
+shows, and a menu button's tooltip goes away while its menu is open. Wrap anything else whose meaning is not
 on screen - a bare glyph in a row, a truncated cell - in a `Tooltip` of its
 own.
 
@@ -2050,7 +2056,7 @@ in its menu. An action built with `.pin(Pin::Title)` belongs to the tab's name: 
 stacked bar draws the name as a button with a chevron after it that runs the
 action (the workspace's Rename), and leaves it out of its menu, while tiled bars
 keep it in theirs. A tiled bar is 40 points with its rule, its tabs 30; its controls are
-`IconButtonSize::Toolbar` buttons (30 square) and the labelled pins compact
+`ButtonSize::Toolbar` icon-only buttons (30 square) and the labelled pins compact
 `Button`s of the same height, while a tab's own close button stays compact. The
 stacked bar keeps regular-sized buttons. Pinning is how a tab puts its few most used controls in reach without
 giving the dock a node; everything else stays in the menu, and the tab keeps the
@@ -3980,6 +3986,27 @@ accessible roles stable when visual state changes. Use glyphs from `beui::icons`
 in a `styled::Icon` inside a `styled::Text`; do not use Unicode characters as
 ad-hoc icons. The [keyboard guide](beui_keyboard.md) records the expected
 behavior for each control family.
+
+### Buttons and rows
+
+There is one `Button`. It takes a `variant` (`Secondary` unless given), a
+`ButtonSize` (`Small`, `Compact`, `Regular`, or `Toolbar`, 30 points high and
+square when icon-only), and `icon_only`, which shows only the glyph and turns the
+label into the tooltip. `MenuButton` and `Popover` take the same `variant`,
+`size` and `icon_only` and paint the same `ButtonFace`; `MenuButton` also takes an
+`image` for a picture face and adds a chevron to a labelled face unless
+`arrow=false`. A custom face over `unstyled::Button` reads `handle.icon_only` and
+wraps itself in `<Tooltip label={handle.tooltip}>`.
+
+A pressable row paints `RowFace`: a leading picture or icon (`image`, `glyph`, or
+`leading=true` to keep the slot empty so a column of rows lines up), a `label`
+and `detail`, and a `trailing` `RowTrailing` (`Chevron`, `Check` or `Radio`), or
+`children` in place of the label and detail. Its `RowSize` is `Compact` for
+lists, `Regular` for settings (whose label wraps), `Large` for a picker with
+32-point pictures and `Touch` for 52-point rows in a sheet. `ListRow` (selection
+and activation), `ActionRow` (an action, `Touch`), `SettingsLink` (a page of
+settings, with a chevron), the menu sheet's rows and the launcher's rows are all
+built on it.
 
 ### Text
 

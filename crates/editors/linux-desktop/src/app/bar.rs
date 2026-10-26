@@ -116,7 +116,8 @@ pub(crate) fn DesktopBar(
             <Separator />
             <Frame fill=ColorRole::Surface padding=BAR_PADDING @test_id={"desktop.bar"}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
-                    <IconButton
+                    <Button
+                        icon_only=true
                         @node_ref={&menu_button}
                         glyph=ICON_MENU
                         label="Menu"
@@ -124,7 +125,8 @@ pub(crate) fn DesktopBar(
                         on_click={menu}
                     />
                     <Show condition={launchable}>
-                        <IconButton
+                        <Button
+                            icon_only=true
                             glyph=ICON_LAYOUT_GRID
                             label="Programs"
                             @test_id={"desktop.launcher"}
@@ -176,7 +178,8 @@ pub(crate) fn DesktopBar(
                         <NotificationsButton notifications />
                     </Show>
                     <Show condition={epaper}>
-                        <IconButton
+                        <Button
+                            icon_only=true
                             glyph=ICON_REFRESH_CW
                             label="Refresh the screen"
                             @test_id={"desktop.refresh"}
@@ -187,7 +190,8 @@ pub(crate) fn DesktopBar(
                     <Show condition={rotatable}>
                         <RotateButton editor={editor} display={screen} />
                     </Show>
-                    <IconButton
+                    <Button
+                        icon_only=true
                         glyph=ICON_KEYBOARD
                         label="On-screen keyboard"
                         @test_id={"desktop.keyboard"}

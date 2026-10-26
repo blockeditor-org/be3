@@ -101,7 +101,8 @@ pub(crate) fn TopBar(
         <Toolbar shown={shown}>
             <Text>{label}</Text>
             <Text style=TextStyle::CAPTION>{dimensions}</Text>
-            <IconButton
+            <Button
+                icon_only=true
                 glyph=ICON_ZOOM_OUT
                 label="Zoom out"
                 @test_id={"pixel-art.zoom-out"}
@@ -113,13 +114,15 @@ pub(crate) fn TopBar(
                 @test_id={"pixel-art.zoom-reset"}
                 on_click={reset}
             />
-            <IconButton
+            <Button
+                icon_only=true
                 glyph=ICON_ZOOM_IN
                 label="Zoom in"
                 @test_id={"pixel-art.zoom-in"}
                 on_click={zoom_in}
             />
-            <IconButton
+            <Button
+                icon_only=true
                 glyph=ICON_SCAN
                 label="Fit the canvas to the viewport"
                 @test_id={"pixel-art.fit"}
@@ -130,21 +133,24 @@ pub(crate) fn TopBar(
                 <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
-            <IconButton
+            <Button
+                icon_only=true
                 glyph=ICON_SCALING
                 label="Resize"
                 disabled={read_only}
                 @test_id={"pixel-art.resize"}
                 on_click={resize}
             />
-            <IconButton
+            <Button
+                icon_only=true
                 glyph=ICON_TRASH
                 label="Clear"
                 disabled={read_only}
                 @test_id={"pixel-art.clear"}
                 on_click={clear}
             />
-            <IconButton
+            <Button
+                icon_only=true
                 glyph=ICON_DOWNLOAD
                 label="Export a PNG"
                 disabled={read_only}
@@ -308,14 +314,16 @@ pub(crate) fn ColorsPanel(tools: Tools, palette: Memo<Vec<PixelColor>>) -> NodeI
                 }</ForEach>
             </List>
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_PLUS
                     label="Add the active colour to the palette"
                     disabled={can_add}
                     @test_id={"pixel-art.palette-add"}
                     on_click={add}
                 />
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_TRASH
                     label="Remove the active colour from the palette"
                     disabled={can_remove}

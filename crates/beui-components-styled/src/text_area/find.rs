@@ -6,7 +6,6 @@ use text_editor_core::FindDirection;
 use crate::Button;
 use crate::ButtonVariant;
 use crate::Icon;
-use crate::IconButton;
 use crate::TextInput;
 use crate::ToggleButton;
 use crate::text::{Text, TextColor, TextStyle};
@@ -74,21 +73,24 @@ fn FindBarRows(state: TextAreaState) -> NodeId {
                             @test_id={"text.find.match-case"}
                         />
                         <Text style=TextStyle::CAPTION>{summary}</Text>
-                        <IconButton
+                        <Button
+                            icon_only=true
                             glyph=ICON_CHEVRON_UP
                             label="Previous match"
                             disabled={no_matches}
                             @test_id={"text.find.previous"}
                             on_click={move || state.find_step(FindDirection::Previous)}
                         />
-                        <IconButton
+                        <Button
+                            icon_only=true
                             glyph=ICON_CHEVRON_DOWN
                             label="Next match"
                             disabled={no_matches}
                             @test_id={"text.find.next"}
                             on_click={move || state.find_step(FindDirection::Next)}
                         />
-                        <IconButton
+                        <Button
+                            icon_only=true
                             glyph=ICON_X
                             label="Close"
                             @test_id={"text.find.close"}
