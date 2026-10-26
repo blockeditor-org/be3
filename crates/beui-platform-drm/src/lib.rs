@@ -12,6 +12,7 @@ mod keys;
 mod layout;
 mod modes;
 mod output;
+mod outputs;
 mod pacing;
 mod problems;
 mod recovery;
@@ -23,6 +24,7 @@ mod theme;
 mod wake;
 
 pub use display::{DisplayConfig, DisplayControl, DisplayMode, Monitor};
+pub use displays::{Display, Displays};
 pub use epaper::Epaper;
 pub use flips::{Flip, Flips};
 pub use gpu::{CursorImage, SoftwareCursor};
@@ -32,7 +34,7 @@ pub use input::{
 };
 pub use problems::Problems;
 pub use rotation::Rotation;
-pub use runner::run;
+pub use runner::{Loop, Session, run};
 
 use beui::{Launch, Platform};
 

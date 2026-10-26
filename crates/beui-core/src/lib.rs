@@ -42,7 +42,6 @@ pub mod renderer;
 pub mod rich;
 pub mod runner;
 pub mod screen_simulation;
-pub mod screens;
 pub mod sight;
 pub mod software_keyboard;
 pub mod testing;

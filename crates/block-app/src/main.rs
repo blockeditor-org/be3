@@ -278,11 +278,12 @@ impl Shell {
             compositor::install();
             wayland::create();
             surfaces::create_handles();
+            display::create_handle();
             let store = AppViewStore::new(AppView::default());
             view = Some(store);
             beui::reactive::view! {
                 <beui::styled::Root title="Block">
-                    <ui::Root view={store} />
+                    <ui::Displays view={store} />
                 </beui::styled::Root>
             }
         });
@@ -360,7 +361,10 @@ impl beui::App for Shell {
         wayland::set_owned(view.screen == ui::Screen::Organization && self.app.shell.is_some());
         let store = self.view;
         compositor::notify();
-        beui::reactive::enter(&mut self.document, || store.set(view));
+        beui::reactive::enter(&mut self.document, || {
+            display::apply_shown();
+            store.set(view);
+        });
         #[cfg(target_arch = "wasm32")]
         plugin_host::place_screens(
             &plugin_host::shown_blits(),

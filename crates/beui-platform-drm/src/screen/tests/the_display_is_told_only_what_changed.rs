@@ -30,14 +30,13 @@ fn the_display_is_told_only_what_changed() {
     screen.rect = Rect::from_min_size(pos2(0.0, 0.0), vec2(32.0, 24.0));
     let target = target(&gpu);
     let frame = Frame {
-        scale: 1.0,
         clear: Color32::BLACK,
         pointer: pos2(0.0, 0.0),
         sprite: Pointer::Hidden,
     };
 
     let first = paint(&context, false);
-    screen.prepare(&gpu, &first, 1.0);
+    screen.prepare(&gpu, &first);
     let (commands, damage) = screen.draw(&gpu, &frame, &target);
     gpu.queue().submit([commands]);
     assert_eq!(damage, None, "the first frame changes the whole screen");
@@ -47,7 +46,7 @@ fn the_display_is_told_only_what_changed() {
         region: Rect::from_min_size(pos2(20.0, 10.0), vec2(4.0, 4.0)).into(),
         background: Color32::BLACK,
     });
-    screen.prepare(&gpu, &second, 1.0);
+    screen.prepare(&gpu, &second);
     let (commands, damage) = screen.draw(&gpu, &frame, &target);
     gpu.queue().submit([commands]);
     let damage = damage.expect("a frame that changes a part names that part");

@@ -56,7 +56,6 @@ impl Drawn {
 }
 
 pub struct Frame<'a> {
-    pub scale: f32,
     pub clear: beui::Color32,
     pub pointer: beui::Pos2,
     pub sprite: Pointer<'a>,
@@ -67,6 +66,7 @@ pub struct Screen {
     rotation: Rotation,
     picture: (u32, u32),
     pub rect: Rect,
+    pub scale: f32,
     renderer: Renderer,
     retained: wgpu::Texture,
     turned: Option<Sprite>,
@@ -89,6 +89,7 @@ impl Screen {
             rotation,
             picture,
             rect: Rect::ZERO,
+            scale: 1.0,
             renderer: Renderer::new(gpu.device(), FORMAT),
             retained,
             turned,
@@ -143,21 +144,23 @@ impl Screen {
         self.prepared.is_some() || self.cursor || self.settling != Drawn::Nothing
     }
 
-    pub fn prepare(&mut self, gpu: &Gpu, output: &WindowOutput, scale: f32) {
+    pub fn prepare(&mut self, gpu: &Gpu, output: &WindowOutput) {
         let Some(repaint) = self.pending else {
             return;
         };
         let physical = self.picture_size();
-        self.renderer
-            .set_origin(vec2(self.rect.min.x * scale, self.rect.min.y * scale));
         self.prepared = Some(self.renderer.prepare(
             gpu.device(),
             gpu.queue(),
             output,
             physical,
-            scale,
+            self.scale,
             repaint,
         ));
+    }
+
+    pub fn size(&self) -> Vec2 {
+        self.picture_size() / self.scale
     }
 
     pub fn draw(
@@ -256,7 +259,7 @@ impl Screen {
                 hotspot,
             } => (*sprite, *size, *hotspot),
         };
-        let scale = frame.scale;
+        let scale = self.scale;
         let left = (frame.pointer.x - hotspot.x - self.rect.min.x) * scale;
         let top = (frame.pointer.y - hotspot.y - self.rect.min.y) * scale;
         let rect = [left, top, left + size.x * scale, top + size.y * scale];

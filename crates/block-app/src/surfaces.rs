@@ -6,7 +6,9 @@ use beui::{Align, NodeId, TextAlign};
 use block_plugin_api::{BlockCommand, BlockLocation, EditorInstanceId, EditorRegion, FrameSpec};
 use uuid::Uuid;
 
-use crate::compositor::{ChildView, PluginRegion, RegionEditor, ShellSurface};
+use crate::compositor::{
+    ChildView, DesktopMount, DesktopPlace, PluginRegion, RegionEditor, ShellSurface,
+};
 use crate::host::HostItem;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -96,8 +98,23 @@ pub(crate) fn apply() {
 pub(crate) fn MainSurface() -> NodeId {
     let shell = crate::compositor::shell();
     let shell = create_memo(move || shell.get());
+    let Some(place) = use_context::<DesktopPlace>() else {
+        return view! {
+            <ShellSurface shell />
+        };
+    };
+    provide_context(DesktopMount(Some(place)));
+    let offset = place.offset();
+    let x = create_memo(move || offset.get().min.x);
+    let y = create_memo(move || offset.get().min.y);
+    let width = create_memo(move || offset.get().width());
+    let height = create_memo(move || offset.get().height());
     view! {
-        <ShellSurface shell />
+        <Canvas>
+            <CanvasItem x={x} y={y} width={width} height={height}>
+                <ShellSurface shell />
+            </CanvasItem>
+        </Canvas>
     }
 }
 

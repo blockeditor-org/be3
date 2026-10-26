@@ -7,10 +7,7 @@ fn a_fullscreen_windows_tab_on_another_screen_offers_to_leave_full_screen() {
     let left = Rect::from_min_size(pos2(0.0, 0.0), vec2(500.0, 600.0));
     let right = Rect::from_min_size(pos2(500.0, 0.0), vec2(300.0, 600.0));
     let mut fixture = Fixture::with_windows(&[1]);
-    fixture
-        .test
-        .set_monitors(vec![("left", left), ("right", right)]);
-    fixture.settle();
+    fixture.report_screens(vec![monitor("left", left, 1.0), monitor("right", right, 1.0)]);
     let fullscreen = HostWindow {
         fullscreen: Some(right),
         ..host_window(1, true)

@@ -388,12 +388,10 @@ impl Document {
         if self.arena.get_as::<OverlayNode>(overlay).open {
             return;
         }
-        let screen = self.opening_screen(overlay);
         let traps = self.arena.get_as::<OverlayNode>(overlay).traps_focus;
         self.push_layer_scope(overlay.id(), traps);
         let node = self.arena.get_mut_as::<OverlayNode>(overlay);
         node.open = true;
-        node.screen = screen;
         self.layer_state
             .open
             .retain(|opened| opened.overlay != overlay);

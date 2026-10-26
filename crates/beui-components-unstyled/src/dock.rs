@@ -842,7 +842,7 @@ impl State {
                 placements.insert(surface, WindowPlacement::Host(placement));
             }),
             WindowReport::Focused { focused: true, .. } => self.window_focused(surface),
-            WindowReport::Scaled { .. } | WindowReport::Focused { .. } => {}
+            WindowReport::Scaled { .. } | WindowReport::Moved { .. } | WindowReport::Focused { .. } => {}
             WindowReport::Closed(_) => {
                 for tab in self.state.get_untracked().surface_tabs(surface) {
                     self.close_tab(tab);
@@ -1564,7 +1564,7 @@ fn DockFullscreenView(dock: State) -> NodeId {
     let area = create_memo(move || fullscreen.get().and_then(|shown| shown.area));
     let placement = create_memo(move || match area.get() {
         Some(_) => Placement::At,
-        None => Placement::FillScreen,
+        None => Placement::Fill,
     });
     let anchor =
         create_memo(move || OverlayAnchor::Point(area.get().map_or(Pos2::ZERO, |area| area.min)));

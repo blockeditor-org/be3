@@ -26,7 +26,6 @@ fn settling_tells_the_display_everything_drawn_while_hurried() {
     screen.rect = Rect::from_min_size(pos2(0.0, 0.0), vec2(32.0, 24.0));
     let target = target(&gpu);
     let frame = Frame {
-        scale: 1.0,
         clear: Color32::BLACK,
         pointer: pos2(0.0, 0.0),
         sprite: Pointer::Hidden,
@@ -39,7 +38,7 @@ fn settling_tells_the_display_everything_drawn_while_hurried() {
                 background: Color32::BLACK,
             });
         }
-        screen.prepare(&gpu, &output, 1.0);
+        screen.prepare(&gpu, &output);
         let (commands, damage) = screen.draw(&gpu, &frame, &target);
         gpu.queue().submit([commands]);
         damage

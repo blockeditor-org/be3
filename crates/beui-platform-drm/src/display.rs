@@ -23,6 +23,7 @@ pub struct Monitor {
 pub struct DisplayConfig {
     pub modes: Vec<(String, DisplayMode)>,
     pub rotations: Vec<(String, Rotation)>,
+    pub scales: Vec<(String, f32)>,
 }
 
 impl DisplayConfig {
@@ -31,6 +32,13 @@ impl DisplayConfig {
             .iter()
             .find(|(id, _)| id == monitor)
             .map(|(_, mode)| *mode)
+    }
+
+    pub(crate) fn scale(&self, monitor: &str) -> Option<f32> {
+        self.scales
+            .iter()
+            .find(|(id, scale)| id == monitor && scale.is_finite() && *scale > 0.0)
+            .map(|(_, scale)| *scale)
     }
 
     pub(crate) fn rotation(&self, monitor: &str) -> Rotation {

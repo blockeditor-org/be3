@@ -502,3 +502,16 @@ fn f_key(pressed: bool) -> Vec<Input> {
 fn outside() -> Pos2 {
     pos2(-10.0, -10.0)
 }
+
+fn monitors(rects: &[Rect]) -> Vec<Monitor> {
+    rects
+        .iter()
+        .enumerate()
+        .map(|(index, rect)| Monitor {
+            id: format!("monitor {index}"),
+            name: format!("Monitor {index}"),
+            rect: *rect,
+            scale: 1.0,
+        })
+        .collect()
+}

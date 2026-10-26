@@ -4,10 +4,8 @@ mod surface;
 mod views;
 
 use std::any::Any;
-use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
-use std::rc::Rc;
 use std::task::{Context as TaskContext, Poll, Waker as TaskWaker};
 
 use beui_core::app::{App, SafeArea, Setup, Waker};
@@ -15,7 +13,6 @@ use beui_core::context::{Context, FrameOutput};
 use beui_core::geometry::{Rect, Vec2, vec2};
 use beui_core::renderer::Loaded;
 use beui_core::runner::{Incoming, Launch, Platform, RunOptions, Runner, Running};
-use beui_core::screens::Screen;
 use beui_core::window::{
     WindowHosting, WindowId, WindowPlacement, WindowReport, WindowRequest, WindowRequests,
     WindowState,
@@ -49,7 +46,6 @@ impl Platform for PluginPlatform {
 
     fn run(self: Box<Self>, launch: Launch) -> Running {
         Box::pin(async move {
-            let shared = Rc::new(RefCell::new(surface::Shared::default()));
             let views = Views::default();
             let mut runner = Runner::new(launch);
             runner.context().set_window_hosting(WindowHosting::Placed);
@@ -59,7 +55,7 @@ impl Platform for PluginPlatform {
                 .module()
                 .map_or_else(|| self.host.waker(), |module| module.waker());
             let loaded = Loaded {
-                renderer: Box::new(ModuleRenderer::new(Rc::clone(&shared))),
+                renderer: Box::new(ModuleRenderer),
                 fonts: None,
             };
             let mut setup = Setup::new(Waker::new(move || waker.wake()));
@@ -68,7 +64,6 @@ impl Platform for PluginPlatform {
             let handler = ModuleRunner {
                 runner,
                 services: HostPlatform::new(self.host.clone()),
-                shared,
                 views,
                 surfaces: HashMap::new(),
                 windows: HashMap::new(),
@@ -110,7 +105,6 @@ pub fn launch(
 pub struct ModuleRunner {
     runner: Runner,
     services: HostPlatform,
-    shared: Rc<RefCell<surface::Shared>>,
     views: Views,
     surfaces: HashMap<RegionId, Surface>,
     windows: HashMap<RegionId, WindowId>,
@@ -152,27 +146,6 @@ impl ModuleRunner {
     }
 
     fn show(&mut self, regions: &[Region], ratio: f32) {
-        let monitors = regions
-            .iter()
-            .find(|region| !region.monitors.is_empty())
-            .map(|region| {
-                region
-                    .monitors
-                    .iter()
-                    .map(|monitor| {
-                        Screen::new(&monitor.id, &monitor.name, monitor.rect)
-                            .scaled(region.scale_factor)
-                    })
-                    .collect()
-            });
-        let window = || {
-            regions
-                .iter()
-                .map(|region| Screen::window(region.rect).scaled(region.scale_factor))
-                .take(1)
-                .collect()
-        };
-        self.shared.borrow_mut().screens = monitors.unwrap_or_else(window);
         self.views.set(
             regions
                 .iter()

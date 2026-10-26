@@ -132,10 +132,6 @@ pub fn pixels_per_point() -> ReadSignal<f32> {
     with_document(|document| document.watch_pixels_per_point())
 }
 
-pub fn use_screens() -> ReadSignal<Vec<beui_core::screens::Screen>> {
-    with_document(|document| document.watch_screens())
-}
-
 pub fn use_fullscreen() -> ReadSignal<bool> {
     with_document(|document| document.watch_fullscreen())
 }

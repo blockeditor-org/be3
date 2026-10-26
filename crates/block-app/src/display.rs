@@ -9,9 +9,11 @@ use crate::app_state::{AppStateError, AppStateStore};
 use crate::local_settings::{LayerContents, LocalSettings};
 
 mod guard;
+mod shown;
 
 pub(crate) use guard::{ANSWER_WITHIN, Prompt, Screen};
 use guard::{Guard, ModeChange, written};
+pub(crate) use shown::{apply as apply_shown, create_handle, desktop, owner, shown};
 
 #[cfg(target_os = "linux")]
 mod linux;

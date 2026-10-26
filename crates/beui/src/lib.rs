@@ -69,7 +69,6 @@ pub use beui_core::preferences::{
 };
 pub use beui_core::rich;
 pub use beui_core::runner::environment;
-pub use beui_core::screens::Screen;
 pub use beui_core::testing;
 pub use beui_core::touch_cursor;
 #[cfg(not(target_arch = "wasm32"))]

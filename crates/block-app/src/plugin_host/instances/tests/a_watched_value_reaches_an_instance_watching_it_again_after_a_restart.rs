@@ -16,6 +16,8 @@ fn monitor(width: u32) -> HostDisplay {
         default: mode,
         current: mode,
         rotation: Rotation::Normal,
+        rect: beui::Rect::ZERO,
+        scale: 1.0,
     }
 }
 

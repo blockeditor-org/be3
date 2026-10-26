@@ -24,7 +24,6 @@ use crate::paint::{Item, Recorded, Recording};
 use crate::painter::{Painter, PainterState, Scope, Shape};
 use crate::preferences::{PreferenceLayer, PreferenceLayers, PreferenceSource, Preferences};
 use crate::screen_simulation::ScreenSimulation;
-use crate::screens::Screen;
 use crate::window::{
     Appearance, HostPlacement, WindowHosting, WindowId, WindowReport, WindowRequest, WindowState,
 };
@@ -42,6 +41,7 @@ struct KnownWindow {
     size: Option<Vec2>,
     placement: Option<HostPlacement>,
     pixels_per_point: Option<f32>,
+    origin: Option<Pos2>,
 }
 
 struct ShownWindow {
@@ -84,6 +84,7 @@ struct Inner {
     windows: RefCell<foldhash::HashMap<WindowId, KnownWindow>>,
     window_reports: RefCell<Vec<WindowReport>>,
     shown_windows: RefCell<Vec<ShownWindow>>,
+    drawing_into: Cell<WindowId>,
     keyboard_window: Cell<WindowId>,
     window_hosting: Cell<WindowHosting>,
     shows_main: Cell<bool>,
@@ -102,7 +103,6 @@ struct Inner {
     simulated_pixels_per_point: Cell<Option<f32>>,
     screen_simulation: Cell<Option<ScreenSimulation>>,
     screen_scale: Cell<f32>,
-    screens: RefCell<Vec<Screen>>,
     zoom: Cell<f32>,
     repaint: Cell<bool>,
     repaint_after: Cell<Duration>,
@@ -371,6 +371,7 @@ impl Context {
                 windows: RefCell::new(foldhash::HashMap::default()),
                 window_reports: RefCell::new(Vec::new()),
                 shown_windows: RefCell::new(Vec::new()),
+                drawing_into: Cell::new(WindowId::MAIN),
                 keyboard_window: Cell::new(WindowId::MAIN),
                 window_hosting: Cell::new(WindowHosting::None),
                 shows_main: Cell::new(true),
@@ -389,7 +390,6 @@ impl Context {
                 simulated_pixels_per_point: Cell::new(None),
                 screen_simulation: Cell::new(None),
                 screen_scale: Cell::new(1.0),
-                screens: RefCell::new(Vec::new()),
                 zoom: Cell::new(1.0),
                 repaint: Cell::new(false),
                 repaint_after: Cell::new(Duration::MAX),
@@ -1086,6 +1086,14 @@ impl Context {
             .and_then(|known| known.placement.clone())
     }
 
+    pub fn window_origin(&self, window: WindowId) -> Option<Pos2> {
+        self.inner
+            .windows
+            .borrow()
+            .get(&window)
+            .and_then(|known| known.origin)
+    }
+
     pub fn window_reported(&self, report: WindowReport) {
         let mut windows = self.inner.windows.borrow_mut();
         let changed = match &report {
@@ -1103,6 +1111,10 @@ impl Context {
             } => {
                 let known = &mut windows.entry(*window).or_default().pixels_per_point;
                 known.replace(*pixels_per_point) != Some(*pixels_per_point)
+            }
+            WindowReport::Moved { window, origin } => {
+                let known = &mut windows.entry(*window).or_default().origin;
+                known.replace(*origin) != Some(*origin)
             }
             WindowReport::Closed(window) => {
                 windows.remove(window);
@@ -1266,6 +1278,10 @@ impl Context {
 
     pub fn keyboard_rect(&self) -> Option<Rect> {
         self.inner.keyboard.borrow().rect()
+    }
+
+    pub fn keyboard_trimmed(&self, window: WindowId, rect: Rect) -> Rect {
+        self.inner.keyboard.borrow().trimmed(window, rect)
     }
 
     pub fn type_events(&self, events: impl IntoIterator<Item = crate::input::Input>) {
@@ -1471,7 +1487,38 @@ impl Context {
     }
 
     pub fn report_move(&self, moved: Moved, roots: Vec<Rc<Display>>) {
-        self.inner.moves.borrow_mut().push((moved, roots));
+        match self.drawing_window().is_main() {
+            true => self.inner.moves.borrow_mut().push((moved, roots)),
+            false => self.report_damage(moved.to()),
+        }
+    }
+
+    pub fn draw_into<R>(&self, window: WindowId, draw: impl FnOnce() -> R) -> R {
+        let outer = self.inner.drawing_into.replace(window);
+        let drawn = draw();
+        self.inner.drawing_into.set(outer);
+        drawn
+    }
+
+    pub fn drawing_window(&self) -> WindowId {
+        self.inner.drawing_into.get()
+    }
+
+    pub fn shows_window(&self, window: WindowId) -> bool {
+        !window.is_main() || self.shows_main()
+    }
+
+    fn with_drawn_window(&self, change: impl FnOnce(&mut ShownWindow)) {
+        let window = self.drawing_window();
+        if let Some(shown) = self
+            .inner
+            .shown_windows
+            .borrow_mut()
+            .iter_mut()
+            .find(|shown| shown.id == window)
+        {
+            change(shown);
+        }
     }
 
     fn settle_moves(&self, layers: &[Layer], pixels_per_point: f32) -> Option<Moved> {
@@ -1502,12 +1549,26 @@ impl Context {
     }
 
     pub fn report_damage(&self, rect: Rect) {
-        if rect.is_positive() {
-            self.inner.damage.borrow_mut().push(rect);
+        if !rect.is_positive() {
+            return;
+        }
+        match self.drawing_window().is_main() {
+            true => self.inner.damage.borrow_mut().push(rect),
+            false => self.with_drawn_window(|shown| shown.damage = shown.damage.union(rect.into())),
         }
     }
 
     pub fn show_painting(&self, painting: &[(Rc<Display>, Vec2)], within: Rect) {
+        if !self.drawing_window().is_main() {
+            self.with_drawn_window(|shown| {
+                shown.layers.extend(
+                    painting
+                        .iter()
+                        .map(|(display, at)| Layer::Display(*at, Rc::clone(display))),
+                );
+            });
+            return;
+        }
         let shown = self.inner.shown.get();
         self.inner
             .shown
@@ -1592,17 +1653,6 @@ impl Context {
 
     pub fn set_screen_scale(&self, scale: f32) {
         self.inner.screen_scale.set(scale);
-    }
-
-    pub fn screens(&self) -> Vec<Screen> {
-        self.inner.screens.borrow().clone()
-    }
-
-    pub fn set_screens(&self, screens: Vec<Screen>) {
-        if *self.inner.screens.borrow() != screens {
-            *self.inner.screens.borrow_mut() = screens;
-            self.request_repaint();
-        }
     }
 
     pub fn set_screen_simulation(&self, simulation: Option<ScreenSimulation>) {

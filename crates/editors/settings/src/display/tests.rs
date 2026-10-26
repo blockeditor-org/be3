@@ -281,5 +281,7 @@ fn gaming_monitor() -> HostDisplay {
         default: mode(2560, 1440, 239_970),
         current: mode(2560, 1440, 59_951),
         rotation: Rotation::Normal,
+        rect: block_editor_beui::Rect::ZERO,
+        scale: 1.0,
     }
 }

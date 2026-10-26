@@ -11,9 +11,8 @@ use crate::text::{Text, TextColor, TextStyle};
 use crate::text_input::TextInput;
 use crate::theme::use_theme;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
-use beui_core::geometry::Rect;
+use beui_core::geometry::Pos2;
 use beui_core::node::NodeId;
-use beui_core::screens::bounds;
 use beui_view::components::overlay::Overlay;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -50,12 +49,6 @@ pub fn LockScreen(
     let error = create_memo(move || error.get());
     let busy = create_memo(move || busy.get());
     let actions = create_memo(move || actions.get());
-    let screens = use_screens();
-    let bounds = create_memo(move || screens.with(|screens| bounds(screens)));
-    let places = create_memo(move || (0..screens.with(Vec::len)).collect::<Vec<usize>>());
-    let anchor = create_memo(move || OverlayAnchor::Point(bounds.get().min));
-    let width = create_memo(move || Some(bounds.get().width()));
-    let height = create_memo(move || Some(bounds.get().height()));
     let password = create_signal(String::new());
     let submit = Rc::new(move |typed: String| {
         if busy.get_untracked() || typed.is_empty() {
@@ -66,56 +59,36 @@ pub fn LockScreen(
     });
     view! {
         <Overlay
-            anchor={anchor}
+            anchor=OverlayAnchor::Point(Pos2::ZERO)
             open={open}
-            placement=Placement::At
+            placement=Placement::Fill
             scrim={theme.background}
             level=LayerLevel::Lock
-            content={move || { let id = id.clone(); let submit = submit.clone(); view! {
-                <Frame width=width height=height>
-                    <Layers>
-                        <ForEach keys={places}>|index: usize| {
-                            let place = create_memo(move || {
-                                let origin = bounds.get().min.to_vec2();
-                                screens.with(|screens| {
-                                    screens
-                                        .get(index)
-                                        .map_or(Rect::ZERO, |screen| screen.rect.translate(-origin))
-                                })
-                            });
-                            let focused = create_memo(move || {
-                                index == 0 && open.get() && !busy.get()
-                            });
-                            let submit = submit.clone();
-                            let card = view! {
-                                <LockCard
-                                    place={place}
-                                    time={time}
-                                    date={date}
-                                    user={user}
-                                    error={error}
-                                    busy={busy}
-                                    actions={actions}
-                                    password={password}
-                                    focused={focused}
-                                    id={format!("{}.{index}", id)}
-                                    on_submit={move |typed: String| submit(typed)}
-                                    on_action={on_action}
-                                />
-                            };
-                            let layer: Layer = card.into_child();
-                            layer
-                        }</ForEach>
-                    </Layers>
-                </Frame>
-            } }}
+            content={move || {
+                let submit = submit.clone();
+                let focused = create_memo(move || open.get() && !busy.get());
+                view! {
+                    <LockCard
+                        time={time}
+                        date={date}
+                        user={user}
+                        error={error}
+                        busy={busy}
+                        actions={actions}
+                        password={password}
+                        focused={focused}
+                        id={id.clone()}
+                        on_submit={move |typed: String| submit(typed)}
+                        on_action={on_action}
+                    />
+                }
+            }}
         />
     }
 }
 
 #[component]
 fn LockCard(
-    place: Memo<Rect>,
     time: Memo<String>,
     date: Memo<String>,
     user: Memo<String>,
@@ -128,9 +101,6 @@ fn LockCard(
     on_submit: Callback<String>,
     on_action: Callback<usize>,
 ) -> NodeId {
-    let inset = create_memo(move || Sides::new(place.get().left(), place.get().top(), 0.0, 0.0));
-    let width = create_memo(move || place.get().width());
-    let height = create_memo(move || place.get().height());
     component_accessibility(create_memo(|| {
         let mut node = Node::new(Role::Dialog);
         node.set_label("Locked");
@@ -144,8 +114,7 @@ fn LockCard(
     let action_id = id.clone();
     let card_id = id.clone();
     view! {
-        <Frame padding=inset align=Align::Start>
-            <Frame width=width height=height align=Align::Center @test_id=card_id>
+        <Frame align=Align::Center @test_id=card_id>
                 <List spacing=GROUP_SPACING align=Align::Center>
                     <List spacing=SPACING align=Align::Center>
                         <Text style=TextStyle::DISPLAY>{time}</Text>
@@ -197,7 +166,6 @@ fn LockCard(
                         }</ForEach>
                     </List>
                 </List>
-            </Frame>
         </Frame>
     }
 }

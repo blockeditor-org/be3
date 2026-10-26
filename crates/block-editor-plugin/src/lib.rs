@@ -72,7 +72,7 @@ pub use host::{
     SeededContent, SentToPeers, ShowRequest, ShownPresence, StoredHead, Waker,
 };
 pub use module::Module;
-pub use plugin::{Claim, Frame, Instance, Plugin, Region, RegionId, RegionMonitor, Regions};
+pub use plugin::{Claim, Frame, Instance, Plugin, Region, RegionId, Regions};
 #[cfg(target_arch = "wasm32")]
 pub use plugin::{PaintTarget, SurfaceGpu, surface_gpu};
 pub use preferences::host_preferences;

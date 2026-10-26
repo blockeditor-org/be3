@@ -29,6 +29,7 @@ mod a_desktop_started_again_adopts_live_windows_instead_of_placeholders;
 mod a_desktop_started_again_adopts_the_windows_the_host_kept;
 mod a_first_desktop_with_no_sessions_offers_a_new_one;
 mod a_fullscreen_windows_tab_on_another_screen_offers_to_leave_full_screen;
+mod each_display_shows_its_own_bar_at_its_own_foot;
 mod a_held_volume_key_keeps_turning_the_volume;
 mod a_locked_screen_shows_no_notification_toasts;
 mod a_new_window_fills_the_oldest_placeholder_of_its_program;
@@ -381,6 +382,17 @@ impl Fixture {
 
 const PANEL: &str = "DPI-1";
 
+fn monitor(id: &str, rect: Rect, scale: f32) -> HostDisplay {
+    HostDisplay {
+        id: id.to_owned(),
+        name: id.to_owned(),
+        connector: id.to_owned(),
+        rect,
+        scale,
+        ..epaper_panel()
+    }
+}
+
 fn epaper_panel() -> HostDisplay {
     let mode = DisplayMode {
         width: 1404,
@@ -395,6 +407,8 @@ fn epaper_panel() -> HostDisplay {
         default: mode,
         current: mode,
         rotation: Default::default(),
+        rect: block_editor_beui::Rect::ZERO,
+        scale: 1.0,
     }
 }
 

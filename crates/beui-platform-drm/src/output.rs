@@ -41,6 +41,7 @@ pub struct Output {
     pub crtc: crtc::Handle,
     swapchain: Swapchain,
     pub screen: Screen,
+    pub clear: beui::Color32,
     targets: HashMap<WeakDmabuf, wgpu::Texture>,
     modes: Vec<Mode>,
     candidates: Vec<Candidate>,
@@ -162,6 +163,7 @@ impl Output {
         info: &connector::Info,
         taken: &[crtc::Handle],
         config: &DisplayConfig,
+        default_scale: f32,
         generation: u64,
     ) -> Result<Self, String> {
         let connector_name = info.to_string();
@@ -208,11 +210,14 @@ impl Output {
             )?,
         };
         let fencing = syncobj && !buffers.imported && !swapchain.is_legacy();
+        let mut screen = Screen::new(gpu, size_of(&mode), config.rotation(&id));
+        screen.scale = config.scale(&id).unwrap_or(default_scale);
         Ok(Self {
             connector,
             crtc,
             swapchain,
-            screen: Screen::new(gpu, size_of(&mode), config.rotation(&id)),
+            screen,
+            clear: beui::Color32::BLACK,
             targets: HashMap::new(),
             modes,
             candidates,
@@ -266,12 +271,21 @@ impl Output {
         gpu: &Gpu,
         wanted: Option<DisplayMode>,
         rotation: Rotation,
+        scale: f32,
     ) -> bool {
         let Some(chosen) = choose(&self.candidates, wanted) else {
             return false;
         };
-        if (chosen == self.chosen && rotation == self.screen.rotation()) || self.drawing() {
+        if self.drawing() {
             return false;
+        }
+        if chosen == self.chosen && rotation == self.screen.rotation() {
+            let rescaled = scale != self.screen.scale;
+            if rescaled {
+                self.screen.scale = scale;
+                self.screen.invalidate();
+            }
+            return rescaled;
         }
         if chosen != self.chosen {
             let mode = self.modes[chosen];
@@ -288,6 +302,7 @@ impl Output {
         let rect = self.screen.rect;
         self.screen = Screen::new(gpu, size_of(&self.modes[self.chosen]), rotation);
         self.screen.rect = rect;
+        self.screen.scale = scale;
         true
     }
 

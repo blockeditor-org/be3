@@ -97,7 +97,6 @@ pub enum Placement {
     RightStart,
     Center,
     Fill,
-    FillScreen,
     InsideTop,
     InsideTopEnd,
     InsideBottom,
@@ -140,7 +139,6 @@ pub struct OverlayNode {
     pub(crate) level: LayerLevel,
     pub(crate) traps_focus: bool,
     pub(crate) trigger: Option<NodeRef>,
-    pub(crate) screen: Option<String>,
     pub(crate) on_dismiss: Callback<Dismiss>,
 }
 
@@ -161,7 +159,6 @@ impl OverlayNode {
             level: LayerLevel::Normal,
             traps_focus: true,
             trigger: None,
-            screen: None,
             on_dismiss: Callback::empty(),
         }
     }
@@ -187,28 +184,6 @@ impl OverlayNode {
         };
         let pin = *self.pinned.get_or_insert_with(|| Pin::new(rect, within));
         pin.place(within)
-    }
-
-    fn area(&self, doc: &Document, viewport: Rect, anchored: Option<Rect>) -> Rect {
-        if doc.in_window_viewport() {
-            return viewport;
-        }
-        let opened = || {
-            self.screen
-                .as_deref()
-                .and_then(|id| doc.screen_named(id))
-                .or_else(|| doc.screens().into_iter().next())
-        };
-        let screen = match (self.placement, &self.anchor) {
-            (Placement::Fill | Placement::At | Placement::Around, _) => None,
-            (Placement::Center | Placement::FillScreen, _) => opened(),
-            (_, OverlayAnchor::Node(_) | OverlayAnchor::Pinned { .. }) => {
-                anchored.map_or_else(opened, |rect| doc.screen_under(rect))
-            }
-            (_, OverlayAnchor::Point(pos)) => doc.screen_at(*pos),
-            (_, OverlayAnchor::Rect(rect)) => doc.screen_under(*rect),
-        };
-        screen.map_or(viewport, |screen| screen.rect)
     }
 }
 
@@ -284,7 +259,7 @@ fn resolve_rect(
         let room = viewport.shrink(f32::from(margin));
         return resolve_rect(room, reach, Placement::BelowStart, content_size);
     }
-    if let Placement::Fill | Placement::FillScreen = placement {
+    if placement == Placement::Fill {
         return viewport;
     }
     if placement == Placement::Center {
@@ -355,7 +330,6 @@ fn resolve_rect(
         | Placement::Around
         | Placement::Center
         | Placement::Fill
-        | Placement::FillScreen
         | Placement::InsideTop
         | Placement::InsideTopEnd
         | Placement::InsideBottom
@@ -398,7 +372,7 @@ impl OverlayNode {
             OverlayAnchor::Pinned { rect, .. } => Some(self.pinned_rect(rect, anchored)),
             OverlayAnchor::Node(_) | OverlayAnchor::Point(_) | OverlayAnchor::Rect(_) => anchored,
         };
-        let area = self.area(doc, viewport, target);
+        let area = viewport;
         let anchor_rect = match &self.anchor {
             OverlayAnchor::Node(_) => anchored.unwrap_or(area),
             OverlayAnchor::Pinned { .. } => target.unwrap_or(area),
@@ -542,7 +516,9 @@ impl Element for OverlayNode {
             .window_painter(real.map_or_else(|| doc.viewport_window(), |window| window.id));
         if let Some(window) = real {
             let size = painter.ctx().window_size(window.id).unwrap_or(window.size);
-            let rect = Rect::from_min_size(Pos2::ZERO, size);
+            let rect = painter
+                .ctx()
+                .keyboard_trimmed(window.id, Rect::from_min_size(Pos2::ZERO, size));
             let outer = doc.swap_window_viewport(Some((window.id, rect)));
             crate::layout::layout(doc, painter, content, rect, out);
             doc.swap_window_viewport(outer);
@@ -798,28 +774,6 @@ impl Document {
 
     pub fn overlay_content(&self, overlay: NodeOf<OverlayNode>) -> Option<NodeId> {
         self.arena.get_as::<OverlayNode>(overlay).content
-    }
-
-    pub(crate) fn opening_screen(&self, overlay: NodeOf<OverlayNode>) -> Option<String> {
-        let rect_of = |node: Option<NodeId>| node.and_then(|node| self.node_rect(node));
-        let trigger = self
-            .arena
-            .get_as::<OverlayNode>(overlay)
-            .trigger
-            .as_ref()
-            .and_then(NodeRef::try_get);
-        let pressed = match self.acted {
-            crate::document::Acted::Pointer(pos) => Some(Rect::from_min_size(pos, Vec2::ZERO)),
-            crate::document::Acted::Keys | crate::document::Acted::Nothing => None,
-        };
-        let pointer = self
-            .last_pointer
-            .map(|sample| Rect::from_min_size(sample.pos, Vec2::ZERO));
-        let rect = rect_of(trigger)
-            .or(pressed)
-            .or_else(|| rect_of(self.focused))
-            .or(pointer)?;
-        Some(self.screen_under(rect)?.id)
     }
 
     pub(crate) fn on_overlay_trigger(&self, overlay: NodeOf<OverlayNode>, pos: Pos2) -> bool {

@@ -58,7 +58,6 @@ fn screen(region: EditorRegion, screen: u32) -> (ScreenPlacement, ScreenRequest)
             pixel_width: 400,
             pixel_height: 300,
             scale_factor: 1.0,
-            monitors: Vec::new(),
         },
         frame: (region == EditorRegion::Frame).then(FrameSpec::default),
     };

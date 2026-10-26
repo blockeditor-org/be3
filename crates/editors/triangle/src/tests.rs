@@ -21,7 +21,6 @@ fn region() -> Region {
         pixels: [400, 300],
         age: 0,
         spec: FrameSpec::default(),
-        monitors: Vec::new(),
         describe: None,
         seen: true,
     }

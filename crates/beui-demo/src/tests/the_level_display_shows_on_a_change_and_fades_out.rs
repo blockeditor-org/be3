@@ -4,23 +4,23 @@ use super::*;
 fn the_level_display_shows_on_a_change_and_fades_out() {
     let mut test = level_display();
     test.frame(Vec::new());
-    assert!(!test.shows("level-osd.0"), "nothing shows before a change");
+    assert!(!test.shows("level-osd"), "nothing shows before a change");
 
     test.click("test.show");
     test.frame(Vec::new());
-    assert!(test.shows("level-osd.0"), "a change shows the level");
+    assert!(test.shows("level-osd"), "a change shows the level");
     test.snapshot("level_display");
 
     test.advance(OSD_DURATION - Duration::from_millis(100));
 
     test.frame(Vec::new());
-    assert!(test.shows("level-osd.0"), "the level stays up for a while");
+    assert!(test.shows("level-osd"), "the level stays up for a while");
 
     test.click("test.show");
     test.advance(OSD_DURATION - Duration::from_millis(100));
     test.frame(Vec::new());
     assert!(
-        test.shows("level-osd.0"),
+        test.shows("level-osd"),
         "another change keeps the level up for as long again"
     );
 
@@ -28,7 +28,7 @@ fn the_level_display_shows_on_a_change_and_fades_out() {
 
     test.frame(Vec::new());
     assert!(
-        test.shows("level-osd.0"),
+        test.shows("level-osd"),
         "the level fades rather than vanishing"
     );
     test.snapshot("level_display_fading");
@@ -38,7 +38,7 @@ fn the_level_display_shows_on_a_change_and_fades_out() {
     test.frame(Vec::new());
     test.frame(Vec::new());
     assert!(
-        !test.shows("level-osd.0"),
+        !test.shows("level-osd"),
         "the level is gone once it has faded"
     );
 }

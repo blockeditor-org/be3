@@ -20,7 +20,7 @@ use uuid::Uuid;
 
 #[cfg(target_arch = "wasm32")]
 use crate::plugin::PaintTarget;
-use crate::plugin::{Frame, Instance, Region, RegionId, RegionMonitor};
+use crate::plugin::{Frame, Instance, Region, RegionId};
 use crate::{EditorHost, Module, Waker, host::BlockDrag};
 
 pub type Open = fn(EditorHost) -> Box<dyn Instance>;
@@ -689,23 +689,6 @@ impl EditorSession {
         })
     }
 
-    fn monitors(&self, region: EditorRegion) -> Vec<RegionMonitor> {
-        self.regions
-            .get(&region)
-            .and_then(|state| state.metrics.as_ref())
-            .map_or_else(Vec::new, |metrics| {
-                metrics
-                    .monitors
-                    .iter()
-                    .map(|monitor| RegionMonitor {
-                        id: monitor.id.clone(),
-                        name: monitor.name.clone(),
-                        rect: monitor.rect,
-                    })
-                    .collect()
-            })
-    }
-
     fn context(&self, region: EditorRegion) -> Region {
         let state = self.regions.get(&region);
         Region {
@@ -724,7 +707,6 @@ impl EditorSession {
                 .get(&region)
                 .and_then(|state| state.frame)
                 .unwrap_or_default(),
-            monitors: self.monitors(region),
             describe: state
                 .filter(|_| region == EditorRegion::Frame && crate::screens::describing())
                 .map(|state| state.epoch),

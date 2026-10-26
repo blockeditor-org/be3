@@ -1,7 +1,7 @@
 use super::*;
 
 mod a_turned_screen_draws_its_picture_turned_onto_the_panel;
-mod each_screen_shows_its_own_part_of_the_desktop;
+mod each_screen_shows_its_own_window_at_its_own_scale;
 mod settling_tells_the_display_everything_drawn_while_hurried;
 mod the_display_is_told_only_what_changed;
 

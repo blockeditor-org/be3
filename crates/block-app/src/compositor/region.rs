@@ -189,6 +189,8 @@ pub(crate) fn PluginRegion(
     child_view: ChildView,
 ) -> NodeId {
     let instance = editor.instance;
+    let desktop = super::desktop::mount();
+    let secondary = desktop.is_some_and(|place| !place.primary.get_untracked());
     let plugin_id = editor.plugin_id().to_owned();
     let name = editor.plugin.identity.name.clone();
     let crash_id = format!("{plugin_id}.{}.{region:?}.crashed", instance.0);
@@ -232,7 +234,6 @@ pub(crate) fn PluginRegion(
     });
     let revision = super::listen(&plugin_id.value());
     let placed = store(Cell::new(None::<EmbedPlacement>));
-    let screens = use_screens();
     let place = Callback::new(move |placement: Option<EmbedPlacement>| match placement {
         Some(placement) => plugin_host::place_region(
             &plugin_id.value(),
@@ -243,7 +244,7 @@ pub(crate) fn PluginRegion(
                 rect: placement.rect,
                 clip: placement.clip,
                 zoom: zoom.get_untracked(),
-                screens: screens.get_untracked(),
+                raster: desktop.map(|place| place.scale.get_untracked()),
             },
             frame.get_untracked(),
             view.get_untracked(),
@@ -259,7 +260,7 @@ pub(crate) fn PluginRegion(
         let _ = frame.get();
         let _ = view.get();
         let _ = zoom.get();
-        screens.with(|_| ());
+        let _ = desktop.map(|place| place.scale.get());
         place.call(placed.with(Cell::get));
     });
     let state = create_memo(move || {
@@ -304,19 +305,22 @@ pub(crate) fn PluginRegion(
     super::editors::provide_reports(reports);
     create_effect(move || {
         tick.get();
-        plugin_host::report_children(
-            &plugin_id.value(),
-            instance,
-            region,
-            super::editors::statuses(&reports),
+        let statuses = super::desktop::merged_statuses(
+            (plugin_id.value().to_string(), instance, region),
+            mount,
+            Some(super::editors::statuses(&reports)),
         );
+        plugin_host::report_children(&plugin_id.value(), instance, region, statuses);
+    });
+    on_cleanup(move || {
+        super::desktop::merged_statuses((plugin_id.value().to_string(), instance, region), mount, None);
     });
     if offscreen {
         return view! {
             <Layers>
-                <RegionChildren state={state} rect={rect} child_view below=true />
+                <RegionChildren state={state} rect={rect} child_view below=true desktop />
                 <Embed slot={slot} punch=false />
-                <RegionChildren state rect child_view below=false />
+                <RegionChildren state rect child_view below=false desktop />
             </Layers>
         };
     }
@@ -418,14 +422,16 @@ pub(crate) fn PluginRegion(
     let clipboard_keys = create_memo(move || state.with(|view| view.clipboard_keys));
     let intercepted = create_memo(move || state.with(|view| view.intercepted_keys.clone()));
     let shell = super::shell();
-    super::intercept::intercept_keys(plugin_id, instance, region, intercepted, move || {
-        region == EditorRegion::Frame && block.is_some() && shell.get_untracked() == block
-    });
     let catcher = NodeRef::new();
-    take_keyboard(state, &catcher);
-    focus_when_presenting(presenting, presented, &catcher);
-    toggle_keyboard_when_asked(state);
-    focus_when_asked(revision, plugin_id, instance, region, &catcher);
+    if !secondary {
+        super::intercept::intercept_keys(plugin_id, instance, region, intercepted, move || {
+            region == EditorRegion::Frame && block.is_some() && shell.get_untracked() == block
+        });
+        take_keyboard(state, &catcher);
+        focus_when_presenting(presenting, presented, &catcher);
+        toggle_keyboard_when_asked(state);
+        focus_when_asked(revision, plugin_id, instance, region, &catcher);
+    }
     let anchor = NodeRef::new();
     let ime = create_memo(move || state.with(|view| view.ime.is_some()));
     let ime_cursor = create_memo(move || {
@@ -467,6 +473,9 @@ pub(crate) fn PluginRegion(
     });
     let steering = StoredCell::new(Steering::IDLE);
     let forward = move |input: ForwardedInput| {
+        if desktop.is_some() {
+            super::desktop::follow_presses(&input);
+        }
         let input = match pan_drag {
             Some(pan_drag) => {
                 let mut steered = steering.get();
@@ -558,7 +567,7 @@ pub(crate) fn PluginRegion(
     view! {
         <DropTarget on_over={over} on_drop={dropped}>|_: DropHandle|
             <Layers>
-                <RegionChildren state={state} rect={rect} child_view below=true />
+                <RegionChildren state={state} rect={rect} child_view below=true desktop />
                 <BackHandler enabled={handles_back} on_gesture={back}>
                     <Interactive
                         @node_ref={&catcher}
@@ -589,7 +598,7 @@ pub(crate) fn PluginRegion(
                     </Interactive>
                 </BackHandler>
                 <Notices loading failure id={crash_id.clone()} />
-                <RegionChildren state rect child_view below=false />
+                <RegionChildren state rect child_view below=false desktop />
                 <Drawing draw={floating} />
             </Layers>
         </DropTarget>
@@ -732,12 +741,14 @@ fn RegionChildren(
     rect: Memo<Rect>,
     child_view: ChildView,
     below: bool,
+    desktop: Option<super::DesktopPlace>,
 ) -> NodeId {
     let keys = create_memo(move || {
         state.with(|view| {
             view.children
                 .iter()
                 .filter(|child| (child.is_below() && !child.frame_owner) == below)
+                .filter(|child| desktop.is_none_or(|place| place.shows(child.clip)))
                 .map(|child| child.child)
                 .collect::<Vec<ChildId>>()
         })

@@ -15,6 +15,7 @@ struct Running {
     cursor: Option<beui_platform_drm::SoftwareCursor>,
     display: Option<beui_platform_drm::DisplayControl>,
     flips: Option<beui_platform_drm::Flips>,
+    displays: Option<beui_platform_drm::Displays>,
     blanked: bool,
     lock_due: bool,
     lock_noticed: bool,
@@ -98,12 +99,17 @@ pub(crate) fn start(setup: &Setup) {
     if flips.is_some() {
         compositor.pace_to_flips();
     }
+    if let Some(beui_platform_drm::Loop(handle)) = setup.get::<beui_platform_drm::Loop>() {
+        compositor.join_loop(handle);
+    }
+    let displays = setup.get::<beui_platform_drm::Displays>().cloned();
     RUNNING.with(|running| {
         *running.borrow_mut() = Some(Running {
             compositor,
             cursor,
             display,
             flips,
+            displays,
             blanked: false,
             lock_due: false,
             lock_noticed: false,
@@ -131,15 +137,24 @@ pub(crate) fn running() -> bool {
     with(|_| ()).is_some()
 }
 
-pub(crate) fn before(context: &Context, rect: Rect, document: &mut Document) {
+pub(crate) fn before(context: &Context, rect: Rect, _document: &mut Document) {
     with(|running| {
-        running.compositor.set_screens(
-            document
-                .screens()
-                .into_iter()
-                .map(|screen| screen.rect)
-                .collect(),
-        );
+        let monitors: Vec<be_wayland::Monitor> = running
+            .displays
+            .as_ref()
+            .map(|displays| {
+                displays
+                    .displays()
+                    .into_iter()
+                    .map(|display| be_wayland::Monitor {
+                        rect: display.rect(),
+                        id: display.id,
+                        name: display.name,
+                        scale: display.scale,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
         if running
             .display
             .as_ref()
@@ -148,13 +163,12 @@ pub(crate) fn before(context: &Context, rect: Rect, document: &mut Document) {
             running.compositor.woke();
         }
         if let Some(flips) = &running.flips {
-            let screens = document.screens();
             for flip in flips.take() {
-                let Some(screen) = screens.iter().find(|screen| screen.id == flip.screen) else {
+                let Some(monitor) = monitors.iter().find(|monitor| monitor.id == flip.screen) else {
                     continue;
                 };
                 running.compositor.presented(
-                    screen.rect,
+                    monitor.rect,
                     be_wayland::Presented {
                         time: flip.time,
                         refresh: flip.refresh,
@@ -165,6 +179,7 @@ pub(crate) fn before(context: &Context, rect: Rect, document: &mut Document) {
                 );
             }
         }
+        running.compositor.set_monitors(monitors);
         running.compositor.before(context, rect);
     });
 }

@@ -17,6 +17,7 @@ use block_plugin_api::HostPanel;
 use uuid::Uuid;
 
 use crate::app_state::{SavedAccount, ServerLocation};
+use crate::surfaces::MainSurface;
 use crate::wayland::WindowActions;
 
 pub(crate) use debug::{
@@ -390,14 +391,112 @@ pub(crate) enum UiCommand {
 }
 
 #[component]
+pub(crate) fn Displays(view: AppViewStore) -> NodeId {
+    let shown = crate::display::shown();
+    let windowed = create_memo(move || shown.with(|shown| !shown.is_empty()));
+    view! {
+        <Layers>
+        <Dynamic value={windowed}>|windowed: bool| {
+            match windowed {
+                false => view! {
+                    <Root view />
+                },
+                true => {
+                    let keys = create_memo(move || {
+                        shown.with(|shown| {
+                            shown.iter().map(|display| display.id.clone()).collect::<Vec<_>>()
+                        })
+                    });
+                    view! {
+                        <Layers>
+                            <ForEach keys={keys}>|id: String|
+                                <DisplayWindow view id />
+                            </ForEach>
+                        </Layers>
+                    }
+                }
+            }
+        }</Dynamic>
+        </Layers>
+    }
+}
+
+#[component]
+fn DisplayWindow(view: AppViewStore, id: String) -> NodeId {
+    let shown = crate::display::shown();
+    let key = id.clone();
+    let display = create_memo(move || {
+        shown.with(|shown| shown.iter().find(|display| display.id == key).cloned())
+    });
+    let key = id.clone();
+    let primary = create_memo(move || {
+        shown.with(|shown| shown.first().is_some_and(|display| display.id == key))
+    });
+    let rect = create_memo(move || display.get().map_or(beui::Rect::ZERO, |display| display.rect));
+    let size = create_memo(move || rect.get().size());
+    let placement = display
+        .get_untracked()
+        .map_or(beui::WindowPlacement::AtPointer, |display| display.placement);
+    let title = display.get_untracked().map(|display| display.name);
+    let desktop = create_memo(move || shown.with(|shown| crate::display::desktop(shown)));
+    let displays = create_memo(move || {
+        shown.with(|shown| shown.iter().map(|display| display.rect).collect::<Vec<_>>())
+    });
+    let scale = create_memo(move || display.get().map_or(1.0, |display| display.scale));
+    view! {
+        <Window size={size} placement={placement} title={title}>|_handle: WindowHandle| {
+            provide_context(crate::compositor::DesktopPlace {
+                display: rect,
+                desktop,
+                displays,
+                scale,
+                primary,
+            });
+            view! {
+                <beui::styled::Root>
+                    <Layers>
+                        <Dynamic value={primary}>|primary: bool| {
+                            match primary {
+                                true => view! {
+                                    <Root view />
+                                },
+                                false => view! {
+                                    <SecondaryDisplay view />
+                                },
+                            }
+                        }</Dynamic>
+                    </Layers>
+                </beui::styled::Root>
+            }
+            .child()
+        }</Window>
+    }
+}
+
+#[component]
+fn SecondaryDisplay(view: AppViewStore) -> NodeId {
+    let area = NodeRef::new();
+    let screen = view.screen;
+    let presenting = view.presenting;
+    let shell = crate::compositor::shell();
+    let desktop = create_memo(move || {
+        screen.get() == Screen::Organization && !presenting.get() && shell.get().is_some()
+    });
+    view! {
+        <Frame @node_ref=&area>
+            <List spacing=0.0>
+                <Show condition={desktop}>
+                    <MainSurface @sizing=ItemSize::Percent(100.0) />
+                </Show>
+                <DisplayChrome view area primary=false />
+            </List>
+        </Frame>
+    }
+}
+
+#[component]
 pub(crate) fn Root(view: AppViewStore) -> NodeId {
     let screen = view.screen;
-    let slow_save = saving::SlowSave::new(view);
-    let notices = view.toasts;
-    let toasts = create_memo(move || slow_save.with_toast(notices.get()));
-    let keep_display = view.keep_display;
-    let asking = create_memo(move || keep_display.get().is_some());
-    let round = create_memo(move || keep_display.get().unwrap_or_default());
     let area = NodeRef::new();
     view! {
         <Frame @node_ref=&area>
@@ -433,6 +532,29 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
                         },
                     }
                 }</Dynamic>
+                <onboarding::ReauthDialog view />
+                <onboarding::AddAccountDialog view />
+                <DisplayChrome view area primary=true />
+                <WindowActions />
+            </List>
+        </Frame>
+    }
+}
+
+#[component]
+fn DisplayChrome(view: AppViewStore, area: NodeRef, primary: bool) -> NodeId {
+    let slow_save = saving::SlowSave::new(view);
+    let notices = view.toasts;
+    let toasts = create_memo(move || slow_save.with_toast(notices.get()));
+    let keep_display = view.keep_display;
+    let asking = create_memo(move || keep_display.get().is_some());
+    let round = create_memo(move || keep_display.get().unwrap_or_default());
+    let toasts = create_memo(move || match primary {
+        true => toasts.get(),
+        false => Vec::new(),
+    });
+    view! {
+        <List spacing=0.0>
                 <Toasts
                     anchor={area}
                     edge=Edge::TopEnd
@@ -458,11 +580,7 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
                     on_keep={move || send(UiCommand::KeepDisplay(round.get_untracked()))}
                     on_revert={move || send(UiCommand::RevertDisplay(round.get_untracked()))}
                 />
-                <onboarding::ReauthDialog view />
-                <onboarding::AddAccountDialog view />
-                <lock::SessionLock view={view} />
-                <WindowActions />
-            </List>
-        </Frame>
+                <lock::SessionLock view={view} shortcut={primary} />
+        </List>
     }
 }

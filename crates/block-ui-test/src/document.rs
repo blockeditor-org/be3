@@ -84,11 +84,6 @@ impl DocumentTest {
         self.dom = Some(dom);
     }
 
-    pub fn set_screens(&mut self, screens: Vec<beui::Screen>) {
-        self.context().set_screens(screens);
-        self.frame(Vec::new());
-    }
-
     pub fn shows(&self, test_id: &str) -> bool {
         let document = self.document();
         document

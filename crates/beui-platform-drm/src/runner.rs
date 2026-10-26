@@ -17,7 +17,10 @@ use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::preferences::{Motion, PreferenceLayer, ThemeKind};
 use beui_core::renderer::Loaded;
 use beui_core::runner::{Runner, panic_message};
-use beui_core::window::WindowState;
+use beui_core::window::{
+    WindowHosting, WindowId, WindowPlacement, WindowReport, WindowRequest, WindowState,
+};
+use beui_core::runner::Incoming;
 use smithay::backend::allocator::gbm::GbmDevice;
 use smithay::backend::drm::{
     DrmDevice, DrmDeviceFd, DrmEvent, DrmEventMetadata, DrmEventTime, DrmNode, NodeType,
@@ -49,7 +52,8 @@ use smithay::utils::{Clock, DeviceFd, Monotonic};
 use be_dmabuf::{Vulkan, adapter_for, open_device};
 
 use crate::display::{DisplayConfig, DisplayControl};
-use crate::displays::{DisplayRenderer, Displays};
+use crate::displays::{Display, Displays};
+use crate::outputs::{DisplayRenderer, Outputs};
 use crate::epaper::{Change, Epaper, Panel};
 use crate::escape::{Escape, FINGERS as ESCAPE_FINGERS, HOLD as ESCAPE_HOLD};
 use crate::flips::{Flip, Flips};
@@ -73,7 +77,9 @@ const LONGEST_WAIT: Duration = Duration::from_secs(3600);
 const BLANKED_FRAME: Duration = Duration::from_secs(1);
 const DARKEN_RETRY: Duration = Duration::from_secs(1);
 
-struct Session {
+pub struct Loop(pub LoopHandle<'static, Session>);
+
+pub struct Session {
     seat: LibSeatSession,
     recovery: Recovery<connector::Handle>,
     built: u64,
@@ -96,7 +102,10 @@ struct Session {
     gate: WakeGate,
     runner: Runner,
     platform: Seat,
-    displays: Rc<RefCell<Displays>>,
+    outputs: Rc<RefCell<Outputs>>,
+    displays: Displays,
+    windows: Windows,
+    default_scale: f32,
     pacer: Pacer,
     clock: Clock<Monotonic>,
     sampled: Option<Instant>,
@@ -110,10 +119,26 @@ struct Session {
     problems: Problems,
 }
 
+#[derive(Default)]
+struct Windows {
+    hosted: bool,
+    shown: std::collections::HashMap<String, WindowId>,
+    sized: std::collections::HashMap<WindowId, beui::Rect>,
+    scaled: std::collections::HashMap<WindowId, f32>,
+    focused: Option<WindowId>,
+}
+
+impl Windows {
+    fn of(&self, display: &str) -> Option<WindowId> {
+        self.shown.get(display).copied()
+    }
+}
+
 struct Seat {
     clipboard: Option<String>,
     locked: bool,
-    displays: Rc<RefCell<Displays>>,
+    hosted: bool,
+    outputs: Rc<RefCell<Outputs>>,
 }
 
 impl PlatformServices for Seat {
@@ -130,8 +155,8 @@ impl PlatformServices for Seat {
     }
 
     fn show_window(&mut self, window: &WindowState, shown: &WindowState) {
-        if window.requests.cursor != shown.requests.cursor {
-            self.displays.borrow_mut().icon = window.requests.cursor;
+        if self.hosted && window.requests.cursor != shown.requests.cursor {
+            self.outputs.borrow_mut().icon = window.requests.cursor;
         }
         self.locked = window.requests.pointer_locked;
     }
@@ -175,13 +200,22 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
     let (device, queue) = open_gpu(node, &lost)?;
     let gpu = Rc::new(Gpu::new(device, queue, FORMAT));
     let buffers = buffers(fd, node, &gpu)?;
-    let displays = Rc::new(RefCell::new(Displays::new(
+    let default_scale = scale();
+    let outputs = Rc::new(RefCell::new(Outputs::new(
         gpu,
         SoftwareCursor::default(),
-        scale(),
+        default_scale,
     )));
+    let hosted = launch.host.is_some();
     let mut runner = Runner::new(launch);
+    if !hosted {
+        runner.context().set_window_hosting(WindowHosting::Placed);
+        runner.context().set_shows_main(false);
+    }
+    let displays = Displays::default();
     let mut setup = Setup::new(waker.clone());
+    setup.provide(displays.clone());
+    setup.provide(Loop(handle.clone()));
     setup.provide(control.clone());
     setup.provide(display_control.clone());
     let problems = Problems::default();
@@ -192,17 +226,17 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         setup.provide(control.clone());
         (panel, control)
     });
-    let flips = displays.borrow().flips.clone();
+    let flips = outputs.borrow().flips.clone();
     setup.provide(flips.clone());
     runner.start(
         vec![Loaded {
-            renderer: Box::new(DisplayRenderer(Rc::clone(&displays))),
+            renderer: Box::new(DisplayRenderer(Rc::clone(&outputs))),
             fonts: None,
         }],
         setup,
     )?;
     runner.reports().fullscreen(true);
-    runner.reports().scaled(displays.borrow().scale);
+    runner.reports().scaled(default_scale);
     if epaper.is_some() {
         runner.reports().system_preferences(PreferenceLayer {
             theme: Some(ThemeKind::EPaper),
@@ -214,7 +248,8 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
     let platform = Seat {
         clipboard: None,
         locked: false,
-        displays: Rc::clone(&displays),
+        hosted,
+        outputs: Rc::clone(&outputs),
     };
     let mut session = Session {
         seat,
@@ -240,7 +275,13 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         gate: WakeGate::default(),
         runner,
         platform,
+        outputs,
         displays,
+        windows: Windows {
+            hosted,
+            ..Windows::default()
+        },
+        default_scale,
         pacer: Pacer::default(),
         clock: Clock::new(),
         sampled: None,
@@ -256,12 +297,12 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         session.display_config = config;
     }
     session.scan();
-    if session.displays.borrow().outputs.is_empty() {
+    if session.outputs.borrow().outputs.is_empty() {
         return Err("no display is connected".into());
     }
     {
-        let mut displays = session.displays.borrow_mut();
-        displays.pointer = displays.outputs[0].screen.rect.center();
+        let mut outputs = session.outputs.borrow_mut();
+        outputs.pointer = outputs.outputs[0].screen.rect.center();
     }
     session.pacer.ask();
     let ran = catch_unwind(AssertUnwindSafe(|| {
@@ -395,7 +436,7 @@ impl Session {
         let Session {
             runner,
             platform,
-            displays,
+            outputs,
             devices,
             libinput,
             buffers,
@@ -405,7 +446,7 @@ impl Session {
         } = self;
         let finished = runner.finish();
         drop(platform);
-        drop(displays);
+        drop(outputs);
         drop(devices);
         libinput.suspend();
         drop(libinput);
@@ -473,7 +514,7 @@ impl Session {
             return;
         };
         panel.change(change);
-        for output in &mut self.displays.borrow_mut().outputs {
+        for output in &mut self.outputs.borrow_mut().outputs {
             match change {
                 Change::Hurry => output.screen.hurry(),
                 Change::Settle => output.screen.settle(),
@@ -485,7 +526,7 @@ impl Session {
     }
 
     fn lanes(&self) -> Vec<Lane> {
-        self.displays
+        self.outputs
             .borrow()
             .outputs
             .iter()
@@ -501,7 +542,7 @@ impl Session {
 
     fn check_failures(&mut self) {
         let failures: Vec<_> = self
-            .displays
+            .outputs
             .borrow_mut()
             .outputs
             .iter_mut()
@@ -516,16 +557,20 @@ impl Session {
         let mut changed = false;
         let mut waiting = false;
         {
-            let mut displays = self.displays.borrow_mut();
-            let displays = &mut *displays;
-            for output in &mut displays.outputs {
+            let mut outputs = self.outputs.borrow_mut();
+            let outputs = &mut *outputs;
+            for output in &mut outputs.outputs {
                 if output.drawing() {
                     waiting = true;
                     continue;
                 }
                 let wanted = self.display_config.mode(output.id());
                 let rotation = self.display_config.rotation(output.id());
-                changed |= output.configure(&displays.gpu, wanted, rotation);
+                let scale = self
+                    .display_config
+                    .scale(output.id())
+                    .unwrap_or(self.default_scale);
+                changed |= output.configure(&outputs.gpu, wanted, rotation, scale);
             }
         }
         self.config_pending = waiting;
@@ -540,7 +585,7 @@ impl Session {
         }
         self.blanked = blanked;
         self.gate.set_blanked(blanked);
-        for output in &mut self.displays.borrow_mut().outputs {
+        for output in &mut self.outputs.borrow_mut().outputs {
             output.set_blanked(blanked);
         }
         self.pacer.ask();
@@ -548,7 +593,7 @@ impl Session {
 
     fn darken(&mut self) {
         let lit = {
-            let mut displays = self.displays.borrow_mut();
+            let mut displays = self.outputs.borrow_mut();
             for output in &mut displays.outputs {
                 output.darken();
             }
@@ -568,7 +613,7 @@ impl Session {
 
     fn watch_fences(&mut self) {
         let fences: Vec<_> = self
-            .displays
+            .outputs
             .borrow_mut()
             .outputs
             .iter_mut()
@@ -600,7 +645,7 @@ impl Session {
     }
 
     fn drawn(&mut self, crtc: crtc::Handle, generation: u64, frame: u64) {
-        let mut displays = self.displays.borrow_mut();
+        let mut displays = self.outputs.borrow_mut();
         if let Some(output) = displays
             .outputs
             .iter_mut()
@@ -612,7 +657,7 @@ impl Session {
 
     fn report_monitors(&self) {
         let monitors = self
-            .displays
+            .outputs
             .borrow()
             .outputs
             .iter()
@@ -622,12 +667,12 @@ impl Session {
     }
 
     fn rects(&self) -> Vec<beui::Rect> {
-        self.displays.borrow().rects()
+        self.outputs.borrow().rects()
     }
 
     fn update(&mut self) {
         let now = self.now();
-        for output in &mut self.displays.borrow_mut().outputs {
+        for output in &mut self.outputs.borrow_mut().outputs {
             output.framed();
         }
         let Some(frame) = self.runner.frame(&mut self.platform, SafeArea::default()) else {
@@ -637,9 +682,11 @@ impl Session {
             }
             return;
         };
+        self.match_windows();
+        let pending = self.prepare_outputs();
         if let Some((panel, _)) = &mut self.epaper {
             panel.pace.animating(frame.animating);
-            if frame.pending {
+            if pending {
                 panel.pace.drew(now);
             }
         }
@@ -695,7 +742,7 @@ impl Session {
 
     fn flipped(&mut self, crtc: crtc::Handle, metadata: Option<&DrmEventMetadata>) {
         let shown = self
-            .displays
+            .outputs
             .borrow_mut()
             .outputs
             .iter_mut()
@@ -727,7 +774,7 @@ impl Session {
 
     fn scan(&mut self) {
         let connectors = connected(&self.drm);
-        let mut guard = self.displays.borrow_mut();
+        let mut guard = self.outputs.borrow_mut();
         let displays = &mut *guard;
         displays.outputs.retain(|output| {
             connectors
@@ -753,6 +800,7 @@ impl Session {
                 &info,
                 &taken,
                 &self.display_config,
+                self.default_scale,
                 self.built,
             ) {
                 Ok(mut output) => {
@@ -769,25 +817,186 @@ impl Session {
     }
 
     fn relayout(&mut self) {
-        let mut guard = self.displays.borrow_mut();
-        let displays = &mut *guard;
-        let sizes: Vec<_> = displays
+        let mut guard = self.outputs.borrow_mut();
+        let outputs = &mut *guard;
+        let sizes: Vec<_> = outputs
             .outputs
             .iter()
-            .map(|output| output.screen.picture())
+            .map(|output| (output.screen.picture(), output.screen.scale))
             .collect();
-        for (output, rect) in displays
-            .outputs
-            .iter_mut()
-            .zip(arrange(&sizes, displays.scale))
-        {
+        for (output, rect) in outputs.outputs.iter_mut().zip(arrange(&sizes)) {
             output.screen.rect = rect;
             output.screen.invalidate();
         }
-        displays.pointer = clamp(displays.pointer, &displays.rects());
-        self.pacer.ask();
+        outputs.pointer = clamp(outputs.pointer, &outputs.rects());
+        outputs.follow_scales();
+        let shown: Vec<Display> = outputs
+            .outputs
+            .iter()
+            .map(|output| Display {
+                id: output.id().to_owned(),
+                name: output.name().to_owned(),
+                position: output.screen.rect.min,
+                size: output.screen.rect.size(),
+                scale: output.screen.scale,
+            })
+            .collect();
         drop(guard);
+        if let Some(first) = shown.first() {
+            self.runner.reports().scaled(first.scale);
+        }
+        self.displays.set(shown);
+        self.report_sizes();
+        self.pacer.ask();
         self.report_monitors();
+    }
+
+    fn report_sizes(&mut self) {
+        let displays = self.displays.displays();
+        let mut reports = Vec::new();
+        for (id, window) in &self.windows.shown {
+            let Some(display) = displays.iter().find(|display| display.id == *id) else {
+                continue;
+            };
+            let rect = display.rect();
+            if self.windows.sized.insert(*window, rect) != Some(rect) {
+                reports.push(WindowReport::Resized {
+                    window: *window,
+                    size: display.size,
+                });
+                reports.push(WindowReport::Moved {
+                    window: *window,
+                    origin: display.position,
+                });
+            }
+            if self.windows.scaled.insert(*window, display.scale) != Some(display.scale) {
+                reports.push(WindowReport::Scaled {
+                    window: *window,
+                    pixels_per_point: display.scale,
+                });
+            }
+        }
+        for report in reports {
+            self.runner.push(Incoming::Window(report));
+        }
+    }
+
+    fn match_windows(&mut self) {
+        if self.windows.hosted {
+            return;
+        }
+        let Some(output) = self.runner.output() else {
+            return;
+        };
+        let mut opened = Vec::new();
+        for request in &output.window_requests {
+            match request {
+                WindowRequest::Open {
+                    window,
+                    placement: WindowPlacement::Host(placement),
+                    ..
+                } => {
+                    if let Some(id) = self.displays.placed(placement) {
+                        opened.push(*window);
+                        if let Some(old) = self.windows.shown.insert(id, *window) {
+                            self.windows.sized.remove(&old);
+                            self.windows.scaled.remove(&old);
+                        }
+                    }
+                }
+                WindowRequest::Close(window) => {
+                    self.windows.shown.retain(|_, held| held != window);
+                    self.windows.sized.remove(window);
+                    self.windows.scaled.remove(window);
+                    if self.windows.focused == Some(*window) {
+                        self.windows.focused = None;
+                    }
+                }
+                _ => {}
+            }
+        }
+        if opened.is_empty() {
+            return;
+        }
+        self.report_sizes();
+        let first = self
+            .outputs
+            .borrow()
+            .outputs
+            .first()
+            .and_then(|output| self.windows.of(output.id()));
+        if self.windows.focused.is_none()
+            && let Some(first) = first
+        {
+            self.focus_window(first);
+        }
+        self.pacer.ask();
+    }
+
+    fn focus_window(&mut self, window: WindowId) {
+        if self.windows.focused == Some(window) {
+            return;
+        }
+        if let Some(old) = self.windows.focused.replace(window) {
+            self.runner.push(Incoming::Window(WindowReport::Focused {
+                window: old,
+                focused: false,
+            }));
+        }
+        self.runner.push(Incoming::Window(WindowReport::Focused {
+            window,
+            focused: true,
+        }));
+    }
+
+    fn prepare_outputs(&mut self) -> bool {
+        let Some(output) = self.runner.output() else {
+            return false;
+        };
+        let windows = &self.windows;
+        let mut outputs = self.outputs.borrow_mut();
+        let first = outputs.outputs.first().map(|first| first.id().to_owned());
+        if !windows.hosted {
+            let pointer = outputs.pointer;
+            let icon = outputs
+                .under(pointer)
+                .and_then(|under| windows.of(under.id()))
+                .and_then(|window| output.window(window))
+                .map(|window| window.window.requests.cursor);
+            if let Some(icon) = icon {
+                outputs.icon = icon;
+            }
+        }
+        outputs.prepare(|id| match windows.hosted {
+            true => (first.as_deref() == Some(id)).then(|| output.main()),
+            false => output.window(windows.of(id)?),
+        })
+    }
+
+    fn at(&self, position: Pos2) -> (WindowId, Pos2) {
+        if self.windows.hosted {
+            return (WindowId::MAIN, position);
+        }
+        let outputs = self.outputs.borrow();
+        outputs
+            .under(position)
+            .and_then(|output| {
+                let window = self.windows.of(output.id())?;
+                Some((window, position - output.screen.rect.min.to_vec2()))
+            })
+            .unwrap_or((WindowId::MAIN, position))
+    }
+
+    fn pointed(&mut self, position: Pos2, input: impl FnOnce(Pos2) -> beui::Input) {
+        let (window, local) = self.at(position);
+        self.push_sample(Incoming::points(input(local)).in_window(window));
+    }
+
+    fn pressed_at(&mut self, position: Pos2) {
+        let (window, _) = self.at(position);
+        if !window.is_main() {
+            self.focus_window(window);
+        }
     }
 
     fn recover(&mut self) {
@@ -819,27 +1028,22 @@ impl Session {
         self.pacer.ask();
     }
 
-    fn push_sample(&mut self, event: beui::Input) {
+    fn push_sample(&mut self, event: impl Into<beui::Incoming>) {
         self.push(event);
         if let Some(at) = self.sampled {
             self.push(beui::Incoming::Time(at));
         }
     }
 
-    fn physical(&self, pos: Pos2) -> Pos2 {
-        let scale = self.displays.borrow().scale;
-        beui::pos2(pos.x * scale, pos.y * scale)
-    }
-
     fn point(&mut self, pointer: Pos2) {
         self.place_pointer(pointer);
-        self.push_sample(beui::Input::PointerMoved(self.physical(pointer)));
+        self.pointed(pointer, beui::Input::PointerMoved);
     }
 
     fn place_pointer(&mut self, pointer: Pos2) {
-        let mut displays = self.displays.borrow_mut();
-        displays.pointer = pointer;
-        displays.moved_pointer();
+        let mut outputs = self.outputs.borrow_mut();
+        outputs.pointer = pointer;
+        outputs.moved_pointer();
     }
 
     fn gated(&mut self, event: &InputEvent<LibinputInputBackend>) -> bool {
@@ -882,15 +1086,15 @@ impl Session {
     }
 
     fn absolute_area(&self) -> (beui::Rect, Rotation) {
-        let displays = self.displays.borrow();
-        match displays.outputs.as_slice() {
+        let outputs = self.outputs.borrow();
+        match outputs.outputs.as_slice() {
             [only] => (only.screen.rect, only.screen.rotation()),
-            _ => (bounds(&displays.rects()), Rotation::Normal),
+            _ => (bounds(&outputs.rects()), Rotation::Normal),
         }
     }
 
     fn pointer(&self) -> Pos2 {
-        self.displays.borrow().pointer
+        self.outputs.borrow().pointer
     }
 
     fn configure(&mut self, mut config: InputConfig) {
@@ -981,8 +1185,7 @@ impl Session {
             InputEvent::PointerMotion { event } => {
                 let delta = vec2(event.delta_x() as f32, event.delta_y() as f32);
                 if self.platform.locked {
-                    let scale = self.displays.borrow().scale;
-                    self.push(beui::Input::PointerMotion(delta * scale));
+                    self.push(Incoming::points(beui::Input::PointerMotion(delta)));
                     return;
                 }
                 self.point(moved(self.pointer(), delta, &self.rects()));
@@ -1008,11 +1211,9 @@ impl Session {
                     return;
                 }
                 let amount = |axis| -event.amount(axis).unwrap_or(0.0) as f32;
-                let scale = self.displays.borrow().scale;
-                let delta = ScrollDelta::Pixels(
-                    vec2(amount(Axis::Horizontal), amount(Axis::Vertical)) * scale,
-                );
-                self.push(beui::Input::Scroll(delta));
+                let delta =
+                    ScrollDelta::Pixels(vec2(amount(Axis::Horizontal), amount(Axis::Vertical)));
+                self.push(Incoming::points(beui::Input::Scroll(delta)));
             }
             InputEvent::TouchDown { event } => {
                 self.escape_touch(event.slot(), true);
@@ -1089,20 +1290,20 @@ impl Session {
         let (_, rotation) = self.absolute_area();
         let tilt =
             rotation.direction_to_picture(vec2(event.tilt_x() as f32, event.tilt_y() as f32));
-        self.push_sample(beui::Input::Pen {
-            phase,
-            pos: self.physical(position),
-            pen: Pen {
-                pressure: event.pressure() as f32,
-                tilt,
-                eraser: tool.tool_type == TabletToolType::Eraser,
-            },
-        });
+        if matches!(phase, PenPhase::Down(_)) {
+            self.pressed_at(position);
+        }
+        let pen = Pen {
+            pressure: event.pressure() as f32,
+            tilt,
+            eraser: tool.tool_type == TabletToolType::Eraser,
+        };
+        self.pointed(position, |pos| beui::Input::Pen { phase, pos, pen });
     }
 
     fn touch_position<E: AbsolutePositionEvent<LibinputInputBackend>>(&self, event: &E) -> Pos2 {
-        let displays = self.displays.borrow();
-        let (rect, rotation) = displays
+        let outputs = self.outputs.borrow();
+        let (rect, rotation) = outputs
             .outputs
             .first()
             .map_or((beui::Rect::ZERO, Rotation::Normal), |output| {
@@ -1118,12 +1319,15 @@ impl Session {
         position: Pos2,
     ) {
         let finger: i32 = slot.into();
-        let pos = self.physical(position);
-        self.push_sample(beui::Input::Touch {
-            id: TouchId {
-                device: 0,
-                finger: u64::from(finger.max(0).unsigned_abs()),
-            },
+        if phase == TouchPhase::Start {
+            self.pressed_at(position);
+        }
+        let id = TouchId {
+            device: 0,
+            finger: u64::from(finger.max(0).unsigned_abs()),
+        };
+        self.pointed(position, |pos| beui::Input::Touch {
+            id,
             phase,
             pos,
             force: None,
@@ -1198,12 +1402,19 @@ impl Session {
                 let Some(button) = pointer_button(code) else {
                     return;
                 };
-                let pos = self.physical(self.pointer());
-                self.push(beui::Input::PointerButton {
-                    pos,
-                    button,
-                    pressed,
-                });
+                let position = self.pointer();
+                if pressed {
+                    self.pressed_at(position);
+                }
+                let (window, pos) = self.at(position);
+                self.push(
+                    Incoming::points(beui::Input::PointerButton {
+                        pos,
+                        button,
+                        pressed,
+                    })
+                    .in_window(window),
+                );
             }
             RawInput::Wheel { x, y } => {
                 let notches = |v120: i32| -v120 as f32 / 120.0;
@@ -1281,7 +1492,7 @@ impl Card for Session {
     }
 
     fn release(&mut self, output: Option<connector::Handle>) {
-        self.displays
+        self.outputs
             .borrow_mut()
             .outputs
             .retain(|known| output.is_some_and(|released| released != known.connector));
@@ -1318,8 +1529,8 @@ impl Card for Session {
     }
 
     fn stall(&mut self, output: connector::Handle) {
-        let mut displays = self.displays.borrow_mut();
-        if let Some(output) = displays
+        let mut outputs = self.outputs.borrow_mut();
+        if let Some(output) = outputs
             .outputs
             .iter_mut()
             .find(|known| known.connector == output)

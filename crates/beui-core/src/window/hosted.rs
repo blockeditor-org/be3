@@ -187,11 +187,17 @@ impl Document {
     }
 
     pub(crate) fn window_viewport(&self, window: WindowId) -> Option<(WindowId, Rect)> {
-        self.window_rect(window).map(|rect| (window, rect))
+        let rect = self.window_rect(window)?;
+        let rect = self
+            .context()
+            .map_or(rect, |ctx| ctx.keyboard_trimmed(window, rect));
+        Some((window, rect))
     }
 
-    pub(crate) fn in_window_viewport(&self) -> bool {
-        self.windows.viewport.is_some()
+    pub(crate) fn relayout_window(&mut self, window: WindowId) {
+        if let Some(node) = self.window_node(window) {
+            self.arena.invalidate_node(node);
+        }
     }
 
     pub fn open_windows(&self) -> Vec<WindowId> {
@@ -258,7 +264,7 @@ impl Document {
                         self.arena.repaint_node(shown);
                     }
                 }
-                WindowReport::Placed { .. } => {}
+                WindowReport::Placed { .. } | WindowReport::Moved { .. } => {}
                 WindowReport::Focused { window, focused } => {
                     match focused {
                         true => self.windows.host_focused = Some(*window),

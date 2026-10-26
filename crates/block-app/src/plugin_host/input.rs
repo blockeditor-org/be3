@@ -1,6 +1,6 @@
 use beui::{Event, Pos2, Rect, Replay, Replayed, Vec2};
 use block_plugin_api::{
-    DroppedFile, Input, InputBatch, Monitor, Pasted, ScreenId, Size, TimedInput, ViewportMetrics,
+    DroppedFile, Input, InputBatch, Pasted, ScreenId, Size, TimedInput, ViewportMetrics,
 };
 use uuid::Uuid;
 
@@ -117,7 +117,6 @@ pub(super) fn viewport_metrics(
     size: Vec2,
     visible: Rect,
     scale_factor: f32,
-    monitors: Vec<Monitor>,
 ) -> ViewportMetrics {
     let logical = Size {
         width: size.x.max(0.0),
@@ -130,6 +129,5 @@ pub(super) fn viewport_metrics(
         pixel_width: (visible.width().max(0.0) * scale_factor).round() as u32,
         pixel_height: (visible.height().max(0.0) * scale_factor).round() as u32,
         scale_factor,
-        monitors,
     }
 }

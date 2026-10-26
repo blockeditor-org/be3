@@ -1,4 +1,5 @@
 use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 
 use beui::reactive::*;
 use beui::styled;
@@ -35,7 +36,6 @@ fn region(size: Vec2, visible: Vec2, pixels: [u32; 2]) -> Region {
         pixels,
         age: 0,
         spec: FrameSpec::default(),
-        monitors: Vec::new(),
         describe: None,
         seen: true,
     }

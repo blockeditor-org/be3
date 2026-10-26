@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
 
@@ -9,7 +8,6 @@ use beui_core::damage::Region;
 use beui_core::display::Layer;
 use beui_core::geometry::{Vec2, vec2};
 use beui_core::renderer::Renderer;
-use beui_core::screens::Screen;
 use block_plugin_api::SurfaceRect;
 
 #[cfg(target_arch = "wasm32")]
@@ -267,18 +265,7 @@ fn shifted(output: &WindowOutput, by: Vec2) -> WindowOutput {
     }
 }
 
-#[derive(Default)]
-pub(crate) struct Shared {
-    pub(crate) screens: Vec<Screen>,
-}
-
-pub(crate) struct ModuleRenderer(Rc<RefCell<Shared>>);
-
-impl ModuleRenderer {
-    pub(crate) fn new(shared: Rc<RefCell<Shared>>) -> Self {
-        Self(shared)
-    }
-}
+pub(crate) struct ModuleRenderer;
 
 impl Renderer for ModuleRenderer {
     fn name(&self) -> &'static str {
@@ -310,10 +297,6 @@ impl Renderer for ModuleRenderer {
 
     fn physical(&self) -> Option<Vec2> {
         Some(vec2(1.0, 1.0))
-    }
-
-    fn screens(&self) -> Option<Vec<Screen>> {
-        Some(self.0.borrow().screens.clone())
     }
 
     fn prepare(&mut self, _output: &WindowOutput, _scale: f32, _background: Color32) -> bool {

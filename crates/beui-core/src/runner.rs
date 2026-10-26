@@ -190,7 +190,6 @@ pub struct Runner {
     reports: WindowReports,
     native: f32,
     output: Option<FrameOutput>,
-    reports_screens: bool,
     exited: bool,
     failure: Option<String>,
 }
@@ -251,7 +250,6 @@ impl Runner {
             reports: WindowReports::default(),
             native: 1.0,
             output: None,
-            reports_screens: false,
             exited: false,
             failure: None,
         }
@@ -552,21 +550,6 @@ impl Runner {
                 (screen, safe_area)
             }
         };
-        match renderers.screens() {
-            Some(screens) => {
-                self.context.set_screens(
-                    screens
-                        .iter()
-                        .map(|screen| screen.scaled(scale.recip()))
-                        .collect(),
-                );
-                self.reports_screens = true;
-            }
-            None if std::mem::take(&mut self.reports_screens) => {
-                self.context.set_screens(Vec::new());
-            }
-            None => {}
-        }
         let events = next_batch(&mut self.events);
         let seen = !self.occluded
             || self

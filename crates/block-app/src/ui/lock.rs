@@ -52,18 +52,23 @@ fn wall_clock() -> ReadSignal<DateTime> {
 }
 
 #[component]
-pub(crate) fn SessionLock(view: AppViewStore) -> NodeId {
+pub(crate) fn SessionLock(
+    view: AppViewStore,
+    #[prop(default = true)] shortcut: bool,
+) -> NodeId {
     let lock = view.lock;
     let available = create_memo(move || lock.get().available && !lock.get().locked);
-    Action::new("session.lock", "Lock the screen", || {
-        send(UiCommand::LockScreen);
-    })
-    .glyph(ICON_LOCK)
-    .shortcut(Chord::logo(Key::L))
-    .at(KeyAt::Host)
-    .capture()
-    .enabled(available)
-    .register();
+    if shortcut {
+        Action::new("session.lock", "Lock the screen", || {
+            send(UiCommand::LockScreen);
+        })
+        .glyph(ICON_LOCK)
+        .shortcut(Chord::logo(Key::L))
+        .at(KeyAt::Host)
+        .capture()
+        .enabled(available)
+        .register();
+    }
     let clock = wall_clock();
     let time = create_memo(move || clock.get().time.format(HourCycle::H24));
     let date = create_memo(move || {

@@ -2,13 +2,17 @@ use beui::{Pos2, Rect, Vec2, pos2, vec2};
 
 use crate::rotation::{Rotation, Turn};
 
-pub fn arrange(sizes: &[(u32, u32)], scale: f32) -> Vec<Rect> {
-    let mut left = 0.0;
-    sizes
+pub fn arrange(sizes: &[((u32, u32), f32)]) -> Vec<Rect> {
+    let points: Vec<Vec2> = sizes
         .iter()
-        .map(|&(width, height)| {
-            let size = vec2(width as f32 / scale, height as f32 / scale);
-            let rect = Rect::from_min_size(pos2(left, 0.0), size);
+        .map(|&((width, height), scale)| vec2(width as f32 / scale, height as f32 / scale))
+        .collect();
+    let tallest = points.iter().map(|size| size.y).fold(0.0, f32::max);
+    let mut left = 0.0;
+    points
+        .into_iter()
+        .map(|size| {
+            let rect = Rect::from_min_size(pos2(left, tallest - size.y), size);
             left += size.x;
             rect
         })

@@ -56,19 +56,18 @@ fn a_notification_toast_shows_above_the_bar_until_its_time_is_up() {
         "a toast that hides leaves its notification open"
     );
 
-    let right = Rect::from_min_size(pos2(400.0, 0.0), vec2(400.0, 400.0));
+    let right = Rect::from_min_size(pos2(400.0, 200.0), vec2(400.0, 400.0));
     let left = Rect::from_min_size(pos2(0.0, 0.0), vec2(400.0, 600.0));
-    fixture
-        .test
-        .set_monitors(vec![("right", right), ("left", left)]);
-    fixture.settle();
+    fixture.report_screens(vec![monitor("right", right, 1.0), monitor("left", left, 1.0)]);
     let card = fixture.test.rect_of(&toast(2));
     assert!(
         right.contains_rect(card),
-        "the toasts show on the first screen the host reports: {card:?}"
+        "the toasts show on the first display the host reports: {card:?}"
     );
+    let bars = fixture.test.rects_of("desktop.bar");
     assert!(
-        card.bottom() > right.bottom() - card.height() / 2.0,
-        "down to its foot, where the bar does not reach: {card:?}"
+        bars.iter()
+            .any(|bar| right.contains_rect(*bar) && card.bottom() <= bar.top()),
+        "above that display's own bar: {card:?} {bars:?}"
     );
 }

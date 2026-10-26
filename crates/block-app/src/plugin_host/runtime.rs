@@ -10,7 +10,7 @@ use beui::reactive::EmbedPlacement;
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
     ArtifactDescription, BlockPick, ChildPlacements, ChildPreview, EditorInstanceId, EditorRegion,
-    FrameCommit, FrameSpec, HostPanel, Monitor, Opening, PluginManifest, PresentedFrame,
+    FrameCommit, FrameSpec, HostPanel, Opening, PluginManifest, PresentedFrame,
     PreviewImage, RegionSize, ScreenDamage, ScreenId, ScreenLayout, ScreenPlacement, ScreenRequest,
     ScreenWindow, SurfaceFormat, SurfaceSpec, ViewChange, Watched,
 };
@@ -2029,7 +2029,7 @@ pub(crate) struct RegionPlacement {
     pub(crate) rect: Rect,
     pub(crate) clip: Rect,
     pub(crate) zoom: f32,
-    pub(crate) screens: Vec<beui::Screen>,
+    pub(crate) raster: Option<f32>,
 }
 
 pub(super) struct Offer {
@@ -2088,15 +2088,15 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: Edito
             })
             .reduce(|shown, source| shown.union(source)),
     };
+    let raster = offers
+        .iter()
+        .filter_map(|offer| offer.placement.raster)
+        .reduce(f32::max);
     let frame = chosen.frame;
     let view = chosen.view;
     let RegionPlacement {
-        rect,
-        clip,
-        zoom,
-        ref screens,
+        rect, clip, zoom, ..
     } = chosen.placement;
-    let screens = screens.clone();
     runtime.placed = host::pass();
     let zoom = match zoom.is_finite() && zoom > 0.0 && region != EditorRegion::Preview {
         true => zoom,
@@ -2116,10 +2116,12 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: Edito
             rect.size(),
             preview_scale(rect.size(), host::pixels_per_point()),
         ),
-        _ => (rect.size() / zoom, host::pixels_per_point() * zoom),
+        _ => (
+            rect.size() / zoom,
+            raster.unwrap_or_else(host::pixels_per_point) * zoom,
+        ),
     };
     let visible = shown.map_or(Rect::ZERO, |source| scale_rect(source, size));
-    let monitors = region_monitors(&screens, rect, size);
     runtime.instances.place_mounted(
         instance,
         region,
@@ -2127,7 +2129,6 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: Edito
         size,
         visible,
         scale_factor,
-        monitors,
     );
     if let Some(view) = view {
         runtime.instances.set_view(instance, view);
@@ -2135,28 +2136,6 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: Edito
     runtime
         .instances
         .place(instance, region, Placement { rect, clip });
-}
-
-fn region_monitors(screens: &[beui::Screen], rect: Rect, size: Vec2) -> Vec<Monitor> {
-    if rect.width() <= 0.0 || rect.height() <= 0.0 {
-        return Vec::new();
-    }
-    let scale = vec2(size.x / rect.width(), size.y / rect.height());
-    screens
-        .iter()
-        .filter(|screen| screen.rect.intersects(rect))
-        .map(|screen| {
-            let shown = screen.rect.translate(-rect.min.to_vec2());
-            Monitor {
-                id: screen.id.clone(),
-                name: screen.name.clone(),
-                rect: Rect::from_min_size(
-                    Pos2::new(shown.min.x * scale.x, shown.min.y * scale.y),
-                    Vec2::new(shown.width() * scale.x, shown.height() * scale.y),
-                ),
-            }
-        })
-        .collect()
 }
 
 pub(crate) fn forward_region(

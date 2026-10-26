@@ -92,7 +92,6 @@ fn a_surface_the_host_does_not_render_runs_its_frames_without_a_gpu() {
                 pixel_width: 100,
                 pixel_height: 80,
                 scale_factor: 1.0,
-                monitors: Vec::new(),
             },
         }]),
         Delivery::Configure(1),
