@@ -1339,6 +1339,7 @@ dependencies = [
  "beui-renderer-wgpu",
  "block-editor-plugin",
  "block-plugin-api",
+ "uuid",
  "wgpu",
 ]
 

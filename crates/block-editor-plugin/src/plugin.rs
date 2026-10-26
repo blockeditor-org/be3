@@ -90,6 +90,7 @@ pub trait Regions: std::any::Any {
 pub struct Region {
     pub instance: EditorInstanceId,
     pub region: EditorRegion,
+    pub block: Option<Uuid>,
     pub rect: Rect,
     pub visible: Vec2,
     pub scale_factor: f32,

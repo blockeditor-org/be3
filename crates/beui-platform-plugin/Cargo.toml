@@ -8,6 +8,7 @@ license.workspace = true
 beui-core = { path = "../beui-core" }
 block-editor-plugin = { path = "../block-editor-plugin" }
 block-plugin-api = { path = "../block-plugin-api" }
+uuid = "1"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }

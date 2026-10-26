@@ -28,6 +28,7 @@ fn region(size: Vec2, visible: Vec2, pixels: [u32; 2]) -> Region {
     Region {
         instance: INSTANCE,
         region: EditorRegion::Frame,
+        block: None,
         rect: Rect::from_min_size(Pos2::ZERO, size),
         visible,
         scale_factor: 1.0,

@@ -178,6 +178,7 @@ impl ModuleRunner {
                 .iter()
                 .map(|region| View {
                     id: region.id(),
+                    block: region.block,
                     size: region.rect.size() * ratio,
                     scale_factor: region.scale_factor,
                     ratio,

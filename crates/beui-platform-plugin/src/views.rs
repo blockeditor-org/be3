@@ -5,10 +5,12 @@ use std::rc::Rc;
 use beui_core::geometry::{Rect, Vec2};
 use beui_core::window::{HostPlacement, WindowPlacement};
 use block_editor_plugin::{Claim, FrameSpec, RegionId};
+use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct View {
     pub id: RegionId,
+    pub block: Option<Uuid>,
     pub size: Vec2,
     pub scale_factor: f32,
     pub ratio: f32,

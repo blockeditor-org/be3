@@ -14,6 +14,7 @@ fn region() -> Region {
     Region {
         instance: EditorInstanceId(1),
         region: EditorRegion::Frame,
+        block: None,
         rect: Rect::from_min_size(pos2(0.0, 0.0), vec2(400.0, 300.0)),
         visible: vec2(0.0, 0.0),
         scale_factor: 1.0,

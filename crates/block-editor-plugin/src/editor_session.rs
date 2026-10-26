@@ -711,6 +711,7 @@ impl EditorSession {
         Region {
             instance: self.instance,
             region,
+            block: self.own_block,
             rect: self.rect(region),
             visible: self.visible(region),
             scale_factor: self.scale_factor(region),
