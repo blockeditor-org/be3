@@ -171,7 +171,6 @@ fn metrics() -> ViewportMetrics {
         pixel_width: WIDTH,
         pixel_height: HEIGHT,
         scale_factor: 1.0,
-        monitors: Vec::new(),
     }
 }
 

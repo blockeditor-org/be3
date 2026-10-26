@@ -63,8 +63,11 @@ into a new unstyled component, then rebuild the styled one on top of it.
   each given its screen's rectangle relative to the bounds of all screens.
   `KeepChanges`, `LockScreen` and `LevelOsd` each repeat this. All three are
   moving out of beui (§3), but they still need it, in two different crates.
-  All three use it now; `LevelOsd`, which must not take input, puts it in an
-  inert `Overlay` rather than a `Modal`.
+  All three used it until main's "a window per DRM display" (#696) removed
+  screens from beui (`use_screens()` is gone; an overlay stays in its window).
+  `EveryScreen` and `ModalPlacement::AllScreens` were then deleted: block-app
+  shows its keep-changes prompt and lock screen once per display window, and
+  linux-desktop's `LevelOsd` lays out one card per display rect from the host.
 - **Done.** **Low priority:** an unstyled `Table` for the Table, Row, ColumnHeader,
   RowHeader and Cell accessibility nodes that `styled::Table` builds. An
   unstyled `ColorInput` for the preview state and the popover plus hex-field
@@ -106,16 +109,16 @@ into a new unstyled component, then rebuild the styled one on top of it.
 ## 3. Move components out of styled
 
 - **Done.** **`KeepChanges` → block-app.** It is a timed AlertDialog and only block-app's
-  display settings use it. Once §1's Dialog and `EveryScreen` exist, it should
+  display settings use it. Once §1's Dialog exists, it should
   be a few lines in block-app. Delete `styled::KeepChanges` and its demo page;
   move its tests with it.
 - **Done.** **`LockScreen` → block-app.** Only block-app uses it (`ui/lock.rs`), and
   nothing else ever would. Build it in block-app from styled pieces and §1's
-  `EveryScreen`.
+  `Modal` (one per display window).
 - **Done.** **`LevelOsd`.** Its bar becomes `Progress` (§4.4). What's left is an OSD card
   used only by linux-desktop (`app/media.rs`), so move it there. It is in
-  `app/osd.rs` now, with its tests in linux-desktop's, and lays out its cards
-  with `EveryScreen`.
+  `app/osd.rs` now, with its tests in linux-desktop's, and lays out one card
+  per display rect.
 - **Done.** **`Launcher`.** Its core joins the command palette (§4.2): a styled
   searchable palette with pluggable ranking and rows that show a picture or
   icon and a detail line. Also move `launcher_score` there as one of the
@@ -456,7 +459,7 @@ Outcomes, by crate group (each also migrated onto §7's tokens):
   lane geometry and the hex view's measured size are `Space::Custom` and
   `Size::Custom`, since other code computes with the same pixels.
 - **Done.** block-app, block-shell, block-editor-beui, block-ui-test,
-  paint-review, be-wayland and beui-adapter-plugin's tests (paint-review-web and
+  paint-review, be-wayland and beui-platform-plugin's tests (paint-review-web and
   beui-web-demo had nothing to move). None imports `unstyled::` any more, and
   they build without the §7 conversions.
   - New styled components: `TileButton` (a square pressable tile around any
@@ -1037,7 +1040,7 @@ Changes:
 
 ## Order
 
-1. §1's `Modal`, `Dialog` and `EveryScreen`, then the §3 moves that depend on
+1. §1's `Modal` and `Dialog`, then the §3 moves that depend on
    them (`KeepChanges`, `LockScreen`). Also the moves that are independent:
    `CrashNotice`, `StaleNotice`, `ThemeSelect`, `MotionSelect`,
    `PreferencesSection`, `Bordered`.

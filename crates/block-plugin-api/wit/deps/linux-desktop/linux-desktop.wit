@@ -100,8 +100,9 @@ interface input {
 
 /// The displays connected to the session.
 interface displays {
-    use be3:ui/types@0.1.0.{display-mode, rotation};
+    use be3:ui/types@0.1.0.{display-mode, rect, rotation};
 
+    /// `rect` is where the display shows the desktop, in points, and `scale` its pixels per point.
     record host-display {
         id: string,
         name: string,
@@ -110,6 +111,8 @@ interface displays {
         default: display-mode,
         current: display-mode,
         rotation: rotation,
+        rect: rect,
+        scale: f32,
     }
 
     resource displays-watch {

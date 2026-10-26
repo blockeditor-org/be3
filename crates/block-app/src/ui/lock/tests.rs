@@ -28,6 +28,5 @@ fn press(test: &mut DocumentTest, key: Key) {
     test.frame(Vec::new());
 }
 
-mod it_shows_on_every_screen;
 mod it_stays_locked_until_its_password_is_typed;
 mod its_actions_are_told_apart_by_place;

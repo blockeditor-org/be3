@@ -38,4 +38,3 @@ fn press(test: &mut DocumentTest, key: Key) {
 
 mod it_keeps_on_enter_and_reverts_on_escape;
 mod it_reverts_once_its_countdown_runs_out;
-mod it_shows_on_every_screen;

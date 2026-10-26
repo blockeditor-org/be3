@@ -373,7 +373,7 @@ interface types {
         repeat: bool,
     }
 
-    /// The raw input every platform adapter, drive, the on-screen keyboard and
+    /// The raw input every platform, drive, the on-screen keyboard and
     /// the plugin protocol produce.
     variant input {
         focus(bool),

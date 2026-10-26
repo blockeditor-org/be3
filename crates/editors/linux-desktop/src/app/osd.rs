@@ -4,7 +4,7 @@ use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{
-    LayerLevel, LayerPolicy, NodeId, OverlayAnchor, Placement, Pos2, TextAlign, pos2,
+    LayerLevel, LayerPolicy, NodeId, OverlayAnchor, Placement, Pos2, Rect, TextAlign,
 };
 
 pub(crate) const OSD_DURATION: Duration = Duration::from_millis(1500);
@@ -29,6 +29,7 @@ pub(crate) struct OsdLevel {
 pub(crate) fn LevelOsd(
     level: Memo<Option<OsdLevel>>,
     shown: ReadSignal<u64>,
+    displays: Memo<Vec<Rect>>,
     id: String,
 ) -> NodeId {
     let since = StoredCell::new(None::<Instant>);
@@ -74,32 +75,39 @@ pub(crate) fn LevelOsd(
         });
     });
     let open = create_memo(move || opacity.get() > 0.0 && level.with(Option::is_some));
-    let screens = use_screens();
-    let anchor = create_memo(move || {
-        OverlayAnchor::Point(screens.with(|screens| {
-            screens
-                .iter()
-                .map(|screen| screen.rect.min)
-                .reduce(|a, b| pos2(a.x.min(b.x), a.y.min(b.y)))
-                .unwrap_or(Pos2::ZERO)
-        }))
-    });
+    let places = create_memo(move || (0..displays.with(Vec::len)).collect::<Vec<usize>>());
     view! {
         <Overlay
-            anchor={anchor}
-            placement=Placement::At
+            anchor=OverlayAnchor::Point(Pos2::ZERO)
+            placement=Placement::Fill
             policy=LayerPolicy::Inert
             level=LayerLevel::Top
             traps_focus=false
             open={open}
             content={move || { let id = id.clone(); view! {
-                <EveryScreen align={Align2::new(Align::Center, Align::End)}>|slot: ScreenSlot| {
-                    let below = create_memo(move || slot.rect.get().height() * (1.0 - SCREEN_HEIGHT_FRACTION));
-                    let id = format!("{id}.{}", slot.index);
-                    view! {
-                        <OsdCard level opacity={opacity.read_only()} below id />
-                    }
-                }</EveryScreen>
+                <Layers>
+                    <ForEach keys={places}>|index: usize| {
+                        let rect = create_memo(move || {
+                            displays.with(|displays| displays.get(index).copied().unwrap_or(Rect::ZERO))
+                        });
+                        let inset = create_memo(move || {
+                            Padding::custom(Sides::new(rect.get().left(), rect.get().top(), 0.0, 0.0))
+                        });
+                        let width = create_memo(move || Length::Size(Size::Custom(rect.get().width())));
+                        let height = create_memo(move || Length::Size(Size::Custom(rect.get().height())));
+                        let below = create_memo(move || rect.get().height() * (1.0 - SCREEN_HEIGHT_FRACTION));
+                        let id = format!("{id}.{index}");
+                        let card = view! {
+                            <Frame padding={inset} align={Align2::START}>
+                                <Frame width height align={Align2::new(Align::Center, Align::End)}>
+                                    <OsdCard level opacity={opacity.read_only()} below id />
+                                </Frame>
+                            </Frame>
+                        };
+                        let layer: Layer = card.into_child();
+                        layer
+                    }</ForEach>
+                </Layers>
             } }}
         />
     }

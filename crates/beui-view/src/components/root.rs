@@ -35,24 +35,33 @@ pub fn Root(
     #[prop(default = SystemBars::default())] system_bars: Prop<SystemBars>,
     children: Child,
 ) -> Root {
+    let handle = crate::components::window::use_window();
+    let window = move || {
+        handle
+            .filter(|handle| handle.is_window())
+            .map(|handle| handle.id)
+    };
     create_effect(move || {
         let color = clear_color.get();
+        let window = window();
         with_document(|document| {
-            document.update_appearance(|appearance| appearance.clear_color = color)
+            document.update_appearance(window, |appearance| appearance.clear_color = color)
         });
     });
     if let Some(title) = title {
         create_effect(move || {
             let title = title.get();
+            let window = window();
             with_document(|document| {
-                document.update_appearance(|appearance| appearance.title = Some(title))
+                document.update_appearance(window, |appearance| appearance.title = Some(title))
             });
         });
     }
     create_effect(move || {
         let bars = system_bars.get();
+        let window = window();
         with_document(|document| {
-            document.update_appearance(|appearance| appearance.system_bars = bars)
+            document.update_appearance(window, |appearance| appearance.system_bars = bars)
         });
     });
     Root { child: children }

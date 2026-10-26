@@ -1,7 +1,7 @@
 use super::*;
 
 fn fullscreen(app: &mut AppTest) -> bool {
-    app.run(&["state"]).contains("fullscreen yes")
+    app.run(&["app", "state"]).contains("fullscreen yes")
 }
 
 #[test]

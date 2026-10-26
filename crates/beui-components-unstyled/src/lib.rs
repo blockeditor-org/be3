@@ -21,7 +21,6 @@ pub mod datetime;
 pub mod dialog;
 pub mod disclosure;
 pub mod drag;
-pub mod every_screen;
 pub mod fling;
 pub mod floating;
 pub mod list_row;
@@ -100,7 +99,6 @@ pub use disclosure::{Disclosure, DisclosureApi, DisclosureHandle};
 pub use drag::{
     DRAG_PREVIEW_OFFSET, DRAG_THRESHOLD, DragHandle, Draggable, DropHandle, DropTarget,
 };
-pub use every_screen::{EveryScreen, ScreenSlot};
 pub use floating::{Edge, Floating};
 pub use list_row::ListRow;
 pub use menu::{

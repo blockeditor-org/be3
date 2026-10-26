@@ -3,6 +3,8 @@ use std::time::{Duration, Instant};
 
 use crate::geometry::{Pos2, Vec2};
 
+pub mod typing;
+
 pub use ui_types::input::{
     BackEdge, BackGesture, CursorIcon, ImeEvent, ImeText, Input, Key, KeyChord, KeyPress, Keyboard,
     Keystroke, Modifiers, Pen, PenPhase, PointerButton, ScrollDelta, TouchId, TouchPhase,
@@ -359,6 +361,26 @@ impl InputState {
     pub fn with_event(&self, event: Event) -> Self {
         let mut input = self.clone();
         input.events.push(event);
+        input
+    }
+
+    pub fn seen_from(&self, window: crate::window::WindowId) -> Self {
+        if window.is_main() {
+            return self.clone();
+        }
+        let mut input = self.only(|event| !matches!(event, Event::PointerWindow(_)));
+        input.pointer_events.retain(|event| event.window == window);
+        for event in &mut input.pointer_events {
+            event.window = crate::window::WindowId::MAIN;
+        }
+        match input.pointer.window == window {
+            true => input.pointer.window = crate::window::WindowId::MAIN,
+            false => {
+                input.pointer.pos = None;
+                input.pointer.motion = Vec2::ZERO;
+            }
+        }
+        input.window = crate::window::WindowId::MAIN;
         input
     }
 

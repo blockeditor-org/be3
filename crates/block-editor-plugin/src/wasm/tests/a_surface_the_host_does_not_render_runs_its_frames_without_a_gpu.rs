@@ -8,26 +8,43 @@ use crate::editor_session::EditorSession;
 use crate::screens::Screens;
 use crate::wasm::{Surfaces, surface_gpu};
 use crate::wire::Delivery;
-use crate::{EditorHost, Frame, Instance, Region, SettingsDraft, Waker};
+use crate::{EditorHost, Frame, Instance, Region, Regions, Waker};
 
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 
-struct Unpainted;
+struct Unpainted(EditorHost);
 
 impl Instance for Unpainted {
     fn connect(&mut self, _block_id: Uuid) {}
 
-    fn input(&mut self, _region: &Region, _event: &TimedInput) {}
-
-    fn update(&mut self, region: &Region, _settings: Option<SettingsDraft<'_>>) -> Frame {
-        Frame {
-            changed: true,
-            painted: vec![region.rect],
-            ..Frame::default()
+    fn open_region(&mut self, _region: EditorRegion) {
+        if !self.0.handles_regions() {
+            self.0.handle_regions(Box::new(UnpaintedRegions));
         }
     }
+}
 
-    fn paint(&mut self, _target: &crate::PaintTarget<'_>) -> Vec<block_plugin_api::SurfaceRect> {
+struct UnpaintedRegions;
+
+impl Regions for UnpaintedRegions {
+    fn input(&mut self, _region: &Region, _event: &TimedInput) {}
+
+    fn frame(&mut self, regions: &[Region]) -> Vec<Frame> {
+        regions
+            .iter()
+            .map(|region| Frame {
+                changed: true,
+                painted: vec![region.rect],
+                ..Frame::default()
+            })
+            .collect()
+    }
+
+    fn paint(
+        &mut self,
+        _region: crate::RegionId,
+        _target: &crate::PaintTarget<'_>,
+    ) -> Vec<block_plugin_api::SurfaceRect> {
         panic!("a surface the host does not render was painted")
     }
 }
@@ -44,13 +61,10 @@ fn a_surface_the_host_does_not_render_runs_its_frames_without_a_gpu() {
         surface: Some(spec),
         preferences: block_plugin_api::Preferences::default(),
     }));
+    let host = EditorHost::new(Waker::default());
     screens.adopt(
         INSTANCE,
-        EditorSession::adopt(
-            INSTANCE,
-            Box::new(Unpainted),
-            EditorHost::new(Waker::default()),
-        ),
+        EditorSession::adopt(INSTANCE, Box::new(Unpainted(host.clone())), host),
     );
     for delivery in [
         Delivery::Open(Opening::Block(OpenBlock {
@@ -78,7 +92,6 @@ fn a_surface_the_host_does_not_render_runs_its_frames_without_a_gpu() {
                 pixel_width: 100,
                 pixel_height: 80,
                 scale_factor: 1.0,
-                monitors: Vec::new(),
             },
         }]),
         Delivery::Configure(1),

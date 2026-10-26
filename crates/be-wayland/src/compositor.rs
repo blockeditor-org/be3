@@ -34,6 +34,14 @@ pub struct CursorImage {
     pub revision: u64,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct Monitor {
+    pub id: String,
+    pub name: String,
+    pub rect: Rect,
+    pub scale: f32,
+}
+
 pub struct Compositor {
     server: Server,
     windows: Windows,
@@ -46,7 +54,8 @@ pub struct Compositor {
     on_failure: Option<Box<dyn Fn(String)>>,
     configured: std::collections::HashMap<WindowId, Configured>,
     area: Rect,
-    screens: Vec<Rect>,
+    scale: f32,
+    monitors: Vec<Monitor>,
     fullscreen: Option<(WindowId, Pos2)>,
     raise: Option<WindowId>,
     relist: bool,
@@ -86,7 +95,8 @@ impl Compositor {
             on_failure: None,
             configured: std::collections::HashMap::new(),
             area: Rect::ZERO,
-            screens: Vec::new(),
+            scale: 1.0,
+            monitors: Vec::new(),
             fullscreen: None,
             raise: None,
             relist: false,
@@ -150,8 +160,20 @@ impl Compositor {
         self.server.state.idle.blanked()
     }
 
-    pub fn set_screens(&mut self, screens: Vec<Rect>) {
-        self.screens = screens;
+    pub fn set_monitors(&mut self, monitors: Vec<Monitor>) {
+        self.monitors = monitors;
+    }
+
+    fn shown_monitors(&self) -> Vec<Monitor> {
+        match self.monitors.is_empty() {
+            false => self.monitors.clone(),
+            true => vec![Monitor {
+                id: "window".to_owned(),
+                name: "Window".to_owned(),
+                rect: self.area,
+                scale: self.scale,
+            }],
+        }
     }
 
     pub fn set_fullscreen(&mut self, id: WindowId, fullscreen: bool) {
@@ -161,11 +183,18 @@ impl Compositor {
                 self.server.state.set_fullscreen(previous, false);
                 self.windows.push(Command::Configure(previous));
             }
-            if current != Some(id) {
-                let anchor = self
-                    .windows
-                    .rect(id)
-                    .map_or(self.area.center(), |rect| rect.center());
+            let asked = self.server.state.take_fullscreen_output(id).map(|on| {
+                Pos2::new(
+                    on.loc.x as f32 + on.size.w as f32 / 2.0,
+                    on.loc.y as f32 + on.size.h as f32 / 2.0,
+                )
+            });
+            if current != Some(id) || asked.is_some() {
+                let anchor = asked.unwrap_or_else(|| {
+                    self.windows
+                        .rect(id)
+                        .map_or(self.area.center(), |rect| rect.center())
+                });
                 self.fullscreen = Some((id, anchor));
             }
             self.raise = Some(id);
@@ -184,10 +213,10 @@ impl Compositor {
         }
         let area = self.area;
         Some(
-            self.screens
+            self.monitors
                 .iter()
-                .find(|screen| screen.contains(anchor))
-                .map_or(area, |screen| screen.intersect(area)),
+                .find(|monitor| monitor.rect.contains(anchor))
+                .map_or(area, |monitor| monitor.rect.intersect(area)),
         )
     }
 
@@ -626,14 +655,17 @@ impl Compositor {
         let state = &mut self.server.state;
         let dragging = state.dragging();
         let windows = &self.windows;
+        let shift = windows
+            .rect(id)
+            .map_or(beui::Vec2::ZERO, |desktop| desktop.min - input.rect.min);
         let at = |over: Option<NodeId>, pos: Pos2| {
-            let (id, rect) = match dragging {
+            let (id, local) = match dragging {
                 true => windows
                     .caught_at(over?)
-                    .filter(|(target, _)| windows.blocked_by(*target).is_none())?,
-                false => (id, input.rect),
+                    .filter(|(target, _)| windows.blocked_by(*target).is_none())
+                    .map(|(target, rect)| (target, pos + shift - rect.min))?,
+                false => (id, pos - input.rect.min),
             };
-            let local = pos - rect.min;
             Some((id, (f64::from(local.x), f64::from(local.y)).into()))
         };
         for forwarded in &input.events {
@@ -845,6 +877,19 @@ impl Compositor {
             Err(error) => eprintln!("be-wayland: could not watch the display: {error}"),
         }
     }
+
+    pub fn join_loop<D: 'static>(
+        &mut self,
+        handle: &smithay::reexports::calloop::LoopHandle<'static, D>,
+    ) {
+        let Some(waker) = self.waker.clone() else {
+            return;
+        };
+        self.watch = None;
+        if let Err(error) = self.server.join_loop(handle, move || waker.wake()) {
+            eprintln!("be-wayland: could not watch the display from the event loop: {error}");
+        }
+    }
 }
 
 impl Compositor {
@@ -864,16 +909,16 @@ impl Compositor {
         let Some(rect) = self.windows.rect(id) else {
             return Place::Anywhere;
         };
-        if self.screens.is_empty() {
+        if self.monitors.is_empty() {
             return Place::Anywhere;
         }
         let area = |screen: &Rect| {
             let shared = screen.intersect(rect);
             shared.width().max(0.0) * shared.height().max(0.0)
         };
-        self.screens
+        self.monitors
             .iter()
-            .copied()
+            .map(|monitor| monitor.rect)
             .filter(|screen| area(screen) > 0.0)
             .max_by(|left, right| area(left).total_cmp(&area(right)))
             .map_or(Place::Nowhere, Place::On)
@@ -905,27 +950,38 @@ impl Compositor {
     pub fn before(&mut self, context: &Context, rect: Rect) {
         self.show_painted(context);
         self.receive(context);
-        let scale = context.pixels_per_point().ceil().max(1.0) as i32;
-        let size = (rect.width().round() as i32, rect.height().round() as i32);
-        self.server.state.set_scale(scale, size.into());
-        self.area = rect;
-        let screens = self
-            .screens
-            .iter()
-            .map(|screen| screen.intersect(rect).translate(-rect.min.to_vec2()))
-            .filter(|screen| screen.width() > 0.0 && screen.height() > 0.0)
-            .map(|screen| {
-                smithay::utils::Rectangle::new(
-                    (screen.min.x.round() as i32, screen.min.y.round() as i32).into(),
+        self.scale = context.pixels_per_point();
+        self.area = match self.monitors.is_empty() {
+            true => rect,
+            false => self
+                .monitors
+                .iter()
+                .map(|monitor| monitor.rect)
+                .reduce(|all, rect| all.union(rect))
+                .unwrap_or(rect),
+        };
+        let heads = self
+            .shown_monitors()
+            .into_iter()
+            .map(|monitor| crate::heads::HeadSpec {
+                id: monitor.id,
+                name: monitor.name,
+                rect: smithay::utils::Rectangle::new(
                     (
-                        screen.width().round() as i32,
-                        screen.height().round() as i32,
+                        (monitor.rect.min.x - self.area.min.x).round() as i32,
+                        (monitor.rect.min.y - self.area.min.y).round() as i32,
                     )
                         .into(),
-                )
+                    (
+                        monitor.rect.width().round() as i32,
+                        monitor.rect.height().round() as i32,
+                    )
+                        .into(),
+                ),
+                scale: monitor.scale.ceil().max(1.0) as i32,
             })
             .collect();
-        self.server.state.set_screens(screens);
+        self.server.state.set_heads(heads);
         self.publish();
         self.listed = self.windows.revision();
     }

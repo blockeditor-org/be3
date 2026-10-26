@@ -12,13 +12,14 @@ fn the_desktop_starts_with_nothing_open_but_its_bar() {
     assert!(document.find_test_id("desktop.bar").is_some());
     let clock = document
         .find_test_id("desktop.clock")
-        .and_then(|clock| text_under(document, clock))
+        .and_then(|clock| text_under(&document, clock))
         .expect("the bar shows the time");
     assert!(
         clock.len() == 5 && clock.as_bytes()[2] == b':',
         "the time reads as hours and minutes, not {clock:?}"
     );
 
+    drop(document);
     fixture.test.click("desktop.menu");
     fixture.settle();
     assert!(

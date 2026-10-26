@@ -36,6 +36,7 @@ mod a_stale_or_foreign_token_does_not_take_the_focus;
 mod a_token_from_a_click_in_the_focused_window_brings_another_window_forward;
 mod a_token_is_lost_once_the_keyboard_leaves_its_window;
 mod a_wake_from_the_host_counts_as_activity;
+mod a_window_asked_fullscreen_on_an_output_fills_that_monitor;
 mod a_window_asking_for_fullscreen_before_it_is_shown_is_answered;
 mod a_window_asking_for_fullscreen_covers_the_screen;
 mod a_window_brought_forward_while_it_is_not_shown_is_reported_raised;
@@ -53,6 +54,7 @@ mod activating_a_window_with_a_modal_dialog_raises_the_dialog;
 mod an_app_that_inhibits_shortcuts_gets_super_chords_until_super_escape;
 mod an_inhibitor_on_a_window_that_is_not_shown_does_not_keep_the_session_awake;
 mod closing_a_window_that_is_not_responding_disconnects_its_client;
+mod each_monitor_is_an_output_and_a_window_enters_the_one_it_is_on;
 mod hiding_the_tab_of_the_window_with_the_keyboard_takes_the_keyboard_from_it;
 mod idle_notifications_tell_clients_when_the_user_idles_and_resumes;
 mod keys_follow_the_focus_between_beui_and_a_window;
@@ -72,7 +74,7 @@ mod the_ui_can_make_a_window_fullscreen_and_take_it_back;
 mod with_middle_click_paste_off_a_selection_is_cancelled_and_offered_to_no_one;
 mod with_middle_click_paste_on_a_selection_is_offered_until_it_is_switched_off;
 
-use beui::automation::WindowSize;
+use beui::WindowSize;
 use beui::styled::*;
 use beui::testing::Stepped;
 use beui::{FrameOutput, Input, Key, Keystroke, NodeId, pos2};
@@ -501,4 +503,17 @@ fn f_key(pressed: bool) -> Vec<Input> {
 
 fn outside() -> Pos2 {
     pos2(-10.0, -10.0)
+}
+
+fn monitors(rects: &[Rect]) -> Vec<Monitor> {
+    rects
+        .iter()
+        .enumerate()
+        .map(|(index, rect)| Monitor {
+            id: format!("monitor {index}"),
+            name: format!("Monitor {index}"),
+            rect: *rect,
+            scale: 1.0,
+        })
+        .collect()
 }

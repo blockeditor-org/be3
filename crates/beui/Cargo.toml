@@ -9,22 +9,21 @@ default = ["window"]
 render = ["dep:beui-renderer-wgpu", "beui-components-styled/gpu"]
 window = [
     "render",
-    "dep:beui-adapter-android",
-    "dep:beui-adapter-headless",
-    "dep:beui-adapter-space",
-    "dep:beui-adapter-winit",
+    "dep:beui-platform-android",
+    "dep:beui-layer-space",
+    "dep:beui-platform-winit",
     "dep:pollster",
     "dep:serde_json",
 ]
 web = [
     "render",
     "beui-renderer-wgpu/web",
-    "dep:beui-adapter-web",
+    "dep:beui-platform-web",
     "dep:wasm-bindgen",
     "dep:web-sys",
 ]
 dom = [
-    "dep:beui-adapter-web",
+    "dep:beui-platform-web",
     "dep:beui-font-browser",
     "dep:beui-renderer-dom",
     "beui-renderer-dom/web",
@@ -40,25 +39,26 @@ beui-dock = { path = "../beui-dock" }
 beui-font-freetype = { path = "../beui-font-freetype" }
 beui-inspector = { path = "../beui-inspector" }
 beui-keyboard = { path = "../beui-keyboard" }
+beui-layer-drive = { path = "../beui-layer-drive" }
+beui-platform-headless = { path = "../beui-platform-headless" }
 beui-renderer-wgpu = { path = "../beui-renderer-wgpu", optional = true }
 beui-view = { path = "../beui-view" }
 beui_macros = { path = "../beui-macros" }
 reactive = { path = "../reactive" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-beui-adapter-space = { path = "../beui-adapter-space", optional = true }
+beui-layer-space = { path = "../beui-layer-space", optional = true }
 pollster = { version = "0.4", optional = true }
 serde_json = { version = "1", optional = true }
 
 [target.'cfg(target_os = "android")'.dependencies]
-beui-adapter-android = { path = "../beui-adapter-android", optional = true }
+beui-platform-android = { path = "../beui-platform-android", optional = true }
 
 [target.'cfg(not(any(target_os = "android", target_arch = "wasm32")))'.dependencies]
-beui-adapter-headless = { path = "../beui-adapter-headless", optional = true }
-beui-adapter-winit = { path = "../beui-adapter-winit", optional = true }
+beui-platform-winit = { path = "../beui-platform-winit", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-beui-adapter-web = { path = "../beui-adapter-web", optional = true }
+beui-platform-web = { path = "../beui-platform-web", optional = true }
 beui-font-browser = { path = "../beui-font-browser", optional = true }
 beui-renderer-dom = { path = "../beui-renderer-dom", optional = true }
 wasm-bindgen = { version = "0.2", optional = true }

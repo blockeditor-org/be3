@@ -39,6 +39,7 @@ fn a_window_with_a_parent_hangs_over_it_and_hides_with_its_tab() {
                 .is_none(),
         "the dialog has no tab of its own"
     );
+    drop(document);
 
     fixture.host.set_watched::<WindowsWatch>(&vec![
         window(1, "Editor", None),

@@ -13,6 +13,7 @@ mod graph;
 pub mod headless;
 mod host;
 mod link;
+mod module;
 #[cfg(target_arch = "wasm32")]
 mod panes;
 mod plugin;
@@ -70,7 +71,8 @@ pub use host::{
     PerformanceMeasurementGuard, PerformanceReporter, PickRequest, PickedFile, Pushed, SavedFile,
     SeededContent, SentToPeers, ShowRequest, ShownPresence, StoredHead, Waker,
 };
-pub use plugin::{Claim, Frame, Instance, Plugin, Region, RegionMonitor, SettingsDraft};
+pub use module::Module;
+pub use plugin::{Claim, Frame, Instance, Plugin, Region, RegionId, Regions, SettingsDraft};
 #[cfg(target_arch = "wasm32")]
 pub use plugin::{PaintTarget, SurfaceGpu, surface_gpu};
 pub use preferences::host_preferences;

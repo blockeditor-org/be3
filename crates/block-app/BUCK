@@ -192,7 +192,7 @@ app(
         activity = "com.be3.block.MainActivity",
         application_id = application_id,
         assets = ":android-assets",
-        java = glob(["android/java/**/*.java"]) + ["//crates/beui-adapter-android:android-java"],
+        java = glob(["android/java/**/*.java"]) + ["//crates/beui-platform-android:android-java"],
         label = label,
         library = ":block-app",
         manifest = "android/AndroidManifest.xml",

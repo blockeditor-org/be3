@@ -1,3 +1,4 @@
+use crate::window::WindowId;
 use std::any::Any;
 
 use crate::base::focus::Focus;
@@ -546,16 +547,16 @@ impl Document {
         };
     }
 
-    pub fn wants_every_sample(&self) -> bool {
+    pub fn wants_every_sample(&self, window: WindowId) -> bool {
         self.every_sample_surfaces
             .iter()
-            .any(|id| self.arena.contains(*id))
+            .any(|id| self.arena.contains(*id) && self.window_of(*id) == window)
     }
 
-    pub fn drawing_rects(&self) -> Vec<Rect> {
+    pub fn drawing_rects(&self, window: WindowId) -> Vec<Rect> {
         self.drawing_surfaces
             .iter()
-            .filter(|id| self.arena.contains(**id))
+            .filter(|id| self.arena.contains(**id) && self.window_of(**id) == window)
             .filter_map(|id| self.rects.visible(id))
             .filter(|rect| rect.is_positive())
             .collect()
@@ -689,10 +690,10 @@ impl Document {
         }
     }
 
-    pub fn press_claims(&self) -> Vec<(Modifiers, Rect)> {
+    pub fn press_claims(&self, window: WindowId) -> Vec<(Modifiers, Rect)> {
         self.press_claimants
             .iter()
-            .filter(|id| self.arena.contains(**id))
+            .filter(|id| self.arena.contains(**id) && self.window_of(**id) == window)
             .filter_map(|id| {
                 let claimed = self
                     .arena

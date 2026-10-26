@@ -66,16 +66,13 @@ pub(crate) fn KeepChanges(
     view! {
         <Modal
             open
-            placement=ModalPlacement::AllScreens
             motion=ModalMotion::Still
             on_dismiss={revert}
-        >
-            <EveryScreen>|slot: ScreenSlot| {
-                let card_id = format!("{id}.{}", slot.index);
-                let countdown_id = format!("{card_id}.countdown");
-                let body_id = card_id.clone();
+        >|| {
+                let countdown_id = format!("{id}.countdown");
+                let body_id = id.clone();
                 view! {
-                    <DialogCard width=WIDTH @test_id={card_id}>
+                    <DialogCard width=WIDTH @test_id={id.clone()}>
                         <DialogBody
                             kind=DialogKind::Alert
                             title
@@ -84,7 +81,6 @@ pub(crate) fn KeepChanges(
                                 DialogAction::primary("Keep", keep),
                                 DialogAction::cancel("Revert"),
                             ]}
-                            focuses={slot.index == 0}
                             on_dismiss={revert}
                         >
                             <Text style=TextStyle::PARAGRAPH @test_id={countdown_id}>
@@ -93,8 +89,7 @@ pub(crate) fn KeepChanges(
                         </DialogBody>
                     </DialogCard>
                 }
-            }</EveryScreen>
-        </Modal>
+        }</Modal>
     }
 }
 

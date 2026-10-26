@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
 
-use beui::automation::WindowSize;
+use beui::WindowSize;
 use beui::testing::{Showing, Stepped};
 use beui::{Context, FreetypeFonts, Input, PointerButton, vec2};
 

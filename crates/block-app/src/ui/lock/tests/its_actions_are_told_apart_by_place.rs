@@ -25,9 +25,9 @@ fn its_actions_are_told_apart_by_place() {
     });
     let mut test = DocumentTest::new(document, Vec2::new(800.0, 480.0));
     test.frame(Vec::new());
-    test.click("lock.0.action.1");
+    test.click("lock.action.1");
     test.frame(Vec::new());
-    test.click("lock.0.action.0");
+    test.click("lock.action.0");
     test.frame(Vec::new());
     assert_eq!(
         *chosen.borrow(),

@@ -19,6 +19,7 @@ pub(crate) type Painting = Vec<(Rc<Display>, Vec2)>;
 pub(crate) struct Windows {
     nodes: Vec<(WindowId, NodeOf<OverlayNode>)>,
     opens: ::reactive::OwnedSignal<bool>,
+    placed: ::reactive::OwnedSignal<bool>,
     asked: Vec<WindowId>,
     wanted: HashMap<WindowId, Vec2>,
     closed_by_host: HashSet<WindowId>,
@@ -27,6 +28,9 @@ pub(crate) struct Windows {
     pub(crate) paintings: Vec<(WindowId, Painting)>,
     pub(crate) viewport: Option<(WindowId, Rect)>,
     kept_focus: HashMap<WindowId, NodeId>,
+    host_focused: Option<WindowId>,
+    pub(crate) focus_resized: bool,
+    pub(crate) appearances: HashMap<WindowId, crate::window::Appearance>,
 }
 
 impl Default for Windows {
@@ -34,6 +38,7 @@ impl Default for Windows {
         Self {
             nodes: Vec::new(),
             opens: ::reactive::OwnedSignal::new(false),
+            placed: ::reactive::OwnedSignal::new(false),
             asked: Vec::new(),
             wanted: HashMap::default(),
             closed_by_host: HashSet::default(),
@@ -42,6 +47,9 @@ impl Default for Windows {
             paintings: Vec::new(),
             viewport: None,
             kept_focus: HashMap::default(),
+            host_focused: None,
+            focus_resized: false,
+            appearances: HashMap::default(),
         }
     }
 }
@@ -56,25 +64,33 @@ impl Windows {
 
 impl Document {
     pub fn opens_windows(&self) -> bool {
-        self.windows.opens.get_untracked()
+        self.windows.opens.get_untracked() || self.windows.placed.get_untracked()
     }
 
     pub fn watch_opens_windows(&self) -> ::reactive::ReadSignal<bool> {
         self.windows.opens.read_only()
     }
 
+    pub fn watch_placed_windows(&self) -> ::reactive::ReadSignal<bool> {
+        self.windows.placed.read_only()
+    }
+
+    pub(crate) fn hosts_window(&self, spec: &crate::base::overlay::WindowSpec) -> bool {
+        self.windows.opens.get_untracked()
+            || (self.windows.placed.get_untracked()
+                && matches!(spec.placement, super::WindowPlacement::Host(_)))
+    }
+
     pub(crate) fn real_window(&self, overlay: NodeOf<OverlayNode>) -> Option<WindowId> {
-        if !self.opens_windows() {
-            return None;
-        }
         self.arena
             .get_as::<OverlayNode>(overlay)
             .window
             .as_ref()
+            .filter(|window| self.hosts_window(window))
             .map(|window| window.id)
     }
 
-    fn window_node(&self, window: WindowId) -> Option<NodeOf<OverlayNode>> {
+    pub(crate) fn window_node(&self, window: WindowId) -> Option<NodeOf<OverlayNode>> {
         self.windows
             .nodes
             .iter()
@@ -113,6 +129,32 @@ impl Document {
         WindowId::MAIN
     }
 
+    pub fn host_window_of(&self, window: WindowId) -> WindowId {
+        self.windows
+            .nodes
+            .iter()
+            .find(|(id, node)| *id == window && self.contains(*node))
+            .map_or(WindowId::MAIN, |(_, node)| self.window_of((*node).into()))
+    }
+
+    pub fn window_hosts(&self) -> Vec<(WindowId, WindowId)> {
+        self.windows
+            .nodes
+            .iter()
+            .filter(|(_, node)| self.contains(*node))
+            .map(|(id, node)| (*id, self.window_of((*node).into())))
+            .collect()
+    }
+
+    pub fn key_window(&self) -> Option<WindowId> {
+        if !self.opens_windows() {
+            return None;
+        }
+        self.focused
+            .map(|focused| self.window_of(focused))
+            .or(self.windows.host_focused)
+    }
+
     pub fn window_layers(&self, window: WindowId) -> Option<Layers> {
         self.layers().of_window(window)
     }
@@ -145,11 +187,17 @@ impl Document {
     }
 
     pub(crate) fn window_viewport(&self, window: WindowId) -> Option<(WindowId, Rect)> {
-        self.window_rect(window).map(|rect| (window, rect))
+        let rect = self.window_rect(window)?;
+        let rect = self
+            .context()
+            .map_or(rect, |ctx| ctx.keyboard_trimmed(window, rect));
+        Some((window, rect))
     }
 
-    pub(crate) fn in_window_viewport(&self) -> bool {
-        self.windows.viewport.is_some()
+    pub(crate) fn relayout_window(&mut self, window: WindowId) {
+        if let Some(node) = self.window_node(window) {
+            self.arena.invalidate_node(node);
+        }
     }
 
     pub fn open_windows(&self) -> Vec<WindowId> {
@@ -175,9 +223,14 @@ impl Document {
     }
 
     pub(crate) fn follow_windows(&mut self, ctx: &Context) {
-        let opens = ctx.opens_windows();
-        if opens != self.opens_windows() {
+        let hosting = ctx.window_hosting();
+        let opens = hosting == super::WindowHosting::Any;
+        let placed = hosting == super::WindowHosting::Placed;
+        if opens != self.windows.opens.get_untracked()
+            || placed != self.windows.placed.get_untracked()
+        {
             self.windows.opens.set(opens);
+            self.windows.placed.set(placed);
             self.layers_changed();
             self.arena.invalidate();
         }
@@ -191,11 +244,17 @@ impl Document {
             let node = self.window_node(report.window());
             match &report {
                 WindowReport::Closed(window) => {
+                    if self.windows.host_focused == Some(*window) {
+                        self.windows.host_focused = None;
+                    }
                     self.windows.closed_by_host.insert(*window);
                     self.windows.asked.retain(|asked| asked != window);
                     self.layers_changed();
                 }
-                WindowReport::Resized { .. } => {
+                WindowReport::Resized { window, .. } => {
+                    self.windows.focus_resized |= self
+                        .focused
+                        .is_some_and(|focused| self.window_of(focused) == *window);
                     if let Some(node) = node {
                         self.arena.invalidate_node(node);
                     }
@@ -205,8 +264,15 @@ impl Document {
                         self.arena.repaint_node(shown);
                     }
                 }
-                WindowReport::Placed { .. } => {}
+                WindowReport::Placed { .. } | WindowReport::Moved { .. } => {}
                 WindowReport::Focused { window, focused } => {
+                    match focused {
+                        true => self.windows.host_focused = Some(*window),
+                        false if self.windows.host_focused == Some(*window) => {
+                            self.windows.host_focused = None;
+                        }
+                        false => {}
+                    }
                     if !self.window_focused(*window, *focused) {
                         unfocused.extend(node);
                     }
@@ -236,6 +302,12 @@ impl Document {
     }
 
     fn window_focused(&mut self, window: WindowId, focused: bool) -> bool {
+        if self.windows.placed.get_untracked() {
+            if focused {
+                self.move_focus_into(window);
+            }
+            return true;
+        }
         let current = self.focused.filter(|node| self.window_of(*node) == window);
         match focused {
             false => {
@@ -259,6 +331,25 @@ impl Document {
                     None => false,
                 }
             }
+        }
+    }
+
+    fn move_focus_into(&mut self, window: WindowId) {
+        if let Some(node) = self.focused {
+            let holder = self.window_of(node);
+            if holder == window {
+                return;
+            }
+            self.windows.kept_focus.insert(holder, node);
+            crate::current::run_in(self, |document| document.update_focus(None));
+        }
+        if let Some(node) = self
+            .windows
+            .kept_focus
+            .remove(&window)
+            .filter(|node| self.contains(*node))
+        {
+            crate::current::run_in(self, |document| document.update_focus(Some(node)));
         }
     }
 
@@ -353,7 +444,16 @@ impl Document {
                 .window_node(window)
                 .and_then(|node| self.overlay_window(node))
                 .and_then(|spec| spec.title.clone());
-            ctx.show_window(window, rect.size(), &painting, damage, moved, title);
+            let appearance = self.windows.appearances.get(&window);
+            ctx.show_window(
+                window,
+                rect.size(),
+                &painting,
+                damage,
+                moved,
+                title,
+                appearance,
+            );
         }
     }
 }

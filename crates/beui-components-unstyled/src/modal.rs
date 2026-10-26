@@ -6,7 +6,6 @@ use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::color::Color32;
 use beui_core::geometry::Pos2;
 use beui_core::node::NodeId;
-use beui_core::screens::bounds;
 use beui_view::components::overlay::{Overlay, use_overlay_presence};
 use beui_view::reactive::*;
 
@@ -14,7 +13,6 @@ use beui_view::reactive::*;
 pub enum ModalPlacement {
     Center,
     Fill,
-    AllScreens,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -80,21 +78,13 @@ pub fn Modal(
         }
     })
     .once();
-    let screens = use_screens();
-    let anchor = create_memo(move || match placement {
-        ModalPlacement::AllScreens => {
-            OverlayAnchor::Point(screens.with(|screens| bounds(screens)).min)
-        }
-        ModalPlacement::Center | ModalPlacement::Fill => OverlayAnchor::Point(Pos2::ZERO),
-    });
     let placed = match placement {
         ModalPlacement::Center => Placement::Center,
         ModalPlacement::Fill => Placement::Fill,
-        ModalPlacement::AllScreens => Placement::At,
     };
     view! {
         <Overlay
-            anchor={anchor}
+            anchor=OverlayAnchor::Point(Pos2::ZERO)
             open={open}
             keep_alive=true
             placement=placed

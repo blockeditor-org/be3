@@ -8,10 +8,12 @@ fn a_preview_is_not_drawn_through_the_frames_view() {
         2.0,
     );
 
-    host.begin_region(EditorRegion::Preview, geometry::vec2(0.0, 0.0));
-    assert_eq!(host.view(), None);
-    assert_eq!(host.view_scale(), None);
+    host.in_region(EditorRegion::Preview, || {
+        assert_eq!(host.view(), None);
+        assert_eq!(host.view_scale(), None);
+    });
 
-    host.begin_region(EditorRegion::Frame, geometry::vec2(0.0, 0.0));
-    assert_eq!(host.view_scale(), Some(2.0));
+    host.in_region(EditorRegion::Frame, || {
+        assert_eq!(host.view_scale(), Some(2.0));
+    });
 }

@@ -164,6 +164,7 @@ impl State {
             maximized: false,
             position: Point::default(),
             chosen: None,
+            entered: None,
         });
         self.events.push(ServerEvent::Opened(id));
         self.events.push(ServerEvent::Titled(id, title));
@@ -275,10 +276,12 @@ impl State {
         let Some(owner) = self.overlay_of(root).map(|overlay| overlay.owner) else {
             return false;
         };
-        let output = self.output.clone();
-        let scale = self.scale;
+        let output = self.output_of(owner);
+        let scale = self.scale_of(owner);
         with_surfaces_surface_tree(root, |surface, data| {
-            output.enter(surface);
+            if let Some(output) = &output {
+                output.enter(surface);
+            }
             send_surface_state(surface, data, scale, Transform::Normal);
         });
         self.redraw(owner);
@@ -322,15 +325,13 @@ impl State {
 
     pub(crate) fn send_overlay_frames(&self, id: WindowId, time: Duration) {
         for overlay in self.xwayland.overlays.iter().filter(|o| o.owner == id) {
-            if let Some(surface) = overlay.surface.wl_surface() {
-                let output = self.output.clone();
-                send_frames_surface_tree(
-                    &surface,
-                    &self.output,
-                    time,
-                    Some(Duration::ZERO),
-                    |_, _| Some(output.clone()),
-                );
+            if let (Some(surface), Some(output)) =
+                (overlay.surface.wl_surface(), self.output_of(id))
+            {
+                let sent = output.clone();
+                send_frames_surface_tree(&surface, &output, time, Some(Duration::ZERO), |_, _| {
+                    Some(sent.clone())
+                });
             }
         }
     }

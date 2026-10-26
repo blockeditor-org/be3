@@ -211,9 +211,12 @@ impl State {
             true => Refresh::Unknown,
             false => Refresh::fixed(presented.refresh),
         };
+        let Some(output) = self.output_of(id) else {
+            return;
+        };
         for callback in callbacks {
             callback.presented(
-                self.output(),
+                &output,
                 presented.time,
                 refresh,
                 presented.sequence,

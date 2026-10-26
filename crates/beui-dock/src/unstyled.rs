@@ -375,6 +375,7 @@ struct State {
     icon_sidebar_width: f32,
     rect: ReadSignal<Rect>,
     opens: ReadSignal<bool>,
+    home: Option<WindowHandle>,
     placements: Signal<HashMap<SurfaceId, WindowPlacement>>,
     panes: Stored<RefCell<HashMap<Tree, NodeRef>>>,
     windows: Stored<RefCell<HashMap<SurfaceId, NodeRef>>>,
@@ -775,6 +776,12 @@ impl State {
         });
     }
 
+    fn home(&self) -> WindowId {
+        self.home
+            .and_then(|window| window.real_window())
+            .unwrap_or(WindowId::MAIN)
+    }
+
     fn float_origin(&self) -> Pos2 {
         let dock = self.rect.get_untracked();
         let origin = pos2(FLOAT_INSET.x, FLOAT_INSET.y);
@@ -835,7 +842,9 @@ impl State {
                 placements.insert(surface, WindowPlacement::Host(placement));
             }),
             WindowReport::Focused { focused: true, .. } => self.window_focused(surface),
-            WindowReport::Scaled { .. } | WindowReport::Focused { .. } => {}
+            WindowReport::Scaled { .. }
+            | WindowReport::Moved { .. }
+            | WindowReport::Focused { .. } => {}
             WindowReport::Closed(_) => {
                 for tab in self.state.get_untracked().surface_tabs(surface) {
                     self.close_tab(tab);
@@ -987,7 +996,7 @@ impl State {
                 }
             }
         }
-        if !point.window.is_main() {
+        if point.window != self.home() {
             return (None, None);
         }
         let dock = self.rect.get_untracked();
@@ -1458,6 +1467,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                 icon_sidebar_width,
                 rect: dock_rect,
                 opens: opens_windows(),
+                home: use_window(),
                 placements: create_signal(HashMap::new()),
                 panes: store(RefCell::default()),
                 bars: store(RefCell::default()),
@@ -1565,7 +1575,7 @@ fn DockFullscreenView(dock: State) -> NodeId {
     let area = create_memo(move || fullscreen.get().and_then(|shown| shown.area));
     let placement = create_memo(move || match area.get() {
         Some(_) => Placement::At,
-        None => Placement::FillScreen,
+        None => Placement::Fill,
     });
     let anchor =
         create_memo(move || OverlayAnchor::Point(area.get().map_or(Pos2::ZERO, |area| area.min)));
@@ -2921,7 +2931,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
             .unwrap_or_default()
     });
     let window_title = create_memo(move || Some(title.get()));
-    let parent = use_window().map_or(WindowId::MAIN, |window| window.id);
+    let parent = dock.home();
     let placement = create_memo(move || dock.placement(surface, parent));
     let contents = create_memo(move || state.with(|state| state.surface_tabs(surface)));
     let vacant = create_memo(move || contents.with(Vec::is_empty));

@@ -62,7 +62,7 @@ pub use action_row::ActionRow;
 pub use banner::Banner;
 pub use beui_components_unstyled::NumberDrag;
 pub use beui_components_unstyled::{
-    ActionRole, DialogAction, DialogKind, EveryScreen, ModalMotion, ModalPlacement, ScreenSlot,
+    ActionRole, DialogAction, DialogKind, ModalMotion, ModalPlacement,
 };
 pub use beui_components_unstyled::{
     BackSlide, ChoiceOption, Container, DragHandle, DragPoint, Draggable, DropHandle, DropTarget,
@@ -77,7 +77,7 @@ pub use beui_components_unstyled::{emoji_completer, search_emoji};
 pub use beui_view::primitives::{
     BackHandler, Break, Canvas, CanvasItem, Drawing, Embed, Fade, GridCell, Interactive, Layer,
     Layers, LayoutBuilder, Offset, Overlay, PlacementBuilder, Portal, Shift, Spacer, SystemBars,
-    TextChild, TextItem, Turn, VirtualList,
+    TextChild, TextItem, Turn, VirtualList, Window, WindowHandle, use_window,
 };
 pub use border::Separator;
 pub use button::{Button, ButtonSize, ButtonVariant};

@@ -59,6 +59,6 @@ fn a_driver_closes_the_window_once_the_app_lets_it() {
     );
     assert!(
         driven.closed(),
-        "the frame tells the adapter to close the window"
+        "the frame tells the platform to close the window"
     );
 }
