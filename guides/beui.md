@@ -3139,7 +3139,8 @@ all its 3D (`glam`) stays in the crate.
   behind or in front of each other's planes, else the second keeps to the
   eye buffer. Each `PanelLayer` (pose, metres, bend, texture pixels and
   format, and a `version` the compositor bumps on each repaint) becomes a
-  `beui_xr::Quad`; `Headset::submit` keeps a swapchain per layered window,
+  `beui_xr::Quad`; `Headset::submit` keeps a swapchain per layered window (one no longer
+  layered is dropped three frames later, once the GPU is done with it),
   acquires an image only when its version changed (an idle panel costs no
   copy), and `Space::draw`'s `LayerTarget`s have the compositor copy the
   panel's texture into it (`fill`) and draw each layered panel's front as a

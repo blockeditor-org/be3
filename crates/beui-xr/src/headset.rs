@@ -170,6 +170,7 @@ pub(crate) struct Session {
     formats: Vec<u32>,
     allowance: Layers,
     chains: HashMap<WindowId, Chain>,
+    retired: Vec<(u64, Chain)>,
     layered: usize,
 }
 
@@ -253,8 +254,15 @@ impl Session {
             formats,
             allowance,
             chains: HashMap::new(),
+            retired: Vec::new(),
             layered: 0,
         })
+    }
+
+    fn retire(&mut self, window: WindowId) {
+        if let Some(chain) = self.chains.remove(&window) {
+            self.retired.push((self.shown, chain));
+        }
     }
 
     fn lose(&mut self, returns: bool) {
@@ -274,6 +282,7 @@ impl Session {
 
 const STANDING_EYES: f32 = 1.6;
 const FLAT: f32 = 1e-4;
+const RETIRED_FRAMES: u64 = 3;
 
 impl Drop for Headset {
     fn drop(&mut self) {
@@ -713,9 +722,19 @@ impl Headset {
 type Chosen = (Vec<usize>, Vec<(usize, usize)>);
 
 fn layers(session: &mut Session, device: &wgpu::Device, quads: &[Quad]) -> Chosen {
-        session
-            .chains
-            .retain(|window, _| quads.iter().any(|quad| quad.window == *window));
+    let frames = session.shown;
+    session
+        .retired
+        .retain(|(since, _)| frames < since + RETIRED_FRAMES);
+    let gone: Vec<WindowId> = session
+        .chains
+        .keys()
+        .filter(|window| !quads.iter().any(|quad| quad.window == **window))
+        .copied()
+        .collect();
+    for window in gone {
+        session.retire(window);
+    }
         let mut shown = Vec::new();
         let mut filled = Vec::new();
         for (index, quad) in quads.iter().enumerate() {
@@ -726,7 +745,7 @@ fn layers(session: &mut Session, device: &wgpu::Device, quads: &[Quad]) -> Chose
                 chain.swapchain.size == quad.pixels && chain.swapchain.format == format.1
             });
             if !fits {
-                session.chains.remove(&quad.window);
+                session.retire(quad.window);
                 match swapchain(session, device, quad.pixels, format) {
                     Ok(swapchain) => {
                         session.chains.insert(
