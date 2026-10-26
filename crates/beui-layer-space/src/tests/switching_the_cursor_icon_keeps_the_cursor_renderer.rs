@@ -15,7 +15,7 @@ fn switching_the_cursor_icon_keeps_the_cursor_renderer() {
     space.setup(&setup);
     send(&mut space, now, [Input::PointerMoved(centre())]);
     let mut draw = |icon: CursorIcon, pixels_per_point: f32| {
-        let view = HostView {
+        let view = LayerView {
             pixels_per_point,
             ..view(now)
         };

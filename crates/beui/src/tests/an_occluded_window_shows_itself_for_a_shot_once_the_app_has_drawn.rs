@@ -98,7 +98,7 @@ fn an_occluded_window_shows_itself_for_a_shot_once_the_app_has_drawn() {
             seen: Rc::clone(&seen),
             drawing: Rc::clone(&drawing),
         }),
-        host: None,
+        layers: Vec::new(),
     });
     runner.set_occluded(true);
     let mut window = Simulation::new(

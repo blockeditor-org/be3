@@ -21,9 +21,12 @@ variables (on every platform but Android, which reads none), so a program needs 
 own to be driven:
 
 - `BEUI_PLATFORM` picks the platform: the platform's own (`winit`, or the one the program hands
-  `run_on`, such as block-app's `drm`) by default, `headless`, or `space`. A
+  `run_on`, such as block-app's `drm`) by default, or `headless`. A
   name it does not know is an error that lists the ones it takes
   (`beui_core::runner::environment::choose`).
+- `BEUI_LAYERS` stacks layers between the platform and the app (guides/beui.md, "Layers"):
+  names separated by commas, the one nearest the platform first. `space` is the only one; an
+  unknown name is an error.
 - `BEUI_PLATFORM=headless` runs it on `beui::Headless` (crates/beui-platform-headless), which draws
   offscreen with wgpu and needs no display server. `BEUI_HEADLESS_WINDOW=WIDTHxHEIGHT[@SCALE]`
   (1100x720 by default) is its window and `BEUI_HEADLESS_SCREEN=WIDTHxHEIGHT` the screen a
@@ -34,9 +37,9 @@ own to be driven:
   then gives its plugins surfaces it does not render, so they run their frames without a GPU
   either. `none` needs the headless platform.
 - `BEUI_AUTOMATION=PATH` answers `drive` on the Unix socket PATH. It works in a window too.
-- `BEUI_PLATFORM=space` shows it as a panel in the VR simulator (guides/beui.md, "Space: the VR
-  simulator host"), on the platform `BEUI_SPACE_PLATFORM` names (the platform's own by default,
-  or `headless`); `drive shot` takes the 3D view, every other command the app.
+- `BEUI_LAYERS=space` shows it as a panel in the VR simulator (guides/beui.md, "Space: the VR
+  simulator layer"), on whichever platform `BEUI_PLATFORM` picks; `drive shot` takes the 3D view,
+  every other command the app.
   Targets, clicks and `find` are in the app's main window only: drive cannot reach what is in
   its other windows (the other panels), since only the 3D host knows where they are on screen.
   Test those through `Space` and a `Runner` instead (`InSpace` in crates/beui/src/tests.rs).
@@ -51,9 +54,9 @@ own to be driven:
   escape` (the app sees the press and the release). After that, or a lost focus, the next
   click only grabs the pointer again and reaches nothing.
 
-`be-drive launch` (crates/be-drive) sets the headless platform, its sizes and the socket (the
-headless platform goes in `BEUI_SPACE_PLATFORM` when `BEUI_PLATFORM=space` is already set, so
-`BEUI_PLATFORM=space ./scripts/buck run //crates/block-app:dev` drives the VR simulator), waits
+`be-drive launch` (crates/be-drive) sets the headless platform, its sizes and the socket, and
+leaves `BEUI_LAYERS` as it finds it (so `BEUI_LAYERS=space ./scripts/buck run
+//crates/block-app:dev` drives the VR simulator), waits
 for the program to settle and writes the `env` file. It listens on the automation socket itself
 and hands the program the listener (`BEUI_AUTOMATION_LISTENER`, its file descriptor), so it can
 ask the program to settle at once rather than watch for the socket to appear. `headless(...)` in buck/app/drive.bzl makes a crate's `:dev` target from it.

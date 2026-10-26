@@ -36,7 +36,7 @@ fn a_runner_whose_app_panics_lets_the_app_exit_and_reports_why() {
         options: RunOptions::default(),
         context: context(),
         app: Box::new(Failing { log, frames: 0 }),
-        host: None,
+        layers: Vec::new(),
     });
     let loaded = vec![Loaded {
         renderer: Box::new(crate::testing::Screen(vec2(200.0, 100.0))),

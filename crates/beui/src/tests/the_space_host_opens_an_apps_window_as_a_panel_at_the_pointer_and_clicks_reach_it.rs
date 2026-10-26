@@ -64,7 +64,7 @@ fn the_space_host_opens_an_apps_window_as_a_panel_at_the_pointer_and_clicks_reac
         options: RunOptions::default(),
         context: context.clone(),
         app: Box::new(crate::testing::Showing(document)),
-        host: Some(Box::new(beui_layer_space::Space::new())),
+        layers: vec![Box::new(beui_layer_space::Space::new())],
     });
     runner
         .start(

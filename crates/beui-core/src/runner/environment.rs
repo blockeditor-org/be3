@@ -2,7 +2,7 @@ use crate::app::automation::{MAX_PIXELS, WindowSize};
 use crate::geometry::Vec2;
 
 pub const PLATFORM: &str = "BEUI_PLATFORM";
-pub const SPACE_PLATFORM: &str = "BEUI_SPACE_PLATFORM";
+pub const LAYERS: &str = "BEUI_LAYERS";
 pub const RENDERER: &str = "BEUI_RENDERER";
 pub const HEADLESS_WINDOW: &str = "BEUI_HEADLESS_WINDOW";
 pub const HEADLESS_SCREEN: &str = "BEUI_HEADLESS_SCREEN";
@@ -11,7 +11,7 @@ pub const AUTOMATION_LISTENER: &str = "BEUI_AUTOMATION_LISTENER";
 
 pub const VARIABLES: &[&str] = &[
     PLATFORM,
-    SPACE_PLATFORM,
+    LAYERS,
     RENDERER,
     HEADLESS_WINDOW,
     HEADLESS_SCREEN,
@@ -24,7 +24,7 @@ pub const HEADLESS_WINDOW_SIZE: &str = "1100x720";
 #[derive(Clone, Debug, PartialEq)]
 pub struct Choice {
     pub platform: Base,
-    pub space: bool,
+    pub layers: Vec<Stacked>,
     pub render: bool,
 }
 
@@ -37,34 +37,57 @@ pub enum Base {
     },
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Stacked {
+    Space,
+}
+
+impl Stacked {
+    pub const ALL: &[Self] = &[Self::Space];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Space => "space",
+        }
+    }
+
+    fn named(name: &str) -> Option<Self> {
+        Self::ALL.iter().copied().find(|layer| layer.name() == name)
+    }
+}
+
 pub fn choose(native: &str, var: impl Fn(&str) -> Option<String>) -> Result<Choice, String> {
-    let names = |space: bool| {
-        let mut names = vec![native, "headless"];
-        if space {
-            names.push("space");
-        }
-        names
-    };
-    let platform = var(PLATFORM);
-    let space = platform.as_deref() == Some("space");
-    let base = match (platform.as_deref(), var(SPACE_PLATFORM)) {
-        (Some("space"), sub) => sub,
-        (_, Some(_)) => {
-            return Err(format!("{SPACE_PLATFORM} is for {PLATFORM}=space only"));
-        }
-        (platform, None) => platform.map(str::to_owned),
-    };
-    let headless = match base.as_deref() {
+    let headless = match var(PLATFORM).as_deref() {
         None => false,
         Some(name) if name == native => false,
         Some("headless") => true,
         Some(other) => {
-            let variable = if space { SPACE_PLATFORM } else { PLATFORM };
+            let hint = match Stacked::named(other) {
+                Some(layer) => format!("; {} is a layer: {LAYERS}={}", layer.name(), layer.name()),
+                None => String::new(),
+            };
             return Err(format!(
-                "{variable} takes {}, not {other}",
-                list(&names(!space))
+                "{PLATFORM} takes {}, not {other}{hint}",
+                list(&[native, "headless"])
             ));
         }
+    };
+    let layers = match var(LAYERS) {
+        None => Vec::new(),
+        Some(names) => names
+            .split(',')
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .map(|name| {
+                Stacked::named(name).ok_or_else(|| {
+                    let known: Vec<&str> = Stacked::ALL.iter().map(|layer| layer.name()).collect();
+                    format!(
+                        "{LAYERS} takes a comma-separated list of {}, bottom first, not {name}",
+                        list(&known)
+                    )
+                })
+            })
+            .collect::<Result<_, _>>()?,
     };
     let platform = if headless {
         let window = var(HEADLESS_WINDOW).unwrap_or_else(|| HEADLESS_WINDOW_SIZE.to_owned());
@@ -104,8 +127,7 @@ pub fn choose(native: &str, var: impl Fn(&str) -> Option<String>) -> Result<Choi
         Some("none") if headless => false,
         Some("none") => {
             return Err(format!(
-                "{RENDERER}=none needs the headless platform: {PLATFORM}=headless, or \
-                 {SPACE_PLATFORM}=headless under {PLATFORM}=space"
+                "{RENDERER}=none needs the headless platform: {PLATFORM}=headless"
             ));
         }
         Some(other) => {
@@ -114,7 +136,7 @@ pub fn choose(native: &str, var: impl Fn(&str) -> Option<String>) -> Result<Choi
     };
     Ok(Choice {
         platform,
-        space,
+        layers,
         render,
     })
 }

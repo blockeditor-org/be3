@@ -2,8 +2,8 @@ use super::*;
 use beui_core::app::SafeArea;
 use beui_core::damage::Region;
 use beui_core::renderer::{Loaded, Renderer};
-use beui_core::runner::{HostView, Hosted, Incoming, Launch, RunOptions, Runner, WindowHost};
-use beui_core::window::{WindowId, WindowReport, WindowState};
+use beui_core::runner::{Incoming, Launch, Layer, LayerFrame, RunOptions, Runner, Shown};
+use beui_core::window::{WindowHosting, WindowId, WindowReport, WindowState};
 
 struct Screen(Rc<RefCell<Vec<Color32>>>);
 
@@ -45,8 +45,12 @@ struct Host {
     seen: Rc<RefCell<Vec<(Vec2, Vec2)>>>,
 }
 
-impl WindowHost for Host {
-    fn input(&mut self, incoming: &mut Vec<Incoming>, _view: &HostView) {
+impl Layer for Host {
+    fn attach(&mut self, context: &Context) {
+        context.set_window_hosting(WindowHosting::Any);
+    }
+
+    fn input(&mut self, incoming: &mut Vec<Incoming>, _frame: &mut LayerFrame<'_>) {
         if !std::mem::replace(&mut self.reported, true) {
             incoming.push(Incoming::Window(WindowReport::Resized {
                 window: WindowId::MAIN,
@@ -55,14 +59,13 @@ impl WindowHost for Host {
         }
     }
 
-    fn frame(&mut self, output: &FrameOutput, view: &HostView) -> Hosted {
-        self.seen
-            .borrow_mut()
-            .push((output.main().size, view.platform));
+    fn output(&mut self, shown: &mut Shown, _output: &FrameOutput, frame: &mut LayerFrame<'_>) {
+        let view = frame.view;
+        let main = shown.main().expect("the app shows its main window");
+        self.seen.borrow_mut().push((main.size, view.platform));
         let mut window = WindowState::default();
         window.appearance.clear_color = Color32::WHITE;
-        Hosted {
-            window: crate::WindowOutput {
+        shown.windows = vec![crate::WindowOutput {
                 id: WindowId::MAIN,
                 size: view.platform / view.pixels_per_point,
                 layers: Rc::new(Vec::new()),
@@ -71,9 +74,7 @@ impl WindowHost for Host {
                 damage: Region::NOTHING,
                 moved: None,
                 pixels_per_point: view.pixels_per_point,
-            },
-            repaint_after: std::time::Duration::MAX,
-        }
+        }];
     }
 }
 
@@ -82,7 +83,7 @@ struct Nowhere;
 impl beui_core::runner::PlatformServices for Nowhere {}
 
 #[test]
-fn a_window_host_sizes_the_main_window_and_shows_what_it_composes() {
+fn a_window_hosting_layer_sizes_the_main_window_and_shows_what_it_composes() {
     let rects = Rc::new(RefCell::new(Vec::new()));
     let seen = Rc::new(RefCell::new(Vec::new()));
     let backgrounds = Rc::new(RefCell::new(Vec::new()));
@@ -91,12 +92,12 @@ fn a_window_host_sizes_the_main_window_and_shows_what_it_composes() {
         options: RunOptions::default(),
         context: context.clone(),
         app: Box::new(Sized(Rc::clone(&rects))),
-        host: Some(Box::new(Host {
+        layers: vec![Box::new(Host {
             reported: false,
             seen: Rc::clone(&seen),
-        })),
+        })],
     });
-    assert!(context.opens_windows(), "a host opens the app's windows");
+    assert!(context.opens_windows(), "a window hosting layer opens the app's windows");
     runner
         .start(
             vec![Loaded {

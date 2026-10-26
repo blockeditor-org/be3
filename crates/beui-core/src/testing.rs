@@ -18,7 +18,7 @@ use crate::geometry::{Pos2, Rect, Vec2};
 use crate::input::{Input, Key, Modifiers, PointerButton, TouchPhase};
 use crate::renderer::{Loaded, Renderer};
 use crate::runner::{
-    HostView, Hosted, Incoming, Launch, PlatformServices, RunOptions, Runner, WindowHost,
+    Incoming, Launch, Layer, LayerFrame, PlatformServices, RunOptions, Runner, Shown,
 };
 use crate::window::{HostPlacement, WindowId, WindowPlacement, WindowReport, WindowRequest};
 
@@ -190,10 +190,14 @@ impl Windows {
 
 struct TestHost(Rc<RefCell<Windows>>);
 
-impl WindowHost for TestHost {
-    fn input(&mut self, incoming: &mut Vec<Incoming>, view: &HostView) {
+impl Layer for TestHost {
+    fn attach(&mut self, context: &Context) {
+        context.set_window_hosting(crate::window::WindowHosting::Any);
+    }
+
+    fn input(&mut self, incoming: &mut Vec<Incoming>, frame: &mut LayerFrame<'_>) {
         let mut windows = self.0.borrow_mut();
-        let main = view.platform / view.pixels_per_point;
+        let main = frame.view.platform / frame.view.pixels_per_point;
         if windows.main != Some(main) {
             windows.main = Some(main);
             incoming.insert(
@@ -207,9 +211,9 @@ impl WindowHost for TestHost {
         incoming.extend(windows.reports.drain(..).map(Incoming::Window));
     }
 
-    fn frame(&mut self, output: &FrameOutput, _view: &HostView) -> Hosted {
+    fn output(&mut self, shown: &mut Shown, _output: &FrameOutput, _frame: &mut LayerFrame<'_>) {
         let mut windows = self.0.borrow_mut();
-        for request in &output.window_requests {
+        for request in std::mem::take(&mut shown.requests).iter() {
             windows.requests.push(request.clone());
             match request {
                 WindowRequest::Open {
@@ -225,14 +229,11 @@ impl WindowHost for TestHost {
                 WindowRequest::BeginMove(_) | WindowRequest::BeginResize(..) => {}
             }
         }
-        for window in output.windows.iter().filter(|window| !window.id.is_main()) {
+        for window in shown.windows.iter().filter(|window| !window.id.is_main()) {
             windows.outputs.retain(|output| output.id != window.id);
             windows.outputs.push(window.clone());
         }
-        Hosted {
-            window: output.main().clone(),
-            repaint_after: Duration::MAX,
-        }
+        shown.windows.retain(|window| window.id.is_main());
     }
 }
 
@@ -289,9 +290,11 @@ impl<A: App + 'static> Stepped<A> {
         window: impl FnOnce(&Runner) -> Window,
     ) -> Self {
         let inbox = Inbox::default();
-        let host = windows
+        let layers = windows
             .clone()
-            .map(|windows| Box::new(TestHost(windows)) as Box<dyn WindowHost>);
+            .map(|windows| Box::new(TestHost(windows)) as Box<dyn Layer>)
+            .into_iter()
+            .collect();
         let mut runner = Runner::new(Launch {
             options: RunOptions {
                 automation: Some(inbox.clone()),
@@ -299,7 +302,7 @@ impl<A: App + 'static> Stepped<A> {
             },
             context,
             app: Box::new(app),
-            host,
+            layers,
         });
         let window = window(&runner);
         runner

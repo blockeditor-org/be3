@@ -20,6 +20,7 @@ pub use diff::changes;
 pub use engine::{Automation, PANE, Settled, USAGE, View, World};
 pub use window::{MAX_PIXELS, Resize, Simulation, WindowSize};
 
+#[derive(Clone)]
 pub struct Capture {
     pub width: u32,
     pub height: u32,

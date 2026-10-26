@@ -160,7 +160,7 @@ mod bench {
                 },
                 context,
                 app: Box::new(DemoApp::new()),
-                host: None,
+                layers: Vec::new(),
             });
             let timing = Timing {
                 gpu: Rc::clone(&gpu),

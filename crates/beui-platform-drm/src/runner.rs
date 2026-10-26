@@ -207,8 +207,8 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         SoftwareCursor::default(),
         default_scale,
     )));
-    let hosted = launch.host.is_some();
     let mut runner = Runner::new(launch);
+    let hosted = runner.context().opens_windows();
     if !hosted {
         runner.context().set_window_hosting(WindowHosting::Placed);
         runner.context().set_shows_main(false);
@@ -986,8 +986,11 @@ impl Session {
                 outputs.icon = icon;
             }
         }
+        let runner = &self.runner;
         outputs.prepare(|id| match windows.hosted {
-            true => (first.as_deref() == Some(id)).then(|| output.main()),
+            true => (first.as_deref() == Some(id))
+                .then(|| runner.shown_window(WindowId::MAIN))
+                .flatten(),
             false => output.window(windows.of(id)?),
         })
     }

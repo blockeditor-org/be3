@@ -6,9 +6,9 @@ use beui_core::renderer::{Loaded, WindowHandle, any_loaded};
 use beui_renderer_wgpu::present::OpenDevice;
 use beui_renderer_wgpu::window::WindowSurface;
 
-use beui_core::runner::{Launch, Platform, RunOptions};
+use beui_core::runner::{Launch, Layer, Platform, RunOptions};
 
-use beui_core::runner::environment::{Base, Choice};
+use beui_core::runner::environment::{Base, Choice, Stacked};
 
 pub enum WindowRenderer {
     Wgpu { open_device: Option<OpenDevice> },
@@ -44,12 +44,12 @@ pub fn run_with_renderers(
         ) => Box::new(crate::saved_preferences::SavedPreferences::new(app, path)),
         _ => Box::new(app),
     };
-    let platform = choose_platform(choice, open_device, || native_platform(renderers));
+    let (platform, layers) = choose_platform(choice, open_device, || native_platform(renderers));
     let launch = Launch {
         options,
         context: crate::system_context(),
         app,
-        host: None,
+        layers,
     };
     pollster::block_on(platform.run(launch))
 }
@@ -85,9 +85,9 @@ fn choose_platform(
     choice: Option<Choice>,
     open_device: Option<OpenDevice>,
     native: impl FnOnce() -> Box<dyn Platform>,
-) -> Box<dyn Platform> {
+) -> (Box<dyn Platform>, Vec<Box<dyn Layer>>) {
     let Some(choice) = choice else {
-        return native();
+        return (native(), Vec::new());
     };
     let platform = match choice.platform {
         Base::Native => native(),
@@ -104,13 +104,14 @@ fn choose_platform(
             native()
         }
     };
-    if !choice.space {
-        return platform;
+    let layers = choice.layers.iter().map(|layer| stack(*layer)).collect();
+    (platform, layers)
+}
+
+fn stack(layer: Stacked) -> Box<dyn Layer> {
+    match layer {
+        Stacked::Space => Box::new(beui_layer_space::Space::new()),
     }
-    Box::new(beui_core::runner::HostedPlatform {
-        platform,
-        host: Box::new(beui_layer_space::Space::new()),
-    })
 }
 
 #[cfg(all(unix, not(target_os = "android")))]
@@ -177,12 +178,12 @@ pub fn run_on(
     app: impl App + 'static,
 ) -> Result<(), Box<dyn Error>> {
     let choice = from_environment(&mut options, platform.name())?;
-    let platform = choose_platform(choice, None, || platform);
+    let (platform, layers) = choose_platform(choice, None, || platform);
     let launch = Launch {
         options,
         context: crate::system_context(),
         app: Box::new(app),
-        host: None,
+        layers,
     };
     pollster::block_on(platform.run(launch))
 }

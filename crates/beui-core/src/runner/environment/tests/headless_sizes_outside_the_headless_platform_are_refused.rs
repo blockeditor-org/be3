@@ -9,7 +9,7 @@ fn headless_sizes_outside_the_headless_platform_are_refused() {
     assert_eq!(
         choose(
             "winit",
-            with(&[(PLATFORM, "space"), (HEADLESS_SCREEN, "800x600")])
+            with(&[(LAYERS, "space"), (HEADLESS_SCREEN, "800x600")])
         ),
         Err("BEUI_HEADLESS_SCREEN is for the headless platform only".to_owned())
     );

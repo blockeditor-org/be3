@@ -111,14 +111,9 @@ impl Launch {
             .map_err(|error| error.to_string())?;
         let listening = listener.as_raw_fd();
         let mut command = Command::new(program);
-        let slot = if std::env::var(environment::PLATFORM).as_deref() == Ok("space") {
-            environment::SPACE_PLATFORM
-        } else {
-            environment::PLATFORM
-        };
         command
             .args(&self.arguments)
-            .env(slot, "headless")
+            .env(environment::PLATFORM, "headless")
             .env(
                 environment::HEADLESS_WINDOW,
                 self.size

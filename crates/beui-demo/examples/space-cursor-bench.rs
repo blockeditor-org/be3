@@ -12,7 +12,7 @@ mod bench {
     };
     use beui_core::app::SafeArea;
     use beui_core::renderer::{Loaded, Renderer};
-    use beui_core::runner::{HostView, Hosted, Runner, WindowHost};
+    use beui_core::runner::Runner;
     use beui_demo::DemoApp;
     use beui_layer_space::Space;
     use beui_renderer_wgpu::offscreen::OffscreenSurface;
@@ -25,23 +25,7 @@ mod bench {
 
     impl PlatformServices for Bare {}
 
-    struct Shared(Rc<RefCell<Space>>);
-
-    impl WindowHost for Shared {
-        fn setup(&mut self, setup: &Setup) {
-            self.0.borrow_mut().setup(setup);
-        }
-
-        fn input(&mut self, incoming: &mut Vec<Incoming>, view: &HostView) {
-            self.0.borrow_mut().input(incoming, view);
-        }
-
-        fn frame(&mut self, output: &beui_core::context::FrameOutput, view: &HostView) -> Hosted {
-            self.0.borrow_mut().frame(output, view)
-        }
-    }
-
-    struct Bench {
+        struct Bench {
         runner: Runner,
         space: Rc<RefCell<Space>>,
     }
@@ -69,7 +53,7 @@ mod bench {
                 },
                 context,
                 app: Box::new(DemoApp::new()),
-                host: Some(Box::new(Shared(Rc::clone(&space)))),
+                layers: vec![Box::new(Rc::clone(&space))],
             });
             let renderer: Box<dyn Renderer> = match gpu {
                 true => Box::new(

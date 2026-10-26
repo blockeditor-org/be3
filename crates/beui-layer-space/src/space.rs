@@ -9,9 +9,13 @@ use beui_core::display::Layer;
 use beui_core::geometry::{Pos2, Rect, Vec2, pos2};
 use beui_core::input::{CursorIcon, Input, Key, Keystroke, Modifiers, PointerButton};
 use beui_core::painter::Shape;
-use beui_core::runner::{HostView, Hosted, Incoming, SCROLL_LINE, Units, WindowHost, scrolled};
+use beui_core::runner::{
+    Frame as RunnerFrame, Incoming, LayerFrame, LayerView, SCROLL_LINE, Shown as Layered, Units,
+    scrolled,
+};
 use beui_core::window::{
-    WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest, WindowState,
+    WindowEdge, WindowHosting, WindowId, WindowPlacement, WindowReport, WindowRequest,
+    WindowState,
 };
 use beui_renderer_wgpu::present::GpuSetup;
 use glam::{Mat4, Quat, Vec3};
@@ -72,6 +76,7 @@ pub struct Space {
     platform: Vec2,
     pixels_per_point: f32,
     now: Option<Instant>,
+    wait: Duration,
     clock: Option<Instant>,
     cursor: Option<Vec3>,
     cursor_distance: f32,
@@ -118,6 +123,7 @@ impl Space {
             platform: Vec2::ZERO,
             pixels_per_point: 1.0,
             now: None,
+            wait: Duration::MAX,
             clock: None,
             cursor: None,
             cursor_distance: OPEN_DISTANCE,
@@ -346,6 +352,10 @@ impl Space {
     }
 
     pub fn cursor_icon(&self, output: &FrameOutput) -> CursorIcon {
+        self.icon_over(&output.windows)
+    }
+
+    fn icon_over(&self, windows: &[WindowOutput]) -> CursorIcon {
         let held = self.chrome.gesture.map(|gesture| gesture.part());
         if let Some(part) = held.or(self.chrome.hovered.map(|(_, part)| part)) {
             return chrome_cursor(part, held.is_some());
@@ -353,7 +363,7 @@ impl Space {
         self.hovered
             .or(self.captured)
             .or(self.gripped())
-            .and_then(|window| output.window(window))
+            .and_then(|window| find(windows, window))
             .map_or(CursorIcon::Default, |window| window.window.requests.cursor)
     }
 
@@ -1049,26 +1059,26 @@ impl Space {
         self.carry = Some(carry);
     }
 
-    fn app_locks(&self, output: &FrameOutput) -> bool {
+    fn app_locks(&self, windows: &[WindowOutput]) -> bool {
         self.hovered
             .or(self.captured)
             .filter(|_| self.gripped().is_none())
-            .and_then(|window| output.window(window))
+            .and_then(|window| find(windows, window))
             .is_some_and(|window| window.window.requests.pointer_locked)
     }
 
-    fn window_state(&self, output: &FrameOutput) -> WindowState {
-        let mut state = output.main().window.clone();
+    fn window_state(main: &WindowOutput, grabbed: bool) -> WindowState {
+        let mut state = main.window.clone();
         state.requests.cursor = CursorIcon::None;
-        state.requests.pointer_locked = self.grabbed || self.app_locked;
+        state.requests.pointer_locked = grabbed;
         state.requests.ime = None;
         state.appearance.clear_color = SKY;
         state
     }
 }
 
-impl WindowHost for Space {
-    fn setup(&mut self, setup: &Setup) {
+impl Space {
+    pub fn setup(&mut self, setup: &Setup) {
         self.compositor = setup.get::<GpuSetup>().map(Compositor::new);
         self.context = setup.get::<Context>().cloned();
         self.shown = None;
@@ -1076,7 +1086,7 @@ impl WindowHost for Space {
         self.chrome_shown.clear();
     }
 
-    fn input(&mut self, incoming: &mut Vec<Incoming>, view: &HostView) {
+    pub fn input(&mut self, incoming: &mut Vec<Incoming>, view: &LayerView) {
         self.platform = view.platform;
         self.pixels_per_point = view.pixels_per_point;
         self.clock = Some(view.now);
@@ -1096,15 +1106,24 @@ impl WindowHost for Space {
         *incoming = out;
     }
 
-    fn frame(&mut self, output: &FrameOutput, view: &HostView) -> Hosted {
+    pub fn frame(&mut self, output: &FrameOutput, view: &LayerView) -> Composed {
+        self.compose(&output.windows, &output.window_requests, view)
+    }
+
+    fn compose(
+        &mut self,
+        windows: &[WindowOutput],
+        requests: &[WindowRequest],
+        view: &LayerView,
+    ) -> Composed {
         self.platform = view.platform;
         self.pixels_per_point = view.pixels_per_point;
         self.clock = Some(view.now);
-        for request in &output.window_requests {
+        for request in requests {
             self.request(request);
         }
         let resizing = self.resize.map(|resize| resize.window);
-        for window in &output.windows {
+        for window in windows {
             if Some(window.id) != resizing
                 && let Some(panel) = self.panel_mut(window.id)
             {
@@ -1123,25 +1142,26 @@ impl WindowHost for Space {
             true => Duration::ZERO,
             false => self.settled_in().min(self.hold.due_in(self.clock)),
         };
-        self.app_locked = self.app_locks(output);
-        let state = self.window_state(output);
+        self.app_locked = self.app_locks(windows);
+        let main = find(windows, WindowId::MAIN).expect("the app shows its main window");
+        let state = Self::window_state(main, self.grabbed || self.app_locked);
         let chrome_changed = self.refresh_chrome(view.pixels_per_point);
         let Some(compositor) = self.compositor.clone() else {
-            return Hosted {
+            return Composed {
                 window: WindowOutput {
                     window: state,
-                    ..output.main().clone()
+                    ..main.clone()
                 },
                 repaint_after,
             };
         };
         let mut changed = chrome_changed;
-        for window in &output.windows {
+        for window in windows {
             if self.panel(window.id).is_some() {
                 changed |= compositor.update(window);
             }
         }
-        let icon = self.cursor_icon(output);
+        let icon = self.icon_over(windows);
         if self.sprite.changed(icon, view.pixels_per_point) {
             let sprite = self.sprite.paint(icon, view.pixels_per_point);
             changed |= compositor.update(&sprite);
@@ -1166,12 +1186,12 @@ impl WindowHost for Space {
             window.changed = false;
             window.window = state;
             window.size = size;
-            return Hosted {
+            return Composed {
                 window: window.clone(),
                 repaint_after,
             };
         }
-        let frame = self.scene(&output.windows, view);
+        let frame = self.scene(windows, view);
         let rect = Rect::from_min_size(Pos2::ZERO, size);
         let window = WindowOutput {
             id: WindowId::MAIN,
@@ -1188,15 +1208,74 @@ impl WindowHost for Space {
             pixels_per_point: view.pixels_per_point,
         };
         self.shown = Some((shown, window.clone()));
-        Hosted {
+        Composed {
             window,
             repaint_after,
         }
     }
 }
 
+pub struct Composed {
+    pub window: WindowOutput,
+    pub repaint_after: Duration,
+}
+
+fn find(windows: &[WindowOutput], window: WindowId) -> Option<&WindowOutput> {
+    windows.iter().find(|shown| shown.id == window)
+}
+
+impl beui_core::runner::Layer for Space {
+    fn attach(&mut self, context: &Context) {
+        context.set_window_hosting(WindowHosting::Any);
+    }
+
+    fn setup(&mut self, setup: &Setup) {
+        Space::setup(self, setup);
+    }
+
+    fn input(&mut self, incoming: &mut Vec<Incoming>, frame: &mut LayerFrame<'_>) {
+        Space::input(self, incoming, &frame.view);
+    }
+
+    fn output(&mut self, shown: &mut Layered, _output: &FrameOutput, frame: &mut LayerFrame<'_>) {
+        let composed = self.compose(&shown.windows, &shown.requests, &frame.view);
+        self.wait = composed.repaint_after;
+        shown.windows = vec![composed.window];
+        shown.requests.clear();
+    }
+
+    fn framed(&mut self, frame: &mut RunnerFrame, _output: &FrameOutput, _layer: &mut LayerFrame<'_>) {
+        frame.repaint_after = frame.repaint_after.min(self.wait);
+    }
+
+    fn up(&self, _window: WindowId, at: Pos2) -> Option<(WindowId, Pos2)> {
+        let pixels = at.to_vec2() * self.pixels_per_point;
+        let hit = self.pick(self.head.ray(self.platform, pixels))?;
+        Some((hit.window, hit.pos))
+    }
+
+    fn down(&self, window: WindowId, at: Pos2) -> Option<(WindowId, Pos2)> {
+        let world = self.panel(window)?.world(at);
+        let clip = self.head.view_projection(self.platform) * world.extend(1.0);
+        if clip.w <= 0.0 {
+            return None;
+        }
+        let pixels = pos2(
+            (clip.x / clip.w + 1.0) / 2.0 * self.platform.x,
+            (1.0 - clip.y / clip.w) / 2.0 * self.platform.y,
+        );
+        Some((
+            WindowId::MAIN,
+            pos2(
+                pixels.x / self.pixels_per_point,
+                pixels.y / self.pixels_per_point,
+            ),
+        ))
+    }
+}
+
 impl Space {
-    pub(crate) fn scene(&mut self, windows: &[WindowOutput], view: &HostView) -> Frame {
+    pub(crate) fn scene(&mut self, windows: &[WindowOutput], view: &LayerView) -> Frame {
         self.refresh_chrome(view.pixels_per_point);
         Frame {
             pixels_per_point: view.pixels_per_point,

@@ -197,7 +197,7 @@ mod a_half_typed_date_field_goes_back_to_its_value_when_the_focus_leaves;
 mod a_headless_window_fills_its_screen_when_the_app_goes_fullscreen;
 mod a_hidden_show_gives_its_share_of_the_space_to_its_visible_siblings;
 mod a_horizontal_scroll_lays_its_items_out_in_a_row;
-mod a_host_sees_the_time_of_the_frame_it_hosts;
+mod a_layer_sees_the_time_of_the_frame_it_is_in;
 mod a_hosted_dock_window_keeps_the_size_and_place_its_host_reports_and_reopens_there;
 mod a_hosted_dock_window_opens_over_the_spot_it_has_in_the_dock;
 mod a_hosted_dock_window_resized_by_its_tab_asks_its_host_and_takes_the_size_it_reports;
@@ -434,7 +434,7 @@ mod a_wheel_over_the_software_keyboard_scrolls_what_holds_it;
 mod a_wheel_turned_before_the_pointer_moves_on_scrolls_what_it_was_over;
 mod a_window_dragged_far_away_keeps_its_grip_in_the_dock;
 mod a_window_drawn_at_a_new_raster_keeps_its_layout_and_lays_out_nothing;
-mod a_window_host_sizes_the_main_window_and_shows_what_it_composes;
+mod a_window_hosting_layer_sizes_the_main_window_and_shows_what_it_composes;
 mod a_window_larger_than_the_dock_is_drawn_no_larger_than_it;
 mod a_window_lays_out_and_paints_at_the_pixels_per_point_its_host_reports;
 mod a_window_released_past_the_edge_of_the_dock_springs_back_and_comes_to_rest;
@@ -2562,7 +2562,7 @@ impl Intaken {
             options: beui_core::runner::RunOptions::default(),
             context: context(),
             app: Box::new(Seeing(Rc::clone(&seen), Rc::clone(&ask))),
-            host: None,
+            layers: Vec::new(),
         });
         runner
             .start(
@@ -2807,30 +2807,6 @@ impl beui_core::renderer::Renderer for SpaceScreen {
     }
 }
 
-struct SharedSpace(Rc<RefCell<beui_layer_space::Space>>);
-
-impl beui_core::runner::WindowHost for SharedSpace {
-    fn setup(&mut self, setup: &Setup) {
-        self.0.borrow_mut().setup(setup);
-    }
-
-    fn input(
-        &mut self,
-        incoming: &mut Vec<beui_core::runner::Incoming>,
-        view: &beui_core::runner::HostView,
-    ) {
-        self.0.borrow_mut().input(incoming, view);
-    }
-
-    fn frame(
-        &mut self,
-        output: &crate::FrameOutput,
-        view: &beui_core::runner::HostView,
-    ) -> beui_core::runner::Hosted {
-        self.0.borrow_mut().frame(output, view)
-    }
-}
-
 struct SharedDocument(Rc<RefCell<Document>>);
 
 impl crate::App for SharedDocument {
@@ -2858,7 +2834,7 @@ impl InSpace {
             options: beui_core::runner::RunOptions::default(),
             context: context.clone(),
             app: Box::new(SharedDocument(Rc::clone(&document))),
-            host: Some(Box::new(SharedSpace(Rc::clone(&space)))),
+            layers: vec![Box::new(Rc::clone(&space))],
         });
         runner
             .start(

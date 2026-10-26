@@ -88,8 +88,8 @@ pub use beui_view::primitives;
 pub use beui_view::{child_type, value_child_type};
 
 pub use beui_core::runner::{
-    HostView, Hosted, HostedPlatform, Incoming, Launch, Platform, PlatformServices, RunOptions,
-    Running, Units, WindowHost, panic_message,
+    Incoming, Launch, Layer, LayerFrame, LayerView, Platform, PlatformServices, RunOptions,
+    Running, Shown, Units, panic_message,
 };
 pub use beui_core::window::{
     HostPlacement, WindowEdge, WindowHosting, WindowId, WindowPlacement, WindowReport,

@@ -32,7 +32,7 @@ fn the_window_is_told_where_the_caret_is_in_its_own_units() {
         options: RunOptions::default(),
         context: context(),
         app: Box::new(Field),
-        host: None,
+        layers: Vec::new(),
     });
     runner
         .start(

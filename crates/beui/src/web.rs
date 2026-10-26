@@ -22,7 +22,7 @@ pub async fn run_web(
         options,
         context: crate::context(),
         app: Box::new(app),
-        host: None,
+        layers: Vec::new(),
     };
     web_platform(element_id, renderers).run(launch).await
 }

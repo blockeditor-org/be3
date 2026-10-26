@@ -306,7 +306,7 @@ direction:
 | `beui-renderer-dom` | the DOM renderer: the display tree as nested absolutely positioned elements |
 | `beui-platform-winit`, `beui-platform-android`, `beui-platform-web` | each platform's `Platform` and `PlatformServices`: its event loop, window or view, input, IME, clipboard, file picker and accessibility adapter (winit's is its own `accessibility.rs` over `accesskit_unix`, `accesskit_windows` and `accesskit_macos`, since `accesskit_winit` has no release for winit 0.31) |
 | `beui-platform-drm` | Linux's displays and input devices through DRM/KMS and libinput: a `Platform`, `PlatformServices` and `Renderer` that shows one window per display (see Displays under beui-platform-drm below), each display keeping a retained frame of its window, drawn when the display flips (the app's frames are paced to the flips too, by `pacing.rs`: at most one per flip, none while nothing changes), handing the flip a fence (or, without atomic fences, waiting for it in the event loop) instead of blocking on the GPU; callers run it with `beui::run_on` |
-| `beui-layer-space` | the VR simulator `WindowHost` that `BEUI_PLATFORM=space` wraps around a native or headless platform: the app's windows as panels in a 3D scene ("Space: the VR simulator host" below) |
+| `beui-layer-space` | the VR simulator `Layer` that `BEUI_LAYERS=space` stacks over a native or headless platform: the app's windows as panels in a 3D scene ("Space: the VR simulator layer" below) |
 | `beui-platform-plugin` | the `Platform`, `PlatformServices` and `Renderer` for a block editor plugin module: `launch` starts the module's one app and registers its runner with the plugin framework as the module's `Regions` handler, whose batched calls then drive its frames; every region the host shows is a window of that app, which the app opens from the `Views` handle the platform provides through `Setup` (guides/adding_a_plugin_editor.md); it depends on the plugin framework, so the facade does not offer it, and it reads no `BEUI_*` variable |
 
 Core cannot see the crates above it, so the few places it used to reach up are
@@ -2725,8 +2725,8 @@ frames.
 
 `RunOptions::automation` hands the runner an `automation::Inbox` of commands
 from a driver (guides/running/drive.md); the native run functions fill it
-from `BEUI_AUTOMATION` and pick their platform and renderer from `BEUI_PLATFORM`,
-`BEUI_SPACE_PLATFORM` and `BEUI_RENDERER` (`beui_core::runner::environment`), and
+from `BEUI_AUTOMATION`, pick their platform and renderer from `BEUI_PLATFORM` and
+`BEUI_RENDERER`, and stack the layers `BEUI_LAYERS` names (`beui_core::runner::environment`), and
 block-app's web build fills it from its `automate` export. The runner keeps the
 accessibility tree (`Context::keep_accessibility`, which a bare `Context` and a
 headless plugin do by default and other runners only for a driver) and the action registry's actions, takes
@@ -2801,7 +2801,7 @@ opens). The runner applies them before the frame
 lays out, and `Context::window_size`, `Context::window_placement` and
 `Context::window_origin` read them. `Context::window_hosting` says which windows a host opens, as a
 `WindowHosting`: `None` (every platform on its own: a window is shown inside
-the main one instead), `Any` (a `WindowHost` opens every window) or `Placed`
+the main one instead), `Any` (a layer opens every window, as space does) or `Placed`
 (the platform opens only the windows it placed itself: a `Window` opened with
 a `WindowPlacement::Host` the platform handed out through a handle in `Setup`,
 as beui-platform-plugin's `Views` and its `views.placement(id)` do; every other
@@ -2964,35 +2964,71 @@ flag is ignored, so dragging out of a platform window still drops at the last
 point inside. `ui_types::Input` has no window: it is the
 plugin protocol's input too, and a plugin region is always one window.
 
-A `beui_core::runner::WindowHost` sits between one platform window and an
-app with many windows, on any platform. It goes in `Launch::host`, or wraps a
-platform as a `HostedPlatform { platform, host }`. The runner calls it at three
-points:
+### Layers
 
+A `beui_core::runner::Layer` is middleware between a platform and the app's
+runner. `Launch::layers` is the stack, the layer nearest the platform first;
+the native run functions (`beui::run_with`, `run_on`) build it from
+`BEUI_LAYERS` (`choose_platform` and `stack` in `crates/beui/src/window.rs`).
+Input goes up the stack, from the platform through each layer to the app, and
+the app's output and its calls on the platform go down it. Every hook has a
+default that changes nothing:
+
+- `attach(&Context)` once, as the runner is made: a layer that opens the app's
+  windows sets `WindowHosting::Any` here (see above).
 - `setup(&Setup)` after the renderers load and whenever the GPU is replaced;
   `setup.get::<beui::GpuSetup>()` is the wgpu device, queue and surface format,
-  and `setup.get::<Context>()` the app's context, for laying out text and icons.
-- `input(&mut Vec<Incoming>, &HostView)` with everything that arrived for the
-  frame (the platform's input and a driver's), before the app sees it: it may
-  rewrite, drop or add entries, name each pointer event's window in that
-  window's coordinates, and push `WindowReport`s. `HostView` is the platform
-  window's size in physical pixels, the pixels per point and the frame's time:
-  the runner reads the clock once, before `input`, and the app's frame and
-  `frame` see that same time (`Context::now`).
-- `frame(&FrameOutput, &HostView) -> Hosted` after the app's frame: it reads
-  each window's output and requests and returns the one `WindowOutput` the
-  platform window shows, which the runner hands to the platform
-  (`show_window`) and the renderers in place of the app's main window, with
-  a `repaint_after` that keeps frames coming while the host animates.
+  `setup.get::<Context>()` the app's context and `setup.waker` wakes the
+  platform.
+- `now(Instant) -> Instant`, bottom first, before the frame: the frame's time.
+  The runner reads the context's clock once (`Context::stop_clock` and
+  `advance_clock` stop and step it), and the layers, the app and every later
+  hook see the time the stack settled on (`LayerView::now`, `Context::now`).
+- `input(&mut Vec<Incoming>, &mut LayerFrame)`, bottom first, with everything
+  that arrived for the frame before the app sees it: a layer may rewrite, drop
+  or add entries, name each pointer event's window in that window's
+  coordinates, and push `WindowReport`s.
+- `output(&mut Shown, &FrameOutput, &mut LayerFrame)`, top first, after the
+  app's frame. `Shown` is what the layers above left of the app's windows and
+  window requests (the app's own at the top); a layer may read, replace or
+  drop them. What reaches the platform is what the bottom layer left:
+  `Runner::shown_window(id)` reads it, and the runner hands its main window to
+  `show_window` and the renderers. The `FrameOutput` is the app's own, which
+  `Runner::output()` keeps.
+- `framed(&mut Frame, &FrameOutput, &mut LayerFrame)`, top first, once the
+  frame is prepared: a layer may ask for the next frame sooner (`repaint`,
+  `repaint_after`) or read whether one is due.
+- `wants_sight()` keeps an occluded window's frames drawn, and
+  `wants_capture()` asks the renderers for the pixels of the frame last
+  presented, which `captured(Option<Capture>)` hands over.
+- `up(window, at)` and `down(window, at)` map a point in points between the
+  windows below the layer and the windows above it, `None` where it reaches no
+  window. `LayerFrame::below` maps through the layers under one to the platform
+  (`to_platform`, `from_platform`) and `LayerFrame::above` through those over
+  it to the app (`to_app`, `from_app`).
+- The services: `copy`, `copy_image`, `paste`, `pick_file`, `save_file`,
+  `delivers_paste_shortcut`, `shows_keyboard`, `show_window`, `resize`,
+  `set_fullscreen` and `publish_accessibility`, each handed the
+  `PlatformServices` below it (`LayerFrame::below` is the same thing), which it
+  forwards to by default, so a layer may answer a request itself or change it
+  on the way down.
 
-With a host, the main window's size is the one the host reports, not the
-platform window's, and the app gets no safe area. A wgpu host draws each
-window into a texture of its own and composites them through a `Drawing`
-(`beui::drawing`, whose `Draw::prepare` has the device, queue and an
-encoder) in a `Layer::Shape(Shape::Drawing { .. })` covering the returned
-window. The native run functions (`beui::run_with`, `run_on`) wrap their
-platform in a host under `BEUI_PLATFORM=space` (`choose_platform` in
-`crates/beui/src/window.rs`).
+`LayerFrame` also carries the `LayerView` (the platform window's size in
+physical pixels, the pixels per point and the frame's time), the `Context`, the
+`App` (for `busy`, `drawing`, `environment`, `close_requested` and
+`request_painting`), the time the frame started, and `close()`, which ends the
+app after the frame as a closed window does. An `Rc<RefCell<L>>` of a layer is
+a layer too, so a test or a bench keeps a handle on one it stacked
+(`InSpace` in crates/beui/src/tests.rs). Two layers that share state through
+such a handle can sit at different heights in one stack.
+
+With a layer that opens windows, the main window's size is the one the layer
+reports, not the platform window's, and the app gets no safe area. A wgpu
+layer draws each window into a texture of its own and composites them through
+a `Drawing` (`beui::drawing`, whose `Draw::prepare` has the device, queue and
+an encoder) in a `display::Layer::Shape(Shape::Drawing { .. })` covering the window it
+returns. beui-platform-drm under such a layer shows the main window on its
+first display.
 
 ### Displays under beui-platform-drm
 
@@ -3024,15 +3060,17 @@ crosses into another, by the rules above. Each display's scale is `BEUI_SCALE`
 `Displays::new` makes a handle with displays of a test's own, and
 `Displays::set` changes them.
 
-### Space: the VR simulator host
+### Space: the VR simulator layer
 
-`crates/beui-layer-space` is a `WindowHost` that shows an app's windows as
+`crates/beui-layer-space` is a `Layer` that shows an app's windows as
 panels in a first-person 3D scene, a VR simulator that runs on any wgpu adapter.
-`BEUI_PLATFORM=space` turns it on for any native or headless (`:dev`) run: `choose_platform`
-wraps the platform `BEUI_SPACE_PLATFORM` names (the platform's own by default, or
-`headless`) in `HostedPlatform { platform, host: Space::new() }`.
-Everything it does is in the host, so no platform knows about it, and
-all its 3D (`glam`) stays in the crate.
+`BEUI_LAYERS=space` stacks it over any native or headless (`:dev`) run. It opens every window
+(`WindowHosting::Any`), rewrites the platform's input in `input`, composites the windows above it
+into the one main window it leaves in `Shown`, asks for frames while it animates in `framed`, and
+maps points between the platform window and its panels (`up` through the ray at a point, `down`
+by projecting a panel's point). Its inherent `Space::input` and `Space::frame` take a `LayerView`
+directly, which its tests call. Everything it does is in the layer, so no platform knows about
+it, and all its 3D (`glam`) stays in the crate.
 
 - Panels: `Space::panels` is a list of `Panel { window, pose, size,
   metres_per_point, bend }` (`Panel::new` starts flat at 1 / `POINTS_PER_METRE`)
@@ -3048,7 +3086,7 @@ all its 3D (`glam`) stays in the crate.
   frame it opens the main window's panel at the platform window's size in
   points, at eye height straight ahead, far enough that it fills 80% of the
   view's width, and reports that size (`WindowReport::Resized`).
-- Windows: the runner sets `Context::opens_windows` under any host, so every
+- Windows: space opens every window (`Context::opens_windows`), so every
   `Window` is a real window here. `Space::request` handles each of the frame's
   `WindowRequest`s. `Open` adds a panel at the size asked for and reports
   `Resized` and `Placed` the next frame: `Host` decodes the pose, scale and
@@ -3105,7 +3143,7 @@ all its 3D (`glam`) stays in the crate.
   pitch clamped short of straight up or down), W, A, S and D, by their
   place, walk along the floor relative to where the head faces, and Q and E
   roll it left and right (`Head::roll`, `ROLL_PER_SECOND`), all timed from
-  `HostView::now`. `Head::rotation` is yaw, then pitch, then roll about the
+  `LayerView::now`. `Head::rotation` is yaw, then pitch, then roll about the
   view direction; the view, cursor rays, the screen edge clamp and `scale`
   all go through it, so the cursor moves along the rolled screen's axes.
   Mouse steering with the head rolled first turns the motion by the roll
@@ -3122,7 +3160,7 @@ all its 3D (`glam`) stays in the crate.
   the viewer the panel turns with it, by the ray's change of yaw about the
   grabbed point (`Carry::aim`); steering turns it with the head instead. From
   the moment it is grabbed it also turns, over `TURN_SECONDS` of
-  `HostView::now` (smoothstep, `carry::Turn`), from that carried rotation
+  `LayerView::now` (smoothstep, `carry::Turn`), from that carried rotation
   to facing the viewer: a look-at basis whose normal through its centre
   points at the eye and whose up is the head's up (`Head::up`, `Head::rotation`
   times Y) made perpendicular to that normal, so it shows upright to the view
@@ -3180,7 +3218,7 @@ all its 3D (`glam`) stays in the crate.
   needs more, or `KEPT_STEPS` (2) steps less, and a panel out of sight keeps
   its own, so walking about redraws a window only now and then. A new scale
   waits until the panel has wanted it for `SETTLE` (250 ms of
-  `HostView::now`, the host asking for a frame when the wait is over), and a
+  `LayerView::now`, the host asking for a frame when the wait is over), and a
   panel being carried, resized or reshaped by its chrome keeps the one it has
   until the gesture ends, so a scale never changes every frame. A change is
   reported as `WindowReport::Scaled` (`Space::scale` reads it), which is

@@ -4,7 +4,7 @@ use beui_core::context::{Context, FrameOutput};
 use beui_core::geometry::Rect;
 use beui_core::geometry::{Pos2, Vec2, pos2, vec2};
 use beui_core::input::{CursorIcon, Input, Key, Keystroke, Modifiers, PointerButton, ScrollDelta};
-use beui_core::runner::{HostView, Incoming, Units, WindowHost};
+use beui_core::runner::{Incoming, LayerView, Units};
 use beui_core::window::{
     HostPlacement, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest,
 };
@@ -42,6 +42,7 @@ mod a_scrolled_panel_copies_what_it_showed_and_paints_what_a_full_repaint_would;
 mod a_window_asked_to_resize_keeps_its_top_left_corner_and_reports_the_size;
 mod a_window_carried_over_the_main_panel_and_let_go_is_drawn_in_front;
 mod a_window_opened_at_a_host_placement_lands_on_that_pose;
+mod a_window_point_maps_to_the_screen_and_back_through_its_panel;
 mod a_window_opened_at_the_pointer_lands_on_the_cursor_ray_facing_the_viewer;
 mod a_window_opened_over_another_sits_where_that_window_would_show_it_a_little_in_front;
 mod a_window_opened_over_the_main_panel_takes_the_focus_and_the_keys;
@@ -81,8 +82,8 @@ mod windows_opened_over_the_same_spot_stack_toward_the_viewer;
 
 const PLATFORM: Vec2 = vec2(800.0, 600.0);
 
-fn view(now: Instant) -> HostView {
-    HostView {
+fn view(now: Instant) -> LayerView {
+    LayerView {
         platform: PLATFORM,
         pixels_per_point: 1.0,
         now,

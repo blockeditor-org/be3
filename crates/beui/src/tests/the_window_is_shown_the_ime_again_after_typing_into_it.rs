@@ -31,7 +31,7 @@ fn the_window_is_shown_the_ime_again_after_typing_into_it() {
         options: RunOptions::default(),
         context: context(),
         app: Box::new(Rejecting),
-        host: None,
+        layers: Vec::new(),
     });
     runner
         .start(

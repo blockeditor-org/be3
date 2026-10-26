@@ -3,14 +3,15 @@ use beui_core::app::SafeArea;
 use beui_core::context::FrameOutput;
 use beui_core::renderer::Loaded;
 use beui_core::runner::{
-    HostView, Hosted, Incoming, Launch, PlatformServices, RunOptions, Runner, WindowHost,
+    Frame, Incoming, Launch, Layer, LayerFrame, PlatformServices, RunOptions, Runner, Shown,
 };
 use std::time::Instant;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Seen {
     Input(Instant),
-    Frame(Instant),
+    Output(Instant),
+    Framed(Instant),
     App(Instant),
 }
 
@@ -22,17 +23,17 @@ impl PlatformServices for Nowhere {}
 
 struct Recording(Log);
 
-impl WindowHost for Recording {
-    fn input(&mut self, _incoming: &mut Vec<Incoming>, view: &HostView) {
-        self.0.borrow_mut().push(Seen::Input(view.now));
+impl Layer for Recording {
+    fn input(&mut self, _incoming: &mut Vec<Incoming>, frame: &mut LayerFrame<'_>) {
+        self.0.borrow_mut().push(Seen::Input(frame.view.now));
     }
 
-    fn frame(&mut self, output: &FrameOutput, view: &HostView) -> Hosted {
-        self.0.borrow_mut().push(Seen::Frame(view.now));
-        Hosted {
-            window: output.main().clone(),
-            repaint_after: Duration::MAX,
-        }
+    fn output(&mut self, _shown: &mut Shown, _output: &FrameOutput, frame: &mut LayerFrame<'_>) {
+        self.0.borrow_mut().push(Seen::Output(frame.view.now));
+    }
+
+    fn framed(&mut self, _frame: &mut Frame, _output: &FrameOutput, layer: &mut LayerFrame<'_>) {
+        self.0.borrow_mut().push(Seen::Framed(layer.view.now));
     }
 }
 
@@ -45,14 +46,14 @@ impl App for Clocked {
 }
 
 #[test]
-fn a_host_sees_the_time_of_the_frame_it_hosts() {
+fn a_layer_sees_the_time_of_the_frame_it_is_in() {
     let _root = crate::reactive::RootScope::new();
     let log = Log::default();
     let mut runner = Runner::new(Launch {
         options: RunOptions::default(),
         context: context(),
         app: Box::new(Clocked(log.clone())),
-        host: Some(Box::new(Recording(log.clone()))),
+        layers: vec![Box::new(Recording(log.clone()))],
     });
     let loaded = vec![Loaded {
         renderer: Box::new(crate::testing::Screen(vec2(200.0, 100.0))),
@@ -64,13 +65,20 @@ fn a_host_sees_the_time_of_the_frame_it_hosts() {
     for _ in 0..3 {
         runner.frame(&mut Nowhere, SafeArea::default());
         let seen = std::mem::take(&mut *log.borrow_mut());
-        let [Seen::Input(input), Seen::App(app), Seen::Frame(frame)] = seen[..] else {
-            panic!("the host and the app each see the frame once, in order: {seen:?}");
+        let [
+            Seen::Input(input),
+            Seen::App(app),
+            Seen::Output(output),
+            Seen::Framed(framed),
+        ] = seen[..]
+        else {
+            panic!("the layer and the app each see the frame once, in order: {seen:?}");
         };
         assert_eq!(
             input, app,
-            "the host's input sees this frame's time, not the last frame's"
+            "the layer's input sees this frame's time, not the last frame's"
         );
-        assert_eq!(frame, app, "the host's frame sees this frame's time");
+        assert_eq!(output, app, "the layer's output sees this frame's time");
+        assert_eq!(framed, app, "the layer's timing sees this frame's time");
     }
 }

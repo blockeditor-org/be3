@@ -90,7 +90,7 @@ pub fn launch(
         options,
         context,
         app: Box::new(app),
-        host: None,
+        layers: Vec::new(),
     };
     let mut running = Box::new(PluginPlatform::new(host.clone())).run(launch);
     match running
