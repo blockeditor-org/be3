@@ -102,19 +102,20 @@ impl Fixture {
         let document = self.test.document();
         document
             .root()
-            .is_some_and(|root| text_within(document, root, words).is_some())
+            .is_some_and(|root| text_within(&document, root, words).is_some())
     }
 
     fn click_text(&mut self, words: &str) {
         let document = self.test.document();
         let node = document
             .root()
-            .and_then(|root| text_within(document, root, words))
+            .and_then(|root| text_within(&document, root, words))
             .unwrap_or_else(|| panic!("{words:?} is on screen"));
         let center = document
             .node_rect(node)
             .expect("the text is laid out")
             .center();
+        drop(document);
         self.test.click(center);
         self.settle();
     }
@@ -123,12 +124,13 @@ impl Fixture {
         let document = self.test.document();
         let settings = document
             .root()
-            .and_then(|root| text_within(document, root, "Settings"))
+            .and_then(|root| text_within(&document, root, "Settings"))
             .expect("the sidebar has a Settings tab");
         let at = document
             .node_rect(settings)
             .expect("the tab is laid out")
             .center();
+        drop(document);
         self.test.step(vec![
             block_editor_beui::beui::Input::PointerMoved(at),
             block_editor_beui::beui::Input::Scroll(ScrollDelta::Pixels(Vec2::new(-200.0, 0.0))),
@@ -173,7 +175,7 @@ fn text_within(document: &Document, id: NodeId, words: &str) -> Option<NodeId> {
     document
         .children(id)
         .into_iter()
-        .find_map(|child| text_within(document, child, words))
+        .find_map(|child| text_within(&document, child, words))
 }
 
 fn window(id: u64, title: &str, parent: Option<u64>) -> block_editor_beui::HostWindow {

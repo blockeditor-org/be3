@@ -61,7 +61,7 @@ impl Harness {
         self.run();
     }
 
-    fn document(&self) -> &Document {
+    fn document(&self) -> std::cell::Ref<'_, Document> {
         self.editor.document()
     }
 

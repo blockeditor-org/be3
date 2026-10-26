@@ -1,31 +1,30 @@
-use crate::app::automation::{MAX_PIXELS, WindowSize};
 use crate::geometry::Vec2;
+use crate::window::{MAX_PIXELS, WindowSize};
 
-pub const ADAPTER: &str = "BEUI_ADAPTER";
-pub const SPACE_ADAPTER: &str = "BEUI_SPACE_ADAPTER";
+pub const PLATFORM: &str = "BEUI_PLATFORM";
+pub const LAYERS: &str = "BEUI_LAYERS";
 pub const RENDERER: &str = "BEUI_RENDERER";
 pub const HEADLESS_WINDOW: &str = "BEUI_HEADLESS_WINDOW";
 pub const HEADLESS_SCREEN: &str = "BEUI_HEADLESS_SCREEN";
-pub const AUTOMATION: &str = "BEUI_AUTOMATION";
-pub const XR: &str = "BEUI_XR";
+pub const DRIVE_SOCKET: &str = "BEUI_DRIVE_SOCKET";
+pub const DRIVE_LISTENER: &str = "BEUI_DRIVE_LISTENER";
 
 pub const VARIABLES: &[&str] = &[
-    ADAPTER,
-    SPACE_ADAPTER,
+    PLATFORM,
+    LAYERS,
     RENDERER,
     HEADLESS_WINDOW,
     HEADLESS_SCREEN,
-    AUTOMATION,
-    XR,
+    DRIVE_SOCKET,
+    DRIVE_LISTENER,
 ];
 
 pub const HEADLESS_WINDOW_SIZE: &str = "1100x720";
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Choice {
-    pub adapter: Base,
-    pub space: bool,
-    pub xr: bool,
+    pub platform: Base,
+    pub layers: Vec<Stacked>,
     pub render: bool,
 }
 
@@ -38,36 +37,82 @@ pub enum Base {
     },
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Stacked {
+    Space,
+    Xr,
+    Drive,
+}
+
+impl Stacked {
+    pub const ALL: &[Self] = &[Self::Space, Self::Xr, Self::Drive];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Space => "space",
+            Self::Xr => "xr",
+            Self::Drive => "drive",
+        }
+    }
+
+    fn named(name: &str) -> Option<Self> {
+        Self::ALL.iter().copied().find(|layer| layer.name() == name)
+    }
+}
+
 pub fn choose(native: &str, var: impl Fn(&str) -> Option<String>) -> Result<Choice, String> {
-    let names = |space: bool| {
-        let mut names = vec![native, "headless"];
-        if space {
-            names.push("space");
-        }
-        names
-    };
-    let adapter = var(ADAPTER);
-    let space = adapter.as_deref() == Some("space");
-    let base = match (adapter.as_deref(), var(SPACE_ADAPTER)) {
-        (Some("space"), sub) => sub,
-        (_, Some(_)) => {
-            return Err(format!("{SPACE_ADAPTER} is for {ADAPTER}=space only"));
-        }
-        (adapter, None) => adapter.map(str::to_owned),
-    };
-    let headless = match base.as_deref() {
+    let headless = match var(PLATFORM).as_deref() {
         None => false,
         Some(name) if name == native => false,
         Some("headless") => true,
         Some(other) => {
-            let variable = if space { SPACE_ADAPTER } else { ADAPTER };
+            let hint = match Stacked::named(other) {
+                Some(layer) => format!("; {} is a layer: {LAYERS}={}", layer.name(), layer.name()),
+                None => String::new(),
+            };
             return Err(format!(
-                "{variable} takes {}, not {other}",
-                list(&names(!space))
+                "{PLATFORM} takes {}, not {other}{hint}",
+                list(&[native, "headless"])
             ));
         }
     };
-    let adapter = if headless {
+    let layers = match var(LAYERS) {
+        None => Vec::new(),
+        Some(names) => names
+            .split(',')
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .map(|name| {
+                Stacked::named(name).ok_or_else(|| {
+                    let known: Vec<&str> = Stacked::ALL.iter().map(|layer| layer.name()).collect();
+                    format!(
+                        "{LAYERS} takes a comma-separated list of {}, bottom first, not {name}",
+                        list(&known)
+                    )
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?,
+    };
+    let drives = layers
+        .iter()
+        .filter(|layer| **layer == Stacked::Drive)
+        .count();
+    if drives > 2 {
+        return Err(format!(
+            "{LAYERS} names drive {drives} times; one drive layer, or two (its screen tap below and its app tap above), make one session"
+        ));
+    }
+    if drives > 0 && var(DRIVE_SOCKET).is_none() {
+        return Err(format!(
+            "{LAYERS} names drive, which answers on the Unix socket {DRIVE_SOCKET} names; set it to a path"
+        ));
+    }
+    if drives == 0 && var(DRIVE_SOCKET).is_some() {
+        return Err(format!(
+            "{DRIVE_SOCKET} is for the drive layer: add drive to {LAYERS}"
+        ));
+    }
+    let platform = if headless {
         let window = var(HEADLESS_WINDOW).unwrap_or_else(|| HEADLESS_WINDOW_SIZE.to_owned());
         let window = WindowSize::parse(&window)
             .ok_or_else(|| format!("{HEADLESS_WINDOW} takes WIDTHxHEIGHT[@SCALE], not {window}"))?;
@@ -95,7 +140,7 @@ pub fn choose(native: &str, var: impl Fn(&str) -> Option<String>) -> Result<Choi
     } else {
         for variable in [HEADLESS_WINDOW, HEADLESS_SCREEN] {
             if var(variable).is_some() {
-                return Err(format!("{variable} is for the headless adapter only"));
+                return Err(format!("{variable} is for the headless platform only"));
             }
         }
         Base::Native
@@ -105,24 +150,16 @@ pub fn choose(native: &str, var: impl Fn(&str) -> Option<String>) -> Result<Choi
         Some("none") if headless => false,
         Some("none") => {
             return Err(format!(
-                "{RENDERER}=none needs the headless adapter: {ADAPTER}=headless, or \
-                 {SPACE_ADAPTER}=headless under {ADAPTER}=space"
+                "{RENDERER}=none needs the headless platform: {PLATFORM}=headless"
             ));
         }
         Some(other) => {
             return Err(format!("{RENDERER} takes wgpu or none, not {other}"));
         }
     };
-    let xr = match var(XR).as_deref() {
-        None => false,
-        Some("openxr") if space => true,
-        Some("openxr") => return Err(format!("{XR} is for {ADAPTER}=space only")),
-        Some(other) => return Err(format!("{XR} takes openxr, not {other}")),
-    };
     Ok(Choice {
-        adapter,
-        space,
-        xr,
+        platform,
+        layers,
         render,
     })
 }

@@ -22,7 +22,7 @@ fn resizing_a_window_in_space_lays_out_and_paints_only_that_window() {
         },
     ]);
     space.space.borrow_mut().begin_resize(
-        beui_adapter_space::Pointer::Mouse,
+        beui_layer_space::Pointer::Mouse,
         window,
         crate::WindowEdge::BottomRight,
     );

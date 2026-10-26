@@ -84,7 +84,6 @@ fn region_screen(
             pixel_height,
             scale_factor,
             raster: scale_factor,
-            monitors: Vec::new(),
         },
     }
 }

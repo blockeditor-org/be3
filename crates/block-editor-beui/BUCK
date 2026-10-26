@@ -3,6 +3,6 @@ load("@root//buck/wasm:defs.bzl", "plugin_tests")
 
 cargo_library()
 
-# The adapter's instance only exists in the wasm guest, so its tests only exist
+# This crate's instance only exists in the wasm guest, so its tests only exist
 # compiled to wasm and run the way a plugin's are.
 plugin_tests()

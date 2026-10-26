@@ -3,7 +3,7 @@ use beui::{ImeArea, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
     AccessLevel, ArtifactDescription, AudioCommand, BlockCommand, BlockPick, ChildContent, ChildId,
     ChildMode, ChildPlacement, ChildPlacements, ChildStatus, EditorInstanceId, EditorRegion,
-    FrameReport, FrameSpec, MenuEntry, Monitor, Occluder, OpenArtifact, OpenBlock, OpenCreation,
+    FrameReport, FrameSpec, MenuEntry, Occluder, OpenArtifact, OpenBlock, OpenCreation,
     Opening, PerformanceMeasurement, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
     ScreenWindow, ScreenWindowRequest, ShellCommand, Size, Stopped, ViewChange, WebViewEvent,
     WebViewId, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest, WindowRole,
@@ -26,7 +26,7 @@ use super::{
     audio::AudioPlayer,
     calls::{self, BlockIds, EditorAnswer, EditorCall, Outbound, PluginCall},
     heads::{HeadReads, Heads},
-    input::{BlockDrag, BlockDragEvent, FileDropEvent, InputAdapter, viewport_metrics},
+    input::{BlockDrag, BlockDragEvent, FileDropEvent, InputForwarder, viewport_metrics},
     pieces,
     published::{Published, Watched},
     sent::Sent,
@@ -544,7 +544,7 @@ pub(super) struct Described<'a> {
 }
 
 struct Screen {
-    input: InputAdapter,
+    input: InputForwarder,
     placement: Option<Placement>,
     request: ScreenRequest,
     last_seen: u64,
@@ -583,7 +583,7 @@ impl Screen {
 
     fn unplace(&mut self) {
         self.placement = None;
-        self.request.metrics = viewport_metrics(Vec2::ZERO, Rect::ZERO, 1.0, 1.0, Vec::new());
+        self.request.metrics = viewport_metrics(Vec2::ZERO, Rect::ZERO, 1.0, 1.0);
     }
 }
 
@@ -825,19 +825,13 @@ impl Instances {
         let screen = entry.screens.entry(region).or_insert_with(|| {
             *next_screen += 1;
             Screen {
-                input: InputAdapter::default(),
+                input: InputForwarder::default(),
                 placement: None,
                 request: ScreenRequest {
                     screen: ScreenId(*next_screen),
                     instance,
                     region,
-                    metrics: viewport_metrics(
-                        size,
-                        visible,
-                        scale_factor,
-                        scale_factor,
-                        Vec::new(),
-                    ),
+                    metrics: viewport_metrics(size, visible, scale_factor, scale_factor),
                     frame,
                     opens_windows: false,
                 },
@@ -861,9 +855,7 @@ impl Instances {
                 serial: 0,
             }
         });
-        let monitors = std::mem::take(&mut screen.request.metrics.monitors);
-        screen.request.metrics =
-            viewport_metrics(size, visible, scale_factor, scale_factor, monitors);
+        screen.request.metrics = viewport_metrics(size, visible, scale_factor, scale_factor);
         screen.request.frame = frame;
         screen.last_seen = pass;
         screen.request.screen
@@ -939,12 +931,11 @@ impl Instances {
         visible: Rect,
         scale_factor: f32,
         raster: f32,
-        monitors: Vec<Monitor>,
     ) {
         let Some(screen) = self.screen_mut(instance, region) else {
             return;
         };
-        let metrics = viewport_metrics(size, visible, scale_factor, raster, monitors);
+        let metrics = viewport_metrics(size, visible, scale_factor, raster);
         let opens_windows = region == EditorRegion::Frame && host::opens_windows();
         if screen.request.metrics != metrics
             || screen.request.frame != frame

@@ -1,11 +1,15 @@
 use std::any::Any;
+use std::cell::{Ref, RefMut};
 use std::collections::HashMap;
+use std::rc::Rc;
 
-use block_editor_plugin::Instance;
+use beui_platform_plugin::ModuleRunner;
 use block_editor_plugin::headless::HeadlessPlugin as Core;
-use block_plugin_api::{EditorInstanceId, EditorRegion, ScreenLayout, ScreenPlacement};
+use block_editor_plugin::{Instance, RegionId};
+use block_plugin_api::{EditorInstanceId, ScreenLayout, ScreenPlacement};
 
 use crate::instance::BeuiInstance;
+use crate::module::Module;
 use crate::{Artifacts, BeuiApp, Creation, Editor, EditorHost, OwnedEditor};
 
 pub type View = Box<dyn FnOnce() -> beui::styled::Root>;
@@ -28,50 +32,30 @@ impl Adopted {
 }
 
 pub(crate) trait Parts {
-    fn document(&self, region: EditorRegion) -> Option<&beui::Document>;
-    fn document_mut(&mut self, region: EditorRegion) -> Option<&mut beui::Document>;
     fn editor(&self) -> Option<Editor>;
-    fn take_output(&mut self, region: EditorRegion) -> Option<beui::FrameOutput>;
 }
 
 impl<A: BeuiApp> Parts for BeuiInstance<A> {
-    fn document(&self, region: EditorRegion) -> Option<&beui::Document> {
-        BeuiInstance::document(self, region)
-    }
-
-    fn document_mut(&mut self, region: EditorRegion) -> Option<&mut beui::Document> {
-        BeuiInstance::document_mut(self, region)
-    }
-
     fn editor(&self) -> Option<Editor> {
         BeuiInstance::editor(self)
     }
-
-    fn take_output(&mut self, region: EditorRegion) -> Option<beui::FrameOutput> {
-        BeuiInstance::take_output(self, region)
-    }
 }
 
-struct Access {
-    shared: fn(&dyn Instance) -> &dyn Parts,
-    unique: fn(&mut dyn Instance) -> &mut dyn Parts,
-}
-
-fn shared<A: BeuiApp>(instance: &dyn Instance) -> &dyn Parts {
+fn parts<A: BeuiApp>(instance: &dyn Instance) -> &dyn Parts {
     (instance as &dyn Any)
         .downcast_ref::<BeuiInstance<A>>()
         .expect("an adopted instance keeps its app")
 }
 
-fn unique<A: BeuiApp>(instance: &mut dyn Instance) -> &mut dyn Parts {
-    (instance as &mut dyn Any)
-        .downcast_mut::<BeuiInstance<A>>()
-        .expect("an adopted instance keeps its app")
+pub struct Drawn {
+    pub output: beui::FrameOutput,
+    pub windows: Vec<(ScreenPlacement, beui::WindowId)>,
 }
 
 pub struct HeadlessPlugin {
     core: Core,
-    access: HashMap<EditorInstanceId, Access>,
+    module: Rc<Module>,
+    access: HashMap<EditorInstanceId, fn(&dyn Instance) -> &dyn Parts>,
 }
 
 impl std::ops::Deref for HeadlessPlugin {
@@ -91,8 +75,11 @@ impl std::ops::DerefMut for HeadlessPlugin {
 impl HeadlessPlugin {
     pub fn new(id: &str, name: &str, version: &str) -> Self {
         crate::fonts::use_fonts(beui::FontLibrary::bundled());
+        let core = Core::new(id, name, version);
+        let module = core.module().local(Module::default);
         Self {
-            core: Core::new(id, name, version),
+            core,
+            module,
             access: HashMap::new(),
         }
     }
@@ -104,51 +91,44 @@ impl HeadlessPlugin {
             Box::new(BeuiInstance::<A>::adopting(adopted)),
             host,
         );
-        self.access.insert(
-            instance,
-            Access {
-                shared: shared::<A>,
-                unique: unique::<A>,
-            },
-        );
+        self.access.insert(instance, parts::<A>);
     }
 
-    pub fn draw(&mut self) -> Vec<(ScreenPlacement, beui::FrameOutput)> {
+    pub fn draw(&mut self) -> Option<Drawn> {
         let placements: Vec<ScreenPlacement> = self
             .core
             .draw()
             .into_iter()
             .map(|(placement, _)| placement)
             .collect();
-        placements
+        let output = self
+            .core
+            .module()
+            .with_handler(|handler| ModuleRunner::of(handler)?.take_output())
+            .flatten()?;
+        let windows = placements
             .into_iter()
             .filter_map(|placement| {
-                let output = self
-                    .parts_mut(placement.instance)?
-                    .take_output(placement.region)?;
-                Some((placement, output))
+                let window = self.module.window(RegionId {
+                    instance: placement.instance,
+                    region: placement.region,
+                })?;
+                Some((placement, window))
             })
-            .collect()
+            .collect();
+        Some(Drawn { output, windows })
     }
 
     pub fn layout(&self) -> &ScreenLayout {
         self.core.layout()
     }
 
-    pub fn document(
-        &self,
-        instance: EditorInstanceId,
-        region: EditorRegion,
-    ) -> Option<&beui::Document> {
-        self.parts(instance)?.document(region)
+    pub fn document(&self) -> Option<Ref<'_, beui::Document>> {
+        Ref::filter_map(self.module.document.borrow(), Option::as_ref).ok()
     }
 
-    pub fn document_mut(
-        &mut self,
-        instance: EditorInstanceId,
-        region: EditorRegion,
-    ) -> Option<&mut beui::Document> {
-        self.parts_mut(instance)?.document_mut(region)
+    pub fn document_mut(&self) -> Option<RefMut<'_, beui::Document>> {
+        RefMut::filter_map(self.module.document.borrow_mut(), Option::as_mut).ok()
     }
 
     pub fn host(&self, instance: EditorInstanceId) -> Option<EditorHost> {
@@ -161,11 +141,6 @@ impl HeadlessPlugin {
 
     fn parts(&self, instance: EditorInstanceId) -> Option<&dyn Parts> {
         let access = self.access.get(&instance)?;
-        Some((access.shared)(self.core.instance(instance)?))
-    }
-
-    fn parts_mut(&mut self, instance: EditorInstanceId) -> Option<&mut dyn Parts> {
-        let unique = self.access.get(&instance)?.unique;
-        Some(unique(self.core.instance_mut(instance)?))
+        Some(access(self.core.instance(instance)?))
     }
 }

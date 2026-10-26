@@ -2,7 +2,7 @@ use std::cell::Cell;
 use std::time::Instant;
 
 use be_drive::Driven;
-use beui_core::app::automation::Reply;
+use beui_layer_drive::Reply;
 use paint_snapshot::{Painting, Snapshot};
 
 const SIZE: &str = "1100x720";
@@ -76,29 +76,29 @@ impl AppTest {
     }
 
     pub fn wait(&mut self, target: &str) {
-        self.run(&["wait", target]);
+        self.run(&["app", "wait", target]);
     }
 
     pub fn gone(&mut self, target: &str) {
-        self.run(&["gone", target]);
+        self.run(&["app", "gone", target]);
     }
 
     pub fn click(&mut self, target: &str) -> String {
         self.wait(target);
-        self.run(&["click", target])
+        self.run(&["app", "click", target])
     }
 
     pub fn double_click(&mut self, target: &str) -> String {
         self.wait(target);
-        self.run(&["click", target, "double"])
+        self.run(&["app", "click", target, "double"])
     }
 
     pub fn type_text(&mut self, text: &str) -> String {
-        self.run(&["type", text])
+        self.run(&["app", "type", text])
     }
 
     pub fn key(&mut self, chord: &str) -> String {
-        self.run(&["key", chord])
+        self.run(&["app", "key", chord])
     }
 
     pub fn pause(&mut self, milliseconds: u32) {
@@ -106,11 +106,11 @@ impl AppTest {
     }
 
     pub fn tree(&mut self) -> String {
-        self.run(&["tree"])
+        self.run(&["app", "tree"])
     }
 
     pub fn place(&mut self, target: &str) -> (f32, f32, f32, f32) {
-        let found = self.run(&["find", target]);
+        let found = self.run(&["app", "find", target]);
         let numbers: Vec<f32> = found
             .split(|character: char| {
                 !character.is_ascii_digit() && character != '-' && character != '.'
@@ -140,7 +140,7 @@ impl AppTest {
 
     pub fn record(&mut self) {
         let painted = self.paint();
-        let found = self.run(&["overflows"]);
+        let found = self.run(&["app", "overflows"]);
         self.overflows.extend(found.lines().map(str::to_owned));
         match &mut self.recorded {
             Some(recorded) => recorded.append(painted),
@@ -179,7 +179,7 @@ impl AppTest {
 
     fn paint(&mut self) -> Snapshot {
         self.gone("#editor.loading");
-        let mut words = vec!["paint"];
+        let mut words = vec!["app", "paint"];
         words.extend(self.crop.as_deref());
         self.steps
             .push(line(&words).replacen("paint", "paint painted.paint", 1));
@@ -205,7 +205,7 @@ impl AppTest {
             .app
             .as_ref()
             .map(|app| {
-                let tree = match app.request(&["tree"]) {
+                let tree = match app.request(&["app", "tree"]) {
                     Ok(Reply::Text(tree)) => tree,
                     _ => "(the app did not answer)".to_owned(),
                 };

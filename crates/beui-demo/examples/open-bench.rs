@@ -46,8 +46,8 @@ mod bench {
 
     use beui::testing::Screen;
     use beui::{
-        Color32, Context, Incoming, Input, Launch, Platform, PointerButton, Pos2, Rect, RunOptions,
-        ScrollDelta, Setup, Vec2, Waker, WindowOutput,
+        Color32, Context, Incoming, Input, Launch, PlatformServices, PointerButton, Pos2, Rect,
+        RunOptions, ScrollDelta, Setup, Vec2, Waker, WindowOutput,
     };
     use beui_core::app::SafeArea;
     use beui_core::context::RendererInfo;
@@ -93,7 +93,7 @@ mod bench {
 
     struct Bare;
 
-    impl Platform for Bare {}
+    impl PlatformServices for Bare {}
 
     struct Timing {
         gpu: Gpu,
@@ -160,7 +160,7 @@ mod bench {
                 },
                 context,
                 app: Box::new(DemoApp::new()),
-                host: None,
+                layers: Vec::new(),
             });
             let timing = Timing {
                 gpu: Rc::clone(&gpu),

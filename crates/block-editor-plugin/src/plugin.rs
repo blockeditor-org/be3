@@ -3,7 +3,8 @@ use std::time::Duration;
 #[cfg(target_arch = "wasm32")]
 use block_plugin_api::SurfaceRect;
 use block_plugin_api::{
-    EditorRegion, FrameChrome, FrameSpec, TimedInput, WindowReport, WindowRequest, WindowRequests,
+    EditorInstanceId, EditorRegion, FrameChrome, FrameSpec, TimedInput, WindowReport, WindowRequest,
+    WindowRequests,
 };
 use geometry::{Rect, Vec2};
 use uuid::Uuid;
@@ -51,6 +52,16 @@ pub trait Instance: std::any::Any {
         false
     }
 
+    fn open_region(&mut self, _region: EditorRegion) {}
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct RegionId {
+    pub instance: EditorInstanceId,
+    pub region: EditorRegion,
+}
+
+pub trait Regions: std::any::Any {
     fn window_reported(&mut self, _report: WindowReport) {}
 
     fn input(&mut self, region: &Region, event: &TimedInput);
@@ -64,43 +75,45 @@ pub trait Instance: std::any::Any {
     ) {
     }
 
-    fn update(&mut self, region: &Region, settings: Option<&mut Vec<u8>>) -> Frame;
+    fn frame(&mut self, regions: &[Region]) -> Vec<Frame>;
 
-    fn painting(&mut self, _region: EditorRegion) -> Option<paint_format::Painting> {
+    fn painting(&mut self, _region: RegionId) -> Option<paint_format::Painting> {
         None
     }
 
-    fn overflows(&mut self, _region: EditorRegion) -> Vec<String> {
+    fn overflows(&mut self, _region: RegionId) -> Vec<String> {
         Vec::new()
     }
 
     #[cfg(target_arch = "wasm32")]
-    fn paint(&mut self, target: &PaintTarget<'_>) -> Vec<SurfaceRect>;
+    fn paint(&mut self, region: RegionId, target: &PaintTarget<'_>) -> Vec<SurfaceRect>;
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Region {
+    pub instance: EditorInstanceId,
     pub region: EditorRegion,
+    pub block: Option<Uuid>,
     pub rect: Rect,
+    pub visible: Vec2,
     pub scale_factor: f32,
     pub raster: f32,
     pub pixels: [u32; 2],
     pub age: u32,
     pub spec: FrameSpec,
-    pub monitors: Vec<RegionMonitor>,
     pub describe: Option<u64>,
     pub seen: bool,
     pub opens_windows: bool,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct RegionMonitor {
-    pub id: String,
-    pub name: String,
-    pub rect: Rect,
-}
-
 impl Region {
+    pub fn id(&self) -> RegionId {
+        RegionId {
+            instance: self.instance,
+            region: self.region,
+        }
+    }
+
     pub fn chrome_drawn(&self) -> bool {
         self.spec.chrome == FrameChrome::Drawn
     }
@@ -137,7 +150,6 @@ pub struct PaintTarget<'a> {
     pub format: wgpu::TextureFormat,
     pub width: u32,
     pub height: u32,
-    pub region: EditorRegion,
     pub age: u32,
 }
 

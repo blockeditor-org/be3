@@ -373,7 +373,7 @@ interface types {
         repeat: bool,
     }
 
-    /// The raw input every platform adapter, drive, the on-screen keyboard and
+    /// The raw input every platform, drive, the on-screen keyboard and
     /// the plugin protocol produce.
     variant input {
         focus(bool),
@@ -549,6 +549,13 @@ interface types {
         pixels-per-point: f32,
     }
 
+    /// Where the window's top-left corner now is, in points of the screen
+    /// the host shows it on.
+    record window-report-moved {
+        window: window-id,
+        origin: pos2,
+    }
+
     record window-report-focused {
         window: window-id,
         focused: bool,
@@ -559,6 +566,7 @@ interface types {
         resized(window-report-resized),
         placed(window-report-placed),
         rastered(window-report-rastered),
+        moved(window-report-moved),
         closed(window-id),
         focused(window-report-focused),
     }

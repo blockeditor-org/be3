@@ -1,0 +1,19 @@
+[package]
+name = "beui-platform-android"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[target.'cfg(target_os = "android")'.dependencies]
+accesskit = "0.24.1"
+accesskit_android = { version = "0.7.5", features = ["embedded-dex"] }
+beui-core = { path = "../beui-core" }
+jni = "0.22"
+libc = "0.2"
+ndk = { version = "0.9", default-features = false }
+ndk-context = "0.1"
+ndk-sys = "0.6"
+raw-window-handle = "0.6"
+
+[lints]
+workspace = true

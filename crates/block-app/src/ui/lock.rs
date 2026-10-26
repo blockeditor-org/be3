@@ -1,5 +1,5 @@
 use beui::KeyAt;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use beui::datetime::{DateTime, HourCycle};
 use beui::icons::{ICON_LOCK, ICON_LOG_OUT, ICON_MOON, ICON_POWER, ICON_ROTATE_CCW};
@@ -27,12 +27,8 @@ fn action(power: PowerAction) -> LockAction {
     }
 }
 
-fn wall_clock() -> ReadSignal<DateTime> {
-    let started = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default();
-    let anchor = now();
-    let unix = move || started + now().saturating_duration_since(anchor);
+fn clock() -> ReadSignal<DateTime> {
+    let unix = beui::reactive::wall_clock;
     let shown = move || {
         let seconds =
             i64::try_from(unix().as_secs()).unwrap_or(0) + i64::from(crate::platform::utc_offset());
@@ -52,19 +48,21 @@ fn wall_clock() -> ReadSignal<DateTime> {
 }
 
 #[component]
-pub(crate) fn SessionLock(view: AppViewStore) -> NodeId {
+pub(crate) fn SessionLock(view: AppViewStore, #[prop(default = true)] shortcut: bool) -> NodeId {
     let lock = view.lock;
     let available = create_memo(move || lock.get().available && !lock.get().locked);
-    Action::new("session.lock", "Lock the screen", || {
-        send(UiCommand::LockScreen);
-    })
-    .glyph(ICON_LOCK)
-    .shortcut(Chord::logo(Key::L))
-    .at(KeyAt::Host)
-    .capture()
-    .enabled(available)
-    .register();
-    let clock = wall_clock();
+    if shortcut {
+        Action::new("session.lock", "Lock the screen", || {
+            send(UiCommand::LockScreen);
+        })
+        .glyph(ICON_LOCK)
+        .shortcut(Chord::logo(Key::L))
+        .at(KeyAt::Host)
+        .capture()
+        .enabled(available)
+        .register();
+    }
+    let clock = clock();
     let time = create_memo(move || clock.get().time.format(HourCycle::H24));
     let date = create_memo(move || {
         let date = clock.get().date;

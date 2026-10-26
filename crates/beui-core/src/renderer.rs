@@ -4,12 +4,17 @@ use std::sync::Arc;
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
 use crate::app::Setup;
-use crate::app::automation::Capture;
 use crate::color::Color32;
 use crate::context::{Context, RendererChoices, RendererInfo, WindowOutput};
 use crate::font::FontBackend;
 use crate::geometry::Vec2;
-use crate::screens::Screen;
+
+#[derive(Clone)]
+pub struct Capture {
+    pub width: u32,
+    pub height: u32,
+    pub rgba: Vec<u8>,
+}
 
 pub trait WindowHandle: HasWindowHandle + HasDisplayHandle + Send + Sync {}
 
@@ -42,10 +47,6 @@ pub trait Renderer {
     fn resize(&mut self, width: u32, height: u32);
 
     fn physical(&self) -> Option<Vec2>;
-
-    fn screens(&self) -> Option<Vec<Screen>> {
-        None
-    }
 
     fn prepare(&mut self, output: &WindowOutput, scale: f32, background: Color32) -> bool;
 
@@ -219,10 +220,6 @@ impl Renderers {
 
     pub fn physical(&self) -> Option<Vec2> {
         self.slots[self.active].renderer.physical()
-    }
-
-    pub fn screens(&self) -> Option<Vec<Screen>> {
-        self.slots[self.active].renderer.screens()
     }
 
     pub fn prepare(&mut self, output: &WindowOutput, scale: f32, background: Color32) -> bool {

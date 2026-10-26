@@ -2,33 +2,26 @@ use super::*;
 use beui_core::app::SafeArea;
 use beui_core::context::FrameOutput;
 use beui_core::renderer::Loaded;
-use beui_core::runner::{
-    HostView, Hosted, Incoming, Launch, Platform, RunOptions, Runner, WindowHost,
-};
+use beui_core::runner::{Frame, Launch, Layer, LayerFrame, PlatformServices, RunOptions, Runner};
 use std::time::Instant;
 
 struct Nowhere;
 
-impl Platform for Nowhere {}
+impl PlatformServices for Nowhere {}
 
 struct Paced {
     paces: bool,
     framed: Rc<RefCell<Vec<Vec2>>>,
 }
 
-impl WindowHost for Paced {
+impl Layer for Paced {
     fn pace(&mut self) -> Option<Instant> {
         self.paces.then(Instant::now)
     }
 
-    fn input(&mut self, _incoming: &mut Vec<Incoming>, _view: &HostView) {}
-
-    fn frame(&mut self, output: &FrameOutput, view: &HostView) -> Hosted {
-        self.framed.borrow_mut().push(view.platform);
-        Hosted {
-            window: output.main().clone(),
-            repaint_after: Duration::ZERO,
-        }
+    fn framed(&mut self, frame: &mut Frame, _output: &FrameOutput, layer: &mut LayerFrame<'_>) {
+        self.framed.borrow_mut().push(layer.view.platform);
+        frame.repaint_after = Duration::ZERO;
     }
 }
 
@@ -44,10 +37,10 @@ fn frames_while_minimised(paces: bool) -> Vec<Vec2> {
         options: RunOptions::default(),
         context: context(),
         app: Box::new(Still),
-        host: Some(Box::new(Paced {
+        layers: vec![Box::new(Paced {
             paces,
             framed: framed.clone(),
-        })),
+        })],
     });
     let loaded = vec![Loaded {
         renderer: Box::new(crate::testing::Screen(vec2(200.0, 100.0))),

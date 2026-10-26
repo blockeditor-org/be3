@@ -1,6 +1,6 @@
 use block_plugin_api::{
     Catalog, DebugTemplate, EditorInstanceId, EditorRegion, Edits, FrameCommit, Opening, ScreenId,
-    ScreenLayout, ScreenRequest, SurfaceSpec, TemplateCategory,
+    ScreenLayout, ScreenPlacement, ScreenRequest, SurfaceSpec, TemplateCategory,
 };
 use block_ui::{BlockCatalog, BlockTypeEntry, EditorEntry, TemplateEntry};
 use lucide::Glyph;
@@ -12,7 +12,7 @@ use std::{
 use uuid::Uuid;
 
 use crate::{
-    Waker,
+    Frame, Module, Region, Waker,
     editor_session::{EditorSession, Open},
     wire::Delivery,
 };
@@ -21,6 +21,7 @@ pub(crate) type Opener = Open;
 
 pub(crate) struct Screens {
     sessions: HashMap<EditorInstanceId, EditorSession>,
+    module: Module,
     apps: Vec<(Uuid, Opener)>,
     waker: Waker,
     requests: Vec<ScreenRequest>,
@@ -59,6 +60,7 @@ impl Screens {
     pub(crate) fn new(apps: Vec<(Uuid, Opener)>, waker: Waker) -> Self {
         Self {
             sessions: HashMap::new(),
+            module: Module::default(),
             apps,
             waker,
             requests: Vec::new(),
@@ -77,7 +79,8 @@ impl Screens {
         }
     }
 
-    pub(crate) fn adopt(&mut self, instance: EditorInstanceId, session: EditorSession) {
+    pub(crate) fn adopt(&mut self, instance: EditorInstanceId, mut session: EditorSession) {
+        session.join(&self.module);
         self.sessions.insert(instance, session);
         self.touch_everything();
     }
@@ -90,6 +93,33 @@ impl Screens {
     pub(crate) fn ran(&mut self, instance: EditorInstanceId) {
         self.reporting.insert(instance);
         self.laid_out.insert(instance);
+    }
+
+    pub(crate) fn frame(&mut self, shown: &[(ScreenPlacement, u32)]) -> Vec<Frame> {
+        let mut begun = Vec::new();
+        for (index, (placement, age)) in shown.iter().enumerate() {
+            if let Some(session) = self.sessions.get_mut(&placement.instance) {
+                begun.push((index, session.begin(placement.region, *age)));
+            }
+        }
+        let regions: Vec<Region> = begun.iter().map(|(_, region)| region.clone()).collect();
+        let mut frames = self
+            .module
+            .with_handler(|handler| handler.frame(&regions))
+            .unwrap_or_default();
+        frames.resize_with(regions.len(), Frame::default);
+        let mut framed = vec![Frame::default(); shown.len()];
+        for ((index, region), frame) in begun.into_iter().zip(frames) {
+            if let Some(session) = self.sessions.get_mut(&region.instance) {
+                framed[index] = session.finish(region.region, frame);
+                self.ran(region.instance);
+            }
+        }
+        framed
+    }
+
+    pub(crate) fn module(&self) -> &Module {
+        &self.module
     }
 
     pub(crate) fn commit(&mut self) -> FrameCommit {
@@ -146,13 +176,14 @@ impl Screens {
                 .insert(instance);
             inner.wake();
         });
+        let module = &self.module;
         self.sessions.entry(instance).or_insert_with(|| {
             let open = apps
                 .iter()
                 .find(|(declared, _)| *declared == editor)
                 .map(|(_, open)| *open)
                 .unwrap_or_else(|| panic!("this plugin has no editor {editor}"));
-            EditorSession::new(instance, waker, open)
+            EditorSession::joining(instance, waker, open, module)
         })
     }
 

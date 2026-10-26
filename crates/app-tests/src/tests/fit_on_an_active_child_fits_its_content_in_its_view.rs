@@ -9,10 +9,10 @@ fn fit_on_an_active_child_fits_its_content_in_its_view() {
     add_to_canvas(&mut app, "Pixel Art");
     let card = app.place("GenericContainer #infinite-canvas.entity.");
     let inside = format!("{:.0},{:.0}", card.0 + card.2 / 2.0, card.1 + card.3 * 0.6);
-    app.run(&["click", &inside]);
+    app.run(&["app", "click", &inside]);
     app.wait("Pane \"Pixel Art\"");
     app.gone("#infinite-canvas.dock");
-    app.run(&["wheel", &inside, "3"]);
+    app.run(&["app", "wheel", &inside, "3"]);
     let panned = app.place(ARTWORK);
     app.click("#pixel-art.fit");
     let fitted = app.place(ARTWORK);

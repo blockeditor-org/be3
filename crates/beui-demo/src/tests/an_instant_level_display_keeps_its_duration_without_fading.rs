@@ -14,10 +14,10 @@ fn an_instant_level_display_keeps_its_duration_without_fading() {
     test.click("test.show");
     test.advance(OSD_DURATION - Duration::from_millis(100));
     test.frame(Vec::new());
-    assert!(test.shows("level-osd.0"));
+    assert!(test.shows("level-osd"));
     test.snapshot("instant_level_display");
     test.advance(Duration::from_millis(200));
     test.frame(Vec::new());
-    assert!(!test.shows("level-osd.0"));
+    assert!(!test.shows("level-osd"));
     test.snapshot("instant_level_display_expired");
 }

@@ -4,7 +4,6 @@ use crate::context::Context;
 use crate::document::{Document, trim_bottom};
 use crate::geometry::{Pos2, Rect, pos2};
 use crate::input::{Event, ImeArea, InputState, Keyboard, PointerId, PointerPhase};
-use crate::screens::{self, Screen};
 use crate::window::{WindowId, WindowRequest};
 
 pub const MAX_SHARE: f32 = 0.5;
@@ -34,11 +33,12 @@ pub(crate) struct KeyboardState {
     asks: Option<u32>,
     area: Option<ImeArea>,
     rect: Option<Rect>,
+    window: WindowId,
     pressed: Vec<PointerId>,
     elsewhere: Vec<PointerId>,
     owns: bool,
     typed: Vec<crate::input::Input>,
-    window: Option<WindowId>,
+    own: Option<WindowId>,
     shown_in: Option<WindowId>,
 }
 
@@ -49,10 +49,10 @@ enum Spot {
 }
 
 impl Spot {
-    fn takes(self, window: WindowId, pos: Pos2) -> bool {
+    fn takes(self, pos: Pos2) -> bool {
         match self {
             Self::Screen(rect) => rect.contains(pos),
-            Self::Window(own) => own == window,
+            Self::Window(_) => true,
         }
     }
 }
@@ -69,11 +69,12 @@ impl Default for KeyboardState {
             asks: None,
             area: None,
             rect: None,
+            window: WindowId::MAIN,
             pressed: Vec::new(),
             elsewhere: Vec::new(),
             owns: false,
             typed: Vec::new(),
-            window: None,
+            own: None,
             shown_in: None,
         }
     }
@@ -96,8 +97,8 @@ impl KeyboardState {
         self.attached = attached;
     }
 
-    pub(crate) fn window(&self) -> Option<WindowId> {
-        self.window
+    pub(crate) fn own_window(&self) -> Option<WindowId> {
+        self.own
     }
 
     pub(crate) fn share(&self) -> f32 {
@@ -130,6 +131,16 @@ impl KeyboardState {
 
     pub(crate) fn rect(&self) -> Option<Rect> {
         self.rect
+    }
+
+    pub(crate) fn trimmed(&self, window: WindowId, rect: Rect) -> Rect {
+        match self
+            .rect
+            .filter(|_| self.window == window && !window.is_main())
+        {
+            Some(keyboard) => trim_bottom(rect, keyboard.height()).0,
+            None => rect,
+        }
     }
 
     pub(crate) fn type_events(&mut self, events: impl IntoIterator<Item = crate::input::Input>) {
@@ -168,39 +179,46 @@ impl KeyboardState {
 
     fn place(
         &mut self,
+        document: &Document,
         ctx: &Context,
         rect: Rect,
         host: Option<&mut Box<dyn KeyboardHost>>,
-    ) -> Option<(Spot, Rect)> {
+    ) -> Option<(WindowId, Spot, Rect)> {
         if self.opened == Opened::Closed || !self.enabled {
             return None;
         }
         host?;
         if ctx.opens_windows() {
-            let window = *self.window.get_or_insert_with(WindowId::next);
-            return Some((Spot::Window(window), rect));
+            let window = *self.own.get_or_insert_with(WindowId::next);
+            return Some((window, Spot::Window(window), rect));
         }
-        let shown = screens::shown_in(&ctx.screens(), rect);
-        let target = self
-            .area
-            .as_ref()
-            .and_then(|area| screens::under(&shown, area.rect))
-            .or_else(|| shown.first())
-            .map_or(rect, |screen| screen.rect);
+        let window = typing_window(document, ctx);
+        let target = match window.is_main() {
+            true => rect,
+            false => document.window_rect(window)?,
+        };
         let height = target.height() * self.share;
         let keyboard =
             Rect::from_min_max(pos2(target.left(), target.bottom() - height), target.max);
-        let content = match target == rect {
+        let content = match window.is_main() {
             true => trim_bottom(rect, height).0,
             false => rect,
         };
-        Some((Spot::Screen(keyboard), content))
+        Some((window, Spot::Screen(keyboard), content))
     }
 
     fn track(&mut self, input: &InputState, keyboard: Spot) -> bool {
+        let window = match keyboard {
+            Spot::Window(own) => own,
+            Spot::Screen(_) => self.window,
+        };
         let mut held = !self.pressed.is_empty();
         let mut away = !self.elsewhere.is_empty();
-        for event in &input.pointer_events {
+        for event in input
+            .pointer_events
+            .iter()
+            .filter(|event| event.window == window)
+        {
             match event.phase {
                 PointerPhase::Down(_) => {
                     let known = self.pressed.contains(&event.pointer)
@@ -208,7 +226,7 @@ impl KeyboardState {
                     if known {
                         continue;
                     }
-                    match self.elsewhere.is_empty() && keyboard.takes(event.window, event.pos) {
+                    match self.elsewhere.is_empty() && keyboard.takes(event.pos) {
                         true => {
                             held = true;
                             self.pressed.push(event.pointer);
@@ -226,34 +244,22 @@ impl KeyboardState {
                 _ => {}
             }
         }
-        let over = input
-            .pointer
-            .pos
-            .is_some_and(|pos| keyboard.takes(input.pointer.window, pos));
+        let over = input.pointer.window == window
+            && input.pointer.pos.is_some_and(|pos| keyboard.takes(pos));
         held || (!away && over)
     }
 }
 
-pub(crate) fn usable_screens(ctx: &Context, screens: Vec<Screen>) -> Vec<Screen> {
-    let Some(keyboard) = ctx.keyboard_rect() else {
-        return screens;
-    };
-    screens
-        .into_iter()
-        .map(|screen| {
-            let covered = screen.rect.intersect(keyboard);
-            match covered.is_positive() && covered.width() >= screen.rect.width() {
-                true => Screen {
-                    rect: Rect::from_min_max(
-                        screen.rect.min,
-                        pos2(screen.rect.right(), covered.top().max(screen.rect.top())),
-                    ),
-                    ..screen
-                },
-                false => screen,
-            }
+fn typing_window(document: &Document, ctx: &Context) -> WindowId {
+    let hosted = |window: &WindowId| !window.is_main() && document.window_rect(*window).is_some();
+    document
+        .key_window()
+        .filter(hosted)
+        .or_else(|| match ctx.shows_main() {
+            true => None,
+            false => document.open_windows().into_iter().find(hosted),
         })
-        .collect()
+        .unwrap_or(WindowId::MAIN)
 }
 
 pub fn show_with_keyboard(
@@ -263,18 +269,29 @@ pub fn show_with_keyboard(
     show: impl FnOnce(&mut Document, Rect),
 ) {
     let mut host = document.take_keyboard_host();
-    let (placed, changed, left) = ctx.keyboard(|state| {
+    let (placed, changed, moved, left) = ctx.keyboard(|state| {
         let changed = state.decide();
-        let placed = state.place(ctx, rect, host.as_mut());
-        let (rect, window) = match placed {
-            Some((Spot::Screen(keyboard), _)) => (Some(keyboard), None),
-            Some((Spot::Window(window), _)) => (None, Some(window)),
-            None => (None, None),
+        let placed = state.place(document, ctx, rect, host.as_mut());
+        let before = (state.window, state.rect);
+        let (rect, window, own) = match placed {
+            Some((window, Spot::Screen(keyboard), _)) => (Some(keyboard), window, None),
+            Some((_, Spot::Window(own), _)) => (None, WindowId::MAIN, Some(own)),
+            None => (None, WindowId::MAIN, None),
         };
         state.rect = rect;
-        let left = std::mem::replace(&mut state.shown_in, window).filter(|_| window.is_none());
-        (placed, changed, left)
+        state.window = window;
+        let after = (state.window, state.rect);
+        let moved = (before != after).then_some([before.0, after.0]);
+        let left = std::mem::replace(&mut state.shown_in, own).filter(|_| own.is_none());
+        (placed, changed, moved, left)
     });
+    for window in moved
+        .into_iter()
+        .flatten()
+        .filter(|window| !window.is_main())
+    {
+        document.relayout_window(window);
+    }
     if let Some(window) = left {
         ctx.request_window(WindowRequest::Close(window));
     }
@@ -286,7 +303,7 @@ pub fn show_with_keyboard(
             host.closed();
         }
     }
-    let Some((keyboard, content)) = placed else {
+    let Some((window, keyboard, content)) = placed else {
         ctx.keyboard(|state| {
             state.owns = false;
             state.pressed.clear();
@@ -312,13 +329,13 @@ pub fn show_with_keyboard(
     );
     remember(ctx);
     if let Some(mut host) = host {
-        let (shown, window) = match keyboard {
-            Spot::Screen(keyboard) => (keyboard, None),
-            Spot::Window(window) => (content, Some(window)),
-        };
         let typing_in = ctx.keyboard_window();
         ctx.with_input(
             |input| {
+                let input = match keyboard {
+                    Spot::Screen(_) => input.seen_from(window),
+                    Spot::Window(_) => input.clone(),
+                };
                 let input =
                     input.only(|event| !event.is_key() && !matches!(event, Event::Focus(_)));
                 match owns {
@@ -326,7 +343,10 @@ pub fn show_with_keyboard(
                     false => input.without_pointer(was),
                 }
             },
-            || host.show(ctx, shown, window),
+            || match keyboard {
+                Spot::Screen(keyboard) => ctx.draw_into(window, || host.show(ctx, keyboard, None)),
+                Spot::Window(own) => host.show(ctx, content, Some(own)),
+            },
         );
         ctx.set_keyboard_window(typing_in);
         document.set_keyboard_host(host);

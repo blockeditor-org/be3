@@ -132,10 +132,6 @@ pub fn pixels_per_point() -> ReadSignal<f32> {
     with_document(|document| document.watch_pixels_per_point())
 }
 
-pub fn use_screens() -> ReadSignal<Vec<beui_core::screens::Screen>> {
-    with_document(|document| document.watch_screens())
-}
-
 pub fn use_fullscreen() -> ReadSignal<bool> {
     with_document(|document| document.watch_fullscreen())
 }
@@ -199,7 +195,10 @@ fn listen(
     handler: impl Fn(beui_core::keys::KeyEvent) -> bool + 'static,
 ) {
     let handler: Rc<beui_core::keys::KeyHandler> = Rc::new(handler);
-    with_document(|document| document.listen_keys(at, phase, reveal, Rc::downgrade(&handler)));
+    let window = crate::components::window::use_window().map(|window| window.id);
+    with_document(|document| {
+        document.listen_keys(at, phase, reveal, Rc::downgrade(&handler), window)
+    });
     on_cleanup(move || drop(handler));
 }
 

@@ -3,7 +3,7 @@ use std::process::Child;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 
-use beui_core::app::automation::Reply;
+use beui_layer_drive::Reply;
 
 use crate::{Unanswered, launch, request};
 
@@ -51,7 +51,7 @@ impl Driven {
         )?;
         Ok(Self {
             child: Some(child),
-            socket: dir.join("automation.sock"),
+            socket: dir.join("drive.sock"),
             dir,
             log,
             timeout: crate::TIMEOUT,

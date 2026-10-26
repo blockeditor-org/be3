@@ -1,7 +1,7 @@
 # VR
 
-What remains of the plan that took the space host (`crates/beui-adapter-space`,
-`BEUI_ADAPTER=space`; guides/beui.md, "Space: the VR simulator host") from a
+What remains of the plan that took the space layer (`crates/beui-layer-space`,
+`BEUI_LAYERS=space`; guides/beui.md, "Space: the VR simulator layer") from a
 simulator on a flat screen to OpenXR headsets. The first headset is the
 Bigscreen Beyond on Windows through SteamVR, driven with a mouse and keyboard
 (no tracked controllers), then SteamVR and Monado on Linux. Items marked
@@ -13,15 +13,14 @@ Space already shows every window as a panel the viewer can carry, face, roll,
 scale, bend and resize through host chrome, with a drawn 3D cursor, a held
 pointer, per-window rasters that change without relayout, and placements
 (scale and bend included) that reopen a window where it was within a run
-(PR #691); nothing keeps them across restarts yet. A plugin's windows (the
-workspace dock's floating windows, linux-desktop's) are windows of block-app,
-and so panels of their own in space. So is every Wayland toplevel, shown as a
+(PR #691); nothing keeps them across restarts yet. Every Wayland toplevel is a
+panel of its own, shown as a
 floating dock window with its dialogs as windows over it, and each of its
 popups, a window over it (guides/linux_desktop.md, "Program windows"). It draws through any
 number of views, each a pose with an off-axis field of view (`head::View`,
-`head::Fov`): the simulator's one, or tracked views an XR host hands
+`head::Fov`): the simulator's one, or tracked views an XR layer hands
 `Space::set_views` and draws with `Space::draw` (guides/beui.md, "Views"), and
-`BEUI_XR=openxr` shows it on an OpenXR headset (`crates/beui-adapter-xr`; guides/beui.md, "Headsets"), with panels as composition layers where their order is plain.
+`BEUI_LAYERS=xr` shows it on an OpenXR headset (`crates/beui-layer-xr`; guides/beui.md, "Headsets"), with panels as composition layers where their order is plain.
 Input is a mouse pointer, a keyboard, and a laser per controller that acts as
 a finger, with grips that carry, scale and turn panels (guides/beui.md,
 "Lasers"), fed from OpenXR's controller actions or `drive xr`. While a
@@ -33,7 +32,7 @@ running without a headset.
 
 ## OpenXR follow-ups
 
-`BEUI_XR=openxr` shows space on a headset through `crates/beui-adapter-xr` on Linux
+`BEUI_LAYERS=xr` shows space on a headset through `crates/beui-layer-xr` on Linux
 and Windows (guides/beui.md, "Headsets"), checked in CI against Monado's null
 compositor and compiled for Windows by `./scripts/verify`. What remains:
 
@@ -52,12 +51,40 @@ compositor and compiled for Windows by `./scripts/verify`. What remains:
   while the head moves, cylinders) is untried. A panel that is carried or
   resized loses its layer and its swapchain is made again when let go;
   layer swapchains have one mip level.
-- **Other platforms.** beui-adapter-xr is compiled for Linux and Windows, but
+- **Other platforms.** beui-layer-xr is compiled for Linux and Windows, but
   `./scripts/verify` cross-checks only `windows_x86_64`; `windows_arm64` is
   untried. Elsewhere `Xr::open` refuses (Android is M9).
 - **Blocking.** `xrWaitFrame` blocks the main loop, which also runs plugins and
   the Wayland server; waiting on another thread and waking the loop would
   free it.
+
+## Plugin windows and rasters on one app per module
+
+Merging main's one-app-per-module plugin platform (#696) dropped the plugin
+side of two VR features; the protocol and block-app's side of both are still
+there:
+
+- **Plugin windows (M6).** block-plugin-api keeps `EditorRegion::Window(id)`,
+  `screen-request.opens-windows`, `frame-commit.window-requests` and the
+  editor's `window-reported`, and block-app still opens a `Window` holding a
+  `PluginRegion` per plugin window (`RegionWindows`). What is missing is the
+  module's side: beui-platform-plugin must set `WindowHosting::Any` while a
+  region's host opens windows, send the app's own `WindowRequest::Open` of a
+  window that is not a region's (a dock's floating window, linux-desktop's) as
+  `Frame::window_requests` of the region it was opened from, and draw and feed
+  that window when the host shows it as the `EditorRegion::Window(id)` region
+  (`Regions::window_reported` gets `Placed` and `Closed`). The old version,
+  under one runner per region, is `crates/beui-adapter-plugin/src/windows.rs`
+  and the test `a_window_is_a_region_of_its_own_only_where_the_host_opens_windows`
+  in claude/blissful-cerf-zssskg before the merge; app-tests'
+  `a_tab_popped_out_in_space_is_a_panel_of_its_own` checks it end to end.
+- **Raster.** The protocol carries `viewport-metrics.raster` and
+  `screen-placement.raster-millis` (`Region::raster`), and block-app sends the
+  embed's raster (`RegionPlacement::finer`, beside main's display
+  `RegionPlacement::raster`). beui-platform-plugin must draw each region's
+  window at its raster without laying it out again (the window's
+  `WindowReport::Rastered`); the old test is
+  `a_region_drawn_at_a_finer_raster_paints_its_text_sharper_without_laying_it_out`.
 
 ## Deferred milestones
 
@@ -65,7 +92,7 @@ The user has deferred these three; do not start them without asking.
 
 ### M9. Quest standalone
 
-The Android OpenXR loader in the APK, pacing in beui-adapter-android, the
+The Android OpenXR loader in the APK, pacing in beui-platform-android, the
 manifest, and the buck APK plumbing. First check whether today's APK runs as a
 2D panel app. Android reads none of the `BEUI_*` variables
 (`from_environment` in `crates/beui/src/window.rs` returns `None` there), so
@@ -87,7 +114,7 @@ Each 0.3-1k lines:
 
 The riskiest: wgpu has no WebXR binding, the WebGL route needs an
 `xrCompatible` WebGL2 context, and space must build for wasm and be wired into
-`run_web` (`crates/beui/src/web.rs`, which launches with `host: None`).
+`run_web` (`crates/beui/src/web.rs`, which launches with no layers).
 
 2k lines or more. **(ask)** whether WebXR is in scope.
 
@@ -109,8 +136,8 @@ The riskiest: wgpu has no WebXR binding, the WebGL route needs an
   through the plugin protocol (`window-reported`), which keeps them only in
   memory (`DockState` holds none); they join the shell's saved `DockState`.
 
-- **Plugin windows.** Outside space they stay overlays inside block-app's
-  panel; making them OS windows there is deferred. Drags a plugin starts on a window's bar reach block-app
+- **Plugin windows.** Outside space they stay overlays inside their region's
+  window; making them OS windows there is deferred. Drags a plugin starts on a window's bar reach block-app
   a frame or two late, so a press let go before `BeginMove` arrives starts a
   carry that ends at the next click. Drag and drop over a plugin window, and a
   window's accessibility (its nodes show in the frame's tree at the window's

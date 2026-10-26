@@ -130,7 +130,7 @@ async-lock = "3"
 be-dmabuf = { path = "../be-dmabuf" }
 be-wayland = { path = "../be-wayland" }
 be-remap-host = { path = "../remap/host" }
-beui-adapter-drm = { path = "../beui-adapter-drm" }
+beui-platform-drm = { path = "../beui-platform-drm" }
 pollster = "0.4"
 # The PulseAudio protocol, which pipewire-pulse serves, in pure Rust: the volume
 # keys set the default sink's and source's volume and mute through it.

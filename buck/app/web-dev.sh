@@ -97,7 +97,7 @@ export NODE_PATH=$NODE_PATH
 drive() { node "$drive" "\$@"; }
 ENV
 . "$dir/env"
-if ! timeout 60 sh -c ". '$dir/env'; until drive tree 2> /dev/null | grep -q '^Window'; do sleep 0.2; done"; then
+if ! timeout 60 sh -c ". '$dir/env'; until drive app tree 2> /dev/null | grep -q '^Window'; do sleep 0.2; done"; then
     echo "The page did not start; see $dir/browser.log." >&2
     exit 1
 fi

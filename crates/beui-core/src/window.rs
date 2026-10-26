@@ -1,11 +1,59 @@
 pub(crate) mod hosted;
 
 use crate::color::Color32;
+use crate::geometry::Vec2;
 
 pub use ui_types::window::{
     HostPlacement, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest,
     WindowRequests, WindowRole,
 };
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum WindowHosting {
+    #[default]
+    None,
+    Placed,
+    Any,
+}
+
+pub const MAX_PIXELS: f32 = 8192.0;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WindowSize {
+    pub size: Vec2,
+    pub scale: f32,
+}
+
+impl WindowSize {
+    pub fn parse(text: &str) -> Option<Self> {
+        let (size, scale) = match text.split_once('@') {
+            Some((size, scale)) => (
+                size,
+                scale
+                    .parse::<f32>()
+                    .ok()
+                    .filter(|scale| scale.is_finite() && *scale > 0.0)?,
+            ),
+            None => (text, 1.0),
+        };
+        let (width, height) = size.split_once('x')?;
+        let size = Vec2::new(width.parse().ok()?, height.parse().ok()?);
+        Some(Self { size, scale }).filter(Self::fits)
+    }
+
+    pub fn fits(&self) -> bool {
+        let fits = |length: f32| {
+            (1.0..=MAX_PIXELS).contains(&length)
+                && (1.0..=MAX_PIXELS).contains(&(length * self.scale))
+        };
+        fits(self.size.x) && fits(self.size.y)
+    }
+}
+
+pub enum Resize {
+    Window(WindowSize),
+    Screen(Vec2),
+}
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct WindowState {

@@ -43,6 +43,7 @@ fn the_volume_in_the_bar_follows_the_host_and_opens_its_controls() {
         document.api::<ToggleApi>(mute).checked().get(),
         "and in the open popup"
     );
+    drop(document);
     assert!(
         fixture
             .test

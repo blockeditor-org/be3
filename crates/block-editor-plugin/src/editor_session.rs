@@ -11,7 +11,7 @@ use block_plugin_api::{
     WindowRequest,
 };
 use block_ui::BlockCatalog;
-use geometry::{Rect, Vec2, pos2, vec2};
+use geometry::{Pos2, Rect, Vec2, vec2};
 use std::{
     collections::{HashMap, HashSet},
     rc::Rc,
@@ -21,8 +21,8 @@ use uuid::Uuid;
 
 #[cfg(target_arch = "wasm32")]
 use crate::plugin::PaintTarget;
-use crate::plugin::{Frame, Instance, Region, RegionMonitor};
-use crate::{EditorHost, Waker, host::BlockDrag};
+use crate::plugin::{Frame, Instance, Region, RegionId};
+use crate::{EditorHost, Module, Waker, host::BlockDrag};
 
 pub type Open = fn(EditorHost) -> Box<dyn Instance>;
 
@@ -30,6 +30,8 @@ static NEXT_EPOCH: AtomicU64 = AtomicU64::new(1);
 
 pub struct EditorSession {
     app: Box<dyn Instance>,
+    module: Module,
+    opened: HashSet<EditorRegion>,
     instance: EditorInstanceId,
     regions: HashMap<EditorRegion, RegionState>,
     host: EditorHost,
@@ -100,19 +102,35 @@ struct RegionState {
 impl Drop for EditorSession {
     fn drop(&mut self) {
         self.host.cancel_tasks();
+        self.module.leave(self.instance);
     }
 }
 
 impl EditorSession {
     pub fn new(instance: EditorInstanceId, waker: Waker, open: Open) -> Self {
+        Self::joining(instance, waker, open, &Module::default())
+    }
+
+    pub(crate) fn joining(
+        instance: EditorInstanceId,
+        waker: Waker,
+        open: Open,
+        module: &Module,
+    ) -> Self {
         let host = EditorHost::new(waker);
+        host.set_instance(instance);
+        module.enter(instance, &host);
         Self::adopt(instance, open(host.clone()), host)
     }
 
     pub fn adopt(instance: EditorInstanceId, app: Box<dyn Instance>, host: EditorHost) -> Self {
         host.set_instance(instance);
+        let module = host.module().unwrap_or_default();
+        module.enter(instance, &host);
         Self {
             app,
+            module,
+            opened: HashSet::new(),
             instance,
             regions: HashMap::new(),
             host,
@@ -144,6 +162,22 @@ impl EditorSession {
 
     pub fn instance_mut(&mut self) -> &mut dyn Instance {
         self.app.as_mut()
+    }
+
+    pub fn module(&self) -> &Module {
+        &self.module
+    }
+
+    pub(crate) fn join(&mut self, module: &Module) {
+        self.module.leave(self.instance);
+        module.enter(self.instance, &self.host);
+        self.module = module.clone();
+    }
+
+    fn open(&mut self, region: EditorRegion) {
+        if self.opened.insert(region) {
+            self.app.open_region(region);
+        }
     }
 
     pub(crate) fn set_view_block(&self, view_block: Option<Uuid>) {
@@ -189,8 +223,7 @@ impl EditorSession {
         let parent = crate::graph::BlockParent::decode(parent);
         let within = within.map(Uuid::from_bytes);
         self.picks.insert(pick, answer);
-        let origin = self.rect(EditorRegion::Frame).min.to_vec2();
-        let anchor = filter.anchor.map(|anchor| anchor.translate(origin));
+        let anchor = filter.anchor;
         self.host.request_pick(crate::host::PickRequest {
             pick,
             filter,
@@ -604,11 +637,10 @@ impl EditorSession {
     }
 
     fn used(&mut self, region: EditorRegion, content: Rect) {
-        let origin = self.rect(region).min;
         let Some(state) = self.regions.get_mut(&region) else {
             return;
         };
-        let used = (content.max - origin).max(Vec2::ZERO);
+        let used = content.max.to_vec2().max(Vec2::ZERO);
         state.used = Some(vec2(used.x.round(), used.y.round()));
     }
 
@@ -669,43 +701,35 @@ impl EditorSession {
             .and_then(|state| state.placement.as_ref())
     }
 
-    fn rect(&self, region: EditorRegion) -> Rect {
-        let state = self.regions.get(&region);
-        let (Some(_), Some(metrics)) = (
-            state.and_then(|state| state.placement.as_ref()),
-            state.and_then(|state| state.metrics.as_ref()),
-        ) else {
-            return Rect::ZERO;
-        };
-        Rect::from_min_size(
-            pos2(-metrics.visible.x, -metrics.visible.y),
-            vec2(metrics.logical.width, metrics.logical.height),
-        )
+    fn metrics(&self, region: EditorRegion) -> Option<&ViewportMetrics> {
+        let state = self.regions.get(&region)?;
+        state.placement.as_ref()?;
+        state.metrics.as_ref()
     }
 
-    fn monitors(&self, region: EditorRegion) -> Vec<RegionMonitor> {
-        let origin = self.rect(region).min.to_vec2();
-        self.regions
-            .get(&region)
-            .and_then(|state| state.metrics.as_ref())
-            .map_or_else(Vec::new, |metrics| {
-                metrics
-                    .monitors
-                    .iter()
-                    .map(|monitor| RegionMonitor {
-                        id: monitor.id.clone(),
-                        name: monitor.name.clone(),
-                        rect: monitor.rect.translate(origin),
-                    })
-                    .collect()
-            })
+    fn rect(&self, region: EditorRegion) -> Rect {
+        self.metrics(region).map_or(Rect::ZERO, |metrics| {
+            Rect::from_min_size(
+                Pos2::ZERO,
+                vec2(metrics.logical.width, metrics.logical.height),
+            )
+        })
+    }
+
+    fn visible(&self, region: EditorRegion) -> Vec2 {
+        self.metrics(region).map_or(Vec2::ZERO, |metrics| {
+            vec2(metrics.visible.x, metrics.visible.y)
+        })
     }
 
     fn context(&self, region: EditorRegion) -> Region {
         let state = self.regions.get(&region);
         Region {
+            instance: self.instance,
             region,
+            block: self.own_block,
             rect: self.rect(region),
+            visible: self.visible(region),
             scale_factor: self.scale_factor(region),
             raster: self.raster(region),
             pixels: self
@@ -717,7 +741,6 @@ impl EditorSession {
                 .get(&region)
                 .and_then(|state| state.frame)
                 .unwrap_or_default(),
-            monitors: self.monitors(region),
             describe: state
                 .filter(|_| region == EditorRegion::Frame && crate::screens::describing())
                 .map(|state| state.epoch),
@@ -727,46 +750,77 @@ impl EditorSession {
     }
 
     pub fn run(&mut self, region: EditorRegion, age: u32) -> Frame {
+        self.frame(&[(region, age)]).pop().unwrap_or_default()
+    }
+
+    pub fn frame(&mut self, regions: &[(EditorRegion, u32)]) -> Vec<Frame> {
+        let begun: Vec<Region> = regions
+            .iter()
+            .map(|(region, age)| self.begin(*region, *age))
+            .collect();
+        let module = self.module.clone();
+        let mut frames = module
+            .with_handler(|handler| handler.frame(&begun))
+            .unwrap_or_default();
+        frames.resize_with(begun.len(), Frame::default);
+        begun
+            .iter()
+            .zip(frames)
+            .map(|(region, frame)| self.finish(region.region, frame))
+            .collect()
+    }
+
+    pub fn begin(&mut self, region: EditorRegion, age: u32) -> Region {
+        self.open(region);
         if let Some(state) = self.regions.get_mut(&region) {
             state.age = age;
         }
         let context = self.context(region);
-        let host = context.rect;
-        let origin = host.min.to_vec2();
-        let mut draft = self
-            .artifact
+        self.host.begin_region(region);
+        if region == EditorRegion::Frame {
+            self.host
+                .set_chrome_shown(context.spec.chrome == FrameChrome::Drawn);
+            self.host.set_placed_content(context.spec.content);
+        }
+        let drag = self
+            .drag
+            .and_then(|(dragged, drag)| (dragged == region).then_some(drag));
+        self.host.set_drag(region, drag);
+        let files = self
+            .files
             .as_ref()
-            .filter(|_| region == EditorRegion::ArtifactSettings)
-            .map(|artifact| artifact.draft.clone());
-        self.host.begin_region(region, origin);
-        self.host
-            .set_chrome_shown(context.spec.chrome == FrameChrome::Drawn);
-        self.host.set_placed_content(context.spec.content);
-        let drag = self.drag.and_then(|(dragged, drag)| {
-            (dragged == region).then(|| BlockDrag {
-                position: drag.position + origin,
-                ..drag
-            })
-        });
-        self.host.set_drag(drag);
-        let files = self.files.as_ref().and_then(|(dropped, files)| {
-            (*dropped == region).then(|| crate::host::FileDrop {
-                position: files.position + origin,
-                ..files.clone()
-            })
-        });
-        let delivered_drop = drag.is_some_and(|drag| drag.dropped);
-        let delivered_files = files.as_ref().is_some_and(|files| files.dropped);
-        self.host.set_files(files);
+            .and_then(|(dropped, files)| (*dropped == region).then(|| files.clone()));
+        self.host.set_files(region, files);
+        if region == EditorRegion::ArtifactSettings {
+            let draft = self
+                .artifact
+                .as_ref()
+                .map(|artifact| artifact.draft.clone());
+            self.host.open_settings_draft(draft);
+        }
+        context
+    }
 
-        let mut frame = self.app.update(&context, draft.as_mut());
+    pub fn finish(&mut self, region: EditorRegion, mut frame: Frame) -> Frame {
+        let host = self.rect(region);
+        let draft = match region {
+            EditorRegion::ArtifactSettings => self.host.close_settings_draft(),
+            EditorRegion::Frame | EditorRegion::Preview => None,
+        };
+        let delivered_drop = self
+            .drag
+            .is_some_and(|(dragged, drag)| dragged == region && drag.dropped);
+        let delivered_files = self
+            .files
+            .as_ref()
+            .is_some_and(|(dropped, files)| *dropped == region && files.dropped);
         if let Some(state) = self.regions.get_mut(&region)
             && state.stopped.is_none()
         {
             state.stopped = frame.stopped.take();
         }
 
-        if let Some(delay) = self.host.take_frame_request() {
+        if let Some(delay) = self.host.take_frame_request(region) {
             frame.repaint_after = Some(frame.repaint_after.map_or(delay, |held| held.min(delay)));
         }
         if let (Some(artifact), Some(draft)) = (self.artifact.as_mut(), draft) {
@@ -774,8 +828,8 @@ impl EditorSession {
             artifact.draft = draft;
         }
         let (placed, occluders) = self.host.end_region(region);
-        self.host.set_drag(None);
-        self.host.set_files(None);
+        self.host.set_drag(region, None);
+        self.host.set_files(region, None);
         if delivered_drop {
             self.drag = None;
         }
@@ -785,10 +839,9 @@ impl EditorSession {
         let screen = self.placement(region).map(|placement| placement.screen);
         let content = frame.content.unwrap_or(host);
         self.used(region, content);
-        let reported = |rect: Rect| rect.translate(-origin);
         let reported_content = self
             .host
-            .take_content()
+            .take_content(region)
             .map(|reported| reported.intersect(content))
             .filter(|reported| reported.is_positive())
             .unwrap_or(content);
@@ -798,10 +851,7 @@ impl EditorSession {
             state
                 .window_requests
                 .extend(std::mem::take(&mut frame.window_requests));
-            state.window = block_plugin_api::WindowRequests {
-                ime: frame.window.ime.clone().map(|ime| ime.translated(-origin)),
-                ..frame.window.clone()
-            };
+            state.window = frame.window.clone();
             let reports = matches!(region, EditorRegion::Frame | EditorRegion::Window(_));
             match frame.description.as_mut() {
                 Some(description) => {
@@ -813,17 +863,17 @@ impl EditorSession {
             }
             state.report = reports.then(|| FrameReport {
                 screen,
-                content: reported(reported_content),
-                painted: frame.painted.iter().map(|rect| reported(*rect)).collect(),
-                floating: frame.floating.iter().map(|rect| reported(*rect)).collect(),
-                drawing: frame.drawing.iter().map(|rect| reported(*rect)).collect(),
+                content: reported_content,
+                painted: frame.painted.clone(),
+                floating: frame.floating.clone(),
+                drawing: frame.drawing.clone(),
                 every_sample: frame.every_sample,
                 claims: frame
                     .claims
                     .iter()
                     .map(|claim| block_plugin_api::PressClaim {
                         modifiers: claim.modifiers,
-                        rect: reported(claim.rect),
+                        rect: claim.rect,
                     })
                     .collect(),
                 description: frame.description.as_ref().map(|description| {
@@ -837,32 +887,56 @@ impl EditorSession {
         frame
     }
 
+    fn id(&self, region: EditorRegion) -> RegionId {
+        RegionId {
+            instance: self.instance,
+            region,
+        }
+    }
+
     pub(crate) fn painting(&mut self, region: EditorRegion) -> Option<paint_format::Painting> {
-        self.app.painting(region)
+        let id = self.id(region);
+        self.module.with_handler(|handler| handler.painting(id))?
     }
 
     pub(crate) fn overflows(&mut self, region: EditorRegion) -> Vec<String> {
-        self.app.overflows(region)
+        let id = self.id(region);
+        self.module
+            .with_handler(|handler| handler.overflows(id))
+            .unwrap_or_default()
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub fn paint(&mut self, target: &PaintTarget<'_>) -> Vec<block_plugin_api::SurfaceRect> {
-        self.app.paint(target)
+    pub fn paint(
+        &mut self,
+        region: EditorRegion,
+        target: &PaintTarget<'_>,
+    ) -> Vec<block_plugin_api::SurfaceRect> {
+        let id = self.id(region);
+        self.module
+            .with_handler(|handler| handler.paint(id, target))
+            .unwrap_or_default()
     }
 
     pub(crate) fn input(&mut self, region: EditorRegion, event: &TimedInput) {
+        self.open(region);
         let context = self.context(region);
-        self.app.input(&context, event);
+        self.module
+            .with_handler(|handler| handler.input(&context, event));
     }
 
     pub(crate) fn node_action(&mut self, region: EditorRegion, request: ActionRequest) {
+        self.open(region);
         let context = self.context(region);
-        self.app.node_action(&context, request);
+        self.module
+            .with_handler(|handler| handler.node_action(&context, request));
     }
 
     pub(crate) fn run_action(&mut self, region: EditorRegion, id: &str) {
+        self.open(region);
         let context = self.context(region);
-        self.app.run_action(&context, id);
+        self.module
+            .with_handler(|handler| handler.run_action(&context, id));
     }
 
     pub fn report(&self, region: EditorRegion) -> Option<&FrameReport> {

@@ -20,13 +20,16 @@ pub(crate) fn above_bar(screen: Rect, bar: Rect) -> Rect {
 }
 
 #[component]
-pub(crate) fn DesktopToasts(notifications: DesktopNotifications, bar: NodeRef) -> NodeId {
+pub(crate) fn DesktopToasts(
+    notifications: DesktopNotifications,
+    bar: NodeRef,
+    displays: Memo<Vec<Rect>>,
+) -> NodeId {
     let bar = bar.try_get().map(node_rect);
-    let screens = use_screens();
     let anchor = create_memo(move || {
         let bar = bar.as_ref().map_or(Rect::ZERO, |bar| bar.get());
-        let screen = screens.with(|screens| screens.first().map(|screen| screen.rect));
-        OverlayAnchor::Rect(above_bar(screen.unwrap_or(Rect::ZERO), bar))
+        let display = displays.with(|displays| displays.first().copied());
+        OverlayAnchor::Rect(above_bar(display.unwrap_or(Rect::ZERO), bar))
     });
     let toasts = notifications.toasts();
     view! {

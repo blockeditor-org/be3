@@ -5,27 +5,44 @@ use block_plugin_api::{
 use uuid::Uuid;
 
 use crate::headless::HeadlessPlugin;
-use crate::{EditorHost, Frame, Instance, Region, Waker};
+use crate::{EditorHost, Frame, Instance, Region, Regions, Waker};
 
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 const SCREEN: ScreenId = ScreenId(1);
 
-struct Still;
+struct Still(EditorHost);
 
 impl Instance for Still {
     fn connect(&mut self, _block_id: Uuid) {}
 
+    fn open_region(&mut self, _region: EditorRegion) {
+        if !self.0.handles_regions() {
+            self.0.handle_regions(Box::new(StillRegions));
+        }
+    }
+}
+
+struct StillRegions;
+
+impl Regions for StillRegions {
     fn input(&mut self, _region: &Region, _event: &TimedInput) {}
 
-    fn update(&mut self, region: &Region, _settings: Option<&mut Vec<u8>>) -> Frame {
-        Frame {
-            painted: vec![region.rect],
-            ..Frame::default()
-        }
+    fn frame(&mut self, regions: &[Region]) -> Vec<Frame> {
+        regions
+            .iter()
+            .map(|region| Frame {
+                painted: vec![region.rect],
+                ..Frame::default()
+            })
+            .collect()
     }
 
     #[cfg(target_arch = "wasm32")]
-    fn paint(&mut self, target: &crate::PaintTarget<'_>) -> Vec<block_plugin_api::SurfaceRect> {
+    fn paint(
+        &mut self,
+        _region: crate::RegionId,
+        target: &crate::PaintTarget<'_>,
+    ) -> Vec<block_plugin_api::SurfaceRect> {
         target.whole()
     }
 }
@@ -48,7 +65,6 @@ fn configure(plugin: &mut HeadlessPlugin, height: f32, serial: u64) {
                 pixel_height: height as u32,
                 scale_factor: 1.0,
                 raster: 1.0,
-                monitors: Vec::new(),
             },
         }])
         .unwrap();
@@ -73,7 +89,8 @@ fn a_frame_carries_the_serial_of_the_host_state_it_was_laid_out_against() {
             preferences: block_plugin_api::Preferences::default(),
         })
         .unwrap();
-    plugin.adopt(INSTANCE, Box::new(Still), EditorHost::new(Waker::default()));
+    let host = EditorHost::new(Waker::default());
+    plugin.adopt(INSTANCE, Box::new(Still(host.clone())), host);
     plugin
         .open(Opening::Block(OpenBlock {
             instance: INSTANCE,

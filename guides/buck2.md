@@ -223,8 +223,8 @@ sysroot.
 ## Tests
 
 Most tests run on the workers, including beui-renderer-wgpu's, be-dmabuf's, be-wayland's and
-beui-adapter-drm's, which draw
-through lavapipe from `buck/sysroot:amd64-test` (beui-adapter-xr's from
+beui-platform-drm's, which draw
+through lavapipe from `buck/sysroot:amd64-test` (beui-layer-xr's from
 `buck/sysroot:amd64-xr`, the same set with Monado's OpenXR runtime and
 service, which its test runs headless); a test whose `env` names
 `LD_LIBRARY_PATH` is built as a harness binary and run through
@@ -294,7 +294,7 @@ turns.
 
 All of them build on the same Linux workers. `./scripts/verify` also runs
 rustc's check pass over beui for Windows x86_64 (`_CROSS_CHECKS` in
-`buck/dev/verify.bxl`), where beui-adapter-xr's first headset is, in its one buck2
+`buck/dev/verify.bxl`), where beui-layer-xr's first headset is, in its one buck2
 command. CI ships nothing built for a
 device: the build helper (guides/build_server.md) builds the Android app and
 launcher (`:android-dist`) and the desktop app for any platform when
@@ -331,7 +331,7 @@ A native target depends on a wasm one through a transition in
 - The APK is assembled on a worker without Gradle (`buck-tools apk`):
   aapt2, javac and d8, block-app's `[cdylib]` and `libc++_shared.so`, the
   plugins precompiled for arm64 (only the `.cwasm`s), and `zipalign -P 16`. The Java is
-  the app's own and beui's (`//crates/beui-adapter-android:android-java`), against the
+  the app's own and beui's (`//crates/beui-platform-android:android-java`), against the
   platform alone: the APK carries no libraries. Every Android target builds
   an aligned unsigned template without build metadata. `buck2 run` appends
   metadata and signs on the requesting machine with `local-tools apk-sign`. `:android` uses `target/android-debug.keystore`, made on first use.

@@ -1,0 +1,55 @@
+[package]
+name = "beui-platform-web"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+beui-core = { path = "../beui-core" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+js-sys = "0.3"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = [
+    "AddEventListenerOptions",
+    "Blob",
+    "BlobPropertyBag",
+    "Clipboard",
+    "ClipboardEvent",
+    "CompositionEvent",
+    "CssStyleDeclaration",
+    "DataTransfer",
+    "Document",
+    "DomRect",
+    "DragEvent",
+    "Element",
+    "Event",
+    "EventTarget",
+    "File",
+    "FileList",
+    "FocusEvent",
+    "HtmlAnchorElement",
+    "HtmlElement",
+    "HtmlInputElement",
+    "HtmlTextAreaElement",
+    "InputEvent",
+    "KeyboardEvent",
+    "MediaQueryList",
+    "MouseEvent",
+    "Navigator",
+    "Performance",
+    "PointerEvent",
+    "ResizeObserver",
+    "ResizeObserverEntry",
+    "Touch",
+    "TouchEvent",
+    "TouchList",
+    "Url",
+    "WheelEvent",
+    "Window",
+    "console",
+] }
+
+[lints]
+workspace = true

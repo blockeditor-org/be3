@@ -14,7 +14,7 @@ fn a_driver_aims_and_pulls_a_controller_through_the_host() {
     let mut driven = crate::testing::Stepped::hosting_windows(
         context(),
         crate::testing::Showing(document),
-        beui_core::app::automation::WindowSize {
+        crate::WindowSize {
             size: VIEWPORT,
             scale: 1.0,
         },

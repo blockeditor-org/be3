@@ -1,15 +1,15 @@
 use std::error::Error;
 use std::sync::Arc;
 
-use beui_adapter_xr::Xr;
 use beui_core::app::App;
+use beui_layer_xr::Xr;
 use beui_core::renderer::{Loaded, WindowHandle, any_loaded};
 use beui_renderer_wgpu::present::OpenDevice;
 use beui_renderer_wgpu::window::WindowSurface;
 
-use beui_core::runner::{Adapter, Launch, RunOptions};
+use beui_core::runner::{Launch, Layer, Platform, RunOptions};
 
-use beui_core::runner::environment::{Base, Choice};
+use beui_core::runner::environment::{Base, Choice, Stacked};
 
 pub enum WindowRenderer {
     Wgpu { open_device: OpenDevice },
@@ -28,11 +28,11 @@ pub fn run_with(options: RunOptions, app: impl App + 'static) -> Result<(), Box<
 }
 
 pub fn run_with_renderers(
-    mut options: RunOptions,
+    options: RunOptions,
     mut renderers: Vec<WindowRenderer>,
     app: impl App + 'static,
 ) -> Result<(), Box<dyn Error>> {
-    let choice = from_environment(&mut options, NATIVE)?;
+    let choice = from_environment(NATIVE)?;
     let xr = open_xr(choice.as_ref(), &application_name(&options));
     if let Some(xr) = &xr {
         for renderer in &mut renderers {
@@ -50,7 +50,7 @@ pub fn run_with_renderers(
     let app: Box<dyn App> = match (&choice, options.saved_preferences.clone()) {
         (
             Some(Choice {
-                adapter: Base::Native,
+                platform: Base::Native,
                 ..
             })
             | None,
@@ -58,14 +58,15 @@ pub fn run_with_renderers(
         ) => Box::new(crate::saved_preferences::SavedPreferences::new(app, path)),
         _ => Box::new(app),
     };
-    let adapter = adapt(choice, xr, open_device, || window_adapter(renderers));
+    let (platform, layers) =
+        choose_platform(choice, xr, open_device, || native_platform(renderers))?;
     let launch = Launch {
         options,
         context: crate::system_context(),
         app,
-        host: None,
+        layers,
     };
-    pollster::block_on(adapter.run(launch))
+    pollster::block_on(platform.run(launch))
 }
 
 #[cfg(target_os = "android")]
@@ -74,24 +75,13 @@ const NATIVE: &str = "android";
 const NATIVE: &str = "winit";
 
 #[cfg(not(target_os = "android"))]
-fn from_environment(
-    options: &mut RunOptions,
-    native: &str,
-) -> Result<Option<Choice>, Box<dyn Error>> {
-    if options.automation.is_none()
-        && let Some(path) = std::env::var_os(beui_core::runner::environment::AUTOMATION)
-    {
-        options.automation = Some(serve(std::path::Path::new(&path))?);
-    }
+fn from_environment(native: &str) -> Result<Option<Choice>, Box<dyn Error>> {
     let choice = beui_core::runner::environment::choose(native, |name| std::env::var(name).ok())?;
     Ok(Some(choice))
 }
 
 #[cfg(target_os = "android")]
-fn from_environment(
-    _options: &mut RunOptions,
-    _native: &str,
-) -> Result<Option<Choice>, Box<dyn Error>> {
+fn from_environment(_native: &str) -> Result<Option<Choice>, Box<dyn Error>> {
     Ok(None)
 }
 
@@ -107,7 +97,7 @@ fn application_name(options: &RunOptions) -> String {
 }
 
 fn open_xr(choice: Option<&Choice>, application: &str) -> Option<Xr> {
-    if !choice.is_some_and(|choice| choice.xr) {
+    if !choice.is_some_and(|choice| choice.layers.contains(&Stacked::Xr)) {
         return None;
     }
     match Xr::open(application) {
@@ -122,19 +112,19 @@ fn open_xr(choice: Option<&Choice>, application: &str) -> Option<Xr> {
     }
 }
 
-fn adapt(
+fn choose_platform(
     choice: Option<Choice>,
     xr: Option<Xr>,
     open_device: OpenDevice,
-    native: impl FnOnce() -> Box<dyn Adapter>,
-) -> Box<dyn Adapter> {
+    native: impl FnOnce() -> Box<dyn Platform>,
+) -> Result<(Box<dyn Platform>, Vec<Box<dyn Layer>>), Box<dyn Error>> {
     let Some(choice) = choice else {
-        return native();
+        return Ok((native(), Vec::new()));
     };
-    let adapter = match choice.adapter {
+    let platform = match choice.platform {
         Base::Native => native(),
         #[cfg(not(target_os = "android"))]
-        Base::Headless { window, screen } => Box::new(beui_adapter_headless::Headless {
+        Base::Headless { window, screen } => Box::new(beui_platform_headless::Headless {
             window,
             screen,
             open_device,
@@ -146,36 +136,88 @@ fn adapt(
             native()
         }
     };
-    if !choice.space {
-        return adapter;
-    }
-    let space = beui_adapter_space::Space::new();
-    let host: Box<dyn beui_core::runner::WindowHost> = match xr {
-        Some(xr) => Box::new(beui_adapter_xr::XrSpace::new(space, xr.headset())),
-        None => Box::new(space),
+    let drives = choice
+        .layers
+        .iter()
+        .filter(|layer| **layer == Stacked::Drive)
+        .count();
+    let mut taps: Vec<beui_layer_drive::Drive> = match drives {
+        0 => Vec::new(),
+        _ => {
+            let path = std::env::var_os(beui_core::runner::environment::DRIVE_SOCKET)
+                .ok_or("BEUI_LAYERS names drive without BEUI_DRIVE_SOCKET")?;
+            let inbox = serve(std::path::Path::new(&path))?;
+            match drives {
+                1 => vec![beui_layer_drive::Drive::new(inbox)],
+                _ => {
+                    let (screen, app) = beui_layer_drive::Drive::taps(inbox);
+                    vec![app, screen]
+                }
+            }
+        }
     };
-    Box::new(beui_core::runner::HostedAdapter { adapter, host })
+    let mut xr = xr;
+    let layers = choice
+        .layers
+        .iter()
+        .filter_map(|layer| stack(*layer, &mut xr, &mut taps))
+        .collect();
+    Ok((platform, layers))
+}
+
+fn stack(
+    layer: Stacked,
+    xr: &mut Option<Xr>,
+    taps: &mut Vec<beui_layer_drive::Drive>,
+) -> Option<Box<dyn Layer>> {
+    match layer {
+        Stacked::Space => Some(Box::new(beui_layer_space::Space::new())),
+        Stacked::Xr => {
+            let space = beui_layer_space::Space::new();
+            Some(match xr.take() {
+                Some(xr) => Box::new(beui_layer_xr::XrSpace::new(space, xr.headset())),
+                None => Box::new(space),
+            })
+        }
+        Stacked::Drive => Some(Box::new(taps.pop()?)),
+    }
 }
 
 #[cfg(all(unix, not(target_os = "android")))]
-fn serve(path: &std::path::Path) -> Result<beui_core::app::automation::Inbox, Box<dyn Error>> {
-    let inbox = beui_core::app::automation::Inbox::default();
-    beui_core::app::automation::socket::serve(path, inbox.clone()).map_err(|error| {
+fn serve(path: &std::path::Path) -> Result<beui_layer_drive::Inbox, Box<dyn Error>> {
+    use beui_layer_drive::socket;
+    let inbox = beui_layer_drive::Inbox::default();
+    let served = match std::env::var(beui_core::runner::environment::DRIVE_LISTENER) {
+        Ok(fd) => {
+            let fd: std::os::fd::RawFd = fd
+                .parse()
+                .map_err(|_| format!("BEUI_DRIVE_LISTENER takes a file descriptor, not {fd}"))?;
+            // unsafe(ffi)
+            let inherited = unsafe {
+                <std::os::unix::net::UnixListener as std::os::fd::FromRawFd>::from_raw_fd(fd)
+            };
+            inherited
+                .try_clone()
+                .and_then(|listener| socket::serve_on(listener, path, inbox.clone()))
+        }
+        Err(_) => socket::serve(path, inbox.clone()),
+    };
+    served.map_err(|error| {
         format!(
             "{}: could not listen on {}: {error}",
-            beui_core::runner::environment::AUTOMATION,
+            beui_core::runner::environment::DRIVE_SOCKET,
             path.display()
         )
     })?;
     Ok(inbox)
 }
 
-#[cfg(not(any(unix, target_os = "android")))]
-fn serve(_path: &std::path::Path) -> Result<beui_core::app::automation::Inbox, Box<dyn Error>> {
-    Err("BEUI_AUTOMATION needs a Unix socket, which this platform lacks".into())
+#[cfg(not(all(unix, not(target_os = "android"))))]
+fn serve(_path: &std::path::Path) -> Result<beui_layer_drive::Inbox, Box<dyn Error>> {
+    Err("BEUI_DRIVE_SOCKET needs a Unix socket, which this platform lacks".into())
 }
 
-pub fn window_adapter(renderers: Vec<WindowRenderer>) -> Box<dyn Adapter> {
+pub fn native_platform(renderers: Vec<WindowRenderer>) -> Box<dyn Platform> {
     let load = move |window: Arc<dyn WindowHandle>| {
         let results = renderers
             .into_iter()
@@ -185,9 +227,9 @@ pub fn window_adapter(renderers: Vec<WindowRenderer>) -> Box<dyn Adapter> {
         })
     };
     #[cfg(target_os = "android")]
-    return Box::new(beui_adapter_android::Android::new(load));
+    return Box::new(beui_platform_android::Android::new(load));
     #[cfg(not(target_os = "android"))]
-    return Box::new(beui_adapter_winit::Winit::new(load));
+    return Box::new(beui_platform_winit::Winit::new(load));
 }
 
 fn load(renderer: WindowRenderer, window: Arc<dyn WindowHandle>) -> Result<Loaded, Box<dyn Error>> {
@@ -200,20 +242,23 @@ fn load(renderer: WindowRenderer, window: Arc<dyn WindowHandle>) -> Result<Loade
 }
 
 pub fn run_on(
-    adapter: Box<dyn Adapter>,
-    mut options: RunOptions,
+    platform: Box<dyn Platform>,
+    options: RunOptions,
     app: impl App + 'static,
 ) -> Result<(), Box<dyn Error>> {
-    let choice = from_environment(&mut options, adapter.name())?;
-    if choice.as_ref().is_some_and(|choice| choice.xr) {
-        eprintln!("beui: {} cannot show space on a headset", adapter.name());
+    let choice = from_environment(platform.name())?;
+    if choice
+        .as_ref()
+        .is_some_and(|choice| choice.layers.contains(&Stacked::Xr))
+    {
+        eprintln!("beui: {} cannot show space on a headset", platform.name());
     }
-    let adapter = adapt(choice, None, OpenDevice::default(), || adapter);
+    let (platform, layers) = choose_platform(choice, None, OpenDevice::default(), || platform)?;
     let launch = Launch {
         options,
         context: crate::system_context(),
         app: Box::new(app),
-        host: None,
+        layers,
     };
-    pollster::block_on(adapter.run(launch))
+    pollster::block_on(platform.run(launch))
 }

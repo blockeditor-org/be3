@@ -1,60 +1,55 @@
-use std::io::{Read, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{SocketAddr, TcpStream};
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::process::{Child, Command, Stdio};
 
 use be_server::store::ServerStore;
 
+use crate::cores::Cores;
+use crate::{ONE_WAY, latency};
+
 pub const EMAIL: &str = "ada@example.com";
 pub const PASSWORD: &str = "correct horse battery";
+pub const SERVE: &str = "serve";
 
 pub struct Server {
     pub address: SocketAddr,
-    shutdown: Option<tokio::sync::oneshot::Sender<()>>,
-    thread: Option<std::thread::JoinHandle<()>>,
+    pub url: String,
+    child: Option<Child>,
 }
 
 impl Server {
-    pub fn start(build_info: &Path, data: PathBuf) -> Result<Self, String> {
-        build_id::install_from(build_info)?;
-        let runtime = tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .map_err(|error| error.to_string())?;
-        let listener = runtime
-            .block_on(async {
-                let store = ServerStore::open(&data)?;
-                store.register(EMAIL, "Ada", PASSWORD).await?;
-                Ok::<_, be_server::ServerError>(())
-            })
-            .map_err(|error| format!("could not make the account: {error}"))
-            .and_then(|()| {
-                runtime
-                    .block_on(tokio::net::TcpListener::bind("127.0.0.1:0"))
-                    .map_err(|error| error.to_string())
-            })?;
-        let address = listener.local_addr().map_err(|error| error.to_string())?;
-        let (shutdown, stopped) = tokio::sync::oneshot::channel();
-        let thread = std::thread::Builder::new()
-            .name("bench-server".into())
-            .spawn(move || {
-                runtime.block_on(async move {
-                    if let Err(error) = be_server::serve_with_config(
-                        listener,
-                        data,
-                        be_server::ServerConfig::OPEN,
-                        stopped,
-                    )
-                    .await
-                    {
-                        panic!("the server stopped: {error}");
-                    }
-                });
-            })
-            .map_err(|error| error.to_string())?;
+    pub fn start(build_info: &Path, data: &Path, cores: &Cores) -> Result<Self, String> {
+        let me = std::env::current_exe().map_err(|error| error.to_string())?;
+        let mut command = Command::new(me);
+        command
+            .arg(SERVE)
+            .arg(build_info)
+            .arg(data)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped());
+        cores.keep_to_server(&mut command);
+        let mut child = command
+            .spawn()
+            .map_err(|error| format!("could not start the server: {error}"))?;
+        let mut stdout = BufReader::new(child.stdout.take().ok_or("the server has no output")?);
+        let mut line = String::new();
+        let _ = stdout.read_line(&mut line);
+        std::thread::spawn(move || std::io::copy(&mut stdout, &mut std::io::stderr()));
+        let Some((address, proxy)) = line
+            .split_once(' ')
+            .and_then(|(address, proxy)| Some((address.parse().ok()?, proxy.trim())))
+        else {
+            drop(child.stdin.take());
+            let status = child.wait().map_err(|error| error.to_string())?;
+            return Err(format!(
+                "the server ({status}) did not say where it listens: {line:?}"
+            ));
+        };
         Ok(Self {
             address,
-            shutdown: Some(shutdown),
-            thread: Some(thread),
+            url: format!("http://{proxy}"),
+            child: Some(child),
         })
     }
 
@@ -79,13 +74,51 @@ impl Server {
 
 impl Drop for Server {
     fn drop(&mut self) {
-        if let Some(shutdown) = self.shutdown.take() {
-            let _ = shutdown.send(());
-        }
-        if let Some(thread) = self.thread.take() {
-            let _ = thread.join();
+        if let Some(mut child) = self.child.take() {
+            drop(child.stdin.take());
+            let _ = child.wait();
         }
     }
+}
+
+pub fn serve(build_info: &Path, data: &Path) -> Result<(), String> {
+    build_id::install_from(build_info)?;
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .map_err(|error| error.to_string())?;
+    let listener = runtime
+        .block_on(async {
+            let store = ServerStore::open(data)?;
+            store.register(EMAIL, "Ada", PASSWORD).await?;
+            Ok::<_, be_server::ServerError>(())
+        })
+        .map_err(|error| format!("could not make the account: {error}"))
+        .and_then(|()| {
+            runtime
+                .block_on(tokio::net::TcpListener::bind("127.0.0.1:0"))
+                .map_err(|error| error.to_string())
+        })?;
+    let address = listener.local_addr().map_err(|error| error.to_string())?;
+    let proxy = latency::start(address, ONE_WAY)
+        .map_err(|error| format!("could not start the latency proxy: {error}"))?;
+    let mut stdout = std::io::stdout();
+    writeln!(stdout, "{address} {proxy}")
+        .and_then(|()| stdout.flush())
+        .map_err(|error| error.to_string())?;
+    let (shutdown, stopped) = tokio::sync::oneshot::channel();
+    std::thread::spawn(move || {
+        let _ = std::io::copy(&mut std::io::stdin(), &mut std::io::sink());
+        let _ = shutdown.send(());
+    });
+    runtime
+        .block_on(be_server::serve_with_config(
+            listener,
+            data.to_path_buf(),
+            be_server::ServerConfig::OPEN,
+            stopped,
+        ))
+        .map_err(|error| format!("the server stopped: {error}"))
 }
 
 struct Browser {

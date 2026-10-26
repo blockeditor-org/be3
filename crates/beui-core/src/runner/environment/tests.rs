@@ -1,14 +1,15 @@
 use super::*;
 
-mod a_space_adapter_outside_space_is_refused;
-mod an_unknown_adapter_or_renderer_names_the_valid_ones;
-mod headless_sizes_outside_the_headless_adapter_are_refused;
-mod no_renderer_needs_the_headless_adapter;
-mod no_variables_choose_the_native_adapter_drawn_with_wgpu;
-mod space_wraps_the_native_adapter_unless_given_another;
-mod the_headless_adapter_takes_its_window_and_screen;
-mod the_native_adapter_is_chosen_by_its_own_name;
-mod xr_needs_space_and_names_its_runtime;
+mod an_unknown_layer_is_refused;
+mod an_unknown_platform_or_renderer_names_the_valid_ones;
+mod drive_stacks_once_or_as_two_taps_and_needs_its_socket;
+mod headless_sizes_outside_the_headless_platform_are_refused;
+mod layers_stack_bottom_first_over_any_platform;
+mod no_renderer_needs_the_headless_platform;
+mod no_variables_choose_the_native_platform_drawn_with_wgpu;
+mod the_headless_platform_takes_its_window_and_screen;
+mod the_native_platform_is_chosen_by_its_own_name;
+mod xr_is_a_layer_of_its_own;
 
 fn with(pairs: &[(&str, &str)]) -> impl Fn(&str) -> Option<String> {
     let pairs: Vec<(String, String)> = pairs
@@ -24,8 +25,7 @@ fn with(pairs: &[(&str, &str)]) -> impl Fn(&str) -> Option<String> {
 }
 
 const NATIVE: Choice = Choice {
-    adapter: Base::Native,
-    space: false,
-    xr: false,
+    platform: Base::Native,
+    layers: Vec::new(),
     render: true,
 };

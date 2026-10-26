@@ -27,8 +27,13 @@ pub fn WindowView(
         <PlacementBuilder>|rect: ReadSignal<Rect>| {
             let catcher = NodeRef::new();
             let popup_catcher = NodeRef::new();
+            let shown_in = use_window().and_then(WindowHandle::real_window);
+            windows.mounted(id);
             create_effect(move || {
-                windows.placed(id, rect.get());
+                let origin = shown_in
+                    .and_then(|window| with_document(|document| document.context()?.window_origin(window)))
+                    .map_or(Vec2::ZERO, |origin| origin.to_vec2());
+                windows.placed(id, rect.get().translate(origin));
                 if let Some(node) = catcher.try_get() {
                     windows.caught_by(id, node);
                 }
@@ -94,7 +99,7 @@ pub fn WindowView(
                         .is_some_and(|popups| popups.areas.iter().any(|area| area.contains(local)))
                 })
             };
-            on_cleanup(move || windows.unplaced(id));
+            on_cleanup(move || windows.unplaced(id, [catcher.try_get(), popup_catcher.try_get()]));
             let built = view! {
                 <Layers>
                     <Interactive

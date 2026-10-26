@@ -61,6 +61,7 @@ impl WindowReport {
             Self::Resized { window, .. }
             | Self::Placed { window, .. }
             | Self::Rastered { window, .. }
+            | Self::Moved { window, .. }
             | Self::Focused { window, .. } => *window,
             Self::Closed(window) => *window,
         }

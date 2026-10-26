@@ -120,12 +120,6 @@ interface types {
         top-bar: top-bar,
     }
 
-    record monitor {
-        id: string,
-        name: string,
-        rect: rect,
-    }
-
     record viewport-metrics {
         logical: size,
         visible: pos2,
@@ -138,7 +132,6 @@ interface types {
         /// the screen at another size than it lays it out at, as a panel in VR
         /// does; a change of raster alone needs no new layout, only a painting.
         raster: f32,
-        monitors: list<monitor>,
     }
 
     record screen-request {

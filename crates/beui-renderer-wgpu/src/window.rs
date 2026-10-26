@@ -107,7 +107,7 @@ impl Renderer for WindowSurface {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn capture(&mut self) -> Option<beui_core::app::automation::Capture> {
+    fn capture(&mut self) -> Option<beui_core::renderer::Capture> {
         self.target.capture(&self.gpu)
     }
 }

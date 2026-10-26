@@ -13,7 +13,9 @@ path = "src/main.rs"
 
 [dependencies]
 beui-core = { path = "../beui-core" }
+beui-layer-drive = { path = "../beui-layer-drive" }
 image = { version = "0.25", default-features = false, features = ["png"] }
+libc = "0.2"
 paint-snapshot = { path = "../paint-snapshot" }
 
 [lints]
