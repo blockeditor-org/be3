@@ -183,8 +183,8 @@ no longer track touch. `Popover` (and so `DateTimePicker` and `ColorInput`) and
 `Select` take a required `surface: AnchoredStyle` in place of wrapping their
 own panel; `styled::popover_surface(max_width)` is the popover's, and
 `MenuStyle::with_sheet` now takes an `AnchoredSheetHandle` (`MenuSheetHandle`
-is gone). `MenuStyle::default()` still renders empty rows; making the menu's
-style required is left for §5's pass over unstyled defaults.
+is gone). A `MenuStyle` without `with_sheet` stays a dropdown
+(`SheetWhen::Never`).
 
 ### 4.2 One searchable list
 

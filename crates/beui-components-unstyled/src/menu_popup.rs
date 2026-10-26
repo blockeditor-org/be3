@@ -5,7 +5,6 @@ use crate::button::ButtonHandle;
 use crate::menu::{MenuItem, MenuList, MenuRowHandle, MenuThen};
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
 use beui_view::reactive::*;
 
 #[derive(Clone, Copy)]
