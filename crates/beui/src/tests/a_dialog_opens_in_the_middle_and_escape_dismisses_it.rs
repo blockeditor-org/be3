@@ -42,13 +42,13 @@ fn a_dialog_opens_in_the_middle_and_escape_dismisses_it() {
     harness.frame(Vec::new());
     assert_eq!(
         dismissed.get_untracked(),
-        0,
-        "Escape plays the slide-away a back gesture plays"
+        1,
+        "Escape asks the dialog's owner to close it at once"
     );
     harness.settle();
     assert_eq!(
-        dismissed.get_untracked(),
-        1,
-        "and dismisses once it is gone"
+        harness.rect(surface.get()),
+        body,
+        "and an owner that keeps it open keeps it where it was"
     );
 }

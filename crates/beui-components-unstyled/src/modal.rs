@@ -1,4 +1,4 @@
-use beui_core::layer::{Dismiss, LayerLevel};
+use beui_core::layer::{Dismiss, LayerLevel, LayerPolicy};
 use beui_macros::{component, view};
 
 use super::back_slide::BackSlide;
@@ -7,7 +7,7 @@ use beui_core::color::Color32;
 use beui_core::geometry::Pos2;
 use beui_core::node::NodeId;
 use beui_core::screens::bounds;
-use beui_view::components::overlay::Overlay;
+use beui_view::components::overlay::{Overlay, use_overlay_presence};
 use beui_view::reactive::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -44,17 +44,38 @@ pub fn Modal(
         ModalMotion::Reported => 0.0,
     });
     let faded = create_memo(move || scrim.get().scale_alpha(presence.get()));
+    let asked = create_signal(false);
+    create_effect(move || {
+        if open.get() {
+            untrack(|| asked.set(false));
+        }
+    });
+    let stays = create_memo(move || open.get() || !asked.get());
     let handle = ModalHandle {
         presence: presence.into(),
     };
     let body = Render::new(move |()| {
         let content = content.call(handle);
         match motion {
-            ModalMotion::Slides => view! {
-                <BackSlide enters=false on_back={on_dismiss} on_presence={presence}>
-                    {content}
-                </BackSlide>
-            },
+            ModalMotion::Slides => {
+                if let Some(overlay) = use_overlay_presence() {
+                    overlay.linger_while(create_memo(move || asked.get() && !open.get()));
+                }
+                view! {
+                    <BackSlide
+                        enters=false
+                        open={stays}
+                        on_back={move || {
+                            asked.set(true);
+                            on_dismiss.call();
+                        }}
+                        on_gone={move || asked.set(false)}
+                        on_presence={presence}
+                    >
+                        {content}
+                    </BackSlide>
+                }
+            }
             ModalMotion::Still | ModalMotion::Reported => content,
         }
     })
@@ -79,6 +100,11 @@ pub fn Modal(
             placement=placed
             scrim={faded}
             level={level}
+            policy={create_memo(move || match open.get() {
+                true => LayerPolicy::BlocksAll,
+                false => LayerPolicy::Inert,
+            })}
+            traps_focus={create_memo(move || open.get())}
             on_dismiss={move |_: Dismiss| on_dismiss.call()}
             content={move || body.call(())}
         />

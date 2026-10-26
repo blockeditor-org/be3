@@ -9,7 +9,7 @@ use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::reactive::*;
 
-use crate::modal::{Modal, ModalHandle, ModalMotion};
+use crate::modal::{Modal, ModalHandle};
 use crate::scroll::ScrollbarStyle;
 use crate::search_list::{SearchList, SearchListApi, SearchRowHandle, fuzzy_score, rank};
 use crate::text_input::{TextInputHandle, TextInputStyle};
@@ -79,7 +79,6 @@ pub struct CommandRowHandle {
 
 #[derive(Clone, Copy)]
 struct State {
-    overlay: NodeRef,
     list: ComponentRef<SearchListApi<String>>,
     actions: Signal<Rc<Vec<Action>>>,
     listed: Memo<Vec<PaletteItem>>,
@@ -139,7 +138,6 @@ pub fn CommandPalette(
         })
     });
     let state = State {
-        overlay: NodeRef::new(),
         list: ComponentRef::new(),
         actions,
         listed,
@@ -212,10 +210,8 @@ pub fn CommandPalette(
     };
     view! {
         <Modal
-            @node_ref={&state.overlay}
             open={create_memo(move || open.get())}
             scrim
-            motion=ModalMotion::Still
             on_dismiss={move || dismiss(state)}
         >|_: ModalHandle| {
             panel.call(view! {
@@ -256,9 +252,6 @@ fn start(state: State) {
 fn close(state: State) {
     state.searching.set(false);
     state.open.set(false);
-    if let Some(overlay) = state.overlay.try_get() {
-        overlay.close_overlay();
-    }
 }
 
 fn dismiss(state: State) {

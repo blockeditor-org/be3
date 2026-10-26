@@ -6,7 +6,7 @@ use crate::reactive::*;
 use crate::styled::*;
 
 #[test]
-fn a_back_gesture_slides_a_dialog_away_before_it_closes() {
+fn a_back_gesture_slides_a_dialog_away_once_its_owner_closes_it() {
     let _root = crate::reactive::RootScope::new();
     let open = create_signal(false);
     let dismissed = create_signal(0);
@@ -92,8 +92,12 @@ fn a_back_gesture_slides_a_dialog_away_before_it_closes() {
     );
     assert_eq!(
         dismissed.get_untracked(),
-        0,
-        "and closes only once it is gone"
+        1,
+        "the owner was asked as it was let go, and slides it away once it agrees"
+    );
+    assert!(
+        !harness.frame(Vec::new()).main().window.requests.handles_back,
+        "while it leaves it takes no more input"
     );
     harness.settle();
     assert_eq!(dismissed.get_untracked(), 1);

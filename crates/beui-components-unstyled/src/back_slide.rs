@@ -40,7 +40,9 @@ struct Slide {
     revealing: Signal<bool>,
     behind: bool,
     enters: bool,
+    open: Option<Prop<bool>>,
     on_back: ClickCallback,
+    on_gone: ClickCallback,
     on_presence: Callback<f32>,
 }
 
@@ -119,8 +121,30 @@ impl Slide {
                 if phase == Phase::Still {
                     self.state.borrow_mut().direction = 1.0;
                 }
-                self.start(Phase::Leaving { from: position });
+                match self.open {
+                    None => self.start(Phase::Leaving { from: position }),
+                    Some(open) => {
+                        self.on_back.call();
+                        match open.get_untracked() {
+                            true if phase == Phase::Dragging => {
+                                self.start(Phase::Returning { from: position })
+                            }
+                            true => {}
+                            false => self.leave(),
+                        }
+                    }
+                }
             }
+        }
+    }
+
+    fn leave(&self) {
+        let (phase, position) = {
+            let state = self.state.borrow();
+            (state.phase, state.position)
+        };
+        if !matches!(phase, Phase::Leaving { .. }) && position < 1.0 {
+            self.start(Phase::Leaving { from: position });
         }
     }
 
@@ -130,6 +154,11 @@ impl Slide {
     }
 
     fn gone(&self) {
+        if self.open.is_some() {
+            self.start(Phase::Still);
+            self.on_gone.call();
+            return;
+        }
         self.on_back.call();
         match self.enters && !self.behind {
             true => {
@@ -197,6 +226,8 @@ pub fn BackSlide(
     #[prop(default = true)] enabled: Prop<bool>,
     #[prop(default = true)] enters: bool,
     #[prop(default = ClickCallback::default())] on_back: ClickCallback,
+    #[prop(default = None)] open: Option<Prop<bool>>,
+    #[prop(default = ClickCallback::default())] on_gone: ClickCallback,
     #[prop(default = Callback::default())] on_presence: Callback<f32>,
     #[prop(default = None)] behind: Option<RenderFn<()>>,
     #[prop(default = Color32::TRANSPARENT)] shade: Prop<Color32>,
@@ -220,7 +251,9 @@ pub fn BackSlide(
         revealing,
         behind: behind.is_some(),
         enters,
+        open,
         on_back,
+        on_gone,
         on_presence,
     });
     let animation = create_animation(
@@ -242,6 +275,22 @@ pub fn BackSlide(
             });
         }
     });
+    if let Some(open) = open {
+        let was_open = Cell::new(true);
+        create_effect(move || {
+            let open = open.get();
+            if open == was_open.replace(open) {
+                return;
+            }
+            untrack(|| {
+                let slide = slide.value();
+                match open {
+                    true => slide.reset(),
+                    false => slide.leave(),
+                }
+            });
+        });
+    }
     let page = view! {
         <BackHandler
             enabled={enabled}
