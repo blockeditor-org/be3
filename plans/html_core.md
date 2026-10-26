@@ -15,9 +15,11 @@ layer should be.
   That buys SSR with partial hydration, browser-owned focus, autofill and
   password managers, find-in-page, and a smaller download.
 - **Unstyled and styled are shared.** They reach base only through
-  `beui-view`, never `beui-core`. Native-element choices (a real
-  `<input type=password>`) are made by components the core implements, never
-  by checking the backend inside unstyled.
+  `beui-view`, never `beui-core`. Where a real HTML element should replace
+  beui's own (a native scroller later), unstyled and styled switch on the
+  core at that one component, through one compile-time constant `beui-view`
+  exports. Such a switch is a deliberate choice per component, not a way
+  around a missing base primitive.
 - **The base layer must be small.** Every base primitive costs two
   implementations. It has drifted (§4).
 - **The contract.** The base API's shape admits what every core needs (late
@@ -32,9 +34,29 @@ layer should be.
   covers anchored popovers. A test-only option that delays measurement in
   headless keeps the late path exercised on native.
 - **Escape hatches where beui is stronger than the web.** `Drawing` and
-  `Canvas`-style painting (a `<canvas>` on the HTML core), and rich text
-  editing (`TextArea`, selectable text) as core-implemented components (DOM
-  spans and EditContext on HTML), so unstyled stops knowing about glyphs.
+  `Canvas`-style painting (a `<canvas>` on the HTML core), and text editing.
+- **The first version keeps owning text editing.** On the HTML core,
+  `TextArea` (and `TextInput`, built on it) is an island: one DOM element
+  hosting a beui `Document` laid out by beui's own core, painted by
+  `beui-renderer-dom`, measured with `beui-font-browser` so its text matches
+  the CSS around it, and fed typing and IME through the hidden `<textarea>`
+  `beui-platform-web` already uses. `text_editor_core`, `rich::`, caret
+  handles and completion run unchanged. Edges: CSS gives the island its width
+  through `ResizeObserver` and the island sets its height, before paint; the
+  island's element is one real DOM focus stop and beui's focus works inside
+  it; keys the editor ignores continue up the DOM; completion and the text
+  menu go through the HTML core's `Overlay` so the island's box doesn't clip
+  them; SSR sends the content as static text, which the island takes over on
+  hydration. The island needs accessibility of its own (role, value, caret
+  and selection as ARIA). Browser-native editing (EditContext, DOM spans, a
+  real `<input type=password>`) is a follow-up.
+- **The first version keeps owning scrolling.** `Scroll` stays in unstyled,
+  built on `Offset` and `Interactive`. The HTML core implements `Offset` as an
+  `overflow: hidden` element moved through `scrollTop` and `scrollLeft`, not
+  a transform, so find-in-page, `scrollIntoView`, `#anchor` links and
+  `position: sticky` still work. A follow-up makes unstyled and styled switch
+  to a real `overflow: auto` scroller on the HTML core; that changes who
+  drives the scrolling, not the element tree, and is not a core change.
 - **Out of scope.** Plugin editors stay on canvas/wgpu on the web for now
   (they run in workers). Later, web plugins become iframes, which could run
   beui on the HTML core.
@@ -73,7 +95,7 @@ contract; what native keeps), **hatch** (core-implemented), **unclear**.
 | `Gap` | inline room holding no bytes | 1 | 1 | 1 | 0* | CSS: `inline-block` with a width, `user-select: none` | — |
 | `Break` | line break that copies with no newline | 0 | 0 | 1 | 1 | **unclear**: `<br>` copies a newline; a zero-size block span may not | Only the terminal-style soft wrap needs it |
 | `TextItem` | a node laid inline as one character, or placed at a text index (`at`) | 1 | 0 | 0 | 0 | Inline: CSS `inline-block`. `at`: **late** (index to rect) | `at` has one user (`text_area/lines.rs`): editing only |
-| `Offset` | shows its one child from an offset; no input; scroll anchoring, `follow_end`, reveal | 2 | 0 | 0 | 0 | On the web the scroller and its input are one thing (`overflow: auto`, `overflow-anchor`, `scrollTop`) | Only `unstyled::Scroll` and `Sheet` use it. Make `Scroll` core-implemented; `Offset` becomes native-core internal |
+| `Offset` | shows its one child from an offset; no input; scroll anchoring, `follow_end`, reveal | 2 | 0 | 0 | 0 | CSS: an `overflow: hidden` element moved through `scrollTop`/`scrollLeft` | Only `unstyled::Scroll` and `Sheet` use it. Stays shared; `Scroll` stays in unstyled |
 | `VirtualList` | builds only rows the viewport reaches; remembers measured rows; anchors the scroll | 1 | 0 | 1 | 6 | **late**: row sizes from `ResizeObserver` (same frame, before paint), overscan for flings; native keeps synchronous measurement and anchoring | — |
 | `Canvas` / `CanvasItem` | a pan/zoom view of absolutely placed items, raster settling | 2 | 0 | 2 | 22 | CSS: absolutely positioned items in a container with `transform: translate() scale()`; raster settling falls to the browser. `on_reveal` is **late** | — |
 | `Drawing` | a `Draw` callback handed the `Painter` and its rect | 3 | 2 | 1 | 12 | **hatch**: a `<canvas>` | Unstyled uses it for a scrollbar thumb and `Picture`'s image; neither should be a canvas on HTML (§4) |
@@ -237,9 +259,10 @@ Everything except IME maps onto DOM focus.
   touch drag axis) are behaviour that could sit in unstyled over raw pointer
   events.
 - **Scrolling is composed in unstyled.** `unstyled::Scroll` (904 lines) builds
-  wheel, fling, overscroll and steering from `Offset` and `Interactive`. On the
-  web that is the browser's scroller, or scrolling loses the compositor thread;
-  `Sheet`'s stops are CSS scroll snap. `Scroll` has 55 users.
+  wheel, fling, overscroll and steering from `Offset` and `Interactive`. It has
+  55 users. The first version keeps it; the follow-up switch to the browser's
+  scroller (compositor-thread scrolling, `Sheet`'s stops as CSS scroll snap)
+  happens in unstyled and styled.
 - **No image primitive.** `Picture` (18 users) paints images through
   `Drawing`, and `ScrollbarThumb` paints a rounded rect through one. On HTML
   those would be `<canvas>`es for what `<img>` and a `Frame` do.
@@ -267,7 +290,7 @@ Shared API, implemented by both cores:
 
 - **Layout:** `Frame` (gaining `translate`, `rotate`, `opacity` and
   `fade_edges` from `Shift`, `Turn.angle` and `Fade`), `List`, `Grid`,
-  `Layers`, `VirtualList`, `Canvas`.
+  `Layers`, `Offset`, `VirtualList`, `Canvas`.
 - **Text:** `Text` with `Span`, `Icon`, `Gap`, `Break` and inline `TextItem`,
   for display only.
 - **Input:** `Interactive`, cut to focus, keys, text and paste, press, click,
@@ -281,11 +304,9 @@ Shared API, implemented by both cores:
 Core-implemented components (one API, each core its own implementation):
 
 - `Drawing` (`<canvas>` on HTML).
-- `Scroll`, taking `Offset`'s place in the shared set. `Offset` stays a native
-  core internal.
-- `TextArea`, `TextInput` (a real `<input>`, `password` included) and
-  selectable text. `marks`, `glyphs`, `carets`, `TextItem at`, the `rich::`
-  internals and text geometry move behind them.
+- `TextArea` and `TextInput`: beui's own on native, the island on HTML.
+  `marks`, `glyphs`, `carets`, `TextItem at`, the `rich::` internals and text
+  geometry move behind them.
 - `Picture` (`<img>` on HTML), or a base `Image`.
 
 Moves up or out:
@@ -315,7 +336,15 @@ Moves up or out:
    Keep the beak, or move it into the overlay?
 5. Is `Break`'s "copies without a newline" a requirement on the web, where
    only the terminal's soft-wrapped rows depend on it?
-6. Is `Canvas` shared base (CSS transforms) or core-implemented, given its
+6. Read-only selectable text: on the HTML core display text is DOM text the
+   browser already selects, while `selectable.rs` selects across beui's own
+   text nodes. Recommended: browser selection on the HTML core, beui's
+   selection inside editors only, since beui-owned selection over DOM text
+   would mean hit-testing it.
+7. Should `TextInput`'s `password` mode use a real `<input type=password>`
+   in the first version, for password-manager autofill? It is self-contained,
+   unlike general editing.
+8. Is `Canvas` shared base (CSS transforms) or core-implemented, given its
    raster settling and scaled spaces have no CSS counterpart to test against?
 
 ## Next steps
@@ -330,5 +359,7 @@ Moves up or out:
    one sign-in-style screen.
 5. Shared drive-script tests across native headless and the HTML core under
    Playwright.
-6. Port unstyled bottom-up, `TextArea` last.
-7. A "cores" section in guides/beui.md, and settle VISION's open question.
+6. Port unstyled bottom-up; the `TextArea` island last.
+7. Follow-ups: browser-native editing, and unstyled and styled switching
+   `Scroll` to a real scroller on the HTML core.
+8. A "cores" section in guides/beui.md, and settle VISION's open question.
