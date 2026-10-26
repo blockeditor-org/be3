@@ -28,7 +28,7 @@ fn a_middle_drag_on_a_pan_zoom_in_a_scroll_pans_it_rather_than_autoscrolling() {
     harness.middle_drag(pos2(200.0, 100.0), pos2(240.0, 130.0));
     harness.frame(Vec::new());
 
-    assert!(harness.document().autoscroll.is_none());
+    assert!(harness.document().pointer_grabber().is_none());
     assert_eq!(
         harness
             .document()

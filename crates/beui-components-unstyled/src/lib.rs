@@ -23,6 +23,7 @@ pub mod disclosure;
 pub mod drag;
 pub mod fling;
 pub mod floating;
+pub mod gestures;
 pub mod list_row;
 pub mod menu;
 pub mod menu_button;

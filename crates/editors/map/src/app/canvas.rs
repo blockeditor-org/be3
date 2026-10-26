@@ -15,6 +15,7 @@ use crate::tiles::TileId;
 use super::labels::{self, MapLabel};
 use super::state::MapState;
 use super::tiles::{self, Tile};
+use beui::unstyled::gestures;
 use beui::{ItemSize, PasteKind, Pasted};
 
 pub(crate) const REGION_COLOR: Color32 = Color32::from_rgb(245, 180, 60);
@@ -191,6 +192,7 @@ fn Attribution() -> NodeId {
 
 #[component]
 fn MapSurface(state: MapState, children: Option<Child>) -> NodeId {
+    let pan = gestures::pan_zoom(move |delta: Vec2| state.pan(delta), Callback::empty());
     view! {
         <Interactive
             focusable=true
@@ -212,7 +214,8 @@ fn MapSurface(state: MapState, children: Option<Child>) -> NodeId {
                     state.release();
                 }
             }}
-            on_pan_drag={move |delta: Vec2| state.pan(delta)}
+            on_pointer={pan.pointer}
+            on_wheel={pan.wheel}
             children={children}
         />
     }

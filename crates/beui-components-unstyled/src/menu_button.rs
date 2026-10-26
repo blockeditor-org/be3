@@ -84,11 +84,11 @@ pub fn MenuButton(
     if !on_scroll.is_empty() {
         trigger_node = view! {
             <Interactive
-                on_scroll={move |gesture: ScrollGesture| {
+                on_wheel={crate::gestures::scroll_wheel(None, move |gesture: ScrollGesture| {
                     if !disabled.get_untracked() {
                         on_scroll.call(gesture);
                     }
-                }}
+                })}
             >
                 {trigger_node}
             </Interactive>

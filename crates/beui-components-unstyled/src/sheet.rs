@@ -2,6 +2,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::Duration;
 
+use crate::gestures;
 use beui_macros::{component, view};
 
 use super::back_slide::BACK_DRAG_SHARE;
@@ -1194,21 +1195,19 @@ pub fn Sheet(
                     {panel.call(view! {
                         <Frame>
                             <Interactive
-                                scroll_axis={axis}
                                 @node_ref=&catcher
                                 claim_at={move |(pos, _): (Pos2, beui_view::types::Modifiers)| {
                                     motion.value().flinging() && super::scroll::under(&catcher, pos)
                                 }}
                                 on_press={move |_: PointerPress| motion.value().stop_fling()}
-                                on_scroll={move |gesture: ScrollGesture| motion.value().wheel(gesture)}
-                                on_scroll_drag={move |gesture: DragGesture| motion.value().drag(gesture)}
+                                on_wheel={gestures::scroll_wheel(axis, move |gesture: ScrollGesture| motion.value().wheel(gesture))}
+                                on_pointer={gestures::scroll_drag(axis, move |gesture: DragGesture| motion.value().drag(gesture))}
                             >
                                 <List spacing=0.0>
                                     <Interactive
                                         @test_id={"sheet.handle"}
                                         cursor=CursorIcon::ResizeVertical
-                                        scroll_axis={axis}
-                                        on_scroll_drag={move |gesture: DragGesture| motion.value().outside_drag(gesture)}
+                                        on_pointer={gestures::scroll_drag(axis, move |gesture: DragGesture| motion.value().outside_drag(gesture))}
                                         on_press={move |press: PointerPress| motion.value().handle_press(press)}
                                         on_drag={move |press: PointerPress| motion.value().handle_drag(press)}
                                         on_cancel={move || motion.value().handle_cancel()}
@@ -1324,10 +1323,9 @@ fn ModalSheetBody(
                         @sizing={room}
                         @test_id={"sheet.outside"}
                         on_click={on_close}
-                        scroll_axis={Some(Direction::Vertical)}
-                        on_scroll_drag={move |gesture: DragGesture| {
+                        on_pointer={gestures::scroll_drag(Some(Direction::Vertical), move |gesture: DragGesture| {
                             if let Some(handler) = drag.get() { handler.call(gesture); }
-                        }}
+                        })}
                     >
                         <Spacer />
                     </Interactive>

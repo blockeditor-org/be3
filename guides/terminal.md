@@ -138,7 +138,7 @@ default `colors`, and reports `TerminalInput`, `TerminalWheel` and `Fit`.
   the context menu keeps Copy and Select All); Ctrl+Shift+V is not handled, so
   the platform pastes and the paste arrives through `pastes`/`on_paste`. Typing
   scrolls to the end (`ScrollApi::scroll_to_end`).
-- With `wheel` set the rows sit in an `Interactive` whose `on_scroll` reports
+- With `wheel` set the rows sit in an `Interactive` whose `on_wheel` reports
   whole lines and the cell under the pointer instead of scrolling.
 
 The editor passes the main screen's history and rows, or, while

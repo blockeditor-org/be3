@@ -8,7 +8,7 @@ use beui_macros::{component, view};
 
 use super::fling::Fling;
 use super::rubber_band::{MINIMUM_VELOCITY, bounce, rubber_band};
-use beui_core::interact::autoscroll::AUTOSCROLL_DEAD_ZONE;
+use crate::gestures::{self, AUTOSCROLL_DEAD_ZONE};
 use beui_view::components::overlay::Overlay;
 use beui_view::primitives::*;
 use beui_view::reactive::KeyAt;
@@ -21,7 +21,7 @@ use beui_view::types::Placement;
 use beui_view::types::Pos2;
 use beui_view::types::Sides;
 use beui_view::types::{
-    AutoscrollGesture, DragGesture, Key, KeyPress, PointerPress, ScrollGesture,
+    AutoscrollGesture, CursorIcon, DragGesture, Key, KeyPress, PointerPress, ScrollGesture,
 };
 use beui_view::types::{Direction, ItemSize, Justify, ScrollPosition, Sizing};
 
@@ -660,6 +660,31 @@ fn Scrolling(
             .press()
             .is_some_and(|press| navigates(press.key) && motion.value().key(press))
     });
+    let autoscroll = gestures::autoscroll(move |gesture: AutoscrollGesture| {
+        let marking = (!gesture.ended).then_some(gesture.origin);
+        if origin.get_untracked() != marking {
+            origin.set(marking);
+        }
+        motion.value().autoscroll(gesture);
+    });
+    let pointer = gestures::first_of([
+        autoscroll.pointer,
+        gestures::scroll_drag(axis, move |gesture: DragGesture| {
+            motion.value().drag(gesture)
+        }),
+    ]);
+    let wheel = gestures::first_of([
+        autoscroll.wheel,
+        gestures::scroll_wheel(axis, move |gesture: ScrollGesture| {
+            motion.value().wheel(gesture)
+        }),
+    ]);
+    let cursor = create_memo(move || {
+        autoscroll.active.get().then(|| match direction.get() {
+            Direction::Vertical => CursorIcon::ResizeVertical,
+            Direction::Horizontal => CursorIcon::ResizeHorizontal,
+        })
+    });
     let outset = create_memo(move || -bleed.get());
     view! {
         <Frame padding={outset}>
@@ -670,7 +695,8 @@ fn Scrolling(
                     yields_tab_stop=true
                     on_focus_change={focused}
                     on_key={move |press: KeyPress| motion.value().key(press)}
-                    scroll_axis={axis}
+                    cursor={cursor}
+                    grabs_pointer={autoscroll.active}
                     @node_ref=&catcher
                     claim_at={move |(pos, _): (Pos2, beui_view::types::Modifiers)| {
                         motion.value().coasting() && under(&catcher, pos)
@@ -689,15 +715,8 @@ fn Scrolling(
                             near.set(false);
                         }
                     }}
-                    on_scroll={move |gesture: ScrollGesture| motion.value().wheel(gesture)}
-                    on_scroll_drag={move |gesture: DragGesture| motion.value().drag(gesture)}
-                    on_autoscroll={move |gesture: AutoscrollGesture| {
-                        let marking = (!gesture.ended).then_some(gesture.origin);
-                        if origin.get_untracked() != marking {
-                            origin.set(marking);
-                        }
-                        motion.value().autoscroll(gesture);
-                    }}
+                    on_pointer={pointer}
+                    on_wheel={wheel}
                 >
                     <Frame outline={ring_when(focused, focus_ring)}>
                         <List direction={marker_axis} spacing=0.0>

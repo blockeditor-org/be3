@@ -28,17 +28,15 @@ pub enum FileDrag {
 const MULTI_CLICK_DELAY: f32 = 0.3;
 const MULTI_CLICK_DISTANCE: f32 = 6.0;
 const MULTI_CLICK_LIMIT: u32 = 4;
-pub const TOUCH_DRAG_THRESHOLD: f32 = 8.0;
 pub const LONG_PRESS_DELAY: Duration = Duration::from_millis(500);
 pub const FINGER_TAP_TIME: Duration = Duration::from_millis(350);
-pub const TOUCH_VELOCITY_WINDOW: f32 = 0.12;
-pub const MAX_TOUCH_VELOCITY: f32 = 4_000.0;
 const WHEEL_VELOCITY_WINDOW: Duration = Duration::from_millis(100);
 const SYNTHESIZED_SLOP: f32 = 2.0;
 
 pub use beui_types::input::{
-    AutoscrollGesture, DragGesture, PointerPress, PointerSample, ScrollGesture, SecondaryDrag,
-    ZoomGesture,
+    AutoscrollGesture, DragGesture, MAX_TOUCH_VELOCITY, PointerId, PointerInput, PointerPress,
+    PointerSample, PointerStage, ScrollGesture, SecondaryDrag, TOUCH_DRAG_THRESHOLD,
+    TOUCH_VELOCITY_WINDOW, WheelInput, ZoomGesture,
 };
 
 #[derive(Clone, PartialEq, Debug)]
@@ -146,23 +144,6 @@ impl Event {
             Self::Modifiers(modifiers) | Self::PointerButton { modifiers, .. } => Some(*modifiers),
             _ => None,
         }
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub enum PointerId {
-    Mouse,
-    Touch(TouchId),
-    Pen,
-}
-
-impl PointerId {
-    pub fn is_touch(self) -> bool {
-        matches!(self, Self::Touch(_))
-    }
-
-    pub fn hovers(self) -> bool {
-        !self.is_touch()
     }
 }
 

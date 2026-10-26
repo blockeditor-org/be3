@@ -303,6 +303,10 @@ pub fn on_finger_tap(tap: impl Fn(usize) -> bool + 'static) {
     on_cleanup(move || drop(tap));
 }
 
+pub fn after_input(after: impl FnOnce() + 'static) {
+    with_document(|document| document.after_input(after));
+}
+
 pub fn last_pointer() -> Option<beui_core::input::PointerSample> {
     try_with_document(|document| document.last_pointer).flatten()
 }

@@ -1,3 +1,4 @@
+use crate::gestures;
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
@@ -146,7 +147,6 @@ pub fn PanZoom(
     view! {
         <PlacementBuilder>|rect: ReadSignal<Rect>| {
             let current = view;
-            let panning = create_signal(false);
 
             let camera = Camera {
                 view: current,
@@ -159,6 +159,11 @@ pub fn PanZoom(
             component_accessibility(create_memo(move || accessibility.get()));
 
             let focused = create_signal(false);
+            let recognised = gestures::pan_zoom(
+                move |delta: Vec2| camera.pan(delta),
+                move |gesture: ZoomGesture| camera.zoom(gesture.factor, gesture.pos),
+            );
+            let panning = recognised.panning;
             let cursor = create_memo(move || if panning.get() {
                 CursorIcon::Grabbing
             } else {
@@ -167,7 +172,7 @@ pub fn PanZoom(
             let content_node = content.call(PanZoomHandle {
                 view: create_memo(move || Some(current.get().canvas(rect.get()))),
                 scale: create_memo(move || current.get().scale),
-                panning: panning.read_only(),
+                panning,
                 focused: focused.read_only(),
             });
 
@@ -179,17 +184,18 @@ pub fn PanZoom(
                     on_focus_change={focused}
                     on_key={move |press: KeyPress| camera.key(press)}
                     cursor={cursor}
-                    on_scroll={move |gesture: ScrollGesture| {
-                        if gesture.modifiers.ctrl {
-                            let factor = (gesture.delta.y * ZOOM_PER_SCROLL_POINT).exp();
-                            camera.zoom(factor, gesture.pos);
-                        } else {
-                            camera.pan(gesture.delta);
-                        }
-                    }}
-                    on_zoom={move |gesture: ZoomGesture| camera.zoom(gesture.factor, gesture.pos)}
-                    on_pan_drag={move |delta: Vec2| camera.pan(delta)}
-                    on_pan_active_change={panning}
+                    on_wheel={gestures::first_of([
+                        recognised.wheel,
+                        gestures::scroll_wheel(None, move |gesture: ScrollGesture| {
+                            if gesture.modifiers.ctrl {
+                                let factor = (gesture.delta.y * ZOOM_PER_SCROLL_POINT).exp();
+                                camera.zoom(factor, gesture.pos);
+                            } else {
+                                camera.pan(gesture.delta);
+                            }
+                        }),
+                    ])}
+                    on_pointer={recognised.pointer}
                     children={Some(content_node)}
                 />
             }

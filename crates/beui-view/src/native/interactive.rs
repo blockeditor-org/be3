@@ -14,17 +14,14 @@ use beui_core::clipboard::Pasted;
 use beui_core::focus::ImeCursor;
 use beui_core::geometry::Pos2;
 use beui_core::geometry::Vec2;
-use beui_core::input::AutoscrollGesture;
 use beui_core::input::CursorIcon;
-use beui_core::input::DragGesture;
 use beui_core::input::ImeEvent;
 use beui_core::input::ImeText;
 use beui_core::input::KeyPress;
 use beui_core::input::Modifiers;
+use beui_core::input::PointerInput;
 use beui_core::input::PointerPress;
-use beui_core::input::ScrollGesture;
-use beui_core::input::SecondaryDrag;
-use beui_core::input::ZoomGesture;
+use beui_core::input::WheelInput;
 use beui_core::interact::forward::ForwardedInput;
 use beui_core::node::NodeId;
 use std::cell::Cell;
@@ -53,7 +50,7 @@ pub fn interactive(
     on_ime: Callback<ImeEvent>,
     on_key: Callback<KeyPress, bool>,
     on_motion: Callback<Vec2>,
-    cursor: Option<Prop<CursorIcon>>,
+    cursor: Prop<Option<CursorIcon>>,
     pointer_locked: Prop<bool>,
     key_active: Prop<bool>,
     capture_presses: Prop<bool>,
@@ -63,7 +60,7 @@ pub fn interactive(
     claims_touch: Prop<bool>,
     drawing: Prop<bool>,
     every_sample: Prop<bool>,
-    scroll_axis: Prop<Option<Direction>>,
+    grabs_pointer: Prop<bool>,
     on_click: ClickCallback,
     on_click_at: Callback<PointerPress>,
     on_hover_change: Callback<bool>,
@@ -73,14 +70,9 @@ pub fn interactive(
     on_middle_click: ClickCallback,
     on_press: Callback<PointerPress>,
     on_secondary_press: Callback<PointerPress>,
-    on_secondary_drag: Callback<SecondaryDrag>,
     on_drag: Callback<PointerPress>,
-    on_pan_drag: Callback<Vec2>,
-    on_pan_active_change: Callback<bool>,
-    on_scroll: Callback<ScrollGesture>,
-    on_scroll_drag: Callback<DragGesture>,
-    on_autoscroll: Callback<AutoscrollGesture>,
-    on_zoom: Callback<ZoomGesture>,
+    on_pointer: Callback<PointerInput, bool>,
+    on_wheel: Callback<WheelInput, bool>,
     capture_at: Callback<Pos2, bool>,
     gestures_at: Callback<Pos2, bool>,
     hit_at: Callback<Pos2, bool>,
@@ -151,14 +143,9 @@ pub fn interactive(
         node.on_middle_click = on_middle_click;
         node.on_press = on_press;
         node.on_secondary_press = on_secondary_press;
-        node.on_secondary_drag = on_secondary_drag;
         node.on_drag = on_drag;
-        node.on_pan_drag = on_pan_drag;
-        node.on_pan_active_change = on_pan_active_change;
-        node.on_scroll = on_scroll;
-        node.on_scroll_drag = on_scroll_drag;
-        node.on_autoscroll = on_autoscroll;
-        node.on_zoom = on_zoom;
+        node.on_pointer = on_pointer;
+        node.on_wheel = on_wheel;
         node.capture_at = capture_at;
         node.gestures_at = gestures_at;
         node.hit_at = hit_at;
@@ -210,17 +197,19 @@ pub fn interactive(
         let locked = pointer_locked.get();
         with_document(|document| document.set_interactive_locks_pointer(interactive, locked));
     });
-    if let Some(cursor) = cursor {
-        create_binding(move || {
-            let cursor = cursor.get();
-            with_document(|document| document.set_interactive_cursor(interactive, Some(cursor)))
-        });
-    }
+    create_binding(move || {
+        let cursor = cursor.get();
+        with_document(|document| document.set_interactive_cursor(interactive, cursor))
+    });
     create_binding(move || {
         let (capture, repeat, touch) =
             (capture_presses.get(), repeat_drag.get(), touch_drags.get());
         let pressing = press_focus.get();
-        let (axis, claims, scroll) = (touch_drag_axis.get(), claims_touch.get(), scroll_axis.get());
+        let (axis, claims, grabs) = (
+            touch_drag_axis.get(),
+            claims_touch.get(),
+            grabs_pointer.get(),
+        );
         let (draws, every) = (drawing.get(), every_sample.get());
         let (active, inhibits, claimed) = (
             key_active.get(),
@@ -239,7 +228,7 @@ pub fn interactive(
             document.set_interactive_claims_touch(interactive, claims);
             document.set_interactive_drawing(interactive, draws);
             document.set_interactive_every_sample(interactive, every);
-            document.set_interactive_scroll_axis(interactive, scroll);
+            document.set_interactive_grabs_pointer(interactive, grabs);
             document.set_interactive_key_active(interactive, active);
             document.set_interactive_inhibits_shortcuts(interactive, inhibits);
             document.set_interactive_claim_modifiers(interactive, claimed);

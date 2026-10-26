@@ -20,7 +20,8 @@ pub use color::{Color32, Hsva, Oklch, format_hex, parse_hex};
 pub use image::{Image, ImageFit, ImageId, Thumbhash};
 pub use input::{
     AutoscrollGesture, BackEdge, BackGesture, CursorIcon, DragGesture, ImeEvent, ImeText, Key,
-    KeyPhase, KeyPress, Modifiers, PointerPress, PointerSample, ScrollGesture, SecondaryDrag,
+    KeyPhase, KeyPress, Modifiers, PointerButton, PointerId, PointerInput, PointerPress,
+    PointerSample, PointerStage, ScrollGesture, SecondaryDrag, TOUCH_DRAG_THRESHOLD, WheelInput,
     ZoomGesture,
 };
 pub use layer::{Dismiss, LayerLevel, LayerPolicy, Placement};

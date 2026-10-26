@@ -1521,7 +1521,9 @@ fn BlockFrameView(
                 (!read_only && !handle.pan_and_zoom).then(|| content_rect.get())
             });
             let scroll = move |gesture: ScrollGesture| {
-                if !gestures || steered.get_untracked().is_some_and(|rect| rect.contains(gesture.pos)) {
+                if !gestures
+                    || steered.get_untracked().is_some_and(|rect| rect.contains(gesture.pos))
+                {
                     return;
                 }
                 match gesture.modifiers.ctrl && gesture.delta.y != 0.0 {
@@ -1557,6 +1559,7 @@ fn BlockFrameView(
                             .any(|floating| floating.translate(origin).contains(pos))
                     })
             };
+            let recognised = beui::unstyled::gestures::pan_zoom(pan, zoom);
             let placed_zoom = create_memo(move || {
                 if handle.pan_and_zoom || !embedded || content.get().is_some() {
                     return 1.0;
@@ -1572,9 +1575,11 @@ fn BlockFrameView(
             let child_view = child_view(block, EditorRegion::Frame);
             view! {
                 <Interactive
-                    on_scroll={scroll}
-                    on_zoom={zoom}
-                    on_pan_drag={pan}
+                    on_wheel={beui::unstyled::gestures::first_of([
+                        recognised.wheel,
+                        beui::unstyled::gestures::scroll_wheel(None, scroll),
+                    ])}
+                    on_pointer={recognised.pointer}
                     gestures_at={gestures_at}
                 >
                     <PluginRegion

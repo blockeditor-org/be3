@@ -8,17 +8,14 @@ use beui_core::clipboard::Pasted;
 use beui_core::focus::ImeCursor;
 use beui_core::geometry::Pos2;
 use beui_core::geometry::Vec2;
-use beui_core::input::AutoscrollGesture;
 use beui_core::input::CursorIcon;
-use beui_core::input::DragGesture;
 use beui_core::input::ImeEvent;
 use beui_core::input::ImeText;
 use beui_core::input::KeyPress;
 use beui_core::input::Modifiers;
+use beui_core::input::PointerInput;
 use beui_core::input::PointerPress;
-use beui_core::input::ScrollGesture;
-use beui_core::input::SecondaryDrag;
-use beui_core::input::ZoomGesture;
+use beui_core::input::WheelInput;
 use beui_core::interact::forward::ForwardedInput;
 use beui_core::node::NodeId;
 use beui_macros::component;
@@ -47,7 +44,7 @@ pub fn Interactive(
     on_ime: Callback<ImeEvent>,
     on_key: Callback<KeyPress, bool>,
     on_motion: Callback<Vec2>,
-    cursor: Option<Prop<CursorIcon>>,
+    #[prop(default = None)] cursor: Prop<Option<CursorIcon>>,
     #[prop(default = false)] pointer_locked: Prop<bool>,
     #[prop(default = false)] key_active: Prop<bool>,
     #[prop(default = false)] capture_presses: Prop<bool>,
@@ -57,7 +54,7 @@ pub fn Interactive(
     #[prop(default = true)] claims_touch: Prop<bool>,
     #[prop(default = false)] drawing: Prop<bool>,
     #[prop(default = false)] every_sample: Prop<bool>,
-    #[prop(default = None)] scroll_axis: Prop<Option<Direction>>,
+    #[prop(default = false)] grabs_pointer: Prop<bool>,
     on_click: ClickCallback,
     on_click_at: Callback<PointerPress>,
     on_hover_change: Callback<bool>,
@@ -67,14 +64,9 @@ pub fn Interactive(
     on_middle_click: ClickCallback,
     on_press: Callback<PointerPress>,
     on_secondary_press: Callback<PointerPress>,
-    on_secondary_drag: Callback<SecondaryDrag>,
     on_drag: Callback<PointerPress>,
-    on_pan_drag: Callback<Vec2>,
-    on_pan_active_change: Callback<bool>,
-    on_scroll: Callback<ScrollGesture>,
-    on_scroll_drag: Callback<DragGesture>,
-    on_autoscroll: Callback<AutoscrollGesture>,
-    on_zoom: Callback<ZoomGesture>,
+    on_pointer: Callback<PointerInput, bool>,
+    on_wheel: Callback<WheelInput, bool>,
     capture_at: Callback<Pos2, bool>,
     gestures_at: Callback<Pos2, bool>,
     hit_at: Callback<Pos2, bool>,
@@ -121,7 +113,7 @@ pub fn Interactive(
         claims_touch,
         drawing,
         every_sample,
-        scroll_axis,
+        grabs_pointer,
         on_click,
         on_click_at,
         on_hover_change,
@@ -131,14 +123,9 @@ pub fn Interactive(
         on_middle_click,
         on_press,
         on_secondary_press,
-        on_secondary_drag,
         on_drag,
-        on_pan_drag,
-        on_pan_active_change,
-        on_scroll,
-        on_scroll_drag,
-        on_autoscroll,
-        on_zoom,
+        on_pointer,
+        on_wheel,
         capture_at,
         gestures_at,
         hit_at,

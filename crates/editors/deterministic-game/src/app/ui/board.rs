@@ -326,7 +326,7 @@ pub(crate) fn Stage(
             on_drag={on_drag}
             on_click_at={on_click_at}
             on_active_change={on_active_change}
-            on_secondary_drag={on_secondary_drag}
+            on_pointer={beui::unstyled::gestures::secondary_drag(on_secondary_drag)}
         >
             <Layers>
                 <List spacing=Space::None>

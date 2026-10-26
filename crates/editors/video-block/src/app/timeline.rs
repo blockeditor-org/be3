@@ -161,7 +161,7 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
                     <Interactive
                         cursor=CursorIcon::Default
                         on_press={on_press}
-                        on_scroll={on_scroll}
+                        on_wheel={beui::unstyled::gestures::scroll_wheel(None, on_scroll)}
                         on_hover_move={on_hover}
                         @test_id={"video.timeline"}
                     >

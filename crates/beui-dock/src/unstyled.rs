@@ -2115,7 +2115,7 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
         <Interactive
             claims_touch=false
             claim_modifiers={claimed}
-            on_secondary_drag={resized}
+            on_pointer={beui_components_unstyled::gestures::secondary_drag(resized)}
             on_press={move |press: PointerPress| {
                 if dock.modifier_held(press.modifiers) {
                     return;
@@ -2994,7 +2994,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                         && dock.over_window_bar(surface, pos)
                                                 }}
                                                 claim_modifiers={claimed}
-                                                on_secondary_drag={resized}
+                                                on_pointer={beui_components_unstyled::gestures::secondary_drag(resized)}
                                                 on_press={move |press: PointerPress| {
                                                     let carried = dock.modifier_held(press.modifiers);
                                                     let bar = carried || dock.over_window_bar(surface, press.pos);

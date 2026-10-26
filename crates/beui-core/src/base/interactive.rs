@@ -5,10 +5,7 @@ use crate::base::list::Direction;
 use crate::base::overlay::OverlayNode;
 use crate::focus::Focus;
 use crate::geometry::{Pos2, Rect, Vec2};
-use crate::input::{
-    AutoscrollGesture, CursorIcon, DragGesture, Modifiers, PointerPress, ScrollGesture,
-    SecondaryDrag, ZoomGesture,
-};
+use crate::input::{CursorIcon, Modifiers, PointerInput, PointerPress, WheelInput};
 use crate::painter::Painter;
 
 use crate::callback::{Callback, ClickCallback};
@@ -20,7 +17,7 @@ pub struct InteractiveNode {
     pub focus: Option<Focus>,
     pub cursor: Option<CursorIcon>,
     pub locks_pointer: bool,
-    pub scroll_axis: Option<Direction>,
+    pub grabs_pointer: bool,
     pub capture_presses: bool,
     pub press_focus: bool,
     pub repeat_drag: bool,
@@ -34,7 +31,6 @@ pub struct InteractiveNode {
     pub hovered: bool,
     pub hover_pos: Option<Pos2>,
     pub active: bool,
-    pub pan_active: bool,
     pub on_click: ClickCallback,
     pub on_click_at: Callback<PointerPress>,
     pub on_hover_change: Callback<bool>,
@@ -44,14 +40,9 @@ pub struct InteractiveNode {
     pub on_middle_click: ClickCallback,
     pub on_press: Callback<PointerPress>,
     pub on_secondary_press: Callback<PointerPress>,
-    pub on_secondary_drag: Callback<SecondaryDrag>,
     pub on_drag: Callback<PointerPress>,
-    pub on_pan_drag: Callback<Vec2>,
-    pub on_pan_active_change: Callback<bool>,
-    pub on_scroll: Callback<ScrollGesture>,
-    pub on_scroll_drag: Callback<DragGesture>,
-    pub on_autoscroll: Callback<AutoscrollGesture>,
-    pub on_zoom: Callback<ZoomGesture>,
+    pub on_pointer: Callback<PointerInput, bool>,
+    pub on_wheel: Callback<WheelInput, bool>,
     pub capture_at: Callback<Pos2, bool>,
     pub gestures_at: Callback<Pos2, bool>,
     pub hit_at: Callback<Pos2, bool>,
@@ -78,7 +69,7 @@ impl InteractiveNode {
             focus: None,
             cursor: None,
             locks_pointer: false,
-            scroll_axis: None,
+            grabs_pointer: false,
             capture_presses: false,
             press_focus: true,
             repeat_drag: false,
@@ -92,7 +83,6 @@ impl InteractiveNode {
             hovered: false,
             hover_pos: None,
             active: false,
-            pan_active: false,
             on_click: ClickCallback::empty(),
             on_click_at: Callback::empty(),
             on_hover_change: Callback::empty(),
@@ -102,14 +92,9 @@ impl InteractiveNode {
             on_middle_click: ClickCallback::empty(),
             on_press: Callback::empty(),
             on_secondary_press: Callback::empty(),
-            on_secondary_drag: Callback::empty(),
             on_drag: Callback::empty(),
-            on_pan_drag: Callback::empty(),
-            on_pan_active_change: Callback::empty(),
-            on_scroll: Callback::empty(),
-            on_scroll_drag: Callback::empty(),
-            on_autoscroll: Callback::empty(),
-            on_zoom: Callback::empty(),
+            on_pointer: Callback::empty(),
+            on_wheel: Callback::empty(),
             capture_at: Callback::empty(),
             gestures_at: Callback::empty(),
             hit_at: Callback::empty(),
@@ -176,47 +161,23 @@ impl InteractiveNode {
     }
 
     pub fn takes_secondary(&self) -> bool {
-        !self.on_secondary_press.is_empty() || !self.on_secondary_drag.is_empty()
+        !self.on_secondary_press.is_empty()
+    }
+
+    pub fn hears_pointers(&self) -> bool {
+        !self.on_pointer.is_empty()
     }
 
     pub fn claims_touches(&self) -> bool {
         self.claims_touch && self.takes_presses()
     }
 
-    pub fn wants_gestures(&self) -> bool {
-        !self.on_zoom.is_empty() || !self.on_pan_drag.is_empty()
-    }
-
-    pub fn wants_autoscroll(&self) -> bool {
-        !self.on_autoscroll.is_empty()
-    }
-
-    pub fn claims_middle(&self) -> bool {
-        self.wants_autoscroll()
-            || !self.on_pan_drag.is_empty()
-            || !self.on_middle_click.is_empty()
-            || self.forwards()
-    }
-
-    pub fn wants_wheel(&self, wheel: Vec2) -> bool {
-        !self.on_scroll.is_empty() && self.along(wheel)
-    }
-
-    pub fn catches_drag(&self, direction: Direction) -> bool {
-        self.holds_drag(direction)
-            || (!self.on_scroll_drag.is_empty()
-                && self.scroll_axis.is_none_or(|axis| axis == direction))
+    pub fn stops_middle(&self) -> bool {
+        !self.on_middle_click.is_empty() || self.forwards()
     }
 
     pub fn holds_drag(&self, direction: Direction) -> bool {
         self.touch_drags || self.touch_drag_axis == Some(direction)
-    }
-
-    fn along(&self, wheel: Vec2) -> bool {
-        match self.scroll_axis {
-            Some(axis) => axis.main(wheel) != 0.0,
-            None => wheel != Vec2::ZERO,
-        }
     }
 
     pub fn is_active(&self) -> bool {
@@ -348,18 +309,14 @@ impl Element for InteractiveNode {
             (self.on_click_at.is_empty(), "click at"),
             (self.on_press.is_empty(), "press"),
             (self.on_secondary_press.is_empty(), "secondary press"),
-            (self.on_secondary_drag.is_empty(), "secondary drag"),
             (self.on_middle_click.is_empty(), "middle click"),
             (self.on_cancel.is_empty(), "cancel"),
             (self.on_hover_change.is_empty(), "hover"),
             (self.on_hover_move.is_empty(), "hover move"),
             (self.on_active_change.is_empty(), "active"),
             (self.on_drag.is_empty(), "drag"),
-            (self.on_pan_drag.is_empty(), "pan"),
-            (self.on_scroll.is_empty(), "scroll"),
-            (self.on_scroll_drag.is_empty(), "scroll drag"),
-            (self.on_autoscroll.is_empty(), "autoscroll"),
-            (self.on_zoom.is_empty(), "zoom"),
+            (self.on_pointer.is_empty(), "pointer"),
+            (self.on_wheel.is_empty(), "wheel"),
             (self.on_forward.is_empty(), "forward"),
         ]
         .into_iter()
@@ -370,7 +327,7 @@ impl Element for InteractiveNode {
             (self.active, "active"),
             (self.armed, "armed"),
             (self.key_active, "key active"),
-            (self.pan_active, "panning"),
+            (self.grabs_pointer, "grabbing the pointer"),
         ]
         .into_iter()
         .filter_map(|(on, name)| on.then_some(name))
@@ -404,11 +361,6 @@ impl Element for InteractiveNode {
                 "cursor",
                 self.cursor
                     .map_or_else(|| "default".to_owned(), |cursor| format!("{cursor:?}")),
-            ),
-            (
-                "scroll axis",
-                self.scroll_axis
-                    .map_or_else(|| "none".to_owned(), |axis| format!("{axis:?}")),
             ),
             ("handlers", list(handlers)),
             ("state", list(states)),
@@ -493,13 +445,15 @@ impl Document {
         }
     }
 
-    pub fn set_interactive_scroll_axis(
-        &mut self,
-        id: NodeOf<InteractiveNode>,
-        axis: Option<Direction>,
-    ) {
-        if self.arena.get_as::<InteractiveNode>(id).scroll_axis != axis {
-            self.arena.touch_mut_as::<InteractiveNode>(id).scroll_axis = axis;
+    pub fn set_interactive_grabs_pointer(&mut self, id: NodeOf<InteractiveNode>, grabs: bool) {
+        if self.arena.get_as::<InteractiveNode>(id).grabs_pointer == grabs {
+            return;
+        }
+        self.arena.touch_mut_as::<InteractiveNode>(id).grabs_pointer = grabs;
+        match grabs {
+            true => self.pointers.grabber = Some(id.id()),
+            false if self.pointers.grabber == Some(id.id()) => self.pointers.grabber = None,
+            false => {}
         }
     }
 

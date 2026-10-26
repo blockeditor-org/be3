@@ -53,7 +53,7 @@ activation and arrow stepping), tree bubble listeners from the target up, and
 the window and host bubble listeners. The first listener to answer `true` ends
 the trip. The document's own keys are listeners on it too (`builtin` in
 interact.rs), which the lock never cuts unless noted: the first host capture
-listener ends autoscroll on any press and takes Escape doing it; the last
+listener ends a pointer grab (autoscroll) on any press and takes Escape doing it; the last
 window capture listener is F6 and Shift+F6 (cut with the window); the first
 window bubble listener asks the innermost dismissable layer around the focus to
 close on Escape (see the beui guide; a key bound for an app never gets that
@@ -457,8 +457,9 @@ a cancelled contact cancels a pending tap rather than activating it.
 
 A second finger that lands while the first is still held where it touched
 down is a secondary drag rather than a pinch: it reports through
-`Interactive`'s `on_secondary_drag` exactly as a right-button drag does
-(`SecondaryDrag`: where it began, where it is, whether it started, ended or was
+`unstyled::gestures::secondary_drag` exactly as a right-button drag does
+(the core sends it to the `on_pointer`s under it as a secondary button;
+`SecondaryDrag`: where it began, where it is, whether it started, ended or was
 cancelled, and the modifiers), which is how a board marks up arrows by either
 means. The moment the held finger moves, the gesture is a pinch after all and
 the secondary drag is cancelled.

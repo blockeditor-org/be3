@@ -450,12 +450,8 @@ fn handlers(node: &InteractiveNode) -> Vec<&'static str> {
         ("secondary press", !node.on_secondary_press.is_empty()),
         ("middle click", !node.on_middle_click.is_empty()),
         ("drag", !node.on_drag.is_empty()),
-        ("pan", !node.on_pan_drag.is_empty()),
-        (
-            "scroll",
-            !node.on_scroll.is_empty() || node.scroll_axis.is_some(),
-        ),
-        ("zoom", !node.on_zoom.is_empty()),
+        ("pointers", !node.on_pointer.is_empty()),
+        ("wheel", !node.on_wheel.is_empty()),
         (
             "hover",
             !node.on_hover_change.is_empty() || !node.on_hover_move.is_empty(),

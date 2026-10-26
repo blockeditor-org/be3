@@ -197,7 +197,9 @@ pub fn TerminalView(
                                             </VirtualList>
                                         </Show>
                                         <Show condition={wheel}>
-                                            <Interactive on_scroll={wheeled.clone()}>
+                                            <Interactive
+                                                on_wheel={beui::unstyled::gestures::scroll_wheel(None, wheeled.clone())}
+                                            >
                                                 <VirtualList
                                                     keys={screen_keys}
                                                     item_size=line_height

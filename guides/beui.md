@@ -300,7 +300,7 @@ direction:
 | Crate | Owns |
 | --- | --- |
 | `ui-types` | the vocabulary beui shares with the plugin protocol, which depends on nothing but serde and `geometry`: `Key` (with its names for drive, `Key::from_name` and `Key::name`, its evdev code, `Key::evdev`, and what every platform names keys with: `Key::from_typed`, the one rule for a character key, `Key::from_value` for a W3C key value, and `Key::evdev_from_code` and `Key::from_evdev` for a physical place), `Modifiers`, `KeyChord`, `PointerButton`, the touch, pen and back phases, `ImeEvent`, `CursorIcon`, `Pasted` and `PickedFile`; `Input`, the raw input every platform, drive's gestures, the on-screen keyboard and the plugin protocol produce; `WindowRequests` and `ImeArea`, what an app asks of its window; the window vocabulary of window-hosting layers (`WindowId`, `WindowPlacement`, `HostPlacement`, `WindowEdge`, `WindowRole`, `WindowRequest`, `WindowReport`, which `beui_core::window` re-exports); the preferences (`ThemeKind`, `Motion`, `Preferences`, `PreferenceLayer`); and the display and pointer settings `beui-platform-drm` applies and block settings store (`DisplayMode`, `Rotation`, `InputDevice`, `PointerSettings`) |
-| `beui-types` | the plain values components share whichever core draws them, with no nodes in them: colours (`Color32`, `Hsva`, `Oklch`), `Image` and `Thumbhash`, the layout values (`Direction`, `Align`, `Justify`, `ItemSize`, `Sizing`, `Sides`, `Extent`, `Track`, `ScrollPosition`, `Corners`, `Outline`), the text values (`FontId`, `TextAlign`, `Overflow`, `SpanStyle`, `TextMark`, `TextGlyph`, `TextCaret`), the layer values (`Placement`, `LayerPolicy`, `LayerLevel`, `Dismiss`), the gestures (`PointerPress`, `ScrollGesture`, `DragGesture`, `ZoomGesture`), `KeyPhase` and `SystemBars`, with `geometry`, `ui-types`' input values and lucide's `icons` re-exported. beui-core re-exports each where it used to live; unstyled and styled reach them as `beui_view::types` and apps as `beui::`, and values that hold a node (`NodeId`, `OverlayAnchor`, `KeyAt`, `KeyEvent`, `ImeCursor`) through `beui::reactive` |
+| `beui-types` | the plain values components share whichever core draws them, with no nodes in them: colours (`Color32`, `Hsva`, `Oklch`), `Image` and `Thumbhash`, the layout values (`Direction`, `Align`, `Justify`, `ItemSize`, `Sizing`, `Sides`, `Extent`, `Track`, `ScrollPosition`, `Corners`, `Outline`), the text values (`FontId`, `TextAlign`, `Overflow`, `SpanStyle`, `TextMark`, `TextGlyph`, `TextCaret`), the layer values (`Placement`, `LayerPolicy`, `LayerLevel`, `Dismiss`), raw pointer and wheel input (`PointerId`, `PointerInput`, `PointerStage`, `WheelInput`) and the gestures (`PointerPress`, `ScrollGesture`, `DragGesture`, `ZoomGesture`), `KeyPhase` and `SystemBars`, with `geometry`, `ui-types`' input values and lucide's `icons` re-exported. beui-core re-exports each where it used to live; unstyled and styled reach them as `beui_view::types` and apps as `beui::`, and values that hold a node (`NodeId`, `OverlayAnchor`, `KeyAt`, `KeyEvent`, `ImeCursor`) through `beui::reactive` |
 | `beui-tree` | what makes a tree of components, whatever it is made of: `#[component]` and `view!`'s runtime, `Prop`, child slots (`Children`, `Run`, `SlotChild`, `SlotHost`) and `Show`, `ShowKeepAlive`, `Dynamic`, `Keyed` and `ForEach` |
 | `beui-core` | `Document` and `Context`, the retained nodes and their layout, input and its dispatch, accessibility, paint output and damage, the font and image interfaces, the icon codepoints, the `App` contract, and the `Runner` every platform drives it through |
 | `beui-font-freetype` | `FreetypeFonts`: FreeType and HarfBuzz shaping and rasterizing, and the fonts beui compiles in |
@@ -513,7 +513,7 @@ hooks the higher crates fill in:
   says every press, touch and pen session is over and its release will not
   come: the runner lets go of its buttons and emulated touch, and the
   document cancels the touches, ends the pen and the mouse
-  (`Event::PointersCancelled`) and stops autoscrolling. Only the platforms
+  (`Event::PointersCancelled`) and cancels a pointer grab, which stops autoscrolling. Only the platforms
   whose platform can lose a release send it: winit and the web when their
   window loses focus (alt-tab mid-press, a broken capture on Windows, a grab
   by another X11 client), and winit on Wayland also when the pointer leaves
@@ -4514,11 +4514,23 @@ one given none leaves the cursor to the catchers around it, so a catcher
 that only listens - for a secondary press, a wheel - does not undo the
 I-beam of the text field it wraps.
 
-A catcher takes the wheel with `on_scroll` and a touch drag with
-`on_scroll_drag`, and `scroll_axis` names the axis it takes them along, so a
-vertical wheel over a horizontal strip passes through to whatever is around it
-and a drag reaches the innermost catcher that scrolls that way.
-`unstyled::Scroll` is built out of those three.
+Beside presses, clicks and hover, a catcher hears raw input: `on_pointer`
+gets a `PointerInput` (the pointer, its button, `Down`, `Move`, `Up` or
+`Cancel`, `pos`, `local`, `size` and `scale`, whether it is `inside` the
+catcher, the modifiers, the time, and `settles`), and `on_wheel` a
+`WheelInput` (`Scroll(ScrollGesture)` or `Zoom(ZoomGesture)`); each answers
+whether it took the input. Gestures are recognised over those in
+`unstyled::gestures`, not in the core: `scroll_wheel(axis, ..)` takes wheel
+turns along an axis, `scroll_drag(axis, ..)` a settled finger drag as
+`DragGesture`s, `autoscroll(..)` a middle-click autoscroll, `secondary_drag(..)`
+a right-button drag or a two-finger hold as `SecondaryDrag`s, and
+`pan_zoom(on_pan, on_zoom)` a middle drag, a two-finger pinch and pan (summed
+over the frame through `after_input`, which runs a callback once the frame's
+pointer input is dispatched) and a touchpad zoom. `first_of([..])` puts several
+on one catcher, asking each in turn until one takes the input. So a vertical
+wheel over a horizontal strip passes through to whatever is around it, and a
+drag reaches the innermost catcher that scrolls that way. `unstyled::Scroll` is
+`scroll_wheel`, `scroll_drag` and `autoscroll`; `PanZoom` is `pan_zoom`.
 
 Pointer input takes one path. Each mouse button and each finger is a pointer
 of its own, and the document sees their downs, moves and ups in the order they
@@ -4545,22 +4557,37 @@ catcher, or for a finger, let go without having been dragged. The press then
 focuses the innermost focusable catcher it reached, or clears the focus;
 a claimed or captured press that reached no focusable catcher leaves the focus
 where it was. A
-secondary press reaches every catcher on the path that takes one, and a middle
-press the innermost that pans, autoscrolls or forwards.
+secondary press reaches every catcher on the path that takes one. A middle
+press is offered to each `on_pointer` on the path from the innermost out,
+stopping at a catcher that middle-clicks or forwards; the first to answer
+`true` takes the pointer and hears the rest of it alone. Any other pointer's
+down, moves, release or cancel go to every `on_pointer` on its path (to the
+claimant alone for a claimed press) until it lifts, unless one answers `true`
+to the down, which takes it the same way.
 
-A finger drag is settled when the finger leaves the tap slop: the innermost
-catcher on its path that takes a drag that way (`touch_drags`,
-`touch_drag_axis`, or `on_scroll_drag` along its `scroll_axis`) wins it,
-every armed catcher that does not hold that drag hears `on_cancel`, and the
-winner's `on_scroll_drag` hears the rest. A claimed finger drag stays with its
+A finger drag is settled when the finger leaves the tap slop, along the
+larger of its two movements. That move goes along the path from the innermost
+catcher with `settles` set to the axis: a catcher that holds drags that way
+(`touch_drags`, `touch_drag_axis`) wins it outright, else the first
+`on_pointer` that answers `true` does, and every armed catcher that does not
+hold that drag hears `on_cancel`. A claimed finger drag stays with its
 claimant. A second finger, a long press and a lost window focus cancel the
-press the same way.
+press the same way, and the winner of the drag hears `Cancel` though the finger
+stays down. A second finger landing while the first is held still is a
+two-finger hold: the `on_pointer`s under it hear it as a secondary button,
+which a move of the first finger cancels.
+
+A catcher with `grabs_pointer` set hears every pointer event of the document
+first, hovering moves and wheel turns included, and one it answers `true` goes
+no further. Its `cursor` wins while it grabs, and a key press other than a
+modifier, or `Event::PointersCancelled`, sends it `Cancel` (an Escape that does
+is taken). `gestures::autoscroll` grabs while it scrolls.
 
 Hover is the path under the mouse, worked out again every frame, so a catcher
 hears `on_hover_change` when it joins or leaves the path whether the pointer
 moved or the layout did. The cursor is the innermost armed catcher's, else the
 innermost hovered one's. A wheel turn goes to the innermost catcher on the path
-under where the pointer was when it turned that takes it along its axis, unless
+under where the pointer was when it turned whose `on_wheel` takes it, unless
 a forwarding catcher comes first (one with `forwards_wheel=false`, such as the
 on-screen keyboard, forwards only its presses and lets the wheel pass to what is
 under it), and stays latched to it for

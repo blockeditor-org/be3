@@ -7,6 +7,7 @@ use block_editor_beui::{Editor, FileChooser, Sidebar, Toolbar};
 
 use super::pages::{Pages, Shown, Viewport};
 use super::{filter, imported};
+use beui::unstyled::gestures;
 use beui::{Direction, ItemSize};
 use pdf_types::PdfContent;
 
@@ -84,6 +85,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
+    let pan = gestures::pan_zoom(move |delta: Vec2| editor.pan(delta), Callback::empty());
     view! {
         <List spacing=Space::None>
             <Toolbar shown={chrome}>
@@ -121,7 +123,8 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
                 <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
                     <Interactive
                         on_press={move |_: PointerPress| editor.pan_drag()}
-                        on_pan_drag={move |delta: Vec2| editor.pan(delta)}
+                        on_pointer={pan.pointer}
+                        on_wheel={pan.wheel}
                     >
                         <PageCanvas shown={shown} view={editor.canvas()} />
                     </Interactive>
