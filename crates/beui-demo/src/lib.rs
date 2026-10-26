@@ -29,8 +29,8 @@ use beui::unstyled::{
     SyntaxColors, narrower_than,
 };
 use beui::{
-    Color32, Context, Direction, Document, FontId, Image, ImageFit, ItemSize, Key, Modifiers, NodeId,
-    PreferenceLayer, PreferenceSource, Rect, ScrollGesture, TextAlign, unstyled,
+    Color32, Context, Direction, Document, FontId, Image, ImageFit, ItemSize, Key, Modifiers,
+    NodeId, PreferenceLayer, PreferenceSource, Rect, ScrollGesture, TextAlign, unstyled,
 };
 use beui_macros::{component, sample};
 use collaboration::CollaborationPage;

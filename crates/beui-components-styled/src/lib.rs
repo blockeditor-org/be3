@@ -60,11 +60,11 @@ pub use beui_components_unstyled::{
     ActionRole, DialogAction, DialogKind, EveryScreen, ModalMotion, ModalPlacement, ScreenSlot,
 };
 pub use beui_components_unstyled::{DialogDismissal, DialogLayout};
-pub use beui_components_unstyled::{PaletteItem, PaletteItems, PaletteScore};
 pub use beui_components_unstyled::{
     BackSlide, ChoiceOption, Container, MenuItem, PopoverHandle, TextAreaState, TreeItem,
     container_size,
 };
+pub use beui_components_unstyled::{PaletteItem, PaletteItems, PaletteScore};
 pub use beui_components_unstyled::{emoji_completer, search_emoji};
 pub use beui_view::primitives::{
     BackHandler, Break, Canvas, CanvasItem, Drawing, Embed, Fade, GridCell, Interactive, Layer,
