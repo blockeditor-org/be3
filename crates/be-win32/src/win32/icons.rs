@@ -26,8 +26,6 @@ pub fn from_hicon(hicon: HICON) -> Option<Image> {
     image
 }
 
-/// A 32-bit bitmap with premultiplied alpha, as the shell's image factory
-/// gives it; deletes it.
 // unsafe(ffi)
 pub fn from_premultiplied(bitmap: HBITMAP) -> Option<Image> {
     let image = size(bitmap).and_then(|(width, height)| {
@@ -53,10 +51,12 @@ fn size(bitmap: HBITMAP) -> Option<(u32, u32)> {
     if read == 0 {
         return None;
     }
-    Some((u32::try_from(info.bmWidth).ok()?, u32::try_from(info.bmHeight).ok()?))
+    Some((
+        u32::try_from(info.bmWidth).ok()?,
+        u32::try_from(info.bmHeight).ok()?,
+    ))
 }
 
-/// The bitmap as 32-bit BGRA, top row first.
 // unsafe(ffi)
 fn bits(bitmap: HBITMAP, width: u32, height: u32) -> Option<Vec<u8>> {
     if bitmap.0.is_null() {

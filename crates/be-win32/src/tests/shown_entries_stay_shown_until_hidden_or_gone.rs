@@ -7,8 +7,20 @@ fn shown_entries_stay_shown_until_hidden_or_gone() {
     desktop.add(window(2, "two"));
     let mut model = Model::new();
     model.update(&desktop, &[]);
-    let ids: Vec<EntryId> = model.snapshot().entries.iter().map(|entry| entry.id).collect();
-    let shown = |model: &Model| -> Vec<bool> { model.snapshot().entries.iter().map(|entry| entry.shown).collect() };
+    let ids: Vec<EntryId> = model
+        .snapshot()
+        .entries
+        .iter()
+        .map(|entry| entry.id)
+        .collect();
+    let shown = |model: &Model| -> Vec<bool> {
+        model
+            .snapshot()
+            .entries
+            .iter()
+            .map(|entry| entry.shown)
+            .collect()
+    };
     assert_eq!(shown(&model), [false, false]);
 
     model.show(ids[0]);

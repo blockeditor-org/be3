@@ -23,7 +23,10 @@ fn entries_keep_their_ids_and_the_revision_counts_changes() {
 
     desktop.remove(Handle(1));
     desktop.add(window(3, "three"));
-    assert!(model.update(&desktop, &[Event::Destroyed(Handle(1)), Event::Created(Handle(3))]));
+    assert!(model.update(
+        &desktop,
+        &[Event::Destroyed(Handle(1)), Event::Created(Handle(3))]
+    ));
     let replaced = model.snapshot();
     assert_eq!(titles(&replaced), ["two", "three"]);
     assert_eq!(replaced.entries[0].id, first.entries[1].id);
@@ -37,6 +40,10 @@ fn entries_keep_their_ids_and_the_revision_counts_changes() {
     desktop.add(reused);
     model.update(&desktop, &[]);
     let after = model.snapshot();
-    let entry = after.entries.iter().find(|entry| entry.handle == Handle(2)).unwrap();
+    let entry = after
+        .entries
+        .iter()
+        .find(|entry| entry.handle == Handle(2))
+        .unwrap();
     assert_ne!(entry.id, first.entries[1].id);
 }

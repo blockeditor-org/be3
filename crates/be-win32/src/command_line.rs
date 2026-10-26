@@ -32,9 +32,6 @@ pub fn join_arguments<S: AsRef<str>>(arguments: &[S]) -> String {
         .join(" ")
 }
 
-/// Splits a command line's arguments as `CommandLineToArgvW` does after the
-/// program name: whitespace separates, quotes group, and backslashes escape
-/// only the quotes they come before.
 pub fn split_arguments(line: &str) -> Vec<String> {
     let mut arguments = Vec::new();
     let mut current = String::new();

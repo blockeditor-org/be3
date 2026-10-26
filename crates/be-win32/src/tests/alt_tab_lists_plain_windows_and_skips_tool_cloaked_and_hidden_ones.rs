@@ -46,7 +46,17 @@ fn alt_tab_lists_plain_windows_and_skips_tool_cloaked_and_hidden_ones() {
         },
         ..window(9, "no activate")
     };
-    let all = [plain, tool, tool_app, cloaked, hidden, empty, minimized, shell, no_activate];
+    let all = [
+        plain,
+        tool,
+        tool_app,
+        cloaked,
+        hidden,
+        empty,
+        minimized,
+        shell,
+        no_activate,
+    ];
     let index = Windows::new(&all);
     let listed: Vec<&str> = all
         .iter()

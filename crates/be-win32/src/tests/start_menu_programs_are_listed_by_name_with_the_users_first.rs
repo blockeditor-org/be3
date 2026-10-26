@@ -38,7 +38,13 @@ fn start_menu_programs_are_listed_by_name_with_the_users_first() {
     });
     let listed: Vec<(&str, &str, Option<&str>)> = programs
         .iter()
-        .map(|program| (program.id.as_str(), program.name.as_str(), program.folder.as_deref()))
+        .map(|program| {
+            (
+                program.id.as_str(),
+                program.name.as_str(),
+                program.folder.as_deref(),
+            )
+        })
         .collect();
     assert_eq!(
         listed,

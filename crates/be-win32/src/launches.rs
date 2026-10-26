@@ -3,23 +3,15 @@ use std::path::{Path, PathBuf};
 
 const UNCLAIMED_KEPT: usize = 32;
 
-/// A program block-app started.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Launch {
-    /// The process `ShellExecuteExW` started, when it says; a shortcut that
-    /// hands over to a running process (a browser's second window) gives one
-    /// that exits, or none.
     pub process_id: Option<u32>,
-    /// The program's id in the program list.
     pub program: Option<String>,
     pub command: Vec<String>,
-    /// The caller's number for this launch, echoed in the windows it opens.
     pub launch: Option<u64>,
-    /// The executable the shortcut points at.
     pub target: Option<PathBuf>,
 }
 
-/// Where a window came from.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Origin {
     pub program: Option<String>,
@@ -33,8 +25,6 @@ struct Started {
     claimed: bool,
 }
 
-/// The launches whose windows have not all closed, matched to windows by
-/// process id, else by executable.
 #[derive(Clone, Debug, Default)]
 pub struct Launches {
     started: Vec<Started>,
@@ -46,7 +36,11 @@ impl Launches {
             launch,
             claimed: false,
         });
-        let unclaimed = self.started.iter().filter(|started| !started.claimed).count();
+        let unclaimed = self
+            .started
+            .iter()
+            .filter(|started| !started.claimed)
+            .count();
         if unclaimed > UNCLAIMED_KEPT
             && let Some(oldest) = self.started.iter().position(|started| !started.claimed)
         {
@@ -54,10 +48,6 @@ impl Launches {
         }
     }
 
-    /// The origin of a window that just appeared: the latest launch of its
-    /// process, else the oldest unclaimed launch of its executable, which
-    /// then belongs to its process. A window no launch started comes from
-    /// its executable alone.
     pub fn origin(&mut self, process_id: u32, exe: Option<&Path>) -> Origin {
         let by_process = self
             .started
@@ -93,7 +83,6 @@ impl Launches {
         }
     }
 
-    /// Forgets the claimed launches whose processes have no windows left.
     pub fn retain_processes(&mut self, processes: &HashSet<u32>) {
         self.started.retain(|started| {
             !started.claimed
@@ -113,7 +102,6 @@ impl Launches {
     }
 }
 
-/// Windows paths compare without case and either slash.
 pub fn same_path(a: &Path, b: &Path) -> bool {
     let fold = |path: &Path| path.to_string_lossy().replace('/', "\\").to_lowercase();
     fold(a) == fold(b)

@@ -8,12 +8,14 @@ use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::System::Threading::GetCurrentThreadId;
 use windows::Win32::UI::Accessibility::{HWINEVENTHOOK, SetWinEventHook, UnhookWinEvent};
-use windows::Win32::UI::HiDpi::{DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, SetThreadDpiAwarenessContext};
+use windows::Win32::UI::HiDpi::{
+    DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, SetThreadDpiAwarenessContext,
+};
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GA_ROOT, GetAncestor, GetMessageW,
-    KillTimer, MSG, PM_NOREMOVE, PeekMessageW, PostThreadMessageW, RegisterClassW, SetTimer, WINDOW_EX_STYLE,
-    WINEVENT_OUTOFCONTEXT, WM_APP, WM_DISPLAYCHANGE, WM_DPICHANGED, WM_QUIT, WM_SETTINGCHANGE, WM_TIMER,
-    WM_USER, WNDCLASSW, WS_POPUP,
+    CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GA_ROOT, GetAncestor,
+    GetMessageW, KillTimer, MSG, PM_NOREMOVE, PeekMessageW, PostThreadMessageW, RegisterClassW,
+    SetTimer, WINDOW_EX_STYLE, WINEVENT_OUTOFCONTEXT, WM_APP, WM_DISPLAYCHANGE, WM_DPICHANGED,
+    WM_QUIT, WM_SETTINGCHANGE, WM_TIMER, WM_USER, WNDCLASSW, WS_POPUP,
 };
 use windows::core::w;
 
@@ -45,10 +47,6 @@ thread_local! {
     static POSTED: Cell<bool> = const { Cell::new(false) };
 }
 
-/// The desktop's windows and monitors, watched on a thread of their own:
-/// `SetWinEventHook` for windows, a hidden window for display changes, and a
-/// tick for whether windows respond. Each change publishes a new
-/// [`Snapshot`] and calls `wake`, from that thread.
 pub struct Watcher {
     shared: Arc<Shared>,
     thread_id: u32,
@@ -63,10 +61,12 @@ impl Watcher {
             wake: Box::new(wake),
         });
         let (ready, started) = mpsc::channel();
-        let thread = std::thread::Builder::new().name("be-win32 windows".to_owned()).spawn({
-            let shared = shared.clone();
-            move || run(&shared, &ready)
-        })?;
+        let thread = std::thread::Builder::new()
+            .name("be-win32 windows".to_owned())
+            .spawn({
+                let shared = shared.clone();
+                move || run(&shared, &ready)
+            })?;
         let thread_id = started
             .recv()
             .map_err(|_| io::Error::other("the windows thread stopped as it started"))??;
@@ -89,15 +89,17 @@ impl Watcher {
         self.request(Request::Hide(id));
     }
 
-    /// Records a launch from [`super::launch`] or [`super::exec`], so the
-    /// windows it opens carry its origin.
     pub fn launched(&self, launch: Launch) {
         self.request(Request::Launched(launch));
     }
 
     // unsafe(ffi)
     fn request(&self, request: Request) {
-        self.shared.requests.lock().expect("requests lock").push(request);
+        self.shared
+            .requests
+            .lock()
+            .expect("requests lock")
+            .push(request);
         let _ = unsafe { PostThreadMessageW(self.thread_id, WM_REFRESH, WPARAM(0), LPARAM(0)) };
     }
 }
@@ -131,7 +133,17 @@ fn run(shared: &Shared, ready: &mpsc::Sender<io::Result<u32>>) {
         (EVENT_OBJECT_CREATE, EVENT_OBJECT_UNCLOAKED),
     ]
     .into_iter()
-    .map(|(first, last)| unsafe { SetWinEventHook(first, last, None, Some(on_win_event), 0, 0, WINEVENT_OUTOFCONTEXT) })
+    .map(|(first, last)| unsafe {
+        SetWinEventHook(
+            first,
+            last,
+            None,
+            Some(on_win_event),
+            0,
+            0,
+            WINEVENT_OUTOFCONTEXT,
+        )
+    })
     .collect();
     let timer = unsafe { SetTimer(None, 0, TICK_MS, None) };
     let _ = ready.send(Ok(thread_id));
@@ -148,7 +160,8 @@ fn run(shared: &Shared, ready: &mpsc::Sender<io::Result<u32>>) {
             WM_REFRESH => {
                 POSTED.set(false);
                 let events = PENDING.take();
-                for request in std::mem::take(&mut *shared.requests.lock().expect("requests lock")) {
+                for request in std::mem::take(&mut *shared.requests.lock().expect("requests lock"))
+                {
                     match request {
                         Request::Show(id) => model.show(id),
                         Request::Hide(id) => model.hide(id),
@@ -187,7 +200,8 @@ fn publish(shared: &Shared, model: &mut Model, desktop: &Win32Desktop, events: &
 fn queue(event: Event) {
     PENDING.with_borrow_mut(|pending| pending.push(event));
     if !POSTED.replace(true) {
-        let _ = unsafe { PostThreadMessageW(GetCurrentThreadId(), WM_REFRESH, WPARAM(0), LPARAM(0)) };
+        let _ =
+            unsafe { PostThreadMessageW(GetCurrentThreadId(), WM_REFRESH, WPARAM(0), LPARAM(0)) };
     }
 }
 
@@ -214,14 +228,18 @@ unsafe extern "system" fn on_win_event(
 }
 
 // unsafe(ffi)
-unsafe extern "system" fn on_listener_message(window: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+unsafe extern "system" fn on_listener_message(
+    window: HWND,
+    message: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> LRESULT {
     if matches!(message, WM_DISPLAYCHANGE | WM_SETTINGCHANGE | WM_DPICHANGED) {
         queue(Event::DisplaysChanged);
     }
     unsafe { DefWindowProcW(window, message, wparam, lparam) }
 }
 
-/// A hidden top-level window, which display changes are broadcast to.
 // unsafe(ffi)
 fn listener() -> io::Result<HWND> {
     let instance = unsafe { GetModuleHandleW(None) }.map_err(super::other)?;

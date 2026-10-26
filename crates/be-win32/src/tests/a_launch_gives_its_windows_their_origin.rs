@@ -14,14 +14,24 @@ fn launch(process_id: Option<u32>, program: &str, target: &str, number: u64) -> 
 fn a_launch_gives_its_windows_their_origin() {
     let desktop = FakeDesktop::new();
     let mut model = Model::new();
-    model.launched(launch(Some(101), "Accessories/Paint", "C:\\Windows\\mspaint.exe", 7));
+    model.launched(launch(
+        Some(101),
+        "Accessories/Paint",
+        "C:\\Windows\\mspaint.exe",
+        7,
+    ));
     desktop.add(window(1, "Paint"));
     model.update(&desktop, &[]);
     let origin = model.snapshot().entries[0].origin.clone();
     assert_eq!(origin.program.as_deref(), Some("Accessories/Paint"));
     assert_eq!(origin.launch, Some(7));
 
-    model.launched(launch(None, "Browser", "C:\\Program Files\\App102\\APP.EXE", 8));
+    model.launched(launch(
+        None,
+        "Browser",
+        "C:\\Program Files\\App102\\APP.EXE",
+        8,
+    ));
     desktop.add(window(2, "Browser"));
     model.update(&desktop, &[]);
     let origin = model.snapshot().entries[1].origin.clone();

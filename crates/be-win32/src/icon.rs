@@ -1,8 +1,5 @@
 use crate::Image;
 
-/// An icon's colour bitmap as `GetDIBits` gives it, 32 bits a pixel in BGRA,
-/// top row first, into rgba. An icon without alpha takes it from its AND
-/// mask, read the same way: a pixel set in the mask is transparent.
 pub fn from_bgra(width: u32, height: u32, bgra: &[u8], mask: Option<&[u8]>) -> Option<Image> {
     let pixels = usize::try_from(width).ok()? * usize::try_from(height).ok()?;
     if pixels == 0 || bgra.len() < pixels * 4 {
@@ -30,7 +27,6 @@ pub fn from_bgra(width: u32, height: u32, bgra: &[u8], mask: Option<&[u8]>) -> O
     })
 }
 
-/// Undoes premultiplied alpha, as the shell's image factory gives it.
 pub fn unpremultiply(image: &mut Image) {
     for pixel in image.rgba.chunks_exact_mut(4) {
         let alpha = u32::from(pixel[3]);

@@ -18,7 +18,12 @@ fn focus_follows_the_foreground_and_counts_raises() {
     desktop.foreground.set(Some(Handle(1)));
     model.update(&desktop, &[]);
     let focused = |model: &Model| -> Vec<(bool, u64)> {
-        model.snapshot().entries.iter().map(|entry| (entry.focused, entry.raised)).collect()
+        model
+            .snapshot()
+            .entries
+            .iter()
+            .map(|entry| (entry.focused, entry.raised))
+            .collect()
     };
     assert_eq!(focused(&model), [(true, 1), (false, 0)]);
 

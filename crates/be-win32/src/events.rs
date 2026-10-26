@@ -16,8 +16,6 @@ pub const EVENT_OBJECT_UNCLOAKED: u32 = 0x8018;
 pub const OBJID_WINDOW: i32 = 0;
 pub const CHILDID_SELF: i32 = 0;
 
-/// What changed on the desktop. The model reads the windows again after any
-/// of these; the kinds only say which of its caches are stale.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Event {
     Created(Handle),
@@ -33,13 +31,10 @@ pub enum Event {
     Uncloaked(Handle),
     DesktopSwitched,
     DisplaysChanged,
-    /// A periodic check of what has no event: whether windows respond.
     Tick,
 }
 
 impl Event {
-    /// The event a `SetWinEventHook` callback was given, if it is about a
-    /// whole window or the session.
     pub fn from_win_event(event: u32, window: Handle, object: i32, child: i32) -> Option<Self> {
         match event {
             EVENT_SYSTEM_FOREGROUND if window != Handle(0) => {

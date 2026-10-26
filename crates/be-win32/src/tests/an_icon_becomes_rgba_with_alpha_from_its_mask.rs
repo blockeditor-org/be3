@@ -10,7 +10,9 @@ fn an_icon_becomes_rgba_with_alpha_from_its_mask() {
     let without_alpha = [10, 20, 30, 0, 1, 2, 3, 0];
     let mask = [0, 0, 0, 0, 255, 255, 255, 0];
     assert_eq!(
-        icon::from_bgra(2, 1, &without_alpha, Some(&mask)).unwrap().rgba,
+        icon::from_bgra(2, 1, &without_alpha, Some(&mask))
+            .unwrap()
+            .rgba,
         [30, 20, 10, 255, 3, 2, 1, 0]
     );
     assert_eq!(

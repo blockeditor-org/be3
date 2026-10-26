@@ -14,7 +14,9 @@ use std::io;
 use std::os::windows::ffi::OsStrExt as _;
 
 use windows::Win32::Foundation::{CloseHandle, HANDLE, HWND, LPARAM, WPARAM};
-use windows::Win32::System::Com::{COINIT_APARTMENTTHREADED, COINIT_DISABLE_OLE1DDE, CoInitializeEx, CoUninitialize};
+use windows::Win32::System::Com::{
+    COINIT_APARTMENTTHREADED, COINIT_DISABLE_OLE1DDE, CoInitializeEx, CoUninitialize,
+};
 use windows::Win32::UI::WindowsAndMessaging::{PostMessageW, WM_CLOSE};
 
 use crate::Handle;
@@ -28,11 +30,17 @@ fn handle(hwnd: HWND) -> Handle {
 }
 
 fn wide(text: impl AsRef<OsStr>) -> Vec<u16> {
-    text.as_ref().encode_wide().chain(std::iter::once(0)).collect()
+    text.as_ref()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect()
 }
 
 fn from_wide(buffer: &[u16]) -> String {
-    let end = buffer.iter().position(|&unit| unit == 0).unwrap_or(buffer.len());
+    let end = buffer
+        .iter()
+        .position(|&unit| unit == 0)
+        .unwrap_or(buffer.len());
     String::from_utf16_lossy(&buffer[..end])
 }
 
@@ -49,13 +57,13 @@ impl Drop for Owned {
     }
 }
 
-/// COM on this thread, for as long as it lives, unless the thread had it.
 struct Com(bool);
 
 impl Com {
     // unsafe(ffi)
     fn init() -> Self {
-        let result = unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE) };
+        let result =
+            unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE) };
         Self(result.is_ok())
     }
 }
@@ -69,7 +77,6 @@ impl Drop for Com {
     }
 }
 
-/// Asks the window to close, as its close button does.
 // unsafe(ffi)
 pub fn close_window(window: Handle) -> io::Result<()> {
     unsafe { PostMessageW(Some(hwnd(window)), WM_CLOSE, WPARAM(0), LPARAM(0)) }.map_err(other)

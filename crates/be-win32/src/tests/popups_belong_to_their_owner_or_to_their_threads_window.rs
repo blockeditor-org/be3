@@ -40,14 +40,24 @@ fn popups_belong_to_their_owner_or_to_their_threads_window() {
         },
         ..window(12, "stray tool")
     };
-    for window in [tooltip.clone(), menu.clone(), main.clone(), other.clone(), stray] {
+    for window in [
+        tooltip.clone(),
+        menu.clone(),
+        main.clone(),
+        other.clone(),
+        stray,
+    ] {
         desktop.add(window);
     }
     let mut model = Model::new();
     model.update(&desktop, &[]);
     let snapshot = model.snapshot();
     assert_eq!(titles(&snapshot), ["main", "second"]);
-    let popups: Vec<Handle> = snapshot.entries[0].popups.iter().map(|popup| popup.handle).collect();
+    let popups: Vec<Handle> = snapshot.entries[0]
+        .popups
+        .iter()
+        .map(|popup| popup.handle)
+        .collect();
     assert_eq!(popups, [Handle(10), Handle(11)]);
     assert_eq!(snapshot.entries[0].popups[0].frame, menu.frame);
     assert!(snapshot.entries[1].popups.is_empty());
@@ -55,6 +65,10 @@ fn popups_belong_to_their_owner_or_to_their_threads_window() {
     desktop.foreground.set(Some(Handle(2)));
     model.update(&desktop, &[Event::Foreground(Handle(2))]);
     let snapshot = model.snapshot();
-    let popups: Vec<Handle> = snapshot.entries[1].popups.iter().map(|popup| popup.handle).collect();
+    let popups: Vec<Handle> = snapshot.entries[1]
+        .popups
+        .iter()
+        .map(|popup| popup.handle)
+        .collect();
     assert_eq!(popups, [Handle(11)]);
 }

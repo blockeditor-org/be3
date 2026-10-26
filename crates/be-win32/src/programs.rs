@@ -3,7 +3,6 @@ use std::path::{Path, PathBuf};
 
 use crate::command_line::split_arguments;
 
-/// What a `.lnk` file says, as `IShellLinkW` resolves it.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Shortcut {
     pub target: Option<PathBuf>,
@@ -12,23 +11,16 @@ pub struct Shortcut {
     pub app_user_model_id: Option<String>,
 }
 
-/// A Start Menu shortcut.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Program {
-    /// The shortcut's path below the Programs folder, without `.lnk`, with
-    /// `/` between folders: `Accessories/Paint`.
     pub id: String,
-    /// The file's name without `.lnk`, which is what the Start Menu shows.
     pub name: String,
-    /// The Start Menu folder it is in, if any: `Accessories`.
     pub folder: Option<String>,
-    /// The `.lnk` file, which is what a launch opens.
     pub path: PathBuf,
     pub shortcut: Shortcut,
 }
 
 impl Program {
-    /// The command the shortcut runs, when it points at a file.
     pub fn command(&self) -> Vec<String> {
         let Some(target) = &self.shortcut.target else {
             return Vec::new();
@@ -39,12 +31,10 @@ impl Program {
     }
 }
 
-/// The programs of the Start Menu's Programs folders, the user's first then
-/// everyone's: every `.lnk` below them that `resolve` can read, but
-/// uninstallers. A shortcut at the same place in a later folder, or to the
-/// same command under the same name, is the earlier one again. Sorted by
-/// name without case, then by id.
-pub fn list(folders: &[PathBuf], mut resolve: impl FnMut(&Path) -> Option<Shortcut>) -> Vec<Program> {
+pub fn list(
+    folders: &[PathBuf],
+    mut resolve: impl FnMut(&Path) -> Option<Shortcut>,
+) -> Vec<Program> {
     let mut seen_ids = HashSet::new();
     let mut seen_commands = HashSet::new();
     let mut programs = Vec::new();
@@ -111,7 +101,10 @@ fn collect(dir: &Path, parts: &mut Vec<String>, found: &mut Vec<(Vec<String>, Pa
     };
     for entry in entries.flatten() {
         let path = entry.path();
-        let Some(file) = path.file_name().map(|file| file.to_string_lossy().into_owned()) else {
+        let Some(file) = path
+            .file_name()
+            .map(|file| file.to_string_lossy().into_owned())
+        else {
             continue;
         };
         if entry.file_type().is_ok_and(|kind| kind.is_dir()) {

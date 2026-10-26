@@ -3,13 +3,16 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use windows::Win32::Foundation::{CloseHandle, SIZE};
-use windows::Win32::System::Com::{CLSCTX_INPROC_SERVER, CoCreateInstance, CoTaskMemFree, IPersistFile, STGM_READ};
+use windows::Win32::System::Com::{
+    CLSCTX_INPROC_SERVER, CoCreateInstance, CoTaskMemFree, IPersistFile, STGM_READ,
+};
 use windows::Win32::System::Threading::GetProcessId;
 use windows::Win32::UI::Shell::PropertiesSystem::IPropertyStore;
 use windows::Win32::UI::Shell::{
-    FOLDERID_CommonPrograms, FOLDERID_Programs, IShellItemImageFactory, IShellLinkW, KF_FLAG_DEFAULT,
-    SEE_MASK_FLAG_NO_UI, SEE_MASK_NOASYNC, SEE_MASK_NOCLOSEPROCESS, SHCreateItemFromParsingName,
-    SHELLEXECUTEINFOW, SHGetKnownFolderPath, SIIGBF_ICONONLY, ShellExecuteExW, ShellLink,
+    FOLDERID_CommonPrograms, FOLDERID_Programs, IShellItemImageFactory, IShellLinkW,
+    KF_FLAG_DEFAULT, SEE_MASK_FLAG_NO_UI, SEE_MASK_NOASYNC, SEE_MASK_NOCLOSEPROCESS,
+    SHCreateItemFromParsingName, SHELLEXECUTEINFOW, SHGetKnownFolderPath, SIIGBF_ICONONLY,
+    ShellExecuteExW, ShellLink,
 };
 use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 use windows::core::{GUID, Interface as _, PCWSTR};
@@ -19,7 +22,6 @@ use super::{Com, from_wide, icons, other, wide};
 use crate::command_line::join_arguments;
 use crate::{Image, Launch, Program, Shortcut, programs};
 
-/// The programs of the Start Menu, the user's and everyone's.
 pub fn start_menu_programs() -> Vec<Program> {
     let _com = Com::init();
     let folders: Vec<PathBuf> = [FOLDERID_Programs, FOLDERID_CommonPrograms]
@@ -29,7 +31,6 @@ pub fn start_menu_programs() -> Vec<Program> {
     programs::list(&folders, resolve)
 }
 
-/// The program's icon as the Start Menu draws it, `size` pixels square.
 // unsafe(ffi)
 pub fn program_icon(program: &Program, size: u32) -> Option<Image> {
     let _com = Com::init();
@@ -41,9 +42,6 @@ pub fn program_icon(program: &Program, size: u32) -> Option<Image> {
     icons::from_premultiplied(bitmap)
 }
 
-/// Opens the program's shortcut, as the Start Menu does. Blocks while the
-/// shell starts it, so call it away from the UI, then hand the launch to
-/// [`super::Watcher::launched`].
 pub fn launch(program: &Program, launch: Option<u64>) -> io::Result<Launch> {
     let process_id = shell_execute(program.path.as_os_str(), None)?;
     Ok(Launch {
@@ -55,8 +53,6 @@ pub fn launch(program: &Program, launch: Option<u64>) -> io::Result<Launch> {
     })
 }
 
-/// Runs a program with arguments, through the shell so that what it can
-/// open (a document, a URL) opens too.
 pub fn exec(command: &[String], launch: Option<u64>) -> io::Result<Launch> {
     let (program, arguments) = command
         .split_first()
@@ -77,13 +73,17 @@ fn shell_execute(file: &OsStr, parameters: Option<&str>) -> io::Result<Option<u3
     let _com = Com::init();
     let verb = wide("open");
     let file = wide(file);
-    let parameters = parameters.filter(|parameters| !parameters.is_empty()).map(wide);
+    let parameters = parameters
+        .filter(|parameters| !parameters.is_empty())
+        .map(wide);
     let mut info = SHELLEXECUTEINFOW {
         cbSize: size_of::<SHELLEXECUTEINFOW>() as u32,
         fMask: SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC | SEE_MASK_FLAG_NO_UI,
         lpVerb: PCWSTR(verb.as_ptr()),
         lpFile: PCWSTR(file.as_ptr()),
-        lpParameters: parameters.as_ref().map_or(PCWSTR::null(), |parameters| PCWSTR(parameters.as_ptr())),
+        lpParameters: parameters
+            .as_ref()
+            .map_or(PCWSTR::null(), |parameters| PCWSTR(parameters.as_ptr())),
         nShow: SW_SHOWNORMAL.0,
         ..Default::default()
     };
@@ -106,7 +106,8 @@ fn known_folder(folder: &GUID) -> Option<PathBuf> {
 
 // unsafe(ffi)
 fn resolve(path: &Path) -> Option<Shortcut> {
-    let link: IShellLinkW = unsafe { CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER) }.ok()?;
+    let link: IShellLinkW =
+        unsafe { CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER) }.ok()?;
     let file: IPersistFile = link.cast().ok()?;
     let path = wide(path);
     unsafe { file.Load(PCWSTR(path.as_ptr()), STGM_READ) }.ok()?;

@@ -32,5 +32,8 @@ fn win_events_about_whole_windows_become_events() {
         Event::from_win_event(EVENT_OBJECT_CLOAKED, window, OBJID_WINDOW, CHILDID_SELF),
         Some(Event::Cloaked(window))
     );
-    assert_eq!(Event::from_win_event(0x8005, window, OBJID_WINDOW, CHILDID_SELF), None);
+    assert_eq!(
+        Event::from_win_event(0x8005, window, OBJID_WINDOW, CHILDID_SELF),
+        None
+    );
 }

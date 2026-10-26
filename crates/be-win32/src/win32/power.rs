@@ -2,8 +2,8 @@ use std::io;
 
 use windows::Win32::Foundation::{ERROR_NOT_ALL_ASSIGNED, GetLastError, HANDLE, LUID};
 use windows::Win32::Security::{
-    AdjustTokenPrivileges, LUID_AND_ATTRIBUTES, LookupPrivilegeValueW, SE_PRIVILEGE_ENABLED, SE_SHUTDOWN_NAME,
-    TOKEN_ADJUST_PRIVILEGES, TOKEN_PRIVILEGES, TOKEN_QUERY,
+    AdjustTokenPrivileges, LUID_AND_ATTRIBUTES, LookupPrivilegeValueW, SE_PRIVILEGE_ENABLED,
+    SE_SHUTDOWN_NAME, TOKEN_ADJUST_PRIVILEGES, TOKEN_PRIVILEGES, TOKEN_QUERY,
 };
 use windows::Win32::System::Power::{IsPwrSuspendAllowed, SetSuspendState};
 use windows::Win32::System::Shutdown::{
@@ -49,14 +49,21 @@ fn exit_windows(flags: EXIT_WINDOWS_FLAGS, shutdown: bool) -> io::Result<()> {
     if shutdown {
         enable_shutdown_privilege()?;
     }
-    unsafe { ExitWindowsEx(flags, SHTDN_REASON_MAJOR_OTHER | SHTDN_REASON_FLAG_PLANNED) }.map_err(other)
+    unsafe { ExitWindowsEx(flags, SHTDN_REASON_MAJOR_OTHER | SHTDN_REASON_FLAG_PLANNED) }
+        .map_err(other)
 }
 
 // unsafe(ffi)
 fn enable_shutdown_privilege() -> io::Result<()> {
     let mut token = HANDLE::default();
-    unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &mut token) }
-        .map_err(other)?;
+    unsafe {
+        OpenProcessToken(
+            GetCurrentProcess(),
+            TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY,
+            &mut token,
+        )
+    }
+    .map_err(other)?;
     let token = Owned(token);
     let mut luid = LUID::default();
     unsafe { LookupPrivilegeValueW(PCWSTR::null(), SE_SHUTDOWN_NAME, &mut luid) }.map_err(other)?;
@@ -67,7 +74,8 @@ fn enable_shutdown_privilege() -> io::Result<()> {
             Attributes: SE_PRIVILEGE_ENABLED,
         }],
     };
-    unsafe { AdjustTokenPrivileges(token.0, false, Some(&privileges), 0, None, None) }.map_err(other)?;
+    unsafe { AdjustTokenPrivileges(token.0, false, Some(&privileges), 0, None, None) }
+        .map_err(other)?;
     if unsafe { GetLastError() } == ERROR_NOT_ALL_ASSIGNED {
         return Err(io::Error::new(
             io::ErrorKind::PermissionDenied,

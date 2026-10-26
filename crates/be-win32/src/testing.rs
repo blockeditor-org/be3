@@ -3,11 +3,12 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::{Desktop, Handle, Image, InputDesktop, IntegrityLevel, Monitor, Process, RawWindow, Rect};
+use crate::{
+    Desktop, Handle, Image, InputDesktop, IntegrityLevel, Monitor, Process, RawWindow, Rect,
+};
 
 pub const OWN_PROCESS: u32 = 1;
 
-/// A desktop the test writes, counting the slow reads the model makes.
 #[derive(Default)]
 pub struct FakeDesktop {
     pub windows: RefCell<Vec<RawWindow>>,
@@ -31,7 +32,10 @@ impl FakeDesktop {
             .borrow_mut()
             .entry(window.process_id)
             .or_insert_with(|| Process {
-                exe: Some(PathBuf::from(format!("C:\\Program Files\\App{}\\app.exe", window.process_id))),
+                exe: Some(PathBuf::from(format!(
+                    "C:\\Program Files\\App{}\\app.exe",
+                    window.process_id
+                ))),
                 integrity: Some(IntegrityLevel::MEDIUM),
             });
         self.windows.borrow_mut().push(window);
@@ -39,11 +43,18 @@ impl FakeDesktop {
 
     pub fn change(&self, handle: Handle, change: impl FnOnce(&mut RawWindow)) {
         let mut windows = self.windows.borrow_mut();
-        change(windows.iter_mut().find(|window| window.handle == handle).expect("the window exists"));
+        change(
+            windows
+                .iter_mut()
+                .find(|window| window.handle == handle)
+                .expect("the window exists"),
+        );
     }
 
     pub fn remove(&self, handle: Handle) {
-        self.windows.borrow_mut().retain(|window| window.handle != handle);
+        self.windows
+            .borrow_mut()
+            .retain(|window| window.handle != handle);
     }
 }
 
@@ -54,7 +65,11 @@ impl Desktop for FakeDesktop {
 
     fn process(&self, process_id: u32) -> Process {
         self.process_reads.set(self.process_reads.get() + 1);
-        self.processes.borrow().get(&process_id).cloned().unwrap_or_default()
+        self.processes
+            .borrow()
+            .get(&process_id)
+            .cloned()
+            .unwrap_or_default()
     }
 
     fn icon(&self, window: Handle) -> Option<Arc<Image>> {
@@ -87,7 +102,6 @@ impl Desktop for FakeDesktop {
     }
 }
 
-/// An ordinary top-level window of its own process and thread.
 pub fn window(handle: u64, title: &str) -> RawWindow {
     RawWindow {
         handle: Handle(handle),
@@ -106,7 +120,6 @@ pub fn window(handle: u64, title: &str) -> RawWindow {
     }
 }
 
-/// A window owned by `owner`, in its process and thread.
 pub fn owned(handle: u64, owner: &RawWindow, title: &str) -> RawWindow {
     RawWindow {
         owner: Some(owner.handle),
@@ -129,5 +142,9 @@ pub fn monitor(handle: u64, device: &str, rect: Rect, primary: bool) -> Monitor 
 }
 
 pub fn titles(snapshot: &crate::Snapshot) -> Vec<String> {
-    snapshot.entries.iter().map(|entry| entry.title.clone()).collect()
+    snapshot
+        .entries
+        .iter()
+        .map(|entry| entry.title.clone())
+        .collect()
 }

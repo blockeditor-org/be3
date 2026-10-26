@@ -8,7 +8,6 @@ use crate::{
     Monitor, Origin, Process, RawWindow, Rect, monitors,
 };
 
-/// An entry's number, never given to another entry.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct EntryId(pub u64);
 
@@ -16,56 +15,40 @@ pub struct EntryId(pub u64);
 pub enum EntryKind {
     #[default]
     Window,
-    /// One whole monitor.
     Display,
 }
 
-/// A window that belongs to an entry without being one: a menu, a tooltip,
-/// an owned tool window.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Popup {
     pub handle: Handle,
     pub frame: Rect,
 }
 
-/// Something the person may show: a monitor or a top-level window.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Entry {
     pub id: EntryId,
     pub kind: EntryKind,
-    /// The `HWND`, or a display's `HMONITOR`.
     pub handle: Handle,
-    /// Zero for a display.
     pub process_id: u32,
-    /// A display's is the monitor's name.
     pub title: String,
-    /// The AppUserModelID, else the executable's path.
     pub app_id: String,
-    /// The entry that owns it.
     pub parent: Option<EntryId>,
-    /// Its owner is disabled until it closes.
     pub modal: bool,
-    /// A display's is the monitor's rect.
     pub frame: Rect,
     pub minimized: bool,
     pub responding: bool,
     pub focused: bool,
     pub icon: Option<Arc<Image>>,
-    /// Counts up each time it comes to the foreground.
     pub raised: u64,
     pub shown: bool,
     pub control: Control,
     pub origin: Origin,
-    /// Bottom of the z-order first.
     pub popups: Vec<Popup>,
 }
 
-/// The desktop as the model last read it. `revision` counts up whenever any
-/// of the rest changes.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Snapshot {
     pub revision: u64,
-    /// The displays first, in monitor order, then the windows, oldest first.
     pub entries: Vec<Entry>,
     pub monitors: Vec<Monitor>,
     pub input_desktop: InputDesktop,
@@ -76,8 +59,6 @@ impl Snapshot {
         self.entries.iter().find(|entry| entry.id == id)
     }
 
-    /// Whether the secure desktop (or anything but the person's desktop) has
-    /// the input.
     pub fn secure_desktop(&self) -> bool {
         self.input_desktop.secure()
     }
@@ -90,9 +71,6 @@ struct Known {
     origin: Option<Origin>,
 }
 
-/// Turns what the desktop says into entries with stable ids. Every change
-/// goes through [`Model::update`], which reads the desktop again; the events
-/// only say which caches are stale.
 #[derive(Default)]
 pub struct Model {
     next_id: u64,
@@ -121,7 +99,6 @@ impl Model {
         self.snapshot.clone()
     }
 
-    /// Shows the entry from the next update on, until it is hidden or gone.
     pub fn show(&mut self, id: EntryId) {
         self.shown.insert(id);
     }
@@ -130,8 +107,6 @@ impl Model {
         self.shown.remove(&id);
     }
 
-    /// Records a launch, so the windows it opens carry its origin: the ones
-    /// it opens later, and the ones of its process already listed without one.
     pub fn launched(&mut self, launch: Launch) {
         let process_id = launch.process_id;
         self.launches.add(launch);
@@ -150,8 +125,6 @@ impl Model {
         }
     }
 
-    /// Reads the desktop again, after `events`. Returns whether the snapshot
-    /// changed.
     pub fn update(&mut self, desktop: &dyn Desktop, events: &[Event]) -> bool {
         if !self.started {
             self.started = true;
@@ -198,9 +171,13 @@ impl Model {
         self.known.retain(|handle, _| live.contains(handle));
         self.icons.retain(|handle, _| live.contains(handle));
         self.app_ids.retain(|handle, _| live.contains(handle));
-        self.processes.retain(|process, _| processes.contains(process));
+        self.processes
+            .retain(|process, _| processes.contains(process));
 
-        let selected: Vec<&RawWindow> = raw.iter().filter(|window| alt_tab(window, &index)).collect();
+        let selected: Vec<&RawWindow> = raw
+            .iter()
+            .filter(|window| alt_tab(window, &index))
+            .collect();
         let mut ids: HashMap<Handle, EntryId> = HashMap::new();
         for window in &selected {
             let id = match self.known.get(&window.handle) {
@@ -273,8 +250,12 @@ impl Model {
         }
 
         let mut entries = Vec::new();
-        let devices: HashSet<&str> = monitors.iter().map(|monitor| monitor.device.as_str()).collect();
-        self.displays.retain(|device, _| devices.contains(device.as_str()));
+        let devices: HashSet<&str> = monitors
+            .iter()
+            .map(|monitor| monitor.device.as_str())
+            .collect();
+        self.displays
+            .retain(|device, _| devices.contains(device.as_str()));
         for monitor in &monitors {
             let id = match self.displays.get(&monitor.device) {
                 Some(id) => *id,
@@ -315,15 +296,28 @@ impl Model {
                 .entry(window.handle)
                 .or_insert_with(|| desktop.app_user_model_id(window.handle))
                 .clone()
-                .or_else(|| process.exe.as_ref().map(|exe| exe.to_string_lossy().into_owned()))
+                .or_else(|| {
+                    process
+                        .exe
+                        .as_ref()
+                        .map(|exe| exe.to_string_lossy().into_owned())
+                })
                 .unwrap_or_default();
-            let known = self.known.get_mut(&window.handle).expect("every entry is known");
+            let known = self
+                .known
+                .get_mut(&window.handle)
+                .expect("every entry is known");
             let origin = known
                 .origin
-                .get_or_insert_with(|| self.launches.origin(window.process_id, process.exe.as_deref()))
+                .get_or_insert_with(|| {
+                    self.launches
+                        .origin(window.process_id, process.exe.as_deref())
+                })
                 .clone();
             let owner = index.visible_owner(window);
-            let parent = owner.and_then(|owner| root(owner)).filter(|parent| *parent != id);
+            let parent = owner
+                .and_then(|owner| root(owner))
+                .filter(|parent| *parent != id);
             windows.push(Entry {
                 id,
                 kind: EntryKind::Window,

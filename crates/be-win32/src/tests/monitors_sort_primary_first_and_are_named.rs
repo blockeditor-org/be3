@@ -10,7 +10,13 @@ fn monitors_sort_primary_first_and_are_named() {
     monitors::sort(&mut list);
     let order: Vec<u64> = list.iter().map(|monitor| monitor.handle.0).collect();
     assert_eq!(order, [3, 1, 2]);
-    assert_eq!(monitors::name(Some("DELL U2720Q"), Some("Generic PnP Monitor"), 0), "DELL U2720Q");
-    assert_eq!(monitors::name(Some(" "), Some("Generic PnP Monitor"), 0), "Generic PnP Monitor");
+    assert_eq!(
+        monitors::name(Some("DELL U2720Q"), Some("Generic PnP Monitor"), 0),
+        "DELL U2720Q"
+    );
+    assert_eq!(
+        monitors::name(Some(" "), Some("Generic PnP Monitor"), 0),
+        "Generic PnP Monitor"
+    );
     assert_eq!(monitors::name(None, None, 1), "Display 2");
 }
