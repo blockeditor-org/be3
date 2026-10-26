@@ -853,6 +853,10 @@ impl Space {
         }
     }
 
+    fn holding(&self) -> Option<WindowId> {
+        self.mouse.captured.filter(|_| self.pressed > 0)
+    }
+
     fn point(&mut self, input: Input, ray: Ray, out: &mut Vec<Incoming>) {
         match self.pick(ray) {
             Some(hit) => {
@@ -862,7 +866,7 @@ impl Space {
             }
             None => {
                 self.leave(out);
-                if let Some(window) = self.mouse.captured.filter(|_| self.pressed > 0) {
+                if let Some(window) = self.holding() {
                     let pos = self.beyond(Pointer::Mouse, window, ray);
                     out.push(Incoming::points(placed_at(input, pos)).in_window(window));
                 }
@@ -878,12 +882,13 @@ impl Space {
             match pressed {
                 true => self.grip_pressed += 1,
                 false if self.grip_held => {
-                    let grab = match &self.mouse.carry {
-                        Some(_) => self.grab_pos(Pointer::Mouse, window),
-                        None => self.beyond(Pointer::Mouse, window, ray),
+                    let held = self.holding().unwrap_or(window);
+                    let at = match &self.mouse.carry {
+                        Some(_) if held == window => self.grab_pos(Pointer::Mouse, window),
+                        _ => self.beyond(Pointer::Mouse, held, ray),
                     };
                     self.end_grip(Pointer::Mouse, out);
-                    self.release(placed_at(input, grab), window, out);
+                    self.release(placed_at(input, at), held, out);
                 }
                 false => {
                     self.grip_pressed = self.grip_pressed.saturating_sub(1);
@@ -909,7 +914,7 @@ impl Space {
             },
             false if self.dropped > 0 => self.dropped -= 1,
             false => {
-                let Some(window) = self.mouse.captured.filter(|_| self.pressed > 0) else {
+                let Some(window) = self.holding() else {
                     return;
                 };
                 match self.pick(ray) {
@@ -1052,13 +1057,13 @@ impl Space {
         }
         self.focus(Some(window));
         match pointer {
-            Pointer::Mouse => self.grip(window),
+            Pointer::Mouse => self.grip(),
             Pointer::Hand(hand) => self.laser_mut(hand).ending = Ending::Trigger,
         }
     }
 
-    fn grip(&mut self, window: WindowId) {
-        self.grip_held = self.mouse.captured == Some(window) && self.pressed > 0;
+    fn grip(&mut self) {
+        self.grip_held = self.mouse.captured.is_some() && self.pressed > 0;
         self.grip_pressed = 0;
     }
 
@@ -1085,7 +1090,7 @@ impl Space {
             held.resize = Some(Resize::begin(&panel, edge, grab));
         }
         if pointer == Pointer::Mouse {
-            self.grip(window);
+            self.grip();
         }
     }
 
@@ -1136,6 +1141,13 @@ impl Space {
             .iter()
             .find(|laser| laser.captured() == Some(window))
             .map_or(Pointer::Mouse, |laser| Pointer::Hand(laser.hand))
+    }
+
+    fn pressing(&self, window: WindowId) -> Option<Pointer> {
+        match self.pointer_in(window) {
+            Pointer::Mouse if self.pressed == 0 => None,
+            pointer => Some(pointer),
+        }
     }
 
     fn active_pointer(&self) -> Pointer {
@@ -1203,9 +1215,15 @@ impl Space {
                 size,
                 role,
             } => self.open(*window, placement, *size, *role),
-            WindowRequest::BeginMove(window) => self.begin_carry(self.pointer_in(*window), *window),
+            WindowRequest::BeginMove(window) => {
+                if let Some(pointer) = self.pressing(*window) {
+                    self.begin_carry(pointer, *window);
+                }
+            }
             WindowRequest::BeginResize { window, edge } => {
-                self.begin_resize(self.pointer_in(*window), *window, *edge)
+                if let Some(pointer) = self.pressing(*window) {
+                    self.begin_resize(pointer, *window, *edge);
+                }
             }
             WindowRequest::Resize { window, size } => self.resize_window(*window, *size),
             WindowRequest::Close(window) => self.close(*window),

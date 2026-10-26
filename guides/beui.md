@@ -3365,30 +3365,50 @@ it, and all its 3D (`glam`) stays in the crate.
   grab offset, and the one turn left about the line to the eye is the one
   that keeps the panel's right perpendicular to the head's up), and then
   keeps facing them, so letting go turns it no further.
-  The carry keeps the panel really in front of what it is carried over:
-  `Carry::distance` is the wanted distance (where it was picked up, changed
-  by scroll) and `Carry::at` the one it is drawn at, the largest no farther
-  than the wanted one at which every other panel is at least `IN_FRONT`
-  (1.5 cm) behind it, solved afresh every frame (`Carry::reach`: a step
-  along the worst ray, then bisection). Rays from the eye go through a 5x5
-  grid of the carried panel's surface with its chrome, onto each other
-  panel's surface, and through a grid of each other panel onto the carried
-  one, flat or bent (`Panel::intersect`). A ray that lands outside the
-  other rectangle counts less by `RAMP` (1) times how far outside, so the
-  panel comes forward as its edge nears another panel and goes back as it
-  leaves: the drawn distance is continuous, with no easing and no jump.
-  So it is in front because it is nearer, drawn and picked by depth like any
-  panel, and letting go changes nothing. Picking a panel up that another
-  covers brings it in front of that one at once, as a desktop raises a
-  dragged window. Scroll changes the distance from where it is drawn (`at`)
-  and does not reach the app; the app sees no pointer moves meanwhile. A
-  scroll farther that some panel would stop takes the carried panel through
-  it to `IN_FRONT` behind it, and it stays behind that panel
-  (`Carry::behind`) for the rest of the carry, until a scroll nearer leaves
-  it less than `IN_FRONT` behind; that is the only way to put a carried
-  panel behind another. Letting go of the
-  button that was down when it began (or, if none was, the next click) ends it:
-  the app gets that release where it grabbed, the turn to face the viewer
+  The carry keeps the panel really in front of what it is carried over
+  when the two are close in depth: `Carry::distance` is the wanted distance
+  (where it was picked up, changed by scroll) and `Carry::at` the one it is
+  drawn at, the largest no farther than the wanted one at which every other
+  close panel is at least `IN_FRONT` (1.5 cm) behind it, solved afresh every
+  frame (`Carry::reach`: a step along the worst ray, then bisection). Rays
+  from the eye go through a 5x5 grid of the carried panel's surface with its
+  chrome, onto each other panel's surface, and through a grid of each other
+  panel onto the carried one, flat or bent (`Panel::intersect`). A ray counts
+  only where the carried panel is less than `CLOSE` (10%) of that panel's
+  distance from the eye behind it (`carry::close`): 10 cm at arm's length,
+  30 cm at 3 m, two scroll lines anywhere, since the eye judges depth, and
+  scroll steps it, relative to distance. So a carried panel overlapping on
+  screen one that is far nearer stays at its distance, behind it, and only
+  one it is about to meet or pass is pushed behind it. A ray that lands
+  outside the other rectangle counts less by `RAMP` (1) times how far
+  outside, so the panel comes forward as its edge nears a close panel and
+  goes back as it leaves: the drawn distance is continuous, with no easing
+  and no jump. So it is in front because it is nearer, drawn and picked by
+  depth like any panel, and letting go changes nothing. Picking a panel up
+  that a close one covers brings it in front of that one at once, as a
+  desktop raises a dragged window. Scroll changes the distance by
+  `STEP_PER_LINE` (0.95) per line, about 5%, from where it is drawn (`at`);
+  a touchpad's pixels move it by their share of a line (`SCROLL_LINE`
+  points), so it glides in proportion. It does not reach the app, which sees
+  no pointer moves meanwhile. A scroll farther that a close panel would stop
+  leaves it held in front until the distance asked for is `IN_FRONT` behind
+  that panel (further scrolls farther go on from the distance asked for,
+  `Carry::pushing`), then it is drawn there, behind that panel, and stays
+  behind it (`Carry::behind`) for the rest of the carry, until a scroll
+  nearer leaves it less than `IN_FRONT` behind; that is the only way to put
+  a carried panel behind a close one. A wheel line usually takes it through
+  at once; a touchpad's small deltas push until it is past.
+  An app's `BeginMove` or `BeginResize` starts a carry or resize only while
+  a press it was given is held (any window's, since one app's drag can open
+  and carry another window; for a laser, while its trigger holds that
+  window), as Wayland ties a move to its press: a plugin's request reaches
+  block-app a frame or two after the press it answers, and one that arrives
+  after that click was let go is dropped rather than leaving the window
+  stuck to the cursor until the next click. Letting go of the button that
+  was down when it began (or, for a carry begun with none, as
+  `Space::begin_carry` can, the next click) ends it: the app gets that
+  release in the window that took the press, where it grabbed when that is
+  the carried one, the turn to face the viewer
   finishes at once (`Carry::finish`) and the panel is placed once more, its
   distance solved for that facing, so a carry let go mid-turn lands where it
   would have after the turn, in front of what it is over, and the host reports `WindowReport::Placed` with the panel's placement,

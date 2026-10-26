@@ -54,6 +54,11 @@ fn resizing_a_window_drags_its_edge_and_reports_the_new_size() {
     assert_eq!(*to, window);
     assert_eq!(placed(&released).len(), 1, "and the panel's new place");
 
+    send(
+        &mut space,
+        now,
+        [Input::PointerMoved(centre()), button(centre(), true)],
+    );
     space.request(&WindowRequest::BeginResize {
         window,
         edge: WindowEdge::Left,

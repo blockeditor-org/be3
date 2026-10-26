@@ -113,8 +113,8 @@ The riskiest: wgpu has no WebXR binding, the WebGL route needs an
 
 - **Plugin windows.** Outside space they stay overlays inside their region's
   window; making them OS windows there is deferred. Drags a plugin starts on a window's bar reach block-app
-  a frame or two late, so a press let go before `BeginMove` arrives starts a
-  carry that ends at the next click. Drag and drop over a plugin window, and a
+  a frame or two late, so a press let go before `BeginMove` arrives moves
+  nothing (space drops it). Drag and drop over a plugin window, and a
   window's accessibility (its nodes show in the frame's tree at the window's
   own coordinates), are not handled yet.
 
