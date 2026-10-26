@@ -952,7 +952,7 @@ change to the format. `BlockMetadata::name` is `NAME` when someone named the
 block and `INTRINSIC_NAME` otherwise. Plugins get both maps in `BlockInfo`, read
 them through its `name`, `thumbhash` and `artifact`, and set a defined key with
 `Blocks::define`; the host never lets a plugin set `LOCAL_ID`. A beui
-`unstyled::Picture` given an image's thumbhash as a `beui::Thumbhash` lays out
+`styled::Picture` given an image's thumbhash as a `beui::Thumbhash` lays out
 at the image's size and paints the blurred placeholder until the image arrives.
 
 Metadata travels with content. Every commit carries the encoded metadata of the

@@ -1,7 +1,7 @@
 use super::*;
+use beui::ImageFit;
 use beui::KeyAt;
 use beui::TextAlign;
-use beui::ImageFit;
 use beui::icons::Glyph;
 use beui::icons::{
     ICON_A_LARGE_SMALL, ICON_CIRCLE_CHECK, ICON_CLOCK, ICON_COPY_PLUS, ICON_FILE_UP, ICON_FOLDER,
@@ -1498,6 +1498,7 @@ fn InkSwatches() -> NodeId {
                         label={INKS[index].0.to_owned()}
                         selected={create_memo(move || chosen.get() == index)}
                         on_click={move || chosen.set(index)}
+                        @test_id={format!("swatches.{}", INKS[index].0)}
                     />
                 </ForEach>
             </List>

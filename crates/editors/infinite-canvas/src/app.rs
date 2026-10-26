@@ -107,7 +107,11 @@ fn CanvasEditor(editor: Editor) -> NodeId {
             <TouchSetting editor choice={touch} />
             <ImportError state={state} />
             <ExportDialog exporter />
-            <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=Space::None>
+            <List
+                @sizing=ItemSize::Percent(100.0)
+                direction=Direction::Horizontal
+                spacing=Space::None
+            >
                 <CanvasStage @sizing=ItemSize::Percent(100.0) @node_ref={&content} state={state} />
                 <CanvasSidebar state={state} shown={inspected} />
             </List>

@@ -905,7 +905,10 @@ under the pointer. The unstyled module contains
 `Button`, `Pressable`, `Toggle`, `Choice`, `Slider`, `TextInput`, `TextArea`,
 `Disclosure`, `Tree`, `SearchList`, `Select`, `CommandPalette`, `ContextMenu`, `MenuButton`, `Popover`, `Container`,
 `PanZoom`, `PointerLock`, `Draggable`, `DropTarget`, `Tooltip`, `Floating`, `Scroll`, `Scrollbar`,
-`Stack`, `Calendar`, `DateTimeField`, `TimeList`, `ColorArea`, `ColorWheel` and `Picture`. `TextArea` is the multiline one: it owns a
+`Stack`, `Calendar`, `DateTimeField`, `TimeList`, `ColorArea`, `ColorWheel` and `Picture`.
+Code outside beui uses `styled::Picture`, whose `radius` is a `Radius`, and
+reaches the ones that draw nothing of their own (`Draggable`, `DropTarget`,
+`Floating`, `PointerLock`) through `beui::styled`, which re-exports them. `TextArea` is the multiline one: it owns a
 `text_editor_core::Core` through the `TextAreaState` its caller holds (a `Copy`
 handle owned by the scope that made it; `with_core` and `with_core_mut` reach
 the `Core`), lays the
@@ -1519,6 +1522,10 @@ That state is `unstyled::ColorPickerState`, and `unstyled::HexText` keeps a hex
 field in step with a color for both. `unstyled::ColorInput` holds the preview
 and puts the popover and the hex field together; its `swatch`, `picker` and
 `field` renders draw the parts and its children lay them out.
+`styled::SwatchButton` is a single round swatch that picks one colour: a
+button labelled with the colour's name (its tooltip too), ringed in the accent
+while `selected` and in the border colour under the pointer, for a row of
+preset colours that is not a whole picker.
 
 `styled::ColorWheel` is a hue ring around a triangle whose tip points at the
 hue, and `styled::OklchColorWheel` is the same wheel over OKLCH: the triangle is

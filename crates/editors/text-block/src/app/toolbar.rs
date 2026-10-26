@@ -189,7 +189,11 @@ pub(crate) fn FormatBar(state: State, formats: Vec<Action>) -> NodeId {
                 <Frame fill=ColorRole::Surface>
                     <List spacing=Space::None>
                         <Separator />
-                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
+                        <List
+                            direction=Direction::Horizontal
+                            align=Align::Center
+                            spacing=Space::None
+                        >
                             <Scroll
                                 @sizing=ItemSize::Percent(100.0)
                                 direction=Direction::Horizontal
@@ -290,42 +294,42 @@ fn TextSettings(state: State) -> NodeId {
             <List direction=Direction::Horizontal align=Align::Center spacing=SETTINGS_SPACING>
                 <Text @sizing=ItemSize::Percent(100.0)>"Language"</Text>
                 <Select
-                        width=SELECT_WIDTH
-                        label="Language"
-                        selected={Binding::new(language_index, move |index: Option<usize>| {
-                            let Some(choice) = index.and_then(|index| TextLanguage::ALL.get(index)) else {
-                                return;
-                            };
-                            state.text.execute(EditorCommand::SetLanguage(*choice));
-                        })}
-                        @test_id={"text.language"}
-                        options={view! {
-                            <ForEach
-                                keys={(0..TextLanguage::ALL.len()).collect::<Vec<usize>>()}
-                            >|index: usize|
-                                <ChoiceOption label={TextLanguage::ALL[index].label().to_owned()} />
-                            </ForEach>
-                        }}
-                    />
+                    width=SELECT_WIDTH
+                    label="Language"
+                    selected={Binding::new(language_index, move |index: Option<usize>| {
+                        let Some(choice) = index.and_then(|index| TextLanguage::ALL.get(index)) else {
+                            return;
+                        };
+                        state.text.execute(EditorCommand::SetLanguage(*choice));
+                    })}
+                    @test_id={"text.language"}
+                    options={view! {
+                        <ForEach
+                            keys={(0..TextLanguage::ALL.len()).collect::<Vec<usize>>()}
+                        >|index: usize|
+                            <ChoiceOption label={TextLanguage::ALL[index].label().to_owned()} />
+                        </ForEach>
+                    }}
+                />
             </List>
             <List direction=Direction::Horizontal align=Align::Center spacing=SETTINGS_SPACING>
                 <Text @sizing=ItemSize::Percent(100.0)>"Indentation"</Text>
                 <Select
-                        width=SELECT_WIDTH
-                        label="Indentation"
-                        selected={Binding::new(indentation_index, move |index: Option<usize>| {
-                            let indentation = match index {
-                                Some(1) => TextIndentation::Spaces { width: 2 },
-                                _ => TextIndentation::Tabs,
-                            };
-                            state.text.execute(EditorCommand::SetIndentation(indentation));
-                        })}
-                        @test_id={"text.indentation"}
-                        options={view! {
-                            <ChoiceOption label="Tabs" />
-                            <ChoiceOption label="Spaces" />
-                        }}
-                    />
+                    width=SELECT_WIDTH
+                    label="Indentation"
+                    selected={Binding::new(indentation_index, move |index: Option<usize>| {
+                        let indentation = match index {
+                            Some(1) => TextIndentation::Spaces { width: 2 },
+                            _ => TextIndentation::Tabs,
+                        };
+                        state.text.execute(EditorCommand::SetIndentation(indentation));
+                    })}
+                    @test_id={"text.indentation"}
+                    options={view! {
+                        <ChoiceOption label="Tabs" />
+                        <ChoiceOption label="Spaces" />
+                    }}
+                />
             </List>
             <Show condition={spaces}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SETTINGS_SPACING>

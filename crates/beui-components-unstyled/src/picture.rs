@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use beui_core::color::Color32;
-use beui_core::geometry::{Rect, Vec2, pos2};
+use beui_core::geometry::{Pos2, Rect, Vec2, pos2};
 use beui_core::image::{Image, ImageFit, Thumbhash};
 use beui_core::node::NodeId;
 use beui_core::painter::Painter;
@@ -21,6 +21,20 @@ fn cropped(size: Vec2, source: Option<Rect>) -> Vec2 {
         Some(source) => Vec2::new(size.x * source.width(), size.y * source.height()),
         None => size,
     }
+}
+
+fn visible_part(placed: Rect, uv: Rect, rect: Rect) -> (Rect, Rect) {
+    let visible = placed.intersect(rect);
+    if visible == placed || visible.width() <= 0.0 || visible.height() <= 0.0 {
+        return (placed, uv);
+    }
+    let at = |point: Pos2| {
+        pos2(
+            uv.left() + (point.x - placed.left()) / placed.width() * uv.width(),
+            uv.top() + (point.y - placed.top()) / placed.height() * uv.height(),
+        )
+    };
+    (visible, Rect::from_min_max(at(visible.min), at(visible.max)))
 }
 
 #[component]
@@ -63,9 +77,12 @@ pub fn Picture(
             let Some(shown) = shown.as_ref() else {
                 return;
             };
+            let placed = fit.place(rect, cropped(shown.size, source));
+            let uv = source.unwrap_or(Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)));
+            let (placed, uv) = visible_part(placed, uv, rect);
             painter.image(
-                fit.place(rect, cropped(shown.size, source)),
-                source.unwrap_or(Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0))),
+                placed,
+                uv,
                 &shown.image,
                 tint,
                 radius,

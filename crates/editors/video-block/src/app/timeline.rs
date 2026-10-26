@@ -388,11 +388,7 @@ fn DropMarker(
     view! {
         <Show condition={shown}>
             <CanvasItem x={x} y={y} width={width} height={height}>
-                <Frame
-                    fill=ColorRole::AccentSoft
-                    radius=CLIP_RADIUS
-                    border={Border::FOCUS}
-                />
+                <Frame fill=ColorRole::AccentSoft radius=CLIP_RADIUS border={Border::FOCUS} />
             </CanvasItem>
         </Show>
     }

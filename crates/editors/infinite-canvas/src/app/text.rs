@@ -416,11 +416,8 @@ fn enter(area: TextAreaState, field: NodeRef, entry: TextEntry) {
             return;
         }
         TextEntry::At(at) => {
-            let at = with_document(|document| {
-                document
-                    .api::<TextAreaApi>(node)
-                    .index_at(document, at)
-            });
+            let at =
+                with_document(|document| document.api::<TextAreaApi>(node).index_at(document, at));
             at..at
         }
     };

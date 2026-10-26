@@ -531,7 +531,12 @@ fn ArrangeSection(state: CanvasState) -> NodeId {
     view! {
         <Accordion title="Arrange" open={open}>
             <List spacing=Space::Sm>
-                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs wrap=true>
+                <List
+                    direction=Direction::Horizontal
+                    align=Align::Center
+                    spacing=Space::Xs
+                    wrap=true
+                >
                     <ForEach keys={(0..ALIGNMENTS.len()).collect::<Vec<usize>>()}>|index: usize| {
                         let (label, alignment) = ALIGNMENTS[index];
                         view! {
@@ -545,7 +550,12 @@ fn ArrangeSection(state: CanvasState) -> NodeId {
                         }
                     }</ForEach>
                 </List>
-                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs wrap=true>
+                <List
+                    direction=Direction::Horizontal
+                    align=Align::Center
+                    spacing=Space::Xs
+                    wrap=true
+                >
                     <Button
                         label="Distribute horizontally"
                         variant=ButtonVariant::Secondary
@@ -561,7 +571,12 @@ fn ArrangeSection(state: CanvasState) -> NodeId {
                         on_click={vertical}
                     />
                 </List>
-                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs wrap=true>
+                <List
+                    direction=Direction::Horizontal
+                    align=Align::Center
+                    spacing=Space::Xs
+                    wrap=true
+                >
                     <ForEach keys={(0..LAYERS.len()).collect::<Vec<usize>>()}>|index: usize| {
                         let (label, movement) = LAYERS[index];
                         let blocked = create_memo(move || {
@@ -578,7 +593,12 @@ fn ArrangeSection(state: CanvasState) -> NodeId {
                         }
                     }</ForEach>
                 </List>
-                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs wrap=true>
+                <List
+                    direction=Direction::Horizontal
+                    align=Align::Center
+                    spacing=Space::Xs
+                    wrap=true
+                >
                     <Button
                         label="Group"
                         variant=ButtonVariant::Secondary
@@ -907,7 +927,12 @@ fn RectangleOptions(state: CanvasState) -> NodeId {
                 <List spacing=Space::Sm>
                     <Separator />
                     <Text style=TextStyle::CAPTION>"Shape"</Text>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs wrap=true>
+                    <List
+                        direction=Direction::Horizontal
+                        align=Align::Center
+                        spacing=Space::Xs
+                        wrap=true
+                    >
                         <ToggleButton
                             label="No fill"
                             glyph=ICON_DROPLET_OFF
@@ -1116,7 +1141,12 @@ fn TextOptions(state: CanvasState) -> NodeId {
                         checked={Binding::new(bold, weighted)}
                         @test_id={"infinite-canvas.bold"}
                     />
-                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs wrap=true>
+                    <List
+                        direction=Direction::Horizontal
+                        align=Align::Center
+                        spacing=Space::Xs
+                        wrap=true
+                    >
                         <ForEach
                             keys={(0..ALIGN_OPTIONS.len()).collect::<Vec<usize>>()}
                         >|index: usize| {
@@ -1137,7 +1167,12 @@ fn TextOptions(state: CanvasState) -> NodeId {
                             }
                         }</ForEach>
                     </List>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs wrap=true>
+                    <List
+                        direction=Direction::Horizontal
+                        align=Align::Center
+                        spacing=Space::Xs
+                        wrap=true
+                    >
                         <ForEach
                             keys={(0..VERTICAL_ALIGN_OPTIONS.len()).collect::<Vec<usize>>()}
                         >|index: usize| {

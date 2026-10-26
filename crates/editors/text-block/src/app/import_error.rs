@@ -25,10 +25,7 @@ fn ImportErrorRow(state: State) -> NodeId {
     let error = state.import_error;
     let message = create_memo(move || error.get().unwrap_or_default());
     view! {
-        <Frame
-            fill=ColorRole::Surface
-            padding=BAR_PADDING
-        >
+        <Frame fill=ColorRole::Surface padding=BAR_PADDING>
             <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
                 <Text color=TextColor::Danger>{message}</Text>
                 <Button

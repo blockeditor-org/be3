@@ -8,10 +8,7 @@ fn shown_carets(editor: &BeuiTest<CanvasApp>, id: Uuid) -> Vec<RemoteTextCursor>
         .document()
         .find_test_id(&format!("infinite-canvas.text.{id}"))
         .expect("the text is drawn");
-    editor
-        .document()
-        .api::<TextAreaApi>(area)
-        .remote_cursors()
+    editor.document().api::<TextAreaApi>(area).remote_cursors()
 }
 
 fn shown_cursor(editor: &mut BeuiTest<CanvasApp>) -> Option<CanvasCursor> {

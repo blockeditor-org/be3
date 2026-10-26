@@ -10,7 +10,6 @@ use block_editor_beui::beui::styled::*;
 use block_editor_beui::{narrow_chrome, sheet_control};
 use infinite_canvas_types::{CanvasColor, CanvasProfile};
 
-
 #[component]
 pub(crate) fn SelectionTools(state: CanvasState) -> NodeId {
     let narrow = narrow_chrome();

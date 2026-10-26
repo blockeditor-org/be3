@@ -426,6 +426,28 @@ Outcomes, by crate group (each also migrated onto §7's tokens):
   swatch button. pan-zoom's cards scale their padding and outline with the
   zoom (`Space::Custom`, `Stroke::Custom`) but not their radius, since
   `Radius` has no escape hatch for a zoom-scaled corner.
+- **Done.** **The canvas and media editors** (infinite-canvas, text-block,
+  pdf, presentation, image-block, video-block, audio-block, scene-3d), with
+  their §7 tokens. New styled component: `SwatchButton` (a round colour
+  swatch that rings when selected, hovered or focused, with the colour's name
+  as its label and tooltip; the canvas's colour rows). They use styled
+  `Picture` too; `unstyled::Picture` now cuts a covering image's overflow
+  from its source, so a radius rounds the frame's corners rather than the
+  overflowing image's. Styled re-exports the behaviour-only pieces they
+  used from unstyled: `Draggable`, `DropTarget`, `DragHandle`, `DropHandle`,
+  `DragPoint`, `Floating`, `Edge`, `PointerLock`, `PointerLockHandle`,
+  `ChoiceOption`, `MenuNodes` and the text area's data types
+  (`TextAreaState`, `TextAreaColors`, `SyntaxColors`, `TextWidget`,
+  `ProseLine`, `RemoteTextCursor`). One import stays on unstyled: the
+  canvas's text (`infinite-canvas/src/app/text.rs`) is an `unstyled::TextArea`
+  with `Prose`, because its font size, padding, colours and placeholder come
+  from the canvas item and its zoom, and it has none of the styled text
+  area's find bar or context menu. Colours left as `Custom` come from
+  content: canvas, presentation and video colours, the PDF page, the black of
+  a presented deck and its playback shade, and the video stage. The shared
+  embedded-editor geometry (`block_ui::EMBEDDED_EDITOR_*`), the timeline's
+  lane geometry and the hex view's measured size are `Space::Custom` and
+  `Size::Custom`, since other code computes with the same pixels.
 
 ## 7. Styled components take design tokens, not raw values
 

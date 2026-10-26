@@ -112,7 +112,11 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
                 />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </Toolbar>
-            <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=Space::None>
+            <List
+                @sizing=ItemSize::Percent(100.0)
+                direction=Direction::Horizontal
+                spacing=Space::None
+            >
                 <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
                     <Interactive
                         on_press={move |_: PointerPress| editor.pan_drag()}

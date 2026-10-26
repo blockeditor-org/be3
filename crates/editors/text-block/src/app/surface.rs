@@ -1,13 +1,12 @@
+use beui::NodeId;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::NodeId;
 use block_editor_beui::{Drag, block_ui::BlockLabel};
 use text_editor_core::{CursorLeftRightStop, EditorCommand};
 
 use super::embeds::ResolvedEmbed;
 use super::large_embed::{LargeEmbed, embed_is_live};
 use super::state::{FocusedEmbed, State};
-
 
 #[component]
 pub(crate) fn TextSurface(state: State) -> NodeId {

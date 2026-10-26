@@ -238,7 +238,11 @@ fn Playback(editor: Editor, slides: Slides) -> NodeId {
                             fill={ColorRole::Custom(PLAYBACK_SHADE)}
                             padding={Padding::horizontal(Space::Lg)}
                         >
-                            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                            <List
+                                direction=Direction::Horizontal
+                                align=Align::Center
+                                spacing=Space::Md
+                            >
                                 <Button
                                     icon_only=true
                                     glyph=ICON_ARROW_LEFT

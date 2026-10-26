@@ -54,10 +54,7 @@ fn a_peer_types_into_the_text_being_edited() {
         .find_test_id(&format!("infinite-canvas.text.{}", other.id))
         .expect("the other text is drawn");
     assert_eq!(
-        editor
-            .document()
-            .api::<TextAreaApi>(shown)
-            .shown(),
+        editor.document().api::<TextAreaApi>(shown).shown(),
         "Worlds",
         "text nobody here edits shows the peer's edit too"
     );
