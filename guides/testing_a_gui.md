@@ -166,8 +166,8 @@ screen does, and set_raster(3.0) draws it finer than it lays it out, as a panel 
 4. Snapshots of the painting
 
 editor.snapshot(name) writes everything the editor painted into
-snapshots/<crate>.<name>.paint, one folder at the root of the repository holding every
-painting the workspace accepted: the rounded rectangles, glyphs and triangles beui's
+snapshots/<name>.paint in the crate's own directory, beside its Cargo.toml, which holds every
+painting the crate's tests accepted: the rounded rectangles, glyphs and triangles beui's
 renderer would hand the gpu, each glyph carrying its own coverage image, compressed. It is a few kilobytes rather than the hundreds a screenshot
 costs, and it is compared exactly, so nothing about it is flaky.
 
@@ -188,16 +188,16 @@ frames that say something: every frame is compared, so a frame nobody looks at i
 way for the test to fail.
 
 - ./scripts/verify accepts whatever the tests paint: it runs them with UPDATE_SNAPSHOTS=1, so
-  a new or changed painting is written into snapshots/ rather than failing the run. On a pull
+  a new or changed painting is written into the crate's snapshots/ rather than failing the run. On a pull
   request CI does the same, and when that writes a painting it fails the run and pushes the
   painting to the pull request's branch as a commit. Everywhere else CI runs ./scripts/ci --check, which sets nothing,
   so a painting that was never committed fails there.
 - Git never merges a painting: when two branches change one, it conflicts. Take either side
   (`git checkout --theirs` or `--ours` on it) and let ./scripts/verify repaint it.
 - ./scripts/verify also fails on a painting that a test names with a literal, snapshot("name"),
-  but that snapshots/ does not hold once it is done: the test failed, or returned, before
+  but that the crate's snapshots/ does not hold once it is done: the test failed, or returned, before
   painting it.
-- Once every plugin test passes, ./scripts/verify deletes each painting in snapshots/ that no test
+- Once every plugin test passes, ./scripts/verify deletes each painting in a snapshots/ that no test
   compared, so renaming or removing a snapshot takes its old file with it; with --check it
   fails on them instead. A single editor's test run leaves the folder alone.
 - A changed painting is for a person to review, not for you. They review it on the pull
@@ -222,7 +222,7 @@ way for the test to fail.
   inside a scroll around its content, or give a scroll inside a padded surface `bleed`, so a ring at its edge has room - rather than the test.
   beui-demo's `tabbing_through_every_page_shows_each_focus_ring_whole` tabs through every
   catalog page and fails on any such ring, since a painting rarely has the focus showing.
-- ./scripts/buck run //crates/local-tools:bin -- rasterize snapshots/<crate>.<name>.paint out.png
+- ./scripts/buck run //crates/local-tools:bin -- rasterize <crate directory>/snapshots/<name>.paint out.png
   turns one into a PNG, and a trailing frame number or all picks which frames of a recording
   to write.
 - A painting is paint-format's types as CBOR (`paint_format::encode`), deflated behind a
@@ -238,7 +238,7 @@ way for the test to fail.
 - The exception is a painting you did not expect to change: if your change should not have
   touched it, find out why it changed.
   ./scripts/buck run //crates/paint-snapshot:example-changed says, for every native painting in
-  snapshots/ that differs from HEAD, which frame changed and what moved in it. With
+  a crate's snapshots/ that differs from HEAD, which frame changed and what moved in it. With
   -- --images it also writes them into target/changed-paintings as PNGs - a before, an after
   and a changes image for every frame that differs, where magenta marks every pixel that
   differs - and prints which is which. --base compares against another revision, and
@@ -278,7 +278,7 @@ Browser pages use `paint_snapshot::BrowserSnapshot` instead of native drawing co
         .file("/script.js", "text/javascript", js.as_bytes())
         .snapshot("sign_in_phone.browser");
 
-The name ends in `.browser`, making `snapshots/<crate>.<name>.paint` a text file.
+The name ends in `.browser`, making `snapshots/<name>.browser.paint` a text file.
 It contains the viewport, the complete SSR document and every embedded resource, with
 DOM tokens and resource lines on separate JSON lines for readable Git diffs. Tokens
 are concatenated without adding whitespace, preserving the exact rendered document.
@@ -300,7 +300,7 @@ For local browser rasterization, install the optional runtime once:
     ~/.cache/be3/browser-rasterizer/bin/pip install -r crates/browser-rasterizer/requirements.txt
     ~/.cache/be3/browser-rasterizer/bin/python -m playwright install --with-deps chromium
     export BE3_PLAYWRIGHT_PYTHON=~/.cache/be3/browser-rasterizer/bin/python
-    ./scripts/buck run //crates/local-tools:bin -- rasterize snapshots/be-server.portal_login_phone.browser.paint out.png
+    ./scripts/buck run //crates/local-tools:bin -- rasterize crates/be-server/snapshots/portal_login_phone.browser.paint out.png
 
 Setting `BE3_CHROME` to a Chrome or Chromium executable uses that browser instead of
 Playwright's download, which is what CI does with the runner's Google Chrome.
@@ -320,9 +320,9 @@ and runs the module through crates/plugin-test-runner, which is wasmtime with th
 plugin's own imports linked: the gpu abi a plugin draws through, the threads a plugin
 spawns, and the repository itself. Under ./scripts/verify the run is an action on a worker,
 which reads the accepted paintings as its inputs and outputs the ones that changed;
-./scripts/verify then copies those into snapshots/, so a failure's output is in the
+./scripts/verify then copies those into the crate's snapshots/, so a failure's output is in the
 build's log, not on this machine. ./scripts/test (below) runs it on a worker too, and
-copies what it accepts into snapshots/.
+copies what it accepts into the crate's snapshots/.
 Do not build or test an editor package for the host by itself:
 its tests only mean anything as the wasm guest it ships as, and a native run refuses to
 compare a painting rather than making one nothing would agree with.
@@ -391,7 +391,7 @@ which close() checks, so a test that ends without calling it fails too.
   differs every run: crop(target) paints only that target's area, such as `#workspace.block`,
   the block a tab shows.
 - record() and snapshot() are a painting as in an editor test (4), named
-  snapshots/app-tests.<name>.paint and accepted the same way. The painting is `drive paint`: the
+  crates/app-tests/snapshots/<name>.paint and accepted the same way. The painting is `drive paint`: the
   host's own document with each plugin's painting put where the host composites its surface,
   and each preview a plugin shows, which its painting marks with `paint_format::preview_key`,
   replaced by the painting of the preview it shows. A preview waits out its cooldown before it

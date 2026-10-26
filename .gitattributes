@@ -10,10 +10,11 @@
 buck/cargo/crates.bzl linguist-generated=true
 buck/sysroot/packages.bzl linguist-generated=true
 
-# Paintings (snapshots/*.paint) are binary recordings. Git guesses that from the
-# bytes, and a painting it guessed wrong would be line-merged into an invalid
-# one without a conflict, or have its line endings rewritten. Marked binary, two
-# branches that change one painting always conflict; ./scripts/verify repaints it.
+# Paintings (each crate's snapshots/*.paint) are binary recordings. Git guesses
+# that from the bytes, and a painting it guessed wrong would be line-merged into
+# an invalid one without a conflict, or have its line endings rewritten. Marked
+# binary, two branches that change one painting always conflict;
+# ./scripts/verify repaints it.
 *.paint binary
 
 # A frozen server's snapshot is kept byte for byte.
