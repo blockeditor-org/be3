@@ -65,7 +65,7 @@ const SERVER_MESSAGES: [&str; 6] = [
     "worker 2 idle",
 ];
 const EDITOR_HEIGHT: f32 = 320.0;
-const NOTE_HEIGHT: f32 = 96.0;
+const NOTE_HEIGHT: f32 = 150.0;
 const NOTE_TEXT: &str = "This note can be selected and copied, but not changed.\nIt has no line numbers or find bar, and draws in the accent colour at a larger size.\n";
 const STAGE_HEIGHT: f32 = 360.0;
 const STAGE_VIEW: PanZoomView = PanZoomView::new(beui::pos2(200.0, 120.0), 0.8);

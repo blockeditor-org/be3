@@ -43,7 +43,10 @@ fn a_read_only_text_area_selects_and_refuses_edits_and_reads_as_read_only() {
 
     assert_eq!(&*state.bytes(), b"kept as it is");
     assert!(
-        state.selection_ranges().iter().any(|range| !range.is_empty()),
+        state
+            .selection_ranges()
+            .iter()
+            .any(|range| !range.is_empty()),
         "read-only text can still be selected"
     );
 }
