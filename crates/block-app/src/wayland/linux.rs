@@ -12,9 +12,9 @@ use block_plugin_api::{HostImage, HostProgram, HostWindow, HostWindowId, WindowO
 
 struct Running {
     compositor: Compositor,
-    cursor: Option<beui_adapter_drm::SoftwareCursor>,
-    display: Option<beui_adapter_drm::DisplayControl>,
-    flips: Option<beui_adapter_drm::Flips>,
+    cursor: Option<beui_platform_drm::SoftwareCursor>,
+    display: Option<beui_platform_drm::DisplayControl>,
+    flips: Option<beui_platform_drm::Flips>,
     blanked: bool,
     lock_due: bool,
     lock_noticed: bool,
@@ -92,9 +92,9 @@ pub(crate) fn start(setup: &Setup) {
         gpu.format,
         setup.waker.clone(),
     );
-    let cursor = setup.get::<beui_adapter_drm::SoftwareCursor>().cloned();
-    let display = setup.get::<beui_adapter_drm::DisplayControl>().cloned();
-    let flips = setup.get::<beui_adapter_drm::Flips>().cloned();
+    let cursor = setup.get::<beui_platform_drm::SoftwareCursor>().cloned();
+    let display = setup.get::<beui_platform_drm::DisplayControl>().cloned();
+    let flips = setup.get::<beui_platform_drm::Flips>().cloned();
     if flips.is_some() {
         compositor.pace_to_flips();
     }
@@ -143,7 +143,7 @@ pub(crate) fn before(context: &Context, rect: Rect, document: &mut Document) {
         if running
             .display
             .as_ref()
-            .is_some_and(beui_adapter_drm::DisplayControl::take_woken)
+            .is_some_and(beui_platform_drm::DisplayControl::take_woken)
         {
             running.compositor.woke();
         }
@@ -190,7 +190,7 @@ pub(crate) fn after(context: &Context, document: &mut Document) {
         }
         if let Some(cursor) = &running.cursor {
             cursor.set(running.compositor.cursor_image().map(|image| {
-                beui_adapter_drm::CursorImage {
+                beui_platform_drm::CursorImage {
                     texture: image.texture,
                     size: image.size,
                     hotspot: image.hotspot,

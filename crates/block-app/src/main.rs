@@ -138,7 +138,7 @@ fn run_app(arguments: arguments::Arguments) -> Result<(), Box<dyn Error>> {
 #[cfg(target_os = "linux")]
 fn run_shell(options: beui::RunOptions, shell: Shell, session: bool) -> Result<(), Box<dyn Error>> {
     if session {
-        return beui::run_on(Box::new(beui_adapter_drm::Drm), options, shell);
+        return beui::run_on(Box::new(beui_platform_drm::Drm), options, shell);
     }
     let renderer = beui::WindowRenderer::Wgpu {
         open_device: Some(std::sync::Arc::new(be_dmabuf::open_device)),
@@ -306,7 +306,7 @@ impl beui::App for Shell {
         wayland::start(setup);
         input::start(setup);
         #[cfg(target_os = "linux")]
-        if let Some(problems) = setup.get::<beui_adapter_drm::Problems>() {
+        if let Some(problems) = setup.get::<beui_platform_drm::Problems>() {
             problems.listen(notices::report);
         }
         #[cfg(target_os = "linux")]

@@ -1,6 +1,6 @@
 # VR
 
-A plan to take the space host (`crates/beui-adapter-space`, `BEUI_ADAPTER=space`;
+A plan to take the space host (`crates/beui-layer-space`, `BEUI_PLATFORM=space`;
 guides/beui.md, "Space: the VR simulator host") from a simulator on a flat
 screen to real headsets. Each milestone says what it needs first and roughly
 how big it is. Items marked **(ask)** need a decision from the user during the
@@ -98,7 +98,7 @@ About 1k lines. Needs M1.
 
 ## M6. Windows from plugins
 
-`PluginSurface::launch` (`crates/beui-adapter-plugin`) passes `host: None`, so
+`PluginSurface::launch` (`crates/beui-platform-plugin`) passes `host: None`, so
 `opens_windows` is false in a plugin and every plugin `Window` (the workspace
 dock, linux-desktop) is an overlay inside block-app's one panel.
 
@@ -108,7 +108,7 @@ dock, linux-desktop) is an overlay inside block-app's one panel.
 - block-plugin-api carries window requests and reports, and a window region
   kind.
 - Each plugin window gets its own screen surface; textures stay on the GPU.
-- beui-adapter-plugin gets a `WindowHost` that forwards to the plugin
+- beui-platform-plugin gets a `WindowHost` that forwards to the plugin
   protocol.
 - block-app opens a beui `Window` holding a `PluginRegion` for each plugin
   window.
@@ -126,7 +126,7 @@ About 0.7k lines. Needs M6.
 
 ## M9. Quest standalone
 
-The Android OpenXR loader in the APK, pacing in beui-adapter-android, the
+The Android OpenXR loader in the APK, pacing in beui-platform-android, the
 manifest, and the buck APK plumbing. First check whether today's APK runs as a
 2D panel app. Android reads none of the `BEUI_*` variables
 (`from_environment` in `crates/beui/src/window.rs` returns `None` there), so

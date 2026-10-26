@@ -64,11 +64,11 @@ fn read_path(path: &std::path::Path) -> Option<Vec<u8>> {
 }
 
 #[derive(Default)]
-pub(super) struct InputAdapter {
+pub(super) struct InputForwarder {
     replay: Replay,
 }
 
-impl InputAdapter {
+impl InputForwarder {
     pub(super) fn focused(&self) -> bool {
         self.replay.focused()
     }

@@ -1,12 +1,12 @@
 use super::*;
 use beui_core::app::SafeArea;
 use beui_core::renderer::Loaded;
-use beui_core::runner::{Launch, Platform, RunOptions, Runner};
+use beui_core::runner::{Launch, PlatformServices, RunOptions, Runner};
 use beui_core::window::WindowState;
 
 struct Window(Vec<Option<Rect>>);
 
-impl Platform for Window {
+impl PlatformServices for Window {
     fn show_window(&mut self, window: &WindowState, _shown: &WindowState) {
         self.0
             .push(window.requests.ime.as_ref().map(|area| area.cursor));

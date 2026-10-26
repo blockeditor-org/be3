@@ -5,13 +5,13 @@ use std::{
 
 use block_plugin_api::{PluginManifest, ScreenDamage};
 
-mod adapter;
+mod worker;
 mod canvases;
 pub(super) mod presenter;
 
 use super::backend::ShownFrame;
-use adapter::WebProtocolAdapter;
-pub(super) use adapter::{PresentedBitmap, WebProtocolAdapter as Channel};
+use worker::WorkerChannel;
+pub(super) use worker::{PresentedBitmap, WorkerChannel as Channel};
 pub(super) use canvases::{Placement, placement, set_background};
 
 pub(super) type Picture = web_sys::ImageBitmap;
@@ -43,7 +43,7 @@ pub(super) fn spawn(
     module: String,
     waiting: Arc<AtomicBool>,
 ) -> Result<(Channel, Mailbox), String> {
-    WebProtocolAdapter::start(&module, waiting).map(|channel| (channel, ()))
+    WorkerChannel::start(&module, waiting).map(|channel| (channel, ()))
 }
 
 pub(super) fn frame(presented: Vec<PresentedBitmap>, _presents: u64) -> Frame {

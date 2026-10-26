@@ -36,7 +36,7 @@ ignores the bit while `redraw_delay` is 0, the kernel's default; pinenote-dist's
 `MODE`'s `DRIVER_MODE_FAST` makes every update a cancellable black and white one, but it is
 global, waits for ongoing updates, and enters through a global refresh, so beui does not use it.
 
-## What beui-adapter-drm does
+## What beui-platform-drm does
 
 `epaper.rs` sets the default hint to Y2 threshold (`0x10`) while the screen is still, and to
 dithered Y1 (`0x40`) while it moves (guides/pinenote.md says when). To settle it sets Y2 again

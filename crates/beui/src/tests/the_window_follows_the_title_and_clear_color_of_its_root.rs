@@ -1,7 +1,7 @@
 use super::*;
 use beui_core::app::SafeArea;
 use beui_core::renderer::{Loaded, Renderer};
-use beui_core::runner::{Launch, Platform, RunOptions, Runner};
+use beui_core::runner::{Launch, PlatformServices, RunOptions, Runner};
 use beui_core::window::WindowState;
 
 struct Screen(Rc<RefCell<Vec<Color32>>>);
@@ -33,7 +33,7 @@ impl Renderer for Screen {
 
 struct Titles(Vec<String>);
 
-impl Platform for Titles {
+impl PlatformServices for Titles {
     fn show_window(&mut self, window: &WindowState, shown: &WindowState) {
         if window.appearance.title != shown.appearance.title
             && let Some(title) = &window.appearance.title

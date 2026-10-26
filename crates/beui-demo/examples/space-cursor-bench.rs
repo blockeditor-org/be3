@@ -7,10 +7,10 @@ mod bench {
 
     use beui::testing::Screen;
     use beui::{
-        Context, CursorIcon, Incoming, Input, Launch, Platform, Pos2, RunOptions, Setup, Vec2,
+        Context, CursorIcon, Incoming, Input, Launch, PlatformServices, Pos2, RunOptions, Setup, Vec2,
         Waker,
     };
-    use beui_adapter_space::Space;
+    use beui_layer_space::Space;
     use beui_core::app::SafeArea;
     use beui_core::renderer::{Loaded, Renderer};
     use beui_core::runner::{HostView, Hosted, Runner, WindowHost};
@@ -23,7 +23,7 @@ mod bench {
 
     struct Bare;
 
-    impl Platform for Bare {}
+    impl PlatformServices for Bare {}
 
     struct Shared(Rc<RefCell<Space>>);
 

@@ -25,7 +25,7 @@ use super::{
     audio::AudioPlayer,
     calls::{self, BlockIds, EditorAnswer, EditorCall, Outbound, PluginCall},
     heads::{HeadReads, Heads},
-    input::{BlockDrag, BlockDragEvent, FileDropEvent, InputAdapter, viewport_metrics},
+    input::{BlockDrag, BlockDragEvent, FileDropEvent, InputForwarder, viewport_metrics},
     pieces,
     published::{Published, Watched},
     sent::Sent,
@@ -531,7 +531,7 @@ pub(super) struct Described<'a> {
 }
 
 struct Screen {
-    input: InputAdapter,
+    input: InputForwarder,
     placement: Option<Placement>,
     request: ScreenRequest,
     last_seen: u64,
@@ -812,7 +812,7 @@ impl Instances {
         let screen = entry.screens.entry(region).or_insert_with(|| {
             *next_screen += 1;
             Screen {
-                input: InputAdapter::default(),
+                input: InputForwarder::default(),
                 placement: None,
                 request: ScreenRequest {
                     screen: ScreenId(*next_screen),

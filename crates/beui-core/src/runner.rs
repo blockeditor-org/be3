@@ -25,7 +25,7 @@ pub mod environment;
 mod host;
 mod intake;
 
-pub use host::{HostView, Hosted, HostedAdapter, WindowHost};
+pub use host::{HostView, Hosted, HostedPlatform, WindowHost};
 use intake::{Drain, Intake};
 pub use intake::{Incoming, PINCH_SPEED, SCROLL_LINE, SCROLL_PAGE, Units, scrolled};
 
@@ -84,13 +84,13 @@ pub struct Launch {
 
 pub type Running = Pin<Box<dyn Future<Output = Result<(), Box<dyn Error>>>>>;
 
-pub trait Adapter {
+pub trait Platform {
     fn name(&self) -> &'static str;
 
     fn run(self: Box<Self>, launch: Launch) -> Running;
 }
 
-pub trait Platform {
+pub trait PlatformServices {
     fn copy(&mut self, _text: String) {}
 
     fn copy_image(&mut self, _png: Vec<u8>) {}
@@ -393,7 +393,7 @@ impl Runner {
         }
     }
 
-    pub fn frame(&mut self, platform: &mut dyn Platform, safe_area: SafeArea) -> Option<Frame> {
+    pub fn frame(&mut self, platform: &mut dyn PlatformServices, safe_area: SafeArea) -> Option<Frame> {
         if self.exited {
             return None;
         }
@@ -412,7 +412,7 @@ impl Runner {
         }
     }
 
-    fn run_frame(&mut self, platform: &mut dyn Platform, safe_area: SafeArea) -> Option<Frame> {
+    fn run_frame(&mut self, platform: &mut dyn PlatformServices, safe_area: SafeArea) -> Option<Frame> {
         let started = std::time::Instant::now();
         let renderers = self.renderers.as_mut()?;
         match renderers.recover() {

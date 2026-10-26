@@ -2352,7 +2352,7 @@ struct DrivenPlatform {
     unanswered: Vec<crate::PasteAnswer>,
 }
 
-impl beui_core::runner::Platform for DrivenPlatform {
+impl beui_core::runner::PlatformServices for DrivenPlatform {
     fn paste(&mut self, _kinds: &[crate::PasteKind], answer: crate::PasteAnswer) {
         self.unanswered.push(answer);
     }
@@ -2528,7 +2528,7 @@ pub(crate) struct IntakePlatform {
     pub(crate) pastes: Vec<Vec<crate::PasteKind>>,
 }
 
-impl beui_core::runner::Platform for IntakePlatform {
+impl beui_core::runner::PlatformServices for IntakePlatform {
     fn paste(&mut self, kinds: &[crate::PasteKind], answer: crate::PasteAnswer) {
         self.pastes.push(kinds.to_vec());
         answer.send(kinds.iter().find_map(|kind| match kind {
@@ -2806,7 +2806,7 @@ impl beui_core::renderer::Renderer for SpaceScreen {
     }
 }
 
-struct SharedSpace(Rc<RefCell<beui_adapter_space::Space>>);
+struct SharedSpace(Rc<RefCell<beui_layer_space::Space>>);
 
 impl beui_core::runner::WindowHost for SharedSpace {
     fn setup(&mut self, setup: &Setup) {
@@ -2840,17 +2840,17 @@ impl crate::App for SharedDocument {
 
 struct Nowhere;
 
-impl beui_core::runner::Platform for Nowhere {}
+impl beui_core::runner::PlatformServices for Nowhere {}
 
 pub(crate) struct InSpace {
     runner: beui_core::runner::Runner,
-    pub(crate) space: Rc<RefCell<beui_adapter_space::Space>>,
+    pub(crate) space: Rc<RefCell<beui_layer_space::Space>>,
     pub(crate) document: Rc<RefCell<Document>>,
 }
 
 impl InSpace {
     pub(crate) fn new(document: Document) -> Self {
-        let space = Rc::new(RefCell::new(beui_adapter_space::Space::new()));
+        let space = Rc::new(RefCell::new(beui_layer_space::Space::new()));
         let document = Rc::new(RefCell::new(document));
         let context = context();
         let mut runner = beui_core::runner::Runner::new(beui_core::runner::Launch {

@@ -1,7 +1,7 @@
 use crate::clipboard::{PasteAnswer, PasteKind, Pasted};
 use crate::file_picker::PickedFile;
 use crate::geometry::Vec2;
-use crate::runner::Platform;
+use crate::runner::PlatformServices;
 use crate::window::WindowReports;
 
 pub const MAX_PIXELS: f32 = 8192.0;
@@ -88,7 +88,7 @@ impl Simulation {
     }
 }
 
-impl Platform for Simulation {
+impl PlatformServices for Simulation {
     fn copy(&mut self, text: String) {
         self.copied_image = None;
         self.clipboard = Some(text);

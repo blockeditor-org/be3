@@ -1,7 +1,7 @@
 use super::*;
 use beui_core::app::SafeArea;
 use beui_core::renderer::{Loaded, Renderer};
-use beui_core::runner::{Launch, Platform, RunOptions, Runner};
+use beui_core::runner::{Launch, PlatformServices, RunOptions, Runner};
 
 type Log = Signal<Vec<&'static str>>;
 
@@ -40,7 +40,7 @@ impl Drop for Screen {
 
 struct Nowhere;
 
-impl Platform for Nowhere {}
+impl PlatformServices for Nowhere {}
 
 struct Holding(Log);
 

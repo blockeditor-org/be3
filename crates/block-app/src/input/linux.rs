@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use be_block::InputSettings;
 use be_wayland::KeyboardConfig;
-use beui_adapter_drm::{InputConfig, InputControl, PointerDevice};
+use beui_platform_drm::{InputConfig, InputControl, PointerDevice};
 use block_plugin_api::HostInputDevice;
 
 thread_local! {

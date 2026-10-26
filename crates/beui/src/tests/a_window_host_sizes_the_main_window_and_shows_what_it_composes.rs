@@ -79,7 +79,7 @@ impl WindowHost for Host {
 
 struct Nowhere;
 
-impl beui_core::runner::Platform for Nowhere {}
+impl beui_core::runner::PlatformServices for Nowhere {}
 
 #[test]
 fn a_window_host_sizes_the_main_window_and_shows_what_it_composes() {

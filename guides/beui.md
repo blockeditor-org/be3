@@ -293,9 +293,9 @@ direction:
 
 | Crate | Owns |
 | --- | --- |
-| `ui-types` | the vocabulary beui shares with the plugin protocol, which depends on nothing but serde and `geometry`: `Key` (with its names for drive, `Key::from_name` and `Key::name`, its evdev code, `Key::evdev`, and what every adapter names keys with: `Key::from_typed`, the one rule for a character key, `Key::from_value` for a W3C key value, and `Key::evdev_from_code` and `Key::from_evdev` for a physical place), `Modifiers`, `KeyChord`, `PointerButton`, the touch, pen and back phases, `ImeEvent`, `CursorIcon`, `Pasted` and `PickedFile`; `Input`, the raw input every platform adapter, drive's gestures, the on-screen keyboard and the plugin protocol produce; `WindowRequests` and `ImeArea`, what an app asks of its window; the preferences (`ThemeKind`, `Motion`, `Preferences`, `PreferenceLayer`); and the display and pointer settings `beui-adapter-drm` applies and block settings store (`DisplayMode`, `Rotation`, `InputDevice`, `PointerSettings`) |
+| `ui-types` | the vocabulary beui shares with the plugin protocol, which depends on nothing but serde and `geometry`: `Key` (with its names for drive, `Key::from_name` and `Key::name`, its evdev code, `Key::evdev`, and what every platform names keys with: `Key::from_typed`, the one rule for a character key, `Key::from_value` for a W3C key value, and `Key::evdev_from_code` and `Key::from_evdev` for a physical place), `Modifiers`, `KeyChord`, `PointerButton`, the touch, pen and back phases, `ImeEvent`, `CursorIcon`, `Pasted` and `PickedFile`; `Input`, the raw input every platform, drive's gestures, the on-screen keyboard and the plugin protocol produce; `WindowRequests` and `ImeArea`, what an app asks of its window; the preferences (`ThemeKind`, `Motion`, `Preferences`, `PreferenceLayer`); and the display and pointer settings `beui-platform-drm` applies and block settings store (`DisplayMode`, `Rotation`, `InputDevice`, `PointerSettings`) |
 | `beui-tree` | what makes a tree of components, whatever it is made of: `#[component]` and `view!`'s runtime, `Prop`, child slots (`Children`, `Run`, `SlotChild`, `SlotHost`) and `Show`, `ShowKeepAlive`, `Dynamic`, `Keyed` and `ForEach` |
-| `beui-core` | `Document` and `Context`, the retained nodes and their layout, input and its dispatch, accessibility, paint output and damage, the font and image interfaces, the icon codepoints, the `App` contract, and the `Runner` every adapter drives it through |
+| `beui-core` | `Document` and `Context`, the retained nodes and their layout, input and its dispatch, accessibility, paint output and damage, the font and image interfaces, the icon codepoints, the `App` contract, and the `Runner` every platform drives it through |
 | `beui-font-freetype` | `FreetypeFonts`: FreeType and HarfBuzz shaping and rasterizing, and the fonts beui compiles in |
 | `beui-font-browser` | `BrowserFonts`: text measured with the browser's own fonts through a canvas, for the DOM renderer; no fonts in the module |
 | `beui-view` | `beui::reactive`: `beui-tree` re-exported with the rest of the framework (actions, timers, `NodeRef`, layout values such as `Align`, `Align2`, `Extent`, `Sides`, `Corners` and `Outline`, and the node functions and `Inspect` through which components reach the tree); `beui::primitives`: the base components (`Frame`, `List`, `Text`, ...) that wrap core's nodes; `beui_core::tree` is what makes a `NodeId` a child |
@@ -304,10 +304,10 @@ direction:
 | `beui-inspector` | the inspector, the simulated screen reader and the simulated mouse and keyboard |
 | `beui-renderer-wgpu` | the wgpu renderer, its shaders and filters, and presenting to a surface |
 | `beui-renderer-dom` | the DOM renderer: the display tree as nested absolutely positioned elements |
-| `beui-adapter-winit`, `beui-adapter-android`, `beui-adapter-web` | each platform's `Adapter` and `Platform`: its event loop, window or view, input, IME, clipboard, file picker and accessibility adapter (winit's is its own `accessibility.rs` over `accesskit_unix`, `accesskit_windows` and `accesskit_macos`, since `accesskit_winit` has no release for winit 0.31) |
-| `beui-adapter-drm` | Linux's displays and input devices through DRM/KMS and libinput: an `Adapter`, `Platform` and `Renderer` whose screens each keep a retained frame and are drawn when their display flips (the app's frames are paced to the flips too, by `pacing.rs`: at most one per flip, none while nothing changes), handing the flip a fence (or, without atomic fences, waiting for it in the event loop) instead of blocking on the GPU; callers run it with `beui::run_on` |
-| `beui-adapter-space` | the VR simulator `WindowHost` that `BEUI_ADAPTER=space` wraps around a native or headless adapter: the app's windows as panels in a 3D scene ("Space: the VR simulator host" below) |
-| `beui-adapter-plugin` | the `Adapter`, `Platform` and `Renderer` for one region of a block editor plugin, which the plugin framework drives frame by frame (guides/adding_a_plugin_editor.md); it depends on the plugin framework, so the facade does not offer it |
+| `beui-platform-winit`, `beui-platform-android`, `beui-platform-web` | each platform's `Platform` and `PlatformServices`: its event loop, window or view, input, IME, clipboard, file picker and accessibility adapter (winit's is its own `accessibility.rs` over `accesskit_unix`, `accesskit_windows` and `accesskit_macos`, since `accesskit_winit` has no release for winit 0.31) |
+| `beui-platform-drm` | Linux's displays and input devices through DRM/KMS and libinput: a `Platform`, `PlatformServices` and `Renderer` whose screens each keep a retained frame and are drawn when their display flips (the app's frames are paced to the flips too, by `pacing.rs`: at most one per flip, none while nothing changes), handing the flip a fence (or, without atomic fences, waiting for it in the event loop) instead of blocking on the GPU; callers run it with `beui::run_on` |
+| `beui-layer-space` | the VR simulator `WindowHost` that `BEUI_PLATFORM=space` wraps around a native or headless platform: the app's windows as panels in a 3D scene ("Space: the VR simulator host" below) |
+| `beui-platform-plugin` | the `Platform`, `PlatformServices` and `Renderer` for one region of a block editor plugin, which the plugin framework drives frame by frame (guides/adding_a_plugin_editor.md); it depends on the plugin framework, so the facade does not offer it |
 
 Core cannot see the crates above it, so the few places it used to reach up are
 hooks the higher crates fill in:
@@ -330,12 +330,12 @@ hooks the higher crates fill in:
   (`Document::extension`, which components reach as `tree_local`).
 - A `Drawing` holds whatever its renderer draws; `beui::drawing` makes one for
   the wgpu renderer.
-- Each platform is a `beui_core::runner::Adapter`, a trait object the facade
-  picks (`beui::window_adapter`, `beui::web_adapter`) and runs with a `Launch`
-  (`RunOptions`, `Context`, the `App`). The adapter owns the event loop and
-  turns the platform's input into `Event`s; everything one frame does is
+- Each platform is a `beui_core::runner::Platform`, a trait object the facade
+  picks (`beui::native_platform`, `beui::web_platform`) and runs with a `Launch`
+  (`RunOptions`, `Context`, the `App`). The platform owns the event loop and
+  turns native input into `Event`s; everything one frame does is
   `beui_core::runner::Runner::frame`, shared by all of them: it runs the
-  app, publishes accessibility, and tells the adapter's `Platform` (another
+  app, publishes accessibility, and tells the platform's `PlatformServices` (another
   trait object) what the app asked of the window. Everything the window
   shows for the app is one `beui_core::window::WindowState`: its `requests`
   (`ui_types::WindowRequests`: the cursor, pointer lock, back handling, wanting
@@ -353,13 +353,13 @@ hooks the higher crates fill in:
   point, or an I-beam for text. A plugin region passes it to its host
   unchanged (the protocol's `CursorIcon` is beui's, from `ui-types`), and a platform with no custom cursors
   falls back to `CursorIcon::Touch.name()`, a crosshair. The runner hands it to `Platform::show_window` with the state it
-  showed before, only when they differ, so an adapter compares just the
-  fields it uses; a new field is one more field there and in the adapters
+  showed before, only when they differ, so a platform compares just the
+  fields it uses; a new field is one more field there and in the platforms
   that act on it. Typing moves the platform's own copy of the field (the
   web's hidden textarea, Android's editable) even when the app turns the
   text away or a composition ends with the field unchanged, so `typed`
   counts the frames that delivered IME or text input, and the change is
-  when the web and Android adapters bring that copy back to the app's
+  when the web and Android platforms bring that copy back to the app's
   text, comparing against what they last sent. The IME
   area it hands over is in the window's own units (winit's logical pixels,
   CSS pixels, a plugin region's points: physical pixels over the platform's
@@ -367,21 +367,21 @@ hooks the higher crates fill in:
   shown. What happens once rather than holds (a copy, a paste, a file pick,
   `set_fullscreen`, closing) has a call or field of its own.
 - What the window did goes the other way, through `Runner::reports()`, a
-  `WindowReports` handle an adapter may clone and keep (the web adapter
+  `WindowReports` handle a platform may clone and keep (the web platform
   hands one to its `fullscreenchange` listener): `resized` with its size in
   physical pixels, `scaled` with its pixels per point (winit's scale factor,
   the browser's device pixel ratio, Android's density, a plugin region's
   scale factor, the DRM displays' scale), and `fullscreen`. The runner
   applies them at the start of the next frame, resizing the renderers and
   setting `Context::set_pixels_per_point` before the app lays out, so no
-  adapter resizes a renderer or passes a scale itself. A report made during
+  platform resizes a renderer or passes a scale itself. A report made during
   a frame (a simulated window answering) makes that frame ask for the next.
   Fullscreen goes both ways: `Context::set_fullscreen` asks the window to
   enter or leave it, the runner passing on each request that differs from
   what the window last reported, and the window reports what it actually
   did, whether the app asked or not, which the app reads as
   `Context::fullscreen` and a component as `use_fullscreen()`. The DRM
-  adapter is always fullscreen; Android and plugins say nothing.
+  platform is always fullscreen; Android and plugins say nothing.
   The clipboard is the platform's: `Context::copy_text` writes it, and
   `Context::copy_image` (`reactive::copy_image`) writes a PNG in its place
   (`Platform::copy_image`: winit through arboard, the web as a `ClipboardItem`,
@@ -401,12 +401,12 @@ hooks the higher crates fill in:
   delivers Ctrl+V's paste itself (`Platform::delivers_paste_shortcut`: the
   browser, from its paste event's data and the window's `paste_kinds`, and a
   plugin's host) is not asked again for the shortcut. The winit
-  adapter reads images too; Android and DRM read text only.
+  platform reads images too; Android and DRM read text only.
   An `Interactive` with `clipboard_keys` (a terminal) takes Ctrl+C, Ctrl+V,
   Ctrl+X and Ctrl+A as plain keys while it or a node inside it has the focus
   (`Document::clipboard_keys`, sent as `WindowRequests::clipboard_keys`, which a
   plugin's region passes on to its own catcher). Natively that changes nothing,
-  since those arrive as keys anyway; the web adapter, which decides in `keydown`
+  since those arrive as keys anyway; the web platform, which decides in `keydown`
   before the app has seen the key, keeps the last flag it was shown and stops
   the browser's copy, paste and cut for them, and its inspector for Ctrl+Shift+C,
   but leaves Ctrl+Shift+V to make the browser's `paste` event, so a node that
@@ -415,11 +415,11 @@ hooks the higher crates fill in:
   still reaches the web clipboard, since it is written within the key's user
   gesture. A node that takes these keys and leaves Ctrl+V unanswered gets no
   paste on the web.
-  `Platform`'s methods all have defaults (no clipboard, no file picker), so a
+  `PlatformServices`' methods all have defaults (no clipboard, no file picker), so a
   platform implements only what it has.
   A new platform implements those two traits and hands its window or element
   to the renderer loader the facade gives it.
-- An adapter only translates: it hands `Runner::push` an `Incoming`, which is
+- A platform only translates: it hands `Runner::push` an `Incoming`, which is
   a `ui_types::Input` with its positions and deltas in physical pixels
   (`Incoming::from`), in the window's logical pixels (`Incoming::logical`) or
   in points (`Incoming::points`), an `Incoming::FileDrag` (files hovered over
@@ -438,9 +438,9 @@ hooks the higher crates fill in:
   they are normalized as a window's input is. A trackpad's two-finger
   scroll is a scroll and its pinch an `Event::Zoom` on every platform: winit's
   `PinchGesture`, and in the browser a Ctrl-wheel (how Chrome and Firefox
-  report a pinch, which the web adapter turns into `Input::Zoom` at
+  report a pinch, which the web platform turns into `Input::Zoom` at
   `PINCH_SPEED` per pixel) or Safari's `gesturechange`, whose scale over the last one's
-  is the factor; the web adapter ignores a gesture while fingers are down,
+  is the factor; the web platform ignores a gesture while fingers are down,
   since those touches pinch already, and prevents the default of all of them
   so the browser never zooms the page. Fingers touching a trackpad push
   `Input::ScrollStarted` and lifting them `Input::ScrollEnded`, which a plugin's
@@ -454,10 +454,10 @@ hooks the higher crates fill in:
   without a start (a mouse) clamps at the ends. winit pushes them on a
   `MouseWheel` phase of `Started` and `Ended`, and on macOS drops the momentum events the
   system sends after a lift (from a `Started` within 100 ms of it to their
-  `Ended`, in `beui-adapter-winit/src/wheel.rs`): beui's fling replaces them,
+  `Ended`, in `beui-platform-winit/src/wheel.rs`): beui's fling replaces them,
   and they would scroll clamped at an end instead of banding. The browser
   reports neither, so a web wheel scroll never stretches or flings. Every pointer sample is an event of its
-  own: the web adapter pushes each of a `pointermove`'s
+  own: the web platform pushes each of a `pointermove`'s
   `getCoalescedEvents()` rather than only the last, and `on_drag` runs once
   per sample, so a stroke keeps every point the device reported between two
   frames. After a pressed move it pushes `Input::Predicted` with the last of
@@ -468,13 +468,13 @@ hooks the higher crates fill in:
   replaces it, so a component draws it as a transient tail (the canvas's pen
   tool does) and never keeps it; the other platforms report none, and a
   plugin's host forwards it too. Each sample also has
-  the time it happened: an adapter pushes `Incoming::Time(Instant)` just after
+  the time it happened: a platform pushes `Incoming::Time(Instant)` just after
   the event it stamps, and the runner gives it to that event's
   `PointerEvent::time`, the session it moves and the `PointerPress::time` its
   catchers hear (touch fling velocity is measured with it too). The web
-  adapter reads `timeStamp` from each coalesced `PointerEvent`, Android sends
+  platform reads `timeStamp` from each coalesced `PointerEvent`, Android sends
   every historical sample of a `MotionEvent` with its own event time, the DRM
-  adapter reads libinput's, and winit, which reports none, stamps an event
+  platform reads libinput's, and winit, which reports none, stamps an event
   when it arrives. An event pushed without one, as tests and drive push
   them, happens at the frame clock's `now`, so a test steps time by stepping
   frames. An `Interactive` with `every_sample` (a `Prop<bool>`, set while it
@@ -485,7 +485,7 @@ hooks the higher crates fill in:
   `on_drag`. `Incoming::logical` marks
   input whose pixels are the window's logical ones (physical pixels
   over the scale it last reported: the browser's CSS pixels), so the runner
-  converts them with the same scale the frame lays out at and no adapter
+  converts them with the same scale the frame lays out at and no platform
   reads its scale at event time. Text is passed as the platform gives it;
   the runner drops control characters. It may send `Input::Modifiers` on every event; the runner
   passes it on only when it changes. At the start of each frame the runner
@@ -499,7 +499,7 @@ hooks the higher crates fill in:
   says every press, touch and pen session is over and its release will not
   come: the runner lets go of its buttons and emulated touch, and the
   document cancels the touches, ends the pen and the mouse
-  (`Event::PointersCancelled`) and stops autoscrolling. Only the adapters
+  (`Event::PointersCancelled`) and stops autoscrolling. Only the platforms
   whose platform can lose a release send it: winit and the web when their
   window loses focus (alt-tab mid-press, a broken capture on Windows, a grab
   by another X11 client), and winit on Wayland also when the pointer leaves
@@ -520,26 +520,26 @@ hooks the higher crates fill in:
   children into (`Document::enter_space`, a scroll's content, a canvas's
   spaces) is a `GenericContainer` whose transform is the space's translation
   and scale, so a scroll or pan changes only that node.
-  `Frame::wait` is how long the adapter may sleep before the next frame
+  `Frame::wait` is how long the platform may sleep before the next frame
   (`None` until something wakes it), and `Frame::next` the same once it
   knows whether the frame it presented asks to be presented again.
   Closing is the runner's: when the app calls `close_window` (or a driver's
   close is accepted) the runner exits after that frame and `frame` returns
-  `None` with `Runner::exited` set, which every adapter answers by stopping
-  its loop (Android also finishes its activity, the web adapter closes the
+  `None` with `Runner::exited` set, which every platform answers by stopping
+  its loop (Android also finishes its activity, the web platform closes the
   tab where the browser lets a script, and a plugin region's `Frame` says
   `stopped` from then on, `Stopped::Closed` or `Stopped::Failed`, which the
-  host shows in the region's place). An adapter whose window is closed from
+  host shows in the region's place). A platform whose window is closed from
   outside calls `Runner::os_close`, which asks the app's `close_requested`
-  and exits if it agrees; the web adapter asks on `beforeunload`, and a
+  and exits if it agrees; the web platform asks on `beforeunload`, and a
   refusal is the browser's leave-the-page prompt.
   A panic out of the app's `update` stops the runner rather than unwinding
   through the event loop: the app hears `exiting`, `frame` returns `None` from
-  then on, `Runner::failure` says why, and the adapter ends its loop and
+  then on, `Runner::failure` says why, and the platform ends its loop and
   returns that as an error (`Runner::finish`), so whatever owns the screen is
   let go of in order. An app that can carry on after a panic in one part
   catches it there itself.
-- Every adapter draws through `beui_core::renderer::Renderer` trait objects and
+- Every platform draws through `beui_core::renderer::Renderer` trait objects and
   names no renderer crate: wgpu's `WindowSurface` (native windows),
   `CanvasSurface` (a browser canvas) and `DomRenderer` implement it, and the
   facade hands the runner the ones to load. A renderer is told where to draw
@@ -1030,8 +1030,8 @@ so every control works with it unchanged (`PointerId::hovers` is true for both).
 `PointerEvent`s carry the `Pen`, and the `PointerPress` a catcher hears carries it too, as
 `pen`, sampled when it was pressed and at each drag; a finger's `PointerEvent`s carry its
 `force` where the platform reports one. The DRM
-adapter reads libinput's tablet tools, the web adapter pointer events whose `pointerType` is
-`pen`, Android a stylus or eraser `MotionEvent`, the winit adapter winit's tablet-tool pointer
+platform reads libinput's tablet tools, the web platform pointer events whose `pointerType` is
+`pen`, Android a stylus or eraser `MotionEvent`, the winit platform winit's tablet-tool pointer
 events (on Wayland and Windows; X11 and macOS report none), and drive's `pen` commands make one.
 A finger that lands on no control is taken to the nearest `Interactive` that
 takes presses within `TOUCH_REACH` of it, for the whole touch, so every control's
@@ -1553,12 +1553,12 @@ preference, and resolves them top down, falling back to `Preferences::default()`
 - `PreferenceSource::Developer`: the inspector's Simulation tab. Never saved; its No override
   choices clear it.
 - `PreferenceSource::App`: what the app chose, from its own settings.
-- `PreferenceSource::System`: what the platform prefers. Adapters report it with
+- `PreferenceSource::System`: what the platform prefers. Platforms report it with
   `WindowReports::system_preferences`: winit from the window's theme and, on Linux, the
-  desktop portal's `color-scheme` and `reduced-motion`; the web adapter from
+  desktop portal's `color-scheme` and `reduced-motion`; the web platform from
   `prefers-color-scheme` and `prefers-reduced-motion`; Android from night mode and a zero
-  animator scale; the DRM adapter says e-paper and instant motion on an e-paper panel; the
-  plugin adapter reports the host's resolved preferences, which reach a plugin in its
+  animator scale; the DRM platform says e-paper and instant motion on an e-paper panel; the
+  plugin platform reports the host's resolved preferences, which reach a plugin in its
   acceptance and through the host interface's preferences-watch; plugin tests send them with
   `BeuiTest::set_preferences`.
 
@@ -1881,7 +1881,7 @@ coordinates). A window, a browser tab, an Android view, a plugin's region and
 an inspector panel are one screen the size of what the document is shown in;
 under `block-app --session` there is one per monitor. They come from the
 renderer: `Renderer::screens` hands the runner each monitor in physical
-pixels (beui-adapter-drm's outputs, beui-adapter-plugin's from the monitors
+pixels (beui-platform-drm's outputs, beui-platform-plugin's from the monitors
 the host says its region covers), the runner puts them on the `Context`
 (`Context::set_screens`, which is also how a test gives a document two
 screens), and the document keeps the part of each inside the rect it is shown
@@ -2481,15 +2481,15 @@ Beui does not hold the pointer itself - it asks. `PointerLock` sets
 `pointer_locked` on its `Interactive`, the document publishes whether any
 `Interactive` in it asks as `WindowRequests::pointer_locked`, and whoever is showing the document does
 it: the winit runner locks the cursor and hides it, and a plugin region passes
-it to the host in its `WindowRequests` (guides/adding_a_plugin_editor.md). An
-adapter reads raw motion only while `Runner::window()`, the state it was
+it to the host in its `WindowRequests` (guides/adding_a_plugin_editor.md). A
+platform reads raw motion only while `Runner::window()`, the state it was
 shown, holds the pointer, and while it does sends no absolute `PointerMoved`
 (winit, web and drm alike), since a held pointer's position means nothing.
-The winit adapter lets the grab go itself the moment its window loses focus
+The winit platform lets the grab go itself the moment its window loses focus
 and takes it back on focus only if the shown state still asks, since X11's
 and macOS's grabs outlive focus. A browser drops its lock by itself, on blur
 and on Escape (which the page never sees), and refuses one asked for without
-a user gesture: the web adapter (its `lock::Lock`) reports either, while the
+a user gesture: the web platform (its `lock::Lock`) reports either, while the
 shown state still asks, as `Input::PointerUnlocked`. The document answers it
 as it answers losing the keyboard while it holds the pointer, by clearing
 focus, so a `PointerLock` lets go and the next press takes it again; a space
@@ -2625,7 +2625,7 @@ it is given. Every prop is reactive: the document hands its appearance
 (`beui_core::window::Appearance`) to the context each time it is shown, it
 travels in `WindowState`, and the runner clears with its colour, labels the
 accessibility tree with its title and passes it to `Platform::show_window`.
-winit retitles the window and the web adapter retitles the browser tab and
+winit retitles the window and the web platform retitles the browser tab and
 colours the page's body to match; Android follows `system_bars`; DRM, headless
 and plugins ignore the title. A plugin pane has no title of its own and the
 plugin protocol carries none: `BeuiApp::View` returns the editor's own `Root`,
@@ -2653,7 +2653,7 @@ Beui's features:
   this level.
 - `window` adds the native runner and enables `render`; it is the default.
   On the desktop it is winit's. On Android it is beui's own
-  (`crates/beui-adapter-android`, with its Java in its `android` directory): the app's
+  (`crates/beui-platform-android`, with its Java in its `android` directory): the app's
   activity extends `com.be3.beui.BeuiActivity`, whose `BeuiView` is the
   surface, takes touches, keys and the soft keyboard's input connection, and
   hosts AccessKit. It has to be a view that input reaches through the view
@@ -2694,8 +2694,8 @@ focused field into what is left, through every scroll it sits in.
 `beui::run` takes only the app; both load wgpu, and
 `beui::run_with_renderers` takes the `beui::WindowRenderer`s to load instead
 (block-app's opens its device itself, to import Wayland clients' buffers), and
-`beui::run_on` runs on an adapter of the caller's choosing, such as
-`beui_adapter_drm::Drm`, which drives the displays and input devices itself, or
+`beui::run_on` runs on a platform of the caller's choosing, such as
+`beui_platform_drm::Drm`, which drives the displays and input devices itself, or
 `beui::Headless`, which draws offscreen with no window or display server. The rest of
 `App` is optional:
 
@@ -2709,7 +2709,7 @@ focused field into what is left, through every scroll it sits in.
 - `close_requested` is asked when the window is closed, and can refuse by
   returning `false` (to ask about unsaved work first, then call
   `Context::close_window`). `exiting` runs once on the way out, and the runner
-  drops the app right after it, while the GPU device and the adapter's displays
+  drops the app right after it, while the GPU device and the platform's displays
   are still there; no frame runs after it. Whatever the app keeps in a
   `thread_local!` must be taken out in `exiting`: the main thread's
   thread-locals are dropped only by `exit()` after `main` returns, in no set
@@ -2736,22 +2736,22 @@ frames.
 
 `RunOptions::automation` hands the runner an `automation::Inbox` of commands
 from a driver (guides/running/drive.md); the native run functions fill it
-from `BEUI_AUTOMATION` and pick their adapter and renderer from `BEUI_ADAPTER`,
-`BEUI_SPACE_ADAPTER` and `BEUI_RENDERER` (`beui_core::runner::environment`), and
+from `BEUI_AUTOMATION` and pick their platform and renderer from `BEUI_PLATFORM`,
+`BEUI_SPACE_PLATFORM` and `BEUI_RENDERER` (`beui_core::runner::environment`), and
 block-app's web build fills it from its `automate` export. The runner keeps the
 accessibility tree (`Context::keep_accessibility`, which a bare `Context` and a
 headless plugin do by default and other runners only for a driver) and the action registry's actions, takes
 the next command at the start of a frame, turns input commands into `Event`s
-already in points, which skip the adapters' intake (`automation/keys.rs` names
+already in points, which skip the platforms' intake (`automation/keys.rs` names
 the keys), and answers once a frame
 asks for no other and the app is not `busy`. The driver acts on the window
-only through the `Platform` it is given, as the app does: `clipboard` copies
+only through the `PlatformServices` it is given, as the app does: `clipboard` copies
 and pastes through it, `resize` asks `Platform::resize` (which only a
 headless window answers), and `state` reads the size, scale and fullscreen
 the window last reported. While a driver is attached the runner hands it the
 app's file dialogs instead of the platform, so `upload` and `dismiss` answer
 them in any window, and it keeps the focus `focus` and `blur` gave. The
-headless adapter's window is `automation::Simulation`, a `Platform` like any
+headless platform's window is `automation::Simulation`, a `PlatformServices` like any
 other: it keeps a clipboard, grows to its screen for fullscreen, and reports
 its size, scale and fullscreen through its `WindowReports`. beui's own tests
 drive one the same way, with a renderer that draws nothing. `Renderer::capture` reads the presented
@@ -2762,7 +2762,7 @@ paint, accessibility, the driver), but the runner hands each one's output to
 `Renderer::note` instead of `prepare` and presents nothing. `note` keeps only
 what the frame damaged, so the wgpu `Target` draws the union of every unseen
 frame's damage into its retained frame the next time it does draw; a renderer
-without `note` prepares as usual. The headless adapter is always occluded, so it
+without `note` prepares as usual. The headless platform is always occluded, so it
 draws only for a driver's `shot`.
 
 `Context::seen` tells the app whether the frame it is running will be drawn. A
@@ -2810,7 +2810,7 @@ window focus, as a window manager moves it on a click or to a window it
 opens). The runner applies them before the frame
 lays out, and `Context::window_size` and `Context::window_placement` read
 them. `Context::opens_windows` says whether anything can open windows; where
-nothing can (every platform adapter on its own), a window is shown inside the
+nothing can (every platform on its own), a window is shown inside the
 main one instead.
 
 An app makes a window with the `Window` component (`beui::primitives`):
@@ -2934,8 +2934,8 @@ point inside. `ui_types::Input` has no window: it is the
 plugin protocol's input too, and a plugin region is always one window.
 
 A `beui_core::runner::WindowHost` sits between one platform window and an
-app with many windows, on any adapter. It goes in `Launch::host`, or wraps an
-adapter as a `HostedAdapter { adapter, host }`. The runner calls it at three
+app with many windows, on any platform. It goes in `Launch::host`, or wraps a
+platform as a `HostedPlatform { platform, host }`. The runner calls it at three
 points:
 
 - `setup(&Setup)` after the renderers load and whenever the GPU is replaced;
@@ -2960,17 +2960,17 @@ window into a texture of its own and composites them through a `Drawing`
 (`beui::drawing`, whose `Draw::prepare` has the device, queue and an
 encoder) in a `Layer::Shape(Shape::Drawing { .. })` covering the returned
 window. The native run functions (`beui::run_with`, `run_on`) wrap their
-adapter in a host under `BEUI_ADAPTER=space` (`adapt` in
+platform in a host under `BEUI_PLATFORM=space` (`choose_platform` in
 `crates/beui/src/window.rs`).
 
 ### Space: the VR simulator host
 
-`crates/beui-adapter-space` is a `WindowHost` that shows an app's windows as
+`crates/beui-layer-space` is a `WindowHost` that shows an app's windows as
 panels in a first-person 3D scene, a VR simulator that runs on any wgpu adapter.
-`BEUI_ADAPTER=space` turns it on for any native or headless (`:dev`) run: `adapt`
-wraps the adapter `BEUI_SPACE_ADAPTER` names (the platform's own by default, or
-`headless`) in `HostedAdapter { adapter, host: Space::new() }`.
-Everything it does is in the host, so no platform adapter knows about it, and
+`BEUI_PLATFORM=space` turns it on for any native or headless (`:dev`) run: `choose_platform`
+wraps the platform `BEUI_SPACE_PLATFORM` names (the platform's own by default, or
+`headless`) in `HostedPlatform { platform, host: Space::new() }`.
+Everything it does is in the host, so no platform knows about it, and
 all its 3D (`glam`) stays in the crate.
 
 - Panels: `Space::panels` is a list of `Panel { window, pose, size,
@@ -3309,7 +3309,7 @@ or blurs its hidden textarea, and a plugin passes it to its host as
 `WindowRequests::keyboard_toggles`, where block-app toggles its own. The
 desktop bar's keyboard button, the inspector's Sim tab button and the mouse
 simulation's keyboard button all call it. While the platform reports that no keyboard is attached
-(`WindowReports::keyboard_attached`, which only `beui-adapter-drm` sends, from
+(`WindowReports::keyboard_attached`, which only `beui-platform-drm` sends, from
 libinput devices that have an A key; every other platform counts as attached),
 it opens whenever the focused field's `ImeArea::keyboard` turns `Shown` or its
 `asks` changes, and closes when the focus leaves for something that types
@@ -4261,8 +4261,8 @@ relevant `tests` directory and declare it in that directory's `tests.rs`; this
 repository keeps one test per file.
 
 Every test that runs a document or an app runs it through `beui::testing::Stepped`, the way
-an adapter does: through the real `Runner`, on the headless window's `Simulation`
-(`Stepped::new`) or on a `Platform` the test supplies (`Stepped::on`), with a gpu-free
+a platform does: through the real `Runner`, on the headless window's `Simulation`
+(`Stepped::new`) or on a `PlatformServices` the test supplies (`Stepped::on`), with a gpu-free
 `testing::Screen`, the clock stopped, and one frame interval per frame.
 `testing::Showing(document)` is a `Document` as an app. Its gestures are `drive`'s commands,
 run by the same automation engine: `click(Target::id("wheel").at(offset))`, `drag`, `down`,

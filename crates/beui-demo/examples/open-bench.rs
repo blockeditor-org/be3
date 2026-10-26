@@ -46,7 +46,7 @@ mod bench {
 
     use beui::testing::Screen;
     use beui::{
-        Color32, Context, Incoming, Input, Launch, Platform, PointerButton, Pos2, Rect, RunOptions,
+        Color32, Context, Incoming, Input, Launch, PlatformServices, PointerButton, Pos2, Rect, RunOptions,
         ScrollDelta, Setup, Vec2, Waker, WindowOutput,
     };
     use beui_core::app::SafeArea;
@@ -93,7 +93,7 @@ mod bench {
 
     struct Bare;
 
-    impl Platform for Bare {}
+    impl PlatformServices for Bare {}
 
     struct Timing {
         gpu: Gpu,

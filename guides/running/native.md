@@ -22,7 +22,7 @@ They keep separate accounts, workspaces and caches, including for local release 
 
 ## In a window
 
-A change to the platform layer - beui-adapter-winit's translation of keys, the pointer and
+A change to the platform layer - beui-platform-winit's translation of keys, the pointer and
 the clipboard, the native file dialog, the window's surface, IME, key repeat, a crash only a
 real window shows - needs the app in a real window, which in a container means a virtual X
 display driven with xdotool. Install them first (`sudo apt-get install xvfb xdotool imagemagick`):

@@ -17,7 +17,7 @@ use crate::file_saver::{FileSave, FileSaveAnswer, FileSaveRequest};
 use crate::geometry::{Pos2, Rect, Vec2, vec2};
 use crate::input::Keyboard;
 use crate::input::{BackEdge, DroppedFile, FileDrag, Input, Key, PointerButton, TouchPhase};
-use crate::runner::{Incoming, Platform};
+use crate::runner::{Incoming, PlatformServices};
 use crate::window::WindowState;
 
 const CHANGES: usize = 60;
@@ -136,7 +136,7 @@ impl View<'_> {
 
 pub struct World<'a> {
     pub events: &'a mut Vec<Incoming>,
-    pub platform: &'a mut dyn Platform,
+    pub platform: &'a mut dyn PlatformServices,
     pub context: &'a Context,
 }
 

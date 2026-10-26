@@ -1,11 +1,11 @@
 use super::*;
 use beui_core::app::SafeArea;
 use beui_core::renderer::Loaded;
-use beui_core::runner::{Launch, Platform, RunOptions, Runner};
+use beui_core::runner::{Launch, PlatformServices, RunOptions, Runner};
 
 struct Window(Signal<Vec<String>>);
 
-impl Platform for Window {
+impl PlatformServices for Window {
     fn set_fullscreen(&mut self, fullscreen: bool) {
         self.0
             .update(|log| log.push(format!("fullscreen {fullscreen}")));

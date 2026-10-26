@@ -1,8 +1,8 @@
 use crate::app::automation::{MAX_PIXELS, WindowSize};
 use crate::geometry::Vec2;
 
-pub const ADAPTER: &str = "BEUI_ADAPTER";
-pub const SPACE_ADAPTER: &str = "BEUI_SPACE_ADAPTER";
+pub const PLATFORM: &str = "BEUI_PLATFORM";
+pub const SPACE_PLATFORM: &str = "BEUI_SPACE_PLATFORM";
 pub const RENDERER: &str = "BEUI_RENDERER";
 pub const HEADLESS_WINDOW: &str = "BEUI_HEADLESS_WINDOW";
 pub const HEADLESS_SCREEN: &str = "BEUI_HEADLESS_SCREEN";
@@ -10,8 +10,8 @@ pub const AUTOMATION: &str = "BEUI_AUTOMATION";
 pub const AUTOMATION_LISTENER: &str = "BEUI_AUTOMATION_LISTENER";
 
 pub const VARIABLES: &[&str] = &[
-    ADAPTER,
-    SPACE_ADAPTER,
+    PLATFORM,
+    SPACE_PLATFORM,
     RENDERER,
     HEADLESS_WINDOW,
     HEADLESS_SCREEN,
@@ -23,7 +23,7 @@ pub const HEADLESS_WINDOW_SIZE: &str = "1100x720";
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Choice {
-    pub adapter: Base,
+    pub platform: Base,
     pub space: bool,
     pub render: bool,
 }
@@ -45,28 +45,28 @@ pub fn choose(native: &str, var: impl Fn(&str) -> Option<String>) -> Result<Choi
         }
         names
     };
-    let adapter = var(ADAPTER);
-    let space = adapter.as_deref() == Some("space");
-    let base = match (adapter.as_deref(), var(SPACE_ADAPTER)) {
+    let platform = var(PLATFORM);
+    let space = platform.as_deref() == Some("space");
+    let base = match (platform.as_deref(), var(SPACE_PLATFORM)) {
         (Some("space"), sub) => sub,
         (_, Some(_)) => {
-            return Err(format!("{SPACE_ADAPTER} is for {ADAPTER}=space only"));
+            return Err(format!("{SPACE_PLATFORM} is for {PLATFORM}=space only"));
         }
-        (adapter, None) => adapter.map(str::to_owned),
+        (platform, None) => platform.map(str::to_owned),
     };
     let headless = match base.as_deref() {
         None => false,
         Some(name) if name == native => false,
         Some("headless") => true,
         Some(other) => {
-            let variable = if space { SPACE_ADAPTER } else { ADAPTER };
+            let variable = if space { SPACE_PLATFORM } else { PLATFORM };
             return Err(format!(
                 "{variable} takes {}, not {other}",
                 list(&names(!space))
             ));
         }
     };
-    let adapter = if headless {
+    let platform = if headless {
         let window = var(HEADLESS_WINDOW).unwrap_or_else(|| HEADLESS_WINDOW_SIZE.to_owned());
         let window = WindowSize::parse(&window)
             .ok_or_else(|| format!("{HEADLESS_WINDOW} takes WIDTHxHEIGHT[@SCALE], not {window}"))?;
@@ -94,7 +94,7 @@ pub fn choose(native: &str, var: impl Fn(&str) -> Option<String>) -> Result<Choi
     } else {
         for variable in [HEADLESS_WINDOW, HEADLESS_SCREEN] {
             if var(variable).is_some() {
-                return Err(format!("{variable} is for the headless adapter only"));
+                return Err(format!("{variable} is for the headless platform only"));
             }
         }
         Base::Native
@@ -104,8 +104,8 @@ pub fn choose(native: &str, var: impl Fn(&str) -> Option<String>) -> Result<Choi
         Some("none") if headless => false,
         Some("none") => {
             return Err(format!(
-                "{RENDERER}=none needs the headless adapter: {ADAPTER}=headless, or \
-                 {SPACE_ADAPTER}=headless under {ADAPTER}=space"
+                "{RENDERER}=none needs the headless platform: {PLATFORM}=headless, or \
+                 {SPACE_PLATFORM}=headless under {PLATFORM}=space"
             ));
         }
         Some(other) => {
@@ -113,7 +113,7 @@ pub fn choose(native: &str, var: impl Fn(&str) -> Option<String>) -> Result<Choi
         }
     };
     Ok(Choice {
-        adapter,
+        platform,
         space,
         render,
     })

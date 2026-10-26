@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 
 use be_block::DisplaySettings;
-use beui_adapter_drm::{DisplayConfig, DisplayControl, Epaper, Monitor};
+use beui_platform_drm::{DisplayConfig, DisplayControl, Epaper, Monitor};
 use block_plugin_api::HostDisplay;
 
 use super::Screen;

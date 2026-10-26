@@ -6,7 +6,7 @@ use beui_core::renderer::{Loaded, WindowHandle, any_loaded};
 use beui_renderer_wgpu::present::OpenDevice;
 use beui_renderer_wgpu::window::WindowSurface;
 
-use beui_core::runner::{Adapter, Launch, RunOptions};
+use beui_core::runner::{Platform, Launch, RunOptions};
 
 use beui_core::runner::environment::{Base, Choice};
 
@@ -36,7 +36,7 @@ pub fn run_with_renderers(
     let app: Box<dyn App> = match (&choice, options.saved_preferences.clone()) {
         (
             Some(Choice {
-                adapter: Base::Native,
+                platform: Base::Native,
                 ..
             })
             | None,
@@ -44,14 +44,14 @@ pub fn run_with_renderers(
         ) => Box::new(crate::saved_preferences::SavedPreferences::new(app, path)),
         _ => Box::new(app),
     };
-    let adapter = adapt(choice, open_device, || window_adapter(renderers));
+    let platform = choose_platform(choice, open_device, || native_platform(renderers));
     let launch = Launch {
         options,
         context: crate::system_context(),
         app,
         host: None,
     };
-    pollster::block_on(adapter.run(launch))
+    pollster::block_on(platform.run(launch))
 }
 
 #[cfg(target_os = "android")]
@@ -81,18 +81,18 @@ fn from_environment(
     Ok(None)
 }
 
-fn adapt(
+fn choose_platform(
     choice: Option<Choice>,
     open_device: Option<OpenDevice>,
-    native: impl FnOnce() -> Box<dyn Adapter>,
-) -> Box<dyn Adapter> {
+    native: impl FnOnce() -> Box<dyn Platform>,
+) -> Box<dyn Platform> {
     let Some(choice) = choice else {
         return native();
     };
-    let adapter = match choice.adapter {
+    let platform = match choice.platform {
         Base::Native => native(),
         #[cfg(not(target_os = "android"))]
-        Base::Headless { window, screen } => Box::new(beui_adapter_headless::Headless {
+        Base::Headless { window, screen } => Box::new(beui_platform_headless::Headless {
             window,
             screen,
             open_device,
@@ -105,11 +105,11 @@ fn adapt(
         }
     };
     if !choice.space {
-        return adapter;
+        return platform;
     }
-    Box::new(beui_core::runner::HostedAdapter {
-        adapter,
-        host: Box::new(beui_adapter_space::Space::new()),
+    Box::new(beui_core::runner::HostedPlatform {
+        platform,
+        host: Box::new(beui_layer_space::Space::new()),
     })
 }
 
@@ -147,7 +147,7 @@ fn serve(_path: &std::path::Path) -> Result<beui_core::app::automation::Inbox, B
     Err("BEUI_AUTOMATION needs a Unix socket, which this platform lacks".into())
 }
 
-pub fn window_adapter(renderers: Vec<WindowRenderer>) -> Box<dyn Adapter> {
+pub fn native_platform(renderers: Vec<WindowRenderer>) -> Box<dyn Platform> {
     let load = move |window: Arc<dyn WindowHandle>| {
         let results = renderers
             .into_iter()
@@ -157,9 +157,9 @@ pub fn window_adapter(renderers: Vec<WindowRenderer>) -> Box<dyn Adapter> {
         })
     };
     #[cfg(target_os = "android")]
-    return Box::new(beui_adapter_android::Android::new(load));
+    return Box::new(beui_platform_android::Android::new(load));
     #[cfg(not(target_os = "android"))]
-    return Box::new(beui_adapter_winit::Winit::new(load));
+    return Box::new(beui_platform_winit::Winit::new(load));
 }
 
 fn load(renderer: WindowRenderer, window: Arc<dyn WindowHandle>) -> Result<Loaded, Box<dyn Error>> {
@@ -172,17 +172,17 @@ fn load(renderer: WindowRenderer, window: Arc<dyn WindowHandle>) -> Result<Loade
 }
 
 pub fn run_on(
-    adapter: Box<dyn Adapter>,
+    platform: Box<dyn Platform>,
     mut options: RunOptions,
     app: impl App + 'static,
 ) -> Result<(), Box<dyn Error>> {
-    let choice = from_environment(&mut options, adapter.name())?;
-    let adapter = adapt(choice, None, || adapter);
+    let choice = from_environment(&mut options, platform.name())?;
+    let platform = choose_platform(choice, None, || platform);
     let launch = Launch {
         options,
         context: crate::system_context(),
         app: Box::new(app),
         host: None,
     };
-    pollster::block_on(adapter.run(launch))
+    pollster::block_on(platform.run(launch))
 }

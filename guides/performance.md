@@ -54,7 +54,7 @@ suite's `programs` (crates/bench/BUCK). Each can also run alone, with
   keeps grow from empty every time. A long-lived document reuses the slots of the nodes
   it removed; don't chase the growth of those tables in a profile of the bench.
 - `//crates/beui-demo:example-space-resize-bench` runs the demo in the VR simulator
-  (`beui_adapter_space::Space` as the runner's host) on an offscreen GPU, floats the
+  (`beui_layer_space::Space` as the runner's host) on an offscreen GPU, floats the
   Docking tab into a window of its own, and drags a corner of the main panel and of that
   window for 60 frames each, through the platform pixels a mouse sends. It prints each
   resize's median and slowest frame (`Runner::frame`, which runs the compositor's

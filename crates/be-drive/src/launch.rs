@@ -111,10 +111,10 @@ impl Launch {
             .map_err(|error| error.to_string())?;
         let listening = listener.as_raw_fd();
         let mut command = Command::new(program);
-        let slot = if std::env::var(environment::ADAPTER).as_deref() == Ok("space") {
-            environment::SPACE_ADAPTER
+        let slot = if std::env::var(environment::PLATFORM).as_deref() == Ok("space") {
+            environment::SPACE_PLATFORM
         } else {
-            environment::ADAPTER
+            environment::PLATFORM
         };
         command
             .args(&self.arguments)

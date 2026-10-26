@@ -4,7 +4,7 @@ use crate::app::Setup;
 use crate::context::{FrameOutput, WindowOutput};
 use crate::geometry::Vec2;
 
-use super::{Adapter, Incoming, Launch, Running};
+use super::{Platform, Incoming, Launch, Running};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct HostView {
@@ -26,18 +26,18 @@ pub trait WindowHost {
     fn frame(&mut self, output: &FrameOutput, view: &HostView) -> Hosted;
 }
 
-pub struct HostedAdapter {
-    pub adapter: Box<dyn Adapter>,
+pub struct HostedPlatform {
+    pub platform: Box<dyn Platform>,
     pub host: Box<dyn WindowHost>,
 }
 
-impl Adapter for HostedAdapter {
+impl Platform for HostedPlatform {
     fn name(&self) -> &'static str {
-        self.adapter.name()
+        self.platform.name()
     }
 
     fn run(self: Box<Self>, mut launch: Launch) -> Running {
         launch.host = Some(self.host);
-        self.adapter.run(launch)
+        self.platform.run(launch)
     }
 }

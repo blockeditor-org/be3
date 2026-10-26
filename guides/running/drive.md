@@ -20,22 +20,22 @@ beui's run functions (`beui::run`, `run_with`, `run_with_renderers`, `run_on`) r
 variables (on every platform but Android, which reads none), so a program needs nothing of its
 own to be driven:
 
-- `BEUI_ADAPTER` picks the adapter: the platform's own (`winit`, or the one the program hands
+- `BEUI_PLATFORM` picks the platform: the platform's own (`winit`, or the one the program hands
   `run_on`, such as block-app's `drm`) by default, `headless`, or `space`. A
   name it does not know is an error that lists the ones it takes
   (`beui_core::runner::environment::choose`).
-- `BEUI_ADAPTER=headless` runs it on `beui::Headless` (crates/beui-adapter-headless), which draws
+- `BEUI_PLATFORM=headless` runs it on `beui::Headless` (crates/beui-platform-headless), which draws
   offscreen with wgpu and needs no display server. `BEUI_HEADLESS_WINDOW=WIDTHxHEIGHT[@SCALE]`
   (1100x720 by default) is its window and `BEUI_HEADLESS_SCREEN=WIDTHxHEIGHT` the screen a
-  fullscreen window grows to; either is an error under another adapter.
+  fullscreen window grows to; either is an error under another platform.
 - `BEUI_RENDERER` picks the renderer: `wgpu` (the default) or `none`, which runs headless with no
   GPU at all (`beui_core::renderer::NoRenderer`): every frame is laid out and painted as usual,
   but nothing draws the painting, so `drive paint` works and `drive shot` does not. block-app
   then gives its plugins surfaces it does not render, so they run their frames without a GPU
-  either. `none` needs the headless adapter.
+  either. `none` needs the headless platform.
 - `BEUI_AUTOMATION=PATH` answers `drive` on the Unix socket PATH. It works in a window too.
-- `BEUI_ADAPTER=space` shows it as a panel in the VR simulator (guides/beui.md, "Space: the VR
-  simulator host"), on the adapter `BEUI_SPACE_ADAPTER` names (the platform's own by default,
+- `BEUI_PLATFORM=space` shows it as a panel in the VR simulator (guides/beui.md, "Space: the VR
+  simulator host"), on the platform `BEUI_SPACE_PLATFORM` names (the platform's own by default,
   or `headless`); `drive shot` takes the 3D view, every other command the app.
   Targets, clicks and `find` are in the app's main window only: drive cannot reach what is in
   its other windows (the other panels), since only the 3D host knows where they are on screen.
@@ -51,9 +51,9 @@ own to be driven:
   escape` (the app sees the press and the release). After that, or a lost focus, the next
   click only grabs the pointer again and reaches nothing.
 
-`be-drive launch` (crates/be-drive) sets the headless adapter, its sizes and the socket (the
-headless adapter goes in `BEUI_SPACE_ADAPTER` when `BEUI_ADAPTER=space` is already set, so
-`BEUI_ADAPTER=space ./scripts/buck run //crates/block-app:dev` drives the VR simulator), waits
+`be-drive launch` (crates/be-drive) sets the headless platform, its sizes and the socket (the
+headless platform goes in `BEUI_SPACE_PLATFORM` when `BEUI_PLATFORM=space` is already set, so
+`BEUI_PLATFORM=space ./scripts/buck run //crates/block-app:dev` drives the VR simulator), waits
 for the program to settle and writes the `env` file. It listens on the automation socket itself
 and hands the program the listener (`BEUI_AUTOMATION_LISTENER`, its file descriptor), so it can
 ask the program to settle at once rather than watch for the socket to appear. `headless(...)` in buck/app/drive.bzl makes a crate's `:dev` target from it.
@@ -284,7 +284,7 @@ real one:
 
 ## How it works
 
-`beui_core::app::automation` runs the commands inside the runner every adapter shares
+`beui_core::app::automation` runs the commands inside the runner every platform shares
 (guides/beui.md), so input lands on the queue a window's own events go to and everything
 above it - the document, block-app's plugin host, the Wayland compositor - runs as it does
 with a window. A driven app keeps the accessibility tree a screen reader would get, as the app

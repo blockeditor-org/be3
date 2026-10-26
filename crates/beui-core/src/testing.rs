@@ -17,7 +17,7 @@ use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2};
 use crate::input::{Input, Key, Modifiers, PointerButton, TouchPhase};
 use crate::renderer::{Loaded, Renderer};
-use crate::runner::{HostView, Hosted, Incoming, Launch, Platform, RunOptions, Runner, WindowHost};
+use crate::runner::{HostView, Hosted, Incoming, Launch, PlatformServices, RunOptions, Runner, WindowHost};
 use crate::window::{HostPlacement, WindowId, WindowPlacement, WindowReport, WindowRequest};
 
 pub const FRAME_INTERVAL: Duration = Duration::from_micros(16_667);
@@ -61,7 +61,7 @@ impl App for Showing {
 
 enum Window {
     Simulated(Simulation),
-    Other(Box<dyn Platform>),
+    Other(Box<dyn PlatformServices>),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -267,7 +267,7 @@ impl<A: App + 'static> Stepped<A> {
         )
     }
 
-    pub fn on(context: Context, app: A, size: Vec2, platform: impl Platform + 'static) -> Self {
+    pub fn on(context: Context, app: A, size: Vec2, platform: impl PlatformServices + 'static) -> Self {
         Self::start(context, app, size, 1.0, None, |_| {
             Window::Other(Box::new(platform))
         })
@@ -470,7 +470,7 @@ impl<A: App + 'static> Stepped<A> {
     fn paint(&mut self) {
         self.painted = true;
         self.runner.context().advance_clock(FRAME_INTERVAL);
-        let platform: &mut dyn Platform = match &mut self.window {
+        let platform: &mut dyn PlatformServices = match &mut self.window {
             Window::Simulated(simulation) => simulation,
             Window::Other(platform) => &mut **platform,
         };

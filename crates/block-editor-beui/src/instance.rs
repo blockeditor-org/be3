@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::rc::Rc;
 
-use beui_adapter_plugin::PluginSurface;
+use beui_platform_plugin::PluginSurface;
 use block_editor_plugin::{
     Artifact, ArtifactDescription, EditorHost, EditorRegion, Frame, Instance, Region,
 };
