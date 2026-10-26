@@ -406,6 +406,26 @@ Outcomes, by crate group (each also migrated onto §7's tokens):
   hand through `ColorRole::Custom`, because nothing in beui fades a subtree's
   opacity; an opacity node would let it use roles. Bar popups now share the
   popover width (`Size::Popover`) instead of each picking pixels.
+- **Done.** database, logic-grid, deterministic-game, pixel-art, map,
+  pixel-ray-tracer, calendar, counter, block-debug, beui-gallery, pan-zoom,
+  checklist and be-launcher import nothing from `unstyled` or `primitives`.
+  Database's own `ControlFace` is gone: its choice pickers are styled
+  `MenuButton`s with a new `leading` slot (a node before the label in place of
+  a glyph, here the choice mark), its filter chips and add-filter button are
+  styled `Popover`s, and the filter's field choices are `ActionRow`s. The
+  game's move-history cells are `ListRow`s, pan-zoom's rail button is a styled
+  `Button`, and their dialogs use the default dialog width. Styled re-exports
+  more behaviour-only pieces (`Draggable`, `DropTarget` and their handles,
+  `Floating`, `Pressable`, `SliderScale`), and `dock::styled` the dock's
+  document types (`DockDocument`, `DockDocumentBody`, `DockDocumentTabs`,
+  `DockEntry`). Left on purpose: logic-grid's hotbar slot face and
+  deterministic-game's board are plugin canvases with their own drawing;
+  be-launcher's enlargeable picture is a `Pressable` around the content
+  itself. Left for later: the colour swatches in pixel-art, pixel-ray-tracer
+  and map's presets are `Pressable`s around a frame, and should use a styled
+  swatch button. pan-zoom's cards scale their padding and outline with the
+  zoom (`Space::Custom`, `Stroke::Custom`) but not their radius, since
+  `Radius` has no escape hatch for a zoom-scaled corner.
 
 ## 7. Styled components take design tokens, not raw values
 
