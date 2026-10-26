@@ -34,8 +34,19 @@ interface windows {
         launch: option<u64>,
     }
 
+    /// What an entry is: a program's window, or one whole display (its `size`
+    /// the display's, its title the display's name).
+    enum window-kind {
+        window,
+        display,
+    }
+
     record host-window {
         id: host-window-id,
+        kind: window-kind,
+        /// Whether the shell shows it. The host keeps this, so a shell started
+        /// again shows what was shown.
+        shown: bool,
         title: string,
         app-id: string,
         parent: option<host-window-id>,
@@ -60,6 +71,10 @@ interface windows {
         focus(host-window-id),
         fullscreen(window-fullscreen),
         close(host-window-id),
+        /// Show the entry; it stays where the host keeps it until hidden.
+        show(host-window-id),
+        /// Stop showing the entry; the program keeps running.
+        hide(host-window-id),
     }
 
     resource windows-watch {

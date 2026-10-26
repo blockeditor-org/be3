@@ -11,7 +11,7 @@ pub(super) fn bind_fullscreen(editor: Editor) {
         let focused = windows.with_untracked(|windows| {
             windows
                 .iter()
-                .find(|window| window.focused)
+                .find(|window| window.focused && window.shown)
                 .map(|window| (window.id, window.fullscreen.is_some()))
         });
         if let Some((window, fullscreen)) = focused {

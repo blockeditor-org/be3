@@ -11,7 +11,8 @@ use block_editor_beui::{
     MediaLevel, MediaLevels, MediaRequest, MediaWatch, NotificationInbox, NotificationRequest,
     NotificationSignal, NotificationsWatch, OwnedEditor, PlayerCommand, PowerAction,
     PowerAvailability, PowerWatch, ProgramAction, ProgramsWatch, WifiLink, WifiNetwork,
-    WifiRequest, WifiSecurity, WifiStatus, WifiWatch, WindowAction, WindowOrigin, WindowsWatch,
+    WifiRequest, WifiSecurity, WifiStatus, WifiWatch, WindowAction, WindowKind, WindowOrigin,
+    WindowsWatch,
 };
 
 use block_shell::{KeptWindow, saved_windows};
@@ -73,6 +74,7 @@ mod the_volume_popup_asks_the_host_for_a_level_a_mute_and_an_output;
 mod the_volume_shows_on_every_monitor;
 mod the_wifi_in_the_bar_lists_the_networks_the_host_reports;
 mod the_wifi_popup_asks_the_host_to_connect;
+mod the_window_picker_lists_displays_then_windows_and_shows_or_hides_them;
 mod windows_that_close_as_the_session_ends_are_kept;
 mod with_instant_motion_the_level_keeps_its_time_and_goes_without_fading;
 
@@ -483,6 +485,8 @@ fn notification(id: u32, app_name: &str, summary: &str, body: &str) -> IncomingN
 fn host_window(id: u64, focused: bool) -> HostWindow {
     HostWindow {
         id: HostWindowId(id),
+        kind: WindowKind::Window,
+        shown: true,
         title: format!("Program {id}"),
         app_id: "test".to_owned(),
         parent: None,

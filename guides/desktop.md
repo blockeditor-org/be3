@@ -56,6 +56,24 @@ parent into raising the dialog. Outside space all of this stays an overlay or a 
 A window's and its popups' drawings paint too (`Paints` on `WindowDraw`, which reads each surface's
 texture back, opaque), so paintings and `drive paint` show what programs drew.
 
+## Shown and hidden entries
+
+`WindowsWatch` lists every entry the host could show: program windows (`kind: window`) and, on a
+host that captures them (Windows), whole displays (`kind: display`, `size` the display's, `title`
+its name). Each has `shown`, which the host keeps, so a shell started again shows what was shown.
+The shells draw only shown entries: block-shell's `Workspace` keeps the whole list
+(`Workspace::entries`) and lays out `shown_windows` of it, so a hidden window is no tab, no
+floating window and no saved window, and a dialog whose toplevel is hidden is hidden with it.
+The desktop plugin's bar has a picker (`desktop.windows`, `app/windows.rs`, shown while the host
+offers `WindowsWatch`) listing every toplevel entry, displays first and then windows in the
+host's order, each with its icon (the window's own, else a display or window glyph) and title:
+choosing one sends `show` (when hidden) then `focus`, and a shown entry's Hide control
+(`desktop.windows.entry.ID.hide`) sends `hide`; closing stays `close`. On Linux it is a window
+switcher too. block-app's Wayland host opens every window shown and lists no displays; `hide`
+only stops the shells drawing it (the client keeps running and connected), and the shown state
+lives in `wayland/shown.rs` for as long as block-app runs, forgotten when the window closes.
+A hidden window shown again opens at its default place, not where it was.
+
 ## Displays
 
 The host shows each display in a window of its own (under `--session`, guides/desktop/linux.md,

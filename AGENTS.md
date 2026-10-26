@@ -14,7 +14,7 @@ Guides:
 - guides/build_server.md
 - guides/frozen_formats.md: the formats every later build must keep reading, how to change them, and the tests that hold them
 - guides/hosting.md
-- guides/desktop.md: block-app as a desktop, what every host shares: the desktop shell, the `be3:desktop` package and its watches, displays as one space, a shell that stops
+- guides/desktop.md: block-app as a desktop, what every host shares: the desktop shell, the `be3:desktop` package and its watches, shown and hidden entries and the picker, displays as one space, a shell that stops
 - guides/desktop/linux.md: the Linux host: be-wayland, `--session` on the displays under DRM, installing the session, notifications, the tray, media keys, Wi-Fi, input remaps, the lock screen, Wayland and X11 programs
 - guides/desktop/windows.md: the Windows host, its crates (be-win32, be-win32-capture, be-win32-input) and its design
 - guides/pan_and_zoom.md: the camera a plugin editor is handed by its host

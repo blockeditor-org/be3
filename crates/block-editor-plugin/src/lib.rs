@@ -54,7 +54,7 @@ pub use block_plugin_api::{
     TrayWatch, VersionBranch, VersionChange, VersionChangeKind, VersionCommand, VersionCommit,
     VersionOperation, VersionStatus, ViewChange, Watched, WebViewCommand, WebViewEvent, WebViewId,
     WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus, WifiWatch, WindowAction,
-    WindowOrigin, WindowRequests, WindowsWatch,
+    WindowKind, WindowOrigin, WindowRequests, WindowsWatch,
 };
 pub use block_plugin_api::{
     HostPreferenceSources, Motion, PreferenceLayer, PreferenceSourcesWatch, Preferences, ThemeKind,

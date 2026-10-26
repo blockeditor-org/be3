@@ -36,8 +36,8 @@ use super::saved::{self, LAYOUT, TITLES};
 use super::share::{Share, ShareAction};
 use super::tab::TabItem;
 use super::window::{
-    WindowPanel, floating_window, kept_window, shown_size, tab_window, window_picture, window_tab,
-    window_title,
+    WindowPanel, floating_window, kept_window, shown_size, shown_windows, tab_window, window_picture,
+    window_tab, window_title,
 };
 
 pub const FILES: TabId = TabId::new(1);
@@ -92,6 +92,7 @@ pub struct Workspace {
     pub(crate) dialog: Signal<Option<OpenDialog>>,
     renaming: Signal<Option<Renaming>>,
     pub(crate) share: Signal<Option<Share>>,
+    entries: Memo<Vec<HostWindow>>,
     windows: Memo<Vec<HostWindow>>,
     keeps_windows: bool,
     kept: Signal<Kept>,
@@ -118,7 +119,8 @@ impl Workspace {
         let renaming = create_signal(None);
         let share = create_signal(None);
         let panels = create_signal(Vec::new());
-        let windows = editor.watch::<WindowsWatch>();
+        let entries = editor.watch::<WindowsWatch>();
+        let windows = create_memo(move || entries.with(|entries| shown_windows(entries)));
         let kept = create_signal(Kept::default());
         let desk = create_memo(move || {
             kept.with(|kept| windows.with(|windows| kept::sort_out(kept, windows)))
@@ -159,6 +161,7 @@ impl Workspace {
             dialog,
             renaming,
             share,
+            entries,
             windows,
             keeps_windows,
             kept,
@@ -344,6 +347,10 @@ impl Workspace {
             tabs.sort();
             tabs
         })
+    }
+
+    pub fn entries(&self) -> Memo<Vec<HostWindow>> {
+        self.entries
     }
 
     pub fn windows(&self) -> Memo<Vec<HostWindowId>> {

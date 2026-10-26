@@ -2299,6 +2299,8 @@ impl BlockApp {
             match action {
                 block_plugin_api::WindowAction::Focus(window) => wayland::focus(window),
                 block_plugin_api::WindowAction::Close(window) => wayland::close(window),
+                block_plugin_api::WindowAction::Show(window) => wayland::show(window),
+                block_plugin_api::WindowAction::Hide(window) => wayland::hide(window),
                 block_plugin_api::WindowAction::Fullscreen { window, fullscreen } => {
                     wayland::fullscreen(window, fullscreen);
                 }

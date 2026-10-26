@@ -8,7 +8,10 @@ use be_wayland::{Compositor, Launch, Server, WindowId, WindowView, Windows};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{Context, Document, NodeId, Rect, Setup};
-use block_plugin_api::{HostImage, HostProgram, HostWindow, HostWindowId, WindowOrigin};
+use super::shown::Shown;
+use block_plugin_api::{
+    HostImage, HostProgram, HostWindow, HostWindowId, WindowKind, WindowOrigin,
+};
 
 struct Running {
     compositor: Compositor,
@@ -32,6 +35,7 @@ thread_local! {
     static WINDOWS: Cell<Option<Windows>> = const { Cell::new(None) };
     static RUNNING: RefCell<Option<Running>> = const { RefCell::new(None) };
     static LAUNCHES: RefCell<Vec<Launched>> = const { RefCell::new(Vec::new()) };
+    static SHOWN: RefCell<Shown> = RefCell::new(Shown::default());
 }
 
 fn tag(program: Option<String>, launch: Option<u64>, block: Option<uuid::Uuid>) -> Option<u64> {
@@ -270,7 +274,21 @@ pub(crate) fn exiting() {
 }
 
 pub(crate) fn revision() -> u64 {
-    windows().map_or(0, |windows| windows.revision())
+    windows().map_or(0, |windows| windows.revision()) + SHOWN.with(|kept| kept.borrow().changes())
+}
+
+fn set_shown(window: HostWindowId, shown: bool) {
+    if SHOWN.with(|kept| kept.borrow_mut().set(window, shown)) {
+        crate::host::wake();
+    }
+}
+
+pub(crate) fn show(window: HostWindowId) {
+    set_shown(window, true);
+}
+
+pub(crate) fn hide(window: HostWindowId) {
+    set_shown(window, false);
 }
 
 pub(crate) fn listed(hidden: &[HostWindowId]) -> Vec<HostWindow> {
@@ -279,6 +297,8 @@ pub(crate) fn listed(hidden: &[HostWindowId]) -> Vec<HostWindow> {
     };
     let listed = windows.list().get_untracked();
     let opening: Vec<WindowId> = hidden.iter().map(|window| WindowId(window.0)).collect();
+    let ids: Vec<HostWindowId> = listed.iter().map(|info| HostWindowId(info.id.0)).collect();
+    SHOWN.with(|kept| kept.borrow_mut().keep_only(&ids));
     listed
         .into_iter()
         .filter(|info| !opening.contains(&info.id))
@@ -286,6 +306,8 @@ pub(crate) fn listed(hidden: &[HostWindowId]) -> Vec<HostWindow> {
             let launched = launched(info.launch);
             HostWindow {
                 id: HostWindowId(info.id.0),
+                kind: WindowKind::Window,
+                shown: SHOWN.with(|kept| kept.borrow().shown(HostWindowId(info.id.0))),
                 title: info.title,
                 app_id: info.app_id,
                 parent: info

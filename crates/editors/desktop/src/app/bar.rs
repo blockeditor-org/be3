@@ -10,7 +10,8 @@ use block_editor_beui::beui::icons::{
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::{
-    DisplaysWatch, EpaperWatch, MediaWatch, PowerWatch, WifiWatch, node_anchor, utc_offset,
+    DisplaysWatch, EpaperWatch, MediaWatch, PowerWatch, WifiWatch, WindowsWatch, node_anchor,
+    utc_offset,
 };
 use block_shell::Workspace;
 
@@ -25,6 +26,7 @@ use super::sessions::Sessions;
 use super::tray::TrayItems;
 use super::volume::VolumeButton;
 use super::wifi::WifiButton;
+use super::windows::WindowPicker;
 
 const BAR_PADDING: Space = Space::Sm;
 const BAR_SPACING: Space = Space::Md;
@@ -76,6 +78,7 @@ pub(crate) fn DesktopBar(
     let launcher = move || launcher.show(true);
     let notified = notifications.offered;
     let powered = editor.offered::<PowerWatch>();
+    let windowed = editor.offered::<WindowsWatch>();
     let epaper = editor.watch::<EpaperWatch>();
     let refresh = move || editor.act(desktop::epaper::refresh);
     let displays = editor.watch::<DisplaysWatch>();
@@ -164,6 +167,9 @@ pub(crate) fn DesktopBar(
                         }}
                         on_select={chose}
                     />
+                    <Show condition={windowed}>
+                        <WindowPicker workspace />
+                    </Show>
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                     <Show condition={waiting}>
                         <OpenAllButton placeholders />

@@ -14,6 +14,7 @@ mod switcher;
 mod tray;
 mod volume;
 mod wifi;
+mod windows;
 
 use block_editor_beui::beui::dock::styled::{DockNode, DockPane, DockWindow, Docking, TabId};
 use block_editor_beui::beui::reactive::*;

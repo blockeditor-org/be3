@@ -10,6 +10,7 @@ use uuid::Uuid;
 
 use crate::app::WorkspaceUiApp;
 
+mod a_hidden_window_and_its_dialog_have_no_tab_until_shown;
 mod a_block_opened_while_another_is_shown_gets_its_own_tab;
 mod a_block_opens_in_the_editor_it_keeps_for_itself;
 mod a_block_tab_asks_its_editor_for_the_top_bar;
@@ -187,6 +188,8 @@ fn text_within(document: &Document, id: NodeId, words: &str) -> Option<NodeId> {
 fn window(id: u64, title: &str, parent: Option<u64>) -> block_editor_beui::HostWindow {
     block_editor_beui::HostWindow {
         id: block_editor_beui::HostWindowId(id),
+        kind: block_editor_beui::WindowKind::Window,
+        shown: true,
         title: title.to_owned(),
         app_id: "test".to_owned(),
         parent: parent.map(block_editor_beui::HostWindowId),

@@ -55,9 +55,29 @@ pub(crate) fn own_size(size: Vec2) -> Option<Vec2> {
     (size.x > PLACEHOLDER_EDGE && size.y > PLACEHOLDER_EDGE).then_some(size)
 }
 
-pub(crate) fn window_picture(icon: &HostImage) -> Option<Image> {
+pub fn window_picture(icon: &HostImage) -> Option<Image> {
     (icon.width > 0 && icon.height > 0 && icon.is_whole())
         .then(|| Image::from_rgba(icon.width, icon.height, icon.rgba.clone()))
+}
+
+pub fn shown_windows(entries: &[HostWindow]) -> Vec<HostWindow> {
+    let by_id: std::collections::HashMap<HostWindowId, &HostWindow> =
+        entries.iter().map(|entry| (entry.id, entry)).collect();
+    let top_shown = |window: &HostWindow| {
+        let mut at = window;
+        for _ in 0..entries.len() {
+            match at.parent.and_then(|parent| by_id.get(&parent)) {
+                Some(parent) => at = parent,
+                None => break,
+            }
+        }
+        at.shown && window.shown
+    };
+    entries
+        .iter()
+        .filter(|window| top_shown(window))
+        .cloned()
+        .collect()
 }
 
 pub fn window_title(window: &HostWindow) -> String {
