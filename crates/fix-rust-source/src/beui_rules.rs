@@ -222,7 +222,12 @@ fn deferred_renderer(call: &ast::CallExpr) -> bool {
         && kind.is_some_and(|name| {
             matches!(
                 name.text(),
-                "Render" | "RenderFn" | "MenuStyle" | "ScrollbarStyle" | "CompletionMenu"
+                "Render"
+                    | "RenderFn"
+                    | "MenuStyle"
+                    | "AnchoredStyle"
+                    | "ScrollbarStyle"
+                    | "CompletionMenu"
             )
         })
 }
