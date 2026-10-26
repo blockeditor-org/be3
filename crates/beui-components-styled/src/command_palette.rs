@@ -8,8 +8,7 @@ use crate::text_input::text_input_style;
 use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    CommandPaletteApi, CommandRowHandle, PaletteItem, PaletteItems, PaletteScore,
-    TextInputHandle,
+    CommandPaletteApi, CommandRowHandle, PaletteItem, PaletteItems, PaletteScore, TextInputHandle,
 };
 use beui_core::base::TextAlign;
 use beui_core::icons::ICON_SEARCH;
