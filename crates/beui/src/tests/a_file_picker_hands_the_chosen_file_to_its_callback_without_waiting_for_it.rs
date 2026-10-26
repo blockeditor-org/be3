@@ -20,16 +20,16 @@ fn a_file_picker_hands_the_chosen_file_to_its_callback_without_waiting_for_it() 
     let mut harness = Harness::new(document);
     let dialogs = |harness: &mut Harness| {
         harness
-            .run(&["app", "state"])
+            .run(&["state"])
             .lines()
             .filter(|line| line.starts_with("file dialog open for "))
             .map(str::to_owned)
             .collect::<Vec<_>>()
     };
 
-    harness.run(&["app", "click", "#choose"]);
+    harness.run(&["click", "#choose"]);
     assert_eq!(dialogs(&mut harness), ["file dialog open for Images (png)"]);
-    harness.run(&["app", "click", "#choose"]);
+    harness.run(&["click", "#choose"]);
     assert_eq!(
         dialogs(&mut harness).len(),
         1,
@@ -44,7 +44,7 @@ fn a_file_picker_hands_the_chosen_file_to_its_callback_without_waiting_for_it() 
     std::fs::create_dir_all(&directory).expect("the directory is made");
     let file = directory.join("photo.png");
     std::fs::write(&file, [1, 2, 3]).expect("the file is written");
-    harness.run(&["screen", "upload", &file.display().to_string()]);
+    harness.run(&["upload", &file.display().to_string()]);
     let _ = std::fs::remove_dir_all(&directory);
     let photo = PickedFile {
         name: "photo.png".into(),
@@ -52,14 +52,14 @@ fn a_file_picker_hands_the_chosen_file_to_its_callback_without_waiting_for_it() 
     };
     assert_eq!(chosen.get_untracked(), [Ok(photo)]);
 
-    harness.run(&["app", "click", "#choose"]);
+    harness.run(&["click", "#choose"]);
     assert_eq!(
         dialogs(&mut harness).len(),
         1,
         "a finished pick lets the button ask again"
     );
-    harness.run(&["screen", "dismiss"]);
+    harness.run(&["dismiss"]);
     assert_eq!(chosen.with_untracked(|chosen| chosen.len()), 1);
-    harness.run(&["app", "click", "#choose"]);
+    harness.run(&["click", "#choose"]);
     assert_eq!(dialogs(&mut harness).len(), 1);
 }

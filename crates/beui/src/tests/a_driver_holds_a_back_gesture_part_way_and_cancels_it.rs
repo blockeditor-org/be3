@@ -18,20 +18,14 @@ fn a_driver_holds_a_back_gesture_part_way_and_cancels_it() {
     });
     let mut driven = stepped(crate::testing::Showing(document));
 
+    driven.ask(&["back", "right"]).expect("the gesture starts");
     driven
-        .ask(&["app", "back", "right"])
-        .expect("the gesture starts");
-    driven
-        .ask(&["app", "back", "0.4"])
+        .ask(&["back", "0.4"])
         .expect("it is dragged part way");
-    let state = driven.ask(&["app", "state"]).expect("the state is read");
+    let state = driven.ask(&["state"]).expect("the state is read");
     assert!(state.contains("back gesture at 0.4"), "{state}");
-    driven
-        .ask(&["app", "back", "cancel"])
-        .expect("it is let go");
-    driven
-        .ask(&["app", "back"])
-        .expect("a whole gesture goes back");
+    driven.ask(&["back", "cancel"]).expect("it is let go");
+    driven.ask(&["back"]).expect("a whole gesture goes back");
     assert_eq!(
         heard.get_untracked(),
         [
@@ -49,7 +43,7 @@ fn a_driver_holds_a_back_gesture_part_way_and_cancels_it() {
         ]
     );
     assert!(
-        driven.ask(&["app", "back", "commit"]).is_err(),
+        driven.ask(&["back", "commit"]).is_err(),
         "no gesture is left to commit"
     );
 }

@@ -139,6 +139,15 @@ impl Inbox {
         }
     }
 
+    pub(crate) fn waiting(&self) -> bool {
+        !self
+            .inner
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner())
+            .requests
+            .is_empty()
+    }
+
     pub fn set_waker(&self, waker: Waker) {
         let pending = {
             let mut state = self

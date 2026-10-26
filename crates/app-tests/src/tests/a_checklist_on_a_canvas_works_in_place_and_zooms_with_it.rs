@@ -28,7 +28,7 @@ fn a_checklist_on_a_canvas_works_in_place_and_zooms_with_it() {
     );
     app.click("#infinite-canvas.pill.zoom-out");
 
-    app.run(&["app", "move", "#checklist.draft"]);
+    app.run(&["move", "#checklist.draft"]);
     app.record();
 
     app.click("#checklist.draft");

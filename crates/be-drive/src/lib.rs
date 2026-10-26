@@ -37,7 +37,8 @@ fn run(mut arguments: Vec<String>) -> Result<(), String> {
     let mut socket = std::env::var_os("BE_DRIVE_SOCKET").map(PathBuf::from);
     let mut options = Vec::new();
     while let Some(first) = arguments.first() {
-        if first == "--no-settle" || first.starts_with("--changes=") {
+        if first == "--no-settle" || first.starts_with("--changes=") || first.starts_with("--into=")
+        {
             options.push(first.clone());
         } else if let Some(seconds) = first.strip_prefix("--timeout=") {
             timeout = seconds
@@ -54,12 +55,13 @@ fn run(mut arguments: Vec<String>) -> Result<(), String> {
     }
     if arguments.is_empty() || arguments[0] == "--help" {
         return Err(format!(
-            "usage: drive [--timeout=SECONDS] [--socket=PATH] [--no-settle] [--changes=N|all] COMMAND [ARGUMENTS]\n\
+            "usage: drive [--timeout=SECONDS] [--socket=PATH] [--no-settle] [--changes=N|all] [--into=LAYER] COMMAND [ARGUMENTS]\n\
              \x20      drive [--timeout=SECONDS] [--socket=PATH] - < COMMANDS\n\
-             `screen shot` takes the file to write the PNG to first: screen shot FILE [TARGET].\n\
-             `app paint` takes the .paint file to write the paint snapshot to first: app paint FILE.paint [TARGET] [in WINDOW].\n\
+             `shot` takes the file to write the PNG to first: shot FILE.png [TARGET].\n\
+             `paint` takes the file to write to first: paint FILE.paint [TARGET] [in WINDOW] writes the paint snapshot,\n\
+             and paint FILE.png [TARGET] [in WINDOW] draws it into a PNG, with what a plugin draws itself left as placeholders.\n\
              `-` reads one command a line from standard input, quoted as a shell would, and stops at the first that fails.\n\
-             `app env` prints the app's environment for programs as export lines, for `eval \"$(drive app env)\"`.\n\
+             `env` prints the app's environment for programs as export lines, for `eval \"$(drive env)\"`.\n\
              `exec PROGRAM [ARGUMENTS]` runs PROGRAM in that environment, so its windows open inside the app.\n\
              {USAGE}"
         ));
@@ -111,14 +113,12 @@ pub(crate) fn script(socket: &Path, options: &[String], timeout: Duration) -> Re
 }
 
 fn command(socket: &Path, mut arguments: Vec<String>, timeout: Duration) -> Result<(), String> {
-    let options = arguments
+    let first = arguments
         .iter()
-        .take_while(|word| *word == "--no-settle" || word.starts_with("--changes="))
+        .take_while(|word| {
+            *word == "--no-settle" || word.starts_with("--changes=") || word.starts_with("--into=")
+        })
         .count();
-    let first = match arguments.get(options).map(String::as_str) {
-        Some("screen" | "app") => options + 1,
-        _ => options,
-    };
     let absolute = |path: &String| {
         std::path::absolute(path)
             .map(|path| path.display().to_string())
@@ -148,9 +148,15 @@ fn command(socket: &Path, mut arguments: Vec<String>, timeout: Duration) -> Resu
                 "paint needs the file to write the painting to: paint FILE [TARGET]".to_owned(),
             );
         }
-        file = Some(written(arguments.remove(first + 1), "paint", "paint")?);
+        let named = PathBuf::from(arguments.remove(first + 1));
+        file = Some(
+            match named.extension().is_some_and(|found| found == "png") {
+                true => named,
+                false => written(named.display().to_string(), "paint", "paint")?,
+            },
+        );
     }
-    if first > options && arguments.get(first).map(String::as_str) == Some("env") {
+    if arguments.get(first).map(String::as_str) == Some("env") {
         for (name, value) in environment(socket, timeout)? {
             println!("export {name}={}", quoted(&value));
         }
@@ -185,8 +191,16 @@ fn command(socket: &Path, mut arguments: Vec<String>, timeout: Duration) -> Resu
         Reply::Painting(bytes) => {
             let file = file.ok_or("the app sent a painting that was not asked for")?;
             let painting = paint_snapshot::Painting::decode(&bytes)?;
-            let encoded = paint_snapshot::Snapshot::of_painting(painting)?.encode()?;
-            std::fs::write(&file, encoded)
+            let snapshot = paint_snapshot::Snapshot::of_painting(painting)?;
+            if file.extension().is_some_and(|found| found == "png") {
+                let image = paint_snapshot::render(&snapshot, 0)?;
+                image
+                    .save(&file)
+                    .map_err(|error| format!("could not write {}: {error}", file.display()))?;
+                println!("{} ({}x{})", file.display(), image.width(), image.height());
+                return Ok(());
+            }
+            std::fs::write(&file, snapshot.encode()?)
                 .map_err(|error| format!("could not write {}: {error}", file.display()))?;
             println!("{}", file.display());
             Ok(())
@@ -195,9 +209,7 @@ fn command(socket: &Path, mut arguments: Vec<String>, timeout: Duration) -> Resu
 }
 
 fn environment(socket: &Path, timeout: Duration) -> Result<Vec<(String, String)>, String> {
-    match request(socket, &["app".to_owned(), "env".to_owned()], timeout)
-        .map_err(|error| error.to_string())?
-    {
+    match request(socket, &["env".to_owned()], timeout).map_err(|error| error.to_string())? {
         Reply::Text(text) => Ok(text
             .lines()
             .filter_map(|line| line.split_once('='))

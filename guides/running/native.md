@@ -45,7 +45,7 @@ There is no window manager, so nothing else gives the window focus; if keys stop
 Always pass `--window $WINDOW`, or keys go to whichever window has focus. `click 3` is the
 right button and `click 4`/`click 5` scroll; `mousedown 1`, `mousemove` and `mouseup 1` drag.
 xdotool's coordinates are the window's pixels, the same as the tree's, and with
-the drive layer stacked `drive --socket=/tmp/block.sock app tree` reads the tree and
+the drive layer stacked `drive --socket=/tmp/block.sock tree` reads the tree and
 `drive --socket=/tmp/block.sock settle` waits for the app to settle in between. xdotool
 returns before the app has drawn, so settle before reading anything.
 
@@ -54,8 +54,8 @@ returns before the app has drawn, so settle before reading anything.
 Profile a release build: `./scripts/buck run //crates/beui-demo:dev -m release` (or block-app's
 `:dev`) runs it headless with debug info, ready for `drive`. The inspector's Perf tab
 (guides/beui.md, The inspector) times each frame of the document: open it with
-`drive app key ctrl+shift+i` and `drive app click '"Perf"'`, act, then read the Peak column from
-`drive app tree`; Reset samples starts over. Interaction covers whatever the input ran, so a
+`drive key ctrl+shift+i` and `drive click '"Perf"'`, act, then read the Peak column from
+`drive tree`; Reset samples starts over. Interaction covers whatever the input ran, so a
 component built in response to a click is counted there, not in Layout. Take the median of
 several runs: the headless renderer draws on the CPU and competes for the same cores.
 
