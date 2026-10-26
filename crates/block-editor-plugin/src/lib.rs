@@ -36,7 +36,7 @@ pub use block_plugin_api::{
     AudioSource, AudioStatus, BarAction, BlockCommand, BlockFilter, BlockLocation, BlockPick,
     BlockTypeDescriptor, Catalog, ChildContent, ChildId, ChildLayer, ChildMode, ChildOperations,
     ChildPlacement, ChildPreview, ChildStatus, ConflictSide, ContactsWatch, CreationProgress,
-    CursorIcon, DescribedAction, Description, DisplayMode, DisplaysWatch, EditorCapabilities,
+    CursorIcon, DescribedAction, Description, DialogAnswer, DialogFrame, DialogStatus, DisplayMode, DisplaysWatch, EditorCapabilities,
     EditorDescriptor, EditorInstanceId, EditorRegion, Edits, EpaperWatch, Failure, FileSave,
     FrameChrome, FrameSpec, HostContact, HostDisplay, HostImage, HostInputDevice,
     HostNotificationAction, HostPanel, HostProgram, HostTrayItem, HostWindow, HostWindowId,

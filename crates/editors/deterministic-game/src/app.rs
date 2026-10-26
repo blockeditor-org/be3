@@ -272,7 +272,6 @@ struct GameCreation {
 
 impl GameCreation {
     fn new(creation: Creation) -> Self {
-        creation.set_ready(false);
         Self {
             this: Cell::new(None),
             changed: create_signal(0),
@@ -399,13 +398,13 @@ impl GameCreation {
                 .borrow()
                 .clone()
                 .or_else(|| self.listing_error.borrow().clone()),
+            ready: chosen.is_some(),
         }
     }
 
     fn choose(&self, chosen: Chosen) {
         self.chosen.set(Some(chosen));
         *self.error.borrow_mut() = None;
-        self.creation.set_ready(true);
     }
 
     fn create_block(&self) -> Result<Uuid, String> {
@@ -475,6 +474,14 @@ impl GameCreationModel for GameCreation {
                 creation.changed();
             });
         self.changed();
+    }
+
+    fn accept(&self) {
+        self.creation.accept();
+    }
+
+    fn cancel(&self) {
+        self.creation.cancel();
     }
 }
 

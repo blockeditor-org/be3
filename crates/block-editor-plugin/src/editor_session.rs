@@ -131,6 +131,10 @@ impl EditorSession {
         self.host.push_menu_pick(id);
     }
 
+    pub fn dismiss(&self) {
+        self.host.request_dismiss();
+    }
+
     pub(crate) fn set_block_types(&self, catalog: Rc<BlockCatalog>) {
         self.host.set_block_types(catalog);
     }
@@ -359,8 +363,14 @@ impl EditorSession {
             self.aspect_ratio = aspect_ratio;
             shell::aspect_ratio(instance, aspect_ratio);
         }
-        if let Some(ready) = self.host.take_creation_ready() {
-            shell::creation_ready(instance, ready);
+        if let Some(handles) = self.host.take_handles_dismiss() {
+            shell::handles_dismiss(instance, handles);
+        }
+        for answer in self.host.take_dialog_closes() {
+            shell::close_dialog(instance, answer);
+        }
+        for child in self.host.take_child_dismissals() {
+            shell::dismiss_child(instance, child);
         }
         if let Some(artifact) = &mut self.artifact {
             if artifact.described.as_deref() != Some(artifact.data.as_slice()) {

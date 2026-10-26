@@ -113,15 +113,11 @@ pub(super) enum ArtifactStatus {
 pub(crate) trait PendingCreation {
     fn region(&self, registry: &EditorRegistry, client_id: Uuid) -> Option<HostedRegion>;
     fn pick_source(&self) -> plugin::PickSource;
-    fn step(&mut self, registry: &EditorRegistry, client_id: Uuid) -> CreationStep;
+    fn step(&mut self, registry: &EditorRegistry, client_id: Uuid);
+    fn dialog(&self) -> block_plugin_api::DialogStatus;
+    fn dismiss(&mut self);
     fn height(&self) -> Option<f32>;
     fn create(&mut self) -> Result<Option<Uuid>, String>;
-}
-
-#[derive(Clone, Copy)]
-pub(crate) enum CreationStep {
-    Options(bool),
-    Working,
 }
 
 pub(crate) struct TemplateEntry {

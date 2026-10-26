@@ -6,7 +6,7 @@ use beui_macros::{component, view};
 use crate::button::{Button, ButtonVariant};
 use crate::context_menu::menu_style;
 use crate::list::List;
-use crate::scroll::Scroll;
+use crate::scroll::{Bleed, Scroll};
 use crate::text::{Icon, Text, TextColor, TextSize};
 use crate::text_input::text_input_style;
 use crate::theme::{Density, use_density};
@@ -75,6 +75,7 @@ pub fn Tree<K>(
     #[prop(default = None)] ancestors: Option<Func<K, Vec<K>>>,
     #[prop(default = Space::None)] spacing: Prop<Space>,
     #[prop(default = Space::None)] padding: Prop<Space>,
+    #[prop(default = Bleed::NONE)] bleed: Bleed,
     #[prop(default = None)] row_test_id: Option<Func<K, String>>,
     #[prop(default = String::new())] reveal_test_id: String,
     #[prop(default = None)] outline: Option<Func<K, Option<Color32>>>,
@@ -102,7 +103,7 @@ where
     let spacing = use_space(spacing).get_untracked();
     view! {
         <List spacing=Space::None>
-            <Scroll @sizing=ItemSize::Percent(100.0) @node_ref={&viewport}>
+            <Scroll @sizing=ItemSize::Percent(100.0) @node_ref={&viewport} bleed>
                 <Frame padding=padding>
                     <unstyled::Tree
                         api

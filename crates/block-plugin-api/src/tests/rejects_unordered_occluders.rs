@@ -23,6 +23,7 @@ fn placements(occluders: Vec<Occluder>) -> FrameCommit {
             rotation: 0.0,
             opacity: 1.0,
             follows_view: false,
+            dialog: None,
         }],
         occluders,
     })

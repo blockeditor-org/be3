@@ -19,6 +19,7 @@ fn an_artifact_settings_child_round_trips() {
             rotation: 0.0,
             opacity: 1.0,
             follows_view: false,
+            dialog: None,
         }],
         occluders: Vec::new(),
     });

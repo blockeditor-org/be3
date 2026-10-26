@@ -1857,15 +1857,28 @@ narrower than `SHEET_BELOW` or the press that opened it was a touch (`use_touch(
 whether the last press was not the mouse, until a key is pressed), a fitted
 `ModalSheet`; an alert is always a card. It builds its content once, when it first
 opens, and moves it between the card and the sheet with a `Portal` if that changes
-while it is open; it provides the `DialogLayout` (`narrow`, `sheet`) to what it
-holds. `DialogBody` is the title row, the content in a fitted `Scroll` with
+while it is open; it provides the `DialogLayout` (`narrow`, `sheet`, `bottom_inset`)
+to what it holds. `DialogBody` is the title row, the content in a fitted `Scroll` with
 `Bleed::dialog` that gives up length when the screen is short (or, with
-`scrolls=false`, the content given the rest of the height to scroll itself), and the
-pinned footer; it reads `narrow` from the `DialogLayout` it is in. Code that places
+`scrolls=false`, the content given the rest of the height to scroll itself, reaching
+the card's sides with a `Scroll` or `Tree` whose `bleed` is `Bleed::DIALOG`), and the
+pinned footer; it reads `narrow` and `bottom_inset` (how much of its bottom is covered,
+which its padding keeps the footer above) from the `DialogLayout` it is in. Code that places
 its own body uses the parts: block-app's keep-changes prompt is a `DialogCard` with a
-`DialogBody` in each `EveryScreen` slot of a `Modal`, and the dock's Rename card is a
-`DialogBody` in a `DockDialog`. A sheet is fitted to the screen beui's on-screen
+`DialogBody` in each `EveryScreen` slot of a `Modal`, the dock's Rename card and the
+block picker's stages are a `DialogBody` in a `DockDialog` (which provides a
+`DialogLayout` that is narrow while the dock is stacked and the card a sheet), and a
+plugin opened as a dialog draws a `DialogBody` that block-editor-beui hands a
+`DialogLayout` from its frame's `dialog`. A sheet is fitted to the screen beui's on-screen
 keyboard leaves, so its footer stays above it.
+
+`DialogBody` handles Enter and its own close button and Cancel; Escape, back and a
+press on the scrim reach whoever owns the outer part. An outer part that is not in
+the same document provides a `DialogDismissal`, which the `DialogBody` inside
+claims while it lives: `handled()` says whether one did and `dismiss()` runs its
+`on_dismiss`, so a form with unsaved changes can ask before closing. block-editor-beui
+provides one in a plugin dialog and forwards the host's dismissal, Escape and back
+to it.
 
 A layer at `LayerLevel::Lock` that blocks everything is a lock screen
 (block-app's `LockScreen`): it is above every other layer, so anything opened while
@@ -2024,7 +2037,8 @@ spacing and draws each card from a `ToastHandle` (the `Toast`, `dismiss`, `activ
 screen - block-app's keep-changes prompt and lock screen - puts an `EveryScreen` in a
 `Modal` with `ModalPlacement::AllScreens`, one card per entry of `use_screens()`,
 which is a single card everywhere but a desktop with several monitors.
-linux-desktop's `LevelOsd` opens one overlay per screen instead.
+linux-desktop's `LevelOsd`, which must not take input, puts its `EveryScreen` in an
+inert `Overlay` placed `At` the corner of all the screens instead.
 
 ### Docking and windows
 

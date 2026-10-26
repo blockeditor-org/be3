@@ -582,6 +582,8 @@ fn ChoiceButtons(play: Play) -> NodeId {
 pub(crate) trait GameCreationModel {
     fn choose_staged(&self, index: usize);
     fn choose_module(&self);
+    fn accept(&self);
+    fn cancel(&self);
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -605,6 +607,7 @@ pub(crate) struct CreationSnapshot {
     pub(crate) module: Option<String>,
     pub(crate) picking: bool,
     pub(crate) error: Option<String>,
+    pub(crate) ready: bool,
 }
 
 #[component]
@@ -635,8 +638,23 @@ pub(crate) fn GameCreation(
         true => TextColor::Danger,
         false => TextColor::Muted,
     });
+    let unready = create_memo(move || !snapshot.get().ready);
+    let accepted = create_signal(false);
     view! {
-        <Frame padding=14.0>
+        <DialogBody
+            title="New Game"
+            id="creation"
+            actions={vec![
+                DialogAction::cancel("Cancel"),
+                DialogAction::primary("Create", move || {
+                    accepted.set(true);
+                    creation.value().accept();
+                })
+                .disabled(unready)
+                .busy(accepted),
+            ]}
+            on_dismiss={move || creation.value().cancel()}
+        >
             <List spacing=10.0 align=Align::Start>
                 <ForEach keys={games}>|game: StagedChoice| {
                     let index = game.index;
@@ -683,6 +701,6 @@ pub(crate) fn GameCreation(
                     </Text>
                 </Show>
             </List>
-        </Frame>
+        </DialogBody>
     }
 }

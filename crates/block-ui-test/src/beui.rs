@@ -259,11 +259,21 @@ impl<A: BeuiApp> BeuiTest<A> {
                 data: data.clone(),
             }),
         };
-        let frame = matches!(kind, Kind::Frame(_)).then(|| block_plugin_api::FrameSpec {
-            chrome: FrameChrome::Drawn,
-            content: None,
-            top_bar: TopBar::Hidden,
-        });
+        let frame = match &kind {
+            Kind::Frame(_) => Some(block_plugin_api::FrameSpec {
+                chrome: FrameChrome::Drawn,
+                content: None,
+                top_bar: TopBar::Hidden,
+                dialog: None,
+            }),
+            Kind::Creation => Some(block_plugin_api::FrameSpec {
+                chrome: FrameChrome::None,
+                content: None,
+                top_bar: TopBar::Hidden,
+                dialog: Some(block_plugin_api::DialogFrame::default()),
+            }),
+            _ => None,
+        };
         let mut test = Self {
             plugin,
             kind,
@@ -435,6 +445,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             chrome: FrameChrome::Drawn,
             content: closable.then_some(Rect::from_min_size(Pos2::ZERO, self.size)),
             top_bar,
+            dialog: None,
         });
         self.place();
         self.run();
@@ -485,6 +496,40 @@ impl<A: BeuiApp> BeuiTest<A> {
         };
         self.place();
         self.run();
+    }
+
+    pub fn dismiss(&mut self) {
+        self.call(|editor, connection| editor.dismiss(connection));
+        self.run();
+    }
+
+    pub fn set_dialog(&mut self, dialog: block_plugin_api::DialogFrame) {
+        if let Some(frame) = &mut self.frame {
+            frame.dialog = Some(dialog);
+        }
+        self.place();
+        self.run();
+    }
+
+    pub fn handles_dismiss(&self) -> Option<bool> {
+        self.calls.iter().rev().find_map(|call| match call {
+            ShellCall::HandlesDismiss { handles, .. } => Some(*handles),
+            _ => None,
+        })
+    }
+
+    pub fn take_dialog_closes(&mut self) -> Vec<block_plugin_api::DialogAnswer> {
+        self.take_calls(|call| match call {
+            ShellCall::CloseDialog { answer, .. } => Some(*answer),
+            _ => None,
+        })
+    }
+
+    pub fn take_child_dismissals(&mut self) -> Vec<ChildId> {
+        self.take_calls(|call| match call {
+            ShellCall::DismissChild { child, .. } => Some(*child),
+            _ => None,
+        })
     }
 
     pub fn child_bar(&mut self, child: ChildId, action: BarAction) {
@@ -770,6 +815,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             creation: None,
             settings: None,
             preview: Default::default(),
+            dialog: Default::default(),
         });
     }
 

@@ -43,14 +43,14 @@ pub(crate) use runtime::place_screens;
 pub(crate) use runtime::watched;
 pub(crate) use runtime::{
     PACING, Pick, artifact, artifact_draft, aspect_ratio, assigned_size, block_picked, busy, close,
-    commit_creation, crash, creation, creation_ready, drawing, flush, frame_child, frame_placement,
+    commit_creation, crash, creation, dialog_status, dismiss, drawing, flush, frame_child, frame_placement,
     frame_rects, hold, in_use, install, intrinsic_size, kill, menu, menu_pick, poll, present,
     presenting, preview_image, publish, reanchor, record_pacing, regenerate_artifact, region_size,
     replace_child, replace_gpu, report_child_bars, report_child_focus, report_children,
     request_painting, request_pick, resized, revoke_frame_child, running, set_artifact_states,
     set_focus, set_presence_visible, set_presented, set_shell, settle, show_block, show_dialog,
     show_panel, start_frames, take_artifact_outcome, take_artifact_watch, take_bar_actions,
-    take_block_pick, take_calls, take_child_commits, take_child_menu_picks, take_crashed,
+    take_block_pick, take_calls, take_child_commits, take_child_dismissals, take_child_menu_picks, take_crashed,
     take_created, take_focus_report, take_leaving, take_pick_answers, take_steps,
     take_view_changes, take_withdrawn_picks, warm, withdraw_pick,
 };
@@ -93,6 +93,7 @@ pub(crate) struct HostChild {
     pub(crate) intrinsic: Option<Vec2>,
     pub(crate) rotation: f32,
     pub(crate) opacity: f32,
+    pub(crate) dialog: Option<block_plugin_api::DialogFrame>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -166,6 +167,7 @@ pub(crate) struct HostChildStatus {
     pub(crate) creation: Option<block_plugin_api::CreationProgress>,
     pub(crate) settings: Option<block_plugin_api::SettingsProgress>,
     pub(crate) preview: block_plugin_api::ChildPreview,
+    pub(crate) dialog: block_plugin_api::DialogStatus,
 }
 
 #[derive(Clone, Debug)]

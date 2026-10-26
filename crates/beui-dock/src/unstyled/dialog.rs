@@ -1,3 +1,4 @@
+use beui_components_unstyled::DialogLayout;
 use beui_core::icons::Glyph;
 use std::time::Duration;
 
@@ -308,6 +309,11 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
     };
     let body = scope.context().run(|| {
         provide_context(control);
+        provide_context(DialogLayout {
+            narrow: stacked,
+            sheet: stacked,
+            bottom_inset: create_memo(|| 0.0),
+        });
         content.call(())
     });
     store(scope);

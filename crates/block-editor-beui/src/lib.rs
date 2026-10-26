@@ -7,6 +7,7 @@ pub mod beui_frame;
 mod block_link;
 mod child;
 mod chrome;
+mod dialog;
 pub mod database;
 mod dock;
 mod editor;

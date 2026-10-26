@@ -37,7 +37,7 @@ impl block_editor_beui::BeuiApp for ImageApp {
     #[component]
     fn Creation(creation: Creation) -> NodeId {
         view! {
-            <ContentFileCreation creation id_prefix="image" filter={filter()} import={imported} />
+            <ContentFileCreation creation title="New Image" id_prefix="image" filter={filter()} import={imported} />
         }
     }
 }

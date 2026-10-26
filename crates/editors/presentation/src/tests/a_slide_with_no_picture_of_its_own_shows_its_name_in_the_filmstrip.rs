@@ -60,6 +60,7 @@ fn a_slide_with_no_picture_of_its_own_shows_its_name_in_the_filmstrip() {
             ChildMode::Preview => ChildPreview::Label,
             _ => ChildPreview::Hosted,
         },
+        dialog: Default::default(),
     });
     test.run();
     for info in infos {

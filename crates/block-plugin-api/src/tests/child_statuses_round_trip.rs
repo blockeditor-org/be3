@@ -25,7 +25,7 @@ fn child_statuses_round_trip() {
                 enabled: true,
                 ..MenuCommand::default()
             })]),
-            creation: Some(CreationProgress::Options { ready: true }),
+            creation: Some(CreationProgress::Options),
             settings: Some(SettingsProgress {
                 changed: true,
                 summary: Some("Every 5 minutes".into()),
@@ -35,6 +35,10 @@ fn child_statuses_round_trip() {
                 width: 320,
                 height: 180,
             }),
+            dialog: DialogStatus {
+                handles_dismiss: true,
+                answer: Some(DialogAnswer::Accepted),
+            },
         },
         ChildStatus {
             instance: EditorInstanceId(4),
@@ -52,6 +56,7 @@ fn child_statuses_round_trip() {
             creation: None,
             settings: None,
             preview: Default::default(),
+            dialog: DialogStatus::default(),
         },
     ];
     assert_eq!(

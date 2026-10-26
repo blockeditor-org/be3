@@ -250,6 +250,7 @@ impl Wire {
                     });
             }
             EditorCall::MenuPick(id) => editor.menu_pick(connection, id),
+            EditorCall::Dismiss => editor.dismiss(connection),
             EditorCall::ChildBar {
                 region,
                 child,

@@ -4,7 +4,7 @@ use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{
-    Color32, LayerLevel, LayerPolicy, NodeId, OverlayAnchor, Placement, Rect, TextAlign, pos2,
+    Color32, LayerLevel, LayerPolicy, NodeId, OverlayAnchor, Placement, Pos2, TextAlign, pos2,
 };
 
 pub(crate) const OSD_DURATION: Duration = Duration::from_millis(1500);
@@ -12,7 +12,6 @@ pub(crate) const OSD_DURATION: Duration = Duration::from_millis(1500);
 const FADE: Duration = Duration::from_millis(250);
 const SCREEN_HEIGHT_FRACTION: f32 = 0.85;
 const MARGIN: f32 = 48.0;
-const BOTTOM_MARGIN: f32 = 96.0;
 const PADDING_HORIZONTAL: f32 = 20.0;
 const PADDING_VERTICAL: f32 = 16.0;
 const SPACING: f32 = 16.0;
@@ -76,40 +75,43 @@ pub(crate) fn LevelOsd(
     });
     let open = create_memo(move || opacity.get() > 0.0 && level.with(Option::is_some));
     let screens = use_screens();
-    let places = create_memo(move || (0..screens.with(Vec::len)).collect::<Vec<usize>>());
+    let anchor = create_memo(move || {
+        OverlayAnchor::Point(screens.with(|screens| {
+            screens
+                .iter()
+                .map(|screen| screen.rect.min)
+                .reduce(|a, b| pos2(a.x.min(b.x), a.y.min(b.y)))
+                .unwrap_or(Pos2::ZERO)
+        }))
+    });
     view! {
-        <List spacing=0.0>
-            <ForEach keys={places}>|index: usize| {
-                let anchored = create_memo(move || {
-                    let screen = screens.with(|screens| {
-                        screens.get(index).map_or(Rect::ZERO, |screen| screen.rect)
-                    });
-                    OverlayAnchor::Point(pos2(
-                        screen.center().x,
-                        screen.top() + screen.height() * SCREEN_HEIGHT_FRACTION,
-                    ))
-                });
-                let id = format!("{id}.{index}");
-                view! {
-                    <Overlay
-                        anchor={anchored}
-                        placement=Placement::Around
-                        policy=LayerPolicy::Inert
-                        level=LayerLevel::Top
-                        traps_focus=false
-                        open={open}
-                        content={move || { let id = id.clone(); view! {
-                            <OsdCard level opacity={opacity.read_only()} id />
-                        } }}
-                    />
-                }
-            }</ForEach>
-        </List>
+        <Overlay
+            anchor={anchor}
+            placement=Placement::At
+            policy=LayerPolicy::Inert
+            level=LayerLevel::Top
+            traps_focus=false
+            open={open}
+            content={move || { let id = id.clone(); view! {
+                <EveryScreen align={Align2::new(Align::Center, Align::End)}>|slot: ScreenSlot| {
+                    let below = create_memo(move || slot.rect.get().height() * (1.0 - SCREEN_HEIGHT_FRACTION));
+                    let id = format!("{id}.{}", slot.index);
+                    view! {
+                        <OsdCard level opacity={opacity.read_only()} below id />
+                    }
+                }</EveryScreen>
+            } }}
+        />
     }
 }
 
 #[component]
-fn OsdCard(level: Memo<Option<OsdLevel>>, opacity: ReadSignal<f32>, id: String) -> NodeId {
+fn OsdCard(
+    level: Memo<Option<OsdLevel>>,
+    opacity: ReadSignal<f32>,
+    below: Memo<f32>,
+    id: String,
+) -> NodeId {
     let theme = use_theme();
     let faded = move |color: Memo<Color32>| {
         ColorRole::custom(create_memo(move || color.get().scale_alpha(opacity.get())))
@@ -144,7 +146,7 @@ fn OsdCard(level: Memo<Option<OsdLevel>>, opacity: ReadSignal<f32>, id: String) 
         })
     });
     view! {
-        <Frame padding={Sides::all(MARGIN).bottom(BOTTOM_MARGIN)}>
+        <Frame padding={create_memo(move || Sides::all(MARGIN).bottom(below.get()))}>
             <Frame
                 fill=card
                 border={create_memo(move || Some(Border::new(ColorRole::Custom(outline.get()))))}

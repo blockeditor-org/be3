@@ -2299,6 +2299,11 @@ impl BlockApp {
             if !commits.is_empty() {
                 self.editors.commit_creations(*id, commits);
             }
+            let dismissed =
+                crate::plugin_host::take_child_dismissals(&source.plugin_id, source.instance);
+            if !dismissed.is_empty() {
+                self.editors.dismiss_creations(*id, &dismissed);
+            }
         }
         self.editors.forget_hidden_settings();
         let creations = self.editors.creation_pick_sources();

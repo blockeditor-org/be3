@@ -1,6 +1,6 @@
 use beui::{Vec2, vec2};
 use block_plugin_api::{
-    BlockPick, EditorCapabilities, EditorInstanceId, EditorManifest, EditorRegion, FrameSpec,
+    BlockPick, DialogAnswer, DialogStatus, EditorCapabilities, EditorInstanceId, EditorManifest, EditorRegion, FrameSpec,
     HostPanel, InteractionMode, PluginManifest, ResizeMode,
 };
 use std::sync::{
@@ -12,7 +12,7 @@ use uuid::Uuid;
 pub(crate) mod discovery;
 
 use super::{
-    ArtifactSession, ArtifactStatus, CreationStep, DirectEditorCapabilities,
+    ArtifactSession, ArtifactStatus, DirectEditorCapabilities,
     DirectEditorInteraction, DirectEditorResize, EditorRegistry, FocusReport, PendingCreation,
 };
 use crate::{
@@ -46,6 +46,7 @@ pub(super) struct PluginCreation {
     opened: bool,
     state: CreationState,
     committed: bool,
+    dismissed: bool,
 }
 
 impl PluginCreation {
@@ -57,6 +58,7 @@ impl PluginCreation {
             opened: false,
             state: CreationState::Starting,
             committed: false,
+            dismissed: false,
         }
     }
 
@@ -99,14 +101,13 @@ impl PendingCreation for PluginCreation {
         }
     }
 
-    fn step(&mut self, registry: &EditorRegistry, client_id: Uuid) -> CreationStep {
+    fn step(&mut self, registry: &EditorRegistry, client_id: Uuid) {
         self.opened = true;
         if self.target.dialog {
-            let ready = crate::plugin_host::creation_ready(&self.plugin.identity.id, self.instance);
-            if ready {
+            if self.dialog().answer == Some(DialogAnswer::Accepted) {
                 self.state = CreationState::Ready;
             }
-            return CreationStep::Options(ready);
+            return;
         }
         self.state = crate::plugin_host::creation(CreationSlot {
             plugin: &self.plugin,
@@ -115,7 +116,24 @@ impl PendingCreation for PluginCreation {
             instance: self.instance,
             role: self.role(),
         });
-        CreationStep::Working
+    }
+
+    fn dialog(&self) -> DialogStatus {
+        let mut status = crate::plugin_host::dialog_status(&self.plugin.identity.id, self.instance)
+            .unwrap_or_default();
+        if self.dismissed && status.answer.is_none() {
+            status.answer = Some(DialogAnswer::Dismissed);
+        }
+        status
+    }
+
+    fn dismiss(&mut self) {
+        match crate::plugin_host::dialog_status(&self.plugin.identity.id, self.instance) {
+            Some(status) if status.handles_dismiss => {
+                crate::plugin_host::dismiss(&self.plugin.identity.id, self.instance);
+            }
+            _ => self.dismissed = true,
+        }
     }
 
     fn height(&self) -> Option<f32> {

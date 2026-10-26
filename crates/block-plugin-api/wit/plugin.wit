@@ -56,6 +56,11 @@ interface plugin {
         /// The artifact settings the editor shows, saved.
         artifact-settings: func(data: list<u8>);
 
+        /// The user asked to dismiss the dialog the editor is shown as: pressed
+        /// Escape or back, or outside it. Sent only once the editor said it
+        /// handles dismissal; it answers with `close-dialog`.
+        dismiss: func();
+
         /// Creates the block of the creation dialog the editor shows.
         commit-creation: async func() -> result<block-id, failure>;
 

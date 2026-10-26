@@ -44,6 +44,7 @@ pub(super) enum PluginCall {
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum EditorCall {
     MenuPick(String),
+    Dismiss,
     ChildBar {
         region: EditorRegion,
         child: ChildId,
@@ -159,7 +160,9 @@ pub(super) fn instance_of(call: &ShellCall) -> Option<EditorInstanceId> {
         | ShellCall::Present { instance, .. }
         | ShellCall::ChangeView { instance, .. }
         | ShellCall::Focused { instance, .. }
-        | ShellCall::CreationReady { instance, .. }
+        | ShellCall::HandlesDismiss { instance, .. }
+        | ShellCall::CloseDialog { instance, .. }
+        | ShellCall::DismissChild { instance, .. }
         | ShellCall::CommitChild { instance, .. }
         | ShellCall::ArtifactDescribed { instance, .. }
         | ShellCall::ArtifactEdited { instance, .. }

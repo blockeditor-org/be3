@@ -143,13 +143,10 @@ interface shell-types {
         vertical,
     }
 
-    record creation-options {
-        ready: bool,
-    }
-
-    /// How far a creation dialog shown as a child got.
+    /// How far a creation dialog shown as a child got: still asking, since
+    /// its editor accepts it itself (`close-dialog`), or making its block.
     variant creation-progress {
-        options(creation-options),
+        options,
         working,
         created(block-id),
         failed(string),
@@ -174,6 +171,24 @@ interface shell-types {
         image(preview-image),
     }
 
+    /// How an editor shown as a dialog asks to be closed.
+    enum dialog-answer {
+        /// Without doing anything: Cancel, the close button, or a dismissal.
+        dismissed,
+        /// Doing what it shows: a creation dialog then makes its block, and
+        /// closes once it is made.
+        accepted,
+    }
+
+    /// What a child shown as a dialog says about closing.
+    record dialog-status {
+        /// Whether the child answers a dismissal itself. Until it says so, the
+        /// host answers a `dismiss-child` for it at once, with `dismissed`.
+        handles-dismiss: bool,
+        /// How the child asked to be closed, once it has.
+        answer: option<dialog-answer>,
+    }
+
     /// What the host knows of a child an editor placed.
     record child-status {
         instance: editor-instance-id,
@@ -191,6 +206,7 @@ interface shell-types {
         creation: option<creation-progress>,
         settings: option<settings-progress>,
         preview: child-preview,
+        dialog: dialog-status,
     }
 
     record child-operations {
@@ -332,7 +348,8 @@ interface shell {
     use blocks.{block-location};
     use shell-types.{
         artifact-description, audio-command, audio-status, bar-action, catalog,
-        child-status, focus, menu-item, shell-command, stopped, view-change, web-view-event,
+        child-status, dialog-answer, focus, menu-item, shell-command, stopped, view-change,
+        web-view-event,
     };
 
     /// The status of the audio the editor plays, watched like preferences once
@@ -418,8 +435,18 @@ interface shell {
     /// Where the editor's focus is now.
     focused: func(instance: editor-instance-id, focus: focus);
 
-    /// Whether the creation dialog the editor shows can create its block.
-    creation-ready: func(instance: editor-instance-id, ready: bool);
+    /// Whether the editor, shown as a dialog, answers a dismissal itself
+    /// (the plugin's `dismiss`) by asking to close with `close-dialog`.
+    handles-dismiss: func(instance: editor-instance-id, handles: bool);
+
+    /// The editor, shown as a dialog, asks to be closed.
+    close-dialog: func(instance: editor-instance-id, answer: dialog-answer);
+
+    /// The user asked to dismiss a child the editor shows as a dialog: pressed
+    /// Escape or back, or outside it. The host passes it to the child, whose
+    /// answer arrives as its `dialog-status`, and answers at once for a child
+    /// that does not handle dismissal.
+    dismiss-child: func(instance: editor-instance-id, child: child-id);
 
     /// The user created the block of a creation dialog the editor placed as a child.
     commit-child: func(

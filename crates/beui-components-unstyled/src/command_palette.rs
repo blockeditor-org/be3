@@ -2,17 +2,14 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use accesskit::{Node, Role, Toggled};
-use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::color::Color32;
-use beui_core::geometry::Pos2;
 use beui_core::icons::Glyph;
 use beui_core::image::Image;
-use beui_core::layer::Dismiss;
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
-use beui_view::components::overlay::Overlay;
 use beui_view::reactive::*;
 
+use crate::modal::{Modal, ModalHandle};
 use crate::scroll::ScrollbarStyle;
 use crate::search_list::{SearchList, SearchListApi, SearchRowHandle, fuzzy_score, rank};
 use crate::text_input::{TextInputHandle, TextInputStyle};
@@ -214,15 +211,13 @@ pub fn CommandPalette(
         })
     };
     view! {
-        <Overlay
+        <Modal
             @node_ref={&state.overlay}
-            anchor=OverlayAnchor::Point(Pos2::ZERO)
-            placement=Placement::Center
+            open={create_memo(move || open.get())}
             scrim
-            open
-            on_dismiss={move |_: Dismiss| dismiss(state)}
-        >
-            {panel.call(view! {
+            on_dismiss={move || dismiss(state)}
+        >|_: ModalHandle| {
+            panel.call(view! {
                 <SearchList
                     api={state.list}
                     query
@@ -241,8 +236,8 @@ pub fn CommandPalette(
                     accessibility={row_accessibility}
                     row={palette_row}
                 />
-            })}
-        </Overlay>
+            })
+        }</Modal>
     }
 }
 

@@ -18,7 +18,7 @@ use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, Rect, Vec2};
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel, BlockTypes};
 use block_editor_beui::{
-    AccessLevel, BlockFilter, ChildState, ContactsWatch, Editor, EditorHost, Failure, FocusedBlock,
+    AccessLevel, BlockFilter, ChildState, ContactsWatch, DialogAnswer, Editor, EditorHost, Failure, FocusedBlock,
     HostPanel, HostWindow, HostWindowId, PickedBlock, Pushed, ShellDialog, WindowAction,
     WindowsWatch,
 };
@@ -774,6 +774,15 @@ impl Workspace {
         if let Some(creating) = &mut held.creating {
             creating.child = state.child;
         }
+        let held = match state.dialog.answer {
+            Some(DialogAnswer::Dismissed) => return self.pick_action(pick, PickAction::CancelCreation),
+            Some(DialogAnswer::Accepted) => match held.act(PickAction::Create) {
+                PickOutcome::Open(held) => *held,
+                answered => return self.resolve(answered),
+            },
+            None => held,
+        };
+        let mut held = held;
         self.send_commit(&mut held);
         match &state.creation {
             Some(progress) => self.resolve(held.progressed(progress)),

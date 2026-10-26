@@ -11,7 +11,8 @@ use beui::{
     Color32, Dismiss, Key, KeyEvent, NodeId, Pos2, Rect, ScrollGesture, Vec2, ZoomGesture, vec2,
 };
 use block_plugin_api::{
-    BarAction, ChildId, ChildMode, ChildPreview, CreationProgress, EditorInstanceId, EditorRegion,
+    BarAction, ChildId, ChildMode, ChildPreview, CreationProgress, DialogFrame, DialogStatus, EditorInstanceId,
+    EditorRegion,
     FitArea, FrameChrome, FrameSpec, HostPanel, HostWindowId, PanMode, SettingsProgress, TopBar,
     ViewChange,
 };
@@ -22,7 +23,7 @@ use crate::wayland::WindowSurface;
 use super::region::{ChildView, PanDrag, PluginRegion, RegionEditor};
 use crate::editors::plugin::PickSource;
 use crate::editors::{
-    Chrome, CreationStep, EditorRegistry, PendingCreation, PluginEditor, editor_access_ceiling,
+    Chrome, EditorRegistry, PendingCreation, PluginEditor, editor_access_ceiling,
 };
 use crate::host::HostItem;
 use crate::plugin_host::{self, ChildCommit, EditorView, HostChild, HostChildStatus, HostContent};
@@ -271,11 +272,29 @@ impl Editors {
     fn creation_status(
         &self,
         key: &CreationKey,
-    ) -> Option<(Option<CreationProgress>, Option<f32>)> {
+    ) -> Option<(Option<CreationProgress>, Option<f32>, DialogStatus)> {
         let state = self.0.value();
         let creations = state.creations.borrow();
         let child = creations.get(key)?;
-        Some((child.progress.clone(), child.creation.height()))
+        Some((
+            child.progress.clone(),
+            child.creation.height(),
+            child.creation.dialog(),
+        ))
+    }
+
+    pub(crate) fn dismiss_creations(&self, parent: Uuid, children: &[ChildId]) {
+        let state = self.0.value();
+        let mut dismissed = false;
+        for ((owner, _, child), creation) in state.creations.borrow_mut().iter_mut() {
+            if *owner == parent && children.contains(child) {
+                creation.creation.dismiss();
+                dismissed = true;
+            }
+        }
+        if dismissed {
+            super::changed();
+        }
     }
 
     pub(crate) fn commit_creations(&self, parent: Uuid, commits: Vec<ChildCommit>) {
@@ -381,11 +400,10 @@ impl Editors {
             ) {
                 continue;
             }
-            let step = child.creation.step(&registry, client_id);
-            let progress = match (&child.commit, step) {
-                (None, CreationStep::Options(ready)) => CreationProgress::Options { ready },
-                (None, CreationStep::Working) => CreationProgress::Options { ready: true },
-                (Some(commit), _) => match child.creation.create() {
+            child.creation.step(&registry, client_id);
+            let progress = match &child.commit {
+                None => CreationProgress::Options,
+                Some(commit) => match child.creation.create() {
                     Ok(Some(block)) => {
                         crate::be::set_parent(block, commit.parent);
                         if let Some(name) = commit.name.clone() {
@@ -1235,6 +1253,7 @@ fn BlockFrameView(
                         .get()
                         .map(|content| content.translate(-origin.to_vec2())),
                     top_bar: top_bar.get(),
+                    dialog: None,
                 })
             });
             let gestures = handle.pan != PanMode::None
@@ -1445,9 +1464,10 @@ fn HostedChild(
             if let (Kind::Preview, Some(block)) = (kind.get(), child.block_id()) {
                 status.preview = preview_of(&editors, block);
             }
-            if let Some((progress, height)) = editors.creation_status(&creation_key) {
+            if let Some((progress, height, dialog)) = editors.creation_status(&creation_key) {
                 status.creation = progress;
                 status.intrinsic = height.map(|height| vec2(0.0, height));
+                status.dialog = dialog;
             }
             if let Kind::ArtifactSettings(block) = kind.get()
                 && let Some((progress, height)) = editors.settings_status(block)
@@ -1519,9 +1539,12 @@ fn HostedChild(
                                 <HostedSurface id=SurfaceId::ArtifactSettings />
                             },
                             Kind::Creation => match editors.creation_region(&creation_key) {
-                                Some(hosted) => view! {
-                                    <CreationSurface hosted />
-                                },
+                                Some(hosted) => {
+                                    let dialog = create_memo(move || child.get().and_then(|child| child.dialog));
+                                    view! {
+                                        <CreationSurface hosted dialog />
+                                    }
+                                }
                                 None => view! {
                                     <Frame />
                                 },
@@ -1602,17 +1625,23 @@ fn HostedChild(
 }
 
 #[component]
-fn CreationSurface(hosted: HostedRegion) -> NodeId {
+fn CreationSurface(hosted: HostedRegion, dialog: Memo<Option<DialogFrame>>) -> NodeId {
     let child_view: ChildView = store(Box::new(|_, _, _| {
         view! {
             <Frame />
         }
     }));
+    let frame = hosted.frame;
     view! {
         <PluginRegion
             editor={hosted.editor}
             region={hosted.region}
-            frame={hosted.frame}
+            frame={Prop::dynamic(move || {
+                frame.map(|frame| FrameSpec {
+                    dialog: dialog.get(),
+                    ..frame
+                })
+            })}
             child_view
         />
     }
@@ -1683,6 +1712,7 @@ fn status_of(editors: &Editors, child: &HostChild, available: bool) -> HostChild
         creation: None,
         settings: None,
         preview: ChildPreview::Hosted,
+        dialog: DialogStatus::default(),
         menu: match available && child.frame_owner {
             true => frame_menu(editors, block),
             false => Vec::new(),

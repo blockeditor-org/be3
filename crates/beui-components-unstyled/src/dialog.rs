@@ -203,6 +203,9 @@ pub fn DialogBody(
                 .map(|(index, _)| *index),
         }
     });
+    if let Some(dismissal) = use_context::<DialogDismissal>() {
+        dismissal.claim(on_dismiss);
+    }
     let run = Callback::new(move |index: usize| {
         let Some(action) = actions.with(|actions| actions.get(index).copied()) else {
             return;
@@ -267,6 +270,60 @@ fn enter(actions: &[DialogAction], run: Callback<usize>) -> bool {
 pub struct DialogLayout {
     pub narrow: Memo<bool>,
     pub sheet: Memo<bool>,
+    pub bottom_inset: Memo<f32>,
+}
+
+#[derive(Clone, Copy)]
+pub struct DialogDismissal {
+    claimed: Signal<Option<u64>>,
+    body: StoredCell<Option<ClickCallback>>,
+    next: StoredCell<u64>,
+}
+
+impl DialogDismissal {
+    pub fn new() -> Self {
+        Self {
+            claimed: create_signal(None),
+            body: StoredCell::new(None),
+            next: StoredCell::new(0),
+        }
+    }
+
+    pub fn handled(&self) -> bool {
+        self.claimed.with(Option::is_some)
+    }
+
+    pub fn dismiss(&self) -> bool {
+        match self.body.get() {
+            Some(dismiss) => {
+                dismiss.call();
+                true
+            }
+            None => false,
+        }
+    }
+
+    fn claim(self, dismiss: ClickCallback) {
+        let key = self.next.get();
+        self.next.set(key + 1);
+        self.body.set(Some(dismiss));
+        self.claimed.set(Some(key));
+        on_cleanup(move || {
+            if self.claimed.is_alive()
+                && self.body.is_alive()
+                && self.claimed.get_untracked() == Some(key)
+            {
+                self.body.set(None);
+                self.claimed.set(None);
+            }
+        });
+    }
+}
+
+impl Default for DialogDismissal {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 pub struct DialogSheetHandle {
@@ -311,6 +368,7 @@ pub fn Dialog(
     let layout = DialogLayout {
         narrow,
         sheet: sheeted,
+        bottom_inset: create_memo(|| 0.0),
     };
     provide_context(layout);
     let mut ever = false;

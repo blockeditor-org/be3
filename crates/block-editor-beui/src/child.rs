@@ -6,8 +6,8 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 
 use block_plugin_api::{
-    BarAction, ChildId, ChildLayer, ChildMode, ChildPreview, KeyChord, MenuCheck, MenuEntry,
-    MenuPin, TopBar,
+    BarAction, ChildId, ChildLayer, ChildMode, ChildPreview, DialogFrame, KeyChord, MenuCheck,
+    MenuEntry, MenuPin, TopBar,
 };
 
 use crate::{ChildState, ChildTarget, Editor, SubregionContent, watch_block_label};
@@ -45,6 +45,7 @@ pub fn ChildBlock(
         rotation,
         opacity,
         intrinsic,
+        dialog: Prop::Static(None),
         on_state,
         on_bar,
         on_focus,
@@ -67,11 +68,22 @@ pub fn Subregion(
     #[prop(default = 0.0)] rotation: Prop<f32>,
     #[prop(default = 1.0)] opacity: Prop<f32>,
     #[prop(default = None)] intrinsic: Prop<Option<beui::Vec2>>,
+    #[prop(default = false)] dialog: bool,
     on_state: Callback<ChildState>,
     on_bar: Callback<BarAction>,
     on_focus: Callback<()>,
     #[prop(children)] content: Option<Render<ChildHandle>>,
 ) -> NodeId {
+    let layout = use_context::<DialogLayout>();
+    let dialog = match dialog {
+        true => Prop::dynamic(move || {
+            Some(DialogFrame {
+                narrow: layout.is_some_and(|layout| layout.narrow.get()),
+                bottom_inset: layout.map_or(0.0, |layout| layout.bottom_inset.get()),
+            })
+        }),
+        false => Prop::Static(None),
+    };
     let placing = Placing {
         mode,
         layer,
@@ -81,6 +93,7 @@ pub fn Subregion(
         rotation,
         opacity,
         intrinsic,
+        dialog,
         on_state,
         on_bar,
         on_focus,
@@ -100,6 +113,7 @@ struct Placing {
     rotation: Prop<f32>,
     opacity: Prop<f32>,
     intrinsic: Prop<Option<beui::Vec2>>,
+    dialog: Prop<Option<DialogFrame>>,
     on_state: Callback<ChildState>,
     on_bar: Callback<BarAction>,
     on_focus: Callback<()>,
@@ -121,6 +135,7 @@ fn SubregionView(
         rotation,
         opacity,
         intrinsic,
+        dialog,
         on_state,
         on_bar,
         on_focus,
@@ -143,6 +158,7 @@ fn SubregionView(
         turn.into_prop(),
         fade.into_prop(),
         intrinsic,
+        dialog,
         on_state,
         on_bar,
         on_focus,

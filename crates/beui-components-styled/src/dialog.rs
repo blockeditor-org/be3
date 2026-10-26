@@ -152,6 +152,7 @@ pub fn DialogBody(
     let id = create_memo(move || id.get());
     let layout = use_context::<DialogLayout>();
     let narrow = create_memo(move || layout.is_some_and(|layout| layout.narrow.get()));
+    let inset = create_memo(move || layout.map_or(0.0, |layout| layout.bottom_inset.get()));
     view! {
         <unstyled::DialogBody
             kind
@@ -161,7 +162,7 @@ pub fn DialogBody(
             focuses
             on_dismiss={on_dismiss}
             face={move |handle: DialogBodyHandle| view! {
-                <DialogBodyFace handle id scrolls>{content.call(())}</DialogBodyFace>
+                <DialogBodyFace handle id scrolls inset>{content.call(())}</DialogBodyFace>
             }}
         />
     }
@@ -179,6 +180,7 @@ fn DialogBodyFace(
     handle: DialogBodyHandle,
     id: Memo<String>,
     scrolls: bool,
+    inset: Memo<f32>,
     children: Children<ListChild>,
 ) -> NodeId {
     let title = handle.title;
@@ -198,7 +200,9 @@ fn DialogBodyFace(
             <List @sizing=ItemSize::Percent(100.0) spacing=SPACING>{children}</List>
         },
     };
+    let below = create_memo(move || Padding::ZERO.bottom(Space::Custom(inset.get())));
     view! {
+        <Frame padding={below}>
         <Frame padding=PADDING>
             <List spacing=SPACING>
                 <Show condition={titled}>
@@ -222,6 +226,7 @@ fn DialogBodyFace(
                     <DialogFooter handle id />
                 </ShowKeepAlive>
             </List>
+        </Frame>
         </Frame>
     }
 }

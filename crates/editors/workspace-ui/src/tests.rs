@@ -44,6 +44,7 @@ mod block_type_colors_are_shown_on_a_phone;
 mod closing_a_window_tab_asks_its_program_to_close;
 mod closing_the_only_tab_leaves_the_blank_workspace;
 mod creating_from_a_dialog_commits_the_creation_at_once;
+mod escape_asks_a_creation_dialog_to_dismiss_itself_before_it_closes;
 mod crossing_the_phone_width_keeps_the_block_on_show;
 mod importing_a_block_file_in_the_picker_answers_the_pick;
 mod linking_a_block_in_the_picker_answers_the_pick;
@@ -391,6 +392,14 @@ fn places(fixture: &mut Fixture) -> Places {
 }
 
 fn report_creation(fixture: &mut Fixture, progress: block_editor_beui::CreationProgress) {
+    report_creation_dialog(fixture, progress, block_editor_beui::DialogStatus::default());
+}
+
+fn report_creation_dialog(
+    fixture: &mut Fixture,
+    progress: block_editor_beui::CreationProgress,
+    dialog: block_editor_beui::DialogStatus,
+) {
     fixture
         .test
         .report_children(|placement| block_editor_beui::ChildStatus {
@@ -413,6 +422,7 @@ fn report_creation(fixture: &mut Fixture, progress: block_editor_beui::CreationP
             .then(|| progress.clone()),
             settings: None,
             preview: Default::default(),
+            dialog,
         });
     fixture.settle();
 }

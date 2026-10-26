@@ -54,7 +54,7 @@ pub mod tree;
 pub use accordion::Accordion;
 pub use action_bar::{ActionBar, ActionLabels};
 pub use action_row::ActionRow;
-pub use beui_components_unstyled::DialogLayout;
+pub use beui_components_unstyled::{DialogDismissal, DialogLayout};
 pub use beui_components_unstyled::NumberDrag;
 pub use beui_components_unstyled::{
     ActionRole, DialogAction, DialogKind, EveryScreen, ModalMotion, ModalPlacement, ScreenSlot,

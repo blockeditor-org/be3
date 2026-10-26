@@ -1186,6 +1186,16 @@ pub(crate) fn take_pick_answers(
     .unwrap_or_default()
 }
 
+pub(crate) fn take_child_dismissals(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+) -> Vec<block_plugin_api::ChildId> {
+    with(plugin_id, |runtime| {
+        runtime.instances.take_child_dismissals(instance)
+    })
+    .unwrap_or_default()
+}
+
 pub(crate) fn take_child_commits(
     plugin_id: &str,
     instance: EditorInstanceId,
@@ -1711,11 +1721,21 @@ pub(crate) fn region_size(
     .flatten()
 }
 
-pub(crate) fn creation_ready(plugin_id: &str, instance: EditorInstanceId) -> bool {
+pub(crate) fn dialog_status(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+) -> Option<block_plugin_api::DialogStatus> {
     with(plugin_id, |runtime| {
-        runtime.instances.creation_ready(instance)
+        runtime.instances.dialog_status(instance)
     })
-    .unwrap_or_default()
+    .flatten()
+}
+
+pub(crate) fn dismiss(plugin_id: &str, instance: EditorInstanceId) {
+    with(plugin_id, |runtime| {
+        let messages = runtime.instances.dismiss(instance);
+        runtime.send(messages);
+    });
 }
 
 pub(crate) fn commit_creation(plugin_id: &str, instance: EditorInstanceId) {

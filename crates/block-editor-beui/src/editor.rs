@@ -8,7 +8,7 @@ use beui::reactive::*;
 use beui::{Document, Pos2, Rect, Vec2};
 use block_plugin_api::{
     BarAction, ChildContent, ChildId, ChildLayer, ChildMode, ChildPreview, CreationProgress,
-    EditorCapabilities, HostPanel, HostWindowId, InteractionMode, MenuEntry, ResizeMode,
+    DialogFrame, DialogStatus, EditorCapabilities, HostPanel, HostWindowId, InteractionMode, MenuEntry, ResizeMode,
     SettingsProgress, TopBar, Watched, WebViewId,
 };
 use block_ui::BlockCatalog;
@@ -204,6 +204,7 @@ pub struct ChildState {
     pub creation: Option<CreationProgress>,
     pub settings: Option<SettingsProgress>,
     pub preview: ChildPreview,
+    pub dialog: DialogStatus,
 }
 
 impl ChildState {
@@ -232,6 +233,7 @@ impl ChildState {
             creation: status.creation,
             settings: status.settings,
             preview: status.preview,
+            dialog: status.dialog,
         }
     }
 }
@@ -246,6 +248,7 @@ struct ChildRecord {
     rotation: Prop<f32>,
     opacity: Prop<f32>,
     intrinsic: Prop<Option<Vec2>>,
+    dialog: Prop<Option<DialogFrame>>,
     state: Signal<ChildState>,
     report: Callback<ChildState>,
     bar: Callback<BarAction>,
@@ -883,6 +886,7 @@ impl Editor {
         rotation: Prop<f32>,
         opacity: Prop<f32>,
         intrinsic: Prop<Option<Vec2>>,
+        dialog: Prop<Option<DialogFrame>>,
         report: Callback<ChildState>,
         bar: Callback<BarAction>,
         focus: Callback<()>,
@@ -903,6 +907,7 @@ impl Editor {
                 rotation,
                 opacity,
                 intrinsic,
+                dialog,
                 state,
                 report,
                 bar,
@@ -1297,6 +1302,13 @@ impl Editor {
             record.opacity.get_untracked(),
             record.intrinsic.get_untracked(),
             document.panned_by_canvas(node),
+            record.dialog.get_untracked().map(|dialog| DialogFrame {
+                bottom_inset: dialog
+                    .bottom_inset
+                    .max(rect.max.y - document.viewport_rect().max.y)
+                    * unscale,
+                ..dialog
+            }),
         ))
     }
 }
@@ -1352,8 +1364,12 @@ impl Creation {
         self.0.host.seed_content(block, content);
     }
 
-    pub fn set_ready(&self, ready: bool) {
-        self.0.host.set_creation_ready(ready);
+    pub fn accept(&self) {
+        self.0.host.close_dialog(block_plugin_api::DialogAnswer::Accepted);
+    }
+
+    pub fn cancel(&self) {
+        self.0.host.close_dialog(block_plugin_api::DialogAnswer::Dismissed);
     }
 
     pub fn on_create(&self, make: impl Fn() -> Result<Uuid, String> + 'static) {

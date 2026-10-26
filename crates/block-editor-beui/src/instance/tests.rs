@@ -50,6 +50,7 @@ fn frame(session: &mut EditorSession, content: Option<Rect>, top_bar: TopBar) {
                 chrome: FrameChrome::Drawn,
                 content,
                 top_bar,
+                dialog: None,
             }),
         }],
     );

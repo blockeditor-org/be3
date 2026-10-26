@@ -270,7 +270,7 @@ searches those `PaletteItem`s (each with a key, title, detail line, glyph or
 picture, shortcut, checked and disabled) and calls `on_choose` with the chosen
 key; `score` picks the ranking (`PaletteItem::substring_score` by default,
 `PaletteItem::fuzzy_score` for names, keywords and comments, as linux-desktop's
-program launcher uses). It and `Select` are stylings of `unstyled::SearchList`,
+program launcher uses). Its overlay is an `unstyled::Modal`. It and `Select` are stylings of `unstyled::SearchList`,
 which owns the query, the highlight, the arrow, Page, Home and End keys, scrolling to the
 highlighted row, Enter and hover.
 

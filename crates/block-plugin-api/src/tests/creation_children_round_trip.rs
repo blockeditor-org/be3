@@ -22,6 +22,10 @@ fn creation_children_round_trip() {
             rotation: 0.0,
             opacity: 1.0,
             follows_view: false,
+            dialog: Some(DialogFrame {
+                narrow: false,
+                bottom_inset: 0.0,
+            }),
         }],
         occluders: Vec::new(),
     });
