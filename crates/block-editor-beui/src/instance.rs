@@ -8,9 +8,7 @@ use beui::reactive::RenderFn;
 use beui::styled::WindowHandle;
 use beui::{Document, WindowId};
 use beui_platform_plugin::{Report, View};
-use block_editor_plugin::{
-    Artifact, ArtifactDescription, EditorHost, EditorInstanceId, EditorRegion, Instance,
-};
+use block_editor_plugin::{Artifact, EditorHost, EditorInstanceId, EditorRegion, Instance};
 use uuid::Uuid;
 
 use crate::beui_frame::{self, BeuiFrame, FrameBar, FrameChrome};
@@ -429,7 +427,7 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
         views.artifacts = Some(artifacts);
     }
 
-    fn describe_artifact(&mut self, data: &[u8]) -> Result<ArtifactDescription, String> {
+    fn describe_artifact(&mut self, data: &[u8]) -> Result<String, String> {
         A::describe_artifact(data)
     }
 

@@ -307,10 +307,17 @@ fn spawn() -> Result<web_sys::Worker, String> {
 }
 
 fn absolute(url: &str) -> String {
-    let base = web_sys::window()
-        .and_then(|window| window.document())
-        .and_then(|document| document.base_uri().ok().flatten())
-        .unwrap_or_default();
+    let base = match web_sys::window() {
+        Some(window) => window
+            .document()
+            .and_then(|document| document.base_uri().ok().flatten())
+            .unwrap_or_default(),
+        None => js_sys::Reflect::get(&js_sys::global(), &"location".into())
+            .and_then(|location| js_sys::Reflect::get(&location, &"href".into()))
+            .ok()
+            .and_then(|href| href.as_string())
+            .unwrap_or_default(),
+    };
     web_sys::Url::new_with_base(url, &base)
         .map(|url| url.href())
         .unwrap_or_else(|_| url.to_owned())

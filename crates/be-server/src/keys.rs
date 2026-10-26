@@ -86,7 +86,7 @@ pub(crate) fn key_row(
     .transpose()
 }
 
-fn keys_of_block(
+pub(crate) fn keys_of_block(
     connection: &Connection,
     organization: Uuid,
     block: Uuid,
@@ -117,7 +117,7 @@ fn keys_of_block(
     Ok(keys)
 }
 
-fn wraps_of(
+pub(crate) fn wraps_of(
     connection: &Connection,
     organization: Uuid,
     key: Uuid,
@@ -185,6 +185,34 @@ pub(crate) fn served_keys(
     })
 }
 
+fn passes_on(graph: &BlockGraph, seen: &Visibility, kind: Uuid) -> bool {
+    graph
+        .get(kind)
+        .is_some_and(be_graph::BlockNode::is_open_inside)
+        && seen.can_view(graph, kind)
+}
+
+fn passed_on(
+    connection: &Connection,
+    graph: &BlockGraph,
+    organization: Uuid,
+    caller: Uuid,
+    row: &KeyRow,
+    wrap: &WrappedKey,
+) -> Result<bool, ServerError> {
+    let WrappedBy::Account(account) = wrap.wrapped_by else {
+        return Ok(false);
+    };
+    let open = graph
+        .get(row.block)
+        .is_some_and(be_graph::BlockNode::is_open_inside);
+    Ok(row.kind == KeyKind::Scope
+        && open
+        && account != caller
+        && is_viewer(connection, graph, organization, caller, row.block)?
+        && sealed_to(connection, graph, organization, row.block)?.contains(&account))
+}
+
 pub(crate) fn store_keys(
     graph: &mut BlockGraph,
     connection: &Connection,
@@ -228,7 +256,10 @@ pub(crate) fn store_keys(
     for wrap in &set.wrapped {
         let row =
             known(wrap.key)?.ok_or_else(|| refused(format!("key {} does not exist", wrap.key)))?;
-        if !fresh.contains_key(&row.id) && !allowed(graph, &row) {
+        if !fresh.contains_key(&row.id)
+            && !allowed(graph, &row)
+            && !passed_on(connection, graph, organization, caller, &row, wrap)?
+        {
             return Err(ServerError::Refused(
                 ErrorCode::PermissionDenied,
                 format!("key {} may not be wrapped by this account", row.id),
@@ -238,6 +269,16 @@ pub(crate) fn store_keys(
             WrappedBy::Key(by) => {
                 if by == wrap.key || known(by)?.is_none() {
                     return Err(refused(format!("key {} cannot wrap key {}", by, wrap.key)));
+                }
+            }
+            WrappedBy::Account(account)
+                if account == crate::organization::server_account(connection)? =>
+            {
+                if row.kind == KeyKind::Escrow {
+                    return Err(ServerError::Refused(
+                        ErrorCode::PermissionDenied,
+                        "the escrow key is sealed only to administrators".into(),
+                    ));
                 }
             }
             WrappedBy::Account(account) => {
@@ -266,6 +307,7 @@ pub(crate) fn store_keys(
             }
         }
     }
+    let server = crate::organization::server_account(connection)?;
     let created = now_milliseconds();
     for row in fresh.values() {
         connection.execute(
@@ -303,15 +345,19 @@ pub(crate) fn store_keys(
     }
     for wrap in &set.wrapped {
         connection.execute(
-            "INSERT OR IGNORE INTO wrapped_keys
+            "INSERT INTO wrapped_keys
                 (organization_id, key_id, wrapped_by, sender, sealed)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
+             VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT (organization_id, key_id, wrapped_by) DO UPDATE
+                SET sender = excluded.sender, sealed = excluded.sealed
+                WHERE wrapped_keys.sender = ?6",
             params![
                 organization.to_string(),
                 wrap.key.to_string(),
                 encode_wrapped_by(wrap.wrapped_by),
                 caller.to_string(),
-                wrap.sealed
+                wrap.sealed,
+                server.to_string()
             ],
         )?;
         let WrappedBy::Key(by) = wrap.wrapped_by else {
@@ -443,12 +489,17 @@ pub(crate) fn is_viewer(
     account: Uuid,
     block: Uuid,
 ) -> Result<bool, ServerError> {
+    if account == crate::organization::server_account(connection)? {
+        return Ok(graph.inherited(block, account).can_view()
+            || crate::organization::in_settings(graph, organization, block));
+    }
     Ok(
         match crate::contacts::role_in(connection, account, organization)? {
             None => false,
             Some(be_protocol::OrganizationRole::Administrator) => graph.contains(block),
             Some(be_protocol::OrganizationRole::Editor) => {
                 graph.inherited(block, account).can_view()
+                    || crate::organization::in_settings(graph, organization, block)
             }
         },
     )
@@ -471,6 +522,15 @@ pub(crate) fn sealed_to(
         .collect();
     if !matches!(node.parent, be_graph::BlockParent::Block(_)) {
         accounts.insert(node.author);
+    }
+    if node.is_open_inside()
+        && let Some(owner) = graph.settings_owner(block)
+    {
+        accounts.extend(graph.inside_viewers(owner));
+    }
+    if crate::organization::in_settings(graph, organization, block) {
+        accounts.insert(crate::organization::server_account(connection)?);
+        accounts.extend(administrators(connection, organization)?);
     }
     let mut viewers = BTreeSet::new();
     for account in accounts {
@@ -516,6 +576,101 @@ pub(crate) fn lost_view(
         ],
     )?;
     Ok(())
+}
+
+pub(crate) fn open_kinds_viewed(
+    connection: &Connection,
+    graph: &BlockGraph,
+    organization: Uuid,
+    account: Uuid,
+    block: Uuid,
+) -> Result<BTreeSet<Uuid>, ServerError> {
+    let mut viewed = BTreeSet::new();
+    for owner in std::iter::once(block).chain(graph.ancestors(block)) {
+        for kind in graph.kinds_of(owner) {
+            if graph
+                .get(kind)
+                .is_some_and(be_graph::BlockNode::is_open_inside)
+                && is_viewer(connection, graph, organization, account, kind)?
+            {
+                viewed.insert(kind);
+            }
+        }
+    }
+    Ok(viewed)
+}
+
+pub(crate) fn lost_open_kinds(
+    connection: &Connection,
+    graph: &BlockGraph,
+    organization: Uuid,
+    account: Uuid,
+    viewed: BTreeSet<Uuid>,
+) -> Result<(), ServerError> {
+    for kind in viewed {
+        if !is_viewer(connection, graph, organization, account, kind)? {
+            lost_view(connection, organization, kind, account)?;
+        }
+    }
+    Ok(())
+}
+
+pub(crate) struct ViewingBelow {
+    block: Uuid,
+    accounts: Vec<(Uuid, bool, BTreeSet<Uuid>)>,
+}
+
+pub(crate) fn viewing_below(
+    connection: &Connection,
+    graph: &BlockGraph,
+    organization: Uuid,
+    block: Uuid,
+) -> Result<ViewingBelow, ServerError> {
+    let mut candidates = graph.viewers(block);
+    for inside in graph.subtree(block) {
+        let Some(node) = graph.get(inside) else {
+            continue;
+        };
+        candidates.insert(node.author);
+        candidates.extend(
+            node.grants
+                .iter()
+                .filter(|(_, level)| level.can_view())
+                .map(|(account, _)| *account),
+        );
+    }
+    candidates.remove(&be_graph::ANYONE_INSIDE);
+    let mut accounts = Vec::new();
+    for account in candidates {
+        let viewed = is_viewer(connection, graph, organization, account, block)?;
+        let kinds = open_kinds_viewed(connection, graph, organization, account, block)?;
+        if viewed || !kinds.is_empty() {
+            accounts.push((account, viewed, kinds));
+        }
+    }
+    Ok(ViewingBelow { block, accounts })
+}
+
+pub(crate) fn lost_below(
+    connection: &Connection,
+    graph: &BlockGraph,
+    organization: Uuid,
+    before: ViewingBelow,
+) -> Result<BTreeSet<Uuid>, ServerError> {
+    let mut lost = BTreeSet::new();
+    for (account, viewed, kinds) in before.accounts {
+        if viewed && !is_viewer(connection, graph, organization, account, before.block)? {
+            lost_view(connection, organization, before.block, account)?;
+            lost.insert(account);
+        }
+        for kind in kinds {
+            if !is_viewer(connection, graph, organization, account, kind)? {
+                lost_view(connection, organization, kind, account)?;
+                lost.insert(account);
+            }
+        }
+    }
+    Ok(lost)
 }
 
 pub(crate) fn rotate_escrow_later(
@@ -587,9 +742,23 @@ impl ServerStore {
     ) -> Result<KeySet, ServerError> {
         self.with_graph(identity.organization, move |graph, database| {
             let seen = visibility(identity);
+            self.server_key().seal_settings_to(
+                database,
+                graph,
+                identity.organization,
+                identity.account,
+            )?;
+            let settings = crate::organization::settings_of(identity.organization);
             let wanted: BTreeSet<Uuid> = match blocks {
                 None if seen.administrator() => graph.ids().into_iter().collect(),
-                None => graph.visible(identity.account).into_keys().collect(),
+                None => graph
+                    .visible(identity.account)
+                    .into_keys()
+                    .chain(match graph.contains(settings) {
+                        true => graph.subtree(settings),
+                        false => Vec::new(),
+                    })
+                    .collect(),
                 Some(blocks) => blocks
                     .into_iter()
                     .filter(|block| graph.contains(*block))
@@ -649,12 +818,18 @@ impl ServerStore {
                     .ancestors(*block)
                     .any(|above| rotating.contains(&above))
             });
+            let server = crate::organization::server_account(database)?;
             let candidates: Vec<Uuid> = match seen.administrator() {
                 true => graph.ids(),
                 false => graph.visible(identity.account).into_keys().collect(),
             };
+            let contacts = crate::contacts::contacts_of(database, identity.account)?;
             for block in candidates {
-                if !graph.is_scope_root(block) || !seen.can_edit(graph, block) {
+                if !graph.is_scope_root(block) {
+                    continue;
+                }
+                let editor = seen.can_edit(graph, block);
+                if !editor && !passes_on(graph, &seen, block) {
                     continue;
                 }
                 let Some(key) = latest_scope_key(database, organization, block)? else {
@@ -662,14 +837,17 @@ impl ServerStore {
                 };
                 let wraps = wraps_of(database, organization, key)?;
                 for account in sealed_to(database, graph, organization, block)? {
-                    if !wraps
-                        .iter()
-                        .any(|wrap| wrap.wrapped_by == WrappedBy::Account(account))
-                    {
+                    if !editor && !contacts.contains(&account) {
+                        continue;
+                    }
+                    if !wraps.iter().any(|wrap| {
+                        wrap.wrapped_by == WrappedBy::Account(account) && wrap.sender != server
+                    }) {
                         work.unsealed.push(Unsealed { key, account });
                     }
                 }
-                if let Some(escrow) = escrow
+                if editor
+                    && let Some(escrow) = escrow
                     && !wraps
                         .iter()
                         .any(|wrap| wrap.wrapped_by == WrappedBy::Key(escrow))

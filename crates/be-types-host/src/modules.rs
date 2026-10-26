@@ -1,12 +1,14 @@
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{BTreeMap, HashMap, VecDeque},
     convert::Infallible,
     sync::{
-        Arc, LazyLock, RwLock,
+        Arc,
         atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::{Duration, Instant},
 };
+
+use be_client::Clock;
 
 use block_guest_abi::Guest;
 use block_guest_host::{Channel, InProcess, Wake, Worker};
@@ -29,12 +31,12 @@ pub struct Kind {
     pub described: Description,
 }
 
-static REGISTRY: LazyLock<RwLock<HashMap<Uuid, Kind>>> =
-    LazyLock::new(|| RwLock::new(HashMap::new()));
+static REGISTRY: wasi_threads::Mutex<BTreeMap<Uuid, Kind>> =
+    wasi_threads::Mutex::new(BTreeMap::new());
 
 pub fn kind_of(content_type: Uuid) -> Option<Kind> {
     REGISTRY
-        .read()
+        .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .get(&content_type)
         .cloned()
@@ -42,7 +44,7 @@ pub fn kind_of(content_type: Uuid) -> Option<Kind> {
 
 pub fn is_known(content_type: Uuid) -> bool {
     REGISTRY
-        .read()
+        .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .contains_key(&content_type)
 }
@@ -52,7 +54,7 @@ static PLAIN_FORMS: AtomicU64 = AtomicU64::new(0);
 pub fn register(kind: Kind) {
     let plain = kind.plain;
     let before = REGISTRY
-        .write()
+        .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .insert(kind.content_type, kind);
     if before.is_none_or(|before| before.plain != plain) {
@@ -62,16 +64,6 @@ pub fn register(kind: Kind) {
 
 pub fn plain_forms_revision() -> u64 {
     PLAIN_FORMS.load(Ordering::Relaxed)
-}
-
-static EPOCH: LazyLock<Instant> = LazyLock::new(Instant::now);
-
-pub fn millis(at: Instant) -> u64 {
-    at.saturating_duration_since(*EPOCH).as_millis() as u64
-}
-
-pub fn now_millis() -> u64 {
-    millis(Instant::now())
 }
 
 pub type Boxed = Box<dyn Channel<Presented = Infallible>>;
@@ -191,6 +183,7 @@ pub struct Modules {
     backlog: VecDeque<(usize, Heard)>,
     restarted: Vec<usize>,
     routes: HashMap<Uuid, usize>,
+    clock: Clock,
 }
 
 const RESTART_LIMIT: usize = 8;
@@ -207,7 +200,7 @@ fn failed(content_type: Uuid, failure: Failure) -> String {
 }
 
 impl Modules {
-    pub fn new(sources: Vec<Source>) -> Self {
+    pub fn new(sources: Vec<Source>, clock: Clock) -> Self {
         let mut modules = Self {
             modules: sources
                 .into_iter()
@@ -230,6 +223,7 @@ impl Modules {
             backlog: VecDeque::new(),
             restarted: Vec::new(),
             routes: HashMap::new(),
+            clock,
         };
         for module in 0..modules.modules.len() {
             modules.launch(module);
@@ -433,7 +427,8 @@ impl Modules {
 
     pub fn call<R>(&mut self, module: usize, call: impl FnOnce(&mut Connection) -> R) -> Option<R> {
         self.modules[module].worker.as_ref()?;
-        self.advance(module, now_millis());
+        let now = self.now();
+        self.advance(module, now);
         let result = call(&mut self.modules[module].connection);
         self.flush(module);
         Some(result)
@@ -443,7 +438,8 @@ impl Modules {
         if self.modules[module].worker.is_none() {
             return;
         }
-        self.advance(module, millis(at));
+        let now = self.clock.at(at).as_millis() as u64;
+        self.advance(module, now);
         self.flush(module);
     }
 
@@ -468,18 +464,28 @@ impl Modules {
         std::mem::take(&mut self.restarted)
     }
 
-    pub fn deadline(&mut self) -> Option<Duration> {
-        let now = now_millis();
+    pub fn now(&self) -> u64 {
+        self.clock.now().as_millis() as u64
+    }
+
+    pub fn clock(&self) -> &Clock {
+        &self.clock
+    }
+
+    pub fn wake_at(&mut self) -> Option<Duration> {
+        let now = self.clock.now();
         let mut soonest: Option<Duration> = None;
         let mut hung = Vec::new();
         for (index, module) in self.modules.iter_mut().enumerate() {
             if let Some((wake, _)) = &module.sleeping {
-                let due = Duration::from_millis(wake.saturating_sub(now));
+                let due = Duration::from_millis(*wake);
                 soonest = Some(soonest.map_or(due, |held| held.min(due)));
             }
             if let Some(worker) = module.worker.as_mut() {
-                match worker.hung(Instant::now().saturating_duration_since(*EPOCH)) {
-                    Ok(Some(left)) => soonest = Some(soonest.map_or(left, |held| held.min(left))),
+                match worker.hung(now) {
+                    Ok(Some(left)) => {
+                        soonest = Some(soonest.map_or(now + left, |held| held.min(now + left)));
+                    }
                     Ok(None) => {}
                     Err(failure) => hung.push((index, failure)),
                 }
@@ -488,13 +494,13 @@ impl Modules {
         for (module, failure) in hung {
             self.fail(module, failure);
             self.restart(module);
-            soonest = Some(Duration::ZERO);
+            soonest = Some(now);
         }
         soonest
     }
 
     pub fn tick_due(&mut self) {
-        let now = now_millis();
+        let now = self.now();
         for module in 0..self.modules.len() {
             if self.modules[module]
                 .sleeping
@@ -507,6 +513,7 @@ impl Modules {
     }
 
     fn collect(&mut self) -> Vec<(usize, Heard)> {
+        let clock_now = self.now();
         let mut heard: Vec<(usize, Heard)> = self.backlog.drain(..).collect();
         for module in 0..self.modules.len() {
             let Some(worker) = self.modules[module].worker.as_mut() else {
@@ -529,7 +536,7 @@ impl Modules {
                         let (op, parent) = (started.op, started.parent);
                         match Call::accept(&mut held.connection, started) {
                             Some(Call::Clock { stream }) => {
-                                let now = now_millis();
+                                let now = clock_now;
                                 held.ticked = Some(now);
                                 let mut clock = Latest::new(stream);
                                 clock.send(&mut held.connection, now);
@@ -792,8 +799,8 @@ pub fn plain_of(content_type: Uuid) -> Plain {
     kind_of(content_type).map_or(Plain::None, |kind| kind.plain)
 }
 
-pub async fn started(sources: Vec<Source>) -> Modules {
-    let mut modules = Modules::new(sources);
+pub async fn started(sources: Vec<Source>, clock: Clock) -> Modules {
+    let mut modules = Modules::new(sources, clock);
     modules.ready().await;
     modules
 }

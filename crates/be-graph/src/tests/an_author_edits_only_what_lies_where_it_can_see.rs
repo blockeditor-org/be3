@@ -32,10 +32,10 @@ fn an_author_edits_only_what_lies_where_it_can_see() {
         .unwrap();
 
     assert_eq!(graph.inherited(written, member), Access::None);
-    assert_eq!(graph.inherited(written, owner), Access::Edit);
+    assert_eq!(graph.inherited(written, owner), Access::Manage);
 
     graph.grant(workspace, member, Access::View).unwrap();
-    assert_eq!(graph.inherited(written, member), Access::Edit);
+    assert_eq!(graph.inherited(written, member), Access::Manage);
     assert_eq!(graph.inherited(shared, member), Access::View);
 
     graph.grant(workspace, member, Access::None).unwrap();
@@ -50,5 +50,5 @@ fn an_author_edits_only_what_lies_where_it_can_see() {
     );
 
     graph.set_parent(written, BlockParent::Detached).unwrap();
-    assert_eq!(graph.inherited(written, member), Access::Edit);
+    assert_eq!(graph.inherited(written, member), Access::Manage);
 }

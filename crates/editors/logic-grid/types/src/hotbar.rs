@@ -4,7 +4,7 @@ use be_model::{Anchor, Change, Document, Edit, Item, List, Model, ObjectId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use be_block::{ChildChange, Root};
+use be_block::{ChildChange, Follows, Layered, Root};
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum SlotKind {
@@ -132,6 +132,18 @@ impl Root for Hotbar {
                     })
                     .collect(),
             ),
+        }
+    }
+}
+
+impl Layered for Hotbar {
+    const NAME: &'static str = "Hotbar";
+    const FOLLOWS: Follows = Follows::Block;
+
+    fn over(&self, lower: &Self) -> Self {
+        match self.slots.is_empty() {
+            true => lower.clone(),
+            false => self.clone(),
         }
     }
 }

@@ -2,16 +2,18 @@ use beui::Wrap;
 use std::collections::HashSet;
 
 use block_editor_beui::BlockParent;
-use block_editor_beui::be_block::{BlockMetadata, WORKSPACE_TYPE};
+use block_editor_beui::be_block::{BlockMetadata, Root, WORKSPACE_TYPE, settings::Settings};
 use block_editor_beui::beui::accesskit::{Node as AccessNode, Role};
 use block_editor_beui::beui::icons::{
-    ICON_BOXES, ICON_CIRCLE_USER_ROUND, ICON_DOWNLOAD, ICON_MOVE, ICON_PLUS, ICON_SPARKLES,
+    Glyph, ICON_BOXES, ICON_CIRCLE_USER_ROUND, ICON_DOWNLOAD, ICON_MOVE, ICON_PLUS, ICON_SETTINGS,
+    ICON_SHARE_2, ICON_SPARKLES,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{self, BackSlide, ButtonHandle, MenuItem, TreeItem};
 use block_editor_beui::beui::{Color32, NodeId, Rect};
 use block_editor_beui::block_ui::BlockTypes;
+use block_editor_beui::tags::{ShownTag, TagChip};
 use block_editor_beui::{
     AdministratorWatch, BlockFilter, Drag, Editor, Toolbar, node_anchor, phone_layout,
 };
@@ -29,6 +31,7 @@ const ROW_SPACING: f32 = 6.0;
 const ADD_WIDTH: f32 = 20.0;
 const INSPECT_WIDTH: f32 = 420.0;
 const FIELD_SPACING: f32 = 2.0;
+const SETTINGS_TYPE: Uuid = <Settings as Root>::CONTENT_TYPE;
 
 #[component]
 pub fn FileTreeEditor(editor: Editor) -> NodeId {
@@ -97,7 +100,8 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
             | RowKey::Note(_)
             | RowKey::SharedNote
             | RowKey::OrphansNote
-            | RowKey::SystemNote => None,
+            | RowKey::SystemNote
+            | RowKey::Pinned(_) => None,
         };
         tree.toggle(&key, id, !expanded);
     };
@@ -398,7 +402,8 @@ fn ancestors(key: &RowKey) -> Vec<RowKey> {
         | RowKey::Note(_)
         | RowKey::SharedNote
         | RowKey::OrphansNote
-        | RowKey::SystemNote => Vec::new(),
+        | RowKey::SystemNote
+        | RowKey::Pinned(_) => Vec::new(),
     }
 }
 
@@ -414,6 +419,10 @@ fn row_test_id(key: &RowKey) -> String {
         RowKey::SharedNote => "note.shared".to_owned(),
         RowKey::OrphansNote => "note.orphans".to_owned(),
         RowKey::SystemNote => "note.system".to_owned(),
+        RowKey::Pinned(path) => match path.get(1) {
+            Some(id) => format!("pinned.{id}"),
+            None => "pinned".to_owned(),
+        },
     };
     format!("file-tree.{named}")
 }
@@ -432,6 +441,11 @@ fn TreeRow(
     let glyph = create_memo(move || row.get().and_then(|row| row.glyph));
     let has_glyph = create_memo(move || glyph.get().is_some());
     let generated = create_memo(move || row.get().is_some_and(|row| row.dynamic_artifact));
+    let tag_keys = create_memo(move || {
+        row.get()
+            .map(|row| row.tags.iter().map(|tag| tag.id).collect::<Vec<_>>())
+            .unwrap_or_default()
+    });
     let access = create_memo(move || {
         row.get()
             .filter(|row| row.id.is_some())
@@ -445,6 +459,7 @@ fn TreeRow(
     });
     let restricted = create_memo(move || access.get().is_some());
     let can_add = create_memo(move || row.get().is_some_and(|row| row.can_add));
+    let actions = create_memo(move || row.get().is_some_and(|row| has_actions(&row)));
     let muted = create_memo(move || {
         row.get()
             .is_none_or(|row| row.automatic || row.id.is_none() || row.marked_deleted)
@@ -495,6 +510,16 @@ fn TreeRow(
                     <Text style=TextStyle::CAPTION ellipsis=true>{detail}</Text>
                 </Show>
             </List>
+            <ForEach keys={tag_keys}>|tag: Uuid| {
+                let shown = create_memo(move || {
+                    row.get()
+                        .and_then(|row| row.tags.into_iter().find(|held| held.id == tag))
+                        .unwrap_or(ShownTag { id: tag, name: String::new(), color: Default::default() })
+                });
+                view! {
+                    <TagChip tag={shown} size=TextSize::Xs />
+                }
+            }</ForEach>
             <Show condition={generated}>
                 <Tooltip label="Generated from another block">
                     <Text size={glyph_size} color={generated_color} align=TextAlign::Center>
@@ -509,10 +534,21 @@ fn TreeRow(
                     </Text>
                 </Tooltip>
             </Show>
-            <Show condition={can_add}>
-                <AddChild
+            <Show condition={actions}>
+                <RowActions
+                    editor={editor}
+                    row={row}
+                    key={face.key.clone()}
                     hovered={hovered}
                     row_focused={row_focused}
+                />
+            </Show>
+            <Show condition={can_add}>
+                <RowButton
+                    hovered={hovered}
+                    row_focused={row_focused}
+                    glyph=ICON_PLUS
+                    always=false
                     label={add_label}
                     named={named.clone()}
                     on_click={add_child}
@@ -536,6 +572,7 @@ fn SectionRow(
     let glyph = create_memo(move || row.get().and_then(|row| row.glyph));
     let has_glyph = create_memo(move || glyph.get().is_some());
     let can_add = create_memo(move || row.get().is_some_and(|row| row.can_add));
+    let actions = create_memo(move || row.get().is_some_and(|row| has_actions(&row)));
     let glyph_size = glyph_size();
     let (detail, detailed) = detail(editor, row);
     let add_child = move || {
@@ -558,10 +595,21 @@ fn SectionRow(
                     <Text style=TextStyle::CAPTION ellipsis=true>{detail}</Text>
                 </Show>
             </List>
-            <Show condition={can_add}>
-                <AddChild
+            <Show condition={actions}>
+                <RowActions
+                    editor={editor}
+                    row={row}
+                    key={face.key.clone()}
                     hovered={hovered}
                     row_focused={row_focused}
+                />
+            </Show>
+            <Show condition={can_add}>
+                <RowButton
+                    hovered={hovered}
+                    row_focused={row_focused}
+                    glyph=ICON_PLUS
+                    always=false
                     label={add_label}
                     named={named.clone()}
                     on_click={add_child}
@@ -727,16 +775,18 @@ pub(crate) fn ExportAs(
 }
 
 #[component]
-fn AddChild(
+fn RowButton(
     hovered: ReadSignal<bool>,
     row_focused: ReadSignal<bool>,
+    glyph: Glyph,
+    always: bool,
     label: Memo<String>,
     named: String,
     on_click: block_editor_beui::beui::reactive::ClickCallback,
 ) -> NodeId {
     let focused = create_signal(false);
     let reachable = create_memo(move || row_focused.get() || focused.get());
-    let shown = create_memo(move || hovered.get() || reachable.get());
+    let shown = create_memo(move || always || hovered.get() || reachable.get());
     let accessibility = create_memo(move || {
         let mut node = AccessNode::new(Role::Button);
         node.set_label(label.get());
@@ -753,7 +803,7 @@ fn AddChild(
                     on_focus_change={focused}
                     on_click={on_click}
                     content={move |button: ButtonHandle| view! {
-                        <AddChildFace handle={button} shown={shown} label={label} />
+                        <RowButtonFace handle={button} glyph={glyph} shown={shown} label={label} />
                     }}
                 />
             </List>
@@ -762,7 +812,12 @@ fn AddChild(
 }
 
 #[component]
-fn AddChildFace(handle: ButtonHandle, shown: Memo<bool>, label: Memo<String>) -> NodeId {
+fn RowButtonFace(
+    handle: ButtonHandle,
+    glyph: Glyph,
+    shown: Memo<bool>,
+    label: Memo<String>,
+) -> NodeId {
     let ButtonHandle {
         hovered,
         active,
@@ -789,10 +844,70 @@ fn AddChildFace(handle: ButtonHandle, shown: Memo<bool>, label: Memo<String>) ->
                 radius={Radius::custom(3.0)}
             >
                 <Text size=TextSize::Xs color={color} align=TextAlign::Center>
-                    <Icon glyph=ICON_PLUS />
+                    <Icon glyph={glyph} />
                 </Text>
             </Frame>
         </Tooltip>
+    }
+}
+
+fn has_actions(row: &Row) -> bool {
+    (row.sets_access && row.access.can_manage()) || row.settings.is_some()
+}
+
+#[component]
+fn RowActions(
+    editor: Editor,
+    row: Memo<Option<Row>>,
+    key: RowKey,
+    hovered: ReadSignal<bool>,
+    row_focused: ReadSignal<bool>,
+) -> NodeId {
+    let prefix = row_test_id(&key);
+    let (share_id, settings_id) = (format!("{prefix}.share"), format!("{prefix}.settings"));
+    let shared = create_memo(move || {
+        row.get()
+            .is_some_and(|row| row.sets_access && row.access.can_manage())
+    });
+    let settings = create_memo(move || row.get().and_then(|row| row.settings));
+    let has_settings = create_memo(move || settings.get().is_some());
+    let share_label = create_memo(|| "Share: access is set here".to_owned());
+    let settings_label = create_memo(|| "Settings".to_owned());
+    let share = move || {
+        if let Some(id) = row.get_untracked().and_then(|row| row.id) {
+            editor.host().share_block(id);
+        }
+    };
+    let open_settings = move || {
+        if let Some(settings) = settings.get_untracked() {
+            editor.host().open_block(settings, SETTINGS_TYPE);
+        }
+    };
+    view! {
+        <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+            <Show condition={shared}>
+                <RowButton
+                    hovered={hovered}
+                    row_focused={row_focused}
+                    glyph=ICON_SHARE_2
+                    always=true
+                    label={share_label}
+                    named={share_id.clone()}
+                    on_click={share}
+                />
+            </Show>
+            <Show condition={has_settings}>
+                <RowButton
+                    hovered={hovered}
+                    row_focused={row_focused}
+                    glyph=ICON_SETTINGS
+                    always=true
+                    label={settings_label}
+                    named={settings_id.clone()}
+                    on_click={open_settings}
+                />
+            </Show>
+        </List>
     }
 }
 

@@ -491,6 +491,7 @@ pub(super) struct PluginArtifact {
     plugin: Arc<PluginManifest>,
     editor: Uuid,
     block: EditorBlock,
+    source: Uuid,
     client_id: Uuid,
     instance: EditorInstanceId,
     opened: bool,
@@ -503,6 +504,7 @@ impl PluginArtifact {
     pub(super) fn new(
         plugin: Arc<PluginManifest>,
         editor: Uuid,
+        source: Uuid,
         target_id: Uuid,
         target_type: Uuid,
         client_id: Uuid,
@@ -510,6 +512,7 @@ impl PluginArtifact {
         Self {
             plugin,
             editor,
+            source,
             client_id,
             block: EditorBlock {
                 id: target_id,
@@ -543,6 +546,7 @@ impl ArtifactSession for PluginArtifact {
             instance: self.instance,
             editor: self.editor,
             block: self.block,
+            source: self.source,
             data,
             resync: std::mem::take(&mut self.resync),
         });
@@ -554,9 +558,7 @@ impl ArtifactSession for PluginArtifact {
         }
         match state {
             ArtifactState::Starting => ArtifactStatus::Starting,
-            ArtifactState::Described { source, summary } => {
-                ArtifactStatus::Described { source, summary }
-            }
+            ArtifactState::Described(summary) => ArtifactStatus::Described(summary),
             ArtifactState::Failed(error) => ArtifactStatus::Failed(error),
         }
     }
@@ -566,7 +568,7 @@ impl ArtifactSession for PluginArtifact {
         HostedRegion {
             editor: RegionEditor {
                 plugin: Arc::clone(&self.plugin),
-                role: InstanceRole::Artifact(self.editor, self.block),
+                role: InstanceRole::Artifact(self.editor, self.block, self.source),
                 instance: self.instance,
                 block_types: Arc::clone(registry.plugin_block_types()),
                 client_id: self.client_id,

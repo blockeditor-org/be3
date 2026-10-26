@@ -12,7 +12,7 @@ use crate::graph::BlockParent;
 use block_plugin_api::TopBar;
 use block_plugin_api::guest::host_services;
 use block_plugin_api::{
-    AccessGrant, AccessLevel, ArtifactAction, AudioCommand, AudioSource, AudioStatus, BarAction,
+    AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioSource, AudioStatus, BarAction,
     BlockCommand, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement,
     ChildStatus, EditorInstanceId, EditorRegion, Failure, FilePick, FileSave, FitArea, HostPanel,
     HostWindowId, MenuEntry, Occluder, PerformanceMeasurement, Revision, ShellCommand, ShellDialog,
@@ -165,8 +165,8 @@ pub type HeadRead = Result<Option<StoredHead>, Failure>;
 pub struct ArtifactState {
     pub block_id: Uuid,
     pub source_type: Uuid,
-    pub source: Option<Uuid>,
-    pub summary: String,
+    pub source: Uuid,
+    pub summary: Option<String>,
     pub error: Option<String>,
     pub regenerating: bool,
 }
@@ -190,11 +190,7 @@ impl FocusedBlock {
 pub struct Artifact {
     pub block_id: Uuid,
     pub block_type: Uuid,
-}
-
-pub struct ArtifactDescription {
     pub source: Uuid,
-    pub summary: String,
 }
 
 #[derive(Clone, PartialEq)]
@@ -1540,11 +1536,29 @@ impl EditorHost {
         })
     }
 
+    pub fn copy_blocks(
+        &self,
+        source: Uuid,
+        parent: BlockParent,
+    ) -> Asked<Result<Option<(Uuid, Uuid)>, Failure>> {
+        Asked::of(self.ask(|| host_services::copy_blocks(source.into_bytes(), parent.encode())))
+            .map(|copied| {
+                copied.map(|copied| {
+                    copied.map(|copied| {
+                        (
+                            Uuid::from_bytes(copied.block_id),
+                            Uuid::from_bytes(copied.block_type),
+                        )
+                    })
+                })
+            })
+    }
+
     pub fn pick_block(&self, filter: BlockFilter) -> Asked<BlockPick> {
         Asked::of(self.ask(|| host_services::pick_block(filter)))
     }
 
-    pub fn list_access(&self, block_id: Uuid) -> Asked<Result<Vec<AccessGrant>, Failure>> {
+    pub fn list_access(&self, block_id: Uuid) -> Asked<Result<AccessListing, Failure>> {
         Asked::of(self.ask(|| host_services::list_access(block_id.into_bytes())))
     }
 

@@ -22,6 +22,27 @@ pub(crate) struct Node {
     pub(crate) head: Option<CommitId>,
     pub(crate) locked: bool,
     pub(crate) held: bool,
+    pub(crate) sets_access: bool,
+}
+
+impl Node {
+    pub(crate) fn contents(&self) -> Vec<Uuid> {
+        let described = self.metadata.references();
+        self.references
+            .iter()
+            .filter(|reference| !described.contains(reference))
+            .copied()
+            .collect()
+    }
+}
+
+fn with_described(mut references: Vec<Uuid>, metadata: &BlockMetadata) -> Vec<Uuid> {
+    for described in metadata.references() {
+        if !references.contains(&described) {
+            references.push(described);
+        }
+    }
+    references
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -41,6 +62,7 @@ pub(crate) enum Query {
     Parents(Uuid),
     Block(Uuid),
     Subtree(Uuid),
+    OpenSettings(Uuid),
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -48,6 +70,7 @@ pub(crate) enum Owner {
     Host,
     Open,
     Version,
+    Organization,
     Editor(u64),
 }
 
@@ -156,6 +179,9 @@ impl Graph {
             Query::Block(block) => {
                 into.insert(Listing::Block(block));
             }
+            Query::OpenSettings(block) => {
+                into.insert(Listing::OpenSettings(block));
+            }
             Query::References(block) => {
                 into.insert(Listing::Block(block));
                 into.insert(Listing::References(block));
@@ -251,6 +277,18 @@ impl Graph {
             && matches!(listed.fetch, Fetch::Loaded | Fetch::Failed(_))
         {
             listed.fetch = Fetch::Wanted;
+        }
+    }
+
+    pub(crate) fn relist_open_settings(&mut self) {
+        let open: Vec<Listing> = self
+            .listings
+            .keys()
+            .filter(|listing| matches!(listing, Listing::OpenSettings(_)))
+            .copied()
+            .collect();
+        for listing in open {
+            self.relist(listing);
         }
     }
 
@@ -391,12 +429,13 @@ impl Graph {
     }
 
     pub(crate) fn refer(&mut self, block: Uuid, references: Vec<Uuid>) {
-        if let Some(node) = self.nodes.get_mut(&block)
-            && node.references != references
-        {
-            node.references.clone_from(&references);
-            self.revision += 1;
-            self.relist(Listing::References(block));
+        if let Some(node) = self.nodes.get_mut(&block) {
+            let all = with_described(references.clone(), &node.metadata);
+            if node.references != all {
+                node.references = all;
+                self.revision += 1;
+                self.relist(Listing::References(block));
+            }
         }
         self.placed(block, &references);
         self.referenced.insert(block, references);
@@ -420,7 +459,7 @@ impl Graph {
             node.metadata.derived.clone_from(derived);
         }
         if let Some(references) = self.referenced.get(&node.id) {
-            node.references.clone_from(references);
+            node.references = with_described(references.clone(), &node.metadata);
         }
         if self
             .nodes
@@ -494,7 +533,7 @@ impl Graph {
             Query::Children(parent) => self.with_parent(BlockParent::Block(parent)),
             Query::References(block) => {
                 return self.nodes.get(&block).map_or_else(Vec::new, |node| {
-                    node.references
+                    node.contents()
                         .iter()
                         .filter_map(|reference| self.nodes.get(reference).cloned())
                         .collect()
@@ -508,6 +547,15 @@ impl Graph {
                 .collect(),
             Query::Parents(block) => return self.ancestors(block),
             Query::Block(block) => return self.nodes.get(&block).cloned().into_iter().collect(),
+            Query::OpenSettings(block) => self
+                .listings
+                .get(&Listing::OpenSettings(block))
+                .into_iter()
+                .flat_map(|listed| listed.members.iter())
+                .filter_map(|block| self.nodes.get(block))
+                .filter(|node| node.access.can_view())
+                .cloned()
+                .collect(),
             Query::Subtree(root) => self
                 .subtree(root)
                 .into_iter()
@@ -657,7 +705,7 @@ fn member(listing: Listing, node: &Node, nodes: &HashMap<Uuid, Node>) -> Option<
         Listing::References(block) => nodes
             .get(&block)
             .map(|referrer| referrer.references.contains(&node.id)),
-        Listing::Shared => None,
+        Listing::Shared | Listing::OpenSettings(_) => None,
     }
 }
 

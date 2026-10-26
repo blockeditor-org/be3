@@ -311,6 +311,9 @@ For local browser rasterization, install the optional runtime once:
     export BE3_PLAYWRIGHT_PYTHON=~/.cache/be3/browser-rasterizer/bin/python
     ./scripts/buck run //crates/local-tools:bin -- rasterize snapshots/be-server.portal_login_phone.browser.paint out.png
 
+Setting `BE3_CHROME` to a Chrome or Chromium executable uses that browser instead of
+Playwright's download, which is what CI does with the runner's Google Chrome.
+
 `local-tools` builds the browser rasterizer only for browser inputs. During CI previews,
 that binary is built by the same buck2 invocation as the other verification tools.
 The runtime blocks all uncaptured network requests, waits for fonts and images, disables

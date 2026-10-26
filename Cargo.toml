@@ -126,6 +126,7 @@ members = [
     "crates/editors/workspace-index",
     "crates/editors/workspace-ui",
     "crates/editors/workspace-ui/types",
+    "crates/fault-relay",
     "crates/first-party-types",
     "crates/fix-rust-source",
     "crates/geometry",
@@ -288,6 +289,20 @@ debug-assertions = false
 overflow-checks = false
 
 [profile.dev.package.universal-hash]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false
+
+# The server hashes every password it registers or checks with Argon2, which
+# unoptimised took half a second: most of what starting a test's server and
+# account cost, paid by every block-app and app test.
+
+[profile.dev.package.argon2]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false
+
+[profile.dev.package.blake2]
 opt-level = 2
 debug-assertions = false
 overflow-checks = false

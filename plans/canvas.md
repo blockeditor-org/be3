@@ -186,12 +186,13 @@ can change freely until step 8.
 ## 5. As quick to open as a URL
 
 - Visiting the web app with no account opens a blank canvas at once, kept in a
-  local-only workspace in the browser (IndexedDB; see `plans/public_release.md`,
-  Web offline). Local-only workspaces are permanent, not a testing aid.
+  local-only workspace in the browser (its origin private file system; see
+  `plans/public_release.md`, Web offline). Local-only workspaces are permanent, not a testing aid.
 - Signing in later can move the canvas into a remote workspace and share it by
   link.
 - Load only the canvas plugin to start, and cache the app so it opens offline
-  and installs to a home screen.
+  and installs to a home screen. Done: the service worker that opens it
+  offline (`crates/block-app/web/sw.js`).
 - A cold-start target on a mid-range phone, measured in CI. **(ask)** the
   target.
 

@@ -726,6 +726,7 @@ name = "be-block"
 version = "0.1.0"
 dependencies = [
  "be-commit",
+ "be-graph",
  "be-model",
  "be-store",
  "memchr",
@@ -764,6 +765,7 @@ dependencies = [
  "text-block-types",
  "tokio",
  "uuid",
+ "wasi-threads",
  "workspace-ui-types",
 ]
 
@@ -780,6 +782,7 @@ dependencies = [
  "be-store",
  "build-id",
  "counter-types",
+ "fault-relay",
  "futures-channel",
  "futures-util",
  "httparse",
@@ -787,11 +790,15 @@ dependencies = [
  "js-sys",
  "rusqlite",
  "rustls",
+ "serde",
+ "serde_bytes",
+ "sqlite-schema",
  "text-block-types",
  "tokio",
  "tokio-rustls",
  "tokio-tungstenite",
  "uuid",
+ "wasi-threads",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
@@ -991,6 +998,7 @@ name = "be-server"
 version = "0.1.0"
 dependencies = [
  "argon2",
+ "be-block",
  "be-commit",
  "be-graph",
  "be-keys",
@@ -1093,6 +1101,7 @@ dependencies = [
  "pollster",
  "tokio",
  "uuid",
+ "wasi-threads",
 ]
 
 [[package]]
@@ -1383,6 +1392,7 @@ name = "beui-platform-web"
 version = "0.1.0"
 dependencies = [
  "beui-core",
+ "futures-util",
  "js-sys",
  "wasm-bindgen",
  "wasm-bindgen-futures",
@@ -1607,6 +1617,7 @@ dependencies = [
  "counter-types",
  "database-types",
  "directories-next",
+ "fault-relay",
  "first-party-types",
  "futures-util",
  "host-types",
@@ -3420,6 +3431,14 @@ name = "fastrand"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "da7c62ceae207dd37ea5b845da6a0696c799f85e97da1ab5b7910be3c1c80223"
+
+[[package]]
+name = "fault-relay"
+version = "0.1.0"
+dependencies = [
+ "be-protocol",
+ "tokio",
+]
 
 [[package]]
 name = "fax"

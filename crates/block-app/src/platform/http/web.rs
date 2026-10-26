@@ -42,8 +42,6 @@ async fn fetching(
     headers: Vec<(&'static str, String)>,
     signal: Option<web_sys::AbortSignal>,
 ) -> Result<Vec<u8>, String> {
-    let window = web_sys::window().ok_or("no browser window is available")?;
-
     let js_headers = web_sys::Headers::new()
         .map_err(|error| format!("failed to build request headers: {}", describe(&error)))?;
     for (key, value) in &headers {
@@ -64,7 +62,14 @@ async fn fetching(
 
     let request = web_sys::Request::new_with_str_and_init(&url, &options)
         .map_err(|error| format!("invalid URL {url}: {}", describe(&error)))?;
-    let response = JsFuture::from(window.fetch_with_request(&request))
+    let global = js_sys::global();
+    let fetched = match global.dyn_ref::<web_sys::Window>() {
+        Some(window) => window.fetch_with_request(&request),
+        None => global
+            .unchecked_into::<web_sys::WorkerGlobalScope>()
+            .fetch_with_request(&request),
+    };
+    let response = JsFuture::from(fetched)
         .await
         .map_err(|error| format!("request failed: {}", describe(&error)))?;
     let response: web_sys::Response = response

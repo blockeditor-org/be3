@@ -26,6 +26,9 @@ interface blocks {
         backrefs(block-id),
         parents(block-id),
         block(block-id),
+        /// The nearest kind of each type, above the block, that is open to
+        /// anyone who views a block inside its owner.
+        open-settings(block-id),
     }
 
     /// Metadata keyed by the uuid of its kind, each value its encoded bytes.
@@ -46,6 +49,8 @@ interface blocks {
         metadata: block-metadata,
         locked: bool,
         deleted: bool,
+        /// The block has a grant of its own to an account.
+        sets-access: bool,
     }
 
     enum artifact-action {
@@ -56,8 +61,8 @@ interface blocks {
     record artifact-state {
         block-id: block-id,
         source-type: uuid,
-        source: option<block-id>,
-        summary: string,
+        source: block-id,
+        summary: option<string>,
         error: option<string>,
         regenerating: bool,
     }

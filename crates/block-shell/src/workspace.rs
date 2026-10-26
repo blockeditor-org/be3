@@ -1,6 +1,7 @@
 use block_editor_beui::be_block::profile::RECENTS;
 use block_editor_beui::be_block::{
-    BlockContent, BlockMetadata, FILES_EDITOR, Recents, VIEW_EDITOR,
+    BlockContent, BlockMetadata, FILES_EDITOR, Home, PREFERRED_EDITOR, Recents, VIEW_EDITOR,
+    WORKSPACE_TYPE,
 };
 use block_editor_beui::linux_desktop;
 use settings_types::EditorSettings;
@@ -97,6 +98,7 @@ pub struct Workspace {
     desk: Memo<kept::Desk>,
     held: Signal<bool>,
     panels: Signal<Vec<HostPanel>>,
+    landing_for: Signal<Option<Uuid>>,
     default_editors: Memo<EditorSettings>,
 }
 
@@ -163,7 +165,11 @@ impl Workspace {
             desk,
             held,
             panels,
+            landing_for: create_signal(None),
         };
+        create_effect(move || {
+            workspace.open_landing();
+        });
         let shows = workspace.editor.pushed(Pushed::Shows);
         create_effect(move || {
             shows.get();
@@ -439,11 +445,39 @@ impl Workspace {
             self.show_panel(panel);
         }
         for request in self.host().take_show_requests() {
+            let landing = request.block_type == WORKSPACE_TYPE && request.editor.is_none();
+            self.landing_for.set(landing.then_some(request.block_id));
             self.open(
                 TabItem::new(request.block_id, request.block_type).edited_with(request.editor),
                 request.via,
             );
         }
+    }
+
+    pub(crate) fn templates_for(&self, parent: BlockParent) -> Vec<Uuid> {
+        let Some(block) = parent.block().or_else(|| self.my_files()) else {
+            return Vec::new();
+        };
+        self.editor
+            .resolved_settings::<Home>(block)
+            .with(|home| home.value().templates())
+    }
+
+    fn open_landing(&self) {
+        let Some(owner) = self.landing_for.get() else {
+            return;
+        };
+        let home = self.editor.resolved_settings::<Home>(owner);
+        let Some(landing) = home.with(|home| home.value().landing.map(|landing| landing.0)) else {
+            return;
+        };
+        let Some(info) = self.info(landing).filter(|info| info.access.can_view()) else {
+            return;
+        };
+        untrack(|| {
+            self.landing_for.set(None);
+            self.open(TabItem::new(landing, info.block_type), Some(owner));
+        });
     }
 
     pub(crate) fn open_dialog(&self, dialog: OpenDialog) {
@@ -576,11 +610,7 @@ impl Workspace {
         self.share.set(Some(share));
     }
 
-    fn share_listed(
-        &self,
-        ask: u64,
-        listing: Result<Vec<block_editor_beui::AccessGrant>, Failure>,
-    ) {
+    fn share_listed(&self, ask: u64, listing: Result<block_editor_beui::AccessListing, Failure>) {
         let Some(mut share) = self.share.get_untracked() else {
             return;
         };
@@ -592,13 +622,13 @@ impl Workspace {
     }
 
     pub(crate) fn my_files(&self) -> Option<Uuid> {
-        let account = self.host().account_id();
+        let host = self.host();
+        let mine = block_editor_beui::be_block::my_files(host.organization_id(), host.account_id());
         self.top()
             .0
             .into_iter()
-            .filter(|block| block_editor_beui::sections::is_my_files(block, account))
-            .map(|block| block.id)
-            .min()
+            .any(|block| block.id == mine && block_editor_beui::sections::is_workspace(&block))
+            .then_some(mine)
     }
 
     fn top(&self) -> (Vec<BlockInfo>, Vec<BlockInfo>) {
@@ -640,6 +670,7 @@ impl Workspace {
             })
             .collect();
         Graph {
+            organization: self.host().organization_id(),
             account: self.host().account_id(),
             roots,
             shared,
@@ -729,11 +760,15 @@ impl Workspace {
         let Some(mut held) = self.pick(pick) else {
             return;
         };
-        if let PickAction::Import = action {
+        if let PickAction::Import | PickAction::CopyTemplate(_) = action {
             if held.importing.is_none() {
                 let ask = self.ask_number();
                 let workspace = *self;
-                let asked = self.host().import_blocks(held.import_parent());
+                let parent = held.import_parent();
+                let asked = match action {
+                    PickAction::CopyTemplate(template) => self.host().copy_blocks(template, parent),
+                    _ => self.host().import_blocks(parent),
+                };
                 self.editor.then(asked, move |imported| {
                     if let Some(held) = workspace.pick(pick)
                         && held.importing == Some(ask)
@@ -1155,6 +1190,16 @@ impl Workspace {
                     .filter(|editor| !editor.is_nil())
             })
             .or_else(|| {
+                self.info(item.id)?
+                    .metadata
+                    .get(&PREFERRED_EDITOR)
+                    .filter(|editor| {
+                        types
+                            .editor(*editor)
+                            .is_some_and(|entry| entry.edits(item.block_type))
+                    })
+            })
+            .or_else(|| {
                 self.default_editors
                     .with(|defaults| defaults.default_editor(item.block_type))
                     .filter(|editor| {
@@ -1250,9 +1295,13 @@ impl Workspace {
         self.info(id).is_none_or(|info| info.access.can_edit())
     }
 
+    pub(crate) fn can_manage(&self, id: Uuid) -> bool {
+        self.info(id).is_none_or(|info| info.access.can_manage())
+    }
+
     pub(crate) fn ceiling(&self, id: Uuid) -> AccessLevel {
         let Some(info) = self.info(id) else {
-            return AccessLevel::Edit;
+            return AccessLevel::Manage;
         };
         match info.is_artifact() {
             true => info.access.min(AccessLevel::View),
@@ -1266,7 +1315,8 @@ impl Workspace {
             Some(AccessLevel::None) => AccessLevel::None.min(ceiling),
             Some(AccessLevel::KnowExists) => AccessLevel::KnowExists.min(ceiling),
             Some(AccessLevel::View) => AccessLevel::View.min(ceiling),
-            Some(AccessLevel::Edit) | None => ceiling,
+            Some(AccessLevel::Edit) => AccessLevel::Edit.min(ceiling),
+            Some(AccessLevel::Manage) | None => ceiling,
         }
     }
 

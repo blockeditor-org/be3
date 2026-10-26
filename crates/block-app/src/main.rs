@@ -23,6 +23,7 @@ mod members;
 mod notices;
 #[cfg(target_os = "linux")]
 mod notifications;
+mod offline_choice;
 mod panic_guard;
 mod password;
 mod performance;
@@ -45,14 +46,13 @@ mod wifi;
 use std::{
     collections::{HashMap, HashSet},
     error::Error,
+    io,
+    path::PathBuf,
     rc::Rc,
 };
 
 #[cfg(not(target_arch = "wasm32"))]
-use std::{
-    io,
-    path::{Path, PathBuf},
-};
+use std::path::Path;
 
 use accounts::{AccountError, Session};
 use app_state::{AppStateStore, SavedAccount, ServerLocation};
@@ -93,6 +93,9 @@ fn run_options() -> beui::RunOptions {
         ..Default::default()
     }
 }
+
+#[cfg(target_arch = "wasm32")]
+const WEB_DATA_DIR: &str = "/block";
 
 #[cfg(not(target_arch = "wasm32"))]
 fn storage_dir() -> Option<PathBuf> {
@@ -189,9 +192,7 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
         location.replace(&page.href())?;
     }
     let mut layers: Vec<Box<dyn beui::Layer>> = Vec::new();
-    if page.search_params().has("automation") {
-        let inbox = beui::drive::Inbox::default();
-        AUTOMATION.with(|automation| *automation.borrow_mut() = Some(inbox.clone()));
+    if let Some(inbox) = automation()? {
         layers.push(Box::new(beui::drive::Drive::new(inbox)));
     }
     beui::run_web(
@@ -212,15 +213,29 @@ thread_local! {
 }
 
 #[cfg(target_arch = "wasm32")]
+fn automation() -> Result<Option<beui::drive::Inbox>, wasm_bindgen::JsValue> {
+    let location = web_sys::window()
+        .map(|window| window.location())
+        .ok_or("no browser window is available")?;
+    if !web_sys::Url::new(&location.href()?)?
+        .search_params()
+        .has("automation")
+    {
+        return Ok(None);
+    }
+    Ok(Some(AUTOMATION.with(|automation| {
+        automation.borrow_mut().get_or_insert_default().clone()
+    })))
+}
+
+#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen::prelude::wasm_bindgen]
 pub async fn automate(
     words: Vec<String>,
     timeout_milliseconds: i32,
 ) -> Result<String, wasm_bindgen::JsValue> {
     use wasm_bindgen::JsCast;
-    let inbox = AUTOMATION
-        .with(|automation| automation.borrow().clone())
-        .ok_or("the page was not opened with ?automation")?;
+    let inbox = automation()?.ok_or("the page was not opened with ?automation")?;
     let answered = beui::drive::ask(&inbox, words);
     let canceller = answered.canceller();
     let late = wasm_bindgen::closure::Closure::once_into_js(move || {
@@ -341,6 +356,15 @@ impl beui::App for Shell {
         if context.hurried() {
             be::seal_owed();
         }
+        if context.input(|input| {
+            input
+                .events
+                .iter()
+                .any(|event| matches!(event, beui::Event::Focus(true)))
+        }) {
+            be::retry_now();
+            self.app.retry_organizations();
+        }
         wayland::before(context, rect, &mut self.document);
         self.app.touched = self
             .document
@@ -420,6 +444,15 @@ impl beui::App for Shell {
         self.app.close_requested()
     }
 
+    fn lifecycle(&mut self, change: beui::Lifecycle) {
+        match change {
+            beui::Lifecycle::Background => be::backgrounded(),
+            beui::Lifecycle::Foreground
+            | beui::Lifecycle::Focused
+            | beui::Lifecycle::NetworkChanged => be::retry_now(),
+        }
+    }
+
     fn exiting(&mut self) {
         wayland::exiting();
         plugin_host::exiting();
@@ -432,7 +465,7 @@ impl beui::App for Shell {
             self.app.desktop = None;
         }
         be::flush();
-        be::stop();
+        be::stop_and_wait();
     }
 }
 
@@ -454,6 +487,8 @@ struct BlockApp {
     joining: Option<Joining>,
     organizations_loaded: bool,
     organizations_load_failed: bool,
+    organizations_cached: bool,
+    be_connected: bool,
     resumed: bool,
     warmed: bool,
     plugins_in_use: Vec<String>,
@@ -507,12 +542,13 @@ struct BlockApp {
     pending_transfers: Vec<PendingTransfer>,
     pending_copies: Vec<PendingCopy>,
     about_open: bool,
+    unsent_open: bool,
+    discarding_unsent: Option<Uuid>,
     programs: programs::Programs,
     app_menu: Option<ui::AppMenuView>,
     pending_destructive_action: Option<PendingDestructiveAction>,
     leaving: Option<Uuid>,
     allow_close: bool,
-    #[cfg(not(target_arch = "wasm32"))]
     data_dir: PathBuf,
     #[cfg(not(target_arch = "wasm32"))]
     embedded_server: Option<platform::EmbeddedServer>,
@@ -567,6 +603,7 @@ enum OrganizationOperation {
 
 enum OrganizationResult {
     Loaded(Vec<Organization>, accounts::Keys),
+    Cached(Vec<Organization>),
     Created(Organization),
     Invitation(OrganizationInvitation),
     Joined(Uuid),
@@ -613,7 +650,7 @@ struct PendingCopy {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-const CACHES: [&str; 2] = ["be-objects", "plugin-cache"];
+const CACHES: [&str; 1] = ["plugin-cache"];
 
 #[cfg(not(target_arch = "wasm32"))]
 fn forget_caches_of_other_builds(data_dir: &Path) -> io::Result<()> {
@@ -658,8 +695,12 @@ impl BlockApp {
 
     #[cfg(target_arch = "wasm32")]
     fn new() -> Result<Self, Box<dyn Error + Send + Sync>> {
-        let app_state = AppStateStore::open()?;
-        Self::with_state(app_state, String::new())
+        let data_dir = PathBuf::from(WEB_DATA_DIR);
+        std::fs::create_dir_all(&data_dir)?;
+        let app_state = AppStateStore::open(data_dir.join("app.sqlite3"))?;
+        let mut app = Self::with_state(app_state, String::new())?;
+        app.data_dir = data_dir;
+        Ok(app)
     }
 
     fn with_state(
@@ -714,6 +755,8 @@ impl BlockApp {
             joining: None,
             organizations_loaded: false,
             organizations_load_failed: false,
+            organizations_cached: false,
+            be_connected: false,
             resumed: false,
             warmed: false,
             plugins_in_use: Vec::new(),
@@ -761,12 +804,13 @@ impl BlockApp {
             pending_transfers: Vec::new(),
             pending_copies: Vec::new(),
             about_open: false,
+            unsent_open: false,
+            discarding_unsent: None,
             programs: programs::Programs::default(),
             app_menu: None,
             pending_destructive_action: None,
             leaving: None,
             allow_close: false,
-            #[cfg(not(target_arch = "wasm32"))]
             data_dir: PathBuf::new(),
             #[cfg(not(target_arch = "wasm32"))]
             embedded_server: None,
@@ -1221,6 +1265,8 @@ impl BlockApp {
         let url = self.server_url.clone();
         let token = self.account.token.clone();
         let me = self.me();
+        let cache = self.workspace_cache();
+        let account = self.account.id;
         let receiver = platform::spawn_request(async move {
             let me = || {
                 me.clone().ok_or_else(|| AccountError {
@@ -1230,9 +1276,25 @@ impl BlockApp {
             };
             match operation {
                 OrganizationOperation::Load => {
-                    let organizations = accounts::organizations(url.clone(), token.clone()).await?;
-                    let keys = accounts::keys(url, token).await?;
-                    Ok(OrganizationResult::Loaded(organizations, keys))
+                    match accounts::organizations(url.clone(), token.clone()).await {
+                        Ok(organizations) => {
+                            if let Some(cache) = &cache {
+                                let _ = cache.set_workspaces(&url, account, &organizations);
+                            }
+                            let keys = accounts::keys(url, token).await?;
+                            Ok(OrganizationResult::Loaded(organizations, keys))
+                        }
+                        Err(error) if !error.invalid_token => {
+                            let cached = cache
+                                .and_then(|cache| cache.workspaces(&url, account).ok())
+                                .unwrap_or_default();
+                            match cached.is_empty() {
+                                true => Err(error),
+                                false => Ok(OrganizationResult::Cached(cached)),
+                            }
+                        }
+                        Err(error) => Err(error),
+                    }
                 }
                 OrganizationOperation::Create(name) => {
                     accounts::create_organization(url, token, name)
@@ -1291,10 +1353,30 @@ impl BlockApp {
         };
         self.pending_organization_request = None;
         match result {
+            Ok(OrganizationResult::Cached(organizations)) => {
+                self.organizations = organizations;
+                self.organizations_loaded = true;
+                self.organizations_load_failed = false;
+                self.organizations_cached = true;
+                if self.organization.is_some() || self.joining.is_some() {
+                    return;
+                }
+                if let Some(last_organization_id) = self.account.last_organization_id
+                    && let Some(organization) = self
+                        .organizations
+                        .iter()
+                        .find(|organization| organization.id == last_organization_id)
+                        .cloned()
+                {
+                    self.open_organization(organization);
+                }
+                self.open_any_organization();
+            }
             Ok(OrganizationResult::Loaded(organizations, keys)) => {
                 self.organizations = organizations;
                 self.organizations_loaded = true;
                 self.organizations_load_failed = false;
+                self.organizations_cached = false;
                 self.keys.loaded(keys);
                 if self.keys.needs_recovery() {
                     if self.dev_workspace {
@@ -1520,6 +1602,7 @@ impl BlockApp {
         self.dynamic_artifact_settings.clear();
         self.dynamic_artifact_settings_open = None;
         self.root_settings = RootSettings::new(self.root_settings.shell());
+        offline_choice::forget();
         self.choosing_session = false;
         self.shell = None;
         self.input.set_layers(Default::default());
@@ -1569,6 +1652,29 @@ impl BlockApp {
         self.identity.is_none() || self.keys.needs_unlock(self.identity)
     }
 
+    fn workspace_cache(&self) -> Option<be_client::RefsDb> {
+        be::refs_in(&self.data_dir).ok()
+    }
+
+    fn retry_organizations(&mut self) {
+        if self.pending_organization_request.is_some() || self.reauth.is_some() {
+            return;
+        }
+        if self.organizations_load_failed {
+            self.organizations_load_failed = false;
+        } else if self.organizations_cached {
+            self.begin_organization_request(OrganizationOperation::Load);
+        }
+    }
+
+    fn notice_reconnect(&mut self) {
+        let connected = be::status().connected;
+        if connected && !self.be_connected {
+            self.retry_organizations();
+        }
+        self.be_connected = connected;
+    }
+
     fn load_organizations_if_needed(&mut self) {
         if !self.organizations_loaded
             && !self.organizations_load_failed
@@ -1599,6 +1705,8 @@ impl BlockApp {
         self.dynamic_artifact_settings_open = None;
         self.pending_transfers.clear();
         self.about_open = false;
+        self.unsent_open = false;
+        self.discarding_unsent = None;
         self.app_menu = None;
         self.pending_destructive_action = None;
         self.allow_close = false;
@@ -1607,6 +1715,7 @@ impl BlockApp {
         self.resumed = false;
         self.organizations_loaded = false;
         self.organizations_load_failed = false;
+        self.organizations_cached = false;
         self.pending_organization_request = None;
         self.organization_error = None;
         self.reauth = None;
@@ -1617,6 +1726,7 @@ impl BlockApp {
         self.contacts.close();
         self.members.close();
         self.root_settings = RootSettings::new(self.root_settings.shell());
+        offline_choice::forget();
         self.choosing_session = false;
         self.shell = None;
         self.input.set_layers(Default::default());
@@ -1636,8 +1746,7 @@ impl BlockApp {
     }
 
     fn close_requested(&mut self) -> bool {
-        be::flush();
-        if self.allow_close || be::status().unsealed == 0 {
+        if be::flush() == 0 || self.allow_close {
             return true;
         }
         self.pending_destructive_action = Some(PendingDestructiveAction::Close);
@@ -2124,7 +2233,7 @@ impl BlockApp {
     fn act_on_artifact(&mut self, id: Uuid, action: ArtifactAction) {
         match action {
             ArtifactAction::Regenerate => {
-                let data = artifact_of(id).map(|artifact| artifact.data);
+                let data = artifact_of(id).map(|artifact| artifact.settings);
                 if let (Some(data), Some(session)) =
                     (data, self.dynamic_artifact_sessions.get_mut(&id))
                 {
@@ -2373,6 +2482,7 @@ impl BlockApp {
                 let block_type = self.block_type_of(id).unwrap_or_default();
                 match self.registry.artifact_session(
                     descriptor.source_type,
+                    *descriptor.source,
                     id,
                     block_type,
                     self.client_id,
@@ -2383,7 +2493,7 @@ impl BlockApp {
             }
             let status = session
                 .as_mut()
-                .map(|session| session.poll(&self.registry, &descriptor.data));
+                .map(|session| session.poll(&self.registry, &descriptor.settings));
             if let Some(outcome) = session.as_mut().and_then(|session| session.take_outcome()) {
                 match outcome {
                     Ok(()) => {
@@ -2397,17 +2507,16 @@ impl BlockApp {
             let mut state = block_plugin_api::ArtifactState {
                 block_id: id.into_bytes(),
                 source_type: descriptor.source_type.into_bytes(),
-                source: None,
-                summary: String::new(),
+                source: descriptor.source.into_bytes(),
+                summary: None,
                 error: self.dynamic_artifact_errors.get(&id).cloned(),
                 regenerating: session
                     .as_ref()
                     .is_some_and(|session| session.regenerating()),
             };
             match &status {
-                Some(ArtifactStatus::Described { source, summary }) => {
-                    state.source = Some(source.into_bytes());
-                    state.summary = summary.clone();
+                Some(ArtifactStatus::Described(summary)) => {
+                    state.summary = Some(summary.clone());
                 }
                 Some(ArtifactStatus::Failed(error)) => {
                     state.error = Some(error.clone());
@@ -2454,7 +2563,7 @@ impl BlockApp {
         let draft = self
             .dynamic_artifact_settings
             .entry(id)
-            .or_insert_with(|| descriptor.data.clone());
+            .or_insert_with(|| descriptor.settings.clone());
         surfaces::host(
             SurfaceId::ArtifactSettings,
             Some(session.settings_region(&self.registry)),
@@ -2463,7 +2572,7 @@ impl BlockApp {
             *draft = edited;
         }
         let progress = block_plugin_api::SettingsProgress {
-            changed: *draft != descriptor.data,
+            changed: *draft != descriptor.settings,
             summary: session.summary(draft),
         };
         self.editors
@@ -2484,9 +2593,9 @@ impl BlockApp {
         };
         set_artifact(
             id,
-            Some(be_block::ArtifactSource {
-                source_type: descriptor.source_type,
-                data: data.clone(),
+            Some(be_block::Artifact {
+                settings: data.clone(),
+                ..descriptor
             }),
         );
         if let Some(session) = self.dynamic_artifact_sessions.get_mut(&id) {
@@ -2549,8 +2658,9 @@ impl BlockApp {
             AccessLevel::KnowExists => Access::KnowExists,
             AccessLevel::View => Access::View,
             AccessLevel::Edit => Access::Edit,
+            AccessLevel::Manage => Access::Manage,
         };
-        match access == Access::Edit {
+        match access == Access::Manage {
             true => self
                 .editors
                 .with_simulated(|simulated| simulated.remove(&id)),
@@ -2727,6 +2837,7 @@ impl BlockApp {
         self.sync_local_settings();
         self.programs.frame();
         self.sync_be_stack();
+        self.notice_reconnect();
         let ready = self
             .organization
             .as_ref()
@@ -2813,8 +2924,8 @@ impl BlockApp {
             identity,
             display_name: self.account.name.clone(),
             email: self.account.email.clone(),
-            #[cfg(not(target_arch = "wasm32"))]
-            data_dir: self.data_dir.join("be-objects"),
+            data_dir: self.data_dir.clone(),
+            clock: be_client::Clock::real(),
         });
     }
 
@@ -2830,6 +2941,16 @@ impl BlockApp {
     fn sync_local_settings(&mut self) {
         if self.root_settings.loaded() {
             let settings = &self.root_settings;
+            offline_choice::publish(
+                settings,
+                self.client_id,
+                self.organization.as_ref().map(|organization| {
+                    (
+                        organization.id,
+                        organization.kind == be_protocol::OrganizationKind::Company,
+                    )
+                }),
+            );
             self.input
                 .set_layers(settings.layers(InputSettings::CONTENT_TYPE, self.client_id));
             self.display
@@ -3000,7 +3121,7 @@ impl BlockApp {
                 self.invite_link = None;
             }
             UiCommand::SwitchOrganization => {
-                if be::status().unsealed == 0 {
+                if be::flush() == 0 {
                     self.scheduled_organization_list = true;
                 } else {
                     self.pending_destructive_action =
@@ -3008,6 +3129,18 @@ impl BlockApp {
                 }
             }
             UiCommand::About(open) => self.about_open = open,
+            UiCommand::Unsent(open) => {
+                self.unsent_open = open;
+                self.discarding_unsent = None;
+            }
+            UiCommand::RestoreUnsent(block) => be::restore_unsent(block),
+            UiCommand::DiscardUnsent(block) => self.discarding_unsent = Some(block),
+            UiCommand::ConfirmDiscardUnsent => {
+                if let Some(block) = self.discarding_unsent.take() {
+                    be::discard_unsent(block);
+                }
+            }
+            UiCommand::CancelDiscardUnsent => self.discarding_unsent = None,
             UiCommand::AppMenu(false) => self.app_menu = None,
             UiCommand::AppMenu(true) => self.open_app_menu(None),
             UiCommand::DismissToast(id) => notices::dismiss(id),
@@ -3149,9 +3282,27 @@ impl BlockApp {
             (None, true, Some(_)) => ui::Screen::Organization,
         };
         let be_status = be::status();
-        let changes_saved = match screen {
-            ui::Screen::Organization => be_status.unsealed == 0,
-            _ => true,
+        let sync = match screen {
+            ui::Screen::Organization => sync_state(&be_status),
+            _ => ui::SyncState::Saved,
+        };
+        let listed = matches!(screen, ui::Screen::Accounts | ui::Screen::Organizations);
+        let cache = listed.then(|| self.workspace_cache()).flatten();
+        let companies = |account: &SavedAccount| -> Vec<String> {
+            let Some(cache) = &cache else {
+                return Vec::new();
+            };
+            let url = match &account.server {
+                ServerLocation::Local => self.local_server_url.clone(),
+                ServerLocation::Remote(url) => url.clone(),
+            };
+            cache
+                .workspaces(&url, account.id)
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|organization| organization.kind == be_protocol::OrganizationKind::Company)
+                .map(|organization| organization.name)
+                .collect()
         };
         let accounts: Vec<_> = self
             .accounts
@@ -3161,6 +3312,7 @@ impl BlockApp {
                     account,
                     account.server == self.account.server && account.id == self.account.id,
                 )
+                .in_companies(companies(account))
             })
             .collect();
         let organization_name = self
@@ -3173,7 +3325,7 @@ impl BlockApp {
             error: ui::ErrorView {
                 message: self.error.clone().unwrap_or_default(),
                 pending: self.pending_error_action,
-                unsaved: be_status.unsealed,
+                unsaved: be_status.unsaved + be_status.kept,
             },
             accounts,
             account_error: self.account_error.clone(),
@@ -3190,7 +3342,7 @@ impl BlockApp {
                     .then(|| self.account_error.clone())
                     .flatten(),
             },
-            account: ui::AccountRow::of(&self.account, true),
+            account: ui::AccountRow::of(&self.account, true).in_companies(companies(&self.account)),
             recovery: self.keys.recovery_view(),
             unlock: self.keys.unlock_view(&self.account.name),
             pairing: match screen {
@@ -3233,7 +3385,9 @@ impl BlockApp {
                 error: reauth.error.clone(),
             }),
             status: ui::StatusView {
-                changes_saved,
+                sync,
+                unsaved: be_status.unsaved > 0,
+                unsent: be_status.unsent,
                 saves: be_status.saves,
                 organization: organization_name.clone(),
                 signed_in_as: format!("Signed in as {}", self.account.name),
@@ -3302,6 +3456,17 @@ impl BlockApp {
                 link: self.invite_link.clone(),
             }),
             about: self.about_open,
+            unsent: self.unsent_open.then(|| ui::UnsentView {
+                rows: be::unsent()
+                    .into_iter()
+                    .map(|unsent| ui::UnsentRow {
+                        block: unsent.block,
+                        name: unsent.name.unwrap_or_else(|| "Untitled".to_owned()),
+                        offerable: unsent.offerable,
+                    })
+                    .collect(),
+                discarding: self.discarding_unsent,
+            }),
             app_menu: self.app_menu.clone(),
             discard: self.pending_destructive_action.as_ref().map(discard_view),
             leaving: self.leaving.is_some(),
@@ -3349,7 +3514,6 @@ impl BlockApp {
         }
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
     fn delete_client_database(&mut self) {
         let path = self.data_dir.join("app.sqlite3");
         let _ = std::mem::replace(&mut self.app_state, AppStateStore::placeholder());
@@ -3362,17 +3526,9 @@ impl BlockApp {
         self.restart();
     }
 
-    #[cfg(target_arch = "wasm32")]
-    fn delete_client_database(&mut self) {
-        match AppStateStore::open().and_then(|store| store.clear()) {
-            Ok(()) => self.restart(),
-            Err(error) => self.error = Some(error.to_string()),
-        }
-    }
-
     #[cfg(not(target_arch = "wasm32"))]
     fn delete_server_database(&mut self) {
-        be::stop();
+        be::stop_and_wait();
         self.embedded_server = None;
         let path = self.data_dir.join("server");
         if let Err(error) = std::fs::remove_dir_all(&path)
@@ -3385,15 +3541,27 @@ impl BlockApp {
     }
 }
 
+fn sync_state(status: &be::Status) -> ui::SyncState {
+    match (&status.error, status.connected) {
+        (_, false) if status.connecting => ui::SyncState::Connecting,
+        (_, false) => ui::SyncState::Offline {
+            waiting: status.waiting,
+        },
+        (Some(error), true) => ui::SyncState::Error(error.clone()),
+        (None, true) if status.syncing || status.waiting > 0 => ui::SyncState::Syncing,
+        (None, true) => ui::SyncState::Saved,
+    }
+}
+
 fn discard_view(action: &PendingDestructiveAction) -> ui::DiscardView {
     let (message, button) = match action {
         PendingDestructiveAction::ChooseOrganization => (
-            "Switching organizations will discard changes that have not reached the server."
+            "Switching organizations will discard changes that are not saved on this device yet. Changes waiting to sync are kept."
                 .to_owned(),
             "Discard and switch",
         ),
         PendingDestructiveAction::Close => (
-            "Closing Block Editor will discard changes that have not reached the server."
+            "Closing Block Editor will discard changes that are not saved on this device yet. Changes waiting to sync are kept."
                 .to_owned(),
             "Discard and close",
         ),
@@ -3405,11 +3573,11 @@ fn discard_view(action: &PendingDestructiveAction) -> ui::DiscardView {
     }
 }
 
-fn artifact_of(id: Uuid) -> Option<be_block::ArtifactSource> {
+fn artifact_of(id: Uuid) -> Option<be_block::Artifact> {
     be::node(id)?.metadata.get(&be_block::ARTIFACT)
 }
 
-fn set_artifact(id: Uuid, artifact: Option<be_block::ArtifactSource>) {
+fn set_artifact(id: Uuid, artifact: Option<be_block::Artifact>) {
     be::define(id, vec![be_block::ARTIFACT.definition(artifact.as_ref())]);
 }
 

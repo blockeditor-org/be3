@@ -33,7 +33,7 @@ pub fn MenuButton(
     #[prop(default = true)] arrow: Prop<bool>,
     #[prop(default = false)] open: Binding<bool>,
     items: Children<MenuItem>,
-    on_select: Callback<Vec<usize>>,
+    #[prop(default = Callback::default())] on_select: Callback<Vec<usize>>,
 ) -> NodeId {
     let trailing = create_memo(move || match arrow.get() {
         true => Some(ICON_CHEVRON_DOWN),

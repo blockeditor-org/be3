@@ -13,15 +13,19 @@ pub mod input_remapper;
 pub mod input_settings;
 pub mod metadata;
 pub mod model;
+pub mod organization;
 pub mod plain;
 pub mod presence;
 pub mod profile;
+pub mod resolution;
 pub mod setting;
 pub mod settings;
 pub mod settling;
 pub mod streamed;
 pub mod version_control;
+pub mod workspace_settings;
 
+pub use be_graph::ANYONE_INSIDE;
 pub use be_model;
 pub use be_model::{Edit, Item, ObjectId, Touched};
 pub use blob::{Blob, BlobKind, BlobOp};
@@ -30,18 +34,24 @@ pub use display_settings::{DisplaySettings, DisplaySettingsContent, Motion, Them
 pub use input_remapper::{InputRemapper, InputRemapperContent};
 pub use input_settings::{InputSettings, InputSettingsContent};
 pub use metadata::{
-    ARTIFACT, ArtifactSource, BlockMetadata, DELETED_FROM, Definition, DeletedFrom, EXECUTABLE,
-    Entries, ICON, ICON_COLOR, INTRINSIC_NAME, LOCAL_ID, MATERIAL_ICON, MY_FILES, MetaKey, NAME,
-    Origin, ROW_PREFIX, SCHEMA, THUMBHASH, Thumbhash, VIEW_EDITOR,
+    ARTIFACT, Artifact, BlockMetadata, DELETED_FROM, Definition, DeletedFrom, EXECUTABLE, Entries,
+    ICON, ICON_COLOR, INTRINSIC_NAME, LOCAL_ID, MATERIAL_ICON, MY_FILES, MetaKey, NAME, Origin,
+    ROW_PREFIX, SCHEMA, SETTINGS, THUMBHASH, Thumbhash, VIEW_EDITOR,
 };
 pub use model::Root;
+pub use organization::{
+    Allowance, LostAccess, OfflineChoice, OfflinePolicy, OfflineSettings, OfflineSettingsContent,
+    OrganizationPolicies, OrganizationPoliciesContent, SYSTEM_TYPES, WhoMay, is_workspace_type,
+    my_files, my_files_of, organization_settings,
+};
 pub use profile::{
     FILES_EDITOR, LINUX_DESKTOP_EDITOR, RecentBlock, Recents, VIEW_TYPE, WORKSPACE_EDITOR,
     WORKSPACE_TYPE,
 };
 pub use setting::{Layers, Setting, SettingsLayer};
 pub use settings::{
-    Layered, Settings, SettingsContent, SettingsProfile, SettingsProfileContent, layered,
+    Follows, KindRule, KindVisibility, Layered, Resolution, ResolutionLayers, Settings,
+    SettingsContent, SettingsProfile, SettingsProfileContent, SettingsSource, layered,
 };
 pub use settling::{Landed, Settling};
 pub use streamed::{
@@ -50,6 +60,11 @@ pub use streamed::{
 pub use version_control::{
     Checkout, CheckoutConflict, CheckoutContent, ConflictKind, MAIN_BRANCH, Repository,
     RepositoryContent,
+};
+pub use workspace_settings::{
+    EDIT_KINDS, Home, HomeContent, PREFERRED_EDITOR, PREFIXES, PREFIXES_TYPE, PrefixRegistry,
+    PrefixRegistryContent, TAG_COLOR, TAG_DEFINITIONS, TAGGED, TAGS_TYPE, Tag, TagColor,
+    TagContent, Tags, TagsContent, edit_kind_key, normal_prefix,
 };
 
 #[derive(Debug, Eq, PartialEq)]

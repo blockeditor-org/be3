@@ -365,6 +365,12 @@ impl Runner {
         accepted
     }
 
+    pub fn lifecycle(&mut self, change: crate::app::Lifecycle) {
+        if !self.exited {
+            self.contain(|runner| runner.app.lifecycle(change));
+        }
+    }
+
     pub fn exit(&mut self) {
         if !self.exited {
             self.exited = true;

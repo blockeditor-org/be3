@@ -9,7 +9,7 @@ use block_plugin_api::{
 use geometry::{Rect, Vec2};
 use uuid::Uuid;
 
-use crate::{Artifact, ArtifactDescription, EditorHost};
+use crate::{Artifact, EditorHost};
 
 pub trait Plugin: 'static {
     fn open(host: EditorHost) -> Box<dyn Instance>;
@@ -26,7 +26,7 @@ pub trait Instance: std::any::Any {
 
     fn connect_artifact(&mut self, _artifact: Artifact) {}
 
-    fn describe_artifact(&mut self, _data: &[u8]) -> Result<ArtifactDescription, String> {
+    fn describe_artifact(&mut self, _data: &[u8]) -> Result<String, String> {
         Err("this editor does not generate artifacts".into())
     }
 

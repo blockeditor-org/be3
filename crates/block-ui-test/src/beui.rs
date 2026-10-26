@@ -211,7 +211,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             _ => String::new(),
         };
         let artifact = match &adopted {
-            Adopted::Artifacts(artifacts) => Some(artifacts.block_id()),
+            Adopted::Artifacts(artifacts) => Some((artifacts.block_id(), artifacts.source())),
             _ => None,
         };
         let wakes = Arc::new(Wakes::default());
@@ -220,6 +220,8 @@ impl<A: BeuiApp> BeuiTest<A> {
         let mut plugin = HeadlessPlugin::new("block-ui-test", "block-ui-test", "0");
         plugin.adopt::<A>(INSTANCE, adopted);
         let store = ContentStore::new(host.organization_id());
+        let blocks = host.blocks();
+        store.know_elsewhere(move |block| blocks.info(block).is_some());
         let block_type = host.block_type().unwrap_or_default();
         let (account_id, organization_id, client_id) = (
             host.account_id().into_bytes(),
@@ -252,8 +254,9 @@ impl<A: BeuiApp> BeuiTest<A> {
             Kind::Settings => Opening::Artifact(OpenArtifact {
                 instance: INSTANCE,
                 editor: ADOPTED_EDITOR,
-                block_id: artifact.unwrap_or_default().into_bytes(),
+                block_id: artifact.unwrap_or_default().0.into_bytes(),
                 block_type: block_type.into_bytes(),
+                source: artifact.unwrap_or_default().1.into_bytes(),
                 account_id,
                 organization_id,
                 client_id,
@@ -1261,6 +1264,13 @@ impl<A: BeuiApp> BeuiTest<A> {
                         .and_then(|value| block_editor_beui::be_block::be_model::from_cbor(value)),
                 ))
             }
+            _ => None,
+        })
+    }
+
+    pub fn take_definitions(&mut self, key: Uuid) -> Vec<(Uuid, Option<Vec<u8>>)> {
+        self.take_sent_calls(|sent| match sent {
+            Sent::Define(block, defined, value) if *defined == key => Some((*block, value.clone())),
             _ => None,
         })
     }

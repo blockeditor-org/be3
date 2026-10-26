@@ -124,6 +124,7 @@ pub enum Listing {
     Backrefs(Uuid),
     Block(Uuid),
     References(Uuid),
+    OpenSettings(Uuid),
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -142,6 +143,9 @@ pub struct BlockSummary {
     pub scope: Option<Uuid>,
     pub revision: u64,
     pub held: bool,
+    #[serde(default)]
+    pub opens_inside: bool,
+    pub sets_access: bool,
 }
 
 impl BlockSummary {
@@ -160,6 +164,8 @@ impl BlockSummary {
             scope: None,
             revision: 0,
             held: true,
+            opens_inside: false,
+            sets_access: false,
         }
     }
 }
@@ -293,9 +299,24 @@ pub struct AccessEntry {
     pub role: OrganizationRole,
     pub author: bool,
     pub granted: Option<Access>,
+    pub inherited: Access,
     pub effective: Access,
+    pub source: Option<Uuid>,
     pub contact: bool,
     pub waiting: bool,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct AccessList {
+    pub entries: Vec<AccessEntry>,
+    pub company: bool,
+    pub set_inside: u32,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ServerAccount {
+    pub account: Uuid,
+    pub public: [u8; 32],
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -319,6 +340,9 @@ pub enum ErrorCode {
     NotAContact,
     LinkNotFound,
     LastAdministrator,
+    PolicyUnreadable,
+    PolicyRefused,
+    OverQuota,
 }
 
 impl fmt::Display for ErrorCode {
@@ -453,6 +477,7 @@ pub enum ClientMessage {
         parent: BlockParent,
         #[serde(with = "serde_bytes")]
         metadata: Vec<u8>,
+        references: Vec<Uuid>,
         key: Uuid,
         keys: KeySet,
     },
@@ -461,6 +486,7 @@ pub enum ClientMessage {
         block: Uuid,
         #[serde(with = "serde_bytes")]
         metadata: Vec<u8>,
+        references: Vec<Uuid>,
     },
     Publish {
         request: u64,
@@ -511,6 +537,10 @@ pub enum ClientMessage {
         block: Uuid,
     },
     ListReferences {
+        request: u64,
+        block: Uuid,
+    },
+    ListOpenSettings {
         request: u64,
         block: Uuid,
     },
@@ -656,6 +686,9 @@ pub enum ClientMessage {
         request: u64,
         account: Uuid,
     },
+    Ping {
+        request: u64,
+    },
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -712,6 +745,7 @@ impl ClientMessage {
             | Self::ListDeleted { request }
             | Self::ListBackrefs { request, .. }
             | Self::ListReferences { request, .. }
+            | Self::ListOpenSettings { request, .. }
             | Self::Unlist { request, .. }
             | Self::ListHistory { request, .. }
             | Self::PruneHistory { request, .. }
@@ -741,7 +775,8 @@ impl ClientMessage {
             | Self::PinEscrow { request, .. }
             | Self::ListMembers { request }
             | Self::SetRole { request, .. }
-            | Self::RemoveMember { request, .. } => *request,
+            | Self::RemoveMember { request, .. }
+            | Self::Ping { request } => *request,
         }
     }
 }
@@ -796,6 +831,7 @@ pub enum ServerMessage {
         escrows: Vec<EscrowKey>,
         #[serde(with = "serde_bytes")]
         pinned: Vec<u8>,
+        server: ServerAccount,
     },
     Stored {
         request: u64,
@@ -837,7 +873,7 @@ pub enum ServerMessage {
     },
     AccessList {
         request: u64,
-        entries: Vec<AccessEntry>,
+        list: AccessList,
     },
     Session {
         request: u64,
@@ -915,6 +951,9 @@ pub enum ServerMessage {
         request: u64,
         members: Vec<Member>,
     },
+    Pong {
+        request: u64,
+    },
     KeyWorkChanged,
     Contents {
         request: u64,
@@ -953,7 +992,8 @@ impl ServerMessage {
             | Self::AgentCreated { request, .. }
             | Self::Agents { request, .. }
             | Self::KeyWork { request, .. }
-            | Self::Members { request, .. } => Some(*request),
+            | Self::Members { request, .. }
+            | Self::Pong { request } => Some(*request),
             Self::HeadChanged { .. }
             | Self::BlockDeleted { .. }
             | Self::BlockChanged { .. }

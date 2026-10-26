@@ -6,6 +6,7 @@ async fn rename(client: &mut TestClient, block: Uuid, name: &[u8]) {
             request,
             block,
             metadata: name.to_vec(),
+            references: Vec::new(),
         })
         .await;
     assert!(

@@ -54,7 +54,10 @@ impl Opening {
                 existing(&mut open.block_id);
                 open.view_block.iter_mut().for_each(existing);
             }
-            Self::Artifact(open) => existing(&mut open.block_id),
+            Self::Artifact(open) => {
+                existing(&mut open.block_id);
+                existing(&mut open.source);
+            }
             Self::Creation(_) => {}
         }
     }
@@ -79,6 +82,10 @@ impl crate::embed::host_services::Call {
             | Self::MakeContactLink { block, .. } => visit(block),
             Self::ReleaseRevision { preview } => visit(preview),
             Self::ImportBlocks { parent, .. } => location(parent, visit),
+            Self::CopyBlocks { source, parent, .. } => {
+                visit(source);
+                location(parent, visit);
+            }
             Self::PickBlock { filter, .. } => {
                 filter.excluded.iter_mut().for_each(&mut *visit);
                 if let Some(place) = &mut filter.place {
@@ -111,7 +118,8 @@ impl BlockQuery {
             | Self::References(block_id)
             | Self::Backrefs(block_id)
             | Self::Parents(block_id)
-            | Self::Block(block_id) => visit(BlockIdRole::Existing, block_id),
+            | Self::Block(block_id)
+            | Self::OpenSettings(block_id) => visit(BlockIdRole::Existing, block_id),
             Self::Roots | Self::Detached | Self::Shared => {}
         }
     }
@@ -132,8 +140,16 @@ impl BlockInfo {
 impl ArtifactState {
     pub fn visit_block_ids(&mut self, visit: &mut Ids<'_>) {
         visit(BlockIdRole::Existing, &mut self.block_id);
-        if let Some(source) = &mut self.source {
-            visit(BlockIdRole::Existing, source);
+        visit(BlockIdRole::Existing, &mut self.source);
+    }
+}
+
+impl crate::AccessListing {
+    pub fn visit_block_ids(&mut self, visit: &mut Ids<'_>) {
+        for grant in &mut self.grants {
+            if let Some(source) = &mut grant.source {
+                visit(BlockIdRole::Existing, source);
+            }
         }
     }
 }

@@ -104,14 +104,9 @@ interface shell-types {
         pan-drag,
     }
 
-    record artifact-described {
-        source: block-id,
-        summary: string,
-    }
-
     /// What an artifact's settings say it is made from, or why they cannot be read.
     variant artifact-description {
-        described(artifact-described),
+        described(string),
         unreadable(string),
     }
 

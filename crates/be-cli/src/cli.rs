@@ -13,7 +13,9 @@ pub const USAGE: &str = "\
 Usage: be TARGET [VERB] [ARGUMENTS]   or   be COMMAND
 
 TARGET is a block, by the end of its id (`be ls` prints it), its full id or
-its name. A row is named within its database: `be Issues row BE-7K3Q2M`.
+its name. A row is its id, `be BE-7K3Q2M`, found through the prefixes of the
+workspaces this account can see, or named within its database:
+`be Issues row BE-7K3Q2M`.
 
 Commands:
   be ls [TARGET]                      List the workspaces and what is shared with this
@@ -31,6 +33,7 @@ Commands:
 
 Any block:
   ls | info                           Its children, or where it is and who may change it
+  move TARGET                         Move it, and everything inside it, into TARGET
   delete                              Move it, and everything inside it, to Recently Deleted
   download [FILE]                     Write it, and everything inside it, to one file
                                       (NAME.block unless FILE is given) for `be upload`
@@ -61,7 +64,7 @@ A database (or a view of one):
   pull-request EVENT-FILE             Move the rows of this database a GitHub pull
                                       request names
 
-A row (be DATABASE row ROW-ID [VERB]):
+A row (be ROW-ID [VERB], or be DATABASE row ROW-ID [VERB]):
   show                                Its fields and its page (what a bare row id does)
   set [FIELD=VALUE]... [--body TEXT] [--append TEXT]
                                       FIELD+=VALUE adds a link to a relation of several
@@ -227,6 +230,18 @@ pub async fn run<S: ObjectStore>(
         }
         return command(tracker, invocation).await.map(Outcome::Print);
     };
+    if crate::tracker::looks_like_row(target) {
+        let database = tracker.database_of_row(target).await?;
+        let mut arguments = vec![target.clone()];
+        arguments.extend((!invocation.verb.is_empty()).then(|| invocation.verb.clone()));
+        arguments.extend(invocation.arguments.iter().cloned());
+        let row = Invocation {
+            verb: "row".to_owned(),
+            arguments,
+            ..invocation.clone()
+        };
+        return row_verb(tracker, database, &row).await;
+    }
     let entry = tracker.resolve(target).await?;
     if invocation.verb == "row" {
         let database = tracker.database_of(&entry).await?;
@@ -383,7 +398,9 @@ async fn listing<S: ObjectStore>(
         }
         _ => Vec::new(),
     };
-    children.retain(|entry| !pages.contains(&entry.id));
+    children.retain(|entry| {
+        !pages.contains(&entry.id) && !be_block::EDIT_KINDS.contains(&entry.block_type)
+    });
     if json {
         return Ok(Value::Array(children.iter().map(entry_json).collect()).to_string());
     }
@@ -483,6 +500,13 @@ async fn block_verb<S: ObjectStore>(
             "terminal-host needs a live connection; run it as `be TARGET terminal-host`".to_owned(),
         ),
         ("sync", _, _) => sync(tracker, Some(entry.id), invocation).await,
+        ("move", _, _) => {
+            let to = arguments
+                .first()
+                .ok_or_else(|| format!("usage: be {} move TARGET", entry.short))?;
+            let to = tracker.resolve(to).await?;
+            print(tracker.move_block(entry, &to).await?)
+        }
         ("delete", _, _) => print(tracker.delete_block(entry).await?),
         ("download", _, _) => {
             let (top, blocks) = tracker.download(entry).await?;
@@ -638,10 +662,10 @@ async fn block_verb<S: ObjectStore>(
             entry.short,
             entry.kind(),
             match (is_text, database) {
-                (true, _) => "cat, write, append, edit, ls, info, download and delete",
+                (true, _) => "cat, write, append, edit, ls, info, move, download and delete",
                 (false, Some(_)) =>
-                    "rows, row, new, schema, option, add-option, add-column, import, pull-request, ls, info, download and delete",
-                (false, None) => "ls, info, download and delete",
+                    "rows, row, new, schema, option, add-option, add-column, import, pull-request, ls, info, move, download and delete",
+                (false, None) => "ls, info, move, download and delete",
             }
         ) + &format!(", not {verb}")),
     }

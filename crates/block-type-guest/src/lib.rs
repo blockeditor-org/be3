@@ -29,7 +29,7 @@ pub use block_guest_abi as abi;
 pub use block_type_api as api;
 pub use file::{BlobFile, DocumentFile, FileForm};
 pub use record::{NoHistory, Recorder};
-pub use replica::SEAL_INTERVAL;
+pub use replica::{HEARTBEAT_INTERVAL, SEAL_INTERVAL};
 
 use effect::{Answer, Effect, HeadEvent, RequestId};
 use replica::{AnyReplica, Input, Opened, Replica};

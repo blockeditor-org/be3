@@ -106,8 +106,6 @@ fn settle(
 }
 
 impl LocalSettings for DisplaySettings {
-    const NAME: &'static str = "display settings";
-
     fn load(store: &AppStateStore) -> Result<Option<Vec<u8>>, AppStateError> {
         store.display_settings()
     }

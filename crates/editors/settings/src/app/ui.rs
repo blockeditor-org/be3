@@ -2,12 +2,12 @@ use beui::Wrap;
 use block_editor_beui::be_block::settings::{Settings, SettingsProfile};
 use block_editor_beui::be_block::{
     BlockContent, DisplaySettingsContent, InputSettingsContent, LiveEdit, SettingsContent,
-    SettingsProfileContent,
+    SettingsProfileContent, TagsContent, WORKSPACE_TYPE,
 };
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
-    ICON_ARROW_LEFT, ICON_KEYBOARD, ICON_LAYOUT_GRID, ICON_MONITOR, ICON_MONITOR_SMARTPHONE,
-    ICON_PLUS,
+    ICON_ARROW_LEFT, ICON_FOLDER_COG, ICON_KEYBOARD, ICON_LAYOUT_GRID, ICON_MONITOR,
+    ICON_MONITOR_SMARTPHONE, ICON_PLUS, ICON_TAG,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -17,7 +17,9 @@ use block_editor_beui::{BlockParent, BlockQuery, ContentProjection, Editor};
 use settings_types::EditorSettingsContent;
 use uuid::Uuid;
 
+use super::block;
 use super::devices::DevicesTable;
+use super::organization::{OfflineSection, OrganizationSection};
 use super::setup::{DeviceSection, DeviceSetup, DifferencesSection, SetUpDone, SetUpHeading};
 
 const PADDING: f32 = 16.0;
@@ -73,6 +75,7 @@ pub fn SettingsView(editor: Editor) -> NodeId {
     let devices = create_signal(false);
     let here = create_memo(move || !devices.get());
     let away = create_memo(move || devices.get());
+    let own_here = create_memo(move || own.get() && here.get());
     view! {
         <Scroll>
             <Frame padding=PADDING>
@@ -102,6 +105,33 @@ pub fn SettingsView(editor: Editor) -> NodeId {
                             </List>
                         </Section>
                     </Show>
+                    <Show condition={here}>
+                        <Workspaces editor={editor} />
+                    </Show>
+                    <Show condition={own_here}>
+                        <Section
+                            title="Tags"
+                            caption="Your own tags, which only you see. A workspace's tags are in a block's menu in Files."
+                        >
+                            <SettingRow
+                                label="Your tags"
+                                detail="Put them on any block you can edit"
+                                glyph=ICON_TAG
+                                @test_id={"settings.personal-tags"}
+                                on_click={move || {
+                                    if let Some(tags) = editor.personal_tags() {
+                                        editor.host().open_block(tags, TagsContent::CONTENT_TYPE);
+                                    }
+                                }}
+                            />
+                        </Section>
+                    </Show>
+                    <Show condition={here}>
+                        <OfflineSection editor={editor} />
+                    </Show>
+                    <Show condition={here}>
+                        <OrganizationSection editor={editor} />
+                    </Show>
                     <Show condition={away}>
                         <DevicesAndProfiles
                             editor={editor}
@@ -114,6 +144,65 @@ pub fn SettingsView(editor: Editor) -> NodeId {
                 </List>
             </Frame>
         </Scroll>
+    }
+}
+
+#[component]
+fn Workspaces(editor: Editor) -> NodeId {
+    let roots = editor.watch_blocks(BlockQuery::Roots);
+    let blocks = editor.blocks();
+    let account = blocks.account_id();
+    let workspaces = create_memo(move || {
+        let mut found: Vec<Uuid> = roots
+            .get()
+            .into_iter()
+            .flatten()
+            .filter(|info| info.block_type == WORKSPACE_TYPE && info.access.can_view())
+            .map(|info| info.id)
+            .collect();
+        found.sort_by_key(|id| {
+            (
+                editor.blocks().info(*id).and_then(|info| info.author) != Some(account),
+                *id,
+            )
+        });
+        found
+    });
+    let listed = create_memo(move || !workspaces.with(Vec::is_empty));
+    view! {
+        <List spacing=0.0>
+            <Show condition={listed}>
+                <Section
+                    title="Workspaces"
+                    caption="What a workspace sets applies to everything inside it, for everyone who can view it."
+                >
+                    <List spacing=ROW_SPACING>
+                        <ForEach keys={workspaces}>|workspace: Uuid| {
+                            let label = create_memo(move || block::name_of(editor, workspace));
+                            let set = create_memo(move || editor.settings_block(workspace).is_some());
+                            let manages =
+                                create_memo(move || editor.blocks().access(workspace).can_manage());
+                            let detail = create_memo(move || match (set.get(), manages.get()) {
+                                (true, _) => "Has settings of its own".to_owned(),
+                                (false, true) => "Nothing set yet".to_owned(),
+                                (false, false) => "Nothing set, and only its managers set them".to_owned(),
+                            });
+                            let unopenable = create_memo(move || !set.get() && !manages.get());
+                            view! {
+                                <SettingRow
+                                    label={label}
+                                    detail={detail}
+                                    glyph=ICON_FOLDER_COG
+                                    disabled={unopenable}
+                                    @test_id={format!("settings.workspace.{workspace}")}
+                                    on_click={move || block::open_settings_of(editor, workspace)}
+                                />
+                            }
+                        }</ForEach>
+                    </List>
+                </Section>
+            </Show>
+        </List>
     }
 }
 
@@ -300,7 +389,7 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
 }
 
 #[component]
-fn Section(title: &'static str, caption: &'static str, children: Child) -> NodeId {
+pub(super) fn Section(title: &'static str, caption: &'static str, children: Child) -> NodeId {
     let captioned = !caption.is_empty();
     view! {
         <List spacing=SPACING>

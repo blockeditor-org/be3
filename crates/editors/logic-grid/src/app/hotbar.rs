@@ -122,11 +122,15 @@ impl LogicGridEditor {
             self.persist_hotbar();
         }
 
-        let Some(slots) = self
+        let Some(own) = self
             .hotbar_content()
             .and_then(|content| content.read(|hotbar| hotbar.root().slots.to_vec()).ok())
         else {
             return false;
+        };
+        let slots = match own.is_empty() {
+            true => self.default_slots(),
+            false => own,
         };
         if live {
             for compiled in pinned_components(&slots) {
@@ -151,6 +155,22 @@ impl LogicGridEditor {
         }
         self.active_hotbar_folder.clear();
         true
+    }
+
+    fn default_slots(&self) -> Vec<Item<BlockHotbarSlot>> {
+        let Some(editor) = self.store.editor() else {
+            return Vec::new();
+        };
+        let set = editor
+            .kinds_above(editor.block_id())
+            .with_untracked(|kinds| kinds.get(&HotbarContent::CONTENT_TYPE).copied());
+        set.and_then(|set| {
+            editor
+                .content_of::<HotbarContent>(set.block)
+                .read(|hotbar| hotbar.root().slots.to_vec())
+                .ok()
+        })
+        .unwrap_or_default()
     }
 
     fn hotbar_content(&self) -> Option<ContentProjection<HotbarContent>> {
@@ -246,18 +266,23 @@ impl LogicGridEditor {
         self.hotbar = default_hotbar();
         self.active_hotbar_folder.clear();
         self.select_tool();
-        self.persist_hotbar();
+        self.write_hotbar(Vec::new());
     }
 
     pub(super) fn persist_hotbar(&mut self) {
         let slots: Vec<BlockHotbarSlot> = self.hotbar.iter().map(hotbar_slot_to_block).collect();
+        self.write_hotbar(slots);
+    }
+
+    fn write_hotbar(&mut self, slots: Vec<BlockHotbarSlot>) {
+        let slots_empty = slots.is_empty();
         let Some((content, edit)) = self.hotbar_content().and_then(|content| {
             let edit = content
                 .read(|hotbar| hotbar.root().replace_all(slots))
                 .ok()?;
             Some((content, edit))
         }) else {
-            self.hotbar_needs_write = true;
+            self.hotbar_needs_write = !slots_empty;
             return;
         };
         content.operate(edit);
