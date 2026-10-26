@@ -28,6 +28,7 @@ pub enum Incoming {
     FileDrag(FileDrag),
     Time(Instant),
     Window(WindowReport),
+    Controller(super::Controller),
 }
 
 impl Incoming {
@@ -58,6 +59,12 @@ impl Incoming {
 impl From<WindowReport> for Incoming {
     fn from(report: WindowReport) -> Self {
         Self::Window(report)
+    }
+}
+
+impl From<super::Controller> for Incoming {
+    fn from(controller: super::Controller) -> Self {
+        Self::Controller(controller)
     }
 }
 
@@ -132,6 +139,7 @@ impl Intake {
                     produced = true;
                 }
                 Incoming::Window(report) => self.reports.push(report),
+                Incoming::Controller(_) => {}
                 Incoming::Input {
                     units,
                     window,

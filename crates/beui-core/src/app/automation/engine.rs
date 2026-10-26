@@ -89,6 +89,13 @@ Files:
   save FILE [TARGET]        answer the save dialog by writing what it saves to FILE, clicking
                             TARGET first to open it
   dismiss                   cancel the oldest open file or save dialog
+Controllers (a host that shows windows in 3D, such as space):
+  xr HAND pose X Y Z [YAW PITCH]   HAND (left or right) at X, Y, Z metres, its laser turned YAW
+                            degrees left and PITCH up from straight ahead (-Z)
+  xr HAND point TARGET      aim HAND's laser, from where the hand is, at TARGET in the main window
+  xr HAND trigger VALUE / xr HAND squeeze VALUE   pull the trigger or the grip, from 0 to 1
+  xr HAND click TARGET      point at TARGET, then pull and let go of the trigger
+  xr HAND lost              the controller is no longer tracked
 Window (headless only, except focus, blur, leave and close):
   resize WIDTHxHEIGHT[@SCALE]   resize the window, and its scale when given
   resize screen WIDTHxHEIGHT    the screen a fullscreen window fills
@@ -935,6 +942,7 @@ impl Automation {
                 input(frames)
             }
             "focus" | "blur" => input(self.gestures.focus(command == "focus")),
+            "xr" => incoming(controller(arguments, at)?),
             "resize" => {
                 let resize = match argument(0)? {
                     "screen" => Resize::Screen(
@@ -1402,6 +1410,88 @@ fn shown(view: &View<'_>, text: &str) -> bool {
             .any(|line| line.test_ids.iter().any(|named| named == id)),
         None => view.lines.iter().any(|line| line.text.contains(text)),
     }
+}
+
+fn controller(
+    arguments: &[String],
+    at: impl Fn(&str) -> Result<crate::geometry::Pos2, String>,
+) -> Result<Vec<Vec<Incoming>>, String> {
+    use crate::runner::{Controller, Hand, HandPose};
+    let usage = "xr takes HAND pose X Y Z [YAW PITCH], HAND point TARGET, HAND trigger VALUE, \
+                 HAND squeeze VALUE, HAND click TARGET or HAND lost, where HAND is left or right";
+    let word = |index: usize| arguments.get(index).map(String::as_str).ok_or(usage);
+    let number = |index: usize, default: Option<f32>| -> Result<f32, String> {
+        match (arguments.get(index), default) {
+            (Some(text), _) => text
+                .parse::<f32>()
+                .ok()
+                .filter(|value| value.is_finite())
+                .ok_or_else(|| format!("{text} is not a number")),
+            (None, Some(default)) => Ok(default),
+            (None, None) => Err(usage.to_owned()),
+        }
+    };
+    let hand = Hand::named(word(0)?).ok_or(usage)?;
+    let value = |index: usize| {
+        number(index, None).and_then(|value| match (0.0..=1.0).contains(&value) {
+            true => Ok(value),
+            false => Err(format!("{value} is not from 0 to 1")),
+        })
+    };
+    let once = |controller: Controller| vec![vec![Incoming::Controller(controller)]];
+    Ok(match word(1)? {
+        "pose" => {
+            let position = [number(2, None)?, number(3, None)?, number(4, None)?];
+            let (yaw, pitch) = (
+                number(5, Some(0.0))?.to_radians() / 2.0,
+                number(6, Some(0.0))?.to_radians() / 2.0,
+            );
+            let orientation = [
+                yaw.cos() * pitch.sin(),
+                yaw.sin() * pitch.cos(),
+                -yaw.sin() * pitch.sin(),
+                yaw.cos() * pitch.cos(),
+            ];
+            let pose = HandPose {
+                position,
+                orientation,
+            };
+            once(Controller::Pose {
+                hand,
+                aim: pose,
+                grip: pose,
+            })
+        }
+        "point" => once(Controller::Toward {
+            hand,
+            window: crate::window::WindowId::MAIN,
+            at: at(word(2)?)?,
+        }),
+        "trigger" => once(Controller::Trigger {
+            hand,
+            value: value(2)?,
+        }),
+        "squeeze" => once(Controller::Squeeze {
+            hand,
+            value: value(2)?,
+        }),
+        "click" => {
+            let toward = Controller::Toward {
+                hand,
+                window: crate::window::WindowId::MAIN,
+                at: at(word(2)?)?,
+            };
+            [
+                toward,
+                Controller::Trigger { hand, value: 1.0 },
+                Controller::Trigger { hand, value: 0.0 },
+            ]
+            .map(|controller| vec![Incoming::Controller(controller)])
+            .into()
+        }
+        "lost" => once(Controller::Lost { hand }),
+        _ => return Err(usage.to_owned()),
+    })
 }
 
 fn finger(argument: Option<&String>) -> Result<u64, String> {

@@ -5,7 +5,7 @@ fn a_carried_panel_swings_about_the_view_s_up_with_the_head_rolled() {
     let (mut space, now) = space();
     space.head.roll = std::f32::consts::FRAC_PI_2;
     send(&mut space, now, [Input::PointerMoved(centre())]);
-    space.begin_carry(WindowId::MAIN);
+    space.begin_carry(Pointer::Mouse, WindowId::MAIN);
     let in_view = |space: &Space| space.head.rotation().inverse() * main(space).pose.rotation;
     let before = in_view(&space);
     send(

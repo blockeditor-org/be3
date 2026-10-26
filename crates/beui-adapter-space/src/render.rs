@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use beui_core::color::Color32;
 use beui_core::context::WindowOutput;
 use beui_core::drawing::Drawing;
 use beui_core::geometry::{Rect, vec2};
@@ -38,6 +39,36 @@ pub struct PanelFrame {
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
+pub struct Beam {
+    pub start: Vec3,
+    pub end: Vec3,
+    pub hit: bool,
+    pub pressed: bool,
+}
+
+pub const BEAM_WIDTH: f32 = 0.004;
+pub const DOT: f32 = 0.006;
+pub const BEAMS: usize = 2;
+const BEAM: Color32 = Color32::from_rgba_unmultiplied(132, 170, 255, 150);
+const BEAM_PRESSED: Color32 = Color32::from_rgba_unmultiplied(236, 242, 255, 230);
+
+impl Beam {
+    pub fn color(&self) -> Color32 {
+        match self.pressed {
+            true => BEAM_PRESSED,
+            false => BEAM,
+        }
+    }
+
+    pub fn dot(&self, eye: Vec3) -> f32 {
+        match self.hit {
+            true => DOT * self.end.distance(eye).max(0.2),
+            false => 0.0,
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Sight {
     pub view_projection: Mat4,
     pub eye: Vec3,
@@ -66,6 +97,7 @@ pub struct Frame {
     pub right: Vec3,
     pub up: Vec3,
     pub cursor: Option<PanelFrame>,
+    pub beams: Vec<Beam>,
     pub panels: Vec<PanelFrame>,
 }
 
@@ -108,6 +140,7 @@ struct SceneUniform {
     floor: [f32; 4],
     inverse: [[f32; 4]; 4],
     options: [f32; 4],
+    beams: [[f32; 4]; 3 * BEAMS],
 }
 
 #[repr(C)]
@@ -157,6 +190,7 @@ struct Pipelines {
     grid: wgpu::RenderPipeline,
     panel: wgpu::RenderPipeline,
     chrome: wgpu::RenderPipeline,
+    beam: wgpu::RenderPipeline,
     cursor: wgpu::RenderPipeline,
     blit: wgpu::RenderPipeline,
 }
@@ -594,6 +628,20 @@ impl Gpu {
                     blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
                 },
             ),
+            beam: pipeline(
+                device,
+                shader,
+                Stage {
+                    label: "space beam",
+                    vertex: "beam_vertex",
+                    fragment: "beam_fragment",
+                    layouts: &[&self.scene_layout],
+                    format,
+                    samples: SAMPLES,
+                    depth: Some(false),
+                    blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+                },
+            ),
             cursor: pipeline_comparing(
                 device,
                 shader,
@@ -933,6 +981,7 @@ impl Gpu {
             ],
             inverse: sight.view_projection.inverse().to_cols_array_2d(),
             options: [f32::from(u8::from(format.is_srgb())), 0.0, 0.0, 0.0],
+            beams: beams(&frame.beams, sight.eye),
         };
         self.queue
             .write_buffer(&target.scene_uniform, 0, bytemuck::bytes_of(&scene));
@@ -1001,6 +1050,10 @@ impl Gpu {
                 }
             }
         }
+        if !frame.beams.is_empty() {
+            pass.set_pipeline(&pipelines.beam);
+            pass.draw(0..4, 0..2 * BEAMS as u32);
+        }
         if let Some(cursor) = &frame.cursor
             && let Some(drawn) = self.panels.get(&cursor.window)
             && drawn.painted
@@ -1010,4 +1063,14 @@ impl Gpu {
             pass.draw(0..VERTICES, 0..1);
         }
     }
+}
+
+fn beams(beams: &[Beam], eye: Vec3) -> [[f32; 4]; 3 * BEAMS] {
+    let mut out = [[0.0; 4]; 3 * BEAMS];
+    for (index, beam) in beams.iter().take(BEAMS).enumerate() {
+        out[index * 3] = beam.start.extend(BEAM_WIDTH).to_array();
+        out[index * 3 + 1] = beam.end.extend(beam.dot(eye)).to_array();
+        out[index * 3 + 2] = beam.color().to_linear_f32();
+    }
+    out
 }

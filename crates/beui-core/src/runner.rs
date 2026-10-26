@@ -25,7 +25,7 @@ pub mod environment;
 mod host;
 mod intake;
 
-pub use host::{HostView, Hosted, HostedAdapter, WindowHost};
+pub use host::{Controller, Hand, HandPose, HostView, Hosted, HostedAdapter, WindowHost};
 use intake::{Drain, Intake};
 pub use intake::{Incoming, PINCH_SPEED, SCROLL_LINE, SCROLL_PAGE, Units, scrolled};
 

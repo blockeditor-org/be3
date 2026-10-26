@@ -55,5 +55,5 @@ fn dragging_a_corner_handle_scales_the_panel_and_keeps_its_points() {
     let released = send(&mut space, now, [button(to, false)]);
     assert_eq!(delivered(&released), []);
     assert_eq!(placed(&released).len(), 1, "the new place is reported");
-    assert_eq!(space.chrome.gesture, None);
+    assert_eq!(space.mouse.gesture, None);
 }

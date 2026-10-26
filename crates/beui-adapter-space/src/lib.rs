@@ -4,6 +4,7 @@ pub mod cursor;
 pub mod floor;
 pub mod head;
 pub mod hold;
+pub mod laser;
 pub mod panel;
 mod picture;
 mod render;
@@ -12,8 +13,8 @@ pub mod scale;
 mod space;
 
 pub use space::{
-    CURSOR_LIFT, CURSOR_MARGIN, OPEN_DISTANCE, OPEN_GRAB, OPEN_NEARER, OVER_NEARER, SKY, Space,
-    ViewTarget,
+    Both, CURSOR_LIFT, CURSOR_MARGIN, Held, OPEN_DISTANCE, OPEN_GRAB, OPEN_NEARER, OVER_NEARER,
+    Pointer, SKY, Space, ViewTarget,
 };
 
 #[cfg(test)]

@@ -43,7 +43,7 @@ fn resizing_a_window_drags_its_edge_and_reports_the_new_size() {
     assert!(panel.pose.rotation.angle_between(start.pose.rotation) < 1e-6);
 
     let released = send(&mut space, now, [button(dragged, false)]);
-    assert_eq!(space.resize, None, "letting go ends the resize");
+    assert_eq!(space.mouse.resize, None, "letting go ends the resize");
     let got = delivered(&released);
     let [(to, Input::PointerButton { pressed: false, .. })] = got.as_slice() else {
         panic!("the app gets the release, not {got:?}");

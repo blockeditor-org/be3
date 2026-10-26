@@ -3,17 +3,19 @@ use std::time::{Duration, Instant};
 use beui_core::context::{Context, FrameOutput};
 use beui_core::geometry::Rect;
 use beui_core::geometry::{Pos2, Vec2, pos2, vec2};
-use beui_core::input::{CursorIcon, Input, Key, Keystroke, Modifiers, PointerButton, ScrollDelta};
-use beui_core::runner::{HostView, Incoming, Units, WindowHost};
+use beui_core::input::{
+    CursorIcon, Input, Key, Keystroke, Modifiers, PointerButton, ScrollDelta, TouchPhase,
+};
+use beui_core::runner::{Controller, Hand, HandPose, HostView, Incoming, Units, WindowHost};
 use beui_core::window::{
     HostPlacement, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest,
 };
 use glam::Vec3;
 
-use crate::Space;
 use crate::chrome::{self, Corner, Part};
 use crate::head::Head;
 use crate::panel::{Panel, Pose};
+use crate::{Pointer, Space};
 
 mod a_bracket_in_front_of_another_panel_takes_the_click;
 mod a_carried_panel_follows_the_cursor_and_the_head;
@@ -26,17 +28,21 @@ mod a_carried_panel_turns_smoothly_to_face_the_viewer_while_carried;
 mod a_click_on_the_panel_reaches_the_app_where_the_ray_hits;
 mod a_cursor_turned_out_of_view_is_drawn_inside_the_edge_and_clicks_there;
 mod a_driver_pointing_at_a_window_shows_its_icon;
+mod a_laser_drags_once_it_turns_past_where_the_trigger_froze_it;
+mod a_laser_is_smoothed_and_takes_a_jump_at_once;
 mod a_miss_keeps_the_cursor_as_far_away_as_it_last_hit;
 mod a_miss_leaves_the_panel;
 mod a_miss_while_a_button_is_held_leaves_the_window_and_keeps_the_drag;
 mod a_nearer_panel_is_drawn_at_more_pixels_per_point;
 mod a_new_pixels_per_point_waits_for_the_panel_to_settle_and_not_while_it_is_resized;
 mod a_panel_carried_above_eye_level_tilts_to_face_the_eye;
+mod a_panel_carried_by_its_grip;
 mod a_panel_carried_to_each_corner_with_the_head_rolled_and_pitched_stays_upright_to_the_view;
 mod a_panel_carried_under_the_floor_stays_visible_and_can_be_picked;
 mod a_panel_carried_with_the_head_rolled_rolls_to_match;
 mod a_panel_is_rastered_at_the_most_any_view_needs;
 mod a_panel_keeps_its_pixels_per_point_until_its_size_on_screen_changes_a_step;
+mod a_pulled_trigger_touches_the_window_where_its_laser_hits;
 mod a_ray_hits_a_curved_panel_on_its_bent_surface;
 mod a_ray_hits_the_nearest_panel_where_it_points;
 mod a_released_panel_turns_to_face_the_viewer;
@@ -44,6 +50,7 @@ mod a_resized_panel_keeps_its_renderer_and_draws_at_the_new_size;
 mod a_scrolled_panel_copies_what_it_showed_and_paints_what_a_full_repaint_would;
 mod a_window_asked_to_resize_keeps_its_top_left_corner_and_reports_the_size;
 mod a_window_carried_over_the_main_panel_and_let_go_is_drawn_in_front;
+mod a_window_moved_by_a_laser_touch_is_carried_along_that_laser;
 mod a_window_opened_at_a_host_placement_lands_on_that_pose;
 mod a_window_opened_at_the_pointer_lands_on_the_cursor_ray_facing_the_viewer;
 mod a_window_opened_over_another_sits_where_that_window_would_show_it_a_little_in_front;
@@ -72,6 +79,8 @@ mod q_and_e_roll_the_head_while_steering;
 mod resizing_a_window_drags_its_edge_and_reports_the_new_size;
 mod scrolling_a_carried_panel_farther_than_the_one_behind_puts_it_behind;
 mod scrolling_while_carrying_moves_the_panel_nearer_or_farther;
+mod squeezing_a_panel_carries_it_along_the_laser;
+mod squeezing_a_panel_with_both_hands_scales_and_turns_it;
 mod switching_the_cursor_icon_keeps_the_cursor_renderer;
 mod tapping_escape_reaches_the_app_and_keeps_the_grab;
 mod the_chrome_around_a_curved_panel;
@@ -81,9 +90,12 @@ mod the_cursor_shows_the_icon_the_window_under_it_asks_for_and_hides_the_platfor
 mod the_cursor_sits_just_in_front_of_the_panel_at_the_same_size_to_the_eye;
 mod the_cursor_sprite_draws_the_icon_around_its_hotspot;
 mod the_curve_slider_bends_the_panel_and_clicks_land_on_the_curve;
+mod the_lasers_are_drawn_to_where_they_hit;
 mod the_platform_dropping_the_lock_lets_the_pointer_go;
 mod tracked_views_move_the_head_to_their_centre_and_set_the_rasters;
 mod turning_away_and_back_leaves_the_cursor_where_it_was;
+mod two_lasers_on_one_panel_are_two_fingers;
+mod two_lasers_pinching_a_panel;
 mod walking_keeps_the_cursor_at_its_world_point;
 mod windows_opened_over_the_same_spot_stack_toward_the_viewer;
 
@@ -388,4 +400,90 @@ fn gaps_to(space: &Space, window: WindowId, behind: WindowId) -> Vec<f32> {
             Some(hit.distance - point.distance(eye))
         })
         .collect()
+}
+
+fn drive(
+    space: &mut Space,
+    now: Instant,
+    controllers: impl IntoIterator<Item = Controller>,
+) -> Vec<Incoming> {
+    let mut incoming: Vec<Incoming> = controllers.into_iter().map(Incoming::Controller).collect();
+    space.input(&mut incoming, &view(now));
+    incoming
+}
+
+fn hand_pose(origin: Vec3, target: Vec3) -> Controller {
+    hand_pose_of(Hand::Right, origin, target)
+}
+
+fn hand_pose_of(hand: Hand, origin: Vec3, target: Vec3) -> Controller {
+    let pose = HandPose {
+        position: origin.to_array(),
+        orientation: crate::laser::looking(target - origin).to_array(),
+    };
+    Controller::Pose {
+        hand,
+        aim: pose,
+        grip: pose,
+    }
+}
+
+fn trigger(hand: Hand, value: f32) -> Controller {
+    Controller::Trigger { hand, value }
+}
+
+fn squeeze(hand: Hand, value: f32) -> Controller {
+    Controller::Squeeze { hand, value }
+}
+
+fn left_hand() -> Vec3 {
+    Head::default().position + Vec3::new(-0.2, -0.35, -0.3)
+}
+
+fn right_hand() -> Vec3 {
+    Head::default().position + Vec3::new(0.2, -0.35, -0.3)
+}
+
+fn touches(incoming: &[Incoming]) -> Vec<(WindowId, u64, TouchPhase, Pos2)> {
+    delivered(incoming)
+        .into_iter()
+        .filter_map(|(window, input)| match input {
+            Input::Touch { id, phase, pos, .. } => {
+                assert_eq!(id.device, crate::laser::DEVICE);
+                Some((window, id.finger, phase, pos))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+fn near(a: Pos2, b: Pos2) -> bool {
+    (a - b).length() < 0.5
+}
+
+fn off_ray(point: Vec3, origin: Vec3, toward: Vec3) -> f32 {
+    let direction = (toward - origin).normalize();
+    (point - origin).cross(direction).length()
+}
+
+fn painted_space() -> (Space, Instant, Context) {
+    let (mut space, now) = space();
+    let context = Context::new(beui_font_freetype::FreetypeFonts::default());
+    let mut setup = beui_core::app::Setup::new(beui_core::app::Waker::new(|| {}));
+    setup.provide(context.clone());
+    space.setup(&setup);
+    (space, now, context)
+}
+
+fn assert_scene(
+    space: &mut Space,
+    now: Instant,
+    windows: &[beui_core::context::WindowOutput],
+    name: &str,
+) {
+    let frame = space.scene(windows, &view(now));
+    let painting = crate::picture::painting(&frame, Rect::from_min_size(Pos2::ZERO, PLATFORM))
+        .expect("the scene paints");
+    let snapshot = paint_snapshot::Snapshot::of_painting(painting).expect("the painting encodes");
+    paint_snapshot::assert_accepted(name, &snapshot, &format!("./scripts/test {name} --update"));
 }

@@ -12,7 +12,7 @@ use glam::Vec3;
 use crate::chrome::LIFT;
 use crate::floor;
 use crate::head::NEAR;
-use crate::render::{Frame, PanelFrame};
+use crate::render::{BEAM_WIDTH, Frame, PanelFrame};
 use crate::space::SKY;
 
 mod scene;
@@ -23,6 +23,7 @@ const WHITE: u64 = u64::MAX;
 const BACKDROP: usize = 16;
 const GRID_REACH: f32 = 20.0;
 const GRID_SEGMENT: usize = 4;
+const DOT_SIDES: usize = 16;
 
 pub fn painting(frame: &Frame, rect: Rect) -> Option<Painting> {
     let scale = frame.pixels_per_point;
@@ -76,6 +77,7 @@ pub fn painting(frame: &Frame, rect: Rect) -> Option<Painting> {
         }
     }
     scene.paint(&mut out, scale);
+    out.beams(frame, rect);
     Some(Painting {
         frame: Paint {
             size: [
@@ -245,6 +247,104 @@ impl Out {
                     triangles.push(Triangle {
                         texture: WHITE,
                         corners: [corners[0], corners[2], corners[3]],
+                    });
+                }
+            }
+        }
+        self.mesh(rect, triangles);
+    }
+
+    fn beams(&mut self, frame: &Frame, rect: Rect) {
+        let screen = |world: Vec3| -> Option<(glam::Vec2, f32)> {
+            let clip = frame.view_projection * world.extend(1.0);
+            (clip.w > NEAR).then(|| {
+                (
+                    glam::Vec2::new(
+                        rect.min.x + (clip.x / clip.w + 1.0) / 2.0 * rect.width(),
+                        rect.min.y + (1.0 - clip.y / clip.w) / 2.0 * rect.height(),
+                    ),
+                    clip.w,
+                )
+            })
+        };
+        let across = |world: Vec3, metres: f32| -> Option<f32> {
+            let (at, _) = screen(world)?;
+            let (side, _) = screen(world + frame.right * metres)?;
+            Some(at.distance(side))
+        };
+        let mut triangles = Vec::new();
+        for beam in &frame.beams {
+            let color = beam.color().to_array();
+            let tinted = |alpha: f32| {
+                [
+                    color[0],
+                    color[1],
+                    color[2],
+                    (f32::from(color[3]) * alpha).round() as u8,
+                ]
+            };
+            let (mut start, end) = (beam.start, beam.end);
+            let (start_w, end_w) = (
+                (frame.view_projection * start.extend(1.0)).w,
+                (frame.view_projection * end.extend(1.0)).w,
+            );
+            if end_w <= NEAR && start_w <= NEAR {
+                continue;
+            }
+            let mut faint = 0.15;
+            if start_w <= NEAR {
+                let t = (NEAR * 1.01 - start_w) / (end_w - start_w);
+                start = start.lerp(end, t);
+                faint += (1.0 - faint) * t;
+            }
+            let (Some((from, _)), Some((to, _)), Some(near), Some(far)) = (
+                screen(start),
+                screen(end),
+                across(start, BEAM_WIDTH / 2.0),
+                across(end, BEAM_WIDTH / 2.0),
+            ) else {
+                continue;
+            };
+            let direction = to - from;
+            if direction.length() > 1e-3 {
+                let side = direction.normalize().perp();
+                let vertex = |at: glam::Vec2, alpha: f32| Vertex {
+                    pos: at.to_array(),
+                    uv: [0.0, 0.0],
+                    color: tinted(alpha),
+                };
+                let corners = [
+                    vertex(from + side * near.max(0.5), faint),
+                    vertex(to + side * far.max(0.5), 1.0),
+                    vertex(to - side * far.max(0.5), 1.0),
+                    vertex(from - side * near.max(0.5), faint),
+                ];
+                triangles.push(Triangle {
+                    texture: WHITE,
+                    corners: [corners[0], corners[1], corners[2]],
+                });
+                triangles.push(Triangle {
+                    texture: WHITE,
+                    corners: [corners[0], corners[2], corners[3]],
+                });
+            }
+            let radius = beam.dot(frame.eye);
+            if radius > 0.0
+                && let Some(size) = across(end, radius)
+            {
+                let vertex = |at: glam::Vec2| Vertex {
+                    pos: at.to_array(),
+                    uv: [0.0, 0.0],
+                    color: tinted(1.0),
+                };
+                let rim = |index: usize| {
+                    let angle = std::f32::consts::TAU * index as f32 / DOT_SIDES as f32;
+                    to + glam::Vec2::from_angle(angle) * size
+                };
+                for index in 0..DOT_SIDES {
+                    triangles.push(Triangle {
+                        texture: WHITE,
+                        corners: [vertex(to), vertex(rim(index)), vertex(rim(index + 1))],
                     });
                 }
             }

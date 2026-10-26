@@ -142,6 +142,7 @@ pub struct Windows {
     pub open: Vec<HostedWindow>,
     pub requests: Vec<WindowRequest>,
     pub outputs: Vec<WindowOutput>,
+    pub controllers: Vec<crate::runner::Controller>,
     reports: Vec<WindowReport>,
     main: Option<Vec2>,
 }
@@ -202,6 +203,13 @@ impl WindowHost for TestHost {
                 }),
             );
         }
+        incoming.retain(|item| match item {
+            Incoming::Controller(controller) => {
+                windows.controllers.push(*controller);
+                false
+            }
+            _ => true,
+        });
         incoming.extend(windows.reports.drain(..).map(Incoming::Window));
     }
 

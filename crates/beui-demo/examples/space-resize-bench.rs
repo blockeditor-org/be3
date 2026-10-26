@@ -209,10 +209,12 @@ mod bench {
                     pressed: true,
                 },
             ]);
-            if self.space.borrow().resize.is_none() {
-                self.space
-                    .borrow_mut()
-                    .begin_resize(window, WindowEdge::BottomRight);
+            if self.space.borrow().mouse.resize.is_none() {
+                self.space.borrow_mut().begin_resize(
+                    beui_adapter_space::Pointer::Mouse,
+                    window,
+                    WindowEdge::BottomRight,
+                );
             }
             let mut frames = Vec::new();
             for step in 1..=STEPS {

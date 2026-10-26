@@ -112,6 +112,7 @@ mod a_drawing_given_less_room_than_its_size_keeps_to_that_room;
 mod a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given;
 mod a_drawing_repaints_on_its_deadline_without_repeating_layout;
 mod a_driver_acts_on_a_slider_the_way_a_screen_reader_does;
+mod a_driver_aims_and_pulls_a_controller_through_the_host;
 mod a_driver_answers_a_file_dialog_in_a_window_that_is_not_simulated;
 mod a_driver_answers_a_file_dialog_with_a_file;
 mod a_driver_answers_a_save_dialog_by_writing_the_file;
@@ -711,6 +712,7 @@ mod picking_a_hidden_node_reveals_it_when_the_reveal_button_is_clicked;
 mod picking_a_node_in_the_components_tab_selects_the_component_that_built_it;
 mod picking_a_node_leaves_the_document_alone;
 mod picking_in_a_narrow_window_returns_to_the_inspector;
+mod pinching_a_pan_zoom_in_space_with_two_lasers_zooms_it;
 mod pinching_a_pan_zoom_with_two_fingers_zooms_and_pans_it;
 mod pinching_a_pan_zoom_zooms_around_the_pointer;
 mod platform_scrolls_arrive_in_points;
@@ -2888,6 +2890,18 @@ impl InSpace {
 
     pub(crate) fn output(&self) -> &beui_core::context::FrameOutput {
         self.runner.output().expect("the runner has run a frame")
+    }
+
+    pub(crate) fn controllers(
+        &mut self,
+        controllers: impl IntoIterator<Item = beui_core::runner::Controller>,
+    ) {
+        for controller in controllers {
+            self.runner.push(controller);
+        }
+        self.runner
+            .frame(&mut Nowhere, beui_core::app::SafeArea::default());
+        ::reactive::flush();
     }
 
     pub(crate) fn settle(&mut self) {

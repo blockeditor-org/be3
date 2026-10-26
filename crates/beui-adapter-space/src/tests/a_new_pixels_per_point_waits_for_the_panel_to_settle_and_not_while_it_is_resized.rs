@@ -59,7 +59,7 @@ fn a_new_pixels_per_point_waits_for_the_panel_to_settle_and_not_while_it_is_resi
         );
     }
     send(&mut space, now, [button(grip, false)]);
-    assert_eq!(space.resize, None);
+    assert_eq!(space.mouse.resize, None);
     assert!(rescaled(&send(&mut space, now, [])).is_empty());
     let sent = send(
         &mut space,

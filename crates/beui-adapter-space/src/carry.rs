@@ -27,6 +27,7 @@ pub struct Carry {
     rotation: Quat,
     grab: Vec3,
     direction: Vec3,
+    laser: Option<Ray>,
     turn: Turn,
 }
 
@@ -101,8 +102,32 @@ impl Carry {
             rotation: inverse * panel.pose.rotation,
             grab: panel.pose.rotation.inverse() * (grab - panel.pose.position),
             direction: (inverse * to_grab).normalize_or(Vec3::NEG_Z),
+            laser: None,
             turn: Turn::begin(now),
         }
+    }
+
+    pub fn along(panel: &Panel, head: &Head, laser: Ray, grab: Vec3, now: Option<Instant>) -> Self {
+        let distance = (grab - laser.origin).length().max(NEAREST);
+        Self {
+            distance,
+            at: distance,
+            laser: Some(laser),
+            ..Self::begin(panel, head, grab, now)
+        }
+    }
+
+    pub fn follow(&mut self, laser: Ray) {
+        if self.laser.is_some() {
+            self.laser = Some(laser);
+        }
+    }
+
+    fn ray(&self, head: &Head) -> Ray {
+        self.laser.unwrap_or(Ray {
+            origin: head.position,
+            direction: head.rotation() * self.direction,
+        })
     }
 
     pub fn turning(&self, now: Option<Instant>) -> bool {
@@ -164,7 +189,7 @@ impl Carry {
     }
 
     pub fn grabbed_at(&self, head: &Head) -> Vec3 {
-        head.position + head.rotation() * self.direction * self.at
+        self.ray(head).at(self.at)
     }
 
     pub fn place(
@@ -217,9 +242,8 @@ impl Carry {
     }
 
     fn placed(&self, head: &Head, panel: &Panel, distance: f32, now: Option<Instant>) -> Panel {
-        let rotation = head.rotation();
-        let grab = head.position + rotation * self.direction * distance;
-        let carried = rotation * self.rotation;
+        let grab = self.ray(head).at(distance);
+        let carried = head.rotation() * self.rotation;
         let mut panel = *panel;
         panel.pose.rotation = facing(head.position, grab, self.grab, head.up())
             .map_or(carried, |target| self.turn.toward(carried, target, now));

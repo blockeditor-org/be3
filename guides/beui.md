@@ -3259,6 +3259,59 @@ all its 3D (`glam`) stays in the crate.
   only when the icon or the scale changes, under a `WindowId` of its own. A new
   icon repaints into the same texture with the same renderer; building a
   renderer for each icon cost about 30 ms a switch.
+- Pointers: the mouse and each controller's laser are pointers of their own
+  (`space::Pointer`: `Mouse` or `Hand(Hand)`), and each holds its own carry,
+  resize, chrome gesture, hovered and captured window (`space::Held`:
+  `Space::mouse`, and `held` on each `Space::lasers` entry), so both hands and
+  the mouse can each carry, resize, reshape or press at once. A
+  `WindowRequest::BeginMove` or `BeginResize` goes to the laser whose touch is
+  down in that window, else to the mouse. Two pointers never hold one panel,
+  but both hands' grips together scale and turn it (below).
+- Lasers: controllers reach space as `Incoming::Controller`
+  (`beui_core::runner::Controller`, per `Hand::Left` or `Right`): `Pose { aim,
+  grip }` (`HandPose`, a position and an `xyzw` orientation whose -Z is where
+  it points, in the world of the views, floor at y = 0), `Trigger` and
+  `Squeeze` (0 to 1; a press at `laser::PRESS` (0.6), a release at
+  `laser::LET_GO` (0.4)), `Lost` (no longer tracked: its touch is cancelled
+  and what it held let go), and `Toward { window, at }`, which a driver uses
+  to aim a hand from where it is (`Laser::resting` beside the head before it
+  has a pose) at a window's point. An XR host sends a hand's pose, trigger and
+  squeeze each frame. A laser is a ray from its aim pose (`laser::Laser`),
+  smoothed by a One-Euro filter (`laser::OneEuro`, `MIN_CUTOFF`, `BETA`,
+  `DERIVATIVE_CUTOFF`, timed from `HostView::now`, the last pose fed again
+  each frame so a hand held still settles, with frames asked for until it
+  has), except that a change of more than `laser::JUMP` (0.15 rad or m) is
+  taken at once. It acts as a finger, never a hovering mouse: nothing reaches
+  the app until the trigger presses, which sends `Input::Touch` (a
+  `TouchId` with `laser::DEVICE`, finger 0 for the left hand and 1 for the
+  right) `Start` where the ray hits the nearest panel, focusing it (a press on
+  nothing focuses none), then `Move` as the ray turns and `End` on release,
+  all to the window it began in (off its panel, where the ray meets the
+  panel's surface extended), so beui's touch handling applies: a drag
+  scrolls, a long press opens the context menu, and two lasers on one panel
+  are two fingers that pinch. The press freezes the ray it was aimed along
+  (`Laser::frozen`) until the laser turns more than `laser::FREEZE` (0.02 rad)
+  from it, so the jolt of pulling the trigger moves nothing and a tap lands
+  where it was aimed. A trigger press on chrome works its part as a mouse
+  press does (the move button carries along the laser). Squeezing the grip
+  with the laser on a panel or its chrome carries the panel along the laser
+  (`Carry::along`: the grabbed point stays on the laser's ray at the distance
+  it was grabbed, `Carry::follow` each frame), with the mouse carry's turn to
+  face the viewer and its staying in front, until the grip lets go; a carry a
+  laser's touch began (a title bar's `BeginMove`) ends with the trigger
+  instead, and the app gets the `End` where it grabbed. Squeezing the other
+  grip on the panel one hand is carrying holds it with both (`Space::both`,
+  `Both`): it then moves and turns with the line between the two grip
+  positions (`Quat::from_rotation_arc` of where it began to where it is) and
+  scales about its centre by how far apart they are (`metres_per_point`,
+  between `chrome::SMALLEST_SCALE` and `LARGEST_SCALE` of where it began),
+  until either grip lets go, which reports `Placed` and leaves neither hand
+  holding it. Each laser is drawn (`Space::beams`, `render::Beam`), depth
+  tested after the chrome, as a strip `BEAM_WIDTH` (4 mm) wide from the hand to
+  where it hits a panel or its chrome, or `laser::REACH` (5 m) on a miss,
+  faint at the hand, blue, and white while pressed, with a dot `DOT` times
+  its distance from the eye across where it hits; the paintings draw them
+  over the panels.
 - Focus: like a desktop window manager, focus follows clicks, not the cursor
   (`Space::focused`, the main window's panel at first). A press on a panel's
   content or its chrome focuses that panel, as does starting to carry it and

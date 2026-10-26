@@ -17,7 +17,7 @@ fn a_panel_carried_with_the_head_rolled_rolls_to_match() {
         later(now, TURN_SECONDS),
         [button(centre(), false)],
     );
-    assert_eq!(space.carry, None);
+    assert_eq!(space.mouse.carry, None);
     let panel = main(&space);
     let across = panel.pose.rotation * Vec3::X;
     let right = space.head.rotation() * Vec3::X;

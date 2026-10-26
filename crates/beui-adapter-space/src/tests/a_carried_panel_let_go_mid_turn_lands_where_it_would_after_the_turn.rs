@@ -13,7 +13,7 @@ fn let_go(after: f32) -> (Space, WindowId) {
         "a tenth of a second in, it is still turning: {turning}"
     );
     let released = send(&mut space, later(now, after), [button(to, false)]);
-    assert_eq!(space.carry, None);
+    assert_eq!(space.mouse.carry, None);
     assert_eq!(placed(&released).len(), 1);
     (space, popped)
 }

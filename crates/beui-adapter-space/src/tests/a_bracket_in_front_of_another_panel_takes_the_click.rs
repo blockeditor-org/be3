@@ -29,7 +29,7 @@ fn a_bracket_in_front_of_another_panel_takes_the_click() {
         "the main window under the bracket only sees the cursor leave: {got:?}"
     );
     assert_eq!(
-        space.chrome.gesture.map(|gesture| gesture.part()),
+        space.mouse.gesture.map(|gesture| gesture.part()),
         Some(Part::Scale(Corner::TopLeft)),
         "the nearer bracket takes the press"
     );

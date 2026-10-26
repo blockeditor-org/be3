@@ -17,7 +17,9 @@ number of views, each a pose with an off-axis field of view (`head::View`,
 `head::Fov`): the simulator's one, or tracked views an XR host hands
 `Space::set_views` and draws with `Space::draw` (guides/beui.md, "Views"), and
 `BEUI_XR=openxr` shows it on an OpenXR headset (`crates/beui-xr`, "Headsets").
-Input is one mouse pointer and a keyboard.
+Input is a mouse pointer, a keyboard, and a laser per controller that acts as
+a finger, with grips that carry, scale and turn panels (guides/beui.md,
+"Lasers"), fed from OpenXR's controller actions or `drive xr`.
 
 The simulator stays a first-class backend throughout: every space test keeps
 running without a headset.
@@ -47,21 +49,6 @@ compositor and compiled for Windows by `./scripts/verify`. What remains:
   headset; turning and walking (M10's snap turn and recenter) need an offset
   between the tracking space and the world.
 
-## M3. Controllers as lasers
-
-- **beui-core.** A ray pointer kind (`PointerId::Ray(TouchId)`, next to
-  `Mouse`, `Touch` and `Pen`) that hovers, and presses like touch: a drag
-  scrolls, a long press opens the context menu. Hover paths, scroll and
-  cursors become per pointer (`WindowRequests::cursor` per pointer).
-- **Space.** Per-laser state replaces the single `carry`, `resize`,
-  `chrome.gesture`, `hovered` and `captured` on `Space`. Grip carries; two
-  hands scale and rotate. Rays are smoothed (One-Euro) and frozen at a
-  trigger press so the click lands where it was aimed.
-- **drive.** `drive xr …` commands set controller poses and buttons.
-
-About 2k lines. **(ask)** whether a laser acts as touch or as a
-hovering mouse, and whether the second hand is a full pointer.
-
 ## M5. Keyboard panel
 
 The on-screen keyboard (`SoftwareKeyboard`) as a window that never takes the
@@ -69,7 +56,7 @@ focus (a flag or role on `WindowRequest::Open`), placed near the focused field
 or panel, or by a hand. Space reports no keyboard attached while controllers
 are active.
 
-About 0.5k lines. Needs M3.
+About 0.5k lines.
 
 ## M8. Composition layers
 
@@ -116,7 +103,7 @@ manifest, and the buck APK plumbing. First check whether today's APK runs as a
 (`from_environment` in `crates/beui/src/window.rs` returns `None` there), so
 space cannot be turned on there today.
 
-About 1.5k lines plus build work. Needs M1 and M3, ideally M8.
+About 1.5k lines plus build work. Needs M1, ideally M8.
 
 ## M10. Comfort, passthrough, hands
 
@@ -125,9 +112,10 @@ Each 0.3-1k lines:
 - Comfort: snap and smooth turning, a recenter that moves the layout, seated
   and standing.
 - Passthrough: `XR_FB_passthrough`, or an alpha-blended environment.
-- Hand tracking: a pinch is a ray press, a poke is touch.
+- Hand tracking: a pinch is a trigger press of that hand's laser, a poke is
+  touch.
 
-Needs M1 and M3.
+Needs M1.
 
 ## M11. WebXR
 
@@ -135,11 +123,11 @@ The riskiest: wgpu has no WebXR binding, the WebGL route needs an
 `xrCompatible` WebGL2 context, and space must build for wasm and be wired into
 `run_web` (`crates/beui/src/web.rs`, which launches with `host: None`).
 
-2k lines or more. Needs M3. **(ask)** whether WebXR is in scope.
+2k lines or more. **(ask)** whether WebXR is in scope.
 
 ## Suggested order
 
-M1, M3, M5, M8, M6, M7, M9, M10, M11.
+M5, M8, M6, M7, M9, M10, M11.
 
 ## Smaller follow-ups
 
@@ -168,8 +156,6 @@ M1, M3, M5, M8, M6, M7, M9, M10, M11.
 ## Open questions
 
 - **(ask)** Which headset and runtime first: Linux PC VR, or Quest?
-- **(ask)** Controllers as touch or as a hovering mouse, and is the second
-  hand a full pointer? (M3)
 - **(ask)** Is block-app the single XR shell, with other apps as Wayland or
   plugin windows? Should plugin windows (M6) also become real OS windows
   outside VR?

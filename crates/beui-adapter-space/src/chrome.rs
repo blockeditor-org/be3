@@ -154,7 +154,6 @@ impl Gesture {
 #[derive(Clone, Copy, PartialEq, Debug, Default)]
 pub struct Chrome {
     pub hovered: Option<(WindowId, Part)>,
-    pub gesture: Option<Gesture>,
     pub slider: Option<WindowId>,
 }
 
@@ -372,7 +371,7 @@ pub fn span(panel: &Panel) -> [f32; 4] {
     ]
 }
 
-pub fn look(panel: &Panel, chrome: &Chrome, pixels_per_point: f32) -> Look {
+pub fn look(panel: &Panel, chrome: &Chrome, held: Option<Part>, pixels_per_point: f32) -> Look {
     let mine = |window: WindowId| window == panel.window;
     Look {
         metres: metres_of(panel),
@@ -380,10 +379,7 @@ pub fn look(panel: &Panel, chrome: &Chrome, pixels_per_point: f32) -> Look {
             .hovered
             .filter(|(window, _)| mine(*window))
             .map(|(_, part)| part),
-        held: chrome
-            .gesture
-            .filter(|gesture| mine(gesture.window()))
-            .map(|gesture| gesture.part()),
+        held,
         slider: chrome.slider.is_some_and(mine),
         bend: panel.bend / MOST_BEND,
         pixels_per_point,
