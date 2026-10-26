@@ -89,7 +89,10 @@ pub(crate) fn locate(target: &str, lines: &[Rc<Line>]) -> Result<Rect, String> {
 pub(crate) fn coordinates(target: &str) -> Option<Rect> {
     match numbers(target).as_deref() {
         Some([x, y]) => Some(Rect::from_min_size(pos2(*x, *y), Vec2::ZERO)),
-        Some([x, y, width, height]) => Some(Rect::from_min_size(pos2(*x, *y), Vec2::new(*width, *height))),
+        Some([x, y, width, height]) => Some(Rect::from_min_size(
+            pos2(*x, *y),
+            Vec2::new(*width, *height),
+        )),
         _ => None,
     }
 }

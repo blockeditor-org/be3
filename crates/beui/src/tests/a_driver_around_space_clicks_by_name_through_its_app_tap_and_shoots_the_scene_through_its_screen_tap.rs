@@ -109,7 +109,11 @@ fn a_driver_around_space_clicks_by_name_through_its_app_tap_and_shoots_the_scene
     else {
         panic!("the screen tap's shot is an image");
     };
-    assert_eq!((width, height), (WIDTH, HEIGHT), "the platform window, whole");
+    assert_eq!(
+        (width, height),
+        (WIDTH, HEIGHT),
+        "the platform window, whole"
+    );
     let sky = beui_layer_space::SKY;
     let corner = &rgba[..3];
     assert!(

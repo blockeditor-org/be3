@@ -195,7 +195,9 @@ fn command(socket: &Path, mut arguments: Vec<String>, timeout: Duration) -> Resu
 }
 
 fn environment(socket: &Path, timeout: Duration) -> Result<Vec<(String, String)>, String> {
-    match request(socket, &["app".to_owned(), "env".to_owned()], timeout).map_err(|error| error.to_string())? {
+    match request(socket, &["app".to_owned(), "env".to_owned()], timeout)
+        .map_err(|error| error.to_string())?
+    {
         Reply::Text(text) => Ok(text
             .lines()
             .filter_map(|line| line.split_once('='))

@@ -134,9 +134,9 @@ fn serve(path: &std::path::Path) -> Result<beui_layer_drive::Inbox, Box<dyn Erro
     let inbox = beui_layer_drive::Inbox::default();
     let served = match std::env::var(beui_core::runner::environment::DRIVE_LISTENER) {
         Ok(fd) => {
-            let fd: std::os::fd::RawFd = fd.parse().map_err(|_| {
-                format!("BEUI_DRIVE_LISTENER takes a file descriptor, not {fd}")
-            })?;
+            let fd: std::os::fd::RawFd = fd
+                .parse()
+                .map_err(|_| format!("BEUI_DRIVE_LISTENER takes a file descriptor, not {fd}"))?;
             // unsafe(ffi)
             let inherited = unsafe {
                 <std::os::unix::net::UnixListener as std::os::fd::FromRawFd>::from_raw_fd(fd)

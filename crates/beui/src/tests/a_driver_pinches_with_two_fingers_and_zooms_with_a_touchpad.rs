@@ -47,7 +47,9 @@ fn a_driver_pinches_with_two_fingers_and_zooms_with_a_touchpad() {
     driven
         .ask(&["app", "touch", "move", "0=50,150", "1=250,150"])
         .expect("both fingers move in one frame");
-    driven.ask(&["app", "touch", "up"]).expect("every finger lifts");
+    driven
+        .ask(&["app", "touch", "up"])
+        .expect("every finger lifts");
     assert!(
         (zoom.get_untracked() - 2.0).abs() < 0.01,
         "the fingers doubled it again to {}",

@@ -24,14 +24,18 @@ fn a_driver_resizes_a_headless_window_and_reads_its_state() {
         "the window is 200 by 100 points at twice the pixels:\n{tree}"
     );
     assert!(
-        driven.ask(&["screen", "resize", "screen", "8192x100"]).is_err(),
+        driven
+            .ask(&["screen", "resize", "screen", "8192x100"])
+            .is_err(),
         "a screen wider than a texture at the window's scale is refused"
     );
     assert!(
         driven.ask(&["screen", "resize", "200x100@inf"]).is_err(),
         "an infinite scale is refused"
     );
-    driven.ask(&["screen", "blur"]).expect("the window loses focus");
+    driven
+        .ask(&["screen", "blur"])
+        .expect("the window loses focus");
     let state = driven.ask(&["app", "state"]).expect("the state is read");
     assert!(
         state.starts_with("window 200x100 at scale 2, fullscreen no, focused no"),
@@ -40,5 +44,8 @@ fn a_driver_resizes_a_headless_window_and_reads_its_state() {
     driven
         .ask(&["screen", "clipboard", "copied"])
         .expect("the clipboard is set");
-    assert_eq!(driven.ask(&["screen", "clipboard"]), Ok("copied\n".to_owned()));
+    assert_eq!(
+        driven.ask(&["screen", "clipboard"]),
+        Ok("copied\n".to_owned())
+    );
 }

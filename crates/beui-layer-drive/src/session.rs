@@ -146,8 +146,8 @@ enum Kind {
 fn kind(command: &str) -> Option<Kind> {
     Some(match command {
         "help" | "settle" | "pause" | "clock" | "hurry" | "frames" | "close" => Kind::Session,
-        "tree" | "ids" | "find" | "comps" | "hit" | "actions" | "act" | "a11y" | "wait" | "gone"
-        | "env" | "windows" | "paint" | "overflows" => Kind::Only(Tap::App),
+        "tree" | "ids" | "find" | "comps" | "hit" | "actions" | "act" | "a11y" | "wait"
+        | "gone" | "env" | "windows" | "paint" | "overflows" => Kind::Only(Tap::App),
         "shot" | "resize" | "focus" | "blur" | "clipboard" | "upload" | "save" | "dismiss"
         | "grab" | "drop" | "ungrab" => Kind::Only(Tap::Screen),
         "state" | "click" | "move" | "down" | "up" | "drag" | "wheel" | "scroll" | "zoom"
@@ -642,7 +642,10 @@ impl Session {
             self.painted(painting);
         }
         if self.wants_overflows() {
-            self.overflowed(beui_core::painting::overflows(output, view.pixels_per_point));
+            self.overflowed(beui_core::painting::overflows(
+                output,
+                view.pixels_per_point,
+            ));
         }
     }
 
@@ -931,9 +934,9 @@ impl Session {
             _ => None,
         };
         let (command, arguments) = match named {
-            Some(tap) => rest.split_first().ok_or_else(|| {
-                format!("{} needs a command; `help` lists them", tap.name())
-            })?,
+            Some(tap) => rest
+                .split_first()
+                .ok_or_else(|| format!("{} needs a command; `help` lists them", tap.name()))?,
             None => (first, rest),
         };
         let Some(kind) = kind(command) else {
@@ -997,7 +1000,9 @@ impl Session {
             "close" => match frame.app.close_requested() {
                 true => {
                     frame.close();
-                    Ok(Started::Done(Reply::Text("The window closed.\n".to_owned())))
+                    Ok(Started::Done(Reply::Text(
+                        "The window closed.\n".to_owned(),
+                    )))
                 }
                 false => Ok(Started::Phase(Phase::Settling {
                     before: Some(view.rendered()),
@@ -1315,7 +1320,12 @@ impl Session {
                 for name in arguments {
                     let key = Key::from_name(name)
                         .ok_or_else(|| format!("{name:?} is not a key beui knows"))?;
-                    events.extend(self.gestures[gesture].key(key, pressed)?.into_iter().flatten());
+                    events.extend(
+                        self.gestures[gesture]
+                            .key(key, pressed)?
+                            .into_iter()
+                            .flatten(),
+                    );
                 }
                 input(vec![events])
             }
@@ -1371,8 +1381,12 @@ impl Session {
                     Some(target) => {
                         let at = at(target)?;
                         Ok(Started::Phase(Phase::Input {
-                            steps: points(self.gestures[gesture].click(at, PointerButton::Primary, 1))
-                                .into(),
+                            steps: points(self.gestures[gesture].click(
+                                at,
+                                PointerButton::Primary,
+                                1,
+                            ))
+                            .into(),
                             before: before.clone(),
                             then: Some(Box::new(Phase::Uploading { file, before })),
                         }))
@@ -1390,8 +1404,12 @@ impl Session {
                     Some(target) => {
                         let at = at(target)?;
                         Ok(Started::Phase(Phase::Input {
-                            steps: points(self.gestures[gesture].click(at, PointerButton::Primary, 1))
-                                .into(),
+                            steps: points(self.gestures[gesture].click(
+                                at,
+                                PointerButton::Primary,
+                                1,
+                            ))
+                            .into(),
                             before: before.clone(),
                             then: Some(Box::new(Phase::Saving { file, before })),
                         }))
@@ -1450,7 +1468,9 @@ impl Session {
                 }
                 let files = std::mem::take(&mut self.grabbed);
                 incoming(vec![
-                    vec![Incoming::points(Input::PointerMoved(self.gestures[gesture].pointer))],
+                    vec![Incoming::points(Input::PointerMoved(
+                        self.gestures[gesture].pointer,
+                    ))],
                     files
                         .into_iter()
                         .map(|file| FileDrag::Dropped(file).into())
@@ -1545,9 +1565,9 @@ impl Session {
                 let (target, window) = match arguments {
                     [target @ .., word, window] if word == "in" => (
                         target,
-                        window
-                            .parse()
-                            .map_err(|_| format!("paint takes in WINDOW, a number `windows` lists, not {window}"))?,
+                        window.parse().map_err(|_| {
+                            format!("paint takes in WINDOW, a number `windows` lists, not {window}")
+                        })?,
                     ),
                     target => (target, WindowId::MAIN.raw()),
                 };
@@ -1557,7 +1577,10 @@ impl Session {
                     _ => return Err("usage: paint [TARGET] [in WINDOW]".to_owned()),
                 };
                 let crop = match &target {
-                    Some(target) => Some(in_points(place(reads, target, view)?, view.pixels_per_point)),
+                    Some(target) => Some(in_points(
+                        place(reads, target, view)?,
+                        view.pixels_per_point,
+                    )),
                     None => None,
                 };
                 Ok(Started::Phase(Phase::Painting {

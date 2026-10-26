@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
-use beui_core::input::typing;
 use beui_core::geometry::{Pos2, Rect, Vec2};
+use beui_core::input::typing;
 use beui_core::input::{Input, Key, Modifiers, PointerId};
 
 use super::compose::{Composed, compose};

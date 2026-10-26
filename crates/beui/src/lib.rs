@@ -68,8 +68,6 @@ pub use beui_core::preferences::{
 };
 pub use beui_core::rich;
 pub use beui_core::runner::environment;
-pub use beui_layer_drive as drive;
-pub use beui_platform_headless::testing;
 pub use beui_core::touch_cursor;
 #[cfg(not(target_arch = "wasm32"))]
 pub use beui_font_freetype::system::SystemFonts;
@@ -77,6 +75,8 @@ pub use beui_font_freetype::{
     FontBytes, FontData, FontLibrary, FontSources, FreetypeFonts, ICONS_FONT,
 };
 pub use beui_inspector::install as install_inspector;
+pub use beui_layer_drive as drive;
+pub use beui_platform_headless::testing;
 #[cfg(feature = "render")]
 pub use beui_renderer_wgpu::present::{GpuSetup, OpenDevice};
 #[cfg(feature = "render")]
@@ -95,9 +95,9 @@ pub use beui_core::window::{
     HostPlacement, Resize, WindowEdge, WindowHosting, WindowId, WindowPlacement, WindowReport,
     WindowRequest, WindowSize,
 };
-pub use beui_platform_headless::Simulation;
 #[cfg(all(feature = "window", target_os = "android"))]
 pub use beui_platform_android::AndroidApp;
+pub use beui_platform_headless::Simulation;
 #[cfg(all(any(feature = "web", feature = "dom"), target_arch = "wasm32"))]
 pub use beui_platform_web::accessibility_tree;
 #[cfg(all(feature = "window", not(target_os = "android")))]

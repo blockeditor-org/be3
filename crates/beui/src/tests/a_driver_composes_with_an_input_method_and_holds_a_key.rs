@@ -30,7 +30,10 @@ fn a_driver_composes_with_an_input_method_and_holds_a_key() {
     let state = driven.ask(&["app", "state"]).expect("the state is read");
     assert!(state.contains("keys down A"), "{state}");
     let changed = driven.ask(&["app", "keyup", "a"]).expect("a is let go");
-    assert!(driven.ask(&["app", "keyup", "a"]).is_err(), "a is no longer held");
+    assert!(
+        driven.ask(&["app", "keyup", "a"]).is_err(),
+        "a is no longer held"
+    );
     let tree = driven.ask(&["app", "tree"]).expect("the tree is read");
     assert!(
         tree.contains("value=\"你aa\""),

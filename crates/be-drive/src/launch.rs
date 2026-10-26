@@ -124,7 +124,10 @@ impl Launch {
                 environment::HEADLESS_SCREEN,
                 self.screen.as_deref().unwrap_or(SCREEN),
             )
-            .env(environment::LAYERS, layers(std::env::var(environment::LAYERS).ok()))
+            .env(
+                environment::LAYERS,
+                layers(std::env::var(environment::LAYERS).ok()),
+            )
             .env(environment::DRIVE_SOCKET, &socket)
             .env(environment::DRIVE_LISTENER, listening.to_string())
             .env_remove("DISPLAY")

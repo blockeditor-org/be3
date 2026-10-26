@@ -141,7 +141,8 @@ fn first_device(
     app.click("#infinite-canvas.dock.tool.Rectangle")?;
     app.run(&[
         "--no-settle",
-        "app", "drag",
+        "app",
+        "drag",
         &target(at(0.2, 0.2)),
         &target(at(0.4, 0.4)),
     ])?;
@@ -400,7 +401,8 @@ impl App {
             LONG,
             &[
                 "--no-settle",
-                "app", "pen",
+                "app",
+                "pen",
                 "move",
                 to,
                 "0.5",
@@ -593,7 +595,12 @@ impl App {
         let started = Instant::now();
         self.within(
             LONG,
-            &["screen", "save", &path.to_string_lossy(), "#file-tree.export"],
+            &[
+                "screen",
+                "save",
+                &path.to_string_lossy(),
+                "#file-tree.export",
+            ],
         )?;
         bench::time(metric, started.elapsed());
         let bytes = std::fs::read(path)

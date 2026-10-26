@@ -25,13 +25,22 @@ fn a_driver_carries_grabbed_files_and_drops_them() {
     let heard = create_signal(Vec::new());
     let mut driven = headless(Recording(heard));
 
-    driven.ask(&["app", "move", "10,10"]).expect("the pointer moves");
+    driven
+        .ask(&["app", "move", "10,10"])
+        .expect("the pointer moves");
     driven
         .ask(&["screen", "grab", "/notes/a.txt", "/notes/b.txt"])
         .expect("the files are grabbed");
-    driven.ask(&["app", "move", "50,60"]).expect("they are carried");
-    driven.ask(&["screen", "drop", "80,90"]).expect("they are dropped");
-    assert!(driven.ask(&["screen", "drop"]).is_err(), "nothing is left to drop");
+    driven
+        .ask(&["app", "move", "50,60"])
+        .expect("they are carried");
+    driven
+        .ask(&["screen", "drop", "80,90"])
+        .expect("they are dropped");
+    assert!(
+        driven.ask(&["screen", "drop"]).is_err(),
+        "nothing is left to drop"
+    );
     driven
         .ask(&["screen", "grab", "/notes/c.txt"])
         .expect("another is grabbed");

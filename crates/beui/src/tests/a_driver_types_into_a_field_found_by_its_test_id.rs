@@ -22,7 +22,9 @@ fn a_driver_types_into_a_field_found_by_its_test_id() {
     driven
         .ask(&["app", "click", "#form.name"])
         .expect("the field is clicked");
-    let changed = driven.ask(&["app", "type", "Ada"]).expect("the text is typed");
+    let changed = driven
+        .ask(&["app", "type", "Ada"])
+        .expect("the text is typed");
     assert!(
         changed.contains("value=\"Ada\""),
         "the field reads what was typed:\n{changed}"

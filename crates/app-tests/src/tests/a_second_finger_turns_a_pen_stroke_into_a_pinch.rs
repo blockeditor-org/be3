@@ -23,7 +23,8 @@ fn a_second_finger_turns_a_pen_stroke_into_a_pinch() {
     app.run(&["app", "touch", "move", &format!("0={}", at(0.45, 0.5))]);
     app.run(&["app", "touch", "down", &format!("1={}", at(0.6, 0.5))]);
     app.run(&[
-        "app", "touch",
+        "app",
+        "touch",
         "move",
         &format!("0={}", at(0.3, 0.5)),
         &format!("1={}", at(0.75, 0.5)),

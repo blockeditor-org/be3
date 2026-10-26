@@ -1,5 +1,5 @@
-use crate::window::{MAX_PIXELS, WindowSize};
 use crate::geometry::Vec2;
+use crate::window::{MAX_PIXELS, WindowSize};
 
 pub const PLATFORM: &str = "BEUI_PLATFORM";
 pub const LAYERS: &str = "BEUI_LAYERS";

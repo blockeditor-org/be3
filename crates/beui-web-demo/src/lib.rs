@@ -10,9 +10,15 @@ pub async fn run_demo(root_id: String, icons_font: String) -> Result<(), wasm_bi
         },
         beui::WebRenderer::Wgpu,
     ];
-    beui::run_web(&root_id, renderers, options, Vec::new(), beui_demo::DemoApp::new())
-        .await
-        .map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))
+    beui::run_web(
+        &root_id,
+        renderers,
+        options,
+        Vec::new(),
+        beui_demo::DemoApp::new(),
+    )
+    .await
+    .map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))
 }
 
 #[wasm_bindgen::prelude::wasm_bindgen]
