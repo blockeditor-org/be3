@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use be_block::InputSettings;
 use be_wayland::KeyboardConfig;
-use beui_adapter_drm::{InputConfig, InputControl, PointerDevice};
+use beui_platform_drm::{InputConfig, InputControl, PointerDevice};
 use block_plugin_api::HostInputDevice;
 
 thread_local! {
@@ -14,7 +14,7 @@ pub(crate) fn start(setup: &beui::Setup) {
     let control = setup.get::<InputControl>().cloned();
     if let Some(control) = &control {
         control.on_devices(|devices| {
-            crate::plugin_host::publish::<block_plugin_api::InputDevices>(
+            crate::plugin_host::publish::<block_plugin_api::InputDevicesWatch>(
                 &devices.iter().map(host_device).collect(),
             );
         });

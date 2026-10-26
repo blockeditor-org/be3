@@ -1,4 +1,4 @@
-use block_editor_beui::be_block::database_view::FilterCondition;
+use database_types::database_view::FilterCondition;
 
 use super::*;
 

@@ -3,18 +3,19 @@ use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::Duration;
 
-use be_wayland::programs::{DesktopEntry, Environment, IconThemes, load_icon};
+use be_wayland::programs::{DesktopEntry, Environment, IconThemes, MimeGlobs, load_icon};
 use be_wayland::{Compositor, Launch, Server, WindowId, WindowView, Windows};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{Context, Document, NodeId, Rect, Setup};
-use block_plugin_api::{HostImage, HostProgram, HostWindow, HostWindowId, Size, WindowOrigin};
+use block_plugin_api::{HostImage, HostProgram, HostWindow, HostWindowId, WindowOrigin};
 
 struct Running {
     compositor: Compositor,
-    cursor: Option<beui_adapter_drm::SoftwareCursor>,
-    display: Option<beui_adapter_drm::DisplayControl>,
-    flips: Option<beui_adapter_drm::Flips>,
+    cursor: Option<beui_platform_drm::SoftwareCursor>,
+    display: Option<beui_platform_drm::DisplayControl>,
+    flips: Option<beui_platform_drm::Flips>,
+    displays: Option<beui_platform_drm::Displays>,
     blanked: bool,
     lock_due: bool,
     lock_noticed: bool,
@@ -24,6 +25,7 @@ struct Running {
 struct Launched {
     program: Option<String>,
     launch: Option<u64>,
+    block: Option<uuid::Uuid>,
 }
 
 thread_local! {
@@ -32,13 +34,17 @@ thread_local! {
     static LAUNCHES: RefCell<Vec<Launched>> = const { RefCell::new(Vec::new()) };
 }
 
-fn tag(program: Option<String>, launch: Option<u64>) -> Option<u64> {
+fn tag(program: Option<String>, launch: Option<u64>, block: Option<uuid::Uuid>) -> Option<u64> {
     if program.is_none() && launch.is_none() {
         return None;
     }
     LAUNCHES.with(|launches| {
         let mut launches = launches.borrow_mut();
-        launches.push(Launched { program, launch });
+        launches.push(Launched {
+            program,
+            launch,
+            block,
+        });
         u64::try_from(launches.len() - 1).ok()
     })
 }
@@ -92,18 +98,23 @@ pub(crate) fn start(setup: &Setup) {
         gpu.format,
         setup.waker.clone(),
     );
-    let cursor = setup.get::<beui_adapter_drm::SoftwareCursor>().cloned();
-    let display = setup.get::<beui_adapter_drm::DisplayControl>().cloned();
-    let flips = setup.get::<beui_adapter_drm::Flips>().cloned();
+    let cursor = setup.get::<beui_platform_drm::SoftwareCursor>().cloned();
+    let display = setup.get::<beui_platform_drm::DisplayControl>().cloned();
+    let flips = setup.get::<beui_platform_drm::Flips>().cloned();
     if flips.is_some() {
         compositor.pace_to_flips();
     }
+    if let Some(beui_platform_drm::Loop(handle)) = setup.get::<beui_platform_drm::Loop>() {
+        compositor.join_loop(handle);
+    }
+    let displays = setup.get::<beui_platform_drm::Displays>().cloned();
     RUNNING.with(|running| {
         *running.borrow_mut() = Some(Running {
             compositor,
             cursor,
             display,
             flips,
+            displays,
             blanked: false,
             lock_due: false,
             lock_noticed: false,
@@ -131,30 +142,39 @@ pub(crate) fn running() -> bool {
     with(|_| ()).is_some()
 }
 
-pub(crate) fn before(context: &Context, rect: Rect, document: &mut Document) {
+pub(crate) fn before(context: &Context, rect: Rect, _document: &mut Document) {
     with(|running| {
-        running.compositor.set_screens(
-            document
-                .screens()
-                .into_iter()
-                .map(|screen| screen.rect)
-                .collect(),
-        );
+        let monitors: Vec<be_wayland::Monitor> = running
+            .displays
+            .as_ref()
+            .map(|displays| {
+                displays
+                    .displays()
+                    .into_iter()
+                    .map(|display| be_wayland::Monitor {
+                        rect: display.rect(),
+                        id: display.id,
+                        name: display.name,
+                        scale: display.scale,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
         if running
             .display
             .as_ref()
-            .is_some_and(beui_adapter_drm::DisplayControl::take_woken)
+            .is_some_and(beui_platform_drm::DisplayControl::take_woken)
         {
             running.compositor.woke();
         }
         if let Some(flips) = &running.flips {
-            let screens = document.screens();
             for flip in flips.take() {
-                let Some(screen) = screens.iter().find(|screen| screen.id == flip.screen) else {
+                let Some(monitor) = monitors.iter().find(|monitor| monitor.id == flip.screen)
+                else {
                     continue;
                 };
                 running.compositor.presented(
-                    screen.rect,
+                    monitor.rect,
                     be_wayland::Presented {
                         time: flip.time,
                         refresh: flip.refresh,
@@ -165,6 +185,7 @@ pub(crate) fn before(context: &Context, rect: Rect, document: &mut Document) {
                 );
             }
         }
+        running.compositor.set_monitors(monitors);
         running.compositor.before(context, rect);
     });
 }
@@ -190,7 +211,7 @@ pub(crate) fn after(context: &Context, document: &mut Document) {
         }
         if let Some(cursor) = &running.cursor {
             cursor.set(running.compositor.cursor_image().map(|image| {
-                beui_adapter_drm::CursorImage {
+                beui_platform_drm::CursorImage {
                     texture: image.texture,
                     size: image.size,
                     hotspot: image.hotspot,
@@ -252,26 +273,27 @@ pub(crate) fn revision() -> u64 {
     windows().map_or(0, |windows| windows.revision())
 }
 
-pub(crate) fn listed() -> Vec<HostWindow> {
+pub(crate) fn listed(hidden: &[HostWindowId]) -> Vec<HostWindow> {
     let Some(windows) = windows() else {
         return Vec::new();
     };
-    windows
-        .list()
-        .get_untracked()
+    let listed = windows.list().get_untracked();
+    let opening: Vec<WindowId> = hidden.iter().map(|window| WindowId(window.0)).collect();
+    listed
         .into_iter()
+        .filter(|info| !opening.contains(&info.id))
         .map(|info| {
             let launched = launched(info.launch);
             HostWindow {
                 id: HostWindowId(info.id.0),
                 title: info.title,
                 app_id: info.app_id,
-                parent: info.parent.map(|parent| HostWindowId(parent.0)),
+                parent: info
+                    .parent
+                    .filter(|parent| !opening.contains(parent))
+                    .map(|parent| HostWindowId(parent.0)),
                 modal: info.modal,
-                size: Size {
-                    width: info.size.x,
-                    height: info.size.y,
-                },
+                size: info.size,
                 fullscreen: info.fullscreen,
                 responding: info.responding,
                 focused: windows.focused() == Some(info.id),
@@ -288,6 +310,19 @@ pub(crate) fn listed() -> Vec<HostWindow> {
                 },
             }
         })
+        .collect()
+}
+
+pub(crate) fn opening_windows() -> Vec<(uuid::Uuid, HostWindowId)> {
+    let Some(windows) = windows() else {
+        return Vec::new();
+    };
+    windows
+        .list()
+        .get_untracked()
+        .into_iter()
+        .filter(|info| info.parent.is_none())
+        .filter_map(|info| Some((launched(info.launch).block?, HostWindowId(info.id.0))))
         .collect()
 }
 
@@ -330,7 +365,7 @@ pub(crate) fn exec(arguments: Vec<String>, launch: Option<u64>) -> bool {
     windows.run(Launch {
         arguments,
         working_dir: None,
-        tag: tag(None, launch),
+        tag: tag(None, launch, None),
     });
     crate::host::wake();
     true
@@ -347,16 +382,24 @@ const WAITING_ICON_SIZE: u32 = 64;
 const ICON_BUDGET: usize = block_plugin_api::MAX_BLOB_BYTES / 2;
 
 enum Scanned {
-    Entries(Environment, Vec<DesktopEntry>),
+    Entries(Environment, Vec<DesktopEntry>, MimeGlobs),
     Icons(Vec<(String, HostImage)>),
+}
+
+pub(crate) struct Opener {
+    pub(crate) id: String,
+    pub(crate) name: String,
+    pub(crate) extensions: Vec<String>,
 }
 
 #[derive(Default)]
 pub(crate) struct Programs {
     environment: Environment,
     entries: Vec<DesktopEntry>,
+    globs: MimeGlobs,
     icons: HashMap<String, HostImage>,
     scanning: Option<Receiver<Scanned>>,
+    rescan: Option<u32>,
     waiting: Vec<(String, Option<u64>)>,
     scanned: bool,
 }
@@ -364,6 +407,7 @@ pub(crate) struct Programs {
 impl Programs {
     pub(crate) fn scan(&mut self, pixels: u32) {
         if self.scanning.is_some() {
+            self.rescan = Some(pixels);
             return;
         }
         let (sender, receiver) = crate::host::waking_channel();
@@ -373,12 +417,13 @@ impl Programs {
             .spawn(move || {
                 let environment = Environment::from_env();
                 let entries = environment.programs();
+                let globs = environment.mime_globs();
                 let named: Vec<(String, String)> = entries
                     .iter()
                     .filter_map(|entry| Some((entry.id.clone(), entry.icon.clone()?)))
                     .collect();
                 if sender
-                    .send(Scanned::Entries(environment.clone(), entries))
+                    .send(Scanned::Entries(environment.clone(), entries, globs))
                     .is_err()
                 {
                     return;
@@ -412,9 +457,10 @@ impl Programs {
         let mut changed = false;
         loop {
             match receiver.try_recv() {
-                Ok(Scanned::Entries(environment, entries)) => {
+                Ok(Scanned::Entries(environment, entries, globs)) => {
                     self.environment = environment;
                     self.entries = entries;
+                    self.globs = globs;
                     self.scanned = true;
                     changed = true;
                 }
@@ -425,6 +471,9 @@ impl Programs {
                 Err(TryRecvError::Empty) => break,
                 Err(TryRecvError::Disconnected) => {
                     self.scanning = None;
+                    if let Some(pixels) = self.rescan.take() {
+                        self.scan(pixels);
+                    }
                     break;
                 }
             }
@@ -463,35 +512,73 @@ impl Programs {
             .collect()
     }
 
+    pub(crate) fn scanned(&self) -> bool {
+        self.scanned
+    }
+
+    pub(crate) fn openers(&self) -> Vec<Opener> {
+        self.entries
+            .iter()
+            .filter(|entry| !entry.mime_types.is_empty())
+            .map(|entry| Opener {
+                id: entry.id.clone(),
+                name: entry.name.clone(),
+                extensions: self.globs.extensions(&entry.mime_types),
+            })
+            .filter(|opener| !opener.extensions.is_empty())
+            .collect()
+    }
+
     pub(crate) fn launch(&mut self, key: &str, launch: Option<u64>) -> bool {
         if !self.scanned {
             self.waiting.push((key.to_owned(), launch));
             self.scan(WAITING_ICON_SIZE);
             return false;
         }
+        self.run(key, launch, None).is_ok()
+    }
+
+    pub(crate) fn open_file(
+        &mut self,
+        key: &str,
+        file: &std::path::Path,
+        block: uuid::Uuid,
+    ) -> Result<(), String> {
+        self.run(key, None, Some((file, block)))
+    }
+
+    fn run(
+        &mut self,
+        key: &str,
+        launch: Option<u64>,
+        file: Option<(&std::path::Path, uuid::Uuid)>,
+    ) -> Result<(), String> {
         let Some(entry) = self.entries.iter().find(|entry| entry.id == key) else {
             eprintln!("block-app: no program {key} is installed");
-            crate::notices::report(format!("{key} could not be opened: it is not installed"));
-            return false;
+            let problem = format!("{key} could not be opened: it is not installed");
+            crate::notices::report(problem.clone());
+            return Err(problem);
         };
-        let arguments = match self.environment.command(entry) {
+        let path = file.map(|(path, _)| path.to_string_lossy().into_owned());
+        let arguments = match self.environment.command(entry, path.as_deref()) {
             Ok(arguments) => arguments,
             Err(error) => {
                 eprintln!("block-app: {} did not start: {error}", entry.name);
-                crate::notices::report(format!("{} did not start: {error}", entry.name));
-                return false;
+                let problem = format!("{} did not start: {error}", entry.name);
+                crate::notices::report(problem.clone());
+                return Err(problem);
             }
         };
         let Some(windows) = windows().filter(|_| running()) else {
-            return false;
+            return Err("Programs cannot run here.".to_owned());
         };
         windows.run(Launch {
             arguments,
             working_dir: entry.working_dir.clone(),
-            tag: tag(Some(entry.id.clone()), launch),
+            tag: tag(Some(entry.id.clone()), launch, file.map(|(_, block)| block)),
         });
         crate::host::wake();
-        true
+        Ok(())
     }
 }
 

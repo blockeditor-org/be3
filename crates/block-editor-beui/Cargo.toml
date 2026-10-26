@@ -7,17 +7,23 @@ license.workspace = true
 [dependencies]
 be-block = { path = "../be-block" }
 beui = { path = "../beui", default-features = false }
-beui-adapter-plugin = { path = "../beui-adapter-plugin" }
+beui-platform-plugin = { path = "../beui-platform-plugin" }
 block-editor-plugin = { path = "../block-editor-plugin" }
 block-plugin-api = { path = "../block-plugin-api" }
 block-ui = { path = "../block-ui" }
+database-types = { path = "../editors/database/types" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 text-editor-core = { path = "../text-editor-core" }
 uuid = { version = "1", features = ["v4"] }
+workspace-ui-types = { path = "../editors/workspace-ui/types" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
 
 [dev-dependencies]
 be-model = { path = "../be-model" }
+presentation-types = { path = "../editors/presentation/types" }
 
 [lints]
 workspace = true

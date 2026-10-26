@@ -1,6 +1,6 @@
 use super::*;
 use crate::presence::CanvasCursor;
-use block_editor_beui::beui::unstyled::{self, RemoteTextCursor};
+use block_editor_beui::beui::styled::{RemoteTextCursor, TextAreaApi, TextAreaSurfaceApi};
 use block_editor_beui::beui::{Key, Modifiers, pos2};
 
 fn shown_carets(editor: &BeuiTest<CanvasApp>, id: Uuid) -> Vec<RemoteTextCursor> {
@@ -8,9 +8,10 @@ fn shown_carets(editor: &BeuiTest<CanvasApp>, id: Uuid) -> Vec<RemoteTextCursor>
         .document()
         .find_test_id(&format!("infinite-canvas.text.{id}"))
         .expect("the text is drawn");
+    let surface = editor.document().api::<TextAreaSurfaceApi>(area).surface();
     editor
         .document()
-        .api::<unstyled::TextAreaApi>(area)
+        .api::<TextAreaApi>(surface)
         .remote_cursors()
 }
 

@@ -30,14 +30,19 @@ mod a_contact_card_the_server_swaps_does_not_open;
 mod a_detached_subtree_is_collected_and_its_objects_freed;
 mod a_grant_or_a_key_for_someone_not_a_contact_is_refused;
 mod a_graph_change_reaches_only_the_members_who_may_see_it;
+mod a_kind_open_inside_passes_from_one_viewer_inside_to_another;
+mod a_move_never_takes_a_workspace_or_more_access_without_manage;
 mod a_new_recovery_key_reseals_every_key_sealed_to_the_account;
 mod a_pending_grant_is_applied_when_its_link_is_accepted;
 mod a_remembered_account_approves_a_manually_entered_code_and_can_switch_accounts;
 mod a_rotation_gives_every_block_below_it_a_new_key_or_nothing;
 mod a_session_hands_ownership_over_without_a_merge;
+mod a_settings_block_changes_only_with_manage_on_its_parent;
+mod a_settings_kind_opens_to_anyone_who_views_a_block_inside;
 mod a_stale_publish_is_rejected_with_the_current_head;
 mod a_watcher_is_told_when_the_head_moves;
 mod an_agent_signs_in_with_its_token_until_it_is_removed;
+mod an_editor_changes_the_prefixes_and_tags_but_no_other_kind;
 mod an_editor_sees_only_the_blocks_it_made_or_was_given;
 mod an_invited_account_joins_the_organization_and_a_logout_ends_the_session;
 mod an_unauthenticated_connection_cannot_touch_blocks;
@@ -46,6 +51,7 @@ mod blocks_publish_and_read_back_through_the_server;
 mod browser_authorization_survives_disconnecting_before_approval;
 mod browser_forms_enforce_origin_policy_and_deny_sign_in;
 mod browser_pages_escape_codes_and_keep_available_actions;
+mod closing_a_kind_rotates_it_for_who_read_it_inside;
 mod contacts_are_made_by_a_link_and_finished_by_its_owner;
 mod email_changes_wait_for_verification_and_notify_the_old_address;
 mod every_graph_change_advances_a_blocks_version;
@@ -55,12 +61,16 @@ mod history_records_each_commits_parents;
 mod key_rows_are_served_only_to_who_may_see_their_block;
 mod legacy_local_profile_sessions_remain_usable;
 mod local_profiles_need_only_a_name_and_are_unavailable_on_remote_servers;
+mod losing_every_block_inside_rotates_a_kind_open_inside;
 mod members_manage_only_the_agents_they_created;
 mod metadata_travels_with_the_content_once_a_block_has_any;
 mod moving_a_block_drops_the_wraps_of_its_old_scope;
+mod moving_a_block_out_of_what_is_shared_rotates_its_keys;
 mod objects_a_block_holds_outlive_its_commits_until_it_is_collected;
 mod objects_are_served_only_from_blocks_the_reader_can_see;
 mod old_database_backups_thin_out_by_age;
+mod only_a_manager_lets_go_of_a_blocks_settings;
+mod only_a_manager_shares_and_a_lower_grant_reduces_nothing;
 mod pairing_messages_reach_only_the_same_accounts_other_connections;
 mod password_changes_rotate_the_browser_and_revoke_other_sessions;
 mod password_reset_is_generic_and_revokes_live_sessions_and_pending_approvals;
@@ -73,9 +83,11 @@ mod registration_requires_verification_and_links_are_purpose_bound_and_single_us
 mod relayed_session_traffic_passes_through_the_server_sealed;
 mod removing_a_contact_revokes_what_the_two_shared;
 mod repeated_failed_sign_ins_lock_the_account_out;
+mod requests_sent_before_a_close_are_still_carried_out;
 mod revoking_an_http_session_removes_its_access;
 mod sessions_are_scoped_to_the_account_and_form_tokens_to_the_browser;
 mod shared_chunks_survive_until_the_last_commit_releases_them;
+mod the_access_list_leaves_administrators_to_the_organization_line;
 mod the_browser_authorization_requires_the_private_secret_and_works_once;
 
 const CONTENT: Uuid = Uuid::from_u128(0x7465_7874);
@@ -341,6 +353,7 @@ impl TestClient {
                 content_type: CONTENT,
                 parent,
                 metadata: Vec::new(),
+                references: Vec::new(),
                 key,
                 keys,
             })
@@ -642,6 +655,16 @@ impl TestClient {
             panic!("listing contacts failed: {response:?}");
         };
         contacts
+    }
+
+    async fn move_to(&mut self, block: Uuid, parent: BlockParent) -> ServerMessage {
+        self.send(|request| ClientMessage::SetParent {
+            request,
+            block,
+            parent,
+            keys: KeySet::default(),
+        })
+        .await
     }
 
     async fn grant(

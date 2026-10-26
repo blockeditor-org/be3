@@ -48,7 +48,7 @@ impl App for Mover {
 
 struct Nowhere;
 
-impl beui_core::runner::Platform for Nowhere {}
+impl beui_core::runner::PlatformServices for Nowhere {}
 
 #[test]
 fn the_space_host_carries_the_main_window_its_app_asks_to_move() {
@@ -58,7 +58,7 @@ fn the_space_host_carries_the_main_window_its_app_asks_to_move() {
         options: RunOptions::default(),
         context: context.clone(),
         app: Box::new(Mover(Rc::clone(&moving))),
-        host: Some(Box::new(beui_adapter_space::Space::new())),
+        layers: vec![Box::new(beui_layer_space::Space::new())],
     });
     runner
         .start(
@@ -77,17 +77,16 @@ fn the_space_host_carries_the_main_window_its_app_asks_to_move() {
     );
     assert_eq!(context.window_placement(WindowId::MAIN), None);
 
-    moving.set(true);
-    runner.frame(&mut Nowhere, SafeArea::default());
     let middle = pos2(200.0, 150.0);
     for pressed in [true, false] {
+        moving.set(pressed);
         runner.push(Input::PointerButton {
             pos: middle,
             button: PointerButton::Primary,
             pressed,
         });
+        runner.frame(&mut Nowhere, SafeArea::default());
     }
-    runner.frame(&mut Nowhere, SafeArea::default());
 
     let placement = context
         .window_placement(WindowId::MAIN)

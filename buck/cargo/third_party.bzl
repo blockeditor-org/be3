@@ -1,5 +1,6 @@
 load("@prelude//rust:cargo_buildscript.bzl", "buildscript_run")
 load("@prelude//rust:cargo_package.bzl", "cargo")
+load("@root//buck/platforms:cross.bzl", "PLAN_SETTINGS")
 load("@root//buck/platforms:profile.bzl", "dev_only")
 load(":crates.bzl", "third_party")
 
@@ -47,6 +48,16 @@ def _platforms(crate, fixup, script = False):
         platforms[platform] = entry
     return platforms
 
+# A fixup's rustc_flags for one plan's platforms only.
+def _plan_flags(fixup):
+    flags = fixup.get("plan_rustc_flags", {})
+    if not flags:
+        return []
+    branches = {"DEFAULT": []}
+    for plan, extra in flags.items():
+        branches[PLAN_SETTINGS[plan]] = extra
+    return select(branches)
+
 def _crate(key, crate, fixup):
     archive = key + ".crate"
     native.http_archive(
@@ -82,7 +93,7 @@ def _crate(key, crate, fixup):
         mapped_srcs = overlay,
         platform = _platforms(crate, fixup),
         proc_macro = library["proc_macro"],
-        rustc_flags = dev_only(crate.get("profile_flags", [])) + rustc_flags,
+        rustc_flags = dev_only(crate.get("profile_flags", [])) + rustc_flags + _plan_flags(fixup),
         srcs = [":" + archive],
         visibility = ["PUBLIC"],
     )

@@ -22,8 +22,8 @@ fn wifi_messages_round_trip() {
         ],
         failed: Some("Office".to_owned()),
     };
-    host_value_round_trips::<Wifi>(status);
-    host_value_round_trips::<Wifi>(WifiStatus::default());
+    watched_round_trips::<WifiWatch>(status);
+    watched_round_trips::<WifiWatch>(WifiStatus::default());
     for request in [
         WifiRequest::SetEnabled(false),
         WifiRequest::Scan,
@@ -37,6 +37,6 @@ fn wifi_messages_round_trip() {
         },
         WifiRequest::Disconnect,
     ] {
-        host_action_round_trips(request);
+        round_trips(&request);
     }
 }

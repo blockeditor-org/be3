@@ -46,8 +46,8 @@ mod bench {
 
     use beui::testing::Screen;
     use beui::{
-        Color32, Context, Incoming, Input, Launch, Platform, PointerButton, Pos2, Rect, RunOptions,
-        ScrollDelta, Setup, Vec2, Waker, WindowOutput,
+        Color32, Context, Incoming, Input, Launch, PlatformServices, PointerButton, Pos2, Rect,
+        RunOptions, ScrollDelta, Setup, Vec2, Waker, WindowOutput,
     };
     use beui_core::app::SafeArea;
     use beui_core::context::RendererInfo;
@@ -93,7 +93,7 @@ mod bench {
 
     struct Bare;
 
-    impl Platform for Bare {}
+    impl PlatformServices for Bare {}
 
     struct Timing {
         gpu: Gpu,
@@ -160,7 +160,7 @@ mod bench {
                 },
                 context,
                 app: Box::new(DemoApp::new()),
-                host: None,
+                layers: Vec::new(),
             });
             let timing = Timing {
                 gpu: Rc::clone(&gpu),
@@ -378,7 +378,7 @@ mod bench {
             pollster::block_on(OffscreenSurface::new(
                 VIEWPORT.x as u32,
                 VIEWPORT.y as u32,
-                None,
+                Default::default(),
             ))
             .expect("an offscreen GPU")
         });
@@ -441,6 +441,11 @@ mod bench {
             for (log, duration) in logs.iter_mut().zip([cold, min, median, max]) {
                 *log += ms(duration).max(1e-3).ln();
             }
+            let page = title.to_lowercase().replace(' ', "-");
+            ::bench::time(&format!("{page}.cold"), cold);
+            ::bench::time(&format!("{page}.warm-fastest"), min);
+            ::bench::time(&format!("{page}.warm-median"), median);
+            ::bench::count(&format!("{page}.allocations"), allocations);
             println!(
                 "{title:<16} {:>9.2} {:>9.2} {:>9.2} {:>9.2} {allocations:>12}",
                 ms(cold),
@@ -450,6 +455,9 @@ mod bench {
             );
         }
         let [cold, min, median, max] = logs.map(|log| (log / summary.len().max(1) as f64).exp());
+        ::bench::record("mean.cold", cold, "ms");
+        ::bench::record("mean.warm-fastest", min, "ms");
+        ::bench::record("mean.warm-median", median, "ms");
         println!(
             "{:<16} {cold:>9.2} {min:>9.2} {median:>9.2} {max:>9.2}",
             "geomean"

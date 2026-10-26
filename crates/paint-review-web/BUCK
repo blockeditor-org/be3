@@ -1,5 +1,6 @@
 load("@root//buck/app:defs.bzl", "app")
 load("@root//buck/cargo:defs.bzl", "cargo_library")
+load("@root//buck/platforms:profile.bzl", "released")
 load("@root//buck/wasm:defs.bzl", "wasi_app_flags", "wasi_app_module")
 
 # The paintings a pull request changed (crates/paint-review) in a browser,
@@ -50,4 +51,11 @@ export_file(
 export_file(
     name = "Caddyfile",
     src = "web/Caddyfile",
+)
+
+# What CI uploads for a pull request's paint previews (buck/dev/verify.bxl).
+released(
+    name = "web-release",
+    actual = ":web",
+    visibility = ["PUBLIC"],
 )

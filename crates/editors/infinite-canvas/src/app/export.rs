@@ -1,22 +1,18 @@
 use block_editor_beui::beui::icons::Glyph;
-use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
-use block_editor_beui::be_block::canvas::{
-    CanvasEntity, CanvasPoint, CanvasShape, CanvasTextWeight,
-};
-use block_editor_beui::be_block::{BlockContent, ImageContent};
+use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::beui::painting::{Punches, painting, rasterize};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::rich::{RichLayout, SpanKind, SpanStyle};
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{ChoiceOption, ProseLine, SyntaxColors, TextAreaColors};
 use block_editor_beui::beui::{
     Color32, Context, FontFamily, FontId, FreetypeFonts, Galley, Image, LineCap, LineJoin, NodeId,
     Painter, Path, PathElement, Pos2, Rect, Stroke, TextAlign, Vec2, line_height, pos2,
 };
-use block_editor_beui::{FileSaver, SavedFile};
+use block_editor_beui::{FileSave, SavedFile};
+use infinite_canvas_types::{CanvasEntity, CanvasPoint, CanvasShape, CanvasTextWeight};
 use uuid::Uuid;
 
 use crate::geometry::{TEXT_INSET, entity_bounds};
@@ -27,6 +23,7 @@ use super::state::CanvasState;
 use super::text::{
     font_px, prose, rich_state, text_box, text_region, text_style, text_turn, writes,
 };
+use image_block_types::ImageContent;
 
 pub(crate) const PADDING: f32 = 16.0;
 pub(crate) const SCALES: [f32; 3] = [1.0, 2.0, 3.0];
@@ -261,8 +258,6 @@ impl Exporter {
             palette,
             background,
         };
-        let saver = Rc::new(RefCell::new(FileSaver::default()));
-        let saving = Rc::clone(&saver);
         let editor = state.editor();
         let job = exporter.job;
         create_effect(move || {
@@ -307,24 +302,22 @@ impl Exporter {
                     (ExportTo::Clipboard, ExportFormat::Svg) => {
                         copy_text(String::from_utf8_lossy(&data).into_owned())
                     }
-                    (ExportTo::File, format) => saving.borrow_mut().save(
-                        &editor.host(),
-                        SavedFile {
+                    (ExportTo::File, format) => {
+                        let asked = editor.host().save_file(SavedFile {
                             name: wanted.scene.file_name(format),
                             mime_type: format.mime_type().to_owned(),
                             data,
-                        },
-                    ),
+                        });
+                        editor.then(asked, move |saved| {
+                            if let FileSave::Failed(failure) = saved {
+                                state
+                                    .import_error
+                                    .set(Some(format!("Could not export: {failure}")));
+                            }
+                        });
+                    }
                 }
             });
-        });
-        let host = editor.host();
-        editor.on_reply(move || {
-            if let Some(Err(failure)) = saver.borrow_mut().poll(&host) {
-                state
-                    .import_error
-                    .set(Some(format!("Could not export: {failure}")));
-            }
         });
         exporter
     }
@@ -490,12 +483,9 @@ fn paint_written(painter: &Painter, entity: &CanvasEntity, ink: Color32, camera:
     }
 }
 
-fn entity_corner(
-    entity: &CanvasEntity,
-    at: f32,
-) -> block_editor_beui::be_block::canvas::CanvasPoint {
+fn entity_corner(entity: &CanvasEntity, at: f32) -> infinite_canvas_types::CanvasPoint {
     let transform = entity.transform;
-    block_editor_beui::be_block::canvas::CanvasPoint::new(
+    infinite_canvas_types::CanvasPoint::new(
         transform.center.x + transform.size.x * at,
         transform.center.y + transform.size.y * at,
     )
@@ -522,7 +512,7 @@ fn written(painter: &Painter, entity: &CanvasEntity, ink: Color32, camera: Camer
         .shrink(TEXT_INSET * camera.scale);
     let colors = TextAreaColors {
         syntax: SyntaxColors::uniform(ink),
-        ..TextAreaColors::DEFAULT
+        ..text_area_colors(&Theme::DARK)
     };
     let square = line_height(px);
     let Some(lines) = rich_state(entity).lay_out_prose(
@@ -531,6 +521,7 @@ fn written(painter: &Painter, entity: &CanvasEntity, ink: Color32, camera: Camer
         "",
         inner.width(),
         &colors,
+        text_area_geometry(),
         square,
         |pieces, options| Some(painter.rich_layout(pieces, options)),
     ) else {
@@ -682,6 +673,11 @@ fn svg_entity(
             Mark::Fill(path) => out.push_str(&format!(
                 "<path d=\"{}\"{}/>\n",
                 path_data(path),
+                paint("fill", color)
+            )),
+            Mark::Painted(painted, offset) => out.push_str(&format!(
+                "<path d=\"{}\"{}/>\n",
+                path_data(&painted.path().translated(*offset)),
                 paint("fill", color)
             )),
             Mark::Stroke(path, stroke) => out.push_str(&format!(
@@ -942,8 +938,7 @@ fn base64(data: &[u8]) -> String {
     out
 }
 
-const DIALOG_WIDTH: f32 = 320.0;
-const DIALOG_SPACING: f32 = 12.0;
+const DIALOG_SPACING: Space = Space::Lg;
 
 #[component]
 pub(crate) fn ExportDialog(exporter: Exporter) -> NodeId {
@@ -976,20 +971,13 @@ pub(crate) fn ExportDialog(exporter: Exporter) -> NodeId {
         <Dialog
             open={open}
             title={title}
-            width=DIALOG_WIDTH
             id="infinite-canvas.export"
-            confirm="Save…"
-            cancel="Cancel"
-            on_confirm={move || finish(ExportTo::File)}
+            actions={vec![
+                DialogAction::secondary("Copy", move || finish(ExportTo::Clipboard)).named("copy"),
+                DialogAction::cancel("Cancel"),
+                DialogAction::primary("Save…", move || finish(ExportTo::File)),
+            ]}
             on_dismiss={move || dialog.set(None)}
-            extra_actions={move || view! {
-                <Button
-                    label="Copy"
-                    variant=ButtonVariant::Secondary
-                    @test_id={"infinite-canvas.export.copy"}
-                    on_click={move || finish(ExportTo::Clipboard)}
-                />
-            }}
         >
             <List spacing=DIALOG_SPACING>
                 <Show condition={raster}>

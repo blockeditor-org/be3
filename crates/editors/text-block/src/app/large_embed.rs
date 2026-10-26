@@ -1,6 +1,6 @@
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{NodeId, TextAlign};
+use beui::{NodeId, Overflow, TextAlign};
 use block_editor_beui::{
     ChildBlock, ChildMode, ChildState, ChildTarget, InteractionMode,
     block_ui::{EMBEDDED_EDITOR_PADDING, EMBEDDED_EDITOR_TITLE_GAP, EMBEDDED_EDITOR_TITLE_HEIGHT},
@@ -9,10 +9,8 @@ use block_editor_beui::{
 use super::embeds::ResolvedEmbed;
 use super::state::{FocusedEmbed, State};
 
-const TITLE_SPACING: f32 = 6.0;
-const TITLE_PADDING: f32 = 6.0;
-const FRAME_RADIUS: f32 = 6.0;
-const TITLE_RADIUS: f32 = 4.0;
+const TITLE_SPACING: Space = Space::Sm;
+const TITLE_PADDING: Space = Space::Sm;
 
 #[component]
 pub(crate) fn LargeEmbed(state: State, embed: ResolvedEmbed) -> NodeId {
@@ -58,16 +56,16 @@ pub(crate) fn LargeEmbed(state: State, embed: ResolvedEmbed) -> NodeId {
     view! {
         <Frame
             fill=ColorRole::Surface
-            border={Border::new(ColorRole::Border).width(1.0)}
-            radius={Radius::custom(FRAME_RADIUS)}
-            padding=EMBEDDED_EDITOR_PADDING
+            border={Border::DEFAULT}
+            radius=Radius::Md
+            padding={Space::Custom(EMBEDDED_EDITOR_PADDING)}
         >
-            <List spacing=EMBEDDED_EDITOR_TITLE_GAP>
+            <List spacing={Space::Custom(EMBEDDED_EDITOR_TITLE_GAP)}>
                 <Frame
-                    height=EMBEDDED_EDITOR_TITLE_HEIGHT
+                    height={Size::Custom(EMBEDDED_EDITOR_TITLE_HEIGHT)}
                     fill=ColorRole::SurfaceRaised
-                    radius={Radius::custom(TITLE_RADIUS)}
-                    padding={Sides::horizontal(TITLE_PADDING)}
+                    radius=Radius::Sm
+                    padding={Padding::horizontal(TITLE_PADDING)}
                 >
                     <List direction=Direction::Horizontal align=Align::Center spacing=TITLE_SPACING>
                         <Show condition={has_icon} then={icon_row} />
@@ -75,7 +73,7 @@ pub(crate) fn LargeEmbed(state: State, embed: ResolvedEmbed) -> NodeId {
                             @sizing=ItemSize::Percent(100.0)
                             size=TextSize::Lg
                             italic={automatic}
-                            clip=true
+                            overflow=Overflow::Ellipsis
                         >
                             {label}
                         </Text>

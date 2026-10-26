@@ -1,9 +1,11 @@
+mod direct;
 mod dylink;
 mod gpu;
 mod harness;
 mod interrupt;
 mod panic;
 mod precompile;
+mod pure;
 mod state;
 mod stderr;
 mod threads;
@@ -20,7 +22,7 @@ use std::{
     time::Duration,
 };
 
-use block_gpu_host::{Gpu, calls::Guest};
+use block_gpu_host::Gpu;
 use wasmtime::{
     Cache, CacheConfig, Config, Engine, Instance, Linker, Module, SharedMemory, Store, TypedFunc,
 };
@@ -32,8 +34,10 @@ use state::Device;
 use threads::Spawner;
 use wake::Wake;
 
+pub use block_gpu_host::Imports;
 pub use interrupt::Interrupter;
 pub use precompile::{precompile, precompile_to};
+pub use pure::{MEMORY_LIMIT, PureGuest, PureHost};
 pub use state::{Connect, State};
 pub use wasm_dylink::sdk_file_name;
 
@@ -52,6 +56,8 @@ pub struct Host {
     engine: Engine,
     sdks: Sdks,
     devices: Devices,
+    imports: Imports,
+    direct: Vec<(String, String)>,
     interrupt: Arc<Interrupt>,
 }
 
@@ -62,11 +68,11 @@ enum Devices {
 }
 
 impl Devices {
-    fn open(&self) -> Device {
+    fn open(&self, imports: &Imports) -> Device {
         match self {
-            Self::Given(device, queue) => {
-                Device::Ready(Box::new(Gpu::new(device.clone(), queue.clone())))
-            }
+            Self::Given(device, queue) => Device::Ready(Box::new(
+                Gpu::new(device.clone(), queue.clone()).sharing(Arc::clone(imports)),
+            )),
             Self::OnDemand(connect) => Device::Unconnected(Arc::clone(connect)),
         }
     }
@@ -78,12 +84,14 @@ impl Host {
         queue: wgpu::Queue,
         cache: Option<&Path>,
     ) -> Result<Self, String> {
-        let (engine, sdks) = engine(cache)?;
+        let (engine, sdks) = engine(cache, Flavor::Plugin)?;
         Ok(Self {
             interrupt: Interrupt::new(engine.clone()),
             engine,
             sdks,
             devices: Devices::Given(device, queue),
+            imports: Imports::default(),
+            direct: Vec::new(),
         })
     }
 
@@ -91,13 +99,27 @@ impl Host {
         connect: impl Fn() -> Result<(wgpu::Device, wgpu::Queue), String> + Send + Sync + 'static,
         cache: Option<&Path>,
     ) -> Result<Self, String> {
-        let (engine, sdks) = engine(cache)?;
+        let (engine, sdks) = engine(cache, Flavor::Plugin)?;
         Ok(Self {
             interrupt: Interrupt::new(engine.clone()),
             engine,
             sdks,
             devices: Devices::OnDemand(Arc::new(connect)),
+            imports: Imports::default(),
+            direct: Vec::new(),
         })
+    }
+
+    pub fn with_direct(mut self, imports: &[(&str, &str)]) -> Self {
+        self.direct = imports
+            .iter()
+            .map(|(module, name)| ((*module).to_owned(), (*name).to_owned()))
+            .collect();
+        self
+    }
+
+    pub fn imports(&self) -> Imports {
+        Arc::clone(&self.imports)
     }
 
     pub fn interrupter(&self) -> Interrupter {
@@ -205,6 +227,7 @@ impl Host {
 
 pub struct Plugin {
     store: Store<State>,
+    instance: Instance,
     start: TypedFunc<(), ()>,
     step: TypedFunc<(), ()>,
     shutdown: TypedFunc<(), ()>,
@@ -231,8 +254,11 @@ impl Plugin {
         let state = State {
             wasi,
             memory: memory.clone(),
-            device: host.devices.open(),
+            device: host.devices.open(&host.imports),
+            imports: Arc::clone(&host.imports),
             error: None,
+            fatal: None,
+            returned: Vec::new(),
             transport: Default::default(),
             gpu_time: Duration::ZERO,
             submit_time: Duration::ZERO,
@@ -251,6 +277,7 @@ impl Plugin {
         panic::link(&mut linker)?;
         threads::link(&mut linker)?;
         wake::link(&mut linker)?;
+        direct::link(&mut linker, &host.direct)?;
         linker
             .define_unknown_imports_as_traps(program.first())
             .map_err(|error| format!("the plugin imports could not be stubbed: {error}"))?;
@@ -280,6 +307,7 @@ impl Plugin {
             step: typed(&instance, &mut store, "plugin_step")?,
             shutdown: typed(&instance, &mut store, "plugin_shutdown")?,
             store,
+            instance,
             wake,
             stopped: false,
         };
@@ -335,6 +363,35 @@ impl Plugin {
         self.store.data_mut().transport.inbox.push_back(frame);
     }
 
+    pub fn deliver(&mut self, items: Vec<Vec<u8>>) -> Result<(), String> {
+        for item in items {
+            let Some(block_guest_abi::direct::Item::Call(call)) =
+                block_guest_abi::direct::decode(&item)
+            else {
+                self.send(item);
+                continue;
+            };
+            if !self.store.data().transport.inbox.is_empty() {
+                self.step()?;
+            }
+            if self.stopped {
+                return Ok(());
+            }
+            let returned =
+                direct::call(&self.instance, &mut self.store, &call).inspect_err(|_| {
+                    self.stopped = true;
+                })?;
+            if call.answered {
+                self.store
+                    .data_mut()
+                    .transport
+                    .outbox
+                    .push(block_guest_abi::direct::returned(&returned));
+            }
+        }
+        Ok(())
+    }
+
     pub fn take_outbound(&mut self) -> Vec<Vec<u8>> {
         std::mem::take(&mut self.store.data_mut().transport.outbox)
     }
@@ -366,9 +423,13 @@ impl Plugin {
     }
 
     pub fn attach_surface(&mut self, surface: u32, texture: wgpu::Texture) {
-        self.store
-            .data_mut()
-            .gpu(|gpu| gpu.attach_surface(surface, texture));
+        let state = self.store.data_mut();
+        match state.gpu() {
+            Ok(gpu) => gpu.attach_surface(surface, texture),
+            Err(message) => {
+                state.error.get_or_insert(message);
+            }
+        }
     }
 
     pub fn detach_surface(&mut self, surface: u32) {
@@ -393,7 +454,7 @@ impl Plugin {
     }
 }
 
-fn call_constructors(instance: &Instance, store: &mut Store<State>) -> Result<(), String> {
+fn call_constructors<T: 'static>(instance: &Instance, store: &mut Store<T>) -> Result<(), String> {
     let Ok(constructors) = instance.get_typed_func::<(), ()>(&mut *store, CONSTRUCTORS) else {
         return Ok(());
     };
@@ -458,18 +519,26 @@ fn precompiled_beside(engine: &Engine, path: &Path) -> Option<Module> {
     }
 }
 
-fn engine(cache: Option<&Path>) -> Result<(Engine, Sdks), String> {
-    static ENGINES: Mutex<Vec<(Option<PathBuf>, Engine, Sdks)>> = Mutex::new(Vec::new());
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Flavor {
+    Plugin,
+    Pure,
+}
+
+type Engines = Vec<(Flavor, Option<PathBuf>, Engine, Sdks)>;
+
+fn engine(cache: Option<&Path>, flavor: Flavor) -> Result<(Engine, Sdks), String> {
+    static ENGINES: Mutex<Engines> = Mutex::new(Vec::new());
     let mut engines = ENGINES
         .lock()
         .map_err(|_| "the wasm engines were poisoned".to_owned())?;
-    if let Some((_, engine, sdks)) = engines
+    if let Some((_, _, engine, sdks)) = engines
         .iter()
-        .find(|(directory, _, _)| directory.as_deref() == cache)
+        .find(|(kind, directory, _, _)| *kind == flavor && directory.as_deref() == cache)
     {
         return Ok((engine.clone(), Arc::clone(sdks)));
     }
-    let mut config = configuration();
+    let mut config = configuration(flavor);
     if let Some(directory) = cache {
         config.cache(Some(compilation_cache(directory)?));
     }
@@ -477,6 +546,7 @@ fn engine(cache: Option<&Path>) -> Result<(Engine, Sdks), String> {
         .map_err(|error| format!("the wasm engine could not start: {error}"))?;
     let sdks = Sdks::default();
     engines.push((
+        flavor,
         cache.map(Path::to_path_buf),
         engine.clone(),
         Arc::clone(&sdks),
@@ -484,12 +554,21 @@ fn engine(cache: Option<&Path>) -> Result<(Engine, Sdks), String> {
     Ok((engine, sdks))
 }
 
-fn configuration() -> Config {
+fn configuration(flavor: Flavor) -> Config {
     let mut config = Config::new();
-    config.wasm_threads(true);
-    config.shared_memory(true);
+    match flavor {
+        Flavor::Plugin => {
+            config.wasm_threads(true);
+            config.shared_memory(true);
+            config.wasm_exceptions(true);
+        }
+        Flavor::Pure => {
+            config.wasm_threads(false);
+            config.shared_memory(false);
+            config.wasm_relaxed_simd(false);
+        }
+    }
     config.wasm_bulk_memory(true);
-    config.wasm_exceptions(true);
     config.epoch_interruption(true);
     config.wasm_backtrace_max_frames(NonZeroUsize::new(BACKTRACE_FRAMES));
     if std::env::var_os("BE3_PERF_MAP").is_some() {

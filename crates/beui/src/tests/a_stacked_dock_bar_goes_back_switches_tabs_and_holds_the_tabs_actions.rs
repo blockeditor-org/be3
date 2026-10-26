@@ -1,6 +1,6 @@
 use super::*;
+use crate::dock::unstyled::{DockPane, DockTab, DockingLayout, TabId, dock_menu};
 use crate::reactive::*;
-use crate::unstyled::{DockPane, DockTab, DockingLayout, TabId, dock_menu};
 
 const FIRST: u64 = 1;
 
@@ -38,7 +38,7 @@ fn a_stacked_dock_bar_goes_back_switches_tabs_and_holds_the_tabs_actions() {
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <styled::Docking layout focus=FIRST>
+            <dock::styled::Docking layout focus=FIRST>
                 <DockPane id="tabs">
                     <DockTab id=FIRST title="Tab 1">
                         <Frame @test_id="content.1" />
@@ -63,7 +63,7 @@ fn a_stacked_dock_bar_goes_back_switches_tabs_and_holds_the_tabs_actions() {
                         />
                     </ForEach>
                 </DockPane>
-            </styled::Docking>
+            </dock::styled::Docking>
         }
     });
     let mut harness = Harness::sized(document, VIEWPORT);

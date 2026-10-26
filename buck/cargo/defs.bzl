@@ -44,8 +44,15 @@ def _env(crate, crate_name, env):
     base.update(env)
     return base
 
-def cargo_manifest_sources():
-    return {"Cargo.toml": native.package_name() + "/Cargo.toml"}
+# Files a build script or proc macro reads at CARGO_MANIFEST_DIR: the crate's
+# own resources, and foreign ones, a target mapped to its path from the root,
+# such as another crate's WIT files that this crate's WIT uses.
+def cargo_manifest_sources(resources = [], foreign_resources = {}):
+    sources = {"Cargo.toml": native.package_name() + "/Cargo.toml"}
+    for resource in resources:
+        sources[resource] = native.package_name() + "/" + resource
+    sources.update(foreign_resources)
+    return sources
 
 def cargo_library_sources():
     return native.glob(
@@ -78,7 +85,7 @@ def _rustc_flags(crate, kwargs):
 
 # The crate's library, named after the package. Another build of it, such as
 # one for a fuzz target, takes a name and extra_features.
-def cargo_library(name = None, extra_deps = [], extra_features = [], extra_srcs = [], env = {}, **kwargs):
+def cargo_library(name = None, extra_deps = [], extra_features = [], extra_srcs = [], resources = [], foreign_resources = {}, env = {}, **kwargs):
     crate = _crate()
     library = crate["library"]
     native.rust_library(
@@ -89,7 +96,7 @@ def cargo_library(name = None, extra_deps = [], extra_features = [], extra_srcs 
         edition = crate["edition"],
         env = _env(crate, library["crate"], env),
         features = _per_platform(crate, lambda entry: entry["features"], extra_features),
-        mapped_srcs = cargo_manifest_sources(),
+        mapped_srcs = cargo_manifest_sources(resources, foreign_resources),
         proc_macro = library["proc_macro"],
         rustc_flags = _rustc_flags(crate, kwargs),
         srcs = cargo_library_sources() + extra_srcs,
@@ -104,7 +111,7 @@ def cargo_library(name = None, extra_deps = [], extra_features = [], extra_srcs 
 # A test whose env names LD_LIBRARY_PATH is a library_path_test around the
 # test harness, built as a binary, since Namespace's workers replace an
 # action's LD_LIBRARY_PATH with their own.
-def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apart = False, run_env = {}, **kwargs):
+def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apart = False, run_env = {}, resources = [], foreign_resources = {}, **kwargs):
     crate = _crate()
     library = crate["library"]
     rustc_flags = _rustc_flags(crate, kwargs)
@@ -116,7 +123,7 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apa
         deps = _per_platform(crate, lambda entry: entry["deps"] + entry["test_deps"], extra_deps),
         edition = crate["edition"],
         features = _per_platform(crate, lambda entry: entry["test_features"]),
-        mapped_srcs = cargo_manifest_sources(),
+        mapped_srcs = cargo_manifest_sources(resources, foreign_resources),
         srcs = cargo_test_sources(),
     )
     if paints:
@@ -202,21 +209,32 @@ def _painting_command(ctx, env):
         command = cmd_args("sh", "-c", _restore_library_path, "sh", command)
     return command
 
+# What ./scripts/test runs on a worker for a :test (buck/dev/test.bxl) when its
+# ExternalRunnerTestInfo is not enough: the command and environment, and the
+# files it reads that the command does not name, such as the accepted
+# paintings.
+RemoteTestInfo = provider(fields = ["command", "env", "hidden"])
+
 def _painting_test_impl(ctx: AnalysisContext) -> list[Provider]:
     env = dict(ctx.attrs.env)
     env["CARGO_MANIFEST_DIR"] = cmd_args(ctx.attrs.manifest, parent = 1)
     command = _painting_command(ctx, env)
-    return inject_test_run_info(
-        ctx,
-        ExternalRunnerTestInfo(
-            command = [command],
-            env = env,
-            labels = ctx.attrs.labels,
-            run_from_project_root = True,
-            type = "rust",
-            use_project_relative_paths = False,
-        ),
-    ) + [DefaultInfo(default_outputs = ctx.attrs.harness[DefaultInfo].default_outputs)]
+    remote = RemoteTestInfo(command = command, env = env, hidden = ctx.attrs._inputs[DefaultInfo].default_outputs)
+    return (
+        [remote]
+        + inject_test_run_info(
+            ctx,
+            ExternalRunnerTestInfo(
+                command = [command],
+                env = env,
+                labels = ctx.attrs.labels,
+                run_from_project_root = True,
+                type = "rust",
+                use_project_relative_paths = False,
+            ),
+        )
+        + [DefaultInfo(default_outputs = ctx.attrs.harness[DefaultInfo].default_outputs)]
+    )
 
 painting_test = rule(
     attrs = {
@@ -225,6 +243,7 @@ painting_test = rule(
         "labels": attrs.list(attrs.string(), default = []),
         "manifest": attrs.source(),
         "_inject_test_env": attrs.default_only(attrs.dep(default = "prelude//test/tools:inject_test_env")),
+        "_inputs": attrs.dep(default = "root//:plugin-test-inputs"),
     },
     impl = _painting_test_impl,
 )
@@ -363,10 +382,11 @@ def cargo_wasm_facts():
         test_features = _per_platform(crate, lambda entry: entry["test_features"]),
     )
 
-# Every editor's package, which is every workspace crate under crates/editors:
-# what the app stages as its plugins.
+# Every editor's package, which is every workspace crate directly under
+# crates/editors: what the app stages as its plugins. A crate further down,
+# such as a plugin's types, belongs to the plugin above it.
 def editor_packages():
-    return sorted([package for package in crates if package.startswith("crates/editors/")])
+    return sorted([package for package in crates if package.startswith("crates/editors/") and package.count("/") == 2])
 
 # Every game's package, which is every workspace crate under
 # crates/tabletop-games/rules: what the games plugin stages as its data.

@@ -12,8 +12,10 @@ async fn the_watcher_syncs_both_ways() {
     let (passed, mut passes) = tokio::sync::mpsc::unbounded_channel();
     let (stop, stopped) = oneshot::channel::<()>();
     let target = Target { root: Some(code) };
+    let mut types = types().await;
     let watching = crate::watch::watch(
         &peer,
+        &mut types,
         &checkout,
         &target,
         Duration::from_millis(50),

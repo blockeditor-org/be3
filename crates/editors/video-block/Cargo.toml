@@ -11,9 +11,11 @@ crate-type = ["cdylib", "rlib"]
 beui = { path = "../../beui", default-features = false, features = ["render"] }
 block-editor-beui = { path = "../../block-editor-beui" }
 uuid = { version = "1", features = ["v4"] }
+video-block-types = { path = "types" }
 
 [dev-dependencies]
 block-ui-test = { path = "../../block-ui-test" }
+counter-types = { path = "../counter/types" }
 
 [lints]
 workspace = true

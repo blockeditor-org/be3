@@ -1,0 +1,4 @@
+use super::*;
+
+mod a_preview_just_placed_or_resized_settles_before_its_cooldown_starts;
+mod a_preview_paints_at_once_then_waits_out_its_cooldown;

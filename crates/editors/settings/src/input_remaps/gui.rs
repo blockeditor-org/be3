@@ -2,12 +2,11 @@ use be_remap::edit::{Does, Editing, GroupField, GroupOutline, RuleEdit, RuleOutl
 use be_remap::text;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::beui::{ItemSize, NodeId};
 
 use super::ui::Shared;
 
-const ROW_SPACING: f32 = 8.0;
+const ROW_SPACING: Space = Space::Md;
 const MS_WIDTH: f32 = 96.0;
 
 #[derive(Clone, Debug)]
@@ -126,9 +125,7 @@ pub(super) fn EditorTab(shared: Shared) -> NodeId {
             <Show condition={warned}>
                 <SettingsSection>
                     <SettingsRow label="Problem">
-                        <Text style={TextStyle::CAPTION.color(TextColor::Danger)} wrap=true>
-                            {message}
-                        </Text>
+                        <Text style={TextStyle::CAPTION.color(TextColor::Danger)}>{message}</Text>
                     </SettingsRow>
                 </SettingsSection>
             </Show>
@@ -305,7 +302,7 @@ fn RuleRows(edits: Edits, group: usize, rule: usize) -> NodeId {
         Callback::new(move |text: String| edits.edit_rule(group, rule, change(text)))
     };
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <SettingsRow
                 label={format!("Rule {}", rule + 1)}
                 description={summary}
@@ -380,7 +377,7 @@ fn RuleRows(edits: Edits, group: usize, rule: usize) -> NodeId {
                 </SettingsRow>
             </Show>
             <Show condition={stepping}>
-                <List spacing=0.0>
+                <List spacing=Space::None>
                     <ForEach keys={steps}>|step: usize|
                         <StepRow edits={edits} group={group} rule={rule} step={step} />
                     </ForEach>

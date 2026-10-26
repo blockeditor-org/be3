@@ -17,6 +17,7 @@ fn a_time_list_moves_through_its_times_and_picks_one() {
                         value={Binding::new(Some(Time::new(10, 7)), move |time| picked.update(|picked| picked.push(time)))}
                         step_minutes=30
                         focused=true
+                        row_height=32.0
                         option={|handle: TimeOptionHandle| view! {
                             <Text>{handle.label}</Text>
                         }}

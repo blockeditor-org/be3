@@ -1,6 +1,6 @@
 use super::*;
-use block_editor_beui::be_block::canvas::CanvasColor;
 use block_editor_beui::beui::{Key, Modifiers, Vec2};
+use infinite_canvas_types::CanvasColor;
 
 #[test]
 fn typing_a_transform_value_and_pressing_escape_edits_nothing() {

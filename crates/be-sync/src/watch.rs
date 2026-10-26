@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use be_client::Peer;
 use be_store::ObjectStore;
+use be_types_host::Modules;
 use notify::{RecursiveMode, Watcher};
 use tokio::sync::mpsc;
 
@@ -14,6 +15,7 @@ const NEVER_WATCHED: [&str; 4] = [STATE_DIRECTORY, ".git", "target", "buck-out"]
 
 pub async fn watch<S: ObjectStore>(
     peer: &Peer<S>,
+    types: &mut Modules,
     directory: &Path,
     target: &Target,
     interval: Duration,
@@ -45,7 +47,7 @@ pub async fn watch<S: ObjectStore>(
         .map_err(|error| format!("could not watch {}: {error}", directory.display()))?;
     tokio::pin!(stop);
     loop {
-        match kept.sync(peer).await {
+        match kept.sync(peer, types).await {
             Ok(report) => passed(Ok(&report)),
             Err(error) => passed(Err(&error)),
         }

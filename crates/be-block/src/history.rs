@@ -5,18 +5,34 @@ use crate::Undo;
 pub const EDIT_BURST: Duration = Duration::from_millis(750);
 pub const HISTORY_STEPS: usize = 200;
 
+pub trait Moment: Copy {
+    fn within(self, earlier: Self, burst: Duration) -> bool;
+}
+
+impl Moment for Instant {
+    fn within(self, earlier: Self, burst: Duration) -> bool {
+        self.saturating_duration_since(earlier) <= burst
+    }
+}
+
+impl Moment for u64 {
+    fn within(self, earlier: Self, burst: Duration) -> bool {
+        u128::from(self.saturating_sub(earlier)) <= burst.as_millis()
+    }
+}
+
 struct Gesture<C: Undo> {
     origin: Option<u64>,
     step: Option<C::Step>,
 }
 
-pub struct History<C: Undo> {
-    undo: Vec<(C::Step, Option<Instant>)>,
+pub struct History<C: Undo, T: Moment = Instant> {
+    undo: Vec<(C::Step, Option<T>)>,
     redo: Vec<C::Step>,
     gesture: Option<Gesture<C>>,
 }
 
-impl<C: Undo> Default for History<C> {
+impl<C: Undo, T: Moment> Default for History<C, T> {
     fn default() -> Self {
         Self {
             undo: Vec::new(),
@@ -26,14 +42,8 @@ impl<C: Undo> Default for History<C> {
     }
 }
 
-impl<C: Undo> History<C> {
-    pub fn record(
-        &mut self,
-        content: &C,
-        operation: &C::Op,
-        origin: Option<u64>,
-        at: Option<Instant>,
-    ) {
+impl<C: Undo, T: Moment> History<C, T> {
+    pub fn record(&mut self, content: &C, operation: &C::Op, origin: Option<u64>, at: Option<T>) {
         let Some(step) = content.step(operation) else {
             return;
         };
@@ -48,9 +58,7 @@ impl<C: Undo> History<C> {
             return;
         }
         let step = match (self.undo.last_mut(), at) {
-            (Some((previous, Some(then))), Some(now))
-                if now.saturating_duration_since(*then) <= EDIT_BURST =>
-            {
+            (Some((previous, Some(then))), Some(now)) if now.within(*then, EDIT_BURST) => {
                 match C::absorb(previous, step) {
                     Ok(()) => {
                         *then = now;
@@ -133,7 +141,7 @@ impl<C: Undo> History<C> {
         }
     }
 
-    fn push(&mut self, step: (C::Step, Option<Instant>)) {
+    fn push(&mut self, step: (C::Step, Option<T>)) {
         self.undo.push(step);
         if self.undo.len() > HISTORY_STEPS {
             self.undo.remove(0);

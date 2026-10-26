@@ -1,5 +1,5 @@
 use beui_core::color::Color32;
-use beui_core::font::{FontFamily, FontId, TextAlign};
+use beui_core::font::{FontFamily, FontId, Overflow, TextAlign};
 use beui_core::node::NodeId;
 use beui_core::rich::{TextCaret, TextMark};
 use beui_macros::{component, view};
@@ -7,7 +7,11 @@ use beui_view::primitives;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 
+use crate::frame::ColorRole;
 use crate::theme::{ThemeStore, use_theme};
+use crate::tokens::{Space, use_space};
+use beui_core::geometry::Vec2;
+use beui_core::rich::SpanBackground;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum TextSize {
@@ -105,10 +109,13 @@ impl Family {
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum TextColor {
+    None,
     Default,
     Muted,
     Faint,
     Accent,
+    AccentHover,
+    AccentActive,
     OnAccent,
     OnDanger,
     Danger,
@@ -118,11 +125,13 @@ pub enum TextColor {
 }
 
 impl TextColor {
-    pub const ROLES: [TextColor; 9] = [
+    pub const ROLES: [TextColor; 11] = [
         TextColor::Default,
         TextColor::Muted,
         TextColor::Faint,
         TextColor::Accent,
+        TextColor::AccentHover,
+        TextColor::AccentActive,
         TextColor::OnAccent,
         TextColor::OnDanger,
         TextColor::Danger,
@@ -132,10 +141,13 @@ impl TextColor {
 
     pub fn resolve(self, theme: &ThemeStore) -> Color32 {
         match self {
+            TextColor::None => Color32::TRANSPARENT,
             TextColor::Default => theme.text.get(),
             TextColor::Muted => theme.text_muted.get(),
             TextColor::Faint => theme.border.get(),
             TextColor::Accent => theme.accent.get(),
+            TextColor::AccentHover => theme.accent_hover.get(),
+            TextColor::AccentActive => theme.accent_active.get(),
             TextColor::OnAccent => theme.on_accent.get(),
             TextColor::OnDanger => theme.on_danger.get(),
             TextColor::Danger => theme.danger.get(),
@@ -147,10 +159,13 @@ impl TextColor {
 
     pub const fn name(self) -> &'static str {
         match self {
+            TextColor::None => "none",
             TextColor::Default => "default",
             TextColor::Muted => "muted",
             TextColor::Faint => "faint",
             TextColor::Accent => "accent",
+            TextColor::AccentHover => "accent hover",
+            TextColor::AccentActive => "accent active",
             TextColor::OnAccent => "on accent",
             TextColor::OnDanger => "on danger",
             TextColor::Danger => "danger",
@@ -307,9 +322,7 @@ pub fn Text(
     #[prop(default = false)] underline: Prop<bool>,
     #[prop(default = None)] align: Prop<Option<TextAlign>>,
     #[prop(default = None)] vertical_align: Prop<Option<TextAlign>>,
-    #[prop(default = false)] wrap: Prop<bool>,
-    #[prop(default = false)] clip: Prop<bool>,
-    #[prop(default = false)] ellipsis: Prop<bool>,
+    #[prop(default = Overflow::default())] overflow: Prop<Overflow>,
     #[prop(default = Vec::new())] marks: Prop<Vec<TextMark>>,
     #[prop(default = Vec::new())] carets: Prop<Vec<TextCaret>>,
     children: Children<TextChild>,
@@ -325,7 +338,7 @@ pub fn Text(
             .resolve(&theme)
     });
     view! {
-        <primitives::Text font color underline align vertical_align wrap clip ellipsis marks carets>
+        <primitives::Text font color underline align vertical_align overflow marks carets>
             {children}
         </primitives::Text>
     }
@@ -358,6 +371,7 @@ pub fn Span(
     #[prop(default = None)] underline: Prop<Option<bool>>,
     #[prop(default = None)] strikethrough: Prop<Option<bool>>,
     #[prop(default = false)] break_after: Prop<bool>,
+    background: Option<Prop<ColorRole>>,
     children: Children<SpanText>,
 ) -> primitives::Span {
     let theme = use_theme();
@@ -366,8 +380,28 @@ pub fn Span(
     let family = part(family, Family::font);
     let italic = part(italic, |italic| italic);
     let color = color_part(color, theme);
+    let background = match background {
+        None => Prop::Static(None),
+        Some(fill) => Prop::dynamic(move || {
+            Some(SpanBackground {
+                color: fill.get().resolve(&theme),
+                radius: 0.0,
+                outset: Vec2::ZERO,
+            })
+        }),
+    };
     view! {
-        <primitives::Span size family bold italic color underline strikethrough break_after>
+        <primitives::Span
+            size
+            family
+            bold
+            italic
+            color
+            underline
+            strikethrough
+            background
+            break_after
+        >
             {children}
         </primitives::Span>
     }
@@ -384,5 +418,13 @@ pub fn Icon(
     let color = color_part(color, theme);
     view! {
         <primitives::Icon glyph size color scale=ICON_SCALE spacing_em=ICON_SPACING_EM />
+    }
+}
+
+#[component]
+pub fn Gap(width: Space) -> primitives::Gap {
+    let width = use_space(width).get_untracked();
+    view! {
+        <primitives::Gap width />
     }
 }

@@ -1,8 +1,8 @@
 use super::*;
-use crate::geometry::vec2;
-use crate::unstyled::{
+use crate::dock::unstyled::{
     DockApi, DockPane, DockTab, DockWindow, DockingLayout, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH,
 };
+use crate::geometry::vec2;
 
 #[test]
 fn dragging_the_edge_of_a_windows_sidebar_resizes_it_without_moving_the_window() {
@@ -11,7 +11,7 @@ fn dragging_the_edge_of_a_windows_sidebar_resizes_it_without_moving_the_window()
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <styled::Docking @node_ref=&dock layout>
+            <dock::styled::Docking @node_ref=&dock layout>
                 <DockPane id="main">
                     <DockTab id=1u64 title="Tab 1">
                         <Frame @test_id="content.1" />
@@ -27,7 +27,7 @@ fn dragging_the_edge_of_a_windows_sidebar_resizes_it_without_moving_the_window()
                         </DockTab>
                     </DockPane>
                 </DockWindow>
-            </styled::Docking>
+            </dock::styled::Docking>
         }
     });
     let dock = dock.get();
@@ -63,15 +63,33 @@ fn dragging_the_edge_of_a_windows_sidebar_resizes_it_without_moving_the_window()
     );
 
     let edge = pos2(moved.left() - 3.0, moved.center().y);
-    harness.drag(edge, edge - vec2(400.0, 0.0));
+    harness.drag(
+        edge,
+        edge - vec2(SIDEBAR_WIDTH + 60.0 - MIN_SIDEBAR_WIDTH, 0.0),
+    );
     harness.frame(Vec::new());
+    let state = harness.document().api::<DockApi>(dock).state();
     assert_eq!(
-        harness
-            .document()
-            .api::<DockApi>(dock)
-            .state()
-            .sidebar_width(leaf),
+        state.sidebar_width(leaf),
         MIN_SIDEBAR_WIDTH,
         "the sidebar stops shrinking at its narrowest"
+    );
+    assert!(!state.is_icons_only(leaf), "and still shows its titles");
+
+    let edge = pos2(
+        harness.rect(harness.find("content.2")).left() - 3.0,
+        moved.center().y,
+    );
+    harness.drag(edge, edge - vec2(400.0, 0.0));
+    harness.frame(Vec::new());
+    let state = harness.document().api::<DockApi>(dock).state();
+    assert!(
+        state.is_icons_only(leaf),
+        "dragged on past its narrowest, it shows only the icons of its tabs"
+    );
+    assert_eq!(
+        state.window_rect(window),
+        placed,
+        "and the window stays where it was"
     );
 }

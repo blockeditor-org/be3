@@ -1,7 +1,7 @@
 use super::*;
 use beui_core::app::SafeArea;
 use beui_core::renderer::{Loaded, Renderer};
-use beui_core::runner::{Launch, Platform, RunOptions, Runner};
+use beui_core::runner::{Launch, PlatformServices, RunOptions, Runner};
 
 type Log = Signal<Vec<&'static str>>;
 
@@ -40,7 +40,7 @@ impl Drop for Screen {
 
 struct Nowhere;
 
-impl Platform for Nowhere {}
+impl PlatformServices for Nowhere {}
 
 struct Holding(Log);
 
@@ -68,7 +68,7 @@ fn an_exiting_runner_lets_its_app_go_while_its_renderers_are_still_there() {
         options: RunOptions::default(),
         context: context(),
         app: Box::new(Holding(log)),
-        host: None,
+        layers: Vec::new(),
     });
     let loaded = vec![Loaded {
         renderer: Box::new(Screen(log)),

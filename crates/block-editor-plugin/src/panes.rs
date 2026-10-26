@@ -1,7 +1,9 @@
-use block_plugin_api::{EditorInstanceId, ScreenDamage, SurfaceRect};
+use block_plugin_api::{EditorInstanceId, EditorRegion, ScreenDamage, SurfaceRect};
 use block_plugin_api::{ScreenLayout, ScreenPlacement};
 use std::collections::HashSet;
 use std::time::Duration;
+
+use crate::cooldown::Cooldown;
 
 use crate::plugin::PaintTarget;
 use crate::screens::Screens;
@@ -10,6 +12,8 @@ use crate::screens::Screens;
 pub(crate) struct Panes {
     repainting: HashSet<EditorInstanceId>,
     unpainted: HashSet<EditorInstanceId>,
+    previews: Cooldown,
+    settling: HashSet<u32>,
 }
 
 pub(crate) struct Ran {
@@ -25,6 +29,7 @@ impl Panes {
         screens: &mut Screens,
         fresh: &HashSet<u32>,
         seen: bool,
+        rendered: bool,
     ) -> Ran {
         let mut repaint = Duration::MAX;
         let mut animating = false;
@@ -35,28 +40,69 @@ impl Panes {
             false => HashSet::new(),
         };
         let mut painting = Vec::new();
-        for placement in &layout.screens {
-            let Some(session) = screens.session(placement.instance) else {
-                continue;
-            };
-            let mut changed = fresh.contains(&placement.surface);
-            if changed
+        let now = crate::clock::frame_now();
+        let settling = std::mem::take(&mut self.settling);
+        self.previews.keep(|surface| {
+            layout
+                .screens
+                .iter()
+                .any(|placement| placement.surface == surface)
+        });
+        let due = layout.screens.iter().any(|placement| {
+            fresh.contains(&placement.surface)
                 || dirty.contains(placement.instance)
                 || repainting.contains(&placement.instance)
                 || unpainted.contains(&placement.instance)
-            {
-                let age = block_gpu_guest::surface_age(placement.surface);
-                let frame = session.run(placement.region, age);
-                screens.ran(placement.instance);
-                changed |= frame.changed;
-                animating |= frame.animating;
-                if let Some(after) = frame.repaint_after {
-                    repaint = repaint.min(after);
-                    self.repainting.insert(placement.instance);
+        });
+        if !due {
+            self.repainting = repainting;
+            self.unpainted.extend(unpainted);
+            return Ran {
+                repaint: None,
+                animating,
+                painting,
+            };
+        }
+        let shown: Vec<(ScreenPlacement, u32)> = layout
+            .screens
+            .iter()
+            .map(|placement| {
+                let age = match rendered {
+                    true => block_gpu_guest::surface_age(placement.surface),
+                    false => 0,
+                };
+                (*placement, age)
+            })
+            .collect();
+        let frames = screens.frame(&shown);
+        for (placement, frame) in layout.screens.iter().zip(frames) {
+            if screens.session(placement.instance).is_none() {
+                continue;
+            }
+            let fresh = fresh.contains(&placement.surface);
+            let changed = fresh || frame.changed;
+            animating |= frame.animating;
+            if let Some(after) = frame.repaint_after {
+                repaint = repaint.min(after);
+                self.repainting.insert(placement.instance);
+                if after.is_zero() && !frame.animating {
+                    self.settling.insert(placement.surface);
                 }
             }
-            match (changed, seen) {
-                (true, true) => painting.push(*placement),
+            let held = changed && !fresh && !settling.contains(&placement.surface);
+            if let Some(wait) = self.cooling(placement, now).filter(|_| held) {
+                repaint = repaint.min(wait);
+                self.repainting.insert(placement.instance);
+                continue;
+            }
+            let shown = seen || placement.region == EditorRegion::Preview;
+            match (changed, shown) {
+                (true, true) => {
+                    if placement.region == EditorRegion::Preview {
+                        self.previews.painted(placement.surface, now, fresh);
+                    }
+                    painting.push(*placement);
+                }
                 (true, false) => {
                     self.unpainted.insert(placement.instance);
                 }
@@ -67,6 +113,13 @@ impl Panes {
             repaint: (repaint < Duration::MAX).then_some(repaint),
             animating,
             painting,
+        }
+    }
+
+    fn cooling(&self, placement: &ScreenPlacement, now: Duration) -> Option<Duration> {
+        match placement.region {
+            EditorRegion::Preview => self.previews.wait(placement.surface, now),
+            _ => None,
         }
     }
 
@@ -96,10 +149,9 @@ impl Panes {
                 format,
                 width: placement.width,
                 height: placement.height,
-                region: placement.region,
                 age,
             };
-            let drawn = session.paint(&target);
+            let drawn = session.paint(placement.region, &target);
             block_gpu_guest::present_surface(placement.surface);
             let drawn = match age {
                 0 => target.whole(),

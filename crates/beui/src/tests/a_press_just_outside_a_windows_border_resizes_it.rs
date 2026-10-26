@@ -1,6 +1,6 @@
 use super::*;
+use crate::dock::unstyled::DockApi;
 use crate::input::CursorIcon;
-use crate::unstyled::DockApi;
 
 #[test]
 fn a_press_just_outside_a_windows_border_resizes_it() {

@@ -1,4 +1,5 @@
 load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
+load("@root//buck/platforms:profile.bzl", "released")
 load(":defs.bzl", "deploy")
 
 # What runs on this machine once a buck2 command has built what it needs,
@@ -16,6 +17,14 @@ cargo_test(
 )
 
 cargo_binary()
+
+# What CI downloads for its Android builds and paint previews
+# (buck/dev/verify.bxl), a quarter the size of :bin.
+released(
+    name = "release",
+    actual = ":bin",
+    visibility = ["PUBLIC"],
+)
 
 # ./scripts/deploy's --skip-downloads and --skip-android set
 # be3.deploy_downloads and be3.deploy_android to false, which leave those

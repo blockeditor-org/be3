@@ -1,13 +1,12 @@
-use block_editor_beui::be_block::Map;
-use block_editor_beui::be_block::map::{MAX_LATITUDE, MapColor, MapPoint};
+use beui::Overflow;
 use block_editor_beui::beui::Color32;
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::accesskit::{Node, Role};
 use block_editor_beui::beui::icons::{ICON_ARROW_LEFT, ICON_CIRCLE, ICON_LOCATE_FIXED, ICON_TRASH};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::Pressable;
 use block_editor_beui::{ChildBlock, ChildMode, ChildTarget};
+use map_types::Map;
+use map_types::{MAX_LATITUDE, MapColor, MapPoint};
 use uuid::Uuid;
 
 use crate::points::marker_color;
@@ -15,7 +14,7 @@ use crate::points::marker_color;
 use super::state::MapState;
 use block_editor_beui::beui::TextAlign;
 
-const PREVIEW_HEIGHT: f32 = 130.0;
+const PREVIEW_HEIGHT: Size = Size::Custom(130.0);
 
 const COLOR_PRESETS: [(&str, MapColor); 5] = [
     ("Default", MapColor::Default),
@@ -63,7 +62,7 @@ pub(crate) fn MapSidebar(state: MapState) -> NodeId {
     let reason = create_memo(move || error.get().unwrap_or_default());
 
     view! {
-        <List spacing=10.0>
+        <List spacing=Space::Md>
             <Text style=TextStyle::HEADING>"Map"</Text>
             <Separator />
             <RegionInspector state={state} />
@@ -75,7 +74,7 @@ pub(crate) fn MapSidebar(state: MapState) -> NodeId {
                 <PointDetails state={state} selected={selected} />
             </Show>
             <Show condition={failed}>
-                <List spacing=4.0>
+                <List spacing=Space::Xs>
                     <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
                     <Button
                         label="Dismiss"
@@ -95,7 +94,7 @@ fn RegionInspector(state: MapState) -> NodeId {
     let loose = create_memo(move || !fixed.get());
     let loose_color = TextColor::Muted;
     view! {
-        <List spacing=6.0>
+        <List spacing=Space::Sm>
             <Text>"Preview region"</Text>
             <Checkbox
                 label="Show a fixed region"
@@ -111,9 +110,9 @@ fn RegionInspector(state: MapState) -> NodeId {
                 </Text>
             </Show>
             <Show condition={fixed}>
-                <List spacing=6.0>
+                <List spacing=Space::Sm>
                     <RegionEdges state={state} />
-                    <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                         <Button
                             label="Use current view"
                             variant=ButtonVariant::Secondary
@@ -176,8 +175,8 @@ fn RegionEdges(state: MapState) -> NodeId {
         |edges, value| edges.east = value,
     );
     view! {
-        <List spacing=4.0>
-            <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+        <List spacing=Space::Xs>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                 <Coordinate
                     @sizing=ItemSize::Percent(50.0)
                     label={north_label}
@@ -193,7 +192,7 @@ fn RegionEdges(state: MapState) -> NodeId {
                     on_change={set_south}
                 />
             </List>
-            <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                 <Coordinate
                     @sizing=ItemSize::Percent(50.0)
                     label={west_label}
@@ -220,8 +219,8 @@ struct MapRegionEdges {
     east: f64,
 }
 
-impl From<block_editor_beui::be_block::map::MapRegion> for MapRegionEdges {
-    fn from(region: block_editor_beui::be_block::map::MapRegion) -> Self {
+impl From<map_types::MapRegion> for MapRegionEdges {
+    fn from(region: map_types::MapRegion) -> Self {
         Self {
             north: region.north,
             south: region.south,
@@ -231,7 +230,7 @@ impl From<block_editor_beui::be_block::map::MapRegion> for MapRegionEdges {
     }
 }
 
-impl From<MapRegionEdges> for block_editor_beui::be_block::map::MapRegion {
+impl From<MapRegionEdges> for map_types::MapRegion {
     fn from(edges: MapRegionEdges) -> Self {
         Self::new(edges.west, edges.south, edges.east, edges.north)
     }
@@ -268,10 +267,10 @@ fn PointList(state: MapState) -> NodeId {
     let any = create_memo(move || !empty.get());
     let hint = TextColor::Muted;
     view! {
-        <List spacing=6.0>
+        <List spacing=Space::Sm>
             <Text>"Points of interest"</Text>
             <Show condition={empty}>
-                <Text style=TextStyle::CAPTION wrap=true color={hint}>
+                <Text style=TextStyle::CAPTION color={hint}>
                     "Add blocks with the + button, by dragging them in from Files, or by pasting an image."
                 </Text>
             </Show>
@@ -306,8 +305,8 @@ fn PointRow(state: MapState, id: Uuid) -> NodeId {
             }}
             on_activate={move || {}}
         >
-            <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                <Text @sizing=ItemSize::Percent(100.0)>{label}</Text>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
+                <Text overflow=Overflow::Ellipsis @sizing=ItemSize::Percent(100.0)>{label}</Text>
                 <Swatch color={swatch} />
             </List>
         </ListRow>
@@ -347,15 +346,16 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
     });
 
     view! {
-        <List spacing=8.0>
-            <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                <IconButton
+        <List spacing=Space::Md>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
+                <Button
+                    icon_only=true
                     glyph=ICON_ARROW_LEFT
                     label="Back to all points"
                     @test_id={"map.point.back"}
                     on_click={move || state.select(None)}
                 />
-                <Text @sizing=ItemSize::Percent(100.0)>{label}</Text>
+                <Text overflow=Overflow::Ellipsis @sizing=ItemSize::Percent(100.0)>{label}</Text>
             </List>
             <Frame height=PREVIEW_HEIGHT radius=Radius::Sm>
                 <ChildBlock
@@ -365,7 +365,7 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
                     on_state={move |_| {}}
                 />
             </Frame>
-            <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                 <Button
                     label="Edit"
                     variant=ButtonVariant::Secondary
@@ -376,7 +376,8 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
                         }
                     }}
                 />
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_LOCATE_FIXED
                     label="Centre the map here"
                     on_click={move || {
@@ -385,7 +386,8 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
                         }
                     }}
                 />
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_TRASH
                     label="Remove this point of interest"
                     @test_id={"map.point.remove"}
@@ -422,7 +424,7 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
                 label="Longitude"
             />
             <Text>"Colour"</Text>
-            <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
                 <ForEach
                     keys={COLOR_PRESETS.map(|(name, _)| name.to_owned()).to_vec()}
                 >|name: String|
@@ -449,32 +451,21 @@ fn ColorPreset(state: MapState, point: Memo<Option<MapPoint>>, name: String) -> 
     let Some((_, color)) = COLOR_PRESETS.into_iter().find(|(label, _)| *label == name) else {
         unreachable!("the preset was named by the list it came from");
     };
-    let swatch = marker_color(color);
-    let described = name.clone();
+    let chosen = create_memo(move || point.get().is_some_and(|point| point.color == color));
     view! {
-        <Tooltip label={name}>
-            <Pressable
-                accessibility={preset_role(&described)}
-                on_click={move || {
-                    let Some(mut chosen) = point.get_untracked() else {
-                        return;
-                    };
-                    chosen.color = color;
-                    state.record(Map::update(&[chosen]));
-                }}
-            >
-                <Text size=TextSize::Sm color={TextColor::Custom(swatch)} align=TextAlign::Center>
-                    <Icon glyph=ICON_CIRCLE />
-                </Text>
-            </Pressable>
-        </Tooltip>
+        <SwatchButton
+            color={marker_color(color)}
+            label={name}
+            selected={chosen}
+            on_click={move || {
+                let Some(mut chosen) = point.get_untracked() else {
+                    return;
+                };
+                chosen.color = color;
+                state.record(Map::update(&[chosen]));
+            }}
+        />
     }
-}
-
-fn preset_role(name: &str) -> Prop<Node> {
-    let mut node = Node::new(Role::Button);
-    node.set_label(name.to_owned());
-    Prop::Static(node)
 }
 
 fn point_name(state: &MapState, point: Option<MapPoint>) -> String {

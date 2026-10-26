@@ -5,20 +5,26 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
+wasi-threads = { path = "../wasi-threads" }
 be-block = { path = "../be-block" }
 be-commit = { path = "../be-commit" }
 be-graph = { path = "../be-graph" }
 be-keys = { path = "../be-keys" }
 be-protocol = { path = "../be-protocol" }
-be-session = { path = "../be-session" }
 be-store = { path = "../be-store" }
 build-id = { path = "../build-id" }
 futures-util = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_bytes = "0.11"
 # Only the synchronisation primitives are shared with the browser build: they
 # carry no runtime of their own, and the socket and the executor come from
 # transport/ instead.
 tokio = { version = "1", features = ["sync"] }
 uuid = { version = "1", features = ["serde", "v4", "v7"] }
+# The refs database, on every platform: the web build's file is in the
+# browser's origin private file system.
+rusqlite = { version = "0.32", features = ["bundled"] }
+sqlite-schema = { path = "../sqlite-schema" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 httparse = "1"
@@ -43,8 +49,13 @@ web-sys = { version = "0.3", features = [
 
 [dev-dependencies]
 be-server = { path = "../be-server" }
+counter-types = { path = "../editors/counter/types" }
+fault-relay = { path = "../fault-relay" }
+image-block-types = { path = "../editors/image-block/types" }
 rusqlite = { version = "0.32", features = ["bundled"] }
+text-block-types = { path = "../editors/text-block/types" }
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "time"] }
+workspace-ui-types = { path = "../editors/workspace-ui/types" }
 
 [lints]
 workspace = true

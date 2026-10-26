@@ -3,17 +3,16 @@ use std::collections::HashSet;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::TreeItem;
 use block_editor_beui::{BlockQuery, Editor};
 
 use super::entries::{self, Row};
 
-const PADDING: f32 = 8.0;
-const ROW_SPACING: f32 = 2.0;
+const PADDING: Space = Space::Md;
+const ROW_SPACING: Space = Space::Xs2;
 
 #[component]
 pub fn BlockDebug(editor: Editor) -> NodeId {
-    let raw = editor.raw_block_content();
+    let head = editor.stored_head(editor.block_id());
     let listed = editor.watch_blocks(BlockQuery::Block(editor.block_id()));
     editor.block_types_known();
     let roots = create_memo(move || {
@@ -22,7 +21,7 @@ pub fn BlockDebug(editor: Editor) -> NodeId {
             listed.with(|listed| listed.as_ref().ok().and_then(|list| list.first().cloned()));
         vec![
             entries::block(info.as_ref(), types.as_ref()),
-            raw.with(|raw| entries::content(raw.as_ref(), types.as_ref())),
+            head.with(|head| entries::content(head, types.as_ref())),
         ]
     });
     let toggled = create_signal(HashSet::<String>::new());
@@ -45,7 +44,7 @@ pub fn BlockDebug(editor: Editor) -> NodeId {
         })
     });
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Tree
                 @sizing=ItemSize::Percent(100.0)
                 keys={keys}

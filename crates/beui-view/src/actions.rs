@@ -8,6 +8,7 @@ use beui_core::icons::Glyph;
 use beui_core::input::{Key, KeyChord, KeyPress, Modifiers};
 use beui_core::keys::{KeyAt, KeyEvent, KeyHandler, KeyInput, KeyPhase};
 use beui_core::node::NodeId;
+use beui_core::window::WindowId;
 use reactive::{
     Get, Memo, OwnedSignal, Set, create_effect, create_memo, on_cleanup, provide_context, untrack,
     use_context,
@@ -189,6 +190,7 @@ thread_local! {
 pub enum Pin {
     Icon,
     Label,
+    Title,
 }
 
 struct ActionData {
@@ -204,6 +206,7 @@ struct ActionData {
     at: Option<KeyAt>,
     capture: bool,
     run: Rc<dyn Fn()>,
+    window: Cell<Option<WindowId>>,
 }
 
 #[derive(Clone)]
@@ -303,6 +306,17 @@ impl Action {
         self.0.capture == (phase != KeyPhase::Bubble)
     }
 
+    pub fn window(&self) -> Option<WindowId> {
+        self.0.window.get()
+    }
+
+    fn belongs(&self, window: Option<WindowId>, host: &dyn Fn(WindowId) -> WindowId) -> bool {
+        match (self.window(), window) {
+            (Some(own), Some(window)) => host(own) == window,
+            _ => true,
+        }
+    }
+
     fn rooted(&self, phase: KeyPhase) -> bool {
         self.0.at.is_none() && self.hears(phase)
     }
@@ -394,6 +408,7 @@ impl ActionBuilder {
             at: self.at,
             capture: self.capture,
             run: self.run,
+            window: Cell::new(None),
         }))
     }
 
@@ -412,6 +427,10 @@ impl ActionBuilder {
         let key = registry.0.next.get();
         registry.0.next.set(key + 1);
         action.0.key.set(key);
+        action
+            .0
+            .window
+            .set(crate::components::window::use_window().map(|window| window.id));
         scope.add(action.clone());
         if let Some(KeyAt::Node(node)) = &action.0.at {
             let phase = match action.0.capture {
@@ -567,7 +586,14 @@ impl Registry {
     }
 
     fn root_key(&self, event: KeyEvent) -> bool {
-        let path = with_document(|document| document.focus_ancestry());
+        let (path, window, hosts) = with_document(|document| {
+            (
+                document.focus_ancestry(),
+                document.key_window(),
+                document.window_hosts(),
+            )
+        });
+        let host = |own: WindowId| host_of(&hosts, own);
         let scopes = self.scopes();
         let scoped = path
             .iter()
@@ -579,17 +605,22 @@ impl Registry {
             }
         }
         run_matching(
-            actions.iter().filter(|action| action.rooted(event.phase)),
+            actions
+                .iter()
+                .filter(|action| action.rooted(event.phase) && action.belongs(window, &host)),
             event,
         )
     }
 
     fn outer_key(&self, at: &KeyAt, event: KeyEvent) -> bool {
         let actions = self.all();
+        let (window, hosts) =
+            with_document(|document| (document.key_window(), document.window_hosts()));
+        let host = |own: WindowId| host_of(&hosts, own);
         run_matching(
             actions
                 .iter()
-                .filter(|action| action.listens(at, event.phase)),
+                .filter(|action| action.listens(at, event.phase) && action.belongs(window, &host)),
             event,
         )
     }
@@ -610,14 +641,28 @@ impl Registry {
         chords
     }
 
-    fn describe(&self, context: &Context, focus_path: &[NodeId]) {
+    fn describe(
+        &self,
+        context: &Context,
+        focus_path: &[NodeId],
+        windows: &[WindowId],
+        hosts: &[(WindowId, WindowId)],
+    ) {
         let live = self.actions(focus_path);
         let all = self.all();
-        for requested in context.action_requests() {
+        let host = |own: WindowId| host_of(hosts, own);
+        let hosted = |action: &Action| action.window().map(host);
+        for (window, requested) in context.action_requests() {
             let found = live
                 .iter()
                 .chain(all.iter())
-                .find(|action| action.id() == requested);
+                .filter(|action| action.id() == requested)
+                .find(|action| window.is_none() || hosted(action) == window)
+                .or_else(|| {
+                    live.iter()
+                        .chain(all.iter())
+                        .find(|action| action.id() == requested && action.belongs(window, &host))
+                });
             if let Some(action) = found {
                 untrack(|| action.run());
                 context.action_ran(&requested);
@@ -639,8 +684,23 @@ impl Registry {
         }
         context.publish_actions(ActionGroup {
             name: String::new(),
+            window: None,
             actions,
         });
+        for window in windows {
+            let actions: Vec<ActionInfo> = all
+                .iter()
+                .filter(|action| hosted(action) == Some(*window))
+                .map(|action| info(action, live.contains(action)))
+                .collect();
+            if !actions.is_empty() {
+                context.publish_actions(ActionGroup {
+                    name: String::new(),
+                    window: Some(*window),
+                    actions,
+                });
+            }
+        }
     }
 
     fn all(&self) -> Vec<Action> {
@@ -651,6 +711,13 @@ impl Registry {
         all.sort_by_key(Action::key);
         all
     }
+}
+
+fn host_of(hosts: &[(WindowId, WindowId)], window: WindowId) -> WindowId {
+    hosts
+        .iter()
+        .find(|(id, _)| *id == window)
+        .map_or(WindowId::MAIN, |(_, host)| *host)
 }
 
 fn run_matching<'a>(actions: impl Iterator<Item = &'a Action>, event: KeyEvent) -> bool {
@@ -681,7 +748,7 @@ fn registry() -> Registry {
                     }
                 })
             });
-            document.listen_keys(at, phase, true, Rc::downgrade(&handler));
+            document.listen_keys(at, phase, true, Rc::downgrade(&handler), None);
             registry.0.listeners.borrow_mut().push(handler);
         };
         for at in [KeyAt::Root, KeyAt::Window, KeyAt::Host] {
@@ -689,11 +756,16 @@ fn registry() -> Registry {
             listen(at, KeyPhase::Bubble);
         }
         let weak = Rc::downgrade(&registry.0);
-        let described: Rc<ActionsHook> = Rc::new(move |context: &Context, path: &[NodeId]| {
-            if let Some(registry) = weak.upgrade() {
-                Registry(registry).describe(context, path);
-            }
-        });
+        let described: Rc<ActionsHook> = Rc::new(
+            move |context: &Context,
+                  path: &[NodeId],
+                  windows: &[WindowId],
+                  hosts: &[(WindowId, WindowId)]| {
+                if let Some(registry) = weak.upgrade() {
+                    Registry(registry).describe(context, path, windows, hosts);
+                }
+            },
+        );
         document.register_actions(Rc::downgrade(&described));
         *registry.0.described.borrow_mut() = Some(described);
         let intercepted = document.intercepted_keys_writer();

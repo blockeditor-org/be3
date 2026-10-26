@@ -1,7 +1,5 @@
-use block_editor_beui::be_block::database::{DatabaseRow, DatabaseValue, RowRef};
-use block_editor_beui::be_block::database_schema::{
-    DatabaseEnumOption, DatabaseField, DatabaseFieldType,
-};
+use database_types::database::{DatabaseRow, DatabaseValue, RowRef};
+use database_types::database_schema::{DatabaseEnumOption, DatabaseField, DatabaseFieldType};
 use uuid::Uuid;
 
 use crate::database_view::sort::BlockLabels;

@@ -1,0 +1,152 @@
+package be3:block-type@0.1.0;
+
+/// The shapes a host and a type module share.
+interface types {
+    use be3:shared/ids@0.1.0.{uuid, hash, block-id, content-type-id, organization-id, commit-id};
+
+    /// The type module's hash: two builds of a type never edit one session.
+    type session-tag = hash;
+
+    /// A participant of a block's session, numbered by the server.
+    type client-id = u64;
+
+    /// An editor attached to a replica, numbered by the host.
+    type editor-id = u64;
+
+    /// A metadata entry, keyed by the uuid of its kind.
+    record entry {
+        key: uuid,
+        value: list<u8>,
+    }
+
+    /// Derived metadata, by key.
+    type entries = list<entry>;
+
+    /// The server's state of a block's session: its lease.
+    record session-state {
+        generation: u64,
+        owner: option<client-id>,
+        participants: list<client-id>,
+        clean-at: option<commit-id>,
+    }
+
+    record resume-merge {
+        base: option<commit-id>,
+        ours: commit-id,
+        theirs: commit-id,
+    }
+
+    /// How a replica's local head relates to the remote one.
+    variant resume {
+        empty,
+        up-to-date,
+        fast-forward(commit-id),
+        publish(commit-id),
+        merge(resume-merge),
+    }
+
+    /// The plain form a type has outside the app.
+    enum plain {
+        none,
+        file,
+        directory,
+    }
+
+    record type-info {
+        content-type: content-type-id,
+        frozen: bool,
+        schema: string,
+        undo: bool,
+        plain: plain,
+    }
+
+    record description {
+        name: option<string>,
+        derived: entries,
+        references: list<block-id>,
+    }
+
+    record plain-file {
+        bytes: list<u8>,
+        name: option<string>,
+        extension: string,
+        media-type: string,
+    }
+
+    /// Content to write as a commit: references unresolved, derived metadata
+    /// computed. The host resolves, seals and uploads.
+    record written {
+        bytes: list<u8>,
+        references: list<block-id>,
+        derived: entries,
+    }
+
+    /// A publish that merges: `ours` becomes the second parent.
+    record merging {
+        base: option<commit-id>,
+        ours: commit-id,
+    }
+
+    record byte-range {
+        offset: u64,
+        length: u64,
+    }
+
+    record status {
+        head: option<commit-id>,
+        owner: bool,
+        clean: bool,
+        owes-seal: bool,
+        incompatible: bool,
+        diverged: bool,
+        unreadable: option<string>,
+    }
+
+    variant endpoint {
+        peer(client-id),
+        editor(editor-id),
+        host,
+    }
+
+    variant recipients {
+        one(endpoint),
+        /// Every other participant of the session.
+        peers,
+    }
+
+    record replace-child {
+        old: block-id,
+        new: block-id,
+    }
+
+    variant child-change {
+        add(block-id),
+        delete(block-id),
+        replace(replace-child),
+    }
+
+    record file-change {
+        name: string,
+        bytes: list<u8>,
+    }
+
+    variant change {
+        child(child-change),
+        from-file(file-change),
+        replace(list<u8>),
+        undo,
+        redo,
+    }
+
+    /// Why a stateless request has no answer.
+    variant failure {
+        unknown-type,
+        malformed(string),
+    }
+
+    record merged {
+        bytes: list<u8>,
+        /// Zero is a clean merge.
+        conflicts: u32,
+    }
+}

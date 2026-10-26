@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::DockApi;
+use crate::dock::unstyled::DockApi;
 
 #[test]
 fn dragging_a_window_past_the_edge_of_the_dock_stretches_it_and_springs_back() {

@@ -1,0 +1,142 @@
+package be3:plugin@0.1.0;
+
+/// What an editor asks of its host and waits for: files and their dialogs, the
+/// network, a block's revisions, who it is shared with, and blocks to pick or
+/// import. An editor makes every call for itself, its `editor` the call's
+/// parent, so closing the editor cancels whatever it still waits on: the host
+/// drops that work (a pick it has not shown, a fetch, an import or export not
+/// yet made) and answers `canceled`.
+interface host-services {
+    use be3:shared/ids@0.1.0.{account-id, block-id, block-type-id, commit-id};
+    use be3:shared/access@0.1.0.{access-level};
+    use blocks.{block-location};
+    use types.{failure};
+    use be3:ui/types@0.1.0.{rect, file-filter, file-pick, saved-file, file-save};
+
+    /// Which blocks a pick offers: of these types (any when empty), never the
+    /// excluded ones, with templates to make new ones from or not, placed in
+    /// `place` once chosen, and hung from `anchor` (in the asking region).
+    record block-filter {
+        name: string,
+        block-types: list<block-type-id>,
+        excluded: list<block-id>,
+        templates: bool,
+        place: option<block-location>,
+        anchor: option<rect>,
+    }
+
+    /// A block chosen in a pick, and whether it was linked or placed.
+    record picked-block {
+        block-id: block-id,
+        block-type: block-type-id,
+        linked: bool,
+        placed: bool,
+    }
+
+    /// What a pick answers: the block chosen, or none when the user cancelled.
+    type block-pick = result<option<picked-block>, failure>;
+
+    record rename-dialog {
+        anchor: option<rect>,
+        within: option<block-id>,
+    }
+
+    /// A dialog of the instance that draws the window, asked for a block:
+    /// renaming it (hung from `anchor` in the block `within`'s tab) or sharing it.
+    variant shell-dialog {
+        rename(rename-dialog),
+        share,
+    }
+
+    /// A saved revision of a block: its commit, when it was saved in
+    /// milliseconds since the epoch, and whether it is the block's head.
+    record revision {
+        commit: commit-id,
+        time: s64,
+        current: bool,
+    }
+
+    /// Who has access to a block: what they were granted, if anything, and
+    /// what they may do once their organization and the block's parents count.
+    record access-grant {
+        account: account-id,
+        email: string,
+        display-name: string,
+        administrator: bool,
+        author: bool,
+        granted: option<access-level>,
+        /// What reaches the block from above, without its own grant.
+        inherited: access-level,
+        effective: access-level,
+        /// The block whose grant or authorship gave `effective`.
+        source: option<block-id>,
+        waiting: bool,
+    }
+
+    /// Who has access to a block, whether its organization is a company, and
+    /// how many blocks inside it set access of their own.
+    record access-listing {
+        grants: list<access-grant>,
+        company: bool,
+        set-inside: u32,
+    }
+
+    /// A block a file was imported into.
+    record imported-block {
+        block-id: block-id,
+        block-type: block-type-id,
+    }
+
+    /// The block's saved revisions, newest first.
+    list-revisions: async func(block: block-id) -> result<list<revision>, failure>;
+
+    /// Opens a read-only block showing `block` as it was at `commit`, which the
+    /// editor shows until it releases it.
+    preview-revision: async func(block: block-id, commit: commit-id) -> result<block-id, failure>;
+
+    /// Makes `commit`'s content the block's newest revision.
+    restore-revision: async func(block: block-id, commit: commit-id) -> result<_, failure>;
+
+    /// Closes a preview `preview-revision` opened.
+    release-revision: func(preview: block-id);
+
+    /// Asks the user for a file to open.
+    pick-file: async func(filter: file-filter) -> file-pick;
+
+    /// Asks the user where to save `file`.
+    save-file: async func(file: saved-file) -> file-save;
+
+    /// Saves a block and everything inside it as a block file the user places.
+    export-block: async func(block: block-id) -> file-save;
+
+    /// The block as the plain file its type writes it as.
+    read-plain-file: async func(block: block-id) -> result<saved-file, failure>;
+
+    /// Asks the user for a block, none when they cancel.
+    pick-block: async func(filter: block-filter) -> block-pick;
+
+    /// Asks the user for a block file and imports it into `parent`, none when
+    /// they cancel.
+    import-blocks: async func(parent: block-location) -> result<option<imported-block>, failure>;
+
+    /// Copies `source` and everything inside it into `parent`.
+    copy-blocks: async func(source: block-id, parent: block-location) -> result<option<imported-block>, failure>;
+
+    /// Everyone who has access to the block or could be given it.
+    list-access: async func(block: block-id) -> result<access-listing, failure>;
+
+    /// Grants `account` `access` to the block.
+    set-access: func(block: block-id, account: account-id, access: access-level);
+
+    /// A contact link whose taker is granted `access` to the block.
+    make-contact-link: async func(block: block-id, access: access-level) -> result<string, failure>;
+
+    /// A GET of `url`, refused unless the plugin's manifest names its host.
+    fetch: async func(url: string) -> result<list<u8>, failure>;
+
+    /// The files the plugin ships in its data directory.
+    list-data: async func() -> result<list<string>, failure>;
+
+    /// One file of the plugin's data directory.
+    read-data: async func(path: string) -> result<list<u8>, failure>;
+}

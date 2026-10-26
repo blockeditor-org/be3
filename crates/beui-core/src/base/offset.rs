@@ -57,6 +57,9 @@ pub struct OffsetNode {
     pub on_change: Callback<ScrollPosition>,
     pub on_steer: Callback<()>,
     pub reported: Option<ScrollPosition>,
+    pub follows_end: bool,
+    pinned: bool,
+    to_end: bool,
     translation: Vec2,
     host: Option<NodeId>,
 }
@@ -73,6 +76,9 @@ impl OffsetNode {
             on_change: Callback::empty(),
             on_steer: Callback::empty(),
             reported: None,
+            follows_end: false,
+            pinned: true,
+            to_end: false,
             translation: Vec2::ZERO,
             host: None,
         }
@@ -88,6 +94,29 @@ impl OffsetNode {
             child,
             self.direction.axes(f32::INFINITY, cross),
         ))
+    }
+
+    fn snaps_to_end(&self) -> bool {
+        self.pinned && (self.follows_end || self.to_end)
+    }
+
+    fn end(&self, main: f32, content: f32) -> f32 {
+        let past = self
+            .position
+            .filter(|_| !self.to_end)
+            .map_or(0.0, |position| {
+                (self.offset - position.max_offset()).max(0.0)
+            });
+        (content - main).max(0.0) + past
+    }
+
+    fn moved_to(&mut self, value: f32) {
+        self.offset = value;
+        self.anchored = false;
+        self.to_end = false;
+        self.pinned = self
+            .position
+            .is_none_or(|position| value >= position.max_offset() - END_SLACK);
     }
 
     fn settled(&self, main: f32, content: f32) -> ScrollPosition {
@@ -162,8 +191,9 @@ impl OffsetNode {
             return 0.0;
         };
         let extent = doc.outlined_extent(out, node).unwrap_or(rect);
-        let end = start + self.direction.main(extent.max - rect.min);
-        let start = start - self.direction.main(rect.min - extent.min);
+        let scale = out.transform(Some(SpaceId::inside(host, 1))).scale;
+        let end = start + self.direction.main(extent.max - rect.min) / scale;
+        let start = start - self.direction.main(rect.min - extent.min) / scale;
         let Some(revealed) = revealed_offset(start, end, self.offset, main) else {
             return 0.0;
         };
@@ -200,6 +230,7 @@ impl OffsetNode {
 }
 
 const ANCHOR_DEPTH: usize = 16;
+const END_SLACK: f32 = 1.0;
 
 fn revealed_offset(start: f32, end: f32, offset: f32, length: f32) -> Option<f32> {
     if start <= offset && end >= offset + length {
@@ -227,7 +258,8 @@ impl Element for OffsetNode {
             )
         });
         let (length, content) = self.direction.main_and_cross(size);
-        let length = match self.fits {
+        let unbounded = !self.direction.main_and_cross(available).0.is_finite();
+        let length = match self.fits || unbounded {
             true => length,
             false => 0.0,
         };
@@ -237,20 +269,41 @@ impl Element for OffsetNode {
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         let host = doc.laying_out().expect("an offset is laid out as itself");
         let (main, cross) = self.direction.main_and_cross(rect.size());
-        let anchor = self.anchor(doc, out, host);
+        let snapping = self.snaps_to_end();
+        let anchor = match snapping {
+            true => None,
+            false => self.anchor(doc, out, host),
+        };
         self.anchored = true;
         let content = self.content_length(doc, painter, cross);
+        if snapping {
+            self.offset = self.end(main, content);
+        }
         let position = self.settled(main, content);
         let outer = doc.take_anchor_shift();
+        let invalidated = doc.invalidated_after_layout();
+        let pinned = doc.replace_pinned_to_end(snapping.then_some(self.direction));
         self.place(doc, painter, rect, out, position, host);
-        let shift = doc.take_anchor_shift()
-            + self.drift(doc, out, host, anchor)
-            + self.revealed(doc, out, host, main);
+        doc.replace_pinned_to_end(pinned);
+        let settling = doc.invalidated_after_layout() != invalidated;
+        let shift = doc.take_anchor_shift() + self.drift(doc, out, host, anchor);
+        let revealed = self.revealed(doc, out, host, main);
         doc.report_anchor_shift(outer);
+        let shift = match snapping {
+            true => revealed,
+            false => shift + revealed,
+        };
         if shift != 0.0 {
             self.offset += shift;
             self.anchored = false;
             doc.invalidate_after_layout(host);
+        }
+        if snapping && revealed != 0.0 {
+            self.to_end = false;
+            self.pinned = self.offset >= position.max_offset() - END_SLACK;
+        }
+        if self.to_end && !settling {
+            self.to_end = false;
         }
         self.position = Some(position);
         if !self.on_change.is_empty() && self.reported != Some(position) {
@@ -301,6 +354,9 @@ impl Element for OffsetNode {
             ("offset", self.offset.to_string()),
             ("fits", self.fits.to_string()),
         ];
+        if self.follows_end {
+            properties.push(("follows end", self.pinned.to_string()));
+        }
         if let Some(position) = self.position {
             properties.push(("content", position.content.to_string()));
             properties.push(("viewport", position.viewport.to_string()));
@@ -360,9 +416,9 @@ impl Document {
         let node = self.arena.get_as::<OffsetNode>(offset);
         let on_steer = node.on_steer;
         if node.offset != value || node.anchored {
-            let node = self.arena.relayout_alone_mut_as::<OffsetNode>(offset);
-            node.offset = value;
-            node.anchored = false;
+            self.arena
+                .relayout_alone_mut_as::<OffsetNode>(offset)
+                .moved_to(value);
         }
         if on_steer.is_empty() {
             return;
@@ -377,8 +433,23 @@ impl Document {
         if self.arena.get_as::<OffsetNode>(offset).offset == value {
             return;
         }
+        self.arena
+            .relayout_alone_mut_as::<OffsetNode>(offset)
+            .moved_to(value);
+    }
+
+    pub fn set_offset_follows_end(&mut self, offset: NodeOf<OffsetNode>, follows: bool) {
+        if self.arena.get_as::<OffsetNode>(offset).follows_end != follows {
+            self.arena
+                .relayout_alone_mut_as::<OffsetNode>(offset)
+                .follows_end = follows;
+        }
+    }
+
+    pub fn offset_to_end(&mut self, offset: NodeOf<OffsetNode>) {
         let node = self.arena.relayout_alone_mut_as::<OffsetNode>(offset);
-        node.offset = value;
+        node.pinned = true;
+        node.to_end = true;
         node.anchored = false;
     }
 

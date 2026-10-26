@@ -2,14 +2,15 @@ use reactive::Get;
 use std::cell::Cell;
 use std::rc::Rc;
 
-use be_block::{Checklist, ChecklistContent, Edit, LiveEdit, ObjectId, Touched};
+use be_block::{Edit, LiveEdit, ObjectId, Touched};
+use checklist_types::{Checklist, ChecklistContent};
 use reactive::Scope;
 
 use super::{ContentProjection, OwnedContentProjection};
 use crate::{EditorHost, HostContent};
 
-fn arrived(operation: Vec<u8>, mine: bool) -> block_plugin_api::ContentOperation {
-    block_plugin_api::ContentOperation {
+fn arrived(operation: Vec<u8>, mine: bool) -> crate::EditorOperation {
+    crate::EditorOperation {
         operation,
         mine,
         unsettled: 0,
@@ -67,6 +68,7 @@ impl Fixture {
             }
         });
         projection.pump();
+        assert_eq!(host.take_content_resend_requests(), [None]);
         let fixture = Self {
             host,
             projection,

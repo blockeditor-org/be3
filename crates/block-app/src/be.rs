@@ -1,16 +1,19 @@
-use std::sync::{Arc, Condvar, Mutex, OnceLock, PoisonError};
+use std::sync::{Arc, Condvar, OnceLock, PoisonError};
 
-#[cfg(not(target_arch = "wasm32"))]
+use wasi_threads::Mutex;
+
 use std::path::PathBuf;
 
-use be_block::Landed;
 use beui::reactive::now;
-use block_plugin_api::{ByteBuf, ContentOperation};
 use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 use uuid::Uuid;
 
+pub(crate) mod conflicts;
 mod graph;
+mod nudge;
+mod replicas;
 pub(crate) mod revisions;
+pub(crate) mod types;
 mod version;
 mod worker;
 
@@ -24,12 +27,27 @@ use native as platform;
 #[cfg(target_arch = "wasm32")]
 use web as platform;
 
-pub(crate) use platform::sleep;
-
 pub(crate) use graph::{Graph, Node, Owner, Query, Scope};
-pub(crate) use worker::{History, PairingRequest, PeerMessage, Presence, Shared};
+pub(crate) use worker::{History, PairingRequest, Shared};
 
 use worker::Command;
+
+fn refs(config: &Config) -> Result<be_client::RefsDb, String> {
+    refs_in(&config.data_dir)
+}
+
+pub(crate) fn refs_in(root: &std::path::Path) -> Result<be_client::RefsDb, String> {
+    static OPEN: Mutex<Vec<(std::path::PathBuf, be_client::RefsDb)>> = Mutex::new(Vec::new());
+    let path = root.join("be-refs.sqlite3");
+    let mut open = OPEN.lock().unwrap_or_else(PoisonError::into_inner);
+    if let Some((_, refs)) = open.iter().find(|(held, _)| *held == path) {
+        return Ok(refs.clone());
+    }
+    let refs = be_client::RefsDb::open(&path)
+        .map_err(|error| format!("this device's record of what it holds cannot open: {error}"))?;
+    open.push((path, refs.clone()));
+    Ok(refs)
+}
 
 pub(crate) struct Config {
     pub(crate) server_url: String,
@@ -39,8 +57,8 @@ pub(crate) struct Config {
     pub(crate) identity: [u8; 32],
     pub(crate) display_name: String,
     pub(crate) email: String,
-    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) data_dir: PathBuf,
+    pub(crate) clock: be_client::Clock,
 }
 
 impl Config {
@@ -49,450 +67,54 @@ impl Config {
     }
 }
 
-const LOG_LIMIT: usize = 512;
-
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub(crate) struct Split {
-    pub(crate) bytes: Vec<u8>,
-    pub(crate) session: Vec<u8>,
-    pub(crate) unsettled: Vec<Vec<u8>>,
-}
-
 #[derive(Clone)]
 pub(crate) struct Content {
     pub(crate) content_type: Uuid,
-    snapshot: Split,
-    unfolded: usize,
-    folded: std::sync::OnceLock<Split>,
-    visible: std::sync::OnceLock<Split>,
-    held: u64,
-    pub(crate) derived: Option<be_block::Entries>,
+    bytes: Vec<u8>,
     pub(crate) revision: u64,
-    log: std::collections::VecDeque<(Landed<Vec<u8>>, Option<u64>)>,
-    taken: std::collections::HashMap<u64, u64>,
 }
 
 impl Content {
-    pub(crate) fn new(
-        content_type: Uuid,
-        bytes: Vec<u8>,
-        session: Vec<u8>,
-        derived: Option<be_block::Entries>,
-    ) -> Self {
+    pub(crate) fn new(content_type: Uuid, bytes: Vec<u8>) -> Self {
         Self {
             content_type,
-            snapshot: Split {
-                bytes,
-                session,
-                unsettled: Vec::new(),
-            },
-            unfolded: 0,
-            folded: std::sync::OnceLock::new(),
-            visible: std::sync::OnceLock::new(),
-            held: 0,
-            derived,
+            bytes,
             revision: 1,
-            log: std::collections::VecDeque::new(),
-            taken: std::collections::HashMap::new(),
         }
     }
 
     pub(crate) fn bytes(&self) -> &[u8] {
-        &self.current().bytes
+        &self.bytes
     }
-
-    #[cfg(test)]
-    pub(crate) fn session(&self) -> &[u8] {
-        &self.current().session
-    }
-
-    fn current(&self) -> &Split {
-        let split = self.split();
-        if split.unsettled.is_empty() {
-            return split;
-        }
-        self.visible.get_or_init(|| {
-            kind_of(self.content_type)
-                .and_then(|kind| (kind.fold)(split, &[], true))
-                .unwrap_or_else(|| split.clone())
-        })
-    }
-
-    fn split(&self) -> &Split {
-        if self.unfolded == 0 {
-            return &self.snapshot;
-        }
-        self.folded.get_or_init(|| {
-            let landed: Vec<&Landed<Vec<u8>>> = self
-                .log
-                .iter()
-                .skip(self.log.len().saturating_sub(self.unfolded))
-                .map(|(landed, _)| landed)
-                .collect();
-            kind_of(self.content_type)
-                .and_then(|kind| (kind.fold)(&self.snapshot, &landed, false))
-                .unwrap_or_else(|| self.snapshot.clone())
-        })
-    }
-
-    pub(crate) fn unfolded(&self) -> usize {
-        self.unfolded
-    }
-
-    pub(crate) fn settle(&mut self, bytes: Vec<u8>, session: Vec<u8>) {
-        self.snapshot = Split {
-            bytes,
-            session,
-            unsettled: Vec::new(),
-        };
-        self.held = 0;
-        self.unfolded = 0;
-        self.folded = std::sync::OnceLock::new();
-        self.visible = std::sync::OnceLock::new();
-    }
-
-    pub(crate) fn compact(&mut self) {
-        self.snapshot = self.split().clone();
-        self.unfolded = 0;
-        self.folded = std::sync::OnceLock::new();
-    }
-
-    pub(crate) fn lands(&self, log: &[worker::Logged]) -> bool {
-        let mut held = self.held;
-        for entry in log {
-            match entry {
-                worker::Logged::Operation { landed, .. } => {
-                    if !held_after(&mut held, landed) {
-                        return false;
-                    }
-                }
-                worker::Logged::Replaced { .. } => held = 0,
-            }
-        }
-        true
-    }
-
-    pub(crate) fn record(&mut self, entry: worker::Logged) {
-        self.revision += 1;
-        match entry {
-            worker::Logged::Operation { landed, origin } => {
-                if let Some(origin) = origin {
-                    *self.taken.entry(origin).or_default() += 1;
-                }
-                held_after(&mut self.held, &landed);
-                self.log.push_back((landed, origin));
-                self.unfolded += 1;
-                self.folded = std::sync::OnceLock::new();
-                self.visible = std::sync::OnceLock::new();
-                if self.log.len() > LOG_LIMIT {
-                    self.log.pop_front();
-                }
-            }
-            worker::Logged::Replaced { acknowledged } => {
-                for (origin, count) in acknowledged {
-                    *self.taken.entry(origin).or_default() += count;
-                }
-                self.log.clear();
-            }
-        }
-    }
-
-    pub(crate) fn since(&self, origin: u64, sent: Option<u64>) -> Update {
-        let behind = sent.map(|sent| self.revision.saturating_sub(sent));
-        match behind {
-            Some(behind) if behind as usize <= self.log.len() => Update::Operations(
-                self.log
-                    .iter()
-                    .skip(self.log.len() - behind as usize)
-                    .map(|(landed, from)| {
-                        let (operation, unsettled, beneath) = match landed {
-                            Landed::On {
-                                operation,
-                                unsettled,
-                            } => (operation, unsettled, None),
-                            Landed::Beneath {
-                                operation,
-                                unsettled,
-                                local,
-                            } => (
-                                operation,
-                                unsettled,
-                                Some(local.iter().cloned().map(ByteBuf::from).collect()),
-                            ),
-                        };
-                        ContentOperation {
-                            operation: operation.clone(),
-                            mine: *from == Some(origin),
-                            unsettled: *unsettled,
-                            beneath,
-                        }
-                    })
-                    .collect(),
-            ),
-            _ => {
-                let split = self.split();
-                Update::Snapshot {
-                    content_type: self.content_type,
-                    bytes: split.bytes.clone(),
-                    session: split.session.clone(),
-                    unsettled: split.unsettled.clone(),
-                    applied: self.taken.get(&origin).copied().unwrap_or_default(),
-                }
-            }
-        }
-    }
-}
-
-fn held_after(held: &mut u64, landed: &Landed<Vec<u8>>) -> bool {
-    match landed {
-        Landed::On { unsettled, .. } => {
-            *held = (*held + 1).min(*unsettled);
-            true
-        }
-        Landed::Beneath {
-            unsettled, local, ..
-        } => {
-            let enough = *held >= *unsettled;
-            *held = local.len() as u64;
-            enough
-        }
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum Update {
-    Snapshot {
-        content_type: Uuid,
-        bytes: Vec<u8>,
-        session: Vec<u8>,
-        unsettled: Vec<Vec<u8>>,
-        applied: u64,
-    },
-    Operations(Vec<ContentOperation>),
-}
-
-pub(crate) fn next_origin() -> u64 {
-    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
-    NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
 
 #[derive(Default)]
 pub(crate) struct Status {
     pub(crate) running: bool,
     pub(crate) connected: bool,
+    pub(crate) connecting: bool,
     pub(crate) blocks: usize,
     pub(crate) wakes: u64,
-    pub(crate) unsealed: usize,
+    pub(crate) unsaved: usize,
+    pub(crate) kept: usize,
+    pub(crate) saves: u64,
     pub(crate) conflicts: usize,
+    pub(crate) conflicted: Vec<Uuid>,
     pub(crate) error: Option<String>,
+    pub(crate) waiting: usize,
+    pub(crate) syncing: bool,
+    pub(crate) unsent: usize,
 }
 
-type ChildOperations = fn(&[u8], be_block::ChildChange) -> Option<Vec<Vec<u8>>>;
-
-type MergeContent = fn(Option<&[u8]>, Option<&[u8]>, Option<&[u8]>) -> Option<(Vec<u8>, bool)>;
-
-type ContentReferences = fn(&[u8], Uuid) -> Vec<Uuid>;
-
-type FoldContent = fn(&Split, &[&Landed<Vec<u8>>], bool) -> Option<Split>;
-
-struct Kind {
-    content_type: Uuid,
-    frozen: bool,
-    schema: fn() -> String,
-    blank: fn() -> Vec<u8>,
-    join: worker::Join,
-    copy: worker::Copy,
-    seed: worker::Seed,
-    replace: worker::Seed,
-    describe: fn(&[u8]) -> Option<be_block::Entries>,
-    preview: fn(&[u8]) -> Option<Content>,
-    child: ChildOperations,
-    merge: MergeContent,
-    references: ContentReferences,
-    fold: FoldContent,
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct UnsentEdit {
+    pub(crate) block: Uuid,
+    pub(crate) name: Option<String>,
+    pub(crate) since: i64,
+    pub(crate) offerable: bool,
 }
 
-const fn kind<C>() -> Kind
-where
-    C: be_block::LiveEdit + be_block::Merge + Clone + Default,
-{
-    Kind {
-        content_type: C::CONTENT_TYPE,
-        frozen: C::FROZEN,
-        schema: be_block::schema_fingerprint::<C>,
-        blank: blank::<C>,
-        join: worker::join::<C>,
-        copy: worker::copy::<C>,
-        seed: worker::seed::<C>,
-        replace: worker::replace::<C>,
-        describe: describe::<C>,
-        preview: preview::<C>,
-        child: child_operations::<C>,
-        merge: merge_content::<C>,
-        references: content_references::<C>,
-        fold: fold_content::<C>,
-    }
-}
-
-const fn kind_with_history<C>() -> Kind
-where
-    C: be_block::Undo + be_block::Merge + Clone + Default,
-{
-    Kind {
-        content_type: C::CONTENT_TYPE,
-        frozen: C::FROZEN,
-        schema: be_block::schema_fingerprint::<C>,
-        blank: blank::<C>,
-        join: worker::join_with_history::<C>,
-        copy: worker::copy::<C>,
-        seed: worker::seed::<C>,
-        replace: worker::replace::<C>,
-        describe: describe::<C>,
-        preview: preview::<C>,
-        child: child_operations::<C>,
-        merge: merge_content::<C>,
-        references: content_references::<C>,
-        fold: fold_content::<C>,
-    }
-}
-
-fn blank<C: be_block::BlockContent + Default>() -> Vec<u8> {
-    C::default().encode()
-}
-
-fn describe<C: be_block::BlockContent>(bytes: &[u8]) -> Option<be_block::Entries> {
-    Some(be_block::derived_metadata(&C::decode(bytes).ok()?))
-}
-
-fn preview<C: be_block::LiveEdit>(bytes: &[u8]) -> Option<Content> {
-    let content = C::decode(bytes).ok()?;
-    Some(Content::new(
-        C::CONTENT_TYPE,
-        bytes.to_vec(),
-        content.session_state(),
-        Some(be_block::derived_metadata(&content)),
-    ))
-}
-
-fn merge_content<C: be_block::Merge + Default>(
-    base: Option<&[u8]>,
-    ours: Option<&[u8]>,
-    theirs: Option<&[u8]>,
-) -> Option<(Vec<u8>, bool)> {
-    let decode = |bytes: Option<&[u8]>| match bytes {
-        Some(bytes) => C::decode(bytes).ok(),
-        None => Some(C::default()),
-    };
-    match C::merge3(&decode(base)?, &decode(ours)?, &decode(theirs)?) {
-        be_commit::MergeResult::Clean(value) => Some((value.encode(), false)),
-        be_commit::MergeResult::Conflicted { value, .. } => Some((value.encode(), true)),
-    }
-}
-
-fn content_references<C: be_block::BlockContent>(bytes: &[u8], organization: Uuid) -> Vec<Uuid> {
-    C::decode(bytes)
-        .map(|content| content.references_in(organization))
-        .unwrap_or_default()
-}
-
-fn fold_content<C: be_block::LiveEdit>(
-    split: &Split,
-    landed: &[&Landed<Vec<u8>>],
-    settle: bool,
-) -> Option<Split> {
-    let mut settled = C::decode(&split.bytes).ok()?;
-    settled.adopt_session_state(&split.session).ok()?;
-    let unsettled = split
-        .unsettled
-        .iter()
-        .map(|operation| C::decode_operation(operation))
-        .collect::<Result<Vec<_>, _>>()
-        .ok()?;
-    let mut settling = be_block::Settling::new(settled, unsettled);
-    for entry in landed {
-        let entry = entry
-            .try_map(|operation| C::decode_operation(operation))
-            .ok()?;
-        if !settling.land(entry) {
-            return None;
-        }
-    }
-    if settle {
-        settling.settle_to(0);
-    }
-    let (settled, unsettled) = settling.into_parts();
-    Some(Split {
-        bytes: settled.encode(),
-        session: settled.session_state(),
-        unsettled: unsettled.iter().map(C::encode_operation).collect(),
-    })
-}
-
-fn child_operations<C: be_block::LiveEdit>(
-    bytes: &[u8],
-    change: be_block::ChildChange,
-) -> Option<Vec<Vec<u8>>> {
-    let operations = C::decode(bytes).ok()?.child_operations(change)?;
-    Some(operations.iter().map(C::encode_operation).collect())
-}
-
-const KINDS: &[Kind] = &[
-    kind::<be_block::AudioContent>(),
-    kind::<be_block::BeuiDemoContent>(),
-    kind_with_history::<be_block::CalendarContent>(),
-    kind_with_history::<be_block::ChecklistContent>(),
-    kind::<be_block::CompiledLogicContent>(),
-    kind_with_history::<be_block::CounterContent>(),
-    kind_with_history::<be_block::DatabaseContent>(),
-    kind_with_history::<be_block::DatabaseSchemaContent>(),
-    kind_with_history::<be_block::DatabaseViewContent>(),
-    kind_with_history::<be_block::DeterministicGameContent>(),
-    kind::<be_block::FileContent>(),
-    kind::<be_block::GameModuleContent>(),
-    kind_with_history::<be_block::HotbarContent>(),
-    kind::<be_block::ImageContent>(),
-    kind_with_history::<be_block::CanvasContent>(),
-    kind_with_history::<be_block::LogicGameContent>(),
-    kind_with_history::<be_block::LogicGridContent>(),
-    kind_with_history::<be_block::MapContent>(),
-    kind::<be_block::PdfContent>(),
-    kind_with_history::<be_block::PixelArtContent>(),
-    kind_with_history::<be_block::PresentationContent>(),
-    kind_with_history::<be_block::TextContent>(),
-    kind_with_history::<be_block::VideoContent>(),
-    kind::<be_block::EditorSettingsContent>(),
-    kind::<be_block::InputSettingsContent>(),
-    kind::<be_block::InputRemapperContent>(),
-    kind::<be_block::DisplaySettingsContent>(),
-    kind::<be_block::BrowserTabContent>(),
-    kind_with_history::<be_block::SettingsContent>(),
-    kind_with_history::<be_block::SettingsProfileContent>(),
-    kind::<be_block::FolderContent>(),
-    kind::<be_block::WorkspaceContent>(),
-    kind_with_history::<be_block::PixelRayTracerContent>(),
-    kind::<be_block::EditorViewContent>(),
-    kind::<be_block::PanZoomContent>(),
-    kind::<be_block::Scene3dContent>(),
-    kind::<be_block::TriangleContent>(),
-    kind::<be_block::TerminalContent>(),
-    kind::<be_block::RepositoryContent>(),
-    kind::<be_block::CheckoutContent>(),
-];
-
-fn kind_of(content_type: Uuid) -> Option<&'static Kind> {
-    KINDS.iter().find(|kind| kind.content_type == content_type)
-}
-
-pub(crate) fn describe_of(content: &Content) -> Option<be_block::Entries> {
-    match &content.derived {
-        Some(derived) => Some(derived.clone()),
-        None => (kind_of(content.content_type)?.describe)(content.bytes()),
-    }
-}
-
-pub(crate) fn derived_for(content_type: Uuid, bytes: &[u8]) -> Option<be_block::Entries> {
-    (kind_of(content_type)?.describe)(bytes)
-}
+pub(crate) use types::{host_block_types, is_known, kind_of, provided};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Stale {
@@ -523,7 +145,7 @@ pub(crate) fn staleness(block: Uuid) -> Option<Stale> {
         return Some(Stale::Unreadable(error.clone()));
     }
     let stamped = node.metadata.get(&be_block::SCHEMA)?;
-    (stamped != (kind.schema)()).then_some(Stale::Reshaped)
+    (stamped != kind.schema).then_some(Stale::Reshaped)
 }
 
 pub(crate) fn reset(block: Uuid) {
@@ -540,7 +162,7 @@ pub(crate) fn reset(block: Uuid) {
     {
         stack.tried.remove(&block);
     }
-    replace(block, node.content_type, (kind.blank)());
+    replace(block, node.content_type, kind.blank);
 }
 
 pub(crate) fn try_anyway(block: Uuid) {
@@ -557,38 +179,11 @@ pub(crate) fn try_anyway(block: Uuid) {
     crate::compositor::changed();
 }
 
-pub(crate) fn is_known(content_type: Uuid) -> bool {
-    kind_of(content_type).is_some()
-}
-
-fn merge_for(content_type: Uuid) -> Option<MergeContent> {
-    kind_of(content_type).map(|kind| kind.merge)
-}
-
-fn references_for(content_type: Uuid) -> Option<ContentReferences> {
-    kind_of(content_type).map(|kind| kind.references)
-}
-
-fn copy_for(content_type: Uuid) -> Option<worker::Copy> {
-    kind_of(content_type).map(|kind| kind.copy)
-}
-
-fn replace_for(content_type: Uuid) -> Option<worker::Seed> {
-    kind_of(content_type).map(|kind| kind.replace)
-}
-
-fn seed_for(content_type: Uuid) -> Option<worker::Seed> {
-    kind_of(content_type).map(|kind| kind.seed)
-}
-
-fn join_for(content_type: Uuid) -> Option<worker::Join> {
-    kind_of(content_type).map(|kind| kind.join)
-}
-
 struct Stack {
     account: Uuid,
     organization: Uuid,
     commands: Option<UnboundedSender<Command>>,
+    nudges: Option<nudge::Nudges>,
     held: std::collections::HashSet<Uuid>,
     versioned: std::collections::HashSet<Uuid>,
     tried: std::collections::HashSet<Uuid>,
@@ -601,7 +196,8 @@ struct Stack {
 impl Drop for Stack {
     fn drop(&mut self) {
         self.commands = None;
-        self.running.finish();
+        self.nudges = None;
+        self.running.stop();
     }
 }
 
@@ -613,15 +209,28 @@ fn stack() -> &'static Mutex<Option<Stack>> {
 pub(crate) fn start(config: Config) {
     stop();
     let (commands, receiver) = unbounded_channel();
-    let shared = Arc::new(Mutex::new(Shared::default()));
+    let (nudges, nudged) = nudge::channel();
+    let shared = Arc::new(Mutex::new(Shared {
+        wall: worker::Wall::new(config.clock.clone()),
+        ..Shared::default()
+    }));
     let changed = Arc::new(Condvar::new());
     let account = config.account;
     let organization = config.organization;
-    let running = platform::spawn(config, receiver, Arc::clone(&shared), Arc::clone(&changed));
+    let running = platform::spawn(
+        config,
+        worker::Inbox {
+            commands: receiver,
+            nudged,
+        },
+        Arc::clone(&shared),
+        Arc::clone(&changed),
+    );
     *stack().lock().unwrap_or_else(PoisonError::into_inner) = Some(Stack {
         account,
         organization,
         commands: Some(commands),
+        nudges: Some(nudges),
         held: std::collections::HashSet::new(),
         versioned: std::collections::HashSet::new(),
         tried: std::collections::HashSet::new(),
@@ -644,15 +253,58 @@ pub(crate) fn stop() {
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .take();
+    if let Some(stack) = &stack {
+        let connection = stack
+            .shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .connection
+            .take();
+        if let Some(connection) = connection {
+            connection.close();
+        }
+    }
     drop(stack);
 }
 
-pub(crate) fn flush() {
-    let (done, sealed) = std::sync::mpsc::channel();
-    send(Command::Flush(done));
-    platform::await_flush(sealed);
+pub(crate) fn stop_and_wait() {
+    stop();
+    platform::wait_for_stopped();
 }
 
+#[cfg(all(test, not(target_arch = "wasm32")))]
+pub(crate) fn abandon() {
+    let stack = stack()
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .take();
+    if let Some(mut stack) = stack {
+        stack.running.abandon();
+    }
+}
+
+pub(crate) fn retry_now() {
+    if let Some(stack) = stack()
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .as_ref()
+        && let Some(nudges) = &stack.nudges
+    {
+        nudges.nudge();
+    }
+}
+
+pub(crate) fn flush() -> usize {
+    let unsaved = status().unsaved;
+    let (done, sealed) = std::sync::mpsc::channel();
+    send(Command::Flush(done));
+    match platform::await_flush(sealed) {
+        true => status().unsaved,
+        false => unsaved,
+    }
+}
+
+#[cfg(test)]
 pub(crate) fn open(block: Uuid, content_type: Uuid) {
     if let Some(source) = revisions::source(block) {
         revisions::load(block, source, content_type);
@@ -666,6 +318,7 @@ pub(crate) fn open(block: Uuid, content_type: Uuid) {
     });
 }
 
+#[cfg(test)]
 pub(crate) fn close(block: Uuid) {
     if revisions::source(block).is_some() {
         return;
@@ -681,9 +334,6 @@ pub(crate) fn close(block: Uuid) {
 }
 
 pub(crate) fn hold(block: Uuid, content_type: Uuid) {
-    if !is_known(content_type) {
-        return;
-    }
     let fresh = stack()
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
@@ -704,15 +354,25 @@ pub(crate) fn change_child(
     content_type: Uuid,
     change: be_block::ChildChange,
 ) -> Option<bool> {
-    let kind = kind_of(content_type)?;
-    let Some(held) = content(block) else {
-        hold(block, content_type);
+    if !is_known(content_type) {
         return None;
-    };
-    for operation in (kind.child)(held.bytes(), change)? {
-        send(Command::Operate(block, None, operation, now()));
     }
+    send(Command::ChangeChild {
+        block,
+        content_type,
+        change: api_child(change),
+    });
     Some(true)
+}
+
+fn api_child(change: be_block::ChildChange) -> block_type_api::ChildChange {
+    match change {
+        be_block::ChildChange::Add(child) => block_type_api::ChildChange::Add(child),
+        be_block::ChildChange::Delete(child) => block_type_api::ChildChange::Delete(child),
+        be_block::ChildChange::Replace { old, new } => {
+            block_type_api::ChildChange::Replace(block_type_api::ReplaceChild { old, new })
+        }
+    }
 }
 
 pub(crate) fn version(block: Uuid, command: block_plugin_api::VersionCommand) {
@@ -745,39 +405,76 @@ pub(crate) fn is_versioned(content_type: Uuid) -> bool {
 }
 
 pub(crate) fn operate(block: Uuid, operation: Vec<u8>) {
-    send(Command::Operate(block, None, operation, now()));
+    send(Command::Operate(block, operation, now()));
 }
 
-pub(crate) fn operate_from(block: Uuid, origin: u64, operation: Vec<u8>) {
-    send(Command::Operate(block, Some(origin), operation, now()));
-}
-
-pub(crate) fn gesture(block: Uuid, origin: u64, phase: block_plugin_api::GesturePhase) {
-    send(Command::Gesture {
+pub(crate) fn attach(block: Uuid, content_type: Uuid, editor: u64, editable: bool) {
+    show_staged(block);
+    send(Command::Attach {
         block,
-        origin: Some(origin),
-        phase,
+        content_type,
+        editor,
+        editable,
     });
 }
 
-pub(crate) fn update_since(block: Uuid, origin: u64, sent: Option<u64>) -> Option<(u64, Update)> {
+pub(crate) fn detach(block: Uuid, editor: u64) {
+    send(Command::Detach { block, editor });
+}
+
+pub(crate) fn from_editor(block: Uuid, editor: u64, frame: &[u8]) {
+    let Some(bytes) = replicas::unframe(frame) else {
+        return;
+    };
+    send(Command::FromEditor {
+        block,
+        editor,
+        bytes,
+        at: now(),
+    });
+}
+
+pub(crate) use replicas::unframe;
+
+pub(crate) fn take_editor_frames(editor: u64) -> Vec<(Uuid, Vec<u8>)> {
+    with_shared_mut(|shared| shared.editor_frames.remove(&editor))
+        .flatten()
+        .unwrap_or_default()
+}
+
+pub(crate) fn keep_editor_frames(editor: u64, mut kept: Vec<(Uuid, Vec<u8>)>) {
+    if kept.is_empty() {
+        return;
+    }
+    with_shared_mut(|shared| {
+        let held = shared.editor_frames.entry(editor).or_default();
+        kept.append(held);
+        *held = kept;
+    });
+}
+
+pub(crate) fn snapshot_frame(block: Uuid) -> Option<Vec<u8>> {
     with_shared(|shared| {
-        let content = shared_content(shared, block)?;
-        (sent != Some(content.revision)).then(|| (content.revision, content.since(origin, sent)))
+        let content = match shared.revision_previews.get(&block) {
+            Some(preview) => preview.content.as_ref()?,
+            None => shared
+                .blocks
+                .get(&block)
+                .filter(|_| shared.previewed.contains(&block))?,
+        };
+        Some(replicas::snapshot_frame(
+            content.content_type,
+            content.bytes().to_vec(),
+        ))
     })?
 }
 
+#[cfg(test)]
 pub(crate) fn show(block: Uuid, kind: Uuid, value: Option<Vec<u8>>) {
     send(Command::Presence { block, kind, value });
 }
 
-pub(crate) fn presence_since(block: Uuid, sent: Option<u64>) -> Option<(u64, Vec<Presence>)> {
-    with_shared(|shared| {
-        let (revision, presence) = shared.presence.get(&block)?;
-        (sent != Some(*revision)).then(|| (*revision, presence.clone()))
-    })?
-}
-
+#[cfg(test)]
 pub(crate) fn send_to_peers(block: Uuid, to: Option<u64>, channel: Uuid, payload: Vec<u8>) {
     send(Command::SendToPeers {
         block,
@@ -785,24 +482,6 @@ pub(crate) fn send_to_peers(block: Uuid, to: Option<u64>, channel: Uuid, payload
         channel,
         payload,
     });
-}
-
-pub(crate) fn peer_messages_since(block: Uuid, seen: u64) -> Vec<(u64, PeerMessage)> {
-    with_shared(|shared| {
-        shared.peer_messages.get(&block).map(|queue| {
-            queue
-                .iter()
-                .filter(|(sequence, _)| *sequence > seen)
-                .cloned()
-                .collect()
-        })
-    })
-    .flatten()
-    .unwrap_or_default()
-}
-
-pub(crate) fn peer_messages_seen() -> u64 {
-    with_shared(|shared| shared.peer_message_count).unwrap_or_default()
 }
 
 pub(crate) fn history(block: Uuid) -> History {
@@ -821,10 +500,13 @@ pub(crate) fn redo(block: Uuid) {
 
 pub(crate) fn duplicate(from: Uuid) -> Option<(Uuid, Uuid)> {
     let source = node(from)?;
-    kind_of(source.content_type)?;
+    if !is_known(source.content_type) {
+        return None;
+    }
     let to = Uuid::now_v7();
     let mut metadata = source.metadata.clone();
     metadata.remove(&be_block::ARTIFACT);
+    let references = source.contents();
     let author = account().unwrap_or_default();
     with_shared_mut(|shared| {
         shared.graph.change(Node {
@@ -832,12 +514,13 @@ pub(crate) fn duplicate(from: Uuid) -> Option<(Uuid, Uuid)> {
             content_type: source.content_type,
             author: Some(author),
             parent: Some(be_graph::BlockParent::Detached),
-            access: be_graph::Access::Edit,
-            references: source.references.clone(),
+            access: be_graph::Access::Manage,
+            references,
             metadata: metadata.clone(),
             head: None,
             locked: false,
             held: true,
+            sets_access: false,
         });
     });
     send(Command::Duplicate {
@@ -870,9 +553,12 @@ fn show_staged(block: Uuid) {
         if shared.blocks.contains_key(&block) {
             return;
         }
-        let Some(content) = shared.staged.get(&block).and_then(|(content_type, bytes)| {
-            kind_of(*content_type).and_then(|kind| (kind.preview)(bytes))
-        }) else {
+        let Some(content) = shared
+            .staged
+            .get(&block)
+            .filter(|(content_type, _)| is_known(*content_type))
+            .map(|(content_type, bytes)| Content::new(*content_type, bytes.clone()))
+        else {
             return;
         };
         shared.blocks.insert(block, content);
@@ -906,7 +592,12 @@ pub(crate) fn content_revision(block: Uuid) -> Option<u64> {
 }
 
 pub(crate) fn describe_block(block: Uuid) -> Option<be_block::Entries> {
-    with_shared(|shared| shared.blocks.get(&block).and_then(describe_of))?
+    with_shared(|shared| {
+        shared
+            .described
+            .get(&block)
+            .map(|description| description.derived.clone())
+    })?
 }
 
 pub(crate) fn pairing_requests() -> Vec<PairingRequest> {
@@ -979,13 +670,53 @@ pub(crate) fn status() -> Status {
     with_shared(|shared| Status {
         running: true,
         connected: shared.connected,
+        connecting: !shared.connected && !shared.reached,
         blocks: shared.blocks.len(),
         wakes: shared.wakes,
-        unsealed: shared.unsealed,
+        unsaved: shared.unsealed + shared.pending + shared.importing,
+        kept: shared.waiting,
+        saves: shared.saves,
         conflicts: shared.conflicts.values().map(Vec::len).sum(),
+        conflicted: shared.conflicts.keys().copied().collect(),
         error: shared.error.clone(),
+        waiting: shared.unsealed + shared.waiting,
+        syncing: shared.draining || (shared.connected && shared.unsealed + shared.waiting > 0),
+        unsent: shared.unsent.len(),
     })
     .unwrap_or_default()
+}
+
+pub(crate) fn unsent() -> Vec<UnsentEdit> {
+    with_shared(|shared| {
+        shared
+            .unsent
+            .iter()
+            .map(|unsent| UnsentEdit {
+                block: unsent.block,
+                name: shared
+                    .graph
+                    .get(unsent.block)
+                    .and_then(|node| node.metadata.name()),
+                since: unsent.since,
+                offerable: unsent.offerable,
+            })
+            .collect()
+    })
+    .unwrap_or_default()
+}
+
+pub(crate) fn restore_unsent(block: Uuid) {
+    send(Command::Unsent {
+        block,
+        restore: true,
+    });
+}
+
+pub(crate) fn discard_unsent(block: Uuid) {
+    send(Command::Unsent {
+        block,
+        restore: false,
+    });
 }
 
 fn send(command: Command) {
@@ -1012,7 +743,11 @@ fn send(command: Command) {
 
 pub(crate) fn busy() -> bool {
     with_shared(|shared| {
-        shared.pending > 0 || shared.uploading > 0 || shared.owing > 0 || shared.graph.fetching()
+        shared.pending > 0
+            || shared.typing
+            || shared.uploading > 0
+            || shared.owing > 0
+            || shared.graph.fetching()
     })
     .unwrap_or_default()
 }
@@ -1022,6 +757,11 @@ pub(crate) fn seal_owed() {
         let (done, _) = std::sync::mpsc::channel();
         send(Command::Flush(done));
     }
+}
+
+pub(crate) fn backgrounded() {
+    let (done, _) = std::sync::mpsc::channel();
+    send(Command::Flush(done));
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
@@ -1140,6 +880,7 @@ fn sourced(query: Query) -> Query {
         Query::Parents(id) => Query::Parents(revisions::source(id).unwrap_or(id)),
         Query::Subtree(id) => Query::Subtree(revisions::source(id).unwrap_or(id)),
         Query::Block(id) => Query::Block(revisions::source(id).unwrap_or(id)),
+        Query::OpenSettings(id) => Query::OpenSettings(revisions::source(id).unwrap_or(id)),
         other => other,
     }
 }
@@ -1156,16 +897,6 @@ pub(crate) fn query(query: Query) -> Vec<Node> {
     }
     let query = sourced(query);
     with_shared(|shared| shared.graph.query(query)).unwrap_or_default()
-}
-
-pub(crate) fn has_head(block: Uuid) -> bool {
-    with_shared(|shared| {
-        shared
-            .graph
-            .get(block)
-            .is_some_and(|node| node.head.is_some())
-    })
-    .unwrap_or(false)
 }
 
 pub(crate) fn node(block: Uuid) -> Option<Node> {
@@ -1217,10 +948,10 @@ pub(crate) fn create(
         metadata.insert(&be_block::NAME, &name);
     }
     if metadata.derived.is_empty()
+        && content.is_none()
         && let Some(kind) = kind_of(content_type)
     {
-        let bytes = content.clone().unwrap_or_else(kind.blank);
-        metadata.derived = (kind.describe)(&bytes).unwrap_or_default();
+        metadata.derived = kind.described.derived;
     }
     let author = account().unwrap_or_default();
     with_shared_mut(|shared| {
@@ -1237,12 +968,13 @@ pub(crate) fn create(
             content_type,
             author: Some(author),
             parent: Some(parent),
-            access: be_graph::Access::Edit,
+            access: be_graph::Access::Manage,
             references: Vec::new(),
             metadata: metadata.clone(),
             head: None,
             locked: false,
             held: true,
+            sets_access: false,
         });
     });
     send(Command::Create {
@@ -1267,8 +999,7 @@ pub(crate) fn set_parent(block: Uuid, parent: be_graph::BlockParent) {
         return;
     }
     if let Some(node) = node
-        && node.content_type
-            != <be_block::EditorViewContent as be_block::BlockContent>::CONTENT_TYPE
+        && !node.metadata.contains(&be_block::VIEW_EDITOR)
         && node.access.can_edit()
     {
         let from = match (node.parent, parent) {
@@ -1396,10 +1127,22 @@ const NOT_OPEN: &str = "Open the organization first.";
 
 pub(crate) fn list_access(
     block: Uuid,
-    reply: impl FnOnce(Result<Vec<be_protocol::AccessEntry>, String>) + Send + 'static,
+    reply: impl FnOnce(Result<be_protocol::AccessList, String>) + Send + 'static,
 ) {
     send(Command::ListAccess {
         block,
+        reply: Box::new(reply),
+    });
+}
+
+pub(crate) fn read_head(
+    block: Uuid,
+    commit: be_commit::CommitId,
+    reply: impl FnOnce(Result<Vec<u8>, String>) + Send + 'static,
+) {
+    send(Command::ReadHead {
+        block,
+        commit,
         reply: Box::new(reply),
     });
 }
@@ -1410,6 +1153,25 @@ pub(crate) fn export(block: Uuid, reply: impl FnOnce(Exported) + Send + 'static)
     send(Command::Export {
         block,
         reply: Box::new(reply),
+    });
+}
+
+pub(crate) fn plain_file(
+    block: Uuid,
+    reply: impl FnOnce(Result<be_types_host::PlainFile, String>) + Send + 'static,
+) {
+    send(Command::PlainFile {
+        block,
+        reply: Box::new(reply),
+    });
+}
+
+pub(crate) fn from_file(block: Uuid, content_type: Uuid, name: String, bytes: Vec<u8>) {
+    send(Command::FromFile {
+        block,
+        content_type,
+        name,
+        bytes,
     });
 }
 
@@ -1429,12 +1191,13 @@ pub(crate) fn import(bytes: &[u8], parent: be_graph::BlockParent) -> Result<(Uui
                 content_type: block.block_type,
                 author: Some(author),
                 parent: Some(placed),
-                access: be_graph::Access::Edit,
+                access: be_graph::Access::Manage,
                 references: block.references.clone(),
                 metadata: block.metadata.clone(),
                 head: None,
                 locked: false,
                 held: true,
+                sets_access: false,
             });
         });
         if let Some(bytes) = &block.content {
@@ -1448,6 +1211,30 @@ pub(crate) fn import(bytes: &[u8], parent: be_graph::BlockParent) -> Result<(Uui
     }
     send(Command::Import(imported));
     Ok(top)
+}
+
+pub(crate) fn import_file(
+    name: String,
+    bytes: Vec<u8>,
+    parent: be_graph::BlockParent,
+    reply: impl FnOnce(Result<(Uuid, Uuid), String>) + Send + 'static,
+) {
+    if account().is_none() {
+        reply(Err("Sign in to import files.".to_owned()));
+        return;
+    }
+    let metadata = be_block::BlockMetadata::named(&name);
+    send(Command::ContentOfFile {
+        name,
+        bytes,
+        reply: Box::new(move |content| {
+            reply(content.map(|(content_type, content)| {
+                let block = Uuid::new_v4();
+                create(block, content_type, parent, metadata, Some(content));
+                (block, content_type)
+            }));
+        }),
+    });
 }
 
 fn with_shared<T>(read: impl FnOnce(&Shared) -> T) -> Option<T> {

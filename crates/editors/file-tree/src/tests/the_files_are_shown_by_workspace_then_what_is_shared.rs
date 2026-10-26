@@ -1,5 +1,6 @@
-use block_editor_beui::be_block::{BlockContent, WorkspaceContent};
+use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::{AccessLevel, BlockInfo, BlockParent, BlockQuery};
+use workspace_ui_types::WorkspaceContent;
 
 use super::*;
 

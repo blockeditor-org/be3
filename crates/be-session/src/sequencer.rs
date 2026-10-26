@@ -45,6 +45,17 @@ pub enum SessionMessage {
     Replaced {
         head: CommitId,
     },
+    Moved {
+        head: CommitId,
+    },
+    Kept {
+        commit: CommitId,
+        base: Option<CommitId>,
+        edits: Option<KeptEdits>,
+    },
+    Saved {
+        commit: CommitId,
+    },
     Presence {
         kind: uuid::Uuid,
         value: Option<Vec<u8>>,
@@ -53,6 +64,20 @@ pub enum SessionMessage {
         channel: uuid::Uuid,
         payload: Vec<u8>,
     },
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Inherited {
+    Continued,
+    Duplicate,
+    Renumbered,
+    Unnumbered,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct KeptEdits {
+    pub applied: u64,
+    pub sealed: Option<CommitId>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -101,6 +126,22 @@ impl Sequencer {
         Some(op)
     }
 
+    pub fn inherit(&mut self, op: &SessionOp) -> Inherited {
+        if self.accepted.contains(&op.id) {
+            return match self.log.iter().any(|held| held == op) {
+                true => Inherited::Duplicate,
+                false => Inherited::Renumbered,
+            };
+        }
+        self.accepted.insert(op.id);
+        if op.sequence != self.sequence + 1 {
+            return Inherited::Unnumbered;
+        }
+        self.sequence = op.sequence;
+        self.log.push_back(op.clone());
+        Inherited::Continued
+    }
+
     pub fn since(&self, sequence: u64) -> Vec<SessionOp> {
         self.log
             .iter()
@@ -142,10 +183,14 @@ pub struct Follower {
 
 impl Follower {
     pub fn new(client: ClientId) -> Self {
+        Self::continuing(client, 0)
+    }
+
+    pub fn continuing(client: ClientId, sequence: u64) -> Self {
         Self {
             client,
-            counter: 0,
-            applied: 0,
+            counter: sequence,
+            applied: sequence,
             pending: VecDeque::new(),
         }
     }

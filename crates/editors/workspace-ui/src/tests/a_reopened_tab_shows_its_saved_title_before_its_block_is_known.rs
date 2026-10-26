@@ -10,7 +10,7 @@ fn a_reopened_tab_shows_its_saved_title_before_its_block_is_known() {
     assert!(fixture.says("Issues"));
 
     let saved = profile(&fixture);
-    let mut reopened_profile = EditorView::document(WORKSPACE_EDITOR, None);
+    let mut reopened_profile = EditorView::document(None);
     for key in ["layout", "titles"] {
         let state = saved.state(key).cloned().expect("the profile keeps it");
         let edit = reopened_profile

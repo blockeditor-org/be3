@@ -5,4 +5,5 @@ load("@root//buck/wasm:defs.bzl", "editor")
 editor(
     data = {"remapper.wasm": "//crates/remap/module:module"},
     module = "settings",
+    types = "//crates/editors/settings/types:module",
 )

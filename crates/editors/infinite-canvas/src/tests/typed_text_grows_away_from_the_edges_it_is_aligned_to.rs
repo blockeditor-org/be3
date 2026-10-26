@@ -1,8 +1,6 @@
 use super::*;
-use block_editor_beui::be_block::canvas::{
-    CanvasTextAlign, CanvasTextStyle, CanvasTextVerticalAlign,
-};
 use block_editor_beui::beui::{Key, Modifiers};
+use infinite_canvas_types::{CanvasTextAlign, CanvasTextStyle, CanvasTextVerticalAlign};
 
 fn label(
     id: u128,

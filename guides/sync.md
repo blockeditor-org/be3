@@ -11,22 +11,38 @@ be sync ~/code                      again, with the block ~/code was synced with
 be sync ~/code --watch [SECONDS]    keep going: on every change on disk, and every SECONDS (10)
 ```
 
-The code is `crates/be-sync`, used by `be` (`crates/be-cli`). The mapping between
-one block and one file is `be_block::plain`, which the file tree's Export uses too,
-and which a folder export in the app (plans/daily_driver.md, phase 7) should
-build on rather than writing another.
+The code is `crates/be-sync`, used by `be` (`crates/be-cli`). It knows no block
+format: every block's file form comes from its type module
+(guides/type_modules.md), through the `be_types_host::Modules` its caller hands
+`sync` and `watch`. A folder export in the app (plans/daily_driver.md, phase 7)
+should use the same requests rather than writing another mapping, as block-app's files opened in programs do (`to-file` to write a block out and `from-file` to take a program's save back, guides/linux_desktop.md).
 
 ## What becomes what
 
-- A folder or workspace is a directory, and the sync root is the block named.
-- A text block is a file named like the block, holding its body's bytes.
-  Image, PDF, audio and file blocks hold their data. A file block
-  (`be_block::FileContent`) holds any bytes, such as `snapshots/*.paint`.
-- A new file on disk becomes an image, PDF or audio block by its extension (and
-  a PDF's magic), a text block when it is UTF-8 without a NUL byte (its
-  language from the extension), and a file block otherwise. A changed file keeps
-  its block's type; a text block's change is applied as the smallest edit to its
-  body, so a person with it open in block-app keeps typing.
+- A type's `TypeInfo::plain` says what it is on disk: `Directory` (a folder, and
+  a workspace, which is only ever a root), `File`, or `None`. The sync root is
+  the block named, and must be a directory.
+- A file's bytes are `to-file` of its block's content (guides/type_modules.md): a text block's
+  body, the data of an image, PDF, audio or file block (a file block holds any
+  bytes, such as `snapshots/*.paint`).
+- A new file on disk becomes a block of the first type that `claims`
+  it by its name and first 64 KiB: an image, PDF or audio block by its
+  extension (and a PDF's magic), a text block when it is UTF-8 without a NUL
+  byte (its language from the extension), and a file block, the fallback that
+  takes any file, otherwise. Its content is `apply` of `change.from-file` on no
+  content, and its references and derived metadata are `describe`.
+  A changed file keeps its block's type: `FromFile` is applied to the content
+  it replaces, so a text block keeps its language and indentation. A new
+  directory is a block of the type that claims directories (`Claims` with
+  `directory`, a folder), its children added with `Change::Child`, and a
+  directory's entries change the same way.
+- `be sync` never joins a live session. Every change it makes is a commit
+  published against the head it read (step 5 below). A session open in block-app
+  takes that in as it does any publish from elsewhere (its replica's
+  `Head { Moved }`, guides/type_modules.md): it merges the new head with what was
+  typed but not yet sealed, line by line, so the person keeps typing. Lines both
+  changed, or changed next to each other, come out between conflict markers
+  (block-type-guest's `an_external_publish_merges_into_a_live_replica`).
 - The executable bit is the `EXECUTABLE` metadata key, so `scripts/` stays
   runnable.
 - Any other block (a canvas, a database) has no plain-file form. It and what
@@ -55,13 +71,17 @@ A pass:
    its bytes, and merges them with `be_vcs::merge`. A file whose size, time and
    inode match the index is not read again, and a block whose head matches it is
    not fetched.
-4. Merges text both sides changed line by line, from the bytes at the index's
-   head commit; lines both changed come out between `<<<<<<< local` and
-   `>>>>>>> remote`, as be-model renders them, on both sides. A binary file both
-   changed keeps the disk's bytes; the other is in the block's history.
+4. Merges a file both sides changed with its type's `Merge3`: the base is the
+   content at the index's head commit, ours is the disk's bytes applied to it
+   with `FromFile`, theirs the server's content, and the merge's `ToFile` is
+   written to both sides. Text merges line by line, and lines both changed (or
+   next to each other) come out between `<<<<<<< local` and `>>>>>>> remote`; a
+   blob both changed keeps the disk's bytes, and the other is in the block's
+   history. No merge loses either side.
 5. Lays the merged tree out on disk (names, below), applies it to the server
    (new blocks through `Peer::import_blocks`, edits through `Peer::save_encoded`
-   against the head it read, renames, moves, deletes, and each folder's entries),
+   against the head it read, renames, moves, deletes, and each directory's
+   entries through `Peer::publish_encoded`),
    then to the disk (moves through `.be/tmp`, removals, writes), and saves the
    index.
 

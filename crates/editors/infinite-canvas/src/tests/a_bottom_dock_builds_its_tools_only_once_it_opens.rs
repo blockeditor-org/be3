@@ -11,7 +11,7 @@ use block_editor_beui::beui::styled::*;
 fn Counted(built: Rc<Cell<u32>>) -> NodeId {
     built.set(built.get() + 1);
     view! {
-        <Frame width=24.0 height=24.0 />
+        <Frame width=Size::Md height=Size::Md />
     }
 }
 
@@ -29,7 +29,7 @@ fn a_bottom_dock_builds_its_tools_only_once_it_opens() {
         let (above, tool) = (Rc::clone(&counted), counted);
         view! {
             <Root>
-                <Frame @node_ref=&anchor width=400.0 height=300.0>
+                <Frame @node_ref=&anchor width={Size::Custom(400.0)} height={Size::Custom(300.0)}>
                     <BottomDock
                         anchor={anchor}
                         open={open}

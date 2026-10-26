@@ -5,10 +5,10 @@ use block_editor_beui::beui::icons::{
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::MenuItem;
-use block_editor_beui::{Editor, Power, PowerAction, PowerAvailability};
+use block_editor_beui::linux_desktop;
+use block_editor_beui::{Editor, PowerAction, PowerAvailability, PowerWatch};
 
-const DIALOG_SPACING: f32 = 16.0;
+const DIALOG_SPACING: Space = Space::Xl;
 
 fn label(action: PowerAction) -> &'static str {
     match action {
@@ -69,7 +69,7 @@ fn PowerItem(action: PowerAction, available: Memo<PowerAvailability>) -> MenuIte
 
 #[component]
 pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
-    let available = editor.host_value::<Power>();
+    let available = editor.watch::<PowerWatch>();
     let confirming = create_signal(PowerAction::LogOut);
     let open = create_signal(false);
     let chose = move |path: Vec<usize>| {
@@ -83,7 +83,9 @@ pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
             return;
         }
         match action {
-            PowerAction::Lock | PowerAction::Suspend => editor.act(action),
+            PowerAction::Lock | PowerAction::Suspend => {
+                editor.act(move || linux_desktop::power::request(action))
+            }
             _ => {
                 confirming.set(action);
                 open.set(true);
@@ -96,10 +98,10 @@ pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
     let dismiss = move || open.set(false);
     let confirm = move || {
         open.set(false);
-        editor.act(confirming.get_untracked());
+        editor.act(move || linux_desktop::power::request(confirming.get_untracked()));
     };
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <MenuButton
                 label="Power"
                 glyph=ICON_POWER
@@ -118,14 +120,13 @@ pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
             <Dialog
                 open
                 title
+                kind=DialogKind::Alert
                 id="desktop.power"
-                confirm={verb}
-                cancel="Cancel"
-                on_confirm={confirm}
+                actions={vec![DialogAction::primary(verb, confirm), DialogAction::cancel("Cancel")]}
                 on_dismiss={dismiss}
             >
                 <List spacing=DIALOG_SPACING @test_id={"desktop.power.dialog"}>
-                    <Text style=TextStyle::PARAGRAPH wrap=true>{explained}</Text>
+                    <Text style=TextStyle::PARAGRAPH>{explained}</Text>
                 </List>
             </Dialog>
         </List>

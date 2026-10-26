@@ -376,8 +376,8 @@ pub(crate) fn HexView(state: State) -> NodeId {
                     (rows.get() as f32 * ROW_HEIGHT + PADDING.y * 2.0).max(available.y),
                 )
             });
-            let width = create_memo(move || content_size.get().x);
-            let height = create_memo(move || content_size.get().y);
+            let width = create_memo(move || Size::Custom(content_size.get().x));
+            let height = create_memo(move || Size::Custom(content_size.get().y));
             let drawn = create_memo(move || {
                 content.get();
                 state.text.cursors().get();

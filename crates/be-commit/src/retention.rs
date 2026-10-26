@@ -20,6 +20,11 @@ pub struct RetentionPolicy {
 }
 
 impl RetentionPolicy {
+    pub fn keeping_all_within(mut self, age: i64) -> Self {
+        self.keep_all_within = self.keep_all_within.max(age);
+        self
+    }
+
     pub fn interval_for(&self, age: i64) -> i64 {
         self.bucket_of(age).1
     }

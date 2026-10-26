@@ -1,7 +1,7 @@
-use block_editor_beui::be_block::{BlockContent, FolderContent};
-use block_editor_beui::{
-    BlockCommand, BlockImport, BlockInfo, BlockLocation, BlockPick, HostReply, HostRequest,
-};
+use block_editor_beui::be_block::BlockContent;
+use block_editor_beui::{BlockCommand, BlockInfo, BlockLocation, ImportedBlock, PickedBlock};
+use block_ui_test::HostCall;
+use workspace_ui_types::FolderContent;
 
 use super::*;
 
@@ -29,8 +29,8 @@ fn an_import_keeps_the_location_it_started_with() {
         .test
         .take_requests()
         .into_iter()
-        .find_map(|(id, request)| match request {
-            HostRequest::ImportBlocks(place) => Some((id, place)),
+        .find_map(|call| match call {
+            HostCall::ImportBlocks { reply, parent } => Some((reply, parent)),
             _ => None,
         })
         .expect("choosing a file asks the host to import one");
@@ -46,12 +46,12 @@ fn an_import_keeps_the_location_it_started_with() {
     fixture.settle();
 
     let imported = Uuid::new_v4();
-    fixture.test.reply(
+    fixture.test.answer(
         request,
-        HostReply::BlocksImported(BlockImport::Imported {
+        Ok(Some(ImportedBlock {
             block_id: imported.into_bytes(),
             block_type: SHOWN_TYPE.into_bytes(),
-        }),
+        })),
     );
     fixture.settle();
 
@@ -59,12 +59,12 @@ fn an_import_keeps_the_location_it_started_with() {
         fixture.test.take_pick_answers(),
         vec![(
             5,
-            BlockPick::Chosen {
+            Ok(Some(PickedBlock {
                 block_id: imported.into_bytes(),
                 block_type: SHOWN_TYPE.into_bytes(),
                 linked: false,
                 placed: true,
-            }
+            }))
         )]
     );
     assert!(

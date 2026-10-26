@@ -4,7 +4,6 @@ mod app_state;
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
 mod arguments;
 mod be;
-mod block_label;
 mod compositor;
 mod contacts;
 #[cfg(target_os = "linux")]
@@ -24,6 +23,7 @@ mod members;
 mod notices;
 #[cfg(target_os = "linux")]
 mod notifications;
+mod offline_choice;
 mod panic_guard;
 mod password;
 mod performance;
@@ -46,14 +46,13 @@ mod wifi;
 use std::{
     collections::{HashMap, HashSet},
     error::Error,
+    io,
+    path::PathBuf,
     rc::Rc,
 };
 
 #[cfg(not(target_arch = "wasm32"))]
-use std::{
-    io,
-    path::{Path, PathBuf},
-};
+use std::path::Path;
 
 use accounts::{AccountError, Session};
 use app_state::{AppStateStore, SavedAccount, ServerLocation};
@@ -94,6 +93,9 @@ fn run_options() -> beui::RunOptions {
         ..Default::default()
     }
 }
+
+#[cfg(target_arch = "wasm32")]
+const WEB_DATA_DIR: &str = "/block";
 
 #[cfg(not(target_arch = "wasm32"))]
 fn storage_dir() -> Option<PathBuf> {
@@ -139,10 +141,13 @@ fn run_app(arguments: arguments::Arguments) -> Result<(), Box<dyn Error>> {
 #[cfg(target_os = "linux")]
 fn run_shell(options: beui::RunOptions, shell: Shell, session: bool) -> Result<(), Box<dyn Error>> {
     if session {
-        return beui::run_on(Box::new(beui_adapter_drm::Drm), options, shell);
+        return beui::run_on(Box::new(beui_platform_drm::Drm), options, shell);
     }
     let renderer = beui::WindowRenderer::Wgpu {
-        open_device: Some(std::sync::Arc::new(be_dmabuf::open_device)),
+        open_device: beui::OpenDevice {
+            extensions: &be_dmabuf::DEVICE_EXTENSIONS,
+            gpu: None,
+        },
     };
     beui::run_with_renderers(options, vec![renderer], shell)
 }
@@ -168,7 +173,7 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
     editors::plugin::discovery::load().await;
     let mut app =
         BlockApp::new().map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))?;
-    let mut options = run_options();
+    let options = run_options();
     let location = web_sys::window()
         .map(|window| window.location())
         .ok_or("no browser window is available")?;
@@ -186,15 +191,15 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
         page.set_hash("");
         location.replace(&page.href())?;
     }
-    if page.search_params().has("automation") {
-        let inbox = beui::automation::Inbox::default();
-        AUTOMATION.with(|automation| *automation.borrow_mut() = Some(inbox.clone()));
-        options.automation = Some(inbox);
+    let mut layers: Vec<Box<dyn beui::Layer>> = Vec::new();
+    if let Some(inbox) = automation()? {
+        layers.push(Box::new(beui::drive::Drive::new(inbox)));
     }
     beui::run_web(
         &canvas_id,
         vec![beui::WebRenderer::Wgpu],
         options,
+        layers,
         Shell::new(app),
     )
     .await
@@ -203,8 +208,24 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
 
 #[cfg(target_arch = "wasm32")]
 thread_local! {
-    static AUTOMATION: std::cell::RefCell<Option<beui::automation::Inbox>> =
+    static AUTOMATION: std::cell::RefCell<Option<beui::drive::Inbox>> =
         const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(target_arch = "wasm32")]
+fn automation() -> Result<Option<beui::drive::Inbox>, wasm_bindgen::JsValue> {
+    let location = web_sys::window()
+        .map(|window| window.location())
+        .ok_or("no browser window is available")?;
+    if !web_sys::Url::new(&location.href()?)?
+        .search_params()
+        .has("automation")
+    {
+        return Ok(None);
+    }
+    Ok(Some(AUTOMATION.with(|automation| {
+        automation.borrow_mut().get_or_insert_default().clone()
+    })))
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -214,10 +235,8 @@ pub async fn automate(
     timeout_milliseconds: i32,
 ) -> Result<String, wasm_bindgen::JsValue> {
     use wasm_bindgen::JsCast;
-    let inbox = AUTOMATION
-        .with(|automation| automation.borrow().clone())
-        .ok_or("the page was not opened with ?automation")?;
-    let answered = beui::automation::ask(&inbox, words);
+    let inbox = automation()?.ok_or("the page was not opened with ?automation")?;
+    let answered = beui::drive::ask(&inbox, words);
     let canceller = answered.canceller();
     let late = wasm_bindgen::closure::Closure::once_into_js(move || {
         canceller.cancel(format!(
@@ -232,13 +251,13 @@ pub async fn automate(
             timeout_milliseconds,
         )?;
     match answered.await {
-        beui::automation::Reply::Text(text) => Ok(text),
-        beui::automation::Reply::Error(error) => Err(error.into()),
-        beui::automation::Reply::Image { .. } => {
-            Err("the browser takes screenshots itself: use drive shot".into())
+        beui::drive::Reply::Text(text) => Ok(text),
+        beui::drive::Reply::Error(error) => Err(error.into()),
+        beui::drive::Reply::Image { .. } => {
+            Err("the browser takes screenshots itself: use drive screen shot".into())
         }
-        beui::automation::Reply::Painting(_) => {
-            Err("the web build does not answer paint; run the app natively".into())
+        beui::drive::Reply::Painting(_) => {
+            Err("the web build does not answer app paint; run the app natively".into())
         }
     }
 }
@@ -279,11 +298,12 @@ impl Shell {
             compositor::install();
             wayland::create();
             surfaces::create_handles();
+            display::create_handle();
             let store = AppViewStore::new(AppView::default());
             view = Some(store);
             beui::reactive::view! {
                 <beui::styled::Root title="Block">
-                    <ui::Root view={store} />
+                    <ui::Displays view={store} />
                 </beui::styled::Root>
             }
         });
@@ -307,7 +327,7 @@ impl beui::App for Shell {
         wayland::start(setup);
         input::start(setup);
         #[cfg(target_os = "linux")]
-        if let Some(problems) = setup.get::<beui_adapter_drm::Problems>() {
+        if let Some(problems) = setup.get::<beui_platform_drm::Problems>() {
             problems.listen(notices::report);
         }
         #[cfg(target_os = "linux")]
@@ -336,6 +356,15 @@ impl beui::App for Shell {
         if context.hurried() {
             be::seal_owed();
         }
+        if context.input(|input| {
+            input
+                .events
+                .iter()
+                .any(|event| matches!(event, beui::Event::Focus(true)))
+        }) {
+            be::retry_now();
+            self.app.retry_organizations();
+        }
         wayland::before(context, rect, &mut self.document);
         self.app.touched = self
             .document
@@ -361,7 +390,10 @@ impl beui::App for Shell {
         wayland::set_owned(view.screen == ui::Screen::Organization && self.app.shell.is_some());
         let store = self.view;
         compositor::notify();
-        store.set(view);
+        beui::reactive::enter(&mut self.document, || {
+            display::apply_shown();
+            store.set(view);
+        });
         #[cfg(target_arch = "wasm32")]
         plugin_host::place_screens(
             &plugin_host::shown_blits(),
@@ -404,8 +436,21 @@ impl beui::App for Shell {
         plugin_host::request_painting();
     }
 
+    fn other_frames(&mut self) -> Vec<(String, beui::FrameTimes)> {
+        plugin_host::take_steps()
+    }
+
     fn close_requested(&mut self) -> bool {
         self.app.close_requested()
+    }
+
+    fn lifecycle(&mut self, change: beui::Lifecycle) {
+        match change {
+            beui::Lifecycle::Background => be::backgrounded(),
+            beui::Lifecycle::Foreground
+            | beui::Lifecycle::Focused
+            | beui::Lifecycle::NetworkChanged => be::retry_now(),
+        }
     }
 
     fn exiting(&mut self) {
@@ -420,7 +465,7 @@ impl beui::App for Shell {
             self.app.desktop = None;
         }
         be::flush();
-        be::stop();
+        be::stop_and_wait();
     }
 }
 
@@ -442,6 +487,8 @@ struct BlockApp {
     joining: Option<Joining>,
     organizations_loaded: bool,
     organizations_load_failed: bool,
+    organizations_cached: bool,
+    be_connected: bool,
     resumed: bool,
     warmed: bool,
     plugins_in_use: Vec<String>,
@@ -467,8 +514,8 @@ struct BlockApp {
     choosing_session: bool,
     every_session_type: bool,
     shell: Option<Uuid>,
-    windows_sent: Option<u64>,
-    forwarded_picks: HashMap<u64, (PickSource, u64)>,
+    windows_sent: Option<(u64, Vec<block_plugin_api::HostWindowId>)>,
+    forwarded_picks: HashMap<u64, (PickSource, block_plugin_api::ops::OpId, PickSource)>,
     next_pick: u64,
     focus_reports: HashMap<Uuid, editors::FocusReport>,
     artifact_watches: HashMap<Uuid, Vec<Uuid>>,
@@ -495,12 +542,13 @@ struct BlockApp {
     pending_transfers: Vec<PendingTransfer>,
     pending_copies: Vec<PendingCopy>,
     about_open: bool,
+    unsent_open: bool,
+    discarding_unsent: Option<Uuid>,
     programs: programs::Programs,
     app_menu: Option<ui::AppMenuView>,
     pending_destructive_action: Option<PendingDestructiveAction>,
     leaving: Option<Uuid>,
     allow_close: bool,
-    #[cfg(not(target_arch = "wasm32"))]
     data_dir: PathBuf,
     #[cfg(not(target_arch = "wasm32"))]
     embedded_server: Option<platform::EmbeddedServer>,
@@ -555,6 +603,7 @@ enum OrganizationOperation {
 
 enum OrganizationResult {
     Loaded(Vec<Organization>, accounts::Keys),
+    Cached(Vec<Organization>),
     Created(Organization),
     Invitation(OrganizationInvitation),
     Joined(Uuid),
@@ -601,7 +650,7 @@ struct PendingCopy {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-const CACHES: [&str; 2] = ["be-objects", "plugin-cache"];
+const CACHES: [&str; 1] = ["plugin-cache"];
 
 #[cfg(not(target_arch = "wasm32"))]
 fn forget_caches_of_other_builds(data_dir: &Path) -> io::Result<()> {
@@ -639,6 +688,7 @@ impl BlockApp {
         let url = embedded_server.url.clone();
         let app_state = AppStateStore::open(data_dir.join("app.sqlite3"))?;
         let mut app = Self::with_state(app_state, url)?;
+        app.programs.keep_files_in(data_dir.join("files"));
         app.data_dir = data_dir;
         app.embedded_server = Some(embedded_server);
         Ok(app)
@@ -646,8 +696,12 @@ impl BlockApp {
 
     #[cfg(target_arch = "wasm32")]
     fn new() -> Result<Self, Box<dyn Error + Send + Sync>> {
-        let app_state = AppStateStore::open()?;
-        Self::with_state(app_state, String::new())
+        let data_dir = PathBuf::from(WEB_DATA_DIR);
+        std::fs::create_dir_all(&data_dir)?;
+        let app_state = AppStateStore::open(data_dir.join("app.sqlite3"))?;
+        let mut app = Self::with_state(app_state, String::new())?;
+        app.data_dir = data_dir;
+        Ok(app)
     }
 
     fn with_state(
@@ -702,6 +756,8 @@ impl BlockApp {
             joining: None,
             organizations_loaded: false,
             organizations_load_failed: false,
+            organizations_cached: false,
+            be_connected: false,
             resumed: false,
             warmed: false,
             plugins_in_use: Vec::new(),
@@ -749,12 +805,13 @@ impl BlockApp {
             pending_transfers: Vec::new(),
             pending_copies: Vec::new(),
             about_open: false,
+            unsent_open: false,
+            discarding_unsent: None,
             programs: programs::Programs::default(),
             app_menu: None,
             pending_destructive_action: None,
             leaving: None,
             allow_close: false,
-            #[cfg(not(target_arch = "wasm32"))]
             data_dir: PathBuf::new(),
             #[cfg(not(target_arch = "wasm32"))]
             embedded_server: None,
@@ -810,7 +867,7 @@ impl BlockApp {
 
     #[cfg(target_os = "linux")]
     fn take_power_request(&mut self) {
-        let request = plugin_host::take_actions::<block_plugin_api::PowerAction>().pop();
+        let request = plugin_host::take_calls(block_plugin_api::requested::power).pop();
         if let Some(action) = request
             && self
                 .published_power
@@ -855,7 +912,7 @@ impl BlockApp {
         let locked = lock.locked();
         wayland::set_locked(locked);
         remap::set_locked(locked);
-        plugin_host::publish::<block_plugin_api::ScreenLocked>(&locked);
+        plugin_host::publish::<block_plugin_api::ScreenLockedWatch>(&locked);
         if locked {
             self.app_menu = None;
         }
@@ -867,7 +924,7 @@ impl BlockApp {
         availability.lock = !locked;
         if self.published_power != Some(availability) {
             self.published_power = Some(availability);
-            plugin_host::publish::<block_plugin_api::Power>(&availability);
+            plugin_host::publish::<block_plugin_api::PowerWatch>(&availability);
         }
     }
 
@@ -901,12 +958,12 @@ impl BlockApp {
 
     #[cfg(target_os = "linux")]
     fn run_media(&mut self) {
-        let requests = plugin_host::take_actions::<block_plugin_api::MediaRequest>();
+        let requests = plugin_host::take_calls(block_plugin_api::requested::media);
         if self.media.is_none()
-            && (!requests.is_empty() || plugin_host::watched::<block_plugin_api::Media>())
+            && (!requests.is_empty() || plugin_host::watched::<block_plugin_api::MediaWatch>())
         {
             self.media = Some(media::Media::start());
-            plugin_host::publish::<block_plugin_api::Media>(
+            plugin_host::publish::<block_plugin_api::MediaWatch>(
                 &block_plugin_api::MediaLevels::default(),
             );
         }
@@ -917,18 +974,20 @@ impl BlockApp {
             media.request(request);
         }
         if let Some(levels) = media.frame() {
-            plugin_host::publish::<block_plugin_api::Media>(&levels);
+            plugin_host::publish::<block_plugin_api::MediaWatch>(&levels);
         }
     }
 
     #[cfg(target_os = "linux")]
     fn run_wifi(&mut self) {
-        let requests = plugin_host::take_actions::<block_plugin_api::WifiRequest>();
+        let requests = plugin_host::take_calls(block_plugin_api::requested::wifi);
         if self.wifi.is_none()
-            && (!requests.is_empty() || plugin_host::watched::<block_plugin_api::Wifi>())
+            && (!requests.is_empty() || plugin_host::watched::<block_plugin_api::WifiWatch>())
         {
             self.wifi = Some(wifi::Wifi::start());
-            plugin_host::publish::<block_plugin_api::Wifi>(&block_plugin_api::WifiStatus::default());
+            plugin_host::publish::<block_plugin_api::WifiWatch>(
+                &block_plugin_api::WifiStatus::default(),
+            );
         }
         let Some(wifi) = &mut self.wifi else {
             return;
@@ -937,7 +996,7 @@ impl BlockApp {
             wifi.request(request);
         }
         if let Some(status) = wifi.frame() {
-            plugin_host::publish::<block_plugin_api::Wifi>(&status);
+            plugin_host::publish::<block_plugin_api::WifiWatch>(&status);
         }
     }
 
@@ -1207,6 +1266,8 @@ impl BlockApp {
         let url = self.server_url.clone();
         let token = self.account.token.clone();
         let me = self.me();
+        let cache = self.workspace_cache();
+        let account = self.account.id;
         let receiver = platform::spawn_request(async move {
             let me = || {
                 me.clone().ok_or_else(|| AccountError {
@@ -1216,9 +1277,25 @@ impl BlockApp {
             };
             match operation {
                 OrganizationOperation::Load => {
-                    let organizations = accounts::organizations(url.clone(), token.clone()).await?;
-                    let keys = accounts::keys(url, token).await?;
-                    Ok(OrganizationResult::Loaded(organizations, keys))
+                    match accounts::organizations(url.clone(), token.clone()).await {
+                        Ok(organizations) => {
+                            if let Some(cache) = &cache {
+                                let _ = cache.set_workspaces(&url, account, &organizations);
+                            }
+                            let keys = accounts::keys(url, token).await?;
+                            Ok(OrganizationResult::Loaded(organizations, keys))
+                        }
+                        Err(error) if !error.invalid_token => {
+                            let cached = cache
+                                .and_then(|cache| cache.workspaces(&url, account).ok())
+                                .unwrap_or_default();
+                            match cached.is_empty() {
+                                true => Err(error),
+                                false => Ok(OrganizationResult::Cached(cached)),
+                            }
+                        }
+                        Err(error) => Err(error),
+                    }
                 }
                 OrganizationOperation::Create(name) => {
                     accounts::create_organization(url, token, name)
@@ -1277,10 +1354,30 @@ impl BlockApp {
         };
         self.pending_organization_request = None;
         match result {
+            Ok(OrganizationResult::Cached(organizations)) => {
+                self.organizations = organizations;
+                self.organizations_loaded = true;
+                self.organizations_load_failed = false;
+                self.organizations_cached = true;
+                if self.organization.is_some() || self.joining.is_some() {
+                    return;
+                }
+                if let Some(last_organization_id) = self.account.last_organization_id
+                    && let Some(organization) = self
+                        .organizations
+                        .iter()
+                        .find(|organization| organization.id == last_organization_id)
+                        .cloned()
+                {
+                    self.open_organization(organization);
+                }
+                self.open_any_organization();
+            }
             Ok(OrganizationResult::Loaded(organizations, keys)) => {
                 self.organizations = organizations;
                 self.organizations_loaded = true;
                 self.organizations_load_failed = false;
+                self.organizations_cached = false;
                 self.keys.loaded(keys);
                 if self.keys.needs_recovery() {
                     if self.dev_workspace {
@@ -1506,6 +1603,7 @@ impl BlockApp {
         self.dynamic_artifact_settings.clear();
         self.dynamic_artifact_settings_open = None;
         self.root_settings = RootSettings::new(self.root_settings.shell());
+        offline_choice::forget();
         self.choosing_session = false;
         self.shell = None;
         self.input.set_layers(Default::default());
@@ -1555,6 +1653,29 @@ impl BlockApp {
         self.identity.is_none() || self.keys.needs_unlock(self.identity)
     }
 
+    fn workspace_cache(&self) -> Option<be_client::RefsDb> {
+        be::refs_in(&self.data_dir).ok()
+    }
+
+    fn retry_organizations(&mut self) {
+        if self.pending_organization_request.is_some() || self.reauth.is_some() {
+            return;
+        }
+        if self.organizations_load_failed {
+            self.organizations_load_failed = false;
+        } else if self.organizations_cached {
+            self.begin_organization_request(OrganizationOperation::Load);
+        }
+    }
+
+    fn notice_reconnect(&mut self) {
+        let connected = be::status().connected;
+        if connected && !self.be_connected {
+            self.retry_organizations();
+        }
+        self.be_connected = connected;
+    }
+
     fn load_organizations_if_needed(&mut self) {
         if !self.organizations_loaded
             && !self.organizations_load_failed
@@ -1585,6 +1706,8 @@ impl BlockApp {
         self.dynamic_artifact_settings_open = None;
         self.pending_transfers.clear();
         self.about_open = false;
+        self.unsent_open = false;
+        self.discarding_unsent = None;
         self.app_menu = None;
         self.pending_destructive_action = None;
         self.allow_close = false;
@@ -1593,6 +1716,7 @@ impl BlockApp {
         self.resumed = false;
         self.organizations_loaded = false;
         self.organizations_load_failed = false;
+        self.organizations_cached = false;
         self.pending_organization_request = None;
         self.organization_error = None;
         self.reauth = None;
@@ -1603,6 +1727,7 @@ impl BlockApp {
         self.contacts.close();
         self.members.close();
         self.root_settings = RootSettings::new(self.root_settings.shell());
+        offline_choice::forget();
         self.choosing_session = false;
         self.shell = None;
         self.input.set_layers(Default::default());
@@ -1622,8 +1747,7 @@ impl BlockApp {
     }
 
     fn close_requested(&mut self) -> bool {
-        be::flush();
-        if self.allow_close || be::status().unsealed == 0 {
+        if be::flush() == 0 || self.allow_close {
             return true;
         }
         self.pending_destructive_action = Some(PendingDestructiveAction::Close);
@@ -1744,7 +1868,7 @@ impl BlockApp {
         };
         let addable = |parent: Uuid| {
             be::node(parent)
-                .and_then(|parent| be_block::block_types::block_type(parent.content_type))
+                .and_then(|parent| editors::plugin::discovery::block_type(parent.content_type))
                 .is_some_and(|block_type| block_type.children.add)
         };
         if let Some(BlockParent::Block(parent)) = node.parent
@@ -1759,17 +1883,19 @@ impl BlockApp {
             _ => node.metadata.get(&be_block::DELETED_FROM),
         };
         let destination = match from {
-            Some(be_block::DeletedFrom::Root) => {
+            Some(be_block::DeletedFrom::Root) if addable(root) => {
                 be::set_parent(root, BlockParent::Root);
                 return;
             }
             Some(be_block::DeletedFrom::Block(parent)) if usable(parent) && addable(parent) => {
                 parent
             }
-            Some(be_block::DeletedFrom::Block(_)) | None => match self.root_settings.my_files() {
-                Some(files) => files,
-                None => return,
-            },
+            Some(be_block::DeletedFrom::Root | be_block::DeletedFrom::Block(_)) | None => {
+                match self.root_settings.my_files() {
+                    Some(files) => files,
+                    None => return,
+                }
+            }
         };
         let listed = be::node(destination).is_some_and(|parent| parent.references.contains(&root));
         match listed {
@@ -1947,16 +2073,18 @@ impl BlockApp {
             self.stop_shell();
         }
         let shell_editor = self.root_settings.session_editor(id)?;
-        let view_type = be_block::EditorView::CONTENT_TYPE;
+        let view_type = be::node(id)?.content_type;
         self.block_types.insert(id, view_type);
         let open_as = self
             .editors
             .with(|open| open.get(&id).and_then(PluginEditor::editor_id));
         if open_as != Some(shell_editor) {
-            let editor = self
-                .registry
-                .open_with(id, view_type, Some(shell_editor))
-                .viewed_by(Some(id));
+            let opened = editors::Opened {
+                id,
+                block_type: view_type,
+                view_block: Some(id),
+            };
+            let editor = self.registry.open_with(opened, Some(shell_editor));
             if let Some(missing) = ShellRequest::ALL
                 .into_iter()
                 .find(|request| !editor.accepts(*request))
@@ -2029,7 +2157,7 @@ impl BlockApp {
         }
     }
 
-    fn show_appearance(
+    fn show_rename(
         &mut self,
         from: Option<Uuid>,
         id: Uuid,
@@ -2052,7 +2180,7 @@ impl BlockApp {
         self.with_editor(handler, |handler| {
             handler.show_dialog(
                 id,
-                ShellDialog::Appearance {
+                ShellDialog::Rename {
                     anchor,
                     within: within.map(Uuid::into_bytes),
                 },
@@ -2077,6 +2205,7 @@ impl BlockApp {
         if self.shell == Some(id) {
             return;
         }
+        programs::close(id);
         self.editors.forget_parent(id);
         self.focus_reports.remove(&id);
         if self.artifact_watches.remove(&id).is_some() {
@@ -2106,7 +2235,7 @@ impl BlockApp {
     fn act_on_artifact(&mut self, id: Uuid, action: ArtifactAction) {
         match action {
             ArtifactAction::Regenerate => {
-                let data = artifact_of(id).map(|artifact| artifact.data);
+                let data = artifact_of(id).map(|artifact| artifact.settings);
                 if let (Some(data), Some(session)) =
                     (data, self.dynamic_artifact_sessions.get_mut(&id))
                 {
@@ -2145,11 +2274,12 @@ impl BlockApp {
                 },
             );
         }
-        if Some(wayland::revision()) != self.windows_sent {
-            self.windows_sent = Some(wayland::revision());
-            plugin_host::publish::<block_plugin_api::HostWindows>(&wayland::listed());
+        let hidden = programs::bound_windows();
+        if Some((wayland::revision(), hidden.clone())) != self.windows_sent {
+            plugin_host::publish::<block_plugin_api::WindowsWatch>(&wayland::listed(&hidden));
+            self.windows_sent = Some((wayland::revision(), hidden));
         }
-        for action in plugin_host::take_actions::<block_plugin_api::WindowAction>() {
+        for action in plugin_host::take_calls(block_plugin_api::requested::window) {
             match action {
                 block_plugin_api::WindowAction::Focus(window) => wayland::focus(window),
                 block_plugin_api::WindowAction::Close(window) => wayland::close(window),
@@ -2219,8 +2349,8 @@ impl BlockApp {
     }
 
     fn cancel_forwarded_picks(&mut self) {
-        for (_, (source, request_id)) in self.forwarded_picks.drain() {
-            source.answer(request_id, block_plugin_api::BlockPick::Cancelled);
+        for (_, (source, request_id, _)) in self.forwarded_picks.drain() {
+            source.answer(request_id, Ok(None));
         }
     }
 
@@ -2240,9 +2370,32 @@ impl BlockApp {
             for (pick, answer) in
                 crate::plugin_host::take_pick_answers(&picker.plugin_id, picker.instance)
             {
-                if let Some((source, request_id)) = self.forwarded_picks.remove(&pick) {
+                if let Some((source, request_id, _)) = self.forwarded_picks.remove(&pick) {
                     source.answer(request_id, answer);
                 }
+            }
+        }
+        let sources: std::collections::HashSet<String> = self
+            .forwarded_picks
+            .values()
+            .map(|(source, _, _)| source.plugin_id.clone())
+            .collect();
+        for plugin_id in sources {
+            for (instance, op) in crate::plugin_host::take_withdrawn_picks(&plugin_id) {
+                self.forwarded_picks
+                    .retain(|pick, (source, asked, picker)| {
+                        let withdrawn = source.plugin_id == plugin_id
+                            && source.instance == instance
+                            && *asked == op;
+                        if withdrawn {
+                            crate::plugin_host::withdraw_pick(
+                                &picker.plugin_id,
+                                picker.instance,
+                                *pick,
+                            );
+                        }
+                        !withdrawn
+                    });
             }
         }
         let pickers: HashMap<Uuid, PickSource> = editors
@@ -2267,6 +2420,22 @@ impl BlockApp {
             if !commits.is_empty() {
                 self.editors.commit_creations(*id, commits);
             }
+            let (settings, dismissed): (Vec<_>, Vec<_>) =
+                crate::plugin_host::take_child_dismissals(&source.plugin_id, source.instance)
+                    .into_iter()
+                    .partition(|child| self.editors.settings_block(*id, *child).is_some());
+            for child in settings {
+                if let Some(session) = self
+                    .editors
+                    .settings_block(*id, child)
+                    .and_then(|block| self.dynamic_artifact_sessions.get_mut(&block))
+                {
+                    session.dismiss();
+                }
+            }
+            if !dismissed.is_empty() {
+                self.editors.dismiss_creations(*id, &dismissed);
+            }
         }
         self.editors.forget_hidden_settings();
         let creations = self.editors.creation_pick_sources();
@@ -2289,7 +2458,7 @@ impl BlockApp {
                     .into_iter()
                     .find_map(|id| Some((id, pickers.get(&id)?)))
                 else {
-                    source.answer(request.request_id, block_plugin_api::BlockPick::Cancelled);
+                    source.answer(request.op, Ok(None));
                     continue;
                 };
                 filter.anchor = filter.anchor.and_then(|anchor| {
@@ -2301,7 +2470,7 @@ impl BlockApp {
                 });
                 let within = block.and_then(|block| self.child_within(picker_id, block));
                 self.forwarded_picks
-                    .insert(pick, (source.clone(), request.request_id));
+                    .insert(pick, (source.clone(), request.op, picker.clone()));
                 crate::plugin_host::request_pick(
                     &picker.plugin_id,
                     picker.instance,
@@ -2332,6 +2501,7 @@ impl BlockApp {
                 let block_type = self.block_type_of(id).unwrap_or_default();
                 match self.registry.artifact_session(
                     descriptor.source_type,
+                    *descriptor.source,
                     id,
                     block_type,
                     self.client_id,
@@ -2342,7 +2512,7 @@ impl BlockApp {
             }
             let status = session
                 .as_mut()
-                .map(|session| session.poll(&self.registry, &descriptor.data));
+                .map(|session| session.poll(&self.registry, &descriptor.settings));
             if let Some(outcome) = session.as_mut().and_then(|session| session.take_outcome()) {
                 match outcome {
                     Ok(()) => {
@@ -2356,17 +2526,16 @@ impl BlockApp {
             let mut state = block_plugin_api::ArtifactState {
                 block_id: id.into_bytes(),
                 source_type: descriptor.source_type.into_bytes(),
-                source: None,
-                summary: String::new(),
+                source: descriptor.source.into_bytes(),
+                summary: None,
                 error: self.dynamic_artifact_errors.get(&id).cloned(),
                 regenerating: session
                     .as_ref()
                     .is_some_and(|session| session.regenerating()),
             };
             match &status {
-                Some(ArtifactStatus::Described { source, summary }) => {
-                    state.source = Some(source.into_bytes());
-                    state.summary = summary.clone();
+                Some(ArtifactStatus::Described(summary)) => {
+                    state.summary = Some(summary.clone());
                 }
                 Some(ArtifactStatus::Failed(error)) => {
                     state.error = Some(error.clone());
@@ -2413,7 +2582,7 @@ impl BlockApp {
         let draft = self
             .dynamic_artifact_settings
             .entry(id)
-            .or_insert_with(|| descriptor.data.clone());
+            .or_insert_with(|| descriptor.settings.clone());
         surfaces::host(
             SurfaceId::ArtifactSettings,
             Some(session.settings_region(&self.registry)),
@@ -2421,12 +2590,8 @@ impl BlockApp {
         if let Some(edited) = session.take_draft() {
             *draft = edited;
         }
-        let progress = block_plugin_api::SettingsProgress {
-            changed: *draft != descriptor.data,
-            summary: session.summary(draft),
-        };
         self.editors
-            .set_settings_status(Some((id, progress, session.settings_height())));
+            .set_settings_status(Some((id, session.settings_height(), session.dialog())));
         self.dynamic_artifact_sessions.insert(id, session);
     }
 
@@ -2443,13 +2608,14 @@ impl BlockApp {
         };
         set_artifact(
             id,
-            Some(be_block::ArtifactSource {
-                source_type: descriptor.source_type,
-                data: data.clone(),
+            Some(be_block::Artifact {
+                settings: data.clone(),
+                ..descriptor
             }),
         );
         if let Some(session) = self.dynamic_artifact_sessions.get_mut(&id) {
             session.regenerate(&data);
+            session.close_dialog();
         }
         self.dynamic_artifact_errors.remove(&id);
         self.dynamic_artifact_settings_open = None;
@@ -2474,7 +2640,9 @@ impl BlockApp {
     fn handle_editor_action(&mut self, from: Option<Uuid>, action: EditorAction) {
         match action {
             EditorAction::OpenBlock(open) => self.show_block(from, open),
-            EditorAction::Command { id, command } => self.handle_block_command(from, id, command),
+            EditorAction::Command { id, command } => self.handle_block_command(id, command),
+            EditorAction::Shell { id, command } => self.handle_shell_command(from, id, command),
+            EditorAction::SimulateAccess { id, access } => self.simulate_access(id, access),
             EditorAction::AppMenu { at } => self.open_app_menu(at),
         }
     }
@@ -2484,37 +2652,49 @@ impl BlockApp {
         self.app_menu = Some(ui::AppMenuView { opened, at });
     }
 
-    fn handle_block_command(&mut self, from: Option<Uuid>, id: Uuid, command: BlockCommand) {
+    fn handle_shell_command(
+        &mut self,
+        from: Option<Uuid>,
+        id: Uuid,
+        command: block_plugin_api::ShellCommand,
+    ) {
+        use block_plugin_api::ShellCommand;
         match command {
-            BlockCommand::Share => self.show_dialog(from, id, ShellDialog::Share),
-            BlockCommand::Leave => self.leaving = Some(id),
-            BlockCommand::Rename => self.show_dialog(from, id, ShellDialog::Rename),
-            BlockCommand::Appearance { anchor } => self.show_appearance(from, id, anchor),
+            ShellCommand::Share => self.show_dialog(from, id, ShellDialog::Share),
+            ShellCommand::Leave => self.leaving = Some(id),
+            ShellCommand::Rename { anchor } => self.show_rename(from, id, anchor),
+            ShellCommand::CloseEditor => self.close_editor(id),
+            ShellCommand::AppMenu { .. } => self.open_app_menu(None),
+        }
+    }
+
+    fn simulate_access(&mut self, id: Uuid, access: AccessLevel) {
+        let access = match access {
+            AccessLevel::None => Access::None,
+            AccessLevel::KnowExists => Access::KnowExists,
+            AccessLevel::View => Access::View,
+            AccessLevel::Edit => Access::Edit,
+            AccessLevel::Manage => Access::Manage,
+        };
+        match access == Access::Manage {
+            true => self
+                .editors
+                .with_simulated(|simulated| simulated.remove(&id)),
+            false => self
+                .editors
+                .with_simulated(|simulated| simulated.insert(id, access)),
+        };
+    }
+
+    fn handle_block_command(&mut self, id: Uuid, command: BlockCommand) {
+        match command {
             BlockCommand::Undo if self.editor_access(id).can_edit() => be::undo(id),
             BlockCommand::Redo if self.editor_access(id).can_edit() => be::redo(id),
             BlockCommand::Undo | BlockCommand::Redo => {}
-            BlockCommand::AppMenu { .. } => self.open_app_menu(None),
             BlockCommand::Unlink { container } => {
                 self.queue_copy(id, Uuid::from_bytes(container));
             }
             BlockCommand::Artifact { action } => self.act_on_artifact(id, action),
-            BlockCommand::CloseEditor => self.close_editor(id),
-            BlockCommand::SimulateAccess { access } => {
-                let access = match access {
-                    AccessLevel::None => Access::None,
-                    AccessLevel::KnowExists => Access::KnowExists,
-                    AccessLevel::View => Access::View,
-                    AccessLevel::Edit => Access::Edit,
-                };
-                match access == Access::Edit {
-                    true => self
-                        .editors
-                        .with_simulated(|simulated| simulated.remove(&id)),
-                    false => self
-                        .editors
-                        .with_simulated(|simulated| simulated.insert(id, access)),
-                };
-            }
             BlockCommand::Delete { block_type, source } => {
                 self.queue_delete(id, Uuid::from_bytes(block_type), drag_source(source))
             }
@@ -2673,6 +2853,7 @@ impl BlockApp {
         self.sync_local_settings();
         self.programs.frame();
         self.sync_be_stack();
+        self.notice_reconnect();
         let ready = self
             .organization
             .as_ref()
@@ -2749,7 +2930,7 @@ impl BlockApp {
         } else {
             accounts::link_base(&self.server_url)
         };
-        plugin_host::publish::<block_plugin_api::LinkBase>(&link_base);
+        plugin_host::publish::<block_plugin_api::LinkBaseWatch>(&link_base);
         self.publish_administrator();
         be::start(be::Config {
             server_url: self.server_url.clone(),
@@ -2759,13 +2940,13 @@ impl BlockApp {
             identity,
             display_name: self.account.name.clone(),
             email: self.account.email.clone(),
-            #[cfg(not(target_arch = "wasm32"))]
-            data_dir: self.data_dir.join("be-objects"),
+            data_dir: self.data_dir.clone(),
+            clock: be_client::Clock::real(),
         });
     }
 
     fn publish_administrator(&self) {
-        plugin_host::publish::<block_plugin_api::Administrator>(
+        plugin_host::publish::<block_plugin_api::AdministratorWatch>(
             &self.organization.as_ref().is_some_and(|organization| {
                 organization.kind == be_protocol::OrganizationKind::Company
                     && organization.role == OrganizationRole::Administrator
@@ -2776,6 +2957,16 @@ impl BlockApp {
     fn sync_local_settings(&mut self) {
         if self.root_settings.loaded() {
             let settings = &self.root_settings;
+            offline_choice::publish(
+                settings,
+                self.client_id,
+                self.organization.as_ref().map(|organization| {
+                    (
+                        organization.id,
+                        organization.kind == be_protocol::OrganizationKind::Company,
+                    )
+                }),
+            );
             self.input
                 .set_layers(settings.layers(InputSettings::CONTENT_TYPE, self.client_id));
             self.display
@@ -2946,7 +3137,7 @@ impl BlockApp {
                 self.invite_link = None;
             }
             UiCommand::SwitchOrganization => {
-                if be::status().unsealed == 0 {
+                if be::flush() == 0 {
                     self.scheduled_organization_list = true;
                 } else {
                     self.pending_destructive_action =
@@ -2954,6 +3145,18 @@ impl BlockApp {
                 }
             }
             UiCommand::About(open) => self.about_open = open,
+            UiCommand::Unsent(open) => {
+                self.unsent_open = open;
+                self.discarding_unsent = None;
+            }
+            UiCommand::RestoreUnsent(block) => be::restore_unsent(block),
+            UiCommand::DiscardUnsent(block) => self.discarding_unsent = Some(block),
+            UiCommand::ConfirmDiscardUnsent => {
+                if let Some(block) = self.discarding_unsent.take() {
+                    be::discard_unsent(block);
+                }
+            }
+            UiCommand::CancelDiscardUnsent => self.discarding_unsent = None,
             UiCommand::AppMenu(false) => self.app_menu = None,
             UiCommand::AppMenu(true) => self.open_app_menu(None),
             UiCommand::DismissToast(id) => notices::dismiss(id),
@@ -3094,9 +3297,28 @@ impl BlockApp {
             (None, true, Some(_)) if self.choosing_session => ui::Screen::Sessions,
             (None, true, Some(_)) => ui::Screen::Organization,
         };
-        let changes_saved = match screen {
-            ui::Screen::Organization => be::status().unsealed == 0,
-            _ => true,
+        let be_status = be::status();
+        let sync = match screen {
+            ui::Screen::Organization => sync_state(&be_status),
+            _ => ui::SyncState::Saved,
+        };
+        let listed = matches!(screen, ui::Screen::Accounts | ui::Screen::Organizations);
+        let cache = listed.then(|| self.workspace_cache()).flatten();
+        let companies = |account: &SavedAccount| -> Vec<String> {
+            let Some(cache) = &cache else {
+                return Vec::new();
+            };
+            let url = match &account.server {
+                ServerLocation::Local => self.local_server_url.clone(),
+                ServerLocation::Remote(url) => url.clone(),
+            };
+            cache
+                .workspaces(&url, account.id)
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|organization| organization.kind == be_protocol::OrganizationKind::Company)
+                .map(|organization| organization.name)
+                .collect()
         };
         let accounts: Vec<_> = self
             .accounts
@@ -3106,6 +3328,7 @@ impl BlockApp {
                     account,
                     account.server == self.account.server && account.id == self.account.id,
                 )
+                .in_companies(companies(account))
             })
             .collect();
         let organization_name = self
@@ -3118,7 +3341,7 @@ impl BlockApp {
             error: ui::ErrorView {
                 message: self.error.clone().unwrap_or_default(),
                 pending: self.pending_error_action,
-                unsaved: be::status().unsealed,
+                unsaved: be_status.unsaved + be_status.kept,
             },
             accounts,
             account_error: self.account_error.clone(),
@@ -3135,7 +3358,7 @@ impl BlockApp {
                     .then(|| self.account_error.clone())
                     .flatten(),
             },
-            account: ui::AccountRow::of(&self.account, true),
+            account: ui::AccountRow::of(&self.account, true).in_companies(companies(&self.account)),
             recovery: self.keys.recovery_view(),
             unlock: self.keys.unlock_view(&self.account.name),
             pairing: match screen {
@@ -3178,7 +3401,10 @@ impl BlockApp {
                 error: reauth.error.clone(),
             }),
             status: ui::StatusView {
-                changes_saved,
+                sync,
+                unsaved: be_status.unsaved > 0,
+                unsent: be_status.unsent,
+                saves: be_status.saves,
                 organization: organization_name.clone(),
                 signed_in_as: format!("Signed in as {}", self.account.name),
                 sessions: self
@@ -3246,6 +3472,17 @@ impl BlockApp {
                 link: self.invite_link.clone(),
             }),
             about: self.about_open,
+            unsent: self.unsent_open.then(|| ui::UnsentView {
+                rows: be::unsent()
+                    .into_iter()
+                    .map(|unsent| ui::UnsentRow {
+                        block: unsent.block,
+                        name: unsent.name.unwrap_or_else(|| "Untitled".to_owned()),
+                        offerable: unsent.offerable,
+                    })
+                    .collect(),
+                discarding: self.discarding_unsent,
+            }),
             app_menu: self.app_menu.clone(),
             discard: self.pending_destructive_action.as_ref().map(discard_view),
             leaving: self.leaving.is_some(),
@@ -3293,7 +3530,6 @@ impl BlockApp {
         }
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
     fn delete_client_database(&mut self) {
         let path = self.data_dir.join("app.sqlite3");
         let _ = std::mem::replace(&mut self.app_state, AppStateStore::placeholder());
@@ -3306,17 +3542,9 @@ impl BlockApp {
         self.restart();
     }
 
-    #[cfg(target_arch = "wasm32")]
-    fn delete_client_database(&mut self) {
-        match AppStateStore::open().and_then(|store| store.clear()) {
-            Ok(()) => self.restart(),
-            Err(error) => self.error = Some(error.to_string()),
-        }
-    }
-
     #[cfg(not(target_arch = "wasm32"))]
     fn delete_server_database(&mut self) {
-        be::stop();
+        be::stop_and_wait();
         self.embedded_server = None;
         let path = self.data_dir.join("server");
         if let Err(error) = std::fs::remove_dir_all(&path)
@@ -3329,15 +3557,27 @@ impl BlockApp {
     }
 }
 
+fn sync_state(status: &be::Status) -> ui::SyncState {
+    match (&status.error, status.connected) {
+        (_, false) if status.connecting => ui::SyncState::Connecting,
+        (_, false) => ui::SyncState::Offline {
+            waiting: status.waiting,
+        },
+        (Some(error), true) => ui::SyncState::Error(error.clone()),
+        (None, true) if status.syncing || status.waiting > 0 => ui::SyncState::Syncing,
+        (None, true) => ui::SyncState::Saved,
+    }
+}
+
 fn discard_view(action: &PendingDestructiveAction) -> ui::DiscardView {
     let (message, button) = match action {
         PendingDestructiveAction::ChooseOrganization => (
-            "Switching organizations will discard changes that have not reached the server."
+            "Switching organizations will discard changes that are not saved on this device yet. Changes waiting to sync are kept."
                 .to_owned(),
             "Discard and switch",
         ),
         PendingDestructiveAction::Close => (
-            "Closing Block Editor will discard changes that have not reached the server."
+            "Closing Block Editor will discard changes that are not saved on this device yet. Changes waiting to sync are kept."
                 .to_owned(),
             "Discard and close",
         ),
@@ -3349,11 +3589,11 @@ fn discard_view(action: &PendingDestructiveAction) -> ui::DiscardView {
     }
 }
 
-fn artifact_of(id: Uuid) -> Option<be_block::ArtifactSource> {
+fn artifact_of(id: Uuid) -> Option<be_block::Artifact> {
     be::node(id)?.metadata.get(&be_block::ARTIFACT)
 }
 
-fn set_artifact(id: Uuid, artifact: Option<be_block::ArtifactSource>) {
+fn set_artifact(id: Uuid, artifact: Option<be_block::Artifact>) {
     be::define(id, vec![be_block::ARTIFACT.definition(artifact.as_ref())]);
 }
 

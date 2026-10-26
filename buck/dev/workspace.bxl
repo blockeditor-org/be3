@@ -1,19 +1,19 @@
 # One subtarget of every first-party Rust target in every configuration, the
 # wasm ones included through transitions; prints "label<TAB>path" per target.
 #
-#   buck2 bxl //buck/dev/workspace.bxl:subtarget -- --subtarget clippy.json
+#   buck2 bxl //buck/dev/workspace.bxl:subtarget -- --subtarget check
 
-# Every first-party Rust target in every configuration //:check and clippy
-# cover. ./scripts/deploy's target is left out of the universe: it configures
+# Every first-party Rust target in every configuration //:check covers.
+# ./scripts/deploy's target is left out of the universe: it configures
 # block-app for every desktop platform, and a pattern takes every
 # configuration in the universe.
-def rust_targets(ctx: bxl.Context) -> list:
+def _rust_targets(ctx: bxl.Context) -> list:
     universe = ctx.target_universe(ctx.uquery().eval("//crates/... - //crates/local-tools:deploy"))
     return list(ctx.cquery().kind("^rust_(library|binary|test)$", universe.lookup("//crates/...")))
 
 def _impl(ctx: bxl.Context):
     name = ctx.cli_args.subtarget
-    targets = rust_targets(ctx)
+    targets = _rust_targets(ctx)
     outputs = {}
     for target in targets:
         sub_targets = ctx.analysis(target).providers()[DefaultInfo].sub_targets

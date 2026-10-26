@@ -1,9 +1,9 @@
 use block_editor_beui::Loaded;
-use block_editor_beui::be_block::BrowserTabContent;
 use block_editor_beui::beui::Vec2;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::Root;
 use block_editor_beui::{Creation, Editor};
+use browser_tab_types::BrowserTabContent;
 use uuid::Uuid;
 
 mod session;
@@ -16,8 +16,10 @@ use ui::BrowserTab;
 
 pub struct BrowserTabApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for BrowserTabApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Loaded>

@@ -4,19 +4,21 @@ use be_block::ContentError;
 use be_protocol::ErrorCode;
 use be_store::{Hash, StoreError};
 
+pub mod clock;
 pub mod connection;
 pub mod contacts;
 pub mod keys;
-pub mod live;
 pub mod peer;
+pub mod refs;
 pub mod transfer;
 mod transport;
 
+pub use clock::Clock;
 pub use connection::Connection;
 pub use contacts::{Contact, GrantOffer};
 pub use keys::{EscrowWarning, KeyBook};
-pub use live::{ChannelMessage, Conflict, Journaled, Live};
-pub use peer::{Credentials, Peer, PeerConfig, Resolver, Saved};
+pub use peer::{Credentials, Drained, Peer, PeerConfig, Reconciled, Resolver, Saved, Sealed};
+pub use refs::{PendingCounts, RefsDb, UnsentBlock};
 
 pub fn socket_url(server_url: &str) -> String {
     let base = match server_url.split_once("://") {
@@ -70,6 +72,7 @@ fn origin(url: &str) -> String {
 pub enum ClientError {
     Refused(ErrorCode, String),
     Disconnected(String),
+    TimedOut(&'static str),
     MissingObject(Hash),
     Tampered(Hash),
     Content(ContentError),
@@ -89,6 +92,7 @@ impl fmt::Display for ClientError {
                 write!(formatter, "the server refused ({code}): {message}")
             }
             Self::Disconnected(reason) => write!(formatter, "the connection is gone: {reason}"),
+            Self::TimedOut(what) => write!(formatter, "{what} timed out"),
             Self::MissingObject(hash) => write!(formatter, "object {hash} is nowhere to be found"),
             Self::Tampered(hash) => {
                 write!(
@@ -116,6 +120,12 @@ impl fmt::Display for ClientError {
 }
 
 impl Error for ClientError {}
+
+impl ClientError {
+    pub fn is_unreachable(&self) -> bool {
+        matches!(self, Self::Disconnected(_) | Self::TimedOut(_))
+    }
+}
 
 impl From<StoreError> for ClientError {
     fn from(error: StoreError) -> Self {

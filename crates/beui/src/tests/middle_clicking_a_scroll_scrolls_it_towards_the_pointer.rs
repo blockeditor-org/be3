@@ -1,7 +1,7 @@
 use super::*;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::Scroll;
-use crate::styled::*;
 
 #[test]
 fn middle_clicking_a_scroll_scrolls_it_towards_the_pointer() {
@@ -28,7 +28,7 @@ fn middle_clicking_a_scroll_scrolls_it_towards_the_pointer() {
     harness.middle_button(origin, false);
     harness.frame(Vec::new());
 
-    let markers = harness.document().overlay_rects();
+    let markers = harness.document().overlay_rects(crate::WindowId::MAIN);
     assert!(
         markers
             .iter()
@@ -46,5 +46,8 @@ fn middle_clicking_a_scroll_scrolls_it_towards_the_pointer() {
 
     harness.click(origin + Vec2::new(0.0, 100.0));
     harness.frame(Vec::new());
-    assert_eq!(harness.document().overlay_rects(), Vec::new());
+    assert_eq!(
+        harness.document().overlay_rects(crate::WindowId::MAIN),
+        Vec::new()
+    );
 }

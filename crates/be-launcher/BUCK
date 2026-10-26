@@ -11,18 +11,18 @@ cargo_test()
 # `./scripts/buck run //crates/be-launcher:native`
 cargo_binary(name = "native")
 
-# The launcher on Android installs the APKs CI publishes to be3-ci: block-app's
-# CI build (`com.be3.block.ci`), and the launcher itself. As with the app,
-# CI's APK has an id and label of its own, so that it installs beside a local
-# build rather than colliding with it, and is signed locally with CI's
-# keystore. `./scripts/buck run //crates/be-launcher:android -- --install`
-# signs the local one here and installs it.
+# The launcher on Android installs the APKs the build helper builds and signs
+# with CI's keystore: block-app's `:android-dist` (`com.be3.block.ci`), and the
+# launcher's own. As with the app, that APK has an id and label of its own, so
+# that it installs beside a local build rather than colliding with it.
+# `./scripts/buck run //crates/be-launcher:android -- --install` signs the
+# local one here and installs it.
 [
     android_apk(
         name = name,
         activity = "com.be3.launcher.LauncherActivity",
         application_id = application_id,
-        java = glob(["android/java/**/*.java"]) + ["//crates/beui-adapter-android:android-java"],
+        java = glob(["android/java/**/*.java"]) + ["//crates/beui-platform-android:android-java"],
         label = label,
         library = ":be-launcher",
         manifest = "android/AndroidManifest.xml",

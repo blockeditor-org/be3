@@ -1,7 +1,4 @@
-use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseFieldType};
-use block_editor_beui::be_block::database_view::{
-    DatabaseView, DatabaseViewKind, DatabaseViewSort, SortDirection,
-};
+use block_editor_beui::BlockQuery;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
@@ -10,13 +7,16 @@ use block_editor_beui::beui::icons::{
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::ChoiceOption;
+use database_types::database_schema::{DatabaseField, DatabaseFieldType};
+use database_types::database_view::{
+    DatabaseView, DatabaseViewKind, DatabaseViewSort, SortDirection,
+};
 use uuid::Uuid;
 
 use crate::database_view::app::data::Data;
 use crate::database_view::groups::groupable;
 
-const SPACING: f32 = 10.0;
+const SPACING: Space = Space::Md;
 const LABEL_WIDTH: f32 = 96.0;
 pub const KINDS: [(DatabaseViewKind, &str, Glyph); 4] = [
     (DatabaseViewKind::List, "List", ICON_LIST),
@@ -40,6 +40,14 @@ pub fn DisplayOptions(data: Data) -> NodeId {
     let prefix_off = data.read_only;
     let reprefix = move |text: String| data.set_prefix(text);
     let fields_open = move || data.open_schema();
+    let shared = create_memo(move || !data.sharing_prefix.with(Vec::is_empty));
+    let sharing = create_memo(move || {
+        format!(
+            "{} is also the prefix of these databases in this workspace, so a row id with it names more than one:",
+            prefix.get().trim().to_ascii_uppercase()
+        )
+    });
+    let others = data.sharing_prefix;
     view! {
         <List spacing=SPACING>
             <KindSwitch data={data} />
@@ -75,7 +83,30 @@ pub fn DisplayOptions(data: Data) -> NodeId {
                     @test_id={"database-view.prefix"}
                 />
             </List>
-            <List direction=Direction::Horizontal spacing=0.0>
+            <Show condition={shared}>
+                <List spacing=Space::Xs2 @test_id={"database-view.prefix-shared"}>
+                    <Text style=TextStyle::CAPTION color=TextColor::Muted>{sharing}</Text>
+                    <ForEach keys={others}>|other: Uuid| {
+                        let editor = data.editor();
+                        let found = editor.watch_blocks(BlockQuery::Block(other));
+                        let name = create_memo(move || {
+                            let types = editor.block_types();
+                            found
+                                .get()
+                                .ok()
+                                .and_then(|found| found.into_iter().next())
+                                .map_or_else(
+                                    || "A database you can't open".to_owned(),
+                                    |info| info.label(types.as_ref()).name,
+                                )
+                        });
+                        view! {
+                            <Text style=TextStyle::CAPTION>{name}</Text>
+                        }
+                    }</ForEach>
+                </List>
+            </Show>
+            <List direction=Direction::Horizontal spacing=Space::None>
                 <Button
                     glyph=ICON_TABLE_PROPERTIES
                     label="Edit fields"
@@ -92,7 +123,7 @@ pub fn DisplayOptions(data: Data) -> NodeId {
 fn KindSwitch(data: Data) -> NodeId {
     let keys = create_memo(|| (0..KINDS.len()).collect::<Vec<usize>>());
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=6.0 wrap=true>
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm wrap=true>
             <ForEach keys={keys}>|index: usize| {
                 let (wanted, label, glyph) = KINDS[index];
                 let pressed = create_memo(move || data.kind.get() == wanted);
@@ -216,7 +247,7 @@ fn OrderPicker(data: Data) -> NodeId {
     };
     view! {
         <Labelled label="Order by">
-            <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                 <FieldPicker
                     @sizing=ItemSize::Percent(100.0)
                     options={options}
@@ -227,7 +258,8 @@ fn OrderPicker(data: Data) -> NodeId {
                     on_change={picked}
                 />
                 <Show condition={sorted}>
-                    <IconButton
+                    <Button
+                        icon_only=true
                         glyph={glyph}
                         label={direction_label}
                         @test_id={"database-view.order-direction"}
@@ -317,9 +349,9 @@ fn ShownFields(data: Data) -> NodeId {
         })
     });
     view! {
-        <List spacing=6.0>
+        <List spacing=Space::Sm>
             <Text style=TextStyle::CAPTION>"Shown on each row"</Text>
-            <List direction=Direction::Horizontal spacing=6.0 wrap=true>
+            <List direction=Direction::Horizontal spacing=Space::Sm wrap=true>
                 <ForEach keys={keys}>|field: Uuid| {
                     let name = create_memo(move || {
                         data.fields.with(|fields| {

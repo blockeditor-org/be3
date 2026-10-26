@@ -57,9 +57,9 @@ pub(crate) fn HandBar(
                 <Layers>
                     <Show condition={shown}>
                         <Frame
-                            height=BAR_HEIGHT
+                            height={Size::Custom(BAR_HEIGHT)}
                             fill=ColorRole::Surface
-                            border={Border::new(ColorRole::Border).width(1.0)}
+                            border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
                             @test_id={"game.hand"}
                         >
                             <Canvas view={screen}>

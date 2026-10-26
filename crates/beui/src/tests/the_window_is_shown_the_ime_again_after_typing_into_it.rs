@@ -1,12 +1,12 @@
 use super::*;
 use beui_core::app::SafeArea;
 use beui_core::renderer::Loaded;
-use beui_core::runner::{Launch, Platform, RunOptions, Runner};
+use beui_core::runner::{Launch, PlatformServices, RunOptions, Runner};
 use beui_core::window::WindowState;
 
 struct Window(usize);
 
-impl Platform for Window {
+impl PlatformServices for Window {
     fn show_window(&mut self, _window: &WindowState, _shown: &WindowState) {
         self.0 += 1;
     }
@@ -31,7 +31,7 @@ fn the_window_is_shown_the_ime_again_after_typing_into_it() {
         options: RunOptions::default(),
         context: context(),
         app: Box::new(Rejecting),
-        host: None,
+        layers: Vec::new(),
     });
     runner
         .start(

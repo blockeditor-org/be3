@@ -24,7 +24,10 @@ mod checking_a_branch_out_asks_the_host;
 
 const TEXT: Uuid = Uuid::from_u128(0x7465_7874);
 
-fn editor<A: BeuiApp, C: LiveEdit>(content: C, status: VersionStatus) -> BeuiTest<A> {
+fn editor<A: BeuiApp, C: LiveEdit + block_editor_beui::be_block::Merge + Clone + Default>(
+    content: C,
+    status: VersionStatus,
+) -> BeuiTest<A> {
     let host = EditorHost::default();
     host.set_editable(true);
     let editor = OwnedEditor::new(host, Uuid::new_v4());

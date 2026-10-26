@@ -312,11 +312,9 @@ pub(super) fn DevicesTable(editor: Editor, settings: ContentProjection<SettingsC
     let differs = create_memo(move || !keys.with(Vec::is_empty));
     let same = create_memo(move || !differs.get());
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Show condition={same}>
-                <Text style=TextStyle::CAPTION wrap=true @test_id={"devices.same"}>
-                    {NOTHING_DIFFERS}
-                </Text>
+                <Text style=TextStyle::CAPTION @test_id={"devices.same"}>{NOTHING_DIFFERS}</Text>
             </Show>
             <Show condition={differs}>
                 <Frame fill=ColorRole::Surface border={Border::DEFAULT} radius=Radius::Lg>

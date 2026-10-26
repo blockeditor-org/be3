@@ -1,8 +1,11 @@
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
 
-use beui::{Draw, DrawAt, Drawing, Waker};
+use beui::painting::{
+    Content, Fade, Frame, Painting, Paints, Pixels, Primitive, Triangle, Vertex as PaintVertex,
+};
+use beui::{Draw, DrawAt, Drawing, Rect, Waker};
 use bytemuck::{Pod, Zeroable};
 use smithay::backend::allocator::dmabuf::{Dmabuf, WeakDmabuf};
 use smithay::backend::renderer::utils::{Buffer, with_renderer_surface_state};
@@ -414,7 +417,7 @@ impl WindowDraw {
             .into_iter()
             .map(|(current, layer)| (current.texture, layer))
             .collect();
-        beui::drawing(Self {
+        beui::painted_drawing(Self {
             gpu,
             layers,
             buffers,
@@ -528,6 +531,78 @@ impl Draw for WindowDraw {
         if let Some(waker) = &self.waker {
             waker.wake();
         }
+    }
+}
+
+impl Paints for WindowDraw {
+    fn painting(&self, rect: Rect) -> Option<Painting> {
+        let mut textures = BTreeMap::new();
+        let mut primitives = Vec::new();
+        for (texture, layer) in &self.layers {
+            if !texture
+                .texture
+                .usage()
+                .contains(wgpu::TextureUsages::COPY_SRC)
+            {
+                continue;
+            }
+            let Some(capture) =
+                beui::read_texture(&self.gpu.device, &self.gpu.queue, &texture.texture)
+            else {
+                continue;
+            };
+            let key = std::ptr::from_ref(texture.as_ref()) as u64;
+            textures.insert(
+                key,
+                Pixels {
+                    size: [capture.width, capture.height],
+                    rgba: capture.rgba.as_chunks::<4>().0.to_vec(),
+                },
+            );
+            let left = rect.min.x + layer.rect.loc.x as f32;
+            let top = rect.min.y + layer.rect.loc.y as f32;
+            let right = left + layer.rect.size.w as f32;
+            let bottom = top + layer.rect.size.h as f32;
+            let (width, height) = (layer.buffer.w.max(1.0), layer.buffer.h.max(1.0));
+            let u0 = (layer.source.loc.x / width) as f32;
+            let v0 = (layer.source.loc.y / height) as f32;
+            let u1 = ((layer.source.loc.x + layer.source.size.w) / width) as f32;
+            let v1 = ((layer.source.loc.y + layer.source.size.h) / height) as f32;
+            let corner = |x: f32, y: f32, u: f32, v: f32| PaintVertex {
+                pos: [x, y],
+                uv: [u, v],
+                color: [255; 4],
+            };
+            let (a, b, c, d) = (
+                corner(left, top, u0, v0),
+                corner(right, top, u1, v0),
+                corner(right, bottom, u1, v1),
+                corner(left, bottom, u0, v1),
+            );
+            primitives.push(Primitive {
+                clip: [rect.min.x, rect.min.y, rect.max.x, rect.max.y],
+                fade: Fade::NONE,
+                content: Content::Mesh(vec![
+                    Triangle {
+                        texture: key,
+                        corners: [a, b, c],
+                    },
+                    Triangle {
+                        texture: key,
+                        corners: [a, c, d],
+                    },
+                ]),
+            });
+        }
+        Some(Painting {
+            frame: Frame {
+                size: [1, 1],
+                pixels_per_point: 1.0,
+                background: [0; 4],
+                primitives,
+            },
+            textures,
+        })
     }
 }
 

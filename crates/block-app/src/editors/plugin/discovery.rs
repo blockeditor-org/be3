@@ -1,6 +1,10 @@
-use std::{cell::RefCell, future::Future, sync::Arc};
+use std::{
+    collections::HashMap,
+    future::Future,
+    sync::{Arc, RwLock},
+};
 
-use block_plugin_api::PluginManifest;
+use block_plugin_api::{BlockTypeDescriptor, PluginManifest};
 use uuid::Uuid;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -21,10 +25,33 @@ use web::{fetch, scan};
 
 const INDEX: &str = "plugins.json";
 
-#[derive(Default)]
 pub(crate) struct Plugins {
     manifests: Vec<Arc<PluginManifest>>,
+    types: HashMap<Uuid, BlockTypeDescriptor>,
     errors: Vec<String>,
+}
+
+impl Default for Plugins {
+    fn default() -> Self {
+        Self {
+            manifests: Vec::new(),
+            types: block_types(&[]),
+            errors: Vec::new(),
+        }
+    }
+}
+
+pub(crate) fn block_types(manifests: &[Arc<PluginManifest>]) -> HashMap<Uuid, BlockTypeDescriptor> {
+    crate::be::host_block_types()
+        .into_iter()
+        .chain(
+            manifests
+                .iter()
+                .flat_map(|manifest| &manifest.block_types)
+                .map(|block_type| block_type.descriptor.clone()),
+        )
+        .map(|descriptor| (Uuid::from_bytes(descriptor.block_type), descriptor))
+        .collect()
 }
 
 impl Plugins {
@@ -44,20 +71,16 @@ impl Plugins {
                 return;
             }
         };
-        for block_type in manifest.editors.iter().flat_map(|editor| {
-            editor
-                .edits
-                .block_type()
-                .into_iter()
-                .chain(editor.templates.iter().map(|template| template.block_type))
-        }) {
-            let block_type = Uuid::from_bytes(block_type);
-            if !crate::be::is_known(block_type) || be_block::block_type(block_type).is_none() {
-                self.errors.push(format!(
-                    "{source}: {block_type} is not a block type this app has"
-                ));
-                return;
-            }
+        if let Some(block_type) = manifest
+            .block_types
+            .iter()
+            .map(|block_type| Uuid::from_bytes(block_type.content_type()))
+            .find(|block_type| self.types.contains_key(block_type))
+        {
+            self.errors.push(format!(
+                "{source}: {block_type} is a block type the app or a plugin found first already provides"
+            ));
+            return;
         }
         if let Some(editor) = manifest.editors.iter().find(|editor| {
             self.manifests
@@ -82,7 +105,46 @@ impl Plugins {
             ));
             return;
         }
+        for block_type in &manifest.block_types {
+            self.types.insert(
+                Uuid::from_bytes(block_type.content_type()),
+                block_type.descriptor.clone(),
+            );
+        }
         self.manifests.push(Arc::new(manifest));
+    }
+
+    fn settle(&mut self) {
+        loop {
+            let Some(index) = self.manifests.iter().position(|manifest| {
+                Self::unprovided(manifest).any(|block_type| !self.types.contains_key(&block_type))
+            }) else {
+                return;
+            };
+            let manifest = self.manifests.remove(index);
+            let missing = Self::unprovided(&manifest)
+                .find(|block_type| !self.types.contains_key(block_type))
+                .unwrap_or_default();
+            self.errors.push(format!(
+                "{}: {missing} is not a block type the app or any plugin provides",
+                manifest.identity.id
+            ));
+            self.types = block_types(&self.manifests);
+        }
+    }
+
+    fn unprovided(manifest: &PluginManifest) -> impl Iterator<Item = Uuid> + '_ {
+        manifest
+            .editors
+            .iter()
+            .flat_map(|editor| {
+                editor
+                    .edits
+                    .block_type()
+                    .into_iter()
+                    .chain(editor.templates.iter().map(|template| template.block_type))
+            })
+            .map(Uuid::from_bytes)
     }
 
     fn error(&mut self, source: &str, error: impl std::fmt::Display) {
@@ -90,15 +152,41 @@ impl Plugins {
     }
 }
 
-thread_local! {
-    static PLUGINS: RefCell<Option<Arc<Plugins>>> = const { RefCell::new(None) };
-}
+static PLUGINS: RwLock<Option<Arc<Plugins>>> = RwLock::new(None);
 
 pub(crate) fn plugins() -> Arc<Plugins> {
-    PLUGINS.with(|cell| {
-        let mut cell = cell.borrow_mut();
-        Arc::clone(cell.get_or_insert_with(|| Arc::new(scan())))
-    })
+    if let Some(plugins) = PLUGINS
+        .read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .as_ref()
+    {
+        return Arc::clone(plugins);
+    }
+    let mut held = PLUGINS
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    Arc::clone(held.get_or_insert_with(|| Arc::new(scan())))
+}
+
+#[cfg(target_arch = "wasm32")]
+fn install(plugins: Plugins) {
+    *PLUGINS
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(Arc::new(plugins));
+}
+
+pub(crate) fn block_type(content_type: Uuid) -> Option<BlockTypeDescriptor> {
+    plugins().types.get(&content_type).cloned()
+}
+
+pub(crate) fn exported_whole(content_type: Uuid) -> bool {
+    plugins()
+        .manifests
+        .iter()
+        .flat_map(|manifest| &manifest.block_types)
+        .any(|block_type| {
+            block_type.exported_whole && Uuid::from_bytes(block_type.content_type()) == content_type
+        })
 }
 
 async fn discover<F>(read: impl Fn(String) -> F) -> Plugins
@@ -130,6 +218,7 @@ where
         }
         Err(error) => plugins.error(INDEX, error),
     }
+    plugins.settle();
     plugins
 }
 

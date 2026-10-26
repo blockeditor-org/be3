@@ -1,10 +1,8 @@
-use block_editor_beui::be_block::canvas::CanvasProfile;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::beui::styled::theme::BORDER_WIDTH;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{Edge, Floating};
 use block_editor_beui::{BottomDock, node_anchor, sheet_open};
+use infinite_canvas_types::CanvasProfile;
 
 use super::actions::CanvasActions;
 use super::selection_bar::SelectionTools;
@@ -22,10 +20,7 @@ const TOOLS: [(Tool, &str); 10] = [
     (Tool::Frame, "Frame"),
     (Tool::Eraser, "Eraser"),
 ];
-const PILL_MARGIN: f32 = 12.0;
-const PILL_RADIUS: f32 = 16.0;
-const PILL_PADDING: f32 = 4.0;
-const DIVIDER_HEIGHT: f32 = 24.0;
+const PILL_MARGIN: Space = Space::Lg;
 
 #[component]
 pub(crate) fn ToolDock(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -> NodeId {
@@ -47,9 +42,10 @@ pub(crate) fn ToolDock(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
     });
     let selection = move || {
         view! {
-            <List align=Align::Center spacing=0.0>
-                <SelectionTools state />
-                <Frame height=PILL_MARGIN />
+            <List align=Align::Center spacing=Space::None>
+                <Frame padding={Padding::ZERO.bottom(PILL_MARGIN)}>
+                    <SelectionTools state />
+                </Frame>
             </List>
         }
     };
@@ -78,7 +74,8 @@ pub(crate) fn ToolDock(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
                     <ToolChoice state actions index />
                 }
             }</ForEach>
-            <IconButton
+            <Button
+                icon_only=true
                 @node_ref={&block_button}
                 label="Block"
                 glyph={actions.add_block.glyph().to_owned()}
@@ -86,7 +83,7 @@ pub(crate) fn ToolDock(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
                 @test_id={"infinite-canvas.dock.block"}
                 on_click={add_block}
             />
-            <Frame width=BORDER_WIDTH height=DIVIDER_HEIGHT fill=ColorRole::Border />
+            <Separator direction=Direction::Vertical length=Size::Md />
             <ToggleButton
                 icon_only=true
                 action={actions.ignore_touch.clone()}
@@ -108,36 +105,31 @@ pub(crate) fn ZoomPill(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
     let content = Render::new(move |()| {
         view! {
             <Frame padding=PILL_MARGIN>
-                <Frame
-                    fill=ColorRole::SurfaceRaised
-                    border={Border::DEFAULT}
-                    radius={Radius::custom(PILL_RADIUS)}
-                    padding=PILL_PADDING
-                    @test_id={"infinite-canvas.zoom-pill"}
-                >
-                    <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
-                        <IconButton
-                            @test_id={"infinite-canvas.pill.zoom-out"}
-                            action={actions.zoom_out}
-                        />
-                        <Button
-                            label={readout}
-                            variant=ButtonVariant::Ghost
-                            @test_id={"infinite-canvas.pill.zoom"}
-                            on_click={move || {
-                                reset.run();
-                            }}
-                        />
-                        <IconButton
-                            @test_id={"infinite-canvas.pill.zoom-in"}
-                            action={actions.zoom_in}
-                        />
-                        <IconButton
-                            @test_id={"infinite-canvas.pill.fit"}
-                            action={actions.fit_all}
-                        />
-                    </List>
-                </Frame>
+                <ToolPill @test_id={"infinite-canvas.zoom-pill"}>
+                    <Button
+                        icon_only=true
+                        @test_id={"infinite-canvas.pill.zoom-out"}
+                        action={actions.zoom_out}
+                    />
+                    <Button
+                        label={readout}
+                        variant=ButtonVariant::Ghost
+                        @test_id={"infinite-canvas.pill.zoom"}
+                        on_click={move || {
+                            reset.run();
+                        }}
+                    />
+                    <Button
+                        icon_only=true
+                        @test_id={"infinite-canvas.pill.zoom-in"}
+                        action={actions.zoom_in}
+                    />
+                    <Button
+                        icon_only=true
+                        @test_id={"infinite-canvas.pill.fit"}
+                        action={actions.fit_all}
+                    />
+                </ToolPill>
             </Frame>
         }
     })
@@ -183,23 +175,11 @@ fn ToolChoice(state: CanvasState, actions: CanvasActions, index: usize) -> NodeI
 
 #[component]
 pub(crate) fn ImportError(state: CanvasState) -> NodeId {
-    let failed = create_memo(move || state.import_error.get().is_some());
-    let message = create_memo(move || state.import_error.get().unwrap_or_default());
-    let dismiss = move || state.dismiss_import_error();
     view! {
-        <List spacing=0.0>
-            <Show condition={failed}>
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Text color=TextColor::Danger>{message}</Text>
-                    <Button
-                        label="Dismiss"
-                        variant=ButtonVariant::Secondary
-                        @test_id={"infinite-canvas.dismiss-error"}
-                        on_click={dismiss}
-                    />
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
-                </List>
-            </Show>
-        </List>
+        <Banner
+            message={state.import_error}
+            id="infinite-canvas.import-error"
+            on_dismiss={move || state.dismiss_import_error()}
+        />
     }
 }

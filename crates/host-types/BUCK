@@ -1,0 +1,6 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library")
+
+# The block types the host applies itself (the settings types, the repository
+# and the checkout), which it runs in process: block-app hosts
+# them, and block-ui-test hosts them for editor tests (guides/type_modules.md).
+cargo_library()

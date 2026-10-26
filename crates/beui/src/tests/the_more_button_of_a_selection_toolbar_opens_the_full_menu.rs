@@ -1,4 +1,5 @@
 use super::*;
+use crate::primitives::List;
 use crate::primitives::Text;
 use crate::reactive::*;
 use crate::styled::*;
@@ -25,13 +26,7 @@ fn the_more_button_of_a_selection_toolbar_opens_the_full_menu() {
     harness.touch(TouchPhase::End, on_hello);
     harness.touch(TouchPhase::Start, on_hello);
     harness.touch(TouchPhase::End, on_hello);
-    assert_eq!(
-        harness
-            .document()
-            .api::<unstyled::SelectableState>(region)
-            .selected_text(),
-        "hello"
-    );
+    assert_eq!(selected_text(&mut harness, region), "hello");
 
     assert!(
         harness
@@ -78,11 +73,5 @@ fn the_more_button_of_a_selection_toolbar_opens_the_full_menu() {
     );
     harness.touch(TouchPhase::Start, select_all);
     harness.touch(TouchPhase::End, select_all);
-    assert_eq!(
-        harness
-            .document()
-            .api::<unstyled::SelectableState>(region)
-            .selected_text(),
-        "hello world"
-    );
+    assert_eq!(selected_text(&mut harness, region), "hello world");
 }

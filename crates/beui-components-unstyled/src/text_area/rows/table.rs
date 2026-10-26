@@ -5,10 +5,7 @@ use beui_core::font::FontId;
 use beui_core::rich::SpanStyle;
 use text_editor_core::{SynHlColorScope, SynHlStyle, TableLine, TableRow};
 
-use super::{BODY_SIZE, Builder, RowInputs, SpanKind, galley, next_character, style_font};
-
-const CELL_PADDING: f32 = 12.0;
-const DELIMITER_SIZE: f32 = 11.0;
+use super::{Builder, RowInputs, SpanKind, galley, next_character, style_font};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum CellAlign {
@@ -113,7 +110,8 @@ fn text_width(text: &str, font: FontId) -> f32 {
 }
 
 fn delimiter_font(inputs: &RowInputs) -> FontId {
-    FontId::monospace(DELIMITER_SIZE * inputs.options.body_size / BODY_SIZE)
+    let size = inputs.options.geometry.blocks.delimiter_size * inputs.options.scale();
+    FontId::monospace(size.max(1.0))
 }
 
 pub(super) fn delimiter_height(inputs: &RowInputs) -> f32 {
@@ -240,18 +238,14 @@ impl Builder<'_> {
     ) {
         let inputs = self.inputs;
         let bytes = &inputs.snapshot.bytes;
-        let scale = inputs.options.body_size / BODY_SIZE;
-        let padding = CELL_PADDING * scale;
-        let pipe_font = font_of(
-            inputs,
-            table.row,
-            SynHlStyle::plain(SynHlColorScope::MarkdownSymbol),
-        );
-        let pipe = text_width("|", pipe_font);
+        let padding = inputs.options.geometry.blocks.cell_padding * inputs.options.scale();
+        let symbol = SynHlStyle::plain(SynHlColorScope::MarkdownSymbol);
+        let pipe = text_width("|", font_of(inputs, table.row, symbol));
+        let body_pipe = text_width("|", font_of(inputs, TableRow::Body, symbol));
         let parsed = cells(bytes, content.clone());
         let count = columns.widths.len().max(parsed.cells.len());
         let mut edges = Vec::with_capacity(count + 1);
-        let mut edge = pipe / 2.0;
+        let mut edge = body_pipe / 2.0;
         for index in 0..count {
             edges.push(edge);
             edge += padding * 2.0 + columns.widths.get(index).copied().unwrap_or(0.0);
@@ -304,7 +298,10 @@ impl Builder<'_> {
                     let drawn = match index {
                         0 => leading,
                         _ if index == count => parsed.closing.is_some(),
-                        _ => true,
+                        _ => parsed
+                            .cells
+                            .get(index)
+                            .is_some_and(|cell| cell.pipe.is_some()),
                     };
                     (edge, drawn)
                 })

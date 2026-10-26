@@ -315,7 +315,8 @@ struct Picture {
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct Space {
     translation: [f32; 2],
-    padding: [f32; 2],
+    opacity: f32,
+    padding: f32,
     clip: [f32; 4],
     fade: [f32; 4],
     widths: [f32; 4],
@@ -570,7 +571,7 @@ struct Frame<'a> {
     screen: Vec2,
     pixels_per_point: f32,
     spaces: Vec<Space>,
-    slots: HashMap<[u32; 14], u32>,
+    slots: HashMap<[u32; 15], u32>,
     staging: Vec<Instance>,
     drawings: Vec<(Drawing, DrawAt)>,
     overflow: bool,
@@ -586,11 +587,15 @@ impl Frame<'_> {
             fade.rect.max.y,
         ]
         .map(|value| value.clamp(OPEN[0], OPEN[2]));
-        let mut key = [0; 14];
-        for (slot, value) in key
-            .iter_mut()
-            .zip(origin.iter().chain(&bound).chain(&rect).chain(&fade.widths))
-        {
+        let mut key = [0; 15];
+        for (slot, value) in key.iter_mut().zip(
+            origin
+                .iter()
+                .chain(&bound)
+                .chain(&rect)
+                .chain(&fade.widths)
+                .chain([&fade.opacity]),
+        ) {
             *slot = value.to_bits();
         }
         if let Some(slot) = self.slots.get(&key) {
@@ -599,7 +604,8 @@ impl Frame<'_> {
         let slot = self.spaces.len() as u32;
         self.spaces.push(Space {
             translation: origin,
-            padding: [0.0; 2],
+            opacity: fade.opacity,
+            padding: 0.0,
             clip: bound,
             fade: rect,
             widths: fade.widths,
@@ -960,6 +966,10 @@ impl Renderer {
             at(texture, left + by[0], top + by[1]),
             extent,
         );
+    }
+
+    pub fn id(&self) -> u64 {
+        self.id
     }
 
     pub fn set_origin(&mut self, origin: Vec2) {

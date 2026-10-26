@@ -9,6 +9,7 @@ use be_cli::tracker::Tracker;
 
 #[tokio::main]
 async fn main() -> ExitCode {
+    plugins();
     match run().await {
         Ok(output) => {
             if !output.is_empty() {
@@ -41,7 +42,7 @@ async fn run() -> Result<String, String> {
     {
         return host_terminal(&settings, target, &invocation.options.command).await;
     }
-    let tracker = Tracker::new(connect(&settings).await?);
+    let tracker = Tracker::new(connect(&settings).await?, sources(&settings));
     let (block, label, base) = match cli::run(&tracker, &invocation).await? {
         Outcome::Print(text) => return Ok(text),
         Outcome::Edit { block, label, base } => (block, label, base),
@@ -55,6 +56,7 @@ async fn run() -> Result<String, String> {
             };
             be_sync::watch::watch(
                 tracker.peer(),
+                &mut *tracker.types().await,
                 &directory,
                 &be_sync::Target { root },
                 every,
@@ -101,6 +103,39 @@ async fn run() -> Result<String, String> {
     }
 }
 
+const PLUGIN_TYPES: &[u8] = include_bytes!(env!("PLUGIN_TYPES"));
+
+fn plugins() -> &'static [be_cli::plugins::Plugin] {
+    if be_cli::plugins::installed().is_empty() {
+        match be_cli::plugins::parse(PLUGIN_TYPES) {
+            Ok(plugins) => return be_cli::plugins::install(plugins),
+            Err(error) => eprintln!("be: {error}"),
+        }
+    }
+    be_cli::plugins::installed()
+}
+
+fn sources(settings: &Settings) -> be_cli::tracker::Sources {
+    let cache = settings.cache.join("modules");
+    let plugins = plugins();
+    Box::new(move || {
+        let mut sources = Vec::new();
+        for plugin in plugins.iter().filter(|plugin| !plugin.module.is_empty()) {
+            let module = plugin.module;
+            sources.push(
+                be_types_host::modules::wasm(
+                    plugin.manifest.identity.id.clone(),
+                    Ok(be_types_host::tag_of(module)),
+                    Some(cache.clone()),
+                    move |host| host.load_bytes(module),
+                )
+                .declaring(plugin.declared()),
+            );
+        }
+        sources
+    })
+}
+
 fn private_directory() -> Result<std::path::PathBuf, String> {
     let path = std::env::temp_dir().join(format!("be-{}", uuid::Uuid::new_v4().simple()));
     let mut builder = std::fs::DirBuilder::new();
@@ -119,9 +154,9 @@ async fn host_terminal(
 ) -> Result<String, String> {
     let mut host = Host::new(HostOptions::here(command.to_vec()))?;
     let connect = async || {
-        let tracker = Tracker::new(connect_live(settings).await?);
+        let tracker = Tracker::new(connect_live(settings).await?, sources(settings));
         let entry = tracker.resolve(target).await?;
-        if entry.block_type != be_block::TerminalContent::CONTENT_TYPE {
+        if entry.block_type != terminal_types::TerminalContent::CONTENT_TYPE {
             return Err(format!("{} is not a terminal block", entry.label()));
         }
         Ok((tracker.shared_peer(), entry.id))
@@ -129,6 +164,8 @@ async fn host_terminal(
     let stopped = async {
         let _ = tokio::signal::ctrl_c().await;
     };
-    host.run(connect, stopped).await?;
+    tokio::task::LocalSet::new()
+        .run_until(host.run(connect, &sources(settings), stopped))
+        .await?;
     Ok(String::new())
 }

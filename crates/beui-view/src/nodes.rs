@@ -57,6 +57,7 @@ pub trait TreeNode {
     fn offset(&self) -> Option<f32>;
     fn scroll_position(&self) -> Option<ScrollPosition>;
     fn drive_offset(&self, value: f32);
+    fn offset_to_end(&self);
     fn on_steer(&self, handler: impl FnMut(()) + 'static);
     fn row_offset<K: Clone + Hash + Eq + 'static>(&self, key: &K) -> Option<f32>;
     fn texts_within(&self) -> Vec<NodeId>;
@@ -155,6 +156,14 @@ impl TreeNode for NodeId {
         });
     }
 
+    fn offset_to_end(&self) {
+        with_document(|document| {
+            if let Some(offset) = offset_node(document, *self) {
+                document.offset_to_end(offset);
+            }
+        });
+    }
+
     fn on_steer(&self, handler: impl FnMut(()) + 'static) {
         with_document(|document| {
             if let Some(offset) = offset_node(document, *self) {
@@ -219,6 +228,10 @@ impl Placements {
     pub fn rect(&self, node: NodeId) -> Option<Rect> {
         self.0.get(&node)
     }
+
+    pub fn scale(&self, node: NodeId) -> f32 {
+        self.0.scale_of(&node)
+    }
 }
 
 pub fn placements() -> Placements {
@@ -227,6 +240,10 @@ pub fn placements() -> Placements {
 
 pub fn viewport_rect() -> Rect {
     with_document(|document| document.viewport_rect())
+}
+
+pub fn window_of(node: NodeId) -> WindowId {
+    with_document(|document| document.window_of(node))
 }
 
 pub fn focused_node() -> Option<NodeId> {

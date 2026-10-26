@@ -4,12 +4,17 @@ use std::sync::Arc;
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
 use crate::app::Setup;
-use crate::app::automation::Capture;
 use crate::color::Color32;
 use crate::context::{Context, RendererChoices, RendererInfo, WindowOutput};
 use crate::font::FontBackend;
 use crate::geometry::Vec2;
-use crate::screens::Screen;
+
+#[derive(Clone)]
+pub struct Capture {
+    pub width: u32,
+    pub height: u32,
+    pub rgba: Vec<u8>,
+}
 
 pub trait WindowHandle: HasWindowHandle + HasDisplayHandle + Send + Sync {}
 
@@ -43,10 +48,6 @@ pub trait Renderer {
 
     fn physical(&self) -> Option<Vec2>;
 
-    fn screens(&self) -> Option<Vec<Screen>> {
-        None
-    }
-
     fn prepare(&mut self, output: &WindowOutput, scale: f32, background: Color32) -> bool;
 
     fn note(&mut self, output: &WindowOutput, scale: f32, background: Color32) {
@@ -55,8 +56,53 @@ pub trait Renderer {
 
     fn present(&mut self, background: Color32) -> bool;
 
+    fn set_vsync(&mut self, _vsync: bool) {}
+
     fn capture(&mut self) -> Option<Capture> {
         None
+    }
+}
+
+pub struct NoRenderer {
+    size: Vec2,
+}
+
+impl NoRenderer {
+    pub fn new(width: u32, height: u32) -> Self {
+        Self {
+            size: Vec2::new(width as f32, height as f32),
+        }
+    }
+}
+
+impl Renderer for NoRenderer {
+    fn name(&self) -> &'static str {
+        "none"
+    }
+
+    fn info(&self) -> RendererInfo {
+        RendererInfo {
+            rows: vec![(
+                "Renderer",
+                "none: frames are painted but not drawn".to_owned(),
+            )],
+        }
+    }
+
+    fn resize(&mut self, width: u32, height: u32) {
+        self.size = Vec2::new(width as f32, height as f32);
+    }
+
+    fn physical(&self) -> Option<Vec2> {
+        Some(self.size)
+    }
+
+    fn prepare(&mut self, _output: &WindowOutput, _scale: f32, _background: Color32) -> bool {
+        true
+    }
+
+    fn present(&mut self, _background: Color32) -> bool {
+        false
     }
 }
 
@@ -98,6 +144,7 @@ pub struct Renderers {
     shared_fonts: Option<Box<dyn FontBackend>>,
     window: Option<Arc<dyn WindowHandle>>,
     size: Option<(u32, u32)>,
+    vsync: bool,
 }
 
 impl Renderers {
@@ -119,6 +166,7 @@ impl Renderers {
             shared_fonts: None,
             window: None,
             size: None,
+            vsync: true,
         };
         for slot in &mut renderers.slots[1..] {
             slot.renderer.set_active(false);
@@ -174,10 +222,6 @@ impl Renderers {
         self.slots[self.active].renderer.physical()
     }
 
-    pub fn screens(&self) -> Option<Vec<Screen>> {
-        self.slots[self.active].renderer.screens()
-    }
-
     pub fn prepare(&mut self, output: &WindowOutput, scale: f32, background: Color32) -> bool {
         self.active_mut().prepare(output, scale, background)
     }
@@ -192,6 +236,12 @@ impl Renderers {
 
     pub fn capture(&mut self) -> Option<Capture> {
         self.active_mut().capture()
+    }
+
+    pub fn set_vsync(&mut self, vsync: bool) {
+        if vsync != std::mem::replace(&mut self.vsync, vsync) {
+            self.active_mut().set_vsync(vsync);
+        }
     }
 
     pub fn follow_choice(&mut self, context: &Context) -> Result<bool, Box<dyn Error>> {
@@ -227,6 +277,7 @@ impl Renderers {
     fn show(&mut self, index: usize) -> Result<(), Box<dyn Error>> {
         let renderer = &mut self.slots[index].renderer;
         renderer.set_active(true);
+        renderer.set_vsync(self.vsync);
         match (&self.window, self.size) {
             (Some(window), Some((width, height))) => renderer.attach(window.clone(), width, height),
             (None, Some((width, height))) => {

@@ -4,7 +4,6 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_ROTATE_CCW;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{ChoiceOption, MenuItem};
 use block_editor_beui::{HostDisplay, LayeredSettingsRow, RotationPicker};
 
 use super::modes::{Size, effective, mode_label, rate_label, rates, size_label, size_of, sizes};

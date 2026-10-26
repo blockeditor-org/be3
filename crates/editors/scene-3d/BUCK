@@ -2,4 +2,5 @@ load("@root//buck/wasm:defs.bzl", "editor")
 
 editor(
     module = "scene_3d",
+    types = "//crates/editors/scene-3d/types:module",
 )

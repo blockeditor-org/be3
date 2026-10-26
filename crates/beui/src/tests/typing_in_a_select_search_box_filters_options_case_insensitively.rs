@@ -39,9 +39,9 @@ fn typing_in_a_select_search_box_filters_options_case_insensitively() {
         .document()
         .api::<unstyled::SelectApi>(select)
         .option_button(2);
-    assert!(harness.document().node_rect(apple).is_none());
-    assert!(harness.document().node_rect(banana).is_some());
-    assert!(harness.document().node_rect(grape).is_none());
+    assert!(apple.is_none());
+    assert!(banana.is_some_and(|banana| harness.document().node_rect(banana).is_some()));
+    assert!(grape.is_none());
     assert_eq!(
         harness
             .document()

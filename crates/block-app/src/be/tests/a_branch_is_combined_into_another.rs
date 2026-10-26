@@ -12,7 +12,7 @@ fn a_branch_is_combined_into_another() {
         be_block::CheckoutContent::CONTENT_TYPE,
         None,
     );
-    hold(versioned.note, be_block::TextContent::CONTENT_TYPE);
+    hold(versioned.note, text_block_types::TextContent::CONTENT_TYPE);
     wait_until("opened the note", |shared| {
         text_of(shared, versioned.note).is_some()
     });

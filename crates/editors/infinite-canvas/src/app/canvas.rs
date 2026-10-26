@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use block_editor_beui::be_block::canvas::{CanvasColor, CanvasEntity, CanvasShape};
+use infinite_canvas_types::{CanvasColor, CanvasEntity, CanvasShape};
 use std::cell::RefCell;
 
 use block_editor_beui::beui::reactive::*;
@@ -18,6 +18,7 @@ use super::paint::{Camera, EntityPaint, Palette, arrowhead_size, resolve_color};
 use super::sketch::{Sketch, SketchKey, rough_reach};
 use super::state::{CanvasState, Gesture};
 use super::text::{EntityText, path_label_reach, text_region, writes};
+use crate::freehand::LiveStroke;
 
 const ITEM_MARGIN: f32 = 2.0;
 
@@ -41,12 +42,12 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
             let embedding = create_memo(move || state.entities.embedding());
             let inset = create_memo(move || {
                 let (placed, shown) = (placed.get(), shown.get());
-                Sides::new(
+                Padding::custom(Sides::new(
                     (shown.left() - placed.left()).max(0.0),
                     (shown.top() - placed.top()).max(0.0),
                     (placed.right() - shown.right()).max(0.0),
                     (placed.bottom() - shown.bottom()).max(0.0),
-                )
+                ))
             });
             let previewing = state.previewing();
             let (grid, tiles) = grid_of(state, camera, shown);
@@ -68,10 +69,9 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
                     .map(|frame| frame.id)
                     .collect::<Vec<_>>()
             });
-            let theme = use_theme();
             let outside_frames = create_memo(move || {
                 match !previewing && frames.with(|frames| !frames.is_empty()) {
-                    true => ColorRole::Custom(theme.dim.get()),
+                    true => ColorRole::Dim,
                     false => ColorRole::None,
                 }
             });
@@ -93,12 +93,9 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
                                 <ForEach keys={tiles}>|tile: GridTile|
                                     <GridTileItem tile look={grid} frames />
                                 </ForEach>
-                                <ForEach keys={ids}>|id: Uuid| {
-                                    let camera = camera;
-                                    view! {
-                                        <EntityShape state id camera />
-                                    }
-                                }</ForEach>
+                                <ForEach keys={ids}>|id: Uuid|
+                                    <EntityShape state id />
+                                </ForEach>
                                 <ForEach keys={embedding}>|id: Uuid|
                                     <EntityEmbed state id />
                                 </ForEach>
@@ -416,7 +413,7 @@ fn FrameBackdropItem(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> 
 }
 
 #[component]
-fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> CanvasItem {
+fn EntityShape(state: CanvasState, id: Uuid) -> CanvasItem {
     let entity = entity_of(state, id);
     let editing = create_memo(move || state.editing_text.get() == Some(id));
     let live = create_memo(move || {
@@ -434,7 +431,6 @@ fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> Canvas
             false => item_bounds(&entity),
         }
     });
-    let scales = create_memo(move || !editing.get());
     let drawing = create_memo(move || {
         let freehand = entity.with(|entity| {
             entity
@@ -443,39 +439,56 @@ fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> Canvas
         });
         freehand && state.being_drawn(id)
     });
-    let unit = create_memo(move || match editing.get() {
-        true => camera.get().scale.max(f32::EPSILON),
-        false => 1.0,
-    });
     let thumbhash = create_memo(move || state.thumbhash_of(reference_of(&entity.get()?)?));
     let placeholder = create_memo(move || thumbhash.get().and_then(|thumbhash| thumbhash.decode()));
     let theme = use_theme();
     let draw = create_signal::<Draw>(Rc::new(|_, _| {}));
     let shown = RefCell::new(None::<EntityPaint>);
     let sketched = RefCell::new(None::<(SketchKey, Sketch, Option<(Pos2, Rc<Sketch>)>)>);
+    let inked = RefCell::new(None::<LiveStroke>);
     create_effect(move || {
         let Some(entity) = entity.get() else {
             return;
         };
         let corner = bounds.get().min;
         let drawing = drawing.get();
-        let key = SketchKey::of(&entity, drawing);
-        let mut held = sketched.borrow_mut();
-        if held.as_ref().is_none_or(|(held_key, ..)| *held_key != key) {
-            *held = Some((key, Sketch::of(&entity, drawing), None));
-        }
-        let Some((_, world, placed)) = held.as_mut() else {
-            return;
-        };
-        let sketch = match placed {
-            Some((at, sketch)) if *at == corner => Rc::clone(sketch),
-            _ => {
-                let sketch = Rc::new(world.translated(Vec2::new(-corner.x, -corner.y)));
-                *placed = Some((corner, Rc::clone(&sketch)));
-                sketch
+        let sketch = match drawing {
+            true => {
+                *sketched.borrow_mut() = None;
+                let width = entity.style.stroke_width.max(0.1);
+                let mut inked = inked.borrow_mut();
+                let live = match inked.as_mut() {
+                    Some(live) if live.size() == width => live,
+                    _ => inked.insert(LiveStroke::new(width)),
+                };
+                let points: Vec<Pos2> = entity
+                    .world_points()
+                    .iter()
+                    .map(|point| pos2(point.x, point.y))
+                    .collect();
+                let pieces = live.draw(&points, &entity.pressures);
+                Rc::new(Sketch::painted(pieces).translated(Vec2::new(-corner.x, -corner.y)))
+            }
+            false => {
+                *inked.borrow_mut() = None;
+                let key = SketchKey::of(&entity, drawing);
+                let mut held = sketched.borrow_mut();
+                if held.as_ref().is_none_or(|(held_key, ..)| *held_key != key) {
+                    *held = Some((key, Sketch::of(&entity, drawing), None));
+                }
+                let Some((_, world, placed)) = held.as_mut() else {
+                    return;
+                };
+                match placed {
+                    Some((at, sketch)) if *at == corner => Rc::clone(sketch),
+                    _ => {
+                        let sketch = Rc::new(world.translated(Vec2::new(-corner.x, -corner.y)));
+                        *placed = Some((corner, Rc::clone(&sketch)));
+                        sketch
+                    }
+                }
             }
         };
-        drop(held);
         let reference = reference_of(&entity);
         let label = reference.and_then(|reference| state.label_of(reference));
         let missing = match reference {
@@ -485,7 +498,7 @@ fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> Canvas
         let paint = EntityPaint {
             sketch,
             covered: state.child_state(entity.id).available,
-            camera: Camera::item(corner, unit.get()),
+            camera: Camera::item(corner, 1.0),
             palette: palette(&theme),
             title: label
                 .as_ref()
@@ -508,14 +521,14 @@ fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> Canvas
             y={create_memo(move || bounds.get().top())}
             width={create_memo(move || bounds.get().width().max(1.0))}
             height={create_memo(move || bounds.get().height().max(1.0))}
-            scales={scales}
+            scales=true
             pointer={editing}
             @test_id={format!("infinite-canvas.entity.{id}")}
         >
             <Layers>
                 <Drawing draw={draw} />
                 <Show condition={live}>
-                    <EntityText state id entity outer={bounds} camera editing />
+                    <EntityText state id entity outer={bounds} editing />
                 </Show>
             </Layers>
         </CanvasItem>

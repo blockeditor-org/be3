@@ -1,0 +1,11 @@
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
+
+# What builds products of a commit on request and publishes them to the CDN,
+# and wakes Namespace's remote execution cluster, from one host behind the API
+# host's reverse proxy (guides/build_server.md).
+
+cargo_library()
+
+cargo_test()
+
+cargo_binary()

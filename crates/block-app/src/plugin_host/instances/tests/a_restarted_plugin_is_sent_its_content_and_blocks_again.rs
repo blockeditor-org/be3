@@ -2,8 +2,8 @@ use super::*;
 
 use std::time::Duration;
 
-use be_block::CounterContent;
 use block_plugin_api::BlockQuery;
+use counter_types::CounterContent;
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Sent {
@@ -11,25 +11,24 @@ enum Sent {
     Blocks,
 }
 
-fn sent_once(instances: &mut Instances) -> Vec<Sent> {
-    next_screens(instances)
-        .opened
+fn sent_once(instances: &mut Instances, block: Uuid, watch: OpId) -> Vec<Sent> {
+    next_screens(instances);
+    let mut sent: Vec<Sent> = from_replica(instances, block)
         .into_iter()
-        .filter_map(|message| match message {
-            Message::Editor(EditorMessage::Content { .. }) => Some(Sent::Content),
-            Message::Editor(EditorMessage::Blocks { .. }) => Some(Sent::Blocks),
-            _ => None,
-        })
-        .collect()
+        .map(|_| Sent::Content)
+        .collect();
+    let listed: Option<Result<Vec<block_plugin_api::BlockInfo>, String>> =
+        answered(instances, watch);
+    sent.extend(listed.map(|_| Sent::Blocks));
+    sent
 }
 
-fn sent(instances: &mut Instances, block: Uuid) -> Vec<Sent> {
-    let mut sent = sent_once(instances);
+fn sent(instances: &mut Instances, block: Uuid, watch: OpId) -> Vec<Sent> {
+    let mut sent = sent_once(instances, block, watch);
     crate::be::wait_for(Duration::from_secs(20), |shared| {
-        shared.blocks.contains_key(&block).then_some(())
-    })
-    .expect("the block's content never loaded");
-    sent.extend(sent_once(instances));
+        (shared.blocks.contains_key(&block) && !shared.editor_frames.is_empty()).then_some(())
+    });
+    sent.extend(sent_once(instances, block, watch));
     sent.sort();
     sent
 }
@@ -47,22 +46,29 @@ fn a_restarted_plugin_is_sent_its_content_and_blocks_again() {
         None,
     );
     let mut instances = placed_on(block, CounterContent::CONTENT_TYPE);
-    let watch = || EditorMessage::WatchBlocks {
-        instance: INSTANCE,
-        queries: vec![BlockQuery::Block(block.into_bytes())],
+    let watching = |instances: &mut Instances| {
+        open_watch(instances, |op| Call::BlocksWatchNew {
+            resource: wire::BlocksWatch(op),
+            query: BlockQuery::Block(block.into_bytes()),
+        })
     };
-    instances.editor_message(watch());
-    assert_eq!(sent(&mut instances, block), [Sent::Content, Sent::Blocks]);
+    let listing = watching(&mut instances);
+    to_replica(&mut instances, block, &FromEditor::Resend);
+    assert_eq!(
+        sent(&mut instances, block, listing),
+        [Sent::Content, Sent::Blocks]
+    );
     assert!(
-        sent(&mut instances, block).is_empty(),
+        sent(&mut instances, block, listing).is_empty(),
         "nothing changed since"
     );
 
     instances.reopen();
-    instances.editor_message(watch());
+    let listing = watching(&mut instances);
+    to_replica(&mut instances, block, &FromEditor::Resend);
 
     assert_eq!(
-        sent(&mut instances, block),
+        sent(&mut instances, block, listing),
         [Sent::Content, Sent::Blocks],
         "a restarted plugin starts with nothing, so it is sent everything again"
     );

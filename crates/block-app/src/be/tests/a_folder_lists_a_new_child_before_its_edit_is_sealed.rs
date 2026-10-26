@@ -1,6 +1,7 @@
 use super::*;
+use workspace_ui_types::FolderContent;
 
-use be_block::{ChildChange, FolderContent};
+use be_block::ChildChange;
 
 #[test]
 fn a_folder_lists_a_new_child_before_its_edit_is_sealed() {
@@ -21,14 +22,9 @@ fn a_folder_lists_a_new_child_before_its_edit_is_sealed() {
         be_block::BlockMetadata::default(),
         None,
     );
-    assert_eq!(
-        change_child(folder, FolderContent::CONTENT_TYPE, ChildChange::Add(child)),
-        None
-    );
-    wait_until("opened the folder", |shared| {
-        shared.blocks.contains_key(&folder)
+    wait_until("knew the folder's type", |_| {
+        is_known(FolderContent::CONTENT_TYPE)
     });
-
     assert_eq!(
         change_child(folder, FolderContent::CONTENT_TYPE, ChildChange::Add(child)),
         Some(true)

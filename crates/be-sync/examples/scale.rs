@@ -1,7 +1,8 @@
 use std::path::{Path, PathBuf};
 use std::time::Instant;
+use workspace_ui_types::WorkspaceContent;
 
-use be_block::{BlockContent, BlockMetadata, WorkspaceContent};
+use be_block::{BlockContent, BlockMetadata};
 use be_client::{Credentials, Peer, PeerConfig};
 use be_graph::BlockParent;
 use be_store::FileStore;
@@ -62,9 +63,13 @@ async fn main() {
     .await
     .unwrap();
     let target = Target { root: Some(root) };
-    let time = async |label: &str, peer: &Peer<FileStore>, directory: &Path| {
+    let mut types =
+        be_types_host::started(first_party_types::sources(), be_client::Clock::real()).await;
+    let mut time = async |label: &str, peer: &Peer<FileStore>, directory: &Path| {
         let started = Instant::now();
-        let report = be_sync::sync(peer, directory, &target).await.unwrap();
+        let report = be_sync::sync(peer, &mut types, directory, &target)
+            .await
+            .unwrap();
         println!(
             "{label}: {:.2?}\n  {}",
             started.elapsed(),

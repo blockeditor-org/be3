@@ -2,4 +2,5 @@ load("@root//buck/wasm:defs.bzl", "editor")
 
 editor(
     module = "workspace_ui",
+    types = "//crates/editors/workspace-ui/types:module",
 )

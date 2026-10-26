@@ -6,10 +6,11 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 
 use block_plugin_api::{
-    BarAction, ChildId, ChildLayer, ChildMode, KeyChord, MenuCheck, MenuEntry, MenuPin, TopBar,
+    BarAction, ChildId, ChildLayer, ChildMode, ChildPreview, DialogFrame, KeyChord, MenuCheck,
+    MenuEntry, MenuPin, TopBar,
 };
 
-use crate::{ChildState, ChildTarget, Editor, SubregionContent};
+use crate::{ChildState, ChildTarget, Editor, SubregionContent, watch_block_label};
 
 #[derive(Clone)]
 pub struct ChildHandle {
@@ -44,6 +45,7 @@ pub fn ChildBlock(
         rotation,
         opacity,
         intrinsic,
+        dialog: Prop::Static(None),
         on_state,
         on_bar,
         on_focus,
@@ -66,11 +68,22 @@ pub fn Subregion(
     #[prop(default = 0.0)] rotation: Prop<f32>,
     #[prop(default = 1.0)] opacity: Prop<f32>,
     #[prop(default = None)] intrinsic: Prop<Option<beui::Vec2>>,
+    #[prop(default = false)] dialog: bool,
     on_state: Callback<ChildState>,
     on_bar: Callback<BarAction>,
     on_focus: Callback<()>,
     #[prop(children)] content: Option<Render<ChildHandle>>,
 ) -> NodeId {
+    let layout = use_context::<DialogLayout>();
+    let dialog = match dialog {
+        true => Prop::dynamic(move || {
+            Some(DialogFrame {
+                narrow: layout.is_some_and(|layout| layout.narrow.get()),
+                bottom_inset: layout.map_or(0.0, |layout| layout.bottom_inset.get()),
+            })
+        }),
+        false => Prop::Static(None),
+    };
     let placing = Placing {
         mode,
         layer,
@@ -80,6 +93,7 @@ pub fn Subregion(
         rotation,
         opacity,
         intrinsic,
+        dialog,
         on_state,
         on_bar,
         on_focus,
@@ -99,6 +113,7 @@ struct Placing {
     rotation: Prop<f32>,
     opacity: Prop<f32>,
     intrinsic: Prop<Option<beui::Vec2>>,
+    dialog: Prop<Option<DialogFrame>>,
     on_state: Callback<ChildState>,
     on_bar: Callback<BarAction>,
     on_focus: Callback<()>,
@@ -120,30 +135,39 @@ fn SubregionView(
         rotation,
         opacity,
         intrinsic,
+        dialog,
         on_state,
         on_bar,
         on_focus,
         content,
     } = placing;
     let slot = EmbedSlot::new();
+    let placed = create_memo(move || placed.get());
     let layer = create_memo(move || layer.get());
     let below = create_memo(move || matches!(layer.get(), ChildLayer::Below));
-    let punch = create_memo(move || below.get() && punch.get());
+    let mode = create_memo(move || mode.get());
     let turn = create_memo(move || rotation.get());
+    let fade = create_memo(move || opacity.get());
     let state = editor.register_child(
         slot,
-        placed,
-        mode,
+        placed.into_prop(),
+        mode.into_prop(),
         layer.into_prop(),
         own_frame,
         top_bar,
         turn.into_prop(),
-        opacity,
+        fade.into_prop(),
         intrinsic,
+        dialog,
         on_state,
         on_bar,
         on_focus,
     );
+    let preview = create_memo(move || state.with(|state| state.preview));
+    let pictured = create_memo(move || {
+        mode.get() == ChildMode::Preview || preview.get() != ChildPreview::Hosted
+    });
+    let punch = create_memo(move || below.get() && punch.get() && !pictured.get());
     let entries = create_memo(move || state.with(|state| (state.child, state.menu.clone())));
     let mirror = store(RefCell::new(MenuMirror::new(editor)));
     let nodes = create_signal(Vec::<MenuNode>::new());
@@ -156,9 +180,73 @@ fn SubregionView(
     });
     let menu = create_memo(move || nodes.get());
     let handle = ChildHandle { state, menu };
-    let children = content.map(|content| content.call(handle));
+    let picture = view! {
+        <PreviewPicture editor={editor} placed={placed} preview={preview} turn={turn} fade={fade} />
+    };
+    let inner = match content.map(|content| content.call(handle)) {
+        Some(child) => view! {
+            <Layers>{picture}{child}</Layers>
+        },
+        None => picture,
+    };
     view! {
-        <Embed slot={slot} punch={punch} rotation={turn} children={children} />
+        <Embed slot={slot} punch={punch} rotation={turn} children={Some(inner)} />
+    }
+}
+
+#[component]
+fn PreviewPicture(
+    editor: Editor,
+    placed: Memo<Option<SubregionContent>>,
+    preview: Memo<ChildPreview>,
+    turn: Memo<f32>,
+    fade: Memo<f32>,
+) -> NodeId {
+    let drawing = create_memo(move || match preview.get() {
+        ChildPreview::Image(image) => Some(crate::preview::picture(image, turn.get(), fade.get())),
+        ChildPreview::Hosted | ChildPreview::Waiting | ChildPreview::Label => None,
+    });
+    let labelled = create_memo(move || preview.get() == ChildPreview::Label);
+    let target = create_memo(move || match placed.get() {
+        Some(SubregionContent::Block(target)) => Some(target),
+        _ => None,
+    });
+    view! {
+        <Layers>
+            <Drawing draw={Prop::dynamic(move || draw_gpu(drawing.get()))} />
+            <Show condition={labelled}>
+                <PreviewLabel editor={editor} target={target} />
+            </Show>
+        </Layers>
+    }
+}
+
+#[component]
+fn PreviewLabel(editor: Editor, target: Memo<Option<ChildTarget>>) -> NodeId {
+    let shown = watch_block_label(editor, target);
+    let name = create_memo(move || shown.with(|shown| shown.name.clone()));
+    let italic = create_memo(move || shown.with(|shown| shown.automatic));
+    let glyph = create_memo(move || shown.with(|shown| shown.glyph));
+    let has_glyph = create_memo(move || glyph.get().is_some());
+    view! {
+        <Frame
+            fill=ColorRole::SurfaceRaised
+            border={Border::new(ColorRole::Border)}
+            radius=Radius::Md
+            padding=Space::Lg
+            align=Align2::CENTER
+        >
+            <List spacing=Space::Md align=Align::Center>
+                <Show condition={has_glyph}>
+                    <Text size=TextSize::Xl color=TextColor::Muted align=beui::TextAlign::Center>
+                        <Icon glyph={glyph} />
+                    </Text>
+                </Show>
+                <Text color=TextColor::Muted align=beui::TextAlign::Center italic={italic}>
+                    {name}
+                </Text>
+            </List>
+        </Frame>
     }
 }
 
@@ -308,6 +396,7 @@ impl MenuMirror {
                         MenuPin::None => action,
                         MenuPin::Icon => action.pin(Pin::Icon),
                         MenuPin::Label => action.pin(Pin::Label),
+                        MenuPin::Title => action.pin(Pin::Title),
                     };
                     Some(MenuNode::action(&action.detached()))
                 }

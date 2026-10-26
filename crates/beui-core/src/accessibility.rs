@@ -20,6 +20,7 @@ use crate::document::Document;
 use crate::geometry::{Pos2, Vec2};
 use crate::input::{Key, KeyPress, Modifiers};
 use crate::node::{Arena, NodeId, NodeMap, Placed, Rects, SPACE_SLOTS, SpaceId};
+use crate::window::WindowId;
 
 mod embedded;
 
@@ -39,6 +40,9 @@ pub struct Fragment {
     pub nodes: Vec<(AccessNodeId, Node)>,
     pub root: AccessNodeId,
     pub focus: Option<AccessNodeId>,
+    pub windows: Vec<(AccessNodeId, WindowId)>,
+    pub window_roots: Vec<(WindowId, AccessNodeId)>,
+    pub focus_window: Option<WindowId>,
 }
 
 impl Fragment {
@@ -88,6 +92,62 @@ pub fn tree_update(
         .unwrap_or(WINDOW_NODE);
     let mut nodes = vec![(WINDOW_NODE, root)];
     nodes.extend(fragments.into_iter().flat_map(|fragment| fragment.nodes));
+    TreeUpdate {
+        nodes,
+        tree: Some(Tree {
+            root: WINDOW_NODE,
+            toolkit_name: Some("beui".to_owned()),
+            toolkit_version: Some(env!("CARGO_PKG_VERSION").to_owned()),
+        }),
+        tree_id: TreeId::ROOT,
+        focus,
+    }
+}
+
+pub fn window_tree_update(
+    window: WindowId,
+    title: &str,
+    viewport: Vec2,
+    scale: f32,
+    fragments: &[Fragment],
+) -> TreeUpdate {
+    let roots: Vec<AccessNodeId> = fragments
+        .iter()
+        .flat_map(|fragment| &fragment.window_roots)
+        .filter(|(held, _)| *held == window)
+        .map(|(_, root)| *root)
+        .collect();
+    let in_window = |fragment: &Fragment, id: AccessNodeId| {
+        fragment
+            .windows
+            .iter()
+            .any(|(node, held)| *node == id && *held == window)
+    };
+    let mut root = Node::new(Role::Window);
+    root.set_label(title);
+    root.set_bounds(AccessRect::new(
+        0.0,
+        0.0,
+        viewport.x.into(),
+        viewport.y.into(),
+    ));
+    root.set_transform(Affine::scale(scale.into()));
+    root.set_children(roots);
+    let focus = fragments
+        .iter()
+        .filter(|fragment| fragment.focus_window == Some(window))
+        .find_map(|fragment| fragment.focus)
+        .unwrap_or(WINDOW_NODE);
+    let mut nodes = vec![(WINDOW_NODE, root)];
+    for fragment in fragments {
+        nodes.extend(
+            fragment
+                .nodes
+                .iter()
+                .filter(|(id, _)| in_window(fragment, *id))
+                .cloned(),
+        );
+    }
     TreeUpdate {
         nodes,
         tree: Some(Tree {
@@ -632,7 +692,7 @@ impl Document {
         let root = self.refresh_accessibility()?;
         let mut tree = self.accessibility_tree.borrow_mut();
         let mut changed = std::mem::take(&mut tree.changed);
-        let nodes =
+        let nodes: Vec<(AccessNodeId, Node)> =
             if full {
                 tree.entries
                     .iter()
@@ -654,10 +714,37 @@ impl Document {
                     })
                     .collect()
             };
+        drop(tree);
+        let (windows, window_roots) = match self.opens_windows() {
+            true => (
+                nodes
+                    .iter()
+                    .filter_map(|(id, _)| {
+                        let window = self.window_of(self.local_key(*id)?.node());
+                        (!window.is_main()).then_some((*id, window))
+                    })
+                    .collect(),
+                self.open_windows()
+                    .into_iter()
+                    .filter_map(|window| {
+                        let node = self.window_node(window)?;
+                        Some((window, self.access_node_id(node.into())))
+                    })
+                    .collect(),
+            ),
+            false => (Vec::new(), Vec::new()),
+        };
+        let focus = self.accessibility_tree.borrow().focus;
+        let focus_window = focus
+            .and_then(|focus| self.local_key(focus))
+            .map(|focus| self.window_of(focus.node()));
         Some(Fragment {
             nodes,
             root,
-            focus: tree.focus,
+            focus,
+            windows,
+            window_roots,
+            focus_window,
         })
     }
 

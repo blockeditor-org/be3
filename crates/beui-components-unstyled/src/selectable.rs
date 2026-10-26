@@ -1,7 +1,15 @@
 use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
+use std::ops::Range;
+use std::rc::Rc;
 
+use beui::actions::Chord;
 use beui::primitives::*;
 use beui::reactive::*;
+use beui::selection::{
+    RowKey, RowWatcher, SelectableRows, SelectionItem, rows_of, scroll_toward, selection_items,
+    texts_under,
+};
 use beui_core::color::Color32;
 use beui_core::geometry::{Pos2, Rect, Vec2};
 use beui_core::input::{Key, KeyPress, PointerPress};
@@ -11,13 +19,56 @@ use beui_core::rich::{CaretHandle, handle_center, toolbar_anchor};
 use beui_macros::{component, view};
 
 const HANDLE_HIT_RADIUS: f32 = 24.0;
-const CARET_WIDTH: f32 = 2.0;
+const END: usize = usize::MAX;
+const AUTOSCROLL_RATE: f32 = 0.5;
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+pub const COPY_KEY: Chord = Chord::ctrl(Key::C);
+pub const SELECT_ALL_KEY: Chord = Chord::ctrl(Key::A);
+
+#[derive(Clone, PartialEq, Debug)]
+enum Spot {
+    Text(NodeId),
+    Row {
+        list: NodeId,
+        key: RowKey,
+        part: usize,
+    },
+}
+
+#[derive(Clone, PartialEq, Debug)]
 struct Caret {
-    text: NodeId,
+    spot: Spot,
     index: usize,
 }
+
+impl Caret {
+    fn text(text: NodeId, index: usize) -> Self {
+        Self {
+            spot: Spot::Text(text),
+            index,
+        }
+    }
+
+    fn row(list: NodeId, key: RowKey, part: usize, index: usize) -> Self {
+        Self {
+            spot: Spot::Row { list, key, part },
+            index,
+        }
+    }
+
+    fn at(&self, index: usize) -> Self {
+        Self {
+            spot: self.spot.clone(),
+            index,
+        }
+    }
+}
+
+type Order = (usize, usize, usize, usize);
+
+type Ordered = (Caret, Caret, Order, Order);
+
+type Bound = (RowKey, usize, usize);
 
 #[derive(Clone, Copy, Default, PartialEq, Debug)]
 enum Unit {
@@ -27,10 +78,16 @@ enum Unit {
     Text,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct Grab {
     fixed: Caret,
     offset: Vec2,
+}
+
+#[derive(Clone)]
+struct Coverage {
+    from: Option<Bound>,
+    to: Option<Bound>,
 }
 
 #[derive(Clone, Copy)]
@@ -45,160 +102,348 @@ impl Default for SelectableState {
 #[derive(Default)]
 struct Inner {
     region: NodeRef,
-    anchor: Cell<Option<Caret>>,
-    focus: Cell<Option<Caret>>,
+    anchor: RefCell<Option<Caret>>,
+    focus: RefCell<Option<Caret>>,
     color: Cell<Color32>,
     handle_color: Cell<Color32>,
+    caret_width: Cell<f32>,
     touch: Cell<bool>,
-    grab: Cell<Option<Grab>>,
+    grab: RefCell<Option<Grab>>,
     unit: Cell<Unit>,
-    origin: Cell<Option<(Caret, Caret)>>,
+    origin: RefCell<Option<(Caret, Caret)>>,
     painted: RefCell<Vec<NodeId>>,
     handled: RefCell<Vec<NodeId>>,
-    copied: RefCell<String>,
+    covered: RefCell<HashMap<NodeId, Option<Coverage>>>,
+    watcher: RefCell<Option<Rc<dyn RowWatcher>>>,
+}
+
+struct Watcher(SelectableState);
+
+impl RowWatcher for Watcher {
+    fn row_shown(&self, list: NodeId, row: NodeId, key: RowKey) {
+        if self.0.0.try_value().is_some() {
+            self.0.paint_row(list, row, &key);
+        }
+    }
+
+    fn keys_changed(&self, list: NodeId) {
+        if self.0.0.try_value().is_some() {
+            self.0.clamp(list);
+        }
+    }
+}
+
+struct Candidate {
+    text: NodeId,
+    spot: Spot,
 }
 
 impl SelectableState {
-    fn texts(&self) -> Vec<NodeId> {
-        self.0
+    fn items(&self) -> Vec<SelectionItem> {
+        let items = self
+            .0
             .value()
             .region
             .try_get()
-            .map_or_else(Vec::new, |region| region.texts_within())
+            .map_or_else(Vec::new, selection_items);
+        for item in &items {
+            if let SelectionItem::Rows(_, rows) = item {
+                rows.watch(&self.watcher());
+            }
+        }
+        items
+    }
+
+    fn watcher(&self) -> Rc<dyn RowWatcher> {
+        let inner = self.0.value();
+        let mut watcher = inner.watcher.borrow_mut();
+        Rc::clone(watcher.get_or_insert_with(|| Rc::new(Watcher(*self)) as Rc<dyn RowWatcher>))
+    }
+
+    fn anchor(&self) -> Option<Caret> {
+        self.0.value().anchor.borrow().clone()
+    }
+
+    fn focus(&self) -> Option<Caret> {
+        self.0.value().focus.borrow().clone()
+    }
+
+    fn candidates(items: &[SelectionItem]) -> Vec<Candidate> {
+        let mut found = Vec::new();
+        for item in items {
+            match item {
+                SelectionItem::Text(text) => found.push(Candidate {
+                    text: *text,
+                    spot: Spot::Text(*text),
+                }),
+                SelectionItem::Rows(list, rows) => {
+                    for (key, row) in rows.shown() {
+                        for (part, text) in texts_under(row).into_iter().enumerate() {
+                            found.push(Candidate {
+                                text,
+                                spot: Spot::Row {
+                                    list: *list,
+                                    key: key.clone(),
+                                    part,
+                                },
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        found
     }
 
     fn caret_at(&self, pos: Pos2) -> Option<Caret> {
-        let text = self
-            .texts()
+        let items = self.items();
+        let placed = placements();
+        let nearest = Self::candidates(&items)
             .into_iter()
-            .filter_map(|text| Some((text, distance(placements().rect(text)?, pos))))
-            .min_by(|(_, left), (_, right)| left.total_cmp(right))?
-            .0;
-        let index = text.text_index_at(pos)?;
-        Some(Caret { text, index })
+            .filter_map(|candidate| Some((distance(placed.rect(candidate.text)?, pos), candidate)))
+            .min_by(|(left, _), (right, _)| left.total_cmp(right))?
+            .1;
+        let index = nearest.text.text_index_at(pos)?;
+        Some(Caret {
+            spot: nearest.spot,
+            index,
+        })
+    }
+
+    fn resolve(caret: &Caret) -> Option<(NodeId, usize)> {
+        let text = match &caret.spot {
+            Spot::Text(text) => *text,
+            Spot::Row { list, key, part } => {
+                let (_, row) = rows_of(*list)?
+                    .shown()
+                    .into_iter()
+                    .find(|(shown, _)| shown == key)?;
+                let texts = texts_under(row);
+                match *part {
+                    END => *texts.last()?,
+                    part => *texts.get(part)?,
+                }
+            }
+        };
+        let content = text.text();
+        Some((text, floor(&content, caret.index)))
+    }
+
+    fn content(caret: &Caret) -> Option<String> {
+        Self::resolve(caret).map(|(text, _)| text.text())
     }
 
     fn word_at(&self, pos: Pos2) -> Option<(Caret, Caret)> {
         let caret = self.caret_at(pos)?;
-        let (start, end) = word_bounds(&caret.text.text(), caret.index);
-        Some((
-            Caret {
-                text: caret.text,
-                index: start,
-            },
-            Caret {
-                text: caret.text,
-                index: end,
-            },
-        ))
+        let (start, end) = word_bounds(&Self::content(&caret)?, caret.index);
+        Some((caret.at(start), caret.at(end)))
     }
 
     fn unit_at(&self, pos: Pos2, unit: Unit) -> Option<(Caret, Caret)> {
         match unit {
-            Unit::Character => self.caret_at(pos).map(|caret| (caret, caret)),
+            Unit::Character => self.caret_at(pos).map(|caret| (caret.clone(), caret)),
             Unit::Word => self.word_at(pos),
             Unit::Text => {
                 let caret = self.caret_at(pos)?;
-                let end = caret.text.text().len();
-                Some((
-                    Caret {
-                        text: caret.text,
-                        index: 0,
-                    },
-                    Caret {
-                        text: caret.text,
-                        index: end,
-                    },
-                ))
+                let end = Self::content(&caret)?.len();
+                Some((caret.at(0), caret.at(end)))
             }
         }
     }
 
+    fn caret_rect(&self, caret: &Caret) -> Option<Rect> {
+        let (text, index) = Self::resolve(caret)?;
+        text.caret_rect(index, self.0.value().caret_width.get())
+    }
+
+    fn caret_scale(caret: &Caret) -> f32 {
+        Self::resolve(caret)
+            .and_then(|(text, _)| text.text_geometry())
+            .map_or(1.0, |geometry| geometry.scale())
+    }
+
     fn toolbar_rect(&self) -> Option<Rect> {
-        let texts = self.texts();
-        let (start, end, ..) = self.ordered(&texts)?;
+        let items = self.items();
+        let (start, end, ..) = self.ordered(&items)?;
         if start == end {
             return None;
         }
-        let first = start.text.caret_rect(start.index, CARET_WIDTH)?;
-        let last = end.text.caret_rect(end.index, CARET_WIDTH)?;
-        Some(toolbar_anchor(first.union(last)))
+        let first = self.caret_rect(&start)?;
+        let last = self.caret_rect(&end)?;
+        Some(toolbar_anchor(first.union(last), Self::caret_scale(&end)))
     }
 
-    fn ordered(&self, texts: &[NodeId]) -> Option<(Caret, Caret, usize, usize)> {
-        let (anchor, focus) = (self.0.value().anchor.get()?, self.0.value().focus.get()?);
-        let at = |caret: Caret| texts.iter().position(|text| *text == caret.text);
-        let (from, to) = (at(anchor)?, at(focus)?);
-        match (from, anchor.index) <= (to, focus.index) {
+    fn order(items: &[SelectionItem], caret: &Caret) -> Option<Order> {
+        match &caret.spot {
+            Spot::Text(text) => items
+                .iter()
+                .position(|item| matches!(item, SelectionItem::Text(held) if held == text))
+                .map(|at| (at, 0, 0, caret.index)),
+            Spot::Row { list, key, part } => {
+                items.iter().enumerate().find_map(|(at, item)| match item {
+                    SelectionItem::Rows(held, rows) if held == list => {
+                        Some((at, rows.index_of(key)?, *part, caret.index))
+                    }
+                    _ => None,
+                })
+            }
+        }
+    }
+
+    fn ordered(&self, items: &[SelectionItem]) -> Option<Ordered> {
+        let (anchor, focus) = (self.anchor()?, self.focus()?);
+        let (from, to) = (Self::order(items, &anchor)?, Self::order(items, &focus)?);
+        match from <= to {
             true => Some((anchor, focus, from, to)),
             false => Some((focus, anchor, to, from)),
         }
     }
 
     fn selected(&self, pos: Pos2) -> bool {
-        let texts = self.texts();
+        let items = self.items();
         let (Some((start, end, from, to)), Some(caret)) =
-            (self.ordered(&texts), self.caret_at(pos))
+            (self.ordered(&items), self.caret_at(pos))
         else {
             return false;
         };
-        let Some(at) = texts.iter().position(|text| *text == caret.text) else {
+        let Some(at) = Self::order(&items, &caret) else {
             return false;
         };
-        (from, start.index) <= (at, caret.index)
-            && (at, caret.index) <= (to, end.index)
-            && (start != end)
+        from <= at && at <= to && start != end
     }
 
-    fn ranges(&self) -> Vec<(NodeId, std::ops::Range<usize>)> {
-        let texts = self.texts();
-        let Some((start, end, from, to)) = self.ordered(&texts) else {
+    fn text_range(text: NodeId, ordered: &Ordered) -> Range<usize> {
+        let (start, end, ..) = ordered;
+        let begin = match start.spot == Spot::Text(text) {
+            true => start.index,
+            false => 0,
+        };
+        let finish = match end.spot == Spot::Text(text) {
+            true => end.index,
+            false => text.text().len(),
+        };
+        begin..finish
+    }
+
+    fn plain_ranges(
+        items: &[SelectionItem],
+        ordered: Option<&Ordered>,
+    ) -> Vec<(NodeId, Range<usize>)> {
+        let Some(ordered) = ordered.filter(|(start, end, ..)| start != end) else {
             return Vec::new();
         };
-        texts[from..=to]
+        let (_, _, from, to) = ordered;
+        items
             .iter()
-            .map(|text| {
-                let begin = if *text == start.text { start.index } else { 0 };
-                let finish = match *text == end.text {
-                    true => end.index,
-                    false => text.text().len(),
-                };
-                (*text, begin..finish)
+            .enumerate()
+            .filter(|(at, _)| (from.0..=to.0).contains(at))
+            .filter_map(|(_, item)| match item {
+                SelectionItem::Text(text) => Some((*text, Self::text_range(*text, ordered))),
+                SelectionItem::Rows(..) => None,
             })
             .filter(|(_, range)| !range.is_empty())
             .collect()
     }
 
-    fn handles(&self) -> Vec<(CaretHandle, Caret)> {
-        if !self.0.value().touch.get() {
-            return Vec::new();
+    fn coverage(at: usize, ordered: Option<&Ordered>) -> Option<Coverage> {
+        let (start, end, from, to) = ordered?;
+        if start == end || at < from.0 || at > to.0 {
+            return None;
         }
-        let texts = self.texts();
-        match self.ordered(&texts) {
-            Some((start, end, ..)) if start != end => {
-                vec![(CaretHandle::Start, start), (CaretHandle::End, end)]
-            }
-            _ => Vec::new(),
-        }
+        let bound = |caret: &Caret, order: &Order| match &caret.spot {
+            Spot::Row { key, part, .. } if order.0 == at => Some((key.clone(), *part, caret.index)),
+            _ => None,
+        };
+        Some(Coverage {
+            from: bound(start, from),
+            to: bound(end, to),
+        })
     }
 
-    fn handle_at(&self, pos: Pos2) -> Option<(CaretHandle, Caret)> {
-        self.handles()
-            .into_iter()
-            .filter_map(|(handle, caret)| {
-                let rect = caret.text.caret_rect(caret.index, CARET_WIDTH)?;
-                if pos.y < rect.max.y {
-                    return None;
+    fn bounds(rows: &dyn SelectableRows, coverage: &Coverage) -> Option<(Order, Order)> {
+        let place = |bound: &Bound| {
+            rows.index_of(&bound.0)
+                .map(|row| (0, row, bound.1, bound.2))
+        };
+        let from = match &coverage.from {
+            Some(bound) => place(bound)?,
+            None => (0, 0, 0, 0),
+        };
+        let to = match &coverage.to {
+            Some(bound) => place(bound)?,
+            None => (0, END, END, END),
+        };
+        Some((from, to))
+    }
+
+    fn row_range(
+        rows: &dyn SelectableRows,
+        coverage: &Coverage,
+        row: usize,
+        part: usize,
+    ) -> Option<Range<usize>> {
+        let ((_, from_row, from_part, from_index), (_, to_row, to_part, to_index)) =
+            Self::bounds(rows, coverage)?;
+        let at = (row, part);
+        if at < (from_row, from_part) || at > (to_row, to_part) {
+            return None;
+        }
+        let begin = match at == (from_row, from_part) {
+            true => from_index,
+            false => 0,
+        };
+        let finish = match at == (to_row, to_part) {
+            true => to_index,
+            false => END,
+        };
+        (begin < finish).then_some(begin..finish)
+    }
+
+    fn unbuilt_range(rows: &dyn SelectableRows, coverage: &Coverage, row: usize) -> Range<usize> {
+        let Some(((_, from_row, from_part, from_index), (_, to_row, to_part, to_index))) =
+            Self::bounds(rows, coverage)
+        else {
+            return 0..0;
+        };
+        let begin = match (from_row == row, from_part) {
+            (true, 0) => from_index,
+            (true, _) => END,
+            (false, _) => 0,
+        };
+        let finish = match (to_row == row, to_part) {
+            (true, 0) => to_index,
+            _ => END,
+        };
+        begin..finish
+    }
+
+    fn paint_row(&self, list: NodeId, row: NodeId, key: &RowKey) {
+        let coverage = self
+            .0
+            .value()
+            .covered
+            .borrow()
+            .get(&list)
+            .cloned()
+            .flatten();
+        let color = self.0.value().color.get();
+        let rows = coverage.as_ref().and_then(|_| rows_of(list));
+        let index = rows.as_ref().and_then(|rows| rows.index_of(key));
+        for (part, text) in texts_under(row).into_iter().enumerate() {
+            let range = match (&coverage, &rows, index) {
+                (Some(coverage), Some(rows), Some(index)) => {
+                    Self::row_range(rows.as_ref(), coverage, index, part)
                 }
-                let distance = (pos.to_vec2() - handle_center(rect, handle)).length();
-                (distance <= HANDLE_HIT_RADIUS).then_some((handle, caret, distance))
-            })
-            .min_by(|left, right| left.2.total_cmp(&right.2))
-            .map(|(handle, caret, _)| (handle, caret))
+                _ => None,
+            };
+            text.set_text_selection(range.map(|range| (range, color)));
+        }
     }
 
     fn paint(&self) {
-        let ranges = self.ranges();
+        let items = self.items();
+        let ordered = self.ordered(&items);
+        let ranges = Self::plain_ranges(&items, ordered.as_ref());
         let color = self.0.value().color.get();
         let previous = std::mem::take(&mut *self.0.value().painted.borrow_mut());
         for text in previous {
@@ -211,7 +456,23 @@ impl SelectableState {
         }
         *self.0.value().painted.borrow_mut() = ranges.into_iter().map(|(text, _)| text).collect();
 
-        let handles = self.handles();
+        let covered = items
+            .iter()
+            .enumerate()
+            .filter_map(|(at, item)| match item {
+                SelectionItem::Rows(list, _) => Some((*list, Self::coverage(at, ordered.as_ref()))),
+                SelectionItem::Text(_) => None,
+            })
+            .collect();
+        *self.0.value().covered.borrow_mut() = covered;
+        for item in &items {
+            if let SelectionItem::Rows(list, rows) = item {
+                for (key, row) in rows.shown() {
+                    self.paint_row(*list, row, &key);
+                }
+            }
+        }
+
         let handle_color = self.0.value().handle_color.get();
         let previous = std::mem::take(&mut *self.0.value().handled.borrow_mut());
         for text in previous {
@@ -219,44 +480,146 @@ impl SelectableState {
                 text.set_text_selection_handles(Vec::new());
             }
         }
+        let resolved: Vec<(CaretHandle, NodeId, usize)> = self
+            .handles(&items)
+            .iter()
+            .filter_map(|(handle, caret)| {
+                let (text, index) = Self::resolve(caret)?;
+                Some((*handle, text, index))
+            })
+            .collect();
         let mut handled: Vec<NodeId> = Vec::new();
-        for (_, caret) in &handles {
-            if !handled.contains(&caret.text) {
-                handled.push(caret.text);
+        for (_, text, _) in &resolved {
+            if !handled.contains(text) {
+                handled.push(*text);
             }
         }
         for text in &handled {
-            let on_text = handles
+            let on_text = resolved
                 .iter()
-                .filter(|(_, caret)| caret.text == *text)
-                .map(|(handle, caret)| (caret.index, *handle, handle_color))
+                .filter(|(_, held, _)| held == text)
+                .map(|(handle, _, index)| (*index, *handle, handle_color))
                 .collect();
             text.set_text_selection_handles(on_text);
         }
         *self.0.value().handled.borrow_mut() = handled;
-        *self.0.value().copied.borrow_mut() = self.copied();
+    }
+
+    fn handles(&self, items: &[SelectionItem]) -> Vec<(CaretHandle, Caret)> {
+        if !self.0.value().touch.get() {
+            return Vec::new();
+        }
+        match self.ordered(items) {
+            Some((start, end, ..)) if start != end => {
+                vec![(CaretHandle::Start, start), (CaretHandle::End, end)]
+            }
+            _ => Vec::new(),
+        }
+    }
+
+    fn handle_at(&self, pos: Pos2) -> Option<(CaretHandle, Caret)> {
+        let items = self.items();
+        self.handles(&items)
+            .into_iter()
+            .filter_map(|(handle, caret)| {
+                let rect = self.caret_rect(&caret)?;
+                if pos.y < rect.max.y {
+                    return None;
+                }
+                let center = handle_center(rect, handle, Self::caret_scale(&caret));
+                let distance = (pos.to_vec2() - center).length();
+                (distance <= HANDLE_HIT_RADIUS).then_some((handle, caret, distance))
+            })
+            .min_by(|left, right| left.2.total_cmp(&right.2))
+            .map(|(handle, caret, _)| (handle, caret))
     }
 
     fn select(&self, anchor: Option<Caret>, focus: Option<Caret>) {
-        self.0.value().anchor.set(anchor);
-        self.0.value().focus.set(focus);
+        *self.0.value().anchor.borrow_mut() = anchor;
+        *self.0.value().focus.borrow_mut() = focus;
         self.paint();
     }
 
-    fn select_all(&self) {
-        let texts = self.texts();
-        let (Some(first), Some(last)) = (texts.first(), texts.last()) else {
+    fn clamp(&self, list: NodeId) {
+        let Some(rows) = rows_of(list) else {
             return;
         };
-        let anchor = Caret {
-            text: *first,
-            index: 0,
+        let (Some(anchor), Some(focus)) = (self.anchor(), self.focus()) else {
+            return;
         };
-        let focus = Caret {
-            text: *last,
-            index: last.text().len(),
+        let items = self.items();
+        let item_of = |caret: &Caret| {
+            items.iter().position(|item| match (item, &caret.spot) {
+                (SelectionItem::Text(text), Spot::Text(held)) => text == held,
+                (SelectionItem::Rows(held, _), Spot::Row { list, .. }) => held == list,
+                _ => false,
+            })
         };
-        self.select(Some(anchor), Some(focus));
+        let was = |caret: &Caret| match &caret.spot {
+            Spot::Row {
+                list: held,
+                key,
+                part,
+            } if *held == list => Some((rows.previous_index(key)?, *part, caret.index)),
+            _ => None,
+        };
+        let starts = |caret: &Caret, other: &Caret| match (item_of(caret), item_of(other)) {
+            (Some(left), Some(right)) if left != right => left < right,
+            _ => match (was(caret), was(other)) {
+                (Some(left), Some(right)) => left <= right,
+                _ => true,
+            },
+        };
+        let moved = |caret: &Caret, other: &Caret| -> Option<Option<Caret>> {
+            let Spot::Row {
+                list: held, key, ..
+            } = &caret.spot
+            else {
+                return None;
+            };
+            if *held != list || rows.index_of(key).is_some() {
+                return None;
+            }
+            Some(
+                rows.replacement(key, starts(caret, other))
+                    .map(|(key, after)| match after {
+                        true => Caret::row(list, key, 0, 0),
+                        false => Caret::row(list, key, END, END),
+                    }),
+            )
+        };
+        let (moved_anchor, moved_focus) = (moved(&anchor, &focus), moved(&focus, &anchor));
+        if moved_anchor.is_none() && moved_focus.is_none() {
+            self.paint();
+            return;
+        }
+        match (
+            moved_anchor.unwrap_or(Some(anchor)),
+            moved_focus.unwrap_or(Some(focus)),
+        ) {
+            (Some(anchor), Some(focus)) => self.select(Some(anchor), Some(focus)),
+            _ => self.select(None, None),
+        }
+    }
+
+    fn select_all(&self) {
+        let items = self.items();
+        let first = items.iter().find_map(|item| match item {
+            SelectionItem::Text(text) => Some(Caret::text(*text, 0)),
+            SelectionItem::Rows(list, rows) => Some(Caret::row(*list, rows.key_at(0)?, 0, 0)),
+        });
+        let last = items.iter().rev().find_map(|item| match item {
+            SelectionItem::Text(text) => Some(Caret::text(*text, text.text().len())),
+            SelectionItem::Rows(list, rows) => Some(Caret::row(
+                *list,
+                rows.key_at(rows.count().checked_sub(1)?)?,
+                END,
+                END,
+            )),
+        });
+        if let (Some(first), Some(last)) = (first, last) {
+            self.select(Some(first), Some(last));
+        }
     }
 
     fn select_word(&self, pos: Pos2) {
@@ -268,25 +631,97 @@ impl SelectableState {
     }
 
     pub fn selected_text(&self) -> String {
-        self.0.value().copied.borrow().clone()
-    }
-
-    fn copied(&self) -> String {
+        let items = self.items();
+        let Some(ordered) = self.ordered(&items).filter(|(start, end, ..)| start != end) else {
+            return String::new();
+        };
+        let (_, _, from, to) = &ordered;
+        let placed = placements();
         let mut copied = String::new();
-        let mut above: Option<Rect> = None;
-        for (text, range) in self.ranges() {
-            let rect = placements().rect(text).unwrap_or(Rect::NOTHING);
+        let mut above: Option<Option<Rect>> = None;
+        let mut join = |copied: &mut String, rect: Option<Rect>| {
             if let Some(above) = above {
-                copied.push(match rect.top() >= above.bottom() - 1.0 {
-                    true => '\n',
-                    false => ' ',
+                copied.push(match (above, rect) {
+                    (Some(above), Some(rect)) if rect.top() < above.bottom() - 1.0 => ' ',
+                    _ => '\n',
                 });
             }
-            copied.push_str(text.text().get(range).unwrap_or_default());
             above = Some(rect);
+        };
+        for (at, item) in items.iter().enumerate() {
+            if at < from.0 || at > to.0 {
+                continue;
+            }
+            match item {
+                SelectionItem::Text(text) => {
+                    let range = Self::text_range(*text, &ordered);
+                    if range.is_empty() {
+                        continue;
+                    }
+                    join(
+                        &mut copied,
+                        Some(placed.rect(*text).unwrap_or(Rect::NOTHING)),
+                    );
+                    copied.push_str(slice(&text.text(), range.start, range.end));
+                }
+                SelectionItem::Rows(_, rows) => {
+                    let Some(coverage) = Self::coverage(at, Some(&ordered)) else {
+                        continue;
+                    };
+                    let count = rows.count();
+                    let shown: HashMap<usize, NodeId> = rows
+                        .shown()
+                        .into_iter()
+                        .filter_map(|(key, row)| Some((rows.index_of(&key)?, row)))
+                        .collect();
+                    let first = if at == from.0 { from.1 } else { 0 };
+                    let last = if at == to.0 { to.1 } else { END };
+                    for row in first..=last.min(count.saturating_sub(1)) {
+                        if row >= count {
+                            break;
+                        }
+                        join(&mut copied, None);
+                        match shown.get(&row) {
+                            Some(node) => {
+                                let parts: Vec<String> = texts_under(*node)
+                                    .into_iter()
+                                    .enumerate()
+                                    .filter_map(|(part, text)| {
+                                        let range =
+                                            Self::row_range(rows.as_ref(), &coverage, row, part)?;
+                                        Some(slice(&text.text(), range.start, range.end).to_owned())
+                                    })
+                                    .collect();
+                                copied.push_str(&parts.join("\n"));
+                            }
+                            None => {
+                                let content = rows
+                                    .key_at(row)
+                                    .and_then(|key| rows.text(&key))
+                                    .unwrap_or_default();
+                                let range = Self::unbuilt_range(rows.as_ref(), &coverage, row);
+                                copied.push_str(slice(&content, range.start, range.end));
+                            }
+                        }
+                    }
+                }
+            }
         }
         copied
     }
+}
+
+fn floor(text: &str, index: usize) -> usize {
+    let mut index = index.min(text.len());
+    while !text.is_char_boundary(index) {
+        index -= 1;
+    }
+    index
+}
+
+fn slice(text: &str, start: usize, end: usize) -> &str {
+    let (start, end) = (floor(text, start), floor(text, end));
+    text.get(start..end.max(start)).unwrap_or_default()
 }
 
 fn distance(rect: Rect, pos: Pos2) -> f32 {
@@ -296,7 +731,7 @@ fn distance(rect: Rect, pos: Pos2) -> f32 {
 }
 
 fn word_bounds(text: &str, index: usize) -> (usize, usize) {
-    let index = index.min(text.len());
+    let index = floor(text, index);
     let word =
         |character: char| character.is_alphanumeric() || character == '_' || character == '\'';
     let after = text[index..].chars().next();
@@ -325,25 +760,25 @@ fn word_bounds(text: &str, index: usize) -> (usize, usize) {
     (start, end)
 }
 
-fn key(state: SelectableState, press: KeyPress) -> bool {
-    if !press.pressed || !press.modifiers.ctrl || press.modifiers.alt {
-        return false;
-    }
-    match press.key {
-        Key::C => {
-            let text = state.selected_text();
-            if text.is_empty() {
-                return false;
-            }
-            copy_text(text);
-            true
+fn key(
+    state: SelectableState,
+    copy_key: Option<Chord>,
+    select_all_key: Option<Chord>,
+    press: KeyPress,
+) -> bool {
+    if copy_key.is_some_and(|chord| chord.matches(press)) {
+        let text = state.selected_text();
+        if text.is_empty() {
+            return false;
         }
-        Key::A => {
-            state.select_all();
-            true
-        }
-        _ => false,
+        copy_text(text);
+        return true;
     }
+    if select_all_key.is_some_and(|chord| chord.matches(press)) {
+        state.select_all();
+        return true;
+    }
+    false
 }
 
 pub fn copy_selection(state: SelectableState) {
@@ -357,9 +792,8 @@ pub fn select_all(state: SelectableState) {
     state.select_all();
 }
 
-fn precedes(texts: &[NodeId], left: Caret, right: Caret) -> bool {
-    let at = |caret: Caret| texts.iter().position(|text| *text == caret.text);
-    (at(left), left.index) < (at(right), right.index)
+fn precedes(items: &[SelectionItem], left: &Caret, right: &Caret) -> bool {
+    SelectableState::order(items, left) < SelectableState::order(items, right)
 }
 
 fn press(
@@ -369,23 +803,22 @@ fn press(
     press: PointerPress,
 ) {
     if press.touch {
-        state.0.value().grab.set(None);
+        *state.0.value().grab.borrow_mut() = None;
         let Some((handle, moving)) = state.handle_at(press.pos) else {
             return;
         };
-        let texts = state.texts();
-        let Some((start, end, ..)) = state.ordered(&texts) else {
+        let items = state.items();
+        let Some((start, end, ..)) = state.ordered(&items) else {
             return;
         };
         let fixed = match handle {
             CaretHandle::Start => end,
             _ => start,
         };
-        let offset = moving
-            .text
-            .caret_rect(moving.index, CARET_WIDTH)
+        let offset = state
+            .caret_rect(&moving)
             .map_or(Vec2::ZERO, |caret| press.pos - caret.min);
-        state.0.value().grab.set(Some(Grab { fixed, offset }));
+        *state.0.value().grab.borrow_mut() = Some(Grab { fixed, offset });
         on_toolbar.call(None);
         return;
     }
@@ -396,13 +829,11 @@ fn press(
     on_toolbar.call(None);
     if press.modifiers.shift {
         let caret = state.caret_at(press.pos);
-        let anchor = state.0.value().anchor.get().or(caret);
+        let anchor = state.anchor().or_else(|| caret.clone());
         state.0.value().unit.set(Unit::Character);
-        state
-            .0
-            .value()
-            .origin
-            .set(anchor.map(|anchor| (anchor, anchor)));
+        *state.0.value().origin.borrow_mut() = anchor
+            .as_ref()
+            .map(|anchor| (anchor.clone(), anchor.clone()));
         state.select(anchor, caret);
         return;
     }
@@ -413,12 +844,16 @@ fn press(
     };
     let origin = state.unit_at(press.pos, unit);
     state.0.value().unit.set(unit);
-    state.0.value().origin.set(origin);
-    state.select(origin.map(|(start, _)| start), origin.map(|(_, end)| end));
+    *state.0.value().origin.borrow_mut() = origin.clone();
+    match origin {
+        Some((start, end)) => state.select(Some(start), Some(end)),
+        None => state.select(None, None),
+    }
 }
 
-fn drag(state: SelectableState, press: PointerPress) {
-    if let Some(grab) = state.0.value().grab.get() {
+fn drag(state: SelectableState, autoscroll: Signal<bool>, press: PointerPress) {
+    let grab = state.0.value().grab.borrow().clone();
+    if let Some(grab) = grab {
         if let Some(caret) = state.caret_at(press.pos - grab.offset) {
             state.select(Some(grab.fixed), Some(caret));
         }
@@ -427,14 +862,24 @@ fn drag(state: SelectableState, press: PointerPress) {
     if press.touch {
         return;
     }
-    let (Some((start, end)), Some(reached)) = (
-        state.0.value().origin.get(),
-        state.unit_at(press.pos, state.0.value().unit.get()),
-    ) else {
+    let pos = match state.0.value().region.try_get() {
+        Some(region) => {
+            let beyond = scroll_toward(region, press.pos, AUTOSCROLL_RATE);
+            if autoscroll.get_untracked() != beyond.scrolled {
+                autoscroll.set(beyond.scrolled);
+            }
+            beyond.inside
+        }
+        None => press.pos,
+    };
+    let origin = state.0.value().origin.borrow().clone();
+    let (Some((start, end)), Some(reached)) =
+        (origin, state.unit_at(pos, state.0.value().unit.get()))
+    else {
         return;
     };
-    let texts = state.texts();
-    let (anchor, focus) = match precedes(&texts, reached.0, start) {
+    let items = state.items();
+    let (anchor, focus) = match precedes(&items, &reached.0, &start) {
         true => (end, reached.0),
         false => (start, reached.1),
     };
@@ -449,7 +894,7 @@ fn tap(state: SelectableState, on_toolbar: Callback<Option<Rect>>, press: Pointe
     if !press.touch {
         return;
     }
-    if state.0.value().grab.take().is_some() {
+    if state.0.value().grab.borrow_mut().take().is_some() {
         show_toolbar(state, on_toolbar);
         return;
     }
@@ -482,24 +927,37 @@ pub fn Selectable(
     #[prop(default = ComponentRef::new())] api: ComponentRef<SelectableState>,
     children: Child,
     #[prop(default = SelectableState::default())] state: SelectableState,
-    #[prop(default = Color32::from_rgba_unmultiplied(80, 140, 255, 90))] color: Prop<Color32>,
-    #[prop(default = Color32::from_rgb(80, 140, 255))] handle_color: Prop<Color32>,
+    color: Prop<Color32>,
+    handle_color: Prop<Color32>,
+    caret_width: Prop<f32>,
+    #[prop(default = Some(COPY_KEY))] copy_key: Prop<Option<Chord>>,
+    #[prop(default = Some(SELECT_ALL_KEY))] select_all_key: Prop<Option<Chord>>,
     on_toolbar: Callback<Option<Rect>>,
 ) -> NodeId {
     api.fill(state);
     state.0.value().region.fill(children);
     let focusable = NodeRef::new();
+    let autoscroll = create_signal(false);
     create_effect(move || {
         let color = color.get();
         let handle_color = handle_color.get();
+        let caret_width = caret_width.get();
         untrack(|| {
+            state.0.value().caret_width.set(caret_width);
             state.0.value().color.set(color);
             state.0.value().handle_color.set(handle_color);
             state.paint();
         });
     });
     on_key(KeyAt::Node(focusable), KeyPhase::Bubble, move |event| {
-        event.press().is_some_and(|press| key(state, press))
+        event.press().is_some_and(|press| {
+            key(
+                state,
+                copy_key.get_untracked(),
+                select_all_key.get_untracked(),
+                press,
+            )
+        })
     });
     view! {
         <Interactive
@@ -507,16 +965,20 @@ pub fn Selectable(
             @node_ref=&focusable
             tab_stop=false
             claims_touch=false
+            repeat_drag={autoscroll}
             claim_at={move |(pos, _): (Pos2, beui_core::input::Modifiers)| {
                 state.handle_at(pos).is_some()
             }}
             on_press={move |event: PointerPress| press(state, &focusable, on_toolbar, event)}
-            on_drag={move |event: PointerPress| drag(state, event)}
+            on_drag={move |event: PointerPress| drag(state, autoscroll, event)}
             on_click_at={move |event: PointerPress| tap(state, on_toolbar, event)}
             on_secondary_press={move |event: PointerPress| long_press(state, on_toolbar, event)}
             on_active_change={move |active: bool| {
-                if !active && state.0.value().grab.take().is_some() {
-                    show_toolbar(state, on_toolbar);
+                if !active {
+                    autoscroll.set(false);
+                    if state.0.value().grab.borrow_mut().take().is_some() {
+                        show_toolbar(state, on_toolbar);
+                    }
                 }
             }}
         >

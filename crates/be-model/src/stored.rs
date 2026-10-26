@@ -122,6 +122,7 @@ fn field(tree: &Tree, value: &Value, shape: &Shape) -> Stored {
         Value::Count(count) => Stored::from(*count),
         Value::Text(sequence) => Stored::Bytes(sequence.items()),
         Value::Rich(rich) => rich_text(rich),
+        Value::Series(items) => Stored::Array(items.iter().map(|item| raw(item)).collect()),
         Value::List(items) => {
             let Shape::List(child) = shape else {
                 return Stored::Array(Vec::new());
@@ -302,6 +303,9 @@ impl Loading {
                     .collect(),
             ),
             Shape::Grid => Value::Grid(Cells::from_stored(found)?),
+            Shape::Series { .. } => Value::Series(Sequence::from_items(
+                found.into_array().ok()?.iter().map(encode).collect(),
+            )),
             Shape::Latest => Value::Latest(
                 found
                     .into_array()

@@ -182,6 +182,9 @@ fn merge_fields(base: &Object, ours: &Object, theirs: &Object, conflicts: &mut u
                 (Value::Rich(before), Value::Rich(mine), Value::Rich(other)) => {
                     Value::Rich(merge_rich(before, mine, other, conflicts))
                 }
+                (Value::Series(before), Value::Series(mine), Value::Series(other)) => {
+                    Value::Series(merge_series(before, mine, other, conflicts))
+                }
                 _ => mine.clone(),
             }
         })
@@ -205,6 +208,25 @@ fn merge_fields(base: &Object, ours: &Object, theirs: &Object, conflicts: &mut u
         fields,
         kept,
     }
+}
+
+fn merge_series(
+    base: &Sequence<Vec<u8>>,
+    ours: &Sequence<Vec<u8>>,
+    theirs: &Sequence<Vec<u8>>,
+    conflicts: &mut usize,
+) -> Sequence<Vec<u8>> {
+    let (base, ours, theirs) = (base.items(), ours.items(), theirs.items());
+    if ours.len() > base.len()
+        && theirs.len() > base.len()
+        && ours.starts_with(&base)
+        && theirs.starts_with(&base)
+    {
+        let mut merged = ours;
+        merged.extend_from_slice(&theirs[base.len()..]);
+        return Sequence::from_items(merged);
+    }
+    Sequence::from_items(pick(&base, &ours, &theirs, conflicts))
 }
 
 fn merge_text(
@@ -340,6 +362,7 @@ fn blank_like(object: &Object) -> Object {
                 Value::Latest(_) => Value::Latest(BTreeMap::new()),
                 Value::Text(_) => Value::Text(Sequence::default()),
                 Value::Rich(_) => Value::Rich(Rich::default()),
+                Value::Series(_) => Value::Series(Sequence::default()),
             })
             .collect(),
         kept: Kept::default(),

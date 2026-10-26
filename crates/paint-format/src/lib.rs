@@ -35,20 +35,37 @@ pub struct Primitive {
     pub content: Content,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Fade {
     pub rect: [f32; 4],
     pub widths: [f32; 4],
+    #[serde(default = "opaque", skip_serializing_if = "is_opaque")]
+    pub opacity: f32,
+}
+
+fn opaque() -> f32 {
+    1.0
+}
+
+fn is_opaque(opacity: &f32) -> bool {
+    *opacity >= 1.0
+}
+
+impl Default for Fade {
+    fn default() -> Self {
+        Self::NONE
+    }
 }
 
 impl Fade {
     pub const NONE: Self = Self {
         rect: [0.0; 4],
         widths: [0.0; 4],
+        opacity: 1.0,
     };
 
     pub fn is_none(&self) -> bool {
-        self.widths == [0.0; 4]
+        self.widths == [0.0; 4] && is_opaque(&self.opacity)
     }
 
     pub fn alpha(self, point: [f32; 2]) -> f32 {
@@ -62,12 +79,14 @@ impl Fade {
             * ramp(point[1] - top, near_y)
             * ramp(right - point[0], far_x)
             * ramp(bottom - point[1], far_y)
+            * self.opacity
     }
 
     pub fn scaled(self, scale: f32) -> Self {
         Self {
             rect: self.rect.map(|value| value * scale),
             widths: self.widths.map(|width| width * scale),
+            opacity: self.opacity,
         }
     }
 
@@ -81,7 +100,7 @@ impl Fade {
                     self.rect[2] + by[0],
                     self.rect[3] + by[1],
                 ],
-                widths: self.widths,
+                ..self
             },
         }
     }
@@ -221,9 +240,16 @@ pub struct Painting {
     pub textures: BTreeMap<TextureKey, Pixels>,
 }
 
-pub const PAINTING_EXTENSION: [u8; 16] = [
-    192, 46, 2, 18, 134, 91, 69, 225, 177, 136, 216, 30, 7, 192, 247, 94,
-];
+const PREVIEW_KEYS: TextureKey = 0xb3e0 << 48;
+const PREVIEW_MASK: TextureKey = 0xffff << 48;
+
+pub fn preview_key(image: u64) -> TextureKey {
+    PREVIEW_KEYS | (image & !PREVIEW_MASK)
+}
+
+pub fn previewed(key: TextureKey) -> Option<u64> {
+    (key & PREVIEW_MASK == PREVIEW_KEYS).then_some(key & !PREVIEW_MASK)
+}
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ScreenPaintings {
@@ -425,6 +451,66 @@ impl Painting {
         decode(bytes)
     }
 
+    pub fn previews(&self) -> Vec<u64> {
+        let mut found: Vec<u64> = self
+            .frame
+            .primitives
+            .iter()
+            .filter_map(|primitive| self.preview_in(primitive))
+            .map(|(image, _)| image)
+            .collect();
+        found.sort_unstable();
+        found.dedup();
+        found
+    }
+
+    pub fn with_previews(mut self, mut painting_of: impl FnMut(u64) -> Option<Painting>) -> Self {
+        let primitives = std::mem::take(&mut self.frame.primitives);
+        for primitive in primitives {
+            let Some((image, corners)) = self.preview_in(&primitive) else {
+                self.frame.primitives.push(primitive);
+                continue;
+            };
+            let Some(preview) = painting_of(image) else {
+                continue;
+            };
+            self.frame.primitives.extend(preview.placed(Placement {
+                source: [0.0, 0.0, 1.0, 1.0],
+                corners,
+                clip: primitive.clip,
+            }));
+            for (key, pixels) in preview.textures {
+                self.textures.entry(key).or_insert(pixels);
+            }
+        }
+        self
+    }
+
+    fn preview_in(&self, primitive: &Primitive) -> Option<(u64, [[f32; 2]; 4])> {
+        let Content::Mesh(triangles) = &primitive.content else {
+            return None;
+        };
+        let first = triangles.first()?.texture;
+        let image = previewed(first).filter(|_| !self.textures.contains_key(&first))?;
+        let mut corners = [None; 4];
+        for triangle in triangles {
+            if triangle.texture != first {
+                return None;
+            }
+            for vertex in triangle.corners {
+                let at = match vertex.uv {
+                    [0.0, 0.0] => 0,
+                    [1.0, 0.0] => 1,
+                    [1.0, 1.0] => 2,
+                    [0.0, 1.0] => 3,
+                    _ => return None,
+                };
+                corners[at] = Some(vertex.pos);
+            }
+        }
+        Some((image, [corners[0]?, corners[1]?, corners[2]?, corners[3]?]))
+    }
+
     pub fn placed(&self, placement: Placement) -> Vec<Primitive> {
         let frame = &self.frame;
         let width = frame.size[0].max(1) as f32 / frame.pixels_per_point;
@@ -517,6 +603,7 @@ impl Painting {
                     false => Fade {
                         rect: map.bounds(primitive.fade.rect),
                         widths: primitive.fade.widths.map(|width| width * map.scale),
+                        opacity: primitive.fade.opacity,
                     },
                 };
                 Some(Primitive {

@@ -24,7 +24,7 @@ fn the_wifi_in_the_bar_lists_the_networks_the_host_reports() {
     fixture.settle();
     assert!(fixture.test.shown("desktop.wifi.panel"));
     assert_eq!(
-        fixture.test.take_actions::<WifiRequest>(),
+        fixture.test.take_host_calls(block_ui_test::requested::wifi),
         vec![WifiRequest::Scan],
         "opening the list looks for networks"
     );

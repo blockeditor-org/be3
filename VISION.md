@@ -65,7 +65,7 @@ Some blocks stop early:
   - "This file was edited offline. Keep your version or theirs?", with a preview
     of both, so the choice isn't blind. Both versions stay in history, so a
     wrong choice can be undone. The stack already keeps the losing side of a
-    conflicted merge as a commit (`Peer::stash`).
+    conflicted merge as a commit (a replica's `Command::Stash`).
 
 The guarantees follow the layers. "The server can't read it" and "every later
 version can open it" hold only for what is stored in layer 3. A link or a game's
@@ -90,6 +90,9 @@ plugin can be trusted with. Installing one, so that it shows up in the add-block
 menu and elsewhere, is a higher level of trust. Until the baseline holds, the
 first release has to be more careful, and should not run a plugin without the
 user confirming it.
+
+**Licenses.** A core plugin may be GPL or AGPL, since a plugin is a separate
+program, but the app must still build without it.
 
 **Entry points.** The file tree is the only way into a block today. An editor
 may want an entry point of its own, the way the Google Sheets app on Android
@@ -252,6 +255,33 @@ foreign files.
 
 Viewers for the files people keep. They show that the stack streams large files
 instead of loading them whole.
+
+### E-book reader
+
+Today, on the Linux desktop sessions (the PineNote first), a book opens in
+KOReader, a Wayland program in a tab, which resumes where you left off with no
+setup. It is the PineNote's default reader, and its typesetting (crengine) is
+what people choose it for.
+
+Later, a reader of our own on beui, for every platform. What it should do
+better than KOReader is lay out only three pages, the previous, the current and
+the next, never a whole chapter or book as crengine and MuPDF do. Pages are
+anchored on the current page's top-left word: that word stays the top-left word
+through a change of font, size or rotation, and it is what is stored as the
+reading position (an EPUB CFI to the word, with a short quote and a fraction of
+the book as fallbacks for a changed edition), so every device opens at the same
+word. The next page is laid out forward from the first line that did not fit,
+the previous one backward from the anchor, which can leave it short, as
+Kindle's reader does. Without a whole-book layout there are no page numbers:
+locations come from character counts, which also give the time left in a
+chapter.
+
+The book's XHTML and CSS are lowered into blocks of styled spans, close to what
+a text block holds, so importing a book as text blocks is a cheap extra, and
+the same paginated view could read any long text block. Fixed-layout EPUBs need
+a browser engine and are left out. The PDF editor and this reader could share a
+reader shell (page turns, positions, highlights, contents, search), not an
+engine.
 
 ### Browser tab
 

@@ -2,17 +2,15 @@ use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
-use be_block::plain::{self, Form, form};
-use be_block::{
-    BlockContent, BlockMetadata, EXECUTABLE, Entries, FolderContent, NAME, TextContent,
-    WorkspaceContent,
-};
+use be_block::{BlockMetadata, EXECUTABLE, Entries, NAME};
 use be_client::transfer::Saved;
 use be_client::{Peer, Saved as Published};
 use be_commit::CommitId;
 use be_graph::BlockParent;
 use be_store::{ChunkRef, Hash, Manifest, ObjectStore};
+use be_types_host::{Modules, Plain, plain_of};
 use be_vcs::{ConflictKind, Entry, Tree};
+use block_type_api::{Change as Edit, ChildChange, FileChange};
 use futures_util::StreamExt;
 use uuid::Uuid;
 
@@ -26,13 +24,20 @@ const ATTEMPTS: usize = 8;
 
 pub(crate) async fn run<S: ObjectStore>(
     peer: &Peer<S>,
+    types: &mut Modules,
     directory: &Path,
     index: &mut Index,
 ) -> Result<Report, String> {
     let remote = remote::list(peer, index.root).await?;
     let disk = disk::walk(directory)?;
+    let folder = types
+        .claims("", &[], true)
+        .await
+        .ok_or("no type module makes a directory into a block")?;
     let mut pass = Pass {
         peer,
+        types,
+        folder,
         directory,
         index,
         remote,
@@ -70,6 +75,8 @@ struct Files {
 
 struct Pass<'a, S: ObjectStore> {
     peer: &'a Peer<S>,
+    types: &'a mut Modules,
+    folder: Uuid,
     directory: &'a Path,
     index: &'a mut Index,
     remote: BTreeMap<Uuid, Block>,
@@ -331,11 +338,11 @@ impl<S: ObjectStore> Pass<'_, S> {
                     }
                 ),
             };
-            if !adoptable || form(block.block_type) == Form::None {
+            if !adoptable || plain_of(block.block_type) == Plain::None {
                 continue;
             }
             if let Some(path) = self.path_of(*id, &mut paths) {
-                natural.insert(path, (*id, form(block.block_type) == Form::Directory));
+                natural.insert(path, (*id, plain_of(block.block_type) == Plain::Directory));
             }
         }
         let mut seen: HashMap<String, usize> = HashMap::new();
@@ -360,10 +367,9 @@ impl<S: ObjectStore> Pass<'_, S> {
                 let parent = block.and_then(|block| block.parent);
                 match (block, parent) {
                     (Some(block), Some(parent))
-                        if self
-                            .remote
-                            .get(&parent)
-                            .is_some_and(|above| form(above.block_type) == Form::Directory) =>
+                        if self.remote.get(&parent).is_some_and(|above| {
+                            plain_of(above.block_type) == Plain::Directory
+                        }) =>
                     {
                         self.path_of(parent, memo)
                             .map(|above| join(&above, &block.name))
@@ -380,7 +386,7 @@ impl<S: ObjectStore> Pass<'_, S> {
         let block_type = self
             .remote
             .get(&self.root())
-            .map_or(FolderContent::CONTENT_TYPE, |block| block.block_type);
+            .map_or(self.folder, |block| block.block_type);
         Entry {
             content_type: block_type,
             parent: None,
@@ -438,7 +444,7 @@ impl<S: ObjectStore> Pass<'_, S> {
                 .or_else(|| self.index.records.get(&id).map(|record| record.block_type));
             let (content_type, content) =
                 match found.kind {
-                    Kind::Directory => (known_type.unwrap_or(FolderContent::CONTENT_TYPE), None),
+                    Kind::Directory => (known_type.unwrap_or(self.folder), None),
                     Kind::File => {
                         let recorded = self.index.records.get(&id).and_then(|record| match &record
                             .placed
@@ -496,7 +502,7 @@ impl<S: ObjectStore> Pass<'_, S> {
         let root = self.root();
         let mut unread = Vec::new();
         for (id, block) in &self.remote {
-            if *id == root || form(block.block_type) != Form::File {
+            if *id == root || plain_of(block.block_type) != Plain::File {
                 continue;
             }
             let known = self.index.records.get(id).is_some_and(|record| {
@@ -508,12 +514,34 @@ impl<S: ObjectStore> Pass<'_, S> {
                 unread.push((*id, block.head));
             }
         }
-        for (id, head, content) in remote::read(self.peer, &unread).await? {
+        let read = remote::read(self.peer, &unread).await?;
+        let files = self
+            .types
+            .to_files(
+                read.iter()
+                    .filter_map(|(id, _, content)| {
+                        Some((self.remote[id].block_type, content.clone()?))
+                    })
+                    .collect(),
+            )
+            .await;
+        let mut files = files.into_iter();
+        for (id, head, content) in read {
             let block = self.remote.get_mut(&id).expect("a listed block");
             block.head = head;
             let plain = match &content {
-                Some(content) => match plain::file_bytes(block.block_type, content) {
-                    Ok(plain) => plain,
+                Some(_) => match files
+                    .next()
+                    .unwrap_or_else(|| Err("the type module did not answer".to_owned()))
+                {
+                    Ok(Some(plain)) => plain.bytes,
+                    Ok(None) => {
+                        self.report
+                            .problems
+                            .push(format!("block {id} has no plain-file form"));
+                        self.failed.insert(id);
+                        continue;
+                    }
                     Err(error) => {
                         self.report
                             .problems
@@ -535,10 +563,10 @@ impl<S: ObjectStore> Pass<'_, S> {
             if *id == root {
                 continue;
             }
-            let content = match form(block.block_type) {
-                Form::Directory => None,
-                Form::None => block.head.map(|head| identity(head.hash())),
-                Form::File => match self.contents.get(id) {
+            let content = match plain_of(block.block_type) {
+                Plain::Directory => None,
+                Plain::None => block.head.map(|head| identity(head.hash())),
+                Plain::File => match self.contents.get(id) {
                     Some((_, plain)) => Some(identity(Hash::of(plain))),
                     None => self
                         .index
@@ -621,41 +649,33 @@ impl<S: ObjectStore> Pass<'_, S> {
                 self.report.retry = true;
                 continue;
             };
-            let remote_bytes = self
+            let theirs = self
                 .contents
                 .get(&id)
-                .map(|(_, plain)| plain.clone())
-                .unwrap_or_default();
+                .and_then(|(content, _)| content.clone());
             let block_type = self
                 .remote
                 .get(&id)
                 .map_or(merge.content_type, |block| block.block_type);
-            let bytes = match block_type == TextContent::CONTENT_TYPE {
-                true => {
-                    let base = match self.index.records.get(&id).and_then(|record| record.head) {
-                        Some(head) => remote::at_commit(self.peer, head)
-                            .await
-                            .ok()
-                            .and_then(|content| plain::file_bytes(block_type, &content).ok())
-                            .unwrap_or_default(),
-                        None => Vec::new(),
-                    };
-                    let outcome = be_commit::merge::merge_lines(&base, &local, &remote_bytes);
-                    match outcome.is_clean() {
-                        true => be_commit::merge::join_lines(&outcome.merged),
-                        false => {
-                            self.report.conflicts.push(format!(
-                                "{label} changed the same lines here and in block-app; both are kept between conflict markers"
-                            ));
-                            be_commit::merge::render_conflicts(&outcome, "local", "remote")
-                        }
-                    }
-                }
-                false => {
+            let name = plan.tree.entries.get(&id).map(name_in).unwrap_or_default();
+            let base = match self.index.records.get(&id).and_then(|record| record.head) {
+                Some(head) => remote::at_commit(self.peer, head).await.ok(),
+                None => None,
+            };
+            let bytes = match self.merge(block_type, base, theirs, &name, local).await {
+                Ok((bytes, false)) => bytes,
+                Ok((bytes, true)) => {
                     self.report.conflicts.push(format!(
-                        "{label} changed here and in block-app; the file here was kept, and the other is in the block's history"
+                        "{label} changed here and in block-app; what both changed is kept as the block's type merges it (text between conflict markers, a file as it is here), and the other side is in the block's history"
                     ));
-                    local
+                    bytes
+                }
+                Err(error) => {
+                    self.report
+                        .problems
+                        .push(format!("{label} could not be merged: {error}"));
+                    self.failed.insert(id);
+                    continue;
                 }
             };
             if let Some(entry) = plan.tree.entries.get_mut(&id) {
@@ -664,6 +684,103 @@ impl<S: ObjectStore> Pass<'_, S> {
             self.merged.insert(id, bytes);
         }
         Ok(())
+    }
+
+    async fn file_block(
+        &mut self,
+        current: Option<(Uuid, Option<Vec<u8>>)>,
+        name: &str,
+        bytes: Vec<u8>,
+    ) -> Result<FileBlock, String> {
+        let (block_type, current) = match current {
+            Some(current) => current,
+            None => {
+                let claimed = self
+                    .types
+                    .claims(name, &bytes, false)
+                    .await
+                    .ok_or("no block type takes it")?;
+                (claimed, None)
+            }
+        };
+        let edit = Edit::FromFile(FileChange {
+            name: name.to_owned(),
+            bytes,
+        });
+        let content = self
+            .types
+            .apply(block_type, current, CLIENT, edit)
+            .await?
+            .ok_or("its type has no plain-file form")?;
+        self.described(block_type, content).await
+    }
+
+    async fn directory(&mut self, children: &[Uuid]) -> Result<FileBlock, String> {
+        let block_type = self.folder;
+        let mut content = None;
+        for child in children {
+            let change = Edit::Child(ChildChange::Add(*child));
+            if let Some(changed) = self
+                .types
+                .apply(block_type, content.clone(), CLIENT, change)
+                .await?
+            {
+                content = Some(changed);
+            }
+        }
+        let content = match content {
+            Some(content) => content,
+            None => {
+                be_types_host::kind_of(block_type)
+                    .ok_or("the directory type has no module")?
+                    .blank
+            }
+        };
+        self.described(block_type, content).await
+    }
+
+    async fn described(&mut self, block_type: Uuid, content: Vec<u8>) -> Result<FileBlock, String> {
+        let description = self
+            .types
+            .describe(block_type, &content, self.peer.organization())
+            .await?;
+        Ok(FileBlock {
+            block_type,
+            content,
+            references: description.references,
+            derived: description.derived,
+        })
+    }
+
+    async fn merge(
+        &mut self,
+        block_type: Uuid,
+        base: Option<Vec<u8>>,
+        theirs: Option<Vec<u8>>,
+        name: &str,
+        local: Vec<u8>,
+    ) -> Result<(Vec<u8>, bool), String> {
+        let edit = Edit::FromFile(FileChange {
+            name: name.to_owned(),
+            bytes: local,
+        });
+        let ours = self
+            .types
+            .apply(block_type, base.clone(), CLIENT, edit)
+            .await?
+            .ok_or("its type has no plain-file form")?;
+        let (merged, conflicts) = self
+            .types
+            .merge3(block_type, base, Some(ours), theirs)
+            .await?;
+        let file = self
+            .types
+            .to_files(vec![(block_type, merged)])
+            .await
+            .pop()
+            .unwrap_or_else(|| Err("the type module did not answer".to_owned()))?
+            .ok_or("its type has no plain-file form")?;
+        Ok((file.bytes, conflicts))
     }
 
     fn kind_in(&self, tree: &Tree, id: Uuid) -> Option<Kind> {
@@ -675,10 +792,10 @@ impl<S: ObjectStore> Pass<'_, S> {
                     .map_or(Kind::Directory, |found| found.kind),
             );
         }
-        match form(tree.entries.get(&id)?.content_type) {
-            Form::Directory => Some(Kind::Directory),
-            Form::File => Some(Kind::File),
-            Form::None => None,
+        match plain_of(tree.entries.get(&id)?.content_type) {
+            Plain::Directory => Some(Kind::Directory),
+            Plain::File => Some(Kind::File),
+            Plain::None => None,
         }
     }
 
@@ -696,11 +813,15 @@ impl<S: ObjectStore> Pass<'_, S> {
                 let entry = &tree.entries[child];
                 match self.kind_in(tree, *child) {
                     None => {
-                        let kind = be_block::block_type(entry.content_type)
-                            .map_or("block of a kind this be does not know", |kind| kind.name);
                         layout.skipped.insert(
                             *child,
-                            (Skip::NoFileForm, format!("a {kind} has no plain-file form")),
+                            (
+                                Skip::NoFileForm,
+                                format!(
+                                    "a block of type {} has no plain-file form",
+                                    entry.content_type
+                                ),
+                            ),
                         );
                         self.skip_inside(tree, &children, *child, &mut layout);
                     }
@@ -743,7 +864,7 @@ impl<S: ObjectStore> Pass<'_, S> {
                     let name = name_in(&tree.entries[only]);
                     let path = wanted(only);
                     let directory = self.kind_in(tree, *only) == Some(Kind::Directory);
-                    let problem = match plain::name_problem(&name) {
+                    let problem = match disk::name_problem(&name) {
                         Some(problem) => Some((Skip::Name, problem)),
                         None if self.disk.ignored(&path, directory) => Some((
                             Skip::Ignored,
@@ -821,7 +942,6 @@ impl<S: ObjectStore> Pass<'_, S> {
 
     async fn upload(&mut self, target: &Tree, theirs: &Tree) -> Result<(), String> {
         let root = self.root();
-        let organization = self.peer.organization();
         let target_children = children_of(target);
         let server_children = children_of(theirs);
         let mut created: Vec<(Uuid, usize)> = target
@@ -868,19 +988,31 @@ impl<S: ObjectStore> Pass<'_, S> {
             let mut defined = metadata(&name, executable_in(entry));
             let saved = match kind {
                 Some(Kind::Directory) => {
-                    let mut folder = FolderContent::default();
-                    for child in target_children.get(&id).into_iter().flatten() {
-                        let edit = folder.root().add(*child);
-                        folder.apply(&edit);
-                    }
-                    defined.derived = be_block::derived_metadata(&folder);
+                    let children: Vec<Uuid> = target_children
+                        .get(&id)
+                        .into_iter()
+                        .flatten()
+                        .copied()
+                        .collect();
+                    let folder = match self.directory(&children).await {
+                        Ok(folder) => folder,
+                        Err(error) => {
+                            self.report.problems.push(format!(
+                                "{} could not be made: {error}",
+                                self.label(target, id)
+                            ));
+                            self.failed.insert(id);
+                            continue;
+                        }
+                    };
+                    defined.derived = folder.derived;
                     Saved {
                         id,
-                        block_type: FolderContent::CONTENT_TYPE,
+                        block_type: folder.block_type,
                         parent: None,
                         metadata: defined,
-                        references: folder.references_in(organization),
-                        content: Some(folder.encode()),
+                        references: folder.references,
+                        content: Some(folder.content),
                     }
                 }
                 _ => {
@@ -893,7 +1025,17 @@ impl<S: ObjectStore> Pass<'_, S> {
                         self.report.retry = true;
                         continue;
                     };
-                    let block = plain::new_block(&name, bytes, organization);
+                    let block = match self.file_block(None, &name, bytes).await {
+                        Ok(block) => block,
+                        Err(error) => {
+                            self.report.problems.push(format!(
+                                "{} could not be read: {error}",
+                                self.label(target, id)
+                            ));
+                            self.failed.insert(id);
+                            continue;
+                        }
+                    };
                     defined.derived = block.derived;
                     Saved {
                         id,
@@ -962,7 +1104,6 @@ impl<S: ObjectStore> Pass<'_, S> {
 
     async fn update(&mut self, target: &Tree, theirs: &Tree) -> Result<(), String> {
         let root = self.root();
-        let organization = self.peer.organization();
         let mut changes = Vec::new();
         for (id, wanted) in &target.entries {
             let Some(current) = theirs.entries.get(id) else {
@@ -972,7 +1113,7 @@ impl<S: ObjectStore> Pass<'_, S> {
                 continue;
             }
             let content =
-                wanted.content != current.content && form(current.content_type) == Form::File;
+                wanted.content != current.content && plain_of(current.content_type) == Plain::File;
             let placement = wanted.parent != current.parent;
             let named = name_in(wanted) != name_in(current)
                 || executable_in(wanted) != executable_in(current);
@@ -1001,7 +1142,7 @@ impl<S: ObjectStore> Pass<'_, S> {
         let mut work = Vec::new();
         for (id, content, placement, named) in changes {
             let wanted = &target.entries[&id];
-            let block = &self.remote[&id];
+            let block = self.remote[&id].clone();
             let name = name_in(wanted);
             let executable = executable_in(wanted);
             let mut defined = block.defined.clone();
@@ -1028,14 +1169,11 @@ impl<S: ObjectStore> Pass<'_, S> {
                         Some((encoded, _)) => encoded.clone(),
                         None => current_bytes.get(&id).cloned().flatten(),
                     };
-                    match plain::update_block(
-                        block.block_type,
-                        current.as_deref(),
-                        &name,
-                        bytes,
-                        CLIENT,
-                        organization,
-                    ) {
+                    let block_type = block.block_type;
+                    match self
+                        .file_block(Some((block_type, current)), &name, bytes)
+                        .await
+                    {
                         Ok(file) => Some(file),
                         Err(error) => {
                             self.report.problems.push(format!(
@@ -1137,7 +1275,7 @@ impl<S: ObjectStore> Pass<'_, S> {
         let empty = Vec::new();
         let mut folders = Vec::new();
         for (id, entry) in &target.entries {
-            if form(entry.content_type) != Form::Directory || self.failed.contains(id) {
+            if plain_of(entry.content_type) != Plain::Directory || self.failed.contains(id) {
                 continue;
             }
             if !theirs.entries.contains_key(id) {
@@ -1167,40 +1305,7 @@ impl<S: ObjectStore> Pass<'_, S> {
             }
         }
         for (id, block_type, gained, lost) in folders {
-            let tidied = match block_type == WorkspaceContent::CONTENT_TYPE {
-                true => {
-                    list_children::<S, WorkspaceContent>(
-                        self.peer,
-                        id,
-                        &gained,
-                        &lost,
-                        |content, child, add| {
-                            let root = content.root();
-                            match add {
-                                true => root.add(child),
-                                false => root.remove(child),
-                            }
-                        },
-                    )
-                    .await
-                }
-                false => {
-                    list_children::<S, FolderContent>(
-                        self.peer,
-                        id,
-                        &gained,
-                        &lost,
-                        |content, child, add| {
-                            let root = content.root();
-                            match add {
-                                true => root.add(child),
-                                false => root.remove(child),
-                            }
-                        },
-                    )
-                    .await
-                }
-            };
+            let tidied = list_children(self.peer, self.types, id, block_type, &gained, &lost).await;
             if let Err(error) = tidied {
                 self.report.problems.push(format!(
                     "{} could not list its new contents: {error}",
@@ -1452,10 +1557,10 @@ impl<S: ObjectStore> Pass<'_, S> {
                 },
                 (None, None) => continue,
             };
-            let content = match form(block.block_type) {
-                Form::Directory => None,
-                Form::None => head.map(|head| head.hash()),
-                Form::File => identity_hash(&entry.content),
+            let content = match plain_of(block.block_type) {
+                Plain::Directory => None,
+                Plain::None => head.map(|head| head.hash()),
+                Plain::File => identity_hash(&entry.content),
             };
             records.insert(
                 *id,
@@ -1539,9 +1644,16 @@ enum Failure {
 
 use Failure::{Refused, Retry};
 
+struct FileBlock {
+    block_type: Uuid,
+    content: Vec<u8>,
+    references: Vec<Uuid>,
+    derived: Entries,
+}
+
 struct Change {
     id: Uuid,
-    file: Option<plain::FileBlock>,
+    file: Option<FileBlock>,
     defined: Entries,
     named: bool,
     parent: Option<Uuid>,
@@ -1593,35 +1705,53 @@ impl Change {
     }
 }
 
-async fn list_children<S, C>(
+async fn list_children<S: ObjectStore>(
     peer: &Peer<S>,
+    types: &mut Modules,
     folder: Uuid,
+    block_type: Uuid,
     gained: &[Uuid],
     lost: &[Uuid],
-    edit: impl Fn(&C, Uuid, bool) -> be_block::Edit,
-) -> Result<(), String>
-where
-    S: ObjectStore,
-    C: BlockContent + be_block::LiveEdit<Op = be_block::Edit> + Clone + Default,
-{
+) -> Result<(), String> {
     for _ in 0..ATTEMPTS {
-        let opened = peer.open::<C>(folder).await.map_err(explain)?;
-        let head = opened.as_ref().and_then(|_| peer.local_head(folder));
-        let mut content = opened.unwrap_or_default();
-        let mut changed = false;
-        for (children, add) in [(gained, true), (lost, false)] {
+        let (head, current) = match remote::read(peer, &[(folder, None)]).await?.pop() {
+            Some((_, head, current)) => (head, current),
+            None => (None, None),
+        };
+        let mut content = current.clone();
+        for (children, change) in [
+            (gained, ChildChange::Add as fn(Uuid) -> ChildChange),
+            (lost, ChildChange::Delete),
+        ] {
             for child in children {
-                let change = edit(&content, *child, add);
-                if !change.0.is_empty() {
-                    content.apply(&change);
-                    changed = true;
+                let edit = Edit::Child(change(*child));
+                if let Some(changed) = types
+                    .apply(block_type, content.clone(), CLIENT, edit)
+                    .await?
+                {
+                    content = Some(changed);
                 }
             }
         }
-        if !changed {
+        let Some(content) = content.filter(|content| Some(content) != current.as_ref()) else {
             return Ok(());
-        }
-        match peer.save(folder, &content, head).await.map_err(explain)? {
+        };
+        let description = types
+            .describe(block_type, &content, peer.organization())
+            .await?;
+        match peer
+            .publish_encoded(
+                folder,
+                block_type,
+                &content,
+                description.references,
+                description.derived,
+                head,
+                None,
+            )
+            .await
+            .map_err(explain)?
+        {
             Published::Rejected { .. } => continue,
             Published::Published(_) | Published::Unchanged(_) => return Ok(()),
         }

@@ -13,6 +13,7 @@ pub(crate) fn query_of(query: BlockQuery) -> Query {
         BlockQuery::Backrefs(id) => Query::Backrefs(Uuid::from_bytes(id)),
         BlockQuery::Parents(id) => Query::Parents(Uuid::from_bytes(id)),
         BlockQuery::Block(id) => Query::Block(Uuid::from_bytes(id)),
+        BlockQuery::OpenSettings(id) => Query::OpenSettings(Uuid::from_bytes(id)),
     }
 }
 
@@ -38,33 +39,33 @@ pub(crate) fn access_of(level: AccessLevel) -> be_graph::Access {
         AccessLevel::KnowExists => be_graph::Access::KnowExists,
         AccessLevel::View => be_graph::Access::View,
         AccessLevel::Edit => be_graph::Access::Edit,
+        AccessLevel::Manage => be_graph::Access::Manage,
     }
 }
 
 pub(crate) fn grants_of(
-    listed: Result<Vec<be_protocol::AccessEntry>, String>,
-) -> block_plugin_api::AccessListing {
-    match listed {
-        Ok(entries) => block_plugin_api::AccessListing::Listed(
-            entries
-                .into_iter()
-                .map(|entry| block_plugin_api::AccessGrant {
-                    account: entry.account.into_bytes(),
-                    email: entry.email,
-                    display_name: entry.display_name,
-                    administrator: matches!(
-                        entry.role,
-                        be_protocol::OrganizationRole::Administrator
-                    ),
-                    author: entry.author,
-                    granted: entry.granted.map(level_of),
-                    effective: level_of(entry.effective),
-                    waiting: entry.waiting,
-                })
-                .collect(),
-        ),
-        Err(error) => block_plugin_api::AccessListing::Failed(error),
-    }
+    listed: Result<be_protocol::AccessList, String>,
+) -> Result<block_plugin_api::AccessListing, String> {
+    listed.map(|list| block_plugin_api::AccessListing {
+        grants: list
+            .entries
+            .into_iter()
+            .map(|entry| block_plugin_api::AccessGrant {
+                account: entry.account.into_bytes(),
+                email: entry.email,
+                display_name: entry.display_name,
+                administrator: matches!(entry.role, be_protocol::OrganizationRole::Administrator),
+                author: entry.author,
+                granted: entry.granted.map(level_of),
+                inherited: level_of(entry.inherited),
+                effective: level_of(entry.effective),
+                source: entry.source.map(Uuid::into_bytes),
+                waiting: entry.waiting,
+            })
+            .collect(),
+        company: list.company,
+        set_inside: list.set_inside,
+    })
 }
 
 pub(crate) fn level_of(access: be_graph::Access) -> AccessLevel {
@@ -73,6 +74,7 @@ pub(crate) fn level_of(access: be_graph::Access) -> AccessLevel {
         be_graph::Access::KnowExists => AccessLevel::KnowExists,
         be_graph::Access::View => AccessLevel::View,
         be_graph::Access::Edit => AccessLevel::Edit,
+        be_graph::Access::Manage => AccessLevel::Manage,
     }
 }
 
@@ -82,7 +84,7 @@ pub(crate) fn info_of(node: &Node, deleted: bool) -> BlockInfo {
         block_type: node.content_type.into_bytes(),
         author: node.author.map(Uuid::into_bytes),
         parent: node.parent.map(location_of),
-        references: node.references.iter().map(|id| id.into_bytes()).collect(),
+        references: node.contents().into_iter().map(Uuid::into_bytes).collect(),
         access: level_of(node.access),
         metadata: block_plugin_api::BlockMetadata {
             defined: wire_entries(&node.metadata.defined),
@@ -90,6 +92,7 @@ pub(crate) fn info_of(node: &Node, deleted: bool) -> BlockInfo {
         },
         locked: node.locked,
         deleted,
+        sets_access: node.sets_access,
     }
 }
 
@@ -108,18 +111,13 @@ pub(crate) fn answer(query: BlockQuery) -> Vec<BlockInfo> {
 pub(crate) fn wire_entries(entries: &be_block::Entries) -> MetadataEntries {
     entries
         .iter()
-        .map(|(key, value)| {
-            (
-                key.into_bytes(),
-                block_plugin_api::ByteBuf::from(value.clone()),
-            )
-        })
+        .map(|(key, value)| (key.into_bytes(), value.clone()))
         .collect()
 }
 
 pub(crate) fn entries_of(entries: MetadataEntries) -> be_block::Entries {
     entries
         .into_iter()
-        .map(|(key, value)| (Uuid::from_bytes(key), value.into_vec()))
+        .map(|(key, value)| (Uuid::from_bytes(key), value))
         .collect()
 }

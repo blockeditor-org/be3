@@ -1,9 +1,9 @@
 mod keys;
-mod screen;
+mod lines;
 mod view;
 
-pub use keys::key_bytes;
-pub use screen::{Emulator, Row, Span, TerminalScreen};
+pub use keys::{TerminalInput, key_event, text_event};
+pub use lines::Lines;
 pub use view::{Fit, TerminalView};
 
 #[cfg(test)]

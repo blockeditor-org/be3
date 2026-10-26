@@ -1,6 +1,6 @@
 use super::*;
+use crate::dock::unstyled::{DockPane, DockTab, DockingLayout, dock_menu};
 use crate::reactive::*;
-use crate::unstyled::{DockPane, DockTab, DockingLayout, dock_menu};
 
 const PHONE: Vec2 = Vec2::new(390.0, 600.0);
 
@@ -19,7 +19,7 @@ fn a_dock_bar_holds_the_actions_its_tab_pins_and_leaves_them_out_of_its_menu() {
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <styled::Docking layout focus=1u64>
+            <dock::styled::Docking layout focus=1u64>
                 <DockPane id="tabs">
                     <DockTab
                         id=1u64
@@ -40,7 +40,7 @@ fn a_dock_bar_holds_the_actions_its_tab_pins_and_leaves_them_out_of_its_menu() {
                         }}
                     />
                 </DockPane>
-            </styled::Docking>
+            </dock::styled::Docking>
         }
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);

@@ -2,4 +2,5 @@ load("@root//buck/wasm:defs.bzl", "editor")
 
 editor(
     module = "browser_tab",
+    types = "//crates/editors/browser-tab/types:module",
 )

@@ -1,6 +1,6 @@
-use block_editor_beui::be_block::database_schema::{DatabaseSchema, DatabaseSchemaContent};
 use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
+use database_types::database_schema::{DatabaseSchema, DatabaseSchemaContent};
 use uuid::Uuid;
 
 use crate::database_schema::app::DatabaseSchemaApp;

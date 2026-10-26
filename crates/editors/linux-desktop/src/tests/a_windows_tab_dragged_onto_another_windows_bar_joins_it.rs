@@ -1,5 +1,5 @@
 use block_editor_beui::beui::Pos2;
-use block_editor_beui::beui::unstyled::DockApi;
+use block_editor_beui::beui::dock::styled::DockApi;
 
 use super::*;
 
@@ -7,7 +7,7 @@ fn tab_rect(fixture: &Fixture, title: &str) -> Rect {
     let document = fixture.test.document();
     let node = document
         .root()
-        .and_then(|root| text_within(document, root, title))
+        .and_then(|root| text_within(&document, root, title))
         .unwrap_or_else(|| panic!("{title} has a tab"));
     document.node_rect(node).expect("the tab is laid out")
 }

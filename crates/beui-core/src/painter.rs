@@ -54,6 +54,16 @@ impl Corners {
         Self::new(0.0, radius, radius, 0.0)
     }
 
+    pub fn fitted(self, rect: Rect) -> Self {
+        let limit = (rect.width().min(rect.height()) / 2.0).max(0.0);
+        Self::new(
+            self.top_left.min(limit),
+            self.top_right.min(limit),
+            self.bottom_right.min(limit),
+            self.bottom_left.min(limit),
+        )
+    }
+
     pub fn to_array(self) -> [f32; 4] {
         [
             self.top_left,
@@ -222,10 +232,7 @@ pub struct PainterState {
 
 impl PainterState {
     pub fn settles(self, other: Self) -> bool {
-        self.clip == other.clip
-            && self.space == other.space
-            && self.rotation == other.rotation
-            && self.raster == other.raster
+        self.clip == other.clip && self.space == other.space && self.rotation == other.rotation
     }
 
     pub fn sees(self, other: Self) -> bool {
@@ -396,10 +403,10 @@ impl Painter {
         })
     }
 
-    pub fn faded(&self, space: SpaceId, rect: Rect, widths: [f32; 4]) -> Self {
+    pub fn faded(&self, space: SpaceId, rect: Rect, widths: [f32; 4], opacity: f32) -> Self {
         self.grouped(Group::Mask {
             space,
-            fade: Fade::new(rect, widths),
+            fade: Fade::faded(rect, widths, opacity),
         })
     }
 
@@ -493,7 +500,7 @@ impl Painter {
         }
         self.push(Shape::Rect {
             rect,
-            corner_radius: corner_radius.into(),
+            corner_radius: corner_radius.into().fitted(rect),
             stroke_width: 0.0,
             color,
             rotation: self.state.rotation,
@@ -513,7 +520,7 @@ impl Painter {
         }
         self.push(Shape::Rect {
             rect,
-            corner_radius: corner_radius.into(),
+            corner_radius: corner_radius.into().fitted(rect.expand(width)),
             stroke_width: width,
             color,
             rotation: self.state.rotation,
@@ -596,8 +603,15 @@ impl Painter {
         if color.alpha() == 0 || path.is_empty() {
             return;
         }
+        self.paint_path(&Rc::new(PathPaint::new(path.clone(), style)), color);
+    }
+
+    pub fn paint_path(&self, path: &Rc<PathPaint>, color: Color32) {
+        if color.alpha() == 0 || path.path().is_empty() {
+            return;
+        }
         self.push(Shape::Path {
-            path: Rc::new(PathPaint::new(path.clone(), style)),
+            path: Rc::clone(path),
             scale: 1.0,
             offset: Vec2::ZERO,
             color,
@@ -610,6 +624,10 @@ impl Painter {
         if color.alpha() == 0 || galley.is_blank() {
             return;
         }
+        let galley = match self.state.raster == 1.0 {
+            true => galley,
+            false => self.context.rastered(&galley, self.state.raster),
+        };
         self.push(Shape::Text {
             origin,
             galley,

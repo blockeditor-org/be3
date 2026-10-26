@@ -1,160 +1,309 @@
+use std::cell::Cell;
+use std::collections::HashMap;
+use std::rc::Rc;
+
+use be_block::ObjectId;
 use beui::reactive::*;
+use beui::rich::TextCaret;
 use beui::styled::*;
 use beui::{
-    Color32, Direction, FontId, KeyPress, NodeId, PasteKind, Pasted, ScrollGesture, TextLayout,
-    Vec2,
+    Key, KeyPress, NodeId, Overflow, PasteKind, Pasted, PointerPress, Pos2, ScrollGesture,
+    TextLayout, Vec2,
 };
+use terminal_types::{TerminalColors, TerminalCursor, TerminalLine, TerminalWheel};
 
-use crate::keys::key_bytes;
-use crate::screen::{Span, TerminalScreen};
+use crate::keys::{TerminalInput, key_event, text_event};
+use crate::lines::{Lines, Look, Piece, Shown, color, screen};
 
-const FONT_SIZE: f32 = 13.0;
-const PADDING: f32 = 6.0;
-const LINE_SPACING: f32 = 1.2;
+const TEXT: TextStyle = TextStyle::CODE;
+const PADDING: Space = Space::Sm;
+const COPY_KEY: Chord = Chord::ctrl(Key::C).shift();
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Fit {
     pub cols: u16,
     pub rows: u16,
-    pub cell_width: u32,
-    pub cell_height: u32,
+}
+
+#[derive(Clone)]
+struct Shared<T>(Rc<T>);
+
+impl<T> PartialEq for Shared<T> {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+#[derive(Clone, Copy)]
+struct Table {
+    history: Memo<Shared<HashMap<ObjectId, Rc<TerminalLine>>>>,
+    screen: Memo<Shared<HashMap<ObjectId, Shown>>>,
+    colors: Memo<TerminalColors>,
+}
+
+impl Table {
+    fn shown(&self, key: ObjectId) -> Option<Shown> {
+        self.screen
+            .with(|screen| screen.0.get(&key).cloned())
+            .or_else(|| {
+                self.history
+                    .with(|history| history.0.get(&key).cloned().map(Shown::history))
+            })
+    }
+
+    fn text(&self, key: ObjectId) -> String {
+        untrack(|| {
+            self.shown(key)
+                .map(|shown| shown.text())
+                .unwrap_or_default()
+        })
+    }
+}
+
+fn cell() -> Option<Vec2> {
+    let galley = layout_text("M", TEXT.font(), TextLayout::DEFAULT)?;
+    let cell = Vec2::new(galley.cursor_pos(Pos2::ZERO, 1).x, galley.size().y);
+    (cell.x > 0.0 && cell.y > 0.0).then_some(cell)
 }
 
 #[component]
 pub fn TerminalView(
-    screen: TerminalScreen,
-    on_input: Callback<Vec<u8>>,
+    history: Prop<Lines>,
+    rows: Prop<Lines>,
+    #[prop(default = None)] cursor: Prop<Option<TerminalCursor>>,
+    colors: Prop<TerminalColors>,
+    #[prop(default = true)] input: Prop<bool>,
+    #[prop(default = false)] wheel: Prop<bool>,
+    on_input: Callback<TerminalInput>,
+    on_wheel: Callback<TerminalWheel>,
     on_fit: Callback<Fit>,
-    #[prop(default = false)] pastes: bool,
 ) -> NodeId {
-    let typed = move |bytes: Vec<u8>| {
-        screen.scroll_to_bottom();
-        on_input.call(bytes);
+    let colors = create_memo(move || colors.get());
+    let input = create_memo(move || input.get());
+    let wheel = create_memo(move || wheel.get());
+    let scrolling = create_memo(move || !wheel.get());
+    let history = create_memo(move || history.get());
+    let rows = create_memo(move || rows.get());
+    let cursor = create_memo(move || cursor.get());
+    let laid = create_memo(move || Shared(Rc::new(screen(&rows.get(), cursor.get()))));
+    let table = Table {
+        history: create_memo(move || {
+            Shared(Rc::new(history.with(|history| {
+                history
+                    .iter()
+                    .map(|(id, line)| (*id, Rc::clone(line)))
+                    .collect()
+            })))
+        }),
+        screen: create_memo(move || Shared(Rc::new(laid.with(|laid| laid.0.1.clone())))),
+        colors,
     };
+    let screen_keys = create_memo(move || laid.with(|laid| laid.0.0.clone()));
+    let keys = create_memo(move || {
+        let mut keys: Vec<ObjectId> =
+            history.with(|history| history.iter().map(|(id, _)| *id).collect());
+        screen_keys.with(|screen| keys.extend(screen.iter().copied()));
+        keys
+    });
+    let background = create_memo(move || color(colors.get().background));
+    let api = ComponentRef::<ScrollApi>::new();
+    let focus = NodeRef::new();
+    let typed = move |typed: TerminalInput| {
+        if !input.get_untracked() {
+            return;
+        }
+        api.get().scroll_to_end();
+        on_input.call(typed);
+    };
+    let pastes = create_memo(move || match input.get() {
+        true => vec![PasteKind::Text],
+        false => Vec::new(),
+    });
+    let spill = Rc::new(Cell::new(0.0_f32));
+    let padding = use_space(PADDING);
     view! {
         <LayoutBuilder>|size: ReadSignal<Vec2>| {
+            let measured = create_memo(move || cell().unwrap_or(Vec2::new(7.0, 15.0)));
             create_effect(move || {
                 let size = size.get();
-                let Some(cell) = layout_text("M", FontId::monospace(FONT_SIZE), TextLayout::DEFAULT)
-                    .map(|galley| galley.size())
-                else {
+                let inset = 2.0 * padding.get();
+                let Some(cell) = cell() else {
                     return;
                 };
-                if cell.x <= 0.0 || cell.y <= 0.0 {
-                    return;
-                }
                 let fit = Fit {
-                    cols: ((size.x - 2.0 * PADDING) / cell.x).floor().max(1.0) as u16,
-                    rows: ((size.y - 2.0 * PADDING) / cell.y).floor().max(1.0) as u16,
-                    cell_width: cell.x as u32,
-                    cell_height: cell.y as u32,
+                    cols: ((size.x - inset) / cell.x).floor().max(1.0) as u16,
+                    rows: ((size.y - inset) / cell.y).floor().max(1.0) as u16,
                 };
                 untrack(|| on_fit.call(fit));
             });
-            let rows = screen.rows();
-            let keys = create_memo(move || (0..rows.with(Vec::len)).collect::<Vec<_>>());
-            let background = screen.background();
-            let pastes = match pastes {
-                true => vec![PasteKind::Text],
-                false => Vec::new(),
+            let line_height = create_memo(move || measured.get().y);
+            let spill = Rc::clone(&spill);
+            let wheeled = move |gesture: ScrollGesture| {
+                let cell = measured.get_untracked();
+                let lines = spill.get() - gesture.delta.y / cell.y;
+                let whole = lines.trunc();
+                spill.set(lines - whole);
+                if whole == 0.0 {
+                    return;
+                }
+                on_wheel.call(TerminalWheel {
+                    lines: whole as i16,
+                    col: (gesture.local.x / cell.x).max(0.0) as u16,
+                    row: (gesture.local.y / cell.y).max(0.0) as u16,
+                });
             };
             view! {
-                <Interactive
-                    focusable=true
-                    @test_id={"terminal.screen"}
-                    on_text={move |text: String| typed(text.into_bytes())}
-                    on_key={move |press: KeyPress| {
-                        if !press.pressed {
-                            return false;
-                        }
-                        let Some(bytes) = key_bytes(press.key, press.modifiers) else {
-                            return false;
-                        };
-                        typed(bytes);
-                        true
-                    }}
-                    pastes
-                    on_paste={move |pasted: Pasted| {
-                        if let Pasted::Text(text) = pasted {
-                            typed(text.replace("\r\n", "\r").replace('\n', "\r").into_bytes());
-                        }
-                    }}
-                    on_scroll={move |gesture: ScrollGesture| {
-                        let rows = (gesture.delta.y / (FONT_SIZE * LINE_SPACING)).round() as isize;
-                        if rows != 0 {
-                            screen.scroll(-rows);
-                        }
-                    }}
-                >
-                    <Frame fill={ColorRole::custom(background)} padding=PADDING>
-                        <List spacing=0.0>
-                            <ForEach keys>|index: usize| {
-                                let row = create_memo(move || rows.with(|rows| rows.get(index).cloned()).unwrap_or_default());
-                                view! {
-                                    <TerminalLine row />
-                                }
-                            }</ForEach>
-                        </List>
-                    </Frame>
-                </Interactive>
+                <Frame fill={ColorRole::custom(background)}>
+                    <Scroll follow_end=true api>
+                        <Frame padding=PADDING>
+                            <SelectableText copy_key={Some(COPY_KEY)} select_all_key=None>
+                                <Interactive
+                                    focusable=true
+                                    @node_ref=&focus
+                                    @test_id={"terminal.screen"}
+                                    claims_touch=false
+                                    clipboard_keys={input}
+                                    on_press={move |_: PointerPress| {
+                                        if let Some(node) = focus.try_get() {
+                                            node.focus();
+                                        }
+                                    }}
+                                    on_text={move |text: String| typed(TerminalInput::Key(text_event(&text)))}
+                                    on_key={move |press: KeyPress| {
+                                        if !press.pressed || !input.get_untracked() {
+                                            return false;
+                                        }
+                                        let Some(key) = key_event(press) else {
+                                            return false;
+                                        };
+                                        typed(TerminalInput::Key(key));
+                                        true
+                                    }}
+                                    pastes
+                                    on_paste={move |pasted: Pasted| {
+                                        if let Pasted::Text(text) = pasted {
+                                            typed(TerminalInput::Paste(text));
+                                        }
+                                    }}
+                                >
+                                    <List spacing=Space::None>
+                                        <Show condition={scrolling}>
+                                            <VirtualList
+                                                keys
+                                                item_size=line_height
+                                                text={move |key: ObjectId| table.text(key)}
+                                            >|key: ReadSignal<ObjectId>|
+                                                <TerminalRow key table />
+                                            </VirtualList>
+                                        </Show>
+                                        <Show condition={wheel}>
+                                            <Interactive on_scroll={wheeled.clone()}>
+                                                <VirtualList
+                                                    keys={screen_keys}
+                                                    item_size=line_height
+                                                    text={move |key: ObjectId| table.text(key)}
+                                                >|key: ReadSignal<ObjectId>|
+                                                    <TerminalRow key table />
+                                                </VirtualList>
+                                            </Interactive>
+                                        </Show>
+                                    </List>
+                                </Interactive>
+                            </SelectableText>
+                        </Frame>
+                    </Scroll>
+                </Frame>
             }
         }</LayoutBuilder>
     }
 }
 
 #[component]
-fn TerminalLine(row: Memo<Vec<Span>>) -> NodeId {
-    let keys = create_memo(move || (0..row.with(Vec::len)).collect::<Vec<_>>());
+fn TerminalRow(key: ReadSignal<ObjectId>, table: Table) -> NodeId {
+    let shown = create_memo(move || table.shown(key.get()));
+    let colors = table.colors;
+    let pieces = create_memo(move || {
+        let colors = colors.get();
+        shown.with(|shown| {
+            shown
+                .as_ref()
+                .map(|shown| shown.pieces(colors))
+                .unwrap_or_default()
+                .into_iter()
+                .enumerate()
+                .collect::<Vec<_>>()
+        })
+    });
+    let overflow = create_memo(move || {
+        shown.with(|shown| {
+            shown
+                .as_ref()
+                .map_or(Overflow::Visible, |shown| shown.overflow)
+        })
+    });
+    let foreground = create_memo(move || color(colors.get().foreground));
+    let caret_width = text_area_geometry().caret_width;
+    let carets = create_memo(move || {
+        let at = shown.with(|shown| shown.as_ref().and_then(Shown::caret));
+        at.map(|at| vec![TextCaret::new(at, foreground.get(), caret_width)])
+            .unwrap_or_default()
+    });
+    let text_color = create_memo(move || TextColor::Custom(foreground.get()));
     view! {
-        <List direction=Direction::Horizontal spacing=0.0>
-            <ForEach keys>|index: usize| {
-                let span = create_memo(move || row.with(|row| row.get(index).cloned()));
-                view! {
-                    <TerminalSpan span />
-                }
-            }</ForEach>
-        </List>
+        <Text style=TEXT color={text_color} overflow carets>
+            <ForEach keys={pieces}>|(_, piece): (usize, Piece)|
+                <TerminalPiece piece />
+            </ForEach>
+        </Text>
     }
 }
 
 #[component]
-fn TerminalSpan(span: Memo<Option<Span>>) -> NodeId {
-    let field = |read: fn(&Span) -> bool| {
-        create_memo(move || span.with(|span| span.as_ref().is_some_and(read)))
-    };
-    let bold = field(|span| span.bold);
-    let italic = field(|span| span.italic);
-    let weight = create_memo(move || match bold.get() {
-        true => Weight::Bold,
-        false => Weight::Normal,
-    });
-    let underline = field(|span| span.underline);
-    let text = create_memo(move || {
-        span.with(|span| {
-            span.as_ref()
-                .map(|span| span.text.clone())
-                .unwrap_or_default()
-        })
-    });
-    let color = create_memo(move || {
-        TextColor::Custom(span.with(|span| span.as_ref().map_or(Color32::WHITE, |span| span.color)))
-    });
-    let background = create_memo(move || {
-        span.with(|span| span.as_ref().and_then(|span| span.background))
-            .unwrap_or(Color32::TRANSPARENT)
-    });
-    view! {
-        <Frame fill={ColorRole::custom(background)}>
-            <Text
-                size=TextSize::Custom(FONT_SIZE)
-                family=Family::Mono
-                weight
-                italic
-                color
-                underline
-            >
-                {text}
-            </Text>
-        </Frame>
+fn TerminalPiece(piece: Piece) -> TextChild {
+    match piece {
+        Piece::Break => view! {
+            <Break />
+        }
+        .into_child(),
+        Piece::Text(text, look) => {
+            let Look {
+                color,
+                background,
+                bold,
+                italic,
+                underline,
+                strikethrough,
+            } = look;
+            let weight = match bold {
+                true => Weight::Bold,
+                false => Weight::Normal,
+            };
+            let span = match background {
+                Some(fill) => view! {
+                    <Span
+                        weight
+                        italic
+                        color={TextColor::Custom(color)}
+                        underline={Some(underline)}
+                        strikethrough={Some(strikethrough)}
+                        background={ColorRole::Custom(fill)}
+                    >
+                        {text}
+                    </Span>
+                },
+                None => view! {
+                    <Span
+                        weight
+                        italic
+                        color={TextColor::Custom(color)}
+                        underline={Some(underline)}
+                        strikethrough={Some(strikethrough)}
+                    >
+                        {text}
+                    </Span>
+                },
+            };
+            span.into_child()
+        }
     }
 }

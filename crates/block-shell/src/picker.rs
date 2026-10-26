@@ -1,15 +1,14 @@
 use block_editor_beui::beui::icons::Glyph;
 use std::collections::{HashMap, HashSet};
 
-use block_editor_beui::be_block::{BlockContent, FolderContent};
 use block_editor_beui::beui::Rect;
+use block_editor_beui::beui::dock::styled::TabId;
 use block_editor_beui::beui::icons::{ICON_BOXES, ICON_USERS};
-use block_editor_beui::beui::unstyled::TabId;
 use block_editor_beui::block_ui::{BlockCatalog, BlockTypes, TemplateCategory, TemplateEntry};
 use block_editor_beui::sections::{is_workspace, shared_with_me, workspaces};
 use block_editor_beui::{
-    BlockFilter, BlockInfo, BlockParent, BlockPick, BlockQuery, ChildId, CreationProgress,
-    PickRequest, label_glyph,
+    BlockFilter, BlockInfo, BlockParent, BlockPick, BlockQuery, ChildId, CreationProgress, Failure,
+    PickRequest, PickedBlock, label_glyph,
 };
 use uuid::Uuid;
 
@@ -28,6 +27,7 @@ pub(crate) struct Creating {
     pub(crate) committed: bool,
     pub(crate) sent: bool,
     pub(crate) child: Option<ChildId>,
+    pub(crate) height: Option<f32>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -74,6 +74,7 @@ pub(crate) enum PickAction {
     UnfoldPlace(TreeKey, bool),
     Link(Uuid, Uuid),
     Import,
+    CopyTemplate(Uuid),
     Create,
     CancelCreation,
     Close,
@@ -187,6 +188,7 @@ impl Pick {
                     committed: false,
                     sent: false,
                     child: None,
+                    height: None,
                 });
                 if !dialog {
                     return self.act(PickAction::Create);
@@ -195,16 +197,16 @@ impl Pick {
             PickAction::Link(id, block_type) => {
                 return PickOutcome::Answered(
                     self.pick,
-                    BlockPick::Chosen {
+                    Ok(Some(PickedBlock {
                         block_id: id.into_bytes(),
                         block_type: block_type.into_bytes(),
                         linked: true,
                         placed: false,
-                    },
+                    })),
                     None,
                 );
             }
-            PickAction::Import => {}
+            PickAction::Import | PickAction::CopyTemplate(_) => {}
             PickAction::Create => {
                 if let Some(creating) = &mut self.creating {
                     creating.committed = true;
@@ -212,16 +214,16 @@ impl Pick {
             }
             PickAction::CancelCreation => {
                 if self.creating.is_some() {
-                    return PickOutcome::Answered(self.pick, BlockPick::Cancelled, None);
+                    return PickOutcome::Answered(self.pick, Ok(None), None);
                 }
             }
             PickAction::Close => {
                 if self.choosing() {
-                    return PickOutcome::Answered(self.pick, BlockPick::Cancelled, None);
+                    return PickOutcome::Answered(self.pick, Ok(None), None);
                 }
             }
             PickAction::DismissError => {
-                return PickOutcome::Answered(self.pick, BlockPick::Cancelled, None);
+                return PickOutcome::Answered(self.pick, Ok(None), None);
             }
         }
         PickOutcome::Open(Box::new(self))
@@ -249,7 +251,7 @@ impl Pick {
 
     pub(crate) fn imported(
         mut self,
-        imported: Result<Option<(Uuid, Uuid)>, String>,
+        imported: Result<Option<(Uuid, Uuid)>, Failure>,
     ) -> PickOutcome {
         self.importing = None;
         match imported {
@@ -262,7 +264,7 @@ impl Pick {
             }
             Ok(None) => PickOutcome::Open(Box::new(self)),
             Err(error) => {
-                self.error = Some(error);
+                self.error = Some(error.to_string());
                 PickOutcome::Open(Box::new(self))
             }
         }
@@ -275,12 +277,12 @@ impl Pick {
         };
         PickOutcome::Answered(
             self.pick,
-            BlockPick::Chosen {
+            Ok(Some(PickedBlock {
                 block_id: block.into_bytes(),
                 block_type: block_type.into_bytes(),
                 linked: false,
                 placed: self.place.is_some(),
-            },
+            })),
             into,
         )
     }
@@ -353,6 +355,7 @@ pub(crate) fn groups(catalog: &BlockCatalog, pick: &Pick) -> Vec<TypeGroup> {
 }
 
 pub(crate) struct Graph {
+    pub(crate) organization: Uuid,
     pub(crate) account: Uuid,
     pub(crate) roots: Vec<BlockInfo>,
     pub(crate) shared: Vec<BlockInfo>,
@@ -362,14 +365,14 @@ pub(crate) struct Graph {
 
 impl Graph {
     fn sections(&self, types: &dyn BlockTypes) -> Vec<BlockInfo> {
-        workspaces(self.roots.clone(), self.account, types)
+        workspaces(self.roots.clone(), self.organization, self.account, types)
             .into_iter()
             .filter(|block| !block.deleted)
             .collect()
     }
 
     fn loose(&self) -> Vec<BlockInfo> {
-        shared_with_me(self.roots.clone(), self.shared.clone())
+        shared_with_me(self.shared.clone())
             .into_iter()
             .filter(|block| !block.deleted)
             .collect()
@@ -574,7 +577,7 @@ pub(crate) fn link_rows(catalog: &BlockCatalog, pick: &Pick, graph: &Graph) -> T
     let shown = |block: &BlockInfo| !block.deleted;
     let enabled = |block: &BlockInfo| {
         block.access.can_view()
-            && !is_workspace(block.block_type)
+            && !is_workspace(block)
             && block
                 .parent
                 .is_some_and(|parent| parent != BlockParent::Detached)
@@ -584,7 +587,7 @@ pub(crate) fn link_rows(catalog: &BlockCatalog, pick: &Pick, graph: &Graph) -> T
     };
     let detail = |block: &BlockInfo| match Some(block.id) == this {
         true => "This block".to_owned(),
-        false if is_workspace(block.block_type) => String::new(),
+        false if is_workspace(block) => String::new(),
         false => catalog
             .display_name(block.block_type)
             .unwrap_or_default()
@@ -616,14 +619,13 @@ pub(crate) fn place_rows(catalog: &BlockCatalog, pick: &Pick, graph: &Graph) -> 
         };
     };
     let excluded = pick.excluded();
-    let folder = FolderContent::CONTENT_TYPE;
     let current = place.block();
     let shown = |block: &BlockInfo| {
         let held = Some(block.id) == current;
         !block.deleted
             && (held
                 || (block.access.can_edit()
-                    && (block.block_type == folder || is_workspace(block.block_type))
+                    && (catalog.child_edits(block.block_type).add || is_workspace(block))
                     && !excluded.contains(&block.id)))
     };
     let enabled = |_: &BlockInfo| true;

@@ -6,14 +6,15 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
 
-const usage = `usage: drive [--timeout=SECONDS] [--no-settle] [--changes=N|all] COMMAND, or drive - < COMMANDS
+const usage = `usage: drive [--timeout=SECONDS] [--no-settle] [--changes=N|all] [screen|app] COMMAND, or drive - < COMMANDS
 The app answers the same commands as the native app's drive (help lists them),
-such as tree, click TARGET, type TEXT, key CHORD, wait TEXT and settle. These
-are the browser's own:
-  shot FILE [TARGET]        save a screenshot, of TARGET only when given
-  upload FILE TARGET        click TARGET and answer the file chooser with FILE
+such as app tree, app click TARGET, app type TEXT, app wait TEXT and settle. The
+browser is the platform here, so it answers these screen commands itself:
+  screen shot FILE [TARGET] save a screenshot, of TARGET only when given
+  screen upload FILE TARGET click TARGET and answer the file chooser with FILE
+and these of its own:
   eval EXPRESSION           evaluate JavaScript in the page and print the result
-  reload                    reload the page
+  reload                    reload the page and wait until the app answers
   size W H                  make the page W by H
   quit                      close the browser`;
 
@@ -56,9 +57,17 @@ if (!page) {
     process.exit(1);
 }
 
-const automate = (words) =>
-    page.evaluate(
+const started = () =>
+    page.waitForFunction(() => globalThis.blockStarted !== undefined, null, { timeout: timeout * 1000 });
+const automate = async (words) => {
+    await started();
+    return page.evaluate(
         async ({ words, timeout }) => {
+            try {
+                await globalThis.blockStarted;
+            } catch (error) {
+                return { error: `the app did not start: ${error?.message ?? error}` };
+            }
             const app = await import(new URL("block_app_lib.js", document.baseURI).href);
             try {
                 return { text: await app.automate(words, Math.round(timeout * 1000)) };
@@ -68,6 +77,7 @@ const automate = (words) =>
         },
         { words, timeout },
     );
+};
 const answer = async (words) => {
     const { text, error } = await automate(words);
     if (error !== undefined) {
@@ -77,7 +87,7 @@ const answer = async (words) => {
     return text;
 };
 const place = async (target) => {
-    const reply = await answer(["find", target]);
+    const reply = await answer(["app", "find", target]);
     const found = reply.match(/at (-?[\d.]+),(-?[\d.]+) size ([\d.]+)x([\d.]+)/);
     if (found === null) {
         console.error(`${target} has no place on screen: ${reply.trim()}`);
@@ -99,11 +109,13 @@ const number = (index) => {
 };
 switch (command) {
     case "dev-sign-in": {
+        await started();
         const tree = await page.evaluate(async (timeoutMs) => {
+            await globalThis.blockStarted;
             const app = await import(new URL("block_app_lib.js", document.baseURI).href);
             const deadline = performance.now() + timeoutMs;
             while (performance.now() < deadline) {
-                const tree = await app.automate(["tree"], 1000);
+                const tree = await app.automate(["app", "tree"], 1000);
                 if (/https?:\/\/[^\s"]+\/auth\?code=[a-f0-9-]+/.test(tree) || tree.includes('"My files"')) return tree;
                 await new Promise(requestAnimationFrame);
             }
@@ -143,6 +155,17 @@ switch (command) {
         break;
     }
 
+    case "screen":
+        return screen(rest[0], rest.slice(1));
+    default:
+        if (!(await browserCommand(command, rest, number))) {
+            process.stdout.write(await answer([...options, command, ...rest]));
+        }
+}
+}
+
+async function screen(command, rest) {
+switch (command) {
     case "shot":
         await page.screenshot({
             path: rest[0],
@@ -157,11 +180,26 @@ switch (command) {
         await (await chosen).setFiles(rest[0]);
         break;
     }
+    case "grab":
+    case "drop":
+    case "ungrab":
+    case "dismiss":
+        console.error(`${command} needs a native headless app; the browser has no way to send it`);
+        process.exit(1);
+        break;
+    default:
+        process.stdout.write(await answer([...options, "screen", command, ...rest]));
+}
+}
+
+async function browserCommand(command, rest, number) {
+switch (command) {
     case "eval":
         console.log(await page.evaluate(rest.join(" ")));
         break;
     case "reload":
         await page.reload();
+        await answer(["--no-settle", "app", "tree"]);
         break;
     case "size": {
         const session = await page.context().newCDPSession(page);
@@ -184,16 +222,10 @@ switch (command) {
         await session.send("Browser.close").catch(() => {});
         break;
     }
-    case "grab":
-    case "drop":
-    case "ungrab":
-    case "dismiss":
-        console.error(`${command} needs a native headless app; the browser has no way to send it`);
-        process.exit(1);
-        break;
     default:
-        process.stdout.write(await answer([...options, command, ...rest]));
+        return false;
 }
+return true;
 }
 
 const words = (line) => {

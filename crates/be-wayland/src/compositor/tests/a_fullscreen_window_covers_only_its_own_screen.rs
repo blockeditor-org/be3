@@ -5,7 +5,7 @@ fn a_fullscreen_window_covers_only_its_own_screen() {
     let mut harness = Harness::new();
     let left = Rect::from_min_size(Pos2::ZERO, Vec2::new(SCREEN.x / 2.0, SCREEN.y));
     let right = Rect::from_min_max(pos2(SCREEN.x / 2.0, 0.0), pos2(SCREEN.x, SCREEN.y));
-    harness.compositor().set_screens(vec![left, right]);
+    harness.compositor().set_monitors(monitors(&[left, right]));
     let (window, id) = harness.open();
 
     window.toplevel.as_ref().unwrap().set_fullscreen(None);

@@ -5,10 +5,13 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
-be-commit = { path = "../be-commit" }
-be-store = { path = "../be-store" }
+be-commit = { path = "../be-commit", default-features = false }
+be-store = { path = "../be-store", default-features = false }
 serde = { version = "1", features = ["derive"] }
 uuid = { version = "1", features = ["serde", "v4"] }
+
+[dev-dependencies]
+bench = { path = "../bench" }
 
 [lints]
 workspace = true

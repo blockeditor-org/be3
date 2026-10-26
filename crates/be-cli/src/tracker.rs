@@ -1,28 +1,31 @@
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
-use be_block::database::{
-    Database, DatabaseContent, DatabaseValue, Inverse, RowRef, inverses, short_id,
-};
-use be_block::database_schema::{
-    ChoiceColor, ChoiceIcon, DatabaseEnumOption, DatabaseField, DatabaseFieldType,
-    DatabaseRelationOptions, DatabaseSchema, DatabaseSchemaContent,
-};
-use be_block::database_view::{DatabaseView, DatabaseViewContent, DatabaseViewKind};
-use be_block::text::{TextBlock, TextContent};
-use be_block::{
-    BlockContent, BlockMetadata, ChildChange, FolderContent, LiveEdit, ObjectId, WorkspaceContent,
-};
+use be_block::{BlockContent, BlockMetadata, LiveEdit, ObjectId};
 use be_client::{Peer, Saved};
+use be_commit::CommitId;
 use be_graph::BlockParent;
 use be_protocol::BlockSummary;
 use be_store::ObjectStore;
+use be_types_host::Modules;
+use block_type_api::{Change as Edit, ChildChange, Description, FileChange};
 use block_ui::database::{ValueLabels, database_value_text, parse_cell_value};
-use tokio::sync::Mutex;
+use database_types::database::{
+    Database, DatabaseContent, DatabaseValue, Inverse, RowRef, inverses, short_id,
+};
+use database_types::database_schema::{
+    ChoiceColor, ChoiceIcon, DatabaseEnumOption, DatabaseField, DatabaseFieldType,
+    DatabaseRelationOptions, DatabaseSchema, DatabaseSchemaContent,
+};
+use database_types::database_view::{DatabaseView, DatabaseViewContent, DatabaseViewKind};
+use tokio::sync::{MappedMutexGuard, Mutex, MutexGuard};
 use uuid::Uuid;
 
 use crate::blocks::{Entry, Found, Index, find_in, is_top, short_of};
 use crate::session::explain;
+use text_block_types::TextContent;
+
+mod prefixes;
 
 const ATTEMPTS: usize = 8;
 const CLIENT: u64 = 0x6265_2d63_6c69;
@@ -240,7 +243,7 @@ impl Loaded {
         self.schema.title_field()
     }
 
-    fn row(&self, row: ObjectId) -> Option<be_block::database::DatabaseRow> {
+    fn row(&self, row: ObjectId) -> Option<database_types::database::DatabaseRow> {
         let entry = self.database.rows.get(row)?;
         Some(
             self.inverses
@@ -281,17 +284,119 @@ impl Loaded {
     }
 }
 
+pub type Sources = Box<dyn Fn() -> Vec<be_types_host::Source>>;
+
 pub struct Tracker<S: ObjectStore> {
     peer: Arc<Peer<S>>,
     index: Mutex<Index>,
+    sources: Sources,
+    types: Mutex<Option<Modules>>,
 }
 
 impl<S: ObjectStore> Tracker<S> {
-    pub fn new(peer: Peer<S>) -> Self {
+    pub fn new(peer: Peer<S>, sources: Sources) -> Self {
         Self {
             peer: Arc::new(peer),
             index: Mutex::new(Index::default()),
+            sources,
+            types: Mutex::new(None),
         }
+    }
+
+    pub async fn types(&self) -> MappedMutexGuard<'_, Modules> {
+        let mut held = self.types.lock().await;
+        if held.is_none() {
+            *held = Some(be_types_host::started((self.sources)(), be_client::Clock::real()).await);
+        }
+        MutexGuard::map(held, |held| {
+            held.as_mut().expect("the type modules started")
+        })
+    }
+
+    pub fn sources(&self) -> &Sources {
+        &self.sources
+    }
+
+    async fn read_bytes(&self, block: Uuid) -> Result<(Option<CommitId>, Option<Vec<u8>>), String> {
+        let read = self
+            .peer
+            .read_contents(&[(block, self.peer.local_head(block))])
+            .await
+            .map_err(explain)?;
+        let Some((summary, bytes)) = read.into_iter().next() else {
+            return Ok((None, None));
+        };
+        if let Some(head) = summary.head {
+            self.peer.remember(block, head).map_err(explain)?;
+        }
+        Ok((summary.head, bytes))
+    }
+
+    async fn publish(
+        &self,
+        block: Uuid,
+        content_type: Uuid,
+        bytes: &[u8],
+        expected: Option<CommitId>,
+    ) -> Result<bool, String> {
+        let description = self
+            .types()
+            .await
+            .describe(content_type, bytes, self.peer.organization())
+            .await?;
+        match self
+            .peer
+            .publish_encoded(
+                block,
+                content_type,
+                bytes,
+                description.references,
+                description.derived,
+                expected,
+                None,
+            )
+            .await
+            .map_err(explain)?
+        {
+            Saved::Rejected { .. } => Ok(false),
+            Saved::Published(_) | Saved::Unchanged(_) => Ok(true),
+        }
+    }
+
+    async fn save<C: BlockContent>(&self, block: Uuid, content: &C) -> Result<(), String> {
+        match self
+            .publish(block, C::CONTENT_TYPE, &content.encode(), None)
+            .await?
+        {
+            true => Ok(()),
+            false => Err(format!(
+                "block {block} was saved by someone else first; try again"
+            )),
+        }
+    }
+
+    async fn edit(
+        &self,
+        block: Uuid,
+        content_type: Uuid,
+        mut make: impl AsyncFnMut(Option<Vec<u8>>) -> Result<Option<Vec<u8>>, String>,
+    ) -> Result<Option<Vec<u8>>, String> {
+        for _ in 0..ATTEMPTS {
+            let (head, current) = self.read_bytes(block).await?;
+            let Some(changed) = make(current.clone()).await? else {
+                return Ok(current);
+            };
+            if Some(&changed) == current.as_ref() {
+                return Ok(current);
+            }
+            if self.publish(block, content_type, &changed, head).await? {
+                self.invalidate().await;
+                return Ok(Some(changed));
+            }
+        }
+        Err(format!(
+            "block {block} kept changing while this was being saved; try again"
+        ))
     }
 
     pub fn peer(&self) -> &Peer<S> {
@@ -425,11 +530,6 @@ impl<S: ObjectStore> Tracker<S> {
             .await?;
             level = below.into_iter().flatten().collect();
         }
-        if looks_like_row(wanted) {
-            return Err(format!(
-                "a row is named within its database: be DATABASE row {wanted}"
-            ));
-        }
         Err(format!(
             "nothing is called {wanted}; `be ls` lists the blocks at the top"
         ))
@@ -468,28 +568,58 @@ impl<S: ObjectStore> Tracker<S> {
             return Ok(());
         };
         let refused = || format!("{parent} cannot list blocks; do this in the app");
-        match self
+        let content_type = self
             .peer
             .summary(parent)
             .await
             .map_err(explain)?
-            .content_type
-        {
-            kind if kind == FolderContent::CONTENT_TYPE => {
-                self.change::<FolderContent>(parent, |held| {
-                    held.child_operations(change).ok_or_else(refused)
-                })
-                .await?;
-            }
-            kind if kind == WorkspaceContent::CONTENT_TYPE => {
-                self.change::<WorkspaceContent>(parent, |held| {
-                    held.child_operations(change).ok_or_else(refused)
-                })
-                .await?;
-            }
-            _ => return Err(refused()),
+            .content_type;
+        if be_types_host::plain_of(content_type) != be_types_host::Plain::Directory {
+            return Err(refused());
         }
-        Ok(())
+        let mut listed = true;
+        self.edit(parent, content_type, async |current| {
+            let changed = self
+                .types()
+                .await
+                .apply(content_type, current, CLIENT, Edit::Child(change))
+                .await?;
+            listed = changed.is_some();
+            Ok(changed)
+        })
+        .await?;
+        match listed {
+            true => Ok(()),
+            false => Err(refused()),
+        }
+    }
+
+    pub async fn move_block(&self, entry: &Entry, to: &Entry) -> Result<String, String> {
+        let moved = &self.outermost(entry).await?;
+        let from = self.peer.summary(moved.id).await.map_err(explain)?.parent;
+        let into = BlockParent::Block(to.id);
+        if from == Some(into) {
+            return Ok(format!("{} is already in {}", moved.label(), to.label()));
+        }
+        if self.lies_below(Some(moved.id), to.id).await || moved.id == to.id {
+            return Err(format!("{} cannot move into itself", moved.label()));
+        }
+        self.place(into, moved.id).await?;
+        self.peer
+            .set_parent(moved.id, into)
+            .await
+            .map_err(explain)?;
+        if let Some(from @ BlockParent::Block(_)) = from {
+            self.relist(from, ChildChange::Delete(moved.id)).await?;
+        }
+        self.invalidate().await;
+        Ok(format!(
+            "moved {} ({}) into {} ({})",
+            moved.label(),
+            moved.short,
+            to.label(),
+            to.short
+        ))
     }
 
     pub async fn delete_block(&self, entry: &Entry) -> Result<String, String> {
@@ -860,10 +990,7 @@ impl<S: ObjectStore> Tracker<S> {
             .map_err(explain)?;
         let mut shown = DatabaseView::of(database);
         shown.kind = DatabaseViewKind::List;
-        self.peer
-            .save(view, &DatabaseViewContent::new(&shown), None)
-            .await
-            .map_err(explain)?;
+        self.save(view, &DatabaseViewContent::new(&shown)).await?;
         self.place(parent, view).await?;
         let mut held = BlockMetadata::named(name);
         held.insert(&be_block::ROW_PREFIX, &prefix);
@@ -887,16 +1014,11 @@ impl<S: ObjectStore> Tracker<S> {
             .map_err(explain)?;
         let mut columns = DatabaseSchemaContent::default();
         columns.apply(&DatabaseSchema::add_field("Title", DatabaseFieldType::String).1);
-        self.peer
-            .save(schema, &columns, None)
-            .await
-            .map_err(explain)?;
+        self.save(schema, &columns).await?;
         let mut content = DatabaseContent::new(&Database::with_schema(schema));
-        content.apply(&Database::set_prefix(prefix));
-        self.peer
-            .save(database, &content, None)
-            .await
-            .map_err(explain)?;
+        content.apply(&Database::set_prefix(prefix.clone()));
+        self.save(database, &content).await?;
+        self.register(database, &prefix).await?;
         self.invalidate().await;
         Ok((view, database))
     }
@@ -1201,7 +1323,7 @@ impl<S: ObjectStore> Tracker<S> {
         &self,
         loaded: &Loaded,
         row: ObjectId,
-        current: &be_block::database::DatabaseRow,
+        current: &database_types::database::DatabaseRow,
         field: &DatabaseField,
         assignment: &Assignment,
         labels: &Labels,
@@ -1231,7 +1353,7 @@ impl<S: ObjectStore> Tracker<S> {
 
     fn wanted_links(
         &self,
-        current: &be_block::database::DatabaseRow,
+        current: &database_types::database::DatabaseRow,
         field: &DatabaseField,
         assignment: &Assignment,
         labels: &Labels,
@@ -1360,32 +1482,20 @@ impl<S: ObjectStore> Tracker<S> {
     }
 
     pub async fn text(&self, block: Uuid) -> Result<String, String> {
-        Ok(self
-            .read::<TextContent>(block)
-            .await?
-            .map(|content| TextBlock::text(&content))
-            .unwrap_or_default())
+        let (_, bytes) = self.read_bytes(block).await?;
+        self.plain_text(TextContent::CONTENT_TYPE, bytes).await
     }
 
     pub async fn write_text(&self, block: Uuid, body: &Body) -> Result<String, String> {
-        let written = self
-            .change::<TextContent>(block, |current| {
-                let edit = match body {
-                    Body::Keep => None,
-                    Body::Replace(text) => replace_text(current, text),
-                    Body::Append(text) => {
-                        let now = TextBlock::text(current);
-                        let joined = match now.is_empty() || now.ends_with('\n') {
-                            true => text.clone(),
-                            false => format!("\n{text}"),
-                        };
-                        TextBlock::insert(current, CLIENT, now.len(), joined.as_bytes())
-                    }
-                };
-                Ok(edit.into_iter().collect())
-            })
-            .await?;
-        Ok(TextBlock::text(&written))
+        self.write_file(block, |now| match body {
+            Body::Keep => None,
+            Body::Replace(text) => Some(text.clone()),
+            Body::Append(text) => Some(match now.is_empty() || now.ends_with('\n') {
+                true => format!("{now}{text}"),
+                false => format!("{now}\n{text}"),
+            }),
+        })
+        .await
     }
 
     pub async fn rewrite_text(
@@ -1395,9 +1505,8 @@ impl<S: ObjectStore> Tracker<S> {
         edited: &str,
     ) -> Result<bool, String> {
         let mut clean = true;
-        self.change::<TextContent>(block, |current| {
-            let now = TextBlock::text(current);
-            let wanted = match now == base {
+        self.write_file(block, |now| {
+            Some(match now == base {
                 true => edited.to_owned(),
                 false => {
                     let outcome = be_commit::merge::merge_lines(
@@ -1411,8 +1520,7 @@ impl<S: ObjectStore> Tracker<S> {
                     ))
                     .into_owned()
                 }
-            };
-            Ok(replace_text(current, &wanted).into_iter().collect())
+            })
         })
         .await?;
         Ok(clean)
@@ -1600,16 +1708,15 @@ impl<S: ObjectStore> Tracker<S> {
             edits.push(add);
             if !page_text.trim().is_empty() {
                 let page = Uuid::now_v7();
-                let content = TextBlock::new(page_text).content();
+                let (content, description) = self.text_page(&page_text).await?;
                 pages.push((
                     be_client::transfer::Saved {
                         id: page,
                         block_type: TextContent::CONTENT_TYPE,
                         parent: None,
-                        metadata: BlockMetadata::named(title)
-                            .with_derived(be_block::derived_metadata(&content)),
-                        references: self.peer.references(page, &content),
-                        content: Some(content.encode()),
+                        metadata: BlockMetadata::named(title).with_derived(description.derived),
+                        references: self.peer.resolve(page, description.references),
+                        content: Some(content),
                     },
                     BlockParent::Block(database),
                 ));
@@ -1663,6 +1770,26 @@ impl<S: ObjectStore> Tracker<S> {
         Ok(imported)
     }
 
+    async fn text_page(&self, text: &str) -> Result<(Vec<u8>, Description), String> {
+        let mut types = self.types().await;
+        let change = Edit::FromFile(FileChange {
+            name: String::new(),
+            bytes: text.as_bytes().to_vec(),
+        });
+        let content = types
+            .apply(TextContent::CONTENT_TYPE, None, CLIENT, change)
+            .await?
+            .ok_or("text has no plain-file form")?;
+        let description = types
+            .describe(
+                TextContent::CONTENT_TYPE,
+                &content,
+                self.peer.organization(),
+            )
+            .await?;
+        Ok((content, description))
+    }
+
     async fn write_page(
         &self,
         database: Uuid,
@@ -1684,10 +1811,13 @@ impl<S: ObjectStore> Tracker<S> {
                     )
                     .await
                     .map_err(explain)?;
-                self.peer
-                    .save(page, &TextBlock::new("").content(), None)
-                    .await
-                    .map_err(explain)?;
+                let (blank, _) = self.text_page("").await?;
+                if !self
+                    .publish(page, TextContent::CONTENT_TYPE, &blank, None)
+                    .await?
+                {
+                    return Err(format!("the page {page} was saved by someone else first"));
+                }
                 self.change::<DatabaseContent>(database, |_| {
                     Ok(vec![Database::set_page(row, Some(page))])
                 })
@@ -1747,33 +1877,70 @@ impl<S: ObjectStore> Tracker<S> {
     where
         C: BlockContent + LiveEdit + Clone + Default,
     {
-        for _ in 0..ATTEMPTS {
-            let opened = self.peer.open::<C>(block).await.map_err(explain)?;
-            let head = opened.as_ref().and_then(|_| self.peer.local_head(block));
-            let mut content = opened.unwrap_or_default();
-            let edits = make(&content)?;
-            if edits.is_empty() {
-                return Ok(content);
-            }
-            for edit in &edits {
-                content.apply(edit);
-            }
-            match self
-                .peer
-                .save(block, &content, head)
-                .await
-                .map_err(explain)?
-            {
-                Saved::Rejected { .. } => continue,
-                Saved::Published(_) | Saved::Unchanged(_) => {
-                    self.invalidate().await;
-                    return Ok(content);
+        let changed = self
+            .edit(block, C::CONTENT_TYPE, async |current| {
+                let mut content = match current {
+                    Some(bytes) => C::decode(&bytes).map_err(|error| error.to_string())?,
+                    None => C::default(),
+                };
+                let edits = make(&content)?;
+                if edits.is_empty() {
+                    return Ok(None);
                 }
-            }
+                for edit in &edits {
+                    content.apply(edit);
+                }
+                Ok(Some(content.encode()))
+            })
+            .await?;
+        match changed {
+            Some(bytes) => C::decode(&bytes).map_err(|error| error.to_string()),
+            None => Ok(C::default()),
         }
-        Err(format!(
-            "block {block} kept changing while this was being saved; try again"
-        ))
+    }
+
+    async fn plain_text(
+        &self,
+        content_type: Uuid,
+        bytes: Option<Vec<u8>>,
+    ) -> Result<String, String> {
+        let Some(bytes) = bytes else {
+            return Ok(String::new());
+        };
+        let file = self
+            .types()
+            .await
+            .to_files(vec![(content_type, bytes)])
+            .await
+            .pop()
+            .unwrap_or_else(|| Err("the type module did not answer".to_owned()))?
+            .ok_or("this block has no plain-file form")?;
+        Ok(String::from_utf8_lossy(&file.bytes).into_owned())
+    }
+
+    async fn write_file(
+        &self,
+        block: Uuid,
+        mut wanted: impl FnMut(&str) -> Option<String>,
+    ) -> Result<String, String> {
+        let content_type = TextContent::CONTENT_TYPE;
+        let written = self
+            .edit(block, content_type, async |current| {
+                let now = self.plain_text(content_type, current.clone()).await?;
+                let Some(text) = wanted(&now) else {
+                    return Ok(None);
+                };
+                let change = Edit::FromFile(FileChange {
+                    name: String::new(),
+                    bytes: text.into_bytes(),
+                });
+                self.types()
+                    .await
+                    .apply(content_type, current, CLIENT, change)
+                    .await
+            })
+            .await?;
+        self.plain_text(content_type, written).await
     }
 }
 
@@ -1808,7 +1975,7 @@ fn yes(setting: &str, value: &str) -> Result<bool, String> {
     }
 }
 
-fn looks_like_row(text: &str) -> bool {
+pub(crate) fn looks_like_row(text: &str) -> bool {
     let Some((prefix, code)) = text.trim().rsplit_once('-') else {
         return false;
     };
@@ -1827,8 +1994,4 @@ fn is_code(text: &str) -> bool {
         && text
             .chars()
             .all(|character| character.is_ascii_alphanumeric())
-}
-
-fn replace_text(current: &TextContent, text: &str) -> Option<be_block::Edit> {
-    TextBlock::rewrite(current, CLIENT, text.as_bytes())
 }

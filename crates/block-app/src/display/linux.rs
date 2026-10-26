@@ -1,31 +1,55 @@
 use std::cell::RefCell;
 
 use be_block::DisplaySettings;
-use beui_adapter_drm::{DisplayConfig, DisplayControl, Epaper, Monitor};
-use block_plugin_api::{EpaperRequest, HostDisplay};
+use beui_platform_drm::{Display, DisplayConfig, DisplayControl, Displays, Epaper, Monitor};
+use block_plugin_api::HostDisplay;
 
 use super::Screen;
+use super::shown::ShownDisplay;
 
 thread_local! {
     static CONTROL: RefCell<Option<DisplayControl>> = const { RefCell::new(None) };
     static EPAPER: RefCell<Option<Epaper>> = const { RefCell::new(None) };
+    static MONITORS: RefCell<Vec<Monitor>> = const { RefCell::new(Vec::new()) };
+    static DISPLAYS: RefCell<Vec<Display>> = const { RefCell::new(Vec::new()) };
 }
 
 pub(crate) fn start(setup: &beui::Setup) {
     let control = setup.get::<DisplayControl>().cloned();
     if let Some(control) = &control {
         control.on_monitors(|monitors| {
-            crate::plugin_host::publish::<block_plugin_api::Displays>(
-                &monitors.iter().map(host_display).collect(),
-            );
+            MONITORS.with(|held| *held.borrow_mut() = monitors.to_vec());
+            publish();
             super::set_screens(monitors.iter().map(screen).collect());
             crate::host::wake();
         });
     }
+    if let Some(displays) = setup.get::<Displays>().cloned() {
+        let watched = displays.clone();
+        let follow = move || {
+            let shown = watched.displays();
+            super::shown::offer(
+                shown
+                    .iter()
+                    .map(|display| ShownDisplay {
+                        id: display.id.clone(),
+                        name: display.name.clone(),
+                        rect: display.rect(),
+                        scale: display.scale,
+                        placement: watched.placement(&display.id),
+                    })
+                    .collect(),
+            );
+            DISPLAYS.with(|held| *held.borrow_mut() = shown);
+            publish();
+        };
+        follow();
+        displays.watch(follow);
+    }
     CONTROL.with(|slot| *slot.borrow_mut() = control);
     let epaper = setup.get::<Epaper>().cloned();
     if epaper.is_some() {
-        crate::plugin_host::publish::<block_plugin_api::Epaper>(&true);
+        crate::plugin_host::publish::<block_plugin_api::EpaperWatch>(&true);
     }
     EPAPER.with(|slot| *slot.borrow_mut() = epaper);
 }
@@ -42,7 +66,7 @@ pub(crate) fn stop() {
 }
 
 pub(crate) fn run_epaper() {
-    let requests = crate::plugin_host::take_actions::<EpaperRequest>();
+    let requests = crate::plugin_host::take_calls(block_plugin_api::requested::epaper_refresh);
     if requests.is_empty() {
         return;
     }
@@ -75,6 +99,7 @@ fn config(settings: &DisplaySettings) -> DisplayConfig {
             .iter()
             .filter_map(|(id, screen)| Some((id.clone(), screen.rotation?)))
             .collect(),
+        scales: Vec::new(),
     }
 }
 
@@ -87,7 +112,26 @@ fn screen(monitor: &Monitor) -> Screen {
     }
 }
 
-fn host_display(monitor: &Monitor) -> HostDisplay {
+fn publish() {
+    let displays = MONITORS.with(|monitors| {
+        DISPLAYS.with(|shown| {
+            let shown = shown.borrow();
+            monitors
+                .borrow()
+                .iter()
+                .map(|monitor| {
+                    host_display(
+                        monitor,
+                        shown.iter().find(|display| display.id == monitor.id),
+                    )
+                })
+                .collect::<Vec<_>>()
+        })
+    });
+    crate::plugin_host::publish::<block_plugin_api::DisplaysWatch>(&displays);
+}
+
+fn host_display(monitor: &Monitor, shown: Option<&Display>) -> HostDisplay {
     HostDisplay {
         id: monitor.id.clone(),
         name: monitor.name.clone(),
@@ -96,5 +140,7 @@ fn host_display(monitor: &Monitor) -> HostDisplay {
         default: monitor.default,
         current: monitor.current,
         rotation: monitor.rotation,
+        rect: shown.map_or(beui::Rect::ZERO, Display::rect),
+        scale: shown.map_or(1.0, |display| display.scale),
     }
 }

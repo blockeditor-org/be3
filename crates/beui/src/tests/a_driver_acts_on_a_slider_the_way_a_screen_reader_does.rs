@@ -13,14 +13,14 @@ fn a_driver_acts_on_a_slider_the_way_a_screen_reader_does() {
     let mut driven = stepped(crate::testing::Showing(document));
 
     let offered = driven
-        .ask(&["a11y", "Slider \"Volume\""])
+        .ask(&["app", "a11y", "Slider \"Volume\""])
         .expect("the slider's actions are listed");
     assert!(
         offered.contains("actions: ") && offered.contains("increment") && offered.contains("set"),
         "{offered}"
     );
     let changed = driven
-        .ask(&["a11y", "Slider \"Volume\"", "set", "0.25"])
+        .ask(&["app", "a11y", "Slider \"Volume\"", "set", "0.25"])
         .expect("the value is set");
     let added = |changed: &str, text: &str| {
         changed
@@ -32,12 +32,12 @@ fn a_driver_acts_on_a_slider_the_way_a_screen_reader_does() {
         "{changed}"
     );
     let changed = driven
-        .ask(&["a11y", "Slider \"Volume\"", "increment"])
+        .ask(&["app", "a11y", "Slider \"Volume\"", "increment"])
         .expect("the value steps up");
     assert!(added(&changed, "Slider \"Volume\" value="), "{changed}");
     assert!(
         driven
-            .ask(&["a11y", "Slider \"Volume\"", "expand"])
+            .ask(&["app", "a11y", "Slider \"Volume\"", "expand"])
             .is_err(),
         "a slider does not expand"
     );

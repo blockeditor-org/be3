@@ -1,14 +1,14 @@
-use block_editor_beui::be_block::GameModuleContent;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, TextAlign};
 use block_editor_beui::{Editor, FileChooser, Sidebar};
+use deterministic_game_types::GameModuleContent;
 use game_host::Game;
 
 use super::{filter, imported};
 
-const PADDING: f32 = 12.0;
-const SPACING: f32 = 8.0;
+const PADDING: Space = Space::Lg;
+const SPACING: Space = Space::Md;
 
 #[derive(Clone, Default, PartialEq)]
 enum Loaded {
@@ -50,7 +50,7 @@ pub fn ModuleView(editor: Editor) -> NodeId {
     let content = NodeRef::new();
     editor.content(&content);
     view! {
-        <List direction=Direction::Horizontal spacing=0.0>
+        <List direction=Direction::Horizontal spacing=Space::None>
             <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content} padding=PADDING>
                 <List spacing=SPACING>
                     <Show condition={named}>
@@ -68,7 +68,6 @@ pub fn ModuleView(editor: Editor) -> NodeId {
                             align=TextAlign::Center
                             color=TextColor::Danger
                             @test_id={"game-module.error"}
-                            wrap=true
                         >
                             {reason}
                         </Text>

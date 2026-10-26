@@ -18,12 +18,11 @@ pub struct WindowSurface {
 impl WindowSurface {
     pub async fn new(
         window: Arc<dyn WindowHandle>,
-        open_device: Option<OpenDevice>,
+        open_device: OpenDevice,
     ) -> Result<Self, Box<dyn Error>> {
-        let instance =
-            wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
+        let (instance, adapter) = open_device.instance()?;
         let probe = instance.create_surface(window.clone())?;
-        let gpu = create_gpu(instance, &probe, open_device).await?;
+        let gpu = create_gpu(instance, adapter, &probe, open_device).await?;
         drop(probe);
         Ok(Self {
             target: Target::new(gpu.format),
@@ -59,14 +58,14 @@ impl Renderer for WindowSurface {
     }
 
     fn recover(&mut self) -> Result<bool, Box<dyn Error>> {
-        if !self.gpu.lost() {
+        if !self.gpu.stale() {
             return Ok(false);
         }
         let attached = self.target.attached();
         let (width, height) = self.target.size();
         self.target.detach();
-        let probe = self.gpu.instance.create_surface(self.window.clone())?;
-        pollster::block_on(self.gpu.reopen(Some(&probe)))?;
+        let probe = pollster::block_on(self.gpu.reopen(Some(self.window.clone())))?
+            .ok_or("no surface was made for the window")?;
         self.target = Target::new(self.gpu.format);
         match attached {
             true => self.target.attach(&self.gpu, probe, width, height)?,
@@ -96,6 +95,10 @@ impl Renderer for WindowSurface {
         self.target.note(output, scale, background);
     }
 
+    fn set_vsync(&mut self, vsync: bool) {
+        self.target.set_vsync(&self.gpu, vsync);
+    }
+
     fn present(&mut self, background: Color32) -> bool {
         matches!(
             self.target.present(&mut self.gpu, background),
@@ -104,7 +107,7 @@ impl Renderer for WindowSurface {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn capture(&mut self) -> Option<beui_core::app::automation::Capture> {
+    fn capture(&mut self) -> Option<beui_core::renderer::Capture> {
         self.target.capture(&self.gpu)
     }
 }

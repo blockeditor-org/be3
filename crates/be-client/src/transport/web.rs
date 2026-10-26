@@ -87,19 +87,17 @@ pub(crate) async fn connect(url: &str) -> Result<(Writer, Reader), String> {
     };
     socket.set_onclose(Some(on_close.as_ref().unchecked_ref()));
 
+    let reader = Reader {
+        socket: Rc::clone(&socket),
+        frames: incoming,
+        _handlers: vec![on_open, on_error, on_close],
+        _on_message: on_message,
+    };
     handshake
         .await
         .map_err(|_| "the websocket handshake was abandoned".to_owned())??;
 
-    Ok((
-        Writer(Rc::clone(&socket)),
-        Reader {
-            socket,
-            frames: incoming,
-            _handlers: vec![on_open, on_error, on_close],
-            _on_message: on_message,
-        },
-    ))
+    Ok((Writer(socket), reader))
 }
 
 impl Writer {

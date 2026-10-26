@@ -3,8 +3,6 @@ use block_editor_beui::beui::{PenPhase, PointerButton, Rect};
 
 fn shown_entities(editor: &BeuiTest<CanvasApp>) -> Vec<(Uuid, Rect)> {
     editor
-        .drawn()
-        .expect("the canvas has drawn")
         .test_ids()
         .iter()
         .filter_map(|(test_id, _)| {

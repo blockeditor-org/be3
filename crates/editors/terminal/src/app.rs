@@ -1,8 +1,8 @@
 use block_editor_beui::Loaded;
-use block_editor_beui::be_block::TerminalContent;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::Root;
 use block_editor_beui::{Creation, Editor};
+use terminal_types::TerminalContent;
 use uuid::Uuid;
 
 mod offline;
@@ -14,8 +14,10 @@ use ui::TerminalBlock;
 
 pub struct TerminalApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for TerminalApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Loaded label="Loading the terminal">

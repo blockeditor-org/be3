@@ -1,5 +1,6 @@
 use super::*;
 use crate::primitives::Frame;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::Scroll;
 use crate::styled::*;
@@ -12,7 +13,7 @@ fn a_scroll_in_a_dialog_follows_the_wheel() {
         view! {
             <List spacing=0.0>
                 <Frame @sizing=ItemSize::Percent(100.0) />
-                <Dialog open=true title="Add block" width=300.0 on_dismiss={|| {}}>
+                <Dialog open=true title="Add block" width={Size::Custom(300.0)} on_dismiss={|| {}}>
                     <Frame height=200.0>
                         <List spacing=8.0>
                             <Show condition=true>

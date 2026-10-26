@@ -1,6 +1,6 @@
-use std::{path::PathBuf, sync::Arc, time::Duration};
+use std::{path::PathBuf, time::Duration};
 
-use be_block::{BlockContent, ContentError, ImageContent, ImageHeader};
+use be_block::{BlockContent, ContentError};
 use be_commit::{RetentionPolicy, retention::MINUTE};
 use be_graph::BlockParent;
 use be_store::{ChunkerConfig, MemoryStore};
@@ -8,56 +8,60 @@ use tokio::{net::TcpListener, sync::oneshot};
 use uuid::Uuid;
 
 use super::*;
+use image_block_types::{ImageContent, ImageHeader};
 
 mod a_block_a_shared_one_links_to_shows_only_that_it_exists;
+mod a_block_made_offline_keeps_its_edits_when_read_before_it_is_sent;
+mod a_block_made_offline_takes_the_access_the_server_will_give_it;
 mod a_block_moved_to_another_workspace_is_rewrapped_and_given_a_fresh_key;
+mod a_change_the_server_refuses_leaves_the_rest_of_the_outbox_to_send;
+mod a_connect_nobody_answers_times_out;
+mod a_connection_outlives_a_stall_of_this_process;
+mod a_device_that_starts_offline_reads_and_lists_what_it_saved;
 mod a_file_added_to_a_shared_folder_opens_and_saves_for_who_it_was_shared_with;
 mod a_folder_shared_with_a_contact_opens_for_them_alone;
-mod a_follower_keeps_its_unconfirmed_typing_through_a_reload;
-mod a_follower_replaces_an_image_and_the_owner_takes_it;
-mod a_follower_stops_saving_after_a_message_it_cannot_read;
-mod a_follower_takes_over_and_keeps_editing_without_a_merge;
-mod a_follower_that_falls_behind_after_following_keeps_what_it_had;
-mod a_follower_that_falls_behind_catches_up;
-mod a_follower_that_takes_over_keeps_what_it_typed_before_its_first_save;
-mod a_follower_typing_while_the_owner_types_keeps_both_runs_whole;
+mod a_key_the_server_labels_as_the_organizations_settings_never_seals_another_block;
 mod a_key_the_server_or_a_stranger_seals_to_a_member_is_never_used;
 mod a_large_image_streams_without_downloading_all_of_it;
-mod a_late_joiner_places_an_insert_after_an_item_removed_before_it_joined;
-mod a_late_joiner_to_edited_text_types_where_it_sees_the_caret;
-mod a_peer_edit_reaching_a_follower_mid_gesture_goes_beneath_its_own;
+mod a_link_carrying_access_is_refused_where_nothing_is_shared_outside;
+mod a_merge_left_waiting_is_sent_once_the_device_reconnects;
+mod a_move_refused_to_an_editor_drops_only_the_move;
+mod a_policy_outside_the_organizations_settings_is_not_enforced;
+mod a_reader_cannot_read_a_block_moved_out_of_what_they_were_shared;
 mod a_reader_taken_off_a_workspace_cannot_read_what_is_written_after;
-mod a_rename_and_an_unsaved_edit_both_reach_the_head;
 mod a_reordered_reference_list_keeps_its_new_order;
+mod a_request_fails_once_a_ping_goes_unanswered;
+mod a_request_stuck_in_a_full_socket_fails_once_the_server_goes_silent;
 mod a_save_keeps_defined_metadata_it_does_not_know_and_drops_stale_derived_metadata;
-mod a_second_follower_keeps_following_after_the_owner_leaves;
+mod a_saved_record_that_does_not_decode_leaves_the_rest_readable;
+mod a_second_administrator_edits_the_organizations_settings;
 mod a_stale_save_is_rejected_with_the_head_to_merge_against;
 mod a_summary_read_before_a_rotation_never_brings_back_the_old_key;
+mod a_workspace_not_kept_for_offline_use_is_forgotten_but_its_unsent_edits_stay;
 mod an_administrator_reads_a_workspace_nobody_shared_with_them;
-mod an_edit_too_large_to_relay_is_saved_as_a_commit;
+mod an_artifact_is_a_backref_of_the_block_it_describes;
+mod an_edit_the_server_kept_without_answering_settles_once_another_device_builds_on_it;
+mod an_editor_rotates_a_workspace_a_reader_was_taken_off;
 mod an_escrow_key_the_server_puts_in_place_is_refused;
-mod an_idle_session_catches_up_with_a_publish_from_outside_it;
+mod an_exported_artifact_imports_pointing_to_its_imported_source;
 mod an_image_round_trips_without_being_re_encoded;
-mod an_offline_edit_elsewhere_merges_cleanly;
-mod an_offline_rewrite_conflicts_instead_of_interleaving;
-mod an_unsaved_edit_survives_a_publish_from_outside_the_session;
-mod an_unsaved_rewrite_that_conflicts_keeps_both_versions_in_history;
-mod channel_messages_reach_one_peer_or_all_of_them_sealed;
+mod an_organizations_policies_are_read_by_its_members_and_enforced_by_the_server;
 mod contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase;
 mod contents_read_together_match_what_each_block_saved;
+mod edits_sealed_offline_are_published_when_the_device_reconnects;
+mod edits_to_a_block_whose_access_was_lost_wait_aside_until_it_returns;
 mod history_is_thinned_but_the_head_and_bookmarks_survive;
-mod large_pastes_behind_an_unconfirmed_edit_go_out_in_relayable_pieces;
 mod leaving_a_shared_workspace_leaves_its_rotation_to_who_can_edit_it;
 mod metadata_is_sealed_on_the_server_and_opened_by_members;
 mod metadata_that_does_not_decode_is_an_error_rather_than_blank;
-mod presence_reaches_late_joiners_and_leaves_with_its_client;
+mod moving_a_block_to_the_top_follows_who_may_make_workspaces;
 mod references_declared_by_content_reach_the_graph;
+mod relayed_messages_reach_one_peer_or_all_of_them_sealed;
+mod removing_a_member_rotates_the_organizations_settings;
 mod removing_a_member_shuts_them_out_and_rotates_what_they_could_read;
 mod swapping_ids_replaces_every_written_form_of_each;
-mod the_journal_says_how_each_peer_saw_its_content_change;
-mod two_peers_converge_through_the_session_owner;
 mod two_peers_of_one_account_read_each_others_blocks;
-mod typing_behind_an_unconfirmed_edit_goes_out_as_one_edit;
+mod what_a_policy_governs_waits_while_the_server_cannot_read_it;
 
 struct Harness {
     url: String,
@@ -89,10 +93,6 @@ impl Harness {
             shutdown: Some(shutdown),
             handle: Some(handle),
         }
-    }
-
-    async fn shared(&self, owner: &Peer<MemoryStore>) -> Arc<Peer<MemoryStore>> {
-        Arc::new(self.second(owner).await)
     }
 
     async fn owner(&self, email: &str) -> Peer<MemoryStore> {
@@ -150,7 +150,7 @@ impl Harness {
             "admin@example.com",
         );
         let code = crate::contacts::invite(
-            admin.connection(),
+            &admin.connection(),
             admin.keys().identity(),
             &card,
             admin.organization(),
@@ -161,11 +161,16 @@ impl Harness {
         .await
         .unwrap();
         let theirs = crate::contacts::card(own.account(), own.keys().identity(), email, email);
-        crate::contacts::accept_invitation(own.connection(), own.keys().identity(), &theirs, &code)
-            .await
-            .unwrap();
+        crate::contacts::accept_invitation(
+            &own.connection(),
+            own.keys().identity(),
+            &theirs,
+            &code,
+        )
+        .await
+        .unwrap();
         crate::contacts::finish_links(
-            admin.connection(),
+            &admin.connection(),
             admin.keys().identity(),
             admin.organization(),
         )
@@ -184,6 +189,51 @@ impl Harness {
         )
         .await
         .unwrap()
+    }
+
+    fn config(&self, like: &Peer<MemoryStore>, refs: &refs::RefsDb) -> PeerConfig {
+        PeerConfig::new(
+            &self.url,
+            like.keys().identity().clone(),
+            Credentials::Token(like.token()),
+        )
+        .organization(Some(like.organization()))
+        .chunker(ChunkerConfig::SMALL)
+        .refs(refs.clone())
+    }
+
+    async fn device(
+        &self,
+        like: &Peer<MemoryStore>,
+        refs: &refs::RefsDb,
+        store: &MemoryStore,
+    ) -> Peer<MemoryStore> {
+        Peer::connect(self.config(like, refs), store.clone())
+            .await
+            .unwrap()
+    }
+
+    fn offline(
+        &self,
+        like: &Peer<MemoryStore>,
+        refs: &refs::RefsDb,
+        store: &MemoryStore,
+    ) -> Peer<MemoryStore> {
+        Peer::cached(self.config(like, refs), like.account(), store.clone()).unwrap()
+    }
+
+    async fn reconnect(&self, peer: &Peer<MemoryStore>, token: String) {
+        let connection = Connection::connect(&self.url, &Clock::real())
+            .await
+            .unwrap();
+        let be_protocol::ServerMessage::Authenticated { token, .. } = connection
+            .request(|request| be_protocol::ClientMessage::Authenticate { request, token })
+            .await
+            .unwrap()
+        else {
+            panic!("the server did not sign the device in");
+        };
+        peer.attach(connection, token).await.unwrap();
     }
 
     fn database(&self) -> rusqlite::Connection {
@@ -205,7 +255,7 @@ impl Harness {
 async fn workspace(peer: &Peer<MemoryStore>, name: &str) -> Uuid {
     peer.create_block(
         Uuid::now_v7(),
-        be_block::WorkspaceContent::CONTENT_TYPE,
+        workspace_ui_types::WorkspaceContent::CONTENT_TYPE,
         BlockParent::Root,
         &be_block::BlockMetadata::named(name),
     )
@@ -214,13 +264,25 @@ async fn workspace(peer: &Peer<MemoryStore>, name: &str) -> Uuid {
     .id
 }
 
+async fn my_files(peer: &Peer<MemoryStore>) -> Uuid {
+    peer.create_block(
+        be_block::my_files(peer.organization(), peer.account()),
+        workspace_ui_types::WorkspaceContent::CONTENT_TYPE,
+        BlockParent::Root,
+        &be_block::BlockMetadata::named("My files"),
+    )
+    .await
+    .unwrap()
+    .id
+}
+
 async fn text(peer: &Peer<MemoryStore>, block: Uuid) -> String {
     let opened = peer
-        .open::<be_block::TextContent>(block)
+        .open::<text_block_types::TextContent>(block)
         .await
         .unwrap()
         .expect("the block has content");
-    be_block::TextBlock::text(&opened)
+    text_block_types::TextBlock::text(&opened)
 }
 
 fn identity(email: &str) -> be_keys::RecoverySecret {
@@ -290,77 +352,4 @@ impl BlockContent for Link {
     }
 }
 
-fn checklist_texts(live: &Live<MemoryStore, be_block::ChecklistContent>) -> Vec<String> {
-    live.content()
-        .root()
-        .items
-        .iter()
-        .map(|item| item.text.clone())
-        .collect()
-}
-
-trait Texted {
-    fn to_text(&self) -> String;
-}
-
-impl Texted for be_block::TextContent {
-    fn to_text(&self) -> String {
-        be_block::TextBlock::text(self)
-    }
-}
-
-async fn type_at(live: &mut Live<MemoryStore, be_block::TextContent>, at: usize, typed: &str) {
-    let edit = be_block::TextBlock::insert(live.content(), live.client(), at, typed.as_bytes())
-        .expect("there is somewhere to type");
-    live.edit(edit).await.unwrap();
-}
-
-async fn erase(live: &mut Live<MemoryStore, be_block::TextContent>, range: std::ops::Range<usize>) {
-    let edit =
-        be_block::TextBlock::delete(live.content(), range).expect("there is something to erase");
-    live.edit(edit).await.unwrap();
-}
-
 const PATIENCE: Duration = Duration::from_secs(20);
-
-async fn until<C: be_block::LiveEdit + Clone + Default>(
-    sessions: &mut [&mut Live<MemoryStore, C>],
-    what: &str,
-    ready: impl Fn(&[&mut Live<MemoryStore, C>]) -> bool,
-) {
-    let reached = tokio::time::timeout(PATIENCE, async {
-        loop {
-            for session in sessions.iter_mut() {
-                session.poll().await.unwrap();
-            }
-            if ready(sessions) {
-                return;
-            }
-            let waits = sessions.iter_mut().map(|session| Box::pin(session.wait()));
-            futures_util::future::select_all(waits).await.0.unwrap();
-        }
-    })
-    .await;
-    assert!(reached.is_ok(), "the sessions never {what}");
-}
-
-async fn settle<C: be_block::LiveEdit + Clone + Default>(
-    sessions: &mut [&mut Live<MemoryStore, C>],
-) {
-    for _ in 0..12 {
-        let mut handled = 0;
-        for session in sessions.iter_mut() {
-            handled += session.poll().await.unwrap();
-        }
-        if handled == 0 {
-            tokio::time::sleep(Duration::from_millis(20)).await;
-            let mut again = 0;
-            for session in sessions.iter_mut() {
-                again += session.poll().await.unwrap();
-            }
-            if again == 0 {
-                return;
-            }
-        }
-    }
-}

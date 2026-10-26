@@ -54,8 +54,9 @@ function imports(module, memory) {
 }
 
 self.onmessage = (event) => {
-    const { module, memory, id, startArgument, plugin, layout, threadLocals } = event.data;
+    const { module, memory, id, startArgument, plugin, layout, threadLocals, files } = event.data;
     wasi.bindMemory(memory);
+    wasi.bindFiles(files);
     environment.bindMemory(memory);
     threads.bindThreads(module, memory);
     const instance = new WebAssembly.Instance(module, imports(module, memory));

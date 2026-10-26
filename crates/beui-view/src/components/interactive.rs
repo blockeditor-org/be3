@@ -77,6 +77,7 @@ pub fn Interactive(
     drawing_at: Callback<Pos2, bool>,
     on_forward: Callback<ForwardedInput>,
     #[prop(default = false)] inhibits_shortcuts: Prop<bool>,
+    #[prop(default = false)] clipboard_keys: Prop<bool>,
     #[prop(default = true)] forwards_wheel: Prop<bool>,
     #[prop(default = None)] claim_modifiers: Prop<Option<Modifiers>>,
     claim_at: Callback<(Pos2, Modifiers), bool>,
@@ -217,7 +218,9 @@ pub fn Interactive(
             claim_modifiers.get(),
         );
         let wheel = forwards_wheel.get();
+        let clipboard = clipboard_keys.get();
         with_document(|document| {
+            document.set_interactive_clipboard_keys(interactive, clipboard);
             document.set_interactive_capture_presses(interactive, capture);
             document.set_interactive_press_focus(interactive, pressing);
             document.set_interactive_repeat_drag(interactive, repeat);

@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_beui::be_block::database_schema::{ChoiceIcon, DatabaseFieldType};
+use database_types::database_schema::{ChoiceIcon, DatabaseFieldType};
 
 #[test]
 fn a_choice_option_takes_an_icon_and_can_be_closed_and_the_default() {

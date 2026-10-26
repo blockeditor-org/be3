@@ -3,14 +3,14 @@ use std::rc::Rc;
 use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::time::{Duration, Instant};
 
-use block_editor_beui::be_block::PixelRayTracerContent;
-use block_editor_beui::be_block::pixel_ray_tracer::{
-    PIXEL_RAY_TRACER_SIZE, PixelRayTracerOperation, PixelUpdate, Point, RayEntity, RaySettings,
-    Scene,
-};
 use block_editor_beui::beui::Image;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::{ContentProjection, Editor, PerformanceReporter, Waker};
+use pixel_ray_tracer_types::PixelRayTracerContent;
+use pixel_ray_tracer_types::{
+    PIXEL_RAY_TRACER_SIZE, PixelRayTracerOperation, PixelUpdate, Point, RayEntity, RaySettings,
+    Scene,
+};
 
 use crate::geometry::{distance, distance_to_segment, inside, pixel_at, raster_line, snap};
 use crate::overlay::{self, Preview};

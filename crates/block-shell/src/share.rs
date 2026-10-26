@@ -1,8 +1,9 @@
 use block_editor_beui::beui::reactive::{Pending, Ready};
-use block_editor_beui::{AccessGrant, AccessLevel, AccessListing};
+use block_editor_beui::{AccessGrant, AccessLevel, AccessListing, Failure};
 use uuid::Uuid;
 
-pub(crate) const GRANTABLE: [AccessLevel; 3] = [
+pub(crate) const GRANTABLE: [AccessLevel; 4] = [
+    AccessLevel::Manage,
     AccessLevel::Edit,
     AccessLevel::View,
     AccessLevel::KnowExists,
@@ -25,7 +26,26 @@ pub(crate) struct Member {
     pub(crate) fixed: Option<String>,
     pub(crate) note: Option<String>,
     pub(crate) access: AccessLevel,
+    pub(crate) inherited: AccessLevel,
     pub(crate) removable: bool,
+}
+
+impl Member {
+    pub(crate) fn choices(&self) -> Vec<AccessLevel> {
+        GRANTABLE
+            .into_iter()
+            .filter(|level| *level >= self.inherited)
+            .collect()
+    }
+
+    pub(crate) fn choose(&self, access: AccessLevel) -> Option<AccessLevel> {
+        match access {
+            _ if access == self.access => None,
+            _ if access <= self.inherited && self.removable => Some(AccessLevel::None),
+            _ if access <= self.inherited => None,
+            _ => Some(access),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -46,6 +66,8 @@ pub(crate) struct Share {
     pub(crate) block: Uuid,
     pub(crate) request: Option<u64>,
     pub(crate) grants: Vec<AccessGrant>,
+    pub(crate) company: bool,
+    pub(crate) set_inside: u32,
     pub(crate) members: Ready<()>,
     pub(crate) error: Option<String>,
     pub(crate) query: String,
@@ -61,6 +83,8 @@ impl Share {
             block,
             request: Some(request),
             grants: Vec::new(),
+            company: false,
+            set_inside: 0,
             members: Err(Pending::Loading),
             error: None,
             query: String::new(),
@@ -71,14 +95,20 @@ impl Share {
         }
     }
 
-    pub(crate) fn listed(&mut self, listing: AccessListing) {
+    pub(crate) fn listed(&mut self, listing: Result<AccessListing, Failure>) {
         self.request = None;
         match listing {
-            AccessListing::Listed(grants) => {
+            Ok(AccessListing {
+                grants,
+                company,
+                set_inside,
+            }) => {
                 self.grants = grants;
+                self.company = company;
+                self.set_inside = set_inside;
                 self.members = Ok(());
             }
-            AccessListing::Failed(error) => self.members = Err(Pending::Failed(error)),
+            Err(error) => self.members = Err(Pending::Failed(error.to_string())),
         }
     }
 
@@ -136,12 +166,20 @@ impl Share {
         })
     }
 
-    pub(crate) fn members(&self, me: Uuid) -> Vec<Member> {
+    pub(crate) fn members(&self, me: Uuid, name_of: impl Fn(Uuid) -> String) -> Vec<Member> {
         self.grants
             .iter()
             .filter(|grant| has_access(grant, me))
-            .map(|grant| member(grant, me))
+            .map(|grant| member(grant, me, self.block, &name_of))
             .collect()
+    }
+
+    pub(crate) fn inside_note(&self) -> Option<String> {
+        match self.set_inside {
+            0 => None,
+            1 => Some("1 item inside has different access".to_owned()),
+            count => Some(format!("{count} items inside have different access")),
+        }
     }
 
     fn candidates(&self, me: Uuid) -> Vec<Person> {
@@ -169,7 +207,7 @@ impl Share {
     }
 }
 
-fn member(grant: &AccessGrant, me: Uuid) -> Member {
+fn member(grant: &AccessGrant, me: Uuid, block: Uuid, name_of: &impl Fn(Uuid) -> String) -> Member {
     let fixed = match (
         grant.administrator,
         grant.account == me.into_bytes(),
@@ -180,24 +218,47 @@ fn member(grant: &AccessGrant, me: Uuid) -> Member {
         (false, false, true) => Some("Made this block"),
         (false, false, false) => None,
     };
+    let source = grant.source.map(Uuid::from_bytes);
+    let note = match (grant.administrator, grant.waiting && fixed.is_none()) {
+        (true, _) => None,
+        (false, true) => {
+            Some("Opens for them once you have both confirmed each other as contacts".to_owned())
+        }
+        (false, false) if grant.author && source == Some(block) => None,
+        (false, false) => origin(grant.effective, source, block, name_of),
+    };
     Member {
         id: Uuid::from_bytes(grant.account),
         name: grant.display_name.clone(),
         email: grant.email.clone(),
         fixed: fixed.map(str::to_owned),
-        note: match fixed {
-            Some(_) => None,
-            None if grant.waiting => Some(
-                "Opens for them once you have both confirmed each other as contacts".to_owned(),
-            ),
-            None => (grant.granted != Some(grant.effective))
-                .then(|| format!("Inherited: {}", grant.effective.label())),
-        },
+        note,
         access: match fixed {
             Some(_) => grant.effective,
-            None => grant.granted.unwrap_or(AccessLevel::None),
+            None => grant
+                .effective
+                .max(grant.granted.unwrap_or(AccessLevel::None)),
         },
-        removable: fixed.is_none() && grant.granted != Some(AccessLevel::None),
+        inherited: grant.inherited,
+        removable: fixed.is_none()
+            && grant
+                .granted
+                .is_some_and(|granted| granted != AccessLevel::None),
+    }
+}
+
+fn origin(
+    effective: AccessLevel,
+    source: Option<Uuid>,
+    block: Uuid,
+    name_of: &impl Fn(Uuid) -> String,
+) -> Option<String> {
+    let level = effective.label();
+    match source {
+        _ if effective == AccessLevel::None => None,
+        Some(source) if source == block => Some(format!("{level}, set here")),
+        Some(source) => Some(format!("{level}, from {}", name_of(source))),
+        None => Some(format!("{level}, through a link")),
     }
 }
 

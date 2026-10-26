@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
 use block_editor_beui::be_block::ObjectId;
-use block_editor_beui::be_block::presentation::{Presentation, PresentationContent};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::{BlockList, BlockQuery, ChildTarget, ContentProjection, Editor, Rect};
+use presentation_types::{Presentation, PresentationContent};
 use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -139,7 +139,7 @@ impl Slides {
                 if let Ok(edit) = block.read(|presentation| {
                     presentation
                         .root()
-                        .insert(ObjectId::from_uuid(slide), index, picked.id)
+                        .insert(ObjectId::from_uuid(slide), index, picked.id())
                 }) {
                     block.operate(edit);
                 }

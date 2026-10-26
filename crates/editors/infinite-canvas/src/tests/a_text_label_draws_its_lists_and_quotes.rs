@@ -1,6 +1,6 @@
 use super::*;
 use block_editor_beui::be_block::be_model::RichText;
-use block_editor_beui::be_block::canvas::CanvasTextStyle;
+use infinite_canvas_types::CanvasTextStyle;
 use text_editor_core::Value;
 use text_editor_core::schema::basic::{self, BULLET, CHECK, CHECKED, INDENT, LIST, NUMBER, QUOTE};
 

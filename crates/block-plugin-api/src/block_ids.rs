@@ -1,7 +1,6 @@
 use crate::{
-    ArtifactDescription, BlockCommand, BlockImport, BlockLocation, BlockPick, BlockQuery,
-    ChildContent, ChildPlacements, CreationOutcome, EditorInstanceId, EditorMessage, HostReply,
-    HostRequest, Message, ShellDialog, VersionCommand,
+    ArtifactState, BlockCommand, BlockInfo, BlockLocation, BlockQuery, ChildContent,
+    ChildPlacements, EditorInstanceId, FrameCommit, Opening, VersionCommand, blocks::OpenRequest,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -12,37 +11,10 @@ pub enum BlockIdRole {
 
 type Visit<'a> = dyn FnMut(EditorInstanceId, BlockIdRole, &mut [u8; 16]) + 'a;
 
-impl Message {
+impl FrameCommit {
     pub fn visit_block_ids(&mut self, visit: &mut Visit<'_>) {
-        match self {
-            Self::Editor(message) => message.visit_block_ids(visit),
-            Self::Frame(commit) => {
-                for placements in &mut commit.children {
-                    placements.visit_block_ids(visit);
-                }
-            }
-            Self::Hello(_)
-            | Self::HelloAccepted(_)
-            | Self::Preferences(_)
-            | Self::UtcOffset(_)
-            | Self::Fonts(_)
-            | Self::MissingCharacters(_)
-            | Self::Screens(_)
-            | Self::Configure { .. }
-            | Self::Layout(_)
-            | Self::Input(_)
-            | Self::DrawFrame { .. }
-            | Self::FrameNeeded
-            | Self::Acknowledged { .. }
-            | Self::Error(_)
-            | Self::Shutdown
-            | Self::ShutdownAcknowledged
-            | Self::BlockTypes(_)
-            | Self::ChildStatuses(_)
-            | Self::Describe(_)
-            | Self::RunAction { .. }
-            | Self::NodeAction { .. }
-            | Self::Extension { .. } => {}
+        for placements in &mut self.children {
+            placements.visit_block_ids(visit);
         }
     }
 }
@@ -73,268 +45,20 @@ impl ChildPlacements {
     }
 }
 
-impl EditorMessage {
+impl Opening {
     pub fn visit_block_ids(&mut self, visit: &mut Visit<'_>) {
         let instance = self.instance();
         let mut existing = |id: &mut [u8; 16]| visit(instance, BlockIdRole::Existing, id);
         match self {
-            Self::Open {
-                block_id,
-                view_block,
-                ..
-            } => {
-                existing(block_id);
-                view_block.iter_mut().for_each(existing);
+            Self::Block(open) => {
+                existing(&mut open.block_id);
+                open.view_block.iter_mut().for_each(existing);
             }
-            Self::Content { block_id, .. }
-            | Self::ContentOperations { block_id, .. }
-            | Self::Operate { block_id, .. }
-            | Self::Gesture { block_id, .. }
-            | Self::ResendContent { block_id, .. }
-            | Self::SeedContent { block_id, .. }
-            | Self::ReplaceContent { block_id, .. }
-            | Self::ShowPresence { block_id, .. }
-            | Self::PeerPresence { block_id, .. }
-            | Self::SendToPeers { block_id, .. }
-            | Self::PeerMessages { block_id, .. }
-            | Self::DragBlock { block_id, .. }
-            | Self::DragOver { block_id, .. }
-            | Self::PlayAudio { block_id, .. }
-            | Self::OpenArtifact { block_id, .. }
-            | Self::Define { block_id, .. }
-            | Self::VersionStatus { block_id, .. } => existing(block_id),
-            Self::ShowDialog {
-                block_id, dialog, ..
-            } => {
-                existing(block_id);
-                if let ShellDialog::Appearance {
-                    within: Some(within),
-                    ..
-                } = dialog
-                {
-                    existing(within);
-                }
+            Self::Artifact(open) => {
+                existing(&mut open.block_id);
+                existing(&mut open.source);
             }
-            Self::SetAccess { block_id, .. } => existing(block_id),
-            Self::OpenBlock { block_id, via, .. } | Self::ShowBlock { block_id, via, .. } => {
-                existing(block_id);
-                via.iter_mut().for_each(existing);
-            }
-            Self::Focused { block_id, via, .. } | Self::FocusChanged { block_id, via, .. } => {
-                block_id.iter_mut().for_each(&mut existing);
-                via.iter_mut().for_each(existing);
-            }
-            Self::WatchContent { blocks, .. } => {
-                for block in blocks {
-                    existing(&mut block.block_id);
-                }
-            }
-            Self::BlockCommand {
-                block_id, command, ..
-            } => {
-                existing(block_id);
-                match command {
-                    BlockCommand::Unlink { container } => existing(container),
-                    BlockCommand::Delete { source, .. } => location(source, &mut existing),
-                    BlockCommand::Move {
-                        source,
-                        destination,
-                        ..
-                    } => {
-                        location(source, &mut existing);
-                        existing(destination);
-                    }
-                    BlockCommand::Place { parent, .. } => existing(parent),
-                    BlockCommand::Share
-                    | BlockCommand::Leave
-                    | BlockCommand::Rename
-                    | BlockCommand::Appearance { .. }
-                    | BlockCommand::Undo
-                    | BlockCommand::Redo
-                    | BlockCommand::Artifact { .. }
-                    | BlockCommand::SimulateAccess { .. }
-                    | BlockCommand::CloseEditor
-                    | BlockCommand::Restore
-                    | BlockCommand::AppMenu { .. } => {}
-                }
-            }
-            Self::PickRequested {
-                filter,
-                parent,
-                within,
-                ..
-            } => {
-                filter.excluded.iter_mut().for_each(&mut existing);
-                if let Some(place) = &mut filter.place {
-                    location(place, &mut existing);
-                }
-                location(parent, &mut existing);
-                if let Some(within) = within {
-                    existing(within);
-                }
-            }
-            Self::CommitChild { parent, .. } => location(parent, &mut existing),
-            Self::PickAnswered { answer, .. } => match answer {
-                BlockPick::Chosen { block_id, .. } => existing(block_id),
-                BlockPick::Cancelled | BlockPick::Failed(_) => {}
-            },
-            Self::Request { request, .. } => match request {
-                HostRequest::PickBlock(filter) => {
-                    filter.excluded.iter_mut().for_each(&mut existing);
-                    if let Some(place) = &mut filter.place {
-                        location(place, &mut existing);
-                    }
-                }
-                HostRequest::ListRevisions(block_id)
-                | HostRequest::PreviewRevision { block_id, .. }
-                | HostRequest::RestoreRevision { block_id, .. }
-                | HostRequest::ReleaseRevision(block_id)
-                | HostRequest::ListAccess(block_id)
-                | HostRequest::ExportBlock(block_id)
-                | HostRequest::ContactLink { block_id, .. } => existing(block_id),
-                HostRequest::ImportBlocks(parent) => location(parent, &mut existing),
-                HostRequest::PickFile(_)
-                | HostRequest::SaveFile(_)
-                | HostRequest::Fetch(_)
-                | HostRequest::ListData
-                | HostRequest::ReadData(_) => {}
-            },
-            Self::Replied { reply, .. } => match reply {
-                HostReply::RevisionPreviewed(Ok(block_id))
-                | HostReply::BlockPicked(BlockPick::Chosen { block_id, .. })
-                | HostReply::BlocksImported(BlockImport::Imported { block_id, .. }) => {
-                    existing(block_id)
-                }
-                HostReply::BlockPicked(BlockPick::Cancelled | BlockPick::Failed(_))
-                | HostReply::RevisionsListed(_)
-                | HostReply::RevisionPreviewed(Err(_))
-                | HostReply::RevisionRestored(_)
-                | HostReply::RevisionReleased
-                | HostReply::FilePicked(_)
-                | HostReply::FileSaved(_)
-                | HostReply::Fetched(_)
-                | HostReply::DataListed(_)
-                | HostReply::DataRead(_)
-                | HostReply::AccessListed(_)
-                | HostReply::ContactLinkMade(_)
-                | HostReply::BlocksImported(BlockImport::Cancelled | BlockImport::Failed(_)) => {}
-            },
-            Self::CreationBlock { outcome, .. } => match outcome {
-                CreationOutcome::Created(block_id) => existing(block_id),
-                CreationOutcome::Failed(_) => {}
-            },
-            Self::ArtifactDescribed { description, .. } => match description {
-                ArtifactDescription::Described { source, .. } => existing(source),
-                ArtifactDescription::Unreadable(_) => {}
-            },
-            Self::WatchArtifacts { blocks, .. } | Self::WatchHistory { blocks, .. } => {
-                blocks.iter_mut().for_each(existing);
-            }
-            Self::ArtifactStates { states, .. } => {
-                for state in states {
-                    existing(&mut state.block_id);
-                    state.source.iter_mut().for_each(&mut existing);
-                }
-            }
-            Self::HistoryStates { states, .. } => {
-                for state in states {
-                    existing(&mut state.block_id);
-                }
-            }
-            Self::ReplaceChild { old, new, .. } => {
-                existing(old);
-                existing(new);
-            }
-            Self::WatchBlocks { queries, .. } => {
-                for query in queries {
-                    self::query(query, &mut existing);
-                }
-            }
-            Self::BlocksFailed { query, .. } => self::query(query, &mut existing),
-            Self::Blocks { query, blocks, .. } => {
-                self::query(query, &mut existing);
-                for block in blocks {
-                    existing(&mut block.block_id);
-                    if let Some(parent) = &mut block.parent {
-                        location(parent, &mut existing);
-                    }
-                    block.references.iter_mut().for_each(&mut existing);
-                }
-            }
-            Self::CreateBlock {
-                block_id, parent, ..
-            } => {
-                location(parent, &mut existing);
-                visit(instance, BlockIdRole::Created, block_id);
-            }
-            Self::SetParent {
-                block_id, parent, ..
-            } => {
-                existing(block_id);
-                location(parent, &mut existing);
-            }
-            Self::VersionControl {
-                block_id, command, ..
-            } => {
-                existing(block_id);
-                match command {
-                    VersionCommand::Adopt { block_id }
-                    | VersionCommand::Resolve { block_id, .. } => {
-                        existing(block_id);
-                    }
-                    VersionCommand::Finish { .. }
-                    | VersionCommand::Update
-                    | VersionCommand::Switch { .. }
-                    | VersionCommand::CreateBranch { .. }
-                    | VersionCommand::Merge { .. }
-                    | VersionCommand::Undo { .. }
-                    | VersionCommand::NewCheckout { .. }
-                    | VersionCommand::Fork
-                    | VersionCommand::PullUpstream
-                    | VersionCommand::PushUpstream => {}
-                }
-            }
-            Self::EditabilityChanged { .. }
-            | Self::ViewChanged { .. }
-            | Self::ChangeView { .. }
-            | Self::Present { .. }
-            | Self::PresentingChanged { .. }
-            | Self::Resized { .. }
-            | Self::LeaveFrame { .. }
-            | Self::Stopped { .. }
-            | Self::BarAction { .. }
-            | Self::Close { .. }
-            | Self::DragLeft { .. }
-            | Self::FileDrop { .. }
-            | Self::FileDropLeft { .. }
-            | Self::DragAccepted { .. }
-            | Self::AudioStatus { .. }
-            | Self::WebViewCommand { .. }
-            | Self::ShowPanel { .. }
-            | Self::WatchHostValue { .. }
-            | Self::HostValue { .. }
-            | Self::HostAction { .. }
-            | Self::WebViewEvent { .. }
-            | Self::OpenCreation { .. }
-            | Self::CreationReady { .. }
-            | Self::CommitCreation { .. }
-            | Self::ArtifactSettings { .. }
-            | Self::ArtifactEdited { .. }
-            | Self::RegenerateArtifact { .. }
-            | Self::ArtifactRegenerated { .. }
-            | Self::Presence { .. }
-            | Self::ChildReplaced { .. }
-            | Self::ChildBar { .. }
-            | Self::ChildFocused { .. }
-            | Self::CopyText { .. }
-            | Self::CopyImage { .. }
-            | Self::Paste { .. }
-            | Self::AspectRatio { .. }
-            | Self::IntrinsicSize { .. }
-            | Self::Performance { .. }
-            | Self::Menu { .. }
-            | Self::MenuPick { .. }
-            | Self::ChildMenuPick { .. } => {}
+            Self::Creation(_) => {}
         }
     }
 }
@@ -345,13 +69,192 @@ fn location(location: &mut BlockLocation, visit: &mut impl FnMut(&mut [u8; 16]))
     }
 }
 
-fn query(query: &mut BlockQuery, visit: &mut impl FnMut(&mut [u8; 16])) {
-    match query {
-        BlockQuery::Children(block_id)
-        | BlockQuery::References(block_id)
-        | BlockQuery::Backrefs(block_id)
-        | BlockQuery::Parents(block_id)
-        | BlockQuery::Block(block_id) => visit(block_id),
-        BlockQuery::Roots | BlockQuery::Detached | BlockQuery::Shared => {}
+impl crate::embed::host_services::Call {
+    pub fn visit_block_ids(&mut self, visit: &mut impl FnMut(&mut [u8; 16])) {
+        match self {
+            Self::ListRevisions { block, .. }
+            | Self::PreviewRevision { block, .. }
+            | Self::RestoreRevision { block, .. }
+            | Self::ExportBlock { block, .. }
+            | Self::ReadPlainFile { block, .. }
+            | Self::ListAccess { block, .. }
+            | Self::SetAccess { block, .. }
+            | Self::MakeContactLink { block, .. } => visit(block),
+            Self::ReleaseRevision { preview } => visit(preview),
+            Self::ImportBlocks { parent, .. } => location(parent, visit),
+            Self::CopyBlocks { source, parent, .. } => {
+                visit(source);
+                location(parent, visit);
+            }
+            Self::PickBlock { filter, .. } => {
+                filter.excluded.iter_mut().for_each(&mut *visit);
+                if let Some(place) = &mut filter.place {
+                    location(place, visit);
+                }
+            }
+            Self::PickFile { .. }
+            | Self::SaveFile { .. }
+            | Self::Fetch { .. }
+            | Self::ListData { .. }
+            | Self::ReadData { .. } => {}
+        }
+    }
+}
+
+type Ids<'a> = dyn FnMut(BlockIdRole, &mut [u8; 16]) + 'a;
+
+impl BlockLocation {
+    pub fn visit_block_ids(&mut self, visit: &mut Ids<'_>) {
+        if let Self::Block(block_id) = self {
+            visit(BlockIdRole::Existing, block_id);
+        }
+    }
+}
+
+impl BlockQuery {
+    pub fn visit_block_ids(&mut self, visit: &mut Ids<'_>) {
+        match self {
+            Self::Children(block_id)
+            | Self::References(block_id)
+            | Self::Backrefs(block_id)
+            | Self::Parents(block_id)
+            | Self::Block(block_id)
+            | Self::OpenSettings(block_id) => visit(BlockIdRole::Existing, block_id),
+            Self::Roots | Self::Detached | Self::Shared => {}
+        }
+    }
+}
+
+impl BlockInfo {
+    pub fn visit_block_ids(&mut self, visit: &mut Ids<'_>) {
+        visit(BlockIdRole::Existing, &mut self.block_id);
+        if let Some(parent) = &mut self.parent {
+            parent.visit_block_ids(visit);
+        }
+        for reference in &mut self.references {
+            visit(BlockIdRole::Existing, reference);
+        }
+    }
+}
+
+impl ArtifactState {
+    pub fn visit_block_ids(&mut self, visit: &mut Ids<'_>) {
+        visit(BlockIdRole::Existing, &mut self.block_id);
+        visit(BlockIdRole::Existing, &mut self.source);
+    }
+}
+
+impl crate::AccessListing {
+    pub fn visit_block_ids(&mut self, visit: &mut Ids<'_>) {
+        for grant in &mut self.grants {
+            if let Some(source) = &mut grant.source {
+                visit(BlockIdRole::Existing, source);
+            }
+        }
+    }
+}
+
+impl OpenRequest {
+    pub fn visit_block_ids(&mut self, visit: &mut Ids<'_>) {
+        visit(BlockIdRole::Existing, &mut self.block_id);
+        if let Some(via) = &mut self.via {
+            visit(BlockIdRole::Existing, via);
+        }
+    }
+}
+
+impl BlockCommand {
+    pub fn visit_block_ids(&mut self, visit: &mut Ids<'_>) {
+        match self {
+            Self::Unlink { container } => visit(BlockIdRole::Existing, container),
+            Self::Delete { source, .. } => source.visit_block_ids(visit),
+            Self::Move {
+                source,
+                destination,
+                ..
+            } => {
+                source.visit_block_ids(visit);
+                visit(BlockIdRole::Existing, destination);
+            }
+            Self::Place { parent, .. } => visit(BlockIdRole::Existing, parent),
+            Self::Undo | Self::Redo | Self::Artifact { .. } | Self::Restore => {}
+        }
+    }
+}
+
+impl VersionCommand {
+    pub fn visit_block_ids(&mut self, visit: &mut Ids<'_>) {
+        match self {
+            Self::Adopt { block_id } | Self::Resolve { block_id, .. } => {
+                visit(BlockIdRole::Existing, block_id);
+            }
+            Self::Finish { .. }
+            | Self::Update
+            | Self::Switch { .. }
+            | Self::CreateBranch { .. }
+            | Self::Merge { .. }
+            | Self::Undo { .. }
+            | Self::NewCheckout { .. }
+            | Self::Fork
+            | Self::PullUpstream
+            | Self::PushUpstream => {}
+        }
+    }
+}
+
+impl crate::embed::blocks::Call {
+    pub fn visit_block_ids(&mut self, visit: &mut Ids<'_>) {
+        let existing = BlockIdRole::Existing;
+        match self {
+            Self::CreateBlock { block, parent, .. } => {
+                parent.visit_block_ids(visit);
+                visit(BlockIdRole::Created, block);
+            }
+            Self::SetParent { block, parent } => {
+                visit(existing, block);
+                parent.visit_block_ids(visit);
+            }
+            Self::Define { block, .. }
+            | Self::SeedContent { block, .. }
+            | Self::ReplaceContent { block, .. }
+            | Self::ReplicaNew { block, .. }
+            | Self::HistoryWatchNew { block, .. }
+            | Self::HeadWatchNew { block, .. }
+            | Self::ArtifactWatchNew { block, .. } => visit(existing, block),
+            Self::Act { block, command } => {
+                visit(existing, block);
+                command.visit_block_ids(visit);
+            }
+            Self::Version { block, command } => {
+                visit(existing, block);
+                command.visit_block_ids(visit);
+            }
+            Self::OpenBlock { request } => request.visit_block_ids(visit),
+            Self::BlocksWatchNew { query, .. } => query.visit_block_ids(visit),
+            Self::ReplicaFrames { .. }
+            | Self::ReplicaSend { .. }
+            | Self::BlocksWatchNext { .. }
+            | Self::HistoryWatchNext { .. }
+            | Self::HeadWatchNext { .. }
+            | Self::ArtifactWatchNext { .. }
+            | Self::VersionWatchNew { .. }
+            | Self::VersionWatchNext { .. }
+            | Self::ShowRequestsNew { .. }
+            | Self::ShowRequestsNext { .. } => {}
+        }
+    }
+
+    pub fn changes(&self) -> bool {
+        matches!(
+            self,
+            Self::CreateBlock { .. }
+                | Self::SetParent { .. }
+                | Self::Define { .. }
+                | Self::SeedContent { .. }
+                | Self::ReplaceContent { .. }
+                | Self::Act { .. }
+                | Self::Version { .. }
+                | Self::OpenBlock { .. }
+        )
     }
 }

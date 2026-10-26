@@ -32,16 +32,17 @@ Guides:
 - guides/testing_a_gui.md
 - guides/the_new_block_stack.md: the `be-*` crates every block lives in
 - guides/tracker.md: the issue tracker in block-app, and `be`, the command line tool agents use to read and change it
+- guides/type_modules.md: block types as plugin wasm modules: the host-to-type protocol (`block-type-api`) and the replica library types link (`block-type-guest`)
 
 Commands (builds run on the build server; see guides/buck2.md and guides/build_server.md):
 - `./scripts/buck run //:check`: fast compile check of every first-party target, native and wasm. Use this instead of cargo, which no longer builds the workspace.
 - `./scripts/verify`: the full check. It applies autofixes, accepts new and changed snapshots, and runs every lint and test. Use a 10-minute timeout. CI runs the same thing on pull requests and pushes what it changes.
-  - Write code however is natural and let its autofixes tidy it; don't do these by hand. It formats code (including `view!` bodies), applies fixable clippy lints, deletes comments and doc comments, splits tests into one per file, and renames `foo/mod.rs` to `foo.rs`.
-- `./scripts/test NAME`: runs the tests whose full names (module path and function, such as `media::tests::plays::plays`) contain NAME, so NAME may also be a module path like `media::tests`, and prints all their output, passing or failing. It finds their crates and runs each the way its tests need, natively or as wasm. `--update` accepts the paintings they make.
+  - Write code however is natural and let its autofixes tidy it; don't do these by hand. It formats code (including `view!` bodies), deletes comments and doc comments, splits tests into one per file, and renames `foo/mod.rs` to `foo.rs`.
+- `./scripts/test NAME`: runs the tests whose full names (module path and function, such as `media::tests::plays::plays`) contain NAME, so NAME may also be a module path like `media::tests`, and prints all their output, passing or failing. It finds their crates and runs each on the build server, natively or as wasm, and downloads only their output. `--update` accepts the paintings they make.
 - `./scripts/buck run //crates/local-tools:bin -- rasterize snapshots/CRATE.NAME.paint OUT.png [FRAME|all]`: turns a painting, or frames of a recording, into a PNG to look at.
-- `./scripts/buck run //crates/block-app:dev`: run the app headless, signed in with a workspace open, then `source ~/.cache/be3/dev/env` and drive it with `drive` (guides/running/drive.md). beui-demo and be-launcher have a `:dev` too.
+- `./scripts/buck run //crates/block-app:dev`: run the app headless, signed in with a workspace open, then `source ~/.cache/be3/dev/env` and drive it with `drive` (guides/running/drive.md). `-c be3.plugins=checklist,file-tree` before the target stages only those editors and the workspace, which downloads and builds less. beui-demo and be-launcher have a `:dev` too.
 - `./scripts/buck run //crates/block-app:native`: build and run the native app in a window.
-- `./scripts/buck test //crates/app-tests:test`: the app tests, which `./scripts/verify` runs too. Each starts the native app headless with every plugin and the dev workspace open, drives it as `drive` does, compares what the whole window paints, and fails unless the app exits cleanly (guides/testing_a_gui.md, 6).
+- `./scripts/test //crates/app-tests:test`: the app tests, which `./scripts/verify` runs too. Each starts the native app headless with every plugin and the dev workspace open, drives it as `drive` does, compares what the whole window paints, and fails unless the app exits cleanly (guides/testing_a_gui.md, 6).
 - `./scripts/buck build //crates/block-app:web`: for web-specific changes; `./scripts/buck run //crates/block-app:web` serves it on http://127.0.0.1:8080 (guides/running/web.md).
 - `./scripts/buck run //crates/block-app:android`: for Android-specific changes; builds the APK (guides/running/android.md).
 - `./scripts/be Issues row BE-7K3Q2M`: read or change a tracker row (guides/tracker.md); needs `external/.tracker-credentials`, which `./scripts/be` fetches on first use.

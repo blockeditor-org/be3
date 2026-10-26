@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::FolderContent;
+use workspace_ui_types::FolderContent;
 
 fn exported(block: Uuid) -> Vec<u8> {
     let (sender, receiver) = std::sync::mpsc::channel();

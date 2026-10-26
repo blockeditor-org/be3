@@ -1,7 +1,7 @@
 use super::*;
 
-use be_block::{TextBlock, TextContent};
 use be_protocol::OrganizationRole;
+use text_block_types::{TextBlock, TextContent};
 
 #[tokio::test]
 async fn an_administrator_reads_a_workspace_nobody_shared_with_them() {

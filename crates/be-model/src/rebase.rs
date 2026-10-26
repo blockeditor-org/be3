@@ -39,7 +39,8 @@ fn spotted(trees: &[&Tree], change: &Change, spots: &mut BTreeSet<Spot>) {
         | Change::Stamp { object, field, .. }
         | Change::Text { object, field, .. }
         | Change::Mark { object, field, .. }
-        | Change::Unmark { object, field, .. } => {
+        | Change::Unmark { object, field, .. }
+        | Change::Series { object, field, .. } => {
             spots.insert(Spot::Field(*object, *field));
         }
         Change::Insert {

@@ -6,7 +6,7 @@ mod screens;
 
 use std::cell::RefCell;
 
-use block_gpu_host::{Gpu, calls::Transport};
+use block_gpu_host::Gpu;
 use wasm_bindgen::{JsCast, prelude::*};
 
 use screens::Screens;
@@ -19,7 +19,7 @@ struct Shim {
     gpu: Gpu,
     screens: Screens,
     memory: Option<js_sys::WebAssembly::Memory>,
-    transport: Transport,
+    returned: Vec<u8>,
     gpu_time: f64,
     submit_time: f64,
     woken: bool,
@@ -53,7 +53,7 @@ pub async fn start() -> Result<(), JsValue> {
         gpu: Gpu::new(device, queue),
         screens,
         memory: None,
-        transport: Transport::default(),
+        returned: Vec::new(),
         gpu_time: 0.0,
         submit_time: 0.0,
         woken: false,
@@ -93,11 +93,67 @@ pub fn paint() -> bool {
             shim.screens.presented(&presented);
             let gpu = &shim.gpu;
             let painted = shim.screens.paint(|surface| gpu.surface(surface));
+            let exported = shim
+                .screens
+                .paint_exports(&presented, |surface| gpu.surface(surface));
             shim.fail(painted);
+            shim.fail(exported);
             !presented.is_empty()
         },
         false,
     )
+}
+
+#[wasm_bindgen]
+pub fn export_surfaces(surfaces: Vec<u32>) {
+    with(|shim| shim.screens.export(surfaces), ());
+}
+
+#[wasm_bindgen]
+pub fn exported() -> js_sys::Array {
+    let pictures = js_sys::Array::new();
+    with(
+        |shim| {
+            for (surface, bitmap) in shim.screens.take_exported() {
+                let picture = js_sys::Object::new();
+                let _ = js_sys::Reflect::set(&picture, &"surface".into(), &surface.into());
+                let _ = js_sys::Reflect::set(&picture, &"bitmap".into(), &bitmap);
+                pictures.push(&picture);
+            }
+        },
+        (),
+    );
+    pictures
+}
+
+#[wasm_bindgen]
+pub fn import_image(image: u64, bitmap: web_sys::ImageBitmap) {
+    with(
+        |shim| {
+            let texture = shim.screens.import(&bitmap);
+            bitmap.close();
+            shim.gpu
+                .imports()
+                .lock()
+                .unwrap_or_else(|held| held.into_inner())
+                .insert(image, texture);
+        },
+        (),
+    );
+}
+
+#[wasm_bindgen]
+pub fn forget_image(image: u64) {
+    with(
+        |shim| {
+            shim.gpu
+                .imports()
+                .lock()
+                .unwrap_or_else(|held| held.into_inner())
+                .remove(&image);
+        },
+        (),
+    );
 }
 
 #[wasm_bindgen]
@@ -111,25 +167,6 @@ pub fn took() -> Vec<f64> {
         },
         vec![0.0, 0.0],
     )
-}
-
-#[wasm_bindgen]
-pub fn deliver(frame: &[u8]) {
-    with(|shim| shim.transport.inbox.push_back(frame.to_vec()), ());
-}
-
-#[wasm_bindgen]
-pub fn collect() -> js_sys::Array {
-    let frames = js_sys::Array::new();
-    with(
-        |shim| {
-            for frame in std::mem::take(&mut shim.transport.outbox) {
-                frames.push(&js_sys::Uint8Array::from(frame.as_slice()).into());
-            }
-        },
-        (),
-    );
-    frames
 }
 
 #[wasm_bindgen]

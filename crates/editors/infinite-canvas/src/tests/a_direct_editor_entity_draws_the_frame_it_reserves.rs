@@ -1,5 +1,6 @@
 use super::*;
-use block_editor_beui::be_block::{BlockContent, CounterContent};
+use block_editor_beui::be_block::BlockContent;
+use counter_types::CounterContent;
 
 #[test]
 fn a_direct_editor_entity_draws_the_frame_it_reserves() {

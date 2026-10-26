@@ -37,5 +37,15 @@
       ]
     }
   },
+  "block_types": {
+    "presentation": {
+      "id": "00007072-6573-656e-7461-74696f6e0001",
+      "display_name": "Presentation",
+      "icon": "\ue4ae",
+      "color": [211, 126, 59],
+      "children": {"add": true, "delete": true, "replace": true},
+      "module": "presentation_types.wasm"
+    }
+  },
   "entry_point": "presentation.wasm"
 }

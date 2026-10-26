@@ -1,18 +1,11 @@
-use block_editor_beui::be_block::{BlockContent, DatabaseSchemaContent};
+use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::beui::icons::Glyph;
+use database_types::DatabaseSchemaContent;
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::presence::{CanvasCaret, CanvasCursor};
 use block_editor_beui::ContentProjection;
-use block_editor_beui::be_block::CanvasContent;
-use block_editor_beui::be_block::ImageContent;
-use block_editor_beui::be_block::canvas::{
-    Canvas, CanvasArrowhead, CanvasBinding, CanvasComponent, CanvasEntity, CanvasLayerMove,
-    CanvasLook, CanvasPoint, CanvasProfile, CanvasShape, CanvasStyle, CanvasTextStyle,
-    CanvasTransform, InfiniteCanvasOperation,
-};
-use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::be_block::presence::{PresenceColor, pick_free_color};
 use block_editor_beui::be_block::{Edit, ObjectId};
 use block_editor_beui::beui::icons::{
@@ -27,6 +20,13 @@ use block_editor_beui::{
     BlockFilter, ChildState, Drag, Editor, FileDrop, InteractionMode, ResizeMode,
 };
 use block_editor_beui::{BlockParent, BlockQuery, SharedCaret};
+use database_types::database::DatabaseValue;
+use infinite_canvas_types::CanvasContent;
+use infinite_canvas_types::{
+    Canvas, CanvasArrowhead, CanvasBinding, CanvasComponent, CanvasEntity, CanvasLayerMove,
+    CanvasLook, CanvasPoint, CanvasProfile, CanvasShape, CanvasStyle, CanvasTextStyle,
+    CanvasTransform, InfiniteCanvasOperation,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -35,6 +35,7 @@ use crate::geometry::*;
 use super::entities::Entities;
 use super::text::labels;
 use crate::images::{image_filter, imported_image};
+use image_block_types::{ImageContent, ImageFile};
 
 pub(crate) const ZOOM_STEP: f32 = 1.25;
 const CANVAS_CLIPBOARD_PREFIX: &str = "be3-infinite-canvas:";
@@ -419,6 +420,7 @@ struct CanvasCells {
     shown: RefCell<Option<CanvasCursor>>,
     writing: Cell<bool>,
     scrubbing: Cell<bool>,
+    written_points: Cell<usize>,
     drafting: Cell<Option<Uuid>>,
     color: Cell<Option<PresenceColor>>,
     stage: Cell<Rect>,
@@ -541,6 +543,7 @@ impl CanvasState {
             shown: RefCell::new(None),
             writing: Cell::new(false),
             scrubbing: Cell::new(false),
+            written_points: Cell::new(0),
             drafting: Cell::new(None),
             color: Cell::new(None),
             stage: Cell::new(Rect::ZERO),
@@ -623,18 +626,18 @@ impl CanvasState {
         self.preview
     }
 
-    pub(crate) fn grid(&self) -> ReadSignal<block_editor_beui::be_block::canvas::CanvasGrid> {
+    pub(crate) fn grid(&self) -> ReadSignal<infinite_canvas_types::CanvasGrid> {
         self.cells.value().content.field(
             block_editor_beui::be_block::be_model::ObjectId::ROOT,
-            block_editor_beui::be_block::canvas::Canvas::GRID,
+            infinite_canvas_types::Canvas::GRID,
         )
     }
 
-    pub(crate) fn set_grid(&self, grid: block_editor_beui::be_block::canvas::CanvasGrid) {
+    pub(crate) fn set_grid(&self, grid: infinite_canvas_types::CanvasGrid) {
         self.cells
             .value()
             .content
-            .operate(block_editor_beui::be_block::canvas::Canvas::set_grid(grid));
+            .operate(infinite_canvas_types::Canvas::set_grid(grid));
     }
 
     pub(crate) fn block_id(&self) -> Uuid {
@@ -937,11 +940,22 @@ impl CanvasState {
                 pressures,
                 ..
             } => {
-                if let [start, _, ..] = points[..] {
+                let written = &self.cells.value().written_points;
+                let from = written.get();
+                if from >= 2 && self.holds(*id) {
+                    if from < points.len() {
+                        self.operate(&InfiniteCanvasOperation::Extend {
+                            id: *id,
+                            points: points[from..].to_vec(),
+                            pressures: pressures[from..].to_vec(),
+                        });
+                    }
+                } else if let [start, _, ..] = points[..] {
                     let entity =
                         pen_entity(points.clone(), pressures.clone(), self.default_style());
                     self.put_live(vec![seeded(entity, *id, start)]);
                 }
+                written.set(points.len());
             }
             Gesture::Move {
                 duplicate: true, ..
@@ -1073,6 +1087,7 @@ impl CanvasState {
 
     pub(crate) fn begin_gesture(&self, gesture: Option<Gesture>) {
         self.cancel_writes();
+        self.cells.value().written_points.set(0);
         self.gesture.set(gesture);
         self.write_gesture();
     }
@@ -1992,7 +2007,7 @@ impl CanvasState {
             if let Ok(picked) = picked
                 && state.is_alive()
             {
-                state.place_picked_block(picked.id, center);
+                state.place_picked_block(picked.id(), center);
             }
         });
     }
@@ -2036,7 +2051,7 @@ impl CanvasState {
                 if let Ok(picked) = picked
                     && state.is_alive()
                 {
-                    state.attach_picked_component(&selected, picked.id);
+                    state.attach_picked_component(&selected, picked.id());
                 }
             },
         );
@@ -2071,7 +2086,7 @@ impl CanvasState {
             if let Ok(picked) = picked
                 && state.is_alive()
             {
-                state.set_picked_value(&selected, schema_id, field_id, picked.id);
+                state.set_picked_value(&selected, schema_id, field_id, picked.id());
             }
         });
     }
@@ -2728,7 +2743,7 @@ impl CanvasState {
         for (index, file) in drop.files.into_iter().enumerate() {
             let offset = IMPORT_CASCADE_OFFSET * index as f32;
             self.add_imported_image(
-                ImageContent::from_file(file.name, file.data),
+                ImageFile::from_file(file.name, file.data),
                 CanvasPoint::new(base.x + offset, base.y + offset),
             );
         }
@@ -2742,7 +2757,7 @@ impl CanvasState {
             Pasted::Image(file) => {
                 self.import_error.set(None);
                 let center = self.paste_center();
-                self.add_imported_image(ImageContent::from_file(file.name, file.data), center);
+                self.add_imported_image(ImageFile::from_file(file.name, file.data), center);
             }
         }
     }

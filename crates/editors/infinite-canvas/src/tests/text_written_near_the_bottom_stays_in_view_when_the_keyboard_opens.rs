@@ -4,6 +4,7 @@ use block_editor_beui::beui::{TouchPhase, Vec2, pos2};
 #[test]
 fn text_written_near_the_bottom_stays_in_view_when_the_keyboard_opens() {
     let mut editor = phone(&[]);
+    editor.reveal("infinite-canvas.dock.tool.Text");
     editor.click("infinite-canvas.dock.tool.Text");
     editor.run();
     let canvas = editor.rect_of("infinite-canvas.canvas");

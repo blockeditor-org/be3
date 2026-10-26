@@ -1,6 +1,6 @@
 use super::*;
 
-fn placements(occluders: Vec<Occluder>) -> Message {
+fn placements(occluders: Vec<Occluder>) -> FrameCommit {
     committed(ChildPlacements {
         instance: EditorInstanceId(1),
         region: EditorRegion::Frame,
@@ -23,6 +23,7 @@ fn placements(occluders: Vec<Occluder>) -> Message {
             rotation: 0.0,
             opacity: 1.0,
             follows_view: false,
+            dialog: None,
         }],
         occluders,
     })
@@ -35,12 +36,16 @@ fn rejects_unordered_occluders() {
         rect: Rect::ZERO,
     };
     assert_eq!(
-        encode_frame(&placements(vec![occluder(2)])),
+        placements(vec![occluder(2)]).validate(),
         Err(DecodeError::MalformedPayload)
     );
     assert_eq!(
-        encode_frame(&placements(vec![occluder(1), occluder(0)])),
+        placements(vec![occluder(1), occluder(0)]).validate(),
         Err(DecodeError::MalformedPayload)
     );
-    assert!(encode_frame(&placements(vec![occluder(0), occluder(1)])).is_ok());
+    assert!(
+        placements(vec![occluder(0), occluder(1)])
+            .validate()
+            .is_ok()
+    );
 }

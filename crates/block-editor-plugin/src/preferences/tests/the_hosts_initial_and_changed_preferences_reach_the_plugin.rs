@@ -8,18 +8,20 @@ fn the_hosts_initial_and_changed_preferences_reach_the_plugin() {
         motion: Motion::Instant,
         canvas_touch: Default::default(),
     };
-    let accept = Message::HelloAccepted(HelloAccepted {
+    let accept = HelloAccepted {
         host_name: "test host".to_owned(),
         surface: None,
         preferences: initial,
-    });
-    plugin.receive(decode_frame(&encode_frame(&accept).unwrap()).unwrap());
+    };
+    plugin.accept(decode(&encode(&accept)).unwrap()).unwrap();
     assert_eq!(host_preferences(), initial);
     let changed = Preferences {
         theme: ThemeKind::EPaper,
         motion: Motion::Animated,
         canvas_touch: Default::default(),
     };
-    plugin.receive(decode_frame(&encode_frame(&Message::Preferences(changed)).unwrap()).unwrap());
+    plugin
+        .set_preferences(decode(&encode(&changed)).unwrap())
+        .unwrap();
     assert_eq!(host_preferences(), changed);
 }

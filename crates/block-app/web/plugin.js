@@ -8,8 +8,18 @@
 // and a real wgpu device in the worker, which draws what the plugin shows into
 // the canvases the page transferred to the worker. The two modules have
 // separate memories, so the shim is handed the plugin's and every import is
-// bound straight to the shim's export of the same name, which reads and writes
-// what a pointer points at in the plugin's memory itself.
+// bound straight to the shim's export for it, which reads and writes what a
+// pointer points at in the plugin's memory itself: be3_host's under their own
+// names, and each import of the gpu world as `module#name` (be-ops-bindgen's
+// listing of a world's local imports, which the shim exports). A preview the plugin
+// paints leaves the worker as a bitmap of each surface the page exports, and a
+// bitmap another worker painted arrives as a texture the plugin imports.
+//
+// The frames between the host and the plugin are answered here rather than by
+// the shim, since they share one ordered stream with the plugin's direct calls
+// (guides/type_modules.md): a sync import of the plugin's world is a call item
+// the host reads among its frames, and a call item from the host runs the
+// export it names once the frames before it were stepped through.
 
 import * as dylink from "./dylink.js";
 import * as wasi from "./wasi.js";
@@ -21,12 +31,90 @@ function stub(module, name) {
     };
 }
 
-function forward(shim, name) {
-    const call = shim[name];
-    return typeof call === "function" ? call : stub("be3", name);
+function forward(shim, module, name, exported) {
+    const call = shim[exported];
+    return typeof call === "function" ? call : stub(module, name);
 }
 
-function resolve(module, memory, shim) {
+const MARK = [0xff, 0xff, 0xff, 0xff];
+const CALL = 1;
+const RETURNED = 2;
+
+function marked(item) {
+    return item.length >= 5 && MARK.every((byte, index) => item[index] === byte);
+}
+
+function callItem(name, hasParent, parent, args) {
+    const encoded = new TextEncoder().encode(name);
+    const item = new Uint8Array(16 + encoded.length + args.length);
+    const view = new DataView(item.buffer);
+    item.set(MARK, 0);
+    item[4] = CALL;
+    item[5] = hasParent ? 1 : 0;
+    view.setBigUint64(6, BigInt.asUintN(64, BigInt(parent)));
+    view.setUint16(14, encoded.length);
+    item.set(encoded, 16);
+    item.set(args, 16 + encoded.length);
+    return item;
+}
+
+function transport(memory, direct) {
+    const inbox = [];
+    let outbox = [];
+    const bytes = () => new Uint8Array(memory.buffer);
+    return {
+        inbox,
+        direct,
+        post: (item) => outbox.push(item),
+        collect() {
+            const frames = outbox;
+            outbox = [];
+            return frames;
+        },
+        host_send(pointer, length) {
+            outbox.push(bytes().slice(pointer, pointer + length));
+        },
+        host_receive(pointer, capacity) {
+            if (inbox.length === 0) return -1n;
+            const frame = inbox[0];
+            if (frame.length > capacity) return BigInt(frame.length);
+            bytes().set(frame, pointer);
+            inbox.shift();
+            return BigInt(frame.length);
+        },
+        forward(name) {
+            return (hasParent, parent, pointer, length) => {
+                const args = bytes().slice(pointer, pointer + length);
+                outbox.push(callItem(name, hasParent !== 0, parent, args));
+            };
+        },
+    };
+}
+
+function callExport(exports, memory, item) {
+    const view = new DataView(item.buffer, item.byteOffset, item.byteLength);
+    const hasParent = item[5] & 1;
+    const answered = (item[5] & 2) !== 0;
+    const parent = BigInt.asIntN(64, view.getBigUint64(6));
+    const length = view.getUint16(14);
+    const name = new TextDecoder().decode(item.subarray(16, 16 + length));
+    const args = item.subarray(16 + length);
+    const exported = exports[name];
+    if (typeof exported !== "function") throw new Error(`the plugin does not export ${name}`);
+    const pointer = exports.plugin_alloc(args.length);
+    new Uint8Array(memory.buffer).set(args, pointer);
+    const packed = BigInt.asUintN(64, exported(hasParent, parent, pointer, args.length));
+    if (!answered) return null;
+    const at = Number(packed >> 32n);
+    const size = Number(packed & 0xffffffffn);
+    const answer = new Uint8Array(5 + size);
+    answer.set(MARK, 0);
+    answer[4] = RETURNED;
+    answer.set(new Uint8Array(memory.buffer).subarray(at, at + size), 5);
+    return answer;
+}
+
+function resolve(module, memory, shim, frames) {
     const resolved = { __proto__: null };
     for (const wanted of WebAssembly.Module.imports(module)) {
         const group = (resolved[wanted.module] ??= { __proto__: null });
@@ -41,10 +129,18 @@ function resolve(module, memory, shim) {
                 const bytes = new Uint8Array(memory.buffer).slice(pointer, pointer + length);
                 throw new Error(new TextDecoder().decode(bytes));
             };
-        } else if (wanted.module === "be3_gpu" || wanted.module === "be3_host") {
-            group[wanted.name] = forward(shim, wanted.name);
+        } else if (
+            wanted.module === "be3_host" &&
+            (wanted.name === "host_send" || wanted.name === "host_receive")
+        ) {
+            group[wanted.name] = frames[wanted.name];
+        } else if (frames.direct.some(([module, name]) => module === wanted.module && name === wanted.name)) {
+            group[wanted.name] = frames.forward(`${wanted.module}#${wanted.name}`);
+        } else if (wanted.module === "be3_host") {
+            group[wanted.name] = forward(shim, wanted.module, wanted.name, wanted.name);
         } else {
-            group[wanted.name] = stub(wanted.module, wanted.name);
+            const exported = `${wanted.module}#${wanted.name}`;
+            group[wanted.name] = forward(shim, wanted.module, wanted.name, exported);
         }
     }
     return resolved;
@@ -122,7 +218,7 @@ async function fetched(url) {
     return response.arrayBuffer();
 }
 
-export async function boot(shimUrl, moduleUrl, wake) {
+export async function boot(shimUrl, moduleUrl, wake, direct) {
     const shimModule = await import(shimUrl);
     const shim = await shimModule.default();
     await shimModule.start();
@@ -140,12 +236,13 @@ export async function boot(shimUrl, moduleUrl, wake) {
     shimModule.bind(memory);
     threads.bindThreads(first, memory);
     threads.bindWake(wake);
-    const runtime = new WebAssembly.Instance(first, resolve(first, memory, shim));
+    const frames = transport(memory, direct);
+    const runtime = new WebAssembly.Instance(first, resolve(first, memory, shim, frames));
     runtime.exports.__wasm_call_ctors?.();
     let exports = runtime.exports;
     if (first !== plugin) {
         const layout = dylink.plan(shimModule, runtime, plugin, memory);
-        const instance = dylink.instantiate(runtime, plugin, layout, resolve(plugin, memory, shim));
+        const instance = dylink.instantiate(runtime, plugin, layout, resolve(plugin, memory, shim, frames));
         dylink.relocate(instance, layout);
         instance.exports.plugin_initialize_tls(
             runtime.exports.__tls_size.value,
@@ -160,11 +257,24 @@ export async function boot(shimUrl, moduleUrl, wake) {
     }
     exports.plugin_start();
     return {
-        deliver: (frame) => shimModule.deliver(frame),
-        collect: () => shimModule.collect(),
+        deliver(frame) {
+            const item = new Uint8Array(frame);
+            if (!(marked(item) && item[4] === CALL)) {
+                frames.inbox.push(item);
+                return;
+            }
+            if (frames.inbox.length > 0) exports.plugin_step();
+            const answer = callExport(exports, memory, item);
+            if (answer !== null) frames.post(answer);
+        },
+        collect: () => frames.collect(),
         show: (id, canvas, surface) => shimModule.show(id, canvas, surface),
         forget: (id) => shimModule.forget(id),
         paint: () => shimModule.paint(),
+        exportSurfaces: (surfaces) => shimModule.export_surfaces(Uint32Array.from(surfaces)),
+        exported: () => shimModule.exported(),
+        importImage: (image, bitmap) => shimModule.import_image(BigInt(image), bitmap),
+        forgetImage: (image) => shimModule.forget_image(BigInt(image)),
         took: () => shimModule.took(),
         failure: () => shimModule.failure(),
         woken: () => shimModule.woken(),

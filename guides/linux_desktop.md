@@ -4,32 +4,42 @@ block-app is also a Linux desktop: a Wayland compositor whose shell is the linux
 plugin instead of workspace-ui. These flags start it that way:
 
 - `--session` (Linux): run on the displays and input devices themselves through
-  `beui-adapter-drm` instead of in a window, from a virtual terminal with no other display
+  `beui-platform-drm` instead of in a window, from a virtual terminal with no other display
   server on it, as the desktop: the shell is linux-desktop instead of workspace-ui, on a
   session of its own. The bar's power menu logs out (see below), Ctrl+Alt+Backspace quits at
   once, as does holding four fingers on a touchscreen for three seconds, and Ctrl+Alt+F<n>
   switches terminals. guides/pinenote.md covers an e-paper tablet.
-  `BEUI_SCALE` sets its scale.
+  It shows one window per display (see Displays, below); `BEUI_SCALE` sets every display's scale.
 - `--desktop` (every native platform): the desktop shell, linux-desktop on its own session as
   under `--session`, in a normal window, with programs opening as windows inside it as they
   do in any windowed run. What needs the displays and input devices themselves, such as
   display modes, pointer settings and the power menu's actions other than Lock, is absent,
-  since `beui-adapter-drm` is not running: the power actions start only when the DRM seat
+  since `beui-platform-drm` is not running: the power actions start only when the DRM seat
   provides its `DisplayControl`. On Windows and macOS (`src/arguments.rs` parses the flags)
   it is the shell alone: there are no program windows, notification server, tray, media,
   power, lock screen or launcher.
   The app test `the_desktop_shell_opens_and_closes_cleanly` (crates/app-tests) starts it headless and closes it.
 - `--install-session [PREFIX]` (Linux): see below.
 
-Everything the desktop gets from the host is a host value, and linux-desktop shows a control
-only while the host offers what backs it (`editor.host_offers::<T>()`, true once the host has
-published `T`): the Programs button, the Super tap and placeholders' Open need `Programs`, the
-bell `Notifications`, the power menu `Power`, the media keys `Media` (the volume item, its
-`output`), the Wi-Fi item `Wifi` (its `available`), and the tray its items. block-app publishes each as soon as the service behind it
-runs, even empty, and off Linux its `host_values.rs` tables list none of them, so a plugin
-watching one gets nothing and its actions are refused. The web and Android apps have no
-`--desktop`: a desktop with none of these is only a dock of block windows, which their own
-shells already are.
+Everything the desktop gets from the host comes through `be3:linux-desktop`, a WIT package
+beside the core plugin protocol rather than in it
+(`crates/block-plugin-api/wit/deps/linux-desktop`): one interface per part of the session
+(`windows`, `input`, `displays`, `power`, `media`, `wifi`, `epaper`, `notifications`,
+`screen-lock`, `programs`, `tray`, sharing `types`' `host-image`), each a latest-value watch
+(`WindowsWatch`, `PowerWatch`, ...) and, where the desktop asks something of the host, a
+function (`power::request(PowerAction)`, `epaper::refresh()`, ...). Another host, a compositor
+in another language, can implement it from the WIT alone. A plugin uses it only by naming
+`be3:linux-desktop` in its manifest's `extensions` (linux-desktop, workspace-ui for the program
+windows, and settings for displays, input devices and remaps); the host denies a watch or a call
+from any other. linux-desktop shows a control only while the host offers what backs it
+(`editor.offered::<W>()`, true once the host answered the watch): the Programs button, the
+Super tap and placeholders' Open need `ProgramsWatch`, the bell `NotificationsWatch`, the power
+menu `PowerWatch`, the media keys `MediaWatch` (the volume item, its `output`), the Wi-Fi item
+`WifiWatch` (its `available`), and the tray its items. block-app publishes each as soon as the
+service behind it runs, even empty, and a host with no Linux session (off Linux, the web and
+Android) answers every watch of the package `unsupported` and drops its calls, which the desktop
+sees as nothing offered. The web and Android apps have no `--desktop`: a desktop with none of
+these is only a dock of block windows, which their own shells already are.
 
 `./scripts/buck run //crates/block-app:dev -- --desktop` runs the desktop shell headless, to
 drive like any other run (guides/running/drive.md).
@@ -46,9 +56,99 @@ stays free to resize itself. Only when the person resizes it, or it is docked, i
 with a size, and then with the tiled states too. A 1×1 placeholder, which Firefox commits for its
 server-side-decorated windows and never grows on its own, opens at a default size instead.
 
-Popups (xdg-popup, and Xwayland's override-redirect windows) are fitted to the screen their window
-is on, not to the window, as the protocol intends, and are drawn and take input in a floating
+Popups (xdg-popup, and Xwayland's override-redirect windows) are fitted to the monitor their window
+is mostly on, not to the window, as the protocol intends, and are drawn and take input in a floating
 overlay above the document, so a menu can reach past its window's edge.
+
+Where the host opens windows (`opens_windows()`, true only in space), every toplevel is a
+window, and so a panel, of its own: workspace-ui shows each top program window as a floating dock
+window (`FloatingWindow`) instead of a tab, as linux-desktop always does, and the dock shows a
+window-presented dialog, which is how both shells show a program's dialogs (`AttachedWindow`), as
+a `Window` placed `Over` its parent's window, centred on it and `dialog_outset` (the chrome the
+styled dock draws around the body) larger than its body. A toplevel's popups are a `Window` of the
+`WindowView` (`WindowRole::Popup`, so the toplevel keeps the keyboard and the popup its grab), placed `Over` the window the toplevel is in where the overlay would be, and opened
+again whenever the popups' corner moves, as when a submenu grows them leftward or upward. The
+compositor still places each toplevel at its rectangle in its own window's coordinates, the
+keyboard follows the document's focus as anywhere, and a modal dialog still turns presses on its
+parent into raising the dialog. Outside space all of this stays an overlay or a tab, as above.
+
+A window's and its popups' drawings paint too (`Paints` on `WindowDraw`, which reads each surface's
+texture back, opaque), so paintings and `drive paint` show what programs drew.
+## Displays
+
+Under `--session`, `beui-platform-drm` shows one window per display, macOS-like
+(guides/beui.md, Displays under beui-platform-drm), and block-app opens them from the
+platform's `Displays` handle (`display/linux.rs` offers them to `display/shown.rs`, and
+`ui::Displays` opens a `Window` per display at its size, with `displays.placement(id)`). The
+first display's window holds the host's whole UI (`ui::Root`: sign-in, the shell, dialogs); every
+display's window holds its own lock screen and display-settings prompt (`DisplayChrome`), and the
+host's toasts stand in the first's. Their test ids repeat from one display's window to the next:
+`drive app click ID in WINDOW` (guides/running/drive.md) finds a target among one window's
+nodes. Every display has its own scale: `BEUI_SCALE`, or what
+`DisplayConfig::scales` names for its monitor. Elsewhere (a window, headless, the web, Android)
+there are no displays and the UI is the main window's, as it always was.
+
+The desktop is one space in points: the displays side by side along their bottom edges. Each
+display's window shows its own region of the shell, macOS-like: the first display the shell's
+frame (`ui::Root`'s `MainSurface`), each further one a `display(n)` region of the same instance
+(`ui::SecondaryDisplay` mounts `compositor::ShellDisplay`, n being the display's place in the
+list from 1), each at its display's size and scale. The shell's windows are the host's own,
+placed in the desktop's points: the shell's regions say the host shows the windows the plugin
+opens from them (`windows` in the screen request, set for the shell's frame and display regions
+and for the windows themselves; guides/adding_a_plugin_editor.md), so every `Window` the shell
+opens, each of linux-desktop's dock windows, becomes a `window(w)` region that block-app keeps
+in `compositor/desktop.rs`: a list of `Floated` windows, each its rect in desktop points, in
+stacking order (a press raises one). The shell's region on each display draws, between its own
+surface and its floating layers (menus, popovers, toasts), the windows that display holds most
+of (`desktop::shown_on`, `DesktopWindows` in `compositor/region.rs`), each a `PluginRegion` of
+its window region placed at its rect less the display's corner, whose children are the program
+windows and block editors the shell placed in it. A window opens where the plugin asked: at a
+point of the region it opened from (`Over`, measured from that region's corner on the desktop),
+at the pointer, or at the `placement` it kept (`desktop X Y`); the host answers with that
+placement on the window's screen request, which the dock keeps. `BeginMove` and `BeginResize`
+hand the press to the host: the window follows the pointer from where it was pressed (the
+press's point and the window's rect are noted on the press, `desktop::follow`), the plugin sees
+no moves meanwhile, and the release ends it and gives the new placement. While one moves it is
+drawn on every display it overlaps and on the one the move began on, which holds the press;
+once let go it is drawn only on the display holding most of it. Each region is laid out at the
+document's scale and rendered at the raster of the display that shows most of it (each mount's
+`EmbedPlacement::raster`, `RegionPlacement::raster` of the offer whose clip is largest), so a window moved onto a display at another scale is rendered at that scale once
+it is mostly there; while it straddles two, the display that holds less of it shows the same
+texture scaled. Program windows and block editors are children of the windows they are tabs
+of, so they stack and take the focus with them. The pointer crosses between display windows
+with a press held, by beui's cross-window rules (the platform reports each window's desktop
+origin, `WindowReport::Moved`), and between the shell's regions by the protocol's `over`: a
+press held in one of the shell's regions names the region the pointer is over, so a tab dragged
+out of one window and over another, on any display, lands on that window's bar.
+
+`--desktop` in a window, or headless, is the same with one display, the window: the shell's frame
+fills it, and its windows are the host's own, drawn over it in that window's points. The plugin
+tests do the same through block-ui-test's `BeuiTest::show_on_displays`, which shows the regions
+and hosts the windows as block-app does, takes input in desktop points (`desk_press`,
+`desk_move`, `desk_release`, `desk_drag`) and paints a display with the windows on it
+(`desk_snapshot`); without it a plugin draws its windows inside its frame.
+
+The shell learns the displays from `DisplaysWatch`: each `HostDisplay` carries its `rect` in the
+desktop's points and its `scale`. linux-desktop draws, in every region, a bar along its foot and
+a level display (`desktop.osd.{n}`, n the region's display), and in the frame alone its dock,
+launcher, pickers and notification toasts (above that display's bar); `BeuiApp::Display`
+draws the further displays' regions from what the frame's region shares (`app.rs`, `Desktop`).
+The dock fills the frame above the bar, and its windows open over it.
+
+be-wayland advertises one `wl_output` per display (`Compositor::set_monitors`, from the same
+handle; `heads.rs`), at its desktop position and its scale rounded up, and keeps every window
+entered into the output of the display it mostly covers (`wl_surface.enter`/`leave` and the
+preferred buffer scale follow it as it moves), sends its frame callbacks and presentation feedback
+through that output, and honours the output named in `xdg_toplevel.set_fullscreen` by making the
+window fullscreen on that display. Xwayland binds the same outputs, so X11 programs see the same
+monitors. A `WindowView` reports its rect in desktop coordinates (its window's origin added). In a
+window or headless, the compositor's area is one output.
+
+Under `--session` be-wayland's sources (the display's socket and clients, its own event loop,
+buffers' fences) are inserted into `beui-platform-drm`'s calloop loop, which the platform hands out
+as `beui_platform_drm::Loop` through `Setup` (`Compositor::join_loop`); they wake beui, whose
+frame dispatches the clients. Elsewhere, where the platform's loop is winit's or the headless one
+and takes no file descriptors, the "wayland watch" thread (`Server::watch`) polls them instead.
 
 ## Installing it as a session
 
@@ -74,7 +174,7 @@ and the output of every program the app starts, go to `$XDG_STATE_HOME/block/ses
 `session.previous.log`. The directory is the app id in lower case (`blockdev` for a build
 without bundle metadata). The error that ends a session is also written to the stderr the app
 started with, so a session run by systemd or greetd shows it in the journal. Problems a person should see at once also show as toasts in the
-corner of the screen: `beui_adapter_drm::Problems` carries the display and input ones,
+corner of the screen: `beui_platform_drm::Problems` carries the display and input ones,
 `be_wayland::Compositor::on_failure` a program that could not be run, and `notices::report`
 puts each in front of the person, as an error toast that stays until it is dismissed;
 `notices::report_with` also keeps a full report (a crashed plugin's error, or the backtrace of
@@ -91,27 +191,27 @@ clients keep running (see A shell that stops, below); a D-Bus task (`dbus::spawn
 password check that panics fails. Any other panic, on the UI thread or on a thread nothing
 contains (the block stack's, say), is the app's own: in a window the app shows its error
 screen, and under `--session` it ends the session instead, through beui's runner and
-`beui_adapter_drm`'s `Session::end`, so the console comes back and the display manager takes
+`beui_platform_drm`'s `Session::end`, so the console comes back and the display manager takes
 over rather than a frozen screen.
 
 The screens turn off after the display settings' "Turn off screens after" (ten minutes by
 default). `be_wayland::Compositor` counts the idle time on the frame clock from the frames that
 carried input (`Document::input_frames`), held back while a window that is shown has a `zwp_idle_inhibitor_v1`, and answers
 `ext_idle_notifier_v1` for idle daemons the same way. `Windows::idle()` is true once the time
-has run out; block-app hands it to `beui_adapter_drm::DisplayControl::set_blanked`, which turns
+has run out; block-app hands it to `beui_platform_drm::DisplayControl::set_blanked`, which turns
 the outputs' CRTCs off and stops drawing to them until input wakes the session. In a window
 nothing is turned off.
 
-The input that wakes the screens reaches nothing: the adapter's `WakeGate` (`wake.rs`) drops it
+The input that wakes the screens reaches nothing: the platform's `WakeGate` (`wake.rs`) drops it
 before beui, plugins or Wayland clients see it, along with all input for a grace period after
 it (`GRACE_USEC`, timed on libinput's event clock), and the release of every press it dropped,
 whenever that comes. Pointer motion it drops still moves the cursor. A release whose press was
-delivered before the screens went off is still delivered, so no key stays held. The adapter
+delivered before the screens went off is still delivered, so no key stays held. The platform
 turns the screens on itself and reports the wake through `DisplayControl::take_woken`, which
 block-app hands to `Compositor::woke` so the idle count restarts.
 
 Switching terminals hands the seat to whatever runs there, whose DRM master reprograms the
-CRTCs, connectors and planes as it likes, so nothing the adapter cached about them survives.
+CRTCs, connectors and planes as it likes, so nothing the platform cached about them survives.
 `recovery.rs` decides what happens: when the seat comes back every output (surface,
 swapchain, framebuffers, pending flips and fence watches) is dropped while the device is still
 paused, the device is reset to everything off, and outputs are built again for whatever is
@@ -126,7 +226,7 @@ asks for what it may offer with `LinuxMessage::WatchPower` and sends `RequestPow
 `src/session/power.rs` decides what happens (programs are asked to close, and are given five
 seconds before the session ends or logind is asked to restart or power off) and
 `src/session/logind.rs` talks to `org.freedesktop.login1`, including its `PrepareForSleep`
-signal. Logging out closes the app the way closing its window does; `beui-adapter-drm`'s
+signal. Logging out closes the app the way closing its window does; `beui-platform-drm`'s
 `Session::end` then drops the app, the outputs, the input devices, the DRM device (which
 puts back what the console showed) and, last, the seat. Every D-Bus conversation runs on one thread, `src/dbus.rs`: `dbus::spawn` runs a
 future there and `dbus::system()` is the shared system bus connection. A task hands what it
@@ -144,7 +244,7 @@ and `Compositor::set_owned(false)`, which block-app sets whenever no shell is on
 the keyboard, the pointer, held buttons and popups from them, drops any input meant for them
 and pings every client each `PING_TIMEOUT`, so one that froze meanwhile is listed as not
 responding. The lock screen is the host's and works throughout. The new shell sees the
-windows in `HostWindows` and shows them as it shows any window; linux-desktop's saved layout
+windows in `WindowsWatch` and shows them as it shows any window; linux-desktop's saved layout
 names window tabs by `HostWindowId`, which the compositor keeps, so a restored layout puts
 each window back where it was, fullscreen and dialogs included. To try it, open the Plugins
 panel from the bar's menu and press Crash beside `be3.linux-desktop`.
@@ -159,8 +259,9 @@ the hints, loads the picture (image-data, image-path, the app icon through be-wa
 `IconThemes`, then the desktop entry's icon, scaled down to at most 128 pixels and sent as
 RGBA), and answers `Notify` at once with an id it picks itself (`notifications/inbox.rs`:
 `replaces_id` keeps its id while the desktop still holds it). Each `Notify` and
-`CloseNotification` then waits in the `Notifications` host value, a `NotificationInbox` of
-numbered requests, until the shell's `NotificationReport` says it took them; the report also
+`CloseNotification` then waits in the `NotificationsWatch` value, a `NotificationInbox` of
+numbered requests, until the shell's `NotificationReport` (`notifications::report`) says it
+took them; the report also
 carries the `NotificationClosed` and `ActionInvoked` signals the host sends and the ids the
 desktop still holds.
 
@@ -171,8 +272,8 @@ five seconds, 0 and critical urgency never), actions, `resident` and `transient`
 toast whose time is up only hides: the notification stays until it is dismissed, an action
 is taken or its program closes it, which is the `persistence` capability, except a transient
 one, which closes as expired. The toasts are a `beui::styled::Toasts` (title, picture and
-action buttons; clicking the body is the `default` action) anchored to the first screen with
-the desktop bar cut off it, with ids from `TOAST_IDS` up so other toasts can share the stack.
+action buttons; clicking the body is the `default` action) anchored to the first display with
+its bar cut off it, with ids from `TOAST_IDS` up so other toasts can share the stack.
 They make way while the bell's list of notifications is open.
 
 To try it, start a session bus of its own (`dbus-daemon --session --fork --print-address`
@@ -206,9 +307,13 @@ icon, then `IconName` (in `IconThemePath`, then the icon themes through be-wayla
 where to test parsing: services, pixmaps (ARGB in network order), properties and menus
 (hidden entries dropped, `_` mnemonics removed).
 
-The shell watches the `Tray` host value, the items as `HostTrayItem`s with each menu a tree of
-`TrayMenuEntry`s, and answers with `TrayRequest`s. linux-desktop's `src/app/tray.rs` shows each
-item that is not `Passive` as a `PictureMenuButton` in the bar: a click is `Activate` (or opens
+The shell watches `TrayWatch`, the items as `HostTrayItem`s, and answers with `TrayRequest`s
+(`tray::request`). WIT has no recursive types, so a menu crosses flat: `TrayMenuItem`s in
+order, each one deeper than the submenu it is in; the host builds that list straight from
+dbusmenu's layout, and the shell nests it into `TrayMenuEntry` trees with
+`HostTrayItem::entries`, the helper the shell's own menus nest with (block-plugin-api's
+`nesting.rs`), which refuses a menu nested deeper than `MAX_MENU_DEPTH`. linux-desktop's `src/app/tray.rs` shows each
+item that is not `Passive` as a `MenuButton` with a picture face in the bar: a click is `Activate` (or opens
 the menu of an `ItemIsMenu` item), a right click opens the menu, a middle click is
 `SecondaryActivate` and the wheel `Scroll`s, 120 to a notch. Opening the menu sends
 `MenuOpened`, which the host turns into `AboutToShow` and the `opened` event, or into the item's
@@ -225,10 +330,10 @@ compositor's socket, for example a Python script using `gir1.2-ayatanaappindicat
 linux-desktop binds the volume, mute, mic mute, brightness and media transport keys
 (`BINDINGS` in its `app/media.rs`, the one place that says which key does what) as
 intercepting actions, so the host hands them to the shell even while a program has the keyboard,
-and a held key repeats. Each key sends a `MediaRequest` host action (`editor.act`), and
-a volume, mute or brightness key shows `beui::styled::LevelOsd`, an icon and a level bar on
-every monitor that fades out after 1.5 seconds, with the levels the host reports (the `Media`
-host value, `editor.host_value::<Media>()`). The bar's volume item (`app/volume.rs`) shows
+and a held key repeats. Each key sends a `MediaRequest` (`media::request` inside
+`editor.act`), and a volume, mute or brightness key shows `LevelOsd` (`app/osd.rs`), an icon and
+a `styled::Progress` bar on every display (one card in each display's region, `desktop.osd.{n}`) that fades out after 1.5 seconds, with the levels the host reports
+(`editor.watch::<MediaWatch>()`). The bar's volume item (`app/volume.rs`) shows
 the same output level while the host reports one, and its popup sets the volume, the mute and
 the default output (`MediaRequest::SetVolume`, `SetMute`, `ChooseOutput`) from the sinks the
 host lists in `MediaLevels::outputs`.
@@ -247,7 +352,7 @@ the levels back. The backends run as tasks on the D-Bus thread:
 
 To try them under `:dev -- --desktop`, run `pipewire`, `wireplumber` and `pipewire-pulse`
 with `XDG_RUNTIME_DIR` and `DBUS_SESSION_BUS_ADDRESS` set for the app, and press them with
-`drive key volumeup` (or `micmute`, `play`, ...). The VM has no sound card, so give it outputs with
+`drive app key volumeup` (or `micmute`, `play`, ...). The VM has no sound card, so give it outputs with
 `pactl load-module module-null-sink sink_name=speakers sink_properties=device.description=Speakers`,
 and change them from outside the app with `pactl set-sink-volume`, `set-sink-mute` and
 `set-default-sink`.
@@ -255,7 +360,7 @@ and change them from outside the app with `pactl set-sink-volume`, `set-sink-mut
 ## Wi-Fi
 
 The bar's Wi-Fi item (linux-desktop's `app/wifi.rs`) shows while the host reports a Wi-Fi
-device (`WifiStatus::available` in the `Wifi` host value): its glyph is the joined network's
+device (`WifiStatus::available` in `WifiWatch`'s value): its glyph is the joined network's
 strength, and its popup turns Wi-Fi on and off, lists the networks in range and joins or leaves
 one with `WifiRequest`s. Opening the popup asks for a scan. A saved or open network is joined at
 once; a protected one asks for its password first, and asks again when the host reports that
@@ -281,8 +386,8 @@ beui's own on-screen keyboard (guides/beui.md, The on-screen keyboard) is the de
 `--session` it opens by itself when a field is tapped and no libinput device with letter keys is
 plugged in; the keyboard button beside the bar's clock (`desktop.keyboard`, which calls
 `toggle_keyboard()` and so goes to the host as `WindowRequests::keyboard_toggles`) opens and closes
-it whatever is plugged in. It is drawn by the host along the bottom of the screen the focused field
-is on, so the shell's screen, bar and windows on that screen are laid out above it.
+it whatever is plugged in. It is drawn by the host along the bottom of the window the focused field
+is in (under `--session`, a display's window), and that window is laid out above it.
 
 Programs reach it through `zwp_text_input_v3` (be-wayland's `text_input.rs`; there is no input
 method protocol, since the keyboard is the compositor's own): a text input is entered on the surface
@@ -339,8 +444,8 @@ block-app (`src/remap/linux.rs`) holds the chosen block, reads the envelope when
 the module from the plugin's data (`discovery::data`, only from a plugin that has an `InputRemapper`
 editor) when the plugin or path changes and only reconfigures the running one when only the config
 does, and keeps the last module and config it ran in its own database (`remapper`), so the session
-remaps from its first input, before the workspace is open. The `Remaps` host value says whether this
-device runs a remapper, runs none, or stopped it. The DRM adapter hands every key, button and wheel
+remaps from its first input, before the workspace is open. `RemapsWatch` says whether this
+device runs a remapper, runs none, or stopped it. The DRM platform hands every key, button and wheel
 notch to the `InputFilter` block-app sets on its `InputControl`, after the `WakeGate`, delivers what the
 filter returns as if libinput had sent it (so a remapped `VolumeUp` reaches linux-desktop's media keys
 and shows the level, and a remapped key goes to the window with the keyboard), and runs a timer for
@@ -358,8 +463,9 @@ turn off), and, under `--session`, logind's `Lock` for the app's own session (`l
 lock-session`) and before every suspend: `DesktopSession` holds a logind `delay` inhibitor for
 sleep and lets it go once the lock screen has been drawn twice (`src/session/sleep.rs`), taking it
 again on waking. `src/session/lock.rs` is the state machine, `src/session.rs`'s `ScreenLock` runs
-it, and `src/ui/lock.rs` shows it as `styled::LockScreen`, a card on every screen of
-the document (`use_screens()`) over an opaque scrim. logind's `Unlock` is not obeyed: only a password unlocks.
+it, and `src/ui/lock.rs` shows it as its `LockScreen`: a `Modal` filling its window at
+`LayerLevel::Lock` over an opaque scrim, in every display's window (one in the main window
+elsewhere). logind's `Unlock` is not obeyed: only a password unlocks.
 
 The password is checked by PAM on a thread of its own, with the service `block-app` when
 `/etc/pam.d/block-app` exists (`--install-session` writes it unless one is there, as
@@ -380,8 +486,8 @@ pointer held by the lock none is forwarded anything. `be_wayland::Compositor::se
 go of the buttons and popups a window held. Screens still
 turn off while locked, and idle inhibitors from the windows behind it are ignored. Media keys
 still reach linux-desktop's intercepting media actions (through `compositor/intercept.rs`'s
-`on_global_key`), so volume and playback work over the lock. The host publishes the
-`ScreenLocked` host value, and linux-desktop shows no notification toasts while it is set, so
+`on_global_key`), so volume and playback work over the lock. The host publishes
+`ScreenLockedWatch`, and linux-desktop shows no notification toasts while it is set, so
 none can be read or acted on behind the lock; they show again once it is unlocked.
 `ext-session-lock-v1` (external lockers such as swaylock) is not implemented.
 
@@ -396,13 +502,13 @@ the program launcher, which tapping Super alone or the bar's programs button ope
 `.desktop` programs of the XDG data dirs and starts the one picked, or what was typed as a
 command, with the variables of `Compositor::environment` (`XDG_RUNTIME_DIR`, `WAYLAND_DISPLAY`,
 `DISPLAY` for Xwayland and `DCONF_PROFILE`). linux-desktop draws it; block-app only reads the
-`.desktop` files and their icons and starts the programs (the `Programs` host value and
-`ProgramAction`, guides/adding_a_plugin_editor.md). The workspace shell has no launcher. A
+`.desktop` files and their icons and starts the programs (`ProgramsWatch` and
+`programs::request(ProgramAction)`, guides/adding_a_plugin_editor.md). The workspace shell has no launcher. A
 program can also be started against a driven app directly: the app hands the same variables to
-`drive env` (`App::environment`), so `drive exec foot` runs `foot` inside it, and
-`eval "$(drive env)"` sets them in a shell for anything else, such as `wl-paste`.
+`drive app env` (`App::environment`), so `drive exec foot` runs `foot` inside it, and
+`eval "$(drive app env)"` sets them in a shell for anything else, such as `wl-paste`.
 
-A top-level window opens as a tab in the workspace shell and floats in a dock window of its own in the desktop shell. A window with a parent (`xdg_toplevel.set_parent`) instead hangs over its parent's tab as a dock dialog (see the dock in guides/beui.md), showing and hiding with it. `xdg-dialog-v1` (be-wayland's `dialog.rs`) lets a program mark such a window modal (an XWayland window's parent is its `WM_TRANSIENT_FOR` and its modal flag `_NET_WM_STATE_MODAL`, which smithay's `X11Surface::is_popup` reads): `WindowInfo::modal` is set, and `Windows::blocked_by` names the innermost modal dialog of a window, to which be-wayland gives the keyboard whenever the parent would get it, and for which it drops the parent's pointer input. `weston-simple-shm` (from the `weston` package)
+A top-level window opens as a tab in the workspace shell and floats in a dock window of its own in the desktop shell, unless it was launched to open a block (Files opened in programs, below). A window with a parent (`xdg_toplevel.set_parent`) instead hangs over its parent's tab as a dock dialog (see the dock in guides/beui.md), showing and hiding with it. `xdg-dialog-v1` (be-wayland's `dialog.rs`) lets a program mark such a window modal (an XWayland window's parent is its `WM_TRANSIENT_FOR` and its modal flag `_NET_WM_STATE_MODAL`, which smithay's `X11Surface::is_popup` reads): `WindowInfo::modal` is set, and `Windows::blocked_by` names the innermost modal dialog of a window, to which be-wayland gives the keyboard whenever the parent would get it, and for which it drops the parent's pointer input. `weston-simple-shm` (from the `weston` package)
 and `foot` are small clients to try it with. `foot --fullscreen` starts one fullscreen, and in the desktop shell Super+F toggles fullscreen on the focused
 window (linux-desktop's `desktop.fullscreen` action, which sends `WindowAction::Fullscreen`). A window's
 tab menu offers the same (`FloatingWindow` offers fullscreen on its tab; workspace-ui's
@@ -411,14 +517,14 @@ included, moves the window, and Super+right-drag resizes it from its nearest edg
 or moves the split beside a docked one. In the desktop shell Alt+Tab, with Alt held, opens the window switcher and walks the
 windows from the one used last (Alt+Shift+Tab the other way); letting go of Alt focuses and
 raises the chosen one and Alt+Escape stays where it was. To drive it, hold Alt across the
-presses: `drive keydown alt; drive key tab tab; drive keyup alt`.
+presses: `drive app keydown alt; drive app key tab tab; drive app keyup alt`.
 
 Each window is a `be_wayland::WindowView`, a forwarding catcher like a plugin's region (see
 guides/beui_keyboard.md, One input path): beui decides which window a press, motion, scroll or key
 goes to, and `Compositor::after` turns what each window was forwarded into `wl_pointer` and
 `wl_keyboard` events, keys by their evdev codes (`Event::Key`'s `evdev`) and buttons by theirs: a
-button beyond beui's five is `PointerButton::Other` carrying its evdev code, which the DRM adapter
-reads from libinput and the window gets unchanged (`drive down TARGET button:0x115`). Where the shell draws over a
+button beyond beui's five is `PointerButton::Other` carrying its evdev code, which the DRM platform
+reads from libinput and the window gets unchanged (`drive app down TARGET button:0x115`). Where the shell draws over a
 window (a floating window's tab, say) the window takes nothing (`occluders`, from the region's
 occlusion), and a press keeps going to the window or plugin it began on until it is let go.
 
@@ -428,12 +534,25 @@ window as a `zwp_tablet_tool_v2` of one tablet be-wayland makes when a pen is fi
 are `BTN_STYLUS` and `BTN_STYLUS2`. A program that never asked for a tablet seat
 (`zwp_tablet_manager_v2.get_tablet_seat`) gets the pen as its pointer instead, the tip a left
 click, decided when the pen comes over it and kept while the tip is down. Under `--session` the
-DRM adapter reads libinput's tablet tools over the area of every display, as it does an absolute
+DRM platform reads libinput's tablet tools over the area of every display, as it does an absolute
 pointer, and moves the cursor with them; with one display both turn with its rotation (below).
+
+A finger (`Event::Touch`) reaches a window as a `wl_touch` point (`src/touch.rs`), in the
+coordinates of the surface, sub-surface or popup it went down on, where it stays until it lifts,
+as a press does; each finger goes down on the window under it, so two windows can each hold
+one. A cancelled finger cancels the client's whole touch sequence, as `wl_touch.cancel` means.
+A client with no `wl_touch` gets its first finger as its pointer instead, a left click, and its
+other fingers not at all, decided when the finger goes down. The seat offers touch only while a
+touchscreen is attached (beui-platform-drm's `WindowReports::touchscreen_attached`, read as
+`Context::touchscreen_attached`) or once a finger has been seen, since GTK, SDL and browsers
+take the capability as a touchscreen and change their interfaces for it (a browser tells pages
+it has touch). be-wayland's own default touch grab gives each point its own surface, where
+smithay's would send every later finger to the first one's, so a client's touch drag and drop
+(`wl_data_device.start_drag` from a touch serial) is not taken.
 
 A screen's rotation (`ScreenSettings::rotation`, through `DisplayConfig::rotations`) turns its
 picture clockwise on the panel: `Clockwise90` puts the picture's top along the panel's right
-edge, so the device is held with that edge up. The adapter's `Screen` lays out and draws the
+edge, so the device is held with that edge up. The platform's `Screen` lays out and draws the
 picture upright at its turned size (`Rotation::turned`), so the layout, beui and the nested
 Wayland clients only ever see an upright screen of that size with `Transform::Normal`, and
 turns it onto the scanout buffer on the GPU (`gpu.rs`'s sprite pass with turned corners, where
@@ -441,15 +560,15 @@ an unturned screen copies), the software pointer and the damage clips with it
 (`rotation.rs`). It never asks the plane to rotate, which most display devices, the e-paper
 panel's included, cannot do. Absolute input arrives in the panel's own orientation
 (libinput's calibration matrix lines a touchscreen up with the panel unturned) and is turned
-back (`layout::absolute`): touch onto the first screen, an absolute pointer or a pen onto the
-one screen when there is one and across all of them unturned otherwise, and a pen's tilt
+back (`layout::absolute`), before beui or a window sees it: touch onto the first display, an absolute pointer or a pen onto the
+one display when there is one and across all of them unturned otherwise, and a pen's tilt
 with it. A relative pointer is already in the picture's terms. A rotation applies live, rebuilding
 the output's `Screen` as a mode change does, and never asks to be kept.
 
 The rotation is picked with `block_editor_beui::RotationPicker`, which both the Display page
 and the bar use. When the display settings' `rotate_in_bar` is on and the host reports a
 screen, linux-desktop's bar shows a rotate button (`desktop.rotate`, `app/rotate.rs`) whose
-popover holds the picker for the first screen in `Displays`. It reads and writes the setting
+popover holds the picker for the first display in `Displays`. It reads and writes the setting
 through `block_editor_beui::LayeredSettings::this_device`, as the Display page does, so the
 rotation of a monitor known by its EDID serial goes to every device and that of a panel known
 only by its connector stays in this device's profile, and block-app's `SettingsSync` applies it
@@ -487,17 +606,17 @@ block-app's `WindowActions`) takes the shortcuts back from the focused window un
 loses the keyboard and gets it again. The inhibitor is told it is active only while its
 window has the keyboard.
 
-Under `--session` the DRM adapter draws the pointer into each output's frame, redrawing only the
+Under `--session` the DRM platform draws the pointer into each output's frame, redrawing only the
 outputs the cursor moved off or onto. beui's `CursorIcon`s (every CSS cursor; `name()` is the CSS
 name) come from the XCursor theme (`XCURSOR_THEME`, `XCURSOR_SIZE`, `XCURSOR_PATH` or the XDG
 icon directories, following `Inherits`), looked up by CSS name and then the old X11 names
 (`cursors.rs`), at the size the scale needs; without a theme the built-in arrow is drawn. Over a
 window, a `wp_cursor_shape_v1` shape becomes the window's `CursorIcon` (`Windows::cursor`, which
-the winit backend shows too), and a `wl_pointer.set_cursor` surface reaches the adapter through
-`beui_adapter_drm::SoftwareCursor` (block-app's `wayland/linux.rs`), redrawn whenever the client
+the winit backend shows too), and a `wl_pointer.set_cursor` surface reaches the platform through
+`beui_platform_drm::SoftwareCursor` (block-app's `wayland/linux.rs`), redrawn whenever the client
 commits to it; a null cursor hides the pointer.
 
-Under `--session` the app runs a frame only when an output has flipped since the last one (`beui-adapter-drm`'s `pacing.rs`), and a window's `wl_surface.frame` callbacks and `wp_presentation_feedback` are answered by the flip of the screen it mostly covers, with the flip's time, refresh and sequence: the adapter reports each flip through `beui_adapter_drm::Flips`, which block-app hands to `Compositor::presented` (`presentation.rs`). Elsewhere there are no flips, so they are answered as soon as the window is painted, at the frame clock's time.
+Under `--session` the app runs a frame only when an output has flipped since the last one (`beui-platform-drm`'s `pacing.rs`), and a window's `wl_surface.frame` callbacks and `wp_presentation_feedback` are answered by the flip of the display it mostly covers, with the flip's time, refresh and sequence: the platform reports each flip through `beui_platform_drm::Flips`, which block-app hands to `Compositor::presented` (`presentation.rs`). Elsewhere there are no flips, so they are answered as soon as the window is painted, at the frame clock's time.
 
 A `WindowView` that changes size configures its client with the new size in that same frame.
 Until the client commits a buffer of that size, its last one is drawn at its own size from the
@@ -548,6 +667,65 @@ argument can be a secret. linux-desktop opens a placeholder with that entry, els
 `Programs` whose `StartupWMClass` or id matches the app id, else the executable. The host runs
 a `Launch` that arrives before it has listed the programs once the list is in.
 
+### Files opened in programs
+
+On Linux a program installed with a `.desktop` entry is an editor of every block whose type has a
+plain-file form (guides/type_modules.md) and whose file name has an extension the entry's
+`MimeType` names, so a book (an EPUB file block, the fallback type that holds any bytes; it needs
+no type of its own) opens in KOReader, and later a `.kra` in Krita or a `.blend` in Blender, as a
+tab of whichever shell opened it, the workspace-ui inside linux-desktop included. be-wayland's
+`programs` reads `MimeType` (`DesktopEntry::mime_types`) and turns MIME types into extensions with
+shared-mime-info's `mime/globs2` and `mime/aliases` in the XDG data dirs (`MimeGlobs`).
+
+block-app's `src/programs.rs` scans the programs once the compositor runs and adds one
+`EditorDescriptor` per program that opens anything to the catalog every plugin gets: `Edits::Any`,
+the program's name, and `extensions` (shell.wit's `editor-descriptor`). Its editor id is `programs::editor_id`, `program\0` in the
+high half and a hash of the desktop id in the low, so a tab saved with it names the same program
+on the next start. block-ui's `BlockCatalog` matches such an editor by the block's file name
+(`BlockInfo::file_name`: its intrinsic name, the file it came from, so a renamed book still
+matches) and only for a type with a plain-file form: `editors_for(block_type, file_name)` lists
+it after the type's own editors (the file tree's Open with), and `own_editor` falls back to the
+first one for a type with no editor of its own (the EPUB's default). Elsewhere (the web,
+Android, Windows, macOS) no program is listed, so nothing changes there.
+
+The plugin side is only that editor id on a `ChildTarget`; the host does the rest. When a
+child region asks for a block in a listed program (`programs::opens`), `HostedChild` shows a
+`ProgramSurface` instead of a plugin, and `programs::show` starts a session for the block:
+
+- **Write out.** `be::plain_file` asks the block's type module for `to-file`, the same
+  file form `be sync` writes, and `programs/files.rs` puts it at a path that stays the same for
+  the block, `DATA/files/<block id>/<file name>` in the app's data directory (not a cache). It
+  writes only when the bytes differ, so what a program keeps beside the file stays valid:
+  KOReader's default `document_metadata_folder` (`doc`) keeps the reading position in
+  `<name>.sdr/` next to the book, so the book resumes with KOReader's own settings and none of
+  ours. `.written` beside the file records the size and time it was left at.
+- **Launch.** `wayland::Programs::open_file` runs the entry with the path in place of its first
+  `%f`, `%F`, `%u` or `%U` (appended when the line has none), tagged with the block, so its
+  first top-level window is bound to the session (`wayland::opening_windows`) and drawn in the
+  region by `WindowSurface`. Until then the region says it is opening; once the program exits
+  it says so with Open again (`program.reopen`).
+- **Hidden from the shell.** A bound window is left out of `WindowsWatch`
+  (`programs::bound_windows`), so linux-desktop does not float it and keeps no placeholder for
+  it; its dialogs are listed as top-level windows of their own.
+- **Write back.** The file's folder is watched (`programs/watch.rs`, the `notify` crate), and
+  when the file's size or time differs from what was recorded, its bytes go back into the block
+  as a `from-file` change (`be::from_file`), a commit like any other edit. A file changed while
+  nothing watched it (the app ended first) is taken back instead of written over when the block
+  is next opened.
+- **Close.** Closing the tab closes its editor (`programs::close`, from `close_editor`, which
+  also closes the sessions of blocks an editor being closed showed), which asks the window to
+  close (`xdg_toplevel.close`), so the program saves as it would when its own window is closed.
+
+A restored tab names the same block and editor, so a session that is started again opens the
+book in KOReader by itself, where it was left: no placeholder, and no program arguments stored.
+Two sessions never share a file, since the path is per block. A single-instance program that
+hands a second file to its running process (Krita's default) opens its window from that process,
+which is not tagged, so it shows as an ordinary window instead.
+
+To try it, give a program a `.desktop` entry in `/usr/local/share/applications` (`:dev` moves
+`XDG_DATA_HOME`, so the user's own entries are not read there), get a file into a workspace with
+`be WORKSPACE sync DIR` (an agent's credentials, guides/tracker.md), and click it in the files.
+
 ### X11 programs
 
 `be_wayland::Server::start_xwayland`, which block-app calls once the server is up, starts
@@ -568,8 +746,8 @@ smithay `desktop::Window`, which is either an xdg toplevel or an `X11Surface`, s
 docked, focused, resized, fullscreened and closed (`WM_DELETE_WINDOW`) like any other, and its
 input goes through the same forwarding. The keyboard focus is `focus::KeyboardFocus`, which for
 an X11 window also sets the X input focus. X11 has no ping here, so an X11 window is always
-responding. Each X11 window is configured at its place on the screen (`State::place`), so X
-coordinates are the screen's; an override-redirect window (a menu, tooltip or dropdown)
+responding. Each X11 window is configured at its place on the desktop (`State::place`), so X
+coordinates are the desktop's, the space Xwayland's outputs (the same `wl_output`s, see Displays) are laid out in; an override-redirect window (a menu, tooltip or dropdown)
 positions itself in those coordinates and is drawn and hit-tested as a layer of the toplevel it
 belongs to (its `WM_TRANSIENT_FOR`, else the X11 window under the pointer or with the
 keyboard), drawn past that window's edge like an xdg popup (see Program windows above).
@@ -583,7 +761,7 @@ freezes it to try this, and `kill -CONT` brings it back.
 
 ### Clipboard and drag and drop
 
-The app's clipboard (beui's, through the runner's `Platform`) and the Wayland clipboard are one
+The app's clipboard (beui's, through the runner's `PlatformServices`) and the Wayland clipboard are one
 (be-wayland's `selection.rs` and `compositor/clipboard.rs`). A program that sets the selection,
 through `wl_data_device` or the data-control protocols (`ext-data-control-v1` and
 `zwlr-data-control-v1`, which clipboard managers, `wl-copy` and `wl-paste` use), is asked for its
@@ -591,7 +769,7 @@ text, which the compositor reads without blocking and hands to the app with `Con
 the program's own selection stays, with all its types. Everything the app copies
 (`Context::watch_copies`) becomes a selection the compositor serves as text. Plugins paste
 through the host's `request_paste`, so both work in a session, where the platform's clipboard is
-the DRM adapter's own. A selection that only offers images is not handed to the app.
+the DRM platform's own. A selection that only offers images is not handed to the app.
 
 Middle-click paste (`zwp_primary_selection_device_manager_v1`, and the primary selection of the
 data-control protocols) is off unless the input settings' "Middle-click paste" is on. The globals are always
@@ -604,7 +782,7 @@ their own `PRIMARY` in Xwayland, which nothing bridges to Wayland, so they can s
 middle-click paste among themselves.
 
 To try them, run `wl-copy TEXT` and `wl-paste` (the `wl-clipboard` package) with
-`drive exec`, and copy or paste in the app with `drive key ctrl+c`
+`drive exec`, and copy or paste in the app with `drive app key ctrl+c`
 and `ctrl+v`.
 
 A window's drag (`wl_data_device.start_drag`) goes to the window under the pointer: the press

@@ -2,6 +2,43 @@ use super::*;
 
 #[test]
 fn tray_messages_round_trip() {
+    let entries = vec![
+        TrayMenuEntry {
+            item: TrayMenuItem {
+                id: 1,
+                label: "Show".into(),
+                enabled: true,
+                ..TrayMenuItem::default()
+            },
+            children: Vec::new(),
+        },
+        TrayMenuEntry {
+            item: TrayMenuItem {
+                id: 2,
+                separator: true,
+                ..TrayMenuItem::default()
+            },
+            children: Vec::new(),
+        },
+        TrayMenuEntry {
+            item: TrayMenuItem {
+                id: 3,
+                label: "Status".into(),
+                enabled: true,
+                ..TrayMenuItem::default()
+            },
+            children: vec![TrayMenuEntry {
+                item: TrayMenuItem {
+                    id: 4,
+                    label: "Away".into(),
+                    enabled: true,
+                    toggle: TrayToggle::Radio(true),
+                    ..TrayMenuItem::default()
+                },
+                children: Vec::new(),
+            }],
+        },
+    ];
     let item = HostTrayItem {
         id: ":1.42/StatusNotifierItem".into(),
         title: "Chat".into(),
@@ -13,34 +50,15 @@ fn tray_messages_round_trip() {
             rgba: vec![1, 2, 3, 4],
         }),
         item_is_menu: false,
-        menu: vec![
-            TrayMenuEntry {
-                id: 1,
-                label: "Show".into(),
-                enabled: true,
-                ..TrayMenuEntry::default()
-            },
-            TrayMenuEntry {
-                id: 2,
-                separator: true,
-                ..TrayMenuEntry::default()
-            },
-            TrayMenuEntry {
-                id: 3,
-                label: "Status".into(),
-                enabled: true,
-                children: vec![TrayMenuEntry {
-                    id: 4,
-                    label: "Away".into(),
-                    enabled: true,
-                    toggle: TrayToggle::Radio(true),
-                    ..TrayMenuEntry::default()
-                }],
-                ..TrayMenuEntry::default()
-            },
-        ],
+        menu: TrayMenuEntry::flatten(&entries),
     };
-    host_value_round_trips::<Tray>(vec![item]);
+    assert_eq!(
+        item.menu.iter().map(|item| item.depth).collect::<Vec<_>>(),
+        vec![0, 0, 0, 1],
+        "a submenu's entries follow it one deeper"
+    );
+    assert_eq!(item.entries(), Ok(entries), "the flat menu nests back");
+    watched_round_trips::<TrayWatch>(vec![item]);
     for request in [
         TrayRequest::Activate("a".into()),
         TrayRequest::SecondaryActivate("a".into()),
@@ -56,6 +74,6 @@ fn tray_messages_round_trip() {
             entry: 4,
         },
     ] {
-        host_action_round_trips(request);
+        round_trips(&request);
     }
 }

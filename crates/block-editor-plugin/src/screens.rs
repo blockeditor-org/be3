@@ -1,6 +1,6 @@
 use block_plugin_api::{
-    Catalog, ChildStatus, EditorInstanceId, EditorMessage, EditorRegion, Edits, FrameCommit,
-    Message, ScreenId, ScreenLayout, ScreenRequest, SurfaceSpec, TemplateCategory,
+    Catalog, DebugTemplate, EditorInstanceId, EditorRegion, Edits, FrameCommit, Opening, ScreenId,
+    ScreenLayout, ScreenPlacement, ScreenRequest, SurfaceSpec, TemplateCategory,
 };
 use block_ui::{BlockCatalog, BlockTypeEntry, EditorEntry, TemplateEntry};
 use lucide::Glyph;
@@ -12,20 +12,23 @@ use std::{
 use uuid::Uuid;
 
 use crate::{
-    Waker,
+    Frame, Module, Region, Waker,
     editor_session::{EditorSession, Open},
-    host::{BlockDrag, HostContent},
+    wire::Delivery,
 };
 
 pub(crate) type Opener = Open;
 
 pub(crate) struct Screens {
     sessions: HashMap<EditorInstanceId, EditorSession>,
+    module: Module,
     apps: Vec<(Uuid, Opener)>,
     waker: Waker,
     requests: Vec<ScreenRequest>,
     layout: ScreenLayout,
     block_types: Rc<BlockCatalog>,
+    catalog: Catalog,
+    debug_templates: Vec<DebugTemplate>,
     surface: Option<SurfaceSpec>,
     next_surface: u32,
     dirty: Arc<Mutex<HashSet<EditorInstanceId>>>,
@@ -57,11 +60,14 @@ impl Screens {
     pub(crate) fn new(apps: Vec<(Uuid, Opener)>, waker: Waker) -> Self {
         Self {
             sessions: HashMap::new(),
+            module: Module::default(),
             apps,
             waker,
             requests: Vec::new(),
             layout: ScreenLayout::default(),
             block_types: Rc::new(BlockCatalog::default()),
+            catalog: Catalog::default(),
+            debug_templates: Vec::new(),
             surface: None,
             next_surface: 0,
             dirty: Arc::default(),
@@ -73,7 +79,8 @@ impl Screens {
         }
     }
 
-    pub(crate) fn adopt(&mut self, instance: EditorInstanceId, session: EditorSession) {
+    pub(crate) fn adopt(&mut self, instance: EditorInstanceId, mut session: EditorSession) {
+        session.join(&self.module);
         self.sessions.insert(instance, session);
         self.touch_everything();
     }
@@ -88,6 +95,33 @@ impl Screens {
         self.laid_out.insert(instance);
     }
 
+    pub(crate) fn frame(&mut self, shown: &[(ScreenPlacement, u32)]) -> Vec<Frame> {
+        let mut begun = Vec::new();
+        for (index, (placement, age)) in shown.iter().enumerate() {
+            if let Some(session) = self.sessions.get_mut(&placement.instance) {
+                begun.push((index, session.begin(placement.region, *age)));
+            }
+        }
+        let regions: Vec<Region> = begun.iter().map(|(_, region)| region.clone()).collect();
+        let mut frames = self
+            .module
+            .with_handler(|handler| handler.frame(&regions))
+            .unwrap_or_default();
+        frames.resize_with(regions.len(), Frame::default);
+        let mut framed = vec![Frame::default(); shown.len()];
+        for ((index, region), frame) in begun.into_iter().zip(frames) {
+            if let Some(session) = self.sessions.get_mut(&region.instance) {
+                framed[index] = session.finish(region.region, frame);
+                self.ran(region.instance);
+            }
+        }
+        framed
+    }
+
+    pub(crate) fn module(&self) -> &Module {
+        &self.module
+    }
+
     pub(crate) fn commit(&mut self) -> FrameCommit {
         let mut commit = FrameCommit {
             serial: self.serial,
@@ -98,6 +132,7 @@ impl Screens {
             repaint_after_micros: None,
             animating: false,
             presented: None,
+            window_requests: Vec::new(),
         };
         let mut laid_out: Vec<_> = self.laid_out.drain().collect();
         laid_out.sort_by_key(|instance| instance.0);
@@ -141,17 +176,18 @@ impl Screens {
                 .insert(instance);
             inner.wake();
         });
+        let module = &self.module;
         self.sessions.entry(instance).or_insert_with(|| {
             let open = apps
                 .iter()
                 .find(|(declared, _)| *declared == editor)
                 .map(|(_, open)| *open)
                 .unwrap_or_else(|| panic!("this plugin has no editor {editor}"));
-            EditorSession::new(instance, waker, open)
+            EditorSession::joining(instance, waker, open, module)
         })
     }
 
-    pub(crate) fn paintings(&mut self) -> Message {
+    pub(crate) fn paintings(&mut self) -> Vec<u8> {
         let mut paintings = paint_format::ScreenPaintings::default();
         for placement in self.layout.screens.clone() {
             let Some(session) = self.sessions.get_mut(&placement.instance) else {
@@ -168,9 +204,35 @@ impl Screens {
                 }
             }
         }
-        Message::Extension {
-            key: paint_format::PAINTING_EXTENSION,
-            payload: paintings.encode(),
+        paintings.encode()
+    }
+
+    pub(crate) fn describe(&mut self, on: bool) {
+        DESCRIBE.store(on, std::sync::atomic::Ordering::Relaxed);
+        self.touch_everything();
+    }
+
+    pub(crate) fn node_action(
+        &mut self,
+        screen: ScreenId,
+        request: block_plugin_api::accesskit::ActionRequest,
+    ) {
+        let Some((instance, region)) = self.screen(screen) else {
+            return;
+        };
+        if let Some(session) = self.sessions.get_mut(&instance) {
+            session.node_action(region, request);
+            self.mark(instance);
+        }
+    }
+
+    pub(crate) fn run_action(&mut self, screen: ScreenId, id: &str) {
+        let Some((instance, region)) = self.screen(screen) else {
+            return;
+        };
+        if let Some(session) = self.sessions.get_mut(&instance) {
+            session.run_action(region, id);
+            self.mark(instance);
         }
     }
 
@@ -183,404 +245,43 @@ impl Screens {
         self.surface
     }
 
-    pub(crate) fn receive(&mut self, message: &Message) -> bool {
-        match message {
-            Message::HelloAccepted(accepted) => {
+    pub(crate) fn deliver(&mut self, delivery: Delivery) -> bool {
+        match delivery {
+            Delivery::Accepted(accepted) => {
                 self.surface = accepted.surface;
                 crate::preferences::receive(accepted.preferences);
             }
-            Message::Preferences(preferences) => crate::preferences::receive(*preferences),
-            Message::Fonts(fonts) => crate::fonts::receive(fonts),
-            Message::UtcOffset(seconds) => crate::clock::receive(*seconds),
-            Message::Describe(on) => DESCRIBE.store(*on, std::sync::atomic::Ordering::Relaxed),
-            Message::Configure { serial } => {
-                self.serial = *serial;
+            Delivery::Preferences(preferences) => crate::preferences::receive(preferences),
+            Delivery::Fonts(fonts) => crate::fonts::receive(&fonts),
+            Delivery::UtcOffset(seconds) => crate::clock::receive(seconds),
+            Delivery::Configure(serial) => {
+                self.serial = serial;
                 return false;
             }
-            Message::DrawFrame { now_micros, seen } => {
-                crate::clock::set_frame_time(std::time::Duration::from_micros(*now_micros));
-                SEEN.store(*seen, std::sync::atomic::Ordering::Relaxed);
+            Delivery::Draw { now_micros, seen } => {
+                crate::clock::set_frame_time(std::time::Duration::from_micros(now_micros));
+                SEEN.store(seen, std::sync::atomic::Ordering::Relaxed);
                 return false;
             }
-            Message::Editor(EditorMessage::Open {
-                instance,
-                editor,
-                block_id,
-                block_type,
-                view_block,
-                account_id,
-                organization_id,
-                client_id,
-                editable,
-            }) => {
-                let block_types = Rc::clone(&self.block_types);
-                let session = self.open(*instance, Uuid::from_bytes(*editor));
-                session.set_block_types(block_types);
-                session.set_view_block(view_block.map(Uuid::from_bytes));
-                session.set_client_id(Uuid::from_bytes(*client_id));
-                session.set_account_id(Uuid::from_bytes(*account_id));
-                session.set_organization_id(Uuid::from_bytes(*organization_id));
-                session.set_editable(*editable);
-                session.connect(Uuid::from_bytes(*block_id), Uuid::from_bytes(*block_type));
-            }
-            Message::Editor(EditorMessage::OpenCreation {
-                instance,
-                editor,
-                template,
-                account_id,
-                organization_id,
-                client_id,
-            }) => {
-                let block_types = Rc::clone(&self.block_types);
-                let session = self.open(*instance, Uuid::from_bytes(*editor));
-                session.set_block_types(block_types);
-                session.set_client_id(Uuid::from_bytes(*client_id));
-                session.set_account_id(Uuid::from_bytes(*account_id));
-                session.set_organization_id(Uuid::from_bytes(*organization_id));
-                session.connect_creation(template.clone());
-            }
-            Message::Editor(EditorMessage::OpenArtifact {
-                instance,
-                editor,
-                block_id,
-                block_type,
-                account_id,
-                organization_id,
-                client_id,
-                data,
-            }) => {
-                let block_types = Rc::clone(&self.block_types);
-                let session = self.open(*instance, Uuid::from_bytes(*editor));
-                session.set_block_types(block_types);
-                session.set_client_id(Uuid::from_bytes(*client_id));
-                session.set_account_id(Uuid::from_bytes(*account_id));
-                session.set_organization_id(Uuid::from_bytes(*organization_id));
-                session.connect_artifact(
-                    Uuid::from_bytes(*block_id),
-                    Uuid::from_bytes(*block_type),
-                    data.clone(),
-                );
-            }
-            Message::Editor(EditorMessage::Resized { instance, size }) => {
-                if let Some(session) = self.sessions.get_mut(instance) {
-                    session.resized(geometry::vec2(size.width, size.height));
-                }
-            }
-            Message::Editor(EditorMessage::AudioStatus { instance, status }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.set_audio(status.clone());
-                }
-            }
-            Message::Editor(EditorMessage::ArtifactSettings { instance, data }) => {
-                if let Some(session) = self.sessions.get_mut(instance) {
-                    session.artifact_settings(data.clone());
-                }
-            }
-            Message::Editor(EditorMessage::RegenerateArtifact { instance, data }) => {
-                if let Some(session) = self.sessions.get_mut(instance) {
-                    session.regenerate_artifact(data);
-                }
-            }
-            Message::Editor(EditorMessage::CommitCreation { instance }) => {
-                if let Some(session) = self.sessions.get_mut(instance) {
-                    session.commit_creation();
-                }
-            }
-            Message::Editor(EditorMessage::EditabilityChanged { instance, editable }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.set_editable(*editable);
-                }
-            }
-            Message::Editor(EditorMessage::Content {
-                instance,
-                block_id,
-                content_type,
-                bytes,
-                session: state,
-                unsettled,
-                applied,
-            }) => {
-                let Some(session) = self.sessions.get(instance) else {
+            Delivery::Open(opening) => {
+                let instance = opening.instance();
+                self.open_editor(opening);
+                if !self.sessions.contains_key(&instance) {
                     return false;
-                };
-                session.set_block_content(
-                    Uuid::from_bytes(*block_id),
-                    HostContent {
-                        content_type: Uuid::from_bytes(*content_type),
-                        bytes: bytes.clone(),
-                        session: state.clone(),
-                        unsettled: unsettled
-                            .iter()
-                            .map(|operation| operation.to_vec())
-                            .collect(),
-                        applied: *applied,
-                    },
-                );
-            }
-            Message::Editor(EditorMessage::Blocks {
-                instance,
-                query,
-                blocks,
-            }) => {
-                let Some(session) = self.sessions.get(instance) else {
-                    return false;
-                };
-                session.set_blocks(
-                    crate::BlockQuery::decode(*query),
-                    blocks
-                        .iter()
-                        .cloned()
-                        .map(crate::BlockInfo::decode)
-                        .collect(),
-                );
-            }
-            Message::Editor(EditorMessage::BlocksFailed {
-                instance,
-                query,
-                error,
-            }) => {
-                let Some(session) = self.sessions.get(instance) else {
-                    return false;
-                };
-                session.fail_blocks(crate::BlockQuery::decode(*query), error.clone());
-            }
-            Message::Editor(EditorMessage::PeerPresence {
-                instance,
-                block_id,
-                peers,
-            }) => {
-                let Some(session) = self.sessions.get(instance) else {
-                    return false;
-                };
-                session.set_peers(
-                    Uuid::from_bytes(*block_id),
-                    peers
-                        .iter()
-                        .map(|peer| crate::PeerPresence {
-                            client: peer.client,
-                            kind: Uuid::from_bytes(peer.kind),
-                            value: peer.value.clone(),
-                        })
-                        .collect(),
-                );
-            }
-            Message::Editor(EditorMessage::PeerMessages {
-                instance,
-                block_id,
-                messages,
-            }) => {
-                let Some(session) = self.sessions.get(instance) else {
-                    return false;
-                };
-                session.push_peer_messages(
-                    Uuid::from_bytes(*block_id),
-                    messages
-                        .iter()
-                        .map(|message| crate::PeerMessage {
-                            from: message.from,
-                            channel: Uuid::from_bytes(message.channel),
-                            payload: message.payload.clone(),
-                        })
-                        .collect(),
-                );
-            }
-            Message::Editor(EditorMessage::ContentOperations {
-                instance,
-                block_id,
-                operations,
-            }) => {
-                let Some(session) = self.sessions.get(instance) else {
-                    return false;
-                };
-                session.push_content_operations(Uuid::from_bytes(*block_id), operations.clone());
-            }
-            Message::Editor(EditorMessage::FocusChanged {
-                instance,
-                block_id,
-                block_type,
-                via,
-            }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.set_focused_block(crate::host::FocusedBlock {
-                        block_id: block_id.map(Uuid::from_bytes),
-                        block_type: Uuid::from_bytes(*block_type),
-                        via: via.iter().copied().map(Uuid::from_bytes).collect(),
-                    });
                 }
+                self.mark(instance);
+                return true;
             }
-            Message::Editor(EditorMessage::ShowBlock {
-                instance,
-                block_id,
-                block_type,
-                via,
-                editor,
-            }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.show_block(crate::ShowRequest {
-                        block_id: Uuid::from_bytes(*block_id),
-                        block_type: Uuid::from_bytes(*block_type),
-                        via: via.map(Uuid::from_bytes),
-                        editor: editor.map(Uuid::from_bytes),
-                    });
-                }
-            }
-            Message::Editor(EditorMessage::HistoryStates { instance, states }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.set_histories(states);
-                }
-            }
-            Message::Editor(EditorMessage::VersionStatus {
-                instance, status, ..
-            }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.set_version_status(status);
-                }
-            }
-            Message::Editor(EditorMessage::ArtifactStates { instance, states }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.set_artifacts(
-                        states
-                            .iter()
-                            .map(|state| crate::host::ArtifactState {
-                                block_id: Uuid::from_bytes(state.block_id),
-                                source_type: Uuid::from_bytes(state.source_type),
-                                source: state.source.map(Uuid::from_bytes),
-                                summary: state.summary.clone(),
-                                error: state.error.clone(),
-                                regenerating: state.regenerating,
-                            })
-                            .collect(),
-                    );
-                }
-            }
-            Message::Editor(EditorMessage::PresentingChanged {
-                instance,
-                presenting,
-            }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.set_presenting(*presenting);
-                }
-            }
-            Message::Editor(EditorMessage::Presence { instance, visible }) => {
-                if let Some(session) = self.sessions.get_mut(instance) {
-                    session.presence_visible(*visible);
-                }
-            }
-            Message::Editor(EditorMessage::ChildBar {
-                instance,
-                child,
-                action,
-                ..
-            }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.child_bar_action(*child, *action);
-                }
-            }
-            Message::Editor(EditorMessage::ChildFocused {
-                instance, child, ..
-            }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.child_focused(*child);
-                }
-            }
-            Message::Editor(EditorMessage::ReplaceChild {
-                instance,
-                request_id,
-                old,
-                new,
-            }) => {
-                if let Some(session) = self.sessions.get_mut(instance) {
-                    session.replace_child(
-                        *request_id,
-                        Uuid::from_bytes(*old),
-                        Uuid::from_bytes(*new),
-                    );
-                }
-            }
-            Message::Editor(EditorMessage::ViewChanged {
-                instance,
-                view,
-                scale,
-            }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.set_view(*view, *scale);
-                }
-            }
-            Message::Editor(EditorMessage::PickRequested {
-                instance,
-                pick,
-                filter,
-                parent,
-                within,
-                touch,
-            }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.pick_requested(
-                        *pick,
-                        filter.clone(),
-                        crate::graph::BlockParent::decode(*parent),
-                        within.map(Uuid::from_bytes),
-                        *touch,
-                    );
-                }
-            }
-            Message::Editor(EditorMessage::ShowDialog {
-                instance,
-                block_id,
-                dialog,
-            }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.show_dialog(Uuid::from_bytes(*block_id), *dialog);
-                }
-            }
-            Message::Editor(EditorMessage::ShowPanel { instance, panel }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.show_panel(*panel);
-                }
-            }
-            Message::Editor(EditorMessage::HostValue {
-                instance,
-                key,
-                value,
-            }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.host_value(key.clone(), value.clone());
-                }
-            }
-            Message::Editor(EditorMessage::MenuPick { instance, id }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.pick_menu(id.clone());
-                }
-            }
-            Message::Editor(EditorMessage::Close { instance }) => {
-                self.sessions.remove(instance);
-                self.requests
-                    .retain(|request| request.instance != *instance);
+            Delivery::Close(instance) => {
+                self.sessions.remove(&instance);
+                self.requests.retain(|request| request.instance != instance);
                 self.relayout();
             }
-            Message::Screens(set) => {
-                self.requests = set.screens.clone();
+            Delivery::Screens(screens) => {
+                self.requests = screens;
                 self.relayout();
             }
-            Message::NodeAction { screen, request } => {
-                let Some((instance, region)) = self.screen(*screen) else {
-                    return false;
-                };
-                let Some(session) = self.sessions.get_mut(&instance) else {
-                    return false;
-                };
-                session.node_action(region, request.clone());
-            }
-            Message::RunAction { screen, id } => {
-                let Some((instance, region)) = self.screen(*screen) else {
-                    return false;
-                };
-                let Some(session) = self.sessions.get_mut(&instance) else {
-                    return false;
-                };
-                session.run_action(region, id);
-            }
-            Message::Input(batch) => {
+            Delivery::Input(batch) => {
                 let Some((instance, region)) = self.screen(batch.screen) else {
                     return false;
                 };
@@ -588,135 +289,116 @@ impl Screens {
                     return false;
                 };
                 for event in &batch.events {
-                    session.input(region, event);
+                    let over = event.over.and_then(|over| {
+                        let (instance, region) = self
+                            .layout
+                            .placement(over)
+                            .map(|placement| (placement.instance, placement.region))?;
+                        Some(crate::RegionId { instance, region })
+                    });
+                    session.input(region, event, over);
                 }
+                self.mark(instance);
+                return true;
             }
-            Message::BlockTypes(descriptors) => {
-                self.block_types = Rc::new(catalog(descriptors));
-                for session in self.sessions.values() {
-                    session.set_block_types(Rc::clone(&self.block_types));
-                }
+            Delivery::Editor(instance, call) => return self.call(instance, call),
+            Delivery::Call(call) => {
+                call(self);
+                return true;
             }
-            Message::Editor(EditorMessage::DragOver {
-                instance,
-                region,
-                pos,
-                block_id,
-                block_type,
-                dropped,
-            }) => {
-                if let Some(session) = self.sessions.get_mut(instance) {
-                    session.set_drag(Some((
-                        *region,
-                        BlockDrag {
-                            position: *pos,
-                            block_id: Uuid::from_bytes(*block_id),
-                            block_type: Uuid::from_bytes(*block_type),
-                            dropped: *dropped,
-                        },
-                    )));
-                }
-            }
-            Message::Editor(EditorMessage::Replied {
-                instance,
-                request_id,
-                reply,
-            }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.replied(*request_id, reply.clone());
-                }
-            }
-            Message::Editor(EditorMessage::WebViewEvent {
-                instance,
-                web_view,
-                event,
-            }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.web_view_event(*web_view, event.clone());
-                }
-            }
-            Message::ChildStatuses(statuses) => {
-                let mut grouped: HashMap<EditorInstanceId, Vec<ChildStatus>> = HashMap::new();
-                for status in statuses {
-                    grouped
-                        .entry(status.instance)
-                        .or_default()
-                        .push(status.clone());
-                }
-                for (instance, statuses) in grouped {
-                    if let Some(session) = self.sessions.get(&instance) {
-                        session.set_child_statuses(statuses);
-                    }
-                }
-            }
-            Message::Editor(EditorMessage::DragLeft { instance }) => {
-                if let Some(session) = self.sessions.get_mut(instance) {
-                    session.set_drag(None);
-                }
-            }
-            Message::Editor(EditorMessage::FileDrop {
-                instance,
-                region,
-                pos,
-                files,
-                dropped,
-            }) => {
-                if let Some(session) = self.sessions.get_mut(instance) {
-                    session.set_files(Some((
-                        *region,
-                        crate::host::FileDrop {
-                            position: *pos,
-                            files: files
-                                .iter()
-                                .map(|file| crate::PickedFile {
-                                    name: file.name.clone(),
-                                    data: file.data.clone(),
-                                })
-                                .collect(),
-                            dropped: *dropped,
-                        },
-                    )));
-                }
-            }
-            Message::Editor(EditorMessage::FileDropLeft { instance }) => {
-                if let Some(session) = self.sessions.get_mut(instance) {
-                    session.set_files(None);
-                }
-            }
-            _ => return false,
+            Delivery::Shutdown | Delivery::Paintings(_) => return false,
         }
-        match message {
-            Message::Input(batch) => match self.screen(batch.screen) {
-                Some((instance, _)) => self.mark(instance),
-                None => return false,
-            },
-            Message::RunAction { screen, .. } | Message::NodeAction { screen, .. } => {
-                match self.screen(*screen) {
-                    Some((instance, _)) => self.mark(instance),
-                    None => return false,
-                }
-            }
-            Message::ChildStatuses(statuses) => {
-                for status in statuses {
-                    self.mark(status.instance);
-                }
-            }
-            Message::Editor(EditorMessage::Close { .. }) | Message::Screens(_) => {
-                self.touch_everything();
-            }
-            Message::Editor(editor) => {
-                if !self.sessions.contains_key(&editor.instance()) {
-                    return false;
-                }
-                self.mark(editor.instance());
-            }
-            _ => self.touch_everything(),
-        }
+        self.touch_everything();
         true
     }
 
-    pub(crate) fn outbound(&mut self) -> Vec<Message> {
-        let mut messages = Vec::from_iter(crate::fonts::take_missing());
+    fn open_editor(&mut self, opening: Opening) {
+        let block_types = Rc::clone(&self.block_types);
+        let (instance, editor, account_id, organization_id, client_id) = match &opening {
+            Opening::Block(open) => (
+                open.instance,
+                open.editor,
+                open.account_id,
+                open.organization_id,
+                open.client_id,
+            ),
+            Opening::Creation(open) => (
+                open.instance,
+                open.editor,
+                open.account_id,
+                open.organization_id,
+                open.client_id,
+            ),
+            Opening::Artifact(open) => (
+                open.instance,
+                open.editor,
+                open.account_id,
+                open.organization_id,
+                open.client_id,
+            ),
+        };
+        let session = self.open(instance, Uuid::from_bytes(editor));
+        session.set_block_types(block_types);
+        session.set_client_id(Uuid::from_bytes(client_id));
+        session.set_account_id(Uuid::from_bytes(account_id));
+        session.set_organization_id(Uuid::from_bytes(organization_id));
+        match opening {
+            Opening::Block(open) => {
+                session.set_view_block(open.view_block.map(Uuid::from_bytes));
+                session.set_editable(open.editable);
+                session.connect(
+                    Uuid::from_bytes(open.block_id),
+                    Uuid::from_bytes(open.block_type),
+                );
+            }
+            Opening::Creation(open) => session.connect_creation(open.template),
+            Opening::Artifact(open) => session.connect_artifact(
+                crate::Artifact {
+                    block_id: Uuid::from_bytes(open.block_id),
+                    block_type: Uuid::from_bytes(open.block_type),
+                    source: Uuid::from_bytes(open.source),
+                },
+                open.data,
+            ),
+        }
+    }
+
+    pub(crate) fn call(
+        &mut self,
+        instance: EditorInstanceId,
+        call: crate::wire::EditorCall,
+    ) -> bool {
+        let Some(session) = self.sessions.get_mut(&instance) else {
+            return false;
+        };
+        call(session);
+        self.mark(instance);
+        true
+    }
+
+    pub(crate) fn set_catalog(&mut self, catalog: Catalog) {
+        self.catalog = catalog;
+        self.catalogued();
+    }
+
+    pub(crate) fn set_debug_templates(&mut self, templates: Vec<DebugTemplate>) {
+        self.debug_templates = templates;
+        self.catalogued();
+    }
+
+    fn catalogued(&mut self) {
+        self.block_types = Rc::new(self::catalog(&self.catalog, &self.debug_templates));
+        for session in self.sessions.values() {
+            session.set_block_types(Rc::clone(&self.block_types));
+        }
+        self.touch_everything();
+    }
+
+    pub(crate) fn outbound(&mut self) {
+        let missing = crate::fonts::take_missing();
+        if !missing.is_empty() {
+            block_plugin_api::guest::host::missing_characters(missing);
+        }
         let woken = self
             .dirty
             .lock()
@@ -726,10 +408,9 @@ impl Screens {
         let reporting = std::mem::take(&mut self.reporting);
         for (instance, session) in &mut self.sessions {
             if everything || reporting.contains(instance) || woken.contains(instance) {
-                messages.extend(session.outbound());
+                session.outbound();
             }
         }
-        messages
     }
 
     pub(crate) fn get(&self, instance: EditorInstanceId) -> Option<&EditorSession> {
@@ -774,7 +455,7 @@ impl Screens {
     }
 }
 
-fn catalog(catalog: &Catalog) -> BlockCatalog {
+fn catalog(catalog: &Catalog, debug: &[DebugTemplate]) -> BlockCatalog {
     BlockCatalog::new(catalog.types.iter().map(|descriptor| {
         (
             Uuid::from_bytes(descriptor.block_type),
@@ -787,6 +468,11 @@ fn catalog(catalog: &Catalog) -> BlockCatalog {
                     delete: descriptor.children.delete,
                     replace: descriptor.children.replace,
                 },
+                press: match descriptor.press {
+                    block_plugin_api::Press::Open => block_ui::Press::Open,
+                    block_plugin_api::Press::Zoom => block_ui::Press::Zoom,
+                },
+                plain_file: descriptor.plain_file,
             },
         )
     }))
@@ -803,9 +489,14 @@ fn catalog(catalog: &Catalog) -> BlockCatalog {
             name: template.name.clone(),
             icon: Glyph::from_codepoint(&template.icon_codepoint),
             category: match template.category {
+                _ if debug.iter().any(|listed| {
+                    listed.editor == template.editor && listed.template == template.template
+                }) =>
+                {
+                    block_ui::TemplateCategory::Debug
+                }
                 TemplateCategory::Important => block_ui::TemplateCategory::Important,
                 TemplateCategory::Regular => block_ui::TemplateCategory::Regular,
-                TemplateCategory::Debug => block_ui::TemplateCategory::Debug,
                 TemplateCategory::Template => block_ui::TemplateCategory::Template,
             },
             dialog: template.dialog,
@@ -820,6 +511,7 @@ fn catalog(catalog: &Catalog) -> BlockCatalog {
         },
         name: editor.name.clone(),
         icon: Glyph::from_codepoint(&editor.icon_codepoint),
+        extensions: editor.extensions.clone(),
     }))
 }
 

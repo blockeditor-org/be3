@@ -11,7 +11,6 @@ use super::rubber_band::{MINIMUM_VELOCITY, bounce, rubber_band};
 use beui_core::base::Sides;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::base::{Direction, ItemSize, Justify, ScrollPosition, Sizing};
-use beui_core::color::Color32;
 use beui_core::geometry::Pos2;
 use beui_core::input::{
     AutoscrollGesture, DragGesture, Key, KeyPress, PointerPress, ScrollGesture,
@@ -23,8 +22,6 @@ use beui_view::components::overlay::Overlay;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 
-const FOCUS_RING_WIDTH: f32 = 2.0;
-const FOCUS_RING_INSET: f32 = -1.0;
 const STEP: f32 = 40.0;
 const AUTOSCROLL_GAIN: f32 = 6.0;
 const AUTOSCROLL_ACCELERATION: f32 = 0.02;
@@ -428,6 +425,17 @@ impl Motion {
         );
     }
 
+    fn to_end(&self) {
+        let Some(node) = self.node else {
+            return;
+        };
+        if let Some(animation) = self.animation.get() {
+            animation.stop();
+        }
+        self.momentum.borrow_mut().rest();
+        node.offset_to_end();
+    }
+
     fn key(&self, press: KeyPress) -> bool {
         if press.modifiers.ctrl || press.modifiers.alt {
             return false;
@@ -506,7 +514,7 @@ fn Scrolling(
     direction: Prop<Direction>,
     fit: bool,
     bleed: Prop<Sides>,
-    focus_color: Prop<Color32>,
+    focus_ring: Prop<Option<Outline>>,
     scrollbar: ScrollbarStyle,
     marker: Render<Memo<Direction>>,
     on_change: Callback<ScrollPosition>,
@@ -688,9 +696,7 @@ fn Scrolling(
                         motion.value().autoscroll(gesture);
                     }}
                 >
-                    <Frame
-                        outline={focus_outline(focused, focus_color, FOCUS_RING_WIDTH, FOCUS_RING_INSET)}
-                    >
+                    <Frame outline={ring_when(focused, focus_ring)}>
                         <List direction={marker_axis} spacing=0.0>
                             {node} @sizing={content_sizing(fit)}
                             <Overlay
@@ -721,8 +727,9 @@ pub fn Scroll(
     #[prop(default = None)] reveal: Prop<Option<usize>>,
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     #[prop(default = false)] fit: bool,
+    #[prop(default = false)] follow_end: Prop<bool>,
     #[prop(default = Sides::ZERO)] bleed: Prop<Sides>,
-    #[prop(default = Color32::TRANSPARENT)] focus_color: Prop<Color32>,
+    #[prop(default = None)] focus_ring: Prop<Option<Outline>>,
     #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
     marker: Option<Render<Memo<Direction>>>,
     on_change: Callback<ScrollPosition>,
@@ -745,7 +752,7 @@ pub fn Scroll(
             direction
             fit
             bleed
-            focus_color
+            focus_ring
             scrollbar
             marker
             on_change={on_change}
@@ -755,6 +762,7 @@ pub fn Scroll(
                     offset
                     direction={direction}
                     fit
+                    follow_end
                     on_change={move |position: ScrollPosition| {
                         faded.set(Some(position));
                         report.call(position);
@@ -884,4 +892,13 @@ impl ScrollApi {
     pub fn animating(&self) -> bool {
         self.0.with(|motion| motion.momentum.borrow().moving())
     }
+
+    pub fn scroll_to_end(&self) {
+        self.0.with(|motion| motion.to_end());
+    }
+}
+
+fn ring_when(focused: impl IntoProp<bool>, ring: Prop<Option<Outline>>) -> Memo<Option<Outline>> {
+    let shown = focus_ring(focused);
+    create_memo(move || ring.get().filter(|_| shown.get()))
 }

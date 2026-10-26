@@ -17,10 +17,10 @@ pub fn LoadingPane(#[prop(default = "Loading".to_owned())] label: Prop<String>) 
     timer.start(GRACE);
     view! {
         <Frame @test_id={"editor.loading"}>
-            <List spacing=0.0 align=Align::Center>
+            <List spacing=Space::None align=Align::Center>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
                 <Show condition={late}>
-                    <Spinner label={label} />
+                    <Progress width=INLINE_PROGRESS_WIDTH label={label} />
                 </Show>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
@@ -32,9 +32,9 @@ pub fn LoadingPane(#[prop(default = "Loading".to_owned())] label: Prop<String>) 
 pub fn FailedPane(error: String) -> NodeId {
     view! {
         <Frame @test_id={"editor.failed"}>
-            <List spacing=0.0 align=Align::Center>
+            <List spacing=Space::None align=Align::Center>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
-                <Text color=TextColor::Muted wrap=true>{error}</Text>
+                <Text color=TextColor::Muted>{error}</Text>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
         </Frame>

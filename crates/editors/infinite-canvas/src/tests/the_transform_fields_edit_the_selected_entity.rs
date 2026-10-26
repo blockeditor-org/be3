@@ -1,6 +1,6 @@
 use super::*;
-use block_editor_beui::be_block::canvas::CanvasColor;
 use block_editor_beui::beui::{Key, Modifiers};
+use infinite_canvas_types::CanvasColor;
 
 #[test]
 fn the_transform_fields_edit_the_selected_entity() {

@@ -17,6 +17,8 @@ fn a_link_to_a_deleted_block_is_marked_and_can_restore_it() {
                 .as_str()
                 .to_owned(),
             children: ChildOperations::default(),
+            press: block_editor_beui::Press::Open,
+            plain_file: false,
         }],
         templates: Vec::new(),
         editors: Vec::new(),

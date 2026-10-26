@@ -4,14 +4,15 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use block_editor_beui::ContentProjection;
 use block_editor_beui::be_block::be_model::Place;
-use block_editor_beui::be_block::canvas::{
-    Canvas, CanvasEntity, CanvasPoint, CanvasTransform, Entity,
-};
-use block_editor_beui::be_block::{CanvasContent, ObjectId, Touched};
+use block_editor_beui::be_block::{ObjectId, Touched};
 use block_editor_beui::beui::reactive::*;
+use infinite_canvas_types::{
+    Canvas, CanvasEntity, CanvasPoint, CanvasShape, CanvasTransform, Entity,
+};
 use uuid::Uuid;
 
 use crate::geometry::{WorldRect, entity_bounds};
+use infinite_canvas_types::CanvasContent;
 
 #[derive(Clone, Copy)]
 pub(crate) struct EntitySignals {
@@ -184,11 +185,17 @@ fn outline(content: &CanvasContent, id: Uuid) -> Option<CanvasEntity> {
         content.field(object, Entity::SIZE),
         content.field(object, Entity::ROTATION),
     );
+    let shape = content.field(object, Entity::SHAPE)?;
+    let points = match shape {
+        CanvasShape::Freehand => Vec::new(),
+        _ => content.field(object, Entity::POINTS).into_vec(),
+    };
     Some(CanvasEntity {
         id,
         transform,
-        shape: content.field(object, Entity::SHAPE)?,
-        points: content.field(object, Entity::POINTS),
+        shape,
+        points,
+        points_frame: content.field(object, Entity::POINTS_FRAME),
         bindings: [
             content.field(object, Entity::START_BINDING),
             content.field(object, Entity::END_BINDING),

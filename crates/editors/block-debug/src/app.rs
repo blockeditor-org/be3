@@ -9,8 +9,10 @@ use ui::BlockDebug;
 
 pub struct BlockDebugApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for BlockDebugApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Loaded>

@@ -1,9 +1,10 @@
 use super::*;
 use crate::color::Hsva;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
 use crate::testing::{Showing, Stepped, Target};
-use beui_core::app::automation::WindowSize;
+use beui_core::window::WindowSize;
 
 #[test]
 fn a_press_inside_a_color_wheels_triangle_picks_saturation_and_value() {

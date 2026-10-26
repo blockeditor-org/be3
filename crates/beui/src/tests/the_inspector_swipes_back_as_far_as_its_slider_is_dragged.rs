@@ -27,7 +27,7 @@ fn the_inspector_swipes_back_as_far_as_its_slider_is_dragged() {
 
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.toggle_inspector();
-    harness.click(harness.simulation_tab_center());
+    harness.show_inspector_tab(crate::inspector::InspectorTab::Simulation);
     harness.frame(Vec::new());
     let resting = harness.rect(page.get());
     let panel = harness.inspector_panel_rect();

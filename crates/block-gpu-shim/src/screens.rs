@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use wasm_bindgen::{JsCast, JsValue};
-use web_sys::OffscreenCanvas;
+use web_sys::{ImageBitmap, OffscreenCanvas};
 
 #[derive(Clone, Debug)]
 struct Display;
@@ -23,6 +23,8 @@ pub(crate) struct Screens {
     shader: wgpu::ShaderModule,
     pipelines: HashMap<wgpu::TextureFormat, wgpu::RenderPipeline>,
     shown: HashMap<u32, Shown>,
+    exports: HashMap<u32, Option<Target>>,
+    exported: Vec<(u32, ImageBitmap)>,
 }
 
 struct Shown {
@@ -106,6 +108,8 @@ impl Screens {
             shader,
             pipelines: HashMap::new(),
             shown: HashMap::new(),
+            exports: HashMap::new(),
+            exported: Vec::new(),
         };
         Ok((screens, device, queue))
     }
@@ -117,26 +121,7 @@ impl Screens {
         surface: u32,
     ) -> Result<(), String> {
         if let Some(canvas) = canvas {
-            let target = match self.atlas {
-                Some(_) => {
-                    let context = canvas
-                        .get_context("2d")
-                        .ok()
-                        .flatten()
-                        .ok_or("a plugin screen's canvas has no 2d context")?;
-                    Target::Copied {
-                        canvas,
-                        context: context.into(),
-                    }
-                }
-                None => {
-                    let surface = self
-                        .instance
-                        .create_surface(wgpu::SurfaceTarget::OffscreenCanvas(canvas.clone()))
-                        .map_err(|error| error.to_string())?;
-                    Target::Surface(Painted::new(&self.adapter, canvas, surface))
-                }
-            };
+            let target = self.target(canvas)?;
             self.shown.insert(
                 id,
                 Shown {
@@ -154,6 +139,123 @@ impl Screens {
             shown.stale = true;
         }
         Ok(())
+    }
+
+    pub(crate) fn export(&mut self, surfaces: Vec<u32>) {
+        self.exports.retain(|surface, _| surfaces.contains(surface));
+        for surface in surfaces {
+            self.exports.entry(surface).or_insert(None);
+        }
+    }
+
+    pub(crate) fn take_exported(&mut self) -> Vec<(u32, ImageBitmap)> {
+        std::mem::take(&mut self.exported)
+    }
+
+    pub(crate) fn paint_exports<'a>(
+        &mut self,
+        presented: &[u32],
+        surface: impl Fn(u32) -> Option<(&'a wgpu::Texture, u64)>,
+    ) -> Result<(), String> {
+        let mut exports = std::mem::take(&mut self.exports);
+        let mut result = Ok(());
+        for (exported, target) in &mut exports {
+            if !presented.contains(exported) {
+                continue;
+            }
+            let Some((texture, _)) = surface(*exported) else {
+                continue;
+            };
+            let painted = self.export_texture(texture, target);
+            match painted {
+                Ok(bitmap) => self.exported.push((*exported, bitmap)),
+                Err(error) => result = Err(error),
+            }
+        }
+        self.exports = exports;
+        result
+    }
+
+    fn export_texture(
+        &mut self,
+        texture: &wgpu::Texture,
+        target: &mut Option<Target>,
+    ) -> Result<ImageBitmap, String> {
+        if target.is_none() {
+            let canvas = OffscreenCanvas::new(texture.width().max(1), texture.height().max(1))
+                .map_err(|_| "a preview's canvas could not be made".to_owned())?;
+            *target = Some(self.target(canvas)?);
+        }
+        let target = target.as_mut().expect("the target was just made");
+        self.show_texture(texture, target)?;
+        let canvas = match target {
+            Target::Surface(painted) => &painted.canvas,
+            Target::Copied { canvas, .. } => canvas,
+        };
+        canvas
+            .transfer_to_image_bitmap()
+            .map_err(|error| format!("a preview could not be taken from its canvas: {error:?}"))
+    }
+
+    pub(crate) fn import(&self, bitmap: &ImageBitmap) -> wgpu::Texture {
+        let size = wgpu::Extent3d {
+            width: bitmap.width().max(1),
+            height: bitmap.height().max(1),
+            depth_or_array_layers: 1,
+        };
+        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("imported preview"),
+            size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_DST
+                | wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        });
+        self.queue.copy_external_image_to_texture(
+            &wgpu::CopyExternalImageSourceInfo {
+                source: wgpu::ExternalImageSource::ImageBitmap(bitmap.clone()),
+                origin: wgpu::Origin2d::ZERO,
+                flip_y: false,
+            },
+            wgpu::CopyExternalImageDestInfo {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+                color_space: wgpu::PredefinedColorSpace::Srgb,
+                premultiplied_alpha: true,
+            },
+            size,
+        );
+        texture
+    }
+
+    fn target(&self, canvas: OffscreenCanvas) -> Result<Target, String> {
+        Ok(match self.atlas {
+            Some(_) => {
+                let context = canvas
+                    .get_context("2d")
+                    .ok()
+                    .flatten()
+                    .ok_or("a plugin screen's canvas has no 2d context")?;
+                Target::Copied {
+                    canvas,
+                    context: context.into(),
+                }
+            }
+            None => {
+                let surface = self
+                    .instance
+                    .create_surface(wgpu::SurfaceTarget::OffscreenCanvas(canvas.clone()))
+                    .map_err(|error| error.to_string())?;
+                Target::Surface(Painted::new(&self.adapter, canvas, surface))
+            }
+        })
     }
 
     pub(crate) fn forget(&mut self, id: u32) {

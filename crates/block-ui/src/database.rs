@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use be_block::{
+use database_types::{
     database::{DatabaseColor, DatabaseRow, DatabaseValue, RowRef, short_id},
     database_schema::{DatabaseField, DatabaseFieldType, DatabaseNumberScale},
 };

@@ -1,0 +1,24 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
+load("@root//buck/wasm:defs.bzl", "wasm32_module")
+
+# The database plugin's block types, the database, its schema and its view:
+# the content as a plain library, which the editors and tests depend on, and
+# :module, the type module the app runs it in (guides/type_modules.md), which
+# only the module feature exports.
+cargo_library()
+
+cargo_test()
+
+cargo_library(
+    name = "wasm",
+    extra_features = ["module"],
+    preferred_linkage = "shared",
+    target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
+)
+
+wasm32_module(
+    name = "module",
+    library = ":wasm",
+    module = "database_types",
+    visibility = ["PUBLIC"],
+)

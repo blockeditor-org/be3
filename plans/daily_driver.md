@@ -30,8 +30,8 @@ Landed. What it left open:
   hold them before any collection runs.
 - A corrupt object on the server is only noticed when it is read, because
   `has` checks that the file exists, not that it is intact.
-- Conflicts and diverged sessions are reported only through the status
-  error and the debug window. Phase 5 adds the UI.
+- Diverged sessions are reported only through the status error and the
+  debug window. (Conflicted merges now show on the block: phase 5.)
 
 ## Phase 2: Version the formats
 
@@ -117,62 +117,112 @@ wait for a public release (`plans/public_release.md`).
 
 ## Phase 5: Offline and flaky connections
 
-Today:
-- a cold start without network cannot open a remote workspace (`main.rs:668-716`);
-- heads and the graph live only in memory (`peer.rs:112`), so cached objects
-  cannot be read offline;
-- unsealed operations are dropped on disconnect;
-- queued commands live only in an in-memory channel;
-- no request has a timeout and no side sends pings, so a half-open socket
-  hangs the worker;
-- the status bar can say "All changes saved" while offline.
+Done so far: the app is offline-first natively (refs database, cached peer,
+local sealing, outbox drain and merge on reconnect, timeouts and pings). What
+is left is marked below.
 
 ### Local-first client
 
-- **A local refs database** beside `be-objects` (SQLite on native) holds:
+- **A local refs database** beside `be-objects` (SQLite on native) holds
+  (done: `be_client::refs`, `Peer::cached`/`attach`, the outbox and
+  `Peer::drain`; the app keeps `be-refs.sqlite3` in its data directory, on
+  web in the origin private file system):
   - each block's local head and last-known remote head;
   - the graph, with its metadata;
   - the workspace list;
   - the outbox of graph operations that are not yet acknowledged.
-- **Opening a block reads the local head first.** Joining the session and
-  fetching the remote head happen in the background.
+- **Opening a block reads the local head first.** Done: offline with an
+  offline session this client owns; while connected, a known block whose join
+  takes over 250 ms opens from its local head as a follower of a placeholder
+  owner and joins in the background (`Io::Joined`), then reopens with the real
+  session, keeping edits made meanwhile. The worker fetches listings in
+  tasks of their own, so a stalled listing no longer holds up an open or an
+  edit, and so do summary refreshes, contact syncs, key tending, version
+  watches, the rejoin after a reconnect, the outbox drain, lease claims,
+  leaves and resynchronizing joins (`worker::Tasks`, `Io::Claimed`,
+  `Io::Resynchronized`). A replica takes edits while its seal's publish is
+  unanswered, and flushing and stopping keep commits locally
+  (`Replicas::keep_all`) instead of waiting on the server; `be::stop` closes
+  the connection and returns without waiting for the worker. Still to do:
+  commands that need the server themselves hold the loop while it is silent,
+  as do `peer.attach` after a reconnect, opening a block never seen before and
+  merging a block a drain found diverged.
 - **Editing offline seals local commits.**
-  - `commits.write` without publish.
-  - On reconnect, `be_session::resume` / `Live::reconcile` decides between
-    fast-forward, publish and merge, which is the machinery that already
-    exists.
-- **Cold start offline.** Open `last_workspace_id` from the local database,
-  and show workspaces from cache when the list request fails.
+  - Done: the replica host seals with `Peer::seal_encoded` and publishes
+    only while attached; a replica that loses its connection is handed a
+    session it owns, so it seals locally.
+  - Done: on reconnect the worker drains the outbox, merges diverged blocks
+    (`Replicas::merge_diverged`), and replicas fast-forward through
+    `Resume`.
+  - Done: moving, deleting and renaming queue offline (`refs::Op::Move`,
+    `Op::Define`); sharing and membership answer that they need a connection.
+- **Cold start offline.** Done: the worker starts from `Peer::cached`, and the
+  workspace list falls back to the cached one and loads again once connected.
 
 ### Connection
 
-- Add a request timeout.
-- Client pings every ~15 s; a missing pong marks the connection lost.
-- Reconnect with exponential backoff and jitter, plus an immediate retry on
-  OS network-change, foreground and focus events.
-- Send lease heartbeats on a timer, not only on seal.
+- Done: a connect timeout so `be::stop` never hangs (and `be::stop` closes
+  the connection rather than waiting on it). Requests have no timeout
+  of their own: an unanswered ping closes the connection and fails them.
+- Done: client pings every ~15 s; a pong missing `PONG_WAIT` after the ping was
+  written marks the connection lost, so a suspended process keeps a live one.
+  The server answers pings out of order, so a slow request does not delay
+  them, and the client reads waiting frames before judging silence.
+- Done: reconnect with exponential backoff and jitter, plus an immediate retry
+  (`be::retry_now`) on window focus. Still to call it: OS network-change and
+  foreground events.
+- Done: lease heartbeats on the replica's timer (`HEARTBEAT_INTERVAL`), not
+  only on seal. Type modules read time from the stack's `Clock`, so the relayed
+  harness's manual clock drives seals and heartbeats.
 
 ### Durability
 
-- Seal locally on Android `onPause` and on desktop backgrounding, not only on
-  Destroy.
-- `status().unsealed` counts the outbox and local-only commits, so the
-  close and account-switch guard tells the truth.
+- Done: seal locally on Android `onPause`, on desktop occlusion and on a
+  hidden or left browser tab (`beui::App::lifecycle`, `Lifecycle::Background`,
+  which block-app answers with the non-blocking `be::backgrounded`), and
+  `be::retry_now` on foreground, focus and network changes (browser `online`,
+  Android's default network callback).
+- Done: `status().unsaved` counts what closing would lose (unsealed replicas,
+  queued commands, imports not yet in the outbox), and `kept` the outbox; the
+  close and organization-switch guards ask only about `unsaved`. `Status`
+  also has `connected`, `connecting`, `syncing`, `waiting`, `unsent`,
+  `conflicts` and `conflicted` for the status bar.
+- Done: imports are kept in the outbox before they upload, so one made offline
+  or cut short by a quit is sent by the next drain.
+- Done: web: text typed offline was gone after an offline reload. A reload
+  mid-transaction left SQLite's WASI lock directory behind, so the refs
+  database never opened again and the worker fell back to one in memory; it
+  now opens without locking (the Web Lock keeps one owner) and never falls
+  back. An edit still on its way to its module counts as unsaved, so a reload
+  within the seal interval asks first (beforeunload) while the worker seals.
 
 ### Status UI
 
-- The status bar shows one of: offline (n changes waiting), syncing, saved,
-  or error.
-- A conflicted merge (from phase 1) shows on the block, with a way to see
-  both versions.
+- Done: the app menu's status (`app.menu.status`, `ui::SyncState`) shows one
+  of connecting (until the first attempt resolves), offline (n changes kept on
+  this device), syncing, saved, or error, from
+  `be::Status { connected, waiting, syncing, error }`. `Status.waiting`
+  counts `Shared.unsealed` plus `Shared.waiting`, which the worker must set to
+  the outbox and local-only commits (`Peer::pending`).
+- Done: a conflicted merge shows on the block (`surfaces::ConflictNotice`),
+  and "See both versions" opens both sides as revision previews side by side
+  (`be::conflicts`, `compositor::ConflictSurface`) to keep the merge or go
+  back to either side; either clears the block's conflicts.
+- Done: unsent edits (settings step 16) are listed from the app menu
+  ("Unsent edits", `app.unsent`) with Restore, when offerable, and Discard
+  after a confirmation (`be::unsent`, `restore_unsent`, `discard_unsent`).
+  The worker must refresh `Shared.unsent` from `Peer::unsent()` after a
+  drain.
 
 ### Testing
 
-- A test transport that drops, stalls and half-opens connections on demand.
-- Tests:
-  - edit offline, restart, then reconnect;
-  - two devices edit the same note offline, then both reconnect;
-  - the connection dies mid-seal.
+- Done: a test transport that drops, stalls and half-opens connections on
+  demand (`crates/fault-relay`), with tests that a half-open connection is
+  noticed and reconnected, and that a request and a connect time out.
+- Done: tests that an edit made offline survives a restart and reaches the
+  server, that two devices' offline edits merge (cleanly and with a
+  conflict), that a seal whose connection dies is kept and published, and
+  that offline moves, renames and deletes reach the server.
 - No sleeping: drive time with the frame clock and the transport.
 
 ## Phase 6: Text editor at 120 fps on a large file

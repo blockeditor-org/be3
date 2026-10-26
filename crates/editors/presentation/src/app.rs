@@ -1,9 +1,9 @@
 use block_editor_beui::Loaded;
-use block_editor_beui::be_block::PresentationContent;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::Root;
 use block_editor_beui::{Creation, Editor};
+use presentation_types::PresentationContent;
 use uuid::Uuid;
 
 mod slides;
@@ -14,8 +14,10 @@ use ui::{PresentationPreview, PresentationView};
 
 pub struct PresentationApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for PresentationApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Loaded>
@@ -25,7 +27,8 @@ impl block_editor_beui::BeuiApp for PresentationApp {
         }
     }
 
-    fn preview_view(editor: Editor) -> NodeId {
+    #[component]
+    fn Preview(editor: Editor) -> NodeId {
         view! {
             <Loaded>
                 <PresentationPreview editor={editor} />

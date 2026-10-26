@@ -1,8 +1,9 @@
 use super::*;
 
-use be_block::{TextBlock, TextContent, block_url::block_url};
+use be_block::block_url::block_url;
 use be_graph::Access;
 use be_protocol::{BlockSummary, KeyKind};
+use text_block_types::{TextBlock, TextContent};
 
 #[tokio::test]
 async fn a_block_a_shared_one_links_to_shows_only_that_it_exists() {

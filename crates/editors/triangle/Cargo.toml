@@ -9,6 +9,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 block-editor-plugin = { path = "../../block-editor-plugin" }
+triangle-types = { path = "types" }
 uuid = "1"
 
 [lints]

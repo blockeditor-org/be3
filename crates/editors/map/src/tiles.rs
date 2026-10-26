@@ -1,9 +1,11 @@
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::io::Read;
+use std::rc::Rc;
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex};
 
-use block_editor_beui::{EditorHost, FetchResult, Waker};
+use block_editor_beui::{EditorHost, Task, Waker};
 
 use crate::raster::Window;
 use crate::{mvt, raster};
@@ -69,8 +71,12 @@ struct Work {
     body: Arc<Vec<u8>>,
 }
 
+type Fetched = Rc<RefCell<Vec<(TileId, Result<Vec<u8>, String>)>>>;
+
 pub(crate) struct TileWorker {
-    downloads: HashMap<u64, TileId>,
+    downloads: HashMap<TileId, Task>,
+    fetched: Fetched,
+    waker: Waker,
     queued: Vec<TileId>,
     waiting: HashMap<TileId, Vec<TileId>>,
     bodies: HashMap<TileId, Arc<Vec<u8>>>,
@@ -87,11 +93,14 @@ impl TileWorker {
         let (results, rasterized) = channel();
         let dropped = Arc::new(Mutex::new(HashSet::new()));
         let skipped = Arc::clone(&dropped);
+        let woken = waker.clone();
         let _ = std::thread::Builder::new()
             .name("map-tile-rasterizer".into())
-            .spawn(move || rasterize(work, results, skipped, waker));
+            .spawn(move || rasterize(work, results, skipped, woken));
         Self {
             downloads: HashMap::new(),
+            fetched: Rc::default(),
+            waker,
             queued: Vec::new(),
             waiting: HashMap::new(),
             bodies: HashMap::new(),
@@ -114,7 +123,7 @@ impl TileWorker {
             return;
         }
         waiting.push(id);
-        if waiting.len() == 1 && !self.downloads.values().any(|asked| *asked == source) {
+        if waiting.len() == 1 && !self.downloads.contains_key(&source) {
             self.queued.push(source);
         }
     }
@@ -164,38 +173,42 @@ impl TileWorker {
             let Some(id) = self.queued.pop() else {
                 break;
             };
-            self.downloads.insert(host.fetch(id.url()), id);
+            let fetched = Rc::clone(&self.fetched);
+            let waker = self.waker.clone();
+            let task = host.then(host.fetch(id.url()), move |result| {
+                fetched
+                    .borrow_mut()
+                    .push((id, result.map_err(|failure| failure.to_string())));
+                waker.wake();
+            });
+            self.downloads.insert(id, task);
         }
     }
 
-    pub(crate) fn forget(self, host: &EditorHost) {
-        for request in self.downloads.into_keys() {
-            host.forget_request(request);
+    pub(crate) fn forget(self) {
+        for task in self.downloads.into_values() {
+            task.cancel();
         }
     }
 
     pub(crate) fn poll(&mut self, host: &EditorHost) -> Vec<TileResult> {
         self.dispatch(host);
         let mut failures = Vec::new();
-        let answered: Vec<u64> = self.downloads.keys().copied().collect();
-        for request in answered {
-            let Some(result) = host.take_fetch(request) else {
+        let fetched = std::mem::take(&mut *self.fetched.borrow_mut());
+        for (source, result) in fetched {
+            if self.downloads.remove(&source).is_none() {
                 continue;
-            };
-            let source = self
-                .downloads
-                .remove(&request)
-                .expect("the request was answered");
+            }
             let waiting = self.waiting.remove(&source).unwrap_or_default();
             match result {
-                FetchResult::Body(body) => {
+                Ok(body) => {
                     let body = Arc::new(body);
                     self.keep(source, Arc::clone(&body));
                     for id in waiting {
                         self.send(id, source, Arc::clone(&body));
                     }
                 }
-                FetchResult::Failed(error) => {
+                Err(error) => {
                     failures.extend(waiting.into_iter().map(|id| TileResult {
                         id,
                         result: Err(error.clone()),

@@ -16,7 +16,9 @@ fn a_super_tap_toggles_the_launcher_even_from_a_program_with_the_keyboard() {
     assert!(fixture.test.shown("launcher"));
     assert!(fixture.test.wants_keyboard());
     assert!(matches!(
-        fixture.test.take_actions::<ProgramAction>()[..],
+        fixture
+            .test
+            .take_host_calls(block_ui_test::requested::program)[..],
         [ProgramAction::List { .. }]
     ));
 

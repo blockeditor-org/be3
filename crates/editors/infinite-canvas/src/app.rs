@@ -1,5 +1,5 @@
 use block_editor_beui::Fit;
-use block_editor_beui::be_block::CanvasContent;
+use infinite_canvas_types::CanvasContent;
 
 use block_editor_beui::Loaded;
 use block_editor_beui::beui::NodeId;
@@ -41,18 +41,30 @@ use crate::geometry::MIN_SIZE;
 
 pub struct CanvasApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for CanvasApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
+        let presented = editor.presenting();
+        let editing = create_memo(move || !presented.get());
         view! {
             <Root>
                 <Loaded>
-                    <CanvasEditor editor={editor} />
+                    <Layers>
+                        <Show condition={editing}>
+                            <CanvasEditor editor={editor} />
+                        </Show>
+                        <Show condition={presented}>
+                            <CanvasPresented editor={editor} />
+                        </Show>
+                    </Layers>
                 </Loaded>
             </Root>
         }
     }
 
-    fn preview_view(editor: Editor) -> NodeId {
+    #[component]
+    fn Preview(editor: Editor) -> NodeId {
         view! {
             <Loaded>
                 <CanvasPreview editor={editor} />
@@ -81,8 +93,7 @@ fn CanvasEditor(editor: Editor) -> NodeId {
     editor.keep_fitted(|| Some(Fit::Centre));
     let chrome = editor.chrome_shown();
     let inspected = create_memo(move || {
-        chrome.get()
-            && state.profile.get() == block_editor_beui::be_block::canvas::CanvasProfile::Vector
+        chrome.get() && state.profile.get() == infinite_canvas_types::CanvasProfile::Vector
     });
     let scope = NodeRef::new();
     action_scope(&scope);
@@ -92,17 +103,34 @@ fn CanvasEditor(editor: Editor) -> NodeId {
     let exporter = actions.exporter;
     provide_context(actions);
     view! {
-        <List @node_ref=&scope spacing=0.0>
+        <List @node_ref=&scope spacing=Space::None>
             <TouchSetting editor choice={touch} />
             <ImportError state={state} />
             <ExportDialog exporter />
-            <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
+            <List
+                @sizing=ItemSize::Percent(100.0)
+                direction=Direction::Horizontal
+                spacing=Space::None
+            >
                 <CanvasStage @sizing=ItemSize::Percent(100.0) @node_ref={&content} state={state} />
                 <CanvasSidebar state={state} shown={inspected} />
             </List>
             <ToolDock state={state} anchor={content} shown={chrome} />
             <ZoomPill state={state} anchor={content} shown={chrome} />
         </List>
+    }
+}
+
+#[component]
+fn CanvasPresented(editor: Editor) -> NodeId {
+    let state = CanvasState::new(editor, true);
+    state.watch();
+    let content = NodeRef::new();
+    editor.content(&content);
+    editor.keep_fitted(|| Some(Fit::Centre));
+    provide_context(canvas_actions(state));
+    view! {
+        <CanvasStage @node_ref=&content state={state} />
     }
 }
 

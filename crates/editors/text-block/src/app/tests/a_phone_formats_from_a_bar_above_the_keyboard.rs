@@ -1,5 +1,4 @@
 use beui::Vec2;
-use block_editor_beui::be_block::TextBlock;
 use block_editor_beui::beui::TouchPhase;
 use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
@@ -7,6 +6,7 @@ use uuid::Uuid;
 
 use super::text;
 use crate::app::TextApp;
+use text_block_types::TextBlock;
 
 #[test]
 fn a_phone_formats_from_a_bar_above_the_keyboard() {

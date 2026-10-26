@@ -11,6 +11,7 @@ use beui_tree::reactive::{
 
 use crate::base::canvas::CanvasNode;
 use crate::base::child_list::{ChildHost, ChildItem};
+use crate::base::first_fit::FirstFitNode;
 use crate::base::grid::{GridItem, GridNode};
 use crate::base::layers::LayersNode;
 use crate::base::list::{ListItem, ListNode};
@@ -389,6 +390,18 @@ impl ParentKind for LayersNode {
 }
 
 impl BareChild for LayersNode {
+    fn bare() {}
+}
+
+impl ParentKind for FirstFitNode {
+    type Data = ();
+
+    fn item(node: NodeId, _: ()) -> NodeId {
+        node
+    }
+}
+
+impl BareChild for FirstFitNode {
     fn bare() {}
 }
 

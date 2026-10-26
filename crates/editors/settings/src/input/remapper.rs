@@ -3,7 +3,6 @@ use block_editor_beui::be_block::{InputRemapper, InputRemapperContent, InputSett
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::{BlockParent, Editor, LayeredSettingsRow};
 
 use uuid::Uuid;
@@ -19,7 +18,7 @@ pub(super) fn RemapperSetting(editor: Editor, settings: Settings, read_only: Mem
     let remappers = create_memo(move || {
         editor
             .block_types()
-            .editors_for(InputRemapper::CONTENT_TYPE)
+            .editors_for(InputRemapper::CONTENT_TYPE, None)
             .into_iter()
             .filter(|entry| {
                 entry.edits == block_editor_beui::block_ui::Edits::Type(InputRemapper::CONTENT_TYPE)
@@ -154,15 +153,13 @@ pub(super) fn RemapperSetting(editor: Editor, settings: Settings, read_only: Mem
             />
             <Dialog
                 open={asking}
+                kind=DialogKind::Alert
                 title="Reset the remapper?"
                 id="input.remapper.reset"
-                confirm="Reset"
-                cancel="Cancel"
-                destructive=true
-                on_confirm={confirmed}
+                actions={vec![DialogAction::destructive("Reset", confirmed), DialogAction::cancel("Cancel")]}
                 on_dismiss={move || asking.set(false)}
             >
-                <Text style=TextStyle::PARAGRAPH wrap=true>
+                <Text style=TextStyle::PARAGRAPH>
                     "Resetting deletes the remaps made here, and this device follows the ones its other settings pick, if any."
                 </Text>
             </Dialog>

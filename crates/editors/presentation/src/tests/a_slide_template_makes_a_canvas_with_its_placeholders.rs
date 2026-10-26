@@ -1,7 +1,8 @@
 use super::*;
-use block_editor_beui::be_block::canvas::CanvasShape;
-use block_editor_beui::be_block::{BlockContent, CanvasContent};
+use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::{BeuiApp, Creation, GraphCommand};
+use infinite_canvas_types::CanvasContent;
+use infinite_canvas_types::CanvasShape;
 
 #[test]
 fn a_slide_template_makes_a_canvas_with_its_placeholders() {

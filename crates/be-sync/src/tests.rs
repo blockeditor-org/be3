@@ -1,9 +1,7 @@
 use std::path::{Path, PathBuf};
+use workspace_ui_types::{FileContent, FolderContent, WorkspaceContent};
 
-use be_block::{
-    BlockContent, BlockMetadata, CanvasContent, EXECUTABLE, FileContent, FolderContent,
-    ImageContent, LiveEdit, TextBlock, TextContent, WorkspaceContent,
-};
+use be_block::{BlockContent, BlockMetadata, EXECUTABLE, LiveEdit};
 use be_client::{Credentials, Peer, PeerConfig};
 use be_graph::BlockParent;
 use be_store::MemoryStore;
@@ -11,7 +9,10 @@ use tokio::{net::TcpListener, sync::oneshot};
 use uuid::Uuid;
 
 use crate::{Report, Target};
+use infinite_canvas_types::CanvasContent;
+use text_block_types::{TextBlock, TextContent};
 
+mod a_file_name_must_work_on_every_system;
 mod a_folder_is_written_as_files_and_directories;
 mod a_rename_on_disk_moves_the_same_block;
 mod a_skipped_block_is_never_deleted_or_replaced;
@@ -170,10 +171,19 @@ async fn text_block(peer: &Peer<MemoryStore>, parent: Uuid, name: &str, text: &s
     block(peer, parent, name, &TextBlock::of(text)).await
 }
 
+async fn types() -> be_types_host::Modules {
+    be_types_host::started(first_party_types::sources(), be_client::Clock::real()).await
+}
+
 async fn sync(peer: &Peer<MemoryStore>, directory: &Path, root: Uuid) -> Report {
-    crate::sync(peer, directory, &Target { root: Some(root) })
-        .await
-        .unwrap()
+    crate::sync(
+        peer,
+        &mut types().await,
+        directory,
+        &Target { root: Some(root) },
+    )
+    .await
+    .unwrap()
 }
 
 #[derive(Debug)]

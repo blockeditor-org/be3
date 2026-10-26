@@ -6,10 +6,12 @@ license.workspace = true
 
 [dependencies]
 block-gpu-abi = { path = "../block-gpu-abi" }
+block-guest-abi = { path = "../block-guest-abi" }
 wgpu = { version = "29", default-features = false, features = ["std", "wgsl"] }
 
 [lints]
 workspace = true
 
 [dev-dependencies]
+be-ops = { path = "../be-ops" }
 wgpu = { version = "29", default-features = false, features = ["noop", "std", "wgsl"] }

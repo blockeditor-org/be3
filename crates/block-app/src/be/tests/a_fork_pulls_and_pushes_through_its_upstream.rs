@@ -40,7 +40,7 @@ fn a_fork_pulls_and_pushes_through_its_upstream() {
             && head_of(shared, fork) == head_of(shared, versioned.repository)
     });
 
-    hold(versioned.note, be_block::TextContent::CONTENT_TYPE);
+    hold(versioned.note, text_block_types::TextContent::CONTENT_TYPE);
     wait_until("opened the note", |shared| {
         text_of(shared, versioned.note).is_some()
     });
@@ -74,7 +74,7 @@ fn a_fork_pulls_and_pushes_through_its_upstream() {
         .find(|checkout| *checkout != versioned.checkout)
         .expect("the fork's checkout exists");
     let note = copy_of(versioned.note, checkout);
-    hold(note, be_block::TextContent::CONTENT_TYPE);
+    hold(note, text_block_types::TextContent::CONTENT_TYPE);
     wait_until("opened the fork's note", |shared| {
         text_of(shared, note).as_deref() == Some("hello there\n")
     });

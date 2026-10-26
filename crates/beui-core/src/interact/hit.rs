@@ -290,8 +290,9 @@ fn walk(doc: &mut Document, rects: &Rects, id: NodeId, pos: Pos2) -> Walk {
         }
         match walk(doc, rects, child, pos) {
             Walk::Found(mut path, embed) => {
-                if let (Some(node), Some(rect)) = (interactive(doc, id), rects.get(&id)) {
-                    match node.hits(pos, rect) {
+                if let (Some(node), Some((rect, scale))) = (interactive(doc, id), rects.scaled(&id))
+                {
+                    match node.hits(pos, rect, scale) {
                         true => path.push(id),
                         false if path.is_empty() => return Walk::Declined,
                         false => {}
@@ -306,8 +307,8 @@ fn walk(doc: &mut Document, rects: &Rects, id: NodeId, pos: Pos2) -> Walk {
     let inside = rects
         .visible(&id)
         .is_some_and(|rect| rect.contains_half_open(pos));
-    if inside && let (Some(node), Some(rect)) = (interactive(doc, id), rects.get(&id)) {
-        if !node.hits(pos, rect) {
+    if inside && let (Some(node), Some((rect, scale))) = (interactive(doc, id), rects.scaled(&id)) {
+        if !node.hits(pos, rect, scale) {
             return Walk::Declined;
         }
         if declined && !node.forwards() && !node.captures(pos, rect) {

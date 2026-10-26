@@ -18,7 +18,7 @@ fn text_with_spans_wraps_places_inline_items_and_answers_where_indices_are() {
         view! {
             <List spacing=0.0>
                 <Frame width=WRAP>
-                    <Text @node_ref=&text color=Color32::WHITE wrap=true>
+                    <Text @node_ref=&text color=Color32::WHITE>
                         "hello "
                         <TextItem>
                             <Frame @node_ref=&item width=BOX height=BOX />
@@ -59,8 +59,9 @@ fn text_with_spans_wraps_places_inline_items_and_answers_where_indices_are() {
     let hello = geometry.caret_rect(6, 1.0).expect("an index has a caret");
     let boxed = harness.rect(item);
     assert_eq!(
-        boxed.min.x, hello.min.x,
-        "the inline item sits where its span starts"
+        boxed.min.x,
+        hello.min.x.round(),
+        "the inline item sits on the pixel where its span starts"
     );
     assert_eq!(boxed.width(), BOX);
 

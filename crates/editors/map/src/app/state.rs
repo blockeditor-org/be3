@@ -2,19 +2,19 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use block_editor_beui::be_block::ImageContent;
-use block_editor_beui::be_block::map::{MapColor, MapCoordinate, MapPoint, MapRegion};
-use block_editor_beui::be_block::{Edit, Map, MapContent};
+use block_editor_beui::be_block::Edit;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{Image, Pos2, Rect, Vec2};
 use block_editor_beui::block_ui::BlockLabel;
 use block_editor_beui::{BlockFilter, ContentProjection, Drag, Editor, FileDrop, Waker};
 use block_editor_beui::{BlockInfo, BlockParent, BlockQuery};
+use map_types::{Map, MapColor, MapContent, MapCoordinate, MapPoint, MapRegion};
 use uuid::Uuid;
 
 use crate::geo::MapView;
 use crate::raster::{TILE_PIXELS, TileLabel};
 use crate::tiles::{TileId, TileWorker};
+use image_block_types::{ImageContent, ImageFile};
 
 pub(crate) const WORLD_POINTS: f32 = 1024.0;
 pub(crate) const MAX_SCALE: f32 = 32768.0;
@@ -151,7 +151,7 @@ impl MapState {
     pub(crate) fn reload_tiles(&self) {
         let inner = self.inner.value();
         if let Some(worker) = inner.worker.borrow_mut().take() {
-            worker.forget(&self.editor.host());
+            worker.forget();
         }
         inner.tiles.borrow_mut().clear();
         inner.used.borrow_mut().clear();
@@ -194,7 +194,7 @@ impl MapState {
         };
         self.editor.pick_block(filter, move |picked| {
             if let (true, Ok(picked)) = (self.inner.is_alive(), picked) {
-                self.place_picked(picked.id, at);
+                self.place_picked(picked.id(), at);
             }
         });
     }
@@ -390,11 +390,6 @@ impl MapState {
             woken.with(|_| ());
             untrack(|| self.collect_tiles());
         });
-        self.editor.on_reply(move || {
-            if self.inner.is_alive() {
-                self.collect_tiles();
-            }
-        });
         let drag = self.editor.drag();
         create_effect(move || {
             let drag = drag.get();
@@ -503,7 +498,7 @@ impl MapState {
                 base.longitude + step * index as f64,
                 base.latitude - step * index as f64,
             );
-            self.import(ImageContent::from_file(file.name, file.data), position);
+            self.import(ImageFile::from_file(file.name, file.data), position);
         }
     }
 
@@ -512,7 +507,7 @@ impl MapState {
         if let Pasted::Image(file) = pasted {
             self.import_error.set(None);
             let position = inner.view_center.get();
-            self.import(ImageContent::from_file(file.name, file.data), position);
+            self.import(ImageFile::from_file(file.name, file.data), position);
         }
     }
 

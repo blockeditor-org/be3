@@ -26,7 +26,7 @@ const SHOWN_FRAMES: u32 = 2;
 const SECOND: Duration = Duration::from_secs(1);
 
 pub(crate) fn owns_a_seat(setup: &beui::Setup) -> bool {
-    setup.get::<beui_adapter_drm::DisplayControl>().is_some()
+    setup.get::<beui_platform_drm::DisplayControl>().is_some()
 }
 
 pub(crate) struct ScreenLock {
@@ -260,11 +260,11 @@ impl SessionControl for Live<'_> {
     }
 
     fn windows(&self) -> usize {
-        crate::wayland::listed().len()
+        crate::wayland::listed(&[]).len()
     }
 
     fn close_windows(&mut self) {
-        for window in crate::wayland::listed() {
+        for window in crate::wayland::listed(&[]) {
             crate::wayland::close(window.id);
         }
         crate::host::wake();

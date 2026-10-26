@@ -1,16 +1,17 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex, PoisonError},
-};
+use std::sync::{Arc, PoisonError};
 
-use be_client::{ClientError, Peer};
+use wasi_threads::Mutex;
+
+use be_client::Peer;
 use be_commit::CommitId;
-use block_plugin_api::{HostReply, HostRequest, Revision};
+use block_plugin_api::Revision;
+use block_type_api::Change;
 use uuid::Uuid;
 
 use super::{
     Content, Shared,
-    worker::{Command, Session, Store},
+    replicas::Replicas,
+    worker::{Command, Store},
 };
 
 #[derive(Clone)]
@@ -97,8 +98,8 @@ pub(super) async fn load_child(
             .read_manifest(&commit.manifest)
             .await
             .map_err(|error| error.to_string())?;
-        super::kind_of(content_type)
-            .and_then(|kind| (kind.preview)(&bytes))
+        super::is_known(content_type)
+            .then(|| Content::new(content_type, bytes))
             .ok_or("This file cannot be previewed.".to_owned())
     }
     .await;
@@ -176,11 +177,21 @@ pub(crate) fn collect_released() {
     });
 }
 
-pub(crate) fn request(
-    block: Uuid,
-    request: HostRequest,
-    reply: impl FnOnce(HostReply) + Send + 'static,
-) {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Asked {
+    List,
+    Preview([u8; 32]),
+    Restore([u8; 32]),
+}
+
+#[derive(Debug)]
+pub(crate) enum Answered {
+    Listed(Result<Vec<Revision>, String>),
+    Previewed(Result<Uuid, String>),
+    Restored(Result<(), String>),
+}
+
+pub(crate) fn request(block: Uuid, request: Asked, reply: impl FnOnce(Answered) + Send + 'static) {
     super::send(Command::Revision {
         block,
         request,
@@ -190,27 +201,25 @@ pub(crate) fn request(
 
 pub(super) async fn run(
     peer: &Arc<Peer<Store>>,
-    sessions: &mut HashMap<Uuid, Box<dyn Session>>,
+    replicas: &mut Replicas,
     shared: &Arc<Mutex<Shared>>,
     block: Uuid,
-    request: HostRequest,
-) -> HostReply {
-    let outcome = perform(peer, sessions, shared, block, &request).await;
+    request: Asked,
+) -> Answered {
+    let outcome = perform(peer, replicas, shared, block, request).await;
     match request {
-        HostRequest::ListRevisions(_) => HostReply::RevisionsListed(outcome.map(|result| result.0)),
-        HostRequest::PreviewRevision { .. } => {
-            HostReply::RevisionPreviewed(outcome.map(|result| result.1.into_bytes()))
-        }
-        _ => HostReply::RevisionRestored(outcome.map(|_| ())),
+        Asked::List => Answered::Listed(outcome.map(|result| result.0)),
+        Asked::Preview(_) => Answered::Previewed(outcome.map(|result| result.1)),
+        Asked::Restore(_) => Answered::Restored(outcome.map(|_| ())),
     }
 }
 
 async fn perform(
     peer: &Arc<Peer<Store>>,
-    sessions: &mut HashMap<Uuid, Box<dyn Session>>,
+    replicas: &mut Replicas,
     shared: &Arc<Mutex<Shared>>,
     block: Uuid,
-    request: &HostRequest,
+    request: Asked,
 ) -> Result<(Vec<Revision>, Uuid), String> {
     let summary = peer
         .summary(block)
@@ -219,16 +228,22 @@ async fn perform(
     if !summary.access.can_view() {
         return Err("You do not have permission to view this file.".into());
     }
-    let entries = peer
-        .history(block)
-        .await
-        .map_err(|error| error.to_string())?;
     let commit = match request {
-        HostRequest::PreviewRevision { commit, .. }
-        | HostRequest::RestoreRevision { commit, .. } => {
-            Some(CommitId::from_hash(be_store::Hash::from_bytes(*commit)))
+        Asked::Preview(commit) | Asked::Restore(commit) => {
+            Some(CommitId::from_hash(be_store::Hash::from_bytes(commit)))
         }
-        _ => None,
+        Asked::List => None,
+    };
+    let conflicted = commit.is_some_and(|commit| {
+        let held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+        super::conflicts::is_side(&held, block, commit)
+    });
+    let entries = match conflicted {
+        true => Vec::new(),
+        false => peer
+            .history(block)
+            .await
+            .map_err(|error| error.to_string())?,
     };
     let Some(commit) = commit else {
         let mut revisions: Vec<_> = entries
@@ -247,7 +262,7 @@ async fn perform(
         });
         return Ok((revisions, Uuid::nil()));
     };
-    if !entries.iter().any(|entry| entry.commit == commit) {
+    if !conflicted && !entries.iter().any(|entry| entry.commit == commit) {
         return Err("This revision is no longer available.".into());
     }
     let saved = peer
@@ -261,9 +276,9 @@ async fn perform(
         .read_manifest(&saved.manifest)
         .await
         .map_err(|error| error.to_string())?;
-    if matches!(request, HostRequest::PreviewRevision { .. }) {
-        let content = super::kind_of(summary.content_type)
-            .and_then(|kind| (kind.preview)(&bytes))
+    if matches!(request, Asked::Preview(_)) {
+        let content = super::is_known(summary.content_type)
+            .then(|| Content::new(summary.content_type, bytes))
             .ok_or("This revision cannot be previewed.")?;
         let id = Uuid::new_v4();
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
@@ -283,20 +298,18 @@ async fn perform(
     if !summary.access.can_edit() {
         return Err("You do not have permission to restore this file.".into());
     }
-    let session = sessions
-        .get_mut(&block)
-        .ok_or("Open this file before restoring a revision.")?;
-    session.poll().await.map_err(|error| error.to_string())?;
-    session.seal().await.map_err(|error| error.to_string())?;
-    if !session.is_clean() {
+    if !replicas.is_open(block) {
+        return Err("Open this file before restoring a revision.".into());
+    }
+    replicas.seal((peer, shared), block, false).await;
+    if !replicas.status(block).is_some_and(|status| status.clean) {
         return Err(
             "The current edits are still being saved. Try restoring again once they are saved."
                 .into(),
         );
     }
-    session
-        .replace(bytes)
-        .await
-        .map_err(|error: ClientError| error.to_string())?;
+    replicas
+        .change((peer, shared), block, Change::Replace(bytes))
+        .await;
     Ok((Vec::new(), Uuid::nil()))
 }

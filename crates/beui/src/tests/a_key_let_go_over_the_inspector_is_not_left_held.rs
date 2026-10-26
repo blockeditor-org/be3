@@ -1,8 +1,8 @@
 use super::*;
+use crate::keyboard::styled::key_center;
+use crate::keyboard::unstyled::{Layer, Value};
 use crate::reactive::*;
-use crate::styled::software_keyboard::key_center;
 use crate::styled::*;
-use crate::unstyled::software_keyboard::{Layer, Value};
 
 #[test]
 fn a_key_let_go_over_the_inspector_is_not_left_held() {

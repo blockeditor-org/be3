@@ -18,6 +18,8 @@ fn a_tap_intercepted_for_a_plugin_reaches_it_unless_it_has_the_keyboard() {
         INSTANCE,
         REGION,
         &forwarded(vec![beui::Forwarded::Focus(true)], None, true),
+        &|_, _| beui::Aim::Own,
+        &|_| None,
     );
     let messages = instances.intercepted_tap(INSTANCE, REGION, beui::Key::Logo);
     assert!(

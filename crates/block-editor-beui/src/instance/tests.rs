@@ -30,6 +30,7 @@ fn frame(session: &mut EditorSession, content: Option<Rect>, top_bar: TopBar) {
             width: 800,
             height: 600,
             scale_factor_millis: 1000,
+            raster_millis: 1000,
         }],
         &[ScreenRequest {
             screen: ScreenId(0),
@@ -44,13 +45,16 @@ fn frame(session: &mut EditorSession, content: Option<Rect>, top_bar: TopBar) {
                 pixel_width: 800,
                 pixel_height: 600,
                 scale_factor: 1.0,
-                monitors: Vec::new(),
+                raster: 1.0,
             },
             frame: Some(FrameSpec {
                 chrome: FrameChrome::Drawn,
                 content,
                 top_bar,
+                dialog: None,
             }),
+            windows: false,
+            placement: None,
         }],
     );
 }

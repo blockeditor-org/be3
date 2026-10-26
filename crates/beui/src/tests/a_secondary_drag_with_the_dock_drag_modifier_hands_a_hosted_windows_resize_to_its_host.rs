@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::DockApi;
+use crate::dock::unstyled::DockApi;
 use crate::{WindowEdge, WindowRequest};
 
 #[test]
@@ -39,7 +39,10 @@ fn a_secondary_drag_with_the_dock_drag_modifier_hands_a_hosted_windows_resize_to
     assert!(
         harness
             .take_window_requests()
-            .contains(&WindowRequest::BeginResize(window, WindowEdge::BottomRight)),
+            .contains(&WindowRequest::BeginResize {
+                window,
+                edge: WindowEdge::BottomRight
+            }),
         "the drag hands the nearest corner to the host"
     );
     assert_eq!(

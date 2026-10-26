@@ -3,7 +3,7 @@ use super::*;
 #[tokio::test]
 async fn a_folder_syncs_with_a_directory() {
     let harness = Harness::start().await;
-    let tracker = Tracker::new(harness.owner().await);
+    let tracker = Tracker::new(harness.owner().await, sources());
     let parse = |words: &[&str]| {
         cli::parse(
             words.iter().map(|word| (*word).to_owned()).collect(),

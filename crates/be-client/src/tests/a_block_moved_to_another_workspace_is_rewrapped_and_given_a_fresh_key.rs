@@ -1,7 +1,9 @@
 use super::*;
+use workspace_ui_types::WorkspaceContent;
 
-use be_block::{BlockMetadata, TextBlock, TextContent, WorkspaceContent};
+use be_block::BlockMetadata;
 use be_protocol::WrappedBy;
+use text_block_types::{TextBlock, TextContent};
 
 async fn workspace(peer: &Peer<MemoryStore>, name: &str) -> Uuid {
     peer.create_block(

@@ -7,7 +7,7 @@ fn an_exec_line_keeps_quoted_arguments_whole() {
         "",
     );
     assert_eq!(
-        arguments(&quoted).expect("the line expands"),
+        arguments(&quoted, None).expect("the line expands"),
         [
             "/opt/My App/run",
             "--say",
@@ -17,11 +17,11 @@ fn an_exec_line_keeps_quoted_arguments_whole() {
         ]
     );
     assert_eq!(
-        arguments(&entry(r#"app "unterminated"#, "")),
+        arguments(&entry(r#"app "unterminated"#, ""), None),
         Err(ExecError::Unterminated)
     );
     assert_eq!(
-        arguments(&entry(r#"sh -c "echo %f""#, "")).expect("the line expands"),
+        arguments(&entry(r#"sh -c "echo %f""#, ""), None).expect("the line expands"),
         ["sh", "-c", "echo "],
         "a field code inside quotes is still not a file"
     );

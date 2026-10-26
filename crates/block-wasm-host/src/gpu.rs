@@ -1,19 +1,44 @@
-use block_gpu_abi as abi;
-use block_gpu_host::calls;
+use block_gpu_host::transport;
 use wasmtime::{Caller, Linker};
 
 use crate::State;
 
-macro_rules! linker {
-    ($link:ident, $module:expr; $(fn $name:ident($($argument:ident: $kind:ty),* $(,)?) $(-> $result:ty)?;)+) => {
-        fn $link(linker: &mut Linker<State>) -> Result<(), String> {
+type Returns<T = ()> = T;
+
+macro_rules! link_gpu {
+    ($($glue:path, $module:literal, $name:literal, $export:literal, ($($argument:ident: $kind:ty),*) $(-> $result:ty)?;)*) => {
+        fn link_gpu(linker: &mut Linker<State>) -> Result<(), String> {
             $(
                 linker
                     .func_wrap(
                         $module,
+                        $name,
+                        |mut caller: Caller<'_, State>, $($argument: $kind),*| -> wasmtime::Result<Returns<$($result)?>> {
+                            let state = caller.data_mut();
+                            let result = $glue(state, $($argument),*);
+                            match state.fatal.is_some() {
+                                false => Ok(result),
+                                true => Err(crate::panic::stopped(state.fatal.take().unwrap_or_default())),
+                            }
+                        },
+                    )
+                    .map_err(|error| format!("{} could not be linked: {error}", $export))?;
+            )*
+            Ok(())
+        }
+    };
+}
+
+macro_rules! link_transport {
+    ($(fn $name:ident($($argument:ident: $kind:ty),* $(,)?) $(-> $result:ty)?;)+) => {
+        fn link_transport(linker: &mut Linker<State>) -> Result<(), String> {
+            $(
+                linker
+                    .func_wrap(
+                        block_guest_abi::HOST_MODULE,
                         stringify!($name),
                         |mut caller: Caller<'_, State>, $($argument: $kind),*| $(-> $result)? {
-                            calls::$name(caller.data_mut(), $($argument),*)
+                            transport::$name(caller.data_mut(), $($argument),*)
                         },
                     )
                     .map_err(|error| format!("{} could not be linked: {error}", stringify!($name)))?;
@@ -23,20 +48,8 @@ macro_rules! linker {
     };
 }
 
-macro_rules! gpu {
-    ($($functions:tt)+) => {
-        linker!(link_gpu, abi::GPU_MODULE; $($functions)+);
-    };
-}
-
-macro_rules! transport {
-    ($($functions:tt)+) => {
-        linker!(link_transport, abi::HOST_MODULE; $($functions)+);
-    };
-}
-
-abi::gpu_functions!(gpu);
-abi::transport_functions!(transport);
+block_gpu_abi::gpu_local_imports!(link_gpu);
+block_guest_abi::transport_functions!(link_transport);
 
 pub(super) fn link(linker: &mut Linker<State>) -> Result<(), String> {
     link_gpu(linker)?;

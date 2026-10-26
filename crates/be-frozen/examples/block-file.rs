@@ -1,11 +1,13 @@
 use std::{fmt::Display, path::PathBuf, time::Duration};
+use workspace_ui_types::FolderContent;
 
-use be_block::{BlockContent, BlockMetadata, FolderContent, TextBlock, TextContent};
+use be_block::{BlockContent, BlockMetadata};
 use be_cli::{cli, tracker::Tracker};
 use be_client::{Credentials, Peer, PeerConfig};
 use be_frozen::scene;
 use be_graph::BlockParent;
 use be_store::MemoryStore;
+use text_block_types::{TextBlock, TextContent};
 use tokio::{net::TcpListener, sync::oneshot};
 use uuid::Uuid;
 
@@ -89,7 +91,7 @@ async fn write(url: &str, data: &std::path::Path) -> Result<Vec<u8>, String> {
         .published()
         .ok_or("a save was rejected")?;
 
-    let tracker = Tracker::new(owner);
+    let tracker = Tracker::new(owner, sources());
     let (view, _) = tracker
         .create_database(scene::DATABASE, scene::PREFIX, BlockParent::Block(notes))
         .await?;
@@ -192,4 +194,8 @@ async fn run(tracker: &Tracker<MemoryStore>, arguments: &[&str]) -> Result<Strin
 
 fn text(error: impl Display) -> String {
     error.to_string()
+}
+
+fn sources() -> be_cli::tracker::Sources {
+    Box::new(first_party_types::sources)
 }

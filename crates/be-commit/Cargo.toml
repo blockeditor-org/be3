@@ -4,8 +4,13 @@ edition.workspace = true
 version.workspace = true
 license.workspace = true
 
+[features]
+default = ["store"]
+# Reading and writing sealed commits, which a pure guest does without.
+store = ["be-store/vault"]
+
 [dependencies]
-be-store = { path = "../be-store" }
+be-store = { path = "../be-store", default-features = false }
 serde = { version = "1", features = ["derive"] }
 similar = "3.1"
 uuid = { version = "1", features = ["serde", "v4"] }

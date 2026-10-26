@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn block_types_round_trip() {
-    let message = Message::BlockTypes(Catalog {
+    let catalog = Catalog {
         types: vec![BlockTypeDescriptor {
             block_type: [7; 16],
             display_name: "Folder".into(),
@@ -13,6 +13,8 @@ fn block_types_round_trip() {
                 delete: true,
                 replace: false,
             },
+            press: Press::Zoom,
+            plain_file: true,
         }],
         templates: vec![TemplateDescriptor {
             editor: [7; 16],
@@ -28,26 +30,11 @@ fn block_types_round_trip() {
             edits: Edits::Any,
             name: "Debug view".into(),
             icon_codepoint: "\u{e093}".into(),
+            extensions: Vec::new(),
         }],
-    });
+    };
     assert_eq!(
-        decode_frame(&encode_frame(&message).unwrap()).unwrap(),
-        message
-    );
-
-    let oversized = Message::BlockTypes(Catalog {
-        types: vec![BlockTypeDescriptor {
-            block_type: [7; 16],
-            display_name: "x".repeat(MAX_STRING_BYTES + 1),
-            color: None,
-            icon_codepoint: String::new(),
-            children: ChildOperations::default(),
-        }],
-        templates: Vec::new(),
-        editors: Vec::new(),
-    });
-    assert_eq!(
-        encode_frame(&oversized),
-        Err(DecodeError::LimitExceeded("string"))
+        crate::ops::decode::<Catalog>(&crate::ops::encode(&catalog)),
+        Some(catalog)
     );
 }

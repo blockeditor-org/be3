@@ -1,9 +1,9 @@
 use block_editor_beui::Loaded;
-use block_editor_beui::be_block::EditorSettings;
 use block_editor_beui::beui::Vec2;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::{Editor, LayeredSettings};
+use settings_types::EditorSettings;
 
 mod ui;
 
@@ -14,8 +14,10 @@ const INTRINSIC_HEIGHT: f32 = 360.0;
 
 pub struct DefaultEditorsApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for DefaultEditorsApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Loaded>|| {
@@ -23,7 +25,7 @@ impl block_editor_beui::BeuiApp for DefaultEditorsApp {
                     let device = settings.on_this_device();
                     editor.block_types_known();
                     view! {
-                        <List spacing=0.0>
+                        <List spacing=Space::None>
                             <Keyed
                                 value={device}
                                 key={|device: bool| device}

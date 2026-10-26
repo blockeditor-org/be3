@@ -8,7 +8,7 @@ How a coordinating agent splits a large task across subagents on one Claude Code
 - Each subagent makes its own worktree from the integration branch's current tip, `git -C /home/user/be3 worktree add /home/user/wt/<task> -b canvas/<task> <integration-branch>`, and checks its base before starting. Don't use the Agent tool's `isolation: "worktree"`: it has produced worktrees on stale bases.
 - A subagent lands by rebasing onto the integration branch and running `git -C /home/user/be3 merge --ff-only canvas/<task>`, retrying the rebase if someone landed first. Then it removes its worktree and branch. The coordinator pushes after each landing.
 - Put the rules every subagent follows in one protocol file in the scratchpad and point each prompt at it, so a rule changed mid-run reaches every later agent. Keep a second notes file of the APIs each landed agent reports, for the agents that build on them.
-- Run `./scripts/verify` again after any rebase onto a branch that moved. A fast-forward after only `//:check` once landed a clippy failure, and paintings conflict only once work is combined.
+- Run `./scripts/verify` again after any rebase onto a branch that moved. A fast-forward after only `//:check` once landed a lint failure, and paintings conflict only once work is combined.
 - Ask for the final report in the reply text. The handback tool sometimes refuses it, and the agent then ends with no report.
 - Tell agents working near each other who they are, and send the remaining ones a short message when a neighbour lands something they must build on or rebase over.
 

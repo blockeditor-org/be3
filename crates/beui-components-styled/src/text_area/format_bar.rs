@@ -4,11 +4,13 @@ use beui_macros::{component, view};
 use crate::ToggleButton;
 use beui_components_unstyled::TextAreaState;
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
+
+use crate::list::List;
+use crate::tokens::Space;
 use beui_view::reactive::*;
 use text_editor_core::Tool;
 
-const BAR_SPACING: f32 = 4.0;
+const BAR_SPACING: Space = Space::Xs;
 
 #[component]
 pub fn FormatBar(

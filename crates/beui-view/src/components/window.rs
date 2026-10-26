@@ -2,7 +2,9 @@ use beui_core::base::overlay::{OverlayAnchor, OverlayNode, Placement, WindowSpec
 use beui_core::geometry::{Pos2, Vec2};
 use beui_core::layer::{LayerLevel, LayerPolicy};
 use beui_core::node::NodeId;
-use beui_core::window::{WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest};
+use beui_core::window::{
+    WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest, WindowRole,
+};
 use beui_macros::{component, view};
 
 use crate::components::frame::Frame;
@@ -16,7 +18,8 @@ use crate::reactive::{
 pub struct WindowHandle {
     pub id: WindowId,
     pub size: Memo<Vec2>,
-    hosted: ReadSignal<bool>,
+    hosted: Memo<bool>,
+    real: Memo<Option<WindowId>>,
 }
 
 impl WindowHandle {
@@ -24,12 +27,19 @@ impl WindowHandle {
         self.hosted.get()
     }
 
+    pub fn real_window(self) -> Option<WindowId> {
+        self.real.get_untracked()
+    }
+
     pub fn begin_move(self) -> bool {
         self.ask(WindowRequest::BeginMove(self.id))
     }
 
     pub fn begin_resize(self, edge: WindowEdge) -> bool {
-        self.ask(WindowRequest::BeginResize(self.id, edge))
+        self.ask(WindowRequest::BeginResize {
+            window: self.id,
+            edge,
+        })
     }
 
     pub fn close(self) -> bool {
@@ -61,6 +71,7 @@ pub fn Window(
     #[prop(default = WindowPlacement::AtPointer)] placement: Prop<WindowPlacement>,
     #[prop(default = Pos2::ZERO)] at: Prop<Pos2>,
     #[prop(default = None)] title: Prop<Option<String>>,
+    #[prop(default = WindowRole::Normal)] role: Prop<WindowRole>,
     #[prop(default = true)] open: Prop<bool>,
     #[prop(default = LayerLevel::Normal)] level: Prop<LayerLevel>,
     #[prop(default = false)] keep_alive: bool,
@@ -68,7 +79,17 @@ pub fn Window(
     #[prop(children)] content: RenderFn<WindowHandle>,
 ) -> NodeId {
     let id = id.unwrap_or_else(WindowId::next);
-    let hosted = opens_windows();
+    let opens = opens_windows();
+    let placed = with_document(|document| document.watch_placed_windows());
+    let asked = placement.clone();
+    let hosted = create_memo(move || {
+        opens.get() || (placed.get() && matches!(asked.get(), WindowPlacement::Host(_)))
+    });
+    let outer = use_window();
+    let real = create_memo(move || match hosted.get() {
+        true => Some(id),
+        false => outer.and_then(|outer| outer.real.get()),
+    });
     let reported = create_signal(None::<Vec2>);
     let shown = create_memo(move || match (hosted.get(), reported.get()) {
         (true, Some(reported)) => reported,
@@ -78,6 +99,7 @@ pub fn Window(
         id,
         size: shown,
         hosted,
+        real,
     };
     let heard = Callback::new(move |report: WindowReport| {
         if let WindowReport::Resized { size, .. } = report {
@@ -109,6 +131,7 @@ pub fn Window(
             size: size.get(),
             placement: placement.get(),
             title: title.get(),
+            role: role.get(),
             on_report: heard,
         };
         with_document(|document| document.set_overlay_window(overlay, Some(spec)));

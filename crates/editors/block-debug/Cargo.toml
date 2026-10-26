@@ -14,6 +14,7 @@ uuid = "1"
 
 [dev-dependencies]
 block-ui-test = { path = "../../block-ui-test" }
+counter-types = { path = "../counter/types" }
 
 [lints]
 workspace = true

@@ -8,32 +8,11 @@ use text_editor_core::{EditorCommand, FindDirection, LRDirection, UDDirection};
 
 use super::TextAreaState;
 
-pub(super) fn register(state: TextAreaState, disabled: Memo<bool>) {
-    let editable = create_memo(move || !disabled.get());
-    Action::new("text.find", "Find", move || state.open_find(false))
-        .glyph(ICON_SEARCH)
-        .shortcut(Chord::ctrl(Key::F))
-        .register();
-    let replace = Action::new("text.replace", "Find and replace", move || {
-        state.open_find(true)
-    })
-    .glyph(ICON_REPLACE)
-    .shortcut(Chord::ctrl(Key::H))
-    .enabled(editable)
-    .register();
-    add_to_menu(vec![MenuNode::action(&replace)]);
-    Action::new("text.find-next", "Find the next match", move || {
-        state.find_step(FindDirection::Next);
-    })
-    .glyph(ICON_ARROW_DOWN)
-    .shortcut(Chord::ctrl(Key::G))
-    .register();
-    Action::new("text.find-previous", "Find the previous match", move || {
-        state.find_step(FindDirection::Previous);
-    })
-    .glyph(ICON_ARROW_UP)
-    .shortcut(Chord::ctrl(Key::G).shift())
-    .register();
+pub(super) fn register(state: TextAreaState, locked: Memo<bool>, find: bool) {
+    let editable = create_memo(move || !locked.get());
+    if find {
+        register_find(state, editable);
+    }
     Action::new("text.duplicate-line", "Duplicate the line", move || {
         edit(state, EditorCommand::DuplicateLine(UDDirection::Down))
     })
@@ -58,6 +37,33 @@ pub(super) fn register(state: TextAreaState, disabled: Memo<bool>) {
     })
     .glyph(ICON_CHEVRONS_DOWN_UP)
     .shortcut(Chord::ctrl(Key::BracketLeft).shift())
+    .register();
+}
+
+fn register_find(state: TextAreaState, editable: Memo<bool>) {
+    Action::new("text.find", "Find", move || state.open_find(false))
+        .glyph(ICON_SEARCH)
+        .shortcut(Chord::ctrl(Key::F))
+        .register();
+    let replace = Action::new("text.replace", "Find and replace", move || {
+        state.open_find(true)
+    })
+    .glyph(ICON_REPLACE)
+    .shortcut(Chord::ctrl(Key::H))
+    .enabled(editable)
+    .register();
+    add_to_menu(vec![MenuNode::action(&replace)]);
+    Action::new("text.find-next", "Find the next match", move || {
+        state.find_step(FindDirection::Next);
+    })
+    .glyph(ICON_ARROW_DOWN)
+    .shortcut(Chord::ctrl(Key::G))
+    .register();
+    Action::new("text.find-previous", "Find the previous match", move || {
+        state.find_step(FindDirection::Previous);
+    })
+    .glyph(ICON_ARROW_UP)
+    .shortcut(Chord::ctrl(Key::G).shift())
     .register();
 }
 

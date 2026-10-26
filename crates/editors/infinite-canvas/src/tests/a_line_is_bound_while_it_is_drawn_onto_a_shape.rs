@@ -1,6 +1,6 @@
 use super::*;
-use block_editor_beui::be_block::canvas::BINDING_GAP;
 use block_editor_beui::beui::{Input, Pos2};
+use infinite_canvas_types::BINDING_GAP;
 
 use crate::app::canvas::item_bounds;
 use crate::geometry::path_ends;

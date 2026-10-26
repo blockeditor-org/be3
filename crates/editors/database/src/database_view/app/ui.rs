@@ -1,5 +1,3 @@
-use block_editor_beui::be_block::database_schema::DatabaseField;
-use block_editor_beui::be_block::database_view::DatabaseViewKind;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, Vec2};
@@ -7,6 +5,8 @@ use block_editor_beui::block_ui::database::DatabaseValueChange;
 use block_editor_beui::database::DatabaseBlockPickRequest;
 use block_editor_beui::database::DatabaseValueEditor;
 use block_editor_beui::{Editor, Loaded, Toolbar, narrow_chrome};
+use database_types::database_schema::DatabaseField;
+use database_types::database_view::DatabaseViewKind;
 use uuid::Uuid;
 
 use crate::database_view::app::data::{Data, ViewData};
@@ -18,7 +18,7 @@ use crate::database_view::app::spreadsheet::Spreadsheet;
 use crate::database_view::sort::{ROW_HEADER_WIDTH, ROW_HEIGHT, column_name, column_width};
 
 const CELL_LABEL_WIDTH: f32 = 56.0;
-const CELL_EDITOR_HEIGHT: f32 = 40.0;
+const CELL_EDITOR_HEIGHT: Size = Size::Xl;
 
 #[component]
 pub fn DatabaseViewEditor(editor: Editor) -> NodeId {
@@ -52,7 +52,7 @@ fn ViewEditor(editor: Editor) -> NodeId {
     let content = NodeRef::new();
     editor.content(&content);
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Show condition={spreadsheet}>
                 <Toolbar shown={chrome}>
                     <CellEditor @sizing=ItemSize::Percent(100.0) data={data} />
@@ -90,7 +90,7 @@ fn Content(data: Data, panels: bool) -> NodeId {
     let kind = data.kind;
     view! {
         <RowBeside data={data} enabled={panels}>
-            <List spacing=0.0>
+            <List spacing=Space::None>
                 <Dynamic value={kind}>|kind: DatabaseViewKind| {
                     match kind {
                         DatabaseViewKind::Spreadsheet => view! {
@@ -154,7 +154,7 @@ fn CellEditor(data: Data) -> NodeId {
     let read_only = data.read_only;
     view! {
         <Frame height=CELL_EDITOR_HEIGHT>
-            <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Frame @sizing={ItemSize::Intrinsic.min(CELL_LABEL_WIDTH)}>
                     <Text @test_id={"database-view.cell-editor.cell"}>{label}</Text>
                 </Frame>

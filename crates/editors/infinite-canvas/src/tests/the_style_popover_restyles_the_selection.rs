@@ -1,7 +1,5 @@
 use super::*;
-use block_editor_beui::be_block::canvas::{
-    CanvasHue, CanvasLook, CanvasStrokeStyle, CanvasTextSize, CanvasTone,
-};
+use infinite_canvas_types::{CanvasHue, CanvasLook, CanvasStrokeStyle, CanvasTextSize, CanvasTone};
 
 #[test]
 fn the_style_popover_restyles_the_selection() {

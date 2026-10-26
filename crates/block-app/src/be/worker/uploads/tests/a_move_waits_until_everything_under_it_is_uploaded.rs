@@ -12,7 +12,7 @@ fn saved(id: Uuid, parent: Option<usize>) -> Saved {
 }
 
 fn edit(block: Uuid) -> Command {
-    Command::Operate(block, None, Vec::new(), std::time::Instant::now())
+    Command::Operate(block, Vec::new(), std::time::Instant::now())
 }
 
 fn subjects(commands: Vec<Command>) -> Vec<Option<Uuid>> {

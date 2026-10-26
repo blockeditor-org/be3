@@ -29,17 +29,20 @@ env:
   # ./scripts/buck says so rather than building.
   BE3_AUTHORIZATION: ${{ secrets.BE3_TRACKER_AUTHORIZATION }}
 
-# One job does the work: ci is ./scripts/ci, which verifies, builds
-# the Android app and launcher, and on a pull request renders the paint
-# previews, and uploads what each of those produced. It is also the gate: ci is
+# One job does the work: ci is ./scripts/ci, which verifies and on a pull
+# request renders the paint previews, and uploads what each of those produced.
+# It builds nothing for a device: the build helper builds the apps when
+# be-launcher asks (guides/build_server.md), so CI downloads as little from the
+# build server as it can. It is also the gate: ci is
 # the one check the ruleset on main requires, on the pull request and on the
 # merge group GitHub's merge queue builds from it. It runs the pull
-# request's code, so it holds no credentials beyond the API gateway's header and the
-# Android keystore, both of which a build can already read.
+# request's code, so it holds no credential beyond the API gateway's header,
+# which a build can already read. This workflow also runs on the code of
+# pull requests opened before it changed, so it hands that code no secret it
+# did not hand it before, and writes none into the checkout.
 # The jobs after it each run nothing from the pull request and hold the one
 # credential they write with: autofix pushes the fixes, publish-summary
-# comments with the summary, publish-android puts the Android build where the
-# launcher on Android finds it, publish-bootstrap uploads a new release of
+# comments with the summary, publish-bootstrap uploads a new release of
 # crates/bootstrap. Everything builds on the
 # build server, so what a runner needs is buck2 and whatever runs here rather
 # than there.
@@ -58,11 +61,6 @@ jobs:
   # the commit that carries it is what a reviewer looks at in the paintings on
   # the pull request's summary comment.
   #
-  # The Android builds are signed on this runner with CI's keystore, the secret
-  # ANDROID_CI_KEYSTORE_BASE64, so successive CI builds install as updates
-  # over one another. The plugins are in each, since an APK has nowhere else
-  # to find them.
-  #
   # The paint previews are every painting a pull request changes, drawn
   # before, after, and with what changed marked, for one comment on the pull
   # request that each run edits rather than adding to, which also counts the
@@ -74,7 +72,6 @@ jobs:
     name: ci
     runs-on: ubuntu-24.04
     outputs:
-      android: ${{ steps.outputs.outputs.android }}
       bootstrap: ${{ steps.outputs.outputs.bootstrap }}
       previews: ${{ steps.outputs.outputs.previews }}
     steps:
@@ -113,24 +110,24 @@ jobs:
       - uses: ./.github/actions/buck2
         if: ${{ !cancelled() }}
 
-      # A local runtime file for the finalizer. Keep this path for workflows
-      # that also run older PR checkouts whose Buck rules still read it.
-      - name: Write CI's Android keystore
-        if: ${{ !cancelled() }}
-        env:
-          ANDROID_CI_KEYSTORE_BASE64: ${{ secrets.ANDROID_CI_KEYSTORE_BASE64 }}
-        run: |
-          if [ -n "$ANDROID_CI_KEYSTORE_BASE64" ]; then
-            (umask 077 && printf '%s' "$ANDROID_CI_KEYSTORE_BASE64" > buck/android/ci-keystore.base64)
-          fi
-
+      # What draws the browser paintings in the previews: Playwright, driving
+      # the Google Chrome the runner image already has. Downloading Playwright's
+      # own Chromium, and its system packages with apt, took minutes and
+      # sometimes stalled for more than ten; the Python package alone is one
+      # wheel. Before and after are drawn by the same browser in the same run,
+      # so which Chrome it is does not change what the previews compare. An
+      # image without Chrome falls back to the download.
       - name: Install the browser preview runtime
         if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && hashFiles('crates/browser-rasterizer/requirements.txt') != '' }}
         run: |
           python3 -m venv "$RUNNER_TEMP/browser-rasterizer"
-          "$RUNNER_TEMP/browser-rasterizer/bin/pip" install -r crates/browser-rasterizer/requirements.txt
-          "$RUNNER_TEMP/browser-rasterizer/bin/python" -m playwright install --with-deps chromium
+          "$RUNNER_TEMP/browser-rasterizer/bin/pip" install --quiet -r crates/browser-rasterizer/requirements.txt
           echo "BE3_PLAYWRIGHT_PYTHON=$RUNNER_TEMP/browser-rasterizer/bin/python" >> "$GITHUB_ENV"
+          if chrome="$(command -v google-chrome)"; then
+            echo "BE3_CHROME=$chrome" >> "$GITHUB_ENV"
+          else
+            "$RUNNER_TEMP/browser-rasterizer/bin/python" -m playwright install --with-deps chromium
+          fi
 
       - name: Run ./scripts/ci
         if: ${{ !cancelled() }}
@@ -140,7 +137,7 @@ jobs:
           BOOTSTRAP: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
           BASE: ${{ github.event.pull_request.base.sha }}
         run: |
-          set -- --android dist/android
+          set --
           if [ "$CHECK" = true ]; then
             set -- "$@" --check
           fi
@@ -157,22 +154,12 @@ jobs:
         id: outputs
         if: ${{ !cancelled() }}
         run: |
-          if [ -f dist/android/block-app.apk ] && [ -f dist/android/be-launcher.apk ]; then
-            echo 'android=true' >> "$GITHUB_OUTPUT"
-          fi
           if [ -f "$RUNNER_TEMP/previews/comment.md" ]; then
             echo 'previews=true' >> "$GITHUB_OUTPUT"
           fi
           if [ -n "$(ls -A "$RUNNER_TEMP/bootstrap" 2> /dev/null)" ]; then
             echo 'bootstrap=true' >> "$GITHUB_OUTPUT"
           fi
-
-      - if: ${{ !cancelled() && steps.outputs.outputs.android == 'true' }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: android
-          path: dist/android
-          retention-days: 14
 
       - if: ${{ !cancelled() && steps.outputs.outputs.bootstrap == 'true' }}
         uses: actions/upload-artifact@v7
@@ -191,24 +178,24 @@ jobs:
       # Everything a fix can do shows up in git: an edited file, a moved one,
       # and an untracked one such as a painting that was accepted for the first
       # time, which is why this stages the whole tree before it asks. What is
-      # ignored stays out, which is everything a build leaves behind, the
-      # Android builds in dist/ among them.
+      # ignored stays out, which is everything a build leaves behind.
       #
       # This runs whether or not verification passed. A run that failed on one
       # test has still accepted the paintings the others made, and a run that
-      # failed on a clippy warning it could not fix has still formatted the
+      # failed to compile has still formatted the
       # rest, and both of those are worth the push.
       #
-      # The keystore is deleted first rather than left to .gitignore, because
-      # the .gitignore is the pull request's: one based on a main from before
-      # the keystore was ignored would stage it, and one that already tracks it
-      # would stage the secret's new value. Deleted, the most it can stage is
-      # its removal.
+      # The files a credential can be in are deleted first rather than left to
+      # .gitignore, because the .gitignore is the pull request's, and one based
+      # on an older main may not ignore them: .buckconfig.local, where
+      # ./scripts/buck writes the build server's header, the scripts' key
+      # files, and the keystore older workflows wrote. Deleted, the most one
+      # can stage is its removal.
       - name: Collect what verification changed
         id: collect
         if: ${{ !cancelled() && github.event_name == 'pull_request' }}
         run: |
-          rm -f buck/android/ci-keystore.base64
+          rm -f .buckconfig.local .gateway-authorization .build-server-key.* buck/android/ci-keystore.base64
           git add --all
           if git diff --cached --quiet; then
             echo 'Verification changed nothing.'
@@ -491,101 +478,3 @@ jobs:
             jq --raw-input --slurp '{body: .}' "$comment" |
               gh api --method POST "repos/$REPOSITORY/issues/$NUMBER/comments" --input - > /dev/null
           fi
-
-  # The launcher on Android (crates/be-launcher) installs these APKs: the app
-  # and the launcher, both signed with CI's keystore. Each goes to the be3-ci
-  # Bunny storage zone under android/<slot>/, where the slot is pr-<number> or
-  # main: one build a slot, which the next replaces. Each APK is named by the
-  # SHA-256 of its bytes, <hash>.apk, so one the slot already holds is not
-  # uploaded again, and nor does the launcher download or install it again.
-  # build.json, uploaded after them, names them: the commit, and the hash and
-  # size of the app and of the launcher. The CDN keeps a file for a month
-  # whatever its query string, so build.json is purged from it with the Bunny
-  # API key once it is uploaded. The APKs it no longer names are deleted after
-  # it. android-builds.yml deletes a closed pull request's slot.
-  # Only main and pull requests from this repository have one, since a fork's
-  # pull request has no keystore to sign it with. As with the paint
-  # previews, the storage key is given to the upload step alone, and what the
-  # artifacts hold is only data here.
-  #
-  # Not part of the gate: a build the launcher cannot fetch does not stop a
-  # merge.
-  publish-android:
-    name: publish the Android build
-    needs: [ci]
-    if: >-
-      !cancelled() &&
-      needs.ci.outputs.android == 'true' &&
-      (github.event_name == 'push' ||
-      (github.event_name == 'pull_request' &&
-      github.event.pull_request.head.repo.full_name == github.repository))
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/download-artifact@v8
-        with:
-          name: android
-          path: ${{ runner.temp }}/android
-
-      - name: Upload it
-        env:
-          BUNNY_STORAGE_KEY: ${{ secrets.BUNNY_STORAGE_KEY }}
-          BUNNY_API_KEY: ${{ secrets.BUNNY_API_KEY }}
-          SLOT: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'main' }}
-          COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: |
-          set -euo pipefail
-          android="$RUNNER_TEMP/android"
-          objects="$RUNNER_TEMP/objects"
-          mkdir -p "$objects"
-          store="https://storage.bunnycdn.com/be3-ci/android/$SLOT"
-
-          object() {
-            hash="$(sha256sum "$1" | cut -c1-64)"
-            cp "$1" "$objects/$hash.apk"
-            jq -n --arg hash "$hash" --argjson size "$(stat -c %s "$1")" '{hash: $hash, size: $size}'
-          }
-
-          jq -n \
-            --arg commit "$COMMIT" \
-            --argjson app "$(object "$android/block-app.apk")" \
-            --argjson launcher "$(object "$android/be-launcher.apk")" \
-            '{commit: $commit, app: $app, launcher: $launcher}' > "$RUNNER_TEMP/build.json"
-
-          present="$(curl --fail --silent --show-error --retry 3 \
-            --header "AccessKey: $BUNNY_STORAGE_KEY" "$store/" |
-            jq -r '.[] | select(.IsDirectory | not) | .ObjectName')" || present=''
-
-          for object in "$objects"/*.apk; do
-            name="$(basename "$object")"
-            if ! grep -qxF "$name" <<< "$present"; then
-              curl --fail --silent --show-error --retry 3 --output /dev/null \
-                --request PUT \
-                --header "AccessKey: $BUNNY_STORAGE_KEY" \
-                --header 'Content-Type: application/vnd.android.package-archive' \
-                --upload-file "$object" \
-                "$store/$name"
-            fi
-          done
-
-          curl --fail --silent --show-error --retry 3 --output /dev/null \
-            --request PUT \
-            --header "AccessKey: $BUNNY_STORAGE_KEY" \
-            --header 'Content-Type: application/json' \
-            --upload-file "$RUNNER_TEMP/build.json" \
-            "$store/build.json"
-
-          curl --fail --silent --show-error --retry 3 --output /dev/null \
-            --request POST \
-            --header "AccessKey: $BUNNY_API_KEY" \
-            --get --data-urlencode "url=https://be3-ci.b-cdn.net/android/$SLOT/build.json" \
-            https://api.bunny.net/purge
-
-          wanted="$(ls "$objects")"
-          while IFS= read -r name; do
-            if [ -n "$name" ] && [ "$name" != build.json ] && ! grep -qxF "$name" <<< "$wanted"; then
-              curl --fail --silent --show-error --retry 3 --output /dev/null \
-                --request DELETE \
-                --header "AccessKey: $BUNNY_STORAGE_KEY" \
-                "$store/$name"
-            fi
-          done <<< "$present"

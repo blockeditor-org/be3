@@ -1,6 +1,7 @@
 use super::*;
-use block_editor_beui::be_block::{BlockContent, ImageContent, Thumbhash};
+use block_editor_beui::be_block::{BlockContent, Thumbhash};
 use block_editor_beui::beui::Image;
+use image_block_types::ImageContent;
 
 #[test]
 fn an_image_still_loading_is_drawn_as_its_thumbhash() {

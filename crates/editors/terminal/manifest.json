@@ -16,5 +16,14 @@
       ]
     }
   },
+  "block_types": {
+    "terminal": {
+      "id": "7465726d-696e-616c-2d62-6c6f636b0001",
+      "display_name": "Terminal",
+      "icon": "\ue181",
+      "color": [44, 158, 128],
+      "module": "terminal_types.wasm"
+    }
+  },
   "entry_point": "terminal.wasm"
 }

@@ -48,7 +48,7 @@ fn a_dock_card_reaches_past_its_pane_and_holds_only_its_tab() {
             .is_none(),
         "no other tab does"
     );
-    let covers = harness.document().overlay_rects();
+    let covers = harness.document().overlay_rects(crate::WindowId::MAIN);
     assert!(
         covers.iter().any(|cover| cover.contains_rect(panel))
             && covers.iter().any(|cover| cover.contains_rect(card))

@@ -27,9 +27,9 @@ Enter to continue a list\nTab nests an item\nEnter on an empty item leaves the l
 nested in it\nWrite a schema\nRender its blocks\nShip it\nA quote is drawn with a bar beside it.\nfn main() {\n    \
 println!(\"decorated by the rust highlighter\");\n}\nAsk \u{fffc} about voids: the caret steps \
 over one in a single move.\n";
-const EDITOR_HEIGHT: f32 = 470.0;
-const MENTION_PADDING: f32 = 6.0;
-const MENTION_HEIGHT: f32 = 20.0;
+const EDITOR_HEIGHT: f32 = 520.0;
+const MENTION_PADDING: Space = Space::Sm;
+const MENTION_HEIGHT: Size = Size::Sm;
 
 pub(crate) const GLYPHS: [(&str, Glyph); 12] = [
     (basic::BOLD, ICON_BOLD),
@@ -197,7 +197,7 @@ fn Mention(marker: TextMarker) -> NodeId {
         <Frame
             @test_id={format!("demo.rich.{}", name.get_untracked())}
             height=MENTION_HEIGHT
-            padding={Sides::horizontal(MENTION_PADDING)}
+            padding={Padding::horizontal(MENTION_PADDING)}
             fill=ColorRole::AccentSoft
             radius=Radius::Md
         >

@@ -2,31 +2,23 @@ use beui::NodeId;
 use beui::icons::{ICON_EXTERNAL_LINK, ICON_GIT_COMMIT_HORIZONTAL, ICON_REFRESH_CW};
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled;
-use beui::unstyled::Picture;
 
+use crate::actions::{Actions, Notes};
 use crate::github::{Entry, InlineComment, Person, PullRequest, State, Tone};
 use crate::markdown::Block;
 use crate::model::{Loaded, Model};
-#[cfg(target_os = "android")]
-use crate::phone::{Actions, Notes};
 use crate::time::{now, relative};
 use crate::view::{Labels, MERGED, PADDING, readable_on, state_glyph};
-#[cfg(not(target_os = "android"))]
-use crate::workspace::{Actions, Notes};
 use beui::TextAlign;
 
-const SPACING: f32 = 12.0;
-const CARD_PADDING: f32 = 12.0;
-const AVATAR: f32 = 24.0;
+const SPACING: Space = Space::Lg;
+const CARD_PADDING: Space = Space::Lg;
+const AVATAR: Size = Size::Md;
 const AVATAR_PIXELS: u32 = 64;
-const BADGE_PADDING_HORIZONTAL: f32 = 10.0;
-const BADGE_PADDING_VERTICAL: f32 = 4.0;
-const BADGE_RADIUS: f32 = 14.0;
 const QUOTE_BAR: f32 = 3.0;
-const BULLET: f32 = 5.0;
-const BULLET_INDENT: f32 = 8.0;
-const EVENT_INDENT: f32 = 14.0;
+const BULLET: Size = Size::Custom(5.0);
+const BULLET_INDENT: Space = Space::Md;
+const EVENT_INDENT: Space = Space::Lg;
 
 #[derive(Clone, Copy)]
 struct Shown(u64);
@@ -102,24 +94,20 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
     let refresh = move || model.refresh_timeline(&pull_request.get_untracked());
     view! {
         <SelectableText child_size=ItemSize::Percent(100.0)>
-            <List spacing=0.0>
-                <Frame padding={Sides::symmetric(PADDING, 4.0)}>
+            <List spacing=Space::None>
+                <Frame padding={Padding::symmetric(PADDING, Space::Xs)}>
                     <List spacing=SPACING>
-                        <Text size=TextSize::Xl wrap=true>{title}</Text>
-                        <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
+                        <Text size=TextSize::Xl>{title}</Text>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                             <StateBadge state />
-                            <Text
-                                style=TextStyle::CAPTION
-                                @sizing=ItemSize::Percent(100.0)
-                                wrap=true
-                            >
+                            <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0)>
                                 {summary}
                             </Text>
                         </List>
                         <Show condition={tagged}>
                             <Labels labels={labels} checked_out={checked_out} />
                         </Show>
-                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                             <Actions
                                 model={model}
                                 pull_request={pull_request}
@@ -132,7 +120,8 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                                 on_click={open}
                             />
                             <Spacer @sizing=ItemSize::Percent(100.0) />
-                            <IconButton
+                            <Button
+                                icon_only=true
                                 glyph=ICON_REFRESH_CW
                                 label="Reload the conversation"
                                 on_click={refresh}
@@ -141,19 +130,23 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                         <Notes model={model} pull_request={pull_request} timeline={timeline} />
                         <Separator />
                         <Show condition={loading}>
-                            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                                <Spinner width=20.0 label="Loading the conversation" />
+                            <List
+                                direction=Direction::Horizontal
+                                align=Align::Center
+                                spacing=Space::Md
+                            >
+                                <Progress width=Size::Sm label="Loading the conversation" />
                                 <Text style=TextStyle::CAPTION>"Loading the conversation"</Text>
                             </List>
                         </Show>
                         <Show condition={failed}>
-                            <Text color=TextColor::Danger wrap=true>{error}</Text>
+                            <Text color=TextColor::Danger>{error}</Text>
                         </Show>
                     </List>
                 </Frame>
                 <Scroll @sizing=ItemSize::Percent(100.0)>
-                    <Frame padding={Sides::horizontal(PADDING).top(8.0).bottom(PADDING)}>
-                        <List spacing=0.0>
+                    <Frame padding={Padding::horizontal(PADDING).top(Space::Md).bottom(PADDING)}>
+                        <List spacing=Space::None>
                             <ForEach keys>|index: usize| {
                                 let entry = create_memo(move || entries.get().get(index).cloned());
                                 view! {
@@ -191,8 +184,8 @@ fn StateBadge(state: Memo<State>) -> NodeId {
     view! {
         <Frame
             fill={ColorRole::custom(fill)}
-            radius={Radius::custom(BADGE_RADIUS)}
-            padding={Sides::symmetric(BADGE_PADDING_HORIZONTAL, BADGE_PADDING_VERTICAL)}
+            radius=Radius::Full
+            padding={Padding::symmetric(Space::Md, Space::Xs)}
         >
             <Text color={ink}>
                 <Icon glyph={glyph} />
@@ -205,7 +198,7 @@ fn StateBadge(state: Memo<State>) -> NodeId {
 #[component]
 fn TimelineEntry(model: Model, entry: Memo<Option<Entry>>) -> NodeId {
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Dynamic value={entry}>|entry: Option<Entry>| {
                 match entry {
                     Some(Entry::Comment { author, verb, tone, when, url, body, inline }) => view! {
@@ -248,26 +241,27 @@ fn CommentCard(
     let inline_keys: Vec<usize> = (0..inline.len()).collect();
     let open = move || model.open(&url);
     view! {
-        <Frame padding={Sides::vertical(6.0)}>
+        <Frame padding={Padding::vertical(Space::Sm)}>
             <Frame
                 fill=ColorRole::Surface
-                border={create_memo(move || Some(Border::new(ColorRole::Custom(outline.get())).width(1.0)))}
+                border={create_memo(move || Some(Border::new(ColorRole::Custom(outline.get())).width(Stroke::Hairline)))}
                 radius=Radius::Lg
             >
-                <List spacing=0.0>
+                <List spacing=Space::None>
                     <Frame
                         fill=ColorRole::SurfaceRaised
-                        radius={Radius::Custom(Corners::top(Radius::Lg.px()))}
-                        padding={Sides::symmetric(CARD_PADDING, 8.0)}
+                        radius=Radius::Lg
+                        corners=CornerSet::TOP
+                        padding={Padding::symmetric(CARD_PADDING, Space::Md)}
                     >
-                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                             <Avatar model={model} url={author.avatar} />
                             <Text @sizing=ItemSize::Percent(100.0)>{heading}</Text>
                             <Link label={time} size=TextSize::Sm on_click={open} />
                         </List>
                     </Frame>
                     <Frame padding=CARD_PADDING>
-                        <List spacing=10.0>
+                        <List spacing=Space::Md>
                             <Blocks model={model} blocks={body} />
                             <ForEach keys={inline_keys}>|index: usize| {
                                 let comment = inline[index].clone();
@@ -293,12 +287,12 @@ fn InlineCommentView(model: Model, comment: InlineComment) -> NodeId {
     view! {
         <Frame
             fill=ColorRole::Background
-            border={Border::new(ColorRole::Border).width(1.0)}
+            border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
             radius=Radius::Md
-            padding={Sides::symmetric(10.0, 8.0)}
+            padding={Padding::symmetric(Space::Md, Space::Md)}
         >
-            <List spacing=6.0>
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+            <List spacing=Space::Sm>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                     <Text style=TextStyle::CODE>{location}</Text>
                     <Text style=TextStyle::CAPTION>{author}</Text>
                 </List>
@@ -311,8 +305,8 @@ fn InlineCommentView(model: Model, comment: InlineComment) -> NodeId {
 #[component]
 fn CommitRow(sha: String, message: String) -> NodeId {
     view! {
-        <Frame padding={Sides::symmetric(EVENT_INDENT, 3.0)}>
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+        <Frame padding={Padding::symmetric(EVENT_INDENT, Space::Xs2)}>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Text color=TextColor::Muted align=TextAlign::Center>
                     <Icon glyph=ICON_GIT_COMMIT_HORIZONTAL />
                 </Text>
@@ -327,8 +321,8 @@ fn CommitRow(sha: String, message: String) -> NodeId {
 fn EventRow(actor: String, text: String, when: i64) -> NodeId {
     let line = format!("{actor} {text} · {}", relative(now(), when));
     view! {
-        <Frame padding={Sides::symmetric(EVENT_INDENT, 3.0)}>
-            <Text style=TextStyle::CAPTION wrap=true>{line}</Text>
+        <Frame padding={Padding::symmetric(EVENT_INDENT, Space::Xs2)}>
+            <Text style=TextStyle::CAPTION>{line}</Text>
         </Frame>
     }
 }
@@ -342,8 +336,8 @@ fn Avatar(model: Model, url: String) -> NodeId {
         _ => None,
     });
     view! {
-        <Frame width=AVATAR height=AVATAR radius={Radius::custom(12.0)} fill=ColorRole::Border>
-            <Picture image={picture} radius={AVATAR / 2.0} />
+        <Frame width=AVATAR height=AVATAR radius=Radius::Full fill=ColorRole::Border>
+            <Picture image={picture} radius=Radius::Full />
         </Frame>
     }
 }
@@ -352,7 +346,7 @@ fn Avatar(model: Model, url: String) -> NodeId {
 fn Blocks(model: Model, blocks: Vec<Block>) -> NodeId {
     let keys: Vec<usize> = (0..blocks.len()).collect();
     view! {
-        <List spacing=8.0>
+        <List spacing=Space::Md>
             <ForEach keys>|index: usize| {
                 let block = blocks[index].clone();
                 view! {
@@ -366,11 +360,11 @@ fn Blocks(model: Model, blocks: Vec<Block>) -> NodeId {
 #[component]
 fn BlockView(model: Model, block: Block) -> NodeId {
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Dynamic value={block}>|block: Block| {
                 match block {
                     Block::Heading(text) => view! {
-                        <Text size=TextSize::Lg weight=Weight::Bold wrap=true>{text}</Text>
+                        <Text size=TextSize::Lg weight=Weight::Bold>{text}</Text>
                     },
                     Block::Paragraph(text) => view! {
                         <Prose text />
@@ -406,8 +400,16 @@ fn Table(model: Model, rows: Vec<Vec<Vec<Block>>>) -> NodeId {
         .flat_map(|row| (0..columns).map(move |column| (row, column)))
         .collect();
     view! {
-        <Frame border={Border::new(ColorRole::Border).width(1.0)} radius=Radius::Md padding=8.0>
-            <Grid columns={vec![Track::Fraction(1.0); columns]} column_spacing=8.0 row_spacing=8.0>
+        <Frame
+            border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
+            radius=Radius::Md
+            padding=Space::Md
+        >
+            <Grid
+                columns={vec![Track::Fraction(1.0); columns]}
+                column_spacing=Space::Md
+                row_spacing=Space::Md
+            >
                 <ForEach keys>|(row, column): (usize, usize)| {
                     let blocks = rows[row].get(column).cloned().unwrap_or_default();
                     view! {
@@ -422,15 +424,19 @@ fn Table(model: Model, rows: Vec<Vec<Vec<Block>>>) -> NodeId {
 #[component]
 fn Prose(text: String) -> NodeId {
     view! {
-        <Text wrap=true>{text}</Text>
+        <Text>{text}</Text>
     }
 }
 
 #[component]
 fn CodeBlock(text: String) -> NodeId {
     view! {
-        <Frame fill=ColorRole::Background radius=Radius::Md padding={Sides::symmetric(10.0, 8.0)}>
-            <Text size=TextSize::Sm family=Family::Mono wrap=true>{text}</Text>
+        <Frame
+            fill=ColorRole::Background
+            radius=Radius::Md
+            padding={Padding::symmetric(Space::Md, Space::Md)}
+        >
+            <Text size=TextSize::Sm family=Family::Mono>{text}</Text>
         </Frame>
     }
 }
@@ -438,9 +444,9 @@ fn CodeBlock(text: String) -> NodeId {
 #[component]
 fn Quote(text: String) -> NodeId {
     view! {
-        <List direction=Direction::Horizontal spacing=10.0>
+        <List direction=Direction::Horizontal spacing=Space::Md>
             <Frame @sizing=ItemSize::Fixed(QUOTE_BAR) fill=ColorRole::Border />
-            <Text @sizing=ItemSize::Percent(100.0) color=TextColor::Muted wrap=true>{text}</Text>
+            <Text @sizing=ItemSize::Percent(100.0) color=TextColor::Muted>{text}</Text>
         </List>
     }
 }
@@ -449,15 +455,10 @@ fn Quote(text: String) -> NodeId {
 fn Item(text: String) -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=BULLET_INDENT>
-            <Frame padding={Sides::symmetric(BULLET_INDENT, 7.0)}>
-                <Frame
-                    width=BULLET
-                    height=BULLET
-                    radius={Radius::custom(3.0)}
-                    fill=ColorRole::TextMuted
-                />
+            <Frame padding={Padding::symmetric(BULLET_INDENT, Space::Sm)}>
+                <Frame width=BULLET height=BULLET radius=Radius::Full fill=ColorRole::TextMuted />
             </Frame>
-            <Text @sizing=ItemSize::Percent(100.0) wrap=true>{text}</Text>
+            <Text @sizing=ItemSize::Percent(100.0)>{text}</Text>
         </List>
     }
 }
@@ -487,13 +488,14 @@ fn WebImage(model: Model, url: String, alt: String) -> NodeId {
             model.view_image(number, &url);
         }
     };
-    let accessibility = beui::accesskit::Node::new(beui::accesskit::Role::Button);
+    let mut accessibility = beui::accesskit::Node::new(beui::accesskit::Role::Button);
+    accessibility.set_label(format!("Enlarge {described}"));
     view! {
-        <List spacing=4.0>
+        <List spacing=Space::Xs>
             <Show condition={waiting}>|| {
                 let described = described.clone(); view! {
-                    <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                        <Spinner width=18.0 label="Loading an image" />
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                        <Progress width=Size::Sm label="Loading an image" />
                         <Text style=TextStyle::CAPTION>{described}</Text>
                     </List>
                 }
@@ -501,9 +503,9 @@ fn WebImage(model: Model, url: String, alt: String) -> NodeId {
             <Show condition={failed}>
                 <Link label={missing.clone()} on_click={open.clone()} />
             </Show>
-            <unstyled::Button on_click={enlarge} accessibility>
-                <Picture image={picture} radius=6.0 />
-            </unstyled::Button>
+            <Pressable on_click={enlarge} accessibility>
+                <Picture image={picture} radius=Radius::Md />
+            </Pressable>
         </List>
     }
 }

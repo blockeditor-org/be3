@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::DockApi;
+use crate::dock::unstyled::DockApi;
 
 #[test]
 fn without_a_drag_modifier_a_modified_drag_reaches_the_dock_content() {

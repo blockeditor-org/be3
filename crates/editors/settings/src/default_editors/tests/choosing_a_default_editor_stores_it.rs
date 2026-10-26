@@ -1,5 +1,5 @@
-use block_editor_beui::be_block::EditorSettingsContent;
 use block_editor_beui::{BlockTypeDescriptor, Catalog, ChildOperations, EditorDescriptor};
+use settings_types::EditorSettingsContent;
 
 use block_editor_beui::beui::{Key, Modifiers};
 use block_editor_beui::{EditorHost, OwnedEditor};
@@ -23,6 +23,8 @@ fn choosing_a_default_editor_stores_it() {
             color: None,
             icon_codepoint: String::new(),
             children: ChildOperations::default(),
+            press: block_editor_beui::Press::Open,
+            plain_file: false,
         }],
         templates: Vec::new(),
         editors: vec![
@@ -31,12 +33,14 @@ fn choosing_a_default_editor_stores_it() {
                 edits: block_editor_beui::Edits::Type(block_type.into_bytes()),
                 name: "Note".to_owned(),
                 icon_codepoint: String::new(),
+                extensions: Vec::new(),
             },
             EditorDescriptor {
                 editor: debug.into_bytes(),
                 edits: block_editor_beui::Edits::Any,
                 name: "Debug view".to_owned(),
                 icon_codepoint: String::new(),
+                extensions: Vec::new(),
             },
         ],
     });

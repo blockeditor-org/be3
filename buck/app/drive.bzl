@@ -8,7 +8,7 @@ def headless(name, program, app_name, args = [], data = False):
             "$(location //crates/be-drive:bin)",
             "launch",
             "--name=" + app_name,
-            "--libraries=$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu",
+            "--libraries=$(location //buck/sysroot:amd64-libraries)",
             "--program=" + program,
         ]
         + (["--data"] if data else [])

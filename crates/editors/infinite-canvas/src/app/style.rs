@@ -1,21 +1,20 @@
-use block_editor_beui::be_block::canvas::{
-    CanvasColor, CanvasEntity, CanvasFill, CanvasHue, CanvasLook, CanvasShape, CanvasStrokeStyle,
-    CanvasStyle, CanvasTextSize, CanvasTone,
-};
 use block_editor_beui::beui::Color32;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_DROPLET_OFF, ICON_PALETTE};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
+use infinite_canvas_types::{
+    CanvasColor, CanvasEntity, CanvasFill, CanvasHue, CanvasLook, CanvasShape, CanvasStrokeStyle,
+    CanvasStyle, CanvasTextSize, CanvasTone,
+};
 
 use super::selection_bar::Swatch;
 use super::sidebar::{closed, colored, stroked};
 use super::state::{CanvasState, CommonValue, common_value};
 
-const STYLE_WIDTH: f32 = 360.0;
 const LABEL_WIDTH: f32 = 72.0;
-const ROW_SPACING: f32 = 4.0;
-const SECTION_SPACING: f32 = 6.0;
+const ROW_SPACING: Space = Space::Xs;
+const SECTION_SPACING: Space = Space::Sm;
 
 const fn palette(hue: CanvasHue, tone: CanvasTone) -> CanvasColor {
     CanvasColor::Palette { hue, tone }
@@ -185,7 +184,6 @@ pub(crate) fn StylePopover(state: CanvasState) -> NodeId {
             glyph=ICON_PALETTE
             icon_only=true
             variant=ButtonVariant::Ghost
-            max_width=STYLE_WIDTH
             @test_id={"infinite-canvas.style"}
         >|_|
             <StyleControls state={state} />

@@ -1,324 +1,554 @@
-use std::any::Any;
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
-use block_editor_beui::be_block::history::History;
-use block_editor_beui::be_block::{BlockContent, LiveEdit, Undo};
+use be_store::Hash;
+use block_editor_beui::be_block::{LiveEdit, Merge, Undo};
 use block_editor_beui::{BlockInfo, BlockParent, BlockQuery, SeededContent};
-use block_plugin_api::{
-    BlockCommand, ContentOperation, EditorInstanceId, EditorMessage, GesturePhase, Message,
+use block_plugin_api::{BlockCommand, EditorInstanceId, StoredHead};
+use block_type_guest::api::{
+    Change, ClientId, CommitId, EditorId, Endpoint, Opening, PublishOutcome, Recipients, Resume,
+    SessionState, SessionTag,
+    embed::{
+        exports::replicas::{self, Replica},
+        host::Call,
+    },
+    ops::{
+        Connection, DeserializeOwned, Incoming, Latest, OpError, OpId, Outcome, Side, Ticket,
+        guest::Executor,
+    },
 };
+use block_type_guest::editor::{EditorMirror, FromEditor, Gesture, ToEditor};
+use block_type_guest::wire::Wire;
+use block_type_guest::{Module, Registration};
 use uuid::Uuid;
 
-trait Held: Any {
-    fn apply(&mut self, operation: &[u8]);
+const THIS_DEVICE: ClientId = u64::MAX - 1;
+const ELSEWHERE: ClientId = u64::MAX;
+const TAG: SessionTag = SessionTag([0; 32]);
+const STORE: EditorId = u64::MAX;
 
-    fn encode(&self) -> Vec<u8>;
-
-    fn session_state(&self) -> Vec<u8>;
-
-    fn content_type(&self) -> Uuid;
-
-    fn references(&self, organization: Uuid) -> Vec<Uuid>;
-
-    fn as_any(&self) -> &dyn Any;
-}
-
-impl<C: LiveEdit> Held for C {
-    fn apply(&mut self, operation: &[u8]) {
-        let operation = C::decode_operation(operation)
-            .expect("the editor sent an operation its content type cannot read");
-        LiveEdit::apply(self, &operation);
-    }
-
-    fn encode(&self) -> Vec<u8> {
-        BlockContent::encode(self)
-    }
-
-    fn session_state(&self) -> Vec<u8> {
-        LiveEdit::session_state(self)
-    }
-
-    fn content_type(&self) -> Uuid {
-        C::CONTENT_TYPE
-    }
-
-    fn references(&self, organization: Uuid) -> Vec<Uuid> {
-        BlockContent::references_in(self, organization)
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-}
-
-trait Recorder {
-    fn record(&mut self, content: &dyn Any, operation: &[u8]);
-
-    fn begin(&mut self);
-
-    fn commit(&mut self);
-
-    fn cancel(&mut self, content: &dyn Any) -> Vec<Vec<u8>>;
-
-    fn step(&mut self, content: &dyn Any, redo: bool) -> Vec<Vec<u8>>;
-}
-
-impl<C: Undo> Recorder for History<C> {
-    fn record(&mut self, content: &dyn Any, operation: &[u8]) {
-        if let (Some(content), Ok(operation)) =
-            (content.downcast_ref::<C>(), C::decode_operation(operation))
-        {
-            History::record(self, content, &operation, None, None);
-        }
-    }
-
-    fn begin(&mut self) {
-        History::begin(self, None);
-    }
-
-    fn commit(&mut self) {
-        History::commit(self, None);
-    }
-
-    fn cancel(&mut self, content: &dyn Any) -> Vec<Vec<u8>> {
-        let Some(content) = content.downcast_ref::<C>() else {
-            return Vec::new();
-        };
-        History::cancel(self, content, None)
-            .iter()
-            .map(C::encode_operation)
-            .collect()
-    }
-
-    fn step(&mut self, content: &dyn Any, redo: bool) -> Vec<Vec<u8>> {
-        let Some(content) = content.downcast_ref::<C>() else {
-            return Vec::new();
-        };
-        let operations = match redo {
-            false => self.undo(content),
-            true => self.redo(content),
-        };
-        operations.iter().map(C::encode_operation).collect()
-    }
-}
-
-enum Stored {
-    Typed(Box<dyn Held>),
-    Written {
-        content_type: Uuid,
-        bytes: Vec<u8>,
-        unapplied: Vec<Vec<u8>>,
-    },
-}
-
-impl Stored {
-    fn written(content_type: Uuid, bytes: Vec<u8>) -> Self {
-        Self::Written {
-            content_type,
-            bytes,
-            unapplied: Vec::new(),
-        }
-    }
-
-    fn content_type(&self) -> Uuid {
-        match self {
-            Self::Typed(held) => held.content_type(),
-            Self::Written { content_type, .. } => *content_type,
-        }
-    }
-
-    fn bytes(&self) -> Vec<u8> {
-        match self {
-            Self::Typed(held) => held.encode(),
-            Self::Written { bytes, .. } => bytes.clone(),
-        }
-    }
-
-    fn session_state(&self) -> Vec<u8> {
-        match self {
-            Self::Typed(held) => held.session_state(),
-            Self::Written { .. } => Vec::new(),
-        }
-    }
-
-    fn apply(&mut self, operation: &[u8]) {
-        match self {
-            Self::Typed(held) => held.apply(operation),
-            Self::Written { unapplied, .. } => unapplied.push(operation.to_vec()),
-        }
-    }
-
-    fn as_any(&self) -> Option<&dyn Any> {
-        match self {
-            Self::Typed(held) => Some(held.as_any()),
-            Self::Written { .. } => None,
-        }
-    }
-
-    fn typed<C: LiveEdit>(&mut self) -> &C {
-        if let Self::Written {
-            bytes, unapplied, ..
-        } = self
-        {
-            let mut content = C::decode(bytes).expect("the block holds that content type");
-            for operation in unapplied.iter() {
-                Held::apply(&mut content, operation);
-            }
-            *self = Self::Typed(Box::new(content));
-        }
-        let Self::Typed(held) = self else {
-            unreachable!("the content was just typed")
-        };
-        held.as_any()
-            .downcast_ref::<C>()
-            .expect("the store holds that block with that content type")
-    }
+fn every_type() -> Vec<Registration> {
+    host_types::registrations()
+        .into_iter()
+        .chain([Registration::of::<workspace_ui_types::EditorViewContent>()])
+        .map(Registration::without_undo)
+        .collect()
 }
 
 struct Block {
-    content: Stored,
-    history: Option<Box<dyn Recorder>>,
+    content_type: Uuid,
+    head: Option<CommitId>,
+    replica: Option<Replica>,
     written: Vec<Vec<u8>>,
-    references: RefCell<Option<(u64, Vec<Uuid>)>>,
+    unapplied: Vec<Vec<u8>>,
+    followed: Vec<ToEditor>,
+    references: Option<Vec<Uuid>>,
     revision: u64,
-    base: u64,
-    log: Vec<(Vec<u8>, bool)>,
     taken: u64,
-    sent: Option<u64>,
 }
 
 impl Block {
-    fn new(content: Stored) -> Self {
+    fn new(content_type: Uuid, head: CommitId) -> Self {
         Self {
-            content,
-            history: None,
+            content_type,
+            head: Some(head),
+            replica: None,
             written: Vec::new(),
-            references: RefCell::new(None),
+            unapplied: Vec::new(),
+            followed: Vec::new(),
+            references: None,
             revision: 1,
-            base: 1,
-            log: Vec::new(),
             taken: 0,
-            sent: None,
         }
-    }
-
-    fn replace(&mut self, content: Stored) {
-        self.content = content;
-        self.revision += 1;
-        self.base = self.revision;
-        self.log.clear();
-    }
-
-    fn operate(&mut self, operation: Vec<u8>, mine: bool) {
-        if let (true, Some(history), Some(content)) =
-            (mine, &mut self.history, self.content.as_any())
-        {
-            history.record(content, &operation);
-        }
-        self.content.apply(&operation);
-        self.revision += 1;
-        self.log.push((operation, mine));
-        if mine {
-            self.taken += 1;
-        }
-    }
-
-    fn gesture(&mut self, phase: GesturePhase) {
-        let Some(history) = &mut self.history else {
-            return;
-        };
-        let reverted = match phase {
-            GesturePhase::Begin => {
-                history.begin();
-                Vec::new()
-            }
-            GesturePhase::Commit => {
-                history.commit();
-                Vec::new()
-            }
-            GesturePhase::Cancel => match self.content.as_any() {
-                Some(content) => history.cancel(content),
-                None => Vec::new(),
-            },
-        };
-        for operation in reverted {
-            self.written.push(operation.clone());
-            self.operate(operation, false);
-        }
-    }
-
-    fn step_history(&mut self, redo: bool) {
-        let (Some(history), Some(content)) = (&mut self.history, self.content.as_any()) else {
-            return;
-        };
-        for operation in history.step(content, redo) {
-            self.written.push(operation.clone());
-            self.operate(operation, false);
-        }
-    }
-
-    fn references(&self, organization: Uuid) -> Option<Vec<Uuid>> {
-        let Stored::Typed(content) = &self.content else {
-            return None;
-        };
-        let mut cached = self.references.borrow_mut();
-        if let Some((revision, references)) = &*cached
-            && *revision == self.revision
-        {
-            return Some(references.clone());
-        }
-        let references = content.references(organization);
-        *cached = Some((self.revision, references.clone()));
-        Some(references)
-    }
-
-    fn update(&mut self, instance: EditorInstanceId, block: Uuid) -> Option<Message> {
-        if self.sent == Some(self.revision) {
-            return None;
-        }
-        let message = match self.sent {
-            Some(sent) if sent >= self.base => EditorMessage::ContentOperations {
-                instance,
-                block_id: block.into_bytes(),
-                operations: self.log[(sent - self.base) as usize..]
-                    .iter()
-                    .map(|(operation, mine)| ContentOperation {
-                        operation: operation.clone(),
-                        mine: *mine,
-                        unsettled: 0,
-                        beneath: None,
-                    })
-                    .collect(),
-            },
-            _ => EditorMessage::Content {
-                instance,
-                block_id: block.into_bytes(),
-                content_type: self.content.content_type().into_bytes(),
-                bytes: self.content.bytes(),
-                session: self.content.session_state(),
-                unsettled: Vec::new(),
-                applied: self.taken,
-            },
-        };
-        self.sent = Some(self.revision);
-        Some(Message::Editor(message))
     }
 }
 
-#[derive(Default)]
 struct Inner {
     own: Option<Uuid>,
     organization: Uuid,
+    module: Module,
+    executor: Executor,
+    host: Connection,
+    clock: Option<Latest<u64>>,
+    now: u64,
+    replicas: BTreeMap<OpId, Uuid>,
+    commits: BTreeMap<CommitId, Vec<u8>>,
+    next_commit: u64,
     blocks: BTreeMap<Uuid, Block>,
+    attached: BTreeMap<Uuid, BTreeSet<EditorId>>,
+    presence: BTreeMap<Uuid, BTreeMap<(ClientId, Uuid), Vec<u8>>>,
+    outbox: Vec<(Uuid, EditorId, Vec<u8>)>,
+    replies: BTreeMap<OpId, Outcome>,
+    elsewhere: u64,
+    reverted: Option<Vec<Vec<u8>>>,
     seeded: Vec<SeededContent>,
     graph: BTreeMap<Uuid, BlockInfo>,
     created: Vec<Uuid>,
     watched_content: BTreeSet<Uuid>,
+    watched_heads: BTreeSet<Uuid>,
+    heads_sent: BTreeMap<Uuid, u64>,
     watched_queries: Vec<BlockQuery>,
     answered: BTreeMap<BlockQuery, Vec<BlockInfo>>,
-    deferred: Option<Vec<(Uuid, Vec<u8>)>>,
+    deferred: Option<Vec<(Uuid, EditorId, FromEditor)>>,
+    known_elsewhere: Option<Rc<dyn Fn(Uuid) -> bool>>,
+}
+
+impl Default for Inner {
+    fn default() -> Self {
+        let module = Module::new(every_type());
+        let mut inner = Self {
+            own: None,
+            organization: Uuid::nil(),
+            executor: module.executor(),
+            module,
+            host: Connection::new(Side::Host),
+            clock: None,
+            now: 0,
+            replicas: BTreeMap::new(),
+            commits: BTreeMap::new(),
+            next_commit: 0,
+            blocks: BTreeMap::new(),
+            attached: BTreeMap::new(),
+            presence: BTreeMap::new(),
+            outbox: Vec::new(),
+            replies: BTreeMap::new(),
+            elsewhere: 0,
+            reverted: None,
+            seeded: Vec::new(),
+            graph: BTreeMap::new(),
+            created: Vec::new(),
+            watched_content: BTreeSet::new(),
+            watched_heads: BTreeSet::new(),
+            heads_sent: BTreeMap::new(),
+            watched_queries: Vec::new(),
+            answered: BTreeMap::new(),
+            deferred: None,
+            known_elsewhere: None,
+        };
+        inner.ask(|host| replicas::start(host, vec![0; 32]));
+        inner
+    }
+}
+
+fn session() -> SessionState {
+    SessionState {
+        generation: 1,
+        owner: Some(THIS_DEVICE),
+        participants: vec![THIS_DEVICE],
+        clean_at: None,
+    }
+}
+
+impl Inner {
+    fn write(&mut self, bytes: Vec<u8>) -> CommitId {
+        self.next_commit += 1;
+        let mut id = [0; 32];
+        id[..8].copy_from_slice(&self.next_commit.to_be_bytes());
+        let commit = CommitId::from_hash(Hash::from_bytes(id));
+        self.commits.insert(commit, bytes);
+        commit
+    }
+
+    fn run(&mut self) {
+        let mut handled = 0;
+        loop {
+            let frames = self.host.take_outbound();
+            if frames.is_empty() {
+                return;
+            }
+            handled += 1;
+            assert!(handled < 100_000, "the block's replica never settled");
+            let mut outbound = Vec::new();
+            self.executor
+                .step(frames, &mut outbound)
+                .expect("the replica's frames decode");
+            for frame in outbound {
+                self.host
+                    .receive(&frame)
+                    .expect("the replica's frames decode");
+            }
+            while let Some(event) = self.host.next_event() {
+                self.heard(event);
+            }
+        }
+    }
+
+    fn heard(&mut self, event: Incoming) {
+        match event {
+            Incoming::Started(started) => {
+                let parent = started.parent;
+                if let Some(call) = Call::accept(&mut self.host, started) {
+                    let block = parent.and_then(|parent| self.replicas.get(&parent).copied());
+                    self.act(block, call);
+                }
+            }
+            Incoming::Completed { op, outcome } => match self.replicas.remove(&op) {
+                Some(block) => {
+                    if let Some(held) = self.blocks.get_mut(&block)
+                        && held.replica.map(Replica::op) == Some(op)
+                    {
+                        held.replica = None;
+                    }
+                }
+                None => {
+                    self.replies.insert(op, outcome);
+                }
+            },
+            Incoming::Canceled { op } => self.host.complete(op, Outcome::Err(OpError::Canceled)),
+            Incoming::Called(called) => {
+                if let Some(call) = Call::accept_direct(&called) {
+                    let block = called
+                        .parent
+                        .and_then(|parent| self.replicas.get(&parent).copied());
+                    self.act(block, call);
+                }
+            }
+            Incoming::Credited { op } => {
+                if let Some(clock) = &mut self.clock {
+                    clock.credited(&mut self.host, op);
+                }
+            }
+            Incoming::Yielded { .. } => {}
+        }
+    }
+
+    fn act(&mut self, block: Option<Uuid>, call: Call) {
+        match call {
+            Call::Clock { stream } => {
+                let mut clock = Latest::new(stream);
+                clock.send(&mut self.host, self.now);
+                self.clock = Some(clock);
+            }
+            Call::Send {
+                to: Recipients::One(Endpoint::Editor(editor)),
+                bytes,
+            } => {
+                let Some(block) = block else {
+                    return;
+                };
+                if editor != STORE {
+                    return self.outbox.push((block, editor, bytes));
+                }
+                let Some(message) = ToEditor::decode(&bytes) else {
+                    return;
+                };
+                if let (Some(reverted), ToEditor::Operations(operations)) =
+                    (&mut self.reverted, &message)
+                {
+                    reverted.extend(
+                        operations
+                            .iter()
+                            .filter(|operation| !operation.mine)
+                            .map(|operation| operation.operation.clone()),
+                    );
+                }
+                if let Some(held) = self.blocks.get_mut(&block) {
+                    if matches!(message, ToEditor::Snapshot(_)) {
+                        held.followed.clear();
+                    }
+                    held.followed.push(message);
+                }
+            }
+            Call::Publish {
+                reply,
+                expected,
+                content,
+                ..
+            } => {
+                let Some(block) = block else {
+                    return reply.fail(&mut self.host, OpError::Canceled);
+                };
+                let head = self.blocks.get(&block).and_then(|held| held.head);
+                if expected != head {
+                    return reply.send(&mut self.host, &Ok(PublishOutcome::Rejected(head)));
+                }
+                let unchanged = head.is_some_and(|head| self.commits[&head] == content.bytes);
+                let head = match (unchanged, head) {
+                    (true, Some(head)) => head,
+                    _ => self.write(content.bytes),
+                };
+                if let Some(held) = self.blocks.get_mut(&block) {
+                    held.head = Some(head);
+                }
+                reply.send(&mut self.host, &Ok(PublishOutcome::Published(head)));
+            }
+            Call::Stash { reply, content, .. } => {
+                let commit = self.write(content.bytes);
+                reply.send(&mut self.host, &Ok(commit));
+            }
+            Call::Read { reply, commit, .. } => {
+                let result = self
+                    .commits
+                    .get(&commit)
+                    .cloned()
+                    .ok_or_else(|| "no such commit".to_owned());
+                reply.send(&mut self.host, &result);
+            }
+            Call::ResumeSession { reply, local } => {
+                let head = block
+                    .and_then(|block| self.blocks.get(&block))
+                    .and_then(|held| held.head);
+                let resume = match (local, head) {
+                    (None, None) => Resume::Empty,
+                    (Some(local), Some(head)) if local == head => Resume::UpToDate,
+                    (_, Some(head)) => Resume::FastForward { to: head },
+                    (Some(local), None) => Resume::Publish { from: local },
+                };
+                reply.send(&mut self.host, &Ok(resume));
+            }
+            Call::Described { description } => {
+                if let Some(held) = block.and_then(|block| self.blocks.get_mut(&block)) {
+                    held.references = Some(description.references);
+                }
+            }
+            Call::SleepUntil { .. }
+            | Call::Send { .. }
+            | Call::ClaimLease { .. }
+            | Call::ReportClean { .. }
+            | Call::ReportStatus { .. }
+            | Call::History { .. }
+            | Call::Conflict { .. }
+            | Call::Error { .. } => {}
+        }
+    }
+
+    fn ask<T: DeserializeOwned>(
+        &mut self,
+        call: impl FnOnce(&mut Connection) -> Ticket<T>,
+    ) -> Option<T> {
+        let ticket = call(&mut self.host);
+        self.run();
+        let outcome = self.replies.remove(&ticket.op())?;
+        ticket.decode(outcome).ok()
+    }
+
+    fn on_replica(&mut self, replica: Replica, call: impl FnOnce(Replica, &mut Connection)) {
+        call(replica, &mut self.host);
+        self.run();
+    }
+
+    fn open(&mut self, block: Uuid) {
+        let organization = self.organization;
+        let Some(held) = self.blocks.get_mut(&block) else {
+            return;
+        };
+        if held.replica.is_some() || !self.module.knows(held.content_type) {
+            return;
+        }
+        let (content_type, head) = (held.content_type, held.head);
+        let unapplied = std::mem::take(&mut held.unapplied);
+        held.followed.clear();
+        let replica = Replica::new(
+            &mut self.host,
+            Opening {
+                block,
+                content_type,
+                organization,
+                client: THIS_DEVICE,
+                tag: TAG,
+                head,
+                session: session(),
+            },
+        );
+        if let Some(held) = self.blocks.get_mut(&block) {
+            held.replica = Some(replica);
+        }
+        self.replicas.insert(replica.op(), block);
+        self.on_replica(replica, |replica, host| {
+            replica.attach(host, STORE, false);
+        });
+        let presence: Vec<((ClientId, Uuid), Vec<u8>)> = self
+            .presence
+            .get(&block)
+            .map(|held| {
+                held.iter()
+                    .map(|(key, value)| (*key, value.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        for ((client, kind), value) in presence {
+            self.peer_said(
+                replica,
+                client,
+                be_session::SessionMessage::Presence {
+                    kind,
+                    value: Some(value),
+                },
+            );
+        }
+        let editors: Vec<EditorId> = self
+            .attached
+            .get(&block)
+            .map(|held| held.iter().copied().collect())
+            .unwrap_or_default();
+        for editor in editors {
+            self.on_replica(replica, |replica, host| {
+                replica.attach(host, editor, true);
+            });
+        }
+        for operation in unapplied {
+            self.elsewhere(block, operation);
+        }
+    }
+
+    fn close(&mut self, block: Uuid) {
+        let Some(replica) = self.blocks.get(&block).and_then(|held| held.replica) else {
+            return;
+        };
+        self.on_replica(replica, |replica, host| replica.resource_drop(host));
+        self.replicas.remove(&replica.op());
+        if let Some(held) = self.blocks.get_mut(&block) {
+            held.replica = None;
+        }
+    }
+
+    fn peer_said(
+        &mut self,
+        replica: Replica,
+        client: ClientId,
+        message: be_session::SessionMessage,
+    ) {
+        let bytes = Wire::Session(message).encode();
+        self.on_replica(replica, |replica, host| {
+            replica.message(host, Endpoint::Peer(client), bytes);
+        });
+    }
+
+    fn elsewhere(&mut self, block: Uuid, operation: Vec<u8>) {
+        let Some(held) = self.blocks.get_mut(&block) else {
+            return;
+        };
+        held.revision += 1;
+        let Some(replica) = held.replica else {
+            held.unapplied.push(operation);
+            return;
+        };
+        self.elsewhere += 1;
+        let id = be_session::OpId {
+            client: ELSEWHERE,
+            counter: self.elsewhere,
+        };
+        self.peer_said(
+            replica,
+            ELSEWHERE,
+            be_session::SessionMessage::Submit {
+                id,
+                base: u64::MAX,
+                payload: operation,
+            },
+        );
+    }
+
+    fn reverting(&mut self, block: Uuid, run: impl FnOnce(&mut Self)) {
+        self.reverted = Some(Vec::new());
+        run(self);
+        let reverted = self.reverted.take().unwrap_or_default();
+        if let Some(held) = self.blocks.get_mut(&block) {
+            held.revision += reverted.len() as u64;
+            held.written.extend(reverted);
+        }
+    }
+
+    fn change(&mut self, block: Uuid, change: Change) {
+        if let Some(replica) = self.blocks.get(&block).and_then(|held| held.replica) {
+            self.ask(|host| replica.change(host, change));
+        }
+    }
+
+    fn put(&mut self, block: Uuid, content_type: Uuid, bytes: Vec<u8>) {
+        let same_type = self
+            .blocks
+            .get(&block)
+            .is_some_and(|held| held.content_type == content_type && held.replica.is_some());
+        if same_type {
+            if let Some(held) = self.blocks.get_mut(&block) {
+                held.revision += 1;
+            }
+            return self.change(block, Change::Replace(bytes));
+        }
+        self.close(block);
+        let head = self.write(bytes);
+        match self.blocks.get_mut(&block) {
+            Some(held) => {
+                held.content_type = content_type;
+                held.head = Some(head);
+                held.unapplied.clear();
+                held.references = None;
+                held.revision += 1;
+            }
+            None => {
+                self.blocks.insert(block, Block::new(content_type, head));
+            }
+        }
+        self.open(block);
+    }
+
+    fn attach(&mut self, block: Uuid, editor: EditorId) -> bool {
+        if !self.attached.entry(block).or_default().insert(editor) {
+            return false;
+        }
+        if let Some(replica) = self.blocks.get(&block).and_then(|held| held.replica) {
+            self.on_replica(replica, |replica, host| {
+                replica.attach(host, editor, true);
+            });
+        }
+        true
+    }
+
+    fn detach(&mut self, block: Uuid, editor: EditorId) {
+        let removed = self
+            .attached
+            .get_mut(&block)
+            .is_some_and(|held| held.remove(&editor));
+        if let (true, Some(replica)) = (
+            removed,
+            self.blocks.get(&block).and_then(|held| held.replica),
+        ) {
+            self.on_replica(replica, |replica, host| replica.detach(host, editor));
+        }
+    }
+
+    fn editor_sent(&mut self, block: Uuid, editor: EditorId, message: FromEditor) {
+        let frame = message.encode();
+        let attached = self.attach(block, editor);
+        if attached && message == FromEditor::Resend {
+            return;
+        }
+        if let (FromEditor::Operate(_), Some(deferred)) = (&message, &mut self.deferred) {
+            deferred.push((block, editor, message));
+            return;
+        }
+        if let FromEditor::Operate(operation) = &message {
+            let Some(held) = self.blocks.get_mut(&block) else {
+                return;
+            };
+            if held.replica.is_none() {
+                return;
+            }
+            held.written.push(operation.clone());
+            held.taken += 1;
+            held.revision += 1;
+        }
+        let Some(replica) = self.blocks.get(&block).and_then(|held| held.replica) else {
+            return;
+        };
+        let send = move |inner: &mut Self| {
+            inner.on_replica(replica, |replica, host| {
+                replica.message(host, Endpoint::Editor(editor), frame);
+            });
+        };
+        match message {
+            FromEditor::Gesture(Gesture::Cancel) => self.reverting(block, send),
+            _ => send(self),
+        }
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct Outgoing {
+    pub(crate) heads: Vec<(Uuid, Result<Option<StoredHead>, String>)>,
+    pub(crate) listings: Vec<(BlockQuery, Vec<block_plugin_api::BlockInfo>)>,
 }
 
 #[derive(Clone, Default)]
@@ -334,10 +564,11 @@ impl ContentStore {
     pub fn own(&self, block: Uuid, block_type: Uuid) {
         let mut inner = self.0.borrow_mut();
         inner.own = Some(block);
-        inner
-            .graph
-            .entry(block)
-            .or_insert_with(|| BlockInfo::new(block, block_type, BlockParent::Root));
+        inner.graph.entry(block).or_insert_with(|| {
+            let mut info = BlockInfo::new(block, block_type, BlockParent::Root);
+            info.parent = None;
+            info
+        });
     }
 
     pub fn add_block(&self, info: BlockInfo) {
@@ -362,37 +593,80 @@ impl ContentStore {
             .expect("this editor has no block of its own; name the block")
     }
 
-    pub fn hold<C: LiveEdit>(&self, block: Option<Uuid>, content: C) {
-        let key = self.key(block);
-        let content = Stored::Typed(Box::new(content));
-        let mut inner = self.0.borrow_mut();
-        match inner.blocks.get_mut(&key) {
-            Some(held) => held.replace(content),
-            None => {
-                inner.blocks.insert(key, Block::new(content));
-            }
+    pub fn register(&self, registrations: impl IntoIterator<Item = Registration>) {
+        let inner = self.0.borrow_mut();
+        for registration in registrations {
+            inner.module.register(registration.without_undo());
         }
     }
 
-    pub fn keep_history<C: Undo + 'static>(&self, block: Option<Uuid>) {
-        let key = self.key(block);
-        let mut inner = self.0.borrow_mut();
-        let held = inner
-            .blocks
-            .get_mut(&key)
-            .expect("the store holds that block");
-        held.content.typed::<C>();
-        held.history = Some(Box::new(History::<C>::default()));
+    fn know<C: LiveEdit + Merge + Clone + Default>(&self) {
+        let inner = self.0.borrow_mut();
+        if !inner.module.knows(C::CONTENT_TYPE) {
+            inner.module.register(Registration::of::<C>());
+        }
     }
 
-    pub fn content<C: LiveEdit + Clone>(&self, block: Option<Uuid>) -> C {
-        let key = self.key(block);
+    fn typed<C: LiveEdit + Merge + Clone + Default>(&self, key: Uuid) {
+        self.know::<C>();
         let mut inner = self.0.borrow_mut();
-        let held = inner
+        let mismatched = inner
             .blocks
-            .get_mut(&key)
-            .expect("the store holds that block");
-        held.content.typed::<C>().clone()
+            .get(&key)
+            .is_some_and(|held| held.content_type != C::CONTENT_TYPE);
+        assert!(
+            !mismatched,
+            "the store holds that block with another content type"
+        );
+        inner.open(key);
+    }
+
+    pub fn tick(&self, now: u64) {
+        let mut inner = self.0.borrow_mut();
+        if now > inner.now {
+            inner.now = now;
+            if let Some(mut clock) = inner.clock.take() {
+                clock.send(&mut inner.host, now);
+                inner.clock = Some(clock);
+            }
+            inner.run();
+        }
+    }
+
+    pub fn hold<C: LiveEdit + Merge + Clone + Default>(&self, block: Option<Uuid>, content: C) {
+        let key = self.key(block);
+        self.know::<C>();
+        self.0
+            .borrow_mut()
+            .put(key, C::CONTENT_TYPE, content.encode());
+    }
+
+    pub fn keep_history<C: Undo + Merge + Clone + Default + 'static>(&self, block: Option<Uuid>) {
+        let key = self.key(block);
+        self.typed::<C>(key);
+        let mut inner = self.0.borrow_mut();
+        assert!(
+            inner.blocks.contains_key(&key),
+            "the store holds that block"
+        );
+        inner.module.register(Registration::of::<C>().undo::<C>());
+        inner.close(key);
+        inner.open(key);
+    }
+
+    pub fn content<C: LiveEdit + Merge + Clone + Default>(&self, block: Option<Uuid>) -> C {
+        let key = self.key(block);
+        self.typed::<C>(key);
+        let inner = self.0.borrow();
+        let held = inner.blocks.get(&key).expect("the store holds that block");
+        let mut mirror = EditorMirror::<C>::default();
+        for message in &held.followed {
+            mirror.receive(message.clone());
+        }
+        mirror
+            .content()
+            .expect("the block's replica has sent its content")
+            .clone()
     }
 
     pub fn applied(&self, block: Option<Uuid>) -> u64 {
@@ -409,15 +683,17 @@ impl ContentStore {
         self.0.borrow().blocks.contains_key(&key)
     }
 
-    pub fn edit<C: LiveEdit>(&self, block: Option<Uuid>, operation: &C::Op) {
+    pub fn edit<C: LiveEdit + Merge + Clone + Default>(
+        &self,
+        block: Option<Uuid>,
+        operation: &C::Op,
+    ) {
         let key = self.key(block);
-        let mut inner = self.0.borrow_mut();
-        let held = inner
-            .blocks
-            .get_mut(&key)
-            .expect("the store holds that block");
-        held.content.typed::<C>();
-        held.operate(C::encode_operation(operation), false);
+        self.typed::<C>(key);
+        assert!(self.holds(Some(key)), "the store holds that block");
+        self.0
+            .borrow_mut()
+            .elsewhere(key, C::encode_operation(operation));
     }
 
     pub fn take_written(&self, block: Option<Uuid>) -> Vec<Vec<u8>> {
@@ -432,8 +708,61 @@ impl ContentStore {
 
     pub fn apply_elsewhere(&self, block: Option<Uuid>, operation: Vec<u8>) {
         let key = self.key(block);
-        if let Some(held) = self.0.borrow_mut().blocks.get_mut(&key) {
-            held.operate(operation, false);
+        self.0.borrow_mut().elsewhere(key, operation);
+    }
+
+    pub fn set_presence(&self, block: Option<Uuid>, peers: Vec<(ClientId, Uuid, Vec<u8>)>) {
+        let key = self.key(block);
+        let mut inner = self.0.borrow_mut();
+        let next: BTreeMap<(ClientId, Uuid), Vec<u8>> = peers
+            .into_iter()
+            .map(|(client, kind, value)| ((client, kind), value))
+            .collect();
+        let previous = inner.presence.insert(key, next.clone()).unwrap_or_default();
+        let Some(replica) = inner.blocks.get(&key).and_then(|held| held.replica) else {
+            return;
+        };
+        for (client, kind) in previous.keys() {
+            if !next.contains_key(&(*client, *kind)) {
+                inner.peer_said(
+                    replica,
+                    *client,
+                    be_session::SessionMessage::Presence {
+                        kind: *kind,
+                        value: None,
+                    },
+                );
+            }
+        }
+        for ((client, kind), value) in next {
+            if previous.get(&(client, kind)) != Some(&value) {
+                inner.peer_said(
+                    replica,
+                    client,
+                    be_session::SessionMessage::Presence {
+                        kind,
+                        value: Some(value),
+                    },
+                );
+            }
+        }
+    }
+
+    pub fn receive_from_peer(
+        &self,
+        block: Option<Uuid>,
+        from: ClientId,
+        channel: Uuid,
+        payload: Vec<u8>,
+    ) {
+        let key = self.key(block);
+        let mut inner = self.0.borrow_mut();
+        if let Some(replica) = inner.blocks.get(&key).and_then(|held| held.replica) {
+            inner.peer_said(
+                replica,
+                from,
+                be_session::SessionMessage::Channel { channel, payload },
+            );
         }
     }
 
@@ -448,12 +777,8 @@ impl ContentStore {
                 false => inner.deferred.take().unwrap_or_default(),
             }
         };
-        for (block, operation) in deferred {
-            self.receive(&EditorMessage::Operate {
-                instance: EditorInstanceId(0),
-                block_id: block.into_bytes(),
-                operation,
-            });
+        for (block, editor, message) in deferred {
+            self.0.borrow_mut().editor_sent(block, editor, message);
         }
     }
 
@@ -469,215 +794,221 @@ impl ContentStore {
             bytes: bytes.clone(),
             replace,
         });
-        let content = Stored::written(content_type, bytes);
-        match inner.blocks.get_mut(&block) {
-            Some(held) if replace => held.replace(content),
-            Some(_) => {}
-            None => {
-                inner.blocks.insert(block, Block::new(content));
+        if replace || !inner.blocks.contains_key(&block) {
+            inner.put(block, content_type, bytes);
+        }
+    }
+
+    pub(crate) fn editor_sent(&self, block: Uuid, instance: EditorInstanceId, message: FromEditor) {
+        self.0.borrow_mut().editor_sent(block, instance.0, message);
+    }
+
+    pub(crate) fn command(&self, block: Uuid, command: BlockCommand) {
+        let change = match command {
+            BlockCommand::Undo => Change::Undo,
+            BlockCommand::Redo => Change::Redo,
+            _ => return,
+        };
+        self.0
+            .borrow_mut()
+            .reverting(block, |inner| inner.change(block, change));
+    }
+
+    pub(crate) fn watch_content(&self, instance: EditorInstanceId, block: Uuid, watched: bool) {
+        let mut inner = self.0.borrow_mut();
+        if inner.own == Some(block) {
+            return;
+        }
+        match watched {
+            true => {
+                if inner.watched_content.insert(block) {
+                    inner.attach(block, instance.0);
+                }
+            }
+            false => {
+                if inner.watched_content.remove(&block) {
+                    inner.detach(block, instance.0);
+                }
             }
         }
     }
 
-    pub(crate) fn receive(&self, message: &EditorMessage) {
-        match message {
-            EditorMessage::Operate {
-                block_id,
-                operation,
-                ..
-            } => {
-                let block = Uuid::from_bytes(*block_id);
-                let mut inner = self.0.borrow_mut();
-                if let Some(deferred) = &mut inner.deferred {
-                    deferred.push((block, operation.clone()));
-                    return;
-                }
-                let linked = inner.own == Some(block) || inner.watched_content.contains(&block);
-                if let (true, Some(held)) = (linked, inner.blocks.get_mut(&block)) {
-                    held.written.push(operation.clone());
-                    held.operate(operation.clone(), true);
-                }
-            }
-            EditorMessage::Gesture {
-                block_id, phase, ..
-            } => {
-                if let Some(held) = self
-                    .0
-                    .borrow_mut()
-                    .blocks
-                    .get_mut(&Uuid::from_bytes(*block_id))
-                {
-                    held.gesture(*phase);
-                }
-            }
-            EditorMessage::BlockCommand {
-                block_id,
-                command: command @ (BlockCommand::Undo | BlockCommand::Redo),
-                ..
-            } => {
-                if let Some(held) = self
-                    .0
-                    .borrow_mut()
-                    .blocks
-                    .get_mut(&Uuid::from_bytes(*block_id))
-                {
-                    held.step_history(*command == BlockCommand::Redo);
-                }
-            }
-            EditorMessage::ResendContent { block_id, .. } => {
-                let mut inner = self.0.borrow_mut();
-                if let Some(held) = inner.blocks.get_mut(&Uuid::from_bytes(*block_id)) {
-                    held.sent = None;
-                }
-            }
-            EditorMessage::WatchContent { blocks, .. } => {
-                self.0.borrow_mut().watched_content = blocks
-                    .iter()
-                    .map(|watched| Uuid::from_bytes(watched.block_id))
-                    .collect();
-            }
-            EditorMessage::SeedContent {
-                block_id,
-                content_type,
-                bytes,
-                ..
-            } => self.seed(
-                Uuid::from_bytes(*block_id),
-                Uuid::from_bytes(*content_type),
-                bytes.clone(),
-                false,
-            ),
-            EditorMessage::ReplaceContent {
-                block_id,
-                content_type,
-                bytes,
-                ..
-            } => self.seed(
-                Uuid::from_bytes(*block_id),
-                Uuid::from_bytes(*content_type),
-                bytes.clone(),
-                true,
-            ),
-            EditorMessage::CreateBlock {
-                block_id,
-                content_type,
-                parent,
+    pub(crate) fn seed_content(
+        &self,
+        block: Uuid,
+        content_type: Uuid,
+        bytes: Vec<u8>,
+        replace: bool,
+    ) {
+        self.seed(block, content_type, bytes, replace);
+    }
+
+    pub(crate) fn create_block(
+        &self,
+        block_id: [u8; 16],
+        content_type: [u8; 16],
+        parent: block_plugin_api::BlockLocation,
+        defined: block_plugin_api::MetadataEntries,
+        content: Option<Vec<u8>>,
+    ) {
+        let id = Uuid::from_bytes(block_id);
+        let block_type = Uuid::from_bytes(content_type);
+        let info = BlockInfo::decode(block_plugin_api::BlockInfo {
+            block_id,
+            block_type: content_type,
+            author: Some(Uuid::nil().into_bytes()),
+            parent: Some(parent),
+            references: Vec::new(),
+            access: block_plugin_api::AccessLevel::Manage,
+            metadata: block_plugin_api::BlockMetadata {
                 defined,
-                content,
-                ..
-            } => {
-                let id = Uuid::from_bytes(*block_id);
-                let block_type = Uuid::from_bytes(*content_type);
-                let info = BlockInfo::decode(block_plugin_api::BlockInfo {
-                    block_id: *block_id,
-                    block_type: *content_type,
-                    author: Some(Uuid::nil().into_bytes()),
-                    parent: Some(*parent),
-                    references: Vec::new(),
-                    access: block_plugin_api::AccessLevel::Edit,
-                    metadata: block_plugin_api::BlockMetadata {
-                        defined: defined.clone(),
-                        ..block_plugin_api::BlockMetadata::default()
-                    },
-                    locked: false,
-                    deleted: false,
-                });
-                {
-                    let mut inner = self.0.borrow_mut();
-                    inner.graph.insert(id, info);
-                    inner.created.push(id);
-                }
-                if let Some(bytes) = content {
-                    self.seed(id, block_type, bytes.to_vec(), false);
-                }
-            }
-            EditorMessage::SetParent {
-                block_id, parent, ..
-            } => {
-                if let Some(info) = self
-                    .0
-                    .borrow_mut()
-                    .graph
-                    .get_mut(&Uuid::from_bytes(*block_id))
-                {
-                    info.parent = Some(BlockParent::decode(*parent));
-                }
-            }
-            EditorMessage::Define {
-                block_id,
-                key,
-                value,
-                ..
-            } => {
-                if let Some(info) = self
-                    .0
-                    .borrow_mut()
-                    .graph
-                    .get_mut(&Uuid::from_bytes(*block_id))
-                {
-                    info.metadata.define(&[(
-                        Uuid::from_bytes(*key),
-                        value.as_ref().map(|value| value.to_vec()),
-                    )]);
-                }
-            }
-            EditorMessage::WatchBlocks { queries, .. } => {
-                self.0.borrow_mut().watched_queries =
-                    queries.iter().copied().map(BlockQuery::decode).collect();
-            }
-            _ => {}
-        }
-    }
-
-    pub(crate) fn outgoing(&self, instance: EditorInstanceId) -> Vec<Message> {
-        let mut messages = Vec::new();
+                ..block_plugin_api::BlockMetadata::default()
+            },
+            locked: false,
+            deleted: false,
+            sets_access: false,
+        });
         {
             let mut inner = self.0.borrow_mut();
-            let linked: Vec<Uuid> = inner
-                .own
-                .into_iter()
-                .chain(inner.watched_content.iter().copied())
-                .collect();
-            for block in linked {
-                if let Some(held) = inner.blocks.get_mut(&block) {
-                    messages.extend(held.update(instance, block));
+            inner.graph.insert(id, info);
+            inner.created.push(id);
+        }
+        match content {
+            Some(bytes) => self.seed(id, block_type, bytes, false),
+            None => {
+                let mut inner = self.0.borrow_mut();
+                if let Some(Ok(bytes)) = inner.ask(|host| replicas::blank(host, block_type)) {
+                    inner.put(id, block_type, bytes);
                 }
+            }
+        }
+    }
+
+    pub(crate) fn set_parent(&self, block: Uuid, parent: block_plugin_api::BlockLocation) {
+        if let Some(info) = self.0.borrow_mut().graph.get_mut(&block) {
+            info.parent = Some(BlockParent::decode(parent));
+        }
+    }
+
+    pub(crate) fn define(&self, block: Uuid, key: Uuid, value: Option<Vec<u8>>) {
+        if let Some(info) = self.0.borrow_mut().graph.get_mut(&block) {
+            info.metadata.define(&[(key, value)]);
+        }
+    }
+
+    pub(crate) fn watch_heads(&self, blocks: BTreeSet<Uuid>) {
+        self.0.borrow_mut().watched_heads = blocks;
+    }
+
+    pub(crate) fn watch_queries(&self, queries: Vec<BlockQuery>) {
+        self.0.borrow_mut().watched_queries = queries;
+    }
+
+    fn head_bytes(inner: &mut Inner, block: Uuid) -> Option<(Uuid, Vec<u8>)> {
+        let held = inner.blocks.get(&block)?;
+        let content_type = held.content_type;
+        let bytes = match held.replica {
+            Some(replica) => inner.ask(|host| replica.content(host))??,
+            None => inner.commits[&held.head?].clone(),
+        };
+        Some((content_type, bytes))
+    }
+
+    pub(crate) fn outgoing(
+        &self,
+        instance: EditorInstanceId,
+        mut relay: impl FnMut(Uuid, &Vec<u8>) -> bool,
+    ) -> Outgoing {
+        let mut outgoing = Outgoing::default();
+        {
+            let mut inner = self.0.borrow_mut();
+            let outbox = std::mem::take(&mut inner.outbox);
+            let mut blocked = BTreeSet::new();
+            for (block, editor, frame) in outbox {
+                if editor != instance.0 || blocked.contains(&block) {
+                    inner.outbox.push((block, editor, frame));
+                    continue;
+                }
+                let Some(message) = ToEditor::decode(&frame) else {
+                    continue;
+                };
+                if !relay(block, &message.frame()) {
+                    blocked.insert(block);
+                    inner.outbox.push((block, editor, frame));
+                }
+            }
+            let watched: Vec<Uuid> = inner.watched_heads.iter().copied().collect();
+            for block in watched {
+                let revision = inner.blocks.get(&block).map_or(0, |held| held.revision);
+                if inner.heads_sent.insert(block, revision) == Some(revision) {
+                    continue;
+                }
+                let head = Self::head_bytes(&mut inner, block).map(|(content_type, bytes)| {
+                    let mut commit = [0; 32];
+                    commit[..8].copy_from_slice(&revision.to_be_bytes());
+                    StoredHead {
+                        commit,
+                        content_type: content_type.into_bytes(),
+                        bytes,
+                    }
+                });
+                outgoing.heads.push((block, Ok(head)));
             }
         }
         let queries = self.0.borrow().watched_queries.clone();
         for query in queries {
+            if self.leaves_to_the_test(query) {
+                continue;
+            }
             let listed = self.query(query);
             let mut inner = self.0.borrow_mut();
             if inner.answered.get(&query) == Some(&listed) {
                 continue;
             }
             inner.answered.insert(query, listed.clone());
-            messages.push(Message::Editor(EditorMessage::Blocks {
-                instance,
-                query: query.encode(),
-                blocks: listed.iter().map(BlockInfo::encode).collect(),
-            }));
+            outgoing
+                .listings
+                .push((query, listed.iter().map(BlockInfo::encode).collect()));
         }
-        messages
+        outgoing
     }
 
     pub(crate) fn pending(&self) -> bool {
         let owed = {
             let inner = self.0.borrow();
-            inner
-                .own
-                .iter()
-                .chain(inner.watched_content.iter())
-                .filter_map(|block| inner.blocks.get(block))
-                .any(|held| held.sent != Some(held.revision))
+            !inner.outbox.is_empty()
+                || inner.watched_heads.iter().any(|block| {
+                    let revision = inner.blocks.get(block).map_or(0, |held| held.revision);
+                    inner.heads_sent.get(block) != Some(&revision)
+                })
         };
         owed || {
             let queries = self.0.borrow().watched_queries.clone();
             queries.into_iter().any(|query| {
+                if self.leaves_to_the_test(query) {
+                    return false;
+                }
                 let listed = self.query(query);
                 self.0.borrow().answered.get(&query) != Some(&listed)
             })
         }
+    }
+
+    pub(crate) fn know_elsewhere(&self, known: impl Fn(Uuid) -> bool + 'static) {
+        self.0.borrow_mut().known_elsewhere = Some(Rc::new(known));
+    }
+
+    fn leaves_to_the_test(&self, query: BlockQuery) -> bool {
+        let (BlockQuery::Block(block) | BlockQuery::Parents(block)) = query else {
+            return false;
+        };
+        let inner = self.0.borrow();
+        if inner.graph.contains_key(&block) {
+            return false;
+        }
+        let known = inner.known_elsewhere.clone();
+        drop(inner);
+        known.is_some_and(|known| known(block))
     }
 
     fn held(&self, nodes: &[BlockInfo], node: &BlockInfo) -> bool {
@@ -686,7 +1017,7 @@ impl ContentStore {
             Some(BlockParent::Detached) => false,
             Some(BlockParent::Block(parent)) => {
                 !nodes.iter().any(|above| above.id == parent)
-                    || self.references_of(parent).contains(&node.id)
+                    || self.links(parent).contains(&node.id)
             }
         }
     }
@@ -713,9 +1044,17 @@ impl ContentStore {
         inner
             .blocks
             .get(&id)
-            .and_then(|held| held.references(inner.organization))
+            .and_then(|held| held.references.clone())
             .or_else(|| inner.graph.get(&id).map(|info| info.references.clone()))
             .unwrap_or_default()
+    }
+
+    fn links(&self, id: Uuid) -> Vec<Uuid> {
+        let mut links = self.references_of(id);
+        if let Some(info) = self.0.borrow().graph.get(&id) {
+            links.extend(info.metadata.references());
+        }
+        links
     }
 
     fn query(&self, query: BlockQuery) -> Vec<BlockInfo> {
@@ -759,7 +1098,7 @@ impl ContentStore {
             }
             BlockQuery::Backrefs(block) => nodes
                 .iter()
-                .filter(|node| self.references_of(node.id).contains(&block))
+                .filter(|node| self.links(node.id).contains(&block))
                 .cloned()
                 .collect(),
             BlockQuery::Parents(block) => {
@@ -779,6 +1118,7 @@ impl ContentStore {
                 chain
             }
             BlockQuery::Block(block) => known(&block).into_iter().collect(),
+            BlockQuery::OpenSettings(_) => Vec::new(),
         };
         listed
             .into_iter()

@@ -1,0 +1,92 @@
+package be3:block-type@0.1.0;
+
+/// What a type module offers: a replica for each open block, and requests
+/// that need none.
+interface replicas {
+    use types.{
+        block-id, change, client-id, commit-id, content-type-id, description, editor-id,
+        endpoint, failure, merged, organization-id, plain-file, session-state, session-tag,
+        type-info,
+    };
+
+    record opening {
+        block: block-id,
+        content-type: content-type-id,
+        organization: organization-id,
+        client: client-id,
+        tag: session-tag,
+        /// The head the host just read; the replica reads it itself.
+        head: option<commit-id>,
+        session: session-state,
+    }
+
+    /// The device's one replica of a block. Dropping it closes it: it seals
+    /// what it owes and then ends, and the host leaves the session once it has.
+    /// Until then calls still reach it.
+    resource replica {
+        constructor(opening: opening);
+
+        /// Starts over as if just opened, dropping what it holds, as after the
+        /// host reconnected. The host replays what it kept.
+        reopen: func(opening: opening);
+
+        message: func(%from: endpoint, bytes: list<u8>);
+
+        attach: func(editor: editor-id, editable: bool);
+
+        detach: func(editor: editor-id);
+
+        /// A head landed after the one the replica opened at.
+        head-moved: func(head: commit-id, from-this-device: bool);
+
+        /// The session's state changed, or the host fell behind the broadcast.
+        lease: func(session: session-state, resynchronize: bool);
+
+        /// Claim a lapsed lease once the replica has caught up, as a terminal host does.
+        claim: func();
+
+        /// False when it did not apply.
+        change: async func(change: change) -> bool;
+
+        /// The visible bytes, for export and duplication; none while unreadable.
+        content: async func() -> option<list<u8>>;
+
+        /// `force` is a rekey: publish even when clean.
+        seal: async func(force: bool);
+    }
+
+    /// Seeds the module's entropy, starts its clock and lists its types.
+    start: func(entropy: list<u8>) -> list<type-info>;
+
+    blank: func(content-type: content-type-id) -> result<list<u8>, failure>;
+
+    /// A side that is none is the type's default.
+    merge3: func(
+        content-type: content-type-id,
+        base: option<list<u8>>,
+        ours: option<list<u8>>,
+        theirs: option<list<u8>>,
+    ) -> result<merged, failure>;
+
+    describe: func(content-type: content-type-id, bytes: list<u8>, organization: organization-id) -> result<description, failure>;
+
+    to-file: func(content-type: content-type-id, bytes: list<u8>) -> result<option<plain-file>, failure>;
+
+    /// Which of the module's types takes a file, by name and first bytes, or
+    /// with `directory` a new directory.
+    claims: func(name: string, first: list<u8>, directory: bool, fallback: bool) -> option<content-type-id>;
+
+    /// A child or file change made to content bytes, or to the type's default
+    /// for none. None when it does not apply.
+    apply: func(
+        content-type: content-type-id,
+        bytes: option<list<u8>>,
+        client: client-id,
+        change: change,
+    ) -> result<option<list<u8>>, failure>;
+}
+
+world type-module {
+    import host;
+    export replicas;
+}

@@ -5,8 +5,8 @@ use block_editor_beui::be_block::{
 };
 use block_editor_beui::beui::{Document, Key, Modifiers, NodeId, TurnNode, Vec2};
 use block_editor_beui::{
-    BlockInfo, BlockParent, Displays, EditorHost, HostDisplay, OwnedEditor, Power,
-    PowerAvailability,
+    BlockInfo, BlockParent, DisplaysWatch, EditorHost, HostDisplay, OwnedEditor, PowerAvailability,
+    PowerWatch,
 };
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
@@ -63,8 +63,8 @@ impl Harness {
 
     fn in_a_session(displays: Vec<HostDisplay>) -> Self {
         let host = EditorHost::default();
-        host.set_host_value::<Displays>(&displays);
-        host.set_host_value::<Power>(&PowerAvailability::default());
+        host.set_watched::<DisplaysWatch>(&displays);
+        host.set_watched::<PowerWatch>(&PowerAvailability::default());
         let mut harness = Self::with_host(host);
         harness.editor.set_size(Vec2::new(800.0, SESSION_HEIGHT));
         harness
@@ -212,7 +212,7 @@ impl Harness {
         let document = self.editor.document();
         document
             .root()
-            .is_some_and(|root| text_within(document, root, words))
+            .is_some_and(|root| text_within(&document, root, words))
     }
 }
 
@@ -236,7 +236,7 @@ fn turns_within(document: &Document, id: NodeId) -> Option<u8> {
     document
         .children(id)
         .into_iter()
-        .find_map(|child| turns_within(document, child))
+        .find_map(|child| turns_within(&document, child))
 }
 
 fn text_within(document: &Document, id: NodeId, words: &str) -> bool {
@@ -247,7 +247,7 @@ fn text_within(document: &Document, id: NodeId, words: &str) -> bool {
         || document
             .children(id)
             .into_iter()
-            .any(|child| text_within(document, child, words))
+            .any(|child| text_within(&document, child, words))
 }
 
 fn mode(width: u32, height: u32, refresh_millihertz: u32) -> DisplayMode {
@@ -281,5 +281,7 @@ fn gaming_monitor() -> HostDisplay {
         default: mode(2560, 1440, 239_970),
         current: mode(2560, 1440, 59_951),
         rotation: Rotation::Normal,
+        rect: block_editor_beui::Rect::ZERO,
+        scale: 1.0,
     }
 }

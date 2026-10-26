@@ -1,3 +1,4 @@
+use text_block_types::TextContent;
 #[cfg(test)]
 mod tests;
 
@@ -11,7 +12,6 @@ mod toolbar;
 use beui::NodeId;
 use beui::reactive::*;
 use beui::styled::*;
-use block_editor_beui::be_block::TextContent;
 use block_editor_beui::{Creation, Editor, Loaded};
 use uuid::Uuid;
 
@@ -24,8 +24,10 @@ use toolbar::{EditorMenu, FormatBar, format_actions};
 
 pub struct TextApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for TextApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <TextEditor editor={editor} />
@@ -62,13 +64,13 @@ pub fn TextEditor(editor: Editor) -> NodeId {
         }
     };
     view! {
-        <List @node_ref=&content spacing=0.0>
+        <List @node_ref=&content spacing=Space::None>
             <EditorMenu state={state} />
             <ImportError state={state} />
             <Loaded @sizing=ItemSize::Percent(100.0) label="Loading the text">|| {
                 editor.block_content::<TextContent>();
                 view! {
-                    <List spacing=0.0>
+                    <List spacing=Space::None>
                         <Show condition={text_shown} then={text_surface} />
                         <Show condition={hex_shown} then={hex_surface} />
                     </List>

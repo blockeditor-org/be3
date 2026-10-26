@@ -1,33 +1,36 @@
 use std::cell::Cell;
+use workspace_ui_types::EditorViewContent;
 
-use block_editor_beui::be_block::{BlockContent, EditorViewContent, FILES_EDITOR, SettingsContent};
+use block_editor_beui::be_block::{BlockContent, FILES_EDITOR, SettingsContent};
 use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::dock::styled::{
+    DockMode, DockPane, DockSplit, DockTab, Docking, TabId, use_dock_tab,
+};
 use block_editor_beui::beui::icons::{ICON_FOLDER, ICON_ROTATE_CCW_CLOCK, ICON_SETTINGS};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{
-    Container, DockMode, DockPane, DockSplit, DockTab, TabId, use_dock_tab,
-};
 use block_editor_beui::root_settings::own_settings_blocks;
 use block_editor_beui::{
     ChildBlock, ChildBlockHandle, ChildMode, ChildTarget, Editor, HostPanel, HostWindowId, Loaded,
     TopBar,
 };
 use block_shell::{
-    AppearanceDialog, AttachedWindow, BlockTab, FILES, Failure, PanelStatus, PanelWindow,
-    PickerDialog, Pickers, REVISIONS, RevisionHistoryPanel, SETTINGS, WindowTab, Workspace,
-    WorkspaceDialogs,
+    AttachedWindow, BlockTab, FILES, Failure, FloatingWindow, PanelStatus, PanelWindow,
+    PickerDialog, Pickers, REVISIONS, RenameDialog, RevisionHistoryPanel, SETTINGS, WindowTab,
+    Workspace, WorkspaceDialogs,
 };
 use uuid::Uuid;
 
 const FILES_SHARE: f32 = 0.22;
-const PANEL_PADDING: f32 = 14.0;
-const PANEL_SPACING: f32 = 6.0;
+const PANEL_PADDING: Space = Space::Lg;
+const PANEL_SPACING: Space = Space::Sm;
 
 pub struct WorkspaceUiApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for WorkspaceUiApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <WorkspaceShell editor={editor} />
@@ -69,13 +72,27 @@ pub(crate) fn WorkspaceBody(workspace: Workspace) -> NodeId {
     let reason = create_memo(move || failure.get().unwrap_or_default());
     let block_tabs = workspace.block_tabs();
     let top_windows = workspace.windows();
+    let opens = opens_windows();
+    let tabbed = create_memo(move || match opens.get() {
+        true => Vec::new(),
+        false => top_windows.get(),
+    });
+    let floating = create_memo(move || match opens.get() {
+        true => top_windows.get(),
+        false => Vec::new(),
+    });
+    let placeholder = RenderFn::new(|_: HostWindowId| {
+        view! {
+            <Frame />
+        }
+    });
     let dialog_windows = workspace.dialogs();
     let picker_dialogs = workspace.picker_dialogs();
-    let appearance_dialogs = workspace.appearance_dialogs();
+    let rename_dialogs = workspace.rename_dialogs();
     let panels = workspace.panels();
     view! {
         <Frame @node_ref={&surface}>
-            <List spacing=0.0>
+            <List spacing=Space::None>
                 <Failure failed={failed} reason={reason} />
                 <Docking @sizing=ItemSize::Percent(100.0) layout>
                     <DockSplit id="workspace" fraction=FILES_SHARE>
@@ -99,7 +116,7 @@ pub(crate) fn WorkspaceBody(workspace: Workspace) -> NodeId {
                             <ForEach keys={block_tabs}>|tab: TabId|
                                 <BlockTab workspace tab />
                             </ForEach>
-                            <ForEach keys={top_windows}>|window: HostWindowId|
+                            <ForEach keys={tabbed}>|window: HostWindowId|
                                 <WindowTab workspace key={window} />
                             </ForEach>
                         </DockPane>
@@ -107,14 +124,17 @@ pub(crate) fn WorkspaceBody(workspace: Workspace) -> NodeId {
                     <ForEach keys={panels}>|panel: HostPanel|
                         <PanelWindow workspace panel />
                     </ForEach>
+                    <ForEach keys={floating}>|key: HostWindowId|
+                        <FloatingWindow workspace key placeholder />
+                    </ForEach>
                     <ForEach keys={dialog_windows}>|(window, parent): (HostWindowId, HostWindowId)|
                         <AttachedWindow workspace window parent />
                     </ForEach>
                     <ForEach keys={picker_dialogs}>|(pick, tab): (u64, TabId)|
                         <PickerDialog workspace pick tab />
                     </ForEach>
-                    <ForEach keys={appearance_dialogs}>|(block, tab): (Uuid, TabId)|
-                        <AppearanceDialog workspace block tab />
+                    <ForEach keys={rename_dialogs}>|(block, tab): (Uuid, TabId)|
+                        <RenameDialog workspace block tab />
                     </ForEach>
                 </Docking>
                 <Pickers workspace />
@@ -166,7 +186,7 @@ fn SidePanel(
     let editor = workspace.editor();
     let tab = use_dock_tab();
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <ChildBlock
                 @sizing=ItemSize::Percent(100.0)
                 editor={editor}

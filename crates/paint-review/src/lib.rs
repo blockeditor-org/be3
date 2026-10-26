@@ -1,8 +1,9 @@
 use std::rc::Rc;
 
+use beui::dock::styled::Docking;
+use beui::dock::styled::{DockPane, DockSplit, DockTab};
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::{DockPane, DockSplit, DockTab};
 use beui::{Context, Document, Key, KeyPress, NodeId, Rect};
 
 mod images;
@@ -18,8 +19,8 @@ use painting::PaintingView;
 use review::{Mode, Review};
 use sidebar::PaintingList;
 
-const MESSAGE_SPACING: f32 = 8.0;
-const MESSAGE_PADDING: f32 = 24.0;
+const MESSAGE_SPACING: Space = Space::Md;
+const MESSAGE_PADDING: Space = Space::Xl3;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Fetch<T> {
@@ -89,7 +90,7 @@ fn PaintReview(
     let ready = create_memo(move || manifest.with(|manifest| matches!(manifest, Fetch::Ready(_))));
     view! {
         <Frame fill=ColorRole::Background>
-            <List spacing=0.0>
+            <List spacing=Space::None>
                 <Show condition={loading}>
                     <Frame @sizing=ItemSize::Percent(100.0) align=Align::Center>
                         <List
@@ -97,7 +98,7 @@ fn PaintReview(
                             spacing=MESSAGE_SPACING
                             @test_id={"paint_review.loading"}
                         >
-                            <Spinner label="Loading the paintings" />
+                            <Progress width=INLINE_PROGRESS_WIDTH label="Loading the paintings" />
                             <Text style=TextStyle::CAPTION>"Loading the paintings"</Text>
                         </List>
                     </Frame>
@@ -106,7 +107,7 @@ fn PaintReview(
                     <Frame
                         @sizing=ItemSize::Percent(100.0)
                         align=Align::Center
-                        padding={Sides::all(MESSAGE_PADDING)}
+                        padding=MESSAGE_PADDING
                     >
                         <List spacing=MESSAGE_SPACING @test_id={"paint_review.failed"}>
                             <Text
@@ -116,7 +117,7 @@ fn PaintReview(
                             >
                                 "The paintings could not be loaded"
                             </Text>
-                            <Text style=TextStyle::CAPTION wrap=true align=beui::TextAlign::Center>
+                            <Text style=TextStyle::CAPTION align=beui::TextAlign::Center>
                                 {reason}
                             </Text>
                         </List>

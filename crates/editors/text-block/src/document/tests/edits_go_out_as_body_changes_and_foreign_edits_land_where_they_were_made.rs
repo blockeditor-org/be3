@@ -1,4 +1,5 @@
 use super::*;
+use text_block_types::TextBlock;
 
 #[test]
 fn edits_go_out_as_body_changes_and_foreign_edits_land_where_they_were_made() {
@@ -29,7 +30,7 @@ fn edits_go_out_as_body_changes_and_foreign_edits_land_where_they_were_made() {
     );
     assert!(
         !document.apply(&TextBlock::set_language(
-            block_editor_beui::be_block::TextLanguage::Rust
+            text_block_types::TextLanguage::Rust
         )),
         "a header change is left to a whole adoption"
     );

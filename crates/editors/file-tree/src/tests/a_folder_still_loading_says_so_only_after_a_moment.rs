@@ -8,9 +8,9 @@ use super::*;
 fn a_folder_still_loading_says_so_only_after_a_moment() {
     let mut fixture = editor();
     let folder = Uuid::new_v4();
-    let mut listed = BlockInfo::new(folder, Uuid::nil(), BlockParent::Root);
+    let mut listed = BlockInfo::new(folder, Uuid::nil(), BlockParent::Block(MY_FILES));
     listed.references = vec![Uuid::new_v4()];
-    fixture.host.set_blocks(BlockQuery::Roots, vec![listed]);
+    my_files(&mut fixture, vec![listed]);
     fixture.settle();
     let chevron = format!("file-tree.{folder}.chevron");
 

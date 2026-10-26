@@ -24,12 +24,11 @@ use beui::{Color32, Key, Pos2, Rect, TextAlign, Vec2};
 use block_editor_beui::BlockParent;
 use block_editor_beui::ContentProjection;
 use block_editor_beui::be_block::BlockContent;
-use block_editor_beui::be_block::compiled_logic::CompiledLogic;
-use block_editor_beui::be_block::logic_grid::LogicGridOperation;
-use block_editor_beui::be_block::{
-    CompiledLogicContent, CompiledLogicDocument, LogicGridContent, ObjectId,
-};
+use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::root_settings::RootSetting;
+use logic_grid_types::CompiledLogic;
+use logic_grid_types::LogicGridOperation;
+use logic_grid_types::{CompiledLogicContent, CompiledLogicDocument, LogicGridContent};
 use logicgame::{
     challenges::{Challenge, ChallengeId, generate_challenge},
     execution::{Component as ExecutionComponent, Instruction, Pc, Vm},
@@ -601,7 +600,7 @@ pub(super) struct LogicGridEditor {
     grid: Grid,
     observed_revision: Option<u64>,
 
-    hotbar_block: RootSetting<block_editor_beui::be_block::HotbarContent>,
+    hotbar_block: RootSetting<logic_grid_types::HotbarContent>,
 
     hotbar_needs_write: bool,
 
@@ -854,9 +853,9 @@ impl LogicGridEditor {
 impl LogicGridEditor {
     fn detached(grid: Grid, challenge: Option<ChallengeId>) -> Self {
         let mut editor = Self::new(GridStore::Local {
-            content: LogicGridContent::new(
-                &block_editor_beui::be_block::LogicGridDocument::with_grid(&grid, challenge),
-            ),
+            content: LogicGridContent::new(&logic_grid_types::LogicGridDocument::with_grid(
+                &grid, challenge,
+            )),
             revision: 0,
         });
         editor.sync(false, Uuid::nil());
@@ -868,9 +867,9 @@ impl LogicGridEditor {
         let result = build(&mut grid);
         let challenge = self.challenge.as_ref().map(|state| state.id);
         self.store = GridStore::Local {
-            content: LogicGridContent::new(
-                &block_editor_beui::be_block::LogicGridDocument::with_grid(&grid, challenge),
-            ),
+            content: LogicGridContent::new(&logic_grid_types::LogicGridDocument::with_grid(
+                &grid, challenge,
+            )),
             revision: self.store.revision().unwrap_or(0) + 1,
         };
         self.observed_revision = None;
@@ -888,7 +887,7 @@ impl Default for LogicGridEditor {
 
 #[cfg(test)]
 pub(crate) fn descriptor_data(source: Uuid) -> Vec<u8> {
-    dynamic_artifact::descriptor(source).data
+    dynamic_artifact::descriptor(source).settings
 }
 
 #[cfg(test)]

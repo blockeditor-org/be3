@@ -1,136 +1,121 @@
-use block_editor_beui::Editor;
-use block_editor_beui::be_block::terminal::{TerminalHost, TerminalMessage, TerminalSize};
-use block_editor_beui::beui::reactive::*;
-use terminal_view::{Emulator, Fit, TerminalScreen};
+use std::rc::Rc;
 
-const SCROLLBACK: usize = 1_000;
-const FIRST_SIZE: TerminalSize = TerminalSize { cols: 80, rows: 24 };
+use block_editor_beui::be_block::ObjectId;
+use block_editor_beui::be_block::be_model::{FieldRef, List};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::{ContentProjection, Editor};
+use terminal_types::{
+    Terminal, TerminalColors, TerminalContent, TerminalCursor, TerminalHost, TerminalLine,
+    TerminalMessage, TerminalShell, TerminalSize, TerminalWheel,
+};
+use terminal_view::{Fit, Lines, TerminalInput};
 
 #[derive(Clone, Copy)]
 pub(crate) struct Session {
     editor: Editor,
-    pub(crate) screen: TerminalScreen,
     pub(crate) host: Memo<Option<(u64, TerminalHost)>>,
-    pub(crate) running: Signal<Option<(u64, u64)>>,
-    pub(crate) exited: Signal<Option<Option<u32>>>,
-    asked: Signal<bool>,
-    wanted: Signal<TerminalSize>,
-    cell: Signal<(u32, u32)>,
+    pub(crate) shell: ReadSignal<Option<TerminalShell>>,
+    pub(crate) history: Memo<Lines>,
+    pub(crate) screen: Memo<Lines>,
+    pub(crate) alternate: Memo<Lines>,
+    pub(crate) alternate_active: ReadSignal<bool>,
+    pub(crate) cursor: ReadSignal<TerminalCursor>,
+    pub(crate) colors: ReadSignal<TerminalColors>,
+    wanted: Signal<Option<TerminalSize>>,
+}
+
+fn lines(
+    content: ContentProjection<TerminalContent>,
+    field: FieldRef<Terminal, List<TerminalLine>>,
+) -> Memo<Lines> {
+    let objects = content.objects(ObjectId::ROOT, field);
+    create_memo(move || {
+        objects.with(|objects| {
+            objects
+                .iter()
+                .map(|(id, line)| (*id, Rc::clone(line)))
+                .collect()
+        })
+    })
 }
 
 impl Session {
-    pub(crate) fn new(editor: Editor) -> Result<Self, String> {
-        let screen = TerminalScreen::new(
-            Emulator::new(FIRST_SIZE.cols, FIRST_SIZE.rows, SCROLLBACK)?.with_cursor(),
-        );
+    pub(crate) fn new(editor: Editor) -> Self {
+        let content = editor.block_content::<TerminalContent>();
+        let writer = content.field(ObjectId::ROOT, Terminal::HOST);
         let peers = editor.peers::<TerminalHost>();
-        let host = create_memo(move || peers.with(|hosts| hosts.first().cloned()));
+        let host = create_memo(move || {
+            let writer = writer.get();
+            peers.with(|hosts| {
+                hosts
+                    .iter()
+                    .find(|(client, _)| Some(*client) == writer)
+                    .cloned()
+            })
+        });
         let session = Self {
             editor,
-            screen,
             host,
-            running: create_signal(None),
-            exited: create_signal(None),
-            asked: create_signal(false),
-            wanted: create_signal(FIRST_SIZE),
-            cell: create_signal((1, 1)),
+            shell: content.field(ObjectId::ROOT, Terminal::SHELL),
+            history: lines(content, Terminal::HISTORY),
+            screen: lines(content, Terminal::SCREEN),
+            alternate: lines(content, Terminal::ALTERNATE),
+            alternate_active: content.field(ObjectId::ROOT, Terminal::ALTERNATE_ACTIVE),
+            cursor: content.field(ObjectId::ROOT, Terminal::CURSOR),
+            colors: content.field(ObjectId::ROOT, Terminal::COLORS),
+            wanted: create_signal(None),
         };
         let client =
             create_memo(move || host.with(|host| host.as_ref().map(|(client, _)| *client)));
         create_effect(move || {
-            let client = client.get();
-            untrack(|| {
-                session.running.set(None);
-                session.exited.set(None);
-                session.asked.set(false);
-                if client.is_some() {
-                    session.attach();
-                }
-            });
+            if client.get().is_some() {
+                untrack(|| session.resized());
+            }
         });
-        editor.on_peer_message(move |from, message: TerminalMessage| {
-            session.receive(from, message);
-        });
-        Ok(session)
+        session
+    }
+
+    pub(crate) fn empty(&self) -> bool {
+        self.history.with(Lines::is_empty)
+            && self.screen.with(Lines::is_empty)
+            && self.alternate.with(Lines::is_empty)
     }
 
     fn send(&self, message: TerminalMessage) {
+        if !self.editor.editable().get_untracked() {
+            return;
+        }
         if let Some((client, _)) = self.host.get_untracked() {
             self.editor.send_to_peers(Some(client), &message);
         }
     }
 
-    fn attach(&self) {
-        self.asked.set(true);
-        self.send(TerminalMessage::Attach(self.wanted.get_untracked()));
-    }
-
-    fn receive(&self, from: u64, message: TerminalMessage) {
-        if self
-            .host
-            .with_untracked(|host| host.as_ref().map(|(client, _)| *client))
-            != Some(from)
-        {
-            return;
-        }
-        match message {
-            TerminalMessage::Snapshot {
-                shell,
-                sequence,
-                size,
-                screen,
-            } => {
-                let (width, height) = self.cell.get_untracked();
-                self.screen.reset();
-                self.screen.resize(size.cols, size.rows, width, height);
-                self.screen.write(&screen);
-                self.screen.refresh();
-                self.asked.set(false);
-                self.exited.set(None);
-                self.running.set(Some((shell, sequence)));
-            }
-            TerminalMessage::Output {
-                shell,
-                sequence,
-                bytes,
-            } => match self.running.get_untracked() {
-                Some((running, last)) if running == shell && sequence == last + 1 => {
-                    self.screen.write(&bytes);
-                    self.screen.refresh();
-                    self.running.set(Some((shell, sequence)));
-                }
-                Some((running, last)) if running == shell && sequence <= last => {}
-                _ if self.asked.get_untracked() => {}
-                _ => self.attach(),
-            },
-            TerminalMessage::Exited { shell, status } => {
-                if self.running.get_untracked().map(|(running, _)| running) == Some(shell) {
-                    self.exited.set(Some(status));
-                }
-            }
-            TerminalMessage::Attach(_) | TerminalMessage::Resize(_) | TerminalMessage::Input(_) => {
-            }
+    fn resized(&self) {
+        if let Some(size) = self.wanted.get_untracked() {
+            self.send(TerminalMessage::Resize(size));
         }
     }
 
-    pub(crate) fn input(&self, bytes: Vec<u8>) {
-        if self.editor.editable().get_untracked() {
-            self.send(TerminalMessage::Input(bytes));
-        }
+    pub(crate) fn input(&self, input: TerminalInput) {
+        self.send(match input {
+            TerminalInput::Key(key) => TerminalMessage::Key(key),
+            TerminalInput::Paste(text) => TerminalMessage::Paste(text),
+        });
+    }
+
+    pub(crate) fn wheel(&self, wheel: TerminalWheel) {
+        self.send(TerminalMessage::Wheel(wheel));
     }
 
     pub(crate) fn fit(&self, fit: Fit) {
-        self.cell.set((fit.cell_width, fit.cell_height));
         let size = TerminalSize {
             cols: fit.cols,
             rows: fit.rows,
         };
-        if self.wanted.get_untracked() == size {
+        if self.wanted.get_untracked() == Some(size) {
             return;
         }
-        self.wanted.set(size);
-        if self.editor.editable().get_untracked() {
-            self.send(TerminalMessage::Resize(size));
-        }
+        self.wanted.set(Some(size));
+        self.resized();
     }
 }

@@ -123,10 +123,12 @@ pub(crate) async fn browser_login(
         loop {
             if !approval_pushed(&mut events, connection.closed()).await {
                 connection = loop {
-                    crate::be::sleep(std::time::Duration::from_secs(2)).await;
+                    be_client::Clock::real()
+                        .sleep(std::time::Duration::from_secs(2))
+                        .await;
                     match crate::link::connect(&server_url).await {
                         Ok(connection) => break connection,
-                        Err(ClientError::Disconnected(_)) => {}
+                        Err(error) if error.is_unreachable() => {}
                         Err(error) => return Err(error.to_string()),
                     }
                 };
@@ -140,7 +142,8 @@ pub(crate) async fn browser_login(
                 })
                 .await
             {
-                Ok(ServerMessage::Ok { .. }) | Err(ClientError::Disconnected(_)) => {}
+                Ok(ServerMessage::Ok { .. }) => {}
+                Err(error) if error.is_unreachable() => {}
                 Ok(response) => {
                     let session = session_of(response).map_err(|error| error.to_string())?;
                     crate::link::adopt(&server_url, &session.token, session.account, connection)
@@ -184,7 +187,11 @@ async fn authenticated(
     server_url: &str,
     token: String,
 ) -> Result<std::sync::Arc<Connection>, AccountError> {
-    Ok(crate::link::signed_in(server_url, &token).await?.connection)
+    Ok(
+        crate::link::signed_in(server_url, &token, &be_client::Clock::real())
+            .await?
+            .connection,
+    )
 }
 
 pub(crate) async fn logout(server_url: String, token: String) -> Result<(), AccountError> {
@@ -329,7 +336,7 @@ pub(crate) async fn keys(server_url: String, token: String) -> Result<Keys, Acco
         connection,
         account,
         ..
-    } = crate::link::signed_in(&server_url, &token).await?;
+    } = crate::link::signed_in(&server_url, &token, &be_client::Clock::real()).await?;
     let ServerMessage::RecoveryKey {
         public,
         sealed,

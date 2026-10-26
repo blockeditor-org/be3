@@ -9,8 +9,10 @@ use ui::HotbarView;
 
 pub struct HotbarApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for HotbarApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Loaded>

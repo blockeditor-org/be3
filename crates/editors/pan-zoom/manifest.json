@@ -25,5 +25,14 @@
       ]
     }
   },
+  "block_types": {
+    "pan_zoom": {
+      "id": "70616e5f-7a6f-6f6d-2d62-6c6f636b0001",
+      "display_name": "Pan and Zoom",
+      "icon": "\ue121",
+      "color": [172, 145, 47],
+      "module": "pan_zoom_types.wasm"
+    }
+  },
   "entry_point": "pan_zoom.wasm"
 }

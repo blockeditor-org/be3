@@ -1,6 +1,5 @@
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{
     CursorIcon, ImageFit, Key, KeyPress, NodeId, PointerPress, Pos2, Rect, Vec2,
 };
@@ -92,7 +91,7 @@ pub(crate) fn Artwork(state: RayState) -> NodeId {
                     }}
                 >
                     <Frame fill=ColorRole::Background>
-                        <List spacing=0.0>
+                        <List spacing=Space::None>
                             <Canvas view={camera} @sizing=ItemSize::Percent(100.0)>
                                 <CanvasItem
                                     x={left}
@@ -127,7 +126,7 @@ fn world_point(
     >,
     editor: block_editor_beui::Editor,
     artwork: Rect,
-) -> Option<block_editor_beui::be_block::pixel_ray_tracer::Point> {
+) -> Option<pixel_ray_tracer_types::Point> {
     let camera = view.get_untracked()?;
     let _ = editor;
     Some(screen_to_world(camera.to_canvas(at), artwork))

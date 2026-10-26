@@ -13,7 +13,7 @@ fn actual_size_uses_image_pixels_even_on_a_dense_screen() {
     review.test.settle();
     let document = review.test.document();
     let camera = document
-        .api::<beui::unstyled::PanZoomApi>(document.find_test_id("paint_review.pan_zoom").unwrap())
+        .api::<beui::styled::PanZoomApi>(document.find_test_id("paint_review.pan_zoom").unwrap())
         .view()
         .get();
     assert_eq!(camera.scale, 1.0);
@@ -31,7 +31,7 @@ fn actual_size_uses_image_pixels_even_on_a_dense_screen() {
     review.test.settle();
     let document = review.test.document();
     let zoomed = document
-        .api::<beui::unstyled::PanZoomApi>(document.find_test_id("paint_review.pan_zoom").unwrap())
+        .api::<beui::styled::PanZoomApi>(document.find_test_id("paint_review.pan_zoom").unwrap())
         .view()
         .get();
     assert_eq!(zoomed.scale, 2.0);
@@ -40,7 +40,7 @@ fn actual_size_uses_image_pixels_even_on_a_dense_screen() {
     let document = review.test.document();
     assert_eq!(
         document
-            .api::<beui::unstyled::PanZoomApi>(
+            .api::<beui::styled::PanZoomApi>(
                 document.find_test_id("paint_review.pan_zoom").unwrap()
             )
             .view()

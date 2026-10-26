@@ -12,8 +12,13 @@ on the machine that runs it.
 Where code belongs:
 
 - before a buck2 command, or deciding what it builds: `crates/bootstrap`;
-- after a buck2 command, reading what it built: `crates/local-tools`, built
-  for this machine in that same command (guides/buck2.md);
+- after a buck2 command, reading what it built: `crates/verify` for
+  `./scripts/verify` and `./scripts/ci`, and `crates/local-tools` for the rest
+  (`ci` for the Android builds and paint previews, `deploy`, `fuzz`), each built
+  for this machine in that same command (guides/buck2.md), except for
+  `./scripts/test`, which only prints what each test's action kept and copies
+  the paintings it accepted, so the bootstrap does that and nothing is
+  downloaded to run it;
 - inside an action on a worker: a tool the action depends on, built by buck2.
 
 A command is one buck2 invocation, and the bootstrap runs it; the one
@@ -31,30 +36,32 @@ to set.
 
 `scripts/internal/pins` names everything the scripts download, as
 `name='value'` lines that both the stub and the bootstrap read: buck2's
-version, be's release, nsc's, and the bootstrap's. `bootstrap_source` is the
-SHA-256 of the files of the crate and of the workspace crates it depends on
-(`crates/prompt`) that the release was built from, and
-`bootstrap_sha256_<triple>` the SHA-256 of each platform's binary, which is
-also its name at `https://be3-ci.b-cdn.net/bootstrap/<sha256>`.
+version, be's release, nsc's, and the bootstrap's: `bootstrap_sha256_<triple>`
+is the SHA-256 of each platform's binary, which is also its name at
+`https://be3-ci.b-cdn.net/bootstrap/<sha256>`.
 `scripts/internal/bootstrap.sh` downloads the one for this machine into
 `target/tools/bootstrap-<sha256>/`, checks it, and runs it.
 
 `//crates/bootstrap:dist` is the release for Linux, macOS and Windows on
 x86_64 and arm64, in the release profile, laid out as
-`<triple>/bootstrap(.exe)`.
+`<triple>/bootstrap(.exe)`. Building it again gives the same files (lld-link
+gets `/Brepro`, buck/toolchains/BUCK), so a pin says whether the checkout's
+release is the one published.
 
 ## Changing it
 
 Edit the crate, then run it from source: `BE3_BOOTSTRAP=source
 ./scripts/buck ...` has the pinned release build `//crates/bootstrap:bin` for
 this machine and run that in its place, so a command costs two buck2
-invocations. `./scripts/verify` says when the crate no longer matches
-`bootstrap_source`, and `./scripts/verify --check` fails then.
+invocations. `./scripts/verify` builds `:dist` and compares each binary with
+its pin on a worker, which downloads nothing while they match; it says when one
+does not, and `./scripts/verify --check` fails then.
 
 Nobody publishes by hand. On a pull request from this repository, CI runs
-`./scripts/ci --bootstrap DIR`, which builds `:dist` in the same buck2
-command; when the crate's hash is not the pinned one, `local-tools verify`
-writes each binary into `DIR` under its SHA-256 and rewrites the pins. The
+`./scripts/ci --bootstrap DIR`, which has that comparison keep each binary
+whose hash is not pinned, so only a changed release is downloaded;
+`crates/verify` writes those into `DIR` under their SHA-256 and rewrites their
+pins. The
 `publish-bootstrap` job uploads them to the be3-ci Bunny zone, and the
 autofix job, which waits for it, pushes the new pins to the pull request. A
 name that is its content's hash never changes what it points at, and nothing

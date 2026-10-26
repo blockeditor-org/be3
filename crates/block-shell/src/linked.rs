@@ -1,22 +1,20 @@
 use block_editor_beui::BlockParent;
-use block_editor_beui::be_block::{BlockContent, EditorViewContent};
+use block_editor_beui::be_block::VIEW_EDITOR;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_LINK, ICON_UNLINK};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::MenuItem;
-use block_editor_beui::node_anchor;
 use uuid::Uuid;
 
+use super::menu::ReferenceMenuItem;
 use super::menu::unlink_permission;
-use super::menu::{ReferenceMenuItem, action_for, apply};
 use super::panel::{Info, Refs};
 use super::workspace::Workspace;
 use block_editor_beui::beui::TextAlign;
 
-const PADDING_HORIZONTAL: f32 = 8.0;
-const PADDING_VERTICAL: f32 = 5.0;
-const SPACING: f32 = 8.0;
+const PADDING_HORIZONTAL: Space = Space::Md;
+const PADDING_VERTICAL: Space = Space::Xs;
+const SPACING: Space = Space::Md;
 
 #[component]
 pub(crate) fn LinkedBar(
@@ -79,7 +77,7 @@ pub(crate) fn LinkedBar(
         <Show condition={shown}>
             <Frame
                 fill=ColorRole::Surface
-                padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
+                padding={Padding::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <Text size=TextSize::Xs color={heading_color} align=TextAlign::Center>
@@ -145,7 +143,7 @@ fn places(backrefs: &Refs) -> Refs {
         list: backrefs
             .list
             .iter()
-            .filter(|block| block.block_type != EditorViewContent::CONTENT_TYPE && !block.deleted)
+            .filter(|block| !block.metadata.contains(&VIEW_EDITOR) && !block.deleted)
             .cloned()
             .collect(),
     }
@@ -207,28 +205,10 @@ pub(crate) fn ReferenceMenu(
                             workspace={workspace}
                             reference={reference}
                             containing={containing}
+                            anchor={button}
                         />
                     }
                 }</ForEach>
-            }}
-            on_select={move |path: Vec<usize>| {
-                let Some((index, rest)) = path.split_first() else {
-                    return;
-                };
-                let Some(reference) = refs.with(|refs| refs.list.get(*index).cloned())
-                else {
-                    return;
-                };
-                let Some(action) = action_for(rest) else {
-                    return;
-                };
-                apply(
-                    &workspace,
-                    &reference,
-                    containing.get_untracked(),
-                    action,
-                    node_anchor(&button),
-                );
             }}
         />
     }

@@ -1,10 +1,10 @@
-use block_editor_beui::be_block::PixelRayTracerContent;
-use block_editor_beui::be_block::pixel_ray_tracer::{
-    PIXEL_RAY_TRACER_BACKGROUND, PixelRayTracerOperation, PixelUpdate, Scene,
-};
 use block_editor_beui::beui::Vec2;
 use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
+use pixel_ray_tracer_types::PixelRayTracerContent;
+use pixel_ray_tracer_types::{
+    PIXEL_RAY_TRACER_BACKGROUND, PixelRayTracerOperation, PixelUpdate, Scene,
+};
 use uuid::Uuid;
 
 use crate::app::PixelRayTracerApp;
@@ -26,6 +26,9 @@ fn editor_sized(size: Vec2) -> BeuiTest<PixelRayTracerApp> {
     host.set_editable(true);
     let editor = OwnedEditor::new(host.clone(), block);
     let mut editor = BeuiTest::new(editor).with_size(size).in_viewport();
+    editor
+        .store()
+        .register(pixel_ray_tracer_types::registrations());
     editor.hold(None, PixelRayTracerContent::default());
     editor.settle_until("the lighting to land", |editor| {
         editor.shown("pixel_ray_tracer.artwork") && !editor.wants_another_frame()

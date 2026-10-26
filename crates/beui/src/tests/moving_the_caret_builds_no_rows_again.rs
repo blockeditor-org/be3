@@ -20,7 +20,13 @@ fn moving_the_caret_builds_no_rows_again() {
         held.update(|held| *held = Some(state));
         view! {
             <Frame width=500.0 height=600.0>
-                <TextArea state={state} />
+                <TextArea
+                    colors={area_colors()}
+                    look={area_look()}
+                    font_size=AREA_FONT_SIZE
+                    padding=AREA_PADDING
+                    state={state}
+                />
             </Frame>
         }
     });

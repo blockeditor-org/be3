@@ -1,7 +1,7 @@
 use std::cell::{Cell, RefCell};
 use std::collections::HashSet;
 
-use block_plugin_api::{Message, PresentedFrame, ScreenLayout, SurfaceFormat, SurfaceSpec};
+use block_plugin_api::{FrameCommit, PresentedFrame, ScreenLayout, SurfaceFormat, SurfaceSpec};
 
 use crate::{panes::Panes, screens::Screens};
 
@@ -17,19 +17,19 @@ struct Gpu {
     queue: wgpu::Queue,
 }
 
-pub(crate) fn initialize() -> Result<(), String> {
-    let (device, queue) = block_gpu_guest::device_and_queue();
-    GPU.with(|gpu| *gpu.borrow_mut() = Some(Gpu { device, queue }));
-    Ok(())
-}
-
-fn gpu() -> Result<Gpu, String> {
-    GPU.with(|gpu| gpu.borrow().clone())
-        .ok_or_else(|| "the plugin gpu is not ready".to_owned())
+fn gpu() -> Option<Gpu> {
+    GPU.with(|gpu| {
+        let mut gpu = gpu.borrow_mut();
+        if gpu.is_none() && FORMAT.get().is_some() {
+            let (device, queue) = block_gpu_guest::device_and_queue();
+            *gpu = Some(Gpu { device, queue });
+        }
+        gpu.clone()
+    })
 }
 
 pub(crate) fn surface_gpu() -> Option<crate::SurfaceGpu> {
-    let Gpu { device, queue } = gpu().ok()?;
+    let Gpu { device, queue } = gpu()?;
     Some(crate::SurfaceGpu {
         device,
         queue,
@@ -38,8 +38,7 @@ pub(crate) fn surface_gpu() -> Option<crate::SurfaceGpu> {
 }
 
 pub(crate) struct Surfaces {
-    gpu: Gpu,
-    format: wgpu::TextureFormat,
+    gpu: Option<(Gpu, wgpu::TextureFormat)>,
     panes: Panes,
     layout: ScreenLayout,
     fresh: HashSet<u32>,
@@ -47,10 +46,18 @@ pub(crate) struct Surfaces {
 
 impl Surfaces {
     pub(crate) fn new(spec: SurfaceSpec) -> Result<Self, String> {
-        FORMAT.set(Some(format(spec.format)));
+        let gpu = match spec.render {
+            true => {
+                FORMAT.set(Some(format(spec.format)));
+                Some((
+                    gpu().ok_or("the plugin gpu is not ready")?,
+                    format(spec.format),
+                ))
+            }
+            false => None,
+        };
         Ok(Self {
-            gpu: gpu()?,
-            format: format(spec.format),
+            gpu,
             panes: Panes::default(),
             layout: ScreenLayout::default(),
             fresh: HashSet::new(),
@@ -62,6 +69,11 @@ impl Surfaces {
     }
 
     pub(crate) fn place(&mut self, layout: ScreenLayout) {
+        let Some((_, format)) = &self.gpu else {
+            self.layout = layout;
+            return;
+        };
+        let format = *format;
         for gone in &self.layout.screens {
             if !layout
                 .screens
@@ -82,7 +94,7 @@ impl Surfaces {
                     placement.surface,
                     placement.width,
                     placement.height,
-                    self.format,
+                    format,
                 );
                 self.fresh.insert(placement.surface);
             }
@@ -90,29 +102,31 @@ impl Surfaces {
         self.layout = layout;
     }
 
-    pub(crate) fn render(&mut self, screens: &mut Screens) -> Result<Vec<Message>, String> {
+    pub(crate) fn render(&mut self, screens: &mut Screens) -> Result<Option<FrameCommit>, String> {
         if self.layout.is_empty() {
-            return Ok(Vec::new());
+            return Ok(None);
         }
-        let ran = self
-            .panes
-            .run(&self.layout, screens, &self.fresh, crate::screens::seen());
+        let ran = self.panes.run(
+            &self.layout,
+            screens,
+            &self.fresh,
+            crate::screens::seen(),
+            self.gpu.is_some(),
+        );
         let repaint = ran.repaint;
         let animating = ran.animating;
         let mut presented = None;
-        if !ran.painting.is_empty() {
+        if let Some((gpu, format)) = &self.gpu
+            && !ran.painting.is_empty()
+        {
             let painted: Vec<u32> = ran
                 .painting
                 .iter()
                 .map(|placement| placement.surface)
                 .collect();
-            let damage = self.panes.paint(
-                &self.gpu.device,
-                &self.gpu.queue,
-                self.format,
-                screens,
-                ran.painting,
-            )?;
+            let damage =
+                self.panes
+                    .paint(&gpu.device, &gpu.queue, *format, screens, ran.painting)?;
             for surface in painted {
                 self.fresh.remove(&surface);
             }
@@ -126,7 +140,7 @@ impl Surfaces {
         commit.repaint_after_micros = repaint.map(|delay| delay.as_micros() as u64);
         commit.animating = animating;
         commit.presented = presented;
-        Ok(vec![Message::Frame(commit)])
+        Ok(Some(commit))
     }
 }
 

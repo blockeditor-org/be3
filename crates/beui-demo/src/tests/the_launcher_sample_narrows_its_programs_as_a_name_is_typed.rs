@@ -15,7 +15,6 @@ fn the_launcher_sample_narrows_its_programs_as_a_name_is_typed() {
     assert!(test.shows("launcher.item.text"));
     assert!(test.shows("launcher.item.terminal"));
     assert!(!test.shows("launcher.item.files"));
-    assert!(test.shows("launcher.run"));
     test.snapshot("launcher_filtered");
 
     test.frame(

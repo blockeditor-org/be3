@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_beui::be_block::hotbar::SlotKind;
+use logic_grid_types::hotbar::SlotKind;
 use uuid::Uuid;
 
 #[test]

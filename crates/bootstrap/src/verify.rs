@@ -6,8 +6,7 @@ use crate::{Result, buck, in_ci, repository};
 
 const VERIFY_USAGE: &str =
     "Usage: ./scripts/verify [--check] [--lint] [--tests] [--plugin-tests] [--verbose]";
-const CI_USAGE: &str =
-    "Usage: ./scripts/ci [--check] [--android DIR] [--previews BASE OUT] [--bootstrap DIR]";
+const CI_USAGE: &str = "Usage: ./scripts/ci [--check] [--previews BASE OUT] [--bootstrap DIR]";
 
 pub fn verify(arguments: Vec<String>) -> Result<ExitCode> {
     for argument in &arguments {
@@ -32,7 +31,7 @@ pub fn ci(arguments: Vec<String>) -> Result<ExitCode> {
     while let Some(argument) = arguments.next() {
         let values = match argument.as_str() {
             "--check" => 0,
-            "--android" | "--bootstrap" => 1,
+            "--bootstrap" => 1,
             "--previews" => 2,
             _ => return Err(CI_USAGE.to_owned()),
         };
@@ -82,8 +81,6 @@ fn run(arguments: Vec<String>) -> Result<ExitCode> {
         bool(tests),
         "--plugin_tests",
         bool(plugin_tests),
-        "--android",
-        bool(has("--android")),
         "--previews",
         bool(has("--previews")),
         "--bootstrap",
@@ -122,7 +119,7 @@ fn run(arguments: Vec<String>) -> Result<ExitCode> {
         .next_back();
     let Some(verify) = verify.filter(|path| std::path::Path::new(path).exists()) else {
         println!();
-        println!("Verification failed: crates/local-tools did not build.");
+        println!("Verification failed: crates/verify did not build.");
         return Ok(ExitCode::FAILURE);
     };
     let mut command = Command::new(verify);

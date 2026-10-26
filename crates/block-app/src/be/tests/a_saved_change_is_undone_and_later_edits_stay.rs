@@ -24,7 +24,7 @@ fn a_saved_change_is_undone_and_later_edits_stay() {
         be_block::CheckoutContent::CONTENT_TYPE,
         None,
     );
-    hold(versioned.note, be_block::TextContent::CONTENT_TYPE);
+    hold(versioned.note, text_block_types::TextContent::CONTENT_TYPE);
     wait_until("opened the note", |shared| {
         text_of(shared, versioned.note).is_some()
     });

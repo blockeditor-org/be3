@@ -26,7 +26,7 @@ fn turning_off_animations_in_the_inspector_stops_a_scroll_at_its_end() {
     assert!(harness.document().motion().animates());
 
     harness.toggle_inspector();
-    harness.click(harness.simulation_tab_center());
+    harness.show_inspector_tab(crate::inspector::InspectorTab::Simulation);
     harness.frame(Vec::new());
     harness.choose_in_simulation("motion", 2);
     harness.frame(Vec::new());

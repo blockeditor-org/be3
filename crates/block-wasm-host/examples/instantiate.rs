@@ -1,23 +1,35 @@
 use block_plugin_api::{
-    EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FrameChrome, FrameSpec,
-    HelloAccepted, Message, ScreenId, ScreenRequest, ScreenSet, ViewportMetrics, decode_frame,
-    encode_frame,
+    EditorInstanceId, EditorRegion, FrameChrome, FrameSpec, HelloAccepted, OpenBlock, Opening,
+    ScreenId, ScreenRequest, ViewportMetrics,
+    embed::{
+        exports::plugin::{self, Editor},
+        host::Call,
+    },
+    ops::{Connection, Incoming, OpId, Outcome, Side},
 };
 use block_wasm_host::{Host, Plugin};
 
-const SCREENS_SURFACE: u32 = 0;
+const SCREENS_SURFACE: u32 = 1;
 const WIDTH: u32 = 640;
 const HEIGHT: u32 = 400;
 
 fn main() {
-    let Some(path) = std::env::args().nth(1) else {
-        eprintln!("usage: instantiate PLUGIN.wasm [CACHE_DIRECTORY]");
+    let mut arguments = std::env::args().skip(1);
+    let (Some(path), Some(editor)) = (arguments.next(), arguments.next()) else {
+        eprintln!("usage: instantiate PLUGIN.wasm EDITOR_ID [CACHE_DIRECTORY]");
         std::process::exit(2);
     };
-    let cache = std::env::args().nth(2).map(std::path::PathBuf::from);
+    let editor = match uuid::Uuid::parse_str(&editor) {
+        Ok(editor) => editor.into_bytes(),
+        Err(error) => {
+            eprintln!("{editor} is not an editor id: {error}");
+            std::process::exit(2);
+        }
+    };
+    let cache = arguments.next().map(std::path::PathBuf::from);
     let (device, queue) = wgpu::Device::noop(&wgpu::DeviceDescriptor::default());
     let host = match Host::new(device, queue, cache.as_deref()) {
-        Ok(host) => host,
+        Ok(host) => host.with_direct(block_plugin_api::embed::IMPORTS),
         Err(error) => {
             eprintln!("host failed: {error}");
             std::process::exit(1);
@@ -31,29 +43,18 @@ fn main() {
         }
     };
     println!("instantiated");
+    let mut session = Session {
+        connection: Connection::new(Side::Host),
+        draw: None,
+        drawn: false,
+    };
     check(plugin.start());
-    report("start", &mut plugin);
-    send(&mut plugin, hello_accepted());
-    send(&mut plugin, open());
-    send(&mut plugin, screens());
-    check(plugin.step());
-    let opened = report("open", &mut plugin);
-    if !opened.fetches.is_empty() {
-        for request_id in opened.fetches {
-            send(&mut plugin, fetched(request_id));
-        }
-        check(plugin.step());
-        report("fetched", &mut plugin);
-    }
-    send(
-        &mut plugin,
-        Message::DrawFrame {
-            now_micros: 0,
-            seen: true,
-        },
-    );
-    check(plugin.step());
-    let drawn = report("draw", &mut plugin).drawn;
+    session.hear("start", &mut plugin);
+    let _editor = Editor::new(&mut session.connection, opening(editor));
+    plugin::screens(&mut session.connection, screens());
+    session.step("open", &mut plugin);
+    session.draw = Some(plugin::draw(&mut session.connection, 0, true).op());
+    session.step("draw", &mut plugin);
     match plugin.surface(SCREENS_SURFACE) {
         Some((texture, generation)) => println!(
             "surface {SCREENS_SURFACE} is {}x{} at generation {generation}",
@@ -65,8 +66,8 @@ fn main() {
             std::process::exit(1);
         }
     }
-    if !drawn {
-        eprintln!("the plugin never reported a frame");
+    if !session.drawn {
+        eprintln!("the plugin never answered the draw with a frame");
         std::process::exit(1);
     }
     if !plugin.take_presented().contains(&SCREENS_SURFACE) {
@@ -77,54 +78,53 @@ fn main() {
     plugin.stop();
 }
 
-struct Report {
+struct Session {
+    connection: Connection,
+    draw: Option<OpId>,
     drawn: bool,
-    fetches: Vec<u64>,
 }
 
-fn report(stage: &str, plugin: &mut Plugin) -> Report {
-    let outbound = plugin.take_outbound();
-    println!("{stage} sent {} frame(s)", outbound.len());
-    let mut report = Report {
-        drawn: false,
-        fetches: Vec::new(),
-    };
-    for frame in &outbound {
-        match decode_frame(frame) {
-            Ok(message) => {
-                report.drawn |= matches!(message, Message::Frame(_));
-                if let Message::Editor(EditorMessage::Request {
-                    request_id,
-                    request: block_plugin_api::HostRequest::Fetch(_),
-                    ..
-                }) = &message
-                {
-                    report.fetches.push(*request_id);
-                }
-                println!("  {message:?}");
-            }
-            Err(error) => println!("  undecodable: {error:?}"),
-        }
+impl Session {
+    fn step(&mut self, stage: &str, plugin: &mut Plugin) {
+        check(plugin.deliver(self.connection.take_outbound()));
+        check(plugin.step());
+        self.hear(stage, plugin);
     }
-    report
-}
 
-fn fetched(request_id: u64) -> Message {
-    Message::Editor(EditorMessage::Replied {
-        instance: EditorInstanceId(1),
-        request_id,
-        reply: block_plugin_api::HostReply::Fetched(FetchResult::Failed(
-            "instantiate does not reach the network".to_owned(),
-        )),
-    })
-}
-
-fn send(plugin: &mut Plugin, message: Message) {
-    match encode_frame(&message) {
-        Ok(frame) => plugin.send(frame),
-        Err(error) => {
-            eprintln!("could not encode {message:?}: {error}");
-            std::process::exit(1);
+    fn hear(&mut self, stage: &str, plugin: &mut Plugin) {
+        let outbound = plugin.take_outbound();
+        println!("{stage} sent {} item(s)", outbound.len());
+        for item in outbound {
+            if let Err(error) = self.connection.receive(&item) {
+                println!("  undecodable: {error}");
+            }
+        }
+        let mut answered = false;
+        while let Some(event) = self.connection.next_event() {
+            match event {
+                Incoming::Started(started) if Call::accepts(&started) => {
+                    match Call::accept(&mut self.connection, started) {
+                        Some(Call::Connect { reply, hello }) => {
+                            println!("  connect from {}", hello.plugin.id);
+                            reply.send(&mut self.connection, &accepted());
+                            answered = true;
+                        }
+                        Some(call) => println!("  {call:?}"),
+                        None => {}
+                    }
+                }
+                Incoming::Completed { op, outcome } if Some(op) == self.draw => {
+                    self.drawn = matches!(outcome, Outcome::Ok(_));
+                    println!(
+                        "  a frame, {}",
+                        if self.drawn { "drawn" } else { "refused" }
+                    );
+                }
+                event => println!("  {event:?}"),
+            }
+        }
+        if answered {
+            self.step(stage, plugin);
         }
     }
 }
@@ -136,20 +136,21 @@ fn check(outcome: Result<(), String>) {
     }
 }
 
-fn hello_accepted() -> Message {
-    Message::HelloAccepted(HelloAccepted {
+fn accepted() -> HelloAccepted {
+    HelloAccepted {
         host_name: "instantiate".to_owned(),
         surface: Some(block_plugin_api::SurfaceSpec {
             format: block_plugin_api::SurfaceFormat::Rgba8Unorm,
+            render: true,
         }),
         preferences: block_plugin_api::Preferences::default(),
-    })
+    }
 }
 
-fn open() -> Message {
-    Message::Editor(EditorMessage::Open {
+fn opening(editor: [u8; 16]) -> Opening {
+    Opening::Block(OpenBlock {
         instance: EditorInstanceId(1),
-        editor: [6; 16],
+        editor,
         block_id: [1; 16],
         block_type: [2; 16],
         view_block: None,
@@ -160,48 +161,44 @@ fn open() -> Message {
     })
 }
 
-fn screens() -> Message {
-    Message::Screens(ScreenSet {
-        request_id: 1,
-        screens: vec![
-            ScreenRequest {
-                screen: ScreenId(1),
-                instance: EditorInstanceId(1),
-                region: EditorRegion::Frame,
-                frame: Some(FrameSpec {
-                    chrome: FrameChrome::Drawn,
-                    content: None,
-                    top_bar: block_plugin_api::TopBar::Hidden,
-                }),
-                metrics: ViewportMetrics {
-                    logical: block_plugin_api::Size {
-                        width: WIDTH as f32,
-                        height: HEIGHT as f32,
-                    },
-                    visible: block_plugin_api::Pos2::ZERO,
-                    pixel_width: WIDTH,
-                    pixel_height: HEIGHT,
-                    scale_factor: 1.0,
-                    monitors: Vec::new(),
-                },
-            },
-            ScreenRequest {
-                screen: ScreenId(2),
-                instance: EditorInstanceId(1),
-                region: EditorRegion::Preview,
-                frame: None,
-                metrics: ViewportMetrics {
-                    logical: block_plugin_api::Size {
-                        width: WIDTH as f32,
-                        height: HEIGHT as f32,
-                    },
-                    visible: block_plugin_api::Pos2::ZERO,
-                    pixel_width: WIDTH,
-                    pixel_height: HEIGHT,
-                    scale_factor: 1.0,
-                    monitors: Vec::new(),
-                },
-            },
-        ],
-    })
+fn metrics() -> ViewportMetrics {
+    ViewportMetrics {
+        logical: block_plugin_api::Size {
+            width: WIDTH as f32,
+            height: HEIGHT as f32,
+        },
+        visible: block_plugin_api::Pos2::ZERO,
+        pixel_width: WIDTH,
+        pixel_height: HEIGHT,
+        scale_factor: 1.0,
+        raster: 1.0,
+    }
+}
+
+fn screens() -> Vec<ScreenRequest> {
+    vec![
+        ScreenRequest {
+            screen: ScreenId(1),
+            instance: EditorInstanceId(1),
+            region: EditorRegion::Frame,
+            frame: Some(FrameSpec {
+                chrome: FrameChrome::Drawn,
+                content: None,
+                top_bar: block_plugin_api::TopBar::Hidden,
+                dialog: None,
+            }),
+            metrics: metrics(),
+            windows: false,
+            placement: None,
+        },
+        ScreenRequest {
+            screen: ScreenId(2),
+            instance: EditorInstanceId(1),
+            region: EditorRegion::Preview,
+            frame: None,
+            metrics: metrics(),
+            windows: false,
+            placement: None,
+        },
+    ]
 }

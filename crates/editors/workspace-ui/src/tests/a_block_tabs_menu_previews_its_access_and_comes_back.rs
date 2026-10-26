@@ -4,11 +4,12 @@ fn choose(fixture: &mut Fixture, words: &str) {
     let document = fixture.test.document();
     let root = document.root().expect("the workspace has a root");
     let row =
-        text_within(document, root, words).unwrap_or_else(|| panic!("the menu lists {words}"));
+        text_within(&document, root, words).unwrap_or_else(|| panic!("the menu lists {words}"));
     let at = document
         .node_rect(row)
         .expect("the row is laid out")
         .center();
+    drop(document);
     fixture.test.click(at);
     fixture.settle();
 }
@@ -16,7 +17,7 @@ fn choose(fixture: &mut Fixture, words: &str) {
 fn shows_text(fixture: &Fixture, words: &str) -> bool {
     let document = fixture.test.document();
     let root = document.root().expect("the workspace has a root");
-    text_within(document, root, words).is_some_and(|node| document.node_rect(node).is_some())
+    text_within(&document, root, words).is_some_and(|node| document.node_rect(node).is_some())
 }
 
 #[test]
@@ -26,7 +27,7 @@ fn a_block_tabs_menu_previews_its_access_and_comes_back() {
 
     fixture.test.click("dock.menu");
     fixture.settle();
-    choose(&mut fixture, "Access: Editing");
+    choose(&mut fixture, "Access: Managing");
     choose(&mut fixture, "No access");
     assert!(
         shows_text(
@@ -39,7 +40,7 @@ fn a_block_tabs_menu_previews_its_access_and_comes_back() {
     fixture.test.click("dock.menu");
     fixture.settle();
     choose(&mut fixture, "Access: No access");
-    choose(&mut fixture, "Editing");
+    choose(&mut fixture, "Managing");
     assert!(
         !shows_text(
             &fixture,

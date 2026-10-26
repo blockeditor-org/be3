@@ -1,8 +1,13 @@
 mod convert;
-mod imports;
 mod objects;
 
-use block_gpu_abi as abi;
+use std::{cell::RefCell, collections::HashMap};
+
+use block_gpu_abi::{device as abi, guest::device as gpu};
+
+thread_local! {
+    static SURFACES: RefCell<HashMap<u32, gpu::Surface>> = RefCell::new(HashMap::new());
+}
 
 pub fn device_and_queue() -> (wgpu::Device, wgpu::Queue) {
     (
@@ -11,86 +16,69 @@ pub fn device_and_queue() -> (wgpu::Device, wgpu::Queue) {
     )
 }
 
-// unsafe(ffi)
-pub fn configure_surface(surface: u32, width: u32, height: u32, format: wgpu::TextureFormat) {
-    let configuration = abi::SurfaceConfiguration {
-        width,
-        height,
-        format: convert::texture_format(format),
-    };
-    let bytes = abi::encode(&configuration);
-    unsafe { imports::surface_configure(surface, bytes.as_ptr() as u32, bytes.len() as u32) };
+fn with_surface<R>(surface: u32, act: impl FnOnce(&gpu::Surface) -> R) -> R {
+    SURFACES.with(|surfaces| {
+        let mut surfaces = surfaces.borrow_mut();
+        act(surfaces
+            .entry(surface)
+            .or_insert_with(|| gpu::Surface::new(surface)))
+    })
 }
 
-// unsafe(ffi)
+pub fn configure_surface(surface: u32, width: u32, height: u32, format: wgpu::TextureFormat) {
+    with_surface(surface, |surface| {
+        surface.configure(abi::SurfaceConfiguration {
+            width,
+            height,
+            format: convert::texture_format(format),
+        })
+    });
+}
+
 pub fn acquire_surface_texture(surface: u32) -> Result<wgpu::Texture, String> {
-    let handle = unsafe { imports::surface_acquire(surface) };
-    if handle == abi::NULL_HANDLE {
-        return Err(host_error());
-    }
-    let descriptor = describe(handle)?;
+    let Some(texture) = with_surface(surface, gpu::Surface::acquire) else {
+        return Err(objects::last_error());
+    };
+    described(texture)
+}
+
+pub fn import_texture(image: u64) -> Option<wgpu::Texture> {
+    described(gpu::import_texture(image)?).ok()
+}
+
+fn described(texture: gpu::Texture) -> Result<wgpu::Texture, String> {
+    let Some(info) = texture.describe() else {
+        return Err(objects::last_error());
+    };
     let descriptor = wgpu::TextureDescriptor {
         label: None,
         size: wgpu::Extent3d {
-            width: descriptor.size.width,
-            height: descriptor.size.height,
-            depth_or_array_layers: descriptor.size.depth_or_array_layers,
+            width: info.size.width,
+            height: info.size.height,
+            depth_or_array_layers: info.size.depth_or_array_layers,
         },
-        mip_level_count: descriptor.mip_level_count,
-        sample_count: descriptor.sample_count,
-        dimension: convert::wgpu_texture_dimension(descriptor.dimension),
-        format: convert::wgpu_texture_format(descriptor.format),
-        usage: wgpu::TextureUsages::from_bits_truncate(descriptor.usage),
+        mip_level_count: info.mip_level_count,
+        sample_count: info.sample_count,
+        dimension: convert::wgpu_texture_dimension(info.dimension),
+        format: convert::wgpu_texture_format(info.format),
+        usage: wgpu::TextureUsages::from_bits_truncate(info.usage),
         view_formats: &[],
     };
     Ok(wgpu::Texture::from_custom(
-        objects::Texture { handle },
+        objects::Texture(texture),
         &descriptor,
     ))
 }
 
-// unsafe(ffi)
 pub fn surface_age(surface: u32) -> u32 {
-    unsafe { imports::surface_age(surface) }
+    with_surface(surface, gpu::Surface::age)
 }
 
-// unsafe(ffi)
 pub fn present_surface(surface: u32) {
-    unsafe { imports::surface_present(surface) };
+    with_surface(surface, gpu::Surface::present);
 }
 
-// unsafe(ffi)
 pub fn release_surface(surface: u32) {
-    unsafe { imports::surface_release(surface) };
-}
-
-// unsafe(ffi)
-fn describe(texture: abi::Handle) -> Result<abi::TextureDescriptor, String> {
-    let mut buffer = vec![0u8; 512];
-    let needed = unsafe {
-        imports::texture_describe(texture, buffer.as_mut_ptr() as u32, buffer.len() as u32)
-    };
-    if needed == 0 {
-        return Err(host_error());
-    }
-    if needed as usize > buffer.len() {
-        buffer = vec![0u8; needed as usize];
-        unsafe {
-            imports::texture_describe(texture, buffer.as_mut_ptr() as u32, buffer.len() as u32)
-        };
-    }
-    buffer.truncate(needed as usize);
-    abi::decode(&buffer)
-}
-
-// unsafe(ffi)
-fn host_error() -> String {
-    let mut buffer = vec![0u8; 256];
-    let needed = unsafe { imports::error_take(buffer.as_mut_ptr() as u32, buffer.len() as u32) };
-    if needed as usize > buffer.len() {
-        buffer = vec![0u8; needed as usize];
-        unsafe { imports::error_take(buffer.as_mut_ptr() as u32, buffer.len() as u32) };
-    }
-    buffer.truncate(needed as usize);
-    String::from_utf8(buffer).unwrap_or_else(|_| "the host reported an unreadable error".into())
+    let released = SURFACES.with(|surfaces| surfaces.borrow_mut().remove(&surface));
+    drop(released.unwrap_or_else(|| gpu::Surface::new(surface)));
 }

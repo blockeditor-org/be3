@@ -8,8 +8,17 @@ use crate::fade::Fade;
 use crate::geometry::{Pos2, Rect, Vec2};
 use crate::node::NodeId;
 use crate::painter::{Shape, placed_shape};
+use crate::window::WindowId;
 
 type Key = (NodeId, u32);
+
+pub struct Check {
+    pub window: WindowId,
+    pub viewport: Rect,
+    pub previous: Vec<(Rc<Display>, Vec2)>,
+    pub region: Region,
+    pub moved: Option<Moved>,
+}
 
 pub struct Seen {
     nodes: HashMap<Key, Node>,
@@ -345,8 +354,13 @@ fn fade_changes(was: &[Fade], now: &[Fade]) -> Vec<Rect> {
         if old == new {
             continue;
         }
-        for fade in [old, new].into_iter().flatten() {
-            changed.extend(fade.bands());
+        match (old, new) {
+            (Some(old), Some(new)) => {
+                changed.extend(old.reach(*new));
+                changed.extend(new.reach(*old));
+            }
+            (Some(fade), None) | (None, Some(fade)) => changed.extend(fade.reach(Fade::NONE)),
+            (None, None) => {}
         }
     }
     changed

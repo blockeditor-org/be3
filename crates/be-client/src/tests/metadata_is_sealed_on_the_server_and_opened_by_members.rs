@@ -1,6 +1,7 @@
 use super::*;
 
-use be_block::{CounterContent, NAME};
+use be_block::NAME;
+use counter_types::CounterContent;
 
 #[tokio::test]
 async fn metadata_is_sealed_on_the_server_and_opened_by_members() {

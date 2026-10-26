@@ -1,3 +1,4 @@
+use crate::window::WindowId;
 use std::any::Any;
 
 use crate::base::focus::Focus;
@@ -57,6 +58,7 @@ pub struct InteractiveNode {
     pub drawing_at: Callback<Pos2, bool>,
     pub on_forward: Callback<crate::interact::forward::ForwardedInput>,
     pub inhibits_shortcuts: bool,
+    pub clipboard_keys: bool,
     pub forwards_wheel: bool,
     pub claim_modifiers: Option<Modifiers>,
     pub claim_at: Callback<(Pos2, Modifiers), bool>,
@@ -114,6 +116,7 @@ impl InteractiveNode {
             drawing_at: Callback::empty(),
             on_forward: Callback::empty(),
             inhibits_shortcuts: false,
+            clipboard_keys: false,
             forwards_wheel: true,
             claim_modifiers: None,
             claim_at: Callback::empty(),
@@ -121,8 +124,8 @@ impl InteractiveNode {
         }
     }
 
-    pub fn hits(&self, pos: Pos2, rect: Rect) -> bool {
-        self.hit_at.is_empty() || self.hit_at.call(pos - rect.min.to_vec2())
+    pub fn hits(&self, pos: Pos2, rect: Rect, scale: f32) -> bool {
+        self.hit_at.is_empty() || self.hit_at.call(local_in(rect, scale, pos))
     }
 
     pub fn claims(&self, pos: Pos2, rect: Rect, held: Modifiers) -> bool {
@@ -237,6 +240,7 @@ impl InteractiveNode {
 
 pub fn press_at(
     rect: Rect,
+    scale: f32,
     pos: Pos2,
     clicks: u32,
     modifiers: Modifiers,
@@ -246,8 +250,8 @@ pub fn press_at(
     PointerPress {
         window: crate::window::WindowId::MAIN,
         pos,
-        local: pos - rect.min.to_vec2(),
-        size: rect.size(),
+        local: local_in(rect, scale, pos),
+        size: rect.size() / scale,
         fraction: fraction(rect, pos),
         clicks,
         modifiers,
@@ -256,6 +260,11 @@ pub fn press_at(
         predicted: None,
         time,
     }
+}
+
+pub fn local_in(rect: Rect, scale: f32, pos: Pos2) -> Pos2 {
+    let local = (pos - rect.min) / scale;
+    Pos2::new(local.x, local.y)
 }
 
 fn fraction(rect: Rect, pos: Pos2) -> Vec2 {
@@ -282,6 +291,11 @@ impl Element for InteractiveNode {
             Some(child) => crate::layout::measure(doc, painter, child, available),
             None => Vec2::ZERO,
         }
+    }
+
+    fn min_width(&self, doc: &mut Document, painter: &Painter) -> f32 {
+        self.child
+            .map_or(0.0, |child| crate::layout::min_width(doc, painter, child))
     }
 
     fn baseline(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Option<f32> {
@@ -539,16 +553,16 @@ impl Document {
         };
     }
 
-    pub fn wants_every_sample(&self) -> bool {
+    pub fn wants_every_sample(&self, window: WindowId) -> bool {
         self.every_sample_surfaces
             .iter()
-            .any(|id| self.arena.contains(*id))
+            .any(|id| self.arena.contains(*id) && self.window_of(*id) == window)
     }
 
-    pub fn drawing_rects(&self) -> Vec<Rect> {
+    pub fn drawing_rects(&self, window: WindowId) -> Vec<Rect> {
         self.drawing_surfaces
             .iter()
-            .filter(|id| self.arena.contains(**id))
+            .filter(|id| self.arena.contains(**id) && self.window_of(**id) == window)
             .filter_map(|id| self.rects.visible(id))
             .filter(|rect| rect.is_positive())
             .collect()
@@ -564,6 +578,34 @@ impl Document {
                 .touch_mut_as::<InteractiveNode>(id)
                 .inhibits_shortcuts = inhibits;
         }
+    }
+
+    pub fn set_interactive_clipboard_keys(&mut self, id: NodeOf<InteractiveNode>, keys: bool) {
+        if self.arena.get_as::<InteractiveNode>(id).clipboard_keys != keys {
+            self.arena
+                .touch_mut_as::<InteractiveNode>(id)
+                .clipboard_keys = keys;
+        }
+    }
+
+    pub fn clipboard_keys(&self) -> bool {
+        let mut current = self.focused.filter(|focused| self.arena.contains(*focused));
+        for _ in 0..crate::node::ANCESTOR_LIMIT {
+            let Some(id) = current else {
+                return false;
+            };
+            let claims = self
+                .arena
+                .get(id)
+                .as_any()
+                .downcast_ref::<InteractiveNode>()
+                .is_some_and(|node| node.clipboard_keys);
+            if claims {
+                return true;
+            }
+            current = self.arena.parent(id);
+        }
+        false
     }
 
     pub fn set_interactive_forwards_wheel(&mut self, id: NodeOf<InteractiveNode>, forwards: bool) {
@@ -654,10 +696,10 @@ impl Document {
         }
     }
 
-    pub fn press_claims(&self) -> Vec<(Modifiers, Rect)> {
+    pub fn press_claims(&self, window: WindowId) -> Vec<(Modifiers, Rect)> {
         self.press_claimants
             .iter()
-            .filter(|id| self.arena.contains(**id))
+            .filter(|id| self.arena.contains(**id) && self.window_of(**id) == window)
             .filter_map(|id| {
                 let claimed = self
                     .arena

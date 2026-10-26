@@ -1,41 +1,53 @@
 use crate::frame::{ColorRole, Frame, Radius};
-use accesskit::{Node, Role};
+use beui_components_unstyled::{Progress as Bare, ProgressHandle};
 use beui_macros::{component, view};
 
 use beui_core::node::NodeId;
+use beui_view::primitives::Spacer;
+
+use crate::list::List;
+use crate::tokens::{Length, Size, Space};
 use beui_view::reactive::*;
 
-const HEIGHT: f32 = 6.0;
-const RADIUS: f32 = 3.0;
+const HEIGHT: Size = Size::Track;
+const SEGMENT: f32 = 0.35;
+const SLIVER: f32 = 0.001;
+
+pub const INLINE_PROGRESS_WIDTH: Size = Size::Xl;
+
+type Spans = (f32, f32, f32);
 
 #[component]
-pub fn Progress(value: Prop<f32>, #[prop(default = String::new())] label: Prop<String>) -> NodeId {
-    let value = value.map(|value| value.clamp(0.0, 1.0));
-    let value_read = create_memo(move || value.get());
-
-    let filled = create_memo(move || Extent::fraction(value_read.get()));
-    component_accessibility(create_memo(move || {
-        let value = value_read.get();
-        let mut node = Node::new(Role::ProgressIndicator);
-        let label = label.get();
-        if !label.is_empty() {
-            node.set_label(label);
-        }
-        node.set_numeric_value(value.into());
-        node.set_min_numeric_value(0.0);
-        node.set_max_numeric_value(1.0);
-        node
-    }));
-
+pub fn Progress(
+    #[prop(default = None)] value: Prop<Option<f32>>,
+    #[prop(default = String::new())] label: Prop<String>,
+    #[prop(default = Length::FILL)] width: Prop<Length>,
+    #[prop(default = ColorRole::Accent)] fill: Prop<ColorRole>,
+    #[prop(default = ColorRole::Track)] track: Prop<ColorRole>,
+) -> NodeId {
     view! {
-        <Frame
-            height=HEIGHT
-            width={Extent::fraction(1.0)}
-            fill=ColorRole::Track
-            radius={Radius::custom(RADIUS)}
-            align={Align2::horizontal(Align::Start)}
-        >
-            <Frame width=filled fill=ColorRole::Accent radius={Radius::custom(RADIUS)} />
-        </Frame>
+        <Bare value label>|handle: ProgressHandle| {
+            let ProgressHandle { value, phase } = handle;
+            let spans = create_memo(move || match value.get() {
+                Some(value) => (0.0, value, 1.0 - value),
+                None => {
+                    let phase = phase.get();
+                    (phase * (1.0 - SEGMENT), SEGMENT, (1.0 - phase) * (1.0 - SEGMENT))
+                }
+            });
+            let percent = move |span: fn(Spans) -> f32| {
+                create_memo(move || ItemSize::Percent(span(spans.get()) * 100.0 + SLIVER))
+            };
+            let (width, fill, track) = (width.clone(), fill.clone(), track.clone());
+            view! {
+                <Frame width height=HEIGHT fill=track radius=Radius::Full>
+                    <List direction=Direction::Horizontal spacing=Space::None>
+                        <Spacer @sizing={percent(|spans| spans.0)} />
+                        <Frame @sizing={percent(|spans| spans.1)} fill radius=Radius::Full />
+                        <Spacer @sizing={percent(|spans| spans.2)} />
+                    </List>
+                </Frame>
+            }
+        }</Bare>
     }
 }
