@@ -1143,6 +1143,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-win32-capture"
+version = "0.1.0"
+dependencies = [
+ "ash",
+ "wgpu",
+ "windows 0.62.2",
+]
+
+[[package]]
 name = "be-win32-input"
 version = "0.1.0"
 dependencies = [
@@ -1646,6 +1655,7 @@ dependencies = [
  "be-types-host",
  "be-vcs",
  "be-wayland",
+ "be-win32-capture",
  "beui",
  "beui-platform-drm",
  "block-editor-plugin",

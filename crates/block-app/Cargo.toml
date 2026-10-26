@@ -144,6 +144,10 @@ pollster = "0.4"
 pulseaudio = "0.3"
 zbus = { version = "5", default-features = false, features = ["async-io"] }
 
+# Windows's monitors and windows are captured onto the app's own Vulkan device.
+[target.'cfg(windows)'.dependencies]
+be-win32-capture = { path = "../be-win32-capture" }
+
 [target.'cfg(all(unix, not(target_os = "android"), not(target_arch = "wasm32")))'.dependencies]
 libc = "0.2"
 

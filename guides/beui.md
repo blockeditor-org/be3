@@ -3491,7 +3491,8 @@ it, and all its 3D (`glam`) stays in the crate.
   (`beui_renderer_wgpu::present`): `OpenDevice { extensions,
   gpu }` says how a renderer opens its device, the Vulkan device extensions
   it wants where the adapter has them (be-dmabuf's `DEVICE_EXTENSIONS`, which
-  block-app passes, enabled through `open_vulkan_device`) and, when set, the
+  block-app passes on Linux, and be-win32-capture's on Windows, enabled through
+  `open_vulkan_device`) and, when set, the
   `OpenGpu` that makes the instance and may make the adapter and device
   itself (`None` leaves them to wgpu). `Xr` makes
   the VkInstance and VkDevice through `XR_KHR_vulkan_enable2` with the

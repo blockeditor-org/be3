@@ -13,7 +13,7 @@ that build on it. VISION.md says why each part exists.
   be-launcher's build output), and the beui view that draws lines (the terminal
   editor and be-launcher).
 - The editors under `crates/editors`, except the debug and example ones below.
-- The desktop: the desktop editor, `be-wayland` and `beui-platform-drm`.
+- The desktop: the desktop editor, `be-wayland` and `beui-platform-drm`; on Windows, `be-win32` and `be-win32-capture`.
 
 ## Tooling
 

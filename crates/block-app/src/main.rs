@@ -152,8 +152,24 @@ fn run_shell(options: beui::RunOptions, shell: Shell, session: bool) -> Result<(
     beui::run_with_renderers(options, vec![renderer], shell)
 }
 
+#[cfg(windows)]
+fn run_shell(
+    options: beui::RunOptions,
+    shell: Shell,
+    _session: bool,
+) -> Result<(), Box<dyn Error>> {
+    let renderer = beui::WindowRenderer::Wgpu {
+        open_device: beui::OpenDevice {
+            extensions: &be_win32_capture::DEVICE_EXTENSIONS,
+            gpu: None,
+        },
+    };
+    beui::run_with_renderers(options, vec![renderer], shell)
+}
+
 #[cfg(all(
     not(target_os = "linux"),
+    not(windows),
     not(target_os = "android"),
     not(target_arch = "wasm32")
 ))]
