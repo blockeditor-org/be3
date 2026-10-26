@@ -9,6 +9,7 @@ pub mod measure;
 pub mod offset;
 pub mod overlay;
 pub mod portal;
+pub mod reactive;
 pub mod root;
 pub mod text;
 pub mod virtual_list;
@@ -38,3 +39,6 @@ pub(crate) use text::text;
 pub(crate) use text::text_item;
 pub(crate) use virtual_list::virtual_list;
 pub(crate) use window::{placed_windows, request_window};
+
+pub use beui_core::interact::forward::ForwardedInput;
+pub(crate) use beui_core::tree;

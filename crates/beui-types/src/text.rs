@@ -4,6 +4,8 @@ use geometry::{Rect, Vec2};
 
 use crate::color::Color32;
 
+pub const DEFAULT_FONT_SIZE: f32 = 14.0;
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum TextAlign {
     Start,

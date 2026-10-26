@@ -2,29 +2,28 @@ extern crate self as beui;
 
 #[cfg(not(beui_html))]
 pub mod actions;
-#[cfg(not(beui_html))]
 pub mod component_ref;
-#[cfg(not(beui_html))]
 pub mod components;
 #[cfg(not(beui_html))]
 pub mod file_picker;
 #[cfg(not(beui_html))]
 pub mod file_saver;
-#[cfg(not(beui_html))]
+#[cfg(beui_html)]
+mod html;
 pub mod measure;
 #[cfg(not(beui_html))]
 mod native;
 #[cfg(not(beui_html))]
 pub mod nodes;
-#[cfg(not(beui_html))]
 pub mod primitives;
-#[cfg(not(beui_html))]
 pub mod reactive;
 #[cfg(not(beui_html))]
 pub mod selection;
 #[cfg(not(beui_html))]
 pub mod window;
 
+#[cfg(beui_html)]
+use html as core;
 #[cfg(not(beui_html))]
 use native as core;
 
@@ -32,6 +31,9 @@ use native as core;
 pub use beui_core::node;
 pub use beui_tree::{child_type, value_child_type};
 pub use beui_types as types;
+
+#[cfg(beui_html)]
+pub use html::running;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Core {

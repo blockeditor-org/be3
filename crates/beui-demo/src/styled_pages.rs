@@ -9,7 +9,7 @@ use beui::icons::{
     ICON_UNDO_2, ICON_WIFI, ICON_X, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
 use beui::keyboard::styled::SoftwareKeyboard;
-use beui::{Align, Extent};
+use beui::{Align, CanvasView, Extent};
 
 const COLUMN_SPACING: Space = Space::Xl2;
 const COLUMNS_BREAKPOINT: f32 = 460.0;

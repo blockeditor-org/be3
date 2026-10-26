@@ -1,0 +1,51 @@
+[package]
+name = "beui-core-html"
+description = "beui's HTML core: the base components as real DOM elements that the browser lays out, focuses and selects"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+accesskit = "0.24.1"
+beui-html = { path = "../beui-html" }
+beui-tree = { path = "../beui-tree" }
+beui-types = { path = "../beui-types" }
+reactive = { path = "../reactive" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+beui-web-input = { path = "../beui-web-input" }
+js-sys = "0.3"
+wasm-bindgen = "0.2"
+web-sys = { version = "0.3", features = [
+    "AddEventListenerOptions",
+    "ClipboardEvent",
+    "DataTransfer",
+    "Clipboard",
+    "CssStyleDeclaration",
+    "Document",
+    "DomRect",
+    "Element",
+    "Event",
+    "EventTarget",
+    "FocusEvent",
+    "FontFaceSet",
+    "HtmlElement",
+    "HtmlHeadElement",
+    "HtmlTextAreaElement",
+    "InputEvent",
+    "KeyboardEvent",
+    "MouseEvent",
+    "PointerEvent",
+    "WheelEvent",
+    "MediaQueryList",
+    "MutationObserver",
+    "MutationObserverInit",
+    "Navigator",
+    "Node",
+    "Performance",
+    "ResizeObserver",
+    "Window",
+] }
+
+[lints]
+workspace = true

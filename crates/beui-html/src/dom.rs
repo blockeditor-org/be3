@@ -63,7 +63,7 @@ fn document() -> web_sys::Document {
         .expect("the live HTML backend runs in a page with a document")
 }
 
-fn live_node(node: &Node) -> Option<web_sys::Node> {
+pub(crate) fn live_node(node: &Node) -> Option<web_sys::Node> {
     node.0.live.borrow().as_ref().map(|live| live.node.clone())
 }
 

@@ -1,10 +1,10 @@
 use crate::reactive::Children;
 use crate::reactive::ListChild;
+use crate::reactive::NodeId;
 use crate::reactive::Prop;
 use crate::types::Align;
 use crate::types::Direction;
 use crate::types::Justify;
-use beui_core::node::NodeId;
 use beui_macros::component;
 
 #[component]

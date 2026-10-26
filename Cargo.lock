@@ -1224,6 +1224,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "beui-core-html"
+version = "0.1.0"
+dependencies = [
+ "accesskit",
+ "beui-html",
+ "beui-tree",
+ "beui-types",
+ "beui-web-input",
+ "js-sys",
+ "reactive",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
 name = "beui-demo"
 version = "0.1.0"
 dependencies = [
@@ -1491,9 +1506,11 @@ version = "0.1.0"
 dependencies = [
  "accesskit",
  "beui-core",
+ "beui-core-html",
  "beui-tree",
  "beui-types",
  "beui_macros",
+ "paint-snapshot",
  "reactive",
 ]
 

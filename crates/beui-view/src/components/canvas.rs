@@ -2,10 +2,10 @@ pub use crate::core::canvas::CanvasItem;
 use crate::reactive::Callback;
 use crate::reactive::Child;
 use crate::reactive::Children;
+use crate::reactive::NodeId;
 use crate::reactive::Prop;
-use beui_core::base::canvas::CanvasView;
-use beui_core::geometry::Vec2;
-use beui_core::node::NodeId;
+use crate::types::CanvasView;
+use crate::types::Vec2;
 use beui_macros::component;
 
 #[component]

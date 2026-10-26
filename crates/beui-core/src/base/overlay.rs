@@ -10,7 +10,7 @@ use crate::callback::{Callback, NodeRef};
 use crate::document::Document;
 use crate::layer::{Dismiss, LayerLevel, LayerPolicy};
 use crate::node::{Element, NodeId, NodeOf, Rects};
-use crate::window::{WindowId, WindowPlacement, WindowReport};
+use crate::window::WindowId;
 
 #[derive(Clone, PartialEq)]
 pub enum OverlayAnchor {
@@ -89,25 +89,7 @@ impl Default for OverlayAnchor {
 
 pub use beui_types::layer::Placement;
 
-#[derive(Clone)]
-pub struct WindowSpec {
-    pub id: WindowId,
-    pub size: Vec2,
-    pub placement: WindowPlacement,
-    pub title: Option<String>,
-    pub role: crate::window::WindowRole,
-    pub on_report: Callback<WindowReport>,
-}
-
-impl PartialEq for WindowSpec {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
-            && self.size == other.size
-            && self.placement == other.placement
-            && self.title == other.title
-            && self.role == other.role
-    }
-}
+pub use beui_types::window::WindowSpec;
 
 const TIP_RADIUS: f32 = 2.0;
 

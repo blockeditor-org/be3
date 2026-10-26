@@ -1,17 +1,17 @@
 pub use crate::core::overlay::{OverlayPresence, use_overlay_presence};
 use crate::reactive::Callback;
+use crate::reactive::NodeId;
 use crate::reactive::NodeRef;
+use crate::reactive::OverlayAnchor;
 use crate::reactive::Prop;
 use crate::reactive::RenderFn;
-use beui_core::base::overlay::OverlayAnchor;
-use beui_core::base::overlay::Placement;
-use beui_core::base::overlay::WindowSpec;
-use beui_core::color::Color32;
-use beui_core::layer::Dismiss;
-use beui_core::layer::LayerLevel;
-use beui_core::layer::LayerPolicy;
-use beui_core::node::NodeId;
-use beui_core::window::WindowId;
+use crate::types::Color32;
+use crate::types::Dismiss;
+use crate::types::LayerLevel;
+use crate::types::LayerPolicy;
+use crate::types::Placement;
+use crate::types::WindowId;
+use crate::types::WindowSpec;
 use beui_macros::component;
 
 #[component]

@@ -314,14 +314,16 @@ has a plan for each.
 `wasi_html` and `linux_x86_64_html` are `wasi` and the host with the `html`
 constraint (`buck/constraints`), which picks beui's HTML core
 (plans/html_core.md). Their plans, `wasi-html` and `linux-x86_64-html`, are
-cargo's for the crates `html_packages` in `buck/cargo/buckify.sh` names (beui-view and beui-html for now), run
+cargo's for the crates `html_packages` in `buck/cargo/buckify.sh` names (beui, beui-view, beui-html and beui-core-html for now), run
 with `RUSTFLAGS="--cfg beui_html"`; cargo evaluates
 `[target.'cfg(beui_html)'.dependencies]` against it, so a manifest says what
 each core links (beui-view takes `beui-core` only under
 `cfg(not(beui_html))`), and `defs.bzl` passes `--cfg beui_html` to every
 first-party rustc on those platforms. Nothing transitions to them yet:
 `buck/cargo/html.bzl` lists the libraries in those plans, and `//:check` and
-`./scripts/verify` check each on its platform. Code chooses a core with
+`./scripts/verify` check each on its platform; a test that runs on the HTML
+core names its platform as `default_target_platform`, as beui-view's
+`:html-test` does. Code chooses a core with
 `if CORE == Core::Html` (`beui::CORE`); `#[cfg(beui_html)]` belongs only in
 beui-view, beui and beui-core-html, which fix-rust-source enforces.
 

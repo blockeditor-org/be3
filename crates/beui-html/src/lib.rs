@@ -68,6 +68,33 @@ impl Node {
         .any(|void| tag.eq_ignore_ascii_case(void))
     }
 
+    pub fn element(tag: &'static str) -> Self {
+        assert!(valid_name(tag), "invalid HTML element name");
+        Self::new(Kind::Element(tag))
+    }
+
+    pub fn text(value: impl ToString) -> Self {
+        text(value)
+    }
+
+    pub fn set_attribute(&self, name: &str, value: Option<String>) {
+        set_attr(self, name, value);
+    }
+
+    pub fn set_text(&self, value: String) {
+        set_text(self, value);
+    }
+
+    pub fn listen(&self, name: &'static str, handler: Callback<Event>) {
+        assert!(valid_name(name), "invalid event name");
+        listen(self, name, handler);
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub fn dom(&self) -> Option<web_sys::Node> {
+        dom::live_node(self)
+    }
+
     pub fn to_html(&self) -> String {
         reactive::flush();
         let mut output = String::new();

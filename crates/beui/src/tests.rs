@@ -1,6 +1,6 @@
 use super::*;
-use crate::FontId;
 use crate::native::{Embed, EmbedPlacement, EmbedSlot};
+use crate::{CanvasView, FontId};
 
 mod a_back_gesture_lowers_a_sheet_and_it_slides_away_from_there;
 mod a_back_gesture_slides_a_dialog_away_once_its_owner_closes_it;

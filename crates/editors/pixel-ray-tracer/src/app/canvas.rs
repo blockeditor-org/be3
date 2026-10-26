@@ -116,7 +116,7 @@ pub(crate) fn Artwork(state: RayState) -> NodeId {
 fn world_point(
     at: Pos2,
     view: &block_editor_beui::beui::reactive::ReadSignal<
-        Option<block_editor_beui::beui::reactive::CanvasView>,
+        Option<block_editor_beui::beui::CanvasView>,
     >,
     editor: block_editor_beui::Editor,
     artwork: Rect,

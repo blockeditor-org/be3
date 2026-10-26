@@ -1,3 +1,4 @@
+use block_editor_beui::beui::CanvasView;
 use std::rc::Rc;
 
 use infinite_canvas_types::{CanvasColor, CanvasEntity, CanvasShape};

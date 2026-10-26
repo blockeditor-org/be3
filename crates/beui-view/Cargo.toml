@@ -11,8 +11,14 @@ beui-types = { path = "../beui-types" }
 beui_macros = { path = "../beui-macros" }
 reactive = { path = "../reactive" }
 
+[target.'cfg(beui_html)'.dependencies]
+beui-core-html = { path = "../beui-core-html" }
+
 [target.'cfg(not(beui_html))'.dependencies]
 beui-core = { path = "../beui-core" }
+
+[dev-dependencies]
+paint-snapshot = { path = "../paint-snapshot" }
 
 [lints]
 workspace = true

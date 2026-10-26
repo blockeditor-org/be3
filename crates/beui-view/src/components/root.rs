@@ -1,8 +1,8 @@
 pub use crate::core::root::Root;
 use crate::reactive::Child;
 use crate::reactive::Prop;
-use beui_core::color::Color32;
-pub use beui_core::window::SystemBars;
+use crate::types::Color32;
+pub use crate::types::SystemBars;
 use beui_macros::component;
 
 #[component]

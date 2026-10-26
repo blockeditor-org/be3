@@ -20,7 +20,7 @@ use crate::rich::{
 };
 pub use beui_types::text::LineBox;
 
-pub const DEFAULT_FONT_SIZE: f32 = 14.0;
+pub use beui_types::text::DEFAULT_FONT_SIZE;
 pub const CARET_BLINK: Duration = Duration::from_millis(530);
 const CARET_FLAG: Vec2 = Vec2::new(6.0, 4.0);
 

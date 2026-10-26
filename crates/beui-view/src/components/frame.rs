@@ -1,13 +1,13 @@
 use crate::reactive::Child;
+use crate::reactive::NodeId;
 use crate::reactive::Prop;
-use beui_core::base::frame::Align2;
-use beui_core::base::frame::Extent;
-use beui_core::base::frame::Outline;
-use beui_core::base::frame::Sides;
-use beui_core::color::Color32;
-use beui_core::geometry::Vec2;
-use beui_core::node::NodeId;
-use beui_core::painter::Corners;
+use crate::types::Align2;
+use crate::types::Color32;
+use crate::types::Corners;
+use crate::types::Extent;
+use crate::types::Outline;
+use crate::types::Sides;
+use crate::types::Vec2;
 use beui_macros::component;
 
 #[component]

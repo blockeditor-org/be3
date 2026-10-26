@@ -1,6 +1,6 @@
 pub use crate::core::layers::Layer;
 use crate::reactive::Children;
-use beui_core::node::NodeId;
+use crate::reactive::NodeId;
 use beui_macros::component;
 
 #[component]

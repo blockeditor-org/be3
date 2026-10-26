@@ -1,9 +1,9 @@
 use crate::reactive::Callback;
+use crate::reactive::NodeId;
 use crate::reactive::Prop;
 use crate::reactive::ReadSignal;
 use crate::reactive::RenderFn;
-use beui_core::base::list::Direction;
-use beui_core::node::NodeId;
+use crate::types::Direction;
 use beui_macros::component;
 use std::hash::Hash;
 

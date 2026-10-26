@@ -1,3 +1,4 @@
+use block_editor_beui::beui::CanvasView;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 

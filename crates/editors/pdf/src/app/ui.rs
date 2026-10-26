@@ -1,4 +1,5 @@
 use block_editor_beui::Fit;
+use block_editor_beui::beui::CanvasView;
 use block_editor_beui::beui::icons::{ICON_ARROW_LEFT, ICON_ARROW_RIGHT};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;

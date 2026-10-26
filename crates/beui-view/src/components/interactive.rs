@@ -1,25 +1,25 @@
+use crate::core::ForwardedInput;
 use crate::reactive::Callback;
 use crate::reactive::Child;
 use crate::reactive::ClickCallback;
+use crate::reactive::ImeCursor;
+use crate::reactive::NodeId;
 use crate::reactive::Prop;
-use beui_core::clipboard::PasteKind;
-use beui_core::clipboard::Pasted;
-use beui_core::focus::ImeCursor;
-use beui_core::geometry::Pos2;
-use beui_core::geometry::Vec2;
-use beui_core::input::CursorIcon;
-use beui_core::input::ImeEvent;
-use beui_core::input::ImeText;
-use beui_core::input::KeyPress;
-use beui_core::input::PointerInput;
-use beui_core::input::PointerPress;
-use beui_core::input::SoftKeyboard;
-use beui_core::input::TouchDrags;
-use beui_core::input::WheelInput;
-use beui_core::interact::forward::ForwardedInput;
-use beui_core::node::NodeId;
+use crate::types::CursorIcon;
+use crate::types::ImeEvent;
+use crate::types::ImeText;
+use crate::types::KeyPress;
+use crate::types::PasteKind;
+use crate::types::Pasted;
+use crate::types::PointerPress;
+use crate::types::Pos2;
+use crate::types::SoftKeyboard;
+use crate::types::TouchDrags;
+use crate::types::Vec2;
+use crate::types::input::PointerInput;
+use crate::types::input::WheelInput;
+use crate::types::region::{Area, Claim};
 use beui_macros::component;
-use beui_types::region::{Area, Claim};
 
 #[component]
 pub fn Interactive(

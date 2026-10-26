@@ -1,4 +1,5 @@
 use block_editor_beui::be_block::BlockContent;
+use block_editor_beui::beui::CanvasView;
 use block_editor_beui::beui::icons::Glyph;
 use database_types::DatabaseSchemaContent;
 use std::cell::{Cell, RefCell};

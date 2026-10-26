@@ -1,5 +1,5 @@
+use crate::reactive::NodeId;
 use crate::reactive::Prop;
-use beui_core::node::NodeId;
 use beui_macros::component;
 
 #[component]

@@ -1,5 +1,5 @@
-use beui_core::geometry::Rect;
-use beui_core::node::NodeId;
+use crate::reactive::NodeId;
+use crate::types::Rect;
 use beui_tree::reactive::ReadSignal;
 
 pub use crate::core::TextGeometry;

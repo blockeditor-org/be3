@@ -1,9 +1,9 @@
 use crate::reactive::Callback;
 use crate::reactive::Child;
+use crate::reactive::NodeId;
 use crate::reactive::Prop;
-use beui_core::base::list::Direction;
-use beui_core::base::offset::ScrollPosition;
-use beui_core::node::NodeId;
+use crate::types::Direction;
+use crate::types::ScrollPosition;
 use beui_macros::component;
 
 #[component]

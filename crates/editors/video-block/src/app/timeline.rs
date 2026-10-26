@@ -1,4 +1,5 @@
 use beui::Overflow;
+use block_editor_beui::beui::CanvasView;
 use std::cell::Cell;
 use std::rc::Rc;
 

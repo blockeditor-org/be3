@@ -8,7 +8,7 @@ use beui::native::Document;
 use beui::native::EmbedSlot;
 use beui::native::try_with_document;
 use beui::reactive::*;
-use beui::{Pos2, Rect, Vec2};
+use beui::{CanvasView, Pos2, Rect, Vec2};
 use block_plugin_api::{
     BarAction, ChildContent, ChildId, ChildLayer, ChildMode, ChildPreview, CreationProgress,
     DialogFrame, DialogStatus, EditorCapabilities, HostPanel, HostWindowId, InteractionMode,

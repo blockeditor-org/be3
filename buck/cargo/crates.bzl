@@ -6100,6 +6100,54 @@ crates = {
                     "window",
                 ],
             },
+            "linux-x86_64-html": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-macros:beui_macros",
+                    "//crates/beui-view:beui-view",
+                    "//crates/reactive:reactive",
+                    "//third-party/rust:accesskit-0.24.1",
+                ],
+                "examples": {
+                    "survey": {
+                        "deps": [
+                            "//crates/beui-macros:beui_macros",
+                            "//crates/beui-view:beui-view",
+                            "//crates/reactive:reactive",
+                            "//third-party/rust:accesskit-0.24.1",
+                        ],
+                        "features": [
+                            "default",
+                            "render",
+                            "window",
+                        ],
+                    },
+                    "text-bench": {
+                        "deps": [
+                            "//crates/beui-macros:beui_macros",
+                            "//crates/beui-view:beui-view",
+                            "//crates/reactive:reactive",
+                            "//third-party/rust:accesskit-0.24.1",
+                        ],
+                        "features": [
+                            "default",
+                            "render",
+                            "window",
+                        ],
+                    },
+                },
+                "features": [
+                    "default",
+                    "render",
+                    "window",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "default",
+                    "render",
+                    "window",
+                ],
+            },
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
@@ -6362,6 +6410,23 @@ crates = {
                 "examples": {},
                 "features": [
                     "render",
+                ],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-html": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-macros:beui_macros",
+                    "//crates/beui-view:beui-view",
+                    "//crates/reactive:reactive",
+                    "//third-party/rust:accesskit-0.24.1",
+                ],
+                "examples": {},
+                "features": [
+                    "default",
+                    "render",
+                    "window",
                 ],
                 "test_deps": [],
                 "test_features": [],
@@ -7189,6 +7254,151 @@ crates = {
                     "//third-party/rust:lyon_tessellation-1.0.22",
                     "//third-party/rust:raw-window-handle-0.6.2",
                     "//third-party/rust:thumbhash-0.1.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/beui-core-html": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "beui_core_html",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "beui-core-html",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-html:beui-html",
+                    "//crates/beui-tree:beui-tree",
+                    "//crates/beui-types:beui-types",
+                    "//crates/reactive:reactive",
+                    "//third-party/rust:accesskit-0.24.1",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-html:beui-html",
+                    "//crates/beui-tree:beui-tree",
+                    "//crates/beui-types:beui-types",
+                    "//crates/reactive:reactive",
+                    "//third-party/rust:accesskit-0.24.1",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-html:beui-html",
+                    "//crates/beui-tree:beui-tree",
+                    "//crates/beui-types:beui-types",
+                    "//crates/reactive:reactive",
+                    "//third-party/rust:accesskit-0.24.1",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64-html": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-html:beui-html",
+                    "//crates/beui-tree:beui-tree",
+                    "//crates/beui-types:beui-types",
+                    "//crates/reactive:reactive",
+                    "//third-party/rust:accesskit-0.24.1",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-html:beui-html",
+                    "//crates/beui-tree:beui-tree",
+                    "//crates/beui-types:beui-types",
+                    "//crates/reactive:reactive",
+                    "//third-party/rust:accesskit-0.24.1",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-html:beui-html",
+                    "//crates/beui-tree:beui-tree",
+                    "//crates/beui-types:beui-types",
+                    "//crates/reactive:reactive",
+                    "//third-party/rust:accesskit-0.24.1",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-html": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-html:beui-html",
+                    "//crates/beui-tree:beui-tree",
+                    "//crates/beui-types:beui-types",
+                    "//crates/beui-web-input:beui-web-input",
+                    "//crates/reactive:reactive",
+                    "//third-party/rust:accesskit-0.24.1",
+                    "//third-party/rust:js-sys-0.3.99",
+                    "//third-party/rust:wasm-bindgen-0.2.122",
+                    "//third-party/rust:web-sys-0.3.99",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-html:beui-html",
+                    "//crates/beui-tree:beui-tree",
+                    "//crates/beui-types:beui-types",
+                    "//crates/reactive:reactive",
+                    "//third-party/rust:accesskit-0.24.1",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-html:beui-html",
+                    "//crates/beui-tree:beui-tree",
+                    "//crates/beui-types:beui-types",
+                    "//crates/reactive:reactive",
+                    "//third-party/rust:accesskit-0.24.1",
                 ],
                 "examples": {},
                 "features": [],
@@ -10469,7 +10679,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/paint-snapshot:paint-snapshot",
+                ],
                 "test_features": [],
             },
             "linux-arm64": {
@@ -10484,7 +10696,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/paint-snapshot:paint-snapshot",
+                ],
                 "test_features": [],
             },
             "linux-x86_64": {
@@ -10499,12 +10713,15 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/paint-snapshot:paint-snapshot",
+                ],
                 "test_features": [],
             },
             "linux-x86_64-html": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-core-html:beui-core-html",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-tree:beui-tree",
                     "//crates/beui-types:beui-types",
@@ -10513,7 +10730,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/paint-snapshot:paint-snapshot",
+                ],
                 "test_features": [],
             },
             "macos-arm64": {
@@ -10528,7 +10747,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/paint-snapshot:paint-snapshot",
+                ],
                 "test_features": [],
             },
             "macos-x86_64": {
@@ -10543,7 +10764,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/paint-snapshot:paint-snapshot",
+                ],
                 "test_features": [],
             },
             "wasi": {
@@ -10579,6 +10802,7 @@ crates = {
             "wasi-html": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-core-html:beui-core-html",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-tree:beui-tree",
                     "//crates/beui-types:beui-types",
@@ -10602,7 +10826,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/paint-snapshot:paint-snapshot",
+                ],
                 "test_features": [],
             },
             "windows-x86_64": {
@@ -10617,7 +10843,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/paint-snapshot:paint-snapshot",
+                ],
                 "test_features": [],
             },
         },
@@ -10715,6 +10943,18 @@ crates = {
                 "test_features": [],
             },
             "wasi": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-types:beui-types",
+                    "//third-party/rust:wasm-bindgen-0.2.122",
+                    "//third-party/rust:web-sys-0.3.99",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-html": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-types:beui-types",
@@ -21542,6 +21782,18 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "linux-x86_64-html": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:ciborium-0.2.2",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_bytes-0.11.19",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
@@ -22026,6 +22278,22 @@ crates = {
                         "features": [],
                     },
                 },
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64-html": {
+                "binaries": {},
+                "deps": [
+                    "//crates/paint-format:paint-format",
+                    "//third-party/rust:flate2-1.1.9",
+                    "//third-party/rust:image-0.25.10",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_bytes-0.11.19",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:sha2-0.10.9",
+                ],
+                "examples": {},
                 "features": [],
                 "test_deps": [],
                 "test_features": [],
@@ -25989,6 +26257,7 @@ third_party = {
             "android-arm64": {},
             "linux-arm64": {},
             "linux-x86_64": {},
+            "linux-x86_64-html": {},
             "macos-arm64": {},
             "macos-x86_64": {},
             "wasi": {},
@@ -29480,6 +29749,7 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {},
             "macos-arm64": {
                 "features": [
                     "std",
@@ -29602,6 +29872,11 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":generic-array-0.14.7",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":generic-array-0.14.7",
                 ],
@@ -30099,6 +30374,11 @@ third_party = {
                     "min_const_generics",
                 ],
             },
+            "linux-x86_64-html": {
+                "features": [
+                    "extern_crate_alloc",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":bytemuck_derive-1.10.2",
@@ -30324,6 +30604,12 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
                 "features": [
                     "default",
                     "std",
@@ -31169,6 +31455,7 @@ third_party = {
             "android-arm64": {},
             "linux-arm64": {},
             "linux-x86_64": {},
+            "linux-x86_64-html": {},
             "macos-arm64": {},
             "macos-x86_64": {},
             "wasi": {},
@@ -31733,6 +32020,17 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":ciborium-ll-0.2.2",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":ciborium-io-0.2.2",
@@ -31855,6 +32153,12 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "features": [
                     "alloc",
@@ -31937,6 +32241,12 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":half-2.7.1",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":ciborium-io-0.2.2",
                     ":half-2.7.1",
@@ -33598,6 +33908,7 @@ third_party = {
                 ],
             },
             "linux-x86_64": {},
+            "linux-x86_64-html": {},
             "macos-arm64": {
                 "deps": [
                     ":libc-0.2.186",
@@ -34865,6 +35176,15 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":cfg-if-1.0.4",
@@ -35328,6 +35648,15 @@ third_party = {
                 "features": [
                     "getrandom",
                     "rand_core",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":generic-array-0.14.7",
+                    ":typenum-1.20.1",
+                ],
+                "features": [
                     "std",
                 ],
             },
@@ -36808,6 +37137,19 @@ third_party = {
                     "oid",
                     "std",
                     "subtle",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":block-buffer-0.10.4",
+                    ":crypto-common-0.1.7",
+                ],
+                "features": [
+                    "alloc",
+                    "block-buffer",
+                    "core-api",
+                    "default",
+                    "std",
                 ],
             },
             "macos-arm64": {
@@ -39192,6 +39534,11 @@ third_party = {
                     ":simd-adler32-0.3.9",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":simd-adler32-0.3.9",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":simd-adler32-0.3.9",
@@ -39495,6 +39842,18 @@ third_party = {
                     "miniz_oxide",
                     "rust_backend",
                     "zlib-rs",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":crc32fast-1.5.0",
+                    ":miniz_oxide-0.8.9",
+                ],
+                "features": [
+                    "any_impl",
+                    "default",
+                    "miniz_oxide",
+                    "rust_backend",
                 ],
             },
             "macos-arm64": {
@@ -41449,6 +41808,14 @@ third_party = {
                     "more_lengths",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":typenum-1.20.1",
+                ],
+                "features": [
+                    "more_lengths",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":typenum-1.20.1",
@@ -42917,6 +43284,12 @@ third_party = {
                     "default",
                     "num-traits",
                     "std",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":zerocopy-0.8.50",
                 ],
             },
             "macos-arm64": {
@@ -45797,6 +46170,18 @@ third_party = {
                     "webp",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":byteorder-lite-0.1.0",
+                    ":moxcms-0.8.1",
+                    ":num-traits-0.2.19",
+                    ":png-0.18.1",
+                ],
+                "features": [
+                    "png",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":bytemuck-1.25.0",
@@ -47497,6 +47882,7 @@ third_party = {
             "android-arm64": {},
             "linux-arm64": {},
             "linux-x86_64": {},
+            "linux-x86_64-html": {},
             "macos-arm64": {},
             "macos-x86_64": {},
             "wasi": {},
@@ -50136,6 +50522,12 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "features": [
                     "alloc",
@@ -50461,6 +50853,18 @@ third_party = {
                     "with-alloc",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":adler2-2.0.1",
+                    ":simd-adler32-0.3.9",
+                ],
+                "features": [
+                    "default",
+                    "simd",
+                    "simd-adler32",
+                    "with-alloc",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":adler2-2.0.1",
@@ -50748,6 +51152,28 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":num-traits-0.2.19",
+                    ":pxfm-0.1.29",
+                ],
+                "features": [
+                    "avx",
+                    "avx_luts",
+                    "avx_shaper_fixed_point_paths",
+                    "avx_shaper_paths",
+                    "default",
+                    "lut",
+                    "neon",
+                    "neon_luts",
+                    "neon_shaper_fixed_point_paths",
+                    "neon_shaper_paths",
+                    "sse",
+                    "sse_luts",
+                    "sse_shaper_fixed_point_paths",
+                    "sse_shaper_paths",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":num-traits-0.2.19",
                     ":pxfm-0.1.29",
@@ -52379,6 +52805,12 @@ third_party = {
                     "default",
                     "i128",
                     "libm",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
+                "features": [
+                    "default",
                     "std",
                 ],
             },
@@ -56371,6 +56803,15 @@ third_party = {
                     ":miniz_oxide-0.8.9",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":crc32fast-1.5.0",
+                    ":fdeflate-0.3.7",
+                    ":flate2-1.1.9",
+                    ":miniz_oxide-0.8.9",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":bitflags-2.12.1",
@@ -57900,6 +58341,7 @@ third_party = {
             "android-arm64": {},
             "linux-arm64": {},
             "linux-x86_64": {},
+            "linux-x86_64-html": {},
             "macos-arm64": {},
             "macos-x86_64": {},
             "wasi": {},
@@ -63582,6 +64024,7 @@ third_party = {
                     ":serde_derive-1.0.228",
                 ],
                 "features": [
+                    "alloc",
                     "default",
                     "derive",
                     "rc",
@@ -63890,6 +64333,7 @@ third_party = {
             },
             "linux-x86_64-html": {
                 "features": [
+                    "alloc",
                     "rc",
                     "result",
                     "std",
@@ -64060,6 +64504,18 @@ third_party = {
                     "default",
                     "indexmap",
                     "preserve_order",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":itoa-1.0.18",
+                    ":memchr-2.8.1",
+                    ":serde_core-1.0.228",
+                    ":zmij-1.0.21",
+                ],
+                "features": [
+                    "default",
                     "std",
                 ],
             },
@@ -64630,6 +65086,17 @@ third_party = {
                 "features": [
                     "default",
                     "oid",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":cpufeatures-0.2.17",
+                    ":digest-0.10.7",
+                ],
+                "features": [
+                    "default",
                     "std",
                 ],
             },
@@ -65268,6 +65735,13 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "features": [
+                    "const-generics",
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
                 "features": [
                     "const-generics",
                     "default",
@@ -72542,6 +73016,7 @@ third_party = {
                     "const-generics",
                 ],
             },
+            "linux-x86_64-html": {},
             "macos-arm64": {
                 "features": [
                     "const-generics",
@@ -78560,16 +79035,38 @@ third_party = {
                     ":wasm-bindgen-0.2.122",
                 ],
                 "features": [
+                    "AddEventListenerOptions",
                     "CharacterData",
+                    "Clipboard",
+                    "ClipboardEvent",
                     "Comment",
+                    "CssStyleDeclaration",
+                    "DataTransfer",
                     "Document",
+                    "DomRect",
+                    "DomRectReadOnly",
                     "Element",
                     "Event",
                     "EventTarget",
+                    "FocusEvent",
+                    "FontFaceSet",
+                    "HtmlElement",
+                    "HtmlHeadElement",
+                    "HtmlTextAreaElement",
+                    "InputEvent",
                     "KeyboardEvent",
+                    "MediaQueryList",
+                    "MouseEvent",
+                    "MutationObserver",
+                    "MutationObserverInit",
+                    "Navigator",
                     "Node",
+                    "Performance",
+                    "PointerEvent",
+                    "ResizeObserver",
                     "Text",
                     "UiEvent",
+                    "WheelEvent",
                     "Window",
                     "console",
                     "default",
@@ -84624,6 +85121,16 @@ third_party = {
                     "zerocopy-derive",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":zerocopy-derive-0.8.50",
+                ],
+                "features": [
+                    "derive",
+                    "simd",
+                    "zerocopy-derive",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":zerocopy-derive-0.8.50",
@@ -85525,6 +86032,7 @@ third_party = {
             "android-arm64": {},
             "linux-arm64": {},
             "linux-x86_64": {},
+            "linux-x86_64-html": {},
             "macos-arm64": {},
             "macos-x86_64": {},
             "wasi": {},

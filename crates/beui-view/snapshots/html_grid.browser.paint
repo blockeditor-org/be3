@@ -1,0 +1,34 @@
+BE3BROWSER 1
+{
+  "size": [
+    320,
+    160
+  ],
+  "document": [
+    "<!doctype html>",
+    "<html>",
+    "<head>",
+    "<meta charset=\"utf-8\">",
+    "<style>",
+    ".beui-root { display: grid; grid-template-columns: minmax(0, 1fr); width: 100%; min-height: 100%; }\n.beui-root, .beui-root * { box-sizing: border-box; margin: 0; }\n.beui-break::after { content: \"\\A\"; white-space: pre; }\n.beui-stand-in { outline: 2px dashed #ff69b4; outline-offset: -2px; }\nbody { margin: 0; height: 100vh; font: 14px sans-serif; }</style>",
+    "</head>",
+    "<body>",
+    "<div class=\"beui-root\" style=\"background-color: #fafaf7;\">",
+    "<div style=\"display: grid; align-content: start; grid-template-columns: 60px max-content minmax(0, 1fr); column-gap: 8px; row-gap: 8px;\">",
+    "<div style=\"display: grid; grid-template-columns: minmax(0, 1fr); width: 30px; height: 30px; justify-items: stretch; align-items: stretch; background-color: #466edc;\">",
+    "</div>",
+    "<div style=\"display: grid; grid-template-columns: minmax(0, 1fr); width: 90px; height: 30px; justify-items: stretch; align-items: stretch; background-color: #3caa6e;\">",
+    "</div>",
+    "<div style=\"display: grid; grid-template-columns: minmax(0, 1fr); width: 30px; height: 30px; justify-items: stretch; align-items: stretch; background-color: #ebaa32;\">",
+    "</div>",
+    "<div style=\"display: grid; grid-template-columns: minmax(0, 1fr); width: 40px; height: 30px; justify-items: stretch; align-items: stretch; background-color: #1e1e28; grid-column: span 2;\">",
+    "</div>",
+    "<div style=\"display: grid; grid-template-columns: minmax(0, 1fr); width: 30px; height: 30px; justify-items: stretch; align-items: stretch; background-color: #466edc;\">",
+    "</div>",
+    "</div>",
+    "</div>",
+    "</body>",
+    "</html>"
+  ],
+  "files": {}
+}
