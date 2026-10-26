@@ -85,7 +85,11 @@ pub(crate) fn LevelOsd(
             traps_focus=false
             open={open}
             content={move || { let id = id.clone(); view! {
-                <Frame width=Length::FILL height=Length::FILL align={Align2::new(Align::Center, Align::End)}>
+                <Frame
+                    width=Length::FILL
+                    height=Length::FILL
+                    align={Align2::new(Align::Center, Align::End)}
+                >
                     <OsdCard level opacity={opacity.read_only()} below id />
                 </Frame>
             } }}
