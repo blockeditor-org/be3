@@ -25,11 +25,11 @@ use beui::reactive::*;
 use beui::styled::theme::NARROW_WIDTH;
 use beui::styled::*;
 use beui::unstyled::{
-    ChoiceOption, Container, DateTimeParts, MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle,
-    PanZoomView, PopoverHandle, SliderScale, SyntaxColors, TextAreaState, TreeItem, narrower_than,
+    DateTimeParts, MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomView, SliderScale,
+    SyntaxColors, narrower_than,
 };
 use beui::{
-    Color32, Context, Direction, Document, FontId, Image, ItemSize, Key, Modifiers, NodeId,
+    Color32, Context, Direction, Document, FontId, Image, ImageFit, ItemSize, Key, Modifiers, NodeId,
     PreferenceLayer, PreferenceSource, Rect, ScrollGesture, TextAlign, unstyled,
 };
 use beui_macros::{component, sample};

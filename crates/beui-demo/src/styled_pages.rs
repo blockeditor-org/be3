@@ -3253,6 +3253,9 @@ pub(crate) fn LayoutPage() -> NodeId {
             <Sample title="Frame tokens" code={vec![FrameTokens::SOURCE]}>
                 <FrameTokens />
             </Sample>
+            <Sample title="Pictures" code={vec![Pictures::SOURCE, sunset::SOURCE]}>
+                <Pictures />
+            </Sample>
             <Sample title="A scroll inside a scroll" code={vec![NestedScroll::SOURCE]}>
                 <NestedScroll />
             </Sample>
@@ -3260,6 +3263,41 @@ pub(crate) fn LayoutPage() -> NodeId {
                 <BleedingScroll />
             </Sample>
         </ScrollPage>
+    }
+}
+
+#[sample]
+fn sunset() -> Image {
+    const SIDE: u32 = 48;
+    let pixels = (0..SIDE * SIDE)
+        .flat_map(|at| {
+            let (x, y) = (at % SIDE, at / SIDE);
+            let shade = |of: u32| (of * 255 / (SIDE - 1)) as u8;
+            [255 - shade(y) / 2, shade(x) / 2 + 64, shade(y), 255]
+        })
+        .collect();
+    Image::from_rgba(SIDE, SIDE, pixels)
+}
+
+#[sample]
+#[component]
+fn Pictures() -> NodeId {
+    const RADII: [Radius; 4] = [Radius::None, Radius::Sm, Radius::Lg, Radius::Full];
+    let image = sunset();
+    view! {
+        <List direction=Direction::Horizontal wrap=true spacing=ROW_SPACING>
+            <ForEach keys={(0..RADII.len()).collect::<Vec<_>>()}>|index: usize| {
+                let image = image.clone();
+                view! {
+                    <List spacing=Space::Xs>
+                        <Frame width={Size::Xl2} height={Size::Xl2}>
+                            <Picture image={Some(image)} fit=ImageFit::Fill radius={RADII[index]} />
+                        </Frame>
+                        <Text style=TextStyle::CAPTION>{RADII[index].name()}</Text>
+                    </List>
+                }
+            }</ForEach>
+        </List>
     }
 }
 

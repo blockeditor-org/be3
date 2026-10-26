@@ -10,9 +10,12 @@ use beui_macros::{component, view};
 use crate::unstyled as dock;
 use crate::unstyled::{
     DockAwayHandle, DockBarHandle, DockChromeHandle, DockDialogHandle, DockDialogPresentation,
-    DockDragged, DockGripHandle, DockKey, DockMode, DockNode, DockPreviewHandle, DockSheetHandle,
-    DockSplitterHandle, DockStackHandle, DockSwitchHandle, DockSwitcherHandle, DockTabHandle,
-    DockingLayout, Entry,
+    DockDragged, DockGripHandle, DockKey, DockPreviewHandle, DockSheetHandle, DockSplitterHandle,
+    DockStackHandle, DockSwitchHandle, DockSwitcherHandle, DockTabHandle, Entry,
+};
+pub use crate::unstyled::{
+    DockApi, DockDocuments, DockMode, DockNode, DockPane, DockSlot, DockSplit, DockTab, DockWindow,
+    DockingLayout, DockingSnapshot, TabId, dock_menu, use_dock_tab,
 };
 use beui_components_styled::List;
 use beui_components_styled::action_bar::{ActionBar, ActionLabels};

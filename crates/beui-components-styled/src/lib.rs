@@ -24,6 +24,7 @@ pub mod list;
 pub mod list_row;
 pub mod menu_button;
 pub mod number_input;
+pub mod picture;
 pub mod popover;
 pub mod progress;
 pub mod root;
@@ -60,6 +61,10 @@ pub use beui_components_unstyled::{
 };
 pub use beui_components_unstyled::{DialogDismissal, DialogLayout};
 pub use beui_components_unstyled::{PaletteItem, PaletteItems, PaletteScore};
+pub use beui_components_unstyled::{
+    BackSlide, ChoiceOption, Container, MenuItem, PopoverHandle, TextAreaState, TreeItem,
+    container_size,
+};
 pub use beui_components_unstyled::{emoji_completer, search_emoji};
 pub use beui_view::primitives::{
     BackHandler, Break, Canvas, CanvasItem, Drawing, Embed, Fade, GridCell, Interactive, Layer,
@@ -89,6 +94,7 @@ pub use list::{Grid, List};
 pub use list_row::ListRow;
 pub use menu_button::MenuButton;
 pub use number_input::{NumberInput, NumberInputTextApi};
+pub use picture::Picture;
 pub use popover::{Popover, popover_surface};
 pub use progress::{INLINE_PROGRESS_WIDTH, Progress};
 pub use root::Root;
