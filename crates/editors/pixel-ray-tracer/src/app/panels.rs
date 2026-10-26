@@ -7,7 +7,6 @@ use crate::overlay::palette_color;
 
 use super::state::{RayState, Surface, Tool};
 
-
 #[component]
 pub(crate) fn ToolsPanel(state: RayState) -> NodeId {
     view! {

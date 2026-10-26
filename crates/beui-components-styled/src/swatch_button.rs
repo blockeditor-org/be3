@@ -50,13 +50,7 @@ fn SwatchButtonFace(
     view! {
         <Tooltip label={tooltip}>
             <Frame padding=Space::Xs radius border={ring}>
-                <Frame
-                    width=Size::Sm
-                    height=Size::Sm
-                    radius
-                    fill={fill}
-                    border={Border::DEFAULT}
-                />
+                <Frame width=Size::Sm height=Size::Sm radius fill={fill} border={Border::DEFAULT} />
             </Frame>
         </Tooltip>
     }
