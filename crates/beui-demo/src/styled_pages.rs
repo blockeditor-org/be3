@@ -1,5 +1,4 @@
 use super::*;
-use beui::ImageFit;
 use beui::KeyAt;
 use beui::TextAlign;
 use beui::icons::Glyph;

@@ -6,7 +6,6 @@ use super::*;
 use crate::{DemoApp, PAGES, Page};
 
 mod a_card_floats_from_its_tab_and_waits_while_another_tab_is_shown;
-mod a_swatch_button_rings_the_colour_picked;
 mod a_card_keeps_inside_a_small_window;
 mod a_card_opened_from_a_button_flips_above_it_near_the_bottom;
 mod a_card_opened_from_a_button_opens_under_it_where_there_is_room;
@@ -31,6 +30,7 @@ mod a_sample_carries_the_source_it_was_written_with;
 mod a_sample_shows_its_code_when_asked;
 mod a_scrollbar_shows_over_a_page_as_it_scrolls_and_widens_to_a_track_under_the_pointer;
 mod a_sheet_rises_from_the_bottom_on_a_phone;
+mod a_swatch_button_rings_the_colour_picked;
 mod a_table_lines_its_cells_up_under_its_columns;
 mod a_tabs_pinned_action_sits_in_its_bar_tiled_and_stacked;
 mod a_tapped_popover_opens_in_a_sheet;
