@@ -5,8 +5,12 @@ use beui_core::renderer::Renderer as _;
 fn an_offscreen_surface_draws_every_frame_it_noted_once_it_is_looked_at() {
     let left = Rect::from_min_max(pos2(4.0, 4.0), pos2(28.0, 28.0));
     let right = Rect::from_min_max(pos2(36.0, 36.0), pos2(60.0, 60.0));
-    let mut surface = pollster::block_on(crate::offscreen::OffscreenSurface::new(SIZE, SIZE, None))
-        .expect("no graphics adapter is available");
+    let mut surface = pollster::block_on(crate::offscreen::OffscreenSurface::new(
+        SIZE,
+        SIZE,
+        Default::default(),
+    ))
+    .expect("no graphics adapter is available");
     let context = Context::new(beui_font_freetype::FreetypeFonts::default());
     let frame = |left_color: Color32| {
         context.run(|context| {

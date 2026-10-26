@@ -88,6 +88,7 @@ struct Inner {
     keyboard_window: Cell<WindowId>,
     window_hosting: Cell<WindowHosting>,
     shows_main: Cell<bool>,
+    keyboard_in_a_window: Cell<bool>,
     fullscreen: Cell<Option<bool>>,
     fullscreen_shown: Cell<bool>,
     close_requested: Cell<bool>,
@@ -375,6 +376,7 @@ impl Context {
                 keyboard_window: Cell::new(WindowId::MAIN),
                 window_hosting: Cell::new(WindowHosting::None),
                 shows_main: Cell::new(true),
+                keyboard_in_a_window: Cell::new(false),
                 fullscreen: Cell::new(None),
                 fullscreen_shown: Cell::new(false),
                 close_requested: Cell::new(false),
@@ -1041,6 +1043,14 @@ impl Context {
         self.inner.shows_main.get()
     }
 
+    pub fn keyboard_in_a_window(&self) -> bool {
+        self.inner.keyboard_in_a_window.get()
+    }
+
+    pub fn set_keyboard_in_a_window(&self, own: bool) {
+        self.inner.keyboard_in_a_window.set(own);
+    }
+
     pub fn set_shows_main(&self, shows: bool) {
         self.inner.shows_main.set(shows);
     }
@@ -1105,7 +1115,7 @@ impl Context {
                 let known = &mut windows.entry(*window).or_default().placement;
                 known.replace(placement.clone()).as_ref() != Some(placement)
             }
-            WindowReport::Scaled {
+            WindowReport::Rastered {
                 window,
                 pixels_per_point,
             } => {
@@ -1127,8 +1137,13 @@ impl Context {
         }
     }
 
-    pub fn take_window_reports(&self) -> Vec<WindowReport> {
-        std::mem::take(&mut *self.inner.window_reports.borrow_mut())
+    pub fn take_window_reports(&self, of: impl Fn(WindowId) -> bool) -> Vec<WindowReport> {
+        let mut reports = self.inner.window_reports.borrow_mut();
+        let (taken, left) = std::mem::take(&mut *reports)
+            .into_iter()
+            .partition(|report: &WindowReport| of(report.window()));
+        *reports = left;
+        taken
     }
 
     pub fn set_keyboard_window(&self, window: WindowId) {

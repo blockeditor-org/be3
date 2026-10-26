@@ -1035,6 +1035,7 @@ impl Runtime {
     }
 
     fn template(&self, screen: ScreenId, drawn: Option<(u32, u32)>) -> Blit {
+        let placement = self.layout.placement(screen);
         Blit {
             surface: self.surface,
             status: self.status.clone(),
@@ -1047,10 +1048,13 @@ impl Runtime {
                 .sent
                 .iter()
                 .find(|request| request.screen == screen)
-                .map(|request| (request.metrics.pixel_width, request.metrics.pixel_height)),
-            placed: self
-                .layout
-                .placement(screen)
+                .map(|request| match placement {
+                    Some(placement) => {
+                        super::input::requested_at(&request.metrics, super::input::finer(placement))
+                    }
+                    None => (request.metrics.pixel_width, request.metrics.pixel_height),
+                }),
+            placed: placement
                 .map(|placement| [placement.surface, placement.width, placement.height]),
         }
     }
@@ -2057,7 +2061,7 @@ pub(crate) struct RegionPlacement {
     pub(crate) rect: Rect,
     pub(crate) clip: Rect,
     pub(crate) zoom: f32,
-    pub(crate) raster: Option<f32>,
+    pub(crate) raster: f32,
     pub(crate) windows: bool,
     pub(crate) placement: Option<String>,
 }
@@ -2124,8 +2128,9 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: Edito
     };
     let raster = offers
         .iter()
+        .filter(|offer| offer.placement.raster.is_finite() && offer.placement.raster > 0.0)
         .max_by(|a, b| seen(a).total_cmp(&seen(b)))
-        .and_then(|offer| offer.placement.raster);
+        .map(|offer| offer.placement.raster);
     let windows = chosen.placement.windows;
     let host_placement = chosen.placement.placement.clone();
     let frame = chosen.frame;
@@ -2152,10 +2157,12 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: Edito
             rect.size(),
             preview_scale(rect.size(), host::pixels_per_point()),
         ),
-        _ => (
-            rect.size() / zoom,
-            raster.unwrap_or_else(host::pixels_per_point) * zoom,
-        ),
+        _ => (rect.size() / zoom, host::pixels_per_point() * zoom),
+    };
+    let raster = match (raster, region) {
+        (None, _) => scale_factor,
+        (Some(raster), EditorRegion::Preview) => preview_scale(rect.size(), scale_factor * raster),
+        (Some(raster), _) => scale_factor * raster,
     };
     let visible = shown.map_or(Rect::ZERO, |source| scale_rect(source, size));
     runtime.instances.place_mounted(
@@ -2165,6 +2172,7 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: Edito
         size,
         visible,
         scale_factor,
+        raster,
         windows,
         host_placement,
     );
@@ -2411,9 +2419,7 @@ fn placed_view(
         let chosen = (placement.rect, placement.clip);
         let (rect, clip) = own.map_or(chosen, |own| (own.rect, own.clip));
         let screen = runtime.instances.screen_id(instance, region);
-        let drawn = screen
-            .and_then(|screen| runtime.layout.placement(screen))
-            .map(|placement| (placement.width, placement.height));
+        let painted = screen.and_then(|screen| runtime.layout.placement(screen));
         let visible = rect.intersect(clip);
         let shown = runtime
             .placements
@@ -2424,9 +2430,18 @@ fn placed_view(
             rect.min + vec2(shown.max.x * rect.width(), shown.max.y * rect.height()),
         );
         let held = match (rect, clip) == chosen {
-            true => runtime
-                .instances
-                .held(instance, region, Some(visible), clip, drawn),
+            true => runtime.instances.held(
+                instance,
+                region,
+                Some(visible),
+                clip,
+                painted.map(|placement| {
+                    (
+                        (placement.width, placement.height),
+                        super::input::finer(placement),
+                    )
+                }),
+            ),
             false => None,
         };
         let (children, holes) = runtime

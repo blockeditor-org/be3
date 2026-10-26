@@ -6,7 +6,7 @@ use super::*;
 fn switching_the_cursor_icon_keeps_the_cursor_renderer() {
     let gpu = pollster::block_on(beui_renderer_wgpu::present::create_offscreen(
         beui_renderer_wgpu::offscreen::FORMAT,
-        None,
+        Default::default(),
     ))
     .expect("no graphics adapter is available");
     let (mut space, now) = space();

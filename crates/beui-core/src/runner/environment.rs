@@ -40,15 +40,17 @@ pub enum Base {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Stacked {
     Space,
+    Xr,
     Drive,
 }
 
 impl Stacked {
-    pub const ALL: &[Self] = &[Self::Space, Self::Drive];
+    pub const ALL: &[Self] = &[Self::Space, Self::Xr, Self::Drive];
 
     pub fn name(self) -> &'static str {
         match self {
             Self::Space => "space",
+            Self::Xr => "xr",
             Self::Drive => "drive",
         }
     }

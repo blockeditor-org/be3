@@ -9,6 +9,7 @@ mod no_renderer_needs_the_headless_platform;
 mod no_variables_choose_the_native_platform_drawn_with_wgpu;
 mod the_headless_platform_takes_its_window_and_screen;
 mod the_native_platform_is_chosen_by_its_own_name;
+mod xr_is_a_layer_of_its_own;
 
 fn with(pairs: &[(&str, &str)]) -> impl Fn(&str) -> Option<String> {
     let pairs: Vec<(String, String)> = pairs

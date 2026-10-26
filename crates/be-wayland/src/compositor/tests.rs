@@ -35,6 +35,7 @@ mod a_single_pixel_buffer_fills_its_window_with_one_color;
 mod a_stale_or_foreign_token_does_not_take_the_focus;
 mod a_token_from_a_click_in_the_focused_window_brings_another_window_forward;
 mod a_token_is_lost_once_the_keyboard_leaves_its_window;
+mod a_toplevel_and_its_popup_are_panels_of_their_own_in_space;
 mod a_wake_from_the_host_counts_as_activity;
 mod a_window_asked_fullscreen_on_an_output_fills_that_monitor;
 mod a_window_asking_for_fullscreen_before_it_is_shown_is_answered;
@@ -221,6 +222,44 @@ impl Harness {
         gpu: Option<(wgpu::Device, wgpu::Queue)>,
         view: impl FnOnce(Windows) -> NodeId,
     ) -> Self {
+        let (shell, client) = Self::shell(gpu, view);
+        Self {
+            stepped: Stepped::new(beui::context(), shell, Self::screen(), None),
+            client,
+            output: None,
+        }
+    }
+
+    fn in_space(view: impl FnOnce(Windows) -> NodeId) -> Self {
+        let (device, queue) = crate::test_client::vulkan_device();
+        let (shell, client) = Self::shell(Some((device.clone(), queue.clone())), view);
+        let context = beui::context();
+        let mut setup = beui::Setup::new(Waker::new(|| {}));
+        setup.provide(context.clone());
+        setup.provide(beui::GpuSetup {
+            device,
+            queue,
+            format: wgpu::TextureFormat::Bgra8Unorm,
+        });
+        let space = Box::new(beui_layer_space::Space::new());
+        Self {
+            stepped: Stepped::hosted(context, shell, Self::screen(), space, setup),
+            client,
+            output: None,
+        }
+    }
+
+    fn screen() -> WindowSize {
+        WindowSize {
+            size: SCREEN,
+            scale: 1.0,
+        }
+    }
+
+    fn shell(
+        gpu: Option<(wgpu::Device, wgpu::Queue)>,
+        view: impl FnOnce(Windows) -> NodeId,
+    ) -> (Shell, TestClient) {
         let mut windows = None;
         let document = build(|| {
             let store = Windows::new();
@@ -248,15 +287,7 @@ impl Harness {
             document,
             copy: None,
         };
-        let window = WindowSize {
-            size: SCREEN,
-            scale: 1.0,
-        };
-        Self {
-            stepped: Stepped::new(beui::context(), shell, window, None),
-            client,
-            output: None,
-        }
+        (shell, client)
     }
 
     fn compositor(&mut self) -> &mut Compositor {

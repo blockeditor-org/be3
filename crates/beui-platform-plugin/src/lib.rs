@@ -181,13 +181,17 @@ impl ModuleRunner {
         for region in regions {
             let id = region.id();
             if let Some(window) = self.windows.get(&id).copied() {
-                let sized = (region.rect.size() * ratio, region.scale_factor / ratio);
+                let raster = match region.raster.is_finite() && region.raster > 0.0 {
+                    true => region.raster,
+                    false => region.scale_factor,
+                };
+                let sized = (region.rect.size() * ratio, raster / ratio);
                 if self.sized.insert(window, sized) != Some(sized) {
                     self.runner.push(Incoming::Window(WindowReport::Resized {
                         window,
                         size: sized.0,
                     }));
-                    self.runner.push(Incoming::Window(WindowReport::Scaled {
+                    self.runner.push(Incoming::Window(WindowReport::Rastered {
                         window,
                         pixels_per_point: sized.1,
                     }));
@@ -256,6 +260,7 @@ impl ModuleRunner {
                 window,
                 placement,
                 size,
+                role,
             } => {
                 let opener = match &placement {
                     WindowPlacement::Over { window, .. } => self.region_of(*window),
@@ -301,12 +306,13 @@ impl ModuleRunner {
                         opener: reference(opener),
                         placement,
                         size: to_region(size),
+                        role,
                     }),
                 ));
             }
             _ if !self.floated.contains_key(&window) => {}
             WindowRequest::BeginMove(window) => self.push_ask(window, Ask::BeginMove(window.raw())),
-            WindowRequest::BeginResize(window, edge) => self.push_ask(
+            WindowRequest::BeginResize { window, edge } => self.push_ask(
                 window,
                 Ask::BeginResize(block_plugin_api::WindowResizeBegin {
                     window: window.raw(),
@@ -641,12 +647,16 @@ impl Regions for ModuleRunner {
         let output = surface.output()?;
         let (width, height) = surface.size;
         let pixels_per_point = output.pixels_per_point;
-        beui_core::painting::painting(
-            output,
-            vec2(
+        let size = match region.region {
+            EditorRegion::Window(_) => output.size,
+            _ => vec2(
                 width as f32 / pixels_per_point,
                 height as f32 / pixels_per_point,
             ),
+        };
+        beui_core::painting::painting(
+            output,
+            size,
             pixels_per_point,
             output.window.appearance.clear_color,
             beui_core::painting::Punches::Erase,

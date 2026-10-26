@@ -52,7 +52,9 @@ fn a_driver_around_space_clicks_by_name_through_its_app_tap_and_shoots_the_scene
         runner.reports().clone(),
     );
     let surface = pollster::block_on(beui_renderer_wgpu::offscreen::OffscreenSurface::new(
-        WIDTH, HEIGHT, None,
+        WIDTH,
+        HEIGHT,
+        Default::default(),
     ))
     .expect("no graphics adapter is available");
     runner

@@ -49,7 +49,7 @@ use smithay::reexports::input::{Device as Libdevice, DeviceCapability, Libinput}
 use smithay::reexports::rustix::fs::OFlags;
 use smithay::utils::{Clock, DeviceFd, Monotonic};
 
-use be_dmabuf::{Vulkan, adapter_for, open_device};
+use be_dmabuf::{DEVICE_EXTENSIONS, Vulkan, adapter_for};
 
 use crate::display::{DisplayConfig, DisplayControl};
 use crate::displays::{Display, Displays};
@@ -423,8 +423,8 @@ fn open_gpu(node: u64, lost: &Arc<AtomicBool>) -> Result<(wgpu::Device, wgpu::Qu
         memory_hints: wgpu::MemoryHints::Performance,
         trace: wgpu::Trace::Off,
     };
-    let (device, queue) =
-        open_device(&adapter, &descriptor).ok_or("the Vulkan device could not be opened")?;
+    let (device, queue) = beui::open_vulkan_device(&adapter, &descriptor, &DEVICE_EXTENSIONS)
+        .ok_or("the Vulkan device could not be opened")?;
     let flag = lost.clone();
     device.set_device_lost_callback(move |_, message| {
         eprintln!("beui: the GPU was lost: {message}");
@@ -889,7 +889,7 @@ impl Session {
                 });
             }
             if self.windows.scaled.insert(*window, display.scale) != Some(display.scale) {
-                reports.push(WindowReport::Scaled {
+                reports.push(WindowReport::Rastered {
                     window: *window,
                     pixels_per_point: display.scale,
                 });

@@ -465,6 +465,111 @@ interface types {
         clipboard-keys: bool,
         keyboard-toggles: u32,
     }
+
+    /// A window of an app, numbered by the app: `WindowId` in Rust, whose
+    /// zero is the window the app starts in.
+    type window-id = u64;
+
+    /// A place only the host that wrote it understands (a screen position, a
+    /// 3D pose), which the app keeps and hands back unchanged.
+    type host-placement = string;
+
+    record window-placement-over {
+        window: window-id,
+        at: pos2,
+    }
+
+    /// Where a window opens: at the pointer, with its top-left corner at `at`
+    /// in another window's points, or where a host placed it before.
+    variant window-placement {
+        at-pointer,
+        over(window-placement-over),
+        host(host-placement),
+    }
+
+    enum window-edge {
+        top,
+        bottom,
+        left,
+        right,
+        top-left,
+        top-right,
+        bottom-left,
+        bottom-right,
+    }
+
+    /// What a window is for. A `keyboard` is an on-screen keyboard: the
+    /// host never gives it the focus and places it by the field it types into.
+    /// A `popup` is a menu or tooltip of the window it is placed over, which
+    /// keeps the focus: the host never gives the popup the focus either.
+    enum window-role {
+        normal,
+        keyboard,
+        popup,
+    }
+
+    record window-request-open {
+        window: window-id,
+        placement: window-placement,
+        size: vec2,
+        role: window-role,
+    }
+
+    record window-request-begin-resize {
+        window: window-id,
+        edge: window-edge,
+    }
+
+    record window-request-resize {
+        window: window-id,
+        size: vec2,
+    }
+
+    /// What an app asks of the host that shows its windows.
+    variant window-request {
+        open(window-request-open),
+        begin-move(window-id),
+        begin-resize(window-request-begin-resize),
+        resize(window-request-resize),
+        close(window-id),
+    }
+
+    record window-report-resized {
+        window: window-id,
+        size: vec2,
+    }
+
+    record window-report-placed {
+        window: window-id,
+        placement: host-placement,
+    }
+
+    record window-report-rastered {
+        window: window-id,
+        pixels-per-point: f32,
+    }
+
+    /// Where the window's top-left corner now is, in points of the screen
+    /// the host shows it on.
+    record window-report-moved {
+        window: window-id,
+        origin: pos2,
+    }
+
+    record window-report-focused {
+        window: window-id,
+        focused: bool,
+    }
+
+    /// What the host that shows an app's windows tells it about them.
+    variant window-report {
+        resized(window-report-resized),
+        placed(window-report-placed),
+        rastered(window-report-rastered),
+        moved(window-report-moved),
+        closed(window-id),
+        focused(window-report-focused),
+    }
 }
 
 world ui {

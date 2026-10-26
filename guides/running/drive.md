@@ -79,6 +79,20 @@ own to be driven:
   pointer go: `drive screen keydown escape; drive pause 700; drive screen keyup escape` (the
   app sees the press and the release). After that, or a lost focus, the next screen click only
   grabs the pointer again and reaches nothing.
+  `BEUI_LAYERS=drive,xr,drive` shows space on an OpenXR headset instead (guides/beui.md,
+  "Headsets"), waiting for one, with a notice over the simulator, while there is none; the
+  window is the headset's mirror. `drive screen paint` paints what reaches the platform, the 3D scene below space,
+  as `drive screen shot` shows it.
+  `drive screen xr HAND ...` (HAND is `left` or `right`) works the controllers' lasers, which act
+  as fingers (guides/beui.md, "Lasers"): they enter below space, as a headset's do. `xr right
+  point TARGET` aims that hand's laser from where the hand is at TARGET, found in the app's tree,
+  `xr right trigger 1` and `xr right trigger 0` press and let go there (`xr right click TARGET`
+  does all three), `xr right squeeze 1` carries the panel the laser is on until `xr right squeeze
+  0`, `xr left pose X Y Z [YAW PITCH]` puts a hand at a point in metres (eye height is 1.6)
+  turned YAW degrees left and PITCH up from -Z, which is how to move a carried panel or spread
+  both grips, and `xr right lost` stops tracking it. Two hands pressed on one panel and pointed
+  apart pinch it. A laser turned by less than 0.15 rad is smoothed and settles over frames, which
+  with the clock stopped needs `drive pause`.
 
 `be-drive launch` (crates/be-drive) sets the headless platform, its sizes and the socket, and
 adds drive to the `BEUI_LAYERS` it finds: `drive` alone when it names none, the taps around
@@ -222,6 +236,8 @@ the one that finds names, so the examples use it.
     drive app swipe FROM TO
     drive app pinch TARGET 2                      two fingers spreading apart
     drive app touch down 0=TARGET 1=TARGET; drive app touch move 0=... 1=...; drive app touch up
+    drive screen xr right click TARGET           a controller's laser, in space: point, trigger,
+                                                  squeeze, pose and lost too (see above)
     drive app pen draw FROM TO [STEPS [PER_FRAME]]   a stylus stroke of STEPS samples (8), its pressure
                                               rising and falling, PER_FRAME (1) in each frame
     drive app pen move TARGET; drive app pen down TARGET 0.8; drive app pen move TARGET 0.3; drive app pen up

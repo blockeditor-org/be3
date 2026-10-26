@@ -21,7 +21,10 @@ fn dragging_the_move_control_carries_the_panel() {
             .all(|(_, input)| *input == Input::PointerLeft),
         "the app sees no press"
     );
-    assert_eq!(space.carry.as_ref().map(|carry| carry.window), Some(window));
+    assert_eq!(
+        space.mouse.carry.as_ref().map(|carry| carry.window),
+        Some(window)
+    );
     assert_eq!(
         space.cursor_icon(&app_frame(CursorIcon::Default)),
         CursorIcon::Grabbing
@@ -41,8 +44,8 @@ fn dragging_the_move_control_carries_the_panel() {
     );
 
     let released = send(&mut space, later(now, 1.0), [button(moved, false)]);
-    assert_eq!(space.carry, None);
+    assert_eq!(space.mouse.carry, None);
     assert_eq!(delivered(&released), [], "nor the release");
     assert_eq!(placed(&released).len(), 1);
-    assert_eq!(space.chrome.gesture, None);
+    assert_eq!(space.mouse.gesture, None);
 }

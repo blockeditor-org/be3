@@ -17,12 +17,11 @@ fn display(id: &str, rect: Rect, scale: f32) -> ShownDisplay {
     }
 }
 
-fn place(rect: Rect, displays: &[Rect], scale: f32) -> DesktopPlace {
+fn place(rect: Rect, displays: &[Rect]) -> DesktopPlace {
     let displays = displays.to_vec();
     DesktopPlace {
         display: create_memo(move || rect),
         displays: create_memo(move || displays.clone()),
-        scale: create_memo(move || scale),
     }
 }
 
@@ -64,16 +63,8 @@ fn a_window_shows_on_the_display_holding_most_of_it_and_on_both_while_it_is_move
         display("right", right, 2.0),
     ]);
     crate::display::apply_shown();
-    let on_left = shown_on(
-        place(left, &[left, right], 1.0),
-        PLUGIN.to_owned(),
-        INSTANCE,
-    );
-    let on_right = shown_on(
-        place(right, &[left, right], 2.0),
-        PLUGIN.to_owned(),
-        INSTANCE,
-    );
+    let on_left = shown_on(place(left, &[left, right]), PLUGIN.to_owned(), INSTANCE);
+    let on_right = shown_on(place(right, &[left, right]), PLUGIN.to_owned(), INSTANCE);
     note_origin(PLUGIN, INSTANCE, EditorRegion::Frame, left.min);
     request(
         PLUGIN,
@@ -94,6 +85,7 @@ fn a_window_shows_on_the_display_holding_most_of_it_and_on_both_while_it_is_move
                 width: 300.0,
                 height: 200.0,
             },
+            role: block_plugin_api::WindowRole::Normal,
         })],
     );
     apply();

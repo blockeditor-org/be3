@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, HashMap};
 use beui::reactive::*;
 use beui::{Forwarded, ForwardedInput, NodeId, PointerPhase, Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
-    EditorInstanceId, EditorRegion, WindowEdge, WindowPlacement, WindowRequest,
+    EditorInstanceId, EditorRegion, WindowEdge, WindowPlacement, WindowRequest, WindowRole,
 };
 
 use crate::plugin_host::HostChildStatus;
@@ -17,7 +17,6 @@ const PLACEMENT: &str = "desktop";
 pub(crate) struct DesktopPlace {
     pub(crate) display: Memo<Rect>,
     pub(crate) displays: Memo<Vec<Rect>>,
-    pub(crate) scale: Memo<f32>,
 }
 
 impl DesktopPlace {
@@ -39,11 +38,27 @@ pub(crate) struct FloatedKey {
 pub(crate) struct Floated {
     pub(crate) key: FloatedKey,
     pub(crate) rect: Rect,
+    pub(crate) panel: Option<Panel>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct Panel {
+    pub(crate) opened: WindowPlacement,
+    pub(crate) role: WindowRole,
+    pub(crate) placed: Option<String>,
+    pub(crate) moves: u32,
+    pub(crate) resizes: (u32, WindowEdge),
 }
 
 impl Floated {
-    pub(crate) fn placement(&self) -> String {
-        format!("{PLACEMENT} {} {}", self.rect.min.x, self.rect.min.y)
+    pub(crate) fn placement(&self) -> Option<String> {
+        match &self.panel {
+            Some(panel) => panel.placed.clone(),
+            None => Some(format!(
+                "{PLACEMENT} {} {}",
+                self.rect.min.x, self.rect.min.y
+            )),
+        }
     }
 }
 
@@ -228,6 +243,23 @@ pub(crate) fn apply() {
         match request {
             WindowRequest::Open(open) => {
                 let size = vec2(open.size.width.max(1.0), open.size.height.max(1.0));
+                let held = find(&windows, open.window);
+                let panel = crate::host::opens_windows().then(|| Panel {
+                    opened: open.placement.clone(),
+                    role: open.role,
+                    placed: None,
+                    moves: 0,
+                    resizes: (0, WindowEdge::BottomRight),
+                });
+                let panel = match (panel, held.and_then(|index| windows[index].panel.as_ref())) {
+                    (Some(panel), Some(was)) => Some(Panel {
+                        placed: was.placed.clone(),
+                        moves: was.moves,
+                        resizes: was.resizes,
+                        ..panel
+                    }),
+                    (panel, _) => panel,
+                };
                 let origin = match open.placement {
                     WindowPlacement::Over(over) => {
                         origin_of(&plugin, over.region.instance, over.region.region, &windows)
@@ -241,14 +273,19 @@ pub(crate) fn apply() {
                 let window = Floated {
                     key: key(open.window, open.opener.instance),
                     rect: Rect::from_min_size(origin, size),
+                    panel,
                 };
-                match find(&windows, open.window) {
+                match held {
                     Some(index) => windows[index] = window,
                     None => windows.push(window),
                 }
             }
             WindowRequest::BeginMove(window) => {
-                if let Some(index) = find(&windows, window) {
+                if let Some(panel) =
+                    find(&windows, window).and_then(|index| windows[index].panel.as_mut())
+                {
+                    panel.moves += 1;
+                } else if let Some(index) = find(&windows, window) {
                     gesture = Some(Gesture {
                         key: windows[index].key.clone(),
                         kind: Kind::Move,
@@ -258,7 +295,11 @@ pub(crate) fn apply() {
                 }
             }
             WindowRequest::BeginResize(resize) => {
-                if let Some(index) = find(&windows, resize.window) {
+                if let Some(panel) =
+                    find(&windows, resize.window).and_then(|index| windows[index].panel.as_mut())
+                {
+                    panel.resizes = (panel.resizes.0 + 1, resize.edge);
+                } else if let Some(index) = find(&windows, resize.window) {
                     gesture = Some(Gesture {
                         key: windows[index].key.clone(),
                         kind: Kind::Resize(resize.edge),
@@ -354,8 +395,59 @@ pub(crate) fn placement_of(key: &FloatedKey) -> Option<String> {
     floated_signal().with_untracked(|held| {
         held.iter()
             .find(|window| window.key == *key)
-            .map(Floated::placement)
+            .and_then(Floated::placement)
     })
+}
+
+pub(crate) fn placement_memo(key: FloatedKey) -> Memo<Option<String>> {
+    let floated = floated();
+    create_memo(move || {
+        floated.with(|held| {
+            held.iter()
+                .find(|window| window.key == key)
+                .and_then(Floated::placement)
+        })
+    })
+}
+
+pub(crate) fn panel_of(key: FloatedKey) -> Memo<Option<(Vec2, Panel)>> {
+    let floated = floated();
+    create_memo(move || {
+        floated.with(|held| {
+            held.iter()
+                .find(|window| window.key == key)
+                .and_then(|window| Some((window.rect.size(), window.panel.clone()?)))
+        })
+    })
+}
+
+pub(crate) fn panels(plugin: String, instance: EditorInstanceId) -> Memo<Vec<u64>> {
+    let floated = floated();
+    create_memo(move || {
+        floated.with(|held| {
+            held.iter()
+                .filter(|window| window.key.plugin == plugin && window.key.instance == instance)
+                .filter(|window| window.panel.is_some())
+                .map(|window| window.key.window)
+                .collect()
+        })
+    })
+}
+
+pub(crate) fn panel_placed(key: &FloatedKey, placement: String) {
+    floated_signal().update(|held| {
+        if let Some(panel) = held
+            .iter_mut()
+            .find(|window| window.key == *key)
+            .and_then(|window| window.panel.as_mut())
+        {
+            panel.placed = Some(placement);
+        }
+    });
+}
+
+pub(crate) fn panel_closed(key: &FloatedKey) {
+    floated_signal().update(|held| held.retain(|window| window.key != *key));
 }
 
 pub(crate) fn rect_of(key: FloatedKey) -> Memo<Option<Rect>> {
@@ -384,6 +476,7 @@ pub(crate) fn shown_on(
         floated.with(|held| {
             held.iter()
                 .filter(|window| window.key.plugin == plugin && window.key.instance == instance)
+                .filter(|window| window.panel.is_none())
                 .filter(|window| {
                     let owner = crate::display::owner(&displays, window.rect);
                     let moving = gesture.as_ref().filter(|gesture| gesture.key == window.key);

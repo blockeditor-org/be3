@@ -5,7 +5,7 @@ use crate::render::Compositor;
 fn a_resized_panel_keeps_its_renderer_and_draws_at_the_new_size() {
     let gpu = pollster::block_on(beui_renderer_wgpu::present::create_offscreen(
         beui_renderer_wgpu::offscreen::FORMAT,
-        None,
+        Default::default(),
     ))
     .expect("no graphics adapter is available");
     let compositor = Compositor::new(&gpu.setup());

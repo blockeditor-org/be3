@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use beui_core::app::FrameTimes;
 use beui_core::app::accessibility_dump::{ACTIONS, AccessibilityDump, Line, Rendered};
 use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
-use beui_core::context::{ActionGroup, Context, FrameOutput};
+use beui_core::context::{ActionGroup, Context, FrameOutput, WindowOutput};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest, PickedFile};
 use beui_core::file_saver::{FileSave, FileSaveAnswer, FileSaveRequest};
 use beui_core::geometry::{Pos2, Rect, Vec2, vec2};
@@ -59,7 +59,9 @@ app (reading):
                             such as WAYLAND_DISPLAY; empty when the app hosts no programs
   windows                   the app's windows, each one's number and size
   paint [TARGET] [in WINDOW]   what a window of the app paints (the main one unless WINDOW names
-                            another), plugins included, as a paint snapshot, of TARGET only when given
+                            another), plugins included, as a paint snapshot, of TARGET only when given;
+                            screen paint [TARGET] is what reaches the platform instead, below the
+                            layers that compose the app's windows, such as space's 3D scene
   overflows                 what the app shows out of bounds, plugins included, one per line:
                             cut off where nothing scrolls to it, drawn outside its own box, or
                             with its outline cut while its box shows
@@ -75,6 +77,13 @@ screen (the platform's side):
   dismiss                   cancel the oldest open file or save dialog
   grab FILE...              drag FILEs in from outside, over where the pointer is; move carries them
   drop [TARGET]             drop the grabbed files; ungrab takes them away again
+  xr HAND pose X Y Z [YAW PITCH]   a controller, as a layer that shows windows in 3D (space) reads
+                            it: HAND (left or right) at X, Y, Z metres, its laser turned YAW
+                            degrees left and PITCH up from straight ahead (-Z)
+  xr HAND point TARGET      aim HAND's laser, from where the hand is, at TARGET in the app's tree
+  xr HAND trigger VALUE / xr HAND squeeze VALUE   pull the trigger or the grip, from 0 to 1
+  xr HAND click TARGET      point at TARGET, then pull and let go of the trigger
+  xr HAND lost              the controller is no longer tracked
 Either tap (input enters the stack at the tap; state is what that tap sees). Any of these may
 end with in WINDOW, a number `windows` lists: its targets are then found among that window's
 nodes and its input goes to that window, in its points:
@@ -123,6 +132,8 @@ instead of waiting.";
 
 pub const PANE: char = '\u{1f}';
 
+const SCREEN: u64 = u64::MAX;
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Tap {
     Screen,
@@ -149,12 +160,12 @@ fn kind(command: &str) -> Option<Kind> {
     Some(match command {
         "help" | "settle" | "pause" | "clock" | "hurry" | "frames" | "close" => Kind::Session,
         "tree" | "ids" | "find" | "comps" | "hit" | "actions" | "act" | "a11y" | "wait"
-        | "gone" | "env" | "windows" | "paint" | "overflows" => Kind::Only(Tap::App),
+        | "gone" | "env" | "windows" | "overflows" => Kind::Only(Tap::App),
         "shot" | "resize" | "focus" | "blur" | "clipboard" | "upload" | "save" | "dismiss"
-        | "grab" | "drop" | "ungrab" => Kind::Only(Tap::Screen),
+        | "grab" | "drop" | "ungrab" | "xr" => Kind::Only(Tap::Screen),
         "state" | "click" | "move" | "down" | "up" | "drag" | "wheel" | "scroll" | "zoom"
         | "leave" | "motion" | "tap" | "swipe" | "pinch" | "touch" | "pen" | "back" | "type"
-        | "key" | "keydown" | "keyup" | "ime" => Kind::Either,
+        | "key" | "keydown" | "keyup" | "ime" | "paint" => Kind::Either,
         _ => return None,
     })
 }
@@ -239,6 +250,9 @@ impl Layer for Drive {
             && let Some(main) = shown.main()
         {
             self.session.borrow_mut().screen_window = Some(main.window.clone());
+        }
+        if self.screen() {
+            self.session.borrow_mut().screen_shown = shown.main().cloned();
         }
     }
 
@@ -414,6 +428,7 @@ struct Session {
     frames: FrameTimes,
     other_frames: BTreeMap<String, FrameTimes>,
     screen_window: Option<WindowState>,
+    screen_shown: Option<WindowOutput>,
     app_window: WindowState,
     windows: Vec<(WindowId, Rc<std::collections::HashSet<accesskit::NodeId>>)>,
 }
@@ -436,6 +451,7 @@ impl Session {
             frames: FrameTimes::default(),
             other_frames: BTreeMap::new(),
             screen_window: None,
+            screen_shown: None,
             app_window: WindowState::default(),
             windows: Vec::new(),
         }
@@ -643,7 +659,11 @@ impl Session {
             run.repaint_after = run.repaint_after.min(after);
         }
         if let Some(window) = self.wants_painting() {
-            let painting = match output.windows.iter().find(|shown| shown.id.raw() == window) {
+            let shown = match window {
+                SCREEN => self.screen_shown.as_ref(),
+                window => output.windows.iter().find(|shown| shown.id.raw() == window),
+            };
+            let painting = match shown {
                 Some(shown) => beui_core::painting::painting(
                     shown,
                     shown.size,
@@ -1398,6 +1418,7 @@ impl Session {
                 input(frames)
             }
             "focus" | "blur" => input(self.gestures[gesture].focus(command == "focus")),
+            "xr" => incoming(controller(arguments, |target| aim(true, target, view))?),
             "resize" => {
                 let resize = match argument(0)? {
                     "screen" => Resize::Screen(
@@ -1619,13 +1640,14 @@ impl Session {
             }
             "paint" => {
                 let (target, window) = match arguments {
-                    [target @ .., word, window] if word == "in" => (
+                    [target @ .., word, window] if word == "in" && tap == Tap::App => (
                         target,
                         window.parse().map_err(|_| {
                             format!("paint takes in WINDOW, a number `windows` lists, not {window}")
                         })?,
                     ),
-                    target => (target, WindowId::MAIN.raw()),
+                    target if tap == Tap::App => (target, WindowId::MAIN.raw()),
+                    target => (target, SCREEN),
                 };
                 let target = match target {
                     [] => None,
@@ -1881,6 +1903,88 @@ fn shown(view: &View<'_>, text: &str, over: Option<Pos2>) -> bool {
         .lines()
         .iter()
         .any(|line| matches(line) && reaches(line))
+}
+
+fn controller(
+    arguments: &[String],
+    at: impl Fn(&str) -> Result<Pos2, String>,
+) -> Result<Vec<Vec<Incoming>>, String> {
+    use beui_core::runner::{Controller, Hand, HandPose};
+    let usage = "xr takes HAND pose X Y Z [YAW PITCH], HAND point TARGET, HAND trigger VALUE, \
+                 HAND squeeze VALUE, HAND click TARGET or HAND lost, where HAND is left or right";
+    let word = |index: usize| arguments.get(index).map(String::as_str).ok_or(usage);
+    let number = |index: usize, default: Option<f32>| -> Result<f32, String> {
+        match (arguments.get(index), default) {
+            (Some(text), _) => text
+                .parse::<f32>()
+                .ok()
+                .filter(|value| value.is_finite())
+                .ok_or_else(|| format!("{text} is not a number")),
+            (None, Some(default)) => Ok(default),
+            (None, None) => Err(usage.to_owned()),
+        }
+    };
+    let hand = Hand::named(word(0)?).ok_or(usage)?;
+    let value = |index: usize| {
+        number(index, None).and_then(|value| match (0.0..=1.0).contains(&value) {
+            true => Ok(value),
+            false => Err(format!("{value} is not from 0 to 1")),
+        })
+    };
+    let once = |controller: Controller| vec![vec![Incoming::Controller(controller)]];
+    Ok(match word(1)? {
+        "pose" => {
+            let position = [number(2, None)?, number(3, None)?, number(4, None)?];
+            let (yaw, pitch) = (
+                number(5, Some(0.0))?.to_radians() / 2.0,
+                number(6, Some(0.0))?.to_radians() / 2.0,
+            );
+            let orientation = [
+                yaw.cos() * pitch.sin(),
+                yaw.sin() * pitch.cos(),
+                -yaw.sin() * pitch.sin(),
+                yaw.cos() * pitch.cos(),
+            ];
+            let pose = HandPose {
+                position,
+                orientation,
+            };
+            once(Controller::Pose {
+                hand,
+                aim: pose,
+                grip: pose,
+            })
+        }
+        "point" => once(Controller::Toward {
+            hand,
+            window: WindowId::MAIN,
+            at: at(word(2)?)?,
+        }),
+        "trigger" => once(Controller::Trigger {
+            hand,
+            value: value(2)?,
+        }),
+        "squeeze" => once(Controller::Squeeze {
+            hand,
+            value: value(2)?,
+        }),
+        "click" => {
+            let toward = Controller::Toward {
+                hand,
+                window: WindowId::MAIN,
+                at: at(word(2)?)?,
+            };
+            [
+                toward,
+                Controller::Trigger { hand, value: 1.0 },
+                Controller::Trigger { hand, value: 0.0 },
+            ]
+            .map(|controller| vec![Incoming::Controller(controller)])
+            .into()
+        }
+        "lost" => once(Controller::Lost { hand }),
+        _ => return Err(usage.to_owned()),
+    })
 }
 
 fn finger(argument: Option<&String>) -> Result<u64, String> {

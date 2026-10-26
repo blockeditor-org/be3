@@ -10,6 +10,7 @@ use crate::reactive::{
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::layer::{Dismiss, LayerLevel, LayerPolicy};
 use beui_core::node::NodeId;
+use beui_core::window::WindowId;
 use beui_macros::component;
 
 #[derive(Clone, Copy)]
@@ -45,6 +46,7 @@ pub fn Overlay(
     #[prop(default = LayerPolicy::BlocksAll)] policy: Prop<LayerPolicy>,
     #[prop(default = LayerLevel::Normal)] level: Prop<LayerLevel>,
     #[prop(default = true)] traps_focus: Prop<bool>,
+    #[prop(default = None)] shown_in: Prop<Option<WindowId>>,
     trigger: Option<NodeRef>,
     pointer: Option<NodeRef>,
     open: Prop<bool>,
@@ -62,6 +64,10 @@ pub fn Overlay(
     create_binding(move || {
         let anchor = anchor.get();
         with_document(|document| document.set_overlay_anchor(overlay, anchor))
+    });
+    create_binding(move || {
+        let shown_in = shown_in.get();
+        with_document(|document| document.set_overlay_shown_in(overlay, shown_in))
     });
     create_binding(move || {
         let (placement, scrim, traps_focus) = (placement.get(), scrim.get(), traps_focus.get());

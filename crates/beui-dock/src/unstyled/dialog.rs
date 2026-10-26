@@ -8,8 +8,10 @@ use beui_core::geometry::{Rect, Vec2};
 use beui_core::input::PointerPress;
 use beui_core::layer::{Dismiss, LayerPolicy};
 use beui_core::node::NodeId;
+use beui_core::window::{WindowPlacement, WindowReport};
 use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;
+use beui_view::components::window::{Window, WindowHandle, opens_windows};
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 
@@ -405,6 +407,34 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
     let placement = create_memo(move || placed.get().1);
     let scrim = create_memo(move || placed.get().2);
     let overlay = NodeRef::new();
+    let hosted = opens_windows();
+    let windowed = create_memo(move || !card && hosted.get());
+    let face = view! {
+        <Interactive @node_ref=&frame on_press={move |_: PointerPress| dock.focus_dialog(tab)}>
+            {face.call(())}
+        </Interactive>
+    };
+    let overlaid = create_memo(move || (!windowed.get()).then_some(face));
+    let in_window = create_memo(move || windowed.get().then_some(face));
+    let floating = create_memo(move || anchored.get() && !windowed.get());
+    let windowed_open = create_memo(move || anchored.get() && windowed.get());
+    let outset = dock.dialog_outset;
+    let window_size = create_memo(move || size.get() + outset);
+    let window_placement = create_memo(move || {
+        windowed_open.get();
+        let size = window_size.get();
+        let node = anchor.get().try_get();
+        untrack(|| {
+            let node = node?;
+            let rect = placements().rect(node)?;
+            Some(WindowPlacement::Over {
+                window: window_of(node),
+                at: rect.center() - size / 2.0,
+            })
+        })
+        .unwrap_or(WindowPlacement::AtPointer)
+    });
+    let window_title = create_memo(move || Some(title.get()));
     let view = view! {
         <List spacing=0.0>
             <Overlay
@@ -415,7 +445,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
                 scrim
                 policy
                 traps_focus=false
-                open={anchored}
+                open={floating}
                 keep_alive=true
                 on_dismiss={move |reason: Dismiss| match reason {
                     Dismiss::OutsidePress if dismiss_on_outside_press.get_untracked() => {
@@ -426,13 +456,23 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
                     Dismiss::OutsidePress | Dismiss::WithParent => {}
                 }}
             >
-                <Interactive
-                    @node_ref=&frame
-                    on_press={move |_: PointerPress| dock.focus_dialog(tab)}
-                >
-                    {face.call(())}
-                </Interactive>
+                <Portal node={overlaid} />
             </Overlay>
+            <Window
+                id={None}
+                size={window_size}
+                placement={window_placement}
+                title={window_title}
+                open={windowed_open}
+                keep_alive=true
+                on_report={move |report: WindowReport| match report {
+                    WindowReport::Closed(_) => close.call(),
+                    WindowReport::Focused { focused: true, .. } => dock.focus_dialog(tab),
+                    _ => {}
+                }}
+            >|_: WindowHandle|
+                <Portal node={in_window} />
+            </Window>
             {fallback}
         </List>
     };

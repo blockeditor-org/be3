@@ -19,6 +19,7 @@ fn a_layout_gives_each_shown_screen_its_own_surface() {
                 width: 100,
                 height: 200,
                 scale_factor_millis: 2000,
+                raster_millis: 2000,
             },
             ScreenPlacement {
                 screen: ScreenId(3),
@@ -28,6 +29,7 @@ fn a_layout_gives_each_shown_screen_its_own_surface() {
                 width: 400,
                 height: 30,
                 scale_factor_millis: 1000,
+                raster_millis: 1000,
             },
         ]
     );

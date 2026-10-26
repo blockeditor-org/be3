@@ -34,6 +34,7 @@ members = [
     "crates/beui-layer-drive",
     "crates/beui-platform-web",
     "crates/beui-platform-winit",
+    "crates/beui-layer-xr",
     "crates/beui-components-styled",
     "crates/beui-components-unstyled",
     "crates/beui-core",

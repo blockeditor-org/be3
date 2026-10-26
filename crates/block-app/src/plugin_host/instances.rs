@@ -572,7 +572,7 @@ impl Screen {
 
     fn unplace(&mut self) {
         self.placement = None;
-        self.request.metrics = viewport_metrics(Vec2::ZERO, Rect::ZERO, 1.0);
+        self.request.metrics = viewport_metrics(Vec2::ZERO, Rect::ZERO, 1.0, 1.0);
     }
 }
 
@@ -820,7 +820,7 @@ impl Instances {
                     screen: ScreenId(*next_screen),
                     instance,
                     region,
-                    metrics: viewport_metrics(size, visible, scale_factor),
+                    metrics: viewport_metrics(size, visible, scale_factor, scale_factor),
                     frame,
                     windows: false,
                     placement: None,
@@ -845,7 +845,7 @@ impl Instances {
                 serial: 0,
             }
         });
-        screen.request.metrics = viewport_metrics(size, visible, scale_factor);
+        screen.request.metrics = viewport_metrics(size, visible, scale_factor, scale_factor);
         screen.request.frame = frame;
         screen.last_seen = pass;
         screen.request.screen
@@ -920,13 +920,14 @@ impl Instances {
         size: Vec2,
         visible: Rect,
         scale_factor: f32,
+        raster: f32,
         windows: bool,
         placement: Option<String>,
     ) {
         let Some(screen) = self.screen_mut(instance, region) else {
             return;
         };
-        let metrics = viewport_metrics(size, visible, scale_factor);
+        let metrics = viewport_metrics(size, visible, scale_factor, raster);
         if screen.request.metrics != metrics
             || screen.request.frame != frame
             || screen.request.windows != windows
@@ -1150,17 +1151,17 @@ impl Instances {
         region: EditorRegion,
         rect: Option<Rect>,
         clip: Rect,
-        drawn: Option<(u32, u32)>,
+        drawn: Option<((u32, u32), f32)>,
     ) -> Option<Held> {
         let screen = self
             .entries
             .get_mut(&instance)
             .and_then(|entry| entry.screens.get_mut(&region))?;
-        let requested = (
-            screen.request.metrics.pixel_width,
-            screen.request.metrics.pixel_height,
-        );
-        let stale = drawn.filter(|drawn| *drawn != requested);
+        let stale = drawn
+            .filter(|(drawn, finer)| {
+                *drawn != super::input::requested_at(&screen.request.metrics, *finer)
+            })
+            .map(|(drawn, _)| drawn);
         if screen.holding
             && let (Some(drawn), Some((rect, _))) = (stale, screen.presented)
         {
@@ -2229,6 +2230,7 @@ impl Instances {
                             logical: vec2(metrics.logical.width, metrics.logical.height),
                             pixels: [metrics.pixel_width, metrics.pixel_height],
                             scale_factor: metrics.scale_factor,
+                            raster: metrics.raster,
                             used: screen.used,
                             placement,
                             drawn: screen.mounted > 0 || screen.last_seen >= pass,
