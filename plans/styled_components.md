@@ -996,6 +996,45 @@ Problems earlier steps found in the beui crates, fixed at their source:
   the toolbar's theme select and the Animations page's "Disable animations"
   box, so it keeps saving it.
 
+## 10. Canvas text on the styled text area, edited in its scaled item
+
+Canvas text is the last import of `unstyled::` outside beui
+(`infinite-canvas/src/app/text.rs`). It already draws with styled's look and
+colours. What keeps it on the unstyled `TextArea`:
+
+- **Text being edited can't stay in its scaled item.** Read-only canvas text sits
+  in a `scales=true` canvas item: it is laid out at its own size and kept crisp
+  by the raster scale (pan_and_zoom.md; beui.md "layout and raster"). A scaled
+  item takes no pointer input, so the text being edited is moved into an
+  ordinary item and fakes the zoom with `font_size = size × zoom`. That can
+  wrap differently from the read-only text, lays the text out again on every
+  zoom while editing, and needs a font-size prop that nothing else wants.
+- **The styled text area doesn't take what the canvas needs**, and always
+  shows a find bar.
+
+Changes:
+
+1. **Scaled spaces take input.** Map pointer input through a scaled space's
+   scale as well as its translation: presses, drags, hover, caret placement and
+   hit tests, selection handles, the IME and on-screen keyboard area, the
+   anchors of overlays opened from inside (text menu, completion menu), and
+   reveal/scroll-into-view. Update pan_and_zoom.md, which says a scaled item
+   takes no pointer input.
+2. **`styled::TextArea` gains:**
+   - `color: TextColor`, the text colour, with a placeholder derived from it;
+   - `read_only` (shown normally, not editable, not reported as disabled),
+     kept separate from `disabled`;
+   - `focused` and `line_numbers`;
+   - `on_content_size`, for a caller that resizes around the text;
+   - `find: bool`, default on. Off means no find bar, and its find actions
+     aren't registered;
+   - `size` for the body text size (`TextSize`, `Custom` for content).
+
+   There is no font-size or scale prop: zoom comes from the scaled space.
+3. **Canvas text is a `styled::TextArea`** in its scaled item while edited and
+   while read-only, with `find=false`. It gains the text menu and the emoji
+   completer, and its wrap no longer changes when editing starts.
+
 ## Order
 
 1. §1's `Modal`, `Dialog` and `EveryScreen`, then the §3 moves that depend on
