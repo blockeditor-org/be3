@@ -27,6 +27,7 @@ pub(crate) struct Creating {
     pub(crate) committed: bool,
     pub(crate) sent: bool,
     pub(crate) child: Option<ChildId>,
+    pub(crate) height: Option<f32>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -186,6 +187,7 @@ impl Pick {
                     committed: false,
                     sent: false,
                     child: None,
+                    height: None,
                 });
                 if !dialog {
                     return self.act(PickAction::Create);

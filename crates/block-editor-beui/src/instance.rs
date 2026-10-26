@@ -143,6 +143,9 @@ impl<A: BeuiApp> Views<A> {
         }
         creation.begin_frame();
         dialog.show(context, rect);
+        if self.dialog_control.is_some() {
+            context.want_keyboard();
+        }
         let measured = dialog.measure_root(context, beui::vec2(rect.width(), f32::INFINITY))?;
         measured
             .y
@@ -373,7 +376,7 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
         let filled = Rc::clone(&control);
         self.views.dialog = Some(beui::reactive::build(move || {
             beui::reactive::view! {
-                <beui::styled::Root clear_color=beui::styled::ColorRole::None>
+                <beui::styled::Root clear_color=beui::styled::ColorRole::SurfaceRaised>
                     <PluginDialog host control={filled}>|| {
                         let built = built.clone();
                         beui::reactive::view! {

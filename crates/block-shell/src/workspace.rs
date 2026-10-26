@@ -773,6 +773,7 @@ impl Workspace {
         };
         if let Some(creating) = &mut held.creating {
             creating.child = state.child;
+            creating.height = state.intrinsic_size.map(|size| size.y.max(1.0));
         }
         let held = match state.dialog.answer {
             Some(DialogAnswer::Dismissed) => return self.pick_action(pick, PickAction::CancelCreation),

@@ -1,4 +1,5 @@
 use beui::Overflow;
+use block_editor_beui::beui::dock::styled::CHROME_BORDER;
 use block_editor_beui::beui::dock::unstyled::{
     DockDialog, DockDialogPresentation, DockNode, TabId,
 };
@@ -74,12 +75,19 @@ pub fn PickerDialog(workspace: Workspace, pick: u64, tab: TabId) -> DockNode<Tab
             .is_some_and(|held| held.creating.is_none())
     });
     let anchor = workspace.pick_anchor(pick).and_then(|anchor| anchor.rect);
+    let size = create_memo(move || match choosing.get() {
+        true => SURFACE_SIZE,
+        false => Vec2::new(
+            SURFACE_SIZE.x,
+            creation_height(workspace.pick(pick).as_ref()) + 2.0 * CHROME_BORDER,
+        ),
+    });
     view! {
         <DockDialog
             id={picker_tab(pick)}
             parent={tab}
             title="Add block"
-            size=SURFACE_SIZE
+            size={size}
             presentation=DockDialogPresentation::Card
             anchor
             dismiss_on_outside_press={choosing}
@@ -913,14 +921,7 @@ fn creation_content(creating: &Creating) -> SubregionContent {
 fn CreateBody(workspace: Workspace, pick: u64, held: Memo<Option<Pick>>) -> NodeId {
     let creating =
         create_memo(move || held.with(|held| held.as_ref().and_then(|held| held.creating.clone())));
-    let state = create_signal(ChildState::default());
-    let height = create_memo(move || {
-        state.with(|state| {
-            state
-                .intrinsic_size
-                .map_or(CREATION_HEIGHT, |size| size.y.max(1.0))
-        })
-    });
+    let height = create_memo(move || creation_height(held.get().as_ref()));
     let placed = create_memo(move || {
         creating.with(|creating| {
             creating
@@ -938,13 +939,16 @@ fn CreateBody(workspace: Workspace, pick: u64, held: Memo<Option<Pick>>) -> Node
                 mode=ChildMode::Live
                 dialog=true
                 @test_id={"picker.creation"}
-                on_state={move |next: ChildState| {
-                    workspace.creation_state(pick, &next);
-                    state.set(next);
-                }}
+                on_state={move |next: ChildState| workspace.creation_state(pick, &next)}
             />
         </Frame>
     }
+}
+
+fn creation_height(held: Option<&Pick>) -> f32 {
+    held.and_then(|held| held.creating.as_ref())
+        .and_then(|creating| creating.height)
+        .unwrap_or(CREATION_HEIGHT)
 }
 
 #[component]
