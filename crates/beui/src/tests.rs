@@ -114,6 +114,7 @@ mod a_driver_acts_on_a_slider_the_way_a_screen_reader_does;
 mod a_driver_answers_a_file_dialog_in_a_window_that_is_not_simulated;
 mod a_driver_answers_a_file_dialog_with_a_file;
 mod a_driver_answers_a_save_dialog_by_writing_the_file;
+mod a_driver_around_space_clicks_by_name_through_its_app_tap_and_shoots_the_scene_through_its_screen_tap;
 mod a_driver_cancels_the_fingers_the_system_takes_back;
 mod a_driver_carries_grabbed_files_and_drops_them;
 mod a_driver_clicks_a_button_by_its_label_and_hears_what_changed;
@@ -1013,7 +1014,7 @@ impl Harness {
     pub(crate) fn sized(mut document: Document, viewport: Vec2) -> Self {
         crate::verify_paint(true);
         crate::inspector::install(&mut document);
-        let window = beui_core::app::automation::WindowSize {
+        let window = beui_core::window::WindowSize {
             size: viewport,
             scale: 1.0,
         };
@@ -1030,7 +1031,7 @@ impl Harness {
     pub(crate) fn hosting_windows(mut document: Document, viewport: Vec2) -> Self {
         crate::verify_paint(true);
         crate::inspector::install(&mut document);
-        let window = beui_core::app::automation::WindowSize {
+        let window = beui_core::window::WindowSize {
             size: viewport,
             scale: 1.0,
         };
@@ -2367,7 +2368,7 @@ pub(crate) fn headless<A: App + 'static>(app: A) -> crate::testing::Stepped<A> {
     crate::testing::Stepped::new(
         context(),
         app,
-        beui_core::app::automation::WindowSize {
+        beui_core::window::WindowSize {
             size: VIEWPORT,
             scale: 1.0,
         },

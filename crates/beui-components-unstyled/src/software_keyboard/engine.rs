@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use beui_core::app::automation::keys;
+use beui_core::input::typing;
 use beui_core::geometry::{Pos2, Rect, Vec2};
 use beui_core::input::{Input, Key, Modifiers, PointerId};
 
@@ -524,7 +524,7 @@ impl Engine {
                     false => Key::ArrowLeft,
                 };
                 for _ in 0..difference.abs() {
-                    keys::press_chord(key, mods.chord(), Modifiers::NONE, &mut self.events);
+                    typing::press_chord(key, mods.chord(), Modifiers::NONE, &mut self.events);
                 }
                 sliding.steps = moved;
             }
@@ -541,7 +541,7 @@ impl Engine {
                     ..Modifiers::NONE
                 };
                 for _ in 0..difference.abs() {
-                    keys::press_chord(key, select, Modifiers::NONE, &mut self.events);
+                    typing::press_chord(key, select, Modifiers::NONE, &mut self.events);
                 }
                 sliding.steps = words;
             }
@@ -560,7 +560,7 @@ impl Engine {
         if let Some(sliding) = pointer.sliding {
             match (sliding.slider, sliding.start) {
                 (Slider::SelectWords, Some(_)) if sliding.steps > 0 => {
-                    keys::press_chord(
+                    typing::press_chord(
                         Key::Backspace,
                         Modifiers::NONE,
                         Modifiers::NONE,
@@ -607,7 +607,7 @@ impl Engine {
     }
 
     pub fn type_text(&mut self, text: &str) {
-        keys::typed(text, Modifiers::NONE, &mut self.events);
+        typing::typed(text, Modifiers::NONE, &mut self.events);
         self.clear_latched();
     }
 
@@ -679,7 +679,7 @@ impl Engine {
             }
             Value::Key(key) => {
                 if self.compose.take().is_none() || key != Key::Escape {
-                    keys::press_chord(key, mods.chord(), Modifiers::NONE, &mut self.events);
+                    typing::press_chord(key, mods.chord(), Modifiers::NONE, &mut self.events);
                 }
                 self.clear_latched();
             }
@@ -714,22 +714,22 @@ impl Engine {
             sequence.push(character);
             match compose(&sequence) {
                 Composed::Pending => self.compose = Some(sequence),
-                Composed::Done(result) => keys::typed(result, Modifiers::NONE, &mut self.events),
+                Composed::Done(result) => typing::typed(result, Modifiers::NONE, &mut self.events),
                 Composed::Failed => {}
             }
             return;
         }
         if mods.commands()
-            && let Some((key, shift)) = keys::keyable(character.to_ascii_lowercase())
+            && let Some((key, shift)) = typing::keyable(character.to_ascii_lowercase())
         {
             let chord = Modifiers {
                 shift: shift || character.is_ascii_uppercase(),
                 ..mods.chord()
             };
-            keys::press_chord(key, chord, Modifiers::NONE, &mut self.events);
+            typing::press_chord(key, chord, Modifiers::NONE, &mut self.events);
             return;
         }
-        keys::typed(&character.to_string(), Modifiers::NONE, &mut self.events);
+        typing::typed(&character.to_string(), Modifiers::NONE, &mut self.events);
     }
 
     fn act(&mut self, action: Action) {
@@ -753,7 +753,7 @@ impl Engine {
                 return;
             }
         };
-        keys::press_chord(key, modifiers, Modifiers::NONE, &mut self.events);
+        typing::press_chord(key, modifiers, Modifiers::NONE, &mut self.events);
     }
 }
 

@@ -25,14 +25,14 @@ pub fn run_with(options: RunOptions, app: impl App + 'static) -> Result<(), Box<
 }
 
 pub fn run_with_renderers(
-    mut options: RunOptions,
+    options: RunOptions,
     renderers: Vec<WindowRenderer>,
     app: impl App + 'static,
 ) -> Result<(), Box<dyn Error>> {
     let open_device = renderers.iter().find_map(|renderer| match renderer {
         WindowRenderer::Wgpu { open_device } => open_device.clone(),
     });
-    let choice = from_environment(&mut options, NATIVE)?;
+    let choice = from_environment(NATIVE)?;
     let app: Box<dyn App> = match (&choice, options.saved_preferences.clone()) {
         (
             Some(Choice {
@@ -44,7 +44,7 @@ pub fn run_with_renderers(
         ) => Box::new(crate::saved_preferences::SavedPreferences::new(app, path)),
         _ => Box::new(app),
     };
-    let (platform, layers) = choose_platform(choice, open_device, || native_platform(renderers));
+    let (platform, layers) = choose_platform(choice, open_device, || native_platform(renderers))?;
     let launch = Launch {
         options,
         context: crate::system_context(),
@@ -60,24 +60,13 @@ const NATIVE: &str = "android";
 const NATIVE: &str = "winit";
 
 #[cfg(not(target_os = "android"))]
-fn from_environment(
-    options: &mut RunOptions,
-    native: &str,
-) -> Result<Option<Choice>, Box<dyn Error>> {
-    if options.automation.is_none()
-        && let Some(path) = std::env::var_os(beui_core::runner::environment::AUTOMATION)
-    {
-        options.automation = Some(serve(std::path::Path::new(&path))?);
-    }
+fn from_environment(native: &str) -> Result<Option<Choice>, Box<dyn Error>> {
     let choice = beui_core::runner::environment::choose(native, |name| std::env::var(name).ok())?;
     Ok(Some(choice))
 }
 
 #[cfg(target_os = "android")]
-fn from_environment(
-    _options: &mut RunOptions,
-    _native: &str,
-) -> Result<Option<Choice>, Box<dyn Error>> {
+fn from_environment(_native: &str) -> Result<Option<Choice>, Box<dyn Error>> {
     Ok(None)
 }
 
@@ -85,9 +74,9 @@ fn choose_platform(
     choice: Option<Choice>,
     open_device: Option<OpenDevice>,
     native: impl FnOnce() -> Box<dyn Platform>,
-) -> (Box<dyn Platform>, Vec<Box<dyn Layer>>) {
+) -> Result<(Box<dyn Platform>, Vec<Box<dyn Layer>>), Box<dyn Error>> {
     let Some(choice) = choice else {
-        return (native(), Vec::new());
+        return Ok((native(), Vec::new()));
     };
     let platform = match choice.platform {
         Base::Native => native(),
@@ -104,24 +93,49 @@ fn choose_platform(
             native()
         }
     };
-    let layers = choice.layers.iter().map(|layer| stack(*layer)).collect();
-    (platform, layers)
+    let drives = choice
+        .layers
+        .iter()
+        .filter(|layer| **layer == Stacked::Drive)
+        .count();
+    let mut taps: Vec<beui_layer_drive::Drive> = match drives {
+        0 => Vec::new(),
+        _ => {
+            let path = std::env::var_os(beui_core::runner::environment::DRIVE_SOCKET)
+                .ok_or("BEUI_LAYERS names drive without BEUI_DRIVE_SOCKET")?;
+            let inbox = serve(std::path::Path::new(&path))?;
+            match drives {
+                1 => vec![beui_layer_drive::Drive::new(inbox)],
+                _ => {
+                    let (screen, app) = beui_layer_drive::Drive::taps(inbox);
+                    vec![app, screen]
+                }
+            }
+        }
+    };
+    let layers = choice
+        .layers
+        .iter()
+        .filter_map(|layer| stack(*layer, &mut taps))
+        .collect();
+    Ok((platform, layers))
 }
 
-fn stack(layer: Stacked) -> Box<dyn Layer> {
+fn stack(layer: Stacked, taps: &mut Vec<beui_layer_drive::Drive>) -> Option<Box<dyn Layer>> {
     match layer {
-        Stacked::Space => Box::new(beui_layer_space::Space::new()),
+        Stacked::Space => Some(Box::new(beui_layer_space::Space::new())),
+        Stacked::Drive => Some(Box::new(taps.pop()?)),
     }
 }
 
 #[cfg(all(unix, not(target_os = "android")))]
-fn serve(path: &std::path::Path) -> Result<beui_core::app::automation::Inbox, Box<dyn Error>> {
-    use beui_core::app::automation::socket;
-    let inbox = beui_core::app::automation::Inbox::default();
-    let served = match std::env::var(beui_core::runner::environment::AUTOMATION_LISTENER) {
+fn serve(path: &std::path::Path) -> Result<beui_layer_drive::Inbox, Box<dyn Error>> {
+    use beui_layer_drive::socket;
+    let inbox = beui_layer_drive::Inbox::default();
+    let served = match std::env::var(beui_core::runner::environment::DRIVE_LISTENER) {
         Ok(fd) => {
             let fd: std::os::fd::RawFd = fd.parse().map_err(|_| {
-                format!("BEUI_AUTOMATION_LISTENER takes a file descriptor, not {fd}")
+                format!("BEUI_DRIVE_LISTENER takes a file descriptor, not {fd}")
             })?;
             // unsafe(ffi)
             let inherited = unsafe {
@@ -136,16 +150,16 @@ fn serve(path: &std::path::Path) -> Result<beui_core::app::automation::Inbox, Bo
     served.map_err(|error| {
         format!(
             "{}: could not listen on {}: {error}",
-            beui_core::runner::environment::AUTOMATION,
+            beui_core::runner::environment::DRIVE_SOCKET,
             path.display()
         )
     })?;
     Ok(inbox)
 }
 
-#[cfg(not(any(unix, target_os = "android")))]
-fn serve(_path: &std::path::Path) -> Result<beui_core::app::automation::Inbox, Box<dyn Error>> {
-    Err("BEUI_AUTOMATION needs a Unix socket, which this platform lacks".into())
+#[cfg(not(all(unix, not(target_os = "android"))))]
+fn serve(_path: &std::path::Path) -> Result<beui_layer_drive::Inbox, Box<dyn Error>> {
+    Err("BEUI_DRIVE_SOCKET needs a Unix socket, which this platform lacks".into())
 }
 
 pub fn native_platform(renderers: Vec<WindowRenderer>) -> Box<dyn Platform> {
@@ -174,11 +188,11 @@ fn load(renderer: WindowRenderer, window: Arc<dyn WindowHandle>) -> Result<Loade
 
 pub fn run_on(
     platform: Box<dyn Platform>,
-    mut options: RunOptions,
+    options: RunOptions,
     app: impl App + 'static,
 ) -> Result<(), Box<dyn Error>> {
-    let choice = from_environment(&mut options, platform.name())?;
-    let (platform, layers) = choose_platform(choice, None, || platform);
+    let choice = from_environment(platform.name())?;
+    let (platform, layers) = choose_platform(choice, None, || platform)?;
     let launch = Launch {
         options,
         context: crate::system_context(),

@@ -201,7 +201,7 @@ impl Compositor {
         gpu.queue.submit([encoder.finish()]);
     }
 
-    pub(crate) fn read(&self, window: WindowId) -> Option<beui_core::app::automation::Capture> {
+    pub(crate) fn read(&self, window: WindowId) -> Option<beui_core::renderer::Capture> {
         let gpu = self.0.borrow();
         let panel = gpu.panels.get(&window)?;
         beui_renderer_wgpu::present::read_texture(&gpu.device, &gpu.queue, &panel.texture)

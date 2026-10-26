@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use be_block::BlockContent;
 use be_drive::Driven;
-use beui_core::app::automation::Reply;
+use beui_layer_drive::Reply;
 use infinite_canvas_types::{CanvasContent, CanvasEntity, CanvasShape};
 use paint_snapshot::{Painting, Snapshot};
 
@@ -125,14 +125,14 @@ fn first_device(
     app.click("Button \"Add to My files\"")?;
     app.click("MenuItem \"Folder\"")?;
     app.wait("TextInput \"Name\" value=\"Folder\" focused")?;
-    app.run(&["key", "Enter"])?;
-    app.run(&["gone", "TextInput \"Name\""])?;
+    app.run(&["app", "key", "Enter"])?;
+    app.run(&["app", "gone", "TextInput \"Name\""])?;
     let folder = app.row_button("TreeItem \"Folder\"", ".more")?;
     app.click(&folder)?;
     app.click("#file-tree.zoom-in")?;
     app.wait("#file-tree.back")?;
     app.click("Button \"Close tab\"")?;
-    app.run(&["gone", "Tab \"Folder\""])?;
+    app.run(&["app", "gone", "Tab \"Folder\""])?;
     app.run(&["hurry", "off"])?;
 
     app.add("Canvas", "canvas")?;
@@ -141,7 +141,7 @@ fn first_device(
     app.click("#infinite-canvas.dock.tool.Rectangle")?;
     app.run(&[
         "--no-settle",
-        "drag",
+        "app", "drag",
         &target(at(0.2, 0.2)),
         &target(at(0.4, 0.4)),
     ])?;
@@ -149,17 +149,17 @@ fn first_device(
     app.save("canvas.rectangle-save")?;
     app.click("#infinite-canvas.dock.tool.Pen")?;
     let stroke = draw_stroke(&mut app, settings.points, at(0.1, 0.6), at(0.9, 0.7))?;
-    app.run(&["pen", "leave"])?;
+    app.run(&["app", "pen", "leave"])?;
     app.click("#infinite-canvas.dock.tool.Select")?;
     app.paint("canvas.paint", &settings.out.join("first-canvas.paint"))?;
     app.close_tab("Canvas", "canvas.close")?;
 
     app.add("Text", "text")?;
     app.click("#text.surface")?;
-    app.within(LONG, &["clipboard", &text(settings.text_bytes)])?;
+    app.within(LONG, &["screen", "clipboard", &text(settings.text_bytes)])?;
     let pasting = Instant::now();
-    app.within(LONG, &["--no-settle", "key", "ctrl+v"])?;
-    app.within(LONG, &["wait", "The quick brown fox"])?;
+    app.within(LONG, &["--no-settle", "app", "key", "ctrl+v"])?;
+    app.within(LONG, &["app", "wait", "The quick brown fox"])?;
     bench::time("text.paste", pasting.elapsed());
     app.save("text.paste-save")?;
     app.paint("text.paint", &settings.out.join("first-text.paint"))?;
@@ -231,12 +231,12 @@ fn draw_stroke(
             .map(|(_, to, steps, _)| (to.as_str(), *steps)),
         app.scale()?,
     )?;
-    app.run(&["--no-settle", "pen", "down", &from])?;
+    app.run(&["--no-settle", "app", "pen", "down", &from])?;
     for (metric, to, steps, per_frame) in &stretches {
         app.stretch(*metric, to, *steps, *per_frame)?;
     }
     app.run(&["frames"])?;
-    app.run(&["--no-settle", "pen", "up"])?;
+    app.run(&["--no-settle", "app", "pen", "up"])?;
     app.save("canvas.stroke-save")?;
     let frames = app.run(&["frames"])?;
     bench::time(
@@ -267,7 +267,7 @@ fn second_device(
     bench::time("second.recover", recovering.elapsed());
     let opening = Instant::now();
     app.click("Button \"Personal\"")?;
-    app.within(LONG, &["wait", "Pane \"Files\""])?;
+    app.within(LONG, &["app", "wait", "Pane \"Files\""])?;
     app.run(&["settle"])?;
     bench::time("second.open-organization", opening.elapsed());
     bench::time("second.total", started.elapsed());
@@ -363,7 +363,7 @@ impl App {
 
     fn failed(&mut self, words: &[&str], error: &str) -> String {
         let driven = self.driven();
-        let tree = match driven.request(&["tree"]) {
+        let tree = match driven.request(&["app", "tree"]) {
             Ok(Reply::Text(tree)) => tree,
             _ => "(the app did not answer)".to_owned(),
         };
@@ -375,12 +375,12 @@ impl App {
     }
 
     fn wait(&mut self, target: &str) -> Result<(), String> {
-        self.run(&["wait", target]).map(drop)
+        self.run(&["app", "wait", target]).map(drop)
     }
 
     fn click(&mut self, target: &str) -> Result<(), String> {
         self.wait(target)?;
-        self.run(&["click", target]).map(drop)
+        self.run(&["app", "click", target]).map(drop)
     }
 
     fn stretch(
@@ -400,7 +400,7 @@ impl App {
             LONG,
             &[
                 "--no-settle",
-                "pen",
+                "app", "pen",
                 "move",
                 to,
                 "0.5",
@@ -409,7 +409,7 @@ impl App {
             ],
         )?;
         let moved = Instant::now();
-        self.within(LONG, &["wait", SHAPE, "over", &inked])?;
+        self.within(LONG, &["app", "wait", SHAPE, "over", &inked])?;
         let Some(metric) = metric else {
             return Ok(());
         };
@@ -427,7 +427,7 @@ impl App {
     }
 
     fn scale(&mut self) -> Result<f32, String> {
-        let state = self.run(&["state"])?;
+        let state = self.run(&["app", "state"])?;
         state
             .split_once(" at scale ")
             .and_then(|(_, rest)| rest.split(',').next()?.parse().ok())
@@ -435,11 +435,11 @@ impl App {
     }
 
     fn shown(&mut self, text: &str) -> Result<bool, String> {
-        Ok(self.run(&["tree"])?.contains(text))
+        Ok(self.run(&["app", "tree"])?.contains(text))
     }
 
     fn place(&mut self, target: &str) -> Result<(f32, f32, f32, f32), String> {
-        let found = self.run(&["find", target])?;
+        let found = self.run(&["app", "find", target])?;
         let numbers: Vec<f32> = found
             .split(|character: char| {
                 !character.is_ascii_digit() && character != '-' && character != '.'
@@ -453,7 +453,7 @@ impl App {
     }
 
     fn row_button(&mut self, row: &str, suffix: &str) -> Result<String, String> {
-        let tree = self.run(&["tree"])?;
+        let tree = self.run(&["app", "tree"])?;
         tree.lines()
             .skip_while(|line| !line.contains(row))
             .take(6)
@@ -468,23 +468,23 @@ impl App {
         self.click("Button \"Add account\"")?;
         self.click("#account.custom")?;
         self.click("TextInput \"Server address\"")?;
-        self.run(&["type", url])?;
+        self.run(&["app", "type", url])?;
         self.click("#account.confirm")?;
         self.wait("#account.browser-code")?;
-        let tree = self.run(&["tree"])?;
+        let tree = self.run(&["app", "tree"])?;
         let code = tree
             .lines()
             .find(|line| line.contains("#account.browser-code"))
             .and_then(value)
             .ok_or_else(|| format!("the sign-in shows no code:\n{tree}"))?;
         server.approve(&code)?;
-        self.run(&["gone", "#account.browser-code"])?;
+        self.run(&["app", "gone", "#account.browser-code"])?;
         Ok(())
     }
 
     fn save_phrase(&mut self) -> Result<Vec<String>, String> {
         self.wait("Label value=\"Check that you saved them\"")?;
-        let tree = self.run(&["tree"])?;
+        let tree = self.run(&["app", "tree"])?;
         let phrase: Vec<String> = tree
             .lines()
             .find(|line| line.contains("value=\"1. "))
@@ -504,7 +504,7 @@ impl App {
             .collect();
         for position in asked {
             self.click(&format!("TextInput \"Word {position}\""))?;
-            self.run(&["type", &phrase[position - 1]])?;
+            self.run(&["app", "type", &phrase[position - 1]])?;
         }
         self.click("Button \"I saved them\"")?;
         Ok(phrase)
@@ -512,7 +512,7 @@ impl App {
 
     fn recover(&mut self, phrase: &[String]) -> Result<(), String> {
         self.click("TextInput \"Recovery phrase\"")?;
-        self.run(&["type", &phrase.join(" ")])?;
+        self.run(&["app", "type", &phrase.join(" ")])?;
         self.click("Button \"Unlock\"")?;
         self.wait("Button \"Personal\"")
     }
@@ -522,14 +522,14 @@ impl App {
         let item = format!("MenuItem \"{label}\"");
         self.wait(&item)?;
         let started = Instant::now();
-        self.run(&["--no-settle", "click", &item])?;
+        self.run(&["--no-settle", "app", "click", &item])?;
         self.wait(&format!("Pane \"{label}\""))?;
         bench::time(&format!("{metric}.tab-open"), started.elapsed());
         self.wait(&format!("TreeItem \"{label}\""))?;
         bench::time(&format!("{metric}.in-files"), started.elapsed());
-        self.run(&["gone", "#editor.loading"])?;
+        self.run(&["app", "gone", "#editor.loading"])?;
         bench::time(&format!("{metric}.loaded"), started.elapsed());
-        self.run(&["key", "Enter"])?;
+        self.run(&["app", "key", "Enter"])?;
         self.run(&["hurry", "on"])?;
         self.run(&["hurry", "off"]).map(drop)
     }
@@ -542,15 +542,15 @@ impl App {
     }
 
     fn paint(&mut self, metric: &str, path: &Path) -> Result<Snapshot, String> {
-        self.run(&["gone", "#editor.loading"])?;
+        self.run(&["app", "gone", "#editor.loading"])?;
         self.run(&["settle"])?;
         let started = Instant::now();
-        let reply = self.driven().request(&["paint", BLOCK]);
+        let reply = self.driven().request(&["app", "paint", BLOCK]);
         bench::time(metric, started.elapsed());
         let bytes = match reply {
             Ok(Reply::Painting(bytes)) => bytes,
             Ok(_) => return Err("paint answered with something other than a painting".to_owned()),
-            Err(error) => return Err(self.failed(&["paint", BLOCK], &error)),
+            Err(error) => return Err(self.failed(&["app", "paint", BLOCK], &error)),
         };
         let snapshot = Painting::decode(&bytes).and_then(Snapshot::of_painting)?;
         std::fs::write(path, snapshot.encode()?)
@@ -561,8 +561,8 @@ impl App {
     fn close_tab(&mut self, label: &str, metric: &str) -> Result<(), String> {
         self.wait("Button \"Close tab\"")?;
         let started = Instant::now();
-        self.run(&["--no-settle", "click", "Button \"Close tab\""])?;
-        self.run(&["gone", &format!("Pane \"{label}\"")])?;
+        self.run(&["--no-settle", "app", "click", "Button \"Close tab\""])?;
+        self.run(&["app", "gone", &format!("Pane \"{label}\"")])?;
         bench::time(metric, started.elapsed());
         Ok(())
     }
@@ -576,9 +576,9 @@ impl App {
     ) -> Result<Snapshot, String> {
         self.wait(row)?;
         let started = Instant::now();
-        self.run(&["--no-settle", "click", row])?;
+        self.run(&["--no-settle", "app", "click", row])?;
         self.wait(&format!("Pane \"{label}\""))?;
-        self.run(&["gone", "#editor.loading"])?;
+        self.run(&["app", "gone", "#editor.loading"])?;
         bench::time(&format!("{metric}-open"), started.elapsed());
         let painted = self.paint(&format!("{metric}-paint"), painting)?;
         self.close_tab(label, &format!("{metric}-close"))?;
@@ -593,7 +593,7 @@ impl App {
         let started = Instant::now();
         self.within(
             LONG,
-            &["save", &path.to_string_lossy(), "#file-tree.export"],
+            &["screen", "save", &path.to_string_lossy(), "#file-tree.export"],
         )?;
         bench::time(metric, started.elapsed());
         let bytes = std::fs::read(path)

@@ -2,7 +2,7 @@ use std::error::Error;
 
 use beui_core::app::App;
 use beui_core::renderer::{Loaded, any_loaded};
-use beui_core::runner::{Launch, Platform, RunOptions};
+use beui_core::runner::{Launch, Layer, Platform, RunOptions};
 use beui_platform_web::Web;
 
 pub enum WebRenderer {
@@ -16,13 +16,14 @@ pub async fn run_web(
     element_id: &str,
     renderers: Vec<WebRenderer>,
     options: RunOptions,
+    layers: Vec<Box<dyn Layer>>,
     app: impl App + 'static,
 ) -> Result<(), Box<dyn Error>> {
     let launch = Launch {
         options,
         context: crate::context(),
         app: Box::new(app),
-        layers: Vec::new(),
+        layers,
     };
     web_platform(element_id, renderers).run(launch).await
 }

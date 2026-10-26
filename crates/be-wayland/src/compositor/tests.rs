@@ -74,7 +74,7 @@ mod the_ui_can_make_a_window_fullscreen_and_take_it_back;
 mod with_middle_click_paste_off_a_selection_is_cancelled_and_offered_to_no_one;
 mod with_middle_click_paste_on_a_selection_is_offered_until_it_is_switched_off;
 
-use beui::automation::WindowSize;
+use beui::WindowSize;
 use beui::styled::*;
 use beui::testing::Stepped;
 use beui::{FrameOutput, Input, Key, Keystroke, NodeId, pos2};

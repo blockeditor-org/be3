@@ -16,29 +16,29 @@ fn a_driver_resizes_a_headless_window_and_reads_its_state() {
     let mut driven = headless(crate::testing::Showing(document));
 
     driven
-        .ask(&["resize", "200x100@2"])
+        .ask(&["screen", "resize", "200x100@2"])
         .expect("a headless window resizes");
-    let tree = driven.ask(&["tree"]).expect("the tree is read");
+    let tree = driven.ask(&["app", "tree"]).expect("the tree is read");
     assert!(
         tree.starts_with("Window \"Driven\" focused at 0,0 size 400x200"),
         "the window is 200 by 100 points at twice the pixels:\n{tree}"
     );
     assert!(
-        driven.ask(&["resize", "screen", "8192x100"]).is_err(),
+        driven.ask(&["screen", "resize", "screen", "8192x100"]).is_err(),
         "a screen wider than a texture at the window's scale is refused"
     );
     assert!(
-        driven.ask(&["resize", "200x100@inf"]).is_err(),
+        driven.ask(&["screen", "resize", "200x100@inf"]).is_err(),
         "an infinite scale is refused"
     );
-    driven.ask(&["blur"]).expect("the window loses focus");
-    let state = driven.ask(&["state"]).expect("the state is read");
+    driven.ask(&["screen", "blur"]).expect("the window loses focus");
+    let state = driven.ask(&["app", "state"]).expect("the state is read");
     assert!(
         state.starts_with("window 200x100 at scale 2, fullscreen no, focused no"),
         "{state}"
     );
     driven
-        .ask(&["clipboard", "copied"])
+        .ask(&["screen", "clipboard", "copied"])
         .expect("the clipboard is set");
-    assert_eq!(driven.ask(&["clipboard"]), Ok("copied\n".to_owned()));
+    assert_eq!(driven.ask(&["screen", "clipboard"]), Ok("copied\n".to_owned()));
 }

@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
-use crate::app::accessibility_dump::Line;
-use crate::geometry::{Pos2, Rect, Vec2, pos2};
+use beui_core::app::accessibility_dump::Line;
+use beui_core::geometry::{Pos2, Rect, Vec2, pos2};
 
 pub(crate) fn scaled(rect: Rect, scale: f32) -> Rect {
     Rect::from_min_max(
@@ -84,6 +84,14 @@ pub(crate) fn locate(target: &str, lines: &[Rc<Line>]) -> Result<Rect, String> {
         }
     };
     placed(line)
+}
+
+pub(crate) fn coordinates(target: &str) -> Option<Rect> {
+    match numbers(target).as_deref() {
+        Some([x, y]) => Some(Rect::from_min_size(pos2(*x, *y), Vec2::ZERO)),
+        Some([x, y, width, height]) => Some(Rect::from_min_size(pos2(*x, *y), Vec2::new(*width, *height))),
+        _ => None,
+    }
 }
 
 fn numbers(text: &str) -> Option<Vec<f32>> {

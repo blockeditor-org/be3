@@ -10,7 +10,6 @@ pub use beui_components_unstyled::datetime;
 pub use beui_core::accessibility;
 pub use beui_core::animation;
 pub use beui_core::app::accessibility_dump;
-pub use beui_core::app::automation;
 pub use beui_core::app::{App, FrameTimes, Setup, Waker};
 pub use beui_core::base::overlay::{OverlayAnchor, Placement};
 pub use beui_core::base::turn::TurnNode;
@@ -69,7 +68,8 @@ pub use beui_core::preferences::{
 };
 pub use beui_core::rich;
 pub use beui_core::runner::environment;
-pub use beui_core::testing;
+pub use beui_layer_drive as drive;
+pub use beui_platform_headless::testing;
 pub use beui_core::touch_cursor;
 #[cfg(not(target_arch = "wasm32"))]
 pub use beui_font_freetype::system::SystemFonts;
@@ -92,9 +92,10 @@ pub use beui_core::runner::{
     Running, Shown, Units, panic_message,
 };
 pub use beui_core::window::{
-    HostPlacement, WindowEdge, WindowHosting, WindowId, WindowPlacement, WindowReport,
-    WindowRequest,
+    HostPlacement, Resize, WindowEdge, WindowHosting, WindowId, WindowPlacement, WindowReport,
+    WindowRequest, WindowSize,
 };
+pub use beui_platform_headless::Simulation;
 #[cfg(all(feature = "window", target_os = "android"))]
 pub use beui_platform_android::AndroidApp;
 #[cfg(all(any(feature = "web", feature = "dom"), target_arch = "wasm32"))]

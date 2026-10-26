@@ -49,7 +49,7 @@ use uuid::Uuid;
 use crate::document::FRAME_INTERVAL;
 use crate::link::Sent;
 use crate::{ContentStore, overflow, snapshot};
-use beui::automation::gestures::{Frames, Gestures};
+use beui::drive::gestures::{Frames, Gestures};
 
 pub(crate) mod capture;
 
@@ -1788,7 +1788,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn key(&mut self, key: Key, modifiers: Modifiers) {
-        let chord = beui::automation::keys::chord_name(key, modifiers)
+        let chord = beui_core::input::typing::chord_name(key, modifiers)
             .unwrap_or_else(|| format!("{modifiers:?}+{key:?}"));
         self.steps.push(format!("drive key {chord}"));
         let frames = self.gestures.chord(key, modifiers);

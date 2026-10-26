@@ -24,7 +24,7 @@ pub fn serve(path: &Path, inbox: Inbox) -> io::Result<()> {
 pub fn serve_on(listener: UnixListener, path: &Path, inbox: Inbox) -> io::Result<()> {
     let path = path.to_path_buf();
     std::thread::Builder::new()
-        .name("beui automation".to_owned())
+        .name("beui drive".to_owned())
         .spawn(move || listen(listener, path, inbox))?;
     Ok(())
 }
@@ -34,18 +34,18 @@ fn listen(listener: UnixListener, path: PathBuf, inbox: Inbox) {
         let stream = match stream {
             Ok(stream) => stream,
             Err(error) => {
-                eprintln!("beui: automation socket {}: {error}", path.display());
+                eprintln!("beui: drive socket {}: {error}", path.display());
                 return;
             }
         };
         let inbox = inbox.clone();
         let _ = std::thread::Builder::new()
-            .name("beui automation client".to_owned())
+            .name("beui drive client".to_owned())
             .spawn(move || {
                 if let Err(error) = converse(stream, &inbox)
                     && error.kind() != io::ErrorKind::UnexpectedEof
                 {
-                    eprintln!("beui: automation client: {error}");
+                    eprintln!("beui: drive client: {error}");
                 }
             });
     }

@@ -4,8 +4,11 @@ edition.workspace = true
 version.workspace = true
 license.workspace = true
 
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+[dependencies]
 beui-core = { path = "../beui-core" }
+beui-layer-drive = { path = "../beui-layer-drive" }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
 pollster = "0.4"
 

@@ -10,16 +10,15 @@ use std::time::{Duration, Instant};
 use accesskit::TreeUpdate;
 
 use crate::app::accessibility_dump::AccessibilityDump;
-use crate::app::automation::{Automation, Capture, Inbox, Resize, Settled, View, World};
 use crate::app::{App, SafeArea, Setup, Waker, next_batch, safe_rect};
 use crate::clipboard::{PasteAnswer, PasteKind, PasteRequest, Pasted};
-use crate::context::{ActionGroup, Context, FrameOutput, WindowOutput};
+use crate::context::{Context, FrameOutput, WindowOutput};
 use crate::file_picker::{FilePick, FilePickAnswer, FilePickId, FilePickRequest};
 use crate::file_saver::{FileSave, FileSaveAnswer, FileSaveId, FileSaveRequest};
 use crate::geometry::Vec2;
 use crate::input::{Event, Input};
-use crate::renderer::{Loaded, Renderers};
-use crate::window::{WindowId, WindowReport, WindowReports, WindowState};
+use crate::renderer::{Capture, Loaded, Renderers};
+use crate::window::{Resize, WindowId, WindowReport, WindowReports, WindowState};
 
 pub mod environment;
 mod intake;
@@ -36,7 +35,6 @@ pub struct RunOptions {
     pub app_id: Option<String>,
     pub size: Vec2,
     pub accessibility_tree: bool,
-    pub automation: Option<Inbox>,
     pub saved_preferences: Option<std::path::PathBuf>,
 }
 
@@ -46,7 +44,6 @@ impl Default for RunOptions {
             app_id: None,
             size: Vec2::new(1280.0, 800.0),
             accessibility_tree: false,
-            automation: None,
             saved_preferences: None,
         }
     }
@@ -180,12 +177,9 @@ pub struct Runner {
     typed_pastes: (Sender<Pasted>, Receiver<Pasted>),
     keyboard_chosen: bool,
     publishing_accessibility: bool,
-    automation: Option<Automation>,
-    actions: Vec<ActionGroup>,
     unpresented: bool,
     occluded: bool,
     closing: bool,
-    asked: WindowState,
     window: WindowState,
     background: crate::color::Color32,
     reports: WindowReports,
@@ -203,7 +197,7 @@ fn type_pastes(
     while let Ok(pasted) = pastes.try_recv() {
         if let Pasted::Text(text) = pasted {
             let mut typed = Vec::new();
-            crate::app::automation::keys::typed(&text, held, &mut typed);
+            crate::input::typing::typed(&text, held, &mut typed);
             incoming.extend(typed.into_iter().map(Incoming::from));
         }
     }
@@ -218,13 +212,9 @@ impl Runner {
             mut layers,
         } = launch;
         context.set_window_hosting(crate::window::WindowHosting::None);
+        context.keep_accessibility(options.accessibility_tree);
         for layer in &mut layers {
             layer.attach(&context);
-        }
-        let automation = options.automation.map(Automation::new);
-        context.keep_accessibility(options.accessibility_tree || automation.is_some());
-        if automation.is_some() {
-            context.set_automated(true);
         }
         Self {
             app,
@@ -241,12 +231,9 @@ impl Runner {
             typed_pastes: mpsc::channel(),
             keyboard_chosen: false,
             publishing_accessibility: false,
-            automation,
-            actions: Vec::new(),
             unpresented: false,
             occluded: false,
             closing: false,
-            asked: WindowState::default(),
             window: WindowState::default(),
             background: crate::color::Color32::BLACK,
             reports: WindowReports::default(),
@@ -276,9 +263,6 @@ impl Runner {
         self.renderers = Some(renderers);
         self.waker = Some(setup.waker.clone());
         self.context.set_waker(setup.waker.clone());
-        if let Some(automation) = &self.automation {
-            automation.inbox().set_waker(setup.waker.clone());
-        }
         self.app.setup(&setup);
         for layer in &mut self.layers {
             layer.setup(&setup);
@@ -461,42 +445,6 @@ impl Runner {
         if let Err(error) = renderers.follow_choice(&self.context) {
             eprintln!("beui: could not switch renderers: {error}");
         }
-        if let Some(automation) = &mut self.automation
-            && let Some(dump) = self.context.kept_accessibility()
-        {
-            let view = View {
-                accessibility: &dump,
-                pixels_per_point: self.context.pixels_per_point(),
-                now: self.context.now(),
-                size: renderers.physical().map_or(Vec2::ZERO, |physical| {
-                    physical / self.context.pixels_per_point()
-                }),
-                window: &self.asked,
-                fullscreen: self.context.fullscreen(),
-                actions: &self.actions,
-                environment: &|| self.app.environment(),
-            };
-            let mut world = World {
-                events: &mut self.intake.incoming,
-                platform: &mut services(&mut self.layers, platform),
-                context: &self.context,
-            };
-            automation.begin(&view, &mut world);
-            if automation.take_painting_request() {
-                self.app.request_painting();
-            }
-            if automation.take_close() {
-                let accepted = self.app.close_requested();
-                automation.closed(accepted);
-                self.closing |= accepted;
-            }
-        }
-        while let Ok((id, pick)) = self.picks.1.try_recv() {
-            self.context.file_picked(id, pick);
-        }
-        while let Ok((id, save)) = self.saves.1.try_recv() {
-            self.context.file_saved(id, save);
-        }
         if let Some(fullscreen) = self.reports.take_fullscreen() {
             self.context.fullscreen_changed(fullscreen);
         }
@@ -542,6 +490,12 @@ impl Runner {
         }
         .upward(|layer, frame| layer.input(&mut incoming, frame));
         self.intake.incoming = incoming;
+        while let Ok((id, pick)) = self.picks.1.try_recv() {
+            self.context.file_picked(id, pick);
+        }
+        while let Ok((id, save)) = self.saves.1.try_recv() {
+            self.context.file_saved(id, save);
+        }
         self.intake.drain(
             &mut Drain {
                 pixels_per_point: scale,
@@ -575,12 +529,7 @@ impl Runner {
             }
         };
         let events = next_batch(&mut self.events);
-        let seen = !self.occluded
-            || self
-                .automation
-                .as_ref()
-                .is_some_and(Automation::wants_sight)
-            || self.layers.iter().any(|layer| layer.wants_sight());
+        let seen = !self.occluded || self.layers.iter().any(|layer| layer.wants_sight());
         self.context.set_seen(seen);
         self.context.set_accessibility_viewport(screen);
         let app = &mut self.app;
@@ -608,21 +557,11 @@ impl Runner {
         }
         for request in std::mem::take(&mut output.file_picks) {
             let answer = FilePickAnswer::new(request.id, self.picks.0.clone(), self.waker.clone());
-            match &mut self.automation {
-                Some(automation) if !cfg!(target_arch = "wasm32") => {
-                    automation.pick_file(request, answer);
-                }
-                _ => below.pick_file(request, answer),
-            }
+            below.pick_file(request, answer);
         }
         for request in std::mem::take(&mut output.file_saves) {
             let answer = FileSaveAnswer::new(request.id, self.saves.0.clone(), self.waker.clone());
-            match &mut self.automation {
-                Some(automation) if !cfg!(target_arch = "wasm32") => {
-                    automation.save_file(request, answer);
-                }
-                _ => below.save_file(request, answer),
-            }
+            below.save_file(request, answer);
         }
         self.intake
             .incoming
@@ -671,7 +610,6 @@ impl Runner {
             services(&mut self.layers, platform).show_window(&window, &self.window);
             self.window = window;
         }
-        self.asked.clone_from(&output.main().window);
         self.background = shown.window.appearance.clear_color;
         if let Some(fullscreen) = output.fullscreen
             && fullscreen != self.context.fullscreen()
@@ -707,58 +645,6 @@ impl Runner {
         }
         .downward(|layer, layer_frame| layer.framed(&mut frame, &output, layer_frame));
         self.unpresented |= pending;
-        if let Some(automation) = &mut self.automation
-            && let Some(dump) = self.context.kept_accessibility()
-        {
-            let took = started.elapsed();
-            let others = self.app.other_frames();
-            self.actions = std::mem::take(&mut output.actions);
-            let view = View {
-                accessibility: &dump,
-                pixels_per_point: scale,
-                now: self.context.now(),
-                size: screen,
-                window: &self.asked,
-                fullscreen: self.context.fullscreen(),
-                actions: &self.actions,
-                environment: &|| self.app.environment(),
-            };
-            let settled = Settled {
-                busy: self.app.busy(),
-                drawing: self.app.drawing(),
-                again: match automation.clock_stopped() {
-                    true => frame.deferred,
-                    false => frame.again(),
-                },
-            };
-            automation.framed(took, others);
-            automation.end(
-                &view,
-                settled,
-                &output.unran_actions,
-                output.hits.as_deref(),
-                output.comps.as_deref(),
-            );
-            if let Some(after) = automation.wants_frame(self.context.now()) {
-                frame.repaint |= after.is_zero();
-                frame.repaint_after = frame.repaint_after.min(after);
-            }
-            if automation.wants_capture() && !self.unpresented {
-                automation.captured(renderers.capture());
-            }
-            if automation.wants_painting() {
-                automation.painted(crate::painting::painting(
-                    output.main(),
-                    screen,
-                    scale,
-                    output.main().window.appearance.clear_color,
-                    crate::painting::Punches::Erase,
-                ));
-            }
-            if automation.wants_overflows() {
-                automation.overflowed(crate::painting::overflows(&output, scale));
-            }
-        }
         if !self.unpresented && self.layers.iter().any(|layer| layer.wants_capture()) {
             capture_for(&mut self.layers, renderers.capture());
         }
@@ -790,11 +676,6 @@ impl Runner {
         let again = renderers.present(background);
         if !again {
             self.unpresented = false;
-            if let Some(automation) = &mut self.automation
-                && automation.wants_capture()
-            {
-                automation.captured(renderers.capture());
-            }
             if self.layers.iter().any(|layer| layer.wants_capture()) {
                 capture_for(&mut self.layers, renderers.capture());
             }

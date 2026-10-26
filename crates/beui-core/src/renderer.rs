@@ -4,11 +4,17 @@ use std::sync::Arc;
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
 use crate::app::Setup;
-use crate::app::automation::Capture;
 use crate::color::Color32;
 use crate::context::{Context, RendererChoices, RendererInfo, WindowOutput};
 use crate::font::FontBackend;
 use crate::geometry::Vec2;
+
+#[derive(Clone)]
+pub struct Capture {
+    pub width: u32,
+    pub height: u32,
+    pub rgba: Vec<u8>,
+}
 
 pub trait WindowHandle: HasWindowHandle + HasDisplayHandle + Send + Sync {}
 

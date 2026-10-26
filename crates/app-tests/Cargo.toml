@@ -6,7 +6,7 @@ license.workspace = true
 
 [dependencies]
 be-drive = { path = "../be-drive" }
-beui-core = { path = "../beui-core" }
+beui-layer-drive = { path = "../beui-layer-drive" }
 paint-snapshot = { path = "../paint-snapshot" }
 
 [lints]

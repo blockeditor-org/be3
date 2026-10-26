@@ -243,7 +243,7 @@ impl Target {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn capture(&self, gpu: &Gpu) -> Option<beui_core::app::automation::Capture> {
+    pub fn capture(&self, gpu: &Gpu) -> Option<beui_core::renderer::Capture> {
         let retained = self.retained.as_ref().filter(|_| self.presented)?;
         read_texture(&gpu.device, &gpu.queue, &retained.texture)
     }
@@ -526,7 +526,7 @@ pub fn read_texture(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     texture: &wgpu::Texture,
-) -> Option<beui_core::app::automation::Capture> {
+) -> Option<beui_core::renderer::Capture> {
     let swap = match texture.format() {
         wgpu::TextureFormat::Rgba8Unorm | wgpu::TextureFormat::Rgba8UnormSrgb => false,
         wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Bgra8UnormSrgb => true,
@@ -589,7 +589,7 @@ pub fn read_texture(
     for pixel in rgba.as_chunks_mut::<4>().0 {
         pixel[3] = 255;
     }
-    Some(beui_core::app::automation::Capture {
+    Some(beui_core::renderer::Capture {
         width,
         height,
         rgba,

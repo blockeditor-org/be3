@@ -1,4 +1,4 @@
-use crate::app::automation::{MAX_PIXELS, WindowSize};
+use crate::window::{MAX_PIXELS, WindowSize};
 use crate::geometry::Vec2;
 
 pub const PLATFORM: &str = "BEUI_PLATFORM";
@@ -6,8 +6,8 @@ pub const LAYERS: &str = "BEUI_LAYERS";
 pub const RENDERER: &str = "BEUI_RENDERER";
 pub const HEADLESS_WINDOW: &str = "BEUI_HEADLESS_WINDOW";
 pub const HEADLESS_SCREEN: &str = "BEUI_HEADLESS_SCREEN";
-pub const AUTOMATION: &str = "BEUI_AUTOMATION";
-pub const AUTOMATION_LISTENER: &str = "BEUI_AUTOMATION_LISTENER";
+pub const DRIVE_SOCKET: &str = "BEUI_DRIVE_SOCKET";
+pub const DRIVE_LISTENER: &str = "BEUI_DRIVE_LISTENER";
 
 pub const VARIABLES: &[&str] = &[
     PLATFORM,
@@ -15,8 +15,8 @@ pub const VARIABLES: &[&str] = &[
     RENDERER,
     HEADLESS_WINDOW,
     HEADLESS_SCREEN,
-    AUTOMATION,
-    AUTOMATION_LISTENER,
+    DRIVE_SOCKET,
+    DRIVE_LISTENER,
 ];
 
 pub const HEADLESS_WINDOW_SIZE: &str = "1100x720";
@@ -40,14 +40,16 @@ pub enum Base {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Stacked {
     Space,
+    Drive,
 }
 
 impl Stacked {
-    pub const ALL: &[Self] = &[Self::Space];
+    pub const ALL: &[Self] = &[Self::Space, Self::Drive];
 
     pub fn name(self) -> &'static str {
         match self {
             Self::Space => "space",
+            Self::Drive => "drive",
         }
     }
 
@@ -87,8 +89,27 @@ pub fn choose(native: &str, var: impl Fn(&str) -> Option<String>) -> Result<Choi
                     )
                 })
             })
-            .collect::<Result<_, _>>()?,
+            .collect::<Result<Vec<_>, _>>()?,
     };
+    let drives = layers
+        .iter()
+        .filter(|layer| **layer == Stacked::Drive)
+        .count();
+    if drives > 2 {
+        return Err(format!(
+            "{LAYERS} names drive {drives} times; one drive layer, or two (its screen tap below and its app tap above), make one session"
+        ));
+    }
+    if drives > 0 && var(DRIVE_SOCKET).is_none() {
+        return Err(format!(
+            "{LAYERS} names drive, which answers on the Unix socket {DRIVE_SOCKET} names; set it to a path"
+        ));
+    }
+    if drives == 0 && var(DRIVE_SOCKET).is_some() {
+        return Err(format!(
+            "{DRIVE_SOCKET} is for the drive layer: add drive to {LAYERS}"
+        ));
+    }
     let platform = if headless {
         let window = var(HEADLESS_WINDOW).unwrap_or_else(|| HEADLESS_WINDOW_SIZE.to_owned());
         let window = WindowSize::parse(&window)

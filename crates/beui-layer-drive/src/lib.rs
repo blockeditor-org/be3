@@ -5,27 +5,17 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::task::{Context as TaskContext, Poll, Waker as TaskWaker};
 
-use crate::app::Waker;
+use beui_core::app::Waker;
 
 mod diff;
-mod engine;
 pub mod gestures;
-pub mod keys;
+mod session;
 #[cfg(all(unix, not(target_arch = "wasm32")))]
 pub mod socket;
 mod target;
-mod window;
 
 pub use diff::changes;
-pub use engine::{Automation, PANE, Settled, USAGE, View, World};
-pub use window::{MAX_PIXELS, Resize, Simulation, WindowSize};
-
-#[derive(Clone)]
-pub struct Capture {
-    pub width: u32,
-    pub height: u32,
-    pub rgba: Vec<u8>,
-}
+pub use session::{Drive, PANE, USAGE};
 
 pub enum Reply {
     Text(String),

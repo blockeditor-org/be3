@@ -14,7 +14,7 @@ use crate::{Unanswered, request};
 
 const USAGE: &str = "usage: be-drive launch --program=PATH [--name=NAME] [--data] [--libraries=DIR]
        [--size=WIDTHxHEIGHT[@SCALE]] [--screen=WIDTHxHEIGHT] [--fresh] [--stop] [PROGRAM ARGUMENTS...]
-Starts a beui program headless with an automation socket, waits until it settles, and writes
+Starts a beui program headless with a drive socket, waits until it settles, and writes
 an env file that puts `drive` on PATH pointed at it. Arguments it does not know go to the program.";
 const STARTUP: Duration = Duration::from_secs(120);
 const SOCKET_PATH: usize = 107;
@@ -95,7 +95,7 @@ impl Launch {
             fs::remove_dir_all(&data)
                 .map_err(|error| format!("could not delete {}: {error}", data.display()))?;
         }
-        let socket = dir.join("automation.sock");
+        let socket = dir.join("drive.sock");
         let length = socket.as_os_str().len();
         if length > SOCKET_PATH {
             return Err(format!(
@@ -124,8 +124,9 @@ impl Launch {
                 environment::HEADLESS_SCREEN,
                 self.screen.as_deref().unwrap_or(SCREEN),
             )
-            .env(environment::AUTOMATION, &socket)
-            .env(environment::AUTOMATION_LISTENER, listening.to_string())
+            .env(environment::LAYERS, layers(std::env::var(environment::LAYERS).ok()))
+            .env(environment::DRIVE_SOCKET, &socket)
+            .env(environment::DRIVE_LISTENER, listening.to_string())
             .env_remove("DISPLAY")
             .env_remove("WAYLAND_DISPLAY")
             .stdin(Stdio::null())
@@ -189,7 +190,7 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
         &env,
         format!(
             "export BE_DRIVE_SOCKET={}\nexport PATH={}:\"$PATH\"\n",
-            quoted(&dir.join("automation.sock")),
+            quoted(&dir.join("drive.sock")),
             quoted(&bin),
         ),
     )
@@ -255,7 +256,7 @@ pub fn run_script(arguments: &[String]) -> Result<(), String> {
     fs::create_dir_all(&dir)
         .map_err(|error| format!("could not create {}: {error}", dir.display()))?;
     let mut child = launch.start(&dir, None)?;
-    if let Err(error) = crate::script(&dir.join("automation.sock"), &[], crate::TIMEOUT) {
+    if let Err(error) = crate::script(&dir.join("drive.sock"), &[], crate::TIMEOUT) {
         kill_group(child.id());
         let _ = child.wait();
         return Err(error);
@@ -279,6 +280,20 @@ pub fn run_script(arguments: &[String]) -> Result<(), String> {
                 EXIT.as_secs()
             ))
         }
+    }
+}
+
+fn layers(inherited: Option<String>) -> String {
+    let inherited = inherited.unwrap_or_default();
+    let named: Vec<&str> = inherited
+        .split(',')
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .collect();
+    match named.as_slice() {
+        [] => "drive".to_owned(),
+        named if named.contains(&"drive") => named.join(","),
+        named => format!("drive,{},drive", named.join(",")),
     }
 }
 

@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use beui::automation::WindowSize;
+use beui::WindowSize;
 use beui::testing::{Showing, Stepped};
 use beui::{Context, FreetypeFonts, HostPlacement, WindowPlacement, WindowReport, pos2, vec2};
 

@@ -44,7 +44,6 @@ pub mod runner;
 pub mod screen_simulation;
 pub mod sight;
 pub mod software_keyboard;
-pub mod testing;
 pub mod timer;
 pub mod touch_cursor;
 pub mod tree;

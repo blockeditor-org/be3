@@ -2,14 +2,14 @@ use std::time::Instant;
 
 use accesskit::TreeUpdate;
 
-use crate::app::automation::{Capture, Resize};
 use crate::app::{App, Setup};
 use crate::clipboard::{PasteAnswer, PasteKind};
 use crate::context::{Context, FrameOutput, WindowOutput};
 use crate::file_picker::{FilePickAnswer, FilePickRequest};
 use crate::file_saver::{FileSaveAnswer, FileSaveRequest};
 use crate::geometry::{Pos2, Vec2};
-use crate::window::{WindowId, WindowRequest, WindowState};
+use crate::renderer::Capture;
+use crate::window::{Resize, WindowId, WindowRequest, WindowState};
 
 use super::{Frame, Incoming, PlatformServices};
 

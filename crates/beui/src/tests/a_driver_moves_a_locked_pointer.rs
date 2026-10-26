@@ -28,11 +28,11 @@ fn a_driver_moves_a_locked_pointer() {
         "the motion reaches the control holding the pointer"
     );
     assert!(
-        driven.ask(&["motion", "6"]).is_err(),
+        driven.ask(&["app", "motion", "6"]).is_err(),
         "motion needs both DX and DY"
     );
     assert!(
-        driven.ask(&["motion", "left", "4"]).is_err(),
+        driven.ask(&["app", "motion", "left", "4"]).is_err(),
         "motion takes numbers"
     );
 }

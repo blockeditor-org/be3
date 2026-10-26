@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 use std::time::Duration;
 
-use beui::automation::WindowSize;
+use beui::WindowSize;
 use beui::testing::{Showing, Stepped, Target};
 use beui::{Color32, Context, Document, FontLibrary, FrameOutput, FreetypeFonts, Rect, Vec2};
 

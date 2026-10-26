@@ -275,7 +275,7 @@ dependencies = [
  "be-drive",
  "be-server",
  "bench",
- "beui-core",
+ "beui-layer-drive",
  "build-id",
  "infinite-canvas-types",
  "libc",
@@ -288,7 +288,7 @@ name = "app-tests"
 version = "0.1.0"
 dependencies = [
  "be-drive",
- "beui-core",
+ "beui-layer-drive",
  "paint-snapshot",
 ]
 
@@ -825,6 +825,7 @@ name = "be-drive"
 version = "0.1.0"
 dependencies = [
  "beui-core",
+ "beui-layer-drive",
  "image",
  "libc",
  "paint-snapshot",
@@ -1138,6 +1139,7 @@ dependencies = [
  "beui-font-browser",
  "beui-font-freetype",
  "beui-inspector",
+ "beui-layer-drive",
  "beui-layer-space",
  "beui-platform-android",
  "beui-platform-headless",
@@ -1278,6 +1280,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "beui-layer-drive"
+version = "0.1.0"
+dependencies = [
+ "accesskit",
+ "beui-core",
+]
+
+[[package]]
 name = "beui-layer-space"
 version = "0.1.0"
 dependencies = [
@@ -1326,6 +1336,7 @@ name = "beui-platform-headless"
 version = "0.1.0"
 dependencies = [
  "beui-core",
+ "beui-layer-drive",
  "beui-renderer-wgpu",
  "pollster",
 ]

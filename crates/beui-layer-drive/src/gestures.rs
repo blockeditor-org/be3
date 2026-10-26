@@ -1,11 +1,11 @@
-use crate::geometry::{Pos2, Vec2, vec2};
-use crate::input::{
+use beui_core::geometry::{Pos2, Vec2, vec2};
+use beui_core::input::{
     BackEdge, BackGesture, ImeEvent, Input, Key, Modifiers, Pen, PenPhase, PointerButton,
     ScrollDelta, TouchId, TouchPhase,
 };
-use crate::runner::SCROLL_LINE as WHEEL_LINE;
+use beui_core::input::typing as keys;
+use beui_core::runner::SCROLL_LINE as WHEEL_LINE;
 
-use super::keys;
 
 pub type Frames = Vec<Vec<Input>>;
 

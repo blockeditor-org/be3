@@ -3,6 +3,8 @@ use std::time::{Duration, Instant};
 
 use crate::geometry::{Pos2, Vec2};
 
+pub mod typing;
+
 pub use ui_types::input::{
     BackEdge, BackGesture, CursorIcon, ImeEvent, ImeText, Input, Key, KeyChord, KeyPress, Keyboard,
     Keystroke, Modifiers, Pen, PenPhase, PointerButton, ScrollDelta, TouchId, TouchPhase,

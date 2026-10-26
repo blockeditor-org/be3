@@ -10,7 +10,6 @@ render = ["dep:beui-renderer-wgpu", "beui-components-styled/gpu"]
 window = [
     "render",
     "dep:beui-platform-android",
-    "dep:beui-platform-headless",
     "dep:beui-layer-space",
     "dep:beui-platform-winit",
     "dep:pollster",
@@ -38,6 +37,8 @@ beui-components-unstyled = { path = "../beui-components-unstyled" }
 beui-core = { path = "../beui-core" }
 beui-font-freetype = { path = "../beui-font-freetype" }
 beui-inspector = { path = "../beui-inspector" }
+beui-layer-drive = { path = "../beui-layer-drive" }
+beui-platform-headless = { path = "../beui-platform-headless" }
 beui-renderer-wgpu = { path = "../beui-renderer-wgpu", optional = true }
 beui-view = { path = "../beui-view" }
 beui_macros = { path = "../beui-macros" }
@@ -52,7 +53,6 @@ serde_json = { version = "1", optional = true }
 beui-platform-android = { path = "../beui-platform-android", optional = true }
 
 [target.'cfg(not(any(target_os = "android", target_arch = "wasm32")))'.dependencies]
-beui-platform-headless = { path = "../beui-platform-headless", optional = true }
 beui-platform-winit = { path = "../beui-platform-winit", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
