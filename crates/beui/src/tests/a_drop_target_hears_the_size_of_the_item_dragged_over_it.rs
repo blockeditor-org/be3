@@ -35,7 +35,10 @@ fn a_drop_target_hears_the_size_of_the_item_dragged_over_it() {
 
     assert_eq!(
         heard.get_untracked(),
-        Some(Rect::from_min_size(pos2(-10.0, -5.0), harness.rect(source).size())),
+        Some(Rect::from_min_size(
+            pos2(-10.0, -5.0),
+            harness.rect(source).size()
+        )),
         "the target hears the carried item's rect, relative to where it was grabbed"
     );
     assert_eq!(

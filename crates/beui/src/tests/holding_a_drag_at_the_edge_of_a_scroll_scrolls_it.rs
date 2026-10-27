@@ -75,7 +75,10 @@ fn holding_a_drag_at_the_edge_of_a_scroll_scrolls_it() {
         "and once the drag ends"
     );
     assert!(
-        harness.document().overlay_rects(crate::WindowId::MAIN).is_empty(),
+        harness
+            .document()
+            .overlay_rects(crate::WindowId::MAIN)
+            .is_empty(),
         "an edge scroll shows no autoscroll marker"
     );
 }

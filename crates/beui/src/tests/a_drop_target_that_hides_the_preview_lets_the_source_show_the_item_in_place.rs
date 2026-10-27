@@ -26,7 +26,10 @@ fn a_drop_target_that_hides_the_preview_lets_the_source_show_the_item_in_place()
                 </DropTarget>
             },
             view! {
-                <DropTarget hides_preview=true on_drop={move |_: (u32, DragPoint)| {}}>|_: DropHandle|
+                <DropTarget
+                    hides_preview=true
+                    on_drop={move |_: (u32, DragPoint)| {}}
+                >|_: DropHandle|
                     <Frame width=100.0 height=100.0 />
                 </DropTarget>
             },
@@ -38,7 +41,10 @@ fn a_drop_target_that_hides_the_preview_lets_the_source_show_the_item_in_place()
     harness.press_at(harness.center(source));
     harness.frame(vec![Input::PointerMoved(harness.center(plain))]);
     let output = harness.frame(Vec::new());
-    assert!(output.test_id_rect("ghost").is_some(), "the preview floats over a plain target");
+    assert!(
+        output.test_id_rect("ghost").is_some(),
+        "the preview floats over a plain target"
+    );
     assert!(floating.get_untracked());
 
     harness.frame(vec![Input::PointerMoved(harness.center(holding))]);
@@ -47,11 +53,17 @@ fn a_drop_target_that_hides_the_preview_lets_the_source_show_the_item_in_place()
         output.test_id_rect("ghost").is_none(),
         "over a target that hides it, there is no floating preview"
     );
-    assert!(!floating.get_untracked(), "and the source hears it is lifted in place");
+    assert!(
+        !floating.get_untracked(),
+        "and the source hears it is lifted in place"
+    );
     assert!(harness.document().dragging(), "though the drag goes on");
 
     harness.frame(vec![Input::PointerMoved(harness.center(plain))]);
     let output = harness.frame(Vec::new());
-    assert!(output.test_id_rect("ghost").is_some(), "it floats again once it leaves");
+    assert!(
+        output.test_id_rect("ghost").is_some(),
+        "it floats again once it leaves"
+    );
     harness.release_at(harness.center(plain));
 }

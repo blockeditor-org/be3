@@ -6,7 +6,7 @@ use beui_macros::{component, view};
 
 use beui_core::base::Direction;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
-use beui_core::drag_board::{DragPoint, Pending, DragSource, Target};
+use beui_core::drag_board::{DragPoint, DragSource, Pending, Target};
 use beui_core::geometry::{Pos2, Rect, Vec2};
 use beui_core::input::CursorIcon;
 use beui_core::input::{PointerPress, TOUCH_DRAG_THRESHOLD};

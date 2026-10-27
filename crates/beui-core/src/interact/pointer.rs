@@ -1686,15 +1686,18 @@ fn edge_scroll(doc: &mut Document, frame: &Frame, window: WindowId, pos: Pos2) {
         return;
     }
     let path = hit(doc, frame.rects, window, pos, false).path;
-    let edges: Vec<_> = path.into_iter().filter_map(|id| {
-        let catcher = interactive(doc, id).filter(|node| node.wants_autoscroll())?;
-        let axis = catcher.scroll_axis?;
-        let rect = frame.rects.visible(&id)?;
-        let offset = doc.first_offset_within(id)?;
-        let position = doc.offset_position(offset)?;
-        let at = doc.offset_value(offset);
-        let movable = [at > 0.0, at < position.max_offset()];
-        Some((id, rect, axis, catcher.on_autoscroll, movable))
-    }).collect();
+    let edges: Vec<_> = path
+        .into_iter()
+        .filter_map(|id| {
+            let catcher = interactive(doc, id).filter(|node| node.wants_autoscroll())?;
+            let axis = catcher.scroll_axis?;
+            let rect = frame.rects.visible(&id)?;
+            let offset = doc.first_offset_within(id)?;
+            let position = doc.offset_position(offset)?;
+            let at = doc.offset_value(offset);
+            let movable = [at > 0.0, at < position.max_offset()];
+            Some((id, rect, axis, catcher.on_autoscroll, movable))
+        })
+        .collect();
     board.edge_scroll(pos, edges.into_iter());
 }

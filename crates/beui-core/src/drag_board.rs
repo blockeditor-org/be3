@@ -87,21 +87,12 @@ pub struct Target {
     pub hides_preview: Rc<dyn Fn() -> bool>,
 }
 
-/// What a source hands the board as it lifts something.
 pub struct DragSource {
     pub payload: Rc<dyn Any>,
-    /// The lifted item's rect relative to the pointer, in the source's points;
-    /// `Rect::ZERO` when there is no item to speak of.
     pub item: Rect,
-    /// Every new pointer position while carried.
     pub follow: Rc<dyn Fn(DragPoint)>,
-    /// Whether the floating preview should show: false while over a target
-    /// that hides it, true again once the pointer leaves that target.
     pub floating: Rc<dyn Fn(bool)>,
-    /// Released outside every window.
     pub outside: Outside,
-    /// The drag ended with nothing taking it: Escape, a cancelled pointer,
-    /// or a release over no target that accepts the payload.
     pub cancelled: Rc<dyn Fn()>,
 }
 
@@ -198,7 +189,6 @@ impl Board {
         self.carried.borrow().is_some()
     }
 
-    /// The carried item's rect relative to the pointer, while something is carried.
     pub fn item(&self) -> Option<Rect> {
         self.carried
             .borrow()
@@ -273,8 +263,6 @@ impl Board {
         }
     }
 
-    /// Ends what is carried without dropping it, as Escape does. Returns
-    /// whether anything was carried.
     pub fn cancel(&self) -> bool {
         if !self.carrying() {
             return false;
@@ -440,9 +428,6 @@ impl Board {
         }
     }
 
-    /// Ends the drag, dropping on the target under `point` if there is one.
-    /// Returns whether a target took it; when none did, the source hears
-    /// that the drag was cancelled.
     pub fn end(&self, point: Option<DragPoint>) -> bool {
         self.settle(point, true)
     }
@@ -491,15 +476,18 @@ impl Board {
         false
     }
 
-    /// Scrolls the scroll under the pointer while the pointer is held within
-    /// [`EDGE_BAND`] of its edge, along its axis, by reporting an autoscroll
-    /// gesture to it; `edges` lists the scroll catchers under the pointer,
-    /// innermost first, with their visible rect, axis, report callback and
-    /// whether they can scroll further back and forward.
     pub(crate) fn edge_scroll(
         &self,
         pos: Pos2,
-        edges: impl Iterator<Item = (NodeId, Rect, Direction, Callback<AutoscrollGesture>, [bool; 2])>,
+        edges: impl Iterator<
+            Item = (
+                NodeId,
+                Rect,
+                Direction,
+                Callback<AutoscrollGesture>,
+                [bool; 2],
+            ),
+        >,
     ) {
         if !self.carrying() || self.outside.get() {
             self.stop_edge();
@@ -516,8 +504,8 @@ impl Board {
                     _ if at > end - band && movable[1] => at - (end - band),
                     _ => return None,
                 };
-                let reach = crate::interact::autoscroll::AUTOSCROLL_DEAD_ZONE
-                    + depth.abs() * EDGE_GAIN;
+                let reach =
+                    crate::interact::autoscroll::AUTOSCROLL_DEAD_ZONE + depth.abs() * EDGE_GAIN;
                 let origin = pos - axis.axes(reach * depth.signum(), 0.0);
                 Some(Edge {
                     catcher,
