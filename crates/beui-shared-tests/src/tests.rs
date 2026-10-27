@@ -75,6 +75,7 @@ mod portal;
 mod progress;
 mod rows;
 mod scroll;
+mod scroll_chain;
 mod sheet;
 mod stack;
 mod table;

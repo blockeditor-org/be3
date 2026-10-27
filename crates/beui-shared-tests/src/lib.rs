@@ -124,6 +124,9 @@ pub fn Fixture(name: String) -> Root {
         "scroll" => view! {
             <rows::ScrollFixture />
         },
+        "scroll_chain" => view! {
+            <rows::ScrollChainFixture />
+        },
         "drag" => view! {
             <rows::DragFixture />
         },

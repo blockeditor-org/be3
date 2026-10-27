@@ -250,6 +250,7 @@ mod web {
             modifiers: modifiers(event),
             time: crate::frame::now(),
             settles: None,
+            unclaimed: false,
         }
     }
 
@@ -904,6 +905,7 @@ mod web {
                             size: at.size,
                             modifiers: modifiers(event),
                             held: false,
+                            unclaimed: false,
                         }),
                         Some(Input::Zoom(factor)) => WheelInput::Zoom(ZoomGesture {
                             factor,

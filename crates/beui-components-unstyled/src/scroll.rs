@@ -24,11 +24,13 @@ use beui_view::types::Pos2;
 use beui_view::types::Sides;
 use beui_view::types::{
     AutoscrollGesture, CursorIcon, DragGesture, Key, KeyPress, PointerPress, ScrollGesture,
+    Vec2, WHEEL_LATCH_TIMEOUT, WheelInput,
 };
 use beui_view::types::{Direction, ItemSize, Justify, PlatformScroll, ScrollPosition, Sizing};
 use beui_view::{CORE, Core};
 
 const STEP: f32 = 40.0;
+const EDGE_SLACK: f32 = 0.5;
 const AUTOSCROLL_GAIN: f32 = 6.0;
 const AUTOSCROLL_ACCELERATION: f32 = 0.02;
 
@@ -249,6 +251,17 @@ impl Momentum {
     }
 }
 
+fn chaining(motion: Stored<Motion>, wheel: Callback<WheelInput, bool>) -> Callback<WheelInput, bool> {
+    Callback::new(move |input: WheelInput| {
+        if let WheelInput::Scroll(gesture) = &input
+            && motion.value().wheel_chains(gesture)
+        {
+            return false;
+        }
+        wheel.call(input)
+    })
+}
+
 fn autoscroll_speed(distance: f32) -> f32 {
     let beyond = (distance.abs() - AUTOSCROLL_DEAD_ZONE).max(0.0);
     distance.signum() * (beyond * AUTOSCROLL_GAIN + beyond * beyond * AUTOSCROLL_ACCELERATION)
@@ -266,6 +279,7 @@ struct Motion {
     animation: Cell<Option<Animation>>,
     autoscrolling: Cell<Option<Timer>>,
     autoscrolled: Cell<Instant>,
+    wheeled: Cell<Option<Instant>>,
 }
 
 impl Motion {
@@ -307,6 +321,35 @@ impl Motion {
 
     fn stop_fling(&self) {
         self.momentum.borrow_mut().stop_fling();
+    }
+
+    fn chains(&self, along: f32) -> bool {
+        if along == 0.0 {
+            return false;
+        }
+        let Some(position) = self.placed() else {
+            return false;
+        };
+        match along < 0.0 {
+            true => position.offset >= position.max_offset() - EDGE_SLACK,
+            false => position.offset <= EDGE_SLACK,
+        }
+    }
+
+    fn wheel_chains(&self, gesture: &ScrollGesture) -> bool {
+        let along = self.axis().main(gesture.delta);
+        if along == 0.0 {
+            return false;
+        }
+        let latched = self
+            .wheeled
+            .get()
+            .is_some_and(|last| now().saturating_duration_since(last) < WHEEL_LATCH_TIMEOUT);
+        if !latched && !gesture.unclaimed && self.chains(along) {
+            return true;
+        }
+        self.wheeled.set(Some(now()));
+        false
     }
 
     fn wheel(&self, gesture: ScrollGesture) {
@@ -545,6 +588,7 @@ fn Scrolling(
         animation: Cell::default(),
         autoscrolling: Cell::default(),
         autoscrolled: Cell::new(now()),
+        wheeled: Cell::new(None),
     });
     settles.set(Some(motion));
     let animation = create_animation(
@@ -668,15 +712,20 @@ fn Scrolling(
     });
     let pointer = gestures::first_of([
         autoscroll.pointer,
-        gestures::scroll_drag(axis, move |gesture: DragGesture| {
-            motion.value().drag(gesture)
-        }),
+        gestures::chaining_scroll_drag(
+            axis,
+            move |movement: Vec2| motion.value().chains(direction.get_untracked().main(movement)),
+            move |gesture: DragGesture| motion.value().drag(gesture),
+        ),
     ]);
     let wheel = gestures::first_of([
         autoscroll.wheel,
-        gestures::scroll_wheel(axis, move |gesture: ScrollGesture| {
-            motion.value().wheel(gesture)
-        }),
+        chaining(
+            motion,
+            gestures::scroll_wheel(axis, move |gesture: ScrollGesture| {
+                motion.value().wheel(gesture)
+            }),
+        ),
     ]);
     let cursor = create_memo(move || {
         autoscroll.active.get().then(|| match direction.get() {
@@ -881,6 +930,7 @@ fn BrowserScroll(
         animation: Cell::default(),
         autoscrolling: Cell::default(),
         autoscrolled: Cell::new(now()),
+        wheeled: Cell::new(None),
     });
     api.fill(ScrollApi(motion));
     component_accessibility(create_memo(move || {

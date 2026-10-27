@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use geometry::{Pos2, Vec2};
 
@@ -13,6 +13,7 @@ pub use ui_types::input::{
 pub mod typing;
 
 pub const TOUCH_DRAG_THRESHOLD: f32 = 8.0;
+pub const WHEEL_LATCH_TIMEOUT: Duration = Duration::from_millis(500);
 pub const TOUCH_VELOCITY_WINDOW: f32 = 0.12;
 pub const MAX_TOUCH_VELOCITY: f32 = 4_000.0;
 
@@ -159,6 +160,7 @@ pub struct PointerInput {
     pub modifiers: Modifiers,
     pub time: Instant,
     pub settles: Option<Direction>,
+    pub unclaimed: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -197,6 +199,7 @@ pub struct ScrollGesture {
     pub size: Vec2,
     pub modifiers: Modifiers,
     pub held: bool,
+    pub unclaimed: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]

@@ -4924,7 +4924,21 @@ pointer input is dispatched) and a touchpad zoom. `first_of([..])` puts several
 on one catcher, asking each in turn until one takes the input. So a vertical
 wheel over a horizontal strip passes through to whatever is around it, and a
 drag reaches the innermost catcher that scrolls that way. `unstyled::Scroll` is
-`scroll_wheel`, `scroll_drag` and `autoscroll`; `PanZoom` is `pan_zoom`.
+`scroll_wheel`, `chaining_scroll_drag` (`scroll_drag` with a test that turns a
+settled drag down) and `autoscroll`; `PanZoom` is `pan_zoom`.
+
+Scrolling chains as in a browser. A `Scroll` turns down a wheel gesture or a
+settled finger drag that starts with it already at its edge in that direction
+(or with nothing to scroll), so the input goes on to the catchers around it,
+such as an enclosing `Scroll`. It decides once, when the gesture starts: a
+wheel turn within `WHEEL_LATCH_TIMEOUT` of the last one it took continues that
+gesture, so a fling or a run of turns that reaches its end keeps going into its
+rubber band and never moves the scroll around it mid-gesture. When every
+catcher on the path turns an input down, the core offers it once more along the
+path with `unclaimed` set (`ScrollGesture::unclaimed`, and
+`PointerInput::unclaimed` beside `settles`), and a `Scroll` takes an unclaimed
+input even at its edge, so an outermost scroll still bands. On the HTML core
+the browser scrolls and chains a `Scroll` itself.
 
 Where a catcher hears the pointer is declared, never asked at the moment of a
 press: `hit_area`, `capture_presses`, `gesture_area`, `drawing` and each
@@ -4993,7 +5007,9 @@ under where the pointer was when it turned whose `on_wheel` takes it, unless
 a forwarding catcher comes first (one with `forwards_wheel=false`, such as the
 on-screen keyboard, forwards only its presses and lets the wheel pass to what is
 under it), and stays latched to it for
-`WHEEL_LATCH_TIMEOUT` while the pointer holds still.
+`WHEEL_LATCH_TIMEOUT` while the pointer holds still. A turn every catcher
+turns down is offered along the path again with `unclaimed` set, and so is a
+touch drag's settling move that no catcher claims.
 
 Parts a catcher draws outside its own rectangle, such as the touch selection
 handles of `unstyled::TextArea`, take their presses with a claim on
