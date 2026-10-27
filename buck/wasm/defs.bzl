@@ -9,6 +9,7 @@ load(
     "cargo_manifest_sources",
     "cargo_test_sources",
     "cargo_wasm_facts",
+    "time_limited",
 )
 load("@root//buck/platforms:cross.bzl", "per_cross_platform")
 load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "dev_only", "keep_profile")
@@ -380,7 +381,7 @@ def _plugin_test_run_impl(ctx: AnalysisContext) -> list[Provider]:
             'mkdir -p "$1/used" "$1/changed" && USED_PAINTINGS="$1/used" CHANGED_PAINTINGS="$1/changed" && export USED_PAINTINGS CHANGED_PAINTINGS && shift && exec "$@"',
             "sh",
             paintings.as_output(),
-            command,
+            time_limited(command),
             hidden = ctx.attrs.paintings,
         ),
         category = "plugin_test",

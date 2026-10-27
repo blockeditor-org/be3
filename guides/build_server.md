@@ -52,13 +52,20 @@ server through `scripts/internal/re-relay`, whose errors are in
   2), and `./scripts/buck` tries such a command three times in all
   (`BE3_BUCK_ATTEMPTS`), each time finding what finished cached. A command that
   fails every time is a server that is down or overloaded.
-  A test that hangs looks the same: the server cuts its action off after about
-  five minutes, and it is reported as `re-relay: unexpected EOF`. When only a
-  test command fails this way, build its binary with `./scripts/buck build
+  The proxy also cuts every call five minutes after it starts, while the
+  action an `Execute` asked for keeps running. The relay then makes the same
+  `Execute` again, which joins the running action or reads its cached result,
+  and logs `broke off ..., making it again`; buck2 sees nothing.
+- **A test that hangs**: a test run (`:test-run`, a painting or plugin test
+  run) is stopped after `TEST_TIME_LIMIT` (`buck/cargo/defs.bzl`) and says it
+  hangs; libtest's `has been running for over 60 seconds` line above names the
+  test. Build its binary with `./scripts/buck build
   //crates/X:test --show-full-output` and run the printed path here with a name
   filter and `CARGO_MANIFEST_DIR=$PWD/crates/X` set (painting tests find their
-  snapshots through it, and fail in paint-snapshot without it). If it hangs here too, the test hangs, and `gdb -p PID -batch -ex
-  'thread apply all bt'` shows what it waits on.
+  snapshots through it, and fail in paint-snapshot without it). A hang that
+  depends on timing can take dozens of runs to show; several copies at once,
+  in a loop, find it sooner. `gdb -p PID -batch -ex 'thread apply all bt'`
+  shows what a hung one waits on.
 - **`the proxy answered 401 Unauthorized`**: the proxy has no key for the host
   (`credentials missing`) or refused the one it has (`invalid token`): the
   session has no key for that server.

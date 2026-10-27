@@ -176,6 +176,20 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apa
 # A Rust test harness run with its LD_LIBRARY_PATH carried as
 # BE3_LD_LIBRARY_PATH and put back by the shell that starts it, so it survives
 # a worker that sets its own.
+# A test run's command, stopped once it has run for TEST_TIME_LIMIT. A test
+# that hangs would otherwise hold its worker until the build server gives up
+# on it, and every later run of the same action would wait on that one.
+TEST_TIME_LIMIT = "20m"
+
+def time_limited(command):
+    return cmd_args(
+        "sh",
+        "-c",
+        'timeout "$0" "$@"; status=$? && [ "$status" != 124 ] || echo "the test ran for over $0 and was stopped: one of its tests hangs, the one said above to have been running for over 60 seconds" >&2; exit "$status"',
+        TEST_TIME_LIMIT,
+        command,
+    )
+
 _restore_library_path = 'LD_LIBRARY_PATH="$BE3_LD_LIBRARY_PATH" && export LD_LIBRARY_PATH && exec "$@"'
 
 def _library_path_test_impl(ctx: AnalysisContext) -> list[Provider]:
@@ -271,7 +285,7 @@ def _painting_test_run_impl(ctx: AnalysisContext) -> list[Provider]:
             'mkdir -p "$1/used" "$1/changed" && USED_PAINTINGS="$1/used" CHANGED_PAINTINGS="$1/changed" && export USED_PAINTINGS CHANGED_PAINTINGS && shift && exec "$@"',
             "sh",
             paintings.as_output(),
-            command,
+            time_limited(command),
             hidden = ctx.attrs.paintings,
         ),
         category = "painting_test",
@@ -305,7 +319,7 @@ def _test_run_impl(ctx: AnalysisContext) -> list[Provider]:
             'passed="$1" && shift && "$@" && : > "$passed"',
             "sh",
             passed.as_output(),
-            test.command,
+            test.command if ctx.attrs.local_only else time_limited(test.command),
         ),
         category = "test_run",
         env = test.env or {},
