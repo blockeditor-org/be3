@@ -153,8 +153,15 @@ mod web {
             return;
         };
         SESSION.with(|session| *session.borrow_mut() = Some((node, sink)));
-        let _ = host.append_child(&agent);
-        let _ = agent.focus();
+        let agent_node: &web_sys::Node = agent.as_ref();
+        if agent_node.parent_node().as_ref() != Some(&host) {
+            let _ = host.append_child(&agent);
+        }
+        let active = crate::dom::document().and_then(|document| document.active_element());
+        let element: &web_sys::Element = agent.as_ref();
+        if active.as_ref() != Some(element) {
+            let _ = agent.focus();
+        }
     }
 
     pub(super) fn keyboard(node: NodeId, keyboard: beui_types::SoftKeyboard) {

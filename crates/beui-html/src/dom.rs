@@ -9,6 +9,10 @@ const END_MARKER: &str = "]";
 
 type Listener = Closure<dyn FnMut(web_sys::Event)>;
 
+thread_local! {
+    static DISPLACED: std::cell::RefCell<Option<web_sys::Element>> = const { std::cell::RefCell::new(None) };
+}
+
 pub(crate) struct Live {
     node: web_sys::Node,
     anchors: Vec<(SlotId, web_sys::Comment, web_sys::Comment)>,
@@ -230,6 +234,7 @@ fn place(
             break;
         }
         cursor = stale.next_sibling();
+        displace(&stale);
         let _ = parent.remove_child(&stale);
     }
 }
@@ -245,7 +250,47 @@ fn insert(parent: &web_sys::Node, dom: &web_sys::Node, before: Option<&web_sys::
             return;
         }
     }
+    displace(dom);
     let _ = parent.insert_before(dom, before);
+    restore_focus();
+}
+
+fn displace(dom: &web_sys::Node) {
+    if !dom.is_connected() {
+        return;
+    }
+    let Some(active) = document().active_element() else {
+        return;
+    };
+    if dom.contains(Some(active.as_ref())) {
+        DISPLACED.with(|displaced| displaced.replace(Some(active)));
+    }
+}
+
+fn restore_focus() {
+    let Some(element) = DISPLACED.with(|displaced| {
+        let mut displaced = displaced.borrow_mut();
+        displaced
+            .as_ref()
+            .is_some_and(|element| element.is_connected())
+            .then(|| displaced.take())
+            .flatten()
+    }) else {
+        return;
+    };
+    let lost = document()
+        .active_element()
+        .is_none_or(|active| active.tag_name() == "BODY");
+    if !lost {
+        return;
+    }
+    let options = js_sys::Object::new();
+    let _ = js_sys::Reflect::set(&options, &"preventScroll".into(), &true.into());
+    if let Ok(focus) = js_sys::Reflect::get(&element, &"focus".into())
+        && let Ok(focus) = focus.dyn_into::<js_sys::Function>()
+    {
+        let _ = focus.call1(&element, &options);
+    }
 }
 
 fn mismatch(what: &str) {

@@ -1,0 +1,21 @@
+# Radio groups, segments, tabs and a listbox choose by pointer and move their
+# choice with the arrow keys.
+clock stop
+wait 'value="Mode Some(0) period 1 tab 0 color Some(1)"'
+click 'RadioButton "Manual"'
+wait 'value="Mode Some(1) period 1 tab 0 color Some(1)"'
+key down
+wait 'value="Mode Some(2) period 1 tab 0 color Some(1)"'
+click 'RadioButton "Month"'
+wait 'value="Mode Some(2) period 2 tab 0 color Some(1)"'
+key left
+wait 'value="Mode Some(2) period 1 tab 0 color Some(1)"'
+click 'Tab "Details"'
+wait 'value="Mode Some(2) period 1 tab 1 color Some(1)"'
+wait 'Tab "Details" selected'
+key left
+wait 'value="Mode Some(2) period 1 tab 0 color Some(1)"'
+click 'ListBoxOption "Green"'
+wait 'value="Mode Some(2) period 1 tab 0 color Some(2)"'
+key up
+wait 'value="Mode Some(2) period 1 tab 0 color Some(1)"'

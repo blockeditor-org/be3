@@ -6,6 +6,7 @@ use beui::{
     TextMark, Vec2,
 };
 
+mod controls;
 #[cfg(not(target_arch = "wasm32"))]
 mod native;
 #[cfg(test)]
@@ -72,6 +73,15 @@ pub fn Fixture(name: String) -> Root {
         },
         "text_input" => view! {
             <TextInputFixture />
+        },
+        "buttons" => view! {
+            <controls::ButtonsFixture />
+        },
+        "toggles" => view! {
+            <controls::TogglesFixture />
+        },
+        "choices" => view! {
+            <controls::ChoicesFixture />
         },
         other => {
             let message = format!("No fixture is named {other}");
