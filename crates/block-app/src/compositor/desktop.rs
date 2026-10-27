@@ -40,6 +40,7 @@ pub(crate) struct Floated {
     pub(crate) key: FloatedKey,
     pub(crate) rect: Rect,
     pub(crate) panel: Option<Panel>,
+    pub(crate) anchor: EditorRegion,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -52,6 +53,13 @@ pub(crate) struct Panel {
 }
 
 impl Floated {
+    fn anchored(&self, region: EditorRegion) -> bool {
+        match region {
+            EditorRegion::Tab(_) => self.anchor == region,
+            _ => !matches!(self.anchor, EditorRegion::Tab(_)),
+        }
+    }
+
     pub(crate) fn placement(&self) -> Option<String> {
         match &self.panel {
             Some(panel) => panel.placed.clone(),
@@ -274,10 +282,18 @@ pub(crate) fn apply() {
                     }
                     WindowPlacement::AtPointer => POINTER.get() - OPEN_GRAB,
                 };
+                let anchor = match open.opener.region {
+                    EditorRegion::Window(opener) => windows
+                        .iter()
+                        .find(|held| held.key.plugin == plugin && held.key.window == opener)
+                        .map_or(EditorRegion::Frame, |held| held.anchor),
+                    region => region,
+                };
                 let window = Floated {
                     key: key(open.window, open.opener.instance),
                     rect: Rect::from_min_size(origin, size),
                     panel,
+                    anchor,
                 };
                 match held {
                     Some(index) => windows[index] = window,
@@ -405,12 +421,17 @@ pub(crate) fn clamped(rect: Rect, viewport: Vec2) -> Rect {
     Rect::from_min_size(pos2(x, y), vec2(size.x, height))
 }
 
-pub(crate) fn overlaid(plugin: String, instance: EditorInstanceId) -> Memo<Vec<u64>> {
+pub(crate) fn overlaid(
+    plugin: String,
+    instance: EditorInstanceId,
+    region: EditorRegion,
+) -> Memo<Vec<u64>> {
     let floated = floated();
     create_memo(move || {
         floated.with(|held| {
             held.iter()
                 .filter(|window| window.key.plugin == plugin && window.key.instance == instance)
+                .filter(|window| window.anchored(region))
                 .filter(|window| window.panel.is_none())
                 .map(|window| window.key.window)
                 .collect()
@@ -458,12 +479,17 @@ pub(crate) fn panel_of(key: FloatedKey) -> Memo<Option<(Vec2, Panel)>> {
     })
 }
 
-pub(crate) fn panels(plugin: String, instance: EditorInstanceId) -> Memo<Vec<u64>> {
+pub(crate) fn panels(
+    plugin: String,
+    instance: EditorInstanceId,
+    region: EditorRegion,
+) -> Memo<Vec<u64>> {
     let floated = floated();
     create_memo(move || {
         floated.with(|held| {
             held.iter()
                 .filter(|window| window.key.plugin == plugin && window.key.instance == instance)
+                .filter(|window| window.anchored(region))
                 .filter(|window| window.panel.is_some())
                 .map(|window| window.key.window)
                 .collect()

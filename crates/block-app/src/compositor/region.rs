@@ -194,7 +194,8 @@ pub(crate) fn PluginRegion(
 ) -> NodeId {
     let instance = editor.instance;
     let place = super::desktop::place();
-    let windowing = (region == EditorRegion::Frame && !offscreen).then(|| editor.clone());
+    let windowing = (matches!(region, EditorRegion::Frame | EditorRegion::Tab(_)) && !offscreen)
+        .then(|| editor.clone());
     let plugin_id = editor.plugin_id().to_owned();
     let floated_key = match region {
         EditorRegion::Window(window) => Some(super::desktop::FloatedKey {
@@ -258,6 +259,7 @@ pub(crate) fn PluginRegion(
     let revision = super::listen(&plugin_id.value());
     let placed = store(Cell::new(None::<EmbedPlacement>));
     let stored_key = store(floated_key.clone());
+    let windowed = windowing.is_some();
     let placer = Callback::new(move |placement: Option<EmbedPlacement>| match placement {
         Some(placement) => plugin_host::place_region(
             &plugin_id.value(),
@@ -269,7 +271,7 @@ pub(crate) fn PluginRegion(
                 clip: placement.clip,
                 zoom: zoom.get_untracked(),
                 raster: placement.raster,
-                windows: hosts_windows || (region == EditorRegion::Frame && !offscreen),
+                windows: hosts_windows || windowed,
                 placement: stored_key
                     .with(|key| key.as_ref().and_then(super::desktop::placement_of)),
             },
@@ -671,12 +673,12 @@ pub(crate) fn PluginRegion(
         let overlaid = (!shows_desktop).then(|| {
             let editor = editor.clone();
             view! {
-                <OverlaidWindows editor />
+                <OverlaidWindows editor region />
             }
         });
         view! {
             <Layers>
-                <PanelWindows editor rect />
+                <PanelWindows editor region rect />
                 {overlaid}
             </Layers>
         }
@@ -785,9 +787,9 @@ fn DesktopWindows(editor: RegionEditor, state: Memo<RegionView>, rect: Memo<Rect
 }
 
 #[component]
-fn OverlaidWindows(editor: RegionEditor) -> NodeId {
+fn OverlaidWindows(editor: RegionEditor, region: EditorRegion) -> NodeId {
     let block = editor.role.block().map(|block| block.id);
-    let keys = super::desktop::overlaid(editor.plugin_id().to_owned(), editor.instance);
+    let keys = super::desktop::overlaid(editor.plugin_id().to_owned(), editor.instance, region);
     let viewport = use_viewport_size();
     let editor = store(editor);
     view! {
@@ -838,11 +840,11 @@ fn OverlaidWindows(editor: RegionEditor) -> NodeId {
 }
 
 #[component]
-fn PanelWindows(editor: RegionEditor, rect: Memo<Rect>) -> NodeId {
+fn PanelWindows(editor: RegionEditor, region: EditorRegion, rect: Memo<Rect>) -> NodeId {
     let instance = editor.instance;
     let plugin = editor.plugin_id().to_owned();
     let block = editor.role.block().map(|block| block.id);
-    let keys = super::desktop::panels(plugin.clone(), instance);
+    let keys = super::desktop::panels(plugin.clone(), instance, region);
     let plugin = store(plugin);
     let editor = store(editor);
     let hosted: Stored<RefCell<HashMap<u64, WindowId>>> = store(RefCell::default());
@@ -862,7 +864,7 @@ fn PanelWindows(editor: RegionEditor, rect: Memo<Rect>) -> NodeId {
                     None => WindowPlacement::AtPointer,
                 }
             }
-            EditorRegion::Frame if over.region.instance == instance => WindowPlacement::Over {
+            opener if opener == region && over.region.instance == instance => WindowPlacement::Over {
                 window: within,
                 at: over.at + rect.get_untracked().min.to_vec2(),
             },

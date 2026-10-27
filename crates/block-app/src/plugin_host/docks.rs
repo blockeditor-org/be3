@@ -253,9 +253,13 @@ impl Docks {
             return true;
         }
         match docked.contains(&placer) {
-            true => self.declared.get(&placer).is_some_and(|declaration| {
-                declaration.tab(&DockTabPath::own(record.tab)).is_some()
-            }),
+            true => {
+                self.instance_of(placer, record)
+                    .is_some_and(|instance| self.declared.contains_key(&instance))
+                    && self.declared.get(&placer).is_some_and(|declaration| {
+                        declaration.tab(&DockTabPath::own(record.tab)).is_some()
+                    })
+            }
             false => self.hosting.contains_key(&(placer, child)),
         }
     }

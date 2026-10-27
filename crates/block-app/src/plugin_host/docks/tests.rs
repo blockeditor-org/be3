@@ -164,6 +164,7 @@ fn host(docks: &mut Docks, hosted: Option<DockHosted>) {
 }
 
 mod a_closed_instance_withdraws_its_dock_from_the_root;
+mod a_docked_child_that_declares_nothing_stays_a_plain_child;
 mod a_docked_child_stays_open_while_its_placer_hosts_or_declares_its_tab;
 mod a_nested_dock_reaches_the_root_spliced_into_its_placers;
 mod a_request_reaches_the_root_through_each_placer;

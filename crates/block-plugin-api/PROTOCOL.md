@@ -463,8 +463,8 @@ spliced child's group again the tab it was placed in) and its own closes. The
 root places a descendant's tab body as a child showing `child-content.dock-tab`
 with the full path, and the host shows the owner's `tab(t)` region there,
 only for tabs the owner's `dock-hosted.visible` lists. The host keeps a docked
-child open while its placer places it or still declares the tab it was placed
-in (for the root, from the declaration it hears until it lets go with a `host`
+child open while its placer places it or, once the child declares a dock, still
+declares the tab it was placed in (for the root, from the declaration it hears until it lets go with a `host`
 of `none`), requesting its frame at its last size without drawing it; a tab closes
 when its owner stops declaring it.
 
