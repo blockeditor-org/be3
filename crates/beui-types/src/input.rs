@@ -14,6 +14,42 @@ pub const TOUCH_DRAG_THRESHOLD: f32 = 8.0;
 pub const TOUCH_VELOCITY_WINDOW: f32 = 0.12;
 pub const MAX_TOUCH_VELOCITY: f32 = 4_000.0;
 
+const MULTI_CLICK_DELAY: f32 = 0.3;
+const MULTI_CLICK_DISTANCE: f32 = 6.0;
+const MULTI_CLICK_LIMIT: u32 = 4;
+
+/// Counts presses that follow each other closely in time and place, as both
+/// cores do for `PointerPress::clicks`: 1, 2 (a word), 3 (a line), 4 (all),
+/// then 1 again.
+#[derive(Clone, Copy, Default, Debug)]
+pub struct ClickCounter {
+    clicks: u32,
+    last: Option<(Instant, Pos2)>,
+}
+
+impl ClickCounter {
+    pub fn count(&mut self, pos: Pos2, now: Instant) -> u32 {
+        let repeated = self.last.is_some_and(|(when, at)| {
+            now.saturating_duration_since(when).as_secs_f32() <= MULTI_CLICK_DELAY
+                && at.distance(pos) <= MULTI_CLICK_DISTANCE
+        });
+        self.clicks = match repeated {
+            true => self.clicks % MULTI_CLICK_LIMIT + 1,
+            false => 1,
+        };
+        self.last = Some((now, pos));
+        self.clicks
+    }
+
+    pub fn clicks(&self) -> u32 {
+        self.clicks
+    }
+
+    pub fn scale(&mut self, scale: impl Fn(Pos2) -> Pos2) {
+        self.last = self.last.map(|(when, pos)| (when, scale(pos)));
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum PointerId {
     Mouse,

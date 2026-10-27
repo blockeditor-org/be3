@@ -7,7 +7,7 @@
 // ?fixture=<the script's file name> and runs the script's commands, one a line
 // as `drive -` reads them. The page answers the reading commands through its
 // automate(words) (beui-core-html's automate: tree, ids, find, wait, gone,
-// settle, pause, clock); click, move, drag, wheel, type and key are real Playwright input, at the
+// settle, pause, clock); click, move, down, up, drag, wheel, type and key are real Playwright input, at the
 // place `find` answers, so the browser's own focus, key and text paths run.
 // --checks also opens ?checks, once in each colour scheme, and fails on any
 // line of the page's checks() that is not "ok". NAME runs only the scripts and checks whose names contain
@@ -170,6 +170,8 @@ async function center(page, target, timeout) {
     return { x: x + width / 2, y: y + height / 2 };
 }
 
+const BUTTONS = { left: "left", right: "right", middle: "middle" };
+
 async function step(page, words) {
     const { timeout, options, rest } = leadingOptions(words);
     const [command, ...args] = rest;
@@ -193,15 +195,36 @@ async function step(page, words) {
         case "drag": {
             const from = await center(page, args[0], timeout);
             const to = await center(page, args[1], timeout);
-            const steps = Number(args[2] ?? 2);
+            let steps = 2;
+            let button = "left";
+            for (const extra of args.slice(2)) {
+                if (BUTTONS[extra]) button = BUTTONS[extra];
+                else if (/^\d+$/.test(extra)) steps = Number(extra);
+                else throw new Failure(`drag takes a number of steps and a button, not ${extra}`);
+            }
             await page.mouse.move(from.x, from.y);
-            await page.mouse.down();
+            await page.mouse.down({ button });
             for (let at = 1; at <= steps; at += 1) {
                 const part = at / steps;
                 await page.mouse.move(from.x + (to.x - from.x) * part, from.y + (to.y - from.y) * part);
                 await settle();
             }
-            await page.mouse.up();
+            await page.mouse.up({ button });
+            return settle();
+        }
+        case "down":
+        case "up": {
+            const named = args.filter((arg) => BUTTONS[arg]);
+            const targets = args.filter((arg) => !BUTTONS[arg]);
+            const button = BUTTONS[named[0]] ?? "left";
+            if (targets[0] !== undefined) {
+                const { x, y } = await center(page, targets[0], timeout);
+                await page.mouse.move(x, y);
+                await settle();
+            } else if (command === "down") {
+                throw new Failure("down needs a TARGET");
+            }
+            await (command === "down" ? page.mouse.down({ button }) : page.mouse.up({ button }));
             return settle();
         }
         case "wheel": {

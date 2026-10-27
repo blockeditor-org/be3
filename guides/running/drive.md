@@ -236,7 +236,7 @@ A command that acts on something takes a TARGET:
     drive click TARGET [right|middle|double]
     drive move TARGET                         hover
     drive down TARGET; drive pause 600; drive move TARGET; drive up   any gesture, step by step
-    drive drag FROM TO [STEPS]
+    drive drag FROM TO [STEPS] [BUTTON]       BUTTON as down takes it, such as middle
     drive wheel TARGET 3                      three mouse-wheel ticks down; a second number turns sideways
     drive scroll TARGET 300                   a touchpad scroll of 300 pixels
     drive zoom TARGET 2                       a touchpad pinch

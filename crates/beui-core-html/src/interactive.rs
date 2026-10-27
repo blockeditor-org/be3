@@ -95,6 +95,7 @@ mod web {
         handlers: Handlers,
         switches: Rc<Switches>,
         pressed: Cell<Option<i32>>,
+        held: Cell<Option<(i32, PointerButton)>>,
         pinch: RefCell<beui_web_input::wheel::Pinch>,
         composed: RefCell<String>,
         last_press: RefCell<Option<PointerPress>>,
@@ -177,13 +178,30 @@ mod web {
                     0.0
                 },
             ),
-            clicks: u32::try_from(event.detail()).unwrap_or(1).max(1),
+            clicks: clicks(event, at.pos),
             modifiers: modifiers(event),
             touch,
             pen: None,
             predicted: None,
             time: crate::frame::now(),
         }
+    }
+
+    thread_local! {
+        static CLICKS: RefCell<(beui_types::input::ClickCounter, Option<f64>)> =
+            RefCell::default();
+    }
+
+    fn clicks(event: &web_sys::MouseEvent, pos: Pos2) -> u32 {
+        CLICKS.with(|clicks| {
+            let (counter, counted) = &mut *clicks.borrow_mut();
+            let stamp = event.time_stamp();
+            if event.type_() == "pointerdown" && event.button() == 0 && *counted != Some(stamp) {
+                *counted = Some(stamp);
+                counter.count(pos, crate::frame::now());
+            }
+            counter.clicks().max(1)
+        })
     }
 
     fn button(button: i16) -> Option<PointerButton> {
@@ -250,9 +268,32 @@ mod web {
             let Some(element) = self.element() else {
                 return false;
             };
-            self.handlers
-                .on_pointer
-                .call(pointer_input(&element, event, stage))
+            let mut input = pointer_input(&element, event, stage);
+            if stage == PointerStage::Move && event.buttons() == 0 {
+                self.held.set(None);
+            }
+            if let Some((pointer, button)) = self.held.get()
+                && pointer == event.pointer_id()
+                && stage != PointerStage::Down
+            {
+                input.button = Some(button);
+                if stage != PointerStage::Move {
+                    self.held.set(None);
+                }
+            }
+            let button = input.button;
+            let taken = self.handlers.on_pointer.call(input);
+            if stage == PointerStage::Down
+                && taken
+                && let Some(button) = button
+            {
+                self.held.set(Some((event.pointer_id(), button)));
+                if button != PointerButton::Primary {
+                    let _ = element.set_pointer_capture(event.pointer_id());
+                    event.prevent_default();
+                }
+            }
+            taken
         }
 
         fn ime_events(&self, events: Vec<Input>) {
@@ -468,6 +509,12 @@ mod web {
                 {
                     held.handlers.on_step.call(step);
                     done = true;
+                }
+                let types = event.key().chars().count() == 1 && !modifiers.command();
+                if done && types && held.takes_text() {
+                    event.stop_propagation();
+                    reactive::flush();
+                    return;
                 }
                 handled(event, done);
             }),
@@ -772,6 +819,7 @@ mod web {
             handlers,
             switches,
             pressed: Cell::new(None),
+            held: Cell::new(None),
             pinch: RefCell::default(),
             composed: RefCell::default(),
             last_press: RefCell::default(),

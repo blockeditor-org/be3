@@ -25,16 +25,13 @@ pub enum FileDrag {
     Dropped(DroppedFile),
 }
 
-const MULTI_CLICK_DELAY: f32 = 0.3;
-const MULTI_CLICK_DISTANCE: f32 = 6.0;
-const MULTI_CLICK_LIMIT: u32 = 4;
 pub const LONG_PRESS_DELAY: Duration = Duration::from_millis(500);
 pub const FINGER_TAP_TIME: Duration = Duration::from_millis(350);
 const WHEEL_VELOCITY_WINDOW: Duration = Duration::from_millis(100);
 const SYNTHESIZED_SLOP: f32 = 2.0;
 
 pub use beui_types::input::{
-    AutoscrollGesture, DragGesture, MAX_TOUCH_VELOCITY, PointerId, PointerInput, PointerPress,
+    AutoscrollGesture, ClickCounter, DragGesture, MAX_TOUCH_VELOCITY, PointerId, PointerInput, PointerPress,
     PointerSample, PointerStage, ScrollGesture, SecondaryDrag, SoftKeyboard, TOUCH_DRAG_THRESHOLD,
     TOUCH_VELOCITY_WINDOW, TouchDrags, WheelInput, ZoomGesture,
 };
@@ -247,10 +244,7 @@ impl InputState {
         }
         input.pointer.pos = input.pointer.pos.map(scale);
         input.pointer.motion *= factor;
-        input.pointer.last_click = input
-            .pointer
-            .last_click
-            .map(|(when, pos)| (when, scale(pos)));
+        input.pointer.clicks.scale(scale);
         input
     }
 
@@ -467,7 +461,7 @@ impl InputState {
             phase,
             pos,
             modifiers: self.modifiers,
-            clicks: self.pointer.clicks,
+            clicks: self.pointer.clicks(),
             force: self.force,
             pen: self.pen,
             predicted: None,
@@ -588,27 +582,17 @@ pub struct Pointer {
     pub window: crate::window::WindowId,
     pub outside: bool,
     pub motion: Vec2,
-    clicks: u32,
-    last_click: Option<(Instant, Pos2)>,
+    clicks: ClickCounter,
     from_touch: bool,
 }
 
 impl Pointer {
     fn count_click(&mut self, pos: Pos2, now: Instant) {
-        let repeated = self.last_click.is_some_and(|(when, at)| {
-            now.duration_since(when).as_secs_f32() <= MULTI_CLICK_DELAY
-                && at.distance(pos) <= MULTI_CLICK_DISTANCE
-        });
-        self.clicks = if repeated {
-            self.clicks % MULTI_CLICK_LIMIT + 1
-        } else {
-            1
-        };
-        self.last_click = Some((now, pos));
+        self.clicks.count(pos, now);
     }
 
     pub fn clicks(&self) -> u32 {
-        self.clicks
+        self.clicks.clicks()
     }
 
     pub fn interact_pos(&self) -> Option<Pos2> {
