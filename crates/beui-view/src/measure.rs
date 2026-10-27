@@ -1,5 +1,5 @@
 use crate::reactive::NodeId;
-use crate::types::{FontId, Rect, Vec2};
+use crate::types::{FontId, Vec2};
 use beui_tree::reactive::ReadSignal;
 
 pub use crate::core::TextGeometry;

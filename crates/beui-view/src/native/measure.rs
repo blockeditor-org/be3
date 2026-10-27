@@ -1,5 +1,5 @@
 use beui_core::font::TextLayout;
-use beui_core::geometry::{Rect, Vec2};
+use beui_core::geometry::Vec2;
 use beui_core::node::NodeId;
 use beui_tree::reactive::ReadSignal;
 use beui_types::text::FontId;
