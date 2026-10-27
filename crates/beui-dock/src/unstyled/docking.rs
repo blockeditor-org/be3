@@ -7,15 +7,15 @@ use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::rc::Rc;
 
-use beui_view::types::Direction;
-use beui_view::types::Color;
-use beui_view::types::{Rect, Vec2};
-use beui_view::types::Image;
-use beui_view::types::Modifiers;
-use beui_view::reactive::NodeId;
 use beui_macros::{component, view};
 use beui_view::primitives::*;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::Color;
+use beui_view::types::Direction;
+use beui_view::types::Image;
+use beui_view::types::Modifiers;
+use beui_view::types::{Rect, Vec2};
 use serde::{Deserialize, Serialize};
 
 use super::dialog::{DialogParts, DockDialogHandle, DockDialogPresentation, DockSheetHandle};

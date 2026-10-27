@@ -75,7 +75,8 @@ pub fn first_within(node: NodeId) -> Option<NodeId> {
             .filter_map(|scroller| Some((scroller.node, crate::document::element(scroller.node)?)))
             .collect()
     });
-    let found = root.find(&|candidate| scrollers.iter().any(|(_, element)| element.is(candidate)))?;
+    let found =
+        root.find(&|candidate| scrollers.iter().any(|(_, element)| element.is(candidate)))?;
     scrollers
         .into_iter()
         .find(|(_, element)| element.is(&found))

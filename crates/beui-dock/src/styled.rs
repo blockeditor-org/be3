@@ -30,14 +30,16 @@ use beui_components_unstyled::Picture;
 use beui_view::types::Align2;
 use beui_view::types::{Align, Direction, ItemSize, Justify};
 
-use beui_view::types::TextAlign;
-use beui_view::types::icons::{ICON_APP_WINDOW, ICON_GRIP_VERTICAL, ICON_MAXIMIZE, ICON_MINIMIZE, ICON_X};
+use beui_view::primitives::Layers;
+use beui_view::reactive::NodeId;
+use beui_view::reactive::*;
 use beui_view::types::Image;
 use beui_view::types::Modifiers;
-use beui_view::reactive::NodeId;
-use beui_view::primitives::Layers;
-use beui_view::reactive::*;
 use beui_view::types::Sides;
+use beui_view::types::TextAlign;
+use beui_view::types::icons::{
+    ICON_APP_WINDOW, ICON_GRIP_VERTICAL, ICON_MAXIMIZE, ICON_MINIMIZE, ICON_X,
+};
 use stack::{DockStackBar, DockSwitcher};
 use switch::DockSwitchPanel;
 

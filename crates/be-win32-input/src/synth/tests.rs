@@ -1,7 +1,7 @@
 use super::flags::*;
 use super::*;
-use beui_types::{pos2, vec2};
 use beui_types::input::Key;
+use beui_types::{pos2, vec2};
 
 const DESKTOP: PixelRect = PixelRect::new(0, 0, 2000, 1000);
 

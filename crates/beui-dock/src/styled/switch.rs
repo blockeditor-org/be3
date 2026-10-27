@@ -1,16 +1,16 @@
 use beui_components_styled::frame::{Border, ColorRole, Frame, Radius};
-use beui_view::types::Overflow;
 use beui_macros::{component, view};
+use beui_view::types::Overflow;
 
 use crate::unstyled::{DockSwitchHandle, DockSwitchRowHandle, TabId};
 use beui_components_styled::List;
 use beui_components_styled::list_row::ListRow;
 use beui_components_styled::text::{Icon, Text, TextColor};
 use beui_components_styled::tokens::{Padding, Size, Space};
-use beui_view::types::{Align, Direction};
-use beui_view::types::TextAlign;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::TextAlign;
+use beui_view::types::{Align, Direction};
 
 const PANEL_WIDTH: Size = Size::Dialog;
 const PANEL_PADDING: Space = Space::Sm;

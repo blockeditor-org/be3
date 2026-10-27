@@ -1,9 +1,9 @@
 use std::time::Instant;
 
-use beui_types::Pos2;
-use beui_types::input::TouchId;
 use beui_core::runner::{Hand, HandPose};
+use beui_types::Pos2;
 use beui_types::WindowId;
+use beui_types::input::TouchId;
 use glam::{Quat, Vec3};
 
 use crate::head::{Head, Ray};

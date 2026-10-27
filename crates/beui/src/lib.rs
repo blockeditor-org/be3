@@ -140,8 +140,8 @@ pub use beui_view::animation;
 pub use beui_view::components::selectable;
 pub use beui_view::primitives;
 pub use beui_view::types::{
-    Align2, Area, color_var, CanvasView, CaretHandle, Claim, Extent, HitRegion, Outline, PointerInput,
-    PointerStage, SpanBackground, SpanStyle, TextCaret, TextGlyph, TextMark, WheelInput,
+    Align2, Area, CanvasView, CaretHandle, Claim, Extent, HitRegion, Outline, PointerInput,
+    PointerStage, SpanBackground, SpanStyle, TextCaret, TextGlyph, TextMark, WheelInput, color_var,
 };
 #[cfg(not(beui_html))]
 pub use beui_view::window::{Window, WindowHandle, opens_windows, use_window};

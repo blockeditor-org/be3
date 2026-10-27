@@ -2,8 +2,8 @@ use reactive::Get;
 use std::cell::Cell;
 
 use beui_view::types::Direction;
-use beui_view::types::{Pos2, Rect, Vec2};
 use beui_view::types::{Modifiers, SecondaryDrag};
+use beui_view::types::{Pos2, Rect, Vec2};
 use beui_view::window::WindowHandle;
 
 use super::{DockLayout, Grip, SplitId, State, SurfaceId, fraction_moved, layout_tree};

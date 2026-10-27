@@ -82,7 +82,8 @@ fn choice_definitions(light: ThemeKind, dark: ThemeKind) -> ColorDefinitions {
     ChoiceColor::ALL
         .into_iter()
         .map(|color| {
-            let colors = SchemeColors::new(choice_literal(color, light), choice_literal(color, dark));
+            let colors =
+                SchemeColors::new(choice_literal(color, light), choice_literal(color, dark));
             (choice_var(color), colors)
         })
         .collect()
