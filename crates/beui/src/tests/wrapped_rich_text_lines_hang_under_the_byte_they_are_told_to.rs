@@ -1,7 +1,7 @@
 use super::*;
 use crate::reactive::*;
 use beui_core::font::{FontId, Galley, TextLayout};
-use beui_core::rich::RichOptions;
+use beui_core::rich::{Piece, RichOptions};
 
 #[test]
 fn wrapped_rich_text_lines_hang_under_the_byte_they_are_told_to() {

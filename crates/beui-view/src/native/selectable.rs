@@ -3,30 +3,29 @@ use std::collections::HashMap;
 use std::ops::Range;
 use std::rc::Rc;
 
-use beui::actions::Chord;
-use beui::primitives::*;
-use beui::reactive::*;
-use beui::selection::{
+use crate::actions::Chord;
+use crate::components::selectable::{COPY_KEY, SELECT_ALL_KEY};
+use crate::primitives::*;
+use crate::reactive::*;
+use crate::selection::{
     RowKey, RowWatcher, SelectableRows, SelectionItem, rows_of, scroll_toward, selection_items,
     texts_under,
 };
-use beui_core::rich::{handle_center, toolbar_anchor};
 use beui_macros::{component, view};
-use beui_view::reactive::KeyAt;
-use beui_view::reactive::NodeId;
-use beui_view::types::CaretHandle;
-use beui_view::types::Color32;
-use beui_view::types::KeyPhase;
-use beui_view::types::{Area, Claim};
-use beui_view::types::{Key, KeyPress, PointerPress};
-use beui_view::types::{Pos2, Rect, Vec2};
+use crate::reactive::KeyAt;
+use crate::reactive::NodeId;
+use crate::types::CaretHandle;
+use crate::types::Color32;
+use crate::types::KeyPhase;
+use crate::types::{Area, Claim};
+use crate::types::{Key, KeyPress, PointerPress};
+use crate::types::{Pos2, Rect, Vec2};
+use crate::types::{handle_center, toolbar_anchor};
 
 const HANDLE_HIT_RADIUS: f32 = 24.0;
 const END: usize = usize::MAX;
 const AUTOSCROLL_RATE: f32 = 0.5;
 
-pub const COPY_KEY: Chord = Chord::ctrl(Key::C);
-pub const SELECT_ALL_KEY: Chord = Chord::ctrl(Key::A);
 
 #[derive(Clone, PartialEq, Debug)]
 enum Spot {

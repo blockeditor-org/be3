@@ -1,13 +1,11 @@
 use std::hash::Hash;
 use std::ops::Range;
-use std::rc::Rc;
 
 use beui_core::base::offset::{OffsetNode, ScrollPosition};
 use beui_core::base::overlay::OverlayNode;
 use beui_core::base::text::TextNode;
 use beui_core::color::Color32;
 use beui_core::document::Document;
-use beui_core::drag_board::Board;
 use beui_core::geometry::{Pos2, Rect};
 use beui_core::layer::{Dismiss, LayerPolicy};
 use beui_core::node::{NodeId, NodeOf};
@@ -248,10 +246,6 @@ pub fn stacked_at(nodes: &[NodeId], window: WindowId, pos: Pos2) -> Vec<NodeId> 
 
 pub fn tree_local<T: Clone + 'static>(make: impl FnOnce() -> T) -> T {
     with_document(|document| document.extension_or_insert_with(make))
-}
-
-pub fn drag_board() -> Rc<Board> {
-    with_document(|document| document.drag_board())
 }
 
 pub fn use_preferences() -> Memo<Preferences> {

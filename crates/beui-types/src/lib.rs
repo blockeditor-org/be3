@@ -32,7 +32,8 @@ pub use layout::{
 };
 pub use region::{Area, Claim, HitRegion};
 pub use text::{
-    CaretHandle, FontFamily, FontId, LineBox, Overflow, SpanBackground, SpanStyle, TextAlign,
-    TextCaret, TextGlyph, TextMark, WrapAt,
+    CaretHandle, DEFAULT_FONT_SIZE, FontFamily, FontId, HANDLE_RADIUS, LineBox, Overflow, Piece,
+    RichOptions, SpanBackground, SpanStyle, TextAlign, TextCaret, TextGlyph, TextMark, WrapAt,
+    handle_center, toolbar_anchor,
 };
 pub use window::{SystemBars, WindowId, WindowSpec};

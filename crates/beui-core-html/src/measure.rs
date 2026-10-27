@@ -2,7 +2,8 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 
 use beui_types::text::LineBox;
-use beui_types::{Pos2, Rect};
+use beui_types::text::FontId;
+use beui_types::{Pos2, Rect, Vec2};
 use reactive::{Get, ReadSignal, Set, Signal, create_signal};
 
 use crate::node::NodeId;
@@ -69,6 +70,10 @@ pub fn measure(node: NodeId) -> ReadSignal<Option<Rect>> {
 
 pub fn measure_text(node: NodeId) -> ReadSignal<Option<TextGeometry>> {
     watch(&TEXTS, node)
+}
+
+pub fn measure_line(_text: &str, _font: FontId) -> Option<Vec2> {
+    None
 }
 
 #[cfg(target_arch = "wasm32")]

@@ -229,7 +229,7 @@ pub fn DialogBody(
         node
     }));
     on_key(
-        KeyAt::Node(beui_core::tree::component_node()),
+        KeyAt::Node(component_node()),
         KeyPhase::Bubble,
         move |event| {
             event.press().is_some_and(|press| {

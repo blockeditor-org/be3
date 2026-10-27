@@ -25,12 +25,12 @@ use text_editor_core::{
 use beui_macros::{component, view};
 
 use crate::{Scroll, ScrollbarStyle};
-use beui_core::rich::{HANDLE_RADIUS, handle_center, toolbar_anchor};
 use beui_view::primitives::*;
 use beui_view::reactive::ImeCursor;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::CaretHandle;
+use beui_view::types::{HANDLE_RADIUS, handle_center, toolbar_anchor};
 use beui_view::types::Color32;
 use beui_view::types::Dismiss;
 use beui_view::types::FontId;
@@ -43,7 +43,7 @@ use beui_view::types::{Pos2, Rect, Vec2};
 
 use completion::{Completions, Query, query};
 use lines::{Lines, SingleLine};
-use rows::{BODY_SIZE, Composition, Inline, InlineItem, Row, galley, line_of};
+use rows::{BODY_SIZE, Composition, Inline, InlineItem, Row, line_of};
 use state::{AreaGeometry, Grab};
 use text_editor_core::ListMarker;
 
@@ -254,8 +254,8 @@ impl Surface {
     }
 
     fn row_estimate(&self) -> f32 {
-        let body = galley("", FontId::proportional(self.font_size.get_untracked()))
-            .map_or(BODY_SIZE * 1.15, |galley| galley.line_height());
+        let body = measure_line("", FontId::proportional(self.font_size.get_untracked()))
+            .map_or(BODY_SIZE * 1.15, |line| line.y);
         let padding = match (self.single_line, self.prose.get_untracked()) {
             (true, _) => (0.0, 0.0),
             (false, Some(prose)) => prose.line_padding,
@@ -1087,7 +1087,7 @@ fn field_key(cx: &Context, press: KeyPress) -> bool {
 
 fn gutter_width(line_count: usize, font_size: f32, geometry: &TextAreaGeometry) -> f32 {
     let digit =
-        galley("0", FontId::monospace(font_size)).map_or(font_size * 0.6, |galley| galley.size().x);
+        measure_line("0", FontId::monospace(font_size)).map_or(font_size * 0.6, |line| line.x);
     let mut digits = 1;
     let mut value = line_count.max(1);
     while value >= 10 {

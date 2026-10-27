@@ -185,7 +185,7 @@ fn select_line(test: &mut DocumentTest, at: Pos2) {
 fn selected_text(test: &mut DocumentTest, region: beui::NodeId) -> String {
     let state = test
         .document()
-        .api::<beui::unstyled::SelectableState>(region);
+        .api::<beui::styled::SelectableState>(region);
     beui::native::with_reactive_scope(test.document_mut(), || state.selected_text())
 }
 

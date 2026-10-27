@@ -1,6 +1,6 @@
 use super::*;
 use beui_core::font::{FontId, Galley, TextLayout};
-use beui_core::rich::RichOptions;
+use beui_core::rich::{Piece, RichOptions};
 
 fn ranges(layout: &RichLayout) -> Vec<std::ops::Range<usize>> {
     layout.lines.iter().map(|line| line.range.clone()).collect()

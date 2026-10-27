@@ -1,5 +1,5 @@
 use crate::reactive::NodeId;
-use crate::types::Rect;
+use crate::types::{FontId, Rect, Vec2};
 use beui_tree::reactive::ReadSignal;
 
 pub use crate::core::TextGeometry;
@@ -11,4 +11,8 @@ pub fn measure(node: NodeId) -> ReadSignal<Option<Rect>> {
 
 pub fn measure_text(node: NodeId) -> ReadSignal<Option<TextGeometry>> {
     crate::core::measure_text(node)
+}
+
+pub fn measure_line(text: &str, font: FontId) -> Option<Vec2> {
+    crate::core::measure_line(text, font)
 }

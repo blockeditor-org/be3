@@ -24,7 +24,7 @@ use super::colors::TextAreaColors;
 use super::hooks::{MARGIN_MIN_WIDTH_EM, Margin, MarkerKind, TextLeaf, TextLine, TextMarker};
 use super::rows::{
     Inline, InlineItem, Row, RowInputs, RowKey, RowOptions, SpanKind, TableColumns, build_row,
-    galley, line_range, row_key, table_columns,
+    line_range, row_key, table_columns,
 };
 use super::{Context, GeometryCell, Held, RowEntry};
 use beui_view::types::{Align2, Extent, Sides};
@@ -139,8 +139,7 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
         let scale = tracked_scale(cx.held);
         let laid = bounds.get().size() / scale;
         cx.metrics.get();
-        let body = galley("", FontId::proportional(cx.font_size.get()))
-            .map_or(0.0, |galley| galley.line_height());
+        let body = measure_line("", FontId::proportional(cx.font_size.get())).map_or(0.0, |line| line.y);
         Vec2::new(laid.x, laid.y.max(body))
     });
     create_effect(move || cx.text_extent.set(text.get()));

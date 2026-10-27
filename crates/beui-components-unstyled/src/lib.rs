@@ -43,7 +43,6 @@ pub mod scroll;
 pub mod scrollbar;
 pub mod search_list;
 pub mod select;
-pub mod selectable;
 pub mod sheet;
 pub mod slider;
 pub mod split_button;
@@ -65,7 +64,7 @@ pub use action_bar::{ActionBar, ActionBarHandle, title_action};
 pub use anchored::{Anchored, AnchoredHandle, AnchoredSheetHandle, AnchoredStyle, SheetWhen};
 pub use back_slide::BackSlide;
 pub use banner::Banner;
-pub use beui_core::drag_board::DragPoint;
+pub use beui_view::drag::DragPoint;
 pub use button::{Button, ButtonApi, ButtonHandle};
 pub use calendar::{Calendar, CalendarApi, CalendarCellHandle, CalendarHeaderHandle, CalendarMode};
 pub use choice::{Choice, ChoiceApi, ChoiceKind, ChoiceOption, ChoiceOptionHandle};
@@ -131,7 +130,6 @@ pub use search_list::{
     SearchList, SearchListApi, SearchRowHandle, fuzzy_score, rank, substring_score,
 };
 pub use select::{Select, SelectApi, SelectOptionHandle, SelectTriggerHandle};
-pub use selectable::{Selectable, SelectableState, copy_selection, select_all};
 pub use sheet::{ModalSheet, Sheet, SheetGripHandle};
 pub use slider::{Slider, SliderApi, SliderHandle, SliderScale};
 pub use split_button::SplitButton;

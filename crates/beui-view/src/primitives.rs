@@ -9,5 +9,7 @@ pub use crate::components::offset::Offset;
 pub use crate::components::overlay::Overlay;
 pub use crate::components::portal::Portal;
 pub use crate::components::root::{Root, SystemBars};
+#[cfg(not(beui_html))]
+pub use crate::components::selectable::Selectable;
 pub use crate::components::text::{Break, Gap, Icon, Span, SpanText, Text, TextChild, TextItem};
 pub use crate::components::virtual_list::VirtualList;

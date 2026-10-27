@@ -5,7 +5,9 @@ use beui_view::types::FontId;
 use beui_view::types::SpanStyle;
 use text_editor_core::{SynHlColorScope, SynHlStyle, TableLine, TableRow};
 
-use super::{Builder, RowInputs, SpanKind, galley, next_character, style_font};
+use beui_view::measure::measure_line;
+
+use super::{Builder, RowInputs, SpanKind, next_character, style_font};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum CellAlign {
@@ -104,8 +106,8 @@ fn trimmed(bytes: &[u8], range: &Range<usize>) -> Range<usize> {
 
 fn text_width(text: &str, font: FontId) -> f32 {
     let probe = format!("{text}|");
-    let with = galley(&probe, font).map_or(0.0, |galley| galley.size().x);
-    let bar = galley("|", font).map_or(0.0, |galley| galley.size().x);
+    let with = measure_line(&probe, font).map_or(0.0, |line| line.x);
+    let bar = measure_line("|", font).map_or(0.0, |line| line.x);
     (with - bar).max(0.0)
 }
 
@@ -115,7 +117,7 @@ fn delimiter_font(inputs: &RowInputs) -> FontId {
 }
 
 pub(super) fn delimiter_height(inputs: &RowInputs) -> f32 {
-    galley("", delimiter_font(inputs)).map_or(0.0, |galley| galley.line_height())
+    measure_line("", delimiter_font(inputs)).map_or(0.0, |line| line.y)
 }
 
 fn font_of(inputs: &RowInputs, row: TableRow, style: SynHlStyle) -> FontId {

@@ -622,6 +622,11 @@ need:
   `Window` (`beui_view::window`, re-exported as `beui::Window`) is another: an
   `Overlay` given a `window` spec. Back is a hook, `on_back`, not a node, and
   `Embed`, which only the native app composites, is in `beui::native`.
+  `Selectable` is the one component each core builds its own way (the
+  browser's selection on HTML) rather than a composition; text editing is not
+  one of those: `TextArea` and `TextInput` are unstyled compositions of `Text`
+  (`marks`, `glyphs`, `carets`, `hang`), `Interactive`, `measure_text` and
+  `measure_line`, the same on every core.
   Add a base component only when the retained tree genuinely lacks a primitive:
   a new way to lay out, paint, or receive input that cannot be expressed by
   arranging the existing nodes. `Portal` is one: it shows a subtree it does not
@@ -729,10 +734,10 @@ it, and list markers, voids, embedded widgets and the caret's anchor as
 
 The galleys a `Drawing` paints come from `layout_text(text, font, layout)`,
 which lays text out with the shown document's fonts and answers `None` until
-the document has been shown once. It is how a component measures text outside
-`measure` and `paint` - to work out where a caret sits, or how wide a column
-is - and the galleys it returns are cached, so asking for the same word twice
-costs a hash lookup. A `FontId` carries `bold` and `italic` alongside its size
+the document has been shown once; the galleys it returns are cached, so asking
+for the same word twice costs a hash lookup. A `Galley` is the native core's,
+so unstyled and styled never name one: they measure through `measure_text`
+and `measure_line` (see "Measurement" below). A `FontId` carries `bold` and `italic` alongside its size
 and family; both are synthesised by FreeType rather than loaded as separate
 faces.
 
@@ -995,8 +1000,11 @@ text entity this way while it is edited, and draws each text and label as a
 rich `styled::TextArea` over a `LiveText` in the entity's scaled item, the same area whether or not it is
 being edited (disabled while it is not, `find=false`), so a checklist shows the styled
 `Checkbox` at the size of its text (a `Checkbox`'s `size` is the `TextSize` it sits beside). Its export is the one place text is laid out away from the tree
-(`TextAreaState::lay_out_prose`): it gives every marker a square the height of
-a line and paints it, and each quote's bar, as a pink box, since export does
+(`TextAreaState::lay_out_prose`): the area hands each line's `Piece`s and
+`RichOptions` (plain values in `beui-types`) to a layout function its caller
+passes, which the canvas answers with its painter's `rich_layout`, so the
+area itself names no core's layout. It gives every marker a square the height of
+a line and the canvas paints it, and each quote's bar, as a pink box, since export does
 not draw them yet. A `TextArea` takes its view size
 from its own layout, not from where it lands on screen, so one inside a scaled
 `CanvasItem` is not laid out again when the view pans or zooms; a
@@ -1348,7 +1356,12 @@ keeps the rows too, but forgets the sizes the list measured, on the assumption
 that the rows changed size with it; the rows in view are measured again as they
 are laid out.
 
-`Selectable` (and `SelectableText` over it) selects across the plain `Text`s
+`Selectable` (`beui::primitives::Selectable`, with `SelectableState`,
+`copy_selection` and `select_all` in `beui::selectable`; `styled::SelectableText`
+over it) is each core's own read-only selection, not a composition: on the
+HTML core it is the browser's selection, and on the native core it is
+`beui-view/src/native/selectable.rs`, built on `beui_view::selection`. The
+native one selects across the plain `Text`s
 under it and across any `VirtualList` under it with the same component. Each
 `VirtualList` registers its rows (`beui_view::selection::SelectableRows`: its
 keys, which key each built row shows, and its optional `text` prop, a
@@ -4318,9 +4331,25 @@ as often as it likes. `TextGeometry` is a snapshot of a `Text`'s last layout:
 `bounds()`, `caret_rect(index, width)`, `index_at(pos)`, `inline_at(pos)`,
 `lines()` (each a `LineBox` of its byte range, its rect and its baseline's y,
 in the window), and `scale()`, the scale of the space it sits in. Offsets are
-UTF-8 bytes of the text's content; a `glyphs` replacement counts as the bytes
-it replaces, an `Icon`, `Gap` or `TextItem` as nothing. `measure_text` stays
-`None` for a node that is not a `Text`.
+UTF-8 bytes of the text's content, and every core counts them the same way:
+a string or `Span` holds its bytes; a `glyphs` entry is drawn over the bytes
+it names and counts as them (a core may draw it in their place, but takes no
+room for it); an `Icon`, `Gap` or `Break` holds none; an inline `TextItem`
+stands for its `text` (U+FFFC, three bytes, when it has none), which is how a
+text area's list marker covers the `- ` it draws, and a `TextItem` given `at`
+holds none. The test `text_geometry_counts_utf8_bytes_and_only_the_bytes_inline_children_stand_for`
+pins this down. `measure_text` stays `None` for a node that is not a `Text`.
+
+Text that is not in the tree is measured with `measure_line(text, font)`: the
+width of `text` set on one line in `font` (rounded up to a pixel, as a `Text`
+measures it) and the font's line height, as a `Vec2`, or `None` before the
+document has fonts. It answers at once on both cores (the HTML core from the
+browser's font metrics), so a component can size what it builds from text it
+has not built yet: a text area's line heights, its gutter's digit width, how
+far a quote's `> ` hangs into the margin and the shared widths of a markdown
+table's columns, most of whose rows a `VirtualList` never builds. Read
+`use_font_revision()` (and `pixels_per_point()`) in the memo that calls it, so
+it measures again when fonts load or the scale changes.
 
 Callers must cope with `None` and with an answer that arrives a frame late:
 that is the contract the HTML core, which measures after the browser lays
@@ -4673,7 +4702,10 @@ order is the tree's order, so paint such parts from a node that comes after
 whatever they must cover, or from a `CanvasItem` with `clip=false`, which a
 canvas paints without cutting it to its own rectangle. Those handles are carets
 with a handle, which `Text` paints after its text; a single-line area paints
-them from an unclipped item after the text's.
+them from an unclipped item after the text's. Where a handle sits is the same
+on every core: `handle_center(caret, handle, scale)`, `HANDLE_RADIUS` and
+`toolbar_anchor` (where a selection's toolbar opens clear of its handles) are
+values in `beui-types`, which a component hit-tests with and a core paints from.
 
 Do not put theme colors, fixed visual spacing, typography choices, or decorative
 shapes in this layer. A new skin should be able to use the unstyled control

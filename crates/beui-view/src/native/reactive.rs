@@ -34,13 +34,6 @@ pub fn layout_text(
     try_with_document(|document| document.layout_text(text, font, layout)).flatten()
 }
 
-pub fn rich_layout(
-    pieces: &[beui_core::rich::Piece],
-    options: beui_core::rich::RichOptions,
-) -> Option<beui_core::rich::RichLayout> {
-    try_with_document(|document| document.rich_layout(pieces, options)).flatten()
-}
-
 pub fn copy_text(text: impl Into<String>) {
     let text = text.into();
     with_document(|document| document.copy_text(text));
@@ -317,4 +310,4 @@ pub use crate::file_saver::{FileSave, SavedFile, save_file};
 pub use crate::nodes::*;
 pub use beui_core::base::drawing::{Draw, draw_gpu};
 pub use beui_core::base::overlay::OverlayAnchor;
-pub use beui_core::rich::{Piece, RichLayout, SpanKind};
+pub use beui_core::rich::{RichLayout, SpanKind};

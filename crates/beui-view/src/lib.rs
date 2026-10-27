@@ -5,6 +5,8 @@ pub mod actions;
 pub mod component_ref;
 pub mod components;
 #[cfg(not(beui_html))]
+pub mod drag;
+#[cfg(not(beui_html))]
 pub mod file_picker;
 #[cfg(not(beui_html))]
 pub mod file_saver;

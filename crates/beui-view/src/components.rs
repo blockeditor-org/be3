@@ -9,5 +9,7 @@ pub mod offset;
 pub mod overlay;
 pub mod portal;
 pub mod root;
+#[cfg(not(beui_html))]
+pub mod selectable;
 pub mod text;
 pub mod virtual_list;

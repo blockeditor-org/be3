@@ -2,7 +2,7 @@ use super::*;
 use crate::icons::ICON_STAR;
 use crate::reactive::*;
 use beui_core::font::{FontId, Galley, TextLayout};
-use beui_core::rich::RichOptions;
+use beui_core::rich::{Piece, RichOptions};
 
 const SPACING: f32 = 5.0;
 

@@ -11,9 +11,9 @@ pub use crate::core::reactive::{
 };
 pub use crate::core::tree::{
     BareChild, BuildsNode, FromPlaced, ListChild, ParentKind, Placed, WithSizing,
-    component_accessibility, component_placed, with_sizing, with_sizing as sizing,
+    component_accessibility, component_node, component_placed, with_sizing, with_sizing as sizing,
 };
-pub use crate::measure::{LineBox, TextGeometry, measure, measure_text};
+pub use crate::measure::{LineBox, TextGeometry, measure, measure_line, measure_text};
 
 pub type Child = NodeId;
 

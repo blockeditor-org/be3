@@ -832,6 +832,7 @@ mod tapping_the_caret_handle_of_a_text_area_shows_a_toolbar_that_pastes;
 mod tapping_the_caret_handle_shows_a_toolbar_that_asks_the_host_to_paste;
 mod tapping_the_focused_text_input_again_asks_for_the_keyboard_again;
 mod tapping_then_dragging_on_the_simulated_trackpad_drags_from_where_the_tap_landed;
+mod text_geometry_counts_utf8_bytes_and_only_the_bytes_inline_children_stand_for;
 mod text_in_a_zoomed_canvas_wraps_where_it_did_at_every_zoom;
 mod text_in_a_zooming_canvas_scales_with_it_before_its_glyphs_are_rasterised_again;
 mod text_laid_out_to_an_alignment_indents_each_line_to_it;
@@ -1644,7 +1645,7 @@ impl Harness {
 }
 
 fn selected_text(harness: &mut Harness, region: NodeId) -> String {
-    let state = harness.document().api::<unstyled::SelectableState>(region);
+    let state = harness.document().api::<styled::SelectableState>(region);
     crate::native::with_reactive_scope(harness.document_mut(), || state.selected_text())
 }
 

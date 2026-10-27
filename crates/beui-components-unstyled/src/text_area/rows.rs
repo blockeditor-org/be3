@@ -5,12 +5,10 @@ use text_editor_core::{
     TableRow, TextLanguage, TextRun, VOID,
 };
 
-use beui_core::base::text::DEFAULT_FONT_SIZE;
-use beui_core::font::{Galley, TextLayout};
-use beui_core::rich::Piece;
 use beui_view::reactive::*;
 use beui_view::types::Color32;
 use beui_view::types::SpanStyle;
+use beui_view::types::{DEFAULT_FONT_SIZE, Piece};
 use beui_view::types::Vec2;
 use beui_view::types::{FontId, TextAlign};
 
@@ -355,10 +353,6 @@ pub fn style_font(style: SynHlStyle, body_size: f32) -> FontId {
 
 pub fn mask(text: &str) -> String {
     MASK.repeat(text.chars().count())
-}
-
-pub fn galley(text: &str, font: FontId) -> Option<Galley> {
-    layout_text(text, font, TextLayout::DEFAULT)
 }
 
 fn line_start_of(bytes: &[u8], at: usize) -> usize {
@@ -984,7 +978,7 @@ fn hang_into_margin(row: &mut Row, look: &LineLook, options: &RowOptions) {
         .filter(|span| span.kind == SpanKind::Text && span.range.start < end)
         .filter_map(|span| {
             let text = row.display.get(span.range.start..span.range.end.min(end))?;
-            galley(text, span.style.font).map(|galley| galley.size().x)
+            measure_line(text, span.style.font).map(|line| line.x)
         })
         .sum();
     row.outdent = match look.rule {
@@ -1032,10 +1026,10 @@ fn line_space(look: &LineLook, line: usize, options: &RowOptions) -> (f32, f32) 
 
 fn finish(mut builder: Builder, body: SpanStyle) -> Row {
     let padding = builder.inputs.options.padding();
-    let mut height = galley("", body.font).map_or(0.0, |galley| galley.line_height());
+    let mut height = measure_line("", body.font).map_or(0.0, |line| line.y);
     for font in &builder.fonts {
-        if let Some(galley) = galley("", *font) {
-            height = height.max(galley.line_height());
+        if let Some(line) = measure_line("", *font) {
+            height = height.max(line.y);
         }
     }
     builder.row.line_height = height + padding.0 + padding.1;

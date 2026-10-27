@@ -1,8 +1,12 @@
+use std::f32::consts::{FRAC_PI_4, SQRT_2};
 use std::ops::Range;
 
-use geometry::{Rect, Vec2};
+use geometry::{Rect, Vec2, pos2, vec2};
 
 use crate::color::Color32;
+use crate::layout::Corners;
+
+pub const DEFAULT_FONT_SIZE: f32 = 14.0;
 
 pub const DEFAULT_FONT_SIZE: f32 = 14.0;
 
@@ -185,4 +189,114 @@ pub struct LineBox {
     pub bytes: Range<usize>,
     pub rect: Rect,
     pub baseline: f32,
+}
+
+pub const HANDLE_RADIUS: f32 = 9.0;
+pub const HANDLE_GAP: f32 = 4.0;
+pub const TOOLBAR_GAP: f32 = 8.0;
+
+pub fn toolbar_anchor(carets: Rect, scale: f32) -> Rect {
+    Rect::from_min_max(
+        pos2(carets.min.x, carets.min.y - TOOLBAR_GAP),
+        pos2(
+            carets.max.x,
+            carets.max.y + (HANDLE_GAP + HANDLE_RADIUS * (1.0 + SQRT_2)) * scale + TOOLBAR_GAP,
+        ),
+    )
+}
+
+pub fn handle_center(caret: Rect, handle: CaretHandle, scale: f32) -> Vec2 {
+    let (gap, radius) = (HANDLE_GAP * scale, HANDLE_RADIUS * scale);
+    let anchor = vec2(caret.min.x, caret.max.y + gap);
+    match handle {
+        CaretHandle::Start => anchor + vec2(-radius, radius),
+        CaretHandle::End => anchor + vec2(radius, radius),
+        CaretHandle::Middle => anchor + vec2(caret.width() / 2.0, radius * SQRT_2),
+    }
+}
+
+pub fn handle_shape(caret: Rect, handle: CaretHandle) -> (Rect, Corners, f32) {
+    let center = handle_center(caret, handle, 1.0);
+    let rect = Rect::from_center_size(pos2(center.x, center.y), Vec2::splat(HANDLE_RADIUS * 2.0));
+    let round = Corners::all(HANDLE_RADIUS);
+    match handle {
+        CaretHandle::Start => (
+            rect,
+            Corners {
+                top_right: 0.0,
+                ..round
+            },
+            0.0,
+        ),
+        CaretHandle::End => (
+            rect,
+            Corners {
+                top_left: 0.0,
+                ..round
+            },
+            0.0,
+        ),
+        CaretHandle::Middle => (
+            rect,
+            Corners {
+                top_left: 0.0,
+                ..round
+            },
+            FRAC_PI_4,
+        ),
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum Piece<'a> {
+    Text {
+        text: &'a str,
+        style: SpanStyle,
+        break_after: bool,
+    },
+    Inline {
+        index: usize,
+        size: Vec2,
+        text: &'a str,
+    },
+    Gap(f32),
+    Break,
+    Icon {
+        glyph: &'a str,
+        style: SpanStyle,
+        spacing: f32,
+        text_size: f32,
+    },
+}
+
+impl<'a> Piece<'a> {
+    pub fn text(text: &'a str, style: SpanStyle) -> Self {
+        Piece::Text {
+            text,
+            style,
+            break_after: false,
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        match self {
+            Piece::Text { text, .. } => text.len(),
+            Piece::Inline { text, .. } => text.len(),
+            Piece::Gap(_) | Piece::Break | Piece::Icon { .. } => 0,
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct RichOptions {
+    pub wrap_width: f32,
+    pub padding: (f32, f32),
+    pub style: SpanStyle,
+    pub hang: usize,
+    pub anywhere: bool,
+    pub least: bool,
 }

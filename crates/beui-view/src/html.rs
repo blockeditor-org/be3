@@ -15,7 +15,7 @@ pub mod virtual_list;
 
 pub use beui_core_html::interactive::ForwardedInput;
 pub use beui_core_html::measure::TextGeometry;
-pub(crate) use beui_core_html::measure::{measure, measure_text};
+pub(crate) use beui_core_html::measure::{measure, measure_line, measure_text};
 pub(crate) use beui_core_html::tree;
 pub(crate) use canvas::canvas;
 pub(crate) use canvas::canvas_item;

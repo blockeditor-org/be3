@@ -1,7 +1,6 @@
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
-use beui_core::tree::component_node;
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;

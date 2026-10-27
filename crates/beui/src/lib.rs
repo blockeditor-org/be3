@@ -138,6 +138,7 @@ pub use beui_renderer_wgpu::{
     Draw, DrawAt, Renderer, Repaint, Repainting, drawing, painted_drawing, renderer_info,
     wgpu_color,
 };
+pub use beui_view::components::selectable;
 pub use beui_view::primitives;
 pub use beui_view::types::{
     Align2, Area, CanvasView, CaretHandle, Claim, Extent, HitRegion, Outline, PointerInput,
