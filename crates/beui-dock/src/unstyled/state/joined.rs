@@ -370,6 +370,17 @@ impl DockState {
         Some(Entry::Group(id))
     }
 
+    pub fn rehome(&mut self, tab: TabId, group: GroupId) {
+        let groups: HashSet<GroupId> = self.groups.iter().map(|held| held.id).collect();
+        for home in &mut self.homes {
+            if home.tab == tab && matches!(home.place, DockHome::Group(held) if !groups.contains(&held))
+            {
+                home.place = DockHome::Group(group);
+                home.within = None;
+            }
+        }
+    }
+
     pub(super) fn home_group(&self, tab: TabId) -> Option<GroupId> {
         let within = self
             .homes

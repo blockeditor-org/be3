@@ -249,11 +249,16 @@ impl DockState {
     }
 
     pub fn reconcile(&mut self, spec: &DockSpec) {
+        self.reconcile_keeping(spec, &HashSet::new());
+    }
+
+    pub fn reconcile_keeping(&mut self, spec: &DockSpec, kept: &HashSet<TabId>) {
         if !self.seeded {
             self.seed(spec);
             return;
         }
-        let declared: HashSet<TabId> = spec.tabs().into_iter().collect();
+        let mut declared: HashSet<TabId> = spec.tabs().into_iter().collect();
+        declared.extend(kept.iter().copied());
         for tab in self.all_tabs() {
             if !declared.contains(&tab) {
                 self.close(tab);

@@ -27,6 +27,7 @@ impl DockDeclaration {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct DockDeclaredTab {
     pub(crate) tab: TabId,
+    pub(crate) key: String,
     pub(crate) title: String,
     pub(crate) icon: Option<Glyph>,
     pub(crate) closable: bool,
