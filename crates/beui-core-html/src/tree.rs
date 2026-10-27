@@ -323,7 +323,7 @@ impl ParentKind for ListKind {
         let flex = match sizing.size {
             ItemSize::Intrinsic => format!("0 {} auto", sizing.shrink),
             ItemSize::Fixed(length) => format!("0 {} {}", sizing.shrink, px(length)),
-            ItemSize::Percent(share) => format!("{share} {} 0px", sizing.shrink),
+            ItemSize::Percent(share) => format!("{share} {} 0%", sizing.shrink),
         };
         set_placed_style(child, "flex", Some(flex));
         let sized_by_content = sizing.size == ItemSize::Intrinsic && sizing.shrink == 0.0;

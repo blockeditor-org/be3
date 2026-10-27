@@ -43,8 +43,8 @@ pub fn frame(
     set_style(frame, "display", Some("grid".to_owned()));
     set_style(
         frame,
-        "grid-template-columns",
-        Some("minmax(0, 1fr)".to_owned()),
+        "grid-template",
+        Some("minmax(0, 1fr) / minmax(0, 1fr)".to_owned()),
     );
     if let Some(child) = children {
         append(frame, child);

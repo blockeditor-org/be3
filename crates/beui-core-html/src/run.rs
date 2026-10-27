@@ -14,6 +14,7 @@ pub const BASE_STYLES: &str = "\
 .beui-root[data-scheme=light] { color-scheme: light; }
 .beui-root[data-scheme=dark] { color-scheme: dark; }
 .beui-root { color-scheme: light dark; display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); width: 100%; height: 100%; }
+.beui-root > * { height: 100%; }
 .beui-root, .beui-root * { box-sizing: border-box; margin: 0; }
 .beui-break::after { content: \"\\A\"; white-space: pre; }
 .beui-glyph { position: relative; }

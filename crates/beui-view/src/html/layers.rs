@@ -12,8 +12,8 @@ pub fn layers(children: Children<Layer>) -> NodeId {
     set_style(layers, "display", Some("grid".to_owned()));
     set_style(
         layers,
-        "grid-template-columns",
-        Some("minmax(0, 1fr)".to_owned()),
+        "grid-template",
+        Some("minmax(0, 1fr) / minmax(0, 1fr)".to_owned()),
     );
     children.mount(host::<LayersKind>(layers));
     layers
