@@ -5,3 +5,7 @@ click '#scroll.item1'
 key Tab Tab Tab Tab
 wait 'Button "Item 5" focused'
 wait 'value="Scrolled to the middle"'
+wheel '#scroll.item5' 30
+wait 'value="Scrolled to the end"'
+wheel '#scroll.item30' -30
+wait 'value="Scrolled to the start"'

@@ -95,6 +95,18 @@ impl Node {
         dom::live_node(self)
     }
 
+    pub fn is(&self, other: &Node) -> bool {
+        Rc::ptr_eq(&self.0, &other.0)
+    }
+
+    pub fn find(&self, found: &impl Fn(&Node) -> bool) -> Option<Node> {
+        if found(self) {
+            return Some(self.clone());
+        }
+        let children = self.0.children.borrow();
+        children.iter().find_map(|child| child.find(found))
+    }
+
     pub fn to_html(&self) -> String {
         reactive::flush();
         let mut output = String::new();

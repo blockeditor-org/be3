@@ -76,3 +76,13 @@ export function chord(text) {
         .map((key) => KEYS[key.toLowerCase()] ?? (/^f\d+$/i.test(key) ? key.toUpperCase() : key))
         .join("+");
 }
+
+// drive's wheel ticks (down, then right) as the pixels Playwright's
+// mouse.wheel takes: a tick is a line, beui's SCROLL_LINE.
+const SCROLL_LINE = 40;
+
+export function wheelPixels(ticks) {
+    const value = Number(ticks ?? 0);
+    if (!Number.isInteger(value)) throw new Error(`${ticks} is not a number of ticks`);
+    return value * SCROLL_LINE;
+}

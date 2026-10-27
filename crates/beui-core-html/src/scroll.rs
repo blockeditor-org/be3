@@ -67,12 +67,19 @@ pub fn first_within(node: NodeId) -> Option<NodeId> {
     if find(node).is_some() {
         return Some(node);
     }
-    #[cfg(target_arch = "wasm32")]
-    {
-        web::first_within(node)
-    }
-    #[cfg(not(target_arch = "wasm32"))]
-    None
+    let root = crate::document::element(node)?;
+    let scrollers: Vec<(NodeId, beui_html::Node)> = SCROLLERS.with(|held| {
+        held.borrow()
+            .values()
+            .filter_map(Weak::upgrade)
+            .filter_map(|scroller| Some((scroller.node, crate::document::element(scroller.node)?)))
+            .collect()
+    });
+    let found = root.find(&|candidate| scrollers.iter().any(|(_, element)| element.is(candidate)))?;
+    scrollers
+        .into_iter()
+        .find(|(_, element)| element.is(&found))
+        .map(|(node, _)| node)
 }
 
 pub fn reveal(node: NodeId) {
@@ -212,7 +219,6 @@ mod web {
 
     use super::{END_SLACK, Scroller, revealed_offset};
     use crate::dom::{Listener, Resizes};
-    use crate::node::NodeId;
 
     const ANCHOR_DEPTH: usize = 16;
 
@@ -258,33 +264,6 @@ mod web {
             let start = (start - origin) / self.scale + self.scroll;
             (start, start + length / self.scale)
         }
-    }
-
-    pub(super) fn first_within(node: NodeId) -> Option<NodeId> {
-        let dom = crate::dom::dom(node)?;
-        let scrollers: Vec<_> = super::SCROLLERS.with(|held| {
-            held.borrow()
-                .values()
-                .filter_map(std::rc::Weak::upgrade)
-                .collect()
-        });
-        let mut found: Option<(NodeId, web_sys::Node)> = None;
-        for scroller in scrollers {
-            let Some(inner) = crate::dom::dom(scroller.node) else {
-                continue;
-            };
-            if !dom.contains(Some(&inner)) {
-                continue;
-            }
-            let earlier = found.as_ref().is_none_or(|(_, held)| {
-                held.compare_document_position(&inner) & web_sys::Node::DOCUMENT_POSITION_PRECEDING
-                    != 0
-            });
-            if earlier {
-                found = Some((scroller.node, inner));
-            }
-        }
-        found.map(|(node, _)| node)
     }
 
     fn choose_anchor(

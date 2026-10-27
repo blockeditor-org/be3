@@ -7,7 +7,7 @@
 // ?fixture=<the script's file name> and runs the script's commands, one a line
 // as `drive -` reads them. The page answers the reading commands through its
 // automate(words) (beui-core-html's automate: tree, ids, find, wait, gone,
-// settle, pause, clock); click, type and key are real Playwright input, at the
+// settle, pause, clock); click, move, drag, wheel, type and key are real Playwright input, at the
 // place `find` answers, so the browser's own focus, key and text paths run.
 // --checks also opens ?checks, once in each colour scheme, and fails on any
 // line of the page's checks() that is not "ok". NAME runs only the scripts and checks whose names contain
@@ -21,7 +21,7 @@ import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import { basename, extname, join, normalize, resolve } from "node:path";
 
-import { chord, commands, leadingOptions } from "./drive-words.mjs";
+import { chord, commands, leadingOptions, wheelPixels } from "./drive-words.mjs";
 
 const SIZE = { width: 1100, height: 720 };
 const TYPES = {
@@ -202,6 +202,13 @@ async function step(page, words) {
                 await settle();
             }
             await page.mouse.up();
+            return settle();
+        }
+        case "wheel": {
+            const { x, y } = await center(page, args[0], timeout);
+            await page.mouse.move(x, y);
+            await settle();
+            await page.mouse.wheel(wheelPixels(args[2]), wheelPixels(args[1]));
             return settle();
         }
         case "type":
