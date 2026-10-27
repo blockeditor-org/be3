@@ -4,7 +4,9 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, TryRecvError};
 
-use be_win32::{EntryId, EntryKind, FocusEvent, Handle, Hotkey, Program, Snapshot, Watcher};
+use be_win32::{
+    CaptureExclusion, EntryId, EntryKind, FocusEvent, Handle, Hotkey, Program, Snapshot, Watcher,
+};
 use be_win32_capture::{Capture, Device, Lost, Target};
 use beui::reactive::*;
 use beui::styled::*;
@@ -64,7 +66,9 @@ struct Signals {
 
 struct Host {
     watcher: Arc<Watcher>,
+    _exclusion: CaptureExclusion,
     secure: bool,
+    listed: bool,
 }
 
 thread_local! {
@@ -134,17 +138,20 @@ fn spawn() {
             return;
         }
     };
+    eprintln!("block-app: watching Windows' windows and displays");
+    let exclusion = CaptureExclusion::start();
     watcher.set_host_window(HOST_WINDOW.get());
+    if HOST_WINDOW.get().is_none() {
+        eprintln!("block-app: Block's own window is unknown, so focus cannot bring it back");
+    }
     if let Err(error) = watcher.set_hotkey(Some(Hotkey::DEFAULT)) {
-        eprintln!("block-app: the shortcut back to Block was not registered: {error}");
-        crate::notices::report(format!(
-            "{} cannot bring Block back from a Windows window: {error}",
-            Hotkey::DEFAULT
-        ));
+        hotkey_refused(&error);
     }
     HOST.set(Some(Host {
         watcher,
+        _exclusion: exclusion,
         secure: false,
+        listed: false,
     }));
 }
 
@@ -156,12 +163,71 @@ pub(crate) fn running() -> bool {
     HOST.with_borrow(Option::is_some)
 }
 
+fn hotkey_refused(error: &be_win32::HotkeyError) {
+    eprintln!("block-app: the shortcut back to Block was not registered: {error}");
+    crate::notices::report(format!(
+        "{} cannot bring Block back from a Windows window: {error}",
+        Hotkey::DEFAULT
+    ));
+}
+
+fn log_event(snapshot: &Snapshot, event: &FocusEvent) {
+    let name = |id: EntryId| {
+        snapshot.entry(id).map_or_else(
+            || format!("entry {}", id.0),
+            |entry| format!("\"{}\"", entry.title),
+        )
+    };
+    match event {
+        FocusEvent::Started(id) => eprintln!("block-app: focus mode started on {}", name(*id)),
+        FocusEvent::Followed { from, to } => {
+            eprintln!(
+                "block-app: focus mode moved from {} to {}",
+                name(*from),
+                name(*to)
+            );
+        }
+        FocusEvent::Ended { entry, reason } => {
+            eprintln!(
+                "block-app: focus mode on {} ended: {reason:?}",
+                name(*entry)
+            );
+        }
+        FocusEvent::Suspended(id) => {
+            eprintln!(
+                "block-app: focus mode on {} paused for the secure desktop",
+                name(*id)
+            );
+        }
+        FocusEvent::Resumed(id) => eprintln!("block-app: focus mode on {} resumed", name(*id)),
+        FocusEvent::Hotkey => eprintln!("block-app: {} pressed", Hotkey::DEFAULT),
+        FocusEvent::HostForegroundRefused => {
+            eprintln!("block-app: Windows did not let Block come back to the front");
+        }
+        FocusEvent::HotkeySet(Some(hotkey)) => {
+            eprintln!("block-app: {hotkey} brings Block back from a Windows window");
+        }
+        FocusEvent::HotkeySet(None) => {}
+        FocusEvent::HotkeyRefused(error) => hotkey_refused(error),
+    }
+}
+
+fn describe(target: Target, title: &str) -> String {
+    match target {
+        Target::Monitor(_) => format!("display \"{title}\""),
+        Target::Window(_) => format!("window \"{title}\""),
+    }
+}
+
 fn device() -> Option<Device> {
     DEVICE.with_borrow_mut(|held| {
         if held.is_none() {
             let made = GPU.with_borrow(|gpu| {
                 let gpu = gpu.as_ref()?;
                 Device::new(&gpu.device, &gpu.queue, gpu.srgb)
+                    .inspect(|device| {
+                        eprintln!("block-app: capturing Windows on {}", device.adapter());
+                    })
                     .map_err(|error| {
                         eprintln!("block-app: Windows cannot be captured: {error}");
                         crate::notices::report(format!(
@@ -199,12 +265,25 @@ pub(crate) fn before(_context: &Context, rect: Rect, document: &mut Document) {
         let host = host.as_mut()?;
         let newly = secure && !host.secure;
         host.secure = secure;
+        if !host.listed && snapshot.revision > 0 {
+            host.listed = true;
+            let displays = snapshot
+                .entries
+                .iter()
+                .filter(|entry| entry.kind == EntryKind::Display)
+                .count();
+            eprintln!(
+                "block-app: Windows has {displays} displays and {} windows",
+                snapshot.entries.len() - displays
+            );
+        }
         Some(newly)
     });
     if newly_secure == Some(true) {
         crate::notices::report(win32_map::SECURE_DESKTOP.to_owned());
     }
     for event in &events {
+        log_event(&snapshot, event);
         if *event == FocusEvent::HostForegroundRefused {
             crate::notices::report(HOST_FOREGROUND_REFUSED.to_owned());
         }
@@ -213,7 +292,10 @@ pub(crate) fn before(_context: &Context, rect: Rect, document: &mut Document) {
         let mut frames = Vec::new();
         captures.retain(|source, captured| {
             if let Some(lost) = captured.capture.lost() {
-                eprintln!("block-app: the capture of {source:?} ended: {lost:?}");
+                eprintln!(
+                    "block-app: the capture of {} ended: {lost:?}",
+                    describe(captured.target, &captured.title)
+                );
                 let failed = match &lost {
                     Lost::Closed => None,
                     Lost::Failed(error) => Some(error.as_str()),
@@ -224,6 +306,10 @@ pub(crate) fn before(_context: &Context, rect: Rect, document: &mut Document) {
                     Recovery::Notice(notice) => Some(notice),
                     Recovery::Restart => match start_capture(captured.target) {
                         Ok(capture) => {
+                            eprintln!(
+                                "block-app: the capture of {} started again",
+                                describe(captured.target, &captured.title)
+                            );
                             captured.capture = capture;
                             captured.restarted = true;
                             captured.drawn = 0;
@@ -231,6 +317,10 @@ pub(crate) fn before(_context: &Context, rect: Rect, document: &mut Document) {
                             return true;
                         }
                         Err(error) => {
+                            eprintln!(
+                                "block-app: the capture of {} did not start again: {error}",
+                                describe(captured.target, &captured.title)
+                            );
                             win32_map::recovery(Some(&error), true, &captured.title).notice()
                         }
                     },
@@ -474,6 +564,7 @@ fn acquire(source: Source, drawing: Signal<Option<Drawing>>) -> Option<u64> {
     };
     match start_capture(target) {
         Ok(capture) => {
+            eprintln!("block-app: capturing {}", describe(target, &entry.title));
             CAPTURES.with_borrow_mut(|captures| {
                 captures.insert(
                     source,
@@ -491,7 +582,19 @@ fn acquire(source: Source, drawing: Signal<Option<Drawing>>) -> Option<u64> {
             Some(user)
         }
         Err(error) => {
-            eprintln!("block-app: {} cannot be captured: {error}", entry.title);
+            eprintln!(
+                "block-app: {} cannot be captured: {error}",
+                describe(target, &entry.title)
+            );
+            if DEVICE.with_borrow(Option::is_some) {
+                crate::notices::report(format!(
+                    "{} cannot be drawn: {error}",
+                    match entry.title.is_empty() {
+                        true => "A window",
+                        false => &entry.title,
+                    }
+                ));
+            }
             None
         }
     }
@@ -506,6 +609,12 @@ fn release(source: Source, user: u64) {
             false => None,
         }
     });
+    if let Some(captured) = &capture {
+        eprintln!(
+            "block-app: stopped capturing {}",
+            describe(captured.target, &captured.title)
+        );
+    }
     drop(capture);
 }
 

@@ -58,10 +58,10 @@ fn alt_tab_lists_plain_windows_and_skips_tool_cloaked_and_hidden_ones() {
         no_activate,
     ];
     let index = Windows::new(&all);
-    let listed: Vec<&str> = all
+    let listed: Vec<String> = all
         .iter()
         .filter(|window| alt_tab(window, &index))
-        .map(|window| window.title.as_str())
+        .map(|window| title_of(window.handle))
         .collect();
     assert_eq!(listed, ["plain", "tool app", "minimized"]);
 }

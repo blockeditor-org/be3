@@ -9,6 +9,25 @@ use crate::{
 
 pub const OWN_PROCESS: u32 = 1;
 
+thread_local! {
+    static TITLES: RefCell<HashMap<Handle, String>> = RefCell::new(HashMap::new());
+}
+
+pub fn title_of(handle: Handle) -> String {
+    TITLES.with_borrow(|titles| titles.get(&handle).cloned().unwrap_or_default())
+}
+
+pub fn rename(handle: Handle, title: &str) {
+    TITLES.with_borrow_mut(|titles| titles.insert(handle, title.to_owned()));
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Read {
+    Title(Handle),
+    Icon(Handle),
+    AppId(Handle),
+}
+
 #[derive(Default)]
 pub struct FakeDesktop {
     pub windows: RefCell<Vec<RawWindow>>,
@@ -20,6 +39,7 @@ pub struct FakeDesktop {
     pub input_desktop: RefCell<InputDesktop>,
     pub icon_reads: Cell<usize>,
     pub process_reads: Cell<usize>,
+    pub reads: RefCell<Vec<Read>>,
 }
 
 impl FakeDesktop {
@@ -63,6 +83,11 @@ impl Desktop for FakeDesktop {
         self.windows.borrow().clone()
     }
 
+    fn title(&self, window: Handle) -> String {
+        self.reads.borrow_mut().push(Read::Title(window));
+        title_of(window)
+    }
+
     fn process(&self, process_id: u32) -> Process {
         self.process_reads.set(self.process_reads.get() + 1);
         self.processes
@@ -74,10 +99,12 @@ impl Desktop for FakeDesktop {
 
     fn icon(&self, window: Handle) -> Option<Arc<Image>> {
         self.icon_reads.set(self.icon_reads.get() + 1);
+        self.reads.borrow_mut().push(Read::Icon(window));
         self.icons.borrow().get(&window).cloned()
     }
 
     fn app_user_model_id(&self, window: Handle) -> Option<String> {
+        self.reads.borrow_mut().push(Read::AppId(window));
         self.app_ids.borrow().get(&window).cloned()
     }
 
@@ -103,13 +130,13 @@ impl Desktop for FakeDesktop {
 }
 
 pub fn window(handle: u64, title: &str) -> RawWindow {
+    rename(Handle(handle), title);
     RawWindow {
         handle: Handle(handle),
         owner: None,
         process_id: u32::try_from(handle).unwrap() + 100,
         thread_id: u32::try_from(handle).unwrap() + 1000,
         class: "AppWindow".to_owned(),
-        title: title.to_owned(),
         visible: true,
         cloaked: false,
         enabled: true,

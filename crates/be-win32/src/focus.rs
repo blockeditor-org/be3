@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::{Entry, EntryId, EntryKind, Event, Handle, Point, Rect, Snapshot};
+use crate::{Entry, EntryId, EntryKind, Event, Handle, Hotkey, HotkeyError, Point, Rect, Snapshot};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Foreground {
@@ -56,7 +56,7 @@ pub enum Command {
     MoveCursor(Point),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FocusEvent {
     Started(EntryId),
     Followed { from: EntryId, to: EntryId },
@@ -65,6 +65,8 @@ pub enum FocusEvent {
     Resumed(EntryId),
     Hotkey,
     HostForegroundRefused,
+    HotkeySet(Option<Hotkey>),
+    HotkeyRefused(HotkeyError),
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

@@ -22,10 +22,10 @@ fn an_owned_window_is_listed_only_as_a_dialog_or_when_its_owner_is_hidden() {
     let app = owned(6, &hidden_owner, "app");
     let all = [main, panel, dialog, framed, hidden_owner, app];
     let index = Windows::new(&all);
-    let listed: Vec<&str> = all
+    let listed: Vec<String> = all
         .iter()
         .filter(|window| alt_tab(window, &index))
-        .map(|window| window.title.as_str())
+        .map(|window| title_of(window.handle))
         .collect();
     assert_eq!(listed, ["main", "dialog", "framed", "app"]);
 }

@@ -67,6 +67,16 @@ impl Win32Desktop {
     }
 }
 
+impl Win32Desktop {
+    // unsafe(ffi)
+    fn foreign(&self, window: Handle) -> Option<HWND> {
+        let window = hwnd(window);
+        let mut process_id = 0;
+        let thread = unsafe { GetWindowThreadProcessId(window, Some(&mut process_id)) };
+        (thread != 0 && process_id != self.own_process).then_some(window)
+    }
+}
+
 impl Default for Win32Desktop {
     fn default() -> Self {
         Self::new()
@@ -86,16 +96,23 @@ impl Desktop for Win32Desktop {
         handles.into_iter().map(raw_window).collect()
     }
 
+    fn title(&self, window: Handle) -> String {
+        match self.foreign(window) {
+            Some(window) => title(window),
+            None => String::new(),
+        }
+    }
+
     fn process(&self, process_id: u32) -> Process {
         process(process_id)
     }
 
     fn icon(&self, window: Handle) -> Option<Arc<Image>> {
-        icon(hwnd(window)).map(Arc::new)
+        icon(self.foreign(window)?).map(Arc::new)
     }
 
     fn app_user_model_id(&self, window: Handle) -> Option<String> {
-        app_user_model_id(hwnd(window))
+        app_user_model_id(self.foreign(window)?)
     }
 
     fn monitors(&self) -> Vec<Monitor> {
@@ -136,10 +153,6 @@ fn raw_window(window: HWND) -> RawWindow {
     let mut class = [0u16; 256];
     let length = unsafe { GetClassNameW(window, &mut class) };
     let class = String::from_utf16_lossy(&class[..usize::try_from(length).unwrap_or(0)]);
-    let length = unsafe { GetWindowTextLengthW(window) };
-    let mut title = vec![0u16; usize::try_from(length).unwrap_or(0) + 1];
-    let length = unsafe { GetWindowTextW(window, &mut title) };
-    let title = String::from_utf16_lossy(&title[..usize::try_from(length).unwrap_or(0)]);
     let style = unsafe { GetWindowLongPtrW(window, GWL_STYLE) } as u32;
     let extended = unsafe { GetWindowLongPtrW(window, GWL_EXSTYLE) } as u32;
     let mut cloaked = 0u32;
@@ -171,7 +184,6 @@ fn raw_window(window: HWND) -> RawWindow {
         process_id,
         thread_id,
         class,
-        title,
         visible: unsafe { IsWindowVisible(window) }.as_bool(),
         cloaked,
         enabled: unsafe { IsWindowEnabled(window) }.as_bool(),
@@ -188,6 +200,14 @@ fn raw_window(window: HWND) -> RawWindow {
         frame: rect(frame),
         responding: !unsafe { IsHungAppWindow(window) }.as_bool(),
     }
+}
+
+// unsafe(ffi)
+fn title(window: HWND) -> String {
+    let length = unsafe { GetWindowTextLengthW(window) };
+    let mut title = vec![0u16; usize::try_from(length).unwrap_or(0) + 1];
+    let length = unsafe { GetWindowTextW(window, &mut title) };
+    String::from_utf16_lossy(&title[..usize::try_from(length).unwrap_or(0)])
 }
 
 pub(super) fn rect(rect: RECT) -> Rect {

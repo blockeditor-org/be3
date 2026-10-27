@@ -24,8 +24,17 @@ machine; Wine has no Windows.Graphics.Capture.
   the Start Menu's `.lnk` programs, launches them (`launch`, `exec`, which block in
   `ShellExecuteExW`) and matches their windows by process id (`Watcher::launched`), and offers
   lock, suspend, restart, power off and log out, and closes, resizes and maximizes windows
-  (`close_window`, `resize_window`, `set_maximized`). It sets `WDA_EXCLUDEFROMCAPTURE` on every
-  top-level window of block-app's own process as it appears, so captures never show block-app.
+  (`close_window`, `resize_window`, `set_maximized`). `CaptureExclusion::start()`, on block-app's
+  UI thread, sets `WDA_EXCLUDEFROMCAPTURE` on that thread's top-level windows now and as they
+  appear (a WinEvent hook on that thread), so captures never show block-app.
+- Threads: no thread of ours that the UI thread may wait on (the watcher, the captures) sends a
+  message to one of our own windows, since the UI thread answers only between frames. The watcher
+  reads no title or icon (`WM_GETTEXT`, `WM_GETICON`) of our own process's windows (`Desktop::title`,
+  `icon` and `app_user_model_id` are only asked for other processes' windows), and moves windows
+  only with `SWP_ASYNCWINDOWPOS` and `ShowWindowAsync`. The UI thread never waits on the watcher:
+  requests are queued, and answers (`set_hotkey`'s `FocusEvent::HotkeySet`/`HotkeyRefused`) come
+  back as focus events with the wake. `Watcher::spawn` and `Capture::start` wait only for their
+  threads to set up, which needs nothing of the UI thread.
 - `crates/be-win32-capture`: Windows.Graphics.Capture of one monitor or window, its newest frame
   handed out as a `wgpu::Texture` on wgpu's Vulkan device (shared D3D11 texture and fence,
   imported with `VK_KHR_external_memory_win32` and `VK_KHR_external_semaphore_win32`; the
@@ -47,7 +56,10 @@ block-app's one window), stay unsupported, so the shell hides what they back.
 
 - The watcher starts when the desktop shell is first shown (`set_owned(true)`), with block-app's
   window (`beui::NativeWindow`) as the host window and `Hotkey::DEFAULT` (Ctrl+Alt+Space)
-  registered; a hotkey that cannot be registered is a toast.
+  registered; a hotkey that cannot be registered is a toast. The host prints one line to stderr
+  for each rare event (the watcher's first listing, the hotkey, the capture device's adapter,
+  each capture started, lost or stopped, focus mode starting and ending) and for every failure,
+  toast or not, since nothing else shows what a first run on a new machine did.
 - `WindowsWatch` is the snapshot's entries (`kind`, `shown`); `show` and `hide` set `shown` in
   be-win32's model. `WindowSurface` starts a capture of its entry when it is mounted, which the
   shells do only for shown entries, and stops it when unmounted; a display entry draws its

@@ -19,7 +19,6 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 use windows::core::w;
 
-use super::affinity::Excluded;
 use super::desktop::Win32Desktop;
 use super::focus::{self, HOTKEY_ID};
 use super::{Com, handle, hwnd};
@@ -43,7 +42,7 @@ enum Request {
     Focus(EntryId, Option<Point>),
     Release,
     Host(Option<Handle>),
-    Hotkey(Option<Hotkey>, mpsc::Sender<Result<(), HotkeyError>>),
+    Hotkey(Option<Hotkey>),
 }
 
 struct Shared {
@@ -69,7 +68,6 @@ struct State<'a> {
     host: Option<Handle>,
     hotkey: Option<Hotkey>,
     own_process: u32,
-    excluded: Excluded,
 }
 
 pub struct Watcher {
@@ -141,11 +139,8 @@ impl Watcher {
         if let Some(hotkey) = hotkey {
             hotkey.check()?;
         }
-        let (reply, answer) = mpsc::channel();
-        self.request(Request::Hotkey(hotkey, reply));
-        answer
-            .recv()
-            .unwrap_or_else(|_| Err(HotkeyError::Failed("the windows thread stopped".to_owned())))
+        self.request(Request::Hotkey(hotkey));
+        Ok(())
     }
 
     pub fn focused(&self) -> Option<Focused> {
@@ -223,14 +218,7 @@ fn run(shared: &Shared, ready: &mpsc::Sender<io::Result<u32>>) {
         host: None,
         hotkey: None,
         own_process: unsafe { GetCurrentProcessId() },
-        excluded: Excluded::default(),
     };
-    let own: Vec<Handle> = crate::Desktop::windows(&state.desktop)
-        .into_iter()
-        .filter(|window| window.process_id == state.own_process)
-        .map(|window| window.handle)
-        .collect();
-    state.excluded.windows(state.own_process, own);
     state.refresh(&[]);
     loop {
         let got = unsafe { GetMessageW(&mut message, None, 0, 0) };
@@ -301,15 +289,19 @@ impl State<'_> {
             }
             Request::Release => self.release(EndReason::Released),
             Request::Host(window) => self.host = window,
-            Request::Hotkey(hotkey, reply) => {
+            Request::Hotkey(hotkey) => {
                 if self.hotkey.take().is_some() {
                     focus::unregister();
                 }
-                let result = match hotkey {
-                    Some(hotkey) => focus::register(hotkey).map(|()| self.hotkey = Some(hotkey)),
-                    None => Ok(()),
+                let event = match hotkey.map(|hotkey| (hotkey, focus::register(hotkey))) {
+                    None => FocusEvent::HotkeySet(None),
+                    Some((hotkey, Ok(()))) => {
+                        self.hotkey = Some(hotkey);
+                        FocusEvent::HotkeySet(Some(hotkey))
+                    }
+                    Some((_, Err(error))) => FocusEvent::HotkeyRefused(error),
                 };
-                let _ = reply.send(result);
+                self.events(vec![event]);
             }
         }
     }
@@ -326,7 +318,6 @@ impl State<'_> {
     }
 
     fn refresh(&mut self, events: &[Event]) {
-        self.excluded.events(self.own_process, events);
         let mut changed = false;
         if self.model.update(&self.desktop, events) {
             *self.shared.snapshot.lock().expect("snapshot lock") = self.model.snapshot();

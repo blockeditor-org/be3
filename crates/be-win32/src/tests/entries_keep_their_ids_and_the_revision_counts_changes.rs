@@ -14,7 +14,7 @@ fn entries_keep_their_ids_and_the_revision_counts_changes() {
     assert!(!model.update(&desktop, &[Event::Moved(Handle(1))]));
     assert_eq!(model.snapshot().revision, 1);
 
-    desktop.change(Handle(1), |window| window.title = "one, renamed".to_owned());
+    rename(Handle(1), "one, renamed");
     assert!(model.update(&desktop, &[Event::NameChanged(Handle(1))]));
     let renamed = model.snapshot();
     assert_eq!(renamed.revision, 2);

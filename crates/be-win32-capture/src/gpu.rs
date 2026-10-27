@@ -56,6 +56,7 @@ pub(crate) struct Inner {
     device: wgpu::Device,
     queue: wgpu::Queue,
     srgb: bool,
+    adapter: String,
     vulkan: Vulkan,
     retired: Mutex<Vec<Retired>>,
 }
@@ -110,13 +111,14 @@ fn failed(what: &'static str) -> impl FnOnce(windows::core::Error) -> String {
 impl Device {
     pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, srgb: bool) -> Result<Device, String> {
         let (vulkan, wanted) = vulkan_of(device, formats(srgb).1)?;
-        let (d3d, context) = d3d11_on(wanted)?;
+        let (d3d, context, adapter) = d3d11_on(wanted)?;
         Ok(Device(Arc::new(Inner {
             d3d,
             context,
             device: device.clone(),
             queue: queue.clone(),
             srgb,
+            adapter,
             vulkan,
             retired: Mutex::new(Vec::new()),
         })))
@@ -124,6 +126,10 @@ impl Device {
 
     pub fn texture_format(&self) -> wgpu::TextureFormat {
         formats(self.0.srgb).2
+    }
+
+    pub fn adapter(&self) -> &str {
+        &self.0.adapter
     }
 }
 
@@ -220,23 +226,34 @@ fn vulkan_of(device: &wgpu::Device, format: vk::Format) -> Result<(Vulkan, Luid)
 }
 
 // unsafe(ffi)
-fn d3d11_on(wanted: Luid) -> Result<(ID3D11Device5, ID3D11DeviceContext4), String> {
+fn d3d11_on(wanted: Luid) -> Result<(ID3D11Device5, ID3D11DeviceContext4, String), String> {
     let factory: IDXGIFactory1 =
         unsafe { CreateDXGIFactory1() }.map_err(failed("DXGI did not start"))?;
-    let mut adapters: Vec<(Luid, IDXGIAdapter1)> = Vec::new();
+    let mut adapters: Vec<(Luid, IDXGIAdapter1, String)> = Vec::new();
     for index in 0u32.. {
         match unsafe { factory.EnumAdapters1(index) } {
             Ok(adapter) => {
                 if let Ok(desc) = unsafe { adapter.GetDesc1() } {
                     let id = luid(desc.AdapterLuid.LowPart, desc.AdapterLuid.HighPart);
-                    adapters.push((id, adapter));
+                    let end = desc
+                        .Description
+                        .iter()
+                        .position(|&unit| unit == 0)
+                        .unwrap_or(desc.Description.len());
+                    let name = format!(
+                        "{} (LUID {:08x}:{:08x})",
+                        String::from_utf16_lossy(&desc.Description[..end]),
+                        desc.AdapterLuid.HighPart,
+                        desc.AdapterLuid.LowPart
+                    );
+                    adapters.push((id, adapter, name));
                 }
             }
             Err(error) if error.code() == DXGI_ERROR_NOT_FOUND => break,
             Err(error) => return Err(failed("DXGI could not list its adapters")(error)),
         }
     }
-    let index = adapter_matching(wanted, adapters.iter().map(|(id, _)| *id))
+    let index = adapter_matching(wanted, adapters.iter().map(|(id, _, _)| *id))
         .ok_or("no Direct3D adapter is the GPU wgpu draws with")?;
     let mut device: Option<ID3D11Device> = None;
     let mut context: Option<ID3D11DeviceContext> = None;
@@ -269,7 +286,7 @@ fn d3d11_on(wanted: Luid) -> Result<(ID3D11Device5, ID3D11DeviceContext4), Strin
     let context: ID3D11DeviceContext4 = context
         .cast()
         .map_err(failed("Direct3D 11 has no fences on this system"))?;
-    Ok((device, context))
+    Ok((device, context, adapters.swap_remove(index).2))
 }
 
 // unsafe(ffi)

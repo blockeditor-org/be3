@@ -29,8 +29,9 @@ pub use power::{PowerAction, PowerAvailability};
 pub use programs::{Program, Shortcut};
 #[cfg(windows)]
 pub use win32::{
-    Watcher, Win32Desktop, bring_forward, close_window, exec, launch, power_availability,
-    program_icon, request_power, resize_window, set_maximized, start_menu_programs,
+    CaptureExclusion, Watcher, Win32Desktop, bring_forward, close_window, exec, launch,
+    power_availability, program_icon, request_power, resize_window, set_maximized,
+    start_menu_programs,
 };
 
 use std::path::PathBuf;
@@ -157,7 +158,6 @@ pub struct RawWindow {
     pub process_id: u32,
     pub thread_id: u32,
     pub class: String,
-    pub title: String,
     pub visible: bool,
     pub cloaked: bool,
     pub enabled: bool,
@@ -176,6 +176,7 @@ pub struct Process {
 
 pub trait Desktop {
     fn windows(&self) -> Vec<RawWindow>;
+    fn title(&self, window: Handle) -> String;
     fn process(&self, process_id: u32) -> Process;
     fn icon(&self, window: Handle) -> Option<Arc<Image>>;
     fn app_user_model_id(&self, window: Handle) -> Option<String>;

@@ -324,7 +324,7 @@ impl Model {
                 kind: EntryKind::Window,
                 handle: window.handle,
                 process_id: window.process_id,
-                title: window.title.clone(),
+                title: desktop.title(window.handle),
                 app_id,
                 parent,
                 modal: parent.is_some() && owner.is_some_and(|owner| !owner.enabled),
