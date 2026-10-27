@@ -103,3 +103,41 @@ pub fn DragFixture() -> NodeId {
         </List>
     }
 }
+
+#[component]
+pub fn ReorderFixture() -> NodeId {
+    let fruits = create_signal(vec!["apple", "banana", "cherry", "date"]);
+    let report = create_memo(move || format!("Order: {}", fruits.get().join(" ")));
+    view! {
+        <List spacing=Space::Xl>
+            <Frame width=Size::Custom(240.0)>
+                <Reorder
+                    keys={fruits}
+                    payload={Func::new(|fruit: &'static str| Some(fruit))}
+                    text={|fruit: &'static str| fruit.to_owned()}
+                    on_move={move |moved: ReorderMove<&'static str, &'static str>| {
+                        fruits.update(|fruits| {
+                            fruits.retain(|fruit| *fruit != moved.payload);
+                            let at = moved
+                                .after
+                                .and_then(|after| fruits.iter().position(|fruit| *fruit == after))
+                                .map_or(0, |at| at + 1);
+                            fruits.insert(at, moved.payload);
+                        });
+                    }}
+                >|reorder: ReorderHandle<&'static str, &'static str>|
+                    <List spacing=Space::Xs>
+                        <ForEach keys={reorder.order}>|fruit: &'static str|
+                            <ReorderItem reorder item=fruit>|_: ReorderItemHandle|
+                                <Card @test_id={format!("reorder.{fruit}")}>
+                                    <Text>{fruit}</Text>
+                                </Card>
+                            </ReorderItem>
+                        </ForEach>
+                    </List>
+                </Reorder>
+            </Frame>
+            <Text>{report}</Text>
+        </List>
+    }
+}

@@ -2909,7 +2909,7 @@ A drag ends one of three ways for its source. A target takes it (a source that
 began the drag with `Board::begin` hears `DragSource::dropped`), it is let go
 outside every window (`on_drop_outside`), or nothing takes it: Escape (a
 built-in capture key handler, ahead of overlays' own Escape, calls
-`Board::cancel`), a cancelled pointer, or a release over no target that
+`Board::cancel`; on HTML the board listens for it on the window), a cancelled pointer, or a release over no target that
 accepts it. In that last case the targets see the drag leave (Escape does not first turn
 the item back into a floating preview), nothing drops,
 and the source hears `on_cancel` before `on_drag_change(false)`, so it can
@@ -2928,14 +2928,26 @@ the source's node is gone by then.
 
 Holding a carried drag within `EDGE_BAND` (40 points, at most a quarter of
 the viewport) of the edge of a `Scroll` under the pointer, in that scroll's
-direction, scrolls it, faster the closer the pointer is to the edge. The board
-finds the innermost scroll catcher under the pointer whose edge it is near and
-that can still move that way, and reports an `AutoscrollGesture` with `edge`
-set to it, the same gesture middle-click autoscroll sends (without its origin
-marker); the scroll then moves on its own timer by the frame clock, and the
-board ends the gesture once the pointer leaves the band or the drag ends.
-While it scrolls, targets keep hearing `on_over` each frame with the pointer
-in their moved coordinates even when the pointer is still.
+direction, scrolls it, faster the closer the pointer is to the edge. Each
+`Scroll` registers its catcher with the board as an `EdgeScroller`
+(`Board::register_scroller`: its node, its axis, whether it can still move each
+way, and a `scroll(depth)` callback). On each point it tracks, the board picks
+the innermost registered scroll under the pointer whose band the pointer is in
+and that can still move that way (by paint order natively, the smallest on
+HTML) and calls `scroll(Some(depth))`, the signed distance into the band; the
+scroll turns it into the speed a middle-click autoscroll would have (without
+its origin marker) and moves on its own timer by the frame clock, until the
+board calls `scroll(None)` once the pointer leaves the band or the window or
+the drag ends. Natively the board tracks the pointer every frame, so while it
+scrolls targets keep hearing `on_over` with the pointer in their moved
+coordinates even when the pointer is still; on HTML it tracks pointer moves,
+through window listeners it holds while it carries something (so a drag goes
+on, and ends on release, when the source's element is gone).
+
+A target that would refuse a drop at a point declines it with `takes` rather
+than taking it and doing nothing: the drag then falls through, and a source
+such as a `Reorder` item hears it cancelled and glides home. The dock's target
+declines every drop its locks or rules refuse.
 
 A drag between editors is not this inside the plugin: a block dragged from
 the file tree to another editor crosses plugins, so it goes through the host

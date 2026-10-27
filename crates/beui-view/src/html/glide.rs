@@ -24,6 +24,7 @@ struct Glide {
 #[derive(Clone)]
 struct Held {
     glide: Rc<Glide>,
+    animates: crate::reactive::Memo<bool>,
     shown: crate::reactive::Signal<Vec2>,
     frames: Animation,
 }
@@ -37,7 +38,7 @@ impl Held {
     }
 
     fn start(&self) {
-        if use_preferences().get_untracked().motion.animates() {
+        if self.animates.get_untracked() {
             self.frames.start();
         } else {
             self.glide.displacement.set(Vec2::ZERO);
@@ -105,8 +106,10 @@ pub(crate) fn glide(arm: Prop<u64>, from: Prop<Option<Pos2>>, children: Child) -
             },
         )
     };
+    let preferences = use_preferences();
     let held = Held {
         glide: Rc::clone(&glide),
+        animates: crate::reactive::create_memo(move || preferences.get().motion.animates()),
         shown,
         frames,
     };

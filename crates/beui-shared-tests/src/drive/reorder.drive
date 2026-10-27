@@ -1,0 +1,6 @@
+# An item dragged down a reorderable list passes the items whose middles it
+# crosses and lands where it is let go.
+clock stop
+wait 'value="Order: apple banana cherry date"'
+drag '#reorder.apple' '#reorder.cherry+0,4' 6
+wait 'value="Order: banana cherry apple date"'

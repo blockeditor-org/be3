@@ -24,6 +24,8 @@ pub struct Board {
     scrollers: RefCell<Vec<EdgeScroller>>,
     scrolling: RefCell<Option<(u64, f32, Rc<dyn Fn(Option<f32>)>)>>,
     next: Cell<u64>,
+    #[cfg(target_arch = "wasm32")]
+    following: RefCell<Vec<crate::dom::Listener>>,
 }
 
 impl Board {
@@ -84,6 +86,10 @@ impl Board {
         });
         for mark in marks {
             mark(true);
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            *self.following.borrow_mut() = web::follow();
         }
         self.track(point);
     }
@@ -285,6 +291,8 @@ impl Board {
         let Some(carried) = self.carried.borrow_mut().take() else {
             return false;
         };
+        #[cfg(target_arch = "wasm32")]
+        drop(std::mem::take(&mut *self.following.borrow_mut()));
         self.stop_edge();
         let point = point.map(|point| DragPoint {
             item: carried.source.item,
@@ -412,4 +420,57 @@ pub fn drag_board() -> Rc<Board> {
         );
         Rc::new(Board::default())
     })
+}
+
+#[cfg(target_arch = "wasm32")]
+mod web {
+    use beui_types::{DragPoint, Pos2, pos2};
+    use wasm_bindgen::JsCast;
+
+    fn point(event: &web_sys::PointerEvent) -> DragPoint {
+        let origin = crate::run::root()
+            .and_then(crate::dom::dom)
+            .and_then(|dom| dom.dyn_into::<web_sys::Element>().ok())
+            .map(|root| {
+                let rect = root.get_bounding_client_rect();
+                pos2(rect.left() as f32, rect.top() as f32)
+            })
+            .unwrap_or(Pos2::ZERO);
+        let modifiers = beui_web_input::keys::modifiers(
+            event.alt_key(),
+            event.ctrl_key(),
+            event.meta_key(),
+            event.shift_key(),
+        );
+        DragPoint::at(
+            pos2(
+                event.client_x() as f32 - origin.x,
+                event.client_y() as f32 - origin.y,
+            ),
+            modifiers,
+        )
+    }
+
+    pub(super) fn follow() -> Vec<crate::dom::Listener> {
+        let Some(window) = crate::dom::window() else {
+            return Vec::new();
+        };
+        let target: &web_sys::EventTarget = window.as_ref();
+        vec![
+            crate::dom::listen(target, "pointermove", true, |event: web_sys::PointerEvent| {
+                super::drag_board().track(point(&event));
+                reactive::flush();
+            }),
+            crate::dom::listen(target, "pointerup", true, |event: web_sys::PointerEvent| {
+                let board = super::drag_board();
+                board.track(point(&event));
+                board.finish();
+                reactive::flush();
+            }),
+            crate::dom::listen(target, "pointercancel", true, |_: web_sys::PointerEvent| {
+                super::drag_board().end(None);
+                reactive::flush();
+            }),
+        ]
+    }
 }

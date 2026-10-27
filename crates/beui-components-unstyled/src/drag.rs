@@ -63,6 +63,7 @@ where
     let dragging = create_memo(move || carried.with(Option::is_some));
     let floating = create_memo(move || dragging.get() && !lifted_in_place.get());
     let face = content.call(DragHandle { dragging, floating });
+    measure(face);
     let landed = move || {
         carried.set(None);
         lifted_in_place.set(false);

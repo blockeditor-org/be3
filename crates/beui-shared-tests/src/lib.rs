@@ -124,6 +124,9 @@ pub fn Fixture(name: String) -> Root {
         "drag" => view! {
             <rows::DragFixture />
         },
+        "reorder" => view! {
+            <rows::ReorderFixture />
+        },
         "text_area" => view! {
             <controls::TextAreaFixture />
         },

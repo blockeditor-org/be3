@@ -928,6 +928,9 @@ where
             <Frame padding={padding}>{inner}</Frame>
         </Glide>
     };
+    for node in [glide, inner, face] {
+        measure(node);
+    }
     create_effect(move || {
         let key = key.get();
         state.with(|state| {
