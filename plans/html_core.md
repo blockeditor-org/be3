@@ -746,8 +746,8 @@ have landed; its tasks run in parallel unless marked.
   `clipboard_keys`, `forwards_wheel`; `on_forward` hears only the pointer, no
   keys, focus or hover); `Overlay`'s `window` and `shown_in`;
   `Root`'s `system_bars`; `Canvas`'s `scrolls_across`; `VirtualList`'s `text`;
-  `Selectable`'s colours, handles and toolbar. A `TextItem` with `at` is a
-  stand-in, `on_back` never fires and `use_keyboard()` is always true.
+  `Selectable`'s colours, handles and toolbar. `on_back` never fires and
+  `use_keyboard()` is always true.
 - `Break`'s copy test across Firefox and WebKit (§5, Decided 4): the shared
   scripts run only in Chromium.
 - Porting block-app itself to the HTML core; it runs the native core with wgpu

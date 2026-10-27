@@ -1,0 +1,8 @@
+# A TextItem placed at a text index sits on that index's caret, on any line,
+# and follows the index when it changes.
+clock stop
+wait 'value="Marker at 0 on its caret"'
+click '#text_item.next'
+wait 'value="Marker at 3 on its caret"'
+click '#text_item.next'
+wait 'value="Marker at 6 on its caret"'

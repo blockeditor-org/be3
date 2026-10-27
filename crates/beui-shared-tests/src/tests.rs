@@ -81,6 +81,7 @@ mod table;
 mod text;
 mod text_area;
 mod text_input;
+mod text_item;
 mod time_list;
 mod toasts;
 mod toggles;

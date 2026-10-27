@@ -683,7 +683,7 @@ What each primitive is on the HTML core (the bodies are in
 | `Frame` | a one-cell CSS grid; `translate` and `rotate` are a transform, `opacity` CSS opacity, `fade_edges` a mask image |
 | `List`, `Spacer` | flexbox and a flex child; `@sizing` becomes flex grow, shrink and basis |
 | `Grid`, `Layers` | CSS grid; `Layers` stacks every child in one cell |
-| `Text` and its spans | a `div` of `span`s and text nodes with `white-space: pre-wrap`; `marks` are CSS Custom Highlights, `carets` positioned boxes, `glyphs` `::before` content, `Break` an `::after` newline no browser copies; a `TextItem` with `at` is a stand-in |
+| `Text` and its spans | a `div` of `span`s and text nodes with `white-space: pre-wrap`; `marks` are CSS Custom Highlights, `carets` positioned boxes, `glyphs` `::before` content, `Break` an `::after` newline no browser copies; a `TextItem` with `at` an absolutely placed box that a layout pass moves onto that index's caret |
 | `Offset` | an `overflow: hidden` element moved through `scrollTop`/`scrollLeft`, never a transform |
 | `VirtualList` | rows in flow between two spacer elements, measured by `ResizeObserver` |
 | `Canvas` | an inner element translated to the view, `--beui-scale` scaling items |
