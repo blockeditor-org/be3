@@ -35,7 +35,8 @@ pub fn ButtonsFixture() -> NodeId {
 pub fn TogglesFixture() -> NodeId {
     let remember = create_signal(false);
     let lights = create_signal(true);
-    let report = create_memo(move || format!("Remember {} lights {}", remember.get(), lights.get()));
+    let report =
+        create_memo(move || format!("Remember {} lights {}", remember.get(), lights.get()));
     view! {
         <List spacing=Space::Md>
             <Checkbox label="Remember me" checked={remember} />

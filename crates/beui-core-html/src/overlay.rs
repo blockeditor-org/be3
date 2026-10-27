@@ -740,7 +740,9 @@ mod web {
         let mut changed = false;
         if held.shown != wanted || state(&dialog) != wanted {
             let active = crate::dom::document().and_then(|document| document.active_element());
-            let inside = active.as_ref().is_some_and(|active| within(&dialog, Some(active.as_ref())));
+            let inside = active
+                .as_ref()
+                .is_some_and(|active| within(&dialog, Some(active.as_ref())));
             match wanted {
                 Some(modal) => {
                     if held.shown.is_none() && !inside {

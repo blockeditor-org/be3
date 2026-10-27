@@ -94,8 +94,8 @@ fn drive(fixture: &str, script: &str) {
 
 mod buttons;
 mod canvas;
-mod editing;
 mod choices;
+mod editing;
 mod fields;
 mod focus;
 mod frame;
