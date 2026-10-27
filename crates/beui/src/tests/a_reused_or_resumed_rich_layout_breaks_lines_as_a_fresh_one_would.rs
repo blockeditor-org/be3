@@ -1,7 +1,7 @@
 use super::*;
-use beui_core::rich::Piece;
 use crate::reactive::*;
 use beui_core::font::{FontId, Galley, TextLayout};
+use beui_core::rich::Piece;
 use beui_core::rich::{OBJECT, RichOptions};
 
 const BREAK: &str = "|";

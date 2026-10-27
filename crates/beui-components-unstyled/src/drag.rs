@@ -4,8 +4,8 @@ use std::rc::Rc;
 
 use beui_macros::{component, view};
 
-use beui_view::drag::{DragPoint, Pending, Target, drag_board};
 use beui_view::components::overlay::Overlay;
+use beui_view::drag::{DragPoint, Pending, Target, drag_board};
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;

@@ -1,7 +1,7 @@
 use super::*;
 use crate::icons::ICON_STAR;
-use crate::primitives::{Gap, Icon, Span};
 use crate::primitives::*;
+use crate::primitives::{Gap, Icon, Span};
 use crate::reactive::*;
 use crate::{Color32, FontId, TextGlyph};
 

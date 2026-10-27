@@ -6,26 +6,25 @@ use std::rc::Rc;
 use crate::actions::Chord;
 use crate::components::selectable::{COPY_KEY, SELECT_ALL_KEY};
 use crate::primitives::*;
+use crate::reactive::KeyAt;
+use crate::reactive::NodeId;
 use crate::reactive::*;
 use crate::selection::{
     RowKey, RowWatcher, SelectableRows, SelectionItem, rows_of, scroll_toward, selection_items,
     texts_under,
 };
-use beui_macros::{component, view};
-use crate::reactive::KeyAt;
-use crate::reactive::NodeId;
 use crate::types::CaretHandle;
 use crate::types::Color32;
 use crate::types::KeyPhase;
 use crate::types::{Area, Claim};
-use crate::types::{Key, KeyPress, PointerPress};
+use crate::types::{KeyPress, PointerPress};
 use crate::types::{Pos2, Rect, Vec2};
 use crate::types::{handle_center, toolbar_anchor};
+use beui_macros::{component, view};
 
 const HANDLE_HIT_RADIUS: f32 = 24.0;
 const END: usize = usize::MAX;
 const AUTOSCROLL_RATE: f32 = 0.5;
-
 
 #[derive(Clone, PartialEq, Debug)]
 enum Spot {

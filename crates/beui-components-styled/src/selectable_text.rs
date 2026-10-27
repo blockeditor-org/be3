@@ -4,10 +4,10 @@ use crate::ContextMenu;
 use crate::text_area::text_area_geometry;
 use crate::theme::use_theme;
 use beui_components_unstyled::MenuItem;
+use beui_view::actions::Chord;
 use beui_view::components::selectable::{
     COPY_KEY, SELECT_ALL_KEY, Selectable, SelectableState, copy_selection, select_all,
 };
-use beui_view::actions::Chord;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::ItemSize;

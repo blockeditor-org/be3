@@ -8,8 +8,8 @@ use text_editor_core::{
 use beui_view::reactive::*;
 use beui_view::types::Color32;
 use beui_view::types::SpanStyle;
-use beui_view::types::{DEFAULT_FONT_SIZE, Piece};
 use beui_view::types::Vec2;
+use beui_view::types::{DEFAULT_FONT_SIZE, Piece};
 use beui_view::types::{FontId, TextAlign};
 
 use super::colors::TextAreaColors;

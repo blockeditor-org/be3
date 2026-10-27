@@ -139,7 +139,8 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
         let scale = tracked_scale(cx.held);
         let laid = bounds.get().size() / scale;
         cx.metrics.get();
-        let body = measure_line("", FontId::proportional(cx.font_size.get())).map_or(0.0, |line| line.y);
+        let body =
+            measure_line("", FontId::proportional(cx.font_size.get())).map_or(0.0, |line| line.y);
         Vec2::new(laid.x, laid.y.max(body))
     });
     create_effect(move || cx.text_extent.set(text.get()));
