@@ -1605,6 +1605,17 @@ impl Context {
         );
     }
 
+    pub fn set_aside<R>(&self, content: impl FnOnce() -> R) -> (R, Vec<Layer>) {
+        let layers = self.inner.layers.borrow().len();
+        let result = content();
+        let aside = self.inner.layers.borrow_mut().drain(layers..).collect();
+        (result, aside)
+    }
+
+    pub fn put_back(&self, layers: Vec<Layer>) {
+        self.inner.layers.borrow_mut().extend(layers);
+    }
+
     fn grouping<R>(&self, layers: usize, content: impl FnOnce() -> R) -> R {
         self.inner.grouping.borrow_mut().push(layers);
         let result = content();
