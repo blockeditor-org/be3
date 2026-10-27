@@ -613,8 +613,11 @@ impl<K: DockKey> DockingLayout<K> {
         {
             return held;
         }
-        self.state
-            .with(|state| tab.is_some_and(|tab| state.contains(tab)))
+        self.state.with(|state| {
+            tab.is_some_and(|tab| {
+                state.contains(tab) || state.find_group(&joined_key(tab)).is_some()
+            })
+        })
     }
 
     pub fn focused(&self) -> Option<K> {
@@ -622,7 +625,7 @@ impl<K: DockKey> DockingLayout<K> {
             Some(focused) => focused?,
             None => self.state.with(DockState::focused_tab)?,
         };
-        self.key_of(tab)
+        self.key_of(self.outermost(tab))
     }
 
     pub fn shown(&self) -> Option<K> {
@@ -630,7 +633,20 @@ impl<K: DockKey> DockingLayout<K> {
             Some(shown) => shown?,
             None => self.state.with(DockState::stacked_tab)?,
         };
-        self.key_of(tab)
+        self.key_of(self.outermost(tab))
+    }
+
+    fn outermost(&self, tab: TabId) -> TabId {
+        let inner = self.inner();
+        let foreign = inner.registry.foreign.borrow();
+        let mut tab = tab;
+        for _ in 0..MAX_JOINED_DEPTH {
+            match foreign.inner(tab) {
+                Some((host, _)) => tab = host,
+                None => break,
+            }
+        }
+        tab
     }
 
     pub fn show(&self, key: &K) {
@@ -641,7 +657,22 @@ impl<K: DockKey> DockingLayout<K> {
             host.request(DockRequest::Show(tab));
             return;
         }
-        self.edit(|state| state.show(tab));
+        self.edit(|state| {
+            let shown = match state.find_group(&joined_key(tab)) {
+                Some(group) if !state.contains(tab) => {
+                    let inside = state.group_tabs(group);
+                    state
+                        .recent_tabs()
+                        .into_iter()
+                        .find(|recent| inside.contains(recent))
+                        .or_else(|| inside.first().copied())
+                }
+                _ => Some(tab),
+            };
+            if let Some(shown) = shown {
+                state.show(shown);
+            }
+        });
     }
 
     pub fn fullscreen(&self) -> Option<K> {

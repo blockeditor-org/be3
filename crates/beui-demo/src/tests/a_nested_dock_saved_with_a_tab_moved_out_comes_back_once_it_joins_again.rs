@@ -133,13 +133,24 @@ fn a_nested_dock_saved_with_a_tab_moved_out_comes_back_once_it_joins_again() {
         text_x(&reopened, "Beta body") > SIZE.x / 2.0,
         "the inner dock places the moved tab's body in the other pane"
     );
+    reopened.snapshot("a_nested_dock_saved_with_a_tab_moved_out_comes_back_once_it_joins_again");
+    let layout = LAYOUT.with(Cell::get).expect("the outer dock was built");
+    let focused = with_reactive_scope(reopened.document_mut(), || layout.focused());
+    assert_eq!(
+        focused,
+        Some(1),
+        "an inner tab with the focus counts as its host tab of the outer dock"
+    );
+    with_reactive_scope(reopened.document_mut(), || layout.show(&2));
+    reopened.frame(Vec::new());
+    with_reactive_scope(reopened.document_mut(), || layout.show(&1));
+    reopened.frame(Vec::new());
+    let focused = with_reactive_scope(reopened.document_mut(), || layout.focused());
+    assert_eq!(focused, Some(1), "showing the host tab shows its group");
     reopened.click_with(beta, PointerButton::Secondary);
     reopened.frame(Vec::new());
     assert!(
         menu_shows(&reopened, "Lock"),
         "the moved tab is still unlocked and can lock again once home"
     );
-    reopened.key(beui::Key::Escape, beui::Modifiers::NONE);
-    reopened.frame(Vec::new());
-    reopened.snapshot("a_nested_dock_saved_with_a_tab_moved_out_comes_back_once_it_joins_again");
 }
