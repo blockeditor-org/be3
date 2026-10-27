@@ -5,8 +5,7 @@ use beui::native::Document;
 use beui::native::WindowSize;
 use beui::native::testing::{Gui, Showing, Stepped};
 use beui::{
-    Color32, Vec2, native::Context, native::FontLibrary, native::FrameOutput,
-    native::FreetypeFonts,
+    Color32, Vec2, native::Context, native::FontLibrary, native::FrameOutput, native::FreetypeFonts,
 };
 
 use crate::beui::capture;

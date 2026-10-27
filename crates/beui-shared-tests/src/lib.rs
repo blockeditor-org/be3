@@ -272,24 +272,23 @@ fn StretchFixture() -> NodeId {
     };
     let column = view! {
         <Frame width=200.0>
-            <List spacing=10.0>
-                {bar}
-                {full}
-            </List>
+            <List spacing=10.0>{bar}{full}</List>
         </Frame>
     };
     let bar_rect = measured_rect(bar);
     let full_rect = measured_rect(full);
     let column_rect = measured_rect(column);
-    let report = create_memo(move || match (bar_rect.get(), full_rect.get(), column_rect.get()) {
-        (Some(bar), Some(full), Some(column)) => format!(
-            "Bar {} at {:.0} beside {}",
-            size(Some(bar)),
-            bar.min.x - column.min.x,
-            size(Some(full))
-        ),
-        _ => "Bar unmeasured".to_owned(),
-    });
+    let report = create_memo(
+        move || match (bar_rect.get(), full_rect.get(), column_rect.get()) {
+            (Some(bar), Some(full), Some(column)) => format!(
+                "Bar {} at {:.0} beside {}",
+                size(Some(bar)),
+                bar.min.x - column.min.x,
+                size(Some(full))
+            ),
+            _ => "Bar unmeasured".to_owned(),
+        },
+    );
     view! {
         <List spacing=12.0>
             {column}
