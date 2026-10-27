@@ -3338,7 +3338,7 @@ impl DockApi {
 }
 
 fn tracked_rect(node: NodeId) -> Option<Rect> {
-    measure(node).get()
+    Some(measure(node).get()?.rect)
 }
 
 fn modifier_claims(modifiers: Memo<Option<Modifiers>>) -> Memo<Vec<Claim>> {

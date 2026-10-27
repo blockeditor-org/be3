@@ -98,8 +98,8 @@ fn last_rect(node: NodeId) -> ReadSignal<Rect> {
     let measured = measure(node);
     let held = create_signal(Rect::ZERO);
     create_effect(move || {
-        if let Some(rect) = measured.get() {
-            held.set(rect);
+        if let Some(measured) = measured.get() {
+            held.set(measured.rect);
         }
     });
     held.read_only()
