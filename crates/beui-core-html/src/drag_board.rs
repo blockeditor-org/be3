@@ -332,7 +332,9 @@ impl Board {
     }
 
     pub fn unregister_scroller(&self, id: u64) {
-        self.scrollers.borrow_mut().retain(|scroller| scroller.id != id);
+        self.scrollers
+            .borrow_mut()
+            .retain(|scroller| scroller.id != id);
         let stopped = self
             .scrolling
             .borrow()
@@ -358,7 +360,12 @@ impl Board {
                     return None;
                 }
                 let depth = scroller.depth(rect, point.pos)?;
-                Some((rect.width() * rect.height(), scroller.id, depth, Rc::clone(&scroller.scroll)))
+                Some((
+                    rect.width() * rect.height(),
+                    scroller.id,
+                    depth,
+                    Rc::clone(&scroller.scroll),
+                ))
             })
             .min_by(|a, b| a.0.total_cmp(&b.0))
             .map(|(_, id, depth, scroll)| (id, depth, scroll));
@@ -398,9 +405,7 @@ pub fn drag_board() -> Rc<Board> {
             crate::keys::KeyPhase::Capture,
             Rc::new(|event: crate::keys::KeyEvent| match event.input {
                 crate::keys::KeyInput::Press(press) => {
-                    press.pressed
-                        && press.key == beui_types::Key::Escape
-                        && drag_board().cancel()
+                    press.pressed && press.key == beui_types::Key::Escape && drag_board().cancel()
                 }
                 crate::keys::KeyInput::Tap(_) => false,
             }),

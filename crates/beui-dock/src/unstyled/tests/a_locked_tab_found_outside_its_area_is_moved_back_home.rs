@@ -12,7 +12,13 @@ fn a_locked_tab_found_outside_its_area_is_moved_back_home() {
     let mut state = DockState::default();
     state.reconcile(&open);
     let editors = leaf_of(&state, 10);
-    state.drop_tab(TabId::new(1), DockDrop::Tab { leaf: editors, index: usize::MAX });
+    state.drop_tab(
+        TabId::new(1),
+        DockDrop::Tab {
+            leaf: editors,
+            index: usize::MAX,
+        },
+    );
     state.drop_tab(
         TabId::new(2),
         DockDrop::Window {

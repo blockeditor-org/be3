@@ -186,7 +186,8 @@ fn shown_at<K: Clone + PartialEq, P: Clone>(state: &State<K, P>) -> Option<Pos2>
     let lifted = state.lifted.get_untracked()?;
     let point = (*state.point.borrow())?;
     let at = point.pos + lifted.item.min.to_vec2();
-    let resting = glide_of(state, &lifted.key).and_then(|glide| measure(glide).get_untracked().map(|measured| measured.rect));
+    let resting = glide_of(state, &lifted.key)
+        .and_then(|glide| measure(glide).get_untracked().map(|measured| measured.rect));
     Some(match (lifted.home, resting) {
         (true, Some(resting)) => match state.direction.get_untracked() {
             Direction::Horizontal => Pos2::new(at.x, resting.min.y),

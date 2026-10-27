@@ -1,9 +1,9 @@
 use std::rc::Rc;
 
+use crate::types::Rect;
 pub use crate::types::drag::{
     DragPoint, DragSource, EDGE_BAND, EdgeScroller, Outside, Pending, Target,
 };
-use crate::types::Rect;
 
 #[derive(Clone)]
 pub struct Board(Rc<crate::core::drag::Board>);

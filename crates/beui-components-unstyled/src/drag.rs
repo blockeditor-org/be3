@@ -4,7 +4,6 @@ use std::rc::Rc;
 
 use beui_macros::{component, view};
 
-use beui_view::types::Rect;
 use beui_view::components::overlay::Overlay;
 use beui_view::drag::{DragPoint, DragSource, Pending, Target, drag_board};
 use beui_view::primitives::*;
@@ -14,6 +13,7 @@ use beui_view::reactive::*;
 use beui_view::types::CursorIcon;
 use beui_view::types::Placement;
 use beui_view::types::PointerPress;
+use beui_view::types::Rect;
 use beui_view::types::TOUCH_DRAG_THRESHOLD;
 use beui_view::types::TouchDrags;
 use beui_view::types::{Pos2, Vec2};

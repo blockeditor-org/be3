@@ -1067,6 +1067,12 @@ impl State {
         }
     }
 
+    fn takes(&self, point: DragPoint) -> bool {
+        self.drag
+            .get_untracked()
+            .is_none_or(|drag| self.admitted(point, drag.dragged).is_some())
+    }
+
     fn drop_at(&self, dragged: DockDragged, point: DragPoint) {
         match self.admitted(point, dragged) {
             Some(Aim::Drop(target, _)) => self.edit(|state| match dragged {
@@ -1991,6 +1997,7 @@ fn DockTiles(dock: State) -> NodeId {
     let windows = create_memo(move || current.with(DockState::windows));
     view! {
         <DropTarget
+            takes={move |point: DragPoint| dock.takes(point)}
             on_over={move |point: Option<(DockDragged, DragPoint)>| dock.drag_over(point.map(|(_, point)| point))}
             on_drop={move |(dragged, point): (DockDragged, DragPoint)| dock.drop_at(dragged, point)}
         >|_: DropHandle|
@@ -3211,6 +3218,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
             });
             view! {
                 <DropTarget
+                    takes={move |point: DragPoint| dock.takes(point)}
                     on_over={move |point: Option<(DockDragged, DragPoint)>| dock.drag_over(point.map(|(_, point)| point))}
                     on_drop={move |(dragged, point): (DockDragged, DragPoint)| dock.drop_at(dragged, point)}
                 >|_: DropHandle|

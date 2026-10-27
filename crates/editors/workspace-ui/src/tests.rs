@@ -138,6 +138,7 @@ impl Fixture {
         let from = self.text_rect(words).center();
         self.test.drag(from, to);
         self.settle();
+        self.test.settle();
     }
 
     fn show_history(&mut self) {

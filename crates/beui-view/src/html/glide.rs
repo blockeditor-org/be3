@@ -116,8 +116,13 @@ pub(crate) fn glide(arm: Prop<u64>, from: Prop<Option<Pos2>>, children: Child) -
         set_style(
             shift,
             "transform",
-            (shift_by != Vec2::ZERO)
-                .then(|| format!("translate({}, {})", css::px(shift_by.x), css::px(shift_by.y))),
+            (shift_by != Vec2::ZERO).then(|| {
+                format!(
+                    "translate({}, {})",
+                    css::px(shift_by.x),
+                    css::px(shift_by.y)
+                )
+            }),
         );
     });
     let measured = measure(node);

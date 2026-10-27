@@ -393,7 +393,9 @@ impl Board {
     }
 
     pub fn unregister_scroller(&self, id: u64) {
-        self.scrollers.borrow_mut().retain(|scroller| scroller.id != id);
+        self.scrollers
+            .borrow_mut()
+            .retain(|scroller| scroller.id != id);
         self.painted.borrow_mut().remove(&id);
         self.windows.borrow_mut().remove(&id);
         let stopped = self

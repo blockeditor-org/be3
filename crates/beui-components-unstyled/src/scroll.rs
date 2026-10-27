@@ -675,7 +675,10 @@ fn Scrolling(
         axis: Rc::new(move || direction.get_untracked()),
         movable: Rc::new(move || {
             let position = position.get_untracked();
-            [position.offset > 0.0, position.offset < position.max_offset()]
+            [
+                position.offset > 0.0,
+                position.offset < position.max_offset(),
+            ]
         }),
         scroll: Rc::new(move |depth: Option<f32>| {
             let reach = depth.map_or(0.0, |depth| {

@@ -20,8 +20,8 @@ use beui_components_unstyled::{
 };
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
-use beui_view::types::TextAlign;
 use beui_view::types::Pos2;
+use beui_view::types::TextAlign;
 use beui_view::types::icons::{
     ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_CHEVRON_DOWN, ICON_CHEVRON_RIGHT, ICON_ELLIPSIS,
 };
