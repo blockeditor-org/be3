@@ -85,18 +85,42 @@ pub fn first_within(node: NodeId) -> Option<NodeId> {
 
 pub fn reveal(node: NodeId) {
     #[cfg(target_arch = "wasm32")]
-    for viewer in crate::dom::nodes_above(crate::dom::dom(node)) {
-        if viewer == node {
-            continue;
+    {
+        let mut held = false;
+        for viewer in crate::dom::nodes_above(crate::dom::dom(node)) {
+            if viewer == node {
+                continue;
+            }
+            if let Some(scroller) = find(viewer) {
+                scroller.reveal.set(Some(node));
+                held = true;
+            }
+            crate::canvas::reveal_in(viewer, node);
         }
-        if let Some(scroller) = find(viewer) {
-            scroller.reveal.set(Some(node));
+        if !held {
+            reveal_in_page(node);
         }
-        crate::canvas::reveal_in(viewer, node);
     }
     #[cfg(not(target_arch = "wasm32"))]
     let _ = node;
     crate::frame::request_frame();
+}
+
+#[cfg(target_arch = "wasm32")]
+fn reveal_in_page(node: NodeId) {
+    use wasm_bindgen::JsCast;
+    let Some(element) = crate::dom::element(node) else {
+        return;
+    };
+    let options = js_sys::Object::new();
+    for key in ["block", "inline"] {
+        let _ = js_sys::Reflect::set(&options, &key.into(), &"nearest".into());
+    }
+    if let Ok(scroll) = js_sys::Reflect::get(&element, &"scrollIntoView".into())
+        && let Some(scroll) = scroll.dyn_ref::<js_sys::Function>()
+    {
+        let _ = scroll.call1(&element, &options);
+    }
 }
 
 pub fn revealed_offset(start: f32, end: f32, offset: f32, length: f32) -> Option<f32> {

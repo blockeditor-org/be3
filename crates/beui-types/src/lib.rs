@@ -42,7 +42,7 @@ pub use input::{
     AutoscrollGesture, BackEdge, BackGesture, CursorIcon, DragGesture, ImeEvent, ImeText, Key,
     KeyPhase, KeyPress, Modifiers, PointerButton, PointerId, PointerInput, PointerPress,
     PointerSample, PointerStage, ScrollGesture, SecondaryDrag, SoftKeyboard, TOUCH_DRAG_THRESHOLD,
-    TouchDrags, WheelInput, ZoomGesture,
+    TouchDrags, WHEEL_LATCH_TIMEOUT, WheelInput, ZoomGesture,
 };
 pub use input::{
     DroppedFile, Event, FileDrag, Input, KeyChord, Keyboard, Keystroke, Pen, PenPhase,

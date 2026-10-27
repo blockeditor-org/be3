@@ -251,6 +251,7 @@ mod web {
             modifiers: modifiers(event),
             time: crate::frame::now(),
             settles: None,
+            unclaimed: false,
         }
     }
 
@@ -889,47 +890,47 @@ mod web {
             }),
         ));
         let held = state.clone();
-        listeners.push(on(
-            "wheel",
-            Box::new(move |event| {
-                let (Some(event), Some(element)) =
-                    (event.dyn_ref::<web_sys::WheelEvent>(), held.element())
-                else {
-                    return;
-                };
-                if held.handlers.on_wheel.is_empty() {
-                    return;
-                }
-                let delta = vec2(event.delta_x() as f32, event.delta_y() as f32);
-                let input = beui_web_input::wheel::wheel(
-                    delta,
-                    event.delta_mode(),
-                    event.ctrl_key(),
-                    &held.pinch.borrow(),
-                );
-                let at = placed(&element, event.client_x().into(), event.client_y().into());
-                let wheel = match input {
-                    Some(Input::Scroll(delta)) => WheelInput::Scroll(ScrollGesture {
-                        delta: scrolled(delta, 1.0),
-                        fling: Vec2::ZERO,
-                        pos: at.pos,
-                        local: at.local,
-                        size: at.size,
-                        modifiers: modifiers(event),
-                        held: false,
-                    }),
-                    Some(Input::Zoom(factor)) => WheelInput::Zoom(ZoomGesture {
-                        factor,
-                        pos: at.pos,
-                        local: at.local,
-                        size: at.size,
-                    }),
-                    _ => return,
-                };
-                let done = held.handlers.on_wheel.call(wheel);
-                handled(event, done);
-            }),
-        ));
+        if !state.handlers.on_wheel.is_empty() {
+            listeners.push(on(
+                "wheel",
+                Box::new(move |event| {
+                    let (Some(event), Some(element)) =
+                        (event.dyn_ref::<web_sys::WheelEvent>(), held.element())
+                    else {
+                        return;
+                    };
+                    let delta = vec2(event.delta_x() as f32, event.delta_y() as f32);
+                    let input = beui_web_input::wheel::wheel(
+                        delta,
+                        event.delta_mode(),
+                        event.ctrl_key(),
+                        &held.pinch.borrow(),
+                    );
+                    let at = placed(&element, event.client_x().into(), event.client_y().into());
+                    let wheel = match input {
+                        Some(Input::Scroll(delta)) => WheelInput::Scroll(ScrollGesture {
+                            delta: scrolled(delta, 1.0),
+                            fling: Vec2::ZERO,
+                            pos: at.pos,
+                            local: at.local,
+                            size: at.size,
+                            modifiers: modifiers(event),
+                            held: false,
+                            unclaimed: false,
+                        }),
+                        Some(Input::Zoom(factor)) => WheelInput::Zoom(ZoomGesture {
+                            factor,
+                            pos: at.pos,
+                            local: at.local,
+                            size: at.size,
+                        }),
+                        _ => return,
+                    };
+                    let done = held.handlers.on_wheel.call(wheel);
+                    handled(event, done);
+                }),
+            ));
+        }
         let held = state.clone();
         listeners.push(on(
             "paste",

@@ -71,6 +71,48 @@ pub fn ScrollFixture() -> NodeId {
     }
 }
 
+fn reach(at: ScrollPosition) -> &'static str {
+    match at.offset >= at.max_offset() - 0.5 {
+        true => "end",
+        false if at.offset <= 0.5 => "start",
+        false => "middle",
+    }
+}
+
+#[component]
+pub fn ScrollChainFixture() -> NodeId {
+    let outer = create_signal("unknown");
+    let inner = create_signal("unknown");
+    let report =
+        create_memo(move || format!("Outer at the {}, inner at the {}", outer.get(), inner.get()));
+    view! {
+        <List spacing=Space::Md>
+            <Frame width=Size::Custom(240.0) height=Size::Custom(200.0)>
+                <Scroll on_change={move |at: ScrollPosition| outer.set(reach(at))}>
+                    <Text>"Above"</Text>
+                    <Frame height=Size::Custom(120.0)>
+                        <Scroll on_change={move |at: ScrollPosition| inner.set(reach(at))}>
+                            <ForEach keys={(1..=20).collect::<Vec<u32>>()}>|row: u32|
+                                <Button
+                                    label={format!("Inner {row}")}
+                                    @test_id={format!("nest.inner{row}")}
+                                />
+                            </ForEach>
+                        </Scroll>
+                    </Frame>
+                    <ForEach keys={(1..=10).collect::<Vec<u32>>()}>|row: u32|
+                        <Button
+                            label={format!("Outer {row}")}
+                            @test_id={format!("nest.outer{row}")}
+                        />
+                    </ForEach>
+                </Scroll>
+            </Frame>
+            <Text>{report}</Text>
+        </List>
+    }
+}
+
 #[component]
 pub fn DragFixture() -> NodeId {
     let dropped = create_signal(String::from("nothing"));
@@ -165,9 +207,68 @@ pub fn ReorderFixture() -> NodeId {
             <List direction=Direction::Horizontal spacing=Space::Xl align=Align::Start>
                 {first}
                 <Shelf shelf=1 shelves />
+                <LongList />
             </List>
             <Text>{shelved}</Text>
             <Text>{closing}</Text>
+        </List>
+    }
+}
+
+#[component]
+fn LongList() -> NodeId {
+    let rows = create_signal((1..=12).collect::<Vec<u32>>());
+    let reached = create_signal("start");
+    let report = create_memo(move || {
+        let below = rows.with(|rows| rows.iter().position(|row| *row == 1).unwrap_or(0) >= 8);
+        format!(
+            "Long list at the {}, row 1 {}",
+            reached.get(),
+            if below {
+                "below the fold"
+            } else {
+                "above the fold"
+            }
+        )
+    });
+    view! {
+        <List spacing=Space::Xs>
+            <Frame width=Size::Custom(120.0) height=Size::Custom(160.0) @test_id="long.view">
+                <Scroll on_change={move |at: ScrollPosition| reached.set(reach(at))}>
+                    <Reorder
+                        keys={rows}
+                        payload={Func::new(|row: u32| Some(row))}
+                        text={|row: u32| format!("Row {row}")}
+                        preview={|row: u32| view! {
+                            <Frame
+                                width=Size::Custom(120.0)
+                                height=Size::Custom(SHELF_ROW)
+                                fill=ColorRole::Accent
+                            >
+                                <Text>{format!("Row {row}")}</Text>
+                            </Frame>
+                        }}
+                        on_move={move |moved: ReorderMove<u32, u32>| {
+                            rows.update(|rows| moved_to(rows, moved.payload, moved.after));
+                        }}
+                    >|reorder: ReorderHandle<u32, u32>|
+                        <List spacing=SHELF_GAP>
+                            <ForEach keys={reorder.order}>|row: u32|
+                                <ReorderItem reorder item=row>|_: ReorderItemHandle|
+                                    <Frame
+                                        height=Size::Custom(SHELF_ROW)
+                                        fill=ColorRole::Surface
+                                        @test_id={format!("long.{row}")}
+                                    >
+                                        <Text>{format!("Row {row}")}</Text>
+                                    </Frame>
+                                </ReorderItem>
+                            </ForEach>
+                        </List>
+                    </Reorder>
+                </Scroll>
+            </Frame>
+            <Text>{report}</Text>
         </List>
     }
 }

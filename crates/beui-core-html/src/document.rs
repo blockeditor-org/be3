@@ -142,6 +142,10 @@ pub fn create(kind: &'static str, tag: &'static str) -> NodeId {
     create_on(kind, Node::element(tag), Rc::default(), 0)
 }
 
+pub fn adopt(kind: &'static str, element: Node) -> NodeId {
+    create_on(kind, element, Rc::default(), 0)
+}
+
 pub fn wrap(kind: &'static str, child: NodeId) -> NodeId {
     let (element, shared, wraps) = with_entry(child, |entry| {
         (entry.element.clone(), entry.shared.clone(), entry.wraps + 1)

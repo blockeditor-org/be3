@@ -19,6 +19,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/binary"
 	"flag"
 	"fmt"
 	"io"
@@ -176,6 +177,20 @@ func isClosed(err error) bool {
 // again. One that still fails is UNAVAILABLE, which buck2 knows how to report.
 const attempts = 5
 
+// The proxy also cuts every call five minutes after it starts, while the
+// action an Execute asked for runs on. So when an Execute's answer breaks off,
+// the same Execute is made again: the server joins it to the action already
+// running, or answers from the cache once that has finished, and buck2 reads
+// the rest of the answer on the call it made. Each message in the answer is a
+// whole account of the action, so a repeated one is harmless; only whole
+// messages are passed on, so a cut never leaves half of one.
+const resumes = 24
+
+var resumable = map[string]bool{
+	"/build.bazel.remote.execution.v2.Execution/Execute":       true,
+	"/build.bazel.remote.execution.v2.Execution/WaitExecution": true,
+}
+
 func relay(transport *http.Transport, upstream string, w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -183,37 +198,26 @@ func relay(transport *http.Transport, upstream string, w http.ResponseWriter, r 
 		return
 	}
 
-	var resp *http.Response
-	var failure string
-	for attempt := 1; ; attempt++ {
-		resp, failure = roundTrip(transport, upstream, r, body)
-		if failure == "" {
-			break
-		}
-		fmt.Fprintf(os.Stderr, "re-relay: %s %s, attempt %d of %d: %s\n",
-			time.Now().Format(time.RFC3339), r.URL.Path, attempt, attempts, failure)
-		if attempt == attempts {
-			grpcError(w, 14, "re-relay: "+failure)
-			return
-		}
-		select {
-		case <-r.Context().Done():
-			return
-		case <-time.After(time.Duration(250<<(attempt-1)) * time.Millisecond):
-		}
+	resp, failure := call(transport, upstream, r, body)
+	if failure != "" {
+		grpcError(w, 14, "re-relay: "+failure)
+		return
 	}
-	defer resp.Body.Close()
+	defer func() { resp.Body.Close() }()
 
 	copyHeaders(w.Header(), resp.Header)
-	trailersOnly := resp.Header.Get("Grpc-Status") != ""
+	if resp.Header.Get("Grpc-Status") != "" {
+		w.WriteHeader(resp.StatusCode)
+		return
+	}
 	w.WriteHeader(resp.StatusCode)
 
 	flusher := w.(http.Flusher)
-	buffer := make([]byte, 64*1024)
-	for {
-		n, readErr := resp.Body.Read(buffer)
-		if n > 0 {
-			if _, err := w.Write(buffer[:n]); err != nil {
+	answer := bufio.NewReaderSize(resp.Body, 64*1024)
+	for resumed := 0; ; {
+		message, readErr := readMessage(answer)
+		if message != nil {
+			if _, err := w.Write(message); err != nil {
 				return
 			}
 			flusher.Flush()
@@ -221,16 +225,29 @@ func relay(transport *http.Transport, upstream string, w http.ResponseWriter, r 
 		if readErr == io.EOF {
 			break
 		}
-		if readErr != nil {
-			if !trailersOnly {
-				w.Header().Set(http.TrailerPrefix+"Grpc-Status", "14")
-				w.Header().Set(http.TrailerPrefix+"Grpc-Message", "re-relay: "+readErr.Error())
-			}
+		if readErr == nil {
+			continue
+		}
+		if !resumable[r.URL.Path] || resumed == resumes || r.Context().Err() != nil {
+			trailerError(w, "re-relay: "+readErr.Error())
 			return
 		}
-	}
-	if trailersOnly {
-		return
+		resumed++
+		fmt.Fprintf(os.Stderr, "re-relay: %s %s broke off (%v), making it again (%d of %d)\n",
+			time.Now().Format(time.RFC3339), r.URL.Path, readErr, resumed, resumes)
+		resp.Body.Close()
+		resp, failure = call(transport, upstream, r, body)
+		if failure != "" {
+			resp = &http.Response{Body: http.NoBody}
+			trailerError(w, "re-relay: "+failure)
+			return
+		}
+		if status := resp.Header.Get("Grpc-Status"); status != "" {
+			w.Header().Set(http.TrailerPrefix+"Grpc-Status", status)
+			w.Header().Set(http.TrailerPrefix+"Grpc-Message", resp.Header.Get("Grpc-Message"))
+			return
+		}
+		answer = bufio.NewReaderSize(resp.Body, 64*1024)
 	}
 	for k, vs := range resp.Trailer {
 		for _, v := range vs {
@@ -240,6 +257,49 @@ func relay(transport *http.Transport, upstream string, w http.ResponseWriter, r 
 	if resp.Trailer.Get("Grpc-Status") == "" {
 		w.Header().Set(http.TrailerPrefix+"Grpc-Status", "0")
 	}
+}
+
+// A call made until it answers with gRPC, or why it never did.
+func call(transport *http.Transport, upstream string, r *http.Request, body []byte) (*http.Response, string) {
+	for attempt := 1; ; attempt++ {
+		resp, failure := roundTrip(transport, upstream, r, body)
+		if failure == "" {
+			return resp, ""
+		}
+		fmt.Fprintf(os.Stderr, "re-relay: %s %s, attempt %d of %d: %s\n",
+			time.Now().Format(time.RFC3339), r.URL.Path, attempt, attempts, failure)
+		if attempt == attempts {
+			return nil, failure
+		}
+		select {
+		case <-r.Context().Done():
+			return nil, r.Context().Err().Error()
+		case <-time.After(time.Duration(250<<(attempt-1)) * time.Millisecond):
+		}
+	}
+}
+
+// One gRPC message: a flag byte, its length in four, and that many bytes. A
+// message cut short is an error, and none of it is returned.
+func readMessage(answer *bufio.Reader) ([]byte, error) {
+	header := make([]byte, 5)
+	if _, err := io.ReadFull(answer, header); err != nil {
+		return nil, err
+	}
+	message := make([]byte, 5+int(binary.BigEndian.Uint32(header[1:])))
+	copy(message, header)
+	if _, err := io.ReadFull(answer, message[5:]); err != nil {
+		if err == io.EOF {
+			err = io.ErrUnexpectedEOF
+		}
+		return nil, err
+	}
+	return message, nil
+}
+
+func trailerError(w http.ResponseWriter, message string) {
+	w.Header().Set(http.TrailerPrefix+"Grpc-Status", "14")
+	w.Header().Set(http.TrailerPrefix+"Grpc-Message", message)
 }
 
 // One attempt at a call: the response when it is gRPC's, or why it is not.

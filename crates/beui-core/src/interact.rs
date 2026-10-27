@@ -5,7 +5,6 @@ pub mod pointer;
 
 use foldhash::HashMap;
 use std::rc::Rc;
-use std::time::Duration;
 
 use crate::base::overlay::OverlayNode;
 use crate::context::Context;
@@ -18,7 +17,7 @@ use crate::current::{run_in, with_document};
 use crate::document::{Acted, Document};
 use crate::node::{NodeId, Rects};
 
-pub const WHEEL_LATCH_TIMEOUT: Duration = Duration::from_millis(500);
+pub use crate::input::WHEEL_LATCH_TIMEOUT;
 const WHEEL_LATCH_SLOP: f32 = 2.0;
 pub const TOUCH_REACH: f32 = 12.0;
 

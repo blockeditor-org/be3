@@ -119,6 +119,30 @@ impl Node {
         dom::live_node(self)
     }
 
+    pub fn number(&self, property: &str) -> Option<f64> {
+        #[cfg(target_arch = "wasm32")]
+        return dom::number(self, property);
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let _ = property;
+            None
+        }
+    }
+
+    pub fn set_number(&self, property: &str, value: f64) {
+        #[cfg(target_arch = "wasm32")]
+        dom::set_number(self, property, value);
+        #[cfg(not(target_arch = "wasm32"))]
+        let _ = (property, value);
+    }
+
+    pub fn call(&self, method: &str) {
+        #[cfg(target_arch = "wasm32")]
+        dom::call(self, method);
+        #[cfg(not(target_arch = "wasm32"))]
+        let _ = method;
+    }
+
     pub fn is(&self, other: &Node) -> bool {
         Rc::ptr_eq(&self.0, &other.0)
     }
@@ -401,7 +425,7 @@ fn bind_attribute<T: Clone + ToString + 'static>(
         Prop::Dynamic(read) => {
             let name = name.to_owned();
             let weak = Rc::downgrade(&node.0);
-            create_effect(move || {
+            create_binding(move || {
                 let value = read.get().map(|value| value.to_string());
                 if let Some(data) = weak.upgrade() {
                     set_attr(&Node(data), &name, value);
@@ -425,7 +449,7 @@ fn bind_flag(node: &Node, name: &'static str, value: Prop<bool>) {
         }
         Prop::Dynamic(read) => {
             let weak = Rc::downgrade(&node.0);
-            create_effect(move || {
+            create_binding(move || {
                 let value = read.get();
                 if let Some(data) = weak.upgrade() {
                     set_attr(&Node(data), name, value.then(String::new));

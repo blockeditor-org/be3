@@ -956,6 +956,9 @@ pub(crate) fn InputsPage() -> NodeId {
             <Sample title="Number input" code={vec![SeatsInput::SOURCE]}>
                 <SeatsInput />
             </Sample>
+            <Sample title="Sign-in form" code={vec![SignInForm::SOURCE]}>
+                <SignInForm />
+            </Sample>
             <Sample title="One value, two bindings" code={vec![Temperatures::SOURCE]}>
                 <Temperatures />
             </Sample>
@@ -1003,10 +1006,46 @@ fn NameInput() -> NodeId {
 
 #[sample]
 #[component]
+fn SignInForm() -> NodeId {
+    let email = create_signal(String::new());
+    let password = create_signal(String::new());
+    let signed_in = create_signal(String::new());
+    view! {
+        <Form on_submit={move || signed_in.set(format!("Signed in as {}", email.get_untracked()))}>
+            <List spacing=SECTION_SPACING>
+                <TextInput
+                    value={email}
+                    label="Email"
+                    placeholder="Email"
+                    kind=InputKind::Email
+                    name="email"
+                    autocomplete="username"
+                />
+                <TextInput
+                    value={password}
+                    label="Password"
+                    placeholder="Password"
+                    kind=InputKind::Password
+                    name="password"
+                    autocomplete="current-password"
+                />
+                <Button label="Sign in" variant=ButtonVariant::Primary submit=true />
+                <Text style=TextStyle::CAPTION>{signed_in}</Text>
+            </List>
+        </Form>
+    }
+}
+
+#[sample]
+#[component]
 fn KeyboardInput() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
-            <TextInput value=String::new() placeholder="Type with the keys below" />
+            <TextInput
+                @test_id="demo.keyboard.field"
+                value=String::new()
+                placeholder="Type with the keys below"
+            />
             <Frame height={Size::Custom(240.0)}>
                 <SoftwareKeyboard />
             </Frame>

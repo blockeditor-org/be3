@@ -29,3 +29,15 @@ wait 'value="Shelf closed"'
 move '#shelf.corn+10,25'
 up
 wait 'value="Shelves: leek okra | corn kale"'
+# Held at the edge of the scroll it is in, a carried item scrolls it, and
+# lands where it is let go among the rows that scrolled into view.
+pause 1000
+pause 16
+wait 'value="Long list at the start, row 1 above the fold"'
+down '#long.1+10,10'
+move '#long.view+60,80'
+move '#long.view+60,156'
+pause 3000
+wait 'value="Long list at the end, row 1 above the fold"'
+up
+wait 'value="Long list at the end, row 1 below the fold"'

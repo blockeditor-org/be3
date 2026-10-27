@@ -182,6 +182,22 @@ async fn serve_auth(
         .await;
     }
     let (path, query) = head.path.split_once('?').unwrap_or((&head.path, ""));
+    if head.method == "GET"
+        && let Some(asset) = services
+            .portal
+            .as_ref()
+            .and_then(|served| served.asset(path))
+    {
+        let head = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: {}\r\nCache-Control: public, max-age=31536000, immutable\r\nCross-Origin-Resource-Policy: same-origin\r\nX-Content-Type-Options: nosniff\r\nConnection: close\r\nContent-Length: {}\r\n\r\n",
+            asset.content_type,
+            asset.bytes.len()
+        );
+        stream.write_all(head.as_bytes()).await?;
+        stream.write_all(asset.bytes).await?;
+        stream.shutdown().await?;
+        return Ok(());
+    }
     let query = crate::browser_auth::fields(query);
     let mut fields = HashMap::new();
     if head.method == "POST" {
@@ -245,11 +261,29 @@ async fn serve_auth(
     if let Some(cookie) = result.cookie {
         extras.push_str(&format!("Set-Cookie: be3-account={cookie}; Path=/auth; HttpOnly; SameSite=Lax; Max-Age={}{}\r\n", if cookie.is_empty() { 0 } else { 30 * 86400 }, if origin.starts_with("https://") { "; Secure" } else { "" }));
     }
-    let html = result.html;
+    let (content_type, body, page_headers) = match result.body {
+        crate::portal::Body::Html(html) => (
+            "text/html; charset=utf-8",
+            html,
+            format!(
+                "Content-Security-Policy: {}\r\nCross-Origin-Opener-Policy: same-origin\r\nCross-Origin-Embedder-Policy: require-corp\r\n",
+                services
+                    .portal
+                    .as_ref()
+                    .map(|served| served.policy.as_str())
+                    .unwrap_or_default()
+            ),
+        ),
+        crate::portal::Body::Json(json) => (
+            "application/json",
+            json,
+            "Content-Security-Policy: default-src 'none'; frame-ancestors 'none'\r\n".to_owned(),
+        ),
+    };
     let status = result.status;
     let response = format!(
-        "HTTP/1.1 {status} Response\r\n{extras}Content-Type: text/html; charset=utf-8\r\nCache-Control: no-store\r\nContent-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'\r\nX-Content-Type-Options: nosniff\r\nReferrer-Policy: strict-origin\r\nConnection: close\r\nContent-Length: {}\r\n\r\n{html}",
-        html.len()
+        "HTTP/1.1 {status} Response\r\n{extras}Content-Type: {content_type}\r\nCache-Control: no-store\r\n{page_headers}X-Content-Type-Options: nosniff\r\nReferrer-Policy: strict-origin\r\nConnection: close\r\nContent-Length: {}\r\n\r\n{body}",
+        body.len()
     );
     stream.write_all(response.as_bytes()).await?;
     stream.shutdown().await?;

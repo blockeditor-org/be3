@@ -232,6 +232,17 @@ impl Board {
         }
     }
 
+    pub fn retrack(&self) {
+        let last = self
+            .carried
+            .borrow()
+            .as_ref()
+            .and_then(|carried| carried.last);
+        if let Some(last) = last {
+            self.track(last);
+        }
+    }
+
     pub fn finish(&self) {
         let last = self
             .carried

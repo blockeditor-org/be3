@@ -12,4 +12,7 @@ async fn browser_pages_escape_codes_and_keep_available_actions() {
         assert!(!page.contains(constraint));
     }
     assert!(page.contains("novalidate=\"\""));
+    assert!(page.contains("<form method=\"post\" action=\"/auth/login\""));
+    assert!(page.contains("<input type=\"hidden\" name=\"csrf\" value=\""));
+    assert!(page.contains("<a href=\"/auth/register?code=%22%3E%3Cscript%3E\""));
 }

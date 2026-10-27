@@ -33,6 +33,34 @@ phrase its notes cannot be read.
 
 RUST_LOG sets what is logged (default: info).";
 
+macro_rules! assets {
+    ($($name:literal: $content_type:literal),* $(,)?) => {
+        &[$(be_portal::Asset {
+            name: $name,
+            content_type: $content_type,
+            bytes: include_bytes!(concat!(env!("BE_PORTAL_ASSETS"), "/", $name)),
+        }),*]
+    };
+}
+
+const PORTAL: be_portal::Portal = be_portal::Portal {
+    assets: assets! {
+        "start.js": "text/javascript",
+        "be_portal_ui.js": "text/javascript",
+        "be_portal_ui_bg.wasm": "application/wasm",
+        "wasi.js": "text/javascript",
+        "threads.js": "text/javascript",
+        "thread.js": "text/javascript",
+        "dylink.js": "text/javascript",
+        "env.js": "text/javascript",
+        "Inter-Regular.ttf": "font/ttf",
+        "Hack-Regular.ttf": "font/ttf",
+        "NotoEmoji-Regular.ttf": "font/ttf",
+        "lucide.ttf": "font/ttf",
+    },
+    ..be_portal_ui::PORTAL
+};
+
 #[tokio::main]
 async fn main() -> ExitCode {
     tracing_subscriber::fmt()
@@ -70,7 +98,10 @@ async fn run() -> Result<(), Box<dyn Error>> {
     }
     let mut address: SocketAddr = "127.0.0.1:9090".parse()?;
     let mut data_dir = PathBuf::from("be-server-data");
-    let mut config = ServerConfig::default();
+    let mut config = ServerConfig {
+        portal: Some(PORTAL),
+        ..ServerConfig::default()
+    };
 
     while let Some(argument) = arguments.next() {
         match argument.as_str() {

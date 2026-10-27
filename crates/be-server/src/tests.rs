@@ -36,6 +36,7 @@ mod a_new_recovery_key_reseals_every_key_sealed_to_the_account;
 mod a_pending_grant_is_applied_when_its_link_is_accepted;
 mod a_remembered_account_approves_a_manually_entered_code_and_can_switch_accounts;
 mod a_rotation_gives_every_block_below_it_a_new_key_or_nothing;
+mod a_server_without_a_portal_answers_its_pages_as_json;
 mod a_session_hands_ownership_over_without_a_merge;
 mod a_settings_block_changes_only_with_manage_on_its_parent;
 mod a_settings_kind_opens_to_anyone_who_views_a_block_inside;
@@ -89,6 +90,7 @@ mod sessions_are_scoped_to_the_account_and_form_tokens_to_the_browser;
 mod shared_chunks_survive_until_the_last_commit_releases_them;
 mod the_access_list_leaves_administrators_to_the_organization_line;
 mod the_browser_authorization_requires_the_private_secret_and_works_once;
+mod the_portal_serves_its_assets_immutably_beside_a_hydrating_page;
 
 const CONTENT: Uuid = Uuid::from_u128(0x7465_7874);
 const KEY: Uuid = Uuid::from_u128(0x006b_6579);
@@ -103,13 +105,18 @@ struct Harness {
     handle: Option<tokio::task::JoinHandle<()>>,
 }
 
+const PORTAL: ServerConfig = ServerConfig {
+    portal: Some(be_portal_ui::PORTAL),
+    ..ServerConfig::OPEN
+};
+
 impl Harness {
     async fn start() -> Self {
         Self::at(std::env::temp_dir().join(format!("be-server-test-{}", Uuid::new_v4()))).await
     }
 
     async fn at(directory: PathBuf) -> Self {
-        Self::at_with_config(directory, ServerConfig::OPEN).await
+        Self::at_with_config(directory, PORTAL).await
     }
 
     async fn configured(config: ServerConfig) -> Self {
@@ -820,7 +827,7 @@ impl Browser {
     }
 }
 fn csrf(page: &str) -> String {
-    page.split("name=\"csrf\" value=\"")
+    page.split("\"csrf\":\"")
         .nth(1)
         .unwrap()
         .split('"')

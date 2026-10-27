@@ -49,6 +49,10 @@ impl Board {
         self.0.track(point);
     }
 
+    pub fn retrack(&self) {
+        self.0.retrack();
+    }
+
     pub fn finish(&self) {
         self.0.finish();
     }

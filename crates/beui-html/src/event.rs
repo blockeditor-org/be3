@@ -20,6 +20,20 @@ impl Event {
             .map(web_sys::KeyboardEvent::key)
     }
 
+    pub fn holds(&self, modifier: &str) -> bool {
+        use wasm_bindgen::JsCast;
+        self.0
+            .dyn_ref::<web_sys::KeyboardEvent>()
+            .is_some_and(|event| event.get_modifier_state(modifier))
+    }
+
+    pub fn composing(&self) -> bool {
+        use wasm_bindgen::JsCast;
+        self.0
+            .dyn_ref::<web_sys::KeyboardEvent>()
+            .is_some_and(web_sys::KeyboardEvent::is_composing)
+    }
+
     pub fn target_value(&self) -> Option<String> {
         let target = self.0.target()?;
         js_sys::Reflect::get(&target, &"value".into())
@@ -46,6 +60,14 @@ impl Event {
 #[cfg(not(target_arch = "wasm32"))]
 impl Event {
     pub fn key(&self) -> Option<String> {
+        match self.0 {}
+    }
+
+    pub fn holds(&self, _modifier: &str) -> bool {
+        match self.0 {}
+    }
+
+    pub fn composing(&self) -> bool {
         match self.0 {}
     }
 

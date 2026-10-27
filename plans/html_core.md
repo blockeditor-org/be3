@@ -41,7 +41,8 @@ end lists.
   both cores (one way to paint an image or a thumb): an SVG `<image>` and
   `<rect>` on HTML. The colour wheel's gpu face is computed on the CPU into
   an image there.
-- **Text editing stays in unstyled.** `TextArea` and `TextInput`, with
+- **Text editing stays in unstyled** (except plain single-line fields,
+  below). `TextArea` and `TextInput`, with
   `text_editor_core`, rows, `VirtualList`, completion and handles, are shared
   by both cores. They rely on base `Text`'s declarative props, which the HTML
   core implements: `marks` as the CSS Custom Highlight API (`::highlight()`),
@@ -63,17 +64,30 @@ end lists.
   (`beui-view`'s `selection.rs`), so on the HTML core display text is
   selected and copied by the browser. Inside editors `TextArea` owns
   selection on both cores.
-- **No `<input type=password>` in the first version.** `TextInput`'s
-  `password` mode stays beui's own. A real password input, for
-  password-manager autofill, is a follow-up switch in unstyled, like
-  `Scroll`'s.
-- **The first version keeps owning scrolling.** `Scroll` stays in unstyled,
-  built on `Offset` and `Interactive`. The HTML core implements `Offset` as an
+- **Plain single-line fields are `<input>`s.** Reversing the first
+  version: a `TextInput` that is single-line, has no `prose` and does not
+  `select_on_focus` is a real `<input>` on the HTML core (its `kind` the
+  `type`: text, password, email, search, url, tel), switched in unstyled on
+  `CORE`, with `name` and `autocomplete` for forms and password managers.
+  `Form` is a native `<form method=post>` there, `Button submit` a
+  `<button type=submit>` and `Button href` an `<a href>`, so a server-rendered
+  page posts and navigates before wasm loads. They reach the DOM through the one
+  platform escape, `beui::escape::html_escape`: beui-html nodes built by
+  unstyled behind the `CORE` switch, with beui children slotted inside
+  (it panics natively). Multi-line and rich text stay beui's own.
+- **The browser scrolls `Scroll` on HTML.** The first version kept owning
+  scrolling: `Scroll` stays in unstyled, built on `Offset` and
+  `Interactive`, and the HTML core implements `Offset` as an
   `overflow: hidden` element moved through `scrollTop` and `scrollLeft`, not
   a transform, so find-in-page, `scrollIntoView`, `#anchor` links and
-  `position: sticky` still work. A follow-up makes unstyled and styled switch
-  to a real `overflow: auto` scroller on the HTML core; that changes who
-  drives the scrolling, not the element tree, and is not a core change.
+  `position: sticky` still work. The follow-up switched unstyled's `Scroll`
+  (so styled's, which wraps it) to a real `overflow: auto` scroller on the
+  HTML core: compositor-thread scrolling, the browser's wheel, touch, keys and
+  scrollbar, none of beui's momentum, band, autoscroll or drawn bar. It is
+  unstyled's `BrowserScroll`, an `overflow: auto` `<div>` built through the
+  platform escape, whose `scroll` listener and measured sizes feed the
+  scroll's position; `Offset` stays beui's own on both cores. Natively
+  nothing changes.
 - **Out of scope.** Plugin editors stay on canvas/wgpu on the web for now
   (they run in workers). Later, web plugins become iframes, which could run
   beui on the HTML core.
@@ -280,9 +294,9 @@ children.
   events.
 - **Scrolling is composed in unstyled.** `unstyled::Scroll` (904 lines) builds
   wheel, fling, overscroll and steering from `Offset` and `Interactive`. It has
-  55 users. The first version keeps it; the follow-up switch to the browser's
-  scroller (compositor-thread scrolling, `Sheet`'s stops as CSS scroll snap)
-  happens in unstyled and styled.
+  55 users. On HTML it now hands all of that to the browser's scroller
+  (compositor-thread scrolling) through the platform escape;
+  `Sheet` still drives its own offset there.
 - **No image primitive.** `Picture` (18 users) paints images through
   `Drawing`, and `ScrollbarThumb` paints a rounded rect through one. On HTML
   those would be `<canvas>`es for what `<img>` and a `Frame` do.
@@ -732,13 +746,20 @@ have landed; its tasks run in parallel unless marked.
 
 ## Left
 
-- Browser-native text editing: EditContext (or `contenteditable`) for
-  `TextArea` and `TextInput` on the HTML core, and `TextInput`'s `password`
-  mode as `<input type=password>`, each a switch in unstyled.
+- Browser-native text editing for `TextArea` and the `TextInput`s that are
+  not plain (EditContext or `contenteditable`), a switch in unstyled.
+- A plain `TextInput` on HTML ignores `keyboard_on_focus`, and its
+  `TextInputApi` knows no caret, selection or handles (the browser's).
+- `Form` cannot post a beui-own field: only plain `TextInput`s carry a
+  `name` into the post.
 - A `Drawing` with no `size` draws nothing in a server-rendered page, since
   the HTML core measures nothing there; so the scrollbar thumb and the colour
   picker's areas and sliders appear only once the page runs.
-- `Scroll` switching to a real `overflow: auto` scroller on the HTML core.
+- `Sheet`'s stops as CSS scroll snap: `Sheet` still drives its `Offset`
+  itself on HTML, as natively.
+- The browser's scrollbar on a styled `Scroll` is the browser's default look
+  (following `color-scheme`), not the theme's: `scrollbar-color` from the
+  theme, and `SCROLLBAR_WIDTH`, are not passed down.
 - `TreeNode`'s `row_offset`, `texts_within`, `set_text_selection` and
   `set_text_selection_handles` do nothing on HTML.
 - Props the HTML core ignores: `Interactive`'s `pastes`, `key_active`,
@@ -746,8 +767,8 @@ have landed; its tasks run in parallel unless marked.
   `clipboard_keys`, `forwards_wheel`; `on_forward` hears only the pointer, no
   keys, focus or hover); `Overlay`'s `window` and `shown_in`;
   `Root`'s `system_bars`; `Canvas`'s `scrolls_across`; `VirtualList`'s `text`;
-  `Selectable`'s colours, handles and toolbar. A `TextItem` with `at` is a
-  stand-in, `on_back` never fires and `use_keyboard()` is always true.
+  `Selectable`'s colours, handles and toolbar. `on_back` never fires and
+  `use_keyboard()` is always true.
 - `Break`'s copy test across Firefox and WebKit (§5, Decided 4): the shared
   scripts run only in Chromium.
 - Porting block-app itself to the HTML core; it runs the native core with wgpu

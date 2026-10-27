@@ -19,6 +19,7 @@ struct Glide {
     from: Cell<Option<Pos2>>,
     hold: Cell<Option<GlideHold>>,
     resting: Cell<Option<Pos2>>,
+    placed: Cell<Option<Pos2>>,
 }
 
 #[derive(Clone)]
@@ -137,7 +138,7 @@ pub(crate) fn glide(arm: Prop<u64>, from: Prop<Option<Pos2>>, children: Child) -
             if first.replace(false) {
                 return;
             }
-            glide.armed.set(glide.resting.get());
+            glide.armed.set(glide.placed.get());
         });
     }
     {
@@ -152,15 +153,18 @@ pub(crate) fn glide(arm: Prop<u64>, from: Prop<Option<Pos2>>, children: Child) -
         let Some(rect) = measured.get().map(|measured| measured.rect) else {
             return;
         };
+        let scrolled = beui_core_html::measure::scrolled_by(node);
         let resting = rect.min;
         glide.resting.set(Some(resting));
+        let placed = resting + scrolled;
         let mut moved = Vec2::ZERO;
         if let Some(from) = glide.from.take() {
             moved += from - resting;
         }
         if let Some(armed) = glide.armed.take() {
-            moved += armed - resting;
+            moved += armed - placed;
         }
+        glide.placed.set(Some(placed));
         if glide.hold.get().is_some() {
             held.take_hold();
         } else if moved != Vec2::ZERO {
