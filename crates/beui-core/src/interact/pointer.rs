@@ -1050,7 +1050,9 @@ fn end(doc: &mut Document, frame: &Frame, mut session: Session, cancelled: bool)
             if doc.dragging() {
                 doc.drag_board().order(doc);
                 match cancelled {
-                    true => doc.drag_board().end(None),
+                    true => {
+                        doc.drag_board().end(None);
+                    }
                     false => doc.drag_board().finish(),
                 }
             }
@@ -1667,10 +1669,32 @@ fn track(doc: &mut Document, frame: &Frame) {
         )
     });
     let Some(pos) = pointer.map(|pos| pos + shift) else {
+        doc.drag_board().edge_scroll(Pos2::ZERO, std::iter::empty());
         return;
     };
     doc.last_pointer = Some(PointerSample { pos, touch });
     let board = doc.drag_board();
     board.order(doc);
     board.track(crate::drag_board::DragPoint::at(pos, modifiers).in_window(window));
+    edge_scroll(doc, frame, window, pos);
+}
+
+fn edge_scroll(doc: &mut Document, frame: &Frame, window: WindowId, pos: Pos2) {
+    let board = doc.drag_board();
+    if !board.carrying() {
+        board.edge_scroll(pos, std::iter::empty());
+        return;
+    }
+    let path = hit(doc, frame.rects, window, pos, false).path;
+    let edges: Vec<_> = path.into_iter().filter_map(|id| {
+        let catcher = interactive(doc, id).filter(|node| node.wants_autoscroll())?;
+        let axis = catcher.scroll_axis?;
+        let rect = frame.rects.visible(&id)?;
+        let offset = doc.first_offset_within(id)?;
+        let position = doc.offset_position(offset)?;
+        let at = doc.offset_value(offset);
+        let movable = [at > 0.0, at < position.max_offset()];
+        Some((id, rect, axis, catcher.on_autoscroll, movable))
+    }).collect();
+    board.edge_scroll(pos, edges.into_iter());
 }

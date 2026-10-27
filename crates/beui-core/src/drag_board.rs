@@ -4,11 +4,12 @@ use std::rc::Rc;
 
 use foldhash::HashMap;
 
-use crate::callback::NodeRef;
+use crate::base::list::Direction;
+use crate::callback::{Callback, NodeRef};
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2};
-use crate::input::{Modifiers, PointerPress};
-use crate::node::Rects;
+use crate::input::{AutoscrollGesture, Modifiers, PointerPress};
+use crate::node::{NodeId, Rects};
 use crate::window::WindowId;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -19,6 +20,7 @@ pub struct DragPoint {
     pub size: Vec2,
     pub fraction: Vec2,
     pub modifiers: Modifiers,
+    pub item: Rect,
 }
 
 impl DragPoint {
@@ -30,6 +32,7 @@ impl DragPoint {
             size: press.size,
             fraction: press.fraction,
             modifiers: press.modifiers,
+            item: Rect::ZERO,
         }
     }
 
@@ -41,6 +44,7 @@ impl DragPoint {
             size: Vec2::ZERO,
             fraction: Vec2::ZERO,
             modifiers,
+            item: Rect::ZERO,
         }
     }
 
@@ -80,15 +84,56 @@ pub struct Target {
     pub carrying: Rc<dyn Fn(bool)>,
     pub over: Over,
     pub dropped: Dropped,
+    pub hides_preview: Rc<dyn Fn() -> bool>,
 }
 
-pub struct Carried {
+/// What a source hands the board as it lifts something.
+pub struct DragSource {
     pub payload: Rc<dyn Any>,
-    pub over: Option<u64>,
-    pub last: Option<DragPoint>,
+    /// The lifted item's rect relative to the pointer, in the source's points;
+    /// `Rect::ZERO` when there is no item to speak of.
+    pub item: Rect,
+    /// Every new pointer position while carried.
     pub follow: Rc<dyn Fn(DragPoint)>,
+    /// Whether the floating preview should show: false while over a target
+    /// that hides it, true again once the pointer leaves that target.
+    pub floating: Rc<dyn Fn(bool)>,
+    /// Released outside every window.
     pub outside: Outside,
+    /// The drag ended with nothing taking it: Escape, a cancelled pointer,
+    /// or a release over no target that accepts the payload.
+    pub cancelled: Rc<dyn Fn()>,
 }
+
+impl DragSource {
+    pub fn new(payload: Rc<dyn Any>) -> Self {
+        Self {
+            payload,
+            item: Rect::ZERO,
+            follow: Rc::new(|_| {}),
+            floating: Rc::new(|_| {}),
+            outside: Rc::new(|_| {}),
+            cancelled: Rc::new(|| {}),
+        }
+    }
+}
+
+struct Carried {
+    source: DragSource,
+    over: Option<u64>,
+    last: Option<DragPoint>,
+    floating: bool,
+}
+
+#[derive(Clone, Copy)]
+struct Edge {
+    catcher: NodeId,
+    report: Callback<AutoscrollGesture>,
+    gesture: AutoscrollGesture,
+}
+
+pub const EDGE_BAND: f32 = 40.0;
+const EDGE_GAIN: f32 = 3.0;
 
 pub struct Board {
     rects: Rc<Rects>,
@@ -98,6 +143,7 @@ pub struct Board {
     painted: RefCell<HashMap<u64, Vec<usize>>>,
     windows: RefCell<HashMap<u64, WindowId>>,
     outside: Cell<bool>,
+    edge: Cell<Option<Edge>>,
     next: Cell<u64>,
 }
 
@@ -111,6 +157,7 @@ impl Board {
             painted: RefCell::default(),
             windows: RefCell::default(),
             outside: Cell::default(),
+            edge: Cell::default(),
             next: Cell::default(),
         }
     }
@@ -127,7 +174,7 @@ impl Board {
             .carried
             .borrow()
             .as_ref()
-            .is_some_and(|carried| (target.accepts)(carried.payload.as_ref()));
+            .is_some_and(|carried| (target.accepts)(carried.source.payload.as_ref()));
         let mark = Rc::clone(&target.carrying);
         self.targets.borrow_mut().push(target);
         if carrying {
@@ -151,26 +198,27 @@ impl Board {
         self.carried.borrow().is_some()
     }
 
-    pub fn begin(
-        &self,
-        payload: Rc<dyn Any>,
-        point: DragPoint,
-        follow: Rc<dyn Fn(DragPoint)>,
-        outside: Outside,
-    ) {
+    /// The carried item's rect relative to the pointer, while something is carried.
+    pub fn item(&self) -> Option<Rect> {
+        self.carried
+            .borrow()
+            .as_ref()
+            .map(|carried| carried.source.item)
+    }
+
+    pub fn begin(&self, source: DragSource, point: DragPoint) {
         let marks = self
             .targets
             .borrow()
             .iter()
-            .filter(|target| (target.accepts)(payload.as_ref()))
+            .filter(|target| (target.accepts)(source.payload.as_ref()))
             .map(|target| Rc::clone(&target.carrying))
             .collect::<Vec<_>>();
         *self.carried.borrow_mut() = Some(Carried {
-            payload,
+            source,
             over: None,
             last: None,
-            follow,
-            outside,
+            floating: true,
         });
         for mark in marks {
             mark(true);
@@ -203,6 +251,37 @@ impl Board {
         if let Some(left) = previous.and_then(|id| self.over(id)) {
             left(None);
         }
+        self.float(true);
+    }
+
+    fn float(&self, floating: bool) {
+        let changed = self.carried.borrow_mut().as_mut().and_then(|carried| {
+            (carried.floating != floating).then(|| {
+                carried.floating = floating;
+                Rc::clone(&carried.source.floating)
+            })
+        });
+        if let Some(changed) = changed {
+            changed(floating);
+        }
+    }
+
+    fn stamp(&self, point: DragPoint) -> DragPoint {
+        DragPoint {
+            item: self.item().unwrap_or(point.item),
+            ..point
+        }
+    }
+
+    /// Ends what is carried without dropping it, as Escape does. Returns
+    /// whether anything was carried.
+    pub fn cancel(&self) -> bool {
+        if !self.carrying() {
+            return false;
+        }
+        self.leave();
+        self.end(None);
+        true
     }
 
     pub fn order(&self, doc: &Document) {
@@ -246,12 +325,17 @@ impl Board {
                 return;
             };
             if carried.last == Some(point) {
-                return;
+                None
+            } else {
+                carried.last = Some(point);
+                Some(Rc::clone(&carried.source.follow))
             }
-            carried.last = Some(point);
-            Rc::clone(&carried.follow)
         };
-        follow(point);
+        match follow {
+            Some(follow) => follow(self.stamp(point)),
+            None if self.edge.get().is_none() => return,
+            None => {}
+        }
         self.move_to(point);
     }
 
@@ -269,17 +353,18 @@ impl Board {
             .carried
             .borrow()
             .as_ref()
-            .map(|carried| Rc::clone(&carried.outside));
+            .map(|carried| Rc::clone(&carried.source.outside));
+        let last = last.map(|last| self.stamp(last));
         self.leave();
-        self.end(None);
+        self.settle(None, false);
         if let (Some(outside), Some(last)) = (outside, last) {
             outside(last);
         }
     }
 
-    pub fn under(&self, window: WindowId, pos: Pos2) -> Option<(u64, (Rect, f32), Over)> {
+    pub fn under(&self, window: WindowId, pos: Pos2) -> Option<(u64, (Rect, f32), Over, bool)> {
         let carried = self.carried.borrow();
-        let payload = carried.as_ref()?.payload.as_ref();
+        let payload = carried.as_ref()?.source.payload.as_ref();
         let windows = self.windows.borrow();
         self.targets
             .borrow()
@@ -300,7 +385,14 @@ impl Board {
                 let painted = self.painted.borrow();
                 painted.get(&target.id).cmp(&painted.get(&other.id))
             })
-            .map(|(rect, target)| (target.id, rect, Rc::clone(&target.over)))
+            .map(|(rect, target)| {
+                (
+                    target.id,
+                    rect,
+                    Rc::clone(&target.over),
+                    (target.hides_preview)(),
+                )
+            })
     }
 
     pub fn over(&self, id: u64) -> Option<Over> {
@@ -323,33 +415,50 @@ impl Board {
         if !self.carrying() {
             return;
         }
+        let point = self.stamp(point);
         let under = self.under(point.window, point.pos);
-        let previous = self.carried.borrow_mut().as_mut().and_then(|carried| {
-            std::mem::replace(&mut carried.over, under.as_ref().map(|(id, _, _)| *id))
-        });
+        let id = under.as_ref().map(|(id, ..)| *id);
+        let previous = self
+            .carried
+            .borrow_mut()
+            .as_mut()
+            .and_then(|carried| std::mem::replace(&mut carried.over, id));
         if previous.is_some()
-            && previous != under.as_ref().map(|(id, _, _)| *id)
+            && previous != id
             && let Some(left) = previous.and_then(|id| self.over(id))
         {
             left(None);
         }
+        self.float(!under.as_ref().is_some_and(|(.., hides)| *hides));
         let payload = self
             .carried
             .borrow()
             .as_ref()
-            .map(|carried| Rc::clone(&carried.payload));
-        if let (Some((_, rect, entered)), Some(payload)) = (under, payload) {
+            .map(|carried| Rc::clone(&carried.source.payload));
+        if let (Some((_, rect, entered, _)), Some(payload)) = (under, payload) {
             entered(Some((payload.as_ref(), point.within(rect))));
         }
     }
 
-    pub fn end(&self, point: Option<DragPoint>) {
+    /// Ends the drag, dropping on the target under `point` if there is one.
+    /// Returns whether a target took it; when none did, the source hears
+    /// that the drag was cancelled.
+    pub fn end(&self, point: Option<DragPoint>) -> bool {
+        self.settle(point, true)
+    }
+
+    fn settle(&self, point: Option<DragPoint>, tell: bool) -> bool {
         if let Some(point) = point {
             self.move_to(point);
         }
         let Some(carried) = self.carried.borrow_mut().take() else {
-            return;
+            return false;
         };
+        self.stop_edge();
+        let point = point.map(|point| DragPoint {
+            item: carried.source.item,
+            ..point
+        });
         let targets = self
             .targets
             .borrow()
@@ -373,7 +482,78 @@ impl Board {
         }
         if let (Some((dropped, rect)), Some(point)) = (drop, point) {
             let point = rect.map_or(point, |rect| point.within(rect));
-            dropped(carried.payload.as_ref(), point);
+            dropped(carried.source.payload.as_ref(), point);
+            return true;
+        }
+        if tell {
+            (carried.source.cancelled)();
+        }
+        false
+    }
+
+    /// Scrolls the scroll under the pointer while the pointer is held within
+    /// [`EDGE_BAND`] of its edge, along its axis, by reporting an autoscroll
+    /// gesture to it; `edges` lists the scroll catchers under the pointer,
+    /// innermost first, with their visible rect, axis, report callback and
+    /// whether they can scroll further back and forward.
+    pub(crate) fn edge_scroll(
+        &self,
+        pos: Pos2,
+        edges: impl Iterator<Item = (NodeId, Rect, Direction, Callback<AutoscrollGesture>, [bool; 2])>,
+    ) {
+        if !self.carrying() || self.outside.get() {
+            self.stop_edge();
+            return;
+        }
+        let found = edges
+            .filter_map(|(catcher, rect, axis, report, movable)| {
+                let along = |pos: Pos2| axis.main(pos.to_vec2());
+                let (start, end) = (along(rect.min), along(rect.max));
+                let band = EDGE_BAND.min((end - start) / 4.0);
+                let at = along(pos);
+                let depth = match () {
+                    _ if at < start + band && movable[0] => at - (start + band),
+                    _ if at > end - band && movable[1] => at - (end - band),
+                    _ => return None,
+                };
+                let reach = crate::interact::autoscroll::AUTOSCROLL_DEAD_ZONE
+                    + depth.abs() * EDGE_GAIN;
+                let origin = pos - axis.axes(reach * depth.signum(), 0.0);
+                Some(Edge {
+                    catcher,
+                    report,
+                    gesture: AutoscrollGesture {
+                        origin,
+                        pos,
+                        ended: false,
+                        edge: true,
+                    },
+                })
+            })
+            .next();
+        let previous = self.edge.get();
+        match (previous, found) {
+            (Some(previous), Some(found)) if previous.catcher == found.catcher => {
+                if previous.gesture != found.gesture {
+                    self.edge.set(Some(found));
+                    found.report.call(found.gesture);
+                }
+            }
+            (_, Some(found)) => {
+                self.stop_edge();
+                self.edge.set(Some(found));
+                found.report.call(found.gesture);
+            }
+            (_, None) => self.stop_edge(),
+        }
+    }
+
+    fn stop_edge(&self) {
+        if let Some(edge) = self.edge.take() {
+            edge.report.call(AutoscrollGesture {
+                ended: true,
+                ..edge.gesture
+            });
         }
     }
 }

@@ -62,7 +62,7 @@ pub use action_bar::{ActionBar, ActionBarHandle, title_action};
 pub use anchored::{Anchored, AnchoredHandle, AnchoredSheetHandle, AnchoredStyle, SheetWhen};
 pub use back_slide::BackSlide;
 pub use banner::Banner;
-pub use beui_core::drag_board::DragPoint;
+pub use beui_core::drag_board::{DragPoint, DragSource};
 pub use button::{Button, ButtonApi, ButtonHandle};
 pub use calendar::{Calendar, CalendarApi, CalendarCellHandle, CalendarHeaderHandle, CalendarMode};
 pub use choice::{Choice, ChoiceApi, ChoiceKind, ChoiceOption, ChoiceOptionHandle};

@@ -124,5 +124,6 @@ fn report(doc: &Document, autoscroll: &Autoscroll, ended: bool) {
         origin: autoscroll.origin,
         pos: autoscroll.pos,
         ended,
+        edge: false,
     });
 }

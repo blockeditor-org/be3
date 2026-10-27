@@ -82,6 +82,7 @@ pub struct AutoscrollGesture {
     pub origin: Pos2,
     pub pos: Pos2,
     pub ended: bool,
+    pub edge: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]

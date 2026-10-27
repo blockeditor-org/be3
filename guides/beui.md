@@ -2596,6 +2596,40 @@ insertion point - draws its marker, and how a filmstrip reorders live. The drop
 is handed over before the source hears `on_drag_change(false)`, so a source can
 keep whatever it set up for the drag until the drop has used it.
 
+Every `DragPoint` a target hears carries `item`, the carried item's rect
+relative to the pointer (the source's face as it was laid out when pressed,
+so `point.local + point.item.min.to_vec2()` is where its corner would sit in
+the target, `Rect::ZERO` for a drag no `Draggable` began); `Board::item`
+answers the same. That is how a list the item is carried into opens a gap of
+the right size where it would land.
+
+A drag ends one of three ways for its source. A target takes it, it is let go
+outside every window (`on_drop_outside`), or nothing takes it: Escape (a
+built-in capture key handler, ahead of overlays' own Escape, calls
+`Board::cancel`), a cancelled pointer, or a release over no target that
+accepts it. In that last case the targets see the drag leave, nothing drops,
+and the source hears `on_cancel` before `on_drag_change(false)`, so it can
+animate the item back; after Escape the press that is still held does not lift
+it again.
+
+A target that draws the carried item itself sets `hides_preview`: while the
+pointer is over it the floating preview is hidden, and the source's
+`DragHandle::floating` is false (`dragging` stays true), so a reorderable list
+can show the item lifted in its own slot and leave the overlay preview to the
+moment it is pulled out of the list. `floating` is `dragging` and not over
+such a target.
+
+Holding a carried drag within `EDGE_BAND` (40 points, at most a quarter of
+the viewport) of the edge of a `Scroll` under the pointer, in that scroll's
+direction, scrolls it, faster the closer the pointer is to the edge. The board
+finds the innermost scroll catcher under the pointer whose edge it is near and
+that can still move that way, and reports an `AutoscrollGesture` with `edge`
+set to it, the same gesture middle-click autoscroll sends (without its origin
+marker); the scroll then moves on its own timer by the frame clock, and the
+board ends the gesture once the pointer leaves the band or the drag ends.
+While it scrolls, targets keep hearing `on_over` each frame with the pointer
+in their moved coordinates even when the pointer is still.
+
 A drag between editors is not this inside the plugin: a block dragged from
 the file tree to another editor crosses plugins, so it goes through the host
 with `Editor::drag` and `accept_drag` (guides/adding_a_plugin_editor.md). The

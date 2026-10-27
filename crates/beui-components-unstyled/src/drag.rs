@@ -6,8 +6,8 @@ use beui_macros::{component, view};
 
 use beui_core::base::Direction;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
-use beui_core::drag_board::{DragPoint, Pending, Target};
-use beui_core::geometry::{Pos2, Vec2};
+use beui_core::drag_board::{DragPoint, Pending, DragSource, Target};
+use beui_core::geometry::{Pos2, Rect, Vec2};
 use beui_core::input::CursorIcon;
 use beui_core::input::{PointerPress, TOUCH_DRAG_THRESHOLD};
 use beui_core::node::NodeId;
@@ -23,6 +23,7 @@ const TOUCH_PREVIEW_OFFSET: Vec2 = Vec2::new(16.0, -64.0);
 #[derive(Clone, Copy)]
 pub struct DragHandle {
     pub dragging: Memo<bool>,
+    pub floating: Memo<bool>,
 }
 
 #[derive(Clone, Copy)]
@@ -43,6 +44,7 @@ pub fn Draggable<P>(
     on_click: ClickCallback,
     on_drag_change: Callback<bool>,
     on_drop_outside: Callback<DragPoint>,
+    on_cancel: Callback<()>,
     preview: Option<RenderFn<P>>,
     #[prop(children)] content: Render<DragHandle>,
 ) -> NodeId
@@ -51,10 +53,20 @@ where
 {
     let board = store(drag_board());
     let pressed_at = StoredCell::new(None::<Pos2>);
+    let item = StoredCell::new(Rect::ZERO);
+    let gone = StoredCell::new(false);
     let carried = create_signal(None::<P>);
     let pointer = create_signal(None::<DragPoint>);
     let touched = create_signal(false);
+    let lifted_in_place = create_signal(false);
     let dragging = create_memo(move || carried.with(Option::is_some));
+    let floating = create_memo(move || dragging.get() && !lifted_in_place.get());
+    let face = content.call(DragHandle { dragging, floating });
+    let landed = move || {
+        carried.set(None);
+        lifted_in_place.set(false);
+        on_drag_change.call(false);
+    };
 
     let moved = move |point: DragPoint| {
         let Some(origin) = pressed_at.get() else {
@@ -77,16 +89,31 @@ where
         carried.set(Some(payload.clone()));
         on_drag_change.call(true);
         board.value().begin(
-            Rc::new(payload),
+            DragSource {
+                item: item.get(),
+                follow: Rc::new(move |point| pointer.set(Some(point))),
+                floating: Rc::new(move |floating: bool| lifted_in_place.set(!floating)),
+                outside: Rc::new(move |point| on_drop_outside.call(point)),
+                cancelled: Rc::new(move || {
+                    if gone.get() {
+                        return;
+                    }
+                    pressed_at.set(None);
+                    board.value().release();
+                    on_cancel.call(());
+                    landed();
+                }),
+                ..DragSource::new(Rc::new(payload))
+            },
             point,
-            Rc::new(move |point| pointer.set(Some(point))),
-            Rc::new(move |point| on_drop_outside.call(point)),
         );
     };
     let moved: Pending = Rc::new(moved);
     let pending = Rc::clone(&moved);
     let pressed = move |press: PointerPress| {
         pressed_at.set(Some(press.pos));
+        let shown = placements().rect(face);
+        item.set(shown.map_or(Rect::ZERO, |rect| rect.translate(Pos2::ZERO - press.pos)));
         touched.set(press.touch);
         if !press.touch {
             board.value().press(Rc::clone(&pending));
@@ -109,10 +136,12 @@ where
             return;
         }
         board.finish();
-        carried.set(None);
-        on_drag_change.call(false);
+        if carried.with_untracked(Option::is_some) {
+            landed();
+        }
     };
     on_cleanup(move || {
+        gone.set(true);
         if carried.with_untracked(Option::is_some) {
             board.value().end(None);
         }
@@ -128,7 +157,6 @@ where
     .into_prop()
     .map(OverlayAnchor::Point);
     let shown_in = create_memo(move || pointer.get().map(|point| point.window));
-    let face = content.call(DragHandle { dragging });
     let preview = preview.unwrap_or_else(|| {
         RenderFn::new(|_: P| {
             view! {
@@ -156,7 +184,7 @@ where
                     level=LayerLevel::Top
                     traps_focus=false
                     shown_in={shown_in}
-                    open={dragging}
+                    open={floating}
                 >
                     <List spacing=0.0>
                         <Dynamic value={carried}>|carried: Option<P>| {
@@ -177,6 +205,7 @@ where
 #[component]
 pub fn DropTarget<P>(
     #[prop(default = None)] accepts: Option<Func<P, bool>>,
+    #[prop(default = false)] hides_preview: Prop<bool>,
     on_over: Callback<Option<(P, DragPoint)>>,
     on_drop: Callback<(P, DragPoint)>,
     #[prop(children)] content: Render<DropHandle>,
@@ -211,6 +240,7 @@ where
                 on_drop.call((payload.clone(), point));
             }
         }),
+        hides_preview: Rc::new(move || hides_preview.get_untracked()),
     });
     on_cleanup(move || board.unregister(id));
     let carrying = create_memo(move || carrying.get());

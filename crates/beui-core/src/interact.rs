@@ -271,6 +271,7 @@ fn outer(doc: &Document, route: &Route, phase: KeyPhase) -> Vec<Placed> {
     let mut placed = Vec::new();
     match phase {
         KeyPhase::Capture => {
+            placed.push(own(builtin::cancel_drag));
             placed.push(own(builtin::autoscroll));
             placed.extend(listening(Stop::Host));
             placed.extend(listening(Stop::Window));
@@ -304,6 +305,15 @@ mod builtin {
                     && !press.key.is_modifier()
                     && with_document(autoscroll::end)
                     && press.key == Key::Escape
+            })
+    }
+
+    pub(super) fn cancel_drag(event: KeyEvent) -> bool {
+        event.phase != KeyPhase::Held
+            && event.press().is_some_and(|press| {
+                press.pressed
+                    && press.key == Key::Escape
+                    && with_document(|doc| doc.drag_board()).cancel()
             })
     }
 

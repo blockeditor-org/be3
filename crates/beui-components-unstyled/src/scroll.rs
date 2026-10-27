@@ -689,7 +689,7 @@ fn Scrolling(
                     on_scroll={move |gesture: ScrollGesture| motion.value().wheel(gesture)}
                     on_scroll_drag={move |gesture: DragGesture| motion.value().drag(gesture)}
                     on_autoscroll={move |gesture: AutoscrollGesture| {
-                        let marking = (!gesture.ended).then_some(gesture.origin);
+                        let marking = (!gesture.ended && !gesture.edge).then_some(gesture.origin);
                         if origin.get_untracked() != marking {
                             origin.set(marking);
                         }

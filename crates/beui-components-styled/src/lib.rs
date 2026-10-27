@@ -65,7 +65,7 @@ pub use beui_components_unstyled::{
     ActionRole, DialogAction, DialogKind, ModalMotion, ModalPlacement,
 };
 pub use beui_components_unstyled::{
-    BackSlide, ChoiceOption, Container, DragHandle, DragPoint, Draggable, DropHandle, DropTarget,
+    BackSlide, ChoiceOption, Container, DragHandle, DragPoint, DragSource, Draggable, DropHandle, DropTarget,
     Edge, Floating, MenuCaption, MenuGrid, MenuItem, MenuNodes, MenuThen, PanZoom, PanZoomHandle,
     PanZoomView, PointerLock, PointerLockHandle, PopoverHandle, Pressable, Prose, ProseLine,
     RemoteTextCursor, SliderScale, SyntaxColors, TextAreaColors, TextAreaState, TextWidget,

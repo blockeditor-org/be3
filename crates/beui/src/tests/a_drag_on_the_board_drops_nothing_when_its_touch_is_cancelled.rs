@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use super::*;
-use crate::unstyled::{DragPoint, DropHandle, DropTarget};
+use crate::unstyled::{DragPoint, DragSource, DropHandle, DropTarget};
 
 #[test]
 fn a_drag_on_the_board_drops_nothing_when_its_touch_is_cancelled() {
@@ -28,10 +28,8 @@ fn a_drag_on_the_board_drops_nothing_when_its_touch_is_cancelled() {
     let to = harness.center(target);
     harness.touch(TouchPhase::Start, from);
     harness.document().drag_board().begin(
-        Rc::new(7_u32),
+        DragSource::new(Rc::new(7_u32)),
         DragPoint::at(from, Modifiers::NONE),
-        Rc::new(|_| {}),
-        Rc::new(|_| {}),
     );
     harness.touch(TouchPhase::Move, to);
     harness.touch(TouchPhase::Cancel, to);
