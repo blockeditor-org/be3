@@ -548,6 +548,7 @@ pub enum ManifestError {
     SeveralTypeModules,
     DuplicateTemplate,
     TemplateWithoutBlockType,
+    ServiceWithTemplates,
 }
 
 impl fmt::Display for ManifestError {
@@ -586,6 +587,9 @@ impl fmt::Display for ManifestError {
             Self::DuplicateTemplate => {
                 formatter.write_str("an editor declares the same template twice")
             }
+            Self::ServiceWithTemplates => formatter.write_str(
+                "an editor that edits no block is part of the shell and declares no templates",
+            ),
         }
     }
 }
@@ -661,6 +665,9 @@ impl EditorManifest {
                 .any(|region| self.regions.iter().filter(|it| *it == region).count() > 1)
         {
             return Err(ManifestError::InvalidRegions);
+        }
+        if self.edits == Edits::Nothing && !self.templates.is_empty() {
+            return Err(ManifestError::ServiceWithTemplates);
         }
         for (index, template) in self.templates.iter().enumerate() {
             manifest_string("template id", &template.id)?;

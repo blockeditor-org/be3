@@ -23,6 +23,7 @@ pub(super) const DOCUMENT: &str = r#"{
 
 mod a_plugin_declares_its_block_types_and_their_module;
 mod an_editor_is_found_by_its_id;
+mod an_editor_that_edits_nothing_declares_no_templates;
 mod an_editor_that_names_no_block_type_edits_nothing;
 mod an_empty_entry_point_is_rejected;
 mod manifest_document_defaults_what_the_host_can;
