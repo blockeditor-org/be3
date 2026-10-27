@@ -35,7 +35,10 @@ fn a_docked_child_that_declares_nothing_stays_a_plain_child() {
         )]
     );
     assert!(updates(&mut docks, "inner").is_empty());
-    assert_eq!(docks.resolve(ROOT, &path(&[OUTER_CHILD, INNER_CHILD], 5)), None);
+    assert_eq!(
+        docks.resolve(ROOT, &path(&[OUTER_CHILD, INNER_CHILD], 5)),
+        None
+    );
 
     docks.placed(OUTER, &[]);
     assert!(!docks.docked(INNER));

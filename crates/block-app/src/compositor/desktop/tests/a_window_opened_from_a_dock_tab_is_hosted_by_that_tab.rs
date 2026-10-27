@@ -48,5 +48,8 @@ fn a_window_opened_from_a_dock_tab_is_hosted_by_that_tab() {
         instance: INSTANCE,
         window: 1,
     });
-    assert_eq!(rect.get_untracked().map(|rect| rect.min), Some(pos2(210.0, 120.0)));
+    assert_eq!(
+        rect.get_untracked().map(|rect| rect.min),
+        Some(pos2(210.0, 120.0))
+    );
 }

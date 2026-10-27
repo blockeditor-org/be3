@@ -864,10 +864,12 @@ fn PanelWindows(editor: RegionEditor, region: EditorRegion, rect: Memo<Rect>) ->
                     None => WindowPlacement::AtPointer,
                 }
             }
-            opener if opener == region && over.region.instance == instance => WindowPlacement::Over {
-                window: within,
-                at: over.at + rect.get_untracked().min.to_vec2(),
-            },
+            opener if opener == region && over.region.instance == instance => {
+                WindowPlacement::Over {
+                    window: within,
+                    at: over.at + rect.get_untracked().min.to_vec2(),
+                }
+            }
             _ => WindowPlacement::AtPointer,
         },
     };
