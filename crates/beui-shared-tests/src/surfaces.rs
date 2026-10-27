@@ -1,7 +1,7 @@
+use beui::datetime::Time;
 use beui::reactive::*;
 use beui::styled::*;
 use beui::unstyled::TimeOptionHandle;
-use beui::datetime::Time;
 use beui::{Align, Direction, Rect};
 
 fn placed(node: NodeId) -> Memo<Option<Rect>> {
@@ -161,7 +161,10 @@ pub fn FloatingFixture() -> NodeId {
             <Floating anchor edge={edge} open={open}>|| {
                 let note = view! {
                     <Card @test_id="floating.note">
-                        <Button label="Press" on_click={move || pressed.update(|pressed| *pressed += 1)} />
+                        <Button
+                            label="Press"
+                            on_click={move || pressed.update(|pressed| *pressed += 1)}
+                        />
                     </Card>
                 };
                 let measured = placed(note);
@@ -216,10 +219,7 @@ fn StackBody() -> NodeId {
     });
     view! {
         <List spacing=Space::Md>
-            <Stack spacing=Space::Md>
-                {first}
-                {second}
-            </Stack>
+            <Stack spacing=Space::Md>{first}{second}</Stack>
             <Text>{report}</Text>
         </List>
     }
@@ -237,7 +237,11 @@ pub fn PointerLockFixture() -> NodeId {
                     false => "Click to look around".to_owned(),
                 });
                 view! {
-                    <Frame width=Size::Custom(240.0) height=Size::Custom(120.0) fill=ColorRole::Surface>
+                    <Frame
+                        width=Size::Custom(240.0)
+                        height=Size::Custom(120.0)
+                        fill=ColorRole::Surface
+                    >
                         <Text>{label}</Text>
                     </Frame>
                 }
@@ -312,7 +316,10 @@ pub fn SheetFixture() -> NodeId {
             >
                 <List spacing=Space::None>
                     <ForEach keys={(1..=3).collect::<Vec<usize>>()}>|row: usize|
-                        <ActionRow label={format!("Row {row}")} on_click={move || open.set(false)} />
+                        <ActionRow
+                            label={format!("Row {row}")}
+                            on_click={move || open.set(false)}
+                        />
                     </ForEach>
                 </List>
             </ModalSheet>

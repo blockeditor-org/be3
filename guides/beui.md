@@ -661,7 +661,7 @@ What each primitive is on the HTML core (the bodies are in
 | `Portal` | moves the shown subtree's element (`moveBefore` where the browser has it) |
 | `Interactive` | an element with `tabindex` and listeners; `pastes`, `key_active`, `claims_touch` and the forwarding props do nothing yet |
 | `Selectable` | the browser's own selection |
-| `Drawing` | an escape hatch: a pink box of its size, so `Picture` and the scrollbar thumb are pink too |
+| `Drawing` | an escape hatch: a pink box of its size, narrowed to the width it is offered and keeping its shape as natively, so `Picture` and the scrollbar thumb are pink too |
 
 `Drawing` is the escape hatch for what is not an arrangement of nodes, and
 `Embed` (native only) the one for what is not beui's. On HTML a `Drawing` draws
