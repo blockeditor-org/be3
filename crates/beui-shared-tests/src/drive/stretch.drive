@@ -1,0 +1,4 @@
+# A column stretches a child with no width of its own across it, and keeps a
+# child's own fraction of its width, at its start, as CSS's stretch does.
+clock stop
+wait 'Bar 50x20 at 0 beside 200x20'

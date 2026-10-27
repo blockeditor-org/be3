@@ -49,6 +49,9 @@ pub fn Fixture(name: String) -> Root {
         "list" => view! {
             <ListFixture />
         },
+        "stretch" => view! {
+            <StretchFixture />
+        },
         "text" => view! {
             <TextFixture />
         },
@@ -255,6 +258,42 @@ fn ListFixture() -> NodeId {
                 label="Reverse"
                 on_click={move || rows.update(|rows| rows.reverse())}
             />
+        </List>
+    }
+}
+
+#[component]
+fn StretchFixture() -> NodeId {
+    let bar = view! {
+        <Frame width={Extent::fraction(0.25)} height=20.0 fill={GREEN} />
+    };
+    let full = view! {
+        <Frame height=20.0 fill={BLUE} />
+    };
+    let column = view! {
+        <Frame width=200.0>
+            <List spacing=10.0>
+                {bar}
+                {full}
+            </List>
+        </Frame>
+    };
+    let bar_rect = measured_rect(bar);
+    let full_rect = measured_rect(full);
+    let column_rect = measured_rect(column);
+    let report = create_memo(move || match (bar_rect.get(), full_rect.get(), column_rect.get()) {
+        (Some(bar), Some(full), Some(column)) => format!(
+            "Bar {} at {:.0} beside {}",
+            size(Some(bar)),
+            bar.min.x - column.min.x,
+            size(Some(full))
+        ),
+        _ => "Bar unmeasured".to_owned(),
+    });
+    view! {
+        <List spacing=12.0>
+            {column}
+            <Text color={INK}>{report}</Text>
         </List>
     }
 }
