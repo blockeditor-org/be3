@@ -21,6 +21,7 @@ pub mod portal;
 pub mod rows;
 pub mod run;
 pub mod scroll;
+pub mod text;
 pub mod tree;
 
 pub use beui_html;

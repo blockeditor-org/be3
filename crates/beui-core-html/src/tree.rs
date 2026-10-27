@@ -401,9 +401,9 @@ impl BareChild for FitKind {
 pub struct TextKind;
 
 impl ParentKind for TextKind {
-    type Data = bool;
+    type Data = crate::text::TextSlot;
 
-    fn place(_parent: NodeId, _child: NodeId, _anchored: bool) {}
+    fn place(_parent: NodeId, _child: NodeId, _slot: crate::text::TextSlot) {}
 }
 
 #[diagnostic::on_unimplemented(

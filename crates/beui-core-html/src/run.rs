@@ -14,6 +14,14 @@ pub const BASE_STYLES: &str = "\
 .beui-root { display: grid; grid-template-columns: minmax(0, 1fr); width: 100%; min-height: 100%; }
 .beui-root, .beui-root * { box-sizing: border-box; margin: 0; }
 .beui-break::after { content: \"\\A\"; white-space: pre; }
+.beui-glyph { position: relative; }
+.beui-glyph::before { content: attr(data-glyph); position: absolute; top: 0; left: 0; right: 0; display: flex; justify-content: center; white-space: pre; line-height: normal; font: var(--beui-glyph-font); color: var(--beui-glyph-color); pointer-events: none; }
+.beui-text-decor { position: absolute; inset: 0; pointer-events: none; }
+.beui-text-decor > * { position: absolute; }
+.beui-mark { z-index: -1; }
+.beui-caret-blink { animation: beui-caret-blink 1060ms steps(1, end) infinite; }
+@keyframes beui-caret-blink { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .beui-caret-blink { animation: none; } }
 .beui-layers > * + * { pointer-events: none; }
 .beui-stand-in { outline: 2px dashed #ff69b4; outline-offset: -2px; }
 .beui-overlay { position: fixed; inset: auto; margin: 0; padding: 0; border: 0; background: transparent; color: inherit; pointer-events: auto; max-width: none; max-height: none; overflow: visible; }

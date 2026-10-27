@@ -4989,8 +4989,23 @@ offset and corrects by its drift, snaps to the end, and reveals), `rows`
 translated to the view's origin, with `--beui-scale` scaling item positions and
 `scales` items), `overlay` (a `<dialog>`: `showModal()` for `BlocksAll`, else
 `popover="manual"`; CSS anchor positioning, measured with `resolve_rect` where
-unsupported; scrim on `::backdrop`; Escape, outside presses and focus traps)
-and `portal`. Each registers a pass with `frame::on_layout`, which the frame
+unsupported; scrim on `::backdrop`; Escape, outside presses and focus traps),
+`portal`, and `text` (`Text`: a `div` with `white-space: pre-wrap` and a
+default `line-height` of 1.15, as native's; it keeps the order of its children
+and the bytes each stands for, so `glyphs` cut a run into a `span.beui-glyph`
+whose `::before` draws the glyph over bytes that keep their room and copy as
+themselves; `marks` are CSS Custom Highlights, one per colour, or positioned
+boxes where `CSS.highlights` is missing; `carets` (blink, flag, handles) are
+positioned boxes in an `aria-hidden` overlay at `caret_rect`; `hang` is a
+negative `text-indent` with a matching `padding-left`, measured from where the
+`hang` byte sits on the first line, so it holds only for a Text whose first
+paragraph is the one that hangs; `Break` is `::after { content: "\A" }`, which
+no browser copies). Marks, carets and hang need the browser's layout, so a
+painting from `render_to_string` shows glyphs but not them; the shared scripts
+(`editing`, `text_input`) exercise them. The HTML core's `TextGeometry` is not a
+snapshot: its queries read the DOM when called (`caretPositionFromPoint`,
+`Range` rects), mapping UTF-8 bytes to each text node's UTF-16 offsets, and it
+compares equal until the Text's bounds or content change. Each registers a pass with `frame::on_layout`, which the frame
 loop runs (up to `LAYOUTS_PER_FRAME`) before paint; `ResizeObserver`s call
 `frame::relayout()` so a resize is corrected in the same frame. Shared modules
 with a small core-specific part (`actions`, `animation`, `nodes`'s `TreeNode`,

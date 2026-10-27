@@ -11,6 +11,8 @@ use crate::node::NodeId;
 #[derive(Clone, PartialEq, Debug)]
 pub struct TextGeometry {
     bounds: Rect,
+    node: NodeId,
+    revision: u64,
 }
 
 impl TextGeometry {
@@ -22,19 +24,40 @@ impl TextGeometry {
         1.0
     }
 
-    pub fn caret_rect(&self, _index: usize, _width: f32) -> Option<Rect> {
-        None
+    pub fn caret_rect(&self, index: usize, width: f32) -> Option<Rect> {
+        #[cfg(target_arch = "wasm32")]
+        return crate::text::caret_rect(self.node, index, width);
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let _ = (index, width);
+            None
+        }
     }
 
-    pub fn index_at(&self, _pos: Pos2) -> Option<usize> {
-        None
+    pub fn index_at(&self, pos: Pos2) -> Option<usize> {
+        #[cfg(target_arch = "wasm32")]
+        return crate::text::index_at(self.node, pos);
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let _ = pos;
+            None
+        }
     }
 
-    pub fn inline_at(&self, _pos: Pos2) -> Option<usize> {
-        None
+    pub fn inline_at(&self, pos: Pos2) -> Option<usize> {
+        #[cfg(target_arch = "wasm32")]
+        return crate::text::inline_at(self.node, pos);
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let _ = pos;
+            None
+        }
     }
 
     pub fn lines(&self) -> Vec<LineBox> {
+        #[cfg(target_arch = "wasm32")]
+        return crate::text::lines(self.node);
+        #[cfg(not(target_arch = "wasm32"))]
         Vec::new()
     }
 }
@@ -72,13 +95,21 @@ pub fn measure_text(node: NodeId) -> ReadSignal<Option<TextGeometry>> {
     watch(&TEXTS, node)
 }
 
-pub fn measure_line(_text: &str, _font: FontId) -> Option<Vec2> {
-    None
+pub fn measure_line(text: &str, font: FontId) -> Option<Vec2> {
+    #[cfg(target_arch = "wasm32")]
+    return crate::text::measure_line(text, font);
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let _ = (text, font);
+        None
+    }
 }
 
 #[cfg(target_arch = "wasm32")]
 pub(crate) fn watched() -> bool {
-    RECTS.with(|held| !held.borrow().is_empty()) || TEXTS.with(|held| !held.borrow().is_empty())
+    RECTS.with(|held| !held.borrow().is_empty())
+        || TEXTS.with(|held| !held.borrow().is_empty())
+        || crate::text::decorated()
 }
 
 fn publish<T: Clone + PartialEq + 'static>(
@@ -106,10 +137,24 @@ fn publish<T: Clone + PartialEq + 'static>(
     changed
 }
 
+#[cfg(target_arch = "wasm32")]
+fn text_bounds(node: NodeId, rect: Rect) -> Rect {
+    crate::text::bounds(node, rect)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn text_bounds(_node: NodeId, rect: Rect) -> Rect {
+    rect
+}
+
 pub(crate) fn pass() -> bool {
     let rects = publish(&RECTS, measured);
     let texts = publish(&TEXTS, |node| {
-        rect(node).map(|bounds| TextGeometry { bounds })
+        rect(node).map(|rect| TextGeometry {
+            bounds: text_bounds(node, rect),
+            node,
+            revision: crate::text::revision(node),
+        })
     });
     rects | texts
 }

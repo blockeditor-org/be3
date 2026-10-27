@@ -379,6 +379,17 @@ mod web {
                     .and_then(web_sys::FocusEvent::related_target)
                     .and_then(|from| from.dyn_into::<web_sys::Node>().ok());
                 if from.is_some_and(|from| element.contains(Some(&from))) {
+                    let refocused = event
+                        .target()
+                        .and_then(|target| target.dyn_into::<web_sys::Node>().ok())
+                        .is_some_and(|target| target.is_same_node(Some(&element)));
+                    if refocused && held.takes_text() {
+                        let sink = held.clone();
+                        crate::ime::begin(
+                            held.node,
+                            Rc::new(move |events| sink.ime_events(events)),
+                        );
+                    }
                     return;
                 }
                 held.handlers.on_focus_change.call(true);

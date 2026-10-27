@@ -30,8 +30,10 @@ use crate::types::TextMark;
 use crate::types::WrapAt;
 use crate::types::icons::Glyph;
 use beui_core_html::beui_html::Node;
+use beui_core_html::beui_html::reactive::IntoSlotHost;
 use beui_core_html::css;
 use beui_core_html::document::{append, create, element, set_attribute, set_style};
+use beui_core_html::text::{LINE_HEIGHT, Piece, Run, TextModel, TextSlot};
 use beui_core_html::tree::TextKind;
 use std::rc::Rc;
 
@@ -49,6 +51,10 @@ fn bind_text(target: Node, text: Prop<String>) {
     bind(text, move |text| target.set_text(text));
 }
 
+fn decorated<T: PartialEq + Default>(prop: &Prop<T>) -> bool {
+    !matches!(prop, Prop::Static(value) if *value == T::default())
+}
+
 pub fn text(
     font: Prop<FontId>,
     line_height: Prop<Option<f32>>,
@@ -64,13 +70,16 @@ pub fn text(
     carets: Prop<Vec<TextCaret>>,
     children: Children<TextChild>,
 ) -> NodeId {
-    let _ = (hang, marks, glyphs, carets);
     let node = create("Text", "div");
+    let model = TextModel::new(node);
+    let held = model.clone();
     bind(font, move |font| {
-        set_style(node, "font", Some(css::font(font)))
+        held.set_font(font);
+        set_style(node, "font", Some(css::font(font)));
     });
     bind(line_height, move |height| {
-        set_style(node, "line-height", height.map(css::px));
+        let height = height.map_or_else(|| css::number(LINE_HEIGHT), css::px);
+        set_style(node, "line-height", Some(height));
     });
     bind(color, move |color| {
         set_style(node, "color", Some(css::color(color)))
@@ -145,17 +154,28 @@ pub fn text(
             (bottom != 0.0).then(|| css::px(bottom)),
         );
     });
+    let glyphed = decorated(&glyphs);
     match children.into_only() {
         Ok(TextChild::Span(span)) if span.is_plain() => {
-            let run = Node::text("");
-            bind_text(run.clone(), span.text);
             if let Some(element) = element(node) {
-                beui_core_html::beui_html::reactive::IntoSlotHost::<Node>::into_slot_host(&element)
-                    .append(run);
+                model.set_single(Run::new(&element, span.text, glyphed));
             }
         }
-        Ok(child) => Children::from(ChildSegment::One(child)).mount(host(node)),
-        Err(children) => children.mount(host(node)),
+        Ok(child) => Children::from(ChildSegment::One(child)).mount(host(&model, glyphed)),
+        Err(children) => children.mount(host(&model, glyphed)),
+    }
+    let rendered = model.clone();
+    create_binding(move || rendered.render(&glyphs.get()));
+    if decorated(&hang) || decorated(&marks) || decorated(&carets) {
+        set_style(node, "position", Some("relative".to_owned()));
+        set_style(node, "z-index", Some("0".to_owned()));
+        model.decorate();
+        let held = model.clone();
+        bind(hang, move |hang| held.set_hang(hang));
+        let held = model.clone();
+        bind(marks, move |marks| held.set_marks(marks));
+        let held = model.clone();
+        bind(carets, move |carets| held.set_carets(carets));
     }
     node
 }
@@ -193,10 +213,10 @@ fn inline(kind: &'static str, tag: &'static str, styles: &[(&'static str, &str)]
 }
 
 impl TextChild {
-    fn build(self) -> NodeId {
+    fn build(self, glyphed: bool) -> (NodeId, Piece) {
         match self {
-            TextChild::Span(span) => span.build(),
-            TextChild::Item(item) => item.node,
+            TextChild::Span(span) => span.build(glyphed),
+            TextChild::Item(item) => (item.node, Piece::Item(item.data)),
             TextChild::Gap(gap) => {
                 let node = inline(
                     "Gap",
@@ -204,12 +224,12 @@ impl TextChild {
                     &[("display", "inline-block"), ("user-select", "none")],
                 );
                 set_style(node, "width", Some(css::px(gap.width)));
-                node
+                (node, Piece::Skip { newline: false })
             }
             TextChild::Break(_) => {
                 let node = create("Break", "span");
                 set_attribute(node, "class", Some("beui-break".to_owned()));
-                node
+                (node, Piece::Skip { newline: true })
             }
         }
     }
@@ -219,32 +239,40 @@ impl SlotChild for TextChild {
     type Stored = NodeId;
 
     fn store(self) -> NodeId {
-        self.build()
+        self.build(false).0
     }
 }
 
-struct TextHost(Rc<dyn SlotHost<NodeId>>);
+struct TextHost {
+    model: Rc<TextModel>,
+    glyphed: bool,
+}
 
 impl SlotHost<TextChild> for TextHost {
     fn store(&self, child: TextChild) -> NodeId {
-        child.build()
+        let (node, piece) = child.build(self.glyphed);
+        self.model.insert(node, piece);
+        node
     }
 
     fn append(&self, stored: NodeId) {
-        self.0.append(stored);
+        self.model.append(stored);
     }
 
     fn open(&self) -> SlotId {
-        self.0.open()
+        self.model.open()
     }
 
     fn fill(&self, slot: SlotId, items: Vec<NodeId>) {
-        self.0.fill(slot, items);
+        self.model.fill(slot, items);
     }
 }
 
-fn host(text: NodeId) -> Rc<dyn SlotHost<TextChild>> {
-    Rc::new(TextHost(beui_core_html::tree::node_host(text)))
+fn host(model: &Rc<TextModel>, glyphed: bool) -> Rc<dyn SlotHost<TextChild>> {
+    Rc::new(TextHost {
+        model: model.clone(),
+        glyphed,
+    })
 }
 
 macro_rules! text_child_from {
@@ -375,14 +403,20 @@ impl Span {
             && self.icon.is_none()
     }
 
-    fn build(self) -> NodeId {
+    fn build(self, glyphed: bool) -> (NodeId, Piece) {
         let span = create(if self.icon.is_some() { "Icon" } else { "Span" }, "span");
-        let run = Node::text("");
-        bind_text(run.clone(), self.text);
-        if let Some(element) = element(span) {
-            beui_core_html::beui_html::reactive::IntoSlotHost::<Node>::into_slot_host(&element)
-                .append(run);
-        }
+        let Some(element) = element(span) else {
+            return (span, Piece::Skip { newline: false });
+        };
+        let piece = match self.icon {
+            Some(_) => {
+                let run = Node::text("");
+                bind_text(run.clone(), self.text);
+                IntoSlotHost::<Node>::into_slot_host(&element).append(run);
+                Piece::Skip { newline: false }
+            }
+            None => Piece::Run(Run::new(&element, self.text, glyphed)),
+        };
         let icon = self.icon;
         if let Some(icon) = icon {
             set_attribute(span, "aria-hidden", Some("true".to_owned()));
@@ -460,14 +494,19 @@ impl Span {
             set_style(span, "box-decoration-break", clone.clone());
             set_style(span, "-webkit-box-decoration-break", clone);
         });
-        if self.break_after.get_untracked() {
-            let wbr = Node::element("wbr");
-            if let Some(element) = element(span) {
-                beui_core_html::beui_html::reactive::IntoSlotHost::<Node>::into_slot_host(&element)
-                    .append(wbr);
+        let host = IntoSlotHost::<Node>::into_slot_host(&element);
+        match self.break_after {
+            Prop::Static(false) => {}
+            Prop::Static(true) => host.append(Node::element("wbr")),
+            Prop::Dynamic(read) => {
+                let slot = host.open();
+                create_binding(move || {
+                    let wbr = read.get().then(|| Node::element("wbr"));
+                    host.fill(slot, wbr.into_iter().collect());
+                });
             }
         }
-        span
+        (span, piece)
     }
 }
 
@@ -570,17 +609,20 @@ pub fn text_item(
     text: Option<Prop<Option<Rc<str>>>>,
     children: Option<Child>,
 ) -> TextItem {
-    let _ = text;
     let item = inline("TextItem", "span", &[("display", "inline-block")]);
     if let Some(child) = children {
         append(item, child);
     }
-    let anchored = at.is_some();
-    if anchored {
-        set_attribute(item, "class", Some("beui-stand-in".to_owned()));
-        set_attribute(item, "title", Some("TODO: TextItem at".to_owned()));
-    }
-    TextItem::new(item, anchored)
+    let slot = match (at, text) {
+        (Some(_), _) => {
+            set_attribute(item, "class", Some("beui-stand-in".to_owned()));
+            set_attribute(item, "title", Some("TODO: TextItem at".to_owned()));
+            Prop::Static(TextSlot::Anchored)
+        }
+        (None, Some(text)) => text.map(|text| TextSlot::inline(text.as_deref())),
+        (None, None) => Prop::Static(TextSlot::inline(None)),
+    };
+    TextItem::new(item, slot)
 }
 
 pub struct Break {}

@@ -93,6 +93,7 @@ fn drive(fixture: &str, script: &str) {
 }
 
 mod canvas;
+mod editing;
 mod focus;
 mod frame;
 mod interactive;
@@ -101,4 +102,5 @@ mod offset;
 mod overlay;
 mod portal;
 mod text;
+mod text_input;
 mod virtual_list;

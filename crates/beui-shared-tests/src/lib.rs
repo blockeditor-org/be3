@@ -1,8 +1,9 @@
 use beui::primitives::*;
 use beui::reactive::*;
 use beui::{
-    Align, Align2, CanvasView, Color32, Corners, Direction, Dismiss, Extent, KeyPress, Placement,
-    Rect, ScrollPosition, Sides, Vec2,
+    Align, Align2, CanvasView, Color32, Corners, Direction, Dismiss, Extent, FontId, Key, KeyPress,
+    Placement, PointerInput, PointerStage, Rect, ScrollPosition, Sides, TextCaret, TextGlyph,
+    TextMark, Vec2,
 };
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -65,6 +66,12 @@ pub fn Fixture(name: String) -> Root {
         },
         "portal" => view! {
             <PortalFixture />
+        },
+        "editing" => view! {
+            <EditingFixture />
+        },
+        "text_input" => view! {
+            <TextInputFixture />
         },
         other => {
             let message = format!("No fixture is named {other}");
@@ -490,6 +497,160 @@ fn PortalFixture() -> NodeId {
                 label="Move"
                 on_click={move || in_first.set(!in_first.get_untracked())}
             />
+        </List>
+    }
+}
+
+fn previous(text: &str, at: usize) -> usize {
+    text[..at]
+        .char_indices()
+        .last()
+        .map_or(0, |(index, _)| index)
+}
+
+fn next(text: &str, at: usize) -> usize {
+    text[at..]
+        .chars()
+        .next()
+        .map_or(at, |next| at + next.len_utf8())
+}
+
+#[component]
+fn EditingFixture() -> NodeId {
+    let content = create_signal("ab cd".to_owned());
+    let caret = create_signal(0_usize);
+    let anchor = create_signal(None::<usize>);
+    let selection = create_memo(move || {
+        let at = caret.get();
+        let from = anchor.get().unwrap_or(at);
+        from.min(at)..from.max(at)
+    });
+    let font = FontId::monospace(16.0);
+    let marks = create_memo(move || {
+        let selected = selection.get();
+        (!selected.is_empty())
+            .then(|| TextMark::new(selected, AMBER))
+            .into_iter()
+            .collect::<Vec<_>>()
+    });
+    let glyphs = create_memo(move || {
+        content.with(|text| {
+            text.match_indices(' ')
+                .map(|(index, _)| TextGlyph::new(index..index + 1, "\u{b7}", font, BLUE))
+                .collect::<Vec<_>>()
+        })
+    });
+    let carets = create_memo(move || vec![TextCaret::new(caret.get(), BLUE, 2.0)]);
+    let text = view! {
+        <Text
+            color={INK}
+            font={font}
+            overflow={beui::Overflow::Visible}
+            marks={marks}
+            glyphs={glyphs}
+            carets={carets}
+        >
+            {content}
+        </Text>
+    };
+    let geometry = measure_text(text);
+    let on_key = move |press: KeyPress| {
+        if !press.pressed {
+            return false;
+        }
+        let held = content.get_untracked();
+        let at = caret.get_untracked();
+        let moved = match press.key {
+            Key::ArrowLeft => previous(&held, at),
+            Key::ArrowRight => next(&held, at),
+            Key::Home => 0,
+            Key::End => held.len(),
+            Key::Backspace => {
+                let from = previous(&held, at);
+                content.update(|text| text.replace_range(from..at, ""));
+                anchor.set(None);
+                caret.set(from);
+                return true;
+            }
+            _ => return false,
+        };
+        match press.modifiers.shift {
+            true if anchor.get_untracked().is_none() => anchor.set(Some(at)),
+            true => {}
+            false => anchor.set(None),
+        }
+        caret.set(moved);
+        true
+    };
+    let on_text = move |typed: String| {
+        let at = caret.get_untracked();
+        content.update(|text| text.insert_str(at, &typed));
+        anchor.set(None);
+        caret.set(at + typed.len());
+    };
+    let on_pointer = move |input: PointerInput| {
+        if input.stage == PointerStage::Down
+            && let Some(index) = geometry
+                .get_untracked()
+                .and_then(|geometry| geometry.index_at(input.pos))
+        {
+            anchor.set(None);
+            caret.set(index);
+        }
+        false
+    };
+    let report = create_memo(move || {
+        let selected = selection.get();
+        format!(
+            "Text {} caret {} selected {}..{}",
+            content.get(),
+            caret.get(),
+            selected.start,
+            selected.end
+        )
+    });
+    let round_trip = create_memo(move || {
+        let at = caret.get();
+        content.with(|_| ());
+        let Some(geometry) = geometry.get() else {
+            return "Round trip unmeasured".to_owned();
+        };
+        let found = geometry
+            .caret_rect(at, 2.0)
+            .and_then(|rect| geometry.index_at(rect.center()));
+        match found {
+            Some(found) if found == at => "Round trip ok".to_owned(),
+            found => format!("Round trip {at} to {found:?}"),
+        }
+    });
+    view! {
+        <List spacing=12.0>
+            <Interactive
+                @test_id="editing.field"
+                focusable=true
+                ime=true
+                on_key={on_key}
+                on_text={on_text}
+                on_pointer={on_pointer}
+            >
+                <Frame width=240.0 padding={Sides::all(8.0)} fill={PAPER}>{text}</Frame>
+            </Interactive>
+            <Text color={INK}>{report}</Text>
+            <Text color={INK}>{round_trip}</Text>
+        </List>
+    }
+}
+
+#[component]
+fn TextInputFixture() -> NodeId {
+    let value = create_signal("ab cd".to_owned());
+    let report = create_memo(move || format!("Value {}", value.get()));
+    view! {
+        <List spacing=12.0>
+            <Frame width=240.0>
+                <beui::styled::TextInput @test_id="text_input.field" value={value} />
+            </Frame>
+            <Text color={INK}>{report}</Text>
         </List>
     }
 }
