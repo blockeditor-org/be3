@@ -11,6 +11,7 @@ fn painting(size: [u32; 2], root: impl FnOnce() -> crate::primitives::Root) -> B
     BrowserSnapshot::new(size, &page)
 }
 
+mod a_long_modal_sheet_on_the_html_core;
 mod a_styled_dialog_on_the_html_core;
 mod styled_buttons_and_a_checkbox_on_the_html_core;
 mod styled_list_rows_on_the_html_core;

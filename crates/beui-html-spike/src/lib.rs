@@ -100,7 +100,6 @@ pub fn page() -> String {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Accounts on beui's HTML core</title>
-<style>html, body {{ margin: 0; height: 100%; }} #app {{ height: 100%; }}</style>
 <style id="{}">{}</style>
 <script type="importmap">{{ "imports": {{ "wasi_snapshot_preview1": "./wasi.js", "wasi": "./threads.js" }} }}</script>
 <script type="module" src="./start.js"></script>

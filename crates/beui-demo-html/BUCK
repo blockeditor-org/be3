@@ -48,7 +48,8 @@ app(
     visibility = ["PUBLIC"],
 )
 
-# src/drive/pages.drive in Chromium against :web: every page opens.
+# src/drive/*.drive in Chromium against :web: every page opens, and the long
+# modal sheet opens and closes.
 web_drive_test(
     name = "web-test",
     bundle = ":web",

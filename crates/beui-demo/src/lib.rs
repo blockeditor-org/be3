@@ -786,7 +786,7 @@ fn HtmlShell(shown: Signal<Page>, active: Selector<Option<Page>>) -> NodeId {
             <Separator />
             <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
                 <Dynamic value={shown}>|page: Page|
-                    <PageView page />
+                    <PageView @sizing=ItemSize::Percent(100.0) page />
                 </Dynamic>
             </List>
         </List>

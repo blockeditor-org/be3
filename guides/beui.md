@@ -649,7 +649,7 @@ What each primitive is on the HTML core (the bodies are in
 
 | Primitive | On HTML |
 | --- | --- |
-| `Root` | `div.beui-root`, which fills the page and holds the colour definitions |
+| `Root` | `div.beui-root`, fixed to the viewport and clipping what overflows it, so the document never scrolls (only `Scroll`s do; the page needs no sizing styles of its own); it holds the colour definitions, and every overlay's element stays inside it, so they see the same variables |
 | `Frame` | a one-cell CSS grid; `translate` and `rotate` are a transform, `opacity` CSS opacity, `fade_edges` a mask image |
 | `List`, `Spacer` | flexbox and a flex child; `@sizing` becomes flex grow, shrink and basis |
 | `Grid`, `Layers` | CSS grid; `Layers` stacks every child in one cell |
@@ -657,7 +657,7 @@ What each primitive is on the HTML core (the bodies are in
 | `Offset` | an `overflow: hidden` element moved through `scrollTop`/`scrollLeft`, never a transform |
 | `VirtualList` | rows in flow between two spacer elements, measured by `ResizeObserver` |
 | `Canvas` | an inner element translated to the view, `--beui-scale` scaling items |
-| `Overlay` | a `<dialog>` (`showModal()` for one that blocks everything, else a manual popover) placed with CSS anchor positioning; `window` and `shown_in` are ignored |
+| `Overlay` | a `<dialog>` (`showModal()` for one that blocks everything, else a manual popover) placed with CSS anchor positioning, a one-cell grid like `Frame` while open; `window` and `shown_in` are ignored |
 | `Portal` | moves the shown subtree's element (`moveBefore` where the browser has it) |
 | `Interactive` | an element with `tabindex` and listeners; `pastes`, `key_active`, `claims_touch` and the forwarding props do nothing yet |
 | `Selectable` | the browser's own selection |

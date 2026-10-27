@@ -9,6 +9,9 @@
 // automate(words) (beui-core-html's automate: tree, ids, find, wait, gone,
 // settle, pause, clock); click, move, down, up, drag, wheel, type and key are real Playwright input, at the
 // place `find` answers, so the browser's own focus, key and text paths run.
+// After every command the document itself must not scroll or overflow the
+// viewport (a beui app owns its viewport, and only its Scrolls scroll), and the
+// browser must not draw its focus ring on what beui draws its own for.
 // --checks also opens ?checks, once in each colour scheme, and fails on any
 // line of the page's checks() that is not "ok". NAME runs only the scripts and checks whose names contain
 // it. The browser is BE3_CHROME when set, else Playwright's Chromium; with
@@ -245,6 +248,24 @@ async function step(page, words) {
     }
 }
 
+async function pageChecks(page) {
+    const moved = await page.evaluate(() => {
+        const root = document.scrollingElement;
+        const extent = `${root.scrollWidth}x${root.scrollHeight} at ${root.scrollLeft},${root.scrollTop}`;
+        const still = root.scrollTop === 0 && root.scrollLeft === 0
+            && root.scrollHeight <= innerHeight && root.scrollWidth <= innerWidth;
+        return still ? null : `${extent} in a ${innerWidth}x${innerHeight} viewport`;
+    });
+    if (moved) throw new Failure(`the document scrolls (${moved}); only beui's Scrolls may`);
+    const ring = await page.evaluate(() => {
+        const focused = document.activeElement;
+        if (!focused?.closest(".beui-root") || !focused.hasAttribute("tabindex") || focused.style.outline) return null;
+        const style = getComputedStyle(focused);
+        return style.outlineStyle === "none" ? null : `${style.outlineStyle} ${style.outlineWidth}`;
+    });
+    if (ring) throw new Failure(`the browser draws its own focus ring (${ring}) beside beui's`);
+}
+
 async function close(opened) {
     await opened.context.close();
 }
@@ -270,6 +291,7 @@ async function runScript(script) {
             const output = await step(opened.page, words);
             if (output) process.stdout.write(output.endsWith("\n") ? output : `${output}\n`);
             if (opened.errors.length) throw new Failure(`the page failed: ${opened.errors[0]}`);
+            await pageChecks(opened.page);
         }
         console.log(`ok ${name}`);
         return true;

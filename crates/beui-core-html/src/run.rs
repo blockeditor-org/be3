@@ -13,9 +13,10 @@ pub const PINK: &str = "#ff69b4";
 const BASE_STYLES: &str = "\
 .beui-root[data-scheme=light] { color-scheme: light; }
 .beui-root[data-scheme=dark] { color-scheme: dark; }
-.beui-root { color-scheme: light dark; display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); width: 100%; height: 100%; }
-.beui-root > * { height: 100%; }
+:root { overscroll-behavior: none; }
+.beui-root { color-scheme: light dark; display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); position: fixed; inset: 0; overflow: clip; overscroll-behavior: none; }
 .beui-root, .beui-root * { box-sizing: border-box; margin: 0; }
+.beui-root [tabindex], .beui-overlay { outline: none; }
 .beui-break::after { content: \"\\A\"; white-space: pre; }
 .beui-icon { display: inline-block; vertical-align: top; }
 .beui-icon:not(:first-child) { margin-inline-start: var(--beui-icon-spacing, 0); }
@@ -32,6 +33,7 @@ const BASE_STYLES: &str = "\
 .beui-layers > * + * { pointer-events: none; }
 .beui-stand-in { outline: 2px dashed #ff69b4; outline-offset: -2px; }
 .beui-overlay { position: fixed; inset: auto; margin: 0; padding: 0; border: 0; background: transparent; color: inherit; pointer-events: auto; max-width: none; max-height: none; overflow: visible; }
+.beui-overlay:is([open], :popover-open) { display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); }
 .beui-overlay::backdrop { background: var(--beui-scrim, transparent); }
 .beui-beak { position: absolute; z-index: -1; width: var(--beui-beak); height: var(--beui-beak); top: calc(var(--beui-beak) / -2); left: calc(50% - var(--beui-beak) / 2); transform: rotate(45deg); }
 .beui-beak[hidden] { display: none; }
