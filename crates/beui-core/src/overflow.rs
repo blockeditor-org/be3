@@ -58,8 +58,8 @@ impl Document {
         let Some(root) = self.root() else {
             return found;
         };
-        let mut pending = vec![(root, false)];
-        while let Some((id, parent_cut)) = pending.pop() {
+        let mut pending = vec![(root, false, false)];
+        while let Some((id, parent_cut, parent_culled)) = pending.pop() {
             if !self.arena.contains(id) {
                 continue;
             }
@@ -77,7 +77,8 @@ impl Document {
                     found.push(self.overflow(id, OverflowKind::RingCut, outlined.outer, shown));
                 }
             }
-            if let Some(ink) = self.arena.get(id).ink() {
+            let culled = parent_culled || self.is_culled(id);
+            if let Some(ink) = self.arena.get(id).ink().filter(|_| !culled) {
                 let ink = ink
                     .scaled(self.rects.scale_of(&id))
                     .translate(rect.min.to_vec2());
@@ -86,7 +87,7 @@ impl Document {
                 }
             }
             for child in self.arena.get(id).live_children() {
-                pending.push((child, cut));
+                pending.push((child, cut, culled));
             }
         }
         found

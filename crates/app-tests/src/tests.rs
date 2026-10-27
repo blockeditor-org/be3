@@ -1,14 +1,15 @@
 use crate::AppTest;
 
+mod a_beui_demos_dock_joins_the_workspace_dock_as_a_locked_group;
 mod a_block_added_from_the_files_is_named_in_its_row;
 mod a_canvas_in_a_canvas_keeps_to_its_card_and_closes_when_pressed_outside;
 mod a_canvas_pans_with_the_wheel_and_drags_and_zooms_with_ctrl;
 mod a_canvas_popped_out_into_a_window_hides_the_files_behind_it;
 mod a_checklist_on_a_canvas_works_in_place_and_zooms_with_it;
 mod a_contact_link_asks_before_connecting_two_accounts;
+mod a_demo_tab_unlocked_from_the_workspace_dock_moves_beside_the_files_with_its_page;
 mod a_drag_across_an_empty_map_pans_it;
 mod a_local_account_needs_only_a_display_name;
-mod a_new_beui_demo_opens_its_gallery_in_a_tab;
 mod a_new_folder_opens_its_editor;
 mod a_new_image_asks_for_its_file_in_the_image_editors_own_dialog;
 mod a_new_text_block_opens_in_a_tab_beside_the_files;
@@ -25,11 +26,13 @@ mod adding_an_account_chooses_a_local_or_custom_server;
 mod an_active_child_pans_in_the_frame_its_canvas_pans;
 mod an_invitation_shows_the_link_to_send_the_invited_person;
 mod choosing_a_scale_draws_the_app_larger;
+mod closing_a_demos_block_tab_closes_the_tabs_its_dock_put_in_the_workspace;
 mod closing_a_tab_shuts_its_editor_down;
 mod fit_on_an_active_child_fits_its_content_in_its_view;
 mod leaving_a_workspace_someone_shared_asks_first;
 mod my_files_offers_no_delete;
 mod on_a_narrow_window_the_add_menu_from_the_files_rises_as_a_sheet;
+mod on_a_phone_a_demos_dock_tabs_are_tabs_of_the_workspace;
 mod presenting_a_deck_fills_the_screen_until_escape;
 mod pressing_the_files_after_a_text_block_moves_the_focus_to_them;
 mod reopening_a_block_keeps_the_view_the_person_moved;
@@ -83,6 +86,16 @@ fn choose_type(app: &mut AppTest, label: &str) {
     app.type_text(label);
     app.click(&format!("Button \"{label}\""));
     app.gone("#picker.search");
+}
+
+fn open_beui_demo(app: &mut AppTest) {
+    app.click(ADD_TO_MY_FILES);
+    choose_type(app, "beui demo");
+    app.wait("Tab \"Components\"");
+    app.wait("Tab \"Docking\"");
+    app.gone("#editor.loading");
+    app.key("Enter");
+    app.run(&["settle"]);
 }
 
 const ADD_TO_MY_FILES: &str = "Button \"Add to My files\"";
