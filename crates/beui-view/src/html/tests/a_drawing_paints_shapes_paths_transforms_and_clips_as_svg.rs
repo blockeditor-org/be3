@@ -6,7 +6,11 @@ fn a_drawing_paints_shapes_paths_transforms_and_clips_as_svg() {
     painting([340, 140], || {
         let draw: Draw = Rc::new(|painter: &Painter, rect: Rect| {
             painter.rect_filled(rect, 0.0, Color32::from_rgb(235, 235, 228));
-            painter.rect_filled(Rect::from_min_size(pos2(10.0, 10.0), vec2(50.0, 30.0)), 0.0, BLUE);
+            painter.rect_filled(
+                Rect::from_min_size(pos2(10.0, 10.0), vec2(50.0, 30.0)),
+                0.0,
+                BLUE,
+            );
             painter.rect_filled(
                 Rect::from_min_size(pos2(70.0, 10.0), vec2(50.0, 30.0)),
                 Corners::new(12.0, 0.0, 12.0, 0.0),
@@ -43,9 +47,18 @@ fn a_drawing_paints_shapes_paths_transforms_and_clips_as_svg() {
                 INK,
             );
             let turned = painter.transformed(vec2(200.0, 50.0), 0.5);
-            turned.rect_filled(Rect::from_min_size(pos2(0.0, 0.0), vec2(60.0, 60.0)), 10.0, GREEN);
-            let clipped = painter.with_clip_rect(Rect::from_min_size(pos2(250.0, 55.0), vec2(30.0, 30.0)));
-            clipped.fill_path(&Path::ellipse(pos2(280.0, 85.0), vec2(30.0, 30.0)), FillRule::NonZero, BLUE);
+            turned.rect_filled(
+                Rect::from_min_size(pos2(0.0, 0.0), vec2(60.0, 60.0)),
+                10.0,
+                GREEN,
+            );
+            let clipped =
+                painter.with_clip_rect(Rect::from_min_size(pos2(250.0, 55.0), vec2(30.0, 30.0)));
+            clipped.fill_path(
+                &Path::ellipse(pos2(280.0, 85.0), vec2(30.0, 30.0)),
+                FillRule::NonZero,
+                BLUE,
+            );
         });
         view! {
             <Root clear_color={PAPER}>

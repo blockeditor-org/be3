@@ -18,7 +18,9 @@ pub(super) struct Faces {
 
 impl Faces {
     pub(super) fn paint(&self, painter: &Painter, bounds: Rect, face: Face) {
-        let side = (bounds.width() * painter.pixel_grid().scale()).ceil().max(1.0) as u32;
+        let side = (bounds.width() * painter.pixel_grid().scale())
+            .ceil()
+            .max(1.0) as u32;
         let image = {
             let mut held = self.held.borrow_mut();
             match held.as_ref() {
@@ -78,13 +80,9 @@ fn face_image(face: Face, side: u32, scale: f32) -> Image {
                     Model::Oklch => {
                         let index = (y * side + x) as usize;
                         let (lightness, chroma) = oklch_at(cusp, saturation, value);
-                        let color = Oklch::new(
-                            lightness,
-                            chroma - excess[index].max(0.0),
-                            face.hue,
-                            1.0,
-                        )
-                        .to_color();
+                        let color =
+                            Oklch::new(lightness, chroma - excess[index].max(0.0), face.hue, 1.0)
+                                .to_color();
                         let slope = slope(&excess, side, x, y);
                         match slope > 1e-7 {
                             true => {
@@ -100,12 +98,7 @@ fn face_image(face: Face, side: u32, scale: f32) -> Image {
             };
             let [red, green, blue, _] = color.to_array();
             let at = ((y * side + x) * 4) as usize;
-            pixels[at..at + 4].copy_from_slice(&[
-                red,
-                green,
-                blue,
-                (alpha * 255.0).round() as u8,
-            ]);
+            pixels[at..at + 4].copy_from_slice(&[red, green, blue, (alpha * 255.0).round() as u8]);
         }
     }
     Image::from_rgba(side, side, pixels)
@@ -152,7 +145,8 @@ fn gamut_line(color: Color32, strength: f32) -> Color32 {
         true => 0.0,
         false => 255.0,
     };
-    let mix = |channel: u8| (f32::from(channel) + (ink - f32::from(channel)) * strength).round() as u8;
+    let mix =
+        |channel: u8| (f32::from(channel) + (ink - f32::from(channel)) * strength).round() as u8;
     Color32::from_rgba_unmultiplied(mix(red), mix(green), mix(blue), alpha)
 }
 
@@ -182,8 +176,5 @@ fn triangle_at(
     if lit.abs() < DEGENERATE {
         return (0.0, 0.0);
     }
-    (
-        (tip_weight / lit).clamp(0.0, 1.0),
-        lit.clamp(0.0, 1.0),
-    )
+    ((tip_weight / lit).clamp(0.0, 1.0), lit.clamp(0.0, 1.0))
 }

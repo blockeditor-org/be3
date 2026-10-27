@@ -231,8 +231,7 @@ impl Painter {
         smooth: bool,
     ) {
         let tint = self.resolve_color(tint.into());
-        if tint.alpha() == 0 || !rect.is_positive() || image.width() == 0 || image.height() == 0
-        {
+        if tint.alpha() == 0 || !rect.is_positive() || image.width() == 0 || image.height() == 0 {
             return;
         }
         let size = image.size();

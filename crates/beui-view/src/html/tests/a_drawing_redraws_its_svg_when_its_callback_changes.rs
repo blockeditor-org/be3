@@ -25,7 +25,10 @@ fn a_drawing_redraws_its_svg_when_its_callback_changes() {
     let before = markup(sized);
     assert!(before.contains("viewBox=\"0 0 40 20\""), "{before}");
     assert!(before.contains("fill: #466edc;"), "{before}");
-    assert!(!markup(roomless).contains("<svg"), "a drawing with no size waits for its measurement");
+    assert!(
+        !markup(roomless).contains("<svg"),
+        "a drawing with no size waits for its measurement"
+    );
 
     color.set(GREEN);
     ::reactive::flush();

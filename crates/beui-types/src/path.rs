@@ -141,7 +141,6 @@ impl Path {
         self.elements.push(element);
         self
     }
-
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
@@ -231,7 +230,6 @@ impl Stroke {
             .all(|dash| dash.is_finite() && *dash >= 0.0)
             && self.dashes.iter().sum::<f32>() > 0.0
     }
-
 }
 
 #[derive(Clone, PartialEq, Debug)]

@@ -545,15 +545,14 @@ impl Painter {
     }
 
     pub fn fill_path(&self, path: &Path, rule: FillRule, color: impl Into<crate::color::Color>) {
-        self.path(path, PathStyle::Fill(rule), self.resolve_color(color.into()));
+        self.path(
+            path,
+            PathStyle::Fill(rule),
+            self.resolve_color(color.into()),
+        );
     }
 
-    pub fn stroke_path(
-        &self,
-        path: &Path,
-        stroke: &Stroke,
-        color: impl Into<crate::color::Color>,
-    ) {
+    pub fn stroke_path(&self, path: &Path, stroke: &Stroke, color: impl Into<crate::color::Color>) {
         if stroke.width.is_nan() || stroke.width <= 0.0 {
             return;
         }
