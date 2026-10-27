@@ -692,30 +692,31 @@ impl Document {
         let root = self.refresh_accessibility()?;
         let mut tree = self.accessibility_tree.borrow_mut();
         let mut changed = std::mem::take(&mut tree.changed);
-        let nodes: Vec<(AccessNodeId, Node)> =
-            if full {
-                let held: HashMap<AccessNodeId, &Node> = tree
-                    .entries
-                    .iter()
-                    .map(|(id, entry)| (self.access_node_id(id), &entry.node))
-                    .chain(tree.spaces.iter().map(|(space, (entry, _))| {
-                        (self.access_space_id(*space), &entry.node)
-                    }))
-                    .collect();
-                attached(&held, root)
-            } else {
-                changed.sort_unstable_by_key(|key| {
-                    (key.node().index(), key.node().generation(), key.slot())
-                });
-                changed.dedup();
-                changed
-                    .into_iter()
-                    .filter_map(|key| {
-                        let entry = tree.entry(key)?;
-                        Some((self.access_space_id(key), entry.node.clone()))
-                    })
-                    .collect()
-            };
+        let nodes: Vec<(AccessNodeId, Node)> = if full {
+            let held: HashMap<AccessNodeId, &Node> = tree
+                .entries
+                .iter()
+                .map(|(id, entry)| (self.access_node_id(id), &entry.node))
+                .chain(
+                    tree.spaces
+                        .iter()
+                        .map(|(space, (entry, _))| (self.access_space_id(*space), &entry.node)),
+                )
+                .collect();
+            attached(&held, root)
+        } else {
+            changed.sort_unstable_by_key(|key| {
+                (key.node().index(), key.node().generation(), key.slot())
+            });
+            changed.dedup();
+            changed
+                .into_iter()
+                .filter_map(|key| {
+                    let entry = tree.entry(key)?;
+                    Some((self.access_space_id(key), entry.node.clone()))
+                })
+                .collect()
+        };
         drop(tree);
         let (windows, window_roots) = match self.opens_windows() {
             true => (
