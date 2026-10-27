@@ -19,7 +19,8 @@ const SYNTHESIZED_SLOP: f32 = 2.0;
 pub use beui_types::input::{
     AutoscrollGesture, ClickCounter, DragGesture, MAX_TOUCH_VELOCITY, PointerId, PointerInput,
     PointerPress, PointerSample, PointerStage, ScrollGesture, SecondaryDrag, SoftKeyboard,
-    TOUCH_DRAG_THRESHOLD, TOUCH_VELOCITY_WINDOW, TouchDrags, WheelInput, ZoomGesture,
+    TOUCH_DRAG_THRESHOLD, TOUCH_VELOCITY_WINDOW, TouchDrags, WHEEL_LATCH_TIMEOUT, WheelInput,
+    ZoomGesture,
 };
 
 pub use beui_types::input::{DroppedFile, Event, FileDrag, PointerEvent, PointerPhase};

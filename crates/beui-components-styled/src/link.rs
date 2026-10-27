@@ -16,10 +16,11 @@ pub fn Link(
     #[prop(default = None)] glyph: Prop<Option<Glyph>>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = TextSize::Base)] size: Prop<TextSize>,
+    #[prop(default = None)] href: Prop<Option<String>>,
     on_click: ClickCallback,
 ) -> NodeId {
     view! {
-        <unstyled::Button label glyph role=Role::Link disabled on_click={on_click}>|handle|
+        <unstyled::Button label glyph role=Role::Link disabled href on_click={on_click}>|handle|
             <LinkFace handle size />
         </unstyled::Button>
     }

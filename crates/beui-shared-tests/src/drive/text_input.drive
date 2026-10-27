@@ -1,5 +1,6 @@
-# The shared TextInput takes typing at its caret, moves the caret with keys,
-# and replaces what shift selects.
+# The shared TextInput takes typing at its caret, moves the caret with keys
+# and replaces what shift selects; a password field masks what it holds, and
+# Enter in it or the form's submit button submits the form.
 clock stop
 wait 'value="Value ab cd"'
 click '#text_input.field'
@@ -18,3 +19,11 @@ wait 'value="Value xabyde"'
 key End
 key Backspace
 wait 'value="Value xabyd"'
+click '#text_input.password'
+type 'pa ss'
+wait 'value="Secret pa ss"'
+wait 'TextInput "Password" value="*****"'
+key Enter
+wait 'value="Sent 1"'
+click 'Button "Send"'
+wait 'value="Sent 2"'

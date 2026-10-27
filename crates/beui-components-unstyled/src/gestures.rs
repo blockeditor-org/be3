@@ -124,6 +124,14 @@ pub fn scroll_drag(
     axis: impl IntoProp<Option<Direction>>,
     on_drag: impl IntoCallback<DragGesture, ()>,
 ) -> Callback<PointerInput, bool> {
+    chaining_scroll_drag(axis, |_: Vec2| false, on_drag)
+}
+
+pub fn chaining_scroll_drag(
+    axis: impl IntoProp<Option<Direction>>,
+    chains: impl Fn(Vec2) -> bool + 'static,
+    on_drag: impl IntoCallback<DragGesture, ()>,
+) -> Callback<PointerInput, bool> {
     let axis = axis.into_prop();
     let on_drag = on_drag.into_callback();
     let mut tracks: Vec<Track> = Vec::new();
@@ -157,6 +165,9 @@ pub fn scroll_drag(
                     && axis.get_untracked().is_none_or(|axis| axis == settled)
                 {
                     let movement = input.pos - track.origin;
+                    if !input.unclaimed && chains(along(settled, movement)) {
+                        return false;
+                    }
                     let distance = movement.x.hypot(movement.y);
                     track.axis = Some(settled);
                     claimed = true;

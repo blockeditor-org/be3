@@ -24,6 +24,7 @@ pub mod drag;
 pub mod first_fit;
 pub mod fling;
 pub mod floating;
+pub mod form;
 pub mod gestures;
 pub mod list_row;
 pub mod menu;
@@ -103,6 +104,7 @@ pub use drag::{
 };
 pub use first_fit::FirstFit;
 pub use floating::{Edge, Floating};
+pub use form::Form;
 pub use list_row::ListRow;
 pub use menu::{
     MenuCaption, MenuGrid, MenuItem, MenuListApi, MenuNodes, MenuRowHandle, MenuRowKind, MenuThen,
@@ -142,7 +144,7 @@ pub use text_area::{
     TextAreaColors, TextAreaGeometry, TextAreaLayout, TextAreaLook, TextAreaState, TextLeaf,
     TextLine, TextMarker, TextWidget, WidgetGeometry, emoji_completer, search_emoji,
 };
-pub use text_input::{TextInput, TextInputApi, TextInputHandle, TextInputStyle};
+pub use text_input::{InputKind, TextInput, TextInputApi, TextInputHandle, TextInputStyle};
 pub use text_menu::TextContextMenu;
 pub use time_list::{TimeList, TimeListApi, TimeOptionHandle, grid_columns};
 pub use toast::{TOAST_DURATION, Toast, ToastAction, ToastHandle, Toasts};

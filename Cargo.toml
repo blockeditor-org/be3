@@ -17,6 +17,8 @@ members = [
     "crates/be-ops",
     "crates/be-ops-bindgen",
     "crates/be-protocol",
+    "crates/be-portal",
+    "crates/be-portal-ui",
     "crates/be-server",
     "crates/be-session",
     "crates/be-sync",

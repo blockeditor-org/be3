@@ -124,6 +124,28 @@ pub(crate) fn set_attribute(node: &Node, name: &str, value: Option<&str>) {
     }
 }
 
+pub(crate) fn number(node: &Node, property: &str) -> Option<f64> {
+    let dom = live_node(node)?;
+    js_sys::Reflect::get(&dom, &property.into()).ok()?.as_f64()
+}
+
+pub(crate) fn set_number(node: &Node, property: &str, value: f64) {
+    if let Some(dom) = live_node(node) {
+        let _ = js_sys::Reflect::set(&dom, &property.into(), &value.into());
+    }
+}
+
+pub(crate) fn call(node: &Node, method: &str) {
+    let Some(dom) = live_node(node) else {
+        return;
+    };
+    if let Ok(function) = js_sys::Reflect::get(&dom, &method.into())
+        && let Some(function) = function.dyn_ref::<js_sys::Function>()
+    {
+        let _ = function.call0(&dom);
+    }
+}
+
 pub(crate) fn set_markup(node: &Node) {
     if let Some(element) = live_node(node).and_then(|dom| dom.dyn_into::<web_sys::Element>().ok()) {
         element.set_inner_html(node.markup().as_deref().unwrap_or_default());

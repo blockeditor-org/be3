@@ -108,7 +108,7 @@ pub fn page() -> String {
 </html>
 "#,
         beui::html::STYLES_ID,
-        beui::html::stylesheet(),
+        beui::html::stylesheet("."),
     )
 }
 

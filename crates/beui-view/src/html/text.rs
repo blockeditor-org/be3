@@ -373,11 +373,7 @@ pub(crate) fn text_item(
         append(item, child);
     }
     let slot = match (at, text) {
-        (Some(_), _) => {
-            set_attribute(item, "class", Some("beui-stand-in".to_owned()));
-            set_attribute(item, "title", Some("TODO: TextItem at".to_owned()));
-            Prop::Static(TextSlot::Anchored)
-        }
+        (Some(at), _) => at.map(TextSlot::Anchored),
         (None, Some(text)) => text.map(|text| TextSlot::inline(text.as_deref())),
         (None, None) => Prop::Static(TextSlot::inline(None)),
     };

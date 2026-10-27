@@ -269,7 +269,7 @@ fn PasswordEntry(editor: Editor, ssid: String, asking: Signal<Option<String>>) -
             <TextInput
                 @sizing=ItemSize::Percent(100.0)
                 value={password}
-                password=true
+                kind={InputKind::Password}
                 focused=true
                 placeholder="Password"
                 label

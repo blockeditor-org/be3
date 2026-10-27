@@ -150,9 +150,9 @@ pub mod radio_group;
 pub mod toggle_button;
 pub use beui_components_unstyled::{
     ButtonApi, CalendarApi, ChoiceApi, ColorAreaApi, ColorWheelApi, CommandPaletteApi,
-    ContextMenuApi, DateTimeFieldApi, DisclosureApi, MenuListApi, NumberInputApi, PanZoomApi,
-    PopoverApi, ScrollApi, SelectApi, SliderApi, TOAST_DURATION, TextAreaApi, TextInputApi,
-    TimeListApi, Toast, ToastAction, ToggleApi, TreeApi, TreeMenu,
+    ContextMenuApi, DateTimeFieldApi, DisclosureApi, Form, InputKind, MenuListApi, NumberInputApi,
+    PanZoomApi, PopoverApi, ScrollApi, SelectApi, SliderApi, TOAST_DURATION, TextAreaApi,
+    TextInputApi, TimeListApi, Toast, ToastAction, ToggleApi, TreeApi, TreeMenu,
 };
 pub use beui_view::components::selectable::SelectableState;
 pub use listbox::Listbox;

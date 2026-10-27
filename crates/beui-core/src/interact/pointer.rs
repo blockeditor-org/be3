@@ -248,6 +248,7 @@ pub(crate) fn input_at(
         modifiers,
         time,
         settles: None,
+        unclaimed: false,
     }
 }
 
@@ -961,6 +962,16 @@ fn offer(
             }
         }
     }
+    if winner.is_none() {
+        winner = heard.iter().copied().find(|id| {
+            let input = PointerInput {
+                settles: Some(axis),
+                unclaimed: true,
+                ..session.input(frame.rects, *id, stage, pos)
+            };
+            hear(doc, *id, input)
+        });
+    }
     for id in session.listeners.clone() {
         if !heard.contains(&id) {
             hear(doc, id, session.input(frame.rects, id, stage, pos));
@@ -1373,7 +1384,7 @@ fn wheel(doc: &mut Document, frame: &Frame, event: PointerEvent, delta: Vec2, fl
         return;
     }
     let held = doc.pointers.wheel_held;
-    let gesture = |id: NodeId| {
+    let gesture = |id: NodeId, unclaimed: bool| {
         let (local, size) = local(frame.rects, id, pos);
         WheelInput::Scroll(ScrollGesture {
             delta,
@@ -1383,24 +1394,27 @@ fn wheel(doc: &mut Document, frame: &Frame, event: PointerEvent, delta: Vec2, fl
             size,
             modifiers: event.modifiers,
             held,
+            unclaimed,
         })
     };
-    let target = latched(doc, frame, event.window, pos)
-        .filter(|id| turn(doc, *id, gesture(*id)))
-        .or_else(|| claimed.filter(|id| turn(doc, *id, gesture(*id))))
-        .or_else(|| {
-            for id in path {
-                let node = interactive(doc, id)?;
-                let forwards = node.forwards_wheels();
-                if turn(doc, id, gesture(id)) {
-                    return Some(id);
-                }
-                if forwards {
-                    return None;
-                }
+    let along_path = |unclaimed: bool| {
+        for id in path.iter().copied() {
+            let node = interactive(doc, id)?;
+            let forwards = node.forwards_wheels();
+            if turn(doc, id, gesture(id, unclaimed)) {
+                return Some(id);
             }
-            None
-        });
+            if forwards {
+                return None;
+            }
+        }
+        None
+    };
+    let target = latched(doc, frame, event.window, pos)
+        .filter(|id| turn(doc, *id, gesture(*id, false)))
+        .or_else(|| claimed.filter(|id| turn(doc, *id, gesture(*id, false))))
+        .or_else(|| along_path(false))
+        .or_else(|| along_path(true));
     doc.pointers.wheel_latch = target.map(|target| (target, frame.now, event.window, pos));
 }
 
@@ -1414,6 +1428,7 @@ fn still(doc: &Document, frame: &Frame, target: NodeId, event: PointerEvent, hel
         size,
         modifiers: event.modifiers,
         held,
+        unclaimed: false,
     });
     turn(doc, target, wheel);
 }

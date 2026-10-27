@@ -6,7 +6,7 @@ use crate::context_menu::menu_style;
 use crate::text_area::text_area_geometry;
 use crate::theme::{field_border, use_theme};
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::{TextInputHandle, TextInputStyle};
+use beui_components_unstyled::{InputKind, TextInputHandle, TextInputStyle};
 use beui_view::reactive::NodeId;
 use beui_view::types::icons::{ICON_COPY, ICON_X};
 
@@ -34,7 +34,9 @@ pub fn TextInput(
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] focused: Prop<bool>,
-    #[prop(default = false)] password: Prop<bool>,
+    #[prop(default = InputKind::Text)] kind: Prop<InputKind>,
+    #[prop(default = String::new())] name: Prop<String>,
+    #[prop(default = String::new())] autocomplete: Prop<String>,
     #[prop(default = false)] plain: Prop<bool>,
     #[prop(default = false)] select_on_focus: Prop<bool>,
     #[prop(default = None)] glyph: Prop<Option<Glyph>>,
@@ -64,7 +66,9 @@ pub fn TextInput(
             placeholder
             disabled
             focused
-            password
+            kind
+            name
+            autocomplete
             select_on_focus
             label
             multiline

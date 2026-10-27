@@ -197,3 +197,15 @@ prerendered_page = rule(
     },
     impl = _prerendered_page_impl,
 )
+
+# A program on beui's HTML core for the host (linux_x86_64_html), from any
+# configuration: be-server's executable renders its account portal on that
+# core, so whatever stages, runs or deploys `//crates/be-server:bin` gets it
+# built there.
+def _html_host_program_impl(ctx: AnalysisContext) -> list[Provider]:
+    return [ctx.attrs.program[DefaultInfo], ctx.attrs.program[RunInfo]]
+
+html_host_program = rule(
+    attrs = {"program": attrs.transition_dep(cfg = _html_host_transition)},
+    impl = _html_host_program_impl,
+)

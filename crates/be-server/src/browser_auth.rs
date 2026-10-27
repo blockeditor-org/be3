@@ -208,6 +208,4 @@ pub(crate) fn code_status(services: &Services, code: &str) -> Result<(), ServerE
 }
 
 #[cfg(test)]
-pub(crate) use crate::portal::message;
-#[cfg(test)]
 mod tests;
