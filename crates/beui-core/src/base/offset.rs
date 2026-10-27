@@ -87,12 +87,14 @@ impl OffsetNode {
     }
 
     fn moved_to(&mut self, value: f32) {
+        let back = value < self.offset;
         self.offset = value;
         self.unanchor();
         self.to_end = false;
-        self.pinned = self
-            .position
-            .is_none_or(|position| value >= position.max_offset() - END_SLACK);
+        self.pinned = self.position.is_none_or(|position| {
+            let end = position.max_offset();
+            value >= end || (!back && value >= end - END_SLACK)
+        });
     }
 
     fn settled(&self, main: f32, content: f32) -> ScrollPosition {
