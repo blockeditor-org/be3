@@ -58,6 +58,8 @@ fn stand_in(kind: &'static str) -> crate::reactive::NodeId {
 }
 
 pub mod running {
+    #[cfg(target_arch = "wasm32")]
+    pub use beui_core_html::automate::automate;
     pub use beui_core_html::run::{BASE_STYLES, stylesheet};
 
     use crate::primitives::Root;

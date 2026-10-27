@@ -269,5 +269,5 @@ pub mod reactive {
 pub mod html {
     pub use beui_view::running::{BASE_STYLES, render_to_string, stylesheet};
     #[cfg(target_arch = "wasm32")]
-    pub use beui_view::running::{hydrate, run};
+    pub use beui_view::running::{automate, hydrate, run};
 }

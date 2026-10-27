@@ -116,9 +116,9 @@ pub fn listen<E: wasm_bindgen::convert::FromWasmAbi + 'static>(
     target: &web_sys::EventTarget,
     name: &str,
     capture: bool,
-    handler: impl FnMut(E) + 'static,
+    handler: impl Fn(E) + 'static,
 ) -> Listener {
-    let closure = Closure::<dyn FnMut(E)>::new(handler);
+    let closure = Closure::<dyn Fn(E)>::new(handler);
     let options = web_sys::AddEventListenerOptions::new();
     options.set_passive(false);
     options.set_capture(capture);

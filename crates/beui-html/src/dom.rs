@@ -257,12 +257,13 @@ fn comment(dom: Option<&web_sys::Node>, data: &str) -> Option<web_sys::Comment> 
 }
 
 fn claim_children(node: &Node, parent: &web_sys::Node) {
-    if node.holds_raw_text() {
+    let children = children_of(node);
+    if node.holds_raw_text() && children.iter().any(|(slot, _)| slot.is_some()) {
         sync_children(node);
         return;
     }
     let mut cursor = parent.first_child();
-    for (slot, items) in children_of(node) {
+    for (slot, items) in children {
         let Some(slot) = slot else {
             for item in &items {
                 claim(item, parent, &mut cursor);

@@ -427,3 +427,40 @@ which close() checks, so a test that ends without calling it fails too.
 
   ./scripts/test //crates/app-tests:test
   ./scripts/test //crates/app-tests:test --update
+
+7. Testing both of beui's cores
+
+beui has two cores (plans/html_core.md): the native one, which lays out and paints itself, and
+the HTML one, whose primitives are DOM elements the browser lays out. crates/beui-shared-tests
+holds what must behave the same on both: screens, each a `#[component]` in src/lib.rs that
+`Fixture` picks by name, built from primitives the HTML core has, and a script per screen,
+src/drive/NAME.drive, `drive -` input that drives the screen of its file name. A script uses
+only the commands both cores answer: `settle`, `pause`, `clock stop|run`, `tree`, `ids`,
+`find`, `wait`, `gone`, `click`, `type` and `key`. It asserts with `wait` and `gone`, and names
+what it waits for by test id or by text the screen writes itself, never by coordinates, since
+text metrics differ: to check a layout, `measure` the nodes and print the sizes and offsets in a
+`Text` (`wait 'Inner 50x20 at 140,50'`).
+
+- Natively, `./scripts/test //crates/beui-shared-tests:test` runs each script against the
+  crate's `:bin` under `be_drive::Driven` with no GPU, once as it is and once with every
+  measurement a frame late (`--delay-measurement`, as `BEUI_DELAY_MEASUREMENT=1`), so a screen
+  that only works when measurement is synchronous fails. A test per script is in src/tests/.
+- In a browser, `./scripts/test //crates/beui-shared-tests:web-test [NAME]` serves `:web`, the
+  screens built for `wasi_html`, and runs every script in Chromium through Playwright
+  (buck/app/web-test.mjs, `web_drive_test` in buck/app/drive.bzl). The page answers the reading
+  commands through beui-core-html's `automate` (its tree is in native's line format, from the
+  core's nodes and `getBoundingClientRect`); `click`, `type` and `key` are real Playwright input
+  at the place `find` answers, so the browser's own focus, key and IME paths run. It also runs
+  `checks()`, the live DOM backend's checks in src/web/live.rs (mounting, hydration, listeners),
+  failing on any line that is not `ok`. It runs on this machine, not a worker, which have no
+  browser: `BE3_CHROME` when set, else Playwright's Chromium, through Node's `playwright`
+  package (`npm install -g playwright`); without them it fails rather than skipping.
+  ./scripts/verify runs it too, as `:web-test-run`.
+- To see a screen: `./scripts/buck run //crates/beui-shared-tests:dev -- NAME` and `drive`
+  natively; in a browser, serve the `:web` bundle with any server that sends
+  Cross-Origin-Opener-Policy `same-origin` and Cross-Origin-Embedder-Policy `require-corp` and
+  open `index.html?fixture=NAME`.
+- To cover a component on both cores: add a `#[component]` screen to src/lib.rs, a branch for its
+  name in `Fixture`, the script src/drive/NAME.drive, and
+  src/tests/NAME.rs calling `drive("NAME", include_str!("../drive/NAME.drive"))`. The web test
+  picks up the script by itself.

@@ -216,6 +216,14 @@ pub fn frame() {
     }
 }
 
+pub fn pending() -> bool {
+    PENDING.with(Cell::get)
+}
+
+pub fn frozen() -> bool {
+    FROZEN.with(Cell::get)
+}
+
 pub fn started() -> bool {
     STARTED.with(Cell::get)
 }

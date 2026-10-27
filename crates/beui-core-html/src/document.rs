@@ -340,6 +340,56 @@ pub fn extension_or_insert_with<T: Clone + 'static>(make: impl FnOnce() -> T) ->
     made
 }
 
+pub struct About {
+    pub node: NodeId,
+    pub element: Node,
+    pub kinds: Vec<&'static str>,
+    pub test_ids: Vec<String>,
+    pub accessibility: Option<accesskit::Node>,
+}
+
+pub fn about_elements() -> Vec<About> {
+    ARENA.with(|arena| {
+        let arena = arena.borrow();
+        let mut found: Vec<(About, u32)> = Vec::new();
+        let mut by_element: HashMap<*const RefCell<Shared>, usize> = HashMap::new();
+        for (index, (generation, entry)) in arena.slots.iter().enumerate() {
+            let Some(entry) = entry.as_ref() else {
+                continue;
+            };
+            let node = NodeId {
+                index: index as u32,
+                generation: *generation,
+            };
+            let at = *by_element
+                .entry(Rc::as_ptr(&entry.shared))
+                .or_insert_with(|| {
+                    found.push((
+                        About {
+                            node,
+                            element: entry.element.clone(),
+                            kinds: Vec::new(),
+                            test_ids: entry.shared.borrow().test_ids.clone(),
+                            accessibility: None,
+                        },
+                        entry.wraps,
+                    ));
+                    found.len() - 1
+                });
+            let (about, wraps) = &mut found[at];
+            if *wraps < entry.wraps {
+                about.node = node;
+                *wraps = entry.wraps;
+            }
+            about.kinds.push(entry.kind);
+            if about.accessibility.is_none() {
+                about.accessibility = entry.accessibility.clone();
+            }
+        }
+        found.into_iter().map(|(about, _)| about).collect()
+    })
+}
+
 #[cfg(target_arch = "wasm32")]
 pub(crate) fn nodes() -> Vec<(NodeId, Node)> {
     outermost(|_| true)

@@ -43,6 +43,15 @@ wasi_app_transition = transition(
     refs = {"wasi": "root//buck/platforms:wasi"} | PROFILE_REFS,
 )
 
+# A crate on beui's HTML core (buck/constraints:html) in the browser.
+def _wasi_html_transition_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
+    return keep_profile(platform, refs.wasi_html[PlatformInfo], refs)
+
+wasi_html_transition = transition(
+    impl = _wasi_html_transition_impl,
+    refs = {"wasi_html": "root//buck/platforms:wasi_html"} | PROFILE_REFS,
+)
+
 # A cdylib's "shared" output is the .wasm; this names it as the module it is,
 # which for a plugin is the entry point its manifest names. A release build runs
 # wasm-opt over it: after rustc, -O2 takes a further tenth off a plugin's code
@@ -91,6 +100,8 @@ wasm32_module = _module_rule(wasm32_transition)
 wasi_module = _module_rule(wasi_transition)
 
 wasi_app_module = _module_rule(wasi_app_transition)
+
+wasi_html_module = _module_rule(wasi_html_transition)
 
 # A library built for the web app's wasi, for a crate whose web code nothing
 # built for the web uses yet, so that //:check still compiles that code.

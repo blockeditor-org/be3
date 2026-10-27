@@ -1,3 +1,4 @@
+pub mod automate;
 pub mod css;
 pub mod document;
 pub mod dom;

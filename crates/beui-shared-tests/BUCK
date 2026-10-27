@@ -1,0 +1,71 @@
+load("@root//buck/app:defs.bzl", "app")
+load("@root//buck/app:drive.bzl", "headless", "web_drive_test")
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
+load("@root//buck/wasm:defs.bzl", "wasi_app_flags", "wasi_html_module")
+
+# Screens built for both of beui's cores, and src/drive/*.drive, scripts both
+# cores must answer the same way (guides/testing_a_gui.md, 7). The script's
+# file name is the screen it drives.
+cargo_library(
+    rustc_flags = select({
+        "DEFAULT": [],
+        "prelude//cpu/constraints:cpu[wasm32]": wasi_app_flags,
+    }),
+)
+
+# The native core: a screen headless, named by its argument
+# (`--delay-measurement` delays every measurement by a frame).
+cargo_binary()
+
+# Each script against :bin under be_drive::Driven, once as it is and once
+# with delayed measurement. No GPU: BEUI_RENDERER=none.
+cargo_test(
+    paints = True,
+    run_env = {
+        "APP_LIBRARIES": "$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu:$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu",
+        "BEUI_RENDERER": "none",
+        "FIXTURES": "$(location :bin)",
+        "XKB_CONFIG_ROOT": "$(location //buck/sysroot:amd64-test)/usr/share/X11/xkb",
+    },
+    target_compatible_with = ["prelude//os:linux", "prelude//cpu:x86_64"],
+)
+
+# A screen headless for an agent to drive: `./scripts/buck run
+# //crates/beui-shared-tests:dev -- frame`.
+headless(
+    name = "dev",
+    app_name = "beui-shared-tests",
+    program = "$(location :bin)",
+)
+
+# The HTML core: the same screens in the browser, ?fixture=NAME.
+wasi_html_module(
+    name = "web-module",
+    library = ":beui-shared-tests",
+    module = "beui_shared_tests",
+)
+
+app(
+    name = "web",
+    bindgen = [":web-module"],
+    files = [
+        "web/index.html",
+        "//crates/block-app:wasi.js",
+        "//crates/block-app:threads.js",
+        "//crates/block-app:thread.js",
+        "//crates/block-app:dylink.js",
+        "//crates/block-app:env.js",
+    ],
+    manifests = [],
+    modules = [],
+    wasm_bindgen = "//buck/cargo:wasm-bindgen",
+)
+
+# Each script in Chromium against :web, and the live DOM checks of
+# beui-html (src/web/live.rs).
+web_drive_test(
+    name = "web-test",
+    bundle = ":web",
+    checks = True,
+    scripts = glob(["src/drive/*.drive"]),
+)

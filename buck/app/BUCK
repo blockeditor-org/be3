@@ -17,8 +17,15 @@ export_file(
     visibility = ["PUBLIC"],
 )
 
-export_file(
-    name = "web-drive.mjs",
+# The browser's side of drive: web-drive.mjs for web-dev.sh, web-test.mjs for
+# web_drive_test (drive.bzl), and the command parsing they share.
+filegroup(
+    name = "drive-browser",
+    srcs = [
+        "drive-words.mjs",
+        "web-drive.mjs",
+        "web-test.mjs",
+    ],
     visibility = ["PUBLIC"],
 )
 
