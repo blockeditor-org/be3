@@ -4957,8 +4957,23 @@ whose `#[component]` calls `crate::core::<name>(..)`; each core has a body:
 `src/html/<name>.rs` over `beui-core-html`, which builds one element per
 primitive and turns props into inline CSS. Hooks follow the same pattern:
 `src/reactive.rs` names what both cores provide, from each core's
-`reactive` module. A primitive the HTML core has no body for yet is either
-an outlined pink stand-in there or absent under `cfg(beui_html)`. The HTML
+`reactive` module. On the HTML core a container's own behaviour lives in a
+`beui-core-html` module its body hands the elements to: `scroll` (`Offset`:
+an `overflow: hidden` element moved through `scrollTop`/`scrollLeft`, never a
+transform, so the browser's own scrolls - find in page, `scrollIntoView`,
+focus - are adopted as the offset; it anchors on the first element under the
+offset and corrects by its drift, snaps to the end, and reveals), `rows`
+(`VirtualList`'s window and row measurement; rows are flow between two
+`data-beui-spacer` elements that anchoring skips), `canvas` (an inner element
+translated to the view's origin, with `--beui-scale` scaling item positions and
+`scales` items), `overlay` (a `<dialog>`: `showModal()` for `BlocksAll`, else
+`popover="manual"`; CSS anchor positioning, measured with `resolve_rect` where
+unsupported; scrim on `::backdrop`; Escape, outside presses and focus traps)
+and `portal`. Each registers a pass with `frame::on_layout`, which the frame
+loop runs (up to `LAYOUTS_PER_FRAME`) before paint; `ResizeObserver`s call
+`frame::relayout()` so a resize is corrected in the same frame. A primitive
+the HTML core has no body for yet is either an outlined pink stand-in there or
+absent under `cfg(beui_html)`. The HTML
 bodies' paintings are browser paintings rendered with `render_to_string` on
 `linux_x86_64_html`: `./scripts/test //crates/beui-view:html-test`.
 
