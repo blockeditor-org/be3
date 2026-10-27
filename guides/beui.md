@@ -692,6 +692,7 @@ What each primitive is on the HTML core (the bodies are in
 | `Interactive` | an element with `tabindex` and listeners; `on_forward` hears the pointer (captured from its down); `pastes`, `key_active`, `claims_touch` and the other forwarding props do nothing yet |
 | `Selectable` | the browser's own selection; the root is `user-select: none`, so nothing outside a `Selectable` (or a native text field) selects |
 | `Drawing` | a `div` holding an inline `<svg>` the `Draw` callback paints, sized as natively (see below) |
+| `Element` | the element its `tag` names, with its `attributes`, `styles` (`CssValue`s) and `events`; natively a plain box around its child, everything else ignored (see [Forms and text fields](#forms-and-text-fields)) |
 
 `Drawing` is the escape hatch for what is not an arrangement of nodes, and
 `Embed` (native only) the one for what is not beui's. On HTML a `Drawing` runs
@@ -719,7 +720,9 @@ paints its faces as an image on the CPU instead (`color_wheel/cpu.rs`, used
 without the `gpu` feature). Text editing is not an escape hatch:
 `TextArea` and `TextInput` are the same unstyled code on both cores, built on
 `Text`'s `marks`, `glyphs`, `carets` and `hang` and on `measure_text`, typing
-through a hidden textarea on HTML.
+through a hidden textarea on HTML. The one exception is a plain single-line
+`TextInput`, which is a real `<input>` on HTML ([Forms and text
+fields](#forms-and-text-fields)).
 
 An app on the HTML core starts with `beui::html::run(element_id, build)` in
 the browser. To serve a page that shows before any script runs, render it on
@@ -789,7 +792,7 @@ need:
 - **Tempted to add a base component?** Almost always, add an unstyled one
   instead. The base layer is small on purpose — `Frame`, `List`, `Spacer`, `Layers`,
   `Grid`, `Text`, `Offset`, `VirtualList`, `Canvas`, `Drawing`, `Overlay`, `Interactive`,
-  `Portal` and `Root` — and it stays small because most things are
+  `Portal`, `Root` and `Element` — and it stays small because most things are
   compositions of those. `unstyled::Picture` is one: a `Drawing` with a size, and
   `Window` (`beui_view::window`, re-exported as `beui::Window`) is another: an
   `Overlay` given a `window` spec. Back is a hook, `on_back`, not a node, and
@@ -2905,6 +2908,69 @@ native dialog, the web runner from an `<input type=file>`, Android from
 picker answers that it has none. The document delivers the answer at the start of a later frame,
 inside its reactive scope, so `picked` can write signals like an event handler.
 A host that runs beui itself does the same with the requests in `file_picks`.
+
+### Forms and text fields
+
+On the HTML core a plain single-line `TextInput` is a real `<input>`, so the
+browser edits it: IME, selection, its own context menu, autofill and password
+managers. Unstyled `TextInput` switches on `CORE` and builds `<input>` (through
+base `Element`, wrapped in an `Interactive` for focus, `focused` and hover)
+when it is not `multiline`, its style has no `prose` and it does not
+`select_on_focus`; everything else, every `TextArea`, and anything rich (marks,
+syntax colouring, glyphs, completion) stays beui's own on both cores, and so
+does every field natively. The value stays bound both ways, Enter calls
+`on_submit`, and styled draws its frame, fill and focus ring around the
+`<input>` exactly as around beui's own field: the `<input>` itself draws no
+box, takes the field's font, colour, caret colour and padding, and its
+placeholder and selection colours through `--beui-placeholder` and
+`--beui-selection`. A new kind of single-line field gets a variant of
+`InputKind`, never a component of its own; a field that needs something an
+`<input>` cannot express stays beui's own on both cores.
+
+`TextInput` (unstyled and styled) takes:
+
+- `kind: InputKind`: `Text` (the default), `Password` (masked on both cores),
+  `Email`, `Search`, `Url`, `Tel`; the `<input type>` on HTML, otherwise only
+  `Password` changes anything natively.
+- `name` and `autocomplete` (strings, the HTML vocabulary: `username`, `email`,
+  `current-password`, `new-password`, `nickname`, `one-time-code`, `off`, ...):
+  the field's form name and autofill hint on HTML, inert natively.
+
+A form is `Form` (`beui::unstyled::Form`, re-exported by styled): `action`
+(the URL a browser posts to), `hidden` (`Vec<(&'static str, String)>`, name and
+value of each hidden field) and `on_submit`. On HTML it is a `<form
+method="post" action novalidate>` holding the hidden `<input>`s and its
+content, so a server-rendered page posts natively before and without wasm;
+once running, an `on_submit` turns a submit into a call instead of a post.
+Natively it is no node at all: Enter in any field inside it and its submit
+buttons call `on_submit`. A submit button is `Button submit=true` (unstyled
+and styled), a `<button type="submit">` on HTML, so Enter in a field submits as
+browsers do. A navigation link is `href` on unstyled `Button` (and so styled
+`Button` and `Link`), an `<a href>` on HTML that navigates before wasm loads;
+natively `href` is inert and `on_click` does the navigating.
+
+```rust
+view! {
+    <Form action="/auth/login" hidden={vec![("csrf", csrf), ("code", code)]}>
+        <List spacing=Space::Md>
+            <TextInput value={email} label="Email" kind=InputKind::Email
+                name="email" autocomplete="username" />
+            <TextInput value={password} label="Password" kind=InputKind::Password
+                name="password" autocomplete="current-password" />
+            <Button label="Sign in" variant=ButtonVariant::Primary submit=true />
+            <Link label="Forgot your password?" href={Some("/auth/forgot".to_owned())} />
+        </List>
+    </Form>
+}
+```
+
+`render_to_string` writes each `<input>` with its `type`, `name`,
+`autocomplete`, `placeholder` and escaped `value`, and `hydrate` claims them
+in place, keeping whatever was typed before wasm loaded. Base `Element` is the
+one way to put an element beui has no primitive for into the tree: unstyled
+reaches for it only behind a `CORE` switch, and natively it is a plain box
+around its child. `ElementEvent` reads `value`, `key`, `holds(modifier)` and
+`composing`, and can `prevent_default` and `stop_propagation`.
 
 ### Hold the pointer
 
@@ -5662,7 +5728,7 @@ Elements take event props `on_click`, `on_input`, `on_change`, `on_submit`,
 `on_pointermove` and `on_pointerup`, and `@on={("name", handler)}` listens to any
 other event. Handlers are `Callback<beui_html::Event>`; write a closure in
 braces with its argument typed, `on_click={move |_: html::Event| ...}`. `Event`
-has `key`, `target_value`, `target_checked`, `prevent_default`,
+has `key`, `holds` (a modifier key), `composing`, `target_value`, `target_checked`, `prevent_default`,
 `stop_propagation` and, on wasm, `raw`, so a handler compiles for both
 backends. The string backend ignores listeners. The live backend flushes after
 each handler; for signals set anywhere else, the host installs a flush with
