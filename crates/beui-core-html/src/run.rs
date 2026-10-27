@@ -17,6 +17,10 @@ const BASE_STYLES: &str = "\
 .beui-root > * { height: 100%; }
 .beui-root, .beui-root * { box-sizing: border-box; margin: 0; }
 .beui-break::after { content: \"\\A\"; white-space: pre; }
+.beui-icon { display: inline-block; vertical-align: top; }
+.beui-icon:not(:first-child) { margin-inline-start: var(--beui-icon-spacing, 0); }
+.beui-icon:not(:last-child) { margin-inline-end: var(--beui-icon-spacing, 0); }
+.beui-icon + .beui-icon { margin-inline-start: 0; }
 .beui-glyph { position: relative; }
 .beui-glyph::before { content: attr(data-glyph); position: absolute; top: 0; left: 0; right: 0; display: flex; justify-content: center; white-space: pre; line-height: normal; font: var(--beui-glyph-font); color: var(--beui-glyph-color); pointer-events: none; }
 .beui-text-decor { position: absolute; inset: 0; pointer-events: none; }

@@ -33,7 +33,7 @@ use beui_core_html::beui_html::Node;
 use beui_core_html::beui_html::reactive::IntoSlotHost;
 use beui_core_html::css;
 use beui_core_html::document::{append, create, element, set_attribute, set_style};
-use beui_core_html::text::{LINE_HEIGHT, Piece, Run, TextModel, TextSlot};
+use beui_core_html::text::{Piece, Run, TextModel, TextSlot, line_height as font_line_height};
 use beui_core_html::tree::TextKind;
 use std::rc::Rc;
 
@@ -73,13 +73,17 @@ pub fn text(
     let node = create("Text", "div");
     let model = TextModel::new(node);
     let held = model.clone();
+    let sized = font.clone();
     bind(font, move |font| {
         held.set_font(font);
         set_style(node, "font", Some(css::font(font)));
     });
-    bind(line_height, move |height| {
-        let height = height.map_or_else(|| css::number(LINE_HEIGHT), css::px);
-        set_style(node, "line-height", Some(height));
+    create_binding(move || {
+        let height = match line_height.get() {
+            Some(height) => height.round().max(1.0),
+            None => font_line_height(sized.get().size),
+        };
+        set_style(node, "line-height", Some(css::px(height)));
     });
     bind(color, move |color| {
         set_style(node, "color", Some(css::color(color)))
@@ -426,9 +430,10 @@ impl Span {
                 "font-family",
                 Some(css::family(FontFamily::Icons).to_owned()),
             );
+            set_attribute(span, "class", Some("beui-icon".to_owned()));
             set_style(
                 span,
-                "padding-inline",
+                "--beui-icon-spacing",
                 (icon.spacing_em != 0.0).then(|| format!("{}em", css::number(icon.spacing_em))),
             );
         }
@@ -441,6 +446,11 @@ impl Span {
                 (None, _) => None,
             };
             set_style(span, "font-size", size);
+            let line = match icon {
+                Some(icon) => font.size.map(|size| size / icon.scale),
+                None => font.size,
+            };
+            set_style(span, "line-height", line.map(|size| css::px(font_line_height(size))));
             if icon.is_none() {
                 set_style(
                     span,

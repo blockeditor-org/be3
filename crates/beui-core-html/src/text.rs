@@ -21,10 +21,10 @@ pub(crate) use web::{bounds, caret_rect, decorated, index_at, inline_at, lines, 
 
 pub const OBJECT_BYTES: usize = '\u{FFFC}'.len_utf8();
 
-pub const LINE_HEIGHT: f32 = 1.15;
+const LINE_HEIGHT: f32 = 1.15;
 
 pub fn line_height(size: f32) -> f32 {
-    (size * LINE_HEIGHT).max(1.0)
+    (size * LINE_HEIGHT).round().max(1.0)
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

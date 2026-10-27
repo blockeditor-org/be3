@@ -75,7 +75,7 @@ pub fn corners(corners: Corners) -> String {
 pub fn outline(outline: Outline) -> (String, String) {
     (
         format!("{} solid {}", px(outline.width), color(outline.color)),
-        px(outline.offset),
+        px(outline.offset - outline.width),
     )
 }
 
