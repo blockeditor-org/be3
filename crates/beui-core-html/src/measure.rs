@@ -122,7 +122,10 @@ fn measured(node: NodeId) -> Option<Measured> {
     let size = crate::dom::dom(node)
         .and_then(|dom| dom.dyn_into::<web_sys::HtmlElement>().ok())
         .map_or(rect.size(), |element| {
-            beui_types::vec2(element.offset_width() as f32, element.offset_height() as f32)
+            beui_types::vec2(
+                element.offset_width() as f32,
+                element.offset_height() as f32,
+            )
         });
     Some(Measured { rect, size })
 }
