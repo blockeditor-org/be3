@@ -2712,12 +2712,21 @@ scroll along their axis. Edge autoscroll comes from the drag board.
 
 The list owns the drag, not the item, so a `VirtualList` may drop and reuse the
 lifted row's node. `on_drag_change` reports which key is being dragged and
-`on_drop_outside` a drop outside every window. A drag the board does not carry -
+`on_drop_outside` a drop outside every window. A list whose order something else
+decides (a sorted column) sets `fixed`: its items still go to other lists and
+come in from them, but are carried as the floating preview from the start, open
+no gap and never move within it (`step` refuses), and a foreign drop reports
+`after: None`; `ReorderHandle::visited` says a foreign item is over the list, for
+a highlight. The list fills the area it is given, so a column can wrap its whole
+frame (header included) to make all of it the drop target. A drag the board does not carry -
 the host's block drag that a plugin only hears as positions - can still part the
 list: `ReorderHandle::hover(Some(point))` opens the gap for a window point and the
 carried item's rect, and `drop_at(payload, point)` drops as a foreign item would.
 Styled code uses `styled::ReorderItem`, which adds the lifted look (a raised fill,
-a hairline and a shadow `LIFT_DROP` below it) from theme tokens.
+a hairline and a shadow `LIFT_DROP` below it) from theme tokens; its `margin`
+keeps space around the item outside that look, for a `VirtualList`, which has no
+spacing of its own. Click handling goes on the `ReorderItem`'s `on_click`, not on
+a row inside it: a row's own click would fire on the release that ends a drag.
 
 ### Pan and zoom
 

@@ -68,6 +68,7 @@ struct State<K: 'static, P: 'static> {
     payload: Func<K, Option<P>>,
     accepts: Option<Func<P, bool>>,
     disabled: Prop<bool>,
+    fixed: Prop<bool>,
     long_press: Prop<bool>,
     text: Callback<K, String>,
     on_move: Callback<ReorderMove<K, P>>,
@@ -76,6 +77,7 @@ struct State<K: 'static, P: 'static> {
     preview: Option<RenderFn<P>>,
     lifted: Signal<Option<Lifted<K, P>>>,
     gap: Signal<Option<ReorderGap<K>>>,
+    visited: Signal<bool>,
     arm: Signal<u64>,
     raised: Signal<Option<K>>,
     floating_at: Signal<Option<DragPoint>>,
@@ -93,6 +95,7 @@ pub struct ReorderHandle<K: 'static, P: 'static> {
     pub order: Memo<Vec<K>>,
     pub dragging: Memo<Option<K>>,
     pub gap: Memo<Option<ReorderGap<K>>>,
+    pub visited: Memo<bool>,
     pub direction: Prop<Direction>,
 }
 
@@ -238,6 +241,9 @@ where
 {
     stored.with(|state| {
         *state.point.borrow_mut() = Some(point);
+        if state.fixed.get_untracked() {
+            return;
+        }
         let Some(mut lifted) = state.lifted.get_untracked() else {
             return;
         };
@@ -261,6 +267,10 @@ where
     P: Clone + PartialEq + 'static,
 {
     stored.with(|state| {
+        if state.visited.get_untracked() != point.is_some() {
+            state.visited.set(point.is_some());
+        }
+        let point = point.filter(|_| !state.fixed.get_untracked());
         let gap = point.map(|point| {
             let keys = state.keys.get_untracked();
             let direction = state.direction.get_untracked();
@@ -288,6 +298,7 @@ where
         };
         hold(state, false);
         if !lifted.home
+            && !state.fixed.get_untracked()
             && let Some(at) = shown_at(state)
         {
             *state.arrival.borrow_mut() = Some(Arrival::Back(lifted.key.clone(), at));
@@ -333,10 +344,14 @@ where
     let commit = stored.with(|state| {
         let keys = state.keys.get_untracked();
         let direction = state.direction.get_untracked();
-        let index = slot_at(state, &keys, centre_of(direction, point), keys.len());
+        let index = match state.fixed.get_untracked() {
+            true => 0,
+            false => slot_at(state, &keys, centre_of(direction, point), keys.len()),
+        };
         let at = point.pos + point.item.min.to_vec2();
         *state.arrival.borrow_mut() = Some(Arrival::New(keys.clone(), at));
         state.gap.set(None);
+        state.visited.set(false);
         bump(state);
         ReorderMove {
             payload,
@@ -354,7 +369,10 @@ where
     P: Clone + PartialEq + 'static,
 {
     let commit = stored.with(|state| {
-        if !can_drag(state, &key) || state.lifted.with_untracked(Option::is_some) {
+        if !can_drag(state, &key)
+            || state.fixed.get_untracked()
+            || state.lifted.with_untracked(Option::is_some)
+        {
             return None;
         }
         let keys = state.keys.get_untracked();
@@ -396,13 +414,17 @@ where
         state.arrival.borrow_mut().take();
         *state.point.borrow_mut() = Some(point);
         state.raised.set(Some(press.key.clone()));
+        let fixed = state.fixed.get_untracked();
         state.lifted.set(Some(Lifted {
             key: press.key.clone(),
             payload: payload.clone(),
             item: press.item,
-            home: true,
+            home: !fixed,
             slot,
         }));
+        if fixed {
+            state.floating_at.set(Some(point));
+        }
         state.on_drag_change.call(Some(press.key.clone()));
         Some((payload, Rc::clone(&state.board)))
     }) else {
@@ -521,6 +543,7 @@ pub fn Reorder<K, P>(
     payload: Func<K, Option<P>>,
     #[prop(default = None)] accepts: Option<Func<P, bool>>,
     #[prop(default = false)] disabled: Prop<bool>,
+    #[prop(default = false)] fixed: Prop<bool>,
     #[prop(default = false)] long_press: Prop<bool>,
     text: Callback<K, String>,
     on_move: Callback<ReorderMove<K, P>>,
@@ -536,6 +559,7 @@ where
     let keys = create_memo(move || keys.get());
     let lifted = create_signal(None::<Lifted<K, P>>);
     let gap = create_signal(None::<ReorderGap<K>>);
+    let visited = create_signal(false);
     let floating_at = create_signal(None::<DragPoint>);
     let announcement = create_signal(String::new());
     let state = store(State {
@@ -544,6 +568,7 @@ where
         payload,
         accepts,
         disabled,
+        fixed,
         long_press,
         text,
         on_move,
@@ -552,6 +577,7 @@ where
         preview,
         lifted,
         gap,
+        visited,
         arm: create_signal(0),
         raised: create_signal(None),
         floating_at,
@@ -573,7 +599,7 @@ where
     let order = create_memo(move || {
         let keys = keys.get();
         match placed.get() {
-            Some((key, home, slot)) if keys.contains(&key) => {
+            Some((key, home, slot)) if keys.contains(&key) && !fixed.get() => {
                 let mut rest = rest_of(&keys, &key);
                 if home {
                     rest.insert(slot.min(rest.len()), key);
@@ -589,6 +615,7 @@ where
         order,
         dragging,
         gap: create_memo(move || gap.get()),
+        visited: create_memo(move || visited.get()),
         direction,
     };
     on_cleanup(move || {
@@ -632,7 +659,7 @@ where
                     && state.accepts.is_some_and(|accepts| accepts.call(payload)))
         })
     });
-    let hides = create_memo(move || lifted.with(Option::is_some));
+    let hides = create_memo(move || lifted.with(Option::is_some) && !fixed.get());
     view! {
         <DropTarget
             accepts={accepting}
@@ -652,7 +679,7 @@ where
                 }
             }}
         >|_: DropHandle|
-            <List spacing=0.0>
+            <Layers>
                 {face}
                 <ReorderStatus announcement={announcement.read_only()} />
                 <Overlay
@@ -675,7 +702,7 @@ where
                         }</Dynamic>
                     </List>
                 </Overlay>
-            </List>
+            </Layers>
         </DropTarget>
     }
 }

@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::{cmp::Ordering, collections::HashMap};
 
 use block_editor_beui::be_block::{Edit, ObjectId};
-use block_editor_beui::beui::Key;
+use block_editor_beui::beui::{Key, PointerButton, Pos2, Vec2};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::Root;
 use block_editor_beui::{
@@ -25,6 +25,8 @@ use crate::database_view::groups::GroupKey;
 use crate::database_view::sort::{BlockLabels, compare_database_values};
 
 mod a_blocked_row_lists_its_blockers_and_they_list_it_as_blocking;
+mod a_card_carried_into_another_column_lands_where_its_gap_opened;
+mod a_card_dragged_down_its_column_parts_the_cards_it_passes;
 mod a_filter_hides_the_rows_it_rejects;
 mod a_list_groups_rows_by_status_and_folds_the_closed_ones;
 mod a_list_shows_each_row_by_its_short_id_and_opens_it_beside_the_list;
@@ -35,12 +37,14 @@ mod a_phone_opens_a_row_over_the_list_and_back_returns_to_it;
 mod a_prefix_is_listed_in_the_workspaces_prefixes_and_a_shared_one_says_so;
 mod a_relation_cell_shows_the_title_of_the_row_it_links_to;
 mod a_row_scrolled_into_a_reused_line_opens_the_row_it_shows;
+mod a_sorted_kanban_moves_cards_between_columns_but_not_within_one;
 mod a_sorted_view_refuses_manual_ordering;
 mod adding_a_page_links_a_new_text_block_to_the_row;
 mod arrow_keys_walk_the_spreadsheet_and_enter_steps_down;
 mod block_values_sort_by_resolved_label_then_reference;
 mod cards_sit_in_the_kanban_column_their_status_names;
 mod dragging_a_kanban_card_moves_it_to_the_column_it_lands_in;
+mod dragging_a_list_row_moves_it_within_and_between_groups;
 mod moving_a_card_within_and_across_kanban_columns;
 mod moving_a_row_reorders_the_list_view;
 mod new_starts_a_row_and_typing_names_it;
@@ -114,6 +118,49 @@ impl Fixture {
 
     fn edit_view(&mut self, edit: Edit) {
         self.harness.edit::<DatabaseViewContent>(None, &edit);
+    }
+
+    fn lift(&mut self, from: Pos2, to: Pos2) {
+        self.harness.down(from, PointerButton::Primary);
+        self.harness.next_frame();
+        self.harness.hover(from + Vec2::new(0.0, 8.0));
+        self.harness.next_frame();
+        self.harness.hover(to);
+    }
+
+    fn put(&mut self, at: Pos2) {
+        self.harness.next_frame();
+        self.harness.up(at, PointerButton::Primary);
+        self.settle();
+    }
+}
+
+struct Board {
+    fixture: Fixture,
+    status: Uuid,
+    done: Uuid,
+}
+
+fn board(cards: &[(&str, bool)]) -> Board {
+    let mut fixture = viewed(&[
+        ("Status", DatabaseFieldType::Enum),
+        ("Name", DatabaseFieldType::String),
+    ]);
+    let (status, name) = (fixture.fields[0], fixture.fields[1]);
+    let todo = fixture.option(status, "To do");
+    let done = fixture.option(status, "Done");
+    for (index, (title, finished)) in cards.iter().enumerate() {
+        let state = if *finished { done } else { todo };
+        fixture.set(index, status, DatabaseValue::Enum(state));
+        fixture.set(index, name, DatabaseValue::String((*title).into()));
+    }
+    fixture.edit_view(DatabaseView::set_group_by(Some(status)));
+    fixture.edit_view(DatabaseView::set_kind(DatabaseViewKind::Kanban));
+    fixture.settle();
+    Board {
+        fixture,
+        status,
+        done,
     }
 }
 

@@ -10,7 +10,7 @@ use beui_view::reactive::*;
 use beui_components_unstyled::{ReorderHandle, ReorderItemHandle};
 
 use crate::frame::{Border, ColorRole, Frame, Radius};
-use crate::tokens::{Space, Stroke};
+use crate::tokens::{Padding, Space, Stroke};
 
 pub const LIFT_DROP: Space = Space::Xs;
 
@@ -19,6 +19,7 @@ pub fn ReorderItem<K, P>(
     reorder: ReorderHandle<K, P>,
     item: Prop<K>,
     #[prop(default = Radius::Md)] radius: Prop<Radius>,
+    #[prop(default = Padding::ZERO)] margin: Prop<Padding>,
     #[prop(default = false)] capture_presses: Prop<bool>,
     #[prop(default = CursorIcon::Default)] cursor: Prop<CursorIcon>,
     on_click: ClickCallback,
@@ -56,12 +57,14 @@ where
                 false => Vec2::ZERO,
             });
             view! {
-                <Layers>
-                    <Shift by={drop}>
-                        <Frame fill={shadow} radius />
-                    </Shift>
-                    <Frame fill={fill} border={border} radius>{face}</Frame>
-                </Layers>
+                <Frame padding={margin}>
+                    <Layers>
+                        <Shift by={drop}>
+                            <Frame fill={shadow} radius />
+                        </Shift>
+                        <Frame fill={fill} border={border} radius>{face}</Frame>
+                    </Layers>
+                </Frame>
             }
         }</beui_components_unstyled::ReorderItem>
     }

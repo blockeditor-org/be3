@@ -34,13 +34,6 @@ impl Schema {
     fn operate(self, edit: Edit) {
         self.0.operate(edit);
     }
-
-    fn project<T: Clone + PartialEq + 'static>(
-        self,
-        project: impl Fn(&DatabaseSchemaContent) -> T + 'static,
-    ) -> ReadSignal<T> {
-        self.0.project(project)
-    }
 }
 
 const PADDING: Space = Space::Xl2;
@@ -92,6 +85,29 @@ pub fn SchemaView(editor: Editor) -> NodeId {
     let add = move || {
         schema.operate(DatabaseSchema::add_field("Field", DatabaseFieldType::String).1);
     };
+    let moved = move |moved: ReorderMove<Uuid, Uuid>| {
+        schema.operate(DatabaseSchema::move_field(moved.payload, moved.after));
+    };
+    let name = move |id: Uuid| {
+        rows.with_untracked(|rows| {
+            rows.iter()
+                .find(|field| field.id == id)
+                .map_or_else(String::new, |field| field.name.clone())
+        })
+    };
+    let preview = move |id: Uuid| {
+        view! {
+            <Frame
+                width=NAME_WIDTH
+                fill=ColorRole::SurfaceRaised
+                border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
+                radius=Radius::Md
+                padding={Padding::symmetric(Space::Md, Space::Sm)}
+            >
+                <Text>{name(id)}</Text>
+            </Frame>
+        }
+    };
 
     view! {
         <Frame padding=PADDING>
@@ -99,22 +115,37 @@ pub fn SchemaView(editor: Editor) -> NodeId {
                 <Text style=TextStyle::HEADING>"Fields"</Text>
                 <Scroll @sizing=ItemSize::Percent(100.0)>
                     <List spacing=SECTION_SPACING>
-                        <ForEach keys={keys}>|id: Uuid| {
-                            let field = create_memo(move || {
-                                rows.with(|rows| {
-                                    rows.iter().find(|field| field.id == id).cloned()
-                                })
-                            });
-                            view! {
-                                <FieldRow
-                                    editor={editor}
-                                    schema={schema}
-                                    id={id}
-                                    field={field}
-                                    read_only={read_only}
-                                />
-                            }
-                        }</ForEach>
+                        <Reorder
+                            keys={keys}
+                            payload={Func::new(|id: Uuid| Some(id))}
+                            disabled={read_only}
+                            long_press=true
+                            text={name}
+                            preview={preview}
+                            on_move={moved}
+                        >|reorder: ReorderHandle<Uuid, Uuid>|
+                            <List spacing=SECTION_SPACING>
+                                <ForEach keys={reorder.order}>|id: Uuid| {
+                                    let field = create_memo(move || {
+                                        rows.with(|rows| {
+                                            rows.iter().find(|field| field.id == id).cloned()
+                                        })
+                                    });
+                                    view! {
+                                        <ReorderItem reorder item=id>|_: ReorderItemHandle|
+                                            <FieldRow
+                                                editor={editor}
+                                                schema={schema}
+                                                reorder={reorder}
+                                                id={id}
+                                                field={field}
+                                                read_only={read_only}
+                                            />
+                                        </ReorderItem>
+                                    }
+                                }</ForEach>
+                            </List>
+                        </Reorder>
                         <List
                             direction=Direction::Horizontal
                             align=Align::Center
@@ -140,6 +171,7 @@ pub fn SchemaView(editor: Editor) -> NodeId {
 fn FieldRow(
     editor: Editor,
     schema: Schema,
+    reorder: ReorderHandle<Uuid, Uuid>,
     id: Uuid,
     field: Memo<Option<DatabaseField>>,
     read_only: Memo<bool>,
@@ -175,26 +207,8 @@ fn FieldRow(
             .and_then(|kind| FIELD_TYPES.iter().find(|(value, _, _)| *value == kind))
             .map(|(_, _, glyph)| *glyph)
     });
-    let order = schema.project(|schema| {
-        schema
-            .root()
-            .fields
-            .iter()
-            .map(|field| field.id.as_uuid())
-            .collect::<Vec<Uuid>>()
-    });
     let mover = move |by: isize| {
-        let order = order.get_untracked();
-        let Some(at) = order.iter().position(|held| *held == id) else {
-            return;
-        };
-        let Some(to) = at.checked_add_signed(by).filter(|to| *to < order.len()) else {
-            return;
-        };
-        let mut moved = order.clone();
-        moved.remove(at);
-        let after = to.checked_sub(1).map(|before| moved[before]);
-        schema.operate(DatabaseSchema::move_field(id, after));
+        reorder.step(id, by);
     };
     let type_keys = create_memo(|| (0..FIELD_TYPES.len()).collect::<Vec<usize>>());
     let (number_kind, enum_kind, block_kind, relation_kind) = (
@@ -209,30 +223,35 @@ fn FieldRow(
                 <Text size=TextSize::Lg color=TextColor::Muted align=TextAlign::Center>
                     <Icon glyph={glyph} />
                 </Text>
-                <Frame width=NAME_WIDTH>
-                    <TextInput
-                        value={Binding::new(name, renamed)}
-                        label="Field name"
-                        disabled={read_only}
-                        @test_id={format!("database-schema.name.{id}")}
-                    />
-                </Frame>
-                <Select
-                    options={view! {
-                        <ForEach keys={type_keys}>|index: usize|
-                            <ChoiceOption label={FIELD_TYPES[index].1} />
-                        </ForEach>
-                    }}
-                    selected={Binding::new(selected, retyped)}
-                    label="Field type"
-                    disabled={read_only}
-                    @test_id={format!("database-schema.type.{id}")}
-                />
+                <Interactive capture_presses=true>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
+                        <Frame width=NAME_WIDTH>
+                            <TextInput
+                                value={Binding::new(name, renamed)}
+                                label="Field name"
+                                disabled={read_only}
+                                @test_id={format!("database-schema.name.{id}")}
+                            />
+                        </Frame>
+                        <Select
+                            options={view! {
+                                <ForEach keys={type_keys}>|index: usize|
+                                    <ChoiceOption label={FIELD_TYPES[index].1} />
+                                </ForEach>
+                            }}
+                            selected={Binding::new(selected, retyped)}
+                            label="Field type"
+                            disabled={read_only}
+                            @test_id={format!("database-schema.type.{id}")}
+                        />
+                    </List>
+                </Interactive>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
                 <Button
                     icon_only=true
                     glyph=ICON_ARROW_UP
                     label="Move up"
+                    capture_presses=true
                     variant=ButtonVariant::Ghost
                     disabled={read_only}
                     @test_id={format!("database-schema.up.{id}")}
@@ -242,6 +261,7 @@ fn FieldRow(
                     icon_only=true
                     glyph=ICON_ARROW_DOWN
                     label="Move down"
+                    capture_presses=true
                     variant=ButtonVariant::Ghost
                     disabled={read_only}
                     @test_id={format!("database-schema.down.{id}")}
@@ -251,34 +271,43 @@ fn FieldRow(
                     icon_only=true
                     glyph=ICON_TRASH
                     label="Delete field"
+                    capture_presses=true
                     disabled={read_only}
                     @test_id={format!("database-schema.delete.{id}")}
                     on_click={remove}
                 />
             </List>
             <Show condition={number_kind}>
-                <NumberOptions schema={schema} id={id} field={field} read_only={read_only} />
+                <Interactive capture_presses=true>
+                    <NumberOptions schema={schema} id={id} field={field} read_only={read_only} />
+                </Interactive>
             </Show>
             <Show condition={enum_kind}>
-                <EnumOptions schema={schema} id={id} field={field} read_only={read_only} />
+                <Interactive capture_presses=true>
+                    <EnumOptions schema={schema} id={id} field={field} read_only={read_only} />
+                </Interactive>
             </Show>
             <Show condition={block_kind}>
-                <BlockOptions
-                    editor={editor}
-                    schema={schema}
-                    id={id}
-                    field={field}
-                    read_only={read_only}
-                />
+                <Interactive capture_presses=true>
+                    <BlockOptions
+                        editor={editor}
+                        schema={schema}
+                        id={id}
+                        field={field}
+                        read_only={read_only}
+                    />
+                </Interactive>
             </Show>
             <Show condition={relation_kind}>
-                <RelationOptions
-                    editor={editor}
-                    schema={schema}
-                    id={id}
-                    field={field}
-                    read_only={read_only}
-                />
+                <Interactive capture_presses=true>
+                    <RelationOptions
+                        editor={editor}
+                        schema={schema}
+                        id={id}
+                        field={field}
+                        read_only={read_only}
+                    />
+                </Interactive>
             </Show>
             <Separator />
         </List>
