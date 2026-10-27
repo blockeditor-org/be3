@@ -450,7 +450,11 @@ impl Span {
                 Some(icon) => font.size.map(|size| size / icon.scale),
                 None => font.size,
             };
-            set_style(span, "line-height", line.map(|size| css::px(font_line_height(size))));
+            set_style(
+                span,
+                "line-height",
+                line.map(|size| css::px(font_line_height(size))),
+            );
             if icon.is_none() {
                 set_style(
                     span,

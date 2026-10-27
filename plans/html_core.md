@@ -753,5 +753,7 @@ have landed; its tasks run in parallel unless marked.
 - `color_var!` is meant to be the only way to make a `ColorVar`, but
   `ColorVar::__declared_at`, which it expands to, is public (doc-hidden), so
   any code can name one by string.
-- HTML paintings carry no fonts, so icons do not draw in them, and
-  `beui-font-browser` is still unused.
+- `beui-font-browser` is still unused.
+- HTML text uses the browser's font metrics, which round a font's ascent and
+  descent to the nearest pixel where FreeType rounds them outward, so a line
+  can sit a pixel off native (a 20px title, icons).

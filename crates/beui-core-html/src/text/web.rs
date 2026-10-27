@@ -78,7 +78,9 @@ fn frame(node: NodeId) -> Option<Frame> {
     let style = crate::dom::window()?.get_computed_style(&element).ok()??;
     let padding = |side: &str| pixels(&style, &format!("padding-{side}")).unwrap_or(0.0);
     let line = pixels(&style, "line-height")
-        .or_else(|| pixels(&style, "font-size").map(|size| f64::from(super::line_height(size as f32))))
+        .or_else(|| {
+            pixels(&style, "font-size").map(|size| f64::from(super::line_height(size as f32)))
+        })
         .filter(|line| *line > 0.0)
         .unwrap_or(16.0);
     let origin = crate::run::root()

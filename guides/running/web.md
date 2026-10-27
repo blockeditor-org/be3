@@ -68,8 +68,8 @@ serves it on http://127.0.0.1:8060 (or the address after `--`). Its `:ssr` progr
 page at build time with `beui::html::render_to_string`; the module calls `beui::html::hydrate`.
 `./scripts/test //crates/beui-html-spike:web-test` drives it in Chromium and checks that
 hydration kept every prerendered element and, in both colour schemes, changed no colour. A bundle on this core stages the bundled fonts
-(`//crates/beui-font-freetype:Inter-Regular.ttf` and the others) beside its index.html, where
-the core's `@font-face` rules look for them.
+(`//crates/beui-fonts:Inter-Regular.ttf`, `Hack-Regular.ttf`, `NotoEmoji-Regular.ttf` and
+`lucide.ttf`) beside its index.html, where the core's `@font-face` rules look for them.
 
 beui's demo pages run on that core too: `./scripts/buck run //crates/beui-demo:web-html` serves
 crates/beui-demo-html on http://127.0.0.1:8075, a catalog beside the page it shows instead of the

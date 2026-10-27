@@ -284,9 +284,13 @@ The name ends in `.browser`, making `snapshots/<name>.browser.paint` a text file
 It contains the viewport, the complete SSR document and every embedded resource, with
 DOM tokens and resource lines on separate JSON lines for readable Git diffs. Tokens
 are concatenated without adding whitespace, preserving the exact rendered document.
-Binary resources such as images and fonts can be supplied through the same `file` method.
+Binary resources such as images can be supplied through the same `file` method.
 Resources use absolute paths or full URLs; the document is served at
-`https://snapshot.invalid/`. Include resources referenced by CSS or scripts as well.
+`https://snapshot.invalid/`. Include resources referenced by CSS or scripts as well,
+except beui's bundled fonts: the rasterizer serves each file in `beui_fonts::FACES`
+(`/Inter-Regular.ttf`, `/lucide.ttf`, ...) at the origin's root unless the painting embeds
+that path, so a page on beui's HTML core whose `<style>` is `beui::html::stylesheet()`
+draws its text and icons without copying the fonts into every painting.
 Keep dynamic ids, form tokens and displayed times fixed in fixtures.
 Native test crates opt into acceptance and cleanup with `cargo_test(paints = True)` in
 BUCK. The portal's tests in `crates/be-server/src/portal/tests/` demonstrate this.

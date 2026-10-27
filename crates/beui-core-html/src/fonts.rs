@@ -1,10 +1,11 @@
-use beui_fonts::{Face, FACES, NOTO_EMOJI};
+use beui_fonts::{FACES, Face, NOTO_EMOJI};
 
 pub const PROPORTIONAL: &str = "Inter, NotoEmoji, system-ui, sans-serif";
 pub const MONOSPACE: &str = "Hack, NotoEmoji, ui-monospace, monospace";
 pub const ICONS: &str = "lucide";
 
-const EMOJI: &str = "U+200D, U+20E3, U+2100-2BFF, U+3030, U+303D, U+3297, U+3299, U+FE0F, U+1F000-1FAFF";
+const EMOJI: &str =
+    "U+200D, U+20E3, U+2100-2BFF, U+3030, U+303D, U+3297, U+3299, U+FE0F, U+1F000-1FAFF";
 
 fn unicode_range(face: &Face) -> String {
     if face.file == NOTO_EMOJI.file {

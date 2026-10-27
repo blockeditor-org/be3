@@ -696,9 +696,20 @@ To test on both cores:
   `render_to_string` on `linux_x86_64_html`: `./scripts/test
   //crates/beui-view:html-test` for primitives, `./scripts/test
   //crates/beui:html-test` for unstyled and styled components (tests in
-  `crates/beui/src/html_paintings/tests/`), and the spike's `:html-test`. They
-  show layout and colour, not what needs the browser's layout (marks, carets)
-  or the bundled fonts (icons).
+  `crates/beui/src/html_paintings/tests/`), and the spike's `:html-test`. Build
+  the page's `<style>` from `stylesheet()`: its `@font-face` rules name the
+  bundled fonts at the page's root, which the browser rasterizer serves, so
+  text and icons draw as they do natively. Paintings show layout, colour and
+  text, not what needs the browser's layout (marks, carets).
+- The spike's dark painting
+  (`crates/beui-html-spike/snapshots/prerendered_accounts_page_dark.browser.paint`)
+  and block-accounts-ui's
+  `an_account_in_a_company_says_its_administrators_can_read_it.paint` show the
+  same screen on the two cores; rasterize both and compare them after a change
+  to the HTML core or styled. They differ only in text rendering: glyph
+  advances and hinting, and the browser rounding a font's ascent and descent to
+  the nearest pixel where FreeType rounds them outward, which moves a 20px
+  title and some icons by a pixel.
 - Native tests take the late path with `beui::testing::delay_measurement(true)`
   (`BEUI_DELAY_MEASUREMENT=1` for a driven program), so a component that only
   works when measurement is synchronous fails natively too.
@@ -5014,7 +5025,7 @@ A lone icon is a `Text` holding only an `Icon`; give it `align=TextAlign::Center
 when it is placed in a box bigger than itself.
 
 The icons are Lucide's, drawn from its font
-(`beui-font-freetype/src/assets/icons/lucide.ttf`, committed unmodified from
+(`beui-fonts/src/assets/icons/lucide.ttf`, committed unmodified from
 the `lucide-static` npm package). They live in `crates/lucide`, which
 `beui_core::icons` re-exports and which knows nothing of beui, so the block
 catalog (`block-ui`) holds them too. An icon is a `Glyph`, its codepoint in the
@@ -5040,7 +5051,11 @@ repository, which rewrites the list from `icon-nodes.json`,
 holding that marker keeps every comment in its file, as `@yeskeep` keeps the
 one comment line holding it. Text
 is Inter Regular (`Inter-Regular.ttf` from Inter's release, unmodified), with
-Hack for monospace and Noto Emoji as the fallback.
+Hack for monospace and Noto Emoji as the fallback. crates/beui-fonts holds all
+four: their bytes, which beui-font-freetype loads and the browser rasterizer
+serves, and their file and family names (`FACES`), from which the HTML core
+writes its `@font-face` rules; BUCK exports each file for web bundles. Bold
+is synthesized from the regular face on both cores.
 
 `TextStyleProvider` gives every styled text created within it a style its own
 props override, the way a disabled section mutes everything in it. It is
