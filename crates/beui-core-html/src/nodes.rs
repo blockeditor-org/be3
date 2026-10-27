@@ -65,7 +65,8 @@ pub fn text(node: NodeId) -> String {
 pub fn selected_text(node: NodeId) -> String {
     #[cfg(target_arch = "wasm32")]
     {
-        let Some(selection) = crate::dom::window().and_then(|window| window.get_selection().ok().flatten())
+        let Some(selection) =
+            crate::dom::window().and_then(|window| window.get_selection().ok().flatten())
         else {
             return String::new();
         };
@@ -88,7 +89,8 @@ pub fn selected_text(node: NodeId) -> String {
 
 pub fn select_all(node: NodeId) {
     #[cfg(target_arch = "wasm32")]
-    if let Some(selection) = crate::dom::window().and_then(|window| window.get_selection().ok().flatten())
+    if let Some(selection) =
+        crate::dom::window().and_then(|window| window.get_selection().ok().flatten())
         && let Some(dom) = crate::dom::dom(node)
     {
         let _ = selection.select_all_children(&dom);

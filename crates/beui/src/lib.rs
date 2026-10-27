@@ -10,7 +10,6 @@ pub use beui_components_unstyled as unstyled;
 pub use beui_components_unstyled::datetime;
 #[cfg(not(beui_html))]
 pub use beui_core::accessibility;
-pub use beui_view::animation;
 #[cfg(not(beui_html))]
 pub use beui_core::app::accessibility_dump;
 #[cfg(not(beui_html))]
@@ -134,6 +133,7 @@ pub use beui_renderer_wgpu::{
     Draw, DrawAt, Renderer, Repaint, Repainting, drawing, painted_drawing, renderer_info,
     wgpu_color,
 };
+pub use beui_view::animation;
 pub use beui_view::components::selectable;
 pub use beui_view::primitives;
 pub use beui_view::types::{
@@ -256,8 +256,7 @@ pub use beui_view::reactive::{KeyAt, KeyEvent, NodeId, OverlayAnchor};
 pub use beui_view::types::*;
 
 #[cfg(beui_html)]
-#[cfg(test)]
-mod html_tests;
+mod html_paintings;
 
 #[cfg(beui_html)]
 pub mod reactive {

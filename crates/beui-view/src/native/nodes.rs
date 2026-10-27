@@ -145,8 +145,7 @@ pub fn texts_within(node: NodeId) -> Vec<NodeId> {
 
 pub fn text(node: NodeId) -> String {
     with_document(|document| {
-        text_node(document, node)
-            .map_or_else(String::new, |text| document.text(text).to_owned())
+        text_node(document, node).map_or_else(String::new, |text| document.text(text).to_owned())
     })
 }
 
@@ -211,7 +210,6 @@ pub fn stacked_at(nodes: &[NodeId], window: WindowId, pos: Pos2) -> Vec<NodeId> 
 pub fn tree_local<T: Clone + 'static>(make: impl FnOnce() -> T) -> T {
     with_document(|document| document.extension_or_insert_with(make))
 }
-
 
 pub fn use_preferences() -> Memo<Preferences> {
     let (theme, motion, canvas_touch) = with_document(|document| {

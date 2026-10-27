@@ -6,7 +6,6 @@ use beui_core_html::scroll;
 use crate::reactive::{Get, NodeId};
 use crate::types::{CaretHandle, Color32, Dismiss, Rect, ScrollPosition};
 
-
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Page;
 

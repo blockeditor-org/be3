@@ -105,7 +105,11 @@ pub fn on_scroll_key(at: KeyAt, phase: KeyPhase, handler: impl Fn(KeyEvent) -> b
     on_key(at, phase, handler);
 }
 
-pub fn on_back(_enabled: impl IntoProp<bool>, _handler: impl Fn(crate::types::BackGesture) + 'static) {}
+pub fn on_back(
+    _enabled: impl IntoProp<bool>,
+    _handler: impl Fn(crate::types::BackGesture) + 'static,
+) {
+}
 
 pub fn use_keyboard() -> ReadSignal<bool> {
     create_signal(true).read_only()
@@ -133,7 +137,8 @@ pub fn arrow_focus(row: NodeRef, direction: crate::types::Direction) {
             return false;
         };
         let stops = beui_core_html::nodes::focusables_within(row);
-        let Some(at) = focused_node().and_then(|focused| stops.iter().position(|stop| *stop == focused))
+        let Some(at) =
+            focused_node().and_then(|focused| stops.iter().position(|stop| *stop == focused))
         else {
             return false;
         };

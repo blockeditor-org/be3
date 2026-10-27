@@ -25,8 +25,8 @@ pub use ui_types::{CanvasTouch, Motion, PreferenceLayer, Preferences, ThemeKind}
 
 pub use action::{ActionGroup, ActionInfo};
 pub use animation::{Easing, Fling, Spring, tween};
-pub use drag::DragPoint;
 pub use color::{Color32, Hsva, Oklch, format_hex, parse_hex};
+pub use drag::DragPoint;
 pub use image::{Image, ImageFit, ImageId, Thumbhash};
 pub use input::{
     AutoscrollGesture, BackEdge, BackGesture, CursorIcon, DragGesture, ImeEvent, ImeText, Key,
@@ -34,12 +34,12 @@ pub use input::{
     PointerSample, PointerStage, ScrollGesture, SecondaryDrag, SoftKeyboard, TOUCH_DRAG_THRESHOLD,
     TouchDrags, WheelInput, ZoomGesture,
 };
-pub use pixel_grid::PixelGrid;
 pub use layer::{Dismiss, LayerLevel, LayerPolicy, Placement};
 pub use layout::{
     Align, Align2, CanvasView, Corners, Direction, Extent, ItemSize, Justify, Outline,
     ScrollPosition, Sides, Sizing, Track,
 };
+pub use pixel_grid::PixelGrid;
 pub use region::{Area, Claim, HitRegion};
 pub use text::{
     CaretHandle, DEFAULT_FONT_SIZE, FontFamily, FontId, HANDLE_RADIUS, LineBox, Overflow, Piece,

@@ -13,7 +13,12 @@ use crate::types::{ActionGroup, ActionInfo, Key, KeyPhase, KeyPress, Modifiers, 
 
 type KeyHandler = dyn Fn(KeyEvent) -> bool;
 
-pub(crate) type Describe = dyn Fn(&[(Option<WindowId>, String)], &[NodeId], &[WindowId], &[(WindowId, WindowId)]) -> Described;
+pub(crate) type Describe = dyn Fn(
+    &[(Option<WindowId>, String)],
+    &[NodeId],
+    &[WindowId],
+    &[(WindowId, WindowId)],
+) -> Described;
 
 pub(crate) type Described = (Vec<String>, Vec<ActionGroup>);
 

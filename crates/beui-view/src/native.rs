@@ -46,6 +46,6 @@ pub(crate) use text::text_item;
 pub(crate) use virtual_list::virtual_list;
 pub(crate) use window::{placed_windows, request_window};
 
+pub use beui_core::drawing::Drawing;
 pub use beui_core::interact::forward::ForwardedInput;
 pub(crate) use beui_core::tree;
-pub use beui_core::drawing::Drawing;
