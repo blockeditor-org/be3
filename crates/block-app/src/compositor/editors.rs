@@ -1615,6 +1615,7 @@ enum Kind {
     Program(Uuid),
     Creation,
     ArtifactSettings(Uuid),
+    DockTab(Uuid, u64),
 }
 
 #[component]
@@ -1657,6 +1658,17 @@ fn HostedChild(
             Some(HostContent::Window(window)) => {
                 return match super::shell().get() == Some(parent) {
                     true => Kind::Window(window),
+                    false => Kind::Unavailable,
+                };
+            }
+            Some(HostContent::DockTab { block, tab }) => {
+                let shown = child.with(|child| {
+                    child
+                        .as_ref()
+                        .is_some_and(|child| child.mode != ChildMode::Preview)
+                });
+                return match shown && editors.handle(block).is_some() {
+                    true => Kind::DockTab(block, tab),
                     false => Kind::Unavailable,
                 };
             }
@@ -1796,6 +1808,9 @@ fn HostedChild(
                             Kind::Program(block) => view! {
                                 <ProgramSurface block />
                             },
+                            Kind::DockTab(block, tab) => view! {
+                                <DockTabSurface block tab reporter />
+                            },
                             Kind::ArtifactSettings(_) => {
                                 let dialog = create_memo(move || child.get().and_then(|child| child.dialog));
                                 view! {
@@ -1885,6 +1900,27 @@ fn HostedChild(
                 </Layers>
             </CanvasItem>
         </Canvas>
+    }
+}
+
+#[component]
+fn DockTabSurface(block: Uuid, tab: u64, reporter: ChildReporter) -> NodeId {
+    let editors = editors();
+    let nesting = use_context::<Nesting>().unwrap_or_else(Nesting::root);
+    let Some(region_editor) = editors
+        .handle(block)
+        .and_then(|handle| editors.region(&handle))
+    else {
+        return view! {
+            <Frame />
+        };
+    };
+    provide_context(FocusedWithin(reporter.focus));
+    provide_context(nesting.within(block, editors.access(block, nesting.access)));
+    let region = EditorRegion::Tab(tab);
+    let child_view = child_view(block, region);
+    view! {
+        <PluginRegion editor={region_editor} region child_view on_focus={reporter.focus} />
     }
 }
 

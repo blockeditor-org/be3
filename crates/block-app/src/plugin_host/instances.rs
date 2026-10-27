@@ -5,7 +5,8 @@ use block_plugin_api::{
     ChildMode, ChildPlacement, ChildPlacements, ChildStatus, DialogStatus, EditorInstanceId,
     EditorRegion, FrameReport, FrameSpec, MenuEntry, Occluder, OpenArtifact, OpenBlock,
     OpenCreation, Opening, PerformanceMeasurement, RegionSize, ScreenId, ScreenLayout,
-    ScreenRequest, ScreenWindow, ShellCommand, Size, Stopped, ViewChange, WebViewEvent, WebViewId,
+    ScreenRequest, ScreenWindow, ShellCommand, Size, Stopped, ViewChange, ViewportMetrics, WebViewEvent,
+    WebViewId,
 };
 use block_plugin_api::{
     DescribedAction, WindowRequests,
@@ -554,6 +555,7 @@ struct Screen {
     frame_revoked: HashSet<ChildId>,
     scales: Sent<f32>,
     serial: u64,
+    kept: Option<ViewportMetrics>,
 }
 
 impl Screen {
@@ -844,6 +846,7 @@ impl Instances {
                 frame_revoked: HashSet::new(),
                 scales: Sent::default(),
                 serial: 0,
+                kept: None,
             }
         });
         screen.request.metrics = viewport_metrics(size, visible, scale_factor, scale_factor);
@@ -908,9 +911,42 @@ impl Instances {
     }
 
     pub(super) fn has_mounted(&self) -> bool {
+        self.entries.iter().any(|(instance, entry)| {
+            entry.screens.values().any(|screen| screen.mounted > 0)
+                || entry
+                    .screens
+                    .get(&EditorRegion::Frame)
+                    .is_some_and(|screen| screen.kept.is_some() && super::docks::docked(*instance))
+        })
+    }
+
+    pub(super) fn docked_children(&self) -> Vec<(EditorInstanceId, Vec<super::docks::DockedChild>)> {
         self.entries
-            .values()
-            .any(|entry| entry.screens.values().any(|screen| screen.mounted > 0))
+            .iter()
+            .map(|(instance, entry)| {
+                let revision = entry
+                    .role
+                    .block()
+                    .is_some_and(|block| crate::be::revisions::source(block.id).is_some());
+                let children = entry
+                    .screens
+                    .values()
+                    .filter(|screen| screen.mounted > 0 && !revision)
+                    .flat_map(|screen| &screen.children.children)
+                    .filter_map(|child| match (&child.content, child.docks) {
+                        (ChildContent::Block { block_id, .. }, Some(tab)) => {
+                            Some(super::docks::DockedChild {
+                                child: child.child,
+                                tab,
+                                block: Uuid::from_bytes(*block_id),
+                            })
+                        }
+                        _ => None,
+                    })
+                    .collect();
+                (*instance, children)
+            })
+            .collect()
     }
 
     pub(super) fn place_mounted(
@@ -929,6 +965,9 @@ impl Instances {
             return;
         };
         let metrics = viewport_metrics(size, visible, scale_factor, raster);
+        if region == EditorRegion::Frame && metrics.pixel_width > 0 && metrics.pixel_height > 0 {
+            screen.kept = Some(metrics);
+        }
         if screen.request.metrics != metrics
             || screen.request.frame != frame
             || screen.request.windows != windows
@@ -1438,15 +1477,26 @@ impl Instances {
                 continue;
             };
             crate::be::want(crate::be::Owner::Editor(instance.0), entry.wants());
+            let docked = super::docks::docked(instance);
             let mut regions: Vec<_> = entry
                 .screens
                 .values()
-                .filter(|screen| {
-                    (screen.mounted > 0 || screen.last_seen >= pass)
+                .filter_map(|screen| {
+                    let shown = (screen.mounted > 0 || screen.last_seen >= pass)
                         && screen.request.metrics.pixel_width > 0
-                        && screen.request.metrics.pixel_height > 0
+                        && screen.request.metrics.pixel_height > 0;
+                    let frame = screen.request.region == EditorRegion::Frame;
+                    let mut request = screen.request.clone();
+                    request.docked = frame && docked;
+                    match (shown, screen.kept) {
+                        (true, _) => Some(request),
+                        (false, Some(kept)) if request.docked => Some(ScreenRequest {
+                            metrics: kept,
+                            ..request
+                        }),
+                        (false, _) => None,
+                    }
                 })
-                .map(|screen| screen.request.clone())
                 .collect();
             if regions.is_empty() && matches!(entry.role, InstanceRole::Editor(..)) {
                 continue;
@@ -1887,6 +1937,7 @@ impl Instances {
         let mut children = Vec::new();
         let mut holes = Holes::default();
         let mut live = 0;
+        let mut shown_tabs = HashSet::new();
         if let Some(report) = &screen.report {
             let painted: Vec<Rect> = report
                 .painted
@@ -1954,7 +2005,13 @@ impl Instances {
                 ChildContent::ArtifactSettings { block_id } => {
                     super::HostContent::ArtifactSettings(Uuid::from_bytes(*block_id))
                 }
-                ChildContent::WebView(_) | ChildContent::DockTab(_) => continue,
+                ChildContent::DockTab(path) => match super::docks::resolve(instance, path) {
+                    Some((block, tab)) if shown_tabs.insert((block, tab)) => {
+                        super::HostContent::DockTab { block, tab }
+                    }
+                    _ => continue,
+                },
+                ChildContent::WebView(_) => continue,
             };
             if !child.rect.is_positive() {
                 continue;

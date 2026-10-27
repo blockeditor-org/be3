@@ -11,6 +11,7 @@ mod audio;
 mod backend;
 mod calls;
 mod description;
+mod docks;
 mod fonts;
 pub(crate) mod graph;
 mod heads;
@@ -112,6 +113,10 @@ pub(crate) enum HostContent {
         template: String,
     },
     ArtifactSettings(Uuid),
+    DockTab {
+        block: Uuid,
+        tab: u64,
+    },
 }
 
 impl HostContent {
@@ -121,7 +126,8 @@ impl HostContent {
             Self::Panel(_)
             | Self::Window(_)
             | Self::Creation { .. }
-            | Self::ArtifactSettings(_) => None,
+            | Self::ArtifactSettings(_)
+            | Self::DockTab { .. } => None,
         }
     }
 
@@ -131,7 +137,8 @@ impl HostContent {
             Self::Panel(_)
             | Self::Window(_)
             | Self::Creation { .. }
-            | Self::ArtifactSettings(_) => None,
+            | Self::ArtifactSettings(_)
+            | Self::DockTab { .. } => None,
         }
     }
 }

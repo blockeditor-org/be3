@@ -4,11 +4,13 @@ use super::calls::{EditorAnswer, EditorCall, Heard, PluginCall};
 use block_plugin_api::{Encoded, Watch};
 
 use block_plugin_api::{
-    AudioStatus, BlockPick, Catalog, ChildStatus, DebugTemplate, EditorInstanceId, Failure, Fonts,
+    AudioStatus, BlockPick, Catalog, ChildStatus, DebugTemplate, DockUpdate, EditorInstanceId,
+    Failure, Fonts,
     HelloAccepted, InputBatch, Opening, Preferences, WebViewEvent, WebViewId,
     embed::{
         blocks,
         debug::debug::Call as DebugCall,
+        dock::Call as DockCall,
         exports::{
             debug::paintings,
             plugin::{self, Editor},
@@ -56,6 +58,7 @@ pub(super) struct Wire {
     input: Watch<Vec<InputBatch>>,
     serving: HashMap<OpId, EditorInstanceId>,
     child_statuses: HashMap<EditorInstanceId, Watch<Vec<ChildStatus>>>,
+    docks: HashMap<EditorInstanceId, Watch<Vec<DockUpdate>>>,
     block_types: Watch<Catalog>,
     debug_templates: Watch<Vec<DebugTemplate>>,
     held: Held,
@@ -121,6 +124,7 @@ impl Default for Wire {
             input: Watch::default(),
             serving: HashMap::new(),
             child_statuses: HashMap::new(),
+            docks: HashMap::new(),
             block_types: Watch::default(),
             debug_templates: Watch::default(),
             held: Held::default(),
@@ -160,6 +164,7 @@ impl Wire {
             editor.resource_drop(&mut self.connection);
         }
         self.child_statuses.remove(&instance);
+        self.docks.remove(&instance);
         self.audio.remove(&instance);
     }
 
@@ -247,6 +252,16 @@ impl Wire {
                             }
                         }
                         merged
+                    });
+            }
+            EditorCall::Dock(update) => {
+                self.docks
+                    .entry(instance)
+                    .or_default()
+                    .change(connection, |held| {
+                        let mut updates = held.unwrap_or_default();
+                        DockUpdate::queue(&mut updates, update);
+                        updates
                     });
             }
             EditorCall::MenuPick(id) => editor.menu_pick(connection, id),
@@ -653,6 +668,24 @@ impl Wire {
                 }
                 return Ok(());
             }
+            Incoming::Started(started) if DockCall::accepts(&started) => {
+                let connection = &mut self.connection;
+                match DockCall::accept(connection, started) {
+                    Some(DockCall::DockWatchNew { resource, instance }) => {
+                        if self.editors.contains_key(&instance) {
+                            self.docks.entry(instance).or_default().opened(resource.op());
+                        }
+                    }
+                    Some(DockCall::DockWatchNext { this, reply }) => {
+                        match self.docks.values_mut().find(|watch| watch.is(this.op())) {
+                            Some(watch) => watch.next(connection, reply),
+                            None => reply.fail(connection, OpError::Canceled),
+                        }
+                    }
+                    None => {}
+                }
+                return Ok(());
+            }
             Incoming::Started(started) if ShellCall::accepts(&started) => {
                 if let Some(call) = ShellCall::accept(&mut self.connection, started) {
                     self.watch_call(call, heard);
@@ -750,12 +783,14 @@ impl Wire {
                     heard.push(Heard::Withdrawn(op));
                 }
                 let watched = self.child_statuses.values().any(|watch| watch.is(op))
+                    || self.docks.values().any(|watch| watch.is(op))
                     || self.audio.values().any(|watch| watch.is(op))
                     || self.web_views.contains_key(&op)
                     || self.published.contains_key(&op)
                     || self.block_types.is(op)
                     || self.debug_templates.is(op);
                 self.child_statuses.retain(|_, watch| !watch.is(op));
+                self.docks.retain(|_, watch| !watch.is(op));
                 self.audio.retain(|_, watch| !watch.is(op));
                 self.web_views.remove(&op);
                 self.published.remove(&op);

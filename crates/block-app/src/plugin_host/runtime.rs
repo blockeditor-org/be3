@@ -382,6 +382,7 @@ impl Runtime {
         self.fallbacks = super::fonts::Fallbacks::new();
         self.presents = Presents::default();
         self.instances.reopen();
+        super::docks::restarted(&plugin.identity.id);
         self.backend.start(&plugin);
     }
 
@@ -424,6 +425,11 @@ impl Runtime {
             messages.push(PluginCall::Screens(self.instances.screen_set(next.screens)).into());
         }
         messages.extend(self.instances.pending());
+        messages.extend(
+            super::docks::take(&self.plugin.identity.id)
+                .into_iter()
+                .map(|(instance, update)| Outbound::Editor(instance, EditorCall::Dock(update))),
+        );
         self.serve();
         messages.extend(self.instances.configure(&messages).map(Outbound::from));
         let awaited = messages.iter().any(|message| {
@@ -880,7 +886,14 @@ impl Runtime {
             changed |= self.instances.set_children(placements);
         }
         self.instances.laid(laid.serial, &screens);
+        self.report_docked();
         changed
+    }
+
+    fn report_docked(&self) {
+        for (placer, children) in self.instances.docked_children() {
+            super::docks::placed(placer, &children);
+        }
     }
 
     fn apply(&mut self, answers: Vec<Answer>) {
@@ -970,8 +983,9 @@ impl Runtime {
             animating,
             presented,
             window_requests,
-            docks: _,
+            docks,
         } = commit;
+        super::docks::heard(&self.plugin.identity.id, docks);
         crate::compositor::request_windows(&self.plugin.identity.id, window_requests);
         self.pacing.animating = animating;
         self.await_next_frame(repaint_after_micros);
@@ -1689,6 +1703,7 @@ pub(crate) fn kill(plugin_id: &str) {
 
 pub(crate) fn close(plugin_id: &str, instance: EditorInstanceId) {
     super::instances::want_presence(instance, false);
+    super::docks::forget(instance);
     with(plugin_id, |runtime| {
         let messages = runtime
             .instances
@@ -2012,6 +2027,14 @@ pub(crate) fn mount_region(slot: RegionSlot<'_>) {
             return;
         };
         runtime.contain(|runtime| {
+            super::docks::register(
+                instance,
+                &plugin.identity.id,
+                match role {
+                    InstanceRole::Editor(_, block) => Some(block.id),
+                    InstanceRole::Creation(..) | InstanceRole::Artifact(..) => None,
+                },
+            );
             runtime
                 .instances
                 .mount(instance, region, client_id, role, block_types);
@@ -2031,6 +2054,7 @@ pub(crate) fn unmount_region(
     with(plugin_id, |runtime| {
         runtime.instances.unmount(instance, region);
         withdraw(runtime, instance, region, mount);
+        runtime.report_docked();
     });
     mark(plugin_id);
     host::request_repaint();
@@ -2043,7 +2067,8 @@ pub(crate) fn unplace_region(
     mount: u64,
 ) {
     with(plugin_id, |runtime| {
-        withdraw(runtime, instance, region, mount)
+        withdraw(runtime, instance, region, mount);
+        runtime.report_docked();
     });
     mark(plugin_id);
     host::request_repaint();

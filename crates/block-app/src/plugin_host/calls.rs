@@ -91,6 +91,7 @@ pub(super) enum EditorCall {
         block: [u8; 16],
         dialog: block_plugin_api::ShellDialog,
     },
+    Dock(block_plugin_api::DockUpdate),
 }
 
 #[derive(Clone, Debug, PartialEq)]
