@@ -849,7 +849,7 @@ impl Document {
         self.motion.get_untracked()
     }
 
-    pub(crate) fn animations(&self) -> Rc<Cell<usize>> {
+    pub fn animations(&self) -> Rc<Cell<usize>> {
         Rc::clone(&self.animations)
     }
 

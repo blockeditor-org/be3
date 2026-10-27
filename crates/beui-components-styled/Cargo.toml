@@ -10,12 +10,14 @@ gpu = ["dep:beui-renderer-wgpu", "dep:bytemuck", "dep:wgpu"]
 [dependencies]
 accesskit = "0.24.1"
 beui-components-unstyled = { path = "../beui-components-unstyled" }
-beui-core = { path = "../beui-core" }
-beui-renderer-wgpu = { path = "../beui-renderer-wgpu", optional = true }
 beui-view = { path = "../beui-view" }
 beui_macros = { path = "../beui-macros" }
 reactive = { path = "../reactive" }
 text-editor-core = { path = "../text-editor-core" }
+
+[target.'cfg(not(beui_html))'.dependencies]
+beui-core = { path = "../beui-core" }
+beui-renderer-wgpu = { path = "../beui-renderer-wgpu", optional = true }
 bytemuck = { version = "1", features = ["derive"], optional = true }
 wgpu = { version = "29", default-features = false, features = ["std", "wgsl"], optional = true }
 

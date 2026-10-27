@@ -19,6 +19,14 @@ wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 web-sys = { version = "0.3", features = [
     "AddEventListenerOptions",
+    "Blob",
+    "BlobPropertyBag",
+    "File",
+    "FileList",
+    "FileReader",
+    "HtmlAnchorElement",
+    "HtmlInputElement",
+    "Url",
     "ClipboardEvent",
     "DataTransfer",
     "Clipboard",

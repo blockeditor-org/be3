@@ -44,6 +44,7 @@ impl reactive::Release for Removals {
 }
 
 thread_local! {
+    static SCOPE: reactive::Scope = reactive::Scope::detached();
     static ARENA: RefCell<Arena> = RefCell::default();
     static REMOVALS: Rc<Removals> = Rc::default();
 }
@@ -317,8 +318,25 @@ pub fn set_state(node: NodeId, state: Box<dyn Any>) {
     with_entry(node, |entry| entry.states.push(state));
 }
 
+pub fn state<T: Clone + 'static>(node: NodeId) -> Option<T> {
+    with_entry(node, |entry| {
+        entry
+            .states
+            .iter()
+            .rev()
+            .find_map(|state| state.downcast_ref::<T>())
+            .cloned()
+    })
+    .flatten()
+}
+
 pub fn set_accessibility(node: NodeId, accessibility: accesskit::Node) {
     with_entry(node, |entry| entry.accessibility = Some(accessibility));
+}
+
+pub fn in_document_scope<T>(run: impl FnOnce() -> T) -> T {
+    let scope = SCOPE.with(reactive::Scope::context);
+    scope.run(run)
 }
 
 pub fn extension_or_insert_with<T: Clone + 'static>(make: impl FnOnce() -> T) -> T {

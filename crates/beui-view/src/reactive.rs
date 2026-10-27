@@ -1,10 +1,22 @@
 pub use beui_tree::reactive::*;
 
+pub use crate::actions::{
+    Action, ActionBuilder, ActionScope, Chord, MenuNode, Pin, Submenu, action_checked,
+    action_disabled, action_glyph, action_label, action_scope, action_tooltip, active_actions,
+    active_actions_from, add_to_menu, document_menu, menu_action, tidy_menu,
+};
+pub use crate::animation::{
+    Animation, AnimationFrame, Easing, Fling, Motion, Spring, create_animation, motion, tween,
+};
 pub use crate::component_ref::ComponentRef;
+pub use crate::file_picker::{FileFilter, FilePick, FilePicker, create_file_picker, pick_file};
+pub use crate::file_saver::{FileSave, SavedFile, save_file};
+pub use crate::nodes::{Inspect, TreeNode};
 #[cfg(not(beui_html))]
 pub use crate::core::reactive::*;
 pub use crate::core::reactive::{
-    Draw, ImeCursor, KeyAt, KeyEvent, NodeId, NodeRef, OverlayAnchor, Timer, bind, bind_test_id,
+    Draw, ImeCursor, KeyAt, KeyEvent, KeyInput, Painter, after_input, arrow_focus, on_back,
+    on_scroll_key, request_paste, touched_by_finger, use_keyboard, NodeId, NodeRef, OverlayAnchor, Timer, bind, bind_test_id,
     copy_text, create_timer, focus_ancestry, focus_outline, focus_ring, focused_node, holds_focus,
     now, on_global_key, on_key, on_shortcut, pin_wall_clock, pixels_per_point, set_focus,
     tree_local, use_font_revision, use_preferences, use_viewport_size, wall_clock,

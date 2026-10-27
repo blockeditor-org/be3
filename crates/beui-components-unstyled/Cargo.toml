@@ -6,7 +6,6 @@ license.workspace = true
 
 [dependencies]
 accesskit = "0.24.1"
-beui-core = { path = "../beui-core" }
 beui-view = { path = "../beui-view" }
 beui_macros = { path = "../beui-macros" }
 emojis = "0.9"
@@ -14,6 +13,9 @@ foldhash = "0.2"
 memchr = "2"
 reactive = { path = "../reactive" }
 text-editor-core = { path = "../text-editor-core" }
+
+[target.'cfg(not(beui_html))'.dependencies]
+beui-core = { path = "../beui-core" }
 
 [lints]
 workspace = true

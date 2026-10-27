@@ -9,7 +9,7 @@ use beui_macros::{component, view};
 use crate::color_picker::thumb;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ColorPickerState, ColorWheelHandle, WheelGeometry, WheelPoint};
-use beui_core::painter::Painter;
+use beui_view::reactive::Painter;
 use beui_view::primitives::Drawing;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
@@ -34,11 +34,11 @@ use gpu::Slot;
 #[derive(Clone, Default)]
 struct Drawn {
     slot: Slot,
-    held: Rc<RefCell<Option<(Face, beui_core::drawing::Drawing)>>>,
+    held: Rc<RefCell<Option<(Face, beui_view::drawing::Drawing)>>>,
 }
 
 impl Drawn {
-    fn drawing(&self, face: Face) -> beui_core::drawing::Drawing {
+    fn drawing(&self, face: Face) -> beui_view::drawing::Drawing {
         let mut held = self.held.borrow_mut();
         match held.as_ref() {
             Some((drawn, drawing)) if *drawn == face => drawing.clone(),
@@ -72,8 +72,8 @@ struct Slot;
 
 #[cfg(not(feature = "gpu"))]
 impl Slot {
-    fn drawing(&self, _face: Face) -> beui_core::drawing::Drawing {
-        beui_core::drawing::Drawing::erased(())
+    fn drawing(&self, _face: Face) -> beui_view::drawing::Drawing {
+        beui_view::drawing::Drawing::erased(())
     }
 }
 

@@ -21,6 +21,18 @@ thread_local! {
     };
 }
 
+thread_local! {
+    static TOUCHED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+pub fn note_pointer(touch: bool) {
+    TOUCHED.with(|touched| touched.set(touch));
+}
+
+pub fn touched_by_finger() -> bool {
+    TOUCHED.with(std::cell::Cell::get)
+}
+
 fn signals() -> PageSignals {
     SIGNALS.with(|signals| *signals)
 }
@@ -35,6 +47,20 @@ pub fn use_preferences() -> Memo<Preferences> {
         }
         .resolve()
     })
+}
+
+pub fn motion() -> Motion {
+    let layer = PreferenceLayer {
+        theme: None,
+        motion: signals().motion.get_untracked(),
+        canvas_touch: None,
+    };
+    layer.resolve().motion
+}
+
+pub fn watch_motion() -> Memo<Motion> {
+    let preferences = use_preferences();
+    create_memo(move || preferences.get().motion)
 }
 
 pub fn use_viewport_size() -> ReadSignal<Vec2> {

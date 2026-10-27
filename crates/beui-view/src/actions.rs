@@ -1,20 +1,21 @@
 use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
-use beui_core::callback::NodeRef;
-use beui_core::context::{ActionGroup, ActionInfo, Context};
-use beui_core::document::ActionsHook;
-use beui_core::icons::Glyph;
-use beui_core::input::{Key, KeyChord, KeyPress, Modifiers};
-use beui_core::keys::{KeyAt, KeyEvent, KeyHandler, KeyInput, KeyPhase};
-use beui_core::node::NodeId;
-use beui_core::window::WindowId;
-use reactive::{
-    Get, Memo, OwnedSignal, Set, create_effect, create_memo, on_cleanup, provide_context, untrack,
-    use_context,
-};
+use std::any::Any;
 
-use crate::reactive::{IntoProp, Prop, with_document};
+use crate::reactive::{
+    Get, IntoProp, KeyAt, KeyEvent, KeyInput, Memo, NodeId, NodeRef, OwnedSignal, Prop, Set,
+    create_effect, create_memo, on_cleanup, provide_context, untrack, use_context,
+};
+use crate::types::icons::Glyph;
+use crate::types::input::KeyChord;
+use crate::types::{ActionGroup, ActionInfo, Key, KeyPhase, KeyPress, Modifiers, WindowId};
+
+type KeyHandler = dyn Fn(KeyEvent) -> bool;
+
+pub(crate) type Describe = dyn Fn(&[(Option<WindowId>, String)], &[NodeId], &[WindowId], &[(WindowId, WindowId)]) -> Described;
+
+pub(crate) type Described = (Vec<String>, Vec<ActionGroup>);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Chord {
@@ -513,7 +514,7 @@ struct RegistryData {
     next: Cell<u64>,
     version: OwnedSignal<u64>,
     listeners: RefCell<Vec<Rc<KeyHandler>>>,
-    described: RefCell<Option<Rc<ActionsHook>>>,
+    described: RefCell<Option<Rc<dyn Any>>>,
     menus: RefCell<Vec<(u64, Vec<MenuNode>)>>,
 }
 
@@ -586,13 +587,9 @@ impl Registry {
     }
 
     fn root_key(&self, event: KeyEvent) -> bool {
-        let (path, window, hosts) = with_document(|document| {
-            (
-                document.focus_ancestry(),
-                document.key_window(),
-                document.window_hosts(),
-            )
-        });
+        let path = crate::core::actions::focus_ancestry();
+        let window = crate::core::actions::key_window();
+        let hosts = crate::core::actions::window_hosts();
         let host = |own: WindowId| host_of(&hosts, own);
         let scopes = self.scopes();
         let scoped = path
@@ -614,8 +611,8 @@ impl Registry {
 
     fn outer_key(&self, at: &KeyAt, event: KeyEvent) -> bool {
         let actions = self.all();
-        let (window, hosts) =
-            with_document(|document| (document.key_window(), document.window_hosts()));
+        let window = crate::core::actions::key_window();
+        let hosts = crate::core::actions::window_hosts();
         let host = |own: WindowId| host_of(&hosts, own);
         run_matching(
             actions
@@ -643,16 +640,18 @@ impl Registry {
 
     fn describe(
         &self,
-        context: &Context,
+        requests: &[(Option<WindowId>, String)],
         focus_path: &[NodeId],
         windows: &[WindowId],
         hosts: &[(WindowId, WindowId)],
-    ) {
+    ) -> Described {
         let live = self.actions(focus_path);
         let all = self.all();
         let host = |own: WindowId| host_of(hosts, own);
         let hosted = |action: &Action| action.window().map(host);
-        for (window, requested) in context.action_requests() {
+        let mut ran = Vec::new();
+        for (window, requested) in requests {
+            let window = *window;
             let found = live
                 .iter()
                 .chain(all.iter())
@@ -665,7 +664,7 @@ impl Registry {
                 });
             if let Some(action) = found {
                 untrack(|| action.run());
-                context.action_ran(&requested);
+                ran.push(requested.clone());
             }
         }
         let info = |action: &Action, live: bool| ActionInfo {
@@ -682,11 +681,11 @@ impl Registry {
                 actions.push(info(action, false));
             }
         }
-        context.publish_actions(ActionGroup {
+        let mut groups = vec![ActionGroup {
             name: String::new(),
             window: None,
             actions,
-        });
+        }];
         for window in windows {
             let actions: Vec<ActionInfo> = all
                 .iter()
@@ -694,13 +693,14 @@ impl Registry {
                 .map(|action| info(action, live.contains(action)))
                 .collect();
             if !actions.is_empty() {
-                context.publish_actions(ActionGroup {
+                groups.push(ActionGroup {
                     name: String::new(),
                     window: Some(*window),
                     actions,
                 });
             }
         }
+        (ran, groups)
     }
 
     fn all(&self) -> Vec<Action> {
@@ -731,67 +731,66 @@ fn run_matching<'a>(actions: impl Iterator<Item = &'a Action>, event: KeyEvent) 
 }
 
 fn registry() -> Registry {
-    with_document(|document| {
-        if let Some(registry) = document.extension::<Registry>() {
-            return registry;
-        }
-        let registry = document.extension_or_insert_with(Registry::new);
-        let listen = |at: KeyAt, phase: KeyPhase| {
-            let weak = Rc::downgrade(&registry.0);
-            let place = at.clone();
-            let handler: Rc<KeyHandler> = Rc::new(move |event: KeyEvent| {
-                weak.upgrade().is_some_and(|registry| {
-                    let registry = Registry(registry);
-                    match place {
-                        KeyAt::Root => registry.root_key(event),
-                        _ => registry.outer_key(&place, event),
-                    }
-                })
-            });
-            document.listen_keys(at, phase, true, Rc::downgrade(&handler), None);
-            registry.0.listeners.borrow_mut().push(handler);
-        };
-        for at in [KeyAt::Root, KeyAt::Window, KeyAt::Host] {
-            listen(at.clone(), KeyPhase::Capture);
-            listen(at, KeyPhase::Bubble);
-        }
+    let (registry, fresh) = crate::core::actions::document_registry(Registry::new);
+    if fresh {
+        install(&registry);
+    }
+    registry
+}
+
+fn install(registry: &Registry) {
+    let listen = |at: KeyAt, phase: KeyPhase| {
         let weak = Rc::downgrade(&registry.0);
-        let described: Rc<ActionsHook> = Rc::new(
-            move |context: &Context,
-                  path: &[NodeId],
-                  windows: &[WindowId],
-                  hosts: &[(WindowId, WindowId)]| {
-                if let Some(registry) = weak.upgrade() {
-                    Registry(registry).describe(context, path, windows, hosts);
-                }
-            },
-        );
-        document.register_actions(Rc::downgrade(&described));
-        *registry.0.described.borrow_mut() = Some(described);
-        let intercepted = document.intercepted_keys_writer();
-        let weak = Rc::downgrade(&registry.0);
-        let reported = RefCell::new(Vec::new());
-        document.reactive_scope().context().run(|| {
-            create_effect(move || {
-                let Some(registry) = weak.upgrade() else {
-                    return;
-                };
+        let place = at.clone();
+        let handler: Rc<KeyHandler> = Rc::new(move |event: KeyEvent| {
+            weak.upgrade().is_some_and(|registry| {
                 let registry = Registry(registry);
-                registry.0.version.get();
-                let chords = registry.intercepted();
-                if *reported.borrow() != chords {
-                    reported.replace(chords.clone());
-                    intercepted.set(chords);
+                match place {
+                    KeyAt::Root => registry.root_key(event),
+                    _ => registry.outer_key(&place, event),
                 }
-            });
+            })
         });
-        registry
-    })
+        crate::core::actions::listen_keys(at, phase, Rc::downgrade(&handler));
+        registry.0.listeners.borrow_mut().push(handler);
+    };
+    for at in [KeyAt::Root, KeyAt::Window, KeyAt::Host] {
+        listen(at.clone(), KeyPhase::Capture);
+        listen(at, KeyPhase::Bubble);
+    }
+    let weak = Rc::downgrade(&registry.0);
+    let described: Rc<Describe> = Rc::new(
+        move |requests: &[(Option<WindowId>, String)],
+              path: &[NodeId],
+              windows: &[WindowId],
+              hosts: &[(WindowId, WindowId)]| match weak.upgrade() {
+            Some(registry) => Registry(registry).describe(requests, path, windows, hosts),
+            None => (Vec::new(), Vec::new()),
+        },
+    );
+    *registry.0.described.borrow_mut() = Some(crate::core::actions::register(described));
+    let intercepted = crate::core::actions::intercepted_keys();
+    let weak = Rc::downgrade(&registry.0);
+    let reported = RefCell::new(Vec::new());
+    crate::core::actions::in_document_scope(Box::new(move || {
+        create_effect(move || {
+            let Some(registry) = weak.upgrade() else {
+                return;
+            };
+            let registry = Registry(registry);
+            registry.0.version.get();
+            let chords = registry.intercepted();
+            if *reported.borrow() != chords {
+                reported.replace(chords.clone());
+                intercepted(chords);
+            }
+        });
+    }));
 }
 
 pub fn active_actions() -> Vec<Action> {
     let registry = registry();
-    let path = with_document(|document| document.focus_ancestry());
+    let path = crate::core::actions::focus_ancestry();
     registry.actions(&path)
 }
 

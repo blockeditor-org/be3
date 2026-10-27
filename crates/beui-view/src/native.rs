@@ -1,11 +1,16 @@
+pub mod actions;
+pub mod animation;
 pub mod canvas;
+pub mod drag;
 pub mod drawing;
+pub mod files;
 pub mod frame;
 pub mod grid;
 pub mod interactive;
 pub mod layers;
 pub mod list;
 pub mod measure;
+pub mod nodes;
 pub mod offset;
 pub mod overlay;
 pub mod portal;
@@ -43,3 +48,4 @@ pub(crate) use window::{placed_windows, request_window};
 
 pub use beui_core::interact::forward::ForwardedInput;
 pub(crate) use beui_core::tree;
+pub use beui_core::drawing::Drawing;

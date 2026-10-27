@@ -159,6 +159,7 @@ mod web {
         let touch = event
             .dyn_ref::<web_sys::PointerEvent>()
             .is_some_and(|event| event.pointer_type() == "touch");
+        crate::page::note_pointer(touch);
         PointerPress {
             window: WindowId::MAIN,
             pos: at.pos,

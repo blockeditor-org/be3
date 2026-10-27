@@ -7,14 +7,13 @@ use std::error::Error;
 pub use accesskit;
 #[cfg(not(beui_html))]
 pub use beui_components_styled as styled;
-#[cfg(not(beui_html))]
+#[cfg(beui_html)]
+pub use beui_components_styled_html as styled;
 pub use beui_components_unstyled as unstyled;
-#[cfg(not(beui_html))]
 pub use beui_components_unstyled::datetime;
 #[cfg(not(beui_html))]
 pub use beui_core::accessibility;
-#[cfg(not(beui_html))]
-pub use beui_core::animation;
+pub use beui_view::animation;
 #[cfg(not(beui_html))]
 pub use beui_core::app::accessibility_dump;
 #[cfg(not(beui_html))]

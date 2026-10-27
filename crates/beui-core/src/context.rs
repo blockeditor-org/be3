@@ -1,3 +1,4 @@
+pub use beui_types::action::{ActionGroup, ActionInfo};
 use foldhash::HashSet;
 use std::any::Any;
 use std::cell::{Cell, Ref, RefCell};
@@ -189,23 +190,6 @@ impl Moved {
     pub fn to(&self) -> Rect {
         self.from.translate(self.by)
     }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct ActionInfo {
-    pub id: String,
-    pub label: String,
-    pub shortcut: Option<String>,
-    pub enabled: bool,
-    pub checked: Option<bool>,
-    pub live: bool,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct ActionGroup {
-    pub name: String,
-    pub window: Option<WindowId>,
-    pub actions: Vec<ActionInfo>,
 }
 
 #[derive(Clone)]
