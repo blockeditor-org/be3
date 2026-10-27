@@ -25,13 +25,16 @@ fn swatch(color: Color32, width: f32, height: f32) -> NodeId {
     }
 }
 
+mod a_canvas_pans_and_scales_its_items;
 mod a_drawing_is_a_pink_box_of_its_size;
 mod a_frame_moves_turns_and_fades_what_it_holds;
 mod a_frame_sizes_pads_fills_rounds_and_aligns_what_it_holds;
 mod a_grid_shares_its_columns_between_its_cells;
 mod a_list_lays_out_its_children_in_a_line_by_their_sizing;
+mod a_portal_shows_a_node_built_elsewhere;
+mod a_virtual_list_builds_the_rows_its_first_reach_covers;
 mod an_interactive_decorates_the_element_of_what_it_holds;
 mod an_offset_clips_its_child_to_its_box;
+mod an_overlay_anchors_its_content_to_a_node_and_points_at_it;
 mod layers_stack_their_children_over_one_box;
-mod primitives_the_html_core_does_not_have_yet_are_outlined_in_pink;
 mod text_wraps_cuts_and_styles_its_spans;

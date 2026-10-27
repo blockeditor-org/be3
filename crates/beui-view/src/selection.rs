@@ -10,7 +10,7 @@ use beui_core::base::text::TextNode;
 use beui_core::geometry::{Pos2, Rect};
 use beui_core::node::NodeId;
 
-use crate::nodes::tree_local;
+use crate::core::nodes::tree_local;
 use crate::reactive::with_document;
 
 trait AnyKey {

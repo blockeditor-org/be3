@@ -7,7 +7,7 @@ use reactive::{Get, ReadSignal, Set, Signal, Stored, create_signal, on_cleanup, 
 
 use crate::node::NodeId;
 
-pub const LAYOUTS_PER_FRAME: usize = 4;
+pub const LAYOUTS_PER_FRAME: usize = 8;
 
 thread_local! {
     static CLOCK: Cell<Option<Instant>> = const { Cell::new(None) };
@@ -15,9 +15,28 @@ thread_local! {
     static PINNED_WALL_CLOCK: Cell<Option<(Instant, Duration)>> = const { Cell::new(None) };
     static STARTED: Cell<bool> = const { Cell::new(false) };
     static PENDING: Cell<bool> = const { Cell::new(false) };
+    static IN_FRAME: Cell<bool> = const { Cell::new(false) };
     static TIMERS: RefCell<Vec<Weak<TimerState>>> = RefCell::default();
     static LAYOUT: RefCell<Vec<Weak<dyn Fn() -> bool>>> = RefCell::default();
     static PLACED: RefCell<HashMap<NodeId, Signal<bool>>> = RefCell::default();
+    static ANIMATIONS: Rc<Cell<usize>> = Rc::default();
+    static AFTER_INPUT: RefCell<Vec<Box<dyn FnOnce()>>> = RefCell::default();
+}
+
+pub fn after_input(after: impl FnOnce() + 'static) {
+    AFTER_INPUT.with(|queued| queued.borrow_mut().push(Box::new(after)));
+    request_frame();
+}
+
+fn run_after_input() {
+    let queued = AFTER_INPUT.with(|queued| std::mem::take(&mut *queued.borrow_mut()));
+    for after in queued {
+        after();
+    }
+}
+
+pub fn animations() -> Rc<Cell<usize>> {
+    ANIMATIONS.with(Rc::clone)
 }
 
 pub fn now() -> Instant {
@@ -203,17 +222,35 @@ pub fn frame() {
         CLOCK.with(|clock| clock.set(Some(Instant::now())));
     }
     let now = now();
+    IN_FRAME.with(|held| held.set(true));
+    run_after_input();
     run_timers(now);
     reactive::flush();
+    lay_out();
+    IN_FRAME.with(|held| held.set(false));
+    if !FROZEN.with(Cell::get) {
+        CLOCK.with(|clock| clock.set(None));
+    }
+}
+
+fn lay_out() {
     for _ in 0..LAYOUTS_PER_FRAME {
         if !layout_pass() {
             break;
         }
         reactive::flush();
     }
-    if !FROZEN.with(Cell::get) {
-        CLOCK.with(|clock| clock.set(None));
+}
+
+pub fn relayout() {
+    if !started() || IN_FRAME.with(Cell::get) {
+        request_frame();
+        return;
     }
+    IN_FRAME.with(|held| held.set(true));
+    reactive::flush();
+    lay_out();
+    IN_FRAME.with(|held| held.set(false));
 }
 
 pub fn pending() -> bool {

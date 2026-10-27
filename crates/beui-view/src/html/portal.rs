@@ -1,17 +1,21 @@
 use crate::reactive::NodeId;
 use crate::reactive::Prop;
-use beui_core_html::document::set_style;
-use beui_core_html::run::PINK;
+use crate::reactive::on_cleanup;
+use beui_core_html::document::{create, set_style};
+
+use super::bind;
 
 pub fn portal(node: Prop<Option<NodeId>>) -> NodeId {
-    let _ = node;
-    let portal = super::stand_in("Portal");
-    for (property, value) in [
-        ("min-width", "16px"),
-        ("min-height", "16px"),
-        ("background-color", PINK),
-    ] {
-        set_style(portal, property, Some(value.to_owned()));
-    }
-    portal
+    let element = create("Portal", "div");
+    set_style(element, "display", Some("grid".to_owned()));
+    set_style(
+        element,
+        "grid-template-columns",
+        Some("minmax(0, 1fr)".to_owned()),
+    );
+    let portal = beui_core_html::portal::portal(element);
+    let held = portal.clone();
+    bind(node, move |node| held.hold(node));
+    on_cleanup(move || portal.release());
+    element
 }

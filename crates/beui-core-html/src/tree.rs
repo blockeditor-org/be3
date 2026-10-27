@@ -381,7 +381,9 @@ pub struct CanvasKind;
 impl ParentKind for CanvasKind {
     type Data = ();
 
-    fn place(_parent: NodeId, _child: NodeId, _: ()) {}
+    fn place(parent: NodeId, child: NodeId, _: ()) {
+        crate::canvas::place(parent, child);
+    }
 }
 
 pub struct FitKind;

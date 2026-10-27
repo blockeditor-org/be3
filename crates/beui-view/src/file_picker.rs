@@ -1,13 +1,11 @@
 use std::rc::Rc;
 
-pub use beui_core::file_picker::{FileFilter, FilePick, PickedFile};
+pub use crate::types::files::{FileFilter, FilePick, PickedFile};
 
-use crate::reactive::{
-    Get, ReadSignal, ScopeContext, Set, Signal, create_signal, owner_scope, with_document,
-};
+use crate::reactive::{Get, ReadSignal, ScopeContext, Set, Signal, create_signal, owner_scope};
 
 pub fn pick_file(filter: FileFilter, picked: impl FnOnce(FilePick) + 'static) {
-    with_document(|document| document.pick_file(filter, picked));
+    crate::core::files::pick_file(filter, picked);
 }
 
 #[derive(Clone)]

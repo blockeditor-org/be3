@@ -1,8 +1,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use beui_core::drawing::Drawing;
 use beui_renderer_wgpu::{Draw, DrawAt};
+use beui_view::drawing::Drawing;
 use bytemuck::{Pod, Zeroable};
 
 use super::{Face, Model};

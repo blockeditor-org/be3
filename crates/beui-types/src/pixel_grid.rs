@@ -1,4 +1,4 @@
-use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
+use geometry::{Pos2, Rect, Vec2, pos2, vec2};
 
 const TOLERANCE: f32 = 1.0 / 1024.0;
 

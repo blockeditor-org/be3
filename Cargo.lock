@@ -1162,6 +1162,7 @@ dependencies = [
  "beui-renderer-wgpu",
  "beui-view",
  "beui_macros",
+ "paint-snapshot",
  "pollster",
  "raw-window-handle",
  "reactive",
@@ -1178,7 +1179,6 @@ version = "0.1.0"
 dependencies = [
  "accesskit",
  "beui-components-unstyled",
- "beui-core",
  "beui-renderer-wgpu",
  "beui-view",
  "beui_macros",
@@ -1193,7 +1193,6 @@ name = "beui-components-unstyled"
 version = "0.1.0"
 dependencies = [
  "accesskit",
- "beui-core",
  "beui-view",
  "beui_macros",
  "emojis",

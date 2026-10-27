@@ -28,6 +28,20 @@ pub fn sync(text: Option<&ImeText>) {
     let _ = text;
 }
 
+pub fn keyboard(node: NodeId, keyboard: beui_types::SoftKeyboard) {
+    #[cfg(target_arch = "wasm32")]
+    web::keyboard(node, keyboard);
+    #[cfg(not(target_arch = "wasm32"))]
+    let _ = (node, keyboard);
+}
+
+pub fn show_keyboard(shown: bool) {
+    #[cfg(target_arch = "wasm32")]
+    web::show_keyboard(shown);
+    #[cfg(not(target_arch = "wasm32"))]
+    let _ = shown;
+}
+
 pub fn place(rect: Option<Rect>) {
     #[cfg(target_arch = "wasm32")]
     web::place(rect);
@@ -141,6 +155,43 @@ mod web {
         SESSION.with(|session| *session.borrow_mut() = Some((node, sink)));
         let _ = host.append_child(&agent);
         let _ = agent.focus();
+    }
+
+    pub(super) fn keyboard(node: NodeId, keyboard: beui_types::SoftKeyboard) {
+        use beui_types::SoftKeyboard;
+
+        let current = SESSION.with(|session| {
+            session
+                .borrow()
+                .as_ref()
+                .is_some_and(|(held, _)| *held == node)
+        });
+        let Some(agent) = agent().filter(|_| current) else {
+            return;
+        };
+        let policy = match keyboard {
+            SoftKeyboard::OnFocus => "auto",
+            SoftKeyboard::OnPress | SoftKeyboard::Held | SoftKeyboard::Shown { .. } => "manual",
+        };
+        let _ = agent.set_attribute("virtualkeyboardpolicy", policy);
+        match keyboard {
+            SoftKeyboard::Shown { .. } => show_keyboard(true),
+            SoftKeyboard::Held => show_keyboard(false),
+            SoftKeyboard::OnFocus | SoftKeyboard::OnPress => {}
+        }
+    }
+
+    pub(super) fn show_keyboard(shown: bool) {
+        let Some(window) = crate::dom::window() else {
+            return;
+        };
+        let Ok(keyboard) = js_sys::Reflect::get(&window.navigator(), &"virtualKeyboard".into())
+        else {
+            return;
+        };
+        if keyboard.is_object() {
+            crate::dom::call(&keyboard, if shown { "show" } else { "hide" }, &[]);
+        }
     }
 
     pub(super) fn end(node: NodeId) {

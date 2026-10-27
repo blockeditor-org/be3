@@ -1,10 +1,8 @@
-use beui_core::base::overlay::{OverlayAnchor, Placement, WindowSpec};
-use beui_core::geometry::{Pos2, Vec2};
-use beui_core::layer::{LayerLevel, LayerPolicy};
-use beui_core::node::NodeId;
-use beui_core::window::{
-    WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest, WindowRole,
+use crate::reactive::{NodeId, OverlayAnchor};
+use crate::types::window::{
+    WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest, WindowRole, WindowSpec,
 };
+use crate::types::{LayerLevel, LayerPolicy, Placement, Pos2, Vec2};
 use beui_macros::{component, view};
 
 use crate::components::frame::Frame;

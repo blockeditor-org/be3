@@ -8,6 +8,7 @@ use crate::reactive::Prop;
 use crate::reactive::create_binding;
 use crate::types::CanvasView;
 use crate::types::Vec2;
+use beui_core_html::canvas::scale_property;
 use beui_core_html::css;
 use beui_core_html::document::{append, create, set_style};
 use beui_core_html::tree::{CanvasKind, host};
@@ -24,10 +25,23 @@ pub fn canvas(
     on_reveal: Callback<Vec2>,
     children: Children<CanvasItem>,
 ) -> NodeId {
-    let _ = (view, scrolls_across, on_reveal);
-    let canvas = super::stand_in("Canvas");
-    set_style(canvas, "position", Some("relative".to_owned()));
-    set_style(canvas, "overflow", Some("hidden".to_owned()));
+    let _ = scrolls_across;
+    let canvas = create("Canvas", "div");
+    for (property, value) in [("position", "relative"), ("overflow", "hidden")] {
+        set_style(canvas, property, Some(value.to_owned()));
+    }
+    let shown = create("CanvasView", "div");
+    for (property, value) in [
+        ("position", "absolute"),
+        ("left", "0"),
+        ("top", "0"),
+        ("width", "0"),
+        ("height", "0"),
+        ("transform-origin", "0 0"),
+    ] {
+        set_style(shown, property, Some(value.to_owned()));
+    }
+    append(canvas, shown);
     create_binding(move || {
         let (width, height) = (width.get(), height.get());
         set_style(canvas, "min-width", (width > 0.0).then(|| css::px(width)));
@@ -37,7 +51,9 @@ pub fn canvas(
             (height > 0.0).then(|| css::px(height)),
         );
     });
-    children.mount(host::<CanvasKind>(canvas));
+    let state = beui_core_html::canvas::canvas(canvas, shown, on_reveal);
+    bind(view, move |view| state.set_view(view));
+    children.mount(host::<CanvasKind>(shown));
     canvas
 }
 
@@ -51,22 +67,37 @@ pub fn canvas_item(
     scales: Prop<bool>,
     children: Option<Child>,
 ) -> CanvasItem {
-    let _ = scales;
     let item = create("CanvasItem", "div");
     set_style(item, "position", Some("absolute".to_owned()));
+    set_style(item, "display", Some("grid".to_owned()));
+    set_style(
+        item,
+        "grid-template-columns",
+        Some("minmax(0, 1fr)".to_owned()),
+    );
+    beui_core_html::canvas::item(item);
     if let Some(child) = children {
         append(item, child);
     }
-    bind(x, move |x| set_style(item, "left", Some(css::px(x))));
-    bind(y, move |y| set_style(item, "top", Some(css::px(y))));
-    bind(width, move |width| {
-        set_style(item, "width", Some(css::px(width)))
-    });
-    bind(height, move |height| {
-        set_style(item, "height", Some(css::px(height)))
+    bind(x, move |x| set_style(item, "left", Some(scale_property(x))));
+    bind(y, move |y| set_style(item, "top", Some(scale_property(y))));
+    create_binding(move || {
+        let (width, height, scales) = (width.get(), height.get(), scales.get());
+        let length = |length: f32| match scales {
+            true => css::px(length),
+            false => scale_property(length),
+        };
+        set_style(item, "width", Some(length(width)));
+        set_style(item, "height", Some(length(height)));
+        set_style(
+            item,
+            "transform",
+            scales.then(|| "scale(var(--beui-scale, 1))".to_owned()),
+        );
+        set_style(item, "transform-origin", scales.then(|| "0 0".to_owned()));
     });
     bind(clip, move |clip| {
-        set_style(item, "overflow", clip.then(|| "hidden".to_owned()));
+        beui_core_html::canvas::set_item_clip(item, clip)
     });
     bind(pointer, move |pointer| {
         set_style(

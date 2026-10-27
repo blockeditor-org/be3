@@ -14,9 +14,9 @@ use beui_components_unstyled::{
     HueSlider, SliderHandle, SwatchHandle, Swatches, alpha_image, hue_image, plane_image,
     texel_centres,
 };
-use beui_core::painter::Painter;
 use beui_view::primitives::Drawing;
 use beui_view::reactive::NodeId;
+use beui_view::reactive::Painter;
 use beui_view::reactive::*;
 use beui_view::types::{Align, Direction};
 use beui_view::types::{Align2, ItemSize, Track};

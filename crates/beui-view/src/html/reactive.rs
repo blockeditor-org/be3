@@ -95,3 +95,66 @@ pub fn bind_test_id(node: NodeId, test_id: Prop<String>) {
 pub fn tree_local<T: Clone + 'static>(make: impl FnOnce() -> T) -> T {
     beui_core_html::document::extension_or_insert_with(make)
 }
+
+pub use beui_core_html::drawing::Painter;
+pub use beui_core_html::frame::after_input;
+pub use beui_core_html::keys::KeyInput;
+pub use beui_core_html::page::touched_by_finger;
+
+pub fn on_scroll_key(at: KeyAt, phase: KeyPhase, handler: impl Fn(KeyEvent) -> bool + 'static) {
+    on_key(at, phase, handler);
+}
+
+pub fn on_back(
+    _enabled: impl IntoProp<bool>,
+    _handler: impl Fn(crate::types::BackGesture) + 'static,
+) {
+}
+
+pub fn use_keyboard() -> ReadSignal<bool> {
+    create_signal(true).read_only()
+}
+
+pub fn request_paste() {}
+
+pub fn arrow_focus(row: NodeRef, direction: crate::types::Direction) {
+    let (back, forth) = match direction {
+        crate::types::Direction::Horizontal => {
+            (crate::types::Key::ArrowLeft, crate::types::Key::ArrowRight)
+        }
+        crate::types::Direction::Vertical => {
+            (crate::types::Key::ArrowUp, crate::types::Key::ArrowDown)
+        }
+    };
+    on_key(KeyAt::Node(row), KeyPhase::Bubble, move |event| {
+        let Some(press) = event.press() else {
+            return false;
+        };
+        if press.modifiers.ctrl || press.modifiers.alt || press.modifiers.shift {
+            return false;
+        }
+        let Some(row) = row.try_get() else {
+            return false;
+        };
+        let stops = beui_core_html::nodes::focusables_within(row);
+        let Some(at) =
+            focused_node().and_then(|focused| stops.iter().position(|stop| *stop == focused))
+        else {
+            return false;
+        };
+        let to = match press.key {
+            key if key == back => at.checked_sub(1),
+            key if key == forth => Some(at + 1).filter(|to| *to < stops.len()),
+            crate::types::Key::Home => Some(0),
+            crate::types::Key::End => Some(stops.len() - 1),
+            _ => None,
+        };
+        let Some(to) = to else {
+            return false;
+        };
+        if press.pressed {
+            set_focus(Some(stops[to]));
+        }
+        true
+    });
+}

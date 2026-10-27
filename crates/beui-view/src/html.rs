@@ -1,18 +1,26 @@
+pub mod actions;
+pub mod animation;
 pub mod canvas;
+pub mod drag;
 pub mod drawing;
+pub mod files;
 pub mod frame;
 pub mod grid;
 pub mod interactive;
 pub mod layers;
 pub mod list;
+pub mod nodes;
 pub mod offset;
 pub mod overlay;
 pub mod portal;
 pub mod reactive;
 pub mod root;
+pub mod selectable;
 pub mod text;
 pub mod virtual_list;
+pub mod window;
 
+pub use beui_core_html::drawing::Drawing;
 pub use beui_core_html::interactive::ForwardedInput;
 pub use beui_core_html::measure::TextGeometry;
 pub(crate) use beui_core_html::measure::{measure, measure_line, measure_text};
@@ -38,6 +46,7 @@ pub(crate) use text::span;
 pub(crate) use text::text;
 pub(crate) use text::text_item;
 pub(crate) use virtual_list::virtual_list;
+pub(crate) use window::{placed_windows, request_window};
 
 use crate::reactive::{Prop, create_binding};
 
@@ -50,14 +59,8 @@ fn bind<T: Clone + 'static>(prop: Prop<T>, apply: impl Fn(T) + 'static) {
     }
 }
 
-fn stand_in(kind: &'static str) -> crate::reactive::NodeId {
-    let node = beui_core_html::document::create(kind, "div");
-    beui_core_html::document::set_attribute(node, "class", Some("beui-stand-in".to_owned()));
-    beui_core_html::document::set_attribute(node, "title", Some(format!("TODO: {kind}")));
-    node
-}
-
 pub mod running {
+    pub use super::nodes::Page;
     #[cfg(target_arch = "wasm32")]
     pub use beui_core_html::automate::automate;
     pub use beui_core_html::run::{BASE_STYLES, stylesheet};

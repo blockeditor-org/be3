@@ -6103,6 +6103,8 @@ crates = {
             "linux-x86_64-html": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-components-styled:beui-components-styled",
+                    "//crates/beui-components-unstyled:beui-components-unstyled",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
@@ -6111,8 +6113,11 @@ crates = {
                 "examples": {
                     "survey": {
                         "deps": [
+                            "//crates/beui-components-styled:beui-components-styled",
+                            "//crates/beui-components-unstyled:beui-components-unstyled",
                             "//crates/beui-macros:beui_macros",
                             "//crates/beui-view:beui-view",
+                            "//crates/paint-snapshot:paint-snapshot",
                             "//crates/reactive:reactive",
                             "//third-party/rust:accesskit-0.24.1",
                         ],
@@ -6124,8 +6129,11 @@ crates = {
                     },
                     "text-bench": {
                         "deps": [
+                            "//crates/beui-components-styled:beui-components-styled",
+                            "//crates/beui-components-unstyled:beui-components-unstyled",
                             "//crates/beui-macros:beui_macros",
                             "//crates/beui-view:beui-view",
+                            "//crates/paint-snapshot:paint-snapshot",
                             "//crates/reactive:reactive",
                             "//third-party/rust:accesskit-0.24.1",
                         ],
@@ -6141,7 +6149,9 @@ crates = {
                     "render",
                     "window",
                 ],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/paint-snapshot:paint-snapshot",
+                ],
                 "test_features": [
                     "default",
                     "render",
@@ -6417,6 +6427,8 @@ crates = {
             "wasi-html": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-components-styled:beui-components-styled",
+                    "//crates/beui-components-unstyled:beui-components-unstyled",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
@@ -6662,7 +6674,6 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-components-unstyled:beui-components-unstyled",
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-view:beui-view",
@@ -6685,7 +6696,6 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-components-unstyled:beui-components-unstyled",
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-view:beui-view",
@@ -6708,7 +6718,6 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-components-unstyled:beui-components-unstyled",
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-view:beui-view",
@@ -6727,11 +6736,25 @@ crates = {
                     "gpu",
                 ],
             },
+            "linux-x86_64-html": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-components-unstyled:beui-components-unstyled",
+                    "//crates/beui-macros:beui_macros",
+                    "//crates/beui-view:beui-view",
+                    "//crates/reactive:reactive",
+                    "//crates/text-editor-core:text-editor-core",
+                    "//third-party/rust:accesskit-0.24.1",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-components-unstyled:beui-components-unstyled",
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-view:beui-view",
@@ -6754,7 +6777,6 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-components-unstyled:beui-components-unstyled",
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-view:beui-view",
@@ -6777,7 +6799,6 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-components-unstyled:beui-components-unstyled",
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-view:beui-view",
@@ -6798,7 +6819,6 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-components-unstyled:beui-components-unstyled",
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-view:beui-view",
@@ -6815,11 +6835,25 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "wasi-html": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-components-unstyled:beui-components-unstyled",
+                    "//crates/beui-macros:beui_macros",
+                    "//crates/beui-view:beui-view",
+                    "//crates/reactive:reactive",
+                    "//crates/text-editor-core:text-editor-core",
+                    "//third-party/rust:accesskit-0.24.1",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-components-unstyled:beui-components-unstyled",
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-view:beui-view",
@@ -6842,7 +6876,6 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-components-unstyled:beui-components-unstyled",
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-view:beui-view",
@@ -6879,7 +6912,6 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
@@ -6897,7 +6929,6 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
@@ -6915,7 +6946,23 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/beui-core:beui-core",
+                    "//crates/beui-macros:beui_macros",
+                    "//crates/beui-view:beui-view",
+                    "//crates/reactive:reactive",
+                    "//crates/text-editor-core:text-editor-core",
+                    "//third-party/rust:accesskit-0.24.1",
+                    "//third-party/rust:emojis-0.9.0",
+                    "//third-party/rust:foldhash-0.2.0",
+                    "//third-party/rust:memchr-2.8.1",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64-html": {
+                "binaries": {},
+                "deps": [
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
@@ -6933,7 +6980,6 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
@@ -6951,7 +6997,6 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
@@ -6969,7 +7014,6 @@ crates = {
             "wasi": {
                 "binaries": {},
                 "deps": [
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
@@ -6987,7 +7031,23 @@ crates = {
             "wasi-guest": {
                 "binaries": {},
                 "deps": [
-                    "//crates/beui-core:beui-core",
+                    "//crates/beui-macros:beui_macros",
+                    "//crates/beui-view:beui-view",
+                    "//crates/reactive:reactive",
+                    "//crates/text-editor-core:text-editor-core",
+                    "//third-party/rust:accesskit-0.24.1",
+                    "//third-party/rust:emojis-0.9.0",
+                    "//third-party/rust:foldhash-0.2.0",
+                    "//third-party/rust:memchr-2.8.1",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-html": {
+                "binaries": {},
+                "deps": [
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
@@ -7005,7 +7065,6 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
@@ -7023,7 +7082,6 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
@@ -21125,6 +21183,16 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "linux-x86_64-html": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:icu_properties-2.4.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
@@ -21156,6 +21224,16 @@ crates = {
                 "test_features": [],
             },
             "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:icu_properties-2.4.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-html": {
                 "binaries": {},
                 "deps": [
                     "//third-party/rust:icu_properties-2.4.0",
@@ -23581,6 +23659,17 @@ crates = {
                 ],
                 "test_features": [],
             },
+            "linux-x86_64-html": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:memchr-2.8.1",
+                    "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
@@ -23619,6 +23708,17 @@ crates = {
                 "test_features": [],
             },
             "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:memchr-2.8.1",
+                    "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-html": {
                 "binaries": {},
                 "deps": [
                     "//third-party/rust:memchr-2.8.1",
@@ -25140,6 +25240,24 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "linux-x86_64-html": {
+                "binaries": {},
+                "deps": [
+                    "//crates/grapheme-segmentation:grapheme-segmentation",
+                    "//crates/sequence:sequence",
+                    "//third-party/rust:memchr-2.8.1",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:similar-3.1.1",
+                    "//third-party/rust:tree-sitter-0.26.11",
+                    "//third-party/rust:tree-sitter-md-0.5.3",
+                    "//third-party/rust:tree-sitter-rust-0.24.2",
+                    "//third-party/rust:tree-sitter-zig-1.1.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
@@ -25195,6 +25313,24 @@ crates = {
                 "test_features": [],
             },
             "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/grapheme-segmentation:grapheme-segmentation",
+                    "//crates/sequence:sequence",
+                    "//third-party/rust:memchr-2.8.1",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:similar-3.1.1",
+                    "//third-party/rust:tree-sitter-0.26.11",
+                    "//third-party/rust:tree-sitter-md-0.5.3",
+                    "//third-party/rust:tree-sitter-rust-0.24.2",
+                    "//third-party/rust:tree-sitter-zig-1.1.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-html": {
                 "binaries": {},
                 "deps": [
                     "//crates/grapheme-segmentation:grapheme-segmentation",
@@ -26977,6 +27113,15 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":memchr-2.8.1",
+                ],
+                "features": [
+                    "perf-literal",
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":memchr-2.8.1",
@@ -27007,6 +27152,15 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":memchr-2.8.1",
+                ],
+                "features": [
+                    "perf-literal",
+                    "std",
+                ],
+            },
+            "wasi-html": {
                 "deps": [
                     ":memchr-2.8.1",
                 ],
@@ -38722,6 +38876,11 @@ third_party = {
                     ":phf-0.13.1",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":phf-0.13.1",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":phf-0.13.1",
@@ -38738,6 +38897,11 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":phf-0.13.1",
+                ],
+            },
+            "wasi-html": {
                 "deps": [
                     ":phf-0.13.1",
                 ],
@@ -45199,6 +45363,16 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":displaydoc-0.2.6",
+                    ":potential_utf-0.1.5",
+                    ":utf8_iter-1.0.4",
+                    ":yoke-0.8.4",
+                    ":zerofrom-0.1.8",
+                    ":zerovec-0.11.9",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":displaydoc-0.2.6",
@@ -45230,6 +45404,16 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":displaydoc-0.2.6",
+                    ":potential_utf-0.1.5",
+                    ":utf8_iter-1.0.4",
+                    ":yoke-0.8.4",
+                    ":zerofrom-0.1.8",
+                    ":zerovec-0.11.9",
+                ],
+            },
+            "wasi-html": {
                 "deps": [
                     ":displaydoc-0.2.6",
                     ":potential_utf-0.1.5",
@@ -45322,6 +45506,18 @@ third_party = {
                     "zerovec",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":displaydoc-0.2.6",
+                    ":litemap-0.8.2",
+                    ":tinystr-0.8.5",
+                    ":writeable-0.6.4",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "zerovec",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":displaydoc-0.2.6",
@@ -45359,6 +45555,18 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":displaydoc-0.2.6",
+                    ":litemap-0.8.2",
+                    ":tinystr-0.8.5",
+                    ":writeable-0.6.4",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "zerovec",
+                ],
+            },
+            "wasi-html": {
                 "deps": [
                     ":displaydoc-0.2.6",
                     ":litemap-0.8.2",
@@ -45614,6 +45822,21 @@ third_party = {
                     "default",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":displaydoc-0.2.6",
+                    ":icu_collections-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":icu_properties_data-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":zerotrie-0.2.5",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "compiled_data",
+                    "default",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":displaydoc-0.2.6",
@@ -45660,6 +45883,21 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":displaydoc-0.2.6",
+                    ":icu_collections-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":icu_properties_data-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":zerotrie-0.2.5",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "compiled_data",
+                    "default",
+                ],
+            },
+            "wasi-html": {
                 "deps": [
                     ":displaydoc-0.2.6",
                     ":icu_collections-2.4.0",
@@ -45737,10 +45975,12 @@ third_party = {
             "android-arm64": {},
             "linux-arm64": {},
             "linux-x86_64": {},
+            "linux-x86_64-html": {},
             "macos-arm64": {},
             "macos-x86_64": {},
             "wasi": {},
             "wasi-guest": {},
+            "wasi-html": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -45812,6 +46052,20 @@ third_party = {
                     "baked",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":displaydoc-0.2.6",
+                    ":icu_locale_core-2.4.0",
+                    ":writeable-0.6.4",
+                    ":yoke-0.8.4",
+                    ":zerofrom-0.1.8",
+                    ":zerotrie-0.2.5",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "baked",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":displaydoc-0.2.6",
@@ -45855,6 +46109,20 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":displaydoc-0.2.6",
+                    ":icu_locale_core-2.4.0",
+                    ":writeable-0.6.4",
+                    ":yoke-0.8.4",
+                    ":zerofrom-0.1.8",
+                    ":zerotrie-0.2.5",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "baked",
+                ],
+            },
+            "wasi-html": {
                 "deps": [
                     ":displaydoc-0.2.6",
                     ":icu_locale_core-2.4.0",
@@ -49922,10 +50190,12 @@ third_party = {
             "android-arm64": {},
             "linux-arm64": {},
             "linux-x86_64": {},
+            "linux-x86_64-html": {},
             "macos-arm64": {},
             "macos-x86_64": {},
             "wasi": {},
             "wasi-guest": {},
+            "wasi-html": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -50688,6 +50958,7 @@ third_party = {
             "linux-x86_64-html": {
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                 ],
             },
@@ -50713,6 +50984,13 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "wasi-html": {
                 "features": [
                     "alloc",
                     "default",
@@ -55914,6 +56192,11 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":phf_shared-0.13.1",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":phf_shared-0.13.1",
@@ -55938,6 +56221,11 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":phf_shared-0.13.1",
+                ],
+            },
+            "wasi-html": {
                 "deps": [
                     ":phf_shared-0.13.1",
                 ],
@@ -56110,6 +56398,11 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":siphasher-1.0.3",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":siphasher-1.0.3",
@@ -56132,6 +56425,11 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":siphasher-1.0.3",
+                ],
+            },
+            "wasi-html": {
                 "deps": [
                     ":siphasher-1.0.3",
                 ],
@@ -57766,6 +58064,14 @@ third_party = {
                     "zerovec",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "zerovec",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":zerovec-0.11.9",
@@ -57791,6 +58097,14 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "zerovec",
+                ],
+            },
+            "wasi-html": {
                 "deps": [
                     ":zerovec-0.11.9",
                 ],
@@ -60724,6 +61038,32 @@ third_party = {
                     "unicode-segment",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":aho-corasick-1.1.4",
+                    ":memchr-2.8.1",
+                    ":regex-automata-0.4.16",
+                    ":regex-syntax-0.8.11",
+                ],
+                "features": [
+                    "perf",
+                    "perf-backtrack",
+                    "perf-cache",
+                    "perf-dfa",
+                    "perf-inline",
+                    "perf-literal",
+                    "perf-onepass",
+                    "std",
+                    "unicode",
+                    "unicode-age",
+                    "unicode-bool",
+                    "unicode-case",
+                    "unicode-gencat",
+                    "unicode-perl",
+                    "unicode-script",
+                    "unicode-segment",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":aho-corasick-1.1.4",
@@ -60803,6 +61143,32 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":aho-corasick-1.1.4",
+                    ":memchr-2.8.1",
+                    ":regex-automata-0.4.16",
+                    ":regex-syntax-0.8.11",
+                ],
+                "features": [
+                    "perf",
+                    "perf-backtrack",
+                    "perf-cache",
+                    "perf-dfa",
+                    "perf-inline",
+                    "perf-literal",
+                    "perf-onepass",
+                    "std",
+                    "unicode",
+                    "unicode-age",
+                    "unicode-bool",
+                    "unicode-case",
+                    "unicode-gencat",
+                    "unicode-perl",
+                    "unicode-script",
+                    "unicode-segment",
+                ],
+            },
+            "wasi-html": {
                 "deps": [
                     ":aho-corasick-1.1.4",
                     ":memchr-2.8.1",
@@ -61012,6 +61378,37 @@ third_party = {
                     "unicode-word-boundary",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":aho-corasick-1.1.4",
+                    ":memchr-2.8.1",
+                    ":regex-syntax-0.8.11",
+                ],
+                "features": [
+                    "alloc",
+                    "dfa-onepass",
+                    "hybrid",
+                    "meta",
+                    "nfa-backtrack",
+                    "nfa-pikevm",
+                    "nfa-thompson",
+                    "perf-inline",
+                    "perf-literal",
+                    "perf-literal-multisubstring",
+                    "perf-literal-substring",
+                    "std",
+                    "syntax",
+                    "unicode",
+                    "unicode-age",
+                    "unicode-bool",
+                    "unicode-case",
+                    "unicode-gencat",
+                    "unicode-perl",
+                    "unicode-script",
+                    "unicode-segment",
+                    "unicode-word-boundary",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":aho-corasick-1.1.4",
@@ -61114,6 +61511,37 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":aho-corasick-1.1.4",
+                    ":memchr-2.8.1",
+                    ":regex-syntax-0.8.11",
+                ],
+                "features": [
+                    "alloc",
+                    "dfa-onepass",
+                    "hybrid",
+                    "meta",
+                    "nfa-backtrack",
+                    "nfa-pikevm",
+                    "nfa-thompson",
+                    "perf-inline",
+                    "perf-literal",
+                    "perf-literal-multisubstring",
+                    "perf-literal-substring",
+                    "std",
+                    "syntax",
+                    "unicode",
+                    "unicode-age",
+                    "unicode-bool",
+                    "unicode-case",
+                    "unicode-gencat",
+                    "unicode-perl",
+                    "unicode-script",
+                    "unicode-segment",
+                    "unicode-word-boundary",
+                ],
+            },
+            "wasi-html": {
                 "deps": [
                     ":aho-corasick-1.1.4",
                     ":memchr-2.8.1",
@@ -61280,6 +61708,19 @@ third_party = {
                     "unicode-segment",
                 ],
             },
+            "linux-x86_64-html": {
+                "features": [
+                    "std",
+                    "unicode",
+                    "unicode-age",
+                    "unicode-bool",
+                    "unicode-case",
+                    "unicode-gencat",
+                    "unicode-perl",
+                    "unicode-script",
+                    "unicode-segment",
+                ],
+            },
             "macos-arm64": {
                 "features": [
                     "std",
@@ -61320,6 +61761,19 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "features": [
+                    "std",
+                    "unicode",
+                    "unicode-age",
+                    "unicode-bool",
+                    "unicode-case",
+                    "unicode-gencat",
+                    "unicode-perl",
+                    "unicode-script",
+                    "unicode-segment",
+                ],
+            },
+            "wasi-html": {
                 "features": [
                     "std",
                     "unicode",
@@ -66081,6 +66535,13 @@ third_party = {
                     "text",
                 ],
             },
+            "linux-x86_64-html": {
+                "features": [
+                    "default",
+                    "std",
+                    "text",
+                ],
+            },
             "macos-arm64": {
                 "features": [
                     "default",
@@ -66103,6 +66564,13 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "features": [
+                    "default",
+                    "std",
+                    "text",
+                ],
+            },
+            "wasi-html": {
                 "features": [
                     "default",
                     "std",
@@ -66262,6 +66730,12 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "features": [
                     "default",
@@ -66281,6 +66755,12 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "wasi-html": {
                 "features": [
                     "default",
                     "std",
@@ -67772,10 +68252,12 @@ third_party = {
             "android-arm64": {},
             "linux-arm64": {},
             "linux-x86_64": {},
+            "linux-x86_64-html": {},
             "macos-arm64": {},
             "macos-x86_64": {},
             "wasi": {},
             "wasi-guest": {},
+            "wasi-html": {},
             "wasm32": {},
             "windows-arm64": {},
             "windows-x86_64": {},
@@ -67844,10 +68326,12 @@ third_party = {
             "android-arm64": {},
             "linux-arm64": {},
             "linux-x86_64": {},
+            "linux-x86_64-html": {},
             "macos-arm64": {},
             "macos-x86_64": {},
             "wasi": {},
             "wasi-guest": {},
+            "wasi-html": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -70126,6 +70610,15 @@ third_party = {
                     "zerovec",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":displaydoc-0.2.6",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "zerovec",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":displaydoc-0.2.6",
@@ -70154,6 +70647,15 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":displaydoc-0.2.6",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "zerovec",
+                ],
+            },
+            "wasi-html": {
                 "deps": [
                     ":displaydoc-0.2.6",
                     ":zerovec-0.11.9",
@@ -72308,6 +72810,18 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":regex-1.13.1",
+                    ":regex-syntax-0.8.11",
+                    ":streaming-iterator-0.1.9",
+                    ":tree-sitter-language-0.1.7",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":regex-1.13.1",
@@ -72345,6 +72859,18 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":regex-1.13.1",
+                    ":regex-syntax-0.8.11",
+                    ":streaming-iterator-0.1.9",
+                    ":tree-sitter-language-0.1.7",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "wasi-html": {
                 "deps": [
                     ":regex-1.13.1",
                     ":regex-syntax-0.8.11",
@@ -72414,10 +72940,12 @@ third_party = {
             "android-arm64": {},
             "linux-arm64": {},
             "linux-x86_64": {},
+            "linux-x86_64-html": {},
             "macos-arm64": {},
             "macos-x86_64": {},
             "wasi": {},
             "wasi-guest": {},
+            "wasi-html": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -72478,6 +73006,15 @@ third_party = {
                     "parser",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":tree-sitter-0.26.11",
+                    ":tree-sitter-language-0.1.7",
+                ],
+                "features": [
+                    "parser",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":tree-sitter-0.26.11",
@@ -72506,6 +73043,15 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":tree-sitter-0.26.11",
+                    ":tree-sitter-language-0.1.7",
+                ],
+                "features": [
+                    "parser",
+                ],
+            },
+            "wasi-html": {
                 "deps": [
                     ":tree-sitter-0.26.11",
                     ":tree-sitter-language-0.1.7",
@@ -72578,6 +73124,11 @@ third_party = {
                     ":tree-sitter-language-0.1.7",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":tree-sitter-language-0.1.7",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":tree-sitter-language-0.1.7",
@@ -72594,6 +73145,11 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":tree-sitter-language-0.1.7",
+                ],
+            },
+            "wasi-html": {
                 "deps": [
                     ":tree-sitter-language-0.1.7",
                 ],
@@ -72654,6 +73210,11 @@ third_party = {
                     ":tree-sitter-language-0.1.7",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":tree-sitter-language-0.1.7",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":tree-sitter-language-0.1.7",
@@ -72670,6 +73231,11 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":tree-sitter-language-0.1.7",
+                ],
+            },
+            "wasi-html": {
                 "deps": [
                     ":tree-sitter-language-0.1.7",
                 ],
@@ -74317,10 +74883,12 @@ third_party = {
             "android-arm64": {},
             "linux-arm64": {},
             "linux-x86_64": {},
+            "linux-x86_64-html": {},
             "macos-arm64": {},
             "macos-x86_64": {},
             "wasi": {},
             "wasi-guest": {},
+            "wasi-html": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -79209,6 +79777,8 @@ third_party = {
                 ],
                 "features": [
                     "AddEventListenerOptions",
+                    "Blob",
+                    "BlobPropertyBag",
                     "CharacterData",
                     "Clipboard",
                     "ClipboardEvent",
@@ -79221,10 +79791,15 @@ third_party = {
                     "Element",
                     "Event",
                     "EventTarget",
+                    "File",
+                    "FileList",
+                    "FileReader",
                     "FocusEvent",
                     "FontFaceSet",
+                    "HtmlAnchorElement",
                     "HtmlElement",
                     "HtmlHeadElement",
+                    "HtmlInputElement",
                     "HtmlTextAreaElement",
                     "InputEvent",
                     "KeyboardEvent",
@@ -79238,8 +79813,10 @@ third_party = {
                     "Performance",
                     "PointerEvent",
                     "ResizeObserver",
+                    "Selection",
                     "Text",
                     "UiEvent",
+                    "Url",
                     "WheelEvent",
                     "Window",
                     "console",
@@ -83683,10 +84260,12 @@ third_party = {
             "android-arm64": {},
             "linux-arm64": {},
             "linux-x86_64": {},
+            "linux-x86_64-html": {},
             "macos-arm64": {},
             "macos-x86_64": {},
             "wasi": {},
             "wasi-guest": {},
+            "wasi-html": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -84838,6 +85417,17 @@ third_party = {
                     "zerofrom",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":stable_deref_trait-1.2.1",
+                    ":yoke-derive-0.8.4",
+                    ":zerofrom-0.1.8",
+                ],
+                "features": [
+                    "derive",
+                    "zerofrom",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":stable_deref_trait-1.2.1",
@@ -84872,6 +85462,17 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":stable_deref_trait-1.2.1",
+                    ":yoke-derive-0.8.4",
+                    ":zerofrom-0.1.8",
+                ],
+                "features": [
+                    "derive",
+                    "zerofrom",
+                ],
+            },
+            "wasi-html": {
                 "deps": [
                     ":stable_deref_trait-1.2.1",
                     ":yoke-derive-0.8.4",
@@ -85456,6 +86057,14 @@ third_party = {
                     "derive",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":zerofrom-derive-0.1.7",
+                ],
+                "features": [
+                    "derive",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":zerofrom-derive-0.1.7",
@@ -85481,6 +86090,14 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":zerofrom-derive-0.1.7",
+                ],
+                "features": [
+                    "derive",
+                ],
+            },
+            "wasi-html": {
                 "deps": [
                     ":zerofrom-derive-0.1.7",
                 ],
@@ -85737,6 +86354,17 @@ third_party = {
                     "zerofrom",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":displaydoc-0.2.6",
+                    ":yoke-0.8.4",
+                    ":zerofrom-0.1.8",
+                ],
+                "features": [
+                    "yoke",
+                    "zerofrom",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":displaydoc-0.2.6",
@@ -85771,6 +86399,17 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":displaydoc-0.2.6",
+                    ":yoke-0.8.4",
+                    ":zerofrom-0.1.8",
+                ],
+                "features": [
+                    "yoke",
+                    "zerofrom",
+                ],
+            },
+            "wasi-html": {
                 "deps": [
                     ":displaydoc-0.2.6",
                     ":yoke-0.8.4",
@@ -85862,6 +86501,17 @@ third_party = {
                     "yoke",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":yoke-0.8.4",
+                    ":zerofrom-0.1.8",
+                    ":zerovec-derive-0.11.7",
+                ],
+                "features": [
+                    "derive",
+                    "yoke",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":yoke-0.8.4",
@@ -85896,6 +86546,17 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":yoke-0.8.4",
+                    ":zerofrom-0.1.8",
+                    ":zerovec-derive-0.11.7",
+                ],
+                "features": [
+                    "derive",
+                    "yoke",
+                ],
+            },
+            "wasi-html": {
                 "deps": [
                     ":yoke-0.8.4",
                     ":zerofrom-0.1.8",

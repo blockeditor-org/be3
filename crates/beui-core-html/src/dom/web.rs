@@ -151,3 +151,105 @@ impl Drop for Listener {
         );
     }
 }
+
+pub fn element(node: NodeId) -> Option<web_sys::Element> {
+    dom(node)?.dyn_into().ok()
+}
+
+pub fn call(
+    target: &wasm_bindgen::JsValue,
+    method: &str,
+    args: &[wasm_bindgen::JsValue],
+) -> Option<wasm_bindgen::JsValue> {
+    let function = js_sys::Reflect::get(target, &method.into())
+        .ok()?
+        .dyn_into::<js_sys::Function>()
+        .ok()?;
+    let args: js_sys::Array = args.iter().collect();
+    function.apply(target, &args).ok()
+}
+
+pub fn has_method(target: &wasm_bindgen::JsValue, method: &str) -> bool {
+    js_sys::Reflect::get(target, &method.into()).is_ok_and(|held| held.is_function())
+}
+
+pub fn css_supports(property: &str, value: &str) -> bool {
+    let Some(window) = window() else {
+        return false;
+    };
+    let Ok(css) = js_sys::Reflect::get(&window, &"CSS".into()) else {
+        return false;
+    };
+    call(&css, "supports", &[property.into(), value.into()]).is_some_and(|held| held.is_truthy())
+}
+
+pub fn origin() -> beui_types::Pos2 {
+    crate::run::root()
+        .and_then(element)
+        .map(|root| {
+            let rect = root.get_bounding_client_rect();
+            beui_types::pos2(rect.left() as f32, rect.top() as f32)
+        })
+        .unwrap_or(beui_types::Pos2::ZERO)
+}
+
+pub fn client_rect(element: &web_sys::Element) -> beui_types::Rect {
+    let bounds = element.get_bounding_client_rect();
+    beui_types::Rect::from_min_size(
+        beui_types::pos2(bounds.left() as f32, bounds.top() as f32),
+        beui_types::vec2(bounds.width() as f32, bounds.height() as f32),
+    )
+}
+
+pub fn scale_of(element: &web_sys::Element, rect: beui_types::Rect) -> f32 {
+    let laid = element
+        .dyn_ref::<web_sys::HtmlElement>()
+        .map_or(0, web_sys::HtmlElement::offset_width) as f32;
+    match laid > 0.0 && rect.width() > 0.0 {
+        true => rect.width() / laid,
+        false => 1.0,
+    }
+}
+
+pub fn viewport() -> beui_types::Rect {
+    let Some(window) = window() else {
+        return beui_types::Rect::EVERYTHING;
+    };
+    let size = |value: Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>| {
+        value.ok().and_then(|value| value.as_f64()).unwrap_or(0.0) as f32
+    };
+    beui_types::Rect::from_min_size(
+        beui_types::Pos2::ZERO,
+        beui_types::vec2(size(window.inner_width()), size(window.inner_height())),
+    )
+}
+
+pub struct Resizes {
+    observer: web_sys::ResizeObserver,
+    _callback: Closure<dyn FnMut()>,
+}
+
+impl Resizes {
+    pub fn new(on_resize: fn()) -> Option<Self> {
+        let callback = Closure::<dyn FnMut()>::new(on_resize);
+        let observer = web_sys::ResizeObserver::new(callback.as_ref().unchecked_ref()).ok()?;
+        Some(Self {
+            observer,
+            _callback: callback,
+        })
+    }
+
+    pub fn observe(&self, element: &web_sys::Element) {
+        self.observer.observe(element);
+    }
+
+    pub fn unobserve(&self, element: &web_sys::Element) {
+        self.observer.unobserve(element);
+    }
+}
+
+impl Drop for Resizes {
+    fn drop(&mut self) {
+        self.observer.disconnect();
+    }
+}
