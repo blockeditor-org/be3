@@ -390,7 +390,11 @@ mod web {
             Some(REPEAT)
         }
 
-        fn down(self: &Rc<Self>, element: &web_sys::Element, event: &web_sys::PointerEvent) -> bool {
+        fn down(
+            self: &Rc<Self>,
+            element: &web_sys::Element,
+            event: &web_sys::PointerEvent,
+        ) -> bool {
             if !self.switches.press_focus.get() {
                 event.prevent_default();
             }
