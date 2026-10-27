@@ -98,13 +98,16 @@ impl Node {
     pub fn to_html(&self) -> String {
         reactive::flush();
         let mut output = String::new();
-        self.write(&mut output);
+        self.write(&mut output, None);
         output
     }
 
-    fn write(&self, output: &mut String) {
+    fn write(&self, output: &mut String, raw_text_of: Option<&str>) {
         match &self.0.kind {
-            Kind::Text(value) => escape_into(&value.borrow(), output),
+            Kind::Text(value) => match raw_text_of {
+                Some(tag) => raw_text_into(&value.borrow(), tag, output),
+                None => escape_into(&value.borrow(), output),
+            },
             Kind::Raw(value) => output.push_str(value),
             Kind::Element(tag) => {
                 output.push('<');
@@ -121,17 +124,21 @@ impl Node {
                 }
                 output.push('>');
                 if !self.is_void() {
-                    self.write_children(output);
+                    let raw_text_of = UNESCAPED_ELEMENTS
+                        .iter()
+                        .find(|raw| tag.eq_ignore_ascii_case(raw))
+                        .copied();
+                    self.write_children(output, raw_text_of);
                     output.push_str("</");
                     output.push_str(tag);
                     output.push('>');
                 }
             }
-            Kind::Fragment => self.write_children(output),
+            Kind::Fragment => self.write_children(output, raw_text_of),
         }
     }
 
-    fn write_children(&self, output: &mut String) {
+    fn write_children(&self, output: &mut String, raw_text_of: Option<&str>) {
         let markers = !self.holds_raw_text();
         for (dynamic, items) in self.0.children.borrow().slots() {
             let marked = markers && dynamic.is_some();
@@ -139,7 +146,7 @@ impl Node {
                 output.push_str(START_MARKER_HTML);
             }
             for child in items {
-                child.write(output);
+                child.write(output, raw_text_of);
             }
             if marked {
                 output.push_str(END_MARKER_HTML);
@@ -152,6 +159,8 @@ const START_MARKER_HTML: &str = "<!--[-->";
 const END_MARKER_HTML: &str = "<!--]-->";
 
 const RAW_TEXT_ELEMENTS: [&str; 5] = ["script", "style", "textarea", "title", "noscript"];
+
+const UNESCAPED_ELEMENTS: [&str; 2] = ["script", "style"];
 
 fn valid_name(name: &str) -> bool {
     !name.is_empty()
@@ -179,6 +188,15 @@ fn set_attr(node: &Node, name: &str, value: Option<String>) {
     }
     #[cfg(target_arch = "wasm32")]
     dom::set_attribute(node, name, value.as_deref());
+}
+
+fn raw_text_into(value: &str, tag: &str, output: &mut String) {
+    let closing = format!("</{}", tag.to_ascii_lowercase());
+    assert!(
+        !value.to_ascii_lowercase().contains(&closing),
+        "raw text contains a closing {tag} tag"
+    );
+    output.push_str(value);
 }
 
 fn escape_into(value: &str, output: &mut String) {
