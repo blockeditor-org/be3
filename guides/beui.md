@@ -3100,7 +3100,8 @@ types into, or `Popup` for a menu of the window it is placed over, which the
 host never focuses either and closes, reporting `Closed`, when a press lands
 outside it and outside the popups opened over it, keeping that press from what
 is under it as a `BlocksAll` menu does; block-app does so for every plugin
-window it overlays, anywhere in its own window; the `Window` component's `role`,
+window it overlays, anywhere in its own window, and beui-layer-space for every
+panel, a press in any other panel or none closing it; the `Window` component's `role`,
 and a hosted window whose role changes is opened again with the new one), `BeginMove(window)`, `BeginResize { window, edge }`
 (the host then moves or resizes it, as an OS does after winit's
 `drag_window`), `Resize { window, size }` (the app wants another size; the
@@ -3163,7 +3164,8 @@ app that follows `Resized` reports in its `size` never fights the host; `on_repo
 again. Elsewhere it is an `Overlay` at `at` (`Placement::At`,
 `LayerPolicy::Pass`, no focus trap) holding its content at `size`, which is
 how floating windows looked before there were windows, so an app looks the
-same either way. `WindowHandle` (also `use_window()` inside the content)
+same either way (a `Popup` one too: closing it on a press outside is left to
+the app, as be-wayland's popups need). `WindowHandle` (also `use_window()` inside the content)
 carries the `id`, the shown `size` and `is_window()`, which says which of the
 two it is (`real_window()` is the hosted window it is drawn in: its own, or the
 one around the overlay it is). `begin_move()`, `begin_resize(edge)` and `close()` ask the host and
@@ -3449,7 +3451,10 @@ it, and all its 3D (`glam`) stays in the crate.
   carries it like any panel. A `WindowRole::Popup` window opens where its
   placement says and never takes the focus either, so the window it belongs
   to keeps it (a Wayland popup's grab ends when its toplevel loses the
-  keyboard). `Resize` sets the panel's size,
+  keyboard). A mouse press or trigger pull that lands anywhere but on a popup
+  or a popup placed `Over` it (chrome included) closes it, reporting `Closed`,
+  and goes no further, its release neither (`Space::dismiss_popups`). A window
+  opened again with another role takes it. `Resize` sets the panel's size,
   keeping its top-left corner, and reports `Resized` the next frame. `Close`
   removes the panel and its texture; the main window's panel never closes.
 - Grab: while its window has focus the host holds the pointer

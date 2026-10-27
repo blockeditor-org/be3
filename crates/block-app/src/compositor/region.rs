@@ -904,16 +904,20 @@ fn PanelWindows(editor: RegionEditor, region: EditorRegion, rect: Memo<Rect>) ->
                 };
                 let panel = super::desktop::panel_of(key.clone());
                 let size = create_memo(move || panel.with(|panel| panel.as_ref().map_or(Vec2::ZERO, |(size, _)| *size)));
-                let (placement, role) = panel.with_untracked(|panel| match panel {
-                    Some((_, panel)) => (placed(panel.opened.clone()), panel.role),
-                    None => (WindowPlacement::AtPointer, WindowRole::Normal),
+                let opened = create_memo(move || {
+                    panel.with(|panel| panel.as_ref().map(|(_, panel)| (panel.opened.clone(), panel.role)))
                 });
+                let placement = create_memo(move || match opened.get() {
+                    Some((opened, _)) => placed(opened),
+                    None => WindowPlacement::AtPointer,
+                });
+                let role = create_memo(move || opened.get().map_or(WindowRole::Normal, |(_, role)| role));
                 let reported = key.clone();
                 let report = move |report: WindowReport| match report {
                     WindowReport::Placed { placement, .. } => {
                         super::desktop::panel_placed(&reported, placement.0);
                     }
-                    WindowReport::Closed(_) => super::desktop::panel_closed(&reported),
+                    WindowReport::Closed(_) => super::desktop::dismiss(&reported),
                     _ => {}
                 };
                 let region = EditorRegion::Window(window);

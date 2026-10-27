@@ -526,10 +526,6 @@ pub(crate) fn panel_placed(key: &FloatedKey, placement: String) {
     });
 }
 
-pub(crate) fn panel_closed(key: &FloatedKey) {
-    floated_signal().update(|held| held.retain(|window| window.key != *key));
-}
-
 pub(crate) fn role_of(key: FloatedKey) -> Memo<WindowRole> {
     let floated = floated();
     create_memo(move || {

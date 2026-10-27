@@ -161,7 +161,7 @@ pub struct Space {
     sprite: Sprite,
     focused: Option<WindowId>,
     keyboards: Vec<WindowId>,
-    popups: Vec<WindowId>,
+    popups: Vec<(WindowId, Option<WindowId>)>,
     typing: Option<(WindowId, Rect)>,
     pressed: u32,
     dropped: u32,
@@ -404,7 +404,7 @@ impl Space {
     fn focus(&mut self, window: Option<WindowId>) {
         if self.focused == window
             || window.is_some_and(|window| {
-                self.keyboards.contains(&window) || self.popups.contains(&window)
+                self.keyboards.contains(&window) || self.is_popup(window)
             })
         {
             return;
@@ -416,6 +416,38 @@ impl Space {
             }
         }
         self.focused = window;
+    }
+
+    fn is_popup(&self, window: WindowId) -> bool {
+        self.popups.iter().any(|(popup, _)| *popup == window)
+    }
+
+    fn dismiss_popups(&mut self, ray: Ray, out: &mut Vec<Incoming>) -> bool {
+        let pressed = self
+            .chrome_hit(ray)
+            .map(|(_, hit)| hit.window)
+            .or_else(|| self.pick(ray).map(|hit| hit.window));
+        let mut kept = Vec::new();
+        let mut on = pressed;
+        while let Some(window) = on.filter(|window| !kept.contains(window)) {
+            kept.push(window);
+            on = self
+                .popups
+                .iter()
+                .find(|(popup, _)| *popup == window)
+                .and_then(|(_, over)| *over);
+        }
+        let gone: Vec<WindowId> = self
+            .popups
+            .iter()
+            .map(|(popup, _)| *popup)
+            .filter(|popup| !kept.contains(popup))
+            .collect();
+        for popup in &gone {
+            self.close(*popup);
+            out.push(Incoming::Window(WindowReport::Closed(*popup)));
+        }
+        !gone.is_empty()
     }
 
     fn pressed_on(&self, ray: Ray) -> Option<WindowId> {
@@ -822,6 +854,15 @@ impl Space {
         let Some(ray) = self.cursor_ray() else {
             return;
         };
+        if pressed
+            && self.mouse.gripped().is_none()
+            && self.mouse.gesture.is_none()
+            && self.pressed == 0
+            && self.dismiss_popups(ray, out)
+        {
+            self.dropped += 1;
+            return;
+        }
         if pressed && self.mouse.gripped().is_none() && self.mouse.gesture.is_none() {
             self.focus(self.pressed_on(ray));
         }
@@ -1238,6 +1279,14 @@ impl Space {
         role: WindowRole,
     ) {
         let opening = self.panel(window).is_none();
+        self.popups.retain(|(popup, _)| *popup != window);
+        if role == WindowRole::Popup {
+            let over = match placement {
+                WindowPlacement::Over { window: over, .. } => Some(*over),
+                _ => None,
+            };
+            self.popups.push((window, over));
+        }
         if opening {
             let mut panel = Panel::new(window, Pose::default(), size);
             let beside = match role {
@@ -1245,11 +1294,7 @@ impl Space {
                     self.keyboards.push(window);
                     self.beside_typing(size)
                 }
-                WindowRole::Popup => {
-                    self.popups.push(window);
-                    None
-                }
-                WindowRole::Normal => None,
+                WindowRole::Popup | WindowRole::Normal => None,
             };
             let placed = match placement {
                 _ if beside.is_some() => {
@@ -1391,7 +1436,7 @@ impl Space {
         }
         self.panels.retain(|panel| panel.window != window);
         self.keyboards.retain(|keyboard| *keyboard != window);
-        self.popups.retain(|popup| *popup != window);
+        self.popups.retain(|(popup, _)| *popup != window);
         self.scales.retain(|(held, _)| *held != window);
         self.rescaling.retain(|(waiting, ..)| *waiting != window);
         if let Some(compositor) = &self.compositor {
@@ -2240,7 +2285,7 @@ impl Space {
         let Some(ray) = laser.aimed() else {
             return;
         };
-        if busy || self.both.is_some() {
+        if busy || self.both.is_some() || self.dismiss_popups(ray, out) {
             return;
         }
         if let Some((part, hit)) = self.chrome_hit(ray) {
