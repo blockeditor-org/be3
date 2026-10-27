@@ -138,6 +138,7 @@ pub use beui_renderer_wgpu::{
     Draw, DrawAt, Renderer, Repaint, Repainting, drawing, painted_drawing, renderer_info,
     wgpu_color,
 };
+#[cfg(not(beui_html))]
 pub use beui_view::components::selectable;
 pub use beui_view::primitives;
 pub use beui_view::types::{

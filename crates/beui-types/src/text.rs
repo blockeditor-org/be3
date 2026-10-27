@@ -8,8 +8,6 @@ use crate::layout::Corners;
 
 pub const DEFAULT_FONT_SIZE: f32 = 14.0;
 
-pub const DEFAULT_FONT_SIZE: f32 = 14.0;
-
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum TextAlign {
     Start,
