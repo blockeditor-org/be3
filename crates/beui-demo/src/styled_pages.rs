@@ -1,5 +1,6 @@
 use super::*;
 use beui::KeyAt;
+use beui::Pos2;
 use beui::TextAlign;
 use beui::icons::Glyph;
 use beui::icons::{
@@ -3254,6 +3255,7 @@ pub(crate) fn TreePage() -> NodeId {
                     tree_ancestors::SOURCE,
                     has_children::SOURCE,
                     visible_tree_rows::SOURCE,
+                    moved_tree_row::SOURCE,
                 ]}
             >
                 <ProjectTree />
@@ -3265,27 +3267,43 @@ pub(crate) fn TreePage() -> NodeId {
 #[sample]
 #[component]
 fn ProjectTree() -> NodeId {
+    let nodes = create_signal(
+        TREE_NODES
+            .iter()
+            .enumerate()
+            .map(|(row, (_, depth))| (row, *depth))
+            .collect::<Vec<_>>(),
+    );
     let collapsed = create_signal(Vec::<usize>::new());
     let selected = create_signal(None::<usize>);
     let chosen = create_signal(None::<String>);
     let comfortable = create_signal(false);
     let names = create_signal(TREE_NODES.map(|(name, _)| name.to_owned()).to_vec());
     let editing = create_signal(None::<usize>);
+    let landing = create_signal(None::<usize>);
+    let tree = ComponentRef::new();
     let name = move |row: usize| names.with(|names| names[row].clone());
     provide_density(create_memo(move || match comfortable.get() {
         true => Density::Comfortable,
         false => Density::Compact,
     }));
-    let keys = create_memo(move || visible_tree_rows(&collapsed.get()));
+    let keys = create_memo(move || nodes.with(|nodes| visible_tree_rows(nodes, &collapsed.get())));
     let status_text = create_memo(move || match (chosen.get(), selected.get()) {
         (Some(chosen), _) => chosen,
         (None, Some(row)) => format!("{} selected", name(row)),
         (None, None) => "Nothing selected".to_owned(),
     });
+    let over = move |row: usize, at: Pos2| {
+        let tree: TreeApi<usize> = tree.get();
+        tree.drag_over(Some(at), |drop: &TreeDrop<usize>| {
+            nodes.with(|nodes| moved_tree_row(nodes, row, drop).is_some())
+        })
+        .and_then(|over| over.drop)
+    };
     view! {
         <List spacing=SECTION_SPACING>
             <Text style=TextStyle::CAPTION>
-                "Arrow keys walk the tree and Enter selects; the left of a row, or an arrow key, opens and closes a folder; a row's menu opens from its button, a right click or a long press; F2 or Rename edits a name in place, Enter or clicking away keeps it and Escape puts it back"
+                "Arrow keys walk the tree and Enter selects; the left of a row, or an arrow key, opens and closes a folder; a row's menu opens from its button, a right click or a long press; F2 or Rename edits a name in place, Enter or clicking away keeps it and Escape puts it back; drag a row between two others to move it there, or onto the middle of a folder to move it inside"
             </Text>
             <LabelledSwitch
                 @test_id="demo.tree.comfortable"
@@ -3294,12 +3312,15 @@ fn ProjectTree() -> NodeId {
             />
             <Tree
                 @sizing=ItemSize::Fixed(TREE_HEIGHT)
+                api=tree
                 keys
-                item={move |row: usize| tree_item(row, &name(row), &collapsed.get())}
+                item={move |row: usize| nodes.with(|nodes| tree_item(nodes, row, &name(row), &collapsed.get()))}
                 selected
                 editing
-                ancestors={tree_ancestors}
+                reorder=true
+                ancestors={move |row: usize| nodes.with(|nodes| tree_ancestors(nodes, row))}
                 row_test_id={|row: usize| format!("demo.tree.{row}")}
+                outline={move |row: usize| (landing.get() == Some(row)).then_some(ColorRole::Accent)}
                 menu={move |row: usize| Some(TreeMenu {
                     items: view! {
                         <MenuItem
@@ -3328,7 +3349,8 @@ fn ProjectTree() -> NodeId {
                 }}
                 on_reveal={move |row: usize| {
                     collapsed.update(|collapsed| {
-                        collapsed.retain(|candidate| !tree_ancestors(row).contains(candidate));
+                        let ancestors = nodes.with(|nodes| tree_ancestors(nodes, row));
+                        collapsed.retain(|candidate| !ancestors.contains(candidate));
                     });
                 }}
                 on_select={move |row: usize| {
@@ -3343,6 +3365,25 @@ fn ProjectTree() -> NodeId {
                         }
                     });
                 }}
+                on_drag_move={move |(row, at): (usize, Pos2)| {
+                    let into = match over(row, at) {
+                        Some(TreeDrop::Into(folder)) => Some(folder),
+                        _ => None,
+                    };
+                    landing.set(into);
+                }}
+                on_drop={move |(row, at): (usize, Pos2)| {
+                    landing.set(None);
+                    let moved = over(row, at).and_then(|drop| {
+                        nodes.with_untracked(|nodes| moved_tree_row(nodes, row, &drop))
+                    });
+                    let tree: TreeApi<usize> = tree.get();
+                    tree.drag_end(moved.is_some());
+                    if let Some(moved) = moved {
+                        chosen.set(Some(format!("Moved {}", name(row))));
+                        nodes.set(moved);
+                    }
+                }}
             >|row: TreeRowFace<usize>|
                 <Text>{create_memo(move || name(row.key))}</Text>
             </Tree>
@@ -3352,54 +3393,120 @@ fn ProjectTree() -> NodeId {
 }
 
 #[sample]
-fn tree_item(row: usize, name: &str, collapsed: &[usize]) -> TreeItem {
+fn tree_item(nodes: &[(usize, usize)], row: usize, name: &str, collapsed: &[usize]) -> TreeItem {
     TreeItem {
         label: name.to_owned(),
-        depth: TREE_NODES[row].1,
-        expandable: has_children(row),
+        depth: depth_of(nodes, row),
+        expandable: has_children(nodes, row),
         expanded: !collapsed.contains(&row),
     }
 }
 
+fn depth_of(nodes: &[(usize, usize)], row: usize) -> usize {
+    nodes
+        .iter()
+        .find(|(id, _)| *id == row)
+        .map_or(0, |(_, depth)| *depth)
+}
+
 #[sample]
-fn tree_ancestors(row: usize) -> Vec<usize> {
-    let mut depth = TREE_NODES[row].1;
-    let mut ancestors: Vec<usize> = (0..row)
+fn tree_ancestors(nodes: &[(usize, usize)], row: usize) -> Vec<usize> {
+    let Some(at) = nodes.iter().position(|(id, _)| *id == row) else {
+        return Vec::new();
+    };
+    let mut depth = nodes[at].1;
+    let mut ancestors: Vec<usize> = nodes[..at]
+        .iter()
         .rev()
-        .filter(|candidate| {
-            let above = TREE_NODES[*candidate].1 < depth;
-            if above {
-                depth = TREE_NODES[*candidate].1;
+        .filter(|(_, above)| {
+            let outer = *above < depth;
+            if outer {
+                depth = *above;
             }
-            above
+            outer
         })
+        .map(|(id, _)| *id)
         .collect();
     ancestors.reverse();
     ancestors
 }
 
 #[sample]
-fn has_children(row: usize) -> bool {
-    TREE_NODES
-        .get(row + 1)
-        .is_some_and(|(_, depth)| *depth > TREE_NODES[row].1)
+fn has_children(nodes: &[(usize, usize)], row: usize) -> bool {
+    nodes
+        .iter()
+        .position(|(id, _)| *id == row)
+        .is_some_and(|at| {
+            nodes
+                .get(at + 1)
+                .is_some_and(|(_, depth)| *depth > nodes[at].1)
+        })
 }
 
 #[sample]
-fn visible_tree_rows(collapsed: &[usize]) -> Vec<usize> {
+fn visible_tree_rows(nodes: &[(usize, usize)], collapsed: &[usize]) -> Vec<usize> {
     let mut rows = Vec::new();
     let mut hidden_below: Option<usize> = None;
-    for (row, (_, depth)) in TREE_NODES.iter().enumerate() {
+    for (row, depth) in nodes {
         match hidden_below {
             Some(limit) if *depth > limit => continue,
             _ => hidden_below = None,
         }
-        rows.push(row);
-        if collapsed.contains(&row) {
+        rows.push(*row);
+        if collapsed.contains(row) {
             hidden_below = Some(*depth);
         }
     }
     rows
+}
+
+fn subtree_end(nodes: &[(usize, usize)], at: usize) -> usize {
+    let depth = nodes[at].1;
+    at + 1
+        + nodes[at + 1..]
+            .iter()
+            .take_while(|(_, below)| *below > depth)
+            .count()
+}
+
+#[sample]
+fn moved_tree_row(
+    nodes: &[(usize, usize)],
+    moved: usize,
+    drop: &TreeDrop<usize>,
+) -> Option<Vec<(usize, usize)>> {
+    let from = nodes.iter().position(|(id, _)| *id == moved)?;
+    let carried = nodes[from..subtree_end(nodes, from)].to_vec();
+    let mut rest: Vec<(usize, usize)> = nodes[..from]
+        .iter()
+        .chain(&nodes[from + carried.len()..])
+        .copied()
+        .collect();
+    let find = |id: usize| rest.iter().position(|(shown, _)| *shown == id);
+    let (at, depth) = match drop {
+        TreeDrop::Into(folder) => {
+            let at = find(*folder).filter(|at| has_children(&rest, rest[*at].0))?;
+            (subtree_end(&rest, at), rest[at].1 + 1)
+        }
+        TreeDrop::Among { parent, after } => {
+            let depth = match parent {
+                Some(parent) => rest[find(*parent)?].1 + 1,
+                None => 0,
+            };
+            let at = match (after, parent) {
+                (Some(after), _) => subtree_end(&rest, find(*after)?),
+                (None, Some(parent)) => find(*parent)? + 1,
+                (None, None) => 0,
+            };
+            (at, depth)
+        }
+    };
+    let shift = depth as isize - carried[0].1 as isize;
+    let placed = carried
+        .iter()
+        .map(|(id, below)| (*id, below.saturating_add_signed(shift)));
+    rest.splice(at..at, placed);
+    (rest != nodes).then_some(rest)
 }
 
 #[component]

@@ -18,6 +18,7 @@ use beui_components_unstyled::{
     TreeRowEdit, TreeRowHandle, TreeToggleHandle,
 };
 use beui_core::font::TextAlign;
+use beui_core::geometry::Pos2;
 use beui_core::icons::{
     ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_CHEVRON_DOWN, ICON_CHEVRON_RIGHT, ICON_ELLIPSIS,
 };
@@ -80,12 +81,15 @@ pub fn Tree<K>(
     #[prop(default = None)] outline: Option<Func<K, Option<ColorRole>>>,
     #[prop(default = None)] menu: Option<Func<K, Option<TreeMenu>>>,
     #[prop(default = None)] editing: Prop<Option<K>>,
+    #[prop(default = false)] reorder: bool,
     on_select: Callback<K>,
     on_open: Callback<K>,
     on_expand: Callback<(K, bool)>,
     on_reveal: Callback<K>,
     on_hover_change: Callback<(K, bool)>,
     on_drag_start: Callback<K>,
+    on_drag_move: Callback<(K, Pos2)>,
+    on_drop: Callback<(K, Pos2)>,
     on_edit: Callback<K>,
     on_rename: Callback<(K, String)>,
     on_cancel_edit: Callback<K>,
@@ -112,12 +116,15 @@ where
                         ancestors
                         spacing
                         editing
+                        reorder
                         menu={menu.map(|menu| unstyled::TreeMenus::new(menu_style(), menu))}
                         on_select={on_select}
                         on_open={on_open}
                         on_expand={on_expand}
                         on_hover_change={on_hover_change}
                         on_drag_start={on_drag_start}
+                        on_drag_move={on_drag_move}
+                        on_drop={on_drop}
                         on_edit={on_edit}
                         on_rename={on_rename}
                         on_cancel_edit={on_cancel_edit}

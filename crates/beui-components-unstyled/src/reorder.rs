@@ -127,6 +127,14 @@ where
     pub fn draggable(&self, key: K) -> bool {
         self.state.with(|state| can_drag(state, &key))
     }
+
+    pub fn resting(&self, key: &K) -> Option<Rect> {
+        self.state.with(|state| {
+            let glides = state.glides.borrow();
+            let (_, outer, inner) = glides.iter().find(|(shown, ..)| shown == key)?;
+            resting(*outer, *inner)
+        })
+    }
 }
 
 fn along(direction: Direction, pos: Pos2) -> f32 {

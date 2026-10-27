@@ -2054,6 +2054,28 @@ row for tests, as `<id>.row`, `<id>.chevron` and `<id>.more`, and `outline` give
 row an outline of its own, which is how a drop target says whether it will
 take what is over it.
 
+Given `reorder`, rows part to show where a dragged row would land. The tree does
+not carry the drag itself: whoever follows it - the tree's own `on_drag_move` and
+`on_drop`, which report the row and the pointer after `on_drag_start`, or a host's
+drag that a plugin only hears as positions - hands each window point to
+`TreeApi::drag_over(Some(point), allow)`. That finds the row under it (where the
+rows rest, so the gap never moves a row out from under the pointer, and the pointer
+over the gap keeps what it last chose) and answers with a `TreeDragOver` - the
+`row` and the `drop` it chose, a `TreeDrop`: `Into(row)` or `Among { parent,
+after }`, the shape of be-model's `Anchor`. The top and bottom quarters of a row
+place among its siblings, before it or after it, and the middle half goes into it;
+a row that `allow` refuses to take something inside splits at its middle instead,
+and an edge `allow` refuses falls back to going inside. Below an expanded row means
+first among its children. For `Among`, the siblings glide aside to open a gap of a
+row's height where it would land: the tree is an `unstyled::Reorder` over the
+sibling group, with each row a `ReorderItem`, which `drag_over` drives through
+`ReorderHandle::hover`, so a group whose rows are not next to each other (an
+expanded sibling's children between them) still parts in the right place. `Into`
+opens no gap; outline the row instead. `drag_over(None, ..)` closes the gap, and
+`drag_end(settle)` ends the drag: `settle` keeps the gap open until the keys
+change, for a caller that applies the move later (the file tree asks its host), so
+the rows glide from the gap into their new order; without it the gap closes now.
+
 A row's name is edited in place through the controlled `editing` prop, the
 key being renamed or `None`. While it names a row, the row's face gives way
 to a field of the row's height holding `TreeItem::label`, focused with all of
@@ -2721,7 +2743,9 @@ a highlight. The list fills the area it is given, so a column can wrap its whole
 frame (header included) to make all of it the drop target. A drag the board does not carry -
 the host's block drag that a plugin only hears as positions - can still part the
 list: `ReorderHandle::hover(Some(point))` opens the gap for a window point and the
-carried item's rect, and `drop_at(payload, point)` drops as a foreign item would.
+carried item's rect, and `drop_at(payload, point)` drops as a foreign item would. `ReorderHandle::resting(key)`
+is where an item rests, unshifted and without its gap, for a list that hit-tests
+its own items (`Tree`'s `reorder` does both).
 Styled code uses `styled::ReorderItem`, which adds the lifted look (a raised fill,
 a hairline and a shadow `LIFT_DROP` below it) from theme tokens; its `margin`
 keeps space around the item outside that look, for a `VirtualList`, which has no

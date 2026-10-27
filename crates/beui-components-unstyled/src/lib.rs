@@ -151,7 +151,7 @@ pub use toast::{TOAST_DURATION, Toast, ToastAction, ToastHandle, Toasts};
 pub use toggle::{Toggle, ToggleApi, ToggleHandle};
 pub use tooltip::{TOOLTIP_DELAY, Tooltip, TooltipHandle};
 pub use tree::{
-    Tree, TreeApi, TreeItem, TreeMenu, TreeMenus, TreeReveal, TreeRevealHandle, TreeRowArea,
-    TreeRowEdit, TreeRowEditor, TreeRowHandle, TreeRowMenu, TreeRowMenuButton, TreeRowTarget,
-    TreeToggle, TreeToggleHandle,
+    Tree, TreeApi, TreeDragOver, TreeDrop, TreeItem, TreeMenu, TreeMenus, TreeReveal,
+    TreeRevealHandle, TreeRowArea, TreeRowEdit, TreeRowEditor, TreeRowHandle, TreeRowMenu,
+    TreeRowMenuButton, TreeRowTarget, TreeToggle, TreeToggleHandle,
 };

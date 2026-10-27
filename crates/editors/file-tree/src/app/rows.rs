@@ -58,6 +58,7 @@ pub(crate) struct Row {
     pub(crate) can_edit: bool,
     pub(crate) can_delete: bool,
     pub(crate) can_reorder: bool,
+    pub(crate) orders_children: bool,
     pub(crate) can_leave: bool,
     pub(crate) unlink: Result<(), &'static str>,
     pub(crate) inspection: Option<Inspection>,
@@ -111,6 +112,7 @@ impl Row {
             can_edit: false,
             can_delete: false,
             can_reorder: false,
+            orders_children: false,
             can_leave: false,
             unlink: Err("Loading…"),
             inspection: None,
@@ -825,6 +827,8 @@ pub(crate) fn describe(
         );
     let unlink = unlink_permission(client, types, block_types, container);
     let can_reorder = !trashed && can_reorder_in(client, types, block_types, container);
+    let orders_children =
+        !trashed && can_reorder_in(client, types, block_types, Some(reference.id));
     let expandable = !is_reference && !reference.references.is_empty();
     let label = reference
         .label(types)
@@ -878,6 +882,7 @@ pub(crate) fn describe(
         can_edit,
         can_delete,
         can_reorder,
+        orders_children,
         can_leave: false,
         unlink,
         inspection: Some(inspection),

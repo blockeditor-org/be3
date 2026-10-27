@@ -1457,7 +1457,13 @@ has no add of its own, only New workspace, which makes one at the root and
 opens the rename dialog. Every picker places a new block in a workspace, My
 files when nothing else is named.
 A block moves between workspaces with the host's `move_block`, by dragging it
-or from its Move to menu. A phone shows the same tree with taller rows, under a
+onto the middle of a folder's row or from its Move to menu. Dragged onto the top or
+bottom quarter of a row, a row whose `can_reorder` holds lands among that row's
+siblings, which part to show where: `reorder_block(id, container, after)` in its own
+container, or `move_block` then `reorder_block` in another that keeps an order
+(`Row::orders_children`). The drag is the host's block drag, which the tree only
+hears as positions, so it drives `styled::Tree`'s `reorder` through
+`TreeApi::drag_over` (guides/beui.md, the tree). A phone shows the same tree with taller rows, under a
 title with New workspace and the account button in place of the toolbar.
 Pressing a folder, a workspace or one of the other sections zooms into it rather
 than opening it: the tree then holds only what it holds, under a bar with the
