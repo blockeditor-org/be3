@@ -2691,7 +2691,11 @@ impl Instances {
             return false;
         };
         match call {
-            ShellCall::RunBarAction { action, .. } => entry.bar_actions.push(action),
+            ShellCall::RunBarAction { action, .. } => {
+                if !super::docks::bar(instance, action) {
+                    entry.bar_actions.push(action);
+                }
+            }
             ShellCall::Menu { items, .. } => match MenuEntry::nest(items) {
                 Ok(menu) => entry.menu = menu,
                 Err(_) => return false,

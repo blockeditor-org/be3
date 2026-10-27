@@ -4,9 +4,9 @@ use std::{
 };
 
 use block_plugin_api::{
-    ChildId, DockChild, DockChildRequest, DockClosedTab, DockDeclaration, DockDeclaredChild,
-    DockHosted, DockHostedRegion, DockMessage, DockRequest, DockTabPath, DockUpdate,
-    EditorInstanceId, EditorRegion, MAX_DOCK_NESTING, dock_prefix,
+    BarAction, ChildId, DockChild, DockChildRequest, DockClosedTab, DockDeclaration,
+    DockDeclaredChild, DockHosted, DockHostedRegion, DockMessage, DockPickedTab, DockRequest,
+    DockTabPath, DockUpdate, EditorInstanceId, EditorRegion, MAX_DOCK_NESTING, dock_prefix,
 };
 use uuid::Uuid;
 
@@ -45,6 +45,7 @@ pub(super) struct Docks {
     hosted: HashMap<EditorInstanceId, DockHosted>,
     docked: HashSet<EditorInstanceId>,
     outbox: Vec<(EditorInstanceId, DockUpdate)>,
+    bars: Vec<(EditorInstanceId, ChildId, BarAction)>,
     changed: HashSet<String>,
 }
 
@@ -149,8 +150,30 @@ impl Docks {
                     }
                 }
                 DockMessage::Close(close) => {
-                    if self.owns(plugin, close.child.instance) {
-                        self.close(close.child, close.tab);
+                    if self.owns(plugin, close.child.instance)
+                        && let Some((owner, tab)) = self.owner(close.child, close.tab)
+                    {
+                        self.send(
+                            owner,
+                            DockUpdate::Close(DockClosedTab {
+                                region: EditorRegion::Frame,
+                                tab,
+                            }),
+                        );
+                    }
+                }
+                DockMessage::Pick(pick) => {
+                    if self.owns(plugin, pick.child.instance)
+                        && let Some((owner, tab)) = self.owner(pick.child, pick.tab)
+                    {
+                        self.send(
+                            owner,
+                            DockUpdate::Pick(DockPickedTab {
+                                region: EditorRegion::Frame,
+                                tab,
+                                id: pick.id,
+                            }),
+                        );
                     }
                 }
             }
@@ -159,18 +182,6 @@ impl Docks {
 
     pub(super) fn docked(&self, instance: EditorInstanceId) -> bool {
         self.docked.contains(&instance)
-    }
-
-    fn records(&self, placer: EditorInstanceId) -> Vec<(ChildId, Uuid)> {
-        self.children
-            .get(&placer)
-            .map(|children| {
-                children
-                    .iter()
-                    .map(|(child, placed)| (*child, placed.block))
-                    .collect()
-            })
-            .unwrap_or_default()
     }
 
     pub(super) fn resolve(
@@ -188,10 +199,15 @@ impl Docks {
             owner = self.instance_of(owner, record)?;
             block = Some(record.block);
         }
+        let own = DockTabPath::own(path.tab);
         let shown = self
             .hosted
             .get(&owner)
-            .is_some_and(|hosted| hosted.visible.contains(&DockTabPath::own(path.tab)));
+            .is_some_and(|hosted| hosted.visible.contains(&own))
+            || self
+                .declared
+                .get(&owner)
+                .is_some_and(|declaration| declaration.shows_body(&own));
         shown.then_some((block?, path.tab))
     }
 
@@ -201,6 +217,32 @@ impl Docks {
             .into_iter()
             .partition(|(to, _)| plugins.get(to).is_some_and(|held| held == plugin));
         self.outbox = kept;
+        taken
+    }
+
+    pub(super) fn bar(&mut self, instance: EditorInstanceId, action: BarAction) -> bool {
+        if !self.docked(instance) || !self.declared.contains_key(&instance) {
+            return false;
+        }
+        let Some((placer, child, _)) = self.placer_of(instance) else {
+            return false;
+        };
+        if let Some(plugin) = self.plugins.get(&placer) {
+            self.changed.insert(plugin.clone());
+        }
+        self.bars.push((placer, child, action));
+        true
+    }
+
+    pub(super) fn take_bars(
+        &mut self,
+        plugin: &str,
+    ) -> Vec<(EditorInstanceId, ChildId, BarAction)> {
+        let plugins = &self.plugins;
+        let (taken, kept) = std::mem::take(&mut self.bars)
+            .into_iter()
+            .partition(|(to, _, _)| plugins.get(to).is_some_and(|held| held == plugin));
+        self.bars = kept;
         taken
     }
 
@@ -504,42 +546,24 @@ impl Docks {
         }
     }
 
-    fn close(&mut self, child: DockChild, tab: DockTabPath) {
+    fn owner(&self, child: DockChild, tab: DockTabPath) -> Option<(EditorInstanceId, DockTabPath)> {
         let DockChild {
             instance: root,
             child,
         } = child;
         if self.docked(root) {
-            return;
+            return None;
         }
         let mut placer = root;
         let mut path = tab.through(child);
         while let Some(first) = path.via.first().copied() {
-            let Some(record) = self
-                .children
-                .get(&placer)
-                .and_then(|children| children.get(&first))
-            else {
-                return;
-            };
-            let Some(instance) = self.instance_of(placer, record) else {
-                return;
-            };
-            let Some(within) = path.within(first) else {
-                return;
-            };
+            let record = self.children.get(&placer)?.get(&first)?;
+            let instance = self.instance_of(placer, record)?;
+            let within = path.within(first)?;
             placer = instance;
             path = within;
         }
-        if placer != root {
-            self.send(
-                placer,
-                DockUpdate::Close(DockClosedTab {
-                    region: EditorRegion::Frame,
-                    tab: path,
-                }),
-            );
-        }
+        (placer != root).then_some((placer, path))
     }
 }
 
@@ -582,12 +606,16 @@ pub(super) fn docked(instance: EditorInstanceId) -> bool {
     DOCKS.with(|docks| docks.borrow().docked(instance))
 }
 
-pub(crate) fn docked_children(placer: EditorInstanceId) -> Vec<(ChildId, Uuid)> {
-    DOCKS.with(|docks| docks.borrow().records(placer))
-}
-
 pub(super) fn resolve(placer: EditorInstanceId, path: &DockTabPath) -> Option<(Uuid, u64)> {
     DOCKS.with(|docks| docks.borrow().resolve(placer, path))
+}
+
+pub(super) fn bar(instance: EditorInstanceId, action: BarAction) -> bool {
+    with(|docks| docks.bar(instance, action))
+}
+
+pub(super) fn take_bars(plugin: &str) -> Vec<(EditorInstanceId, ChildId, BarAction)> {
+    DOCKS.with(|docks| docks.borrow_mut().take_bars(plugin))
 }
 
 pub(super) fn take(plugin: &str) -> Vec<(EditorInstanceId, DockUpdate)> {

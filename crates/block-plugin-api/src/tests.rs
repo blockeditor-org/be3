@@ -154,6 +154,7 @@ fn pane(depth: u32, key: &str, locked: bool) -> DockItem {
             sidebar: 180.0,
             keep: false,
             area: locked.then(|| key.into()),
+            empty: None,
         }),
     }
 }
@@ -201,6 +202,7 @@ fn declaration() -> DockDeclaration {
             declared(DockTabPath::own(2), "editor"),
             declared(DockTabPath::own(3), "nested"),
         ],
+        dialogs: Vec::new(),
     }
 }
 
@@ -211,5 +213,6 @@ fn child_declaration() -> DockDeclaration {
             focus: None,
         },
         tabs: vec![declared(DockTabPath::own(4), "side-tab")],
+        dialogs: Vec::new(),
     }
 }

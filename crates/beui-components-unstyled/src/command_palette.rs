@@ -107,6 +107,7 @@ pub fn CommandPalette(
     #[prop(default = create_signal(String::new()))] query: Signal<String>,
     on_choose: Callback<String>,
     #[prop(default = "Command palette".to_owned())] label: Prop<String>,
+    #[prop(default = None)] shown_in: Prop<Option<beui_core::window::WindowId>>,
     list_height: Prop<f32>,
     spacing: f32,
     scrim: Prop<Color32>,
@@ -213,6 +214,7 @@ pub fn CommandPalette(
             open={create_memo(move || open.get())}
             scrim
             motion=ModalMotion::Still
+            shown_in
             on_dismiss={move || dismiss(state)}
         >|_: ModalHandle| {
             panel.call(view! {

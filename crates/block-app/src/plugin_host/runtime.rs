@@ -430,6 +430,20 @@ impl Runtime {
                 .into_iter()
                 .map(|(instance, update)| Outbound::Editor(instance, EditorCall::Dock(update))),
         );
+        messages.extend(
+            super::docks::take_bars(&self.plugin.identity.id)
+                .into_iter()
+                .map(|(placer, child, action)| {
+                    Outbound::Editor(
+                        placer,
+                        EditorCall::ChildBar {
+                            region: EditorRegion::Frame,
+                            child,
+                            action,
+                        },
+                    )
+                }),
+        );
         self.serve();
         messages.extend(self.instances.configure(&messages).map(Outbound::from));
         let awaited = messages.iter().any(|message| {

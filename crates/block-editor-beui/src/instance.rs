@@ -129,8 +129,9 @@ impl<A: BeuiApp> Parts<A> {
                         <A::View editor />
                     },
                 });
+            let docked = Rc::clone(&tabs);
             beui::reactive::view! {
-                <FrameChrome chrome={Rc::clone(&chrome)} editor view />
+                <FrameChrome chrome={Rc::clone(&chrome)} editor docked view />
             }
             .child()
         })
@@ -347,12 +348,9 @@ impl<A: BeuiApp> Shown for Parts<A> {
                 let picks = self.host.take_menu_picks();
                 if !picks.is_empty() {
                     let menu = views.chrome.menu();
-                    let docked = Rc::clone(&self.docked);
                     beui::reactive::with_reactive_scope(document, || {
                         for id in &picks {
-                            if !beui_frame::run_menu_pick(&menu, id) {
-                                docked.pick(id);
-                            }
+                            beui_frame::run_menu_pick(&menu, id);
                         }
                     });
                 }

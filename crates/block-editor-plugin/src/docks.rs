@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
 use block_plugin_api::{
-    ChildId, DockChild, DockChildClose, DockChildHosted, DockDeclaration, DockDeclare, DockHosted,
-    DockMessage, DockRegionRequest, DockRequest, DockTabPath, DockUpdate, EditorInstanceId,
-    EditorRegion, RegionRef,
+    ChildId, DockChild, DockChildClose, DockChildHosted, DockChildPick, DockDeclaration,
+    DockDeclare, DockHosted, DockMessage, DockRegionRequest, DockRequest, DockTabPath, DockUpdate,
+    EditorInstanceId, EditorRegion, RegionRef,
 };
 
 use crate::EditorHost;
@@ -18,8 +18,10 @@ pub(crate) struct Docks {
     hosting: HashMap<ChildId, Option<DockHosted>>,
     hosted_sent: HashMap<ChildId, Option<DockHosted>>,
     closing: Vec<(ChildId, DockTabPath)>,
+    picking: Vec<(ChildId, DockTabPath, String)>,
     hosted: HashMap<EditorRegion, DockHosted>,
     closed: Vec<(EditorRegion, DockTabPath)>,
+    picked: Vec<(EditorRegion, DockTabPath, String)>,
     children: HashMap<ChildId, DockDeclaration>,
     child_requests: Vec<(ChildId, Vec<ChildId>, DockRequest)>,
 }
@@ -52,6 +54,19 @@ impl EditorHost {
             let here = *held == region;
             if here {
                 taken.push(tab.clone());
+            }
+            !here
+        });
+        taken
+    }
+
+    pub fn take_dock_picks(&self, region: EditorRegion) -> Vec<(DockTabPath, String)> {
+        let mut docks = self.docks.borrow_mut();
+        let mut taken = Vec::new();
+        docks.picked.retain(|(held, tab, id)| {
+            let here = *held == region;
+            if here {
+                taken.push((tab.clone(), id.clone()));
             }
             !here
         });
@@ -94,6 +109,14 @@ impl EditorHost {
         self.changed_docks();
     }
 
+    pub fn pick_child_dock_tab(&self, child: ChildId, tab: DockTabPath, id: String) {
+        let mut docks = self.docks.borrow_mut();
+        docks.used = true;
+        docks.picking.push((child, tab, id));
+        drop(docks);
+        self.changed_docks();
+    }
+
     pub fn receive_dock_updates(&self, updates: Vec<DockUpdate>) {
         if updates.is_empty() {
             return;
@@ -110,6 +133,7 @@ impl EditorHost {
                     }
                 },
                 DockUpdate::Close(close) => docks.closed.push((close.region, close.tab)),
+                DockUpdate::Pick(pick) => docks.picked.push((pick.region, pick.tab, pick.id)),
                 DockUpdate::Child(child) => match child.declaration {
                     Some(declaration) => {
                         docks.children.insert(child.child, declaration);
@@ -186,6 +210,13 @@ impl EditorHost {
             messages.push(DockMessage::Close(DockChildClose {
                 child: DockChild { instance, child },
                 tab,
+            }));
+        }
+        for (child, tab, id) in docks.picking.drain(..) {
+            messages.push(DockMessage::Pick(DockChildPick {
+                child: DockChild { instance, child },
+                tab,
+                id,
             }));
         }
         messages

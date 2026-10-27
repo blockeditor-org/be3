@@ -4,43 +4,30 @@ use std::rc::{Rc, Weak};
 
 use beui::NodeId;
 use beui::dock::unstyled::{
-    DockBodies, DockDeclaration, DockDeclaredTab, DockHostEvent, DockHostLink, DockHostSlot,
-    DockHosted, DockMapping, DockMode, DockPlain, DockPlainEntry, DockPlainHome, DockPlainNode,
-    DockPlainPlace, DockPlainWindow, DockRequest, DockSpec, DockSpecEntry, DockSpecNode,
-    DockSpecPane, DockSpecWindow, DockState, TabId,
+    DockBodies, DockDeclaration, DockDeclaredDialog, DockDeclaredTab, DockDialogPresentation,
+    DockHostEvent, DockHostLink, DockHostSlot, DockHosted, DockMapping, DockMode, DockPlain,
+    DockPlainEntry, DockPlainHome, DockPlainNode, DockPlainPlace, DockPlainWindow, DockRequest,
+    DockSpec, DockSpecEntry, DockSpecNode, DockSpecPane, DockSpecWindow, DockState, TabId,
 };
 use beui::dock::unstyled::{DockMenus, DockTabControl, DockTabMenu, dock_menu};
 use beui::icons::Glyph;
 use beui::reactive::*;
-use block_editor_plugin::{EditorHost, EditorRegion, Pushed};
+use block_editor_plugin::{EditorHost, EditorRegion, Pushed, RegionId};
 use block_plugin_api as api;
 use block_plugin_api::{ChildId, DockTabPath};
+use uuid::Uuid;
 
-use crate::child::{ChildDockTab, MenuMirror};
+use crate::child::{ChildDockTab, MenuMirror, MenuPicks};
 use crate::{Editor, Subregion};
 
-#[derive(Clone)]
-pub(crate) struct DockedTab {
-    pub(crate) tab: u64,
-    pub(crate) claimed: Rc<Cell<bool>>,
-}
-
-impl DockedTab {
-    pub(crate) fn claim(&self) -> bool {
-        if self.claimed.replace(true) {
-            return false;
-        }
-        let claimed = Rc::clone(&self.claimed);
-        on_cleanup(move || claimed.set(false));
-        true
-    }
-}
+const EMPTY_BODIES: u64 = 1 << 62;
 
 pub(crate) struct DockedTabs {
     link: RefCell<Option<Rc<ProtocolLink>>>,
     revision: OwnedSignal<u64>,
     slot: RefCell<Option<DockHostSlot>>,
     built: Cell<Option<bool>>,
+    asking: OwnedSignal<Option<TabId>>,
 }
 
 impl Default for DockedTabs {
@@ -50,6 +37,7 @@ impl Default for DockedTabs {
             revision: OwnedSignal::new(0),
             slot: RefCell::default(),
             built: Cell::new(None),
+            asking: OwnedSignal::new(None),
         }
     }
 }
@@ -92,6 +80,8 @@ impl DockedTabs {
             frame,
             declared: RefCell::default(),
             watched: Cell::new(None),
+            empties: RefCell::default(),
+            asking: self.asking.handle(),
         });
         *self.link.borrow_mut() = Some(Rc::clone(&link));
         let menus = link.menus.handle();
@@ -105,6 +95,20 @@ impl DockedTabs {
             });
             if let Some(link) = menued.upgrade() {
                 untrack(|| link.send());
+            }
+        });
+        let picking = Rc::downgrade(&link);
+        let pushed = link.pushed;
+        let picks = link.host.clone();
+        create_effect(move || {
+            pushed.get();
+            let taken = untrack(|| picks.take_dock_picks(EditorRegion::Frame));
+            if let Some(link) = picking.upgrade() {
+                for (tab, id) in taken {
+                    if let Some(tab) = own(&tab) {
+                        untrack(|| link.pick(tab, &id));
+                    }
+                }
             }
         });
         let tabs = Rc::downgrade(self);
@@ -131,21 +135,23 @@ impl DockedTabs {
         link.panel(tab)
     }
 
-    pub(crate) fn pick(&self, id: &str) -> bool {
-        let Some(link) = self.link.borrow().clone() else {
-            return false;
-        };
-        let picked = link.menus.handle().with_untracked(|menus| {
-            menus
-                .values()
-                .find_map(|(_, items)| menu_action(&items.get_untracked(), id))
-        });
-        match picked {
-            Some(action) => {
-                untrack(|| action.run());
-                true
-            }
-            None => false,
+    pub(crate) fn presenting(&self, host: &EditorHost) -> Option<beui::WindowId> {
+        let asking = self.asking.get();
+        let link = self.link.borrow().clone()?;
+        let hosted = link.watched.get()?.get()?;
+        let tab = asking
+            .or(hosted.focused)
+            .filter(|tab| hosted.visible.contains(tab))
+            .or_else(|| hosted.visible.first().copied())?;
+        crate::module::Module::of(host)?.window(RegionId {
+            instance: host.instance()?,
+            region: EditorRegion::Tab(tab.value()),
+        })
+    }
+
+    pub(crate) fn release(&self) {
+        if self.asking.get_untracked().is_some() {
+            self.asking.handle().set(None);
         }
     }
 }
@@ -178,14 +184,51 @@ struct ProtocolLink {
     frame: ReadSignal<Vec<MenuNode>>,
     declared: RefCell<Option<DockDeclaration>>,
     watched: Cell<Option<Memo<Option<DockHosted>>>>,
+    empties: RefCell<HashMap<String, u64>>,
+    asking: Signal<Option<TabId>>,
 }
 
 impl ProtocolLink {
+    fn empty_body(&self, key: &str) -> u64 {
+        let mut empties = self.empties.borrow_mut();
+        let next = EMPTY_BODIES + empties.len() as u64;
+        *empties.entry(key.to_owned()).or_insert(next)
+    }
+
+    fn empty_key(&self, tab: TabId) -> Option<String> {
+        self.empties
+            .borrow()
+            .iter()
+            .find(|(_, held)| **held == tab.value())
+            .map(|(key, _)| key.clone())
+    }
+
+    fn pick(&self, tab: TabId, id: &str) {
+        let menus = self.menus.handle();
+        let own = menus.with_untracked(|menus| {
+            menus
+                .get(&tab)
+                .and_then(|(_, items)| menu_action(&items.get_untracked(), id))
+        });
+        let Some(action) = own.or_else(|| menu_action(&self.frame.get_untracked(), id)) else {
+            return;
+        };
+        self.asking.set(Some(tab));
+        action.run();
+    }
+
     fn send(&self) {
         let declared = self.declared.borrow();
         let Some(declaration) = declared.as_ref() else {
             return;
         };
+        for pane in spec_panes(&declaration.spec)
+            .into_iter()
+            .filter(|pane| pane.keep)
+        {
+            self.empty_body(&pane.key);
+        }
+        let empties = self.empties.borrow().clone();
         let menus = self.menus.handle();
         let frame = self.frame.get_untracked();
         let menu = |tab: TabId| {
@@ -201,9 +244,15 @@ impl ProtocolLink {
             nodes.extend(frame.iter().cloned());
             api::MenuEntry::flatten(&crate::beui_frame::menu_entries(&nodes))
         };
+        let empty = |pane: &DockSpecPane| {
+            pane.keep
+                .then(|| empties.get(&pane.key).copied())
+                .flatten()
+                .map(DockTabPath::own)
+        };
         self.host.declare_dock(
             self.region,
-            Some(declaration_to_api(declaration, &own_path, &menu)),
+            Some(declaration_to_api(declaration, &own_path, &menu, &empty)),
         );
     }
 
@@ -219,39 +268,44 @@ impl ProtocolLink {
         }
         let bodies = self.bodies.borrow().clone()?;
         let scope = bodies.scope.child()?;
-        let docked = DockedTab {
-            tab: tab.value(),
-            claimed: Rc::default(),
-        };
         let menu = DockTabMenu {
             tab,
             menu: self.menus.handle(),
         };
         let this = Weak::clone(&self.this);
-        let control = self.watched.get().map(|hosted| {
-            DockTabControl::hosted(
-                tab,
-                hosted,
-                Callback::new(move |request: DockRequest| {
-                    if let Some(link) = this.upgrade() {
-                        link.request(request);
-                    }
-                }),
-            )
-        });
+        let watched = self.watched.get();
+        let empty = self.empty_key(tab);
         let panel = scope.context().run(|| {
-            provide_context(docked);
-            provide_context(menu);
-            if let Some(control) = control {
-                provide_context(control);
+            if let Some(key) = empty {
+                return bodies.empty.call(key);
             }
-            bodies.body.call(tab)
-        });
+            provide_context(menu);
+            if let Some(hosted) = watched {
+                provide_context(DockTabControl::hosted(
+                    tab,
+                    hosted,
+                    Callback::new(move |request: DockRequest| {
+                        if let Some(link) = this.upgrade() {
+                            link.request(request);
+                        }
+                    }),
+                ));
+            }
+            Some(bodies.body.call(tab))
+        })?;
         self.panels.borrow_mut().insert(tab, (panel, scope));
         Some(panel)
     }
 
     fn keep(&self, tabs: &[TabId]) {
+        let mut tabs = tabs.to_vec();
+        if let Some(bodies) = self.bodies.borrow().as_ref() {
+            tabs.extend(bodies.hosts.get_untracked());
+        }
+        if let Some(declaration) = self.declared.borrow().as_ref() {
+            tabs.extend(declaration.dialogs.iter().map(|dialog| dialog.tab));
+        }
+        tabs.extend(self.empties.borrow().values().copied().map(TabId::new));
         let dropped: Vec<(NodeId, Scope)> = {
             let mut panels = self.panels.borrow_mut();
             let gone: Vec<TabId> = panels
@@ -320,7 +374,11 @@ impl DockHostLink for ProtocolLink {
         let hosted = self.hosted();
         self.watched.set(Some(hosted));
         let this = Weak::clone(&self.this);
+        let hosts = self.bodies.borrow().as_ref().map(|bodies| bodies.hosts);
         create_effect(move || {
+            if let Some(hosts) = hosts {
+                hosts.get();
+            }
             let held = hosted.with(|hosted| {
                 hosted
                     .as_ref()
@@ -490,36 +548,58 @@ pub(crate) fn bridge_child_dock(
     if let Some(scope) = owner_scope() {
         let paths = Rc::clone(&paths);
         let shown = Rc::clone(&last);
+        let declared = host.clone();
+        let menus = host.clone();
         let host = host.clone();
         let body = RenderFn::new(move |tab: TabId| {
             let path = paths.borrow().path(tab);
-            let menu = tab_menu(editor, host.clone(), pushed, shown.get(), path.clone());
-            let placed = shown
-                .get()
-                .zip(path)
-                .map(|(child, path)| crate::SubregionContent::DockTab(path.through(child)));
+            let child = shown.get();
+            let declaration = child.and_then(|child| untrack(|| declared.child_dock(child)));
+            let dialog = declaration
+                .as_ref()
+                .zip(path.as_ref())
+                .is_some_and(|(declaration, path)| declaration.dialog(path).is_some());
+            let owner = declaration
+                .as_ref()
+                .zip(path.as_ref())
+                .and_then(|(declaration, path)| {
+                    declaration.owner_block(&path.via).map(Uuid::from_bytes)
+                });
+            let menu = tab_menu(editor, menus.clone(), pushed, child, path.clone());
+            let shown = child.zip(path);
             let body = view! {
-                <beui::styled::List spacing=beui::styled::Space::None>
-                    <Subregion
-                        @sizing=beui::ItemSize::Percent(100.0)
-                        editor={editor}
-                        placed={Prop::Static(placed)}
-                        mode=api::ChildMode::Live
-                    />
-                </beui::styled::List>
+                <DockTabBody editor shown />
             };
-            match docked_tab {
-                Some(framed) => framed.call(ChildDockTab { menu, body }),
-                None => {
+            match (dialog, docked_tab) {
+                (true, _) => body,
+                (false, Some(framed)) => framed.call(ChildDockTab { menu, body, owner }),
+                (false, None) => {
                     dock_menu(menu);
                     body
                 }
             }
         });
+        let emptied = Rc::clone(&last);
+        let empty = RenderFn::new(move |key: String| {
+            let child = emptied.get()?;
+            let declaration = untrack(|| host.child_dock(child))?;
+            let nodes = declaration.nest().ok()?;
+            let path = nodes
+                .panes()
+                .into_iter()
+                .find(|pane| pane.key == key)?
+                .empty
+                .clone()?;
+            let shown = Some((child, path));
+            Some(view! {
+                <DockTabBody editor shown />
+            })
+        });
         link.place(DockBodies {
             scope,
             body,
-            empty: RenderFn::new(|_: String| None),
+            empty,
+            hosts: create_memo(Vec::new),
         });
     }
     on_cleanup(move || {
@@ -530,6 +610,21 @@ pub(crate) fn bridge_child_dock(
     });
 }
 
+#[component]
+fn DockTabBody(editor: Editor, shown: Option<(ChildId, DockTabPath)>) -> NodeId {
+    let placed = shown.map(|(child, path)| crate::SubregionContent::DockTab(path.through(child)));
+    view! {
+        <beui::styled::List spacing=beui::styled::Space::None>
+            <Subregion
+                @sizing=beui::ItemSize::Percent(100.0)
+                editor={editor}
+                placed={Prop::Static(placed)}
+                mode=api::ChildMode::Live
+            />
+        </beui::styled::List>
+    }
+}
+
 fn tab_menu(
     editor: Editor,
     host: EditorHost,
@@ -538,11 +633,15 @@ fn tab_menu(
     path: Option<DockTabPath>,
 ) -> Memo<Vec<MenuNode>> {
     let nodes = create_signal(Vec::<MenuNode>::new());
-    let mirror = RefCell::new(MenuMirror::new(editor));
-    let own = child.zip(path.filter(DockTabPath::is_own));
+    let picks = path.clone().map(MenuPicks::DockTab);
+    let mirror = RefCell::new(MenuMirror::picking(
+        editor,
+        picks.unwrap_or(MenuPicks::Child),
+    ));
+    let shown = child.zip(path);
     create_effect(move || {
         pushed.get();
-        let Some((child, path)) = own.clone() else {
+        let Some((child, path)) = shown.clone() else {
             return;
         };
         let entries = untrack(|| host.child_dock(child))
@@ -727,7 +826,37 @@ fn direction_from_api(direction: api::DockDirection) -> beui::Direction {
     }
 }
 
-fn spec_node(node: &DockSpecNode, path: PathOf<'_>) -> api::DockNode {
+fn spec_panes(spec: &DockSpec) -> Vec<&DockSpecPane> {
+    fn walk<'a>(node: &'a DockSpecNode, out: &mut Vec<&'a DockSpecPane>) {
+        match node {
+            DockSpecNode::Split { first, second, .. } => {
+                walk(first, out);
+                walk(second, out);
+            }
+            DockSpecNode::Pane(pane) => {
+                out.push(pane);
+                for entry in &pane.entries {
+                    if let DockSpecEntry::Group { root, .. } = entry {
+                        walk(root, out);
+                    }
+                }
+            }
+        }
+    }
+    let mut panes = Vec::new();
+    for root in spec.main.iter().chain(
+        spec.windows
+            .iter()
+            .filter_map(|window| window.root.as_ref()),
+    ) {
+        walk(root, &mut panes);
+    }
+    panes
+}
+
+type EmptyOf<'a> = &'a dyn Fn(&DockSpecPane) -> Option<DockTabPath>;
+
+fn spec_node(node: &DockSpecNode, path: PathOf<'_>, empty: EmptyOf<'_>) -> api::DockNode {
     match node {
         DockSpecNode::Split {
             key,
@@ -741,8 +870,8 @@ fn spec_node(node: &DockSpecNode, path: PathOf<'_>) -> api::DockNode {
                 direction: direction_to_api(*direction),
                 fraction: *fraction,
             },
-            first: Box::new(spec_node(first, path)),
-            second: Box::new(spec_node(second, path)),
+            first: Box::new(spec_node(first, path, empty)),
+            second: Box::new(spec_node(second, path, empty)),
         },
         DockSpecNode::Pane(pane) => {
             let entries: Vec<(Option<TabId>, api::DockEntry)> = pane
@@ -758,7 +887,7 @@ fn spec_node(node: &DockSpecNode, path: PathOf<'_>) -> api::DockNode {
                                 pinned: *pinned,
                                 child: None,
                             },
-                            root: Box::new(spec_node(root, path)),
+                            root: Box::new(spec_node(root, path, empty)),
                         },
                     )),
                 })
@@ -778,6 +907,7 @@ fn spec_node(node: &DockSpecNode, path: PathOf<'_>) -> api::DockNode {
                     sidebar: pane.sidebar,
                     keep: pane.keep,
                     area: pane.locked.then(|| pane.key.clone()),
+                    empty: empty(pane),
                 },
                 entries: entries.into_iter().map(|(_, entry)| entry).collect(),
             }
@@ -789,10 +919,11 @@ pub(crate) fn declaration_to_api(
     declaration: &DockDeclaration,
     path: PathOf<'_>,
     menu: &dyn Fn(TabId) -> Vec<api::MenuItem>,
+    empty: EmptyOf<'_>,
 ) -> api::DockDeclaration {
     let spec = &declaration.spec;
     let nodes = api::DockNodes {
-        main: spec.main.as_ref().map(|main| spec_node(main, path)),
+        main: spec.main.as_ref().map(|main| spec_node(main, path, empty)),
         windows: spec
             .windows
             .iter()
@@ -801,7 +932,10 @@ pub(crate) fn declaration_to_api(
                     key: window.key.clone(),
                     rect: window.rect,
                 },
-                root: window.root.as_ref().map(|root| spec_node(root, path)),
+                root: window
+                    .root
+                    .as_ref()
+                    .map(|root| spec_node(root, path, empty)),
             })
             .collect(),
     };
@@ -821,6 +955,30 @@ pub(crate) fn declaration_to_api(
                         .unwrap_or_default(),
                     closable: tab.closable,
                     menu: menu(tab.tab),
+                })
+            })
+            .collect(),
+        dialogs: declaration
+            .dialogs
+            .iter()
+            .filter_map(|dialog| {
+                Some(api::DockDialog {
+                    tab: path(dialog.tab)?,
+                    parent: path(dialog.parent)?,
+                    title: dialog.title.clone(),
+                    glyph: dialog
+                        .icon
+                        .map(|icon| icon.as_str().to_owned())
+                        .unwrap_or_default(),
+                    size: api::Size {
+                        width: dialog.size.x,
+                        height: dialog.size.y,
+                    },
+                    modal: dialog.modal,
+                    card: dialog.presentation == DockDialogPresentation::Card,
+                    dismiss_on_outside_press: dialog.dismiss_on_outside_press,
+                    anchor: dialog.anchor,
+                    closable: dialog.closable,
                 })
             })
             .collect(),
@@ -903,10 +1061,34 @@ fn declaration_from_api(
             key: tab.key.clone(),
             title: tab.title.clone(),
             icon: Glyph::from_codepoint(&tab.glyph),
+            picture: None,
             closable: tab.closable,
         })
         .collect();
-    Some(DockDeclaration { spec, tabs })
+    let dialogs = declaration
+        .dialogs
+        .iter()
+        .map(|dialog| DockDeclaredDialog {
+            tab: paths.tab(&dialog.tab),
+            parent: paths.tab(&dialog.parent),
+            title: dialog.title.clone(),
+            icon: Glyph::from_codepoint(&dialog.glyph),
+            size: beui::vec2(dialog.size.width, dialog.size.height),
+            modal: dialog.modal,
+            presentation: match dialog.card {
+                true => DockDialogPresentation::Card,
+                false => DockDialogPresentation::Window,
+            },
+            dismiss_on_outside_press: dialog.dismiss_on_outside_press,
+            anchor: dialog.anchor,
+            closable: dialog.closable,
+        })
+        .collect();
+    Some(DockDeclaration {
+        spec,
+        tabs,
+        dialogs,
+    })
 }
 
 fn plain_node(node: &DockPlainNode, path: PathOf<'_>) -> api::DockNode {
@@ -966,6 +1148,7 @@ fn plain_node(node: &DockPlainNode, path: PathOf<'_>) -> api::DockNode {
                     sidebar: *sidebar,
                     keep: *keep,
                     area: area.clone(),
+                    empty: None,
                 },
                 entries: kept,
             }

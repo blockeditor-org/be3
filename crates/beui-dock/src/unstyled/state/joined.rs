@@ -43,7 +43,13 @@ impl DockState {
             .collect()
     }
 
-    pub fn host_group(&mut self, tab: TabId, key: &str, root: &DockSpecNode) -> Option<GroupId> {
+    pub fn host_group(
+        &mut self,
+        tab: TabId,
+        key: &str,
+        root: &DockSpecNode,
+        focus: Option<TabId>,
+    ) -> Option<GroupId> {
         let (leaf, index) = self.locate(Entry::Tab(tab))?;
         let focused = self.focused_tab() == Some(tab);
         let held: HashSet<TabId> = self.all_tabs().into_iter().collect();
@@ -51,6 +57,20 @@ impl DockState {
         self.forget_tab(tab);
         if let Some(holder) = self.leaf_mut(leaf) {
             holder.entries[index] = Entry::Group(group);
+        }
+        let shown = focus
+            .filter(|shown| self.group_tabs(group).contains(shown))
+            .and_then(|shown| self.locate(Entry::Tab(shown)));
+        if let Some((inner, at)) = shown {
+            if let Some(holder) = self.leaf_mut(inner) {
+                holder.active = at;
+            }
+            if focused {
+                self.focus(inner);
+                self.normalize();
+                self.settle_focus();
+                return Some(group);
+            }
         }
         if focused {
             let inner = self

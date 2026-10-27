@@ -48,10 +48,10 @@ use beui_view::reactive::*;
 use dialog::{DialogParts, DockDialogs};
 pub use dialog::{DockDialogHandle, DockDialogPresentation, DockSheetHandle};
 pub use docking::{
-    DockBodies, DockDeclaration, DockDeclaredTab, DockDialog, DockEntry, DockGroup, DockHostEvent,
-    DockHostLink, DockHostSlot, DockHosted, DockJoin, DockKey, DockNode, DockPane, DockRequest,
-    DockSplit, DockTab, DockWindow, Docking, DockingLayout, DockingSnapshot, OwnedDockingLayout,
-    use_dock_join,
+    DockBodies, DockDeclaration, DockDeclaredDialog, DockDeclaredTab, DockDialog, DockEntry,
+    DockGroup, DockHostEvent, DockHostLink, DockHostSlot, DockHosted, DockJoin, DockKey, DockNode,
+    DockPane, DockRequest, DockSplit, DockTab, DockWindow, Docking, DockingLayout, DockingSnapshot,
+    OwnedDockingLayout, use_dock_join,
 };
 pub use documents::{
     DockDocument, DockDocumentBody, DockDocumentTabs, DockDocuments, DockOpened, DockSlot,
@@ -206,6 +206,7 @@ enum Backing {
     Hosted {
         hosted: Memo<Option<DockHosted>>,
         request: Callback<DockRequest>,
+        claimed: Stored<Cell<bool>>,
     },
 }
 
@@ -224,8 +225,29 @@ impl DockTabControl {
     ) -> Self {
         Self {
             tab,
-            backing: Backing::Hosted { hosted, request },
+            backing: Backing::Hosted {
+                hosted,
+                request,
+                claimed: store(Cell::new(false)),
+            },
         }
+    }
+
+    pub fn is_hosted(&self) -> bool {
+        matches!(self.backing, Backing::Hosted { .. })
+    }
+
+    pub fn claim_body(&self) -> bool {
+        let Backing::Hosted { claimed, .. } = self.backing else {
+            return false;
+        };
+        if claimed.with(|claimed| claimed.replace(true)) {
+            return false;
+        }
+        on_cleanup(move || {
+            claimed.try_with(|claimed| claimed.set(false));
+        });
+        true
     }
 
     fn dock(&self) -> Option<State> {

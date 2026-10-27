@@ -17,7 +17,6 @@ use super::artifact::ArtifactBar;
 use super::block_menu::with_block_menu;
 use super::deleted::DeletedBar;
 use super::linked::LinkedBar;
-use super::phone::DetailsSheet;
 use super::revisions::RevisionPreviewBar;
 use super::tab::TabItem;
 use super::workspace::{PanelStatus, PhoneSheet, Workspace};
@@ -110,6 +109,20 @@ pub(crate) fn read_info(
     watched: &RefCell<Watched>,
 ) -> Option<Info> {
     let item = workspace.tab(tab)?;
+    read_item_info(workspace, item, workspace.view_of(tab), watched)
+}
+
+fn read_owner_info(workspace: &Workspace, block: Uuid, watched: &RefCell<Watched>) -> Option<Info> {
+    let block_type = workspace.known_type(block)?;
+    read_item_info(workspace, TabItem::new(block, block_type), None, watched)
+}
+
+fn read_item_info(
+    workspace: &Workspace,
+    item: TabItem,
+    view: Option<Uuid>,
+    watched: &RefCell<Watched>,
+) -> Option<Info> {
     workspace.record_type(item.id, item.block_type);
     let mut watched = watched.borrow_mut();
     watched.follow(&workspace.blocks(), item.id);
@@ -142,7 +155,7 @@ pub(crate) fn read_info(
     Some(Info {
         editor: workspace.editor_of(&item),
         item,
-        view: workspace.view_of(tab),
+        view,
         access,
         ceiling,
         can_edit: workspace.can_edit(item.id),
@@ -258,7 +271,6 @@ pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
                         <PanelStatus state={handle.state} loading="Loading revision…" />
                     </ChildBlock>
                 </Show>
-                <DetailsSheet workspace={workspace} tab={tab} />
             </List>
         </Frame>
     }
@@ -316,7 +328,20 @@ fn DockedBlockTab(
     session: bool,
     docked: ChildDockTab,
 ) -> NodeId {
-    let ChildDockTab { menu, body } = docked;
+    let ChildDockTab { menu, body, owner } = docked;
+    let own = owner.is_none();
+    let (info, session) = match owner {
+        None => (info, session),
+        Some(block) => {
+            let owned = create_signal(None::<Info>);
+            let watched = RefCell::new(Watched::default());
+            create_effect(move || owned.set(read_owner_info(&workspace, block, &watched)));
+            let session = untrack(|| workspace.known_type(block)) == Some(
+                <workspace_ui_types::EditorViewContent as block_editor_beui::be_block::BlockContent>::CONTENT_TYPE,
+            );
+            (owned.read_only(), session)
+        }
+    };
     dock_menu(create_memo(move || {
         let nodes = menu.get();
         match session {
@@ -338,7 +363,9 @@ fn DockedBlockTab(
             <Show condition={!session}>
                 <LinkedBar workspace={workspace} info={info} />
             </Show>
-            <RevisionPreviewBar history={workspace.revisions} tab={tab} workspace />
+            <Show condition={own}>
+                <RevisionPreviewBar history={workspace.revisions} tab={tab} workspace />
+            </Show>
             <Layers @sizing=ItemSize::Percent(100.0)>{body}</Layers>
         </List>
     }

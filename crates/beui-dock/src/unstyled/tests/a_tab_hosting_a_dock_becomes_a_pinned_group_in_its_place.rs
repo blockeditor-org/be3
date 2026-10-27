@@ -10,7 +10,12 @@ fn a_tab_hosting_a_dock_becomes_a_pinned_group_in_its_place() {
 
     let key = joined_key(TabId::new(2));
     let group = state
-        .host_group(TabId::new(2), &key, &pane("joined:2/inner", &[10, 11]))
+        .host_group(
+            TabId::new(2),
+            &key,
+            &pane("joined:2/inner", &[10, 11]),
+            None,
+        )
         .expect("the hosted dock declares tabs");
 
     assert_eq!(

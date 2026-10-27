@@ -465,15 +465,24 @@ so each docked instance hears only its own tabs (`dock-update.hosted`, a
 spliced child's group again the tab it was placed in) and its own closes. The
 root places a descendant's tab body as a child showing `child-content.dock-tab`
 with the full path, and the host shows the owner's `tab(t)` region there,
-only for tabs the owner's `dock-hosted.visible` lists. The host keeps a docked
+only for tabs the owner's `dock-hosted.visible` lists, and for the bodies a
+declaration names that are no tabs: a `dock-dialog`'s (which the root presents
+as it presents its own dialogs, over the dialog's parent, closing it with a
+`close` of the dialog's `tab`) and a pane's `empty` view, which the root shows
+while the pane holds no tab. The host keeps a docked
 child open while its placer places it or, once the child declares a dock, still
 declares the tab it was placed in (for the root, from the declaration it hears until it lets go with a `host`
 of `none`), requesting its frame at its last size without drawing it; a tab closes
 when its owner stops declaring it. Each `dock-tab` carries the menu its owner
 gives that tab (`menu`, the same `menu-item`s as a frame's menu, the owner's
-frame menu included), which the root shows on the tab's bar; a pick is the
-owner's ordinary `menu-pick`, which the host routes to a docked child whether or
-not its placer still places it.
+frame menu included), which the root shows on the tab's bar, whatever level
+the tab's owner is at; the root sends a pick as `dock-message.pick` with the
+tab's path, and the host hands it to the owner as `dock-update.pick` of its
+own tab, so the owner knows which tab asked (and presents what the command
+opens, such as its command palette, over that tab's body, not in its frame).
+A bar action of a docked child whose dock the host spliced (its frame is not
+shown), such as asking for its details, reaches its placer as a `child-bar` as
+if from its frame.
 
 A frame surface is transparent wherever its owner does not paint, so whatever
 the host draws beneath shows through there. The plugin publishes, with every

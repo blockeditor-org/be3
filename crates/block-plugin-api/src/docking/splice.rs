@@ -8,6 +8,13 @@ pub fn dock_prefix(host_key: &str, block: [u8; 16]) -> String {
     format!("{host_key}/{}", uuid::Uuid::from_bytes(block).simple())
 }
 
+pub fn dock_prefix_block(prefix: &str) -> Option<[u8; 16]> {
+    let (_, block) = prefix.rsplit_once('/')?;
+    uuid::Uuid::try_parse(block)
+        .ok()
+        .map(uuid::Uuid::into_bytes)
+}
+
 fn prefixed(prefix: &str, key: &str) -> String {
     match key.is_empty() {
         true => String::new(),
@@ -67,6 +74,7 @@ impl Mapping<'_> {
                             .as_deref()
                             .map(|area| (self.key)(area))
                             .filter(|area| !area.is_empty()),
+                        empty: pane.empty.as_ref().and_then(|empty| (self.tab)(empty)),
                         active,
                         ..pane.clone()
                     },
@@ -158,33 +166,50 @@ fn empty_pane(key: String) -> DockNode {
             sidebar: 180.0,
             keep: false,
             area: None,
+            empty: None,
         },
         entries: Vec::new(),
     }
 }
 
 impl DockNode {
-    fn spliced(&self, child: ChildId) -> Option<&DockNode> {
+    fn spliced_entry(&self, child: ChildId) -> Option<(&DockGroup, &DockNode)> {
         match self {
-            Self::Split { first, second, .. } => {
-                first.spliced(child).or_else(|| second.spliced(child))
-            }
+            Self::Split { first, second, .. } => first
+                .spliced_entry(child)
+                .or_else(|| second.spliced_entry(child)),
             Self::Pane { entries, .. } => entries.iter().find_map(|entry| match entry {
                 DockEntry::Tab(_) => None,
-                DockEntry::Group { group, root } if group.child == Some(child) => Some(&**root),
-                DockEntry::Group { root, .. } => root.spliced(child),
+                DockEntry::Group { group, root } if group.child == Some(child) => {
+                    Some((group, &**root))
+                }
+                DockEntry::Group { root, .. } => root.spliced_entry(child),
             }),
         }
     }
 }
 
 impl DockNodes {
+    fn spliced_entry(&self, child: ChildId) -> Option<(&DockGroup, &DockNode)> {
+        self.roots().find_map(|root| root.spliced_entry(child))
+    }
+
     fn spliced_group(&self, child: ChildId) -> Option<&DockNode> {
-        self.roots().find_map(|root| root.spliced(child))
+        self.spliced_entry(child).map(|(_, root)| root)
     }
 }
 
 impl DockDeclaration {
+    pub fn owner_block(&self, via: &[ChildId]) -> Option<[u8; 16]> {
+        let nodes = self.tree.nest().ok()?;
+        let (first, rest) = via.split_first()?;
+        let mut group = nodes.spliced_entry(*first)?;
+        for child in rest {
+            group = group.1.spliced_entry(*child)?;
+        }
+        dock_prefix_block(&group.0.key)
+    }
+
     pub fn splice(
         &mut self,
         host: u64,
@@ -242,6 +267,12 @@ impl DockDeclaration {
             key: prefixed(prefix, &tab.key),
             ..tab.clone()
         }));
+        self.dialogs
+            .extend(inner.dialogs.iter().map(|dialog| crate::DockDialog {
+                tab: dialog.tab.clone().through(child),
+                parent: dialog.parent.clone().through(child),
+                ..dialog.clone()
+            }));
         Ok(true)
     }
 }

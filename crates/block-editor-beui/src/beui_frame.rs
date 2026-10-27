@@ -11,6 +11,7 @@ use beui::{Key, KeyAt, KeyPhase, Pos2, Rect, Vec2, pos2};
 use block_plugin_api::{BarAction, MenuCheck, MenuCommand, MenuEntry, MenuPin, MenuSubmenu};
 
 use crate::chrome::ChromeRoot;
+use crate::docked::DockedTabs;
 use crate::picking::Pickers;
 use crate::{BlockInfo, BlockList, BlockQuery, Editor};
 
@@ -84,6 +85,7 @@ impl BeuiFrame {
 pub(crate) fn FrameChrome(
     chrome: Rc<BeuiFrame>,
     editor: Editor,
+    docked: Rc<DockedTabs>,
     view: Rc<dyn Fn() -> beui::styled::Root>,
 ) -> beui::styled::Root {
     let bar = chrome.bar;
@@ -104,6 +106,17 @@ pub(crate) fn FrameChrome(
     .glyph(ICON_TERMINAL)
     .shortcut(PALETTE)
     .register();
+    let host = editor.host();
+    let releasing = Rc::clone(&docked);
+    create_effect(move || {
+        if !palette.get() {
+            untrack(|| releasing.release());
+        }
+    });
+    let shown_in = create_memo(move || {
+        palette.get();
+        docked.presenting(&host)
+    });
     let escaping = exit_writer.clone();
     on_key(KeyAt::Window, KeyPhase::Bubble, move |event| {
         let escaped = event
@@ -128,7 +141,7 @@ pub(crate) fn FrameChrome(
                     listed
                     on_exit={move || exit_writer.set(true)}
                 />
-                <CommandPalette open={palette} />
+                <CommandPalette open={palette} shown_in />
                 <ChromeRoot @sizing=ItemSize::Percent(100.0) phone>|| {
                     let built = view();
                     let content = built.child();
@@ -145,13 +158,11 @@ pub(crate) fn FrameChrome(
         .holding(frame)
 }
 
-pub(crate) fn run_menu_pick(menu: &RefCell<Vec<MenuNode>>, id: &str) -> bool {
+pub(crate) fn run_menu_pick(menu: &RefCell<Vec<MenuNode>>, id: &str) {
     let picked = menu_action(&menu.borrow(), id);
-    let found = picked.is_some();
     if let Some(action) = picked {
         untrack(|| action.run());
     }
-    found
 }
 
 pub(crate) fn menu_entries(nodes: &[MenuNode]) -> Vec<MenuEntry> {

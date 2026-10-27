@@ -18,6 +18,7 @@ fn inner() -> DockDeclaration {
                         sidebar: 180.0,
                         keep: false,
                         area: None,
+                        empty: None,
                     }),
                 },
                 DockItem {
@@ -35,6 +36,7 @@ fn inner() -> DockDeclaration {
             closable: false,
             menu: Vec::new(),
         }],
+        dialogs: Vec::new(),
     }
 }
 

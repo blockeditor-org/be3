@@ -19,6 +19,12 @@ interface dock {
         tab: dock-tab-path,
     }
 
+    record dock-picked-tab {
+        region: editor-region,
+        tab: dock-tab-path,
+        id: string,
+    }
+
     record dock-declared-child {
         child: child-id,
         declaration: option<dock-declaration>,
@@ -34,14 +40,16 @@ interface dock {
     }
 
     /// For a docked region of the instance: what the root shows of its own
-    /// tabs (`none` until the root hosts it, and again once it lets go), and
-    /// the user closing one of them. For the root, of each docked child it
+    /// tabs (`none` until the root hosts it, and again once it lets go), the
+    /// user closing one of them, and the user picking command `id` of the
+    /// menu one of them carries. For the root, of each docked child it
     /// placed: the child's latest declaration with its descendants' spliced
     /// in (`none` once it withdrew it or closed), and what the child or a
     /// descendant asks of the dock.
     variant dock-update {
         hosted(dock-hosted-region),
         close(dock-closed-tab),
+        pick(dock-picked-tab),
         child(dock-declared-child),
         child-request(dock-child-request),
     }

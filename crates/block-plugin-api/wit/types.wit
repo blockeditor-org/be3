@@ -605,7 +605,9 @@ interface types {
     /// deeper. `active` indexes the entries; `none` in a declaration keeps
     /// what the holder shows. `area` is the locked area the pane belongs to,
     /// whose tabs stay in it: in a declaration the pane's own key, which
-    /// locks it; in a layout also a pane split off a locked one.
+    /// locks it; in a layout also a pane split off a locked one. `empty`, in
+    /// a declaration, names a body that is no tab of the tree: the `tab(t)`
+    /// region its owner draws in the pane while the pane holds no tab.
     record dock-pane {
         key: string,
         active: option<u32>,
@@ -614,6 +616,7 @@ interface types {
         sidebar: f32,
         keep: bool,
         area: option<string>,
+        empty: option<dock-tab-path>,
     }
 
     /// A group of tabs shown as one entry of a pane, whose root (a split or
@@ -667,8 +670,27 @@ interface types {
         glyph: string,
         closable: bool,
         /// The tab's own menu, which the root shows on the tab's bar; a pick
-        /// reaches the tab's owner as a `menu-pick` of its frame.
+        /// reaches the tab's owner as a `dock-update.pick` of the tab.
         menu: list<menu-item>,
+    }
+
+    /// A dialog of the dock, which the root presents as it presents its own,
+    /// over `parent` (a tab of the tree or another dialog): a window, or a
+    /// `card` hung from the parent's place (from `anchor`, in the points of
+    /// the region showing the parent's body, if any), modal when `modal`.
+    /// Its body is the owner's `tab(t)` region for `tab`, which is no tab of
+    /// the tree; closing it reaches the owner as a `close` of `tab`.
+    record dock-dialog {
+        tab: dock-tab-path,
+        parent: dock-tab-path,
+        title: string,
+        glyph: string,
+        size: size,
+        modal: bool,
+        card: bool,
+        dismiss-on-outside-press: bool,
+        anchor: option<rect>,
+        closable: bool,
     }
 
     /// The dock a region declares, which its holder shows in place of the
@@ -678,6 +700,7 @@ interface types {
     record dock-declaration {
         tree: dock-tree,
         tabs: list<dock-tab>,
+        dialogs: list<dock-dialog>,
     }
 
     /// Where a tab moved out of its area belongs: a locked area, by its
@@ -759,16 +782,25 @@ interface types {
         tab: dock-tab-path,
     }
 
+    /// The user picked command `id` of the menu `tab` carries; `tab` is in
+    /// the child's paths, and the host hands the pick to its owner.
+    record dock-child-pick {
+        child: dock-child,
+        tab: dock-tab-path,
+        id: string,
+    }
+
     /// What a plugin's docks say, in a frame. A docked region (one whose
     /// screen request is `docked`) declares its dock, replacing the last
     /// declaration, `none` withdrawing it, and asks of the root. The root
     /// hosts each docked child's spliced declaration: it hands the child
     /// what it holds of it, replacing the last, `none` letting go; and it
-    /// passes on the user closing a tab.
+    /// passes on the user closing a tab or picking from a tab's menu.
     variant dock-message {
         declare(dock-declare),
         request(dock-region-request),
         host(dock-child-hosted),
         close(dock-child-close),
+        pick(dock-child-pick),
     }
 }

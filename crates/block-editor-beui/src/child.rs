@@ -6,9 +6,10 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 
 use block_plugin_api::{
-    BarAction, ChildId, ChildLayer, ChildMode, ChildPreview, DialogFrame, KeyChord, MenuCheck,
-    MenuEntry, MenuPin, TopBar,
+    BarAction, ChildId, ChildLayer, ChildMode, ChildPreview, DialogFrame, DockTabPath, KeyChord,
+    MenuCheck, MenuEntry, MenuPin, TopBar,
 };
+use uuid::Uuid;
 
 use crate::{ChildState, ChildTarget, Editor, SubregionContent, watch_block_label};
 
@@ -16,6 +17,7 @@ use crate::{ChildState, ChildTarget, Editor, SubregionContent, watch_block_label
 pub struct ChildDockTab {
     pub menu: Memo<Vec<MenuNode>>,
     pub body: NodeId,
+    pub owner: Option<Uuid>,
 }
 
 #[derive(Clone)]
@@ -163,18 +165,18 @@ fn SubregionView(
     let mode = create_memo(move || mode.get());
     let turn = create_memo(move || rotation.get());
     let fade = create_memo(move || opacity.get());
-    let docked = use_context::<crate::docked::DockedTab>();
+    let docked = beui::dock::unstyled::use_dock_tab().filter(|tab| tab.is_hosted());
     let join = match docked {
         Some(_) => None,
         None => beui::dock::unstyled::use_dock_join(),
     };
     let dock_tab = docked
         .as_ref()
-        .map(|docked| docked.tab)
+        .map(|docked| docked.tab().value())
         .or_else(|| join.as_ref().map(|join| join.host().value()));
     let (docks, link) = match (claims, &docked, &join) {
         (false, _, _) => (false, None),
-        (true, Some(docked), _) => (docked.claim(), None),
+        (true, Some(docked), _) => (docked.claim_body(), None),
         (true, None, Some(join)) => match join.claim() {
             Some(link) => (true, Some(link)),
             None => (false, None),
@@ -313,16 +315,28 @@ struct Mirrored {
     checked: OwnedSignal<bool>,
 }
 
+#[derive(Clone)]
+pub(crate) enum MenuPicks {
+    Child,
+    DockTab(DockTabPath),
+}
+
 pub(crate) struct MenuMirror {
     editor: Editor,
+    picks: MenuPicks,
     commands: HashMap<String, Mirrored>,
     shape: Option<(Option<ChildId>, Vec<Shape>)>,
 }
 
 impl MenuMirror {
     pub(crate) fn new(editor: Editor) -> Self {
+        Self::picking(editor, MenuPicks::Child)
+    }
+
+    pub(crate) fn picking(editor: Editor, picks: MenuPicks) -> Self {
         Self {
             editor,
+            picks,
             commands: HashMap::new(),
             shape: None,
         }
@@ -421,8 +435,12 @@ impl MenuMirror {
                     );
                     let host = self.editor.host();
                     let picked = id.clone();
-                    let mut action = Action::new(id.clone(), label, move || {
-                        host.pick_child_menu(child, picked.clone())
+                    let picks = self.picks.clone();
+                    let mut action = Action::new(id.clone(), label, move || match &picks {
+                        MenuPicks::Child => host.pick_child_menu(child, picked.clone()),
+                        MenuPicks::DockTab(tab) => {
+                            host.pick_child_dock_tab(child, tab.clone(), picked.clone())
+                        }
                     })
                     .glyph(*glyph)
                     .enabled(enabled);

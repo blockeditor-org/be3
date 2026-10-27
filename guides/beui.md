@@ -2452,8 +2452,20 @@ tab body claims that tab's `DockJoin` (`use_dock_join()`, `DockJoin::host`,
 `claim`) for the child editor's dock. Such a platform builds the tab bodies
 itself, and provides `DockTabMenu` and `DockTabControl::hosted(tab, hosted,
 request)` in each body's scope, so `dock_menu` and `use_dock_tab()` work there
-as in a local dock. A `DockDialog` whose parent tab is hosting a group hangs
-from the group's shown tab.
+as in a local dock; `DockTabControl::is_hosted` tells such a body apart, and
+`claim_body` lets one child in it claim the tab. A `DockDialog` whose parent tab is hosting a group hangs
+from the group's shown tab. The inner dock's `DockDialog`s are declared too
+(`DockDeclaredDialog`) and the outer dock presents them as its own, over their
+parent's place, building their bodies like tab bodies and handing a close back
+to the inner `on_close`; a pane's `empty` view shows in the outer dock as a tab
+body does (`DockBodies::empty`), and the inner `focus` picks the group's tab
+when the group first takes the hosting tab's place. A `DockTab`'s `picture`
+reaches an outer dock in the same tree; across plugins it is not carried (a
+`dock-tab` has no texture, and only the shell's own window tabs use pictures).
+A `Docking` inside a tab body of a dock that joined a platform's host (not an
+outer `Docking`) joins its own dock in turn: the joined dock splices it in as
+`joined:<tab>` and declares its tabs and dialogs as its own, keeping the host
+tab's panel alive (`DockBodies::hosts`) and passing its requests up.
 
 A tab's panel is built the first time the tab is shown and belongs to the dock
 rather than to the pane showing it: the pane holds a `Portal` pointed at it, so

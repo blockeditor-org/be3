@@ -60,7 +60,9 @@ pub use blocks::{
     VersionCommit, VersionOperation, VersionStatus,
 };
 pub use debug::debug::{DebugTemplate, PerformanceMeasurement};
-pub use dock::{DockChildRequest, DockClosedTab, DockDeclaredChild, DockHostedRegion, DockUpdate};
+pub use dock::{
+    DockChildRequest, DockClosedTab, DockDeclaredChild, DockHostedRegion, DockPickedTab, DockUpdate,
+};
 pub use guest::dock::DockWatch;
 pub use host_services::{AccessGrant, AccessListing, ImportedBlock, Revision, ShellDialog};
 pub use shared::access::AccessLevel;
@@ -83,10 +85,10 @@ pub use types::{
     SurfaceSpec, SurfaceSupport, TimedInput, TopBar, ViewportMetrics,
 };
 pub use types::{
-    DockChild, DockChildClose, DockChildHosted, DockDeclaration, DockDeclare, DockDirection,
-    DockFullscreen, DockGroup, DockHome, DockHosted, DockItem, DockItemKind, DockLayout,
-    DockMessage, DockPane, DockPlace, DockRegionRequest, DockRequest, DockSplit, DockTab,
-    DockTabPath, DockTree, DockWindow,
+    DockChild, DockChildClose, DockChildHosted, DockChildPick, DockDeclaration, DockDeclare,
+    DockDialog, DockDirection, DockFullscreen, DockGroup, DockHome, DockHosted, DockItem,
+    DockItemKind, DockLayout, DockMessage, DockPane, DockPlace, DockRegionRequest, DockRequest,
+    DockSplit, DockTab, DockTabPath, DockTree, DockWindow,
 };
 pub use types::{MenuCheck, MenuCommand, MenuHeading, MenuItem, MenuItemKind, MenuPin};
 pub use types::{
@@ -142,6 +144,7 @@ mod watch;
 pub use block_ids::BlockIdRole;
 pub use docking::{
     DockEntry, DockFloating, DockNode, DockNodes, MAX_DOCK_DEPTH, MAX_DOCK_NESTING, dock_prefix,
+    dock_prefix_block,
 };
 pub use manifest::{
     EditorDocument, InOrder, ManifestDocument, TemplateDocument, manifest_from_json,

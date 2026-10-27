@@ -23,6 +23,7 @@ fn pane(depth: u32, key: &str) -> DockItem {
             sidebar: 180.0,
             keep: false,
             area: None,
+            empty: None,
         }),
     }
 }
@@ -50,6 +51,7 @@ fn declaration(key: &str, tabs: &[(u64, &str)]) -> DockDeclaration {
                 menu: Vec::new(),
             })
             .collect(),
+        dialogs: Vec::new(),
     }
 }
 
@@ -168,8 +170,11 @@ mod a_closed_instance_withdraws_its_dock_from_the_root;
 mod a_docked_child_stays_open_while_its_placer_hosts_or_declares_its_tab;
 mod a_docked_child_that_declares_nothing_stays_a_plain_child;
 mod a_nested_dock_reaches_the_root_spliced_into_its_placers;
+mod a_pick_from_a_tabs_menu_reaches_the_owner_two_levels_down;
 mod a_request_reaches_the_root_through_each_placer;
+mod a_spliced_childs_bar_action_reaches_its_placer;
 mod a_tab_the_root_closes_is_closed_at_its_owner;
 mod messages_about_another_plugins_instances_are_ignored;
+mod the_root_places_a_descendants_dialog_and_empty_pane_bodies;
 mod the_root_places_only_visible_tabs_of_its_docked_descendants;
 mod what_the_root_hosts_is_split_into_each_instances_own_tabs;

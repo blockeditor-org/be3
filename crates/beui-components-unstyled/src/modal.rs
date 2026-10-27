@@ -6,6 +6,7 @@ use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::color::Color32;
 use beui_core::geometry::Pos2;
 use beui_core::node::NodeId;
+use beui_core::window::WindowId;
 use beui_view::components::overlay::{Overlay, use_overlay_presence};
 use beui_view::reactive::*;
 
@@ -34,6 +35,7 @@ pub fn Modal(
     #[prop(default = ModalPlacement::Center)] placement: ModalPlacement,
     #[prop(default = LayerLevel::Normal)] level: Prop<LayerLevel>,
     #[prop(default = ModalMotion::Slides)] motion: ModalMotion,
+    #[prop(default = None)] shown_in: Prop<Option<WindowId>>,
     on_dismiss: ClickCallback,
     #[prop(children)] content: Render<ModalHandle>,
 ) -> NodeId {
@@ -90,6 +92,7 @@ pub fn Modal(
             placement=placed
             scrim={faded}
             level={level}
+            shown_in={shown_in}
             policy={create_memo(move || match asked.get() && !open.get() {
                 true => LayerPolicy::Inert,
                 false => LayerPolicy::BlocksAll,

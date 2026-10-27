@@ -2,12 +2,14 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use beui_core::geometry::Rect;
+use beui_core::geometry::{Rect, Vec2};
 use beui_core::icons::Glyph;
+use beui_core::image::Image;
 use beui_core::node::NodeId;
 use beui_view::reactive::*;
 
 use super::super::DockMode;
+use super::super::dialog::DockDialogPresentation;
 use super::super::state::{
     DockFullscreen, DockMapping, DockSpec, DockState, TabId, joined_host, joined_key, joined_prefix,
 };
@@ -16,11 +18,16 @@ use super::super::state::{
 pub struct DockDeclaration {
     pub spec: DockSpec,
     pub tabs: Vec<DockDeclaredTab>,
+    pub dialogs: Vec<DockDeclaredDialog>,
 }
 
 impl DockDeclaration {
     pub fn tab(&self, tab: TabId) -> Option<&DockDeclaredTab> {
         self.tabs.iter().find(|declared| declared.tab == tab)
+    }
+
+    pub fn dialog(&self, tab: TabId) -> Option<&DockDeclaredDialog> {
+        self.dialogs.iter().find(|declared| declared.tab == tab)
     }
 }
 
@@ -30,6 +37,21 @@ pub struct DockDeclaredTab {
     pub key: String,
     pub title: String,
     pub icon: Option<Glyph>,
+    pub picture: Option<Image>,
+    pub closable: bool,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct DockDeclaredDialog {
+    pub tab: TabId,
+    pub parent: TabId,
+    pub title: String,
+    pub icon: Option<Glyph>,
+    pub size: Vec2,
+    pub modal: bool,
+    pub presentation: DockDialogPresentation,
+    pub dismiss_on_outside_press: bool,
+    pub anchor: Option<Rect>,
     pub closable: bool,
 }
 
@@ -61,6 +83,7 @@ pub struct DockBodies {
     pub scope: ScopeContext,
     pub body: RenderFn<TabId, NodeId>,
     pub empty: RenderFn<String, Option<NodeId>>,
+    pub hosts: Memo<Vec<TabId>>,
 }
 
 #[derive(Clone)]
@@ -161,6 +184,8 @@ pub(crate) struct Registry {
     pub(crate) foreign: RefCell<Foreign>,
     pub(crate) state: Signal<DockState>,
     pub(crate) mode: Signal<DockMode>,
+    pub(crate) above: Signal<Option<DockHosted>>,
+    pub(crate) host: RefCell<Option<Rc<dyn DockHostLink>>>,
 }
 
 impl Registry {
@@ -200,7 +225,10 @@ impl Registry {
                 .filter(|(held, _)| *held == host)
                 .map(|(_, inner)| inner)
         };
-        let mode = self.mode.get();
+        let above = self.above.get();
+        let mode = above
+            .as_ref()
+            .map_or_else(|| self.mode.get(), |above| above.mode);
         self.state.with(|state| {
             let group = state.find_group(&joined_key(host))?;
             let prefix = joined_prefix(host);
@@ -212,6 +240,18 @@ impl Registry {
                     group: &|key| joined_host(key).and_then(inner),
                 },
             );
+            if let Some(above) = &above {
+                let list = |tabs: &[TabId]| tabs.iter().copied().filter_map(inner).collect();
+                return Some(DockHosted {
+                    state: subtree,
+                    tabs: list(&above.tabs),
+                    focused: above.focused.and_then(inner),
+                    shown: above.shown.and_then(inner),
+                    visible: list(&above.visible),
+                    fullscreen: above.fullscreen.and_then(inner),
+                    mode,
+                });
+            }
             let stacked = mode == DockMode::Stacked;
             let held = state.all_tabs();
             Some(DockHosted {
@@ -273,6 +313,26 @@ impl JoinedLink {
             .outer(self.join.host, inner)
     }
 
+    fn forwarded(&self, request: DockRequest) -> Option<DockRequest> {
+        Some(match request {
+            DockRequest::Show(tab) => DockRequest::Show(self.outer(tab)?),
+            DockRequest::Fullscreen(Some((tab, area))) => {
+                DockRequest::Fullscreen(Some((self.outer(tab)?, area)))
+            }
+            DockRequest::Fullscreen(None) => DockRequest::Fullscreen(None),
+            DockRequest::Restore(from) => {
+                let registry = &self.join.registry;
+                let mut state = registry.state.get_untracked();
+                if !registry.graft(&mut state, self.join.host, &from) {
+                    *self.joined.pending.borrow_mut() = Some(from);
+                    registry.bump();
+                    return None;
+                }
+                DockRequest::Restore(state)
+            }
+        })
+    }
+
     fn edit(&self, change: impl FnOnce(&mut DockState)) {
         let state = self.join.registry.state;
         if !state.is_alive() {
@@ -304,7 +364,11 @@ impl DockHostLink for JoinedLink {
         let host = self.join.host;
         let version = registry.version;
         create_memo(move || {
-            if !version.is_alive() || !registry.state.is_alive() || !registry.mode.is_alive() {
+            if !version.is_alive()
+                || !registry.state.is_alive()
+                || !registry.mode.is_alive()
+                || !registry.above.is_alive()
+            {
                 return None;
             }
             version.get();
@@ -313,6 +377,13 @@ impl DockHostLink for JoinedLink {
     }
 
     fn request(&self, request: DockRequest) {
+        let above = self.join.registry.host.borrow().clone();
+        if let Some(above) = above {
+            if let Some(request) = self.forwarded(request) {
+                above.request(request);
+            }
+            return;
+        }
         match request {
             DockRequest::Show(tab) => {
                 if let Some(tab) = self.outer(tab) {

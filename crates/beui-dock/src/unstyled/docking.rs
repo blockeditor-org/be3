@@ -30,12 +30,13 @@ use super::{
     DockSwitcherHandle, DockTabControl, DockTabHandle, DockTabMenu, GroupId, LeafId, SIDEBAR_WIDTH,
     TabId,
 };
+use beui_components_unstyled::DialogLayout;
 use beui_components_unstyled::menu_popup::MenuStyle;
 const MAX_JOINED_DEPTH: usize = 16;
 
 pub use host::{
-    DockBodies, DockDeclaration, DockDeclaredTab, DockHostEvent, DockHostLink, DockHostSlot,
-    DockHosted, DockJoin, DockRequest, use_dock_join,
+    DockBodies, DockDeclaration, DockDeclaredDialog, DockDeclaredTab, DockHostEvent, DockHostLink,
+    DockHostSlot, DockHosted, DockJoin, DockRequest, use_dock_join,
 };
 use host::{Foreign, Joined, Registry};
 
@@ -327,6 +328,12 @@ impl<K> Default for KeyMap<K> {
     }
 }
 
+struct ForeignDialog {
+    described: Signal<DockDeclaredDialog>,
+    parts: DialogParts,
+    _scope: Scope,
+}
+
 struct LayoutInner<K> {
     _scope: Scope,
     keys: RefCell<KeyMap<K>>,
@@ -335,6 +342,8 @@ struct LayoutInner<K> {
     hosted: Signal<Option<DockHosted>>,
     declared: RefCell<Option<DockSpec>>,
     saved: RefCell<Saved>,
+    dialogs: RefCell<HashMap<TabId, ForeignDialog>>,
+    place: std::cell::Cell<Option<RenderFn<TabId, NodeId>>>,
 }
 
 pub struct DockingLayout<K: 'static> {
@@ -403,14 +412,16 @@ impl<K: DockKey> DockingLayout<K> {
         let state = create_signal(DockState::default());
         let mode = create_signal(DockMode::Tiled);
         let restores = create_signal(0);
+        let hosted = create_signal(None);
         let registry = Rc::new(Registry {
             version: create_signal(0),
             joins: RefCell::default(),
             foreign: RefCell::default(),
             state,
             mode,
+            above: hosted,
+            host: RefCell::default(),
         });
-        let hosted = create_signal(None);
         let inner = LayoutInner {
             _scope: owner.into_scope(),
             keys: RefCell::default(),
@@ -419,6 +430,8 @@ impl<K: DockKey> DockingLayout<K> {
             hosted,
             declared: RefCell::default(),
             saved: RefCell::default(),
+            dialogs: RefCell::default(),
+            place: std::cell::Cell::new(None),
         };
         let layout = move |inner| Self {
             state,
@@ -786,11 +799,11 @@ impl<K: DockKey> DockingLayout<K> {
         &self,
         spec: &DockSpec,
         dialogs: &[(TabId, TabId)],
-        hosts: &[(TabId, DockSpecNode)],
+        hosts: &[(TabId, DockSpecNode, Option<TabId>)],
     ) {
         let current = self.state.get_untracked();
         let mut next = current.clone();
-        let live: HashSet<TabId> = hosts.iter().map(|(host, _)| *host).collect();
+        let live: HashSet<TabId> = hosts.iter().map(|(host, _, _)| *host).collect();
         while let Some((group, host)) = next
             .joined_groups()
             .into_iter()
@@ -798,16 +811,16 @@ impl<K: DockKey> DockingLayout<K> {
         {
             next.unhost_group(group, host);
         }
-        for (host, root) in hosts {
+        for (host, root, focus) in hosts {
             let key = joined_key(*host);
             if next.find_group(&key).is_none() && next.contains(*host) {
-                next.host_group(*host, &key, root);
+                next.host_group(*host, &key, root, *focus);
             }
         }
         let parked = self.unpark(&mut next, spec, &live);
         next.reconcile_keeping(spec, &parked);
         let registry = Rc::clone(&self.inner().registry);
-        for (host, _) in hosts {
+        for (host, _, _) in hosts {
             let pending = registry
                 .joined(*host)
                 .and_then(|joined| joined.pending.borrow_mut().take());
@@ -916,7 +929,7 @@ impl<K: DockKey> DockingLayout<K> {
         keys.tabs.retain(|_, tab| kept.contains(tab));
     }
 
-    fn declared(&self, spec: &DockSpec, dialogs: &[(TabId, TabId)]) {
+    fn declared(&self, spec: &DockSpec, dialogs: &[(TabId, TabId)], hosts: &[TabId]) {
         let mut kept: HashSet<TabId> = spec.tabs().into_iter().collect();
         kept.extend(
             self.hosted(|hosted| hosted.tabs.clone())
@@ -927,8 +940,98 @@ impl<K: DockKey> DockingLayout<K> {
                 .iter()
                 .flat_map(|(dialog, parent)| [*dialog, *parent]),
         );
+        kept.extend(hosts.iter().copied());
         self.retain_keys(&kept);
+        self.inner()
+            .registry
+            .foreign
+            .borrow_mut()
+            .retain(|tab| kept.contains(&tab));
         *self.inner().declared.borrow_mut() = Some(spec.clone());
+    }
+
+    fn foreign_tabs(&self, found: &Found<K>) -> Vec<DockDeclaredTab> {
+        let inner = self.inner();
+        let saved = inner.saved.borrow();
+        found
+            .foreign
+            .iter()
+            .filter_map(|(tab, (joined, held))| {
+                let declaration = joined.declaration.borrow();
+                let declared = declaration.as_ref()?.tab(*held)?;
+                let (host, _) = inner.registry.foreign.borrow().inner(*tab)?;
+                Some(DockDeclaredTab {
+                    tab: *tab,
+                    key: self.path(host, &declared.key, &saved)?,
+                    ..declared.clone()
+                })
+            })
+            .collect()
+    }
+
+    fn foreign_dialog(
+        &self,
+        tab: TabId,
+        joined: &Rc<Joined>,
+        inner: TabId,
+        declared: &DockDeclaredDialog,
+    ) -> Option<DialogParts> {
+        let layout = self.inner();
+        if let Some(held) = layout.dialogs.borrow().get(&tab) {
+            if held
+                .described
+                .with_untracked(|described| described != declared)
+            {
+                held.described.set(declared.clone());
+            }
+            return Some(held.parts);
+        }
+        let scope = layout._scope.context().child()?;
+        let stored = self.inner;
+        let closing = Rc::clone(joined);
+        let closable = declared.closable;
+        let (described, parts) = scope.run(|| {
+            let described = create_signal(declared.clone());
+            let read = move |read: fn(&DockDeclaredDialog) -> bool| {
+                create_memo(move || described.with(read))
+            };
+            let parts = DialogParts {
+                presentation: declared.presentation,
+                title: create_memo(move || described.with(|described| described.title.clone())),
+                icon: create_memo(move || described.with(|described| described.icon)),
+                size: create_memo(move || described.with(|described| described.size)),
+                modal: read(|described| {
+                    described.modal || described.presentation == DockDialogPresentation::Card
+                }),
+                dismiss_on_outside_press: read(|described| described.dismiss_on_outside_press),
+                anchor: create_memo(move || {
+                    described.with(|described| {
+                        described
+                            .anchor
+                            .filter(|_| described.presentation == DockDialogPresentation::Card)
+                    })
+                }),
+                on_close: closable.then(|| ClickCallback::new(move || closing.close(inner))),
+                content: RenderFn::new(move |()| {
+                    let place = stored
+                        .value()
+                        .place
+                        .get()
+                        .expect("the Docking that holds a dialog places it");
+                    place.call(tab)
+                }),
+            };
+            (described, parts)
+        });
+        layout.dialogs.borrow_mut().insert(
+            tab,
+            ForeignDialog {
+                described,
+                parts,
+                _scope: scope,
+            },
+        );
+        Some(parts)
     }
 
     fn mirror(&self, hosted: Option<DockHosted>) {
@@ -1082,6 +1185,36 @@ impl<K: DockKey> DockingLayout<K> {
         let spec = joined.declaration.borrow().as_ref()?.spec.clone();
         let root = spec.main.as_ref()?;
         let root = self.foreign_node(host, &joined, root, found);
+        let key_of = |inner: TabId| {
+            joined
+                .declaration
+                .borrow()
+                .as_ref()
+                .and_then(|declaration| declaration.tab(inner))
+                .map(|declared| declared.key.clone())
+        };
+        let focus = spec
+            .focus
+            .map(|inner| self.mint_foreign(host, inner, key_of(inner).as_deref()));
+        let dialogs = joined
+            .declaration
+            .borrow()
+            .as_ref()
+            .map(|declaration| declaration.dialogs.clone())
+            .unwrap_or_default();
+        for dialog in &dialogs {
+            let tab = self.mint_foreign(host, dialog.tab, None);
+            let parent = self.mint_foreign(host, dialog.parent, key_of(dialog.parent).as_deref());
+            if found.dialogs.iter().any(|(held, _)| *held == tab) {
+                continue;
+            }
+            let Some(parts) = self.foreign_dialog(tab, &joined, dialog.tab, dialog) else {
+                continue;
+            };
+            found.foreign.insert(tab, (Rc::clone(&joined), dialog.tab));
+            found.dialogs.push((tab, parent));
+            found.parts.insert(tab, parts);
+        }
         for window in &spec.windows {
             let root = window
                 .root
@@ -1093,7 +1226,7 @@ impl<K: DockKey> DockingLayout<K> {
                 root,
             });
         }
-        found.hosts.push((host, root.clone()));
+        found.hosts.push((host, root.clone(), focus));
         Some(DockSpecEntry::Group {
             key: joined_key(host),
             pinned: true,
@@ -1167,7 +1300,7 @@ impl<K: DockKey> DockingLayout<K> {
 
 struct Found<K: 'static> {
     foreign: HashMap<TabId, (Rc<Joined>, TabId)>,
-    hosts: Vec<(TabId, DockSpecNode)>,
+    hosts: Vec<(TabId, DockSpecNode, Option<TabId>)>,
     windows: Vec<DockSpecWindow>,
     tabs: HashMap<TabId, Rc<DockEntry<K>>>,
     panes: HashMap<String, Rc<DockNode<K>>>,
@@ -1206,6 +1339,7 @@ impl<K: DockKey> Found<K> {
                     id,
                     title,
                     icon,
+                    picture,
                     on_close,
                     ..
                 } => Some(DockDeclaredTab {
@@ -1213,9 +1347,31 @@ impl<K: DockKey> Found<K> {
                     key: id.key(),
                     title: title.get(),
                     icon: icon.get(),
+                    picture: picture.get(),
                     closable: on_close.is_some(),
                 }),
                 EntryKind::Group { .. } => None,
+            })
+            .collect()
+    }
+
+    fn declared_dialogs(&self) -> Vec<DockDeclaredDialog> {
+        self.dialogs
+            .iter()
+            .filter_map(|(tab, parent)| {
+                let parts = self.parts.get(tab)?;
+                Some(DockDeclaredDialog {
+                    tab: *tab,
+                    parent: *parent,
+                    title: parts.title.get(),
+                    icon: parts.icon.get(),
+                    size: parts.size.get(),
+                    modal: parts.modal.get(),
+                    presentation: parts.presentation,
+                    dismiss_on_outside_press: parts.dismiss_on_outside_press.get(),
+                    anchor: parts.anchor.get(),
+                    closable: parts.on_close.is_some(),
+                })
             })
             .collect()
     }
@@ -1312,7 +1468,10 @@ where
         }
         let close = found.with_untracked(|found| match found.foreign.get(&tab) {
             Some((joined, inner)) => Err((Rc::clone(joined), *inner)),
-            None => Ok(found.tab(tab, |_, _, on_close, _| *on_close).flatten()),
+            None => Ok(found
+                .tab(tab, |_, _, on_close, _| *on_close)
+                .flatten()
+                .or_else(|| found.parts.get(&tab).and_then(|parts| parts.on_close))),
         });
         match close {
             Ok(Some(close)) => close.call(),
@@ -1323,8 +1482,13 @@ where
     let body = RenderFn::new(move |tab: TabId| {
         let content = found.with_untracked(|found| found.tab(tab, |_, _, _, content| *content));
         let Some(content) = content else {
-            return view! {
-                <Frame />
+            let dialog =
+                found.with_untracked(|found| found.parts.get(&tab).map(|parts| parts.content));
+            return match dialog {
+                Some(dialog) => dialog.call(()),
+                None => view! {
+                    <Frame />
+                },
             };
         };
         let body = content.call(());
@@ -1333,13 +1497,16 @@ where
             None => body,
         }
     });
-    let link = use_dock_join()
-        .and_then(|join| join.claim())
-        .or_else(|| use_context::<DockHostSlot>().and_then(|slot| slot.claim()));
-    if let Some(link) = link {
+    let link = match use_dock_join().and_then(|join| join.claim()) {
+        Some(link) => Some((link, false)),
+        None => use_context::<DockHostSlot>()
+            .and_then(|slot| slot.claim())
+            .map(|link| (link, true)),
+    };
+    if let Some((link, nests)) = link {
         let on_close = Callback::new(on_close);
         return view! {
-            <JoinedDock layout link nodes found body on_close />
+            <JoinedDock layout link nests nodes found body focus on_close />
         };
     }
     let registry = Rc::clone(&layout.inner().registry);
@@ -1393,7 +1560,12 @@ where
             .with(|found| found.tab(tab, |_, icon, _, _| icon.get()))
             .unwrap_or_default()
     });
-    let picture = Func::new(move |tab: TabId| found.with(|found| found.picture(tab)));
+    let picture = Func::new(move |tab: TabId| {
+        if let Some(declared) = declared(tab) {
+            return declared.picture;
+        }
+        found.with(|found| found.picture(tab))
+    });
     let closable = Func::new(move |tab: TabId| {
         if let Some(declared) = declared(tab) {
             return declared.closable;
@@ -1416,31 +1588,13 @@ where
             provide_context(join(tab));
             return body.call(tab);
         };
-        let bodies = joined.bodies.borrow().clone();
-        let Some(scope) = bodies.as_ref().and_then(|bodies| bodies.scope.child()) else {
-            return view! {
-                <Frame />
-            };
-        };
-        let control = use_context::<DockTabControl>();
-        let menu = use_context::<DockTabMenu>();
-        let placed = scope.run(|| {
-            if let Some(control) = control {
-                provide_context(control);
-            }
-            if let Some(menu) = menu {
-                provide_context(menu);
-            }
-            provide_context(join(tab));
-            bodies.map(|bodies| bodies.body.call(inner))
-        });
-        on_cleanup(move || drop(scope));
-        placed.unwrap_or_else(|| {
+        place_foreign(&registry, &joined, tab, inner).unwrap_or_else(|| {
             view! {
                 <Frame />
             }
         })
     });
+    layout.inner().place.set(Some(place));
     let content = RenderFn::new(move |tab: TabId| {
         let known = move |found: &Found<K>| {
             found.foreign.contains_key(&tab) || found.tabs.contains_key(&tab)
@@ -1504,7 +1658,7 @@ where
             found
                 .hosts
                 .iter()
-                .map(|(host, _)| *host)
+                .map(|(host, _, _)| *host)
                 .collect::<Vec<_>>()
         })
     });
@@ -1576,19 +1730,56 @@ fn standing_in(state: &DockState, tab: TabId) -> TabId {
         .unwrap_or(tab)
 }
 
+fn place_foreign(
+    registry: &Rc<Registry>,
+    joined: &Rc<Joined>,
+    tab: TabId,
+    inner: TabId,
+) -> Option<NodeId> {
+    let bodies = joined.bodies.borrow().clone();
+    let scope = bodies.as_ref().and_then(|bodies| bodies.scope.child())?;
+    let control = use_context::<DockTabControl>();
+    let menu = use_context::<DockTabMenu>();
+    let layout = use_context::<DialogLayout>();
+    let registry = Rc::clone(registry);
+    let placed = scope.run(|| {
+        if let Some(control) = control {
+            provide_context(control);
+        }
+        if let Some(menu) = menu {
+            provide_context(menu);
+        }
+        if let Some(layout) = layout {
+            provide_context(layout);
+        }
+        provide_context(DockJoin {
+            host: tab,
+            registry,
+            claimed: Rc::default(),
+        });
+        bodies.map(|bodies| bodies.body.call(inner))
+    });
+    on_cleanup(move || drop(scope));
+    placed
+}
+
 #[component]
 fn JoinedDock<K>(
     layout: DockingLayout<K>,
     link: Rc<dyn DockHostLink>,
+    nests: bool,
     nodes: Run<DockNode<K>>,
     found: Signal<Rc<Found<K>>>,
     body: RenderFn<TabId, NodeId>,
+    focus: Prop<Option<K>>,
     on_close: Callback<TabId>,
 ) -> NodeId
 where
     K: DockKey,
 {
     *layout.inner().host.borrow_mut() = Some(Rc::clone(&link));
+    let registry = Rc::clone(&layout.inner().registry);
+    *registry.host.borrow_mut() = Some(Rc::clone(&link));
     if layout.state.with_untracked(DockState::is_seeded) {
         link.request(DockRequest::Restore(layout.state.get_untracked()));
     }
@@ -1598,15 +1789,21 @@ where
         untrack(|| layout.mirror(hosted));
     });
     let spec = create_signal(None::<DockSpec>);
+    let version = registry.version;
     create_effect(move || {
         layout.restores.get();
+        if nests {
+            version.get();
+        }
         let items = nodes.items();
         let mut held = Found::default();
-        let declared = layout.spec(&items, None, &mut held);
+        let focus = focus.get_untracked();
+        let declared = layout.spec(&items, focus.as_ref(), &mut held);
         let dialogs = held.dialogs.clone();
+        let hosts: Vec<TabId> = held.hosts.iter().map(|(host, _, _)| *host).collect();
         untrack(|| {
             found.set(Rc::new(held));
-            layout.declared(&declared, &dialogs);
+            layout.declared(&declared, &dialogs, &hosts);
             spec.set(Some(declared));
         });
     });
@@ -1615,26 +1812,84 @@ where
         let Some(spec) = spec.get() else {
             return;
         };
-        let mut tabs = found.with(|found| found.declared_tabs());
+        let (mut tabs, mut dialogs) =
+            found.with(|found| (found.declared_tabs(), found.declared_dialogs()));
+        tabs.extend(found.with_untracked(|found| layout.foreign_tabs(found)));
+        let hosts: Vec<TabId> =
+            found.with(|found| found.hosts.iter().map(|(host, _, _)| *host).collect());
+        tabs.retain(|declared| !hosts.contains(&declared.tab));
         tabs.sort_by_key(|declared| declared.tab);
-        untrack(|| declaring.declare(DockDeclaration { spec, tabs }));
+        dialogs.sort_by_key(|declared| declared.tab);
+        untrack(|| {
+            declaring.declare(DockDeclaration {
+                spec,
+                tabs,
+                dialogs,
+            })
+        });
     });
     link.listen(Callback::new(move |event: DockHostEvent| match event {
         DockHostEvent::Close(tab) => on_close.call(tab),
     }));
+    let emptying = Rc::clone(&registry);
     let empty = RenderFn::new(move |key: String| {
+        if let Some((host, rest)) = key.split_once('/')
+            && let Some(host) = joined_host(host)
+        {
+            let bodies = emptying.joined(host)?.bodies.borrow().clone()?;
+            return bodies.empty.call(rest.to_owned());
+        }
         found
             .with_untracked(|found| found.empty(&key))
             .map(|empty| empty.call(()))
     });
+    let placing = Rc::clone(&registry);
+    let body = match nests {
+        false => body,
+        true => RenderFn::new(move |tab: TabId| {
+            let foreign = found.with_untracked(|found| found.foreign.get(&tab).cloned());
+            match foreign {
+                Some((joined, inner)) => place_foreign(&placing, &joined, tab, inner)
+                    .unwrap_or_else(|| {
+                        view! {
+                            <Frame />
+                        }
+                    }),
+                None => {
+                    provide_context(DockJoin {
+                        host: tab,
+                        registry: Rc::clone(&placing),
+                        claimed: Rc::default(),
+                    });
+                    body.call(tab)
+                }
+            }
+        }),
+    };
+    layout.inner().place.set(Some(body));
+    let hosts = create_memo(move || {
+        found.with(|found| {
+            found
+                .hosts
+                .iter()
+                .map(|(host, _, _)| *host)
+                .collect::<Vec<_>>()
+        })
+    });
     if let Some(scope) = owner_scope() {
-        link.place(DockBodies { scope, body, empty });
+        link.place(DockBodies {
+            scope,
+            body,
+            empty,
+            hosts,
+        });
     }
     let inner = layout.inner;
     on_cleanup(move || {
         link.withdraw();
         if let Some(inner) = inner.try_value() {
             *inner.host.borrow_mut() = None;
+            inner.registry.host.borrow_mut().take();
             if inner.hosted.is_alive() {
                 inner.hosted.set(None);
             }

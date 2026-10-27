@@ -35,6 +35,7 @@ pub fn CommandPalette(
     #[prop(default = "Run a command".to_owned())] placeholder: Prop<String>,
     #[prop(default = "Command palette".to_owned())] label: Prop<String>,
     #[prop(default = "command-palette".to_owned())] id: String,
+    #[prop(default = None)] shown_in: Prop<Option<beui_core::window::WindowId>>,
     on_choose: Callback<String>,
 ) -> NodeId {
     let theme = use_theme();
@@ -49,6 +50,7 @@ pub fn CommandPalette(
             score
             query
             label
+            shown_in
             on_choose={move |key: String| on_choose.call(key)}
             list_height=LIST_HEIGHT
             spacing={use_space(PADDING).get_untracked()}

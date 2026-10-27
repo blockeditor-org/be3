@@ -10,9 +10,12 @@ mod a_child_block_asks_the_host_for_the_frame_it_will_own;
 mod a_docked_editor_builds_a_tab_body_only_where_the_host_shows_it_and_keeps_it;
 mod a_docked_editor_declares_its_dock_and_draws_no_tab_body_in_its_frame;
 mod a_docked_editor_follows_the_roots_focus_and_closes_what_it_closes;
+mod a_docked_editors_nested_dock_and_dialog_join_its_declaration;
+mod a_docked_editors_palette_opens_over_the_tab_whose_menu_asked;
 mod a_focused_beui_child_gets_the_whole_frame_not_just_its_embedded_rect;
 mod a_focused_beui_childs_reported_content_is_its_own_canvas_not_the_whole_view;
 mod a_root_dock_hosts_the_dock_its_child_declares_in_place_of_the_childs_tab;
+mod a_root_gives_a_tab_two_levels_down_its_owners_menu_block_and_dialog;
 mod a_visible_editor_shows_its_user_as_active;
 mod an_editor_not_docked_draws_its_dock_itself_and_declares_nothing;
 mod an_open_beui_overlay_is_reported_over_the_child_it_covers;
@@ -153,6 +156,7 @@ fn hosted_tabs(
             sidebar: 180.0,
             keep: false,
             area: None,
+            empty: None,
         }),
     }];
     items.extend(tabs.iter().map(|tab| DockItem {
@@ -183,6 +187,8 @@ fn hosted_tabs(
 thread_local! {
     static BODIES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     static CLOSED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static DOCK_TABS: std::cell::RefCell<Vec<(Option<Uuid>, beui::reactive::Memo<Vec<beui::reactive::MenuNode>>)>> =
+        const { std::cell::RefCell::new(Vec::new()) };
     static LAYOUT: std::cell::Cell<Option<beui::dock::unstyled::DockingLayout<u64>>> =
         const { std::cell::Cell::new(None) };
 }
@@ -203,6 +209,11 @@ fn CountedBody(editor: crate::Editor) -> beui::NodeId {
                 mode=block_plugin_api::ChildMode::Live
                 own_frame=true
                 on_state={move |_: crate::ChildState| {}}
+                docked_tab={RenderFn::new(|docked: crate::ChildDockTab| {
+                    DOCK_TABS.with(|tabs| tabs.borrow_mut().push((docked.owner, docked.menu)));
+                    beui::dock::unstyled::dock_menu(docked.menu);
+                    docked.body
+                })}
             />
         </beui::styled::List>
     }
@@ -240,6 +251,7 @@ impl crate::BeuiApp for DockedApp {
 }
 
 fn docked_session() -> EditorSession {
+    DOCK_TABS.with(|tabs| tabs.borrow_mut().clear());
     BODIES.with(|built| built.set(0));
     CLOSED.with(|closed| closed.set(false));
     session::<DockedApp>(Uuid::new_v4())
