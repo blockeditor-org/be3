@@ -25,6 +25,7 @@ fn host_window_messages_round_trip() {
             command: vec!["foot".into(), "--server".into()],
             launch: Some(9),
         },
+        note: None,
     };
     watched_round_trips::<WindowsWatch>(vec![window.clone()]);
     for action in [

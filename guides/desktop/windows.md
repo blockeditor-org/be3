@@ -24,9 +24,9 @@ machine; Wine has no Windows.Graphics.Capture.
   the Start Menu's `.lnk` programs, launches them (`launch`, `exec`, which block in
   `ShellExecuteExW`) and matches their windows by process id (`Watcher::launched`), and offers
   lock, suspend, restart, power off and log out, and closes, resizes and maximizes windows
-  (`close_window`, `resize_window`, `set_maximized`). `CaptureExclusion::start()`, on block-app's
-  UI thread, sets `WDA_EXCLUDEFROMCAPTURE` on that thread's top-level windows now and as they
-  appear (a WinEvent hook on that thread), so captures never show block-app.
+  (`close_window`, `resize_window`, `set_maximized`). Block's own windows are not hidden from
+  captures: a display entry shows block-app's window too, as any screen share does, so what the
+  panel shows is what a click on it reaches (Displays below).
 - Threads: no thread of ours that the UI thread may wait on (the watcher, the captures) sends a
   message to one of our own windows, since the UI thread answers only between frames. The watcher
   reads no title or icon (`WM_GETTEXT`, `WM_GETICON`) of our own process's windows (`Desktop::title`,
@@ -95,6 +95,13 @@ block-app's one window), stay unsupported, so the shell hides what they back.
   the shell maximized while it stays maximized (restoring it by hand ends it) and for any window
   whose frame covers a whole monitor (a game, F11 in a browser); the shell then fills that area
   with its panel.
+- Displays: a click on a display entry does what the same click on the real monitor would. Its
+  release point on the monitor (`focus::display_point`) is looked up with `WindowFromPoint`
+  (`GA_ROOT`, on the UI thread): when it is one of block-app's own windows (its mirror image in
+  the capture), nothing happens (`FocusError::OnBlock`, no note), since the click is on Block
+  itself; otherwise that window (else the shell window) becomes the foreground, so the keyboard
+  follows, and focus mode moves the cursor to the point and clips it to the monitor. Nothing else
+  in the z-order moves.
 - Focus mode is the mouse and keyboard path, and only a click on an entry's content starts it: a
   press and release of the mouse inside the panel that moved less than `win32_map::PRESS_SLOP`
   (`ContentPress`; a drag starts nothing). On the release block-app no longer holds the mouse
@@ -122,21 +129,23 @@ block-app's one window), stay unsupported, so the shell hides what they back.
   foregrounds the window but leaves the mouse free, and the panel says why and that Alt+Tab comes
   back. That one rule also covers a display entry clipped to the monitor block-app's own window is
   on: there is always a hotkey, and Alt+Tab or a click on Block ends it.
-- The panel says the way back: while focused, a bar at its top ("Windows has the mouse and
-  keyboard. Press Ctrl+Alt+Space to come back to Block.", or why the mouse is free); while the
-  pointer is over an unfocused panel, a bar at its bottom ("Click to use this window.
-  Ctrl+Alt+Space comes back."). The parts of a window's frame outside every monitor are shaded
-  with "Off screen: drag the window by its title bar to reach this part" (`win32_map::off_screen`);
-  the window is never moved for the person. These are `desktop_host/win32_overlay.rs`
-  (`EntryOverlay`), painted on Linux. A refused focus (`FocusError`, `FocusEvent::Refused`, or
-  `NeverArrived`) is a notice over the entry until it is focused.
+- The entry's `HostWindow::note` (guides/desktop.md, Notes; `win32_map::Notes`) says the way
+  back, shown in its tab's title, never over its content: while focused, "Ctrl+Alt+Space comes
+  back to Block" (or Alt+Tab and why the mouse is free); else a refusal, kept until the entry is
+  focused: a refused focus (`FocusError`, `FocusEvent::Refused`, or `NeverArrived`) or an
+  injected press an elevated window refused; else, while the pointer is over the panel, "Click
+  to use this window. Ctrl+Alt+Space comes back to Block". Each change bumps `revision()`, so
+  `WindowsWatch` is sent again. Only what must cover the content is drawn on it
+  (`desktop_host/win32_overlay.rs`, `EntryOverlay`, painted on Linux): the parts of a window's
+  frame outside every monitor are shaded with "Off screen: drag the window by its title bar to
+  reach this part" (`win32_map::off_screen`; the window is never moved for the person), and the
+  secure-desktop notice over a display.
 - XR controller presses (`PointerId::is_controller`) are injected instead (press, release and
   drags), since a laser has no physical cursor to clip.
-- Every toast (`notices::report`) is also a line on stderr. Notices are drawn by the host, never
-  left silent: over an elevated window an injected press
-  could not reach, "run Block as administrator"; over every display entry while the secure
-  desktop is up, and as a toast when it comes up, "take off the headset to answer it"; a toast
-  when Windows refuses to bring block-app back.
+- Every toast (`notices::report`) is also a line on stderr. Notices are never left silent: an
+  elevated window an injected press could not reach notes "run Block as administrator"; over
+  every display entry while the secure desktop is up, and as a toast when it comes up, "take off
+  the headset to answer it"; a toast when Windows refuses to bring block-app back.
 
 ## Not there yet
 

@@ -161,6 +161,9 @@ pub(crate) fn DockingPage() -> NodeId {
             <Sample title="Fullscreen" code={vec![FullscreenTab::SOURCE]}>
                 <FullscreenTab />
             </Sample>
+            <Sample title="A notice in the tab" code={vec![NoticeTab::SOURCE]}>
+                <NoticeTab />
+            </Sample>
             <Sample title="Moving windows by their content" code={vec![ContentDrag::SOURCE]}>
                 <ContentDrag />
             </Sample>
@@ -450,6 +453,40 @@ fn FullscreenTab() -> NodeId {
                 "The tab covers the whole window, its bar and every pane around it. \
                  Escape or the same button brings it back. Full screen in the tab's \
                  right-click menu shows it the same way."
+            </Text>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn NoticeTab() -> NodeId {
+    let noticed = create_signal(false);
+    let notice = create_memo(move || {
+        noticed
+            .get()
+            .then(|| "Press Escape to come back".to_owned())
+    });
+    if let Some(control) = use_dock_tab() {
+        control.show_notice(notice);
+    }
+    let label = create_memo(move || match noticed.get() {
+        true => "Hide the notice".to_owned(),
+        false => "Show a notice in this tab".to_owned(),
+    });
+    view! {
+        <List spacing=SECTION_SPACING>
+            <List direction=Direction::Horizontal spacing=ROW_SPACING>
+                <Button
+                    @test_id="demo.notice"
+                    label
+                    variant=ButtonVariant::Secondary
+                    on_click={move || noticed.update(|noticed| *noticed = !*noticed)}
+                />
+            </List>
+            <Text style=TextStyle::CAPTION>
+                "While its content has something to say, such as how to come back from it, \
+                 the tab shows that in place of its title."
             </Text>
         </List>
     }

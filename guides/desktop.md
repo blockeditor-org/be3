@@ -57,6 +57,14 @@ parent into raising the dialog. Outside space all of this stays an overlay or a 
 A window's and its popups' drawings paint too (`Paints` on `WindowDraw`, which reads each surface's
 texture back, opaque), so paintings and `drive paint` show what programs drew.
 
+## Notes
+
+`HostWindow::note` is what the host wants said about a window right now, framework-neutral text.
+block-shell's `WindowPanel` hands it to its dock tab (`DockTabControl::show_notice`), so the
+window's tab or dialog header shows it in place of the title while it is set; nothing is drawn
+over the window's content for it. The Windows host sets it for focus mode, hovering and refused
+input (guides/desktop/windows.md); the Linux host sets none.
+
 ## Shown and hidden entries
 
 `WindowsWatch` lists every entry the host could show: program windows (`kind: window`) and, on a

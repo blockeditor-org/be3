@@ -1,25 +1,24 @@
 use windows::Win32::Foundation::{HWND, POINT, RECT};
-use windows::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
+use windows::Win32::System::Threading::{
+    AttachThreadInput, GetCurrentProcessId, GetCurrentThreadId,
+};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     HOT_KEY_MODIFIERS, RegisterHotKey, UnregisterHotKey,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    AllowSetForegroundWindow, CURSOR_SHOWING, CURSORINFO, ClipCursor, GA_ROOT, GW_HWNDNEXT,
-    GetAncestor, GetClipCursor, GetCursorInfo, GetForegroundWindow, GetShellWindow, GetTopWindow,
-    GetWindow, GetWindowThreadProcessId, HWND_TOP, IsHungAppWindow, IsIconic, SW_RESTORE,
-    SWP_ASYNCWINDOWPOS, SWP_NOMOVE, SWP_NOSIZE, SetCursorPos, SetForegroundWindow, SetWindowPos,
-    ShowWindowAsync, WindowFromPoint,
+    AllowSetForegroundWindow, CURSOR_SHOWING, CURSORINFO, ClipCursor, GA_ROOT, GetAncestor,
+    GetClipCursor, GetCursorInfo, GetForegroundWindow, GetShellWindow, GetWindowThreadProcessId,
+    HWND_TOP, IsHungAppWindow, IsIconic, SW_RESTORE, SWP_ASYNCWINDOWPOS, SWP_NOMOVE, SWP_NOSIZE,
+    SetCursorPos, SetForegroundWindow, SetWindowPos, ShowWindowAsync, WindowFromPoint,
 };
 
 use super::{handle, hwnd};
-use crate::focus::display_window;
+use crate::focus::{Under, display_point, display_target};
 use crate::{
-    Command, Cursor, Entry, EntryKind, FocusError, Foreground, Handle, Hotkey, HotkeyError, Point,
-    Snapshot,
+    Command, Cursor, Entry, EntryKind, FocusError, Foreground, Hotkey, HotkeyError, Point, Snapshot,
 };
 
 pub(super) const HOTKEY_ID: i32 = 0x0BE3;
-const Z_ORDER_LIMIT: usize = 10_000;
 
 // unsafe(ffi)
 pub(super) fn bring_forward(window: HWND) -> bool {
@@ -62,27 +61,44 @@ pub(super) fn bring_forward(window: HWND) -> bool {
 }
 
 // unsafe(ffi)
-fn z_order() -> Vec<Handle> {
-    let mut order = Vec::new();
-    let mut next = unsafe { GetTopWindow(None) }.ok();
-    while let Some(window) = next {
-        if window.0.is_null() || order.len() >= Z_ORDER_LIMIT {
-            break;
-        }
-        order.push(handle(window));
-        next = unsafe { GetWindow(window, GW_HWNDNEXT) }.ok();
+fn root_at(point: Point) -> Option<HWND> {
+    let hit = unsafe {
+        WindowFromPoint(POINT {
+            x: point.x,
+            y: point.y,
+        })
+    };
+    if hit.0.is_null() {
+        return None;
     }
-    order
+    let root = unsafe { GetAncestor(hit, GA_ROOT) };
+    Some(if root.0.is_null() { hit } else { root })
 }
 
 // unsafe(ffi)
-pub(super) fn raise(snapshot: &Snapshot, entry: &Entry) -> Result<(), FocusError> {
+fn under(point: Point, own_process: u32) -> Under {
+    let Some(window) = root_at(point) else {
+        return Under::Nothing;
+    };
+    let mut process_id = 0;
+    let _ = unsafe { GetWindowThreadProcessId(window, Some(&mut process_id)) };
+    match process_id == own_process {
+        true => Under::Own,
+        false => Under::Window(handle(window)),
+    }
+}
+
+// unsafe(ffi)
+pub(super) fn raise(entry: &Entry, at: Option<Point>) -> Result<(), FocusError> {
     let target = match entry.kind {
         EntryKind::Window => hwnd(entry.handle),
-        EntryKind::Display => match display_window(snapshot, entry, &z_order()) {
-            Some(window) => hwnd(window.handle),
-            None => unsafe { GetShellWindow() },
-        },
+        EntryKind::Display => {
+            let point = display_point(entry, at);
+            match display_target(under(point, unsafe { GetCurrentProcessId() }))? {
+                Some(window) => hwnd(window),
+                None => unsafe { GetShellWindow() },
+            }
+        }
     };
     if target.0.is_null() {
         return Err(FocusError::ForegroundRefused);
@@ -153,8 +169,7 @@ pub(super) fn cursor(snapshot: &Snapshot) -> Option<Cursor> {
     };
     unsafe { GetCursorInfo(&mut info) }.ok()?;
     let POINT { x, y } = info.ptScreenPos;
-    let hit = unsafe { WindowFromPoint(POINT { x, y }) };
-    let hit = (!hit.0.is_null()).then(|| handle(unsafe { GetAncestor(hit, GA_ROOT) }));
+    let hit = root_at(Point::new(x, y)).map(handle);
     Some(Cursor::locate(
         snapshot,
         Point::new(x, y),

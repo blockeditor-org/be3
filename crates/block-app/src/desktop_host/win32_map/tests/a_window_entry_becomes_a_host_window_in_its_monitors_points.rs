@@ -18,7 +18,7 @@ fn a_window_entry_becomes_a_host_window_in_its_monitors_points() {
         launch: Some(9),
     };
     let snapshot = snapshot(vec![entry.clone()]);
-    let host = host_window(&snapshot, &entry, &Shaping::default());
+    let host = host_window(&snapshot, &entry, &Shaping::default(), &Notes::default());
     assert_eq!(host.id, HostWindowId(5));
     assert_eq!(host.title, "window 5");
     assert_eq!(host.app_id, "C:\\Programs\\paint.exe");

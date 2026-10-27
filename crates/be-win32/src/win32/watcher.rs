@@ -126,7 +126,7 @@ impl Watcher {
         let since = self.shared.returns.load(Ordering::SeqCst);
         let snapshot = self.snapshot();
         let entry = FocusMode::check(&snapshot, id)?;
-        focus::raise(&snapshot, entry)?;
+        focus::raise(entry, at)?;
         self.request(Request::Focus(id, at, since));
         Ok(())
     }

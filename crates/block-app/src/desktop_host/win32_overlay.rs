@@ -1,29 +1,10 @@
-use beui::icons::{ICON_KEYBOARD, ICON_MOUSE_POINTER_CLICK};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{NodeId, Rect, TextAlign};
 
-use super::win32_map::{OFF_SCREEN, SurfaceNotice};
+use super::win32_map::{OFF_SCREEN, SECURE_DESKTOP};
 use crate::host::HostItem;
 use crate::surfaces::HostItemFace;
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct Hint {
-    pub(crate) text: String,
-    pub(crate) focused: bool,
-}
-
-pub(crate) fn notice_item(notice: &SurfaceNotice) -> HostItem {
-    HostItem::Notice {
-        text: notice.text(),
-        busy: false,
-        icon: Some(match notice {
-            SurfaceNotice::Elevated => beui::icons::ICON_SHIELD_USER,
-            SurfaceNotice::SecureDesktop => beui::icons::ICON_SHIELD_ALERT,
-            SurfaceNotice::Focus(_) => beui::icons::ICON_TRIANGLE_ALERT,
-        }),
-    }
-}
 
 #[component]
 fn OffScreenPart(part: Memo<Rect>, labelled: bool) -> NodeId {
@@ -70,30 +51,16 @@ fn OffScreenPart(part: Memo<Rect>, labelled: bool) -> NodeId {
 }
 
 #[component]
-pub(crate) fn EntryOverlay(
-    notice: Memo<Option<SurfaceNotice>>,
-    hint: Memo<Option<Hint>>,
-    off_screen: Memo<Vec<Rect>>,
-) -> NodeId {
-    let dim = create_memo(move || match notice.get().is_some() {
+pub(crate) fn EntryOverlay(secure: Memo<bool>, off_screen: Memo<Vec<Rect>>) -> NodeId {
+    let dim = create_memo(move || match secure.get() {
         true => ColorRole::Dim,
         false => ColorRole::None,
     });
     let keys = create_memo(move || (0..off_screen.with(Vec::len)).collect::<Vec<usize>>());
-    let hinted = create_memo(move || hint.with(Option::is_some));
-    let text = create_memo(move || {
-        hint.with(|hint| hint.as_ref().map(|hint| hint.text.clone()))
-            .unwrap_or_default()
-    });
-    let focused =
-        create_memo(move || hint.with(|hint| hint.as_ref().is_some_and(|hint| hint.focused)));
-    let edge = create_memo(move || match focused.get() {
-        true => Align2::new(Align::Stretch, Align::Start),
-        false => Align2::new(Align::Stretch, Align::End),
-    });
-    let glyph = create_memo(move || match focused.get() {
-        true => Some(ICON_KEYBOARD),
-        false => Some(ICON_MOUSE_POINTER_CLICK),
+    let content = create_memo(|| HostItem::Notice {
+        text: SECURE_DESKTOP.to_owned(),
+        busy: false,
+        icon: Some(beui::icons::ICON_SHIELD_ALERT),
     });
     view! {
         <Layers>
@@ -106,42 +73,15 @@ pub(crate) fn EntryOverlay(
                 }
             }</ForEach>
             <Frame fill={dim} />
-            <Dynamic value={notice}>|notice: Option<SurfaceNotice>| {
-                match notice {
-                    Some(notice) => {
-                        let content = create_memo(move || notice_item(&notice));
-                        view! {
-                            <Frame align=Align::Center padding={Padding::all(Space::Md)}>
-                                <Frame
-                                    fill=ColorRole::SurfaceRaised
-                                    border={Border::DEFAULT}
-                                    radius=Radius::Md
-                                >
-                                    <HostItemFace content />
-                                </Frame>
-                            </Frame>
-                        }
-                    }
-                    None => view! {
-                        <Frame />
-                    },
-                }
-            }</Dynamic>
-            <Show condition={hinted}>
-                <Frame align={edge} padding={Padding::all(Space::Md)}>
+            <Show condition={secure}>
+                <Frame align=Align::Center padding={Padding::all(Space::Md)}>
                     <Frame
-                        @test_id="win32.hint"
+                        @test_id="win32.secure-desktop"
                         fill=ColorRole::SurfaceRaised
                         border={Border::DEFAULT}
                         radius=Radius::Md
-                        padding={Padding::all(Space::Md)}
                     >
-                        <List direction=Direction::Horizontal spacing=Space::Md align=Align::Center>
-                            <Text size=TextSize::Lg color=TextColor::Muted>
-                                <Icon glyph={glyph} />
-                            </Text>
-                            <Text @sizing=ItemSize::Percent(100.0)>{text}</Text>
-                        </List>
+                        <HostItemFace content />
                     </Frame>
                 </Frame>
             </Show>

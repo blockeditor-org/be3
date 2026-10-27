@@ -60,6 +60,10 @@ interface windows {
         /// Counts up each time the host raises the window.
         raised: u64,
         origin: window-origin,
+        /// What the host wants said about the window right now, such as how
+        /// to come back from it; the shell shows it with the window's title
+        /// while it is set.
+        note: option<string>,
     }
 
     record window-fullscreen {

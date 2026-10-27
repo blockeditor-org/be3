@@ -2525,6 +2525,11 @@ it left draws Docking's `away` render prop (styled: a note that it is full scree
 full screen button), seen where the fullscreen area does not cover it, such as another screen.
 A tab's content calls `DockTabControl::offer_fullscreen` to add Full screen / Leave full screen
 to the tab's right-click menu; only content that has its own way out should.
+`DockTabControl::show_notice(notice)`, a `Memo<Option<String>>` kept until the content's scope
+ends, is what the content needs said about it right now: while it is `Some`, the tab, the
+dialog's header and the stacked bar show it in place of the title, in the accent colour on an
+accent-soft fill (`DockTabHandle::notice`, `DockDialogHandle::notice`, `DockStackHandle::notice`).
+The demo's Docking page has a sample.
 
 ### Progress
 

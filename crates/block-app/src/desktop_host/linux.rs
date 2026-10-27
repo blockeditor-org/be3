@@ -330,6 +330,7 @@ pub(crate) fn listed(hidden: &[HostWindowId]) -> Vec<HostWindow> {
                     program: launched.program,
                     launch: launched.launch,
                 },
+                note: None,
             }
         })
         .collect()

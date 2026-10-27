@@ -43,6 +43,7 @@ mod a_toast_answers_its_actions_and_hides_while_the_history_is_open;
 mod a_volume_key_shows_the_level_the_host_reports_until_it_fades;
 mod a_window_launched_from_a_placeholder_takes_its_place;
 mod a_window_the_host_focuses_leads_the_window_switcher;
+mod a_windows_note_shows_in_its_tab_in_place_of_its_title;
 mod a_windows_tab_dragged_onto_a_window_on_another_display_joins_it;
 mod a_windows_tab_dragged_onto_another_windows_bar_joins_it;
 mod a_windows_tab_menu_makes_it_full_screen;
@@ -498,6 +499,7 @@ fn host_window(id: u64, focused: bool) -> HostWindow {
         icon: None,
         raised: 0,
         origin: Default::default(),
+        note: None,
     }
 }
 

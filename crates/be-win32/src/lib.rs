@@ -30,9 +30,8 @@ pub use power::{PowerAction, PowerAvailability};
 pub use programs::{Program, Shortcut};
 #[cfg(windows)]
 pub use win32::{
-    CaptureExclusion, Watcher, Win32Desktop, bring_forward, close_window, exec, launch,
-    power_availability, program_icon, request_power, resize_window, set_maximized,
-    start_menu_programs,
+    Watcher, Win32Desktop, bring_forward, close_window, exec, launch, power_availability,
+    program_icon, request_power, resize_window, set_maximized, start_menu_programs,
 };
 
 use std::path::PathBuf;

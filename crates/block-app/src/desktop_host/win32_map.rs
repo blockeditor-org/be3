@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use super::win32_shape::Shaping;
 use be_win32::{
     Entry, EntryId, EntryKind, FocusError, Hotkey, HotkeyError, Point, Program, Rect, Snapshot,
@@ -32,40 +34,63 @@ impl HotkeyState {
     }
 }
 
-fn this(kind: EntryKind) -> &'static str {
-    match kind {
-        EntryKind::Window => "this window",
-        EntryKind::Display => "this display",
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Refusal {
+    Elevated,
+    Focus(FocusError),
+}
+
+impl Refusal {
+    pub(crate) fn text(&self) -> String {
+        match self {
+            Self::Elevated => ELEVATED.to_owned(),
+            Self::Focus(error) => format!("{}.", capitalised(&error.to_string())),
+        }
     }
 }
 
-pub(crate) fn focused_hint(kind: EntryKind, hotkey: &HotkeyState) -> String {
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct Notes {
+    pub(crate) focused: Option<EntryId>,
+    pub(crate) hovered: Option<EntryId>,
+    pub(crate) refused: HashMap<EntryId, Refusal>,
+    pub(crate) hotkey: HotkeyState,
+}
+
+impl Notes {
+    pub(crate) fn note(&self, entry: &Entry) -> Option<String> {
+        if self.focused == Some(entry.id) {
+            return Some(focused_note(&self.hotkey));
+        }
+        if let Some(refusal) = self.refused.get(&entry.id) {
+            return Some(refusal.text());
+        }
+        (self.hovered == Some(entry.id)).then(|| hover_note(entry.kind, &self.hotkey))
+    }
+}
+
+pub(crate) fn focused_note(hotkey: &HotkeyState) -> String {
     let unclipped = |why: String| {
-        format!(
-            "{why}, so the mouse isn't kept in {}. Press {FALLBACK_BACK} to come back to Block.",
-            this(kind)
-        )
+        format!("{FALLBACK_BACK} comes back to Block. The mouse is free, since {why}")
     };
     match hotkey {
-        HotkeyState::Registered(hotkey) => {
-            format!("Windows has the mouse and keyboard. Press {hotkey} to come back to Block.")
-        }
-        HotkeyState::Waiting => unclipped("The shortcut back to Block isn't ready yet".to_owned()),
+        HotkeyState::Registered(hotkey) => format!("{hotkey} comes back to Block"),
+        HotkeyState::Waiting => unclipped("the shortcut back isn't ready yet".to_owned()),
         HotkeyState::Refused(HotkeyError::Taken(hotkey)) => {
             unclipped(format!("{hotkey} is taken by another program"))
         }
-        HotkeyState::Refused(error) => unclipped(format!(
-            "The shortcut back to Block could not be set up ({error})"
-        )),
+        HotkeyState::Refused(error) => {
+            unclipped(format!("the shortcut back could not be set up ({error})"))
+        }
     }
 }
 
-pub(crate) fn hover_hint(kind: EntryKind, hotkey: &HotkeyState) -> String {
-    let mut hint = format!("Click to use {}. {} comes back.", this(kind), hotkey.back());
-    if let Some(first) = hint.get_mut(..1) {
-        first.make_ascii_uppercase();
-    }
-    hint
+pub(crate) fn hover_note(kind: EntryKind, hotkey: &HotkeyState) -> String {
+    let what = match kind {
+        EntryKind::Window => "this window",
+        EntryKind::Display => "the window under the pointer",
+    };
+    format!("Click to use {what}. {} comes back to Block", hotkey.back())
 }
 
 fn subtract(rect: Rect, cut: Rect) -> Vec<Rect> {
@@ -170,23 +195,6 @@ pub(crate) fn shell_focus(_window: HostWindowId) -> Option<EntryId> {
     None
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum SurfaceNotice {
-    Elevated,
-    SecureDesktop,
-    Focus(FocusError),
-}
-
-impl SurfaceNotice {
-    pub(crate) fn text(&self) -> String {
-        match self {
-            Self::Elevated => ELEVATED.to_owned(),
-            Self::SecureDesktop => SECURE_DESKTOP.to_owned(),
-            Self::Focus(error) => format!("{}.", capitalised(&error.to_string())),
-        }
-    }
-}
-
 fn capitalised(text: &str) -> String {
     let mut chars = text.chars();
     match chars.next() {
@@ -195,31 +203,22 @@ fn capitalised(text: &str) -> String {
     }
 }
 
-pub(crate) fn ended_notice(reason: be_win32::EndReason) -> Option<SurfaceNotice> {
+pub(crate) fn ended_refusal(reason: be_win32::EndReason) -> Option<Refusal> {
     match reason {
-        be_win32::EndReason::NeverArrived => {
-            Some(SurfaceNotice::Focus(FocusError::ForegroundRefused))
-        }
+        be_win32::EndReason::NeverArrived => Some(Refusal::Focus(FocusError::ForegroundRefused)),
         _ => None,
     }
 }
 
-pub(crate) fn refused_notice(error: &FocusError) -> Option<SurfaceNotice> {
+pub(crate) fn focus_refusal(error: &FocusError) -> Option<Refusal> {
     match error {
-        FocusError::Returned => None,
-        error => Some(SurfaceNotice::Focus(error.clone())),
+        FocusError::Returned | FocusError::OnBlock => None,
+        error => Some(Refusal::Focus(error.clone())),
     }
 }
 
-pub(crate) fn surface_notice(
-    snapshot: &Snapshot,
-    entry: &Entry,
-    refused: Option<&SurfaceNotice>,
-) -> Option<SurfaceNotice> {
-    if snapshot.secure_desktop() && entry.kind == EntryKind::Display {
-        return Some(SurfaceNotice::SecureDesktop);
-    }
-    refused.cloned()
+pub(crate) fn secure_notice(snapshot: &Snapshot, entry: &Entry) -> bool {
+    snapshot.secure_desktop() && entry.kind == EntryKind::Display
 }
 
 pub(crate) fn window_id(id: EntryId) -> HostWindowId {
@@ -241,7 +240,12 @@ pub(crate) fn scale_at(snapshot: &Snapshot, rect: Rect) -> f32 {
         .max(0.1)
 }
 
-pub(crate) fn host_window(snapshot: &Snapshot, entry: &Entry, shaping: &Shaping) -> HostWindow {
+pub(crate) fn host_window(
+    snapshot: &Snapshot,
+    entry: &Entry,
+    shaping: &Shaping,
+    notes: &Notes,
+) -> HostWindow {
     let scale = scale_at(snapshot, entry.frame);
     let (width, height) = shaping.own_size(entry);
     let fullscreen = shaping.fullscreen_area(snapshot, entry);
@@ -271,6 +275,7 @@ pub(crate) fn host_window(snapshot: &Snapshot, entry: &Entry, shaping: &Shaping)
             command: entry.origin.command.clone(),
             launch: entry.origin.launch,
         },
+        note: notes.note(entry),
     }
 }
 
@@ -278,13 +283,14 @@ pub(crate) fn listed(
     snapshot: &Snapshot,
     hidden: &[HostWindowId],
     shaping: &Shaping,
+    notes: &Notes,
 ) -> Vec<HostWindow> {
     snapshot
         .entries
         .iter()
         .filter(|entry| !hidden.contains(&window_id(entry.id)))
         .map(|entry| {
-            let mut window = host_window(snapshot, entry, shaping);
+            let mut window = host_window(snapshot, entry, shaping, notes);
             window.parent = window.parent.filter(|parent| !hidden.contains(parent));
             window
         })

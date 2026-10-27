@@ -31,6 +31,7 @@ pub enum FocusError {
     OffScreen,
     ForegroundRefused,
     Returned,
+    OnBlock,
     Failed(String),
 }
 
@@ -47,6 +48,7 @@ impl fmt::Display for FocusError {
                 write!(f, "Windows refused to bring the window to the front")
             }
             Self::Returned => write!(f, "Block came back before the window did"),
+            Self::OnBlock => write!(f, "that part of the display is Block's own window"),
             Self::Failed(message) => write!(f, "{message}"),
         }
     }
@@ -418,17 +420,25 @@ pub fn clip(snapshot: &Snapshot, entry: &Entry) -> Option<Rect> {
     rect.intersection(&screen)
 }
 
-pub fn display_window<'a>(
-    snapshot: &'a Snapshot,
-    display: &Entry,
-    z_order: &[Handle],
-) -> Option<&'a Entry> {
-    z_order.iter().find_map(|handle| {
-        snapshot.entries.iter().find(|entry| {
-            entry.kind == EntryKind::Window && entry.handle == *handle && !entry.minimized && {
-                let centre = entry.frame.centre();
-                display.frame.contains(centre.x, centre.y)
-            }
-        })
-    })
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Under {
+    Nothing,
+    Own,
+    Window(Handle),
+}
+
+pub fn display_point(display: &Entry, at: Option<Point>) -> Point {
+    let point = at.map_or_else(
+        || display.frame.centre(),
+        |at| Point::new(display.frame.left + at.x, display.frame.top + at.y),
+    );
+    display.frame.clamp(point)
+}
+
+pub fn display_target(under: Under) -> Result<Option<Handle>, FocusError> {
+    match under {
+        Under::Own => Err(FocusError::OnBlock),
+        Under::Window(window) => Ok(Some(window)),
+        Under::Nothing => Ok(None),
+    }
 }

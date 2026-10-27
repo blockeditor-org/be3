@@ -43,6 +43,7 @@ pub struct DockDialogHandle {
     pub tab: TabId,
     pub presentation: DockDialogPresentation,
     pub title: Memo<String>,
+    pub notice: Memo<Option<String>>,
     pub icon: Memo<Option<Glyph>>,
     pub size: Memo<Vec2>,
     pub modal: Memo<bool>,
@@ -347,11 +348,13 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
     let pointer = NodeRef::new();
     let closable = on_close.is_some();
     let chrome = dock.dialog_chrome;
+    let notice = create_memo(move || dock.notice(tab));
     let face = Render::new(move |()| {
         chrome.call(DockDialogHandle {
             tab,
             presentation,
             title,
+            notice,
             icon,
             size,
             modal,

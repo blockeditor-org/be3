@@ -98,8 +98,10 @@ pub(crate) fn WindowPanel(
     responding: Memo<bool>,
     focused: Memo<bool>,
     size: Memo<Option<Vec2>>,
+    note: Memo<Option<String>>,
 ) -> NodeId {
     if let Some(tab) = use_dock_tab() {
+        tab.show_notice(note);
         if offers_fullscreen {
             tab.offer_fullscreen();
         }

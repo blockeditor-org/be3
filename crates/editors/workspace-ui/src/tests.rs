@@ -212,6 +212,7 @@ fn window(id: u64, title: &str, parent: Option<u64>) -> block_editor_beui::HostW
         icon: None,
         raised: 0,
         origin: Default::default(),
+        note: None,
     }
 }
 

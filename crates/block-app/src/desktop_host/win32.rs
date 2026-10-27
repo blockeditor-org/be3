@@ -4,9 +4,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, TryRecvError};
 
-use be_win32::{
-    CaptureExclusion, EntryId, EntryKind, FocusEvent, Handle, Hotkey, Program, Snapshot, Watcher,
-};
+use be_win32::{EntryId, EntryKind, FocusEvent, Handle, Hotkey, Program, Snapshot, Watcher};
 use be_win32_capture::{Capture, Device, Lost, Target};
 use beui::reactive::*;
 use beui::styled::*;
@@ -17,8 +15,8 @@ use beui::{
 use block_plugin_api::{HostImage, HostProgram, HostWindow, HostWindowId};
 
 use super::texture_draw::TextureDraw;
-use super::win32_map::{self, ContentPress, HotkeyState, Recovery, SurfaceNotice, entry_id};
-use super::win32_overlay::{EntryOverlay, Hint};
+use super::win32_map::{self, ContentPress, HotkeyState, Notes, Recovery, Refusal, entry_id};
+use super::win32_overlay::EntryOverlay;
 use super::win32_shape::Shaping;
 
 const HOST_FOREGROUND_REFUSED: &str =
@@ -59,14 +57,10 @@ struct Captured {
 #[derive(Clone, Copy)]
 struct Signals {
     snapshot: Signal<Arc<Snapshot>>,
-    focused: Signal<Option<EntryId>>,
-    refused: Signal<HashMap<EntryId, SurfaceNotice>>,
-    hotkey: Signal<HotkeyState>,
 }
 
 struct Host {
     watcher: Arc<Watcher>,
-    _exclusion: CaptureExclusion,
     secure: bool,
     listed: bool,
 }
@@ -81,6 +75,18 @@ thread_local! {
     static NEXT_USER: Cell<u64> = const { Cell::new(0) };
     static SHAPING: RefCell<Shaping> = RefCell::new(Shaping::default());
     static CHANGES: Cell<u64> = const { Cell::new(0) };
+    static NOTES: RefCell<Notes> = RefCell::new(Notes::default());
+}
+
+fn edit_notes(change: impl FnOnce(&mut Notes)) {
+    let edited = NOTES.with_borrow_mut(|notes| {
+        let before = notes.clone();
+        change(notes);
+        *notes != before
+    });
+    if edited {
+        changed();
+    }
 }
 
 fn signals() -> Option<Signals> {
@@ -103,9 +109,6 @@ fn snapshot() -> Arc<Snapshot> {
 pub(crate) fn create() {
     SIGNALS.set(Some(Signals {
         snapshot: create_signal(Arc::new(Snapshot::default())),
-        focused: create_signal(None),
-        refused: create_signal(HashMap::new()),
-        hotkey: create_signal(HotkeyState::Waiting),
     }));
 }
 
@@ -140,7 +143,6 @@ fn spawn() {
         }
     };
     eprintln!("block-app: watching Windows' windows and displays");
-    let exclusion = CaptureExclusion::start();
     watcher.set_host_window(HOST_WINDOW.get());
     if HOST_WINDOW.get().is_none() {
         eprintln!("block-app: Block's own window is unknown, so focus cannot bring it back");
@@ -150,7 +152,6 @@ fn spawn() {
     }
     HOST.set(Some(Host {
         watcher,
-        _exclusion: exclusion,
         secure: false,
         listed: false,
     }));
@@ -364,48 +365,47 @@ pub(crate) fn before(_context: &Context, rect: Rect, document: &mut Document) {
         });
         frames
     });
-    beui::reactive::enter(document, || {
-        if signals.snapshot.get_untracked().revision != snapshot.revision {
-            signals.snapshot.set(snapshot);
-        }
-        if signals.focused.get_untracked() != focused {
-            signals.focused.set(focused);
+    let started: Vec<EntryId> = events
+        .iter()
+        .filter_map(|event| match *event {
+            FocusEvent::Started(id) | FocusEvent::Followed { to: id, .. } => Some(id),
+            _ => None,
+        })
+        .collect();
+    edit_notes(|notes| {
+        notes.focused = focused;
+        for id in started {
+            notes.refused.remove(&id);
         }
         for event in &events {
             match event {
                 FocusEvent::HotkeySet(Some(hotkey)) => {
-                    signals.hotkey.set(HotkeyState::Registered(*hotkey));
+                    notes.hotkey = HotkeyState::Registered(*hotkey);
                 }
-                FocusEvent::HotkeySet(None) => signals.hotkey.set(HotkeyState::Waiting),
+                FocusEvent::HotkeySet(None) => notes.hotkey = HotkeyState::Waiting,
                 FocusEvent::HotkeyRefused(error) => {
-                    signals.hotkey.set(HotkeyState::Refused(error.clone()));
+                    notes.hotkey = HotkeyState::Refused(error.clone());
                 }
                 FocusEvent::Refused { entry, error } => {
-                    if let Some(notice) = win32_map::refused_notice(error) {
-                        refuse(*entry, Some(notice));
+                    if let Some(refusal) = win32_map::focus_refusal(error) {
+                        notes.refused.insert(*entry, refusal);
                     }
                 }
                 FocusEvent::Ended { entry, reason } => {
-                    if let Some(notice) = win32_map::ended_notice(*reason) {
-                        refuse(*entry, Some(notice));
+                    if let Some(refusal) = win32_map::ended_refusal(*reason) {
+                        notes.refused.insert(*entry, refusal);
                     }
                 }
                 _ => {}
             }
         }
-        let started: Vec<EntryId> = events
-            .iter()
-            .filter_map(|event| match *event {
-                FocusEvent::Started(id) | FocusEvent::Followed { to: id, .. } => Some(id),
-                _ => None,
-            })
-            .collect();
-        if !started.is_empty() {
-            signals.refused.update(|refused| {
-                for id in started {
-                    refused.remove(&id);
-                }
-            });
+        let live = |id: &EntryId| snapshot.entry(*id).is_some();
+        notes.refused.retain(|id, _| live(id));
+        notes.hovered = notes.hovered.filter(live);
+    });
+    beui::reactive::enter(document, || {
+        if signals.snapshot.get_untracked().revision != snapshot.revision {
+            signals.snapshot.set(snapshot);
         }
         for (signal, drawing) in frames {
             signal.set(drawing);
@@ -446,7 +446,7 @@ pub(crate) fn listed(hidden: &[HostWindowId]) -> Vec<HostWindow> {
         let snapshot = watcher.snapshot();
         SHAPING.with_borrow_mut(|shaping| {
             shaping.observe(&snapshot);
-            win32_map::listed(&snapshot, hidden, shaping)
+            NOTES.with_borrow(|notes| win32_map::listed(&snapshot, hidden, shaping, notes))
         })
     })
 }
@@ -506,17 +506,15 @@ pub(crate) fn hide(window: HostWindowId) {
     }
 }
 
-fn refuse(id: EntryId, notice: Option<SurfaceNotice>) {
-    if let Some(signals) = signals() {
-        signals.refused.update(|refused| match notice {
-            Some(notice) => {
-                refused.insert(id, notice);
-            }
-            None => {
-                refused.remove(&id);
-            }
-        });
-    }
+fn refuse(id: EntryId, refusal: Option<Refusal>) {
+    edit_notes(|notes| match refusal {
+        Some(refusal) => {
+            notes.refused.insert(id, refusal);
+        }
+        None => {
+            notes.refused.remove(&id);
+        }
+    });
 }
 
 fn focus_entry(id: EntryId, at: Option<be_win32::Point>) {
@@ -527,7 +525,7 @@ fn focus_entry(id: EntryId, at: Option<be_win32::Point>) {
         Ok(()) => refuse(id, None),
         Err(error) => {
             eprintln!("block-app: entry {} was not focused: {error}", id.0);
-            refuse(id, Some(SurfaceNotice::Focus(error)));
+            refuse(id, win32_map::focus_refusal(&error));
         }
     }
 }
@@ -727,7 +725,7 @@ fn forwarded(
         match injected {
             Ok(()) => refuse(id, None),
             Err(be_win32_input::InjectError::Elevated) => {
-                refuse(id, Some(SurfaceNotice::Elevated));
+                refuse(id, Some(Refusal::Elevated));
             }
             Err(error) => eprintln!("block-app: input did not reach {}: {error}", entry.title),
         }
@@ -793,36 +791,25 @@ pub(crate) fn WindowSurface(window: HostWindowId) -> NodeId {
         on_cleanup(move || release(Source::Entry(id), user));
     }
     let snapshot = signals.snapshot;
-    let refused = signals.refused;
-    let notice = create_memo(move || {
-        let snapshot = snapshot.get();
-        let entry = snapshot.entry(id)?;
-        refused.with(|refused| win32_map::surface_notice(&snapshot, entry, refused.get(&id)))
-    });
-    let focused_signal = signals.focused;
-    let focused = create_memo(move || focused_signal.get() == Some(id));
-    let hovered = create_signal(false);
-    let hotkey = signals.hotkey;
-    let kind = create_memo(move || {
+    let secure = create_memo(move || {
         snapshot.with(|snapshot| {
             snapshot
                 .entry(id)
-                .map_or(EntryKind::Window, |entry| entry.kind)
+                .is_some_and(|entry| win32_map::secure_notice(snapshot, entry))
         })
     });
-    let hint = create_memo(move || {
-        let kind = kind.get();
-        hotkey.with(|hotkey| match (focused.get(), hovered.get()) {
-            (true, _) => Some(Hint {
-                text: win32_map::focused_hint(kind, hotkey),
-                focused: true,
-            }),
-            (false, true) => Some(Hint {
-                text: win32_map::hover_hint(kind, hotkey),
-                focused: false,
-            }),
-            (false, false) => None,
-        })
+    let hovered = create_signal(false);
+    create_effect(move || {
+        let over = hovered.get();
+        untrack(|| {
+            edit_notes(|notes| match over {
+                true => notes.hovered = Some(id),
+                false => notes.hovered = notes.hovered.filter(|held| *held != id),
+            });
+        });
+    });
+    on_cleanup(move || {
+        edit_notes(|notes| notes.hovered = notes.hovered.filter(|held| *held != id))
     });
     let off_screen = create_memo(move || {
         snapshot.with(|snapshot| {
@@ -880,7 +867,7 @@ pub(crate) fn WindowSurface(window: HostWindowId) -> NodeId {
                     >
                         <Layers>
                             <Drawing draw={Prop::dynamic(move || draw_gpu(drawing.get()))} />
-                            <EntryOverlay notice hint off_screen />
+                            <EntryOverlay secure off_screen />
                         </Layers>
                     </Interactive>
                     <ForEach keys={keys}>|key: (u64, Option<(u32, u32)>)| {

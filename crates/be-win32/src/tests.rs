@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 mod a_dialog_is_a_modal_child_of_its_disabled_owner;
-mod a_display_brings_its_topmost_window_forward;
+mod a_display_click_goes_to_what_is_under_it_and_not_to_block;
 mod a_display_keeps_focus_and_clips_to_its_monitor;
 mod a_launch_gives_its_windows_their_origin;
 mod a_lost_clip_is_put_back_except_while_the_window_is_dragged;
