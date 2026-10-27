@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_beui::beui::{Quad, Rect, Shape, pos2, quads};
+use block_editor_beui::beui::{Rect, native::Quad, native::Shape, native::quads, pos2};
 
 const WRITTEN: &str = "Zooming out shrinks this note";
 

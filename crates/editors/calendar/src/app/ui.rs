@@ -11,6 +11,7 @@ use super::model::{
 };
 use super::month::MonthGrid;
 use super::timeline::Timeline;
+use beui::ItemSize;
 
 const PADDING: Space = Space::Lg;
 const SPACING: Space = Space::Md;

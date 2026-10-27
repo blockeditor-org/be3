@@ -50,7 +50,7 @@ jobs:
   # ./scripts/ci, the way a person runs it: one buck2 command builds the
   # fixes and runs the lints, the tests and the plugin tests on the build
   # server, and the script writes what they changed into the checkout, the
-  # accepted paintings in snapshots/ among them. On a pull request it fixes and
+  # accepted paintings in each crate's snapshots/ among them. On a pull request it fixes and
   # accepts instead of only reporting, and anything that leaves the checkout
   # changed is uploaded as a patch for the autofix job to push, and fails this
   # job. Everywhere else nothing may be written: main, the merge queue and a
@@ -127,6 +127,24 @@ jobs:
             echo "BE3_CHROME=$chrome" >> "$GITHUB_ENV"
           else
             "$RUNNER_TEMP/browser-rasterizer/bin/python" -m playwright install --with-deps chromium
+          fi
+
+      # What the browser tests (web_drive_test in buck/app/drive.bzl) drive
+      # Chrome with, on this runner since the workers have no browser:
+      # Playwright's Node package, installed from buck/app/browser-tests'
+      # lockfile and found through NODE_PATH, with the Google Chrome the runner
+      # image already has, as the previews use it. An image without Chrome
+      # falls back to Playwright's own Chromium. A pull request older than the
+      # browser tests has no lockfile there and skips this.
+      - name: Install the browser tests' runtime
+        if: ${{ !cancelled() && hashFiles('buck/app/browser-tests/package-lock.json') != '' }}
+        run: |
+          npm ci --prefix buck/app/browser-tests --no-audit --no-fund
+          echo "NODE_PATH=$GITHUB_WORKSPACE/buck/app/browser-tests/node_modules" >> "$GITHUB_ENV"
+          if chrome="$(command -v google-chrome)"; then
+            echo "BE3_CHROME=$chrome" >> "$GITHUB_ENV"
+          else
+            buck/app/browser-tests/node_modules/.bin/playwright install --with-deps chromium
           fi
 
       - name: Run ./scripts/ci

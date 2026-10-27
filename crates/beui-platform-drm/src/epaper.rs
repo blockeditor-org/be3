@@ -3,7 +3,7 @@ use std::ffi::OsStr;
 use std::rc::Rc;
 use std::time::Duration;
 
-use beui::Waker;
+use beui::native::Waker;
 use rustix::ioctl::{Opcode, Setter, Updater, ioctl, opcode};
 use smithay::backend::drm::DrmDeviceFd;
 use smithay::reexports::drm::Device as _;

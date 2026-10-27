@@ -1,11 +1,14 @@
 use std::ops::Range;
 
-use beui_core::color::Color32;
-use beui_core::font::FontId;
-use beui_core::rich::SpanStyle;
+use beui_view::types::Color;
+use beui_view::types::FontId;
+use beui_view::types::SpanStyle;
+use beui_view::types::TextLayout;
 use text_editor_core::{SynHlColorScope, SynHlStyle, TableLine, TableRow};
 
-use super::{Builder, RowInputs, SpanKind, galley, next_character, style_font};
+use beui_view::measure::lay_out_text;
+
+use super::{Builder, RowInputs, SpanKind, next_character, style_font};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum CellAlign {
@@ -104,8 +107,8 @@ fn trimmed(bytes: &[u8], range: &Range<usize>) -> Range<usize> {
 
 fn text_width(text: &str, font: FontId) -> f32 {
     let probe = format!("{text}|");
-    let with = galley(&probe, font).map_or(0.0, |galley| galley.size().x);
-    let bar = galley("|", font).map_or(0.0, |galley| galley.size().x);
+    let with = lay_out_text(&probe, font, TextLayout::DEFAULT).map_or(0.0, |line| line.size().x);
+    let bar = lay_out_text("|", font, TextLayout::DEFAULT).map_or(0.0, |line| line.size().x);
     (with - bar).max(0.0)
 }
 
@@ -115,7 +118,8 @@ fn delimiter_font(inputs: &RowInputs) -> FontId {
 }
 
 pub(super) fn delimiter_height(inputs: &RowInputs) -> f32 {
-    galley("", delimiter_font(inputs)).map_or(0.0, |galley| galley.line_height())
+    lay_out_text("", delimiter_font(inputs), TextLayout::DEFAULT)
+        .map_or(0.0, |line| line.line_height())
 }
 
 fn font_of(inputs: &RowInputs, row: TableRow, style: SynHlStyle) -> FontId {
@@ -204,7 +208,7 @@ pub fn table_columns(inputs: &RowInputs, start: usize) -> TableColumns {
 }
 
 impl Builder<'_> {
-    fn table_text(&mut self, range: Range<usize>, row: TableRow, color: Option<Color32>) -> f32 {
+    fn table_text(&mut self, range: Range<usize>, row: TableRow, color: Option<Color>) -> f32 {
         let inputs = self.inputs;
         let bytes = &inputs.snapshot.bytes;
         let mut width = 0.0;
@@ -251,7 +255,7 @@ impl Builder<'_> {
             edge += padding * 2.0 + columns.widths.get(index).copied().unwrap_or(0.0);
         }
         edges.push(edge);
-        let hidden = Some(Color32::TRANSPARENT);
+        let hidden = Some(Color::TRANSPARENT);
         let mut x = 0.0;
         for (index, cell) in parsed.cells.iter().enumerate() {
             let at = edges[index] - pipe / 2.0;

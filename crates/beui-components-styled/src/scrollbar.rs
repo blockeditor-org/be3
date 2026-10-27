@@ -1,15 +1,15 @@
 use crate::frame::{ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 
-use beui_core::color::Color32;
+use beui_view::types::Color;
 
 use crate::theme::{ThemeStore, use_theme};
 use crate::tokens::{Padding, Size, Space};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ScrollbarHandle, ScrollbarThumb};
-use beui_core::base::{Direction, ScrollPosition};
-use beui_core::node::NodeId;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::{Direction, ScrollPosition};
 
 const INSET: Space = Space::Xs2;
 
@@ -84,9 +84,9 @@ fn thumb_color(
     position: ScrollPosition,
     hovered: bool,
     dragging: bool,
-) -> Color32 {
+) -> Color {
     if position.max_offset() <= 0.0 {
-        return Color32::TRANSPARENT;
+        return Color::TRANSPARENT;
     }
     match (dragging, hovered) {
         (true, _) => theme.scroll_thumb_active.get(),
@@ -95,10 +95,10 @@ fn thumb_color(
     }
 }
 
-fn track_color(theme: &ThemeStore, position: ScrollPosition, engaged: bool) -> Color32 {
+fn track_color(theme: &ThemeStore, position: ScrollPosition, engaged: bool) -> Color {
     if engaged && position.max_offset() > 0.0 {
         theme.surface_raised.get()
     } else {
-        Color32::TRANSPARENT
+        Color::TRANSPARENT
     }
 }

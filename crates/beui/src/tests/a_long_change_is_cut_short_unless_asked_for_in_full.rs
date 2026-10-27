@@ -25,7 +25,7 @@ fn a_long_change_is_cut_short_unless_asked_for_in_full() {
             </List>
         }
     });
-    let mut driven = stepped(crate::testing::Showing(document));
+    let mut driven = stepped(crate::native::testing::Showing(document));
 
     let changed = driven
         .ask(&["click", "\"Toggle\""])

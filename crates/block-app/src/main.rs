@@ -9,6 +9,7 @@ mod contacts;
 #[cfg(target_os = "linux")]
 mod dbus;
 mod debug;
+mod desktop_host;
 mod display;
 mod editors;
 mod host;
@@ -39,7 +40,6 @@ mod surfaces;
 #[cfg(target_os = "linux")]
 mod tray;
 mod ui;
-mod wayland;
 #[cfg(target_os = "linux")]
 mod wifi;
 
@@ -59,7 +59,7 @@ use app_state::{AppStateStore, SavedAccount, ServerLocation};
 use be_block::{DisplaySettings, InputSettings, Root, WORKSPACE_EDITOR};
 use be_graph::{Access, BlockParent};
 use be_protocol::{Organization, OrganizationInvitation, OrganizationRole};
-use beui::Document;
+use beui::native::Document;
 use block_plugin_api::{
     AccessLevel, ArtifactAction, BlockCommand, BlockLocation, HostPanel, ShellDialog, ShellRequest,
 };
@@ -85,8 +85,8 @@ pub(crate) fn build() -> &'static str {
     build_id::current().unwrap_or("no build id")
 }
 
-fn run_options() -> beui::RunOptions {
-    beui::RunOptions {
+fn run_options() -> beui::native::RunOptions {
+    beui::native::RunOptions {
         #[cfg(not(target_arch = "wasm32"))]
         app_id: Some(app_id().to_owned()),
         size: beui::vec2(1100.0, 720.0),
@@ -139,30 +139,46 @@ fn run_app(arguments: arguments::Arguments) -> Result<(), Box<dyn Error>> {
 }
 
 #[cfg(target_os = "linux")]
-fn run_shell(options: beui::RunOptions, shell: Shell, session: bool) -> Result<(), Box<dyn Error>> {
+fn run_shell(
+    options: beui::native::RunOptions,
+    shell: Shell,
+    session: bool,
+) -> Result<(), Box<dyn Error>> {
     if session {
-        return beui::run_on(Box::new(beui_platform_drm::Drm), options, shell);
+        return beui::native::run_on(Box::new(beui_platform_drm::Drm), options, shell);
     }
-    let renderer = beui::WindowRenderer::Wgpu {
-        open_device: beui::OpenDevice {
-            extensions: &be_dmabuf::DEVICE_EXTENSIONS,
-            gpu: None,
-        },
+    let open_device = beui::native::OpenDevice {
+        extensions: &be_dmabuf::DEVICE_EXTENSIONS,
+        gpu: None,
     };
-    beui::run_with_renderers(options, vec![renderer], shell)
+    beui::native::run_with_device(options, open_device, shell)
+}
+
+#[cfg(windows)]
+fn run_shell(
+    options: beui::native::RunOptions,
+    shell: Shell,
+    _session: bool,
+) -> Result<(), Box<dyn Error>> {
+    let open_device = beui::native::OpenDevice {
+        extensions: &be_win32_capture::DEVICE_EXTENSIONS,
+        gpu: None,
+    };
+    beui::native::run_with_device(options, open_device, shell)
 }
 
 #[cfg(all(
     not(target_os = "linux"),
+    not(windows),
     not(target_os = "android"),
     not(target_arch = "wasm32")
 ))]
 fn run_shell(
-    options: beui::RunOptions,
+    options: beui::native::RunOptions,
     shell: Shell,
     _session: bool,
 ) -> Result<(), Box<dyn Error>> {
-    beui::run_with(options, shell)
+    beui::native::run_with(options, shell)
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -191,29 +207,23 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
         page.set_hash("");
         location.replace(&page.href())?;
     }
-    let mut layers: Vec<Box<dyn beui::Layer>> = Vec::new();
+    let mut layers: Vec<Box<dyn beui::native::Layer>> = Vec::new();
     if let Some(inbox) = automation()? {
-        layers.push(Box::new(beui::drive::Drive::new(inbox)));
+        layers.push(Box::new(beui::native::drive::Drive::new(inbox)));
     }
-    beui::run_web(
-        &canvas_id,
-        vec![beui::WebRenderer::Wgpu],
-        options,
-        layers,
-        Shell::new(app),
-    )
-    .await
-    .map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))
+    beui::native::run_web(&canvas_id, options, layers, Shell::new(app))
+        .await
+        .map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))
 }
 
 #[cfg(target_arch = "wasm32")]
 thread_local! {
-    static AUTOMATION: std::cell::RefCell<Option<beui::drive::Inbox>> =
+    static AUTOMATION: std::cell::RefCell<Option<beui::native::drive::Inbox>> =
         const { std::cell::RefCell::new(None) };
 }
 
 #[cfg(target_arch = "wasm32")]
-fn automation() -> Result<Option<beui::drive::Inbox>, wasm_bindgen::JsValue> {
+fn automation() -> Result<Option<beui::native::drive::Inbox>, wasm_bindgen::JsValue> {
     let location = web_sys::window()
         .map(|window| window.location())
         .ok_or("no browser window is available")?;
@@ -236,7 +246,7 @@ pub async fn automate(
 ) -> Result<String, wasm_bindgen::JsValue> {
     use wasm_bindgen::JsCast;
     let inbox = automation()?.ok_or("the page was not opened with ?automation")?;
-    let answered = beui::drive::ask(&inbox, words);
+    let answered = beui::native::drive::ask(&inbox, words);
     let canceller = answered.canceller();
     let late = wasm_bindgen::closure::Closure::once_into_js(move || {
         canceller.cancel(format!(
@@ -251,12 +261,12 @@ pub async fn automate(
             timeout_milliseconds,
         )?;
     match answered.await {
-        beui::drive::Reply::Text(text) => Ok(text),
-        beui::drive::Reply::Error(error) => Err(error.into()),
-        beui::drive::Reply::Image { .. } => {
+        beui::native::drive::Reply::Text(text) => Ok(text),
+        beui::native::drive::Reply::Error(error) => Err(error.into()),
+        beui::native::drive::Reply::Image { .. } => {
             Err("the browser takes screenshots itself: use drive shot".into())
         }
-        beui::drive::Reply::Painting(_) => {
+        beui::native::drive::Reply::Painting(_) => {
             Err("the web build does not answer paint; run the app natively".into())
         }
     }
@@ -265,7 +275,7 @@ pub async fn automate(
 // unsafe(ffi)
 #[cfg(target_os = "android")]
 #[unsafe(no_mangle)]
-fn android_main(app: beui::AndroidApp) {
+fn android_main(app: beui::native::AndroidApp) {
     editors::plugin::discovery::use_assets(app.clone());
     panic_guard::install();
     let storage_root = app.internal_data_path();
@@ -273,7 +283,8 @@ fn android_main(app: beui::AndroidApp) {
     let exit_code = match BlockApp::new(storage_root)
         .map_err(|error| error.to_string())
         .and_then(|block_app| {
-            beui::run_with(options, Shell::new(block_app)).map_err(|error| error.to_string())
+            beui::native::run_with(options, Shell::new(block_app))
+                .map_err(|error| error.to_string())
         }) {
         Ok(()) => 0,
         Err(error) => {
@@ -294,9 +305,9 @@ struct Shell {
 impl Shell {
     fn new(app: BlockApp) -> Self {
         let mut view = None;
-        let mut document = beui::reactive::build(|| {
+        let mut document = beui::native::build(|| {
             compositor::install();
-            wayland::create();
+            desktop_host::create();
             surfaces::create_handles();
             display::create_handle();
             let store = AppViewStore::new(AppView::default());
@@ -320,11 +331,11 @@ impl Shell {
     }
 }
 
-impl beui::App for Shell {
-    fn setup(&mut self, setup: &beui::Setup) {
+impl beui::native::App for Shell {
+    fn setup(&mut self, setup: &beui::native::Setup) {
         host::install_waker(setup.waker.clone());
         plugin_host::install(setup);
-        wayland::start(setup);
+        desktop_host::start(setup);
         input::start(setup);
         #[cfg(target_os = "linux")]
         if let Some(problems) = setup.get::<beui_platform_drm::Problems>() {
@@ -333,7 +344,7 @@ impl beui::App for Shell {
         #[cfg(target_os = "linux")]
         if self.app.desktop.is_none() && session::owns_a_seat(setup) {
             self.app.desktop = Some(session::DesktopSession::start());
-            session::export_environment(wayland::environment());
+            session::export_environment(desktop_host::environment());
         }
         display::start(setup);
         remap::load_cached(self.app.app_state.remapper().unwrap_or_else(|error| {
@@ -345,12 +356,12 @@ impl beui::App for Shell {
         display::boot(&self.app.app_state);
     }
 
-    fn renderer_replaced(&mut self, setup: &beui::Setup) {
+    fn renderer_replaced(&mut self, setup: &beui::native::Setup) {
         plugin_host::replace_gpu(setup);
-        wayland::replace_gpu(setup);
+        desktop_host::replace_gpu(setup);
     }
 
-    fn update(&mut self, context: &beui::Context, rect: beui::Rect) {
+    fn update(&mut self, context: &beui::native::Context, rect: beui::Rect) {
         let started = std::time::Instant::now();
         host::begin(context);
         if context.hurried() {
@@ -365,7 +376,7 @@ impl beui::App for Shell {
             be::retry_now();
             self.app.retry_organizations();
         }
-        wayland::before(context, rect, &mut self.document);
+        desktop_host::before(context, rect, &mut self.document);
         self.app.touched = self
             .document
             .last_pointer
@@ -387,10 +398,12 @@ impl beui::App for Shell {
             self.document.open_inspector();
         }
         let view = self.app.view();
-        wayland::set_owned(view.screen == ui::Screen::Organization && self.app.shell.is_some());
+        desktop_host::set_owned(
+            view.screen == ui::Screen::Organization && self.app.shell.is_some(),
+        );
         let store = self.view;
         compositor::notify();
-        beui::reactive::enter(&mut self.document, || {
+        beui::native::enter(&mut self.document, || {
             display::apply_shown();
             store.set(view);
         });
@@ -406,7 +419,7 @@ impl beui::App for Shell {
         if let Some(lock) = &mut self.app.screen_lock {
             lock.note_drawn(self.document.locked());
         }
-        wayland::after(context, &mut self.document);
+        desktop_host::after(context, &mut self.document);
         let commands = ui::take_commands();
         if !commands.is_empty() {
             for command in commands {
@@ -425,7 +438,7 @@ impl beui::App for Shell {
     }
 
     fn environment(&self) -> Vec<(String, String)> {
-        wayland::environment()
+        desktop_host::environment()
     }
 
     fn drawing(&self) -> bool {
@@ -436,7 +449,7 @@ impl beui::App for Shell {
         plugin_host::request_painting();
     }
 
-    fn other_frames(&mut self) -> Vec<(String, beui::FrameTimes)> {
+    fn other_frames(&mut self) -> Vec<(String, beui::native::FrameTimes)> {
         plugin_host::take_steps()
     }
 
@@ -444,17 +457,17 @@ impl beui::App for Shell {
         self.app.close_requested()
     }
 
-    fn lifecycle(&mut self, change: beui::Lifecycle) {
+    fn lifecycle(&mut self, change: beui::native::Lifecycle) {
         match change {
-            beui::Lifecycle::Background => be::backgrounded(),
-            beui::Lifecycle::Foreground
-            | beui::Lifecycle::Focused
-            | beui::Lifecycle::NetworkChanged => be::retry_now(),
+            beui::native::Lifecycle::Background => be::backgrounded(),
+            beui::native::Lifecycle::Foreground
+            | beui::native::Lifecycle::Focused
+            | beui::native::Lifecycle::NetworkChanged => be::retry_now(),
         }
     }
 
     fn exiting(&mut self) {
-        wayland::exiting();
+        desktop_host::exiting();
         plugin_host::exiting();
         display::stop();
         #[cfg(target_os = "linux")]
@@ -842,7 +855,7 @@ impl BlockApp {
 
     #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
     fn run_as_desktop(&mut self) {
-        self.root_settings = RootSettings::new(be_block::LINUX_DESKTOP_EDITOR);
+        self.root_settings = RootSettings::new(be_block::DESKTOP_EDITOR);
         #[cfg(target_os = "linux")]
         {
             self.screen_lock = Some(session::ScreenLock::start());
@@ -898,19 +911,19 @@ impl BlockApp {
     }
 
     #[cfg(target_os = "linux")]
-    fn run_session(&mut self, context: &beui::Context) {
+    fn run_session(&mut self, context: &beui::native::Context) {
         let Some(lock) = &mut self.screen_lock else {
             return;
         };
         lock.frame();
-        if wayland::take_lock_due() {
+        if desktop_host::take_lock_due() {
             lock.lock(session::Trigger::Idle);
         }
         if let Some(desktop) = &mut self.desktop {
             desktop.frame(context, lock);
         }
         let locked = lock.locked();
-        wayland::set_locked(locked);
+        desktop_host::set_locked(locked);
         remap::set_locked(locked);
         plugin_host::publish::<block_plugin_api::ScreenLockedWatch>(&locked);
         if locked {
@@ -1755,7 +1768,7 @@ impl BlockApp {
         false
     }
 
-    fn discard(&mut self, context: &beui::Context) {
+    fn discard(&mut self, context: &beui::native::Context) {
         let Some(action) = self.pending_destructive_action.take() else {
             return;
         };
@@ -2275,16 +2288,18 @@ impl BlockApp {
             );
         }
         let hidden = programs::bound_windows();
-        if Some((wayland::revision(), hidden.clone())) != self.windows_sent {
-            plugin_host::publish::<block_plugin_api::WindowsWatch>(&wayland::listed(&hidden));
-            self.windows_sent = Some((wayland::revision(), hidden));
+        if Some((desktop_host::revision(), hidden.clone())) != self.windows_sent {
+            plugin_host::publish::<block_plugin_api::WindowsWatch>(&desktop_host::listed(&hidden));
+            self.windows_sent = Some((desktop_host::revision(), hidden));
         }
         for action in plugin_host::take_calls(block_plugin_api::requested::window) {
             match action {
-                block_plugin_api::WindowAction::Focus(window) => wayland::focus(window),
-                block_plugin_api::WindowAction::Close(window) => wayland::close(window),
+                block_plugin_api::WindowAction::Focus(window) => desktop_host::focus(window),
+                block_plugin_api::WindowAction::Close(window) => desktop_host::close(window),
+                block_plugin_api::WindowAction::Show(window) => desktop_host::show(window),
+                block_plugin_api::WindowAction::Hide(window) => desktop_host::hide(window),
                 block_plugin_api::WindowAction::Fullscreen { window, fullscreen } => {
-                    wayland::fullscreen(window, fullscreen);
+                    desktop_host::fullscreen(window, fullscreen);
                 }
             }
         }
@@ -2724,7 +2739,7 @@ impl BlockApp {
         }
     }
 
-    fn frame(&mut self, context: &beui::Context) {
+    fn frame(&mut self, context: &beui::native::Context) {
         #[cfg(not(target_os = "linux"))]
         let _ = context;
         if self.error.is_none()
@@ -2871,6 +2886,8 @@ impl BlockApp {
         self.process_pending_transfers();
         self.process_pending_copies();
         self.show_shell();
+        #[cfg(windows)]
+        desktop_host::frame();
         #[cfg(target_os = "linux")]
         {
             self.take_power_request();
@@ -2994,7 +3011,7 @@ impl BlockApp {
         self.keyboard_share = Some(settings.keyboard_share());
     }
 
-    fn command(&mut self, context: &beui::Context, command: UiCommand) {
+    fn command(&mut self, context: &beui::native::Context, command: UiCommand) {
         match command {
             UiCommand::Restart => self.restart(),
             UiCommand::AskErrorAction(action) => self.pending_error_action = Some(action),
@@ -3324,11 +3341,11 @@ impl BlockApp {
             .accounts
             .iter()
             .map(|account| {
-                ui::AccountRow::of(
+                ui::account_row(
                     account,
                     account.server == self.account.server && account.id == self.account.id,
+                    companies(account),
                 )
-                .in_companies(companies(account))
             })
             .collect();
         let organization_name = self
@@ -3358,7 +3375,7 @@ impl BlockApp {
                     .then(|| self.account_error.clone())
                     .flatten(),
             },
-            account: ui::AccountRow::of(&self.account, true).in_companies(companies(&self.account)),
+            account: ui::account_row(&self.account, true, companies(&self.account)),
             recovery: self.keys.recovery_view(),
             unlock: self.keys.unlock_view(&self.account.name),
             pairing: match screen {

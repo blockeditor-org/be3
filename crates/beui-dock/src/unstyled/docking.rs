@@ -1,4 +1,4 @@
-use beui_core::icons::Glyph;
+use beui_view::types::icons::Glyph;
 mod switch;
 
 use std::any::Any;
@@ -7,15 +7,15 @@ use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::rc::Rc;
 
-use beui_core::base::Direction;
-use beui_core::color::Color32;
-use beui_core::geometry::{Rect, Vec2};
-use beui_core::image::Image;
-use beui_core::input::Modifiers;
-use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::primitives::*;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::Color;
+use beui_view::types::Direction;
+use beui_view::types::Image;
+use beui_view::types::Modifiers;
+use beui_view::types::{Rect, Vec2};
 use serde::{Deserialize, Serialize};
 
 use super::dialog::{DialogParts, DockDialogHandle, DockDialogPresentation, DockSheetHandle};
@@ -50,6 +50,7 @@ enum NodeKind<K: 'static> {
         vertical: bool,
         icons_only: bool,
         sidebar: f32,
+        locked: bool,
         empty: Option<RenderFn<()>>,
         entries: Run<DockEntry<K>>,
     },
@@ -76,6 +77,7 @@ enum EntryKind<K: 'static> {
         icon: Memo<Option<Glyph>>,
         picture: Memo<Option<Image>>,
         on_close: Option<ClickCallback>,
+        see_through: bool,
         content: RenderFn<()>,
     },
     Group {
@@ -116,6 +118,7 @@ pub fn DockPane<K>(
     #[prop(default = false)] vertical: bool,
     #[prop(default = false)] icons_only: bool,
     #[prop(default = SIDEBAR_WIDTH)] sidebar_width: f32,
+    #[prop(default = false)] locked: bool,
     empty: Option<RenderFn<()>>,
     children: Children<DockEntry<K>>,
 ) -> DockNode<K>
@@ -129,6 +132,7 @@ where
             vertical,
             icons_only,
             sidebar: sidebar_width,
+            locked,
             empty,
             entries: children.into_run(),
         },
@@ -193,6 +197,7 @@ pub fn DockTab<K>(
     #[prop(default = None)] icon: Prop<Option<Glyph>>,
     #[prop(default = None)] picture: Prop<Option<Image>>,
     on_close: Option<ClickCallback>,
+    #[prop(default = false)] see_through: bool,
     #[prop(children)] content: RenderFn<()>,
 ) -> DockEntry<K>
 where
@@ -205,6 +210,7 @@ where
             icon: create_memo(move || icon.get()),
             picture: create_memo(move || picture.get()),
             on_close,
+            see_through,
             content,
         },
     }
@@ -525,6 +531,21 @@ impl<K: DockKey> DockingLayout<K> {
             }
         }
         spec.focus = focus.map(|key| self.mint(key));
+        spec.see_through = found
+            .tabs
+            .iter()
+            .filter(|(_, entry)| {
+                matches!(
+                    entry.kind,
+                    EntryKind::Tab {
+                        see_through: true,
+                        ..
+                    }
+                )
+            })
+            .map(|(tab, _)| *tab)
+            .collect();
+        spec.see_through.sort();
         spec
     }
 
@@ -568,6 +589,7 @@ impl<K: DockKey> DockingLayout<K> {
                 vertical,
                 icons_only,
                 sidebar,
+                locked,
                 empty,
                 entries,
             } => {
@@ -587,6 +609,7 @@ impl<K: DockKey> DockingLayout<K> {
                     icons_only: *icons_only,
                     sidebar: *sidebar,
                     keep: empty.is_some(),
+                    locked: *locked,
                 }))
             }
             NodeKind::Window { .. } | NodeKind::Dialog { .. } => None,
@@ -672,6 +695,18 @@ impl<K: 'static> Found<K> {
         }
     }
 
+    fn see_through(&self, tab: TabId) -> bool {
+        self.tabs.get(&tab).is_some_and(|entry| {
+            matches!(
+                entry.kind,
+                EntryKind::Tab {
+                    see_through: true,
+                    ..
+                }
+            )
+        })
+    }
+
     fn picture(&self, tab: TabId) -> Option<Image> {
         match &self.tabs.get(&tab)?.kind {
             EntryKind::Tab { picture, .. } => picture.get(),
@@ -707,7 +742,7 @@ pub fn Docking<K>(
     #[prop(default = 0.0)] group_inset: f32,
     tab_spacing: f32,
     drop_marker_width: f32,
-    back_shade: Prop<Color32>,
+    back_shade: Prop<Color>,
     icon_sidebar_width: f32,
     #[prop(default = 0.0)] inset: Prop<f32>,
     tab: RenderFn<DockTabHandle>,
@@ -725,9 +760,10 @@ pub fn Docking<K>(
     switch: Option<RenderFn<DockSwitchHandle>>,
     dialog_chrome: Option<RenderFn<DockDialogHandle>>,
     dialog_sheet: Option<RenderFn<DockSheetHandle>>,
-    dialog_scrim: Prop<Color32>,
+    dialog_scrim: Prop<Color>,
     #[prop(default = 0)] dialog_margin: u16,
     #[prop(default = 0)] dialog_gap: u16,
+    #[prop(default = 0.0)] dialog_beak: f32,
     #[prop(default = Vec2::ZERO)] dialog_outset: Vec2,
     children: Children<DockNode<K>>,
 ) -> NodeId
@@ -782,10 +818,11 @@ where
                 <Frame />
             };
         };
+        let see_through = found.with_untracked(|found| found.see_through(tab));
         let body = content.call(());
         match &frame {
-            Some(frame) => frame.call(body),
-            None => body,
+            Some(frame) if !see_through => frame.call(body),
+            _ => body,
         }
     });
     let empty = RenderFn::new(move |leaf: LeafId| {
@@ -851,6 +888,7 @@ where
                 dialog_scrim: create_memo(move || dialog_scrim.get()),
                 dialog_margin,
                 dialog_gap,
+                dialog_beak,
                 dialog_outset,
             }}
         />

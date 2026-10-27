@@ -130,6 +130,13 @@ fn report(target: &str, directory: &Path, update: bool) -> bool {
         })
         .collect();
     paintings.sort();
+    let package = target
+        .split_once("//")
+        .map_or(target, |(_, label)| label)
+        .split(':')
+        .next()
+        .unwrap_or_default();
+    let snapshots = repository().join(package).join("snapshots");
     for painting in paintings {
         let Some(name) = painting.file_name() else {
             continue;
@@ -137,12 +144,12 @@ fn report(target: &str, directory: &Path, update: bool) -> bool {
         let mut why = painting.clone().into_os_string();
         why.push(".why");
         let why = std::fs::read_to_string(why).unwrap_or_default();
-        let to = repository().join("snapshots").join(name);
-        let name = name.to_string_lossy();
-        match std::fs::copy(&painting, &to) {
-            Ok(_) => println!("Accepted snapshots/{name}: {}", why.trim_end()),
+        let to = snapshots.join(name);
+        let name = format!("{package}/snapshots/{}", name.to_string_lossy());
+        match std::fs::create_dir_all(&snapshots).and_then(|()| std::fs::copy(&painting, &to)) {
+            Ok(_) => println!("Accepted {name}: {}", why.trim_end()),
             Err(error) => {
-                println!("Could not write snapshots/{name}: {error}");
+                println!("Could not write {name}: {error}");
                 accepted = false;
             }
         }

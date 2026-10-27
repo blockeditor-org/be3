@@ -29,13 +29,13 @@ fn arrow_keys_move_a_visible_highlight_through_an_open_context_menu() {
         pressed: true,
     }]);
 
-    let highlights = |output: &crate::FrameOutput| {
+    let highlights = |output: &crate::native::FrameOutput| {
         output
             .main()
             .shapes()
             .iter()
             .filter(|shape| {
-                matches!(shape, crate::Shape::Rect { color, stroke_width, .. }
+                matches!(shape, crate::native::Shape::Rect { color, stroke_width, .. }
                     if *color == styled::Theme::DARK.accent_soft && *stroke_width == 0.0)
             })
             .count()

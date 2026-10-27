@@ -5,7 +5,7 @@ use crate::reactive::*;
 #[test]
 fn a_rebuilt_panel_that_paints_the_same_is_reported_as_an_over_repaint() {
     let _root = crate::reactive::RootScope::new();
-    crate::detect_over_repaint(true);
+    crate::native::detect_over_repaint(true);
     let key = create_signal(0u32);
     let color = create_signal(Color32::WHITE);
     let document = build_node(move || {
@@ -20,20 +20,20 @@ fn a_rebuilt_panel_that_paints_the_same_is_reported_as_an_over_repaint() {
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    crate::take_over_repaints();
+    crate::native::take_over_repaints();
 
     with_installed(harness.document_mut(), |_| color.set(Color32::BLACK));
     harness.frame(Vec::new());
     assert_eq!(
-        crate::take_over_repaints(),
+        crate::native::take_over_repaints(),
         Vec::new(),
         "a change repainted where it changed is not reported"
     );
 
     with_installed(harness.document_mut(), |_| key.set(1));
     harness.frame(Vec::new());
-    let reports = crate::take_over_repaints();
+    let reports = crate::native::take_over_repaints();
     assert_eq!(reports.len(), 1, "{reports:?}");
     assert!(reports[0].changed.is_empty());
-    crate::detect_over_repaint(false);
+    crate::native::detect_over_repaint(false);
 }

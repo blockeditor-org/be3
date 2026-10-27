@@ -4,7 +4,8 @@ use crate::{
     store::{AccountSession, MailLink, Profile},
 };
 use beui_html::{
-    Children, ForEach, Node, Stored, attr, component, elements as html, render, store, tw, view,
+    Children, ForEach, Node, Stored, Stylesheet, attr, component, elements as html, render, store,
+    view,
 };
 use std::collections::HashMap;
 
@@ -319,6 +320,38 @@ fn Form(action: String, csrf: String, code: String, children: Children<Node>) ->
     }
 }
 
+const STYLES: &str = "
+body {
+    font-size: 1rem;
+    font-family: system-ui, sans-serif;
+    margin: 3rem auto;
+    padding: 0 1rem;
+    max-width: 28rem;
+    color: #202124;
+    background: #fafafa;
+}
+label {
+    display: block;
+    margin: 1rem 0;
+}
+input {
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    padding: .7rem;
+    font: inherit;
+}
+button {
+    padding: .7rem;
+    margin: .4rem .4rem .4rem 0;
+    font: inherit;
+    cursor: pointer;
+}
+[role=alert] {
+    color: #a00;
+}
+";
+
 #[component]
 fn Shell(children: Children<Node>) -> Node {
     view! {
@@ -327,40 +360,9 @@ fn Shell(children: Children<Node>) -> Node {
                 <html::Meta charset="utf-8" />
                 <html::Meta name="viewport" content="width=device-width, initial-scale=1" />
                 <html::Title>"Block account"</html::Title>
-                <tw::Styles />
+                <Stylesheet css={STYLES.to_string()} />
             </html::Head>
-            <html::Body
-                css=<>
-                    <tw::TextBase />
-                    <tw::FontSans />
-                    <tw::My12 />
-                    <tw::MxAuto />
-                    <tw::Px4 />
-                    <tw::MaxW112 />
-                    <tw::TextInk />
-                    <tw::BgPaper />
-                    <tw::Descendants target=tw::Target::Label>
-                        <tw::Block />
-                        <tw::My4 />
-                    </tw::Descendants>
-                    <tw::Descendants target=tw::Target::Input>
-                        <tw::Block />
-                        <tw::BoxBorder />
-                        <tw::WFull />
-                        <tw::Padding size=tw::Spacing::Control />
-                        <tw::FontInherit />
-                    </tw::Descendants>
-                    <tw::Descendants target=tw::Target::Button>
-                        <tw::Padding size=tw::Spacing::Control />
-                        <tw::ControlMargin />
-                        <tw::FontInherit />
-                        <tw::CursorPointer />
-                    </tw::Descendants>
-                    <tw::Descendants target=tw::Target::Alert>
-                        <tw::TextDanger />
-                    </tw::Descendants>
-                </>
-            >
+            <html::Body>
                 <html::Header>
                     <html::A href="/auth">"Block account"</html::A>
                 </html::Header>

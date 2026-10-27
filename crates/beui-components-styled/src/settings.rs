@@ -2,8 +2,8 @@ use crate::button::ButtonVariant;
 use crate::frame::{Border, ColorRole, Frame, Radius};
 use crate::row::{RowFace, RowSize, RowTrailing};
 use crate::text::TextColor;
-use beui_core::icons::ICON_ELLIPSIS;
 use beui_macros::{component, view};
+use beui_view::types::icons::ICON_ELLIPSIS;
 
 use crate::border::Separator;
 use crate::button::ButtonSize;
@@ -12,11 +12,12 @@ use crate::scroll::Scroll;
 use crate::text::{Text, TextStyle};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::MenuItem;
-use beui_core::node::NodeId;
+use beui_view::reactive::NodeId;
 
 use crate::list::List;
 use crate::tokens::{Padding, Size, Space, use_space};
 use beui_view::reactive::*;
+use beui_view::types::{Align, Align2, Direction, Extent, ItemSize, Justify};
 
 const PAGE_MAX_WIDTH: f32 = 680.0;
 const SECTION_INSET: Space = Space::Xl2;

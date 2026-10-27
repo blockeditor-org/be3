@@ -2,10 +2,11 @@ use std::cell::Cell;
 use std::sync::Arc;
 
 use block_editor_beui::be_block::be_model::ObjectId;
+use block_editor_beui::beui::native::with_document;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{
-    Color32, Key, KeyAt, KeyPhase, NodeId, Rect, TextAlign, Vec2, line_height, pos2,
+    Color32, Key, KeyAt, KeyPhase, NodeId, Rect, TextAlign, Vec2, native::line_height, pos2,
 };
 use block_editor_beui::live_text::{FieldOf, LiveText, Synced};
 use block_editor_beui::{SharedCaret, remote_carets};
@@ -21,6 +22,7 @@ use crate::geometry::{TEXT_INSET, WorldRect, flattened};
 
 use super::paint::{path_middle, resolve_color, with_opacity};
 use super::state::{CanvasState, TextEntry};
+use beui::Sides;
 
 pub(crate) fn font_px(entity: &CanvasEntity, scale: f32) -> f32 {
     (entity.style.text_size.px() * scale).clamp(4.0, 256.0)
@@ -152,7 +154,10 @@ pub(crate) fn EntityText(
             placeholder: entity.placeholder.clone(),
             text_style: text_style(&entity),
             color: with_opacity(
-                resolve_color(entity.style.stroke_color, theme.text.get()),
+                resolve_color(
+                    entity.style.stroke_color,
+                    beui::reactive::resolve_color(theme.text.get()),
+                ),
                 entity.style.opacity,
             ),
             locked: entity.locked,
@@ -168,9 +173,10 @@ pub(crate) fn EntityText(
     });
     let color = create_memo(move || {
         TextColor::Custom(
-            shown
+            (shown
                 .get()
-                .map_or(Color32::TRANSPARENT, |shown| shown.color),
+                .map_or(Color32::TRANSPARENT, |shown| shown.color))
+            .into(),
         )
     });
     let font_size = create_memo(move || shown.get().map_or(20.0, |shown| shown.size));
@@ -254,7 +260,7 @@ pub(crate) fn EntityText(
     };
     view! {
         <Frame padding={padding}>
-            <Turn angle={turn}>
+            <Frame rotate={turn}>
                 <TextArea
                     @node_ref=&field
                     @test_id={format!("infinite-canvas.text.{id}")}
@@ -272,7 +278,7 @@ pub(crate) fn EntityText(
                     on_content_size={move |size: Vec2| content.set(size)}
                     on_focus_change={left}
                 />
-            </Turn>
+            </Frame>
         </Frame>
     }
 }

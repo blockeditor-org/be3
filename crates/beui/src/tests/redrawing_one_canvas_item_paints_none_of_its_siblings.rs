@@ -1,7 +1,6 @@
 use super::*;
 use crate::primitives::*;
 use crate::reactive::*;
-use beui_core::base::drawing::Draw;
 
 fn painted_on_redraw(count: usize) -> (usize, usize) {
     let _root = crate::reactive::RootScope::new();

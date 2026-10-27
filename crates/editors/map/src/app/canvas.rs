@@ -15,6 +15,8 @@ use crate::tiles::TileId;
 use super::labels::{self, MapLabel};
 use super::state::MapState;
 use super::tiles::{self, Tile};
+use beui::unstyled::gestures;
+use beui::{ItemSize, PasteKind, Pasted};
 
 pub(crate) const REGION_COLOR: Color32 = Color32::from_rgb(245, 180, 60);
 const ATTRIBUTION: &str = "© OpenStreetMap contributors";
@@ -138,7 +140,9 @@ fn RegionOutline(shown: Memo<bool>, rect: Memo<Rect>) -> DynamicSegment<CanvasIt
     view! {
         <Show condition={shown}>
             <CanvasItem x={x} y={y} width={width} height={height}>
-                <Frame border={Border::new(ColorRole::Custom(REGION_COLOR)).width(Stroke::Focus)} />
+                <Frame
+                    border={Border::new(ColorRole::Custom(REGION_COLOR.into())).width(Stroke::Focus)}
+                />
             </CanvasItem>
         </Show>
     }
@@ -180,7 +184,7 @@ fn Attribution() -> NodeId {
     view! {
         <Frame
             height=ATTRIBUTION_HEIGHT
-            fill={ColorRole::Custom(HALO)}
+            fill={ColorRole::Custom(HALO.into())}
             padding={Padding::horizontal(Space::Sm)}
         >
             <Text style=TextStyle::CAPTION align=TextAlign::End>{ATTRIBUTION}</Text>
@@ -190,6 +194,7 @@ fn Attribution() -> NodeId {
 
 #[component]
 fn MapSurface(state: MapState, children: Option<Child>) -> NodeId {
+    let pan = gestures::pan_zoom(move |delta: Vec2| state.pan(delta), Callback::empty());
     view! {
         <Interactive
             focusable=true
@@ -211,7 +216,8 @@ fn MapSurface(state: MapState, children: Option<Child>) -> NodeId {
                     state.release();
                 }
             }}
-            on_pan_drag={move |delta: Vec2| state.pan(delta)}
+            on_pointer={pan.pointer}
+            on_wheel={pan.wheel}
             children={children}
         />
     }

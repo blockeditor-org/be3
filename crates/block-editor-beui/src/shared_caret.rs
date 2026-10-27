@@ -36,7 +36,7 @@ pub fn remote_carets(
                 Some(RemoteTextCursor {
                     selection: anchor.min(focus)..anchor.max(focus),
                     caret: focus,
-                    color: presence_color(color),
+                    color: presence_color(color).into(),
                 })
             })
             .collect()

@@ -1,0 +1,9 @@
+# A list stacks its rows with its spacing between them, keeps them in the
+# order its signal gives, and grows as rows are added.
+clock stop
+wait 'Rows 3 in 160x80'
+click '#list.add'
+wait 'Rows 4 in 160x110'
+wait '#list.row4'
+click '#list.reverse'
+wait 'Rows 4 in 160x110'

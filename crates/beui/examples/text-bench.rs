@@ -5,14 +5,17 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use beui::native::Document;
+use beui::native::build;
+use beui::native::enter;
+use beui::native::testing::{Screen, Showing};
 use beui::primitives::{Span, Text};
 use beui::reactive::*;
 use beui::styled::*;
-use beui::testing::{Screen, Showing};
 use beui::unstyled::TextAreaState;
 use beui::{
-    Document, Incoming, Input, Launch, PlatformServices, PointerButton, Pos2, RunOptions, Setup,
-    Vec2, Waker, pos2,
+    Input, PointerButton, Pos2, Vec2, native::Incoming, native::Launch, native::PlatformServices,
+    native::RunOptions, native::Setup, native::Waker, pos2,
 };
 use beui_core::app::SafeArea;
 use beui_core::renderer::Loaded;
@@ -41,16 +44,16 @@ impl Bench {
                 size: VIEWPORT,
                 ..RunOptions::default()
             },
-            context: beui::context(),
+            context: beui::native::context(),
             app: Box::new(Showing(document)),
             layers: Vec::new(),
         });
         runner
             .start(
-                vec![Loaded {
+                Loaded {
                     renderer: Box::new(Screen(VIEWPORT)),
                     fonts: None,
-                }],
+                },
                 Setup::new(Waker::new(|| {})),
             )
             .expect("a screen without a gpu always starts");

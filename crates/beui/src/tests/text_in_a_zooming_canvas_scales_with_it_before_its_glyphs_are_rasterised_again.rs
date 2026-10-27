@@ -1,7 +1,7 @@
 use super::*;
 use crate::primitives::*;
 use crate::reactive::*;
-use crate::{Quad, quads};
+use crate::{native::Quad, native::quads};
 
 fn glyph_span(output: &FrameOutput) -> [f32; 4] {
     quads(output.main(), 1.0)

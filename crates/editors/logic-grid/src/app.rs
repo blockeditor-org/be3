@@ -14,6 +14,7 @@ mod ui;
 
 pub use app_impl::LogicGridApp;
 
+use beui::CanvasView;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     rc::Rc,

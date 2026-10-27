@@ -10,6 +10,7 @@ use block_editor_beui::{ChildTarget, Editor, Failure, Pushed, Task};
 use uuid::Uuid;
 
 use super::{Workspace, tab::TabItem};
+use beui::Direction;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct Selected {

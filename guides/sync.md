@@ -15,7 +15,7 @@ The code is `crates/be-sync`, used by `be` (`crates/be-cli`). It knows no block
 format: every block's file form comes from its type module
 (guides/type_modules.md), through the `be_types_host::Modules` its caller hands
 `sync` and `watch`. A folder export in the app (plans/daily_driver.md, phase 7)
-should use the same requests rather than writing another mapping, as block-app's files opened in programs do (`to-file` to write a block out and `from-file` to take a program's save back, guides/linux_desktop.md).
+should use the same requests rather than writing another mapping, as block-app's files opened in programs do (`to-file` to write a block out and `from-file` to take a program's save back, guides/desktop/linux.md).
 
 ## What becomes what
 
@@ -24,7 +24,7 @@ should use the same requests rather than writing another mapping, as block-app's
   the block named, and must be a directory.
 - A file's bytes are `to-file` of its block's content (guides/type_modules.md): a text block's
   body, the data of an image, PDF, audio or file block (a file block holds any
-  bytes, such as `snapshots/*.paint`).
+  bytes, such as a crate's `snapshots/*.paint`).
 - A new file on disk becomes a block of the first type that `claims`
   it by its name and first 64 KiB: an image, PDF or audio block by its
   extension (and a PDF's magic), a text block when it is UTF-8 without a NUL

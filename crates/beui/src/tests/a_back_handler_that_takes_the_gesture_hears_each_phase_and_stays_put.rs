@@ -10,11 +10,11 @@ fn a_back_handler_that_takes_the_gesture_hears_each_phase_and_stays_put() {
     let page = NodeRef::new();
     let document = build_node(move || {
         view! {
-            <BackHandler
+            <BackTo
                 on_gesture={move |gesture: BackGesture| heard.update(|heard| heard.push(gesture))}
             >
                 <Text color=Color32::WHITE @node_ref={&page}>"Page"</Text>
-            </BackHandler>
+            </BackTo>
         }
     });
 

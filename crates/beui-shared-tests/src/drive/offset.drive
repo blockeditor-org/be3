@@ -1,0 +1,10 @@
+# An Offset that follows its end stays there as content grows, keeps its
+# place once moved off the end, and reports where it is.
+clock stop
+wait 'Offset 200 of 300 in 100'
+click '#offset.add'
+wait 'Offset 230 of 330 in 100'
+click '#offset.near_top'
+wait 'Offset 10 of 330 in 100'
+click '#offset.add'
+wait 'Offset 10 of 360 in 100'

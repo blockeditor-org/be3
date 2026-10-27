@@ -1,0 +1,8 @@
+use super::*;
+use beui_types::input::Key;
+
+mod a_plain_scan_code_is_the_evdev_code_of_its_place;
+mod an_extended_scan_code_names_the_key_beside_its_plain_twin;
+mod every_key_beui_names_has_a_way_to_be_injected;
+mod keys_windows_reports_by_virtual_key_are_injected_by_it;
+mod right_shift_is_found_with_or_without_the_extended_flag;

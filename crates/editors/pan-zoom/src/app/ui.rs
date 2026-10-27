@@ -1,3 +1,4 @@
+use beui::{Direction, ItemSize};
 use block_editor_beui::Fit;
 use block_editor_beui::beui::icons::ICON_PANEL_LEFT_OPEN;
 use block_editor_beui::beui::reactive::*;

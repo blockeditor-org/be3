@@ -14,7 +14,9 @@ Guides:
 - guides/build_server.md
 - guides/frozen_formats.md: the formats every later build must keep reading, how to change them, and the tests that hold them
 - guides/hosting.md
-- guides/linux_desktop.md: block-app as a Linux desktop: the session, notifications, media keys, input remaps, the lock screen, Wayland and X11 programs
+- guides/desktop.md: block-app as a desktop, what every host shares: the desktop shell, the `be3:desktop` package and its watches, shown and hidden entries and the picker, displays as one space, a shell that stops
+- guides/desktop/linux.md: the Linux host: be-wayland, `--session` on the displays under DRM, installing the session, notifications, the tray, media keys, Wi-Fi, input remaps, the lock screen, Wayland and X11 programs
+- guides/desktop/windows.md: the Windows host, its crates (be-win32, be-win32-capture, be-win32-input) and its design
 - guides/pan_and_zoom.md: the camera a plugin editor is handed by its host
 - guides/parallel_agents.md: coordinating subagents in worktrees on one cloud VM: landing, memory and disk limits, build server outages
 - guides/performance.md: benchmarks, comparing builds, profiling with perf, and ideas already set aside
@@ -39,7 +41,7 @@ Commands (builds run on the build server; see guides/buck2.md and guides/build_s
 - `./scripts/verify`: the full check. It applies autofixes, accepts new and changed snapshots, and runs every lint and test. Use a 10-minute timeout. CI runs the same thing on pull requests and pushes what it changes.
   - Write code however is natural and let its autofixes tidy it; don't do these by hand. It formats code (including `view!` bodies), deletes comments and doc comments, splits tests into one per file, and renames `foo/mod.rs` to `foo.rs`.
 - `./scripts/test NAME`: runs the tests whose full names (module path and function, such as `media::tests::plays::plays`) contain NAME, so NAME may also be a module path like `media::tests`, and prints all their output, passing or failing. It finds their crates and runs each on the build server, natively or as wasm, and downloads only their output. `--update` accepts the paintings they make.
-- `./scripts/buck run //crates/local-tools:bin -- rasterize snapshots/CRATE.NAME.paint OUT.png [FRAME|all]`: turns a painting, or frames of a recording, into a PNG to look at.
+- `./scripts/buck run //crates/local-tools:bin -- rasterize CRATE_DIR/snapshots/NAME.paint OUT.png [FRAME|all]`: turns a painting, or frames of a recording, into a PNG to look at.
 - `./scripts/buck run //crates/block-app:dev`: run the app headless, signed in with a workspace open, then `source ~/.cache/be3/dev/env` and drive it with `drive` (guides/running/drive.md). `-c be3.plugins=checklist,file-tree` before the target stages only those editors and the workspace, which downloads and builds less. beui-demo and be-launcher have a `:dev` too.
 - `./scripts/buck run //crates/block-app:native`: build and run the native app in a window.
 - `./scripts/test //crates/app-tests:test`: the app tests, which `./scripts/verify` runs too. Each starts the native app headless with every plugin and the dev workspace open, drives it as `drive` does, compares what the whole window paints, and fails unless the app exits cleanly (guides/testing_a_gui.md, 6).

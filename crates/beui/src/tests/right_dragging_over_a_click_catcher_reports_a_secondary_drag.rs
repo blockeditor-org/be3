@@ -9,7 +9,9 @@ fn right_dragging_over_a_click_catcher_reports_a_secondary_drag() {
     let drags = create_signal::<Vec<SecondaryDrag>>(Vec::new());
     let document = build_node(move || {
         view! {
-            <Interactive on_secondary_drag={move |drag| drags.update(|drags| drags.push(drag))}>
+            <Interactive
+                on_pointer={crate::unstyled::gestures::secondary_drag(move |drag| drags.update(|drags| drags.push(drag)))}
+            >
                 <Frame width=200.0 height=200.0 />
             </Interactive>
         }

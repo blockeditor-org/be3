@@ -19,7 +19,7 @@ fn a_driver_finds_a_test_id_with_a_space_in_it() {
             </List>
         }
     });
-    let mut driven = stepped(crate::testing::Showing(document));
+    let mut driven = stepped(crate::native::testing::Showing(document));
 
     driven.run(&["click", "#save it"]);
 

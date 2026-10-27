@@ -78,7 +78,7 @@ fn dragging_past_the_bottom_of_a_selectable_virtual_list_scrolls_it_and_selects_
         .shapes()
         .iter()
         .filter(|shape| {
-            matches!(shape, crate::Shape::Rect { color, stroke_width, .. }
+            matches!(shape, crate::native::Shape::Rect { color, stroke_width, .. }
                 if *color == styled::Theme::DARK.accent_soft && *stroke_width == 0.0)
         })
         .count();

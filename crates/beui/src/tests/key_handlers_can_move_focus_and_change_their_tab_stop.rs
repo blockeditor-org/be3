@@ -17,7 +17,7 @@ fn key_handlers_can_move_focus_and_change_their_tab_stop() {
                             return false;
                         }
                         skipped.set(true);
-                        crate::focus_within(second.get());
+                        crate::native::focus_within(second.get());
                         true
                     }}
                 >

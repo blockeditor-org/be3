@@ -75,10 +75,10 @@ pub use beui_components_unstyled::{DialogDismissal, DialogLayout};
 pub use beui_components_unstyled::{PaletteItem, PaletteItems, PaletteScore};
 pub use beui_components_unstyled::{emoji_completer, search_emoji};
 pub use beui_view::primitives::{
-    BackHandler, Break, Canvas, CanvasItem, Drawing, Embed, Fade, GridCell, Interactive, Layer,
-    Layers, LayoutBuilder, Offset, Overlay, PlacementBuilder, Portal, Shift, Spacer, SystemBars,
-    TextChild, TextItem, Turn, VirtualList, Window, WindowHandle, opens_windows, use_window,
+    Break, Canvas, CanvasItem, Drawing, GridCell, Interactive, Layer, Layers, Offset, Overlay,
+    Portal, SystemBars, TextChild, TextItem, VirtualList,
 };
+pub use beui_view::window::{Window, WindowHandle, opens_windows, use_window};
 pub use border::Separator;
 pub use button::{Button, ButtonSize, ButtonVariant};
 pub use calendar::Calendar;
@@ -98,7 +98,7 @@ pub use focus_ring::FocusRing;
 pub use frame::{Border, ColorRole, Frame, Radius, focus_border};
 pub use fullscreen::Fullscreen;
 pub use link::Link;
-pub use list::{Grid, List};
+pub use list::{Grid, List, Spacer};
 pub use list_row::ListRow;
 pub use menu_button::MenuButton;
 pub use number_input::{NumberInput, NumberInputTextApi};
@@ -134,7 +134,8 @@ pub use text_area::{
 };
 pub use text_input::TextInput;
 pub use theme::{
-    Density, Theme, ThemeKind, ThemeProvider, ThemeStore, provide_density, use_density, use_theme,
+    Density, Theme, ThemeKind, ThemeProvider, ThemeStore, ThemeTokens, ThemedDefinitions,
+    define_themed_colors, provide_density, use_density, use_theme,
 };
 pub use tile_button::TileButton;
 pub use toast::Toasts;
@@ -150,9 +151,10 @@ pub mod toggle_button;
 pub use beui_components_unstyled::{
     ButtonApi, CalendarApi, ChoiceApi, ColorAreaApi, ColorWheelApi, CommandPaletteApi,
     ContextMenuApi, DateTimeFieldApi, DisclosureApi, MenuListApi, NumberInputApi, PanZoomApi,
-    PopoverApi, ScrollApi, SelectApi, SelectableState, SliderApi, TOAST_DURATION, TextAreaApi,
-    TextInputApi, TimeListApi, Toast, ToastAction, ToggleApi, TreeApi, TreeMenu,
+    PopoverApi, ScrollApi, SelectApi, SliderApi, TOAST_DURATION, TextAreaApi, TextInputApi,
+    TimeListApi, Toast, ToastAction, ToggleApi, TreeApi, TreeMenu,
 };
+pub use beui_view::components::selectable::SelectableState;
 pub use listbox::Listbox;
 pub use radio_group::RadioGroup;
 pub use toggle_button::ToggleButton;

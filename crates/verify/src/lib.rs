@@ -18,7 +18,7 @@ struct Options {
 
 struct Run {
     options: Options,
-    built: Vec<(String, PathBuf, bool)>,
+    built: Vec<(String, PathBuf, PathBuf, bool)>,
     failed: bool,
 }
 
@@ -48,11 +48,12 @@ fn main(arguments: Vec<String>) -> ExitCode {
     };
     let built = manifest
         .lines()
-        .filter_map(|line| line.split_once('\t'))
+        .filter_map(|line| line.rsplit_once('\t'))
         .map(|(kind, path)| {
+            let (kind, package) = kind.split_once('\t').unwrap_or((kind, ""));
             let path = PathBuf::from(path);
             let exists = path.exists();
-            (kind.to_owned(), path, exists)
+            (kind.to_owned(), PathBuf::from(package), path, exists)
         })
         .collect();
     let mut run = Run {
@@ -142,17 +143,24 @@ impl Run {
     }
 
     fn built(&self, kind: &str) -> Vec<PathBuf> {
+        self.built_in(kind)
+            .into_iter()
+            .map(|(_, path)| path)
+            .collect()
+    }
+
+    fn built_in(&self, kind: &str) -> Vec<(PathBuf, PathBuf)> {
         self.built
             .iter()
-            .filter(|(each, _, exists)| each == kind && *exists)
-            .map(|(_, path, _)| path.clone())
+            .filter(|(each, _, _, exists)| each == kind && *exists)
+            .map(|(_, package, path, _)| (package.clone(), path.clone()))
             .collect()
     }
 
     fn expected(&self, kind: &str) -> usize {
         self.built
             .iter()
-            .filter(|(each, _, _)| each == kind)
+            .filter(|(each, _, _, _)| each == kind)
             .count()
     }
 
@@ -347,19 +355,20 @@ impl Run {
 
     fn paintings(&mut self) {
         let expected = self.expected("paintings");
-        let directories = self.built("paintings");
+        let directories = self.built_in("paintings");
         let mut changed = Vec::new();
         let mut stale = Vec::new();
-        for directory in &directories {
+        for (package, directory) in &directories {
             for painting in paint_files(&directory.join("changed")) {
                 let name = painting.file_name().unwrap_or_default();
                 let compared =
                     fs::read_to_string(directory.join("used").join(name)).unwrap_or_default();
-                let accepted = fs::read(Path::new("snapshots").join(name)).unwrap_or_default();
+                let to = package.join("snapshots").join(name);
+                let accepted = fs::read(&to).unwrap_or_default();
                 if compared.trim() == bootstrap::sha256(&accepted) {
-                    changed.push(painting);
+                    changed.push((painting, to));
                 } else {
-                    stale.push(painting);
+                    stale.push(to);
                 }
             }
         }
@@ -368,8 +377,7 @@ impl Run {
                 "These paintings changed after their tests compared them, so they were left as they are; run ./scripts/verify again:"
             );
             for painting in &stale {
-                let name = painting.file_name().unwrap_or_default().to_string_lossy();
-                println!("  snapshots/{name}");
+                println!("  {}", slashed(painting));
             }
             self.failed = true;
         }
@@ -381,16 +389,15 @@ impl Run {
             } else {
                 println!("Accepting the paintings that changed:");
             }
-            for painting in &changed {
-                let name = painting.file_name().unwrap_or_default().to_string_lossy();
+            for (painting, to) in &changed {
                 let mut why = painting.as_os_str().to_owned();
                 why.push(".why");
                 let why = fs::read_to_string(PathBuf::from(why)).unwrap_or_default();
-                println!("  snapshots/{name}: {}", why.trim_end_matches('\n'));
+                println!("  {}: {}", slashed(to), why.trim_end_matches('\n'));
                 if !self.options.check
-                    && fs::copy(painting, Path::new("snapshots").join(&*name)).is_err()
+                    && (create_parent(to).is_err() || fs::copy(painting, to).is_err())
                 {
-                    println!("  snapshots/{name} could not be written");
+                    println!("  {} could not be written", slashed(to));
                     self.failed = true;
                 }
             }
@@ -399,18 +406,19 @@ impl Run {
         if expected == 0 || directories.len() != expected || self.options.build_failed {
             return;
         }
-        let used: BTreeSet<_> = directories
+        let used: BTreeSet<PathBuf> = directories
             .iter()
-            .flat_map(|directory| paint_files(&directory.join("used")))
-            .filter_map(|painting| painting.file_name().map(ToOwned::to_owned))
-            .collect();
-        let unused: Vec<PathBuf> = paint_files(Path::new("snapshots"))
-            .into_iter()
-            .filter(|painting| {
-                painting
-                    .file_name()
-                    .is_some_and(|name| !used.contains(name))
+            .flat_map(|(package, directory)| {
+                paint_files(&directory.join("used"))
+                    .into_iter()
+                    .filter_map(|painting| {
+                        Some(package.join("snapshots").join(painting.file_name()?))
+                    })
             })
+            .collect();
+        let unused: Vec<PathBuf> = accepted_paintings(Path::new("crates"))
+            .into_iter()
+            .filter(|painting| !used.contains(painting))
             .collect();
         if unused.is_empty() {
             return;
@@ -438,9 +446,9 @@ impl Run {
     }
 
     fn unpainted(&mut self) {
-        let missing: Vec<String> = named_paintings(Path::new("crates"))
+        let missing: Vec<PathBuf> = named_paintings(Path::new("crates"))
             .into_iter()
-            .filter(|name| !Path::new("snapshots").join(name).exists())
+            .filter(|painting| !painting.exists())
             .collect();
         if missing.is_empty() {
             return;
@@ -454,8 +462,8 @@ impl Run {
                 "A test names each of these paintings but none was written: the test passed without reaching its snapshot:"
             );
         }
-        for name in &missing {
-            println!("  snapshots/{name}");
+        for painting in &missing {
+            println!("  {}", slashed(painting));
         }
         self.failed = true;
     }
@@ -474,20 +482,9 @@ fn git_bytes(arguments: &[&str]) -> Option<Vec<u8>> {
     output.status.success().then_some(output.stdout)
 }
 
-fn named_paintings(crates: &Path) -> BTreeSet<String> {
+fn named_paintings(crates: &Path) -> BTreeSet<PathBuf> {
     let mut names = BTreeSet::new();
-    let mut pending = vec![crates.to_path_buf()];
-    while let Some(directory) = pending.pop() {
-        let Ok(entries) = fs::read_dir(&directory) else {
-            continue;
-        };
-        for entry in entries.flatten() {
-            if entry.file_type().is_ok_and(|kind| kind.is_dir())
-                && !entry.file_name().to_string_lossy().starts_with('.')
-            {
-                pending.push(entry.path());
-            }
-        }
+    for directory in directories_under(crates) {
         let paints = fs::read_to_string(directory.join("BUCK")).is_ok_and(|build| {
             build.lines().any(|line| {
                 line.starts_with("editor(")
@@ -495,9 +492,6 @@ fn named_paintings(crates: &Path) -> BTreeSet<String> {
                     || line.trim() == "paints = True,"
             })
         });
-        let Some(name) = directory.file_name().map(|name| name.to_string_lossy()) else {
-            continue;
-        };
         if !paints {
             continue;
         }
@@ -509,11 +503,42 @@ fn named_paintings(crates: &Path) -> BTreeSet<String> {
                 continue;
             };
             for painting in literal_snapshots(&source) {
-                names.insert(format!("{name}.{painting}.paint"));
+                names.insert(
+                    directory
+                        .join("snapshots")
+                        .join(format!("{painting}.paint")),
+                );
             }
         }
     }
     names
+}
+
+fn accepted_paintings(crates: &Path) -> Vec<PathBuf> {
+    directories_under(crates)
+        .into_iter()
+        .filter(|directory| directory.join("Cargo.toml").exists())
+        .flat_map(|directory| paint_files(&directory.join("snapshots")))
+        .collect()
+}
+
+fn directories_under(root: &Path) -> Vec<PathBuf> {
+    let mut found = Vec::new();
+    let mut pending = vec![root.to_path_buf()];
+    while let Some(directory) = pending.pop() {
+        let Ok(entries) = fs::read_dir(&directory) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            if entry.file_type().is_ok_and(|kind| kind.is_dir())
+                && !entry.file_name().to_string_lossy().starts_with('.')
+            {
+                pending.push(entry.path());
+            }
+        }
+        found.push(directory);
+    }
+    found
 }
 
 fn literal_snapshots(source: &str) -> Vec<&str> {

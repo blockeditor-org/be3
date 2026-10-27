@@ -1,5 +1,5 @@
 use super::*;
-use crate::{PasteKind, PasteRequest, Pasted, PickedFile};
+use crate::{PasteKind, Pasted, PickedFile, native::PasteRequest};
 
 #[test]
 fn a_paste_brings_the_first_kind_the_focus_accepts_unless_the_platform_pastes_itself() {

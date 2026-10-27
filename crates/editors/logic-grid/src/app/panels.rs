@@ -2,10 +2,11 @@ use std::cell::Cell;
 
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{FontId, NodeId, Painter, PointerPress};
+use beui::{FontId, NodeId, PointerPress, TextLayout, reactive::Painter};
 
 use super::session::Session;
 use super::*;
+use beui::{Align, Direction, ItemSize};
 
 const SPACING: Space = Space::Md;
 const LABEL_WIDTH: f32 = 110.0;
@@ -916,11 +917,11 @@ fn paint_graph(painter: &Painter, rect: Rect, shape: &GraphShape) {
             ),
             (detail, FontId::monospace(11.0), GRAPH_DETAIL_COLOR, 10.0),
         ] {
-            let galley = painter.layout(text, font, GRAPH_NODE_SIZE.x);
-            let size = galley.size();
-            painter.galley(
+            let label = painter.lay_out_text(&text, font, TextLayout::wrapped(GRAPH_NODE_SIZE.x));
+            let size = label.size();
+            painter.draw_text(
                 Pos2::new(center.x - size.x * 0.5, center.y + offset - size.y * 0.5),
-                galley,
+                &label,
                 color,
             );
         }

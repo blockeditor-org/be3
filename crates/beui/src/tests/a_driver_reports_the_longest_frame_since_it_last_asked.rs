@@ -1,5 +1,6 @@
 use super::*;
-use crate::FrameTimes;
+use crate::native::Document;
+use crate::native::FrameTimes;
 use crate::primitives::*;
 use crate::reactive::*;
 use std::time::Duration;

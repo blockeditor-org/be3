@@ -1,0 +1,26 @@
+{
+  "id": "be3.desktop",
+  "name": "Desktop",
+  "version": "0.1.0",
+  "editors": {
+    "desktop": {
+      "id": "378d6c68-d52a-4781-addb-fde9a8aff2e2",
+      "display_name": "Desktop",
+      "icon": "\ue11d",
+      "interaction": "Live",
+      "resize": "None",
+      "regions": [
+        "Frame"
+      ],
+      "accepts": [
+        "show_block",
+        "pick",
+        "dialog",
+        "panel",
+        "window"
+      ]
+    }
+  },
+  "extensions": ["be3:desktop"],
+  "entry_point": "desktop.wasm"
+}

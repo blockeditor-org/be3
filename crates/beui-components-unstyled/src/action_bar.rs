@@ -1,6 +1,6 @@
-use beui_core::node::NodeId;
 use beui_macros::component;
 use beui_view::actions::{Action, MenuNode, Pin, tidy_menu};
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
 pub struct ActionBarHandle {

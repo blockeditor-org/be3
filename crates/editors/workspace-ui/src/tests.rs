@@ -1,7 +1,9 @@
 use workspace_ui_types::{EditorView, EditorViewContent, ViewState};
 use workspace_ui_types::{FolderContent, WorkspaceContent};
 
-use block_editor_beui::beui::{Document, NodeId, Rect, ScrollDelta, Vec2};
+use block_editor_beui::beui::{NodeId, Rect, ScrollDelta, Vec2};
+
+use block_editor_beui::beui::native::Document;
 use block_editor_beui::{
     BlockParent, ChildContent, EditorHost, OwnedEditor, WindowAction, WindowsWatch,
 };
@@ -13,12 +15,15 @@ use crate::app::WorkspaceUiApp;
 mod a_block_opened_while_another_is_shown_gets_its_own_tab;
 mod a_block_opens_in_the_editor_it_keeps_for_itself;
 mod a_block_tab_asks_its_editor_for_the_top_bar;
+mod a_block_tab_dragged_onto_the_sidebar_stays_with_the_blocks;
+mod a_block_tab_unlocked_from_its_menu_moves_into_the_sidebar;
 mod a_block_tabs_menu_previews_its_access_and_comes_back;
 mod a_closed_tab_gives_up_its_view_block;
 mod a_deleted_block_says_so_above_it_and_can_be_restored;
 mod a_failed_creation_is_shown_and_dismissing_it_cancels_the_pick;
 mod a_file_with_no_editor_of_its_own_opens_in_the_program_for_its_extension;
 mod a_folder_chosen_on_the_location_page_holds_the_block_made_there;
+mod a_hidden_window_and_its_dialog_have_no_tab_until_shown;
 mod a_host_panel_the_host_asks_for_is_placed_in_its_own_window;
 mod a_modal_window_sends_presses_on_its_parent_to_itself;
 mod a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches;
@@ -32,6 +37,7 @@ mod a_shown_block_is_remembered_in_the_recents;
 mod a_shown_block_is_reported_as_focused;
 mod a_template_of_the_workspace_is_copied_into_place;
 mod a_template_without_a_dialog_is_created_and_answers_the_pick;
+mod a_window_tab_is_locked_to_the_blocks_area_like_a_block_tab;
 mod a_window_tab_shows_the_icon_its_program_set;
 mod a_window_that_stops_responding_offers_to_wait_or_force_close;
 mod a_window_the_host_makes_fullscreen_covers_the_workspace_until_it_leaves;
@@ -43,6 +49,7 @@ mod an_import_into_a_folder_is_made_inside_it;
 mod an_import_keeps_the_location_it_started_with;
 mod an_open_menu_is_withheld_from_the_block_under_it;
 mod an_open_pick_leaves_the_tabs_where_they_were;
+mod an_unlocked_tab_moved_into_the_sidebar_is_still_there_when_the_workspace_reopens;
 mod back_asks_a_creation_dialog_to_dismiss_itself_first;
 mod block_type_colors_are_shown_in_the_add_menu_and_full_list;
 mod block_type_colors_are_shown_on_a_phone;
@@ -68,6 +75,7 @@ mod sharing_a_block_grants_the_people_added_and_lists_them_again;
 mod showing_a_block_with_another_editor_switches_its_tab;
 mod switching_from_a_block_to_a_host_panel_keeps_the_panel_on_show;
 mod the_back_gesture_on_a_phone_leaves_a_file_for_the_files;
+mod the_blocks_area_splits_into_two_with_block_tabs_in_each;
 mod the_link_card_keeps_its_search_and_choice_across_tab_switches;
 mod the_location_page_shows_the_folders_as_a_tree_with_the_chosen_one_checked;
 mod the_picker_never_offers_a_deleted_block_to_link;
@@ -112,17 +120,23 @@ impl Fixture {
     }
 
     fn click_text(&mut self, words: &str) {
+        let center = self.text_rect(words).center();
+        self.test.click(center);
+        self.settle();
+    }
+
+    fn text_rect(&self, words: &str) -> Rect {
         let document = self.test.document();
         let node = document
             .root()
             .and_then(|root| text_within(&document, root, words))
             .unwrap_or_else(|| panic!("{words:?} is on screen"));
-        let center = document
-            .node_rect(node)
-            .expect("the text is laid out")
-            .center();
-        drop(document);
-        self.test.click(center);
+        document.node_rect(node).expect("the text is laid out")
+    }
+
+    fn drag_text(&mut self, words: &str, to: block_editor_beui::beui::Pos2) {
+        let from = self.text_rect(words).center();
+        self.test.drag(from, to);
         self.settle();
     }
 
@@ -187,6 +201,8 @@ fn text_within(document: &Document, id: NodeId, words: &str) -> Option<NodeId> {
 fn window(id: u64, title: &str, parent: Option<u64>) -> block_editor_beui::HostWindow {
     block_editor_beui::HostWindow {
         id: block_editor_beui::HostWindowId(id),
+        kind: block_editor_beui::WindowKind::Window,
+        shown: true,
         title: title.to_owned(),
         app_id: "test".to_owned(),
         parent: parent.map(block_editor_beui::HostWindowId),
@@ -198,6 +214,7 @@ fn window(id: u64, title: &str, parent: Option<u64>) -> block_editor_beui::HostW
         icon: None,
         raised: 0,
         origin: Default::default(),
+        note: None,
     }
 }
 
@@ -322,6 +339,43 @@ fn catalog() -> block_editor_beui::Catalog {
         }],
         editors: Vec::new(),
     }
+}
+
+const WIDE: Vec2 = Vec2::new(1100.0, 600.0);
+const SIDEBAR_EDGE: f32 = WIDE.x * 0.22;
+const SIDEBAR: block_editor_beui::beui::Pos2 =
+    block_editor_beui::beui::Pos2::new(SIDEBAR_EDGE / 2.0, WIDE.y / 2.0);
+
+fn two_blocks() -> (Fixture, Places) {
+    let (fixture, _) = editor_sized(Some(WIDE));
+    with_two_blocks(fixture)
+}
+
+fn with_two_blocks(mut fixture: Fixture) -> (Fixture, Places) {
+    let places = places(&mut fixture);
+    show(&mut fixture, places.minutes, None);
+    show(&mut fixture, places.budget, Some(places.minutes));
+    (fixture, places)
+}
+
+const BELOW_SIDEBAR: block_editor_beui::beui::Pos2 =
+    block_editor_beui::beui::Pos2::new(SIDEBAR_EDGE / 2.0, WIDE.y - 40.0);
+
+fn open_tab_menu(fixture: &mut Fixture, title: &str) {
+    let at = fixture.text_rect(title).center();
+    fixture
+        .test
+        .click_with(at, block_editor_beui::beui::PointerButton::Secondary);
+    fixture.settle();
+}
+
+fn placed_in_sidebar(fixture: &Fixture, block: Uuid) -> Option<bool> {
+    fixture
+        .test
+        .children()
+        .iter()
+        .find(|placement| placement.content.block_id() == Some(block.into_bytes()))
+        .map(|placement| placement.rect.right() <= SIDEBAR_EDGE + 1.0)
 }
 
 struct Places {

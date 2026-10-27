@@ -2,6 +2,7 @@ use super::*;
 use crate::ForwardedInput;
 use crate::primitives::*;
 use crate::reactive::*;
+use crate::{Claim, HitRegion};
 
 fn presses(log: ReadSignal<Vec<Event>>) -> usize {
     log.with_untracked(|log| {
@@ -30,8 +31,8 @@ fn a_press_claimed_by_its_modifiers_goes_to_the_claimant_and_not_the_catcher_ben
                 </CanvasItem>
                 <CanvasItem x=0.0 y=0.0 width=200.0 height=200.0>
                     <Interactive
-                        hit_at={|local: Pos2| local.x >= 100.0}
-                        claim_at={|(_, held): (Pos2, Modifiers)| held.logo}
+                        hit_area={HitRegion::rect(Rect::from_min_max(pos2(100.0, 0.0), pos2(200.0, 200.0)))}
+                        claims={vec![Claim::holding(Modifiers::LOGO, true)]}
                         on_forward={move |input: ForwardedInput| {
                             parent.update(|parent| parent.extend(flattened(input)))
                         }}

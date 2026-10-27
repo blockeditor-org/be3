@@ -44,6 +44,15 @@ wasi_app_transition = transition(
     refs = {"wasi": "root//buck/platforms:wasi"} | PROFILE_REFS,
 )
 
+# A crate on beui's HTML core (buck/constraints:html) in the browser.
+def _wasi_html_transition_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
+    return keep_profile(platform, refs.wasi_html[PlatformInfo], refs)
+
+wasi_html_transition = transition(
+    impl = _wasi_html_transition_impl,
+    refs = {"wasi_html": "root//buck/platforms:wasi_html"} | PROFILE_REFS,
+)
+
 # A cdylib's "shared" output is the .wasm; this names it as the module it is,
 # which for a plugin is the entry point its manifest names. A release build runs
 # wasm-opt over it: after rustc, -O2 takes a further tenth off a plugin's code
@@ -92,6 +101,18 @@ wasm32_module = _module_rule(wasm32_transition)
 wasi_module = _module_rule(wasi_transition)
 
 wasi_app_module = _module_rule(wasi_app_transition)
+
+wasi_html_module = _module_rule(wasi_html_transition)
+
+# A library built for the web app's wasi, for a crate whose web code nothing
+# built for the web uses yet, so that //:check still compiles that code.
+def _wasi_app_library_impl(ctx: AnalysisContext) -> list[Provider]:
+    return [ctx.attrs.library[DefaultInfo]]
+
+wasi_app_library = rule(
+    attrs = {"library": attrs.transition_dep(cfg = wasi_app_transition)},
+    impl = _wasi_app_library_impl,
+)
 
 # rustc links a cdylib with --no-entry, which strips the symbols a host needs to
 # lay out a thread's storage and leaves nothing to run libc's constructors; the
@@ -244,6 +265,7 @@ def plugin_tests(exports = [], env = {}, extra_deps = []):
         name = "test",
         manifest = "Cargo.toml",
         module = ":test-module",
+        paintings = native.glob(["snapshots/*.paint"]),
         precompile = per_cross_platform(True, lambda _: False),
         runner = "//crates/plugin-test-runner:bin",
     )
@@ -251,13 +273,15 @@ def plugin_tests(exports = [], env = {}, extra_deps = []):
         name = "test-run",
         manifest = "Cargo.toml",
         module = ":test-module",
+        paintings = native.glob(["snapshots/*.paint"]),
         runner = "//crates/plugin-test-runner:bin",
     )
 
 # Compiled to wasm, a plugin's tests paint with the FreeType and HarfBuzz it
-# ships, so the accepted paintings in snapshots/ stay put. The guest finds them
-# from CARGO_MANIFEST_DIR, taken from the crate's real Cargo.toml rather than a
-# staged copy.
+# ships, so the accepted paintings in the crate's snapshots/ stay put. The guest
+# finds them from CARGO_MANIFEST_DIR, taken from the crate's real Cargo.toml
+# rather than a staged copy, and plugin-test-runner opens that directory, and
+# USED_PAINTINGS' and CHANGED_PAINTINGS', to it and nothing else.
 #
 # The module is compiled for wasmtime once, in an action, rather than by every
 # test process - about forty seconds a module. It is compiled for the x86_64
@@ -284,7 +308,7 @@ def _wasi_test_impl(ctx: AnalysisContext) -> list[Provider]:
     env = dict(ctx.attrs.env)
     env["CARGO_MANIFEST_DIR"] = cmd_args(ctx.attrs.manifest, parent = 1)
     remote_command, remote_env = _on_worker(ctx, command, env)
-    remote = RemoteTestInfo(command = remote_command, env = remote_env, hidden = ctx.attrs._inputs[DefaultInfo].default_outputs)
+    remote = RemoteTestInfo(command = remote_command, env = remote_env, hidden = ctx.attrs.paintings)
     return (
         [remote]
         + inject_test_run_info(
@@ -318,8 +342,8 @@ def _on_worker(ctx: AnalysisContext, command: cmd_args, env: dict) -> (cmd_args,
 _plugin_test_attrs = {
     "manifest": attrs.source(),
     "module": attrs.transition_dep(cfg = wasi_transition),
+    "paintings": attrs.list(attrs.source(), default = []),
     "precompile": attrs.bool(default = True),
-    "_inputs": attrs.dep(default = "root//:plugin-test-inputs"),
     "_lavapipe": attrs.source(default = "root//buck/sysroot:lavapipe_icd.json"),
     "_sysroot": attrs.dep(default = "root//buck/sysroot:amd64-test"),
 }
@@ -335,14 +359,16 @@ wasi_test = rule(
     impl = _wasi_test_impl,
 )
 
-# The plugin tests as an action, which is how ./scripts/verify runs them: on a worker,
-# and answered from the cache when nothing they read has changed, which a test
-# never is. They read the accepted paintings from snapshots/ and accept every
-# painting, writing the ones that changed or are new to changed/ and, for each
-# accepted painting they compared, the SHA-256 of what they read to used/ (that
-# of nothing when there was none), so that the paintings themselves are never
-# downloaded; ./scripts/verify copies into snapshots/ the paintings in changed/
-# whose accepted painting still has that hash, or under --check fails on them.
+# The plugin tests as an action, which is how ./scripts/verify runs them: on a
+# worker, and answered from the cache when nothing they read has changed, which
+# a test never is. They read the accepted paintings from the crate's
+# snapshots/, and no other crate's, so accepting a painting leaves every other
+# crate's tests in the cache. They accept every painting, writing the ones that
+# changed or are new to changed/ and, for each accepted painting they compared,
+# the SHA-256 of what they read to used/ (that of nothing when there was none),
+# so that the paintings themselves are never downloaded; ./scripts/verify
+# copies into the crate's snapshots/ the paintings in changed/ whose accepted
+# painting still has that hash, or under --check fails on them.
 def _plugin_test_run_impl(ctx: AnalysisContext) -> list[Provider]:
     module = ctx.attrs.module[DefaultInfo].default_outputs[0]
     paintings = ctx.actions.declare_output("paintings", dir = True, has_content_based_path = False)
@@ -356,7 +382,7 @@ def _plugin_test_run_impl(ctx: AnalysisContext) -> list[Provider]:
             "sh",
             paintings.as_output(),
             time_limited(command),
-            hidden = ctx.attrs._inputs[DefaultInfo].default_outputs,
+            hidden = ctx.attrs.paintings,
         ),
         category = "plugin_test",
         env = env,
@@ -369,9 +395,4 @@ plugin_test_run = rule(
         "runner": attrs.exec_dep(providers = [RunInfo]),
     },
     impl = _plugin_test_run_impl,
-)
-
-plugin_test_inputs = rule(
-    attrs = {"srcs": attrs.list(attrs.source())},
-    impl = lambda ctx: [DefaultInfo(default_outputs = ctx.attrs.srcs)],
 )

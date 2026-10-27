@@ -44,16 +44,20 @@ mod bench {
     use std::rc::Rc;
     use std::time::{Duration, Instant};
 
-    use beui::testing::Screen;
+    use beui::datetime::Date;
+    use beui::native::Document;
+    use beui::native::testing::Screen;
+    use beui::reactive::view;
     use beui::{
-        Color32, Context, Incoming, Input, Launch, PlatformServices, PointerButton, Pos2, Rect,
-        RunOptions, ScrollDelta, Setup, Vec2, Waker, WindowOutput,
+        Color32, Input, PointerButton, Pos2, Rect, ScrollDelta, Vec2, native::Context,
+        native::Incoming, native::Launch, native::PlatformServices, native::RunOptions,
+        native::Setup, native::Waker, native::WindowOutput,
     };
     use beui_core::app::SafeArea;
     use beui_core::context::RendererInfo;
     use beui_core::renderer::{Loaded, Renderer};
     use beui_core::runner::Runner;
-    use beui_demo::DemoApp;
+    use beui_demo::DemoRoot;
     use beui_renderer_wgpu::offscreen::OffscreenSurface;
 
     const VIEWPORT: Vec2 = Vec2::new(1440.0, 900.0);
@@ -102,10 +106,6 @@ mod bench {
     }
 
     impl Renderer for Timing {
-        fn name(&self) -> &'static str {
-            "timing"
-        }
-
         fn info(&self) -> RendererInfo {
             RendererInfo::default()
         }
@@ -147,7 +147,7 @@ mod bench {
         prepare: Duration,
         present: Duration,
         repaint: bool,
-        perf: beui::PerformanceSnapshot,
+        perf: beui::native::PerformanceSnapshot,
     }
 
     impl Bench {
@@ -159,7 +159,11 @@ mod bench {
                     ..RunOptions::default()
                 },
                 context,
-                app: Box::new(DemoApp::new()),
+                app: Box::new(beui::native::build(|| {
+                    view! {
+                        <DemoRoot today={Date::today()} />
+                    }
+                })),
                 layers: Vec::new(),
             });
             let timing = Timing {
@@ -169,10 +173,10 @@ mod bench {
             };
             runner
                 .start(
-                    vec![Loaded {
+                    Loaded {
                         renderer: Box::new(timing),
                         fonts: None,
-                    }],
+                    },
                     Setup::new(Waker::new(|| {})),
                 )
                 .expect("the bench's renderer starts");
@@ -183,7 +187,7 @@ mod bench {
             }
         }
 
-        fn app(&self) -> &DemoApp {
+        fn app(&self) -> &Document {
             let app: &dyn Any = self.runner.app();
             app.downcast_ref().expect("the bench runs the demo")
         }
@@ -218,7 +222,7 @@ mod bench {
                 prepare,
                 present,
                 repaint,
-                perf: self.app().document.performance(),
+                perf: self.app().performance(),
             }
         }
 
@@ -236,7 +240,7 @@ mod bench {
         }
 
         fn row(&self, title: &str) -> Rect {
-            let document = &self.app().document;
+            let document = self.app();
             let node = document
                 .find_test_id(&format!("demo.catalog.{title}"))
                 .unwrap_or_else(|| panic!("no catalog row for {title}"));
@@ -285,7 +289,7 @@ mod bench {
             frames.extend(self.settle());
             let allocations = crate::counting::allocations() - allocations;
             if std::env::var_os("UNPLACED").is_some() {
-                let document = &self.app().document;
+                let document = self.app();
                 let mut stack: Vec<_> = document.root().into_iter().collect();
                 let mut found = std::collections::HashMap::<String, (usize, usize)>::new();
                 fn size(document: &beui_core::document::Document, node: beui::NodeId) -> usize {
@@ -371,7 +375,7 @@ mod bench {
 
     pub fn main() {
         let filter = std::env::args().nth(1);
-        let context = beui::context();
+        let context = beui::native::context();
         context.stop_clock();
         let started = Instant::now();
         let gpu = std::env::var_os("GPU").map(|_| {

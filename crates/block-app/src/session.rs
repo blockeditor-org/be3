@@ -25,7 +25,7 @@ use sleep::{Inhibit, SleepGuard};
 const SHOWN_FRAMES: u32 = 2;
 const SECOND: Duration = Duration::from_secs(1);
 
-pub(crate) fn owns_a_seat(setup: &beui::Setup) -> bool {
+pub(crate) fn owns_a_seat(setup: &beui::native::Setup) -> bool {
     setup.get::<beui_platform_drm::DisplayControl>().is_some()
 }
 
@@ -58,7 +58,7 @@ impl ScreenLock {
 
     pub(crate) fn lock(&mut self, trigger: Trigger) {
         if self.lock.lock(trigger) {
-            crate::wayland::set_locked(true);
+            crate::desktop_host::set_locked(true);
             crate::host::request_repaint();
         }
     }
@@ -194,7 +194,7 @@ impl DesktopSession {
         self.power.availability()
     }
 
-    pub(crate) fn frame(&mut self, context: &beui::Context, lock: &mut ScreenLock) {
+    pub(crate) fn frame(&mut self, context: &beui::native::Context, lock: &mut ScreenLock) {
         let now = crate::host::now();
         let mut control = Live {
             logind: &self.logind,
@@ -251,7 +251,7 @@ impl Inhibit for Inhibitor<'_> {
 
 struct Live<'a> {
     logind: &'a Logind,
-    context: &'a beui::Context,
+    context: &'a beui::native::Context,
 }
 
 impl SessionControl for Live<'_> {
@@ -260,12 +260,12 @@ impl SessionControl for Live<'_> {
     }
 
     fn windows(&self) -> usize {
-        crate::wayland::listed(&[]).len()
+        crate::desktop_host::listed(&[]).len()
     }
 
     fn close_windows(&mut self) {
-        for window in crate::wayland::listed(&[]) {
-            crate::wayland::close(window.id);
+        for window in crate::desktop_host::listed(&[]) {
+            crate::desktop_host::close(window.id);
         }
         crate::host::wake();
     }

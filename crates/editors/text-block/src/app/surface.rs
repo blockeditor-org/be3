@@ -7,6 +7,7 @@ use text_editor_core::{CursorLeftRightStop, EditorCommand};
 use super::embeds::ResolvedEmbed;
 use super::large_embed::{LargeEmbed, embed_is_live};
 use super::state::{FocusedEmbed, State};
+use beui::{Align, PickedFile};
 
 #[component]
 pub(crate) fn TextSurface(state: State) -> NodeId {

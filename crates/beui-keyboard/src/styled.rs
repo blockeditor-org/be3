@@ -4,14 +4,11 @@ use crate::unstyled::{
     composed_face, emojis_in, face,
 };
 use beui_components_unstyled as unstyled;
-use beui_core::font::Overflow;
-use beui_core::geometry::Rect;
-use beui_core::icons;
-use beui_core::input::Key;
-use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::primitives::Layers;
 use beui_view::reactive::*;
+use beui_view::types::icons;
+use beui_view::types::{Key, Overflow, Rect};
 
 use beui_components_styled::List;
 use beui_components_styled::border::Separator;
@@ -20,6 +17,7 @@ use beui_components_styled::frame::{ColorRole, Frame, Radius};
 use beui_components_styled::scroll::Scroll;
 use beui_components_styled::text::{Icon, Text, TextColor, TextSize};
 use beui_components_styled::tokens::{Padding, Size, Space, Stroke};
+use beui_view::types::{Align, Align2, Direction, ItemSize, Justify};
 
 pub const BAR_HEIGHT: f32 = 32.0;
 pub const PADDING: Space = Space::Xs;
@@ -29,7 +27,7 @@ const EMOJI_SIZE: f32 = 44.0;
 pub fn keys_area(keyboard: Rect) -> Rect {
     let inner = keyboard.shrink(PADDING.px());
     Rect::from_min_max(
-        beui_core::geometry::pos2(
+        beui_view::types::pos2(
             inner.left(),
             inner.top() + Stroke::Hairline.px() + BAR_HEIGHT,
         ),
@@ -37,10 +35,18 @@ pub fn keys_area(keyboard: Rect) -> Rect {
     )
 }
 
-pub fn key_center(keyboard: Rect, layer: Layer, value: Value) -> Option<beui_core::geometry::Pos2> {
+pub fn key_center(keyboard: Rect, layer: Layer, value: Value) -> Option<beui_view::types::Pos2> {
     let layout = crate::unstyled::layout::layout(layer);
     let at = layout.find(value)?;
     Some(layout.key_rect(keys_area(keyboard), at)?.center())
+}
+
+pub fn close_center(keyboard: Rect) -> beui_view::types::Pos2 {
+    let inner = keyboard.shrink(PADDING.px());
+    beui_view::types::pos2(
+        inner.right() - Size::Toolbar.px() / 2.0,
+        inner.top() + Stroke::Hairline.px() + BAR_HEIGHT / 2.0,
+    )
 }
 
 #[component]
@@ -294,12 +300,12 @@ fn EmojiPanel(keyboard: KeyboardHandle) -> NodeId {
 }
 
 fn drawn(text: &str) -> bool {
-    layout_text(
+    lay_out_text(
         text,
-        beui_core::font::FontId::proportional(TextSize::Xl.px()),
-        beui_core::font::TextLayout::DEFAULT,
+        beui_view::types::FontId::proportional(TextSize::Xl.px()),
+        beui_view::types::TextLayout::DEFAULT,
     )
-    .is_none_or(|galley| galley.glyphs().iter().all(|glyph| glyph.id.glyph != 0))
+    .is_none_or(|block| block.has_every_glyph())
 }
 
 #[component]

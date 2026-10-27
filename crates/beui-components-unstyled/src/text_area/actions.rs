@@ -1,9 +1,9 @@
-use beui_core::icons::{
+use beui_view::reactive::*;
+use beui_view::types::Key;
+use beui_view::types::icons::{
     ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_CHEVRONS_DOWN_UP, ICON_COPY_PLUS, ICON_REPLACE,
     ICON_SEARCH, ICON_SQUARE_DASHED_MOUSE_POINTER,
 };
-use beui_core::input::Key;
-use beui_view::reactive::*;
 use text_editor_core::{EditorCommand, FindDirection, LRDirection, UDDirection};
 
 use super::TextAreaState;

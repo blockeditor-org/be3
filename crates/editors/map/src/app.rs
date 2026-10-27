@@ -15,6 +15,7 @@ pub(crate) mod state;
 pub(crate) mod tiles;
 pub(crate) mod toolbar;
 
+use beui::{Direction, ItemSize};
 use canvas::MapCanvas;
 use sidebar::MapSidebar;
 use state::{MapState, WORLD_POINTS};

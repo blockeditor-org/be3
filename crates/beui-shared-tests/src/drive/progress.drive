@@ -1,0 +1,9 @@
+# An indeterminate progress bar moves for as long as it's shown, yet the page
+# settles with the clock running, as it does around a blinking caret; once it
+# has a value it rests.
+settle
+wait 'ProgressIndicator "Upload"'
+wait 'value="Uploading"'
+click 'Button "Finish"'
+wait 'value="Upload done"'
+settle

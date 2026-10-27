@@ -1,5 +1,5 @@
-pub mod autoscroll;
 pub mod forward;
+pub mod grab;
 pub mod hit;
 pub mod pointer;
 
@@ -271,7 +271,7 @@ fn outer(doc: &Document, route: &Route, phase: KeyPhase) -> Vec<Placed> {
     let mut placed = Vec::new();
     match phase {
         KeyPhase::Capture => {
-            placed.push(own(builtin::autoscroll));
+            placed.push(own(builtin::grab));
             placed.extend(listening(Stop::Host));
             placed.extend(listening(Stop::Window));
             if route.window && !route.inhibited {
@@ -293,16 +293,15 @@ fn outer(doc: &Document, route: &Route, phase: KeyPhase) -> Vec<Placed> {
 
 mod builtin {
     use super::{
-        BackGesture, Dismiss, Key, KeyEvent, KeyPhase, autoscroll, cycle_step, forward,
-        with_document,
+        BackGesture, Dismiss, Key, KeyEvent, KeyPhase, cycle_step, forward, grab, with_document,
     };
 
-    pub(super) fn autoscroll(event: KeyEvent) -> bool {
+    pub(super) fn grab(event: KeyEvent) -> bool {
         event.phase != KeyPhase::Held
             && event.press().is_some_and(|press| {
                 press.pressed
                     && !press.key.is_modifier()
-                    && with_document(autoscroll::end)
+                    && with_document(grab::end)
                     && press.key == Key::Escape
             })
     }

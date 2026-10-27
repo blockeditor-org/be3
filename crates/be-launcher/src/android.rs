@@ -2,7 +2,7 @@ use std::path::Path;
 use std::sync::OnceLock;
 use std::time::Duration;
 
-use beui::AndroidApp;
+use beui::native::AndroidApp;
 use jni::errors::Error as JniError;
 use jni::objects::{JClass, JObject, JString, JValue};
 use jni::refs::Reference;
@@ -22,7 +22,7 @@ static TASKS: OnceLock<Tasks> = OnceLock::new();
 #[unsafe(no_mangle)]
 fn android_main(app: AndroidApp) {
     let files = app.internal_data_path().unwrap_or_default();
-    let options = beui::RunOptions::default();
+    let options = beui::native::RunOptions::default();
     let launcher = match LauncherApp::new(files) {
         Ok(launcher) => launcher,
         Err(error) => {
@@ -30,7 +30,7 @@ fn android_main(app: AndroidApp) {
             std::process::exit(1);
         }
     };
-    let code = match beui::run_with(options, launcher) {
+    let code = match beui::native::run_with(options, launcher) {
         Ok(()) => 0,
         Err(error) => {
             eprintln!("The launcher stopped: {error}");

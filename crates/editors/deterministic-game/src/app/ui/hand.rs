@@ -1,8 +1,9 @@
+use block_editor_beui::beui::CanvasView;
 use std::rc::Rc;
 
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::{NodeId, Painter, Pos2, Rect, Vec2, pos2};
+use block_editor_beui::beui::{NodeId, Pos2, Rect, Vec2, pos2, reactive::Painter};
 use game_api::Spot;
 use game_api::board::{CARD_HEIGHT, CARD_WIDTH, HandCard, ItemId};
 
@@ -45,41 +46,43 @@ pub(crate) fn HandBar(
     play: Play,
     hidden: Memo<Vec<ItemId>>,
 ) -> NodeId {
-    view! {
-        <PlacementBuilder>|rect: ReadSignal<Rect>| {
-            create_effect(move || bar.set(rect.get()));
-            let shown = create_memo(move || !hand.with(Vec::is_empty));
-            let keys = create_memo(move || {
-                hand.with(|hand| hand.iter().map(|held| (held.id, held.spot)).collect::<Vec<_>>())
-            });
-            let screen = Some(CanvasView::new(Pos2::ZERO, 1.0));
-            view! {
-                <Layers>
-                    <Show condition={shown}>
-                        <Frame
-                            height={Size::Custom(BAR_HEIGHT)}
-                            fill=ColorRole::Surface
-                            border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
-                            @test_id={"game.hand"}
-                        >
-                            <Canvas view={screen}>
-                                <ForEach keys={keys}>|(id, spot): (ItemId, Spot)|
-                                    <HandItem
-                                        id
-                                        spot
-                                        hand={hand}
-                                        bar={rect}
-                                        play={play}
-                                        hidden={hidden}
-                                    />
-                                </ForEach>
-                            </Canvas>
-                        </Frame>
-                    </Show>
-                </Layers>
-            }
-        }</PlacementBuilder>
-    }
+    let rect_held = create_signal(Rect::ZERO);
+    let rect = rect_held.read_only();
+    create_effect(move || bar.set(rect.get()));
+    let shown = create_memo(move || !hand.with(Vec::is_empty));
+    let keys = create_memo(move || {
+        hand.with(|hand| {
+            hand.iter()
+                .map(|held| (held.id, held.spot))
+                .collect::<Vec<_>>()
+        })
+    });
+    let screen = Some(CanvasView::new(Pos2::ZERO, 1.0));
+    let built = view! {
+        <Layers>
+            <Show condition={shown}>
+                <Frame
+                    height={Size::Custom(BAR_HEIGHT)}
+                    fill=ColorRole::Surface
+                    border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
+                    @test_id={"game.hand"}
+                >
+                    <Canvas view={screen}>
+                        <ForEach keys={keys}>|(id, spot): (ItemId, Spot)|
+                            <HandItem id spot hand={hand} bar={rect} play={play} hidden={hidden} />
+                        </ForEach>
+                    </Canvas>
+                </Frame>
+            </Show>
+        </Layers>
+    };
+    let rect_measured = measure(built);
+    create_effect(move || {
+        if let Some(measured) = rect_measured.get() {
+            rect_held.set(measured.rect);
+        }
+    });
+    built
 }
 
 #[component]
@@ -107,7 +110,7 @@ fn HandItem(
         let held = held.get();
         let mark = play.mark(spot);
         let hidden = hidden.with(|hidden| hidden.contains(&id));
-        let theme = theme.get();
+        let theme = theme.get().resolve();
         Rc::new(move |painter: &Painter, rect: Rect| {
             let Some((_, _, held)) = &held else {
                 return;

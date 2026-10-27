@@ -1,14 +1,14 @@
 use accesskit::{HasPopup, Node, Role};
-use beui_core::icons::Glyph;
 use beui_macros::{component, view};
+use beui_view::types::icons::Glyph;
 
 use crate::menu::MenuItem;
 use crate::menu_popup::{MenuPopup, MenuStyle};
 use crate::popup_trigger::{PopupTrigger, PopupTriggerHandle};
-use beui_core::input::{PointerPress, ScrollGesture};
-use beui_core::node::NodeId;
 use beui_view::primitives::*;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::{PointerPress, ScrollGesture};
 
 #[component]
 pub fn MenuButton(
@@ -84,11 +84,11 @@ pub fn MenuButton(
     if !on_scroll.is_empty() {
         trigger_node = view! {
             <Interactive
-                on_scroll={move |gesture: ScrollGesture| {
+                on_wheel={crate::gestures::scroll_wheel(None, move |gesture: ScrollGesture| {
                     if !disabled.get_untracked() {
                         on_scroll.call(gesture);
                     }
-                }}
+                })}
             >
                 {trigger_node}
             </Interactive>

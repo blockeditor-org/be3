@@ -1,11 +1,12 @@
-use beui_core::node::NodeId;
 use beui_macros::{component, view};
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
 use crate::frame::{Border, ColorRole, Frame, Radius};
 use crate::list::List;
 use crate::scroll::Scroll;
 use crate::tokens::Space;
+use beui_view::types::{Align, Direction, ItemSize};
 
 #[component]
 pub fn ToolPill(children: Children<ListChild>) -> NodeId {

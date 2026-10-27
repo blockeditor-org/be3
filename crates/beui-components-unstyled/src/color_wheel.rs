@@ -3,12 +3,12 @@ use std::f32::consts::TAU;
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
-use beui_core::color::{Hsva, Oklch};
-use beui_core::geometry::{Pos2, Rect, Vec2, vec2};
-use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
-use beui_core::node::NodeId;
 use beui_view::primitives::*;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::{CursorIcon, Key, KeyPress, PointerPress};
+use beui_view::types::{Hsva, Oklch};
+use beui_view::types::{Pos2, Rect, Vec2, vec2};
 
 const STEP: f32 = 0.01;
 const PAGE: f32 = 0.1;
@@ -133,32 +133,44 @@ impl WheelGeometry {
 
     pub fn triangle_at(&self, hue: f32, pos: Pos2) -> Option<(f32, f32)> {
         let [tip, white, black] = self.corners(hue);
-        let (to_tip, to_white, to_pos) = (tip - black, white - black, pos - black);
+        let (to_tip, to_white) = (tip - black, white - black);
         let area = to_tip.x * to_white.y - to_tip.y * to_white.x;
         if area.abs() < DEGENERATE {
             return None;
         }
-        let tip_weight = (to_pos.x * to_white.y - to_pos.y * to_white.x) / area;
-        let white_weight = (to_tip.x * to_pos.y - to_tip.y * to_pos.x) / area;
-        let lit = tip_weight + white_weight;
-        let saturation = match lit.abs() < DEGENERATE {
-            true => None,
-            false => Some((tip_weight / lit).clamp(0.0, 1.0)),
+        let weights = |pos: Pos2| {
+            let to_pos = pos - black;
+            (
+                (to_pos.x * to_white.y - to_pos.y * to_white.x) / area,
+                (to_tip.x * to_pos.y - to_tip.y * to_pos.x) / area,
+            )
         };
-        saturation.map(|saturation| (saturation, lit.clamp(0.0, 1.0)))
+        let (mut tip_weight, mut white_weight) = weights(pos);
+        if tip_weight < 0.0 || white_weight < 0.0 || tip_weight + white_weight > 1.0 {
+            let nearest = [(tip, white), (white, black), (black, tip)]
+                .into_iter()
+                .map(|(from, to)| nearest_on_segment(from, to, pos))
+                .min_by(|first, second| {
+                    (*first - pos).length().total_cmp(&(*second - pos).length())
+                })
+                .unwrap_or(pos);
+            (tip_weight, white_weight) = weights(nearest);
+        }
+        let lit = (tip_weight + white_weight).clamp(0.0, 1.0);
+        match lit < DEGENERATE {
+            true => None,
+            false => Some(((tip_weight.max(0.0) / lit).clamp(0.0, 1.0), lit)),
+        }
     }
+}
 
-    pub fn distance_inside_triangle(&self, hue: f32, pos: Pos2) -> f32 {
-        let [tip, white, black] = self.corners(hue);
-        [(tip, white), (white, black), (black, tip)]
-            .into_iter()
-            .map(|(from, to)| {
-                let edge = to - from;
-                let length = edge.length().max(DEGENERATE);
-                (edge.y * (pos.x - from.x) - edge.x * (pos.y - from.y)) / length
-            })
-            .fold(f32::INFINITY, f32::min)
+fn nearest_on_segment(from: Pos2, to: Pos2, pos: Pos2) -> Pos2 {
+    let edge = to - from;
+    let length = edge.dot(edge);
+    if length < DEGENERATE {
+        return from;
     }
+    from + edge * ((pos - from).dot(edge) / length).clamp(0.0, 1.0)
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

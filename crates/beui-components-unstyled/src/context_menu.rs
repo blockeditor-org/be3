@@ -8,15 +8,17 @@ use crate::anchored::SheetWhen;
 use crate::button::ButtonHandle;
 use crate::menu::MenuItem;
 use crate::menu_popup::{MenuPopup, MenuStyle};
-use beui_core::base::overlay::{OverlayAnchor, Placement};
-use beui_core::geometry::{Pos2, Rect, pos2};
-use beui_core::icons::ICON_ELLIPSIS;
-use beui_core::input::PointerPress;
-use beui_core::layer::{Dismiss, LayerPolicy};
-use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::primitives::*;
+use beui_view::reactive::NodeId;
+use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
+use beui_view::types::Placement;
+use beui_view::types::PointerPress;
+use beui_view::types::icons::ICON_ELLIPSIS;
+use beui_view::types::{Align, Direction, ItemSize};
+use beui_view::types::{Dismiss, LayerPolicy};
+use beui_view::types::{Pos2, Rect, pos2};
 
 #[derive(Clone, Copy)]
 struct State {
@@ -115,8 +117,8 @@ pub fn ContextMenu(
             on_press_outside={move |pos: Pos2| {
                 let on_bar = bar
                     .try_get()
-                    .and_then(|bar| placements().rect(bar))
-                    .is_some_and(|rect| rect.contains(pos));
+                    .and_then(|bar| measure(bar).get_untracked())
+                    .is_some_and(|bar| bar.rect.contains(pos));
                 let on_selection = toolbar_at
                     .get_untracked()
                     .is_some_and(|rect| rect.contains(pos));

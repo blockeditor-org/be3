@@ -18,7 +18,7 @@ use uuid::Uuid;
 
 use crate::app_state::{SavedAccount, ServerLocation};
 use crate::compositor::ShellDisplay;
-use crate::wayland::WindowActions;
+use crate::desktop_host::WindowActions;
 
 pub(crate) use debug::{
     DebugCommand, DebugView, HostPanelSurface, Line, LineStyle, PerformanceRow, PluginsView,
@@ -73,38 +73,25 @@ pub(crate) struct ErrorView {
     pub(crate) unsaved: usize,
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct AccountRow {
-    pub(crate) key: String,
-    pub(crate) name: String,
-    pub(crate) email: String,
-    pub(crate) server: String,
-    pub(crate) local: bool,
-    pub(crate) has_last_organization: bool,
-    pub(crate) current: bool,
-    pub(crate) companies: Vec<String>,
-}
+pub(crate) use block_accounts_ui::AccountRow;
 
-impl AccountRow {
-    pub(crate) fn of(account: &SavedAccount, current: bool) -> Self {
-        Self {
-            key: account_key(account),
-            name: account.name.clone(),
-            email: account.email.clone(),
-            server: match &account.server {
-                ServerLocation::Local => "Local server".to_owned(),
-                ServerLocation::Remote(url) => url.clone(),
-            },
-            local: account.server == ServerLocation::Local,
-            has_last_organization: account.last_organization_id.is_some(),
-            current,
-            companies: Vec::new(),
-        }
-    }
-
-    pub(crate) fn in_companies(mut self, companies: Vec<String>) -> Self {
-        self.companies = companies;
-        self
+pub(crate) fn account_row(
+    account: &SavedAccount,
+    current: bool,
+    companies: Vec<String>,
+) -> AccountRow {
+    AccountRow {
+        key: account_key(account),
+        name: account.name.clone(),
+        email: account.email.clone(),
+        server: match &account.server {
+            ServerLocation::Local => "Local server".to_owned(),
+            ServerLocation::Remote(url) => url.clone(),
+        },
+        local: account.server == ServerLocation::Local,
+        has_last_organization: account.last_organization_id.is_some(),
+        current,
+        companies,
     }
 }
 

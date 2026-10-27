@@ -10,6 +10,7 @@ use super::menu::ReferenceMenuItem;
 use super::menu::unlink_permission;
 use super::panel::{Info, Refs};
 use super::workspace::Workspace;
+use beui::{Align, Direction, ItemSize};
 use block_editor_beui::beui::TextAlign;
 
 const PADDING_HORIZONTAL: Space = Space::Md;

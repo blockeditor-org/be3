@@ -3,7 +3,7 @@ use std::time::Instant;
 
 use std::rc::Rc;
 
-use block_editor_beui::beui::{FillRule, Path, PathPaint, PathStyle, Pos2, Vec2, pos2};
+use block_editor_beui::beui::{FillRule, Path, PathStyle, Pos2, Vec2, native::PathPaint, pos2};
 
 const HALF_TURN: f32 = PI + 0.0001;
 const RESTING_PRESSURE: f32 = 0.5;

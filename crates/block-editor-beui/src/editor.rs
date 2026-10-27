@@ -4,8 +4,11 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use be_block::presence::{ChannelKind, PresenceKind};
+use beui::native::Document;
+use beui::native::EmbedSlot;
+use beui::native::try_with_document;
 use beui::reactive::*;
-use beui::{Document, Pos2, Rect, Vec2};
+use beui::{CanvasView, Pos2, Rect, Vec2};
 use block_plugin_api::{
     BarAction, ChildContent, ChildId, ChildLayer, ChildMode, ChildPreview, CreationProgress,
     DialogFrame, DialogStatus, EditorCapabilities, HostPanel, HostWindowId, InteractionMode,
@@ -340,7 +343,7 @@ impl Default for BeuiScale {
 }
 
 pub(crate) fn defer_graph_changes(host: &EditorHost) {
-    host.defer_graph_changes_unless(|| beui::reactive::try_with_document(|_| ()).is_some());
+    host.defer_graph_changes_unless(|| beui::native::try_with_document(|_| ()).is_some());
 }
 
 type Pump = Rc<dyn Fn()>;
@@ -1299,7 +1302,7 @@ impl Editor {
 }
 
 fn document_zone() -> u64 {
-    beui::reactive::try_with_document(|document| document.zone()).unwrap_or(0)
+    beui::native::try_with_document(|document| document.zone()).unwrap_or(0)
 }
 
 impl Editor {

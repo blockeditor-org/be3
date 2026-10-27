@@ -2,11 +2,12 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
 
-use beui::WindowSize;
-use beui::testing::{Showing, Stepped};
-use beui::{Context, FreetypeFonts, Input, PointerButton, vec2};
+use beui::native::WindowSize;
+use beui::native::testing::{Showing, Stepped};
+use beui::{Input, PointerButton, native::Context, native::FreetypeFonts, vec2};
 
 use super::*;
+use beui::native::build;
 
 const SIZE: beui::Vec2 = vec2(480.0, 320.0);
 
@@ -59,12 +60,12 @@ fn click(stepped: &mut Stepped, test_id: &str) {
 fn snapshot(stepped: &mut Stepped, name: &str) {
     stepped.advance(Duration::from_secs(1));
     let output = stepped.frame(Vec::new());
-    let painted = beui::painting::painting(
+    let painted = beui::native::painting::painting(
         output.main(),
         SIZE,
         1.0,
         output.main().window.appearance.clear_color,
-        beui::painting::Punches::Shown,
+        beui::native::painting::Punches::Shown,
     )
     .unwrap();
     let snapshot = paint_snapshot::Snapshot::of_painting(painted).unwrap();

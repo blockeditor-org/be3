@@ -11,6 +11,7 @@ fn wrapped() -> Result<Node, Error> { Ok(view! { <Element /> }) }
 fn Shell() -> Node { view! { <Element /> } }
 fn page() -> String { beui_html::render(|| view! { <Shell /> }) }
 fn snippet() -> String { render_fragment(|| view! { <Shell /> }) }
+fn prerendered() -> String { render_to_string(|| view! { <Shell /> }) }
 fn application() -> App { build(|| view! { <Shell /> }) }
 fn deferred() -> RenderFn<()> { RenderFn::new(|_| view! { <Shell /> }) }
 fn stored() -> ChildView { store(Box::new(|_| view! { <Shell /> })) }

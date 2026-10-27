@@ -1,4 +1,5 @@
 use super::*;
+use crate::native::with_reactive_scope;
 use crate::primitives::*;
 use crate::reactive::*;
 use beui_core::display::flatten;
@@ -12,16 +13,14 @@ fn a_change_inside_a_turned_child_still_paints_turned() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0 align=Align::Start>
-                <Turn quarter_turns=1u8>
-                    <Frame width=60.0 height=60.0 radius=0.0>
-                        <Frame
-                            width={create_memo(move || Extent::px(width.get()))}
-                            height=20.0
-                            fill=MARK
-                            radius=0.0
-                        />
-                    </Frame>
-                </Turn>
+                <Frame width=60.0 height=60.0 radius=0.0 rotate={std::f32::consts::FRAC_PI_2}>
+                    <Frame
+                        width={create_memo(move || Extent::px(width.get()))}
+                        height=20.0
+                        fill=MARK
+                        radius=0.0
+                    />
+                </Frame>
             </List>
         }
     });

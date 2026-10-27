@@ -13,6 +13,7 @@ use block_editor_beui::{BlockFilter, block_ui::BlockLabel};
 use text_editor_core::{EditorCommand, MarkdownCommand, TextIndentation, TextLanguage};
 
 use super::state::State;
+use beui::{Align, Direction, ItemSize};
 
 const TOOLBAR_SPACING: Space = Space::Sm;
 const SETTINGS_SPACING: Space = Space::Md;
@@ -211,7 +212,7 @@ pub(crate) fn FormatBar(state: State, formats: Vec<Action>) -> NodeId {
                                         glyph=ICON_KEYBOARD_OFF
                                         label="Done"
                                         @test_id={"text.format.done"}
-                                        on_click={|| with_document(|document| document.update_focus(None))}
+                                        on_click={|| set_focus(None)}
                                     />
                                 </Frame>
                             </Show>

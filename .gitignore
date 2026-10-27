@@ -14,3 +14,4 @@ __pycache__/
 /buck/android/release-keystore.base64
 /buck/app/build-info.json
 /be-server-data/
+/buck/app/browser-tests/node_modules/

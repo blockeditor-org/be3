@@ -24,7 +24,7 @@ fn text_that_does_not_fit_ends_in_an_ellipsis() {
         .shapes()
         .iter()
         .filter_map(|shape| match shape {
-            crate::Shape::Text { origin, galley, .. } => Some((*origin, galley.clone())),
+            crate::native::Shape::Text { origin, galley, .. } => Some((*origin, galley.clone())),
             _ => None,
         })
         .collect();

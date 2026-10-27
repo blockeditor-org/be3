@@ -1,0 +1,23 @@
+# A dialog opens with its field, saves from its primary action and dismisses
+# on Escape and its close button; a modal sheet rises and closes from a row.
+wait 'value="Outcome nothing name Notes"'
+click 'Button "Rename"'
+wait '#dialogs.name'
+click '#dialogs.name'
+key End
+type 's'
+click '#dialogs.rename.confirm'
+gone '#dialogs.name'
+wait 'value="Outcome saved name Notess"'
+click 'Button "Rename"'
+wait '#dialogs.name'
+key Escape
+gone '#dialogs.name'
+wait 'value="Outcome dismissed name Notess"'
+click 'Button "Rename"'
+click '#dialogs.rename.cancel'
+gone '#dialogs.name'
+click 'Button "Pick"'
+click 'Button "Row 2"'
+gone 'Button "Row 2"'
+wait 'value="Outcome row 2 name Notess"'

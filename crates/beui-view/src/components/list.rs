@@ -1,10 +1,11 @@
-use beui_core::document::Document;
-use beui_core::node::NodeId;
+use crate::reactive::Children;
+use crate::reactive::ListChild;
+use crate::reactive::NodeId;
+use crate::reactive::Prop;
+use crate::types::Align;
+use crate::types::Direction;
+use crate::types::Justify;
 use beui_macros::component;
-
-use crate::reactive::{
-    Align, Children, Direction, Get, Justify, ListChild, Prop, create_binding, with_document,
-};
 
 #[component]
 pub fn List(
@@ -15,32 +16,10 @@ pub fn List(
     spacing: Prop<f32>,
     children: Children<ListChild>,
 ) -> NodeId {
-    let list = with_document(|document| document.create_list(direction.get_untracked(), 0.0));
-    create_binding(move || {
-        let direction = direction.get();
-        with_document(|document| document.set_list_direction(list, direction))
-    });
-    create_binding(move || {
-        let align = align.get();
-        with_document(|document| document.set_list_align(list, align))
-    });
-    create_binding(move || {
-        let justify = justify.get();
-        with_document(|document| document.set_list_justify(list, justify))
-    });
-    create_binding(move || {
-        let wrap = wrap.get();
-        with_document(|document| document.set_list_wrap(list, wrap))
-    });
-    create_binding(move || {
-        let spacing = spacing.get();
-        with_document(|document| document.set_list_spacing(list, spacing))
-    });
-    children.mount(list);
-    list.id()
+    crate::core::list(direction, align, justify, wrap, spacing, children)
 }
 
 #[component]
 pub fn Spacer() -> NodeId {
-    with_document(Document::create_frame).id()
+    crate::core::spacer()
 }

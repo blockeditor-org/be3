@@ -1,24 +1,18 @@
 use std::any::Any;
 use std::rc::Rc;
 
-use crate::color::Color32;
+use crate::color::Color;
 use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
-use crate::painter::Painter;
+use crate::painter::{Corners, Painter};
 
-use crate::base::frame::{FrameNode, PointerSide, Pointing};
+use crate::base::frame::{FrameNode, FrameStyle};
 use crate::callback::{Callback, NodeRef};
 use crate::document::Document;
 use crate::layer::{Dismiss, LayerLevel, LayerPolicy};
 use crate::node::{Element, NodeId, NodeOf, Rects};
-use crate::window::{WindowId, WindowPlacement, WindowReport};
+use crate::window::WindowId;
 
-#[derive(Clone, PartialEq)]
-pub enum OverlayAnchor {
-    Node(NodeRef),
-    Point(Pos2),
-    Rect(Rect),
-    Pinned { node: NodeRef, rect: Rect },
-}
+pub use beui_types::layer::OverlayAnchor;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 struct Pin {
@@ -69,60 +63,98 @@ impl Pin {
     }
 }
 
-impl beui_tree::reactive::IntoProp<OverlayAnchor> for &NodeRef {
-    fn into_prop(self) -> beui_tree::reactive::Prop<OverlayAnchor> {
-        beui_tree::reactive::Prop::Static(OverlayAnchor::Node(*self))
-    }
-}
+pub use beui_types::layer::Placement;
 
-impl beui_tree::reactive::IntoProp<OverlayAnchor> for NodeRef {
-    fn into_prop(self) -> beui_tree::reactive::Prop<OverlayAnchor> {
-        beui_tree::reactive::Prop::Static(OverlayAnchor::Node(self))
-    }
-}
+pub use beui_types::window::WindowSpec;
 
-impl Default for OverlayAnchor {
-    fn default() -> Self {
-        OverlayAnchor::Point(Pos2::ZERO)
-    }
-}
+const TIP_RADIUS: f32 = 2.0;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Placement {
-    At,
-    Above,
-    Over(u16),
-    Around,
-    BelowStart,
-    RightStart,
-    Center,
-    Fill,
-    InsideTop,
-    InsideTopEnd,
-    InsideBottom,
-    InsideBottomEnd,
-    CenterOn,
-    HangFrom(u16),
-    Popover { gap: u16, margin: u16 },
+enum BeakSide {
+    Top,
+    Bottom,
 }
 
-#[derive(Clone)]
-pub struct WindowSpec {
-    pub id: WindowId,
-    pub size: Vec2,
-    pub placement: WindowPlacement,
-    pub title: Option<String>,
-    pub role: crate::window::WindowRole,
-    pub on_report: Callback<WindowReport>,
+#[derive(Clone, Copy, PartialEq, Debug)]
+struct Pointing {
+    side: BeakSide,
+    at: f32,
 }
 
-impl PartialEq for WindowSpec {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
-            && self.size == other.size
-            && self.placement == other.placement
-            && self.title == other.title
-            && self.role == other.role
+pub struct BeakNode {
+    reach: f32,
+    style: FrameStyle,
+    pointing: Option<Pointing>,
+}
+
+fn beak_room(reach: f32, style: &FrameStyle, rect: Rect) -> (f32, f32) {
+    let radius = style.radius.largest();
+    let reach = reach + outline_width(style);
+    (rect.left() + radius + reach, rect.right() - radius - reach)
+}
+
+fn outline_width(style: &FrameStyle) -> f32 {
+    style.outline.map_or(0.0, |outline| outline.width)
+}
+
+impl Element for BeakNode {
+    fn measure(&self, _doc: &mut Document, _painter: &Painter, _available: Vec2) -> Vec2 {
+        Vec2::ZERO
+    }
+
+    fn layout(&mut self, _doc: &mut Document, _painter: &Painter, _rect: Rect, _out: &Rects) {}
+
+    fn paint(&self, doc: &Document, painter: &Painter, _rects: &Rects, rect: Rect) {
+        let Some(pointing) = self.pointing.filter(|_| self.reach > 0.0) else {
+            return;
+        };
+        let (lowest, highest) = beak_room(self.reach, &self.style, rect);
+        if lowest > highest {
+            return;
+        }
+        let x = (rect.left() + pointing.at).clamp(lowest, highest);
+        let width = outline_width(&self.style);
+        let half = (self.reach + width) / std::f32::consts::SQRT_2;
+        let around = rect.expand(self.reach + 1.0);
+        let (y, clip, tip) = match pointing.side {
+            BeakSide::Top => (
+                rect.top() + width,
+                Rect::from_min_max(around.min, pos2(around.right(), rect.top() + width)),
+                Corners::new(TIP_RADIUS, 0.0, 0.0, 0.0),
+            ),
+            BeakSide::Bottom => (
+                rect.bottom() - width,
+                Rect::from_min_max(pos2(around.left(), rect.bottom() - width), around.max),
+                Corners::new(0.0, 0.0, TIP_RADIUS, 0.0),
+            ),
+        };
+        let centre = pos2(x, y);
+        let square = Rect::from_center_size(centre, Vec2::splat(2.0 * half));
+        let turned = painter
+            .with_clip_rect(clip)
+            .rotated(centre, std::f32::consts::FRAC_PI_4);
+        turned.rect_filled(square, tip, doc.resolve_color(self.style.fill));
+        if let Some(outline) = self.style.outline {
+            turned.rect_stroke(square, tip, outline.width, doc.resolve_color(outline.color));
+        }
+    }
+
+    fn children(&self) -> Vec<NodeId> {
+        Vec::new()
+    }
+
+    fn remove_child(&mut self, _child: NodeId) {}
+
+    fn kind(&self) -> &'static str {
+        "beak"
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 }
 
@@ -137,6 +169,7 @@ pub struct OverlayNode {
     anchored: Option<Rect>,
     pinned: Option<Pin>,
     pointer: Option<NodeRef>,
+    beak: Option<NodeOf<BeakNode>>,
     placement: Placement,
     pub(crate) policy: LayerPolicy,
     pub(crate) level: LayerLevel,
@@ -158,6 +191,7 @@ impl OverlayNode {
             anchored: None,
             pinned: None,
             pointer: None,
+            beak: None,
             placement,
             policy: LayerPolicy::BlocksAll,
             level: LayerLevel::Normal,
@@ -189,176 +223,6 @@ impl OverlayNode {
         let pin = *self.pinned.get_or_insert_with(|| Pin::new(rect, within));
         pin.place(within)
     }
-}
-
-fn resolve_rect(
-    viewport: Rect,
-    anchor_rect: Rect,
-    placement: Placement,
-    content_size: Vec2,
-) -> Rect {
-    if placement == Placement::At {
-        return Rect::from_min_size(anchor_rect.min, content_size);
-    }
-    if let Placement::Over(inset) = placement {
-        let inset = f32::from(inset);
-        let right = (viewport.right() - content_size.x).max(viewport.left());
-        let bottom = (viewport.bottom() - content_size.y).max(viewport.top());
-        let origin = pos2(
-            (anchor_rect.left() - inset).min(right).max(viewport.left()),
-            (anchor_rect.top() - inset).min(bottom).max(viewport.top()),
-        );
-        return Rect::from_min_size(origin, content_size);
-    }
-    if placement == Placement::Around {
-        return Rect::from_center_size(anchor_rect.center(), content_size);
-    }
-    if placement == Placement::Above {
-        let right = (viewport.right() - content_size.x).max(viewport.left());
-        let bottom = (viewport.bottom() - content_size.y).max(viewport.top());
-        let y = match anchor_rect.top() - content_size.y >= viewport.top() {
-            true => anchor_rect.top() - content_size.y,
-            false => anchor_rect.bottom(),
-        };
-        let origin = pos2(
-            (anchor_rect.center().x - content_size.x / 2.0)
-                .min(right)
-                .max(viewport.left()),
-            y.min(bottom).max(viewport.top()),
-        );
-        return Rect::from_min_size(origin, content_size);
-    }
-    if placement == Placement::CenterOn {
-        let size = content_size.min(viewport.size()).max(Vec2::ZERO);
-        let centred = Rect::from_center_size(anchor_rect.center(), size);
-        let x = centred
-            .left()
-            .min(viewport.right() - size.x)
-            .max(viewport.left());
-        let y = centred
-            .top()
-            .min(viewport.bottom() - size.y)
-            .max(viewport.top());
-        return Rect::from_min_size(pos2(x, y), size);
-    }
-    if let Placement::HangFrom(gap) = placement {
-        let gap = f32::from(gap);
-        let room = viewport.shrink(gap);
-        let size = content_size.min(room.size()).max(Vec2::ZERO);
-        let x = (anchor_rect.center().x - size.x / 2.0)
-            .min(room.right() - size.x)
-            .max(room.left());
-        let y = (anchor_rect.top() + gap)
-            .min(room.bottom() - size.y)
-            .max(room.top());
-        return Rect::from_min_size(pos2(x, y), size);
-    }
-    if let Placement::Popover { gap, margin } = placement {
-        let gap = f32::from(gap);
-        let centre = anchor_rect.center().x;
-        let reach = Rect::from_min_max(
-            pos2(centre - content_size.x / 2.0, anchor_rect.top() - gap),
-            pos2(centre + content_size.x / 2.0, anchor_rect.bottom() + gap),
-        );
-        let room = viewport.shrink(f32::from(margin));
-        return resolve_rect(room, reach, Placement::BelowStart, content_size);
-    }
-    if placement == Placement::Fill {
-        return viewport;
-    }
-    if placement == Placement::Center {
-        let content_size = content_size.min(viewport.size()).max(Vec2::ZERO);
-        let origin = pos2(
-            viewport.left() + (viewport.width() - content_size.x) / 2.0,
-            viewport.top() + (viewport.height() - content_size.y) / 2.0,
-        );
-        return Rect::from_min_size(
-            pos2(origin.x.max(viewport.left()), origin.y.max(viewport.top())),
-            content_size,
-        );
-    }
-    if let Placement::InsideTopEnd | Placement::InsideBottomEnd = placement {
-        let y = match placement {
-            Placement::InsideTopEnd => anchor_rect.top(),
-            _ => (anchor_rect.bottom() - content_size.y).max(anchor_rect.top()),
-        };
-        let origin = pos2(
-            (anchor_rect.right() - content_size.x).max(anchor_rect.left()),
-            y,
-        );
-        return Rect::from_min_size(
-            pos2(origin.x.max(viewport.left()), origin.y.max(viewport.top())),
-            content_size,
-        );
-    }
-    if let Placement::InsideTop | Placement::InsideBottom = placement {
-        let y = match placement {
-            Placement::InsideTop => anchor_rect.top(),
-            _ => anchor_rect.bottom() - content_size.y,
-        };
-        let origin = pos2(
-            anchor_rect.center().x - content_size.x / 2.0,
-            y.clamp(
-                anchor_rect.top(),
-                (anchor_rect.bottom() - content_size.y).max(anchor_rect.top()),
-            ),
-        );
-        return Rect::from_min_size(
-            pos2(origin.x.max(viewport.left()), origin.y.max(viewport.top())),
-            content_size,
-        );
-    }
-    let mut content_size = content_size.min(viewport.size());
-    if placement == Placement::BelowStart {
-        let below = viewport.bottom() - anchor_rect.bottom();
-        let above = anchor_rect.top() - viewport.top();
-        if content_size.y > below && content_size.y > above && below.max(above) > 0.0 {
-            content_size.y = below.max(above);
-            let top = match below >= above {
-                true => anchor_rect.bottom(),
-                false => anchor_rect.top() - content_size.y,
-            };
-            let left = anchor_rect
-                .left()
-                .min(viewport.right() - content_size.x)
-                .max(viewport.left());
-            return Rect::from_min_size(pos2(left, top), content_size);
-        }
-    }
-    let mut origin = match placement {
-        Placement::BelowStart => pos2(anchor_rect.left(), anchor_rect.bottom()),
-        Placement::RightStart => pos2(anchor_rect.right(), anchor_rect.top()),
-        Placement::At
-        | Placement::Above
-        | Placement::Over(_)
-        | Placement::Around
-        | Placement::Center
-        | Placement::Fill
-        | Placement::InsideTop
-        | Placement::InsideTopEnd
-        | Placement::InsideBottom
-        | Placement::InsideBottomEnd
-        | Placement::CenterOn
-        | Placement::HangFrom(_)
-        | Placement::Popover { .. } => {
-            unreachable!("a centred or pinned overlay is placed above")
-        }
-    };
-    if origin.x + content_size.x > viewport.right() {
-        origin.x = match placement {
-            Placement::RightStart => anchor_rect.left() - content_size.x,
-            _ => (viewport.right() - content_size.x).max(viewport.left()),
-        };
-    }
-    if origin.y + content_size.y > viewport.bottom() {
-        origin.y = match placement {
-            Placement::BelowStart => anchor_rect.top() - content_size.y,
-            _ => (viewport.bottom() - content_size.y).max(viewport.top()),
-        };
-    }
-    origin.x = origin.x.max(viewport.left());
-    origin.y = origin.y.max(viewport.top());
-    Rect::from_min_size(origin, content_size)
 }
 
 impl OverlayNode {
@@ -407,10 +271,10 @@ impl OverlayNode {
             true => measured.min(available),
             false => measured,
         };
-        let rect = resolve_rect(area, anchor_rect, self.placement, content_size);
+        let rect = beui_types::layer::resolve_rect(area, anchor_rect, self.placement, content_size);
         crate::layout::layout(doc, painter, content, rect, out);
         self.stand_off(doc, painter, content, rect, anchor_rect, out);
-        self.point_at(doc, anchor_rect, out);
+        self.point_at(doc, painter, anchor_rect, out);
         if self.policy == LayerPolicy::BlocksParent
             && self.dims
             && let Some(blocked) = anchored
@@ -454,22 +318,28 @@ impl OverlayNode {
         }
     }
 
-    fn point_at(&self, doc: &mut Document, anchor: Rect, out: &Rects) {
-        let Some(frame) = self.pointer_frame(doc) else {
+    fn point_at(&self, doc: &mut Document, painter: &Painter, anchor: Rect, out: &Rects) {
+        let Some(beak) = self.beak else {
             return;
         };
-        let pointing = out.get(&frame.id()).and_then(|rect| {
+        let frame = self.pointer_frame(doc);
+        let placed = frame.and_then(|frame| out.get(&frame.id()));
+        let style = frame.map_or_else(FrameStyle::default, |frame| {
+            doc.arena.get_as::<FrameNode>(frame).style
+        });
+        let reach = doc.arena.get_as::<BeakNode>(beak).reach;
+        let pointing = placed.and_then(|rect| {
             if !matches!(self.placement, Placement::Popover { .. }) {
                 return None;
             }
-            let (lowest, highest) = doc.arena.get_as::<FrameNode>(frame).pointer_room(rect);
+            let (lowest, highest) = beak_room(reach, &style, rect);
             let centre = anchor.center().x;
             if centre < lowest || centre > highest {
                 return None;
             }
             let side = match (rect.top() >= anchor.bottom(), rect.bottom() <= anchor.top()) {
-                (true, _) => PointerSide::Top,
-                (false, true) => PointerSide::Bottom,
+                (true, _) => BeakSide::Top,
+                (false, true) => BeakSide::Bottom,
                 (false, false) => return None,
             };
             Some(Pointing {
@@ -477,7 +347,15 @@ impl OverlayNode {
                 at: centre - rect.left(),
             })
         });
-        doc.set_frame_pointing(frame, pointing);
+        let held = doc.arena.get_as::<BeakNode>(beak);
+        if held.pointing != pointing || held.style != style {
+            let node = doc.arena.paint_mut_as::<BeakNode>(beak);
+            node.pointing = pointing;
+            node.style = style;
+        }
+        if let Some(rect) = placed {
+            crate::layout::layout(doc, painter, beak.id(), rect, out);
+        }
     }
 
     pub(crate) fn scrim_covers(&self) -> bool {
@@ -554,6 +432,7 @@ impl Element for OverlayNode {
     fn children(&self) -> Vec<NodeId> {
         let mut children = vec![self.scrim.id()];
         children.extend(self.content);
+        children.extend(self.beak.map(NodeOf::id));
         children
     }
 
@@ -722,9 +601,36 @@ impl Document {
         }
     }
 
-    pub fn set_overlay_scrim(&mut self, overlay: NodeOf<OverlayNode>, color: Color32) {
+    pub fn set_overlay_beak(&mut self, overlay: NodeOf<OverlayNode>, reach: f32) {
+        match self.arena.get_as::<OverlayNode>(overlay).beak {
+            Some(beak) => {
+                if self.arena.get_as::<BeakNode>(beak).reach != reach {
+                    self.arena.paint_mut_as::<BeakNode>(beak).reach = reach;
+                }
+            }
+            None if reach > 0.0 => {
+                let beak = self.arena.insert(BeakNode {
+                    reach,
+                    style: FrameStyle::default(),
+                    pointing: None,
+                });
+                self.arena.get_mut_as::<OverlayNode>(overlay).beak = Some(beak);
+            }
+            None => {}
+        }
+    }
+
+    pub fn overlay_beak(&self, overlay: NodeOf<OverlayNode>) -> Option<NodeId> {
+        self.arena
+            .get_as::<OverlayNode>(overlay)
+            .beak
+            .map(NodeOf::id)
+    }
+
+    pub fn set_overlay_scrim(&mut self, overlay: NodeOf<OverlayNode>, color: impl Into<Color>) {
+        let color = color.into();
         let node = self.arena.get_as::<OverlayNode>(overlay);
-        let (scrim, dims) = (node.scrim, color.alpha() > 0);
+        let (scrim, dims) = (node.scrim, !color.is_clear());
         if node.dims != dims {
             self.arena.get_mut_as::<OverlayNode>(overlay).dims = dims;
             self.layers_changed();

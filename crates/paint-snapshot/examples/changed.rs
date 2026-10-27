@@ -5,7 +5,7 @@ use std::process::Command;
 use image::RgbaImage;
 use paint_snapshot::{Frame, Snapshot};
 
-const FOLDER: &str = "snapshots";
+const PAINTINGS: &str = ":(glob)crates/**/snapshots/*.paint";
 
 struct Change {
     name: String,
@@ -39,7 +39,7 @@ fn main() {
         println!("the images are in {}", folder.display());
     }
     if changes.is_empty() {
-        println!("no native painting in {FOLDER}/ differs from {base}");
+        println!("no native painting differs from {base}");
         return;
     }
     for change in &changes {
@@ -55,11 +55,17 @@ fn main() {
 fn changes(root: &Path, base: &str) -> Vec<Change> {
     let tracked = git(
         root,
-        &["diff", "--no-renames", "--name-only", base, "--", FOLDER],
+        &["diff", "--no-renames", "--name-only", base, "--", PAINTINGS],
     );
     let untracked = git(
         root,
-        &["ls-files", "--others", "--exclude-standard", "--", FOLDER],
+        &[
+            "ls-files",
+            "--others",
+            "--exclude-standard",
+            "--",
+            PAINTINGS,
+        ],
     );
     let paths: BTreeSet<String> = [tracked, untracked]
         .iter()
@@ -88,9 +94,14 @@ fn changes(root: &Path, base: &str) -> Vec<Change> {
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
                 Err(error) => fail(&format!("could not read {path}: {error}")),
             };
-            let name = Path::new(&path)
-                .file_stem()
-                .map_or(path.clone(), |stem| stem.to_string_lossy().into_owned());
+            let name = path
+                .strip_suffix(".paint")
+                .unwrap_or(&path)
+                .replace("/snapshots/", ".")
+                .rsplit('/')
+                .next()
+                .unwrap_or_default()
+                .to_owned();
             Change {
                 name,
                 before,

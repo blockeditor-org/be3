@@ -1,9 +1,9 @@
 use accesskit::{Node, Role, Toggled};
 use beui_components_unstyled as unstyled;
-use beui_core::base::frame::Align2;
-use beui_core::node::NodeId;
 use beui_macros::{component, view};
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::Align2;
 
 use crate::frame::{Border, ColorRole, Frame, Radius};
 use crate::tokens::{Size, Stroke};

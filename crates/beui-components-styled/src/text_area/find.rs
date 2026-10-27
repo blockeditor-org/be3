@@ -10,16 +10,17 @@ use crate::TextInput;
 use crate::ToggleButton;
 use crate::text::{Text, TextColor, TextStyle};
 use beui_components_unstyled::TextAreaState;
-use beui_core::font::TextAlign;
-use beui_core::icons::{
+use beui_view::reactive::NodeId;
+use beui_view::types::BackGesture;
+use beui_view::types::TextAlign;
+use beui_view::types::icons::{
     ICON_CASE_SENSITIVE, ICON_CHEVRON_DOWN, ICON_CHEVRON_UP, ICON_SEARCH, ICON_X,
 };
-use beui_core::node::NodeId;
-use beui_view::primitives::BackHandler;
 
 use crate::list::List;
 use crate::tokens::{Padding, Size, Space};
 use beui_view::reactive::*;
+use beui_view::types::{Align, Direction};
 
 const BAR_PADDING: Padding = Padding::symmetric(Space::Lg, Space::Sm);
 const BAR_SPACING: Space = Space::Sm;
@@ -29,15 +30,19 @@ const QUERY_WIDTH: Size = Size::Custom(180.0);
 pub fn FindBar(state: TextAreaState, #[prop(default = false)] read_only: Prop<bool>) -> NodeId {
     let open = state.find_open();
     let read_only = create_memo(move || read_only.get());
-    view! {
-        <BackHandler enabled={open} on_back={move || state.close_find()}>
-            <List spacing=Space::None>
-                <Show condition={open}>
-                    <FindBarRows state={state} read_only />
-                </Show>
-            </List>
-        </BackHandler>
-    }
+    let bar = view! {
+        <List spacing=Space::None>
+            <Show condition={open}>
+                <FindBarRows state={state} read_only />
+            </Show>
+        </List>
+    };
+    on_back(open, move |gesture| {
+        if gesture == BackGesture::Invoked {
+            state.close_find();
+        }
+    });
+    bar
 }
 
 #[component]

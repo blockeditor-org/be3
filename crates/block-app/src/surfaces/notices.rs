@@ -1,3 +1,4 @@
+use beui::Direction;
 use beui::icons::{
     ICON_CIRCLE_ALERT, ICON_REFRESH_CW, ICON_ROTATE_CCW, ICON_ROTATE_CCW_CLOCK, ICON_TRASH,
 };

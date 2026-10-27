@@ -5,8 +5,8 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use beui::painting::{Painting, Paints, Placement};
-use beui::{DrawAt, Pos2, Rect, Vec2, pos2, vec2};
+use beui::native::painting::{Painting, Paints, Placement};
+use beui::{Pos2, Rect, Vec2, native::DrawAt, pos2, vec2};
 use block_plugin_api::{ScreenDamage, ScreenId, ScreenLayout, ScreenPlacement, SurfaceRect};
 
 use super::backend::{Availability, Frame, ShownFrame};
@@ -545,7 +545,7 @@ impl Drop for RegionDrawing {
     }
 }
 
-impl beui::Draw for RegionDrawing {
+impl beui::native::Draw for RegionDrawing {
     fn prepare(
         &self,
         device: &wgpu::Device,
@@ -616,7 +616,7 @@ impl Paints for RegionDrawing {
             }
         }
         found.then_some(Painting {
-            frame: beui::painting::Frame {
+            frame: beui::native::painting::Frame {
                 size: [1, 1],
                 pixels_per_point: 1.0,
                 background: [0; 4],
@@ -627,7 +627,7 @@ impl Paints for RegionDrawing {
     }
 }
 
-impl beui::Draw for PluginDrawing {
+impl beui::native::Draw for PluginDrawing {
     fn prepare(
         &self,
         device: &wgpu::Device,
@@ -772,8 +772,8 @@ struct Presenter {
     platform: Option<PlatformPresenter>,
 }
 
-pub(super) fn install(setup: &beui::Setup) -> Availability {
-    let Some(gpu) = setup.get::<beui::GpuSetup>() else {
+pub(super) fn install(setup: &beui::native::Setup) -> Availability {
+    let Some(gpu) = setup.get::<beui::native::GpuSetup>() else {
         return Availability(Ok(()));
     };
     let regions = RegionLayout::new(&gpu.device);

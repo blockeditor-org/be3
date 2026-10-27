@@ -1,6 +1,7 @@
 use std::cell::Cell;
 use workspace_ui_types::EditorViewContent;
 
+use beui::{Align, ItemSize};
 use block_editor_beui::be_block::{BlockContent, FILES_EDITOR, SettingsContent};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::dock::styled::{
@@ -96,7 +97,7 @@ pub(crate) fn WorkspaceBody(workspace: Workspace) -> NodeId {
                 <Failure failed={failed} reason={reason} />
                 <Docking @sizing=ItemSize::Percent(100.0) layout>
                     <DockSplit id="workspace" fraction=FILES_SHARE>
-                        <DockPane id="files">
+                        <DockPane id="files" locked=true>
                             <DockTab id=FILES title="Files" icon=ICON_FOLDER>
                                 <FilesPanel workspace />
                             </DockTab>
@@ -109,6 +110,7 @@ pub(crate) fn WorkspaceBody(workspace: Workspace) -> NodeId {
                         </DockPane>
                         <DockPane
                             id="editors"
+                            locked=true
                             empty={move || view! {
                                 <EmptyPanel />
                             }}

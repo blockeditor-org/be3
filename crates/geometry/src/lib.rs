@@ -32,6 +32,10 @@ impl Vec2 {
         self.x.hypot(self.y)
     }
 
+    pub fn dot(self, other: Self) -> f32 {
+        self.x * other.x + self.y * other.y
+    }
+
     pub fn longest_side(self) -> f32 {
         self.x.max(self.y)
     }
@@ -399,6 +403,28 @@ impl Rotation {
             pivot: self.pivot + offset,
             angle: self.angle,
         }
+    }
+
+    pub fn then(self, inner: Rotation) -> Self {
+        if !inner.turns() {
+            return self;
+        }
+        if !self.turns() {
+            return inner;
+        }
+        let angle = self.angle + inner.angle;
+        let moved = self.apply(inner.apply(Pos2::ZERO));
+        let (sin, cos) = angle.sin_cos();
+        let (a, b) = (1.0 - cos, sin);
+        let det = a * a + b * b;
+        if det < 1e-12 {
+            return Rotation::NONE;
+        }
+        let pivot = pos2(
+            (a * moved.x - b * moved.y) / det,
+            (b * moved.x + a * moved.y) / det,
+        );
+        Self { pivot, angle }
     }
 
     pub fn scaled(self, scale: f32) -> Self {

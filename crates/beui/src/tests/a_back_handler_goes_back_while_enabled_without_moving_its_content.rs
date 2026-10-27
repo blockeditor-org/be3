@@ -11,9 +11,12 @@ fn a_back_handler_goes_back_while_enabled_without_moving_its_content() {
     let page = NodeRef::new();
     let document = build_node(move || {
         view! {
-            <BackHandler enabled={enabled} on_back={move || backs.update(|backs| *backs += 1)}>
+            <BackTo
+                enabled={enabled}
+                on_gesture={move |gesture: BackGesture| if gesture == BackGesture::Invoked { backs.update(|backs| *backs += 1) }}
+            >
                 <Text color=Color32::WHITE @node_ref={&page}>"Page"</Text>
-            </BackHandler>
+            </BackTo>
         }
     });
 

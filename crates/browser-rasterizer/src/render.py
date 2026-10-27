@@ -8,7 +8,7 @@ try:
 except ImportError:
     sys.exit("Install the preview runtime: python3 -m pip install playwright==1.64.0 && python3 -m playwright install --with-deps chromium")
 
-snapshot = json.loads(sys.stdin.buffer.read().split(b"\n", 1)[1])
+snapshot = json.loads(sys.stdin.buffer.read())
 origin = "https://snapshot.invalid/"
 files = {
     urljoin(origin, url): (

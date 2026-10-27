@@ -1,4 +1,5 @@
-use block_editor_beui::beui::{Document, Input, Modifiers, NodeId, PointerButton, Pos2, Vec2};
+use block_editor_beui::beui::native::Document;
+use block_editor_beui::beui::{Input, Modifiers, NodeId, PointerButton, Pos2, Vec2};
 use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;

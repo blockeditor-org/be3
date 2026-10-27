@@ -21,6 +21,7 @@ use super::block;
 use super::devices::DevicesTable;
 use super::organization::{OfflineSection, OrganizationSection};
 use super::setup::{DeviceSection, DeviceSetup, DifferencesSection, SetUpDone, SetUpHeading};
+use beui::{Align, Direction, ItemSize};
 
 const PADDING: Space = Space::Xl;
 const SPACING: Space = Space::Md;

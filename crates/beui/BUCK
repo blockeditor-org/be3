@@ -11,6 +11,14 @@ cargo_test(
     },
 )
 
+# Styled components on beui's HTML core, rendered to a string on the host as
+# browser paintings.
+cargo_test(
+    name = "html-test",
+    default_target_platform = "root//buck/platforms:linux_x86_64_html",
+    paints = True,
+)
+
 # The examples: `./scripts/buck run //crates/beui:example-<example>`.
 
 cargo_example("survey")

@@ -1,0 +1,11 @@
+# An action bar shows its pinned actions, an icon and a labelled one, and
+# offers the rest under More.
+clock stop
+wait 'value="Ran nothing"'
+click '#bar.pin.bar.undo'
+wait 'value="Ran Undo"'
+click '#bar.pin.bar.share'
+wait 'value="Ran Share"'
+click '#bar.menu'
+click 'MenuItem "Rename"'
+wait 'value="Ran Rename"'

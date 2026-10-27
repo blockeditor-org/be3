@@ -99,7 +99,7 @@ node has that test id, which is usually a node that was never given one, or one 
 list has not built; shown() and label() ask about one without clicking it.
 
 run() hands the editor what was queued since the last one, frame by frame. Its gestures are
-drive's, built by the same `beui::drive::gestures::Gestures` (guides/running/drive.md),
+drive's, built by the same `beui::native::drive::gestures::Gestures` (guides/running/drive.md),
 so an editor test presses, types and touches as drive and the app tests do: the pointer spends
 a frame arriving where a click, a press or a drag starts before it presses, a click or a key
 then arrives in one frame, a key carries the text it types and a chord presses its modifiers
@@ -166,8 +166,8 @@ screen does, and set_raster(3.0) draws it finer than it lays it out, as a panel 
 4. Snapshots of the painting
 
 editor.snapshot(name) writes everything the editor painted into
-snapshots/<crate>.<name>.paint, one folder at the root of the repository holding every
-painting the workspace accepted: the rounded rectangles, glyphs and triangles beui's
+snapshots/<name>.paint in the crate's own directory, beside its Cargo.toml, which holds every
+painting the crate's tests accepted: the rounded rectangles, glyphs and triangles beui's
 renderer would hand the gpu, each glyph carrying its own coverage image, compressed. It is a few kilobytes rather than the hundreds a screenshot
 costs, and it is compared exactly, so nothing about it is flaky.
 
@@ -188,16 +188,16 @@ frames that say something: every frame is compared, so a frame nobody looks at i
 way for the test to fail.
 
 - ./scripts/verify accepts whatever the tests paint: it runs them with UPDATE_SNAPSHOTS=1, so
-  a new or changed painting is written into snapshots/ rather than failing the run. On a pull
+  a new or changed painting is written into the crate's snapshots/ rather than failing the run. On a pull
   request CI does the same, and when that writes a painting it fails the run and pushes the
   painting to the pull request's branch as a commit. Everywhere else CI runs ./scripts/ci --check, which sets nothing,
   so a painting that was never committed fails there.
 - Git never merges a painting: when two branches change one, it conflicts. Take either side
   (`git checkout --theirs` or `--ours` on it) and let ./scripts/verify repaint it.
 - ./scripts/verify also fails on a painting that a test names with a literal, snapshot("name"),
-  but that snapshots/ does not hold once it is done: the test failed, or returned, before
+  but that the crate's snapshots/ does not hold once it is done: the test failed, or returned, before
   painting it.
-- Once every plugin test passes, ./scripts/verify deletes each painting in snapshots/ that no test
+- Once every plugin test passes, ./scripts/verify deletes each painting in a snapshots/ that no test
   compared, so renaming or removing a snapshot takes its old file with it; with --check it
   fails on them instead. A single editor's test run leaves the folder alone.
 - A changed painting is for a person to review, not for you. They review it on the pull
@@ -216,13 +216,15 @@ way for the test to fail.
   pannable canvas or canvas its owner scrolls across (`Canvas scrolls_across`, as a single-line
   text field's) can move it out from under - the region's edge, a sidebar too narrow for a
   row of controls - text drawn outside its own box, and an outline drawn outside a frame (a
-  focus ring) that a clip cuts while the frame itself shows whole. Each line names the node, its
+  focus ring) that a clip cuts while the frame itself shows whole. A node culled out of sight is
+  checked only for being cut off, since its text keeps its last shape until it is laid out in
+  sight again. Each line names the node, its
   nearest ancestor with a test id, and the two rectangles. Fix the layout - wrap or ellipsize the
   text, let the row shrink (`ItemSize::Intrinsic.shrink(1.0)`), scroll it, put the padding
   inside a scroll around its content, or give a scroll inside a padded surface `bleed`, so a ring at its edge has room - rather than the test.
   beui-demo's `tabbing_through_every_page_shows_each_focus_ring_whole` tabs through every
   catalog page and fails on any such ring, since a painting rarely has the focus showing.
-- ./scripts/buck run //crates/local-tools:bin -- rasterize snapshots/<crate>.<name>.paint out.png
+- ./scripts/buck run //crates/local-tools:bin -- rasterize <crate directory>/snapshots/<name>.paint out.png
   turns one into a PNG, and a trailing frame number or all picks which frames of a recording
   to write.
 - A painting is paint-format's types as CBOR (`paint_format::encode`), deflated behind a
@@ -238,7 +240,7 @@ way for the test to fail.
 - The exception is a painting you did not expect to change: if your change should not have
   touched it, find out why it changed.
   ./scripts/buck run //crates/paint-snapshot:example-changed says, for every native painting in
-  snapshots/ that differs from HEAD, which frame changed and what moved in it. With
+  a crate's snapshots/ that differs from HEAD, which frame changed and what moved in it. With
   -- --images it also writes them into target/changed-paintings as PNGs - a before, an after
   and a changes image for every frame that differs, where magenta marks every pixel that
   differs - and prints which is which. --base compares against another revision, and
@@ -256,15 +258,6 @@ view first and move the pointer out of the window afterwards, so a painting show
 where the test hovers. Its clock is a frame clock too: every frame is one frame interval
 later, and advance(by) moves it on without painting. settle() waits as drive does, which a
 page that animates forever, such as one showing a spinner, never finishes.
-
-DocumentTest paints through the DOM renderer too: render_dom() starts feeding every frame
-to a `DomRenderer` over an in-memory DOM, and snapshot_dom(name) saves what it built as the
-browser painting `name.browser` (below). It first checks that the elements the renderer
-updated frame by frame are those it builds from the last frame alone, so a test that
-opens and closes something catches an element the DOM renderer lost or left behind. Its
-HTML names the page's fonts but carries none, so a preview draws text in the rasterizer's
-fonts and icons as stray letters. crates/beui-demo's
-the_inspector_opens_and_closes_beside_the_demo_in_the_dom is one.
 
 A snapshot never holds the glyph atlases. Each glyph carries its own image - coverage, or
 colour for an emoji from a colour font - keyed by what is in it, so where a glyph happened
@@ -287,13 +280,17 @@ Browser pages use `paint_snapshot::BrowserSnapshot` instead of native drawing co
         .file("/script.js", "text/javascript", js.as_bytes())
         .snapshot("sign_in_phone.browser");
 
-The name ends in `.browser`, making `snapshots/<crate>.<name>.paint` a text file.
+The name ends in `.browser`, making `snapshots/<name>.browser.paint` a text file.
 It contains the viewport, the complete SSR document and every embedded resource, with
 DOM tokens and resource lines on separate JSON lines for readable Git diffs. Tokens
 are concatenated without adding whitespace, preserving the exact rendered document.
-Binary resources such as images and fonts can be supplied through the same `file` method.
+Binary resources such as images can be supplied through the same `file` method.
 Resources use absolute paths or full URLs; the document is served at
-`https://snapshot.invalid/`. Include resources referenced by CSS or scripts as well.
+`https://snapshot.invalid/`. Include resources referenced by CSS or scripts as well,
+except beui's bundled fonts: the rasterizer serves each file in `beui_fonts::FACES`
+(`/Inter-Regular.ttf`, `/lucide.ttf`, ...) at the origin's root unless the painting embeds
+that path, so a page on beui's HTML core whose `<style>` is `beui::html::stylesheet()`
+draws its text and icons without copying the fonts into every painting.
 Keep dynamic ids, form tokens and displayed times fixed in fixtures.
 Native test crates opt into acceptance and cleanup with `cargo_test(paints = True)` in
 BUCK. The portal's tests in `crates/be-server/src/portal/tests/` demonstrate this.
@@ -309,7 +306,7 @@ For local browser rasterization, install the optional runtime once:
     ~/.cache/be3/browser-rasterizer/bin/pip install -r crates/browser-rasterizer/requirements.txt
     ~/.cache/be3/browser-rasterizer/bin/python -m playwright install --with-deps chromium
     export BE3_PLAYWRIGHT_PYTHON=~/.cache/be3/browser-rasterizer/bin/python
-    ./scripts/buck run //crates/local-tools:bin -- rasterize snapshots/be-server.portal_login_phone.browser.paint out.png
+    ./scripts/buck run //crates/local-tools:bin -- rasterize crates/be-server/snapshots/portal_login_phone.browser.paint out.png
 
 Setting `BE3_CHROME` to a Chrome or Chromium executable uses that browser instead of
 Playwright's download, which is what CI does with the runner's Google Chrome.
@@ -329,9 +326,9 @@ and runs the module through crates/plugin-test-runner, which is wasmtime with th
 plugin's own imports linked: the gpu abi a plugin draws through, the threads a plugin
 spawns, and the repository itself. Under ./scripts/verify the run is an action on a worker,
 which reads the accepted paintings as its inputs and outputs the ones that changed;
-./scripts/verify then copies those into snapshots/, so a failure's output is in the
+./scripts/verify then copies those into the crate's snapshots/, so a failure's output is in the
 build's log, not on this machine. ./scripts/test (below) runs it on a worker too, and
-copies what it accepts into snapshots/.
+copies what it accepts into the crate's snapshots/.
 Do not build or test an editor package for the host by itself:
 its tests only mean anything as the wasm guest it ships as, and a native run refuses to
 compare a painting rather than making one nothing would agree with.
@@ -400,7 +397,7 @@ which close() checks, so a test that ends without calling it fails too.
   differs every run: crop(target) paints only that target's area, such as `#workspace.block`,
   the block a tab shows.
 - record() and snapshot() are a painting as in an editor test (4), named
-  snapshots/app-tests.<name>.paint and accepted the same way. The painting is `drive paint`: the
+  crates/app-tests/snapshots/<name>.paint and accepted the same way. The painting is `drive paint`: the
   host's own document with each plugin's painting put where the host composites its surface,
   and each preview a plugin shows, which its painting marks with `paint_format::preview_key`,
   replaced by the painting of the preview it shows. A preview waits out its cooldown before it
@@ -434,3 +431,45 @@ which close() checks, so a test that ends without calling it fails too.
 
   ./scripts/test //crates/app-tests:test
   ./scripts/test //crates/app-tests:test --update
+
+7. Testing both of beui's cores
+
+beui has two cores (plans/html_core.md): the native one, which lays out and paints itself, and
+the HTML one, whose primitives are DOM elements the browser lays out. crates/beui-shared-tests
+holds what must behave the same on both: screens, each a `#[component]` in src/lib.rs that
+`Fixture` picks by name, built from primitives the HTML core has, and a script per screen,
+src/drive/NAME.drive, `drive -` input that drives the screen of its file name. A script uses
+only the commands both cores answer: `settle`, `pause`, `clock stop|run`, `tree`, `ids`,
+`find`, `wait`, `gone`, `click` (also `double`, `right`, `middle`), `move`, `down`/`up` (with a
+button, to check what a gesture does while held), `drag` (with a button too), `wheel`, `type`
+and `key`. It asserts with `wait` and `gone`, and names
+what it waits for by test id or by text the screen writes itself, never by coordinates, since
+text metrics differ: to check a layout, `measure` the nodes and print the sizes and offsets in a
+`Text` (`wait 'Inner 50x20 at 140,50'`). A point a fixed distance into a node is `#TEST_ID+X,Y`,
+from its top left, as in `drag '#fields.seats+10,10' '#fields.seats+16,10'`. Stop the clock
+(`clock stop`) and move it with `pause` to cross a timeout, such as a toast's expiry.
+
+- Natively, `./scripts/test //crates/beui-shared-tests:test` runs each script against the
+  crate's `:bin` under `be_drive::Driven` with no GPU, once as it is and once with every
+  measurement a frame late (`--delay-measurement`, as `BEUI_DELAY_MEASUREMENT=1`), so a screen
+  that only works when measurement is synchronous fails. A test per script is in src/tests/.
+- In a browser, `./scripts/test //crates/beui-shared-tests:web-test [NAME]` serves `:web`, the
+  screens built for `wasi_html`, and runs every script in Chromium through Playwright
+  (buck/app/web-test.mjs, `web_drive_test` in buck/app/drive.bzl). The page answers the reading
+  commands through beui-core-html's `automate` (its tree is in native's line format, from the
+  core's nodes and `getBoundingClientRect`); `click`, `move`, `down`, `up`, `drag`, `wheel` (a tick is a line, 40 pixels), `type` and `key` are real Playwright input
+  at the place `find` answers, so the browser's own focus, key and IME paths run. It also runs
+  `checks()`, the live DOM backend's checks in src/web/live.rs (mounting, hydration, listeners),
+  failing on any line that is not `ok`. It runs on this machine, not a worker, which have no
+  browser: `BE3_CHROME` when set, else Playwright's Chromium, through Node's `playwright`
+  package (installed globally, or from buck/app/browser-tests' lockfile with `npm ci` and
+  `NODE_PATH` pointing at its node_modules, as CI does); without them it fails rather than skipping.
+  ./scripts/verify runs it too, as `:web-test-run`.
+- To see a screen: `./scripts/buck run //crates/beui-shared-tests:dev -- NAME` and `drive`
+  natively; in a browser, serve the `:web` bundle with any server that sends
+  Cross-Origin-Opener-Policy `same-origin` and Cross-Origin-Embedder-Policy `require-corp` and
+  open `index.html?fixture=NAME`.
+- To cover a component on both cores: add a `#[component]` screen to src/lib.rs, a branch for its
+  name in `Fixture`, the script src/drive/NAME.drive, and
+  src/tests/NAME.rs calling `drive("NAME", include_str!("../drive/NAME.drive"))`. The web test
+  picks up the script by itself.

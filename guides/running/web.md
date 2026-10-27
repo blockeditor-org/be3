@@ -52,6 +52,31 @@ platform here. Its own commands take their place (`drive` with no command lists 
 The tree's coordinates are the page's CSS pixels when the device pixel ratio is 1, as it is in
 the launcher's browser.
 
+## beui's HTML core in a browser
+
+A crate built on beui's HTML core (plans/html_core.md) runs its pages as DOM elements rather
+than drawing them. Its bundle answers the reading commands of `drive` through
+`beui::html::automate(words)` (beui-core-html's `automate`): `tree` and `ids` in the native
+app's line format, `find`, `wait`, `gone`, `settle`, `pause` and `clock stop|run`. Input does
+not go through it: the browser gives it, from Playwright. crates/beui-shared-tests' `:web-test`
+does that for its scripts (guides/testing_a_gui.md, 7), with buck/app/web-test.mjs, which
+shares its command parsing with web-drive.mjs (buck/app/drive-words.mjs).
+
+crates/beui-html-spike is block-app's account picker (crates/block-accounts-ui) on that core,
+rendered on the host and hydrated in the browser: `./scripts/buck run //crates/beui-html-spike:web`
+serves it on http://127.0.0.1:8060 (or the address after `--`). Its `:ssr` program writes the
+page at build time with `beui::html::render_to_string`; the module calls `beui::html::hydrate`.
+`./scripts/test //crates/beui-html-spike:web-test` drives it in Chromium and checks that
+hydration kept every prerendered element and, in both colour schemes, changed no colour. A bundle on this core stages the bundled fonts
+(`//crates/beui-fonts:Inter-Regular.ttf`, `Hack-Regular.ttf`, `NotoEmoji-Regular.ttf` and
+`lucide.ttf`) beside its index.html, where the core's `@font-face` rules look for them.
+
+beui's demo pages run on that core too: `./scripts/buck run //crates/beui-demo:web-html` serves
+crates/beui-demo-html on http://127.0.0.1:8075: the same demo, dock shell and every sample, as the
+native one (the inspector button shows a stand-in, since the inspector reads the native document).
+`./scripts/test //crates/beui-demo-html:web-test` opens every page in Chromium and drives the dock,
+the on-screen keyboard and the floating window there (crates/beui-demo-html/src/drive).
+
 ## Files and offline
 
 The web build keeps the same files as the native app, under `/block` in the

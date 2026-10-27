@@ -1,0 +1,93 @@
+# Every page of the demo opens from the catalog on the HTML core, each the next
+# tab stop after the one before, and takes the place of the one shown in the
+# dock's page tab.
+clock stop
+click '#demo.catalog.Docking'
+key Tab Enter
+wait 'focused #demo.catalog.Text'
+wait 'Tab "Text" selected'
+key Tab Enter
+wait 'focused #demo.catalog.Buttons'
+wait 'Tab "Buttons" selected'
+key Tab Enter
+wait 'focused #demo.catalog.Inputs'
+wait 'Tab "Inputs" selected'
+key Tab Enter
+wait 'focused #demo.catalog.Choices'
+wait 'Tab "Choices" selected'
+key Tab Enter
+wait 'focused #demo.catalog.Pickers'
+wait 'Tab "Pickers" selected'
+key Tab Enter
+wait 'focused #demo.catalog.Colors'
+wait 'Tab "Colors" selected'
+key Tab Enter
+wait 'focused #demo.catalog.Menus'
+wait 'Tab "Menus" selected'
+key Tab Enter
+wait 'focused #demo.catalog.Overlays'
+wait 'Tab "Overlays" selected'
+key Tab Enter
+wait 'focused #demo.catalog.Rows'
+wait 'Tab "Rows" selected'
+key Tab Enter
+wait 'focused #demo.catalog.Tree'
+wait 'Tab "Tree" selected'
+key Tab Enter
+wait 'focused #demo.catalog.Layout'
+wait 'Tab "Layout" selected'
+key Tab Enter
+wait 'focused #demo.catalog.Editor'
+wait 'Tab "Editor" selected'
+key Tab Enter
+wait 'focused #demo.catalog.Rich text'
+wait 'Tab "Rich text" selected'
+key Tab Enter
+wait 'focused #demo.catalog.Collaboration'
+wait 'Tab "Collaboration" selected'
+key Tab Enter
+wait 'focused #demo.catalog.Canvas'
+wait 'Tab "Canvas" selected'
+key Tab Enter
+wait 'focused #demo.catalog.Themes'
+wait 'Tab "Themes" selected'
+key Tab Enter
+wait 'focused #demo.catalog.Pressing'
+wait 'Tab "Pressing" selected'
+key Tab Enter
+wait 'focused #demo.catalog.Values'
+wait 'Tab "Values" selected'
+key Tab Enter
+wait 'focused #demo.catalog.Selecting'
+wait 'Tab "Selecting" selected'
+key Tab Enter
+wait 'focused #demo.catalog.Popups'
+wait 'Tab "Popups" selected'
+key Tab Enter
+wait 'focused #demo.catalog.Dragging'
+wait 'Tab "Dragging" selected'
+key Tab Enter
+wait 'focused #demo.catalog.Scrolling'
+wait 'Tab "Scrolling" selected'
+key Tab Enter
+wait 'focused #demo.catalog.Frames'
+wait 'Tab "Frames" selected'
+key Tab Enter
+wait 'focused #demo.catalog.Paths'
+wait 'Tab "Paths" selected'
+key Tab Enter
+wait 'focused #demo.catalog.Text nodes'
+wait 'Tab "Text nodes" selected'
+key Tab Enter
+wait 'focused #demo.catalog.Lists and grids'
+wait 'Tab "Lists and grids" selected'
+key Tab Enter
+wait 'focused #demo.catalog.Control flow'
+wait 'Tab "Control flow" selected'
+key Tab Enter
+wait 'focused #demo.catalog.Interaction'
+wait 'Tab "Interaction" selected'
+key Tab Enter
+wait 'focused #demo.catalog.Layering'
+wait 'Tab "Layering" selected'
+wait 'value="Translate"'

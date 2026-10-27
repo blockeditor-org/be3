@@ -1,10 +1,10 @@
 use super::*;
 use crate::geometry::vec2;
 use crate::primitives::*;
-use crate::primitives::{Window, WindowHandle};
 use crate::reactive::*;
 use crate::unstyled::Scroll;
 use crate::{ScrollDelta, WindowId};
+use crate::{Window, WindowHandle};
 
 #[test]
 fn with_a_second_window_open_each_windows_scroll_is_copied_in_that_window_alone() {

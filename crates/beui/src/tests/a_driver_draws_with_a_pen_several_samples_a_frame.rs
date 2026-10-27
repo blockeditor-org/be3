@@ -1,5 +1,6 @@
 use super::*;
 use crate::input::PointerPress;
+use crate::native::Document;
 use crate::primitives::*;
 use crate::reactive::*;
 

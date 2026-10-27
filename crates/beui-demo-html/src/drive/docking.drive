@@ -1,0 +1,31 @@
+# The demo's shell is a dock on the HTML core too: a dialog hangs from the page's
+# tab, the page pops out into a window and its dialog follows it there and as
+# the window is dragged by its title bar and its grip, it docks back
+# into its emptied pane, the splitter resizes the panes, and the inspector button
+# shows the inspector's stand-in.
+clock stop
+click '#demo.catalog.Docking'
+wheel '#dock.tab.2+0,300' 20
+click '#demo.dialog.open'
+wait '#dock.dialog.1099511627776' over 682,420
+click '#dock.tab.2' right
+click 'MenuItem "Pop out into a window"'
+wait 'Nothing open'
+wait '#dock.dialog.1099511627776' over 274,250
+drag '#dock.tab.2+150,0' '#dock.tab.2+270,90' 6
+wait '#dock.tab.2' over 267,211
+wait '#dock.dialog.1099511627776' over 394,340
+drag '#dock.tab.2+-12,15' '#dock.tab.2+48,75' 6
+wait '#dock.tab.2' over 327,271
+wait '#dock.dialog.1099511627776' over 454,400
+click '#demo.dialog.1099511627776.close'
+gone '#dock.dialog.1099511627776'
+drag '#dock.tab.2' '#dock.grip.pages+413,349' 6
+gone 'Nothing open'
+wait '#dock.splitter.shell' over 264,300
+drag '#dock.splitter.shell' '#dock.splitter.shell+203,300' 6
+wait '#dock.splitter.shell' over 464,300
+click '#demo.inspector'
+wait '#demo.inspector.stand_in'
+key Escape
+gone '#demo.inspector.stand_in'

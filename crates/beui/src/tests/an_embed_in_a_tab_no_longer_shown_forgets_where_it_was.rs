@@ -1,6 +1,5 @@
 use super::*;
 use crate::dock::unstyled::{DockGroup, DockPane, DockTab, DockingLayout};
-use crate::primitives::*;
 use crate::reactive::*;
 
 #[test]

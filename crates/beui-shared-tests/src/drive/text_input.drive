@@ -1,0 +1,20 @@
+# The shared TextInput takes typing at its caret, moves the caret with keys,
+# and replaces what shift selects.
+clock stop
+wait 'value="Value ab cd"'
+click '#text_input.field'
+key End
+type 'e'
+wait 'value="Value ab cde"'
+key Home
+type 'x'
+wait 'value="Value xab cde"'
+key ArrowRight
+key ArrowRight
+key shift+ArrowRight
+key shift+ArrowRight
+type 'y'
+wait 'value="Value xabyde"'
+key End
+key Backspace
+wait 'value="Value xabyd"'

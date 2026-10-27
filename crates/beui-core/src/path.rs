@@ -4,316 +4,72 @@ use std::rc::Rc;
 use foldhash::HashMap;
 use kurbo::Shape as _;
 
-use crate::geometry::{Pos2, Rect, Vec2, pos2};
+pub use beui_types::path::{FillRule, LineCap, LineJoin, Path, PathElement, PathStyle, Stroke};
+
+use crate::geometry::{Pos2, Rect, pos2};
 
 const TOLERANCE: f32 = 0.05;
 const DOT: f64 = 0.001;
-const ELLIPSE_HANDLE: f32 = 0.552_284_8;
 
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub enum PathElement {
-    MoveTo(Pos2),
-    LineTo(Pos2),
-    QuadTo(Pos2, Pos2),
-    CubicTo(Pos2, Pos2, Pos2),
-    Close,
-}
-
-#[derive(Clone, PartialEq, Debug, Default)]
-pub struct Path {
-    elements: Vec<PathElement>,
-}
-
-impl Path {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn move_to(mut self, to: Pos2) -> Self {
-        self.elements.push(PathElement::MoveTo(to));
-        self
-    }
-
-    pub fn line_to(self, to: Pos2) -> Self {
-        match self.elements.is_empty() {
-            true => self.move_to(to),
-            false => self.pushed(PathElement::LineTo(to)),
+fn kurbo_path(path: &Path, scale: f32) -> kurbo::BezPath {
+    let point =
+        |point: Pos2| kurbo::Point::new(f64::from(point.x * scale), f64::from(point.y * scale));
+    let mut out = kurbo::BezPath::new();
+    let mut start = Pos2::ZERO;
+    let mut closed = false;
+    for element in path.elements() {
+        if closed && !matches!(element, PathElement::MoveTo(_) | PathElement::Close) {
+            out.move_to(point(start));
         }
-    }
-
-    pub fn quad_to(self, control: Pos2, to: Pos2) -> Self {
-        self.started(control)
-            .pushed(PathElement::QuadTo(control, to))
-    }
-
-    pub fn cubic_to(self, first: Pos2, second: Pos2, to: Pos2) -> Self {
-        self.started(first)
-            .pushed(PathElement::CubicTo(first, second, to))
-    }
-
-    pub fn close(self) -> Self {
-        match self.elements.last() {
-            None | Some(PathElement::Close) => self,
-            Some(_) => self.pushed(PathElement::Close),
-        }
-    }
-
-    pub fn polyline(points: impl IntoIterator<Item = Pos2>) -> Self {
-        let mut points = points.into_iter();
-        let Some(first) = points.next() else {
-            return Self::new();
-        };
-        points.fold(Self::new().move_to(first), Self::line_to)
-    }
-
-    pub fn polygon(points: impl IntoIterator<Item = Pos2>) -> Self {
-        Self::polyline(points).close()
-    }
-
-    pub fn ellipse(center: Pos2, radii: Vec2) -> Self {
-        let handle = radii * ELLIPSE_HANDLE;
-        let at = |x: f32, y: f32| pos2(center.x + x, center.y + y);
-        Self::new()
-            .move_to(at(radii.x, 0.0))
-            .cubic_to(
-                at(radii.x, handle.y),
-                at(handle.x, radii.y),
-                at(0.0, radii.y),
-            )
-            .cubic_to(
-                at(-handle.x, radii.y),
-                at(-radii.x, handle.y),
-                at(-radii.x, 0.0),
-            )
-            .cubic_to(
-                at(-radii.x, -handle.y),
-                at(-handle.x, -radii.y),
-                at(0.0, -radii.y),
-            )
-            .cubic_to(
-                at(handle.x, -radii.y),
-                at(radii.x, -handle.y),
-                at(radii.x, 0.0),
-            )
-            .close()
-    }
-
-    pub fn elements(&self) -> &[PathElement] {
-        &self.elements
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.elements.is_empty()
-    }
-
-    pub fn translated(&self, by: Vec2) -> Self {
-        let elements = self
-            .elements
-            .iter()
-            .map(|element| match *element {
-                PathElement::MoveTo(to) => PathElement::MoveTo(to + by),
-                PathElement::LineTo(to) => PathElement::LineTo(to + by),
-                PathElement::QuadTo(control, to) => PathElement::QuadTo(control + by, to + by),
-                PathElement::CubicTo(first, second, to) => {
-                    PathElement::CubicTo(first + by, second + by, to + by)
-                }
-                PathElement::Close => PathElement::Close,
-            })
-            .collect();
-        Self { elements }
-    }
-
-    pub fn bounds(&self) -> Rect {
-        self.elements
-            .iter()
-            .fold(Rect::NOTHING, |bounds, element| match *element {
-                PathElement::MoveTo(point) | PathElement::LineTo(point) => {
-                    bounds.union(Rect::from_min_max(point, point))
-                }
-                PathElement::QuadTo(control, to) => bounds.union(Rect::from_points(&[control, to])),
-                PathElement::CubicTo(first, second, to) => {
-                    bounds.union(Rect::from_points(&[first, second, to]))
-                }
-                PathElement::Close => bounds,
-            })
-    }
-
-    fn started(self, at: Pos2) -> Self {
-        match self.elements.is_empty() {
-            true => self.move_to(at),
-            false => self,
-        }
-    }
-
-    fn pushed(mut self, element: PathElement) -> Self {
-        self.elements.push(element);
-        self
-    }
-
-    fn kurbo(&self, scale: f32) -> kurbo::BezPath {
-        let point =
-            |point: Pos2| kurbo::Point::new(f64::from(point.x * scale), f64::from(point.y * scale));
-        let mut path = kurbo::BezPath::new();
-        let mut start = Pos2::ZERO;
-        let mut closed = false;
-        for element in &self.elements {
-            if closed && !matches!(element, PathElement::MoveTo(_) | PathElement::Close) {
-                path.move_to(point(start));
+        closed = false;
+        match *element {
+            PathElement::MoveTo(to) => {
+                out.move_to(point(to));
+                start = to;
             }
-            closed = false;
-            match *element {
-                PathElement::MoveTo(to) => {
-                    path.move_to(point(to));
-                    start = to;
-                }
-                PathElement::LineTo(to) => path.line_to(point(to)),
-                PathElement::QuadTo(control, to) => path.quad_to(point(control), point(to)),
-                PathElement::CubicTo(first, second, to) => {
-                    path.curve_to(point(first), point(second), point(to))
-                }
-                PathElement::Close => {
-                    path.close_path();
-                    closed = true;
-                }
+            PathElement::LineTo(to) => out.line_to(point(to)),
+            PathElement::QuadTo(control, to) => out.quad_to(point(control), point(to)),
+            PathElement::CubicTo(first, second, to) => {
+                out.curve_to(point(first), point(second), point(to))
+            }
+            PathElement::Close => {
+                out.close_path();
+                closed = true;
             }
         }
-        path
     }
+    out
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
-pub enum FillRule {
-    #[default]
-    NonZero,
-    EvenOdd,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
-pub enum LineJoin {
-    #[default]
-    Miter,
-    Round,
-    Bevel,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
-pub enum LineCap {
-    #[default]
-    Butt,
-    Round,
-    Square,
-}
-
-#[derive(Clone, PartialEq, Debug)]
-pub struct Stroke {
-    pub width: f32,
-    pub join: LineJoin,
-    pub miter_limit: f32,
-    pub cap: LineCap,
-    pub dashes: Vec<f32>,
-    pub dash_offset: f32,
-}
-
-impl Stroke {
-    pub fn new(width: f32) -> Self {
-        Self {
-            width,
-            join: LineJoin::Miter,
-            miter_limit: 4.0,
-            cap: LineCap::Butt,
-            dashes: Vec::new(),
-            dash_offset: 0.0,
+fn kurbo_stroke(stroke: &Stroke, scale: f32) -> kurbo::Stroke {
+    let scaled = |value: f32| f64::from(value * scale);
+    let out = kurbo::Stroke::new(scaled(stroke.width))
+        .with_join(match stroke.join {
+            LineJoin::Miter => kurbo::Join::Miter,
+            LineJoin::Round => kurbo::Join::Round,
+            LineJoin::Bevel => kurbo::Join::Bevel,
+        })
+        .with_miter_limit(f64::from(stroke.miter_limit.max(1.0)))
+        .with_caps(match stroke.cap {
+            LineCap::Butt => kurbo::Cap::Butt,
+            LineCap::Round => kurbo::Cap::Round,
+            LineCap::Square => kurbo::Cap::Square,
+        });
+    if !stroke.is_dashed() {
+        return out;
+    }
+    let mut pattern: Vec<f64> = stroke.dashes.iter().map(|dash| scaled(*dash)).collect();
+    if pattern.len() % 2 == 1 {
+        pattern.extend_from_within(..);
+    }
+    for pair in pattern.as_chunks_mut::<2>().0 {
+        let dot = DOT.min(pair[1]) - pair[0];
+        if dot > 0.0 {
+            pair[0] += dot;
+            pair[1] -= dot;
         }
     }
-
-    pub fn join(self, join: LineJoin) -> Self {
-        Self { join, ..self }
-    }
-
-    pub fn miter_limit(self, miter_limit: f32) -> Self {
-        Self {
-            miter_limit: miter_limit.max(1.0),
-            ..self
-        }
-    }
-
-    pub fn cap(self, cap: LineCap) -> Self {
-        Self { cap, ..self }
-    }
-
-    pub fn dashed(self, dashes: impl IntoIterator<Item = f32>, offset: f32) -> Self {
-        Self {
-            dashes: dashes.into_iter().collect(),
-            dash_offset: offset,
-            ..self
-        }
-    }
-
-    pub fn reach(&self) -> f32 {
-        let half = self.width / 2.0;
-        let join = match self.join {
-            LineJoin::Miter => self.miter_limit.max(1.0),
-            LineJoin::Round | LineJoin::Bevel => 1.0,
-        };
-        let cap = match self.cap {
-            LineCap::Square => std::f32::consts::SQRT_2,
-            LineCap::Butt | LineCap::Round => 1.0,
-        };
-        half * join.max(cap)
-    }
-
-    pub fn is_dashed(&self) -> bool {
-        self.dashes
-            .iter()
-            .all(|dash| dash.is_finite() && *dash >= 0.0)
-            && self.dashes.iter().sum::<f32>() > 0.0
-    }
-
-    fn kurbo(&self, scale: f32) -> kurbo::Stroke {
-        let scaled = |value: f32| f64::from(value * scale);
-        let stroke = kurbo::Stroke::new(scaled(self.width))
-            .with_join(match self.join {
-                LineJoin::Miter => kurbo::Join::Miter,
-                LineJoin::Round => kurbo::Join::Round,
-                LineJoin::Bevel => kurbo::Join::Bevel,
-            })
-            .with_miter_limit(f64::from(self.miter_limit.max(1.0)))
-            .with_caps(match self.cap {
-                LineCap::Butt => kurbo::Cap::Butt,
-                LineCap::Round => kurbo::Cap::Round,
-                LineCap::Square => kurbo::Cap::Square,
-            });
-        if !self.is_dashed() {
-            return stroke;
-        }
-        let mut pattern: Vec<f64> = self.dashes.iter().map(|dash| scaled(*dash)).collect();
-        if pattern.len() % 2 == 1 {
-            pattern.extend_from_within(..);
-        }
-        for pair in pattern.as_chunks_mut::<2>().0 {
-            let dot = DOT.min(pair[1]) - pair[0];
-            if dot > 0.0 {
-                pair[0] += dot;
-                pair[1] -= dot;
-            }
-        }
-        stroke.with_dashes(scaled(self.dash_offset), pattern)
-    }
-}
-
-#[derive(Clone, PartialEq, Debug)]
-pub enum PathStyle {
-    Fill(FillRule),
-    Stroke(Stroke),
-}
-
-impl PathStyle {
-    pub fn reach(&self) -> f32 {
-        match self {
-            Self::Fill(_) => 0.0,
-            Self::Stroke(stroke) => stroke.reach(),
-        }
-    }
+    out.with_dashes(scaled(stroke.dash_offset), pattern)
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -428,14 +184,14 @@ pub fn tessellate(path: &Path, style: &PathStyle, scale: f32) -> Vec<PathTriangl
         return Vec::new();
     }
     let (outline, rule) = match style {
-        PathStyle::Fill(rule) => (path.kurbo(scale), *rule),
+        PathStyle::Fill(rule) => (kurbo_path(path, scale), *rule),
         PathStyle::Stroke(stroke) => {
             if !stroke.width.is_finite() || stroke.width <= 0.0 {
                 return Vec::new();
             }
             let outline = kurbo::stroke(
-                path.kurbo(scale),
-                &stroke.kurbo(scale),
+                kurbo_path(path, scale),
+                &kurbo_stroke(stroke, scale),
                 &kurbo::StrokeOpts::default(),
                 f64::from(TOLERANCE),
             );

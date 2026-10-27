@@ -1,17 +1,18 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
-use beui_core::font::Overflow;
 use beui_macros::{component, view};
+use beui_view::types::Overflow;
 
 use crate::focus_ring::FocusRing;
-use beui_core::base::TextAlign;
+use beui_view::types::TextAlign;
 
 use crate::list::List;
 use crate::text::{Text, TextColor, TextSize};
 use crate::tokens::{Size, Space, Stroke};
 use beui_components_unstyled::{Toggle, ToggleHandle};
-use beui_core::node::NodeId;
 use beui_view::primitives::Layers;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::{Align, Direction, ItemSize};
 
 const BOX_SIZE: f32 = 18.0;
 const MARK_SIZE: f32 = 10.0;

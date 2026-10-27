@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 beui-core = { path = "../beui-core" }
+beui-web-input = { path = "../beui-web-input" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 futures-util = { version = "0.3", default-features = false }

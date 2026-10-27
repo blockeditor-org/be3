@@ -49,10 +49,10 @@ fn run(headless: Headless, launch: Launch) -> Result<(), Box<dyn Error>> {
         let _ = sender.send(());
     }));
     runner.start(
-        vec![Loaded {
+        Loaded {
             renderer,
             fonts: None,
-        }],
+        },
         setup,
     )?;
     loop {

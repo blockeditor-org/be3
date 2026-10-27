@@ -18,10 +18,10 @@ impl TouchChoice {
     }
 
     pub(crate) fn action(self) -> Action {
-        let chosen = with_document(|document| document.watch_canvas_touch());
+        let preferences = use_preferences();
         let write = self.write;
         Action::new("canvas.ignore-touch", "Ignore touch", move || {
-            let flipped = match chosen.get_untracked() {
+            let flipped = match preferences.get_untracked().canvas_touch {
                 CanvasTouch::On => CanvasTouch::Off,
                 CanvasTouch::Off => CanvasTouch::On,
             };
@@ -30,7 +30,9 @@ impl TouchChoice {
             }
         })
         .glyph(ICON_POINTER_OFF)
-        .checked(create_memo(move || chosen.get() == CanvasTouch::Off))
+        .checked(create_memo(move || {
+            preferences.get().canvas_touch == CanvasTouch::Off
+        }))
         .enabled(create_memo(move || write.with(Option::is_some)))
         .register()
     }

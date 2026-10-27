@@ -1,18 +1,19 @@
 use beui_macros::{component, view};
 
-use beui_core::base::Align;
-use beui_core::color::Color32;
-use beui_core::node::NodeId;
-use beui_core::painter::Corners;
-use beui_core::rich::{SpanBackground, SpanStyle};
 use beui_view::components::text::Span;
 use beui_view::primitives::*;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::Align;
+use beui_view::types::Color;
+use beui_view::types::Corners;
+use beui_view::types::{SpanBackground, SpanStyle};
 use text_editor_core::schema::basic;
 use text_editor_core::{LineLook, ListMarker, MarkSet, SynHlStyle, SyntaxHighlight, TableRow};
 
 use super::rows::RowTable;
 use super::state::TextAreaState;
+use beui_view::types::{Align2, Extent, Sides};
 
 pub const MARKER_COLUMN_EM: f32 = 1.15;
 pub const MARKER_GAP_EM: f32 = 0.55;
@@ -310,7 +311,7 @@ fn code_block_text(bytes: &[u8], highlight: &SyntaxHighlight, start: usize) -> S
 }
 
 #[component]
-pub fn TableFill(line: TextLine, fill: Memo<Color32>) -> NodeId {
+pub fn TableFill(line: TextLine, fill: Memo<Color>) -> NodeId {
     let left = line.left();
     let table = line.table;
     let span = create_memo(move || {
@@ -328,7 +329,7 @@ pub fn TableFill(line: TextLine, fill: Memo<Color32>) -> NodeId {
     let width = create_memo(move || Extent::px(span.get().map_or(0.0, |span| span.1)));
     let color = create_memo(move || match span.get().is_some_and(|span| span.2) {
         true => fill.get(),
-        false => Color32::TRANSPARENT,
+        false => Color::TRANSPARENT,
     });
     view! {
         <Frame padding align={Align2::new(Align::Start, Align::Stretch)}>
@@ -338,7 +339,7 @@ pub fn TableFill(line: TextLine, fill: Memo<Color32>) -> NodeId {
 }
 
 #[component]
-pub fn TableLines(line: TextLine, color: Memo<Color32>, rule: f32) -> NodeId {
+pub fn TableLines(line: TextLine, color: Memo<Color>, rule: f32) -> NodeId {
     let left = line.left();
     let table = line.table;
     let edges = create_memo(move || {
@@ -367,11 +368,11 @@ pub fn TableLines(line: TextLine, color: Memo<Color32>, rule: f32) -> NodeId {
     let width = create_memo(move || Extent::px(span.get().map_or(0.0, |span| span.1)));
     let top = create_memo(move || match span.get().is_some_and(|span| span.2) {
         true => color.get(),
-        false => Color32::TRANSPARENT,
+        false => Color::TRANSPARENT,
     });
     let bottom = create_memo(move || match span.get() {
         Some(_) => color.get(),
-        None => Color32::TRANSPARENT,
+        None => Color::TRANSPARENT,
     });
     view! {
         <Layers>

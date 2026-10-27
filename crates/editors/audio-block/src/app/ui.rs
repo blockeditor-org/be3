@@ -10,6 +10,7 @@ use block_editor_beui::{AudioStatus, Editor, FileChooser, Sidebar};
 
 use super::{decode, filter, format_micros};
 use audio_block_types::AudioContent;
+use beui::{Align, Direction, ItemSize};
 
 const PADDING: Space = Space::Lg;
 const SPACING: Space = Space::Md;

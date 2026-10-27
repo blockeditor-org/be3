@@ -1,13 +1,14 @@
-use beui_core::icons::Glyph;
 use beui_macros::{component, view};
+use beui_view::types::icons::Glyph;
 
 use crate::ToggleButton;
 use beui_components_unstyled::TextAreaState;
-use beui_core::node::NodeId;
+use beui_view::reactive::NodeId;
 
 use crate::list::List;
 use crate::tokens::Space;
 use beui_view::reactive::*;
+use beui_view::types::{Align, Direction};
 use text_editor_core::Tool;
 
 const BAR_SPACING: Space = Space::Xs;

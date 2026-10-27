@@ -3,14 +3,15 @@ use beui_macros::{component, view};
 use crate::ContextMenu;
 use crate::text_area::text_area_geometry;
 use crate::theme::use_theme;
-use beui_components_unstyled as unstyled;
-use beui_components_unstyled::selectable::{COPY_KEY, SELECT_ALL_KEY};
-use beui_components_unstyled::{MenuItem, SelectableState, copy_selection, select_all};
-use beui_core::base::ItemSize;
-use beui_core::geometry::Rect;
-use beui_core::node::NodeId;
+use beui_components_unstyled::MenuItem;
 use beui_view::actions::Chord;
+use beui_view::components::selectable::{
+    COPY_KEY, SELECT_ALL_KEY, Selectable, SelectableState, copy_selection, select_all,
+};
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::ItemSize;
+use beui_view::types::Rect;
 
 #[component]
 pub fn SelectableText(
@@ -46,7 +47,7 @@ pub fn SelectableText(
                 _ => {}
             }}
         >
-            <unstyled::Selectable
+            <Selectable
                 state
                 color
                 handle_color
@@ -56,7 +57,7 @@ pub fn SelectableText(
                 on_toolbar={toolbar_at}
             >
                 {children}
-            </unstyled::Selectable>
+            </Selectable>
         </ContextMenu>
     }
 }

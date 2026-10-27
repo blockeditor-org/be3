@@ -8,10 +8,6 @@ type Log = Signal<Vec<&'static str>>;
 struct Screen(Log);
 
 impl Renderer for Screen {
-    fn name(&self) -> &'static str {
-        "screen"
-    }
-
     fn info(&self) -> RendererInfo {
         RendererInfo::default()
     }
@@ -22,7 +18,12 @@ impl Renderer for Screen {
         Some(vec2(200.0, 100.0))
     }
 
-    fn prepare(&mut self, output: &crate::WindowOutput, _scale: f32, _background: Color32) -> bool {
+    fn prepare(
+        &mut self,
+        output: &crate::native::WindowOutput,
+        _scale: f32,
+        _background: Color32,
+    ) -> bool {
         output.changed
     }
 
@@ -70,10 +71,10 @@ fn an_exiting_runner_lets_its_app_go_while_its_renderers_are_still_there() {
         app: Box::new(Holding(log)),
         layers: Vec::new(),
     });
-    let loaded = vec![Loaded {
+    let loaded = Loaded {
         renderer: Box::new(Screen(log)),
         fonts: None,
-    }];
+    };
     runner
         .start(loaded, Setup::new(Waker::new(|| {})))
         .expect("the renderer loads");
