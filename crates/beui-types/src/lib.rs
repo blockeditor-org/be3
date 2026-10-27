@@ -39,12 +39,12 @@ pub use input::{
     TouchDrags, WheelInput, ZoomGesture,
 };
 pub use layer::{Dismiss, LayerLevel, LayerPolicy, Placement};
-pub use preferences::{PreferenceLayers, PreferenceSource};
 pub use layout::{
     Align, Align2, CanvasView, Corners, Direction, Extent, ItemSize, Justify, Measured, Outline,
     ScrollPosition, Sides, Sizing, Track,
 };
 pub use pixel_grid::PixelGrid;
+pub use preferences::{PreferenceLayers, PreferenceSource};
 pub use region::{Area, Claim, HitRegion};
 pub use text::{
     CaretHandle, DEFAULT_FONT_SIZE, FontFamily, FontId, HANDLE_RADIUS, LineBox, Overflow, Piece,

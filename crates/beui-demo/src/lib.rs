@@ -4,6 +4,8 @@ use base_pages::{
     ControlFlowPage, FramesPage, InteractionPage, LayeringPage, ListsPage, PathsPage, TextNodesPage,
 };
 use beui::Align;
+#[cfg(feature = "native")]
+use beui::Context;
 use beui::KeyAt;
 use beui::Overflow;
 use beui::datetime::{Date, DateTime, HourCycle, Time};
@@ -38,11 +40,9 @@ use beui::unstyled::{
     SyntaxColors, narrower_than,
 };
 use beui::{
-    Color32, Direction, FontId, Image, ImageFit, ItemSize, Key, Modifiers, NodeId,
-    PreferenceLayer, PreferenceSource, Rect, ScrollGesture, TextAlign, unstyled,
+    Color32, Direction, FontId, Image, ImageFit, ItemSize, Key, Modifiers, NodeId, PreferenceLayer,
+    PreferenceSource, Rect, ScrollGesture, TextAlign, unstyled,
 };
-#[cfg(feature = "native")]
-use beui::Context;
 use beui_macros::{component, sample};
 use collaboration::CollaborationPage;
 use rich_text::RichTextPage;
@@ -52,9 +52,9 @@ use std::sync::Arc;
 #[cfg(feature = "native")]
 use styled_pages::{AttachedCard, AttachedDialog};
 use styled_pages::{
-    ButtonsPage, CanvasPage, ChoicesPage, ColorsPage, DockingPage,
-    EditorPage, InputsPage, LabelledSwitch, LayoutPage, MenusPage, OverlaysPage, PickersPage,
-    RowsPage, TextPage, ThemesPage, TreePage,
+    ButtonsPage, CanvasPage, ChoicesPage, ColorsPage, DockingPage, EditorPage, InputsPage,
+    LabelledSwitch, LayoutPage, MenusPage, OverlaysPage, PickersPage, RowsPage, TextPage,
+    ThemesPage, TreePage,
 };
 use text_editor_core::{
     EditorCommand, Highlighter, Language, MarkdownCommand, TextBuffer, TextLanguage,
@@ -762,7 +762,7 @@ impl OpensPages for ShownPage {
 }
 
 #[component]
-pub fn HtmlDemo() -> beui::primitives::Root {
+pub fn HtmlDemo() -> Root {
     provide_context(Today(Date::today()));
     let window = DemoWindow::provide();
     let shown = create_signal(Page::Buttons);

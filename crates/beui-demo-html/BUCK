@@ -43,8 +43,8 @@ app(
         "$(location //buck/app:bundle.Caddyfile)",
         "127.0.0.1:8075",
     ],
-    visibility = ["PUBLIC"],
     wasm_bindgen = "//buck/cargo:wasm-bindgen",
+    visibility = ["PUBLIC"],
 )
 
 # src/drive/pages.drive in Chromium against :web: every page opens.

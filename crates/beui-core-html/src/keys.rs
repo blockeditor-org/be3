@@ -33,19 +33,27 @@ pub(crate) fn watch_modifiers(document: &web_sys::Document) -> Vec<crate::dom::L
     let mut listeners: Vec<crate::dom::Listener> = ["keydown", "keyup"]
         .into_iter()
         .map(|name| {
-            crate::dom::listen(document.as_ref(), name, true, move |event: web_sys::KeyboardEvent| {
-                update(&event)
-            })
+            crate::dom::listen(
+                document.as_ref(),
+                name,
+                true,
+                move |event: web_sys::KeyboardEvent| update(&event),
+            )
         })
         .collect();
     if let Some(window) = crate::dom::window() {
-        listeners.push(crate::dom::listen(window.as_ref(), "blur", false, |_: web_sys::Event| {
-            let signal = HELD.with(|held| *held);
-            if signal.get_untracked() != beui_types::Modifiers::default() {
-                signal.set(beui_types::Modifiers::default());
-                reactive::flush();
-            }
-        }));
+        listeners.push(crate::dom::listen(
+            window.as_ref(),
+            "blur",
+            false,
+            |_: web_sys::Event| {
+                let signal = HELD.with(|held| *held);
+                if signal.get_untracked() != beui_types::Modifiers::default() {
+                    signal.set(beui_types::Modifiers::default());
+                    reactive::flush();
+                }
+            },
+        ));
     }
     listeners
 }
