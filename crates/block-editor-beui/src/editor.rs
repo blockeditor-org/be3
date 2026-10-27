@@ -945,8 +945,7 @@ impl Editor {
                 BlockParent::Block(own)
             }
         };
-        let touch =
-            beui::native::try_with_document(|document| document.touched()).unwrap_or(false);
+        let touch = beui::native::try_with_document(|document| document.touched()).unwrap_or(false);
         state.picking.set(Some(crate::picking::Picking::new(
             serial,
             filter,

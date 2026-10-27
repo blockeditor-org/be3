@@ -6,9 +6,7 @@ use beui::dock::styled::{
 };
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{
-    NodeId, Pos2, Rect, Vec2, WindowPlacement, WindowReport, WindowRole,
-};
+use beui::{NodeId, Pos2, Rect, Vec2, WindowPlacement, WindowReport, WindowRole};
 use block_editor_plugin::{BlockFilter, BlockParent, BlockPick, Failure, PickedBlock};
 
 use crate::{ChildLayer, ChildMode, ChildState, Editor, Subregion, SubregionContent, node_anchor};

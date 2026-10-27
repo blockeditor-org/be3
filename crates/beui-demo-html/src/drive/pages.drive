@@ -5,6 +5,8 @@ clock stop
 click '#demo.catalog.Docking'
 key Tab Enter
 wait 'focused #demo.catalog.Nested docks'
+wait 'Tab "Outline"'
+wait 'Tab "Preview"'
 key Tab Enter
 wait 'focused #demo.catalog.Text'
 wait 'Tab "Text" selected'

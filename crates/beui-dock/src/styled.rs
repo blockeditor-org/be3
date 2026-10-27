@@ -28,9 +28,9 @@ use beui_components_styled::tokens::{Padding, Size, Space, Stroke};
 use beui_components_styled::tooltip::Tooltip;
 use beui_components_unstyled::Container;
 use beui_components_unstyled::Picture;
+use beui_view::primitives::Drawing;
 use beui_view::types::Align2;
 use beui_view::types::{Align, Direction, ItemSize, Justify};
-use beui_view::primitives::Drawing;
 use beui_view::types::{Color, Corners, Rect, Vec2, pos2};
 use std::rc::Rc;
 

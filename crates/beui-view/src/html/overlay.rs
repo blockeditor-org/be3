@@ -85,7 +85,9 @@ pub(crate) fn overlay(
     let held = layer.clone();
     bind(traps_focus, move |traps| held.set_traps_focus(traps));
     let held = layer.clone();
-    bind(dismissable, move |dismissable| held.set_dismissable(dismissable));
+    bind(dismissable, move |dismissable| {
+        held.set_dismissable(dismissable)
+    });
     let held = layer.clone();
     bind(beak, move |reach| held.set_beak(reach));
     let presence = OverlayPresence::new(create_memo(move || open.get()));

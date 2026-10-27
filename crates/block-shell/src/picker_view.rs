@@ -7,7 +7,8 @@ use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 
 use block_editor_beui::beui::{
-    BackGesture, Color, Color32, Dismiss, LayerPolicy, NodeId, OverlayAnchor, Placement, Pos2, Rect, TextAlign, Vec2,
+    BackGesture, Color, Color32, Dismiss, LayerPolicy, NodeId, OverlayAnchor, Placement, Pos2,
+    Rect, TextAlign, Vec2,
 };
 use block_editor_beui::block_ui::TemplateEntry;
 use block_editor_beui::{

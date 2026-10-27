@@ -2,11 +2,11 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use beui_view::types::{Rect, Vec2};
-use beui_view::types::icons::Glyph;
-use beui_view::types::Image;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::Image;
+use beui_view::types::icons::Glyph;
+use beui_view::types::{Rect, Vec2};
 
 use super::super::DockMode;
 use super::super::dialog::DockDialogPresentation;

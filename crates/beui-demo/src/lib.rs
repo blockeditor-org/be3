@@ -42,8 +42,8 @@ use std::sync::Arc;
 use styled_pages::{AttachedCard, AttachedDialog};
 use styled_pages::{
     ButtonsPage, CanvasPage, ChoicesPage, ColorsPage, DockingPage, EditorPage, InputsPage,
-    LabelledSwitch, LayoutPage, MenusPage, NestedDocksPage, OverlaysPage, PickersPage, RowsPage, TextPage,
-    ThemesPage, TreePage,
+    LabelledSwitch, LayoutPage, MenusPage, NestedDocksPage, OverlaysPage, PickersPage, RowsPage,
+    TextPage, ThemesPage, TreePage,
 };
 use text_editor_core::{
     EditorCommand, Highlighter, Language, MarkdownCommand, TextBuffer, TextLanguage,
