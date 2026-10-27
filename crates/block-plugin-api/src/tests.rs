@@ -91,8 +91,8 @@ fn region_screen(
     }
 }
 
-mod a_description_keeps_every_kind_of_node_property;
 mod a_childs_dock_splices_in_place_of_its_tab_and_splits_back_out;
+mod a_description_keeps_every_kind_of_node_property;
 mod a_dock_declaration_round_trips_and_nests;
 mod a_frame_says_which_host_state_it_was_laid_out_against;
 mod a_hosted_state_waiting_for_the_editor_is_replaced_by_the_latest;

@@ -105,7 +105,11 @@ impl Mapping<'_> {
     fn nodes(&self, nodes: &DockNodes) -> DockNodes {
         DockNodes {
             main: nodes.main.as_ref().map(|main| self.node(main)),
-            windows: nodes.windows.iter().map(|window| self.window(window)).collect(),
+            windows: nodes
+                .windows
+                .iter()
+                .map(|window| self.window(window))
+                .collect(),
         }
     }
 
@@ -125,7 +129,11 @@ impl Mapping<'_> {
         DockLayout {
             tree: DockTree::flatten(
                 &self.nodes(nodes),
-                layout.tree.focus.as_ref().and_then(|focus| (self.tab)(focus)),
+                layout
+                    .tree
+                    .focus
+                    .as_ref()
+                    .and_then(|focus| (self.tab)(focus)),
             ),
             homes: layout
                 .homes
@@ -217,9 +225,12 @@ impl DockDeclaration {
             entry: &replace,
         };
         let mut spliced = outward.nodes(&nodes);
-        spliced
-            .windows
-            .extend(inner_nodes.windows.iter().map(|window| inward.window(window)));
+        spliced.windows.extend(
+            inner_nodes
+                .windows
+                .iter()
+                .map(|window| inward.window(window)),
+        );
         let focus = match self.tree.focus.as_ref() == Some(&host) {
             true => inner.tree.focus.clone().map(|focus| focus.through(child)),
             false => self.tree.focus.clone(),
@@ -277,10 +288,9 @@ impl DockHosted {
         };
         let replace = |entry: &DockEntry| match entry {
             DockEntry::Group {
-                group:
-                    DockGroup {
-                        child: Some(child), ..
-                    },
+                group: DockGroup {
+                    child: Some(child), ..
+                },
                 ..
             } => Some(host_of(*child).map(|tab| DockEntry::Tab(DockTabPath::own(tab)))),
             _ => None,
@@ -290,7 +300,12 @@ impl DockHosted {
             tab: &|tab| tab.is_own().then(|| tab.clone()),
             entry: &replace,
         };
-        let mut tabs: Vec<DockTabPath> = self.tabs.iter().filter(|tab| tab.is_own()).cloned().collect();
+        let mut tabs: Vec<DockTabPath> = self
+            .tabs
+            .iter()
+            .filter(|tab| tab.is_own())
+            .cloned()
+            .collect();
         tabs.extend(
             hosts
                 .iter()
@@ -302,7 +317,12 @@ impl DockHosted {
             tabs,
             focused: self.focused.as_ref().and_then(path),
             shown: self.shown.as_ref().and_then(path),
-            visible: self.visible.iter().filter(|tab| tab.is_own()).cloned().collect(),
+            visible: self
+                .visible
+                .iter()
+                .filter(|tab| tab.is_own())
+                .cloned()
+                .collect(),
             fullscreen: self.fullscreen.as_ref().filter(|tab| tab.is_own()).cloned(),
             stacked: self.stacked,
         })

@@ -6,7 +6,10 @@ fn a_childs_dock_splices_in_place_of_its_tab_and_splits_back_out() {
     let prefix = dock_prefix("nested", [9; 16]);
     let side = DockTabPath::own(4).through(child);
     let mut spliced = declaration();
-    assert_eq!(spliced.splice(3, child, &prefix, &child_declaration()), Ok(true));
+    assert_eq!(
+        spliced.splice(3, child, &prefix, &child_declaration()),
+        Ok(true)
+    );
     assert_eq!(spliced.validate(), Ok(()));
     assert_eq!(spliced.tab(&DockTabPath::own(3)), None);
     assert_eq!(
