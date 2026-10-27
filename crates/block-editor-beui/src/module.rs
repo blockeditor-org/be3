@@ -213,12 +213,7 @@ fn ModuleWindows(
     view! {
         <List spacing=Space::None>
             <ForEach keys>|(id, _generation, _docked): (RegionId, u64, bool)|
-                <RegionWindow
-                    registry={Rc::clone(&registry)}
-                    id
-                    requested
-                    views={views.clone()}
-                />
+                <RegionWindow registry={Rc::clone(&registry)} id requested views={views.clone()} />
             </ForEach>
         </List>
     }
@@ -254,11 +249,8 @@ fn RegionWindow(
                 .map_or(initial, |view| view.size)
         })
     });
-    let docked = requested.with_untracked(|requested| {
-        requested
-            .iter()
-            .any(|view| view.id == id && view.docked)
-    });
+    let docked = requested
+        .with_untracked(|requested| requested.iter().any(|view| view.id == id && view.docked));
     let content = match registry.shown(id.instance) {
         Some(shown) => shown.content(id.region, docked),
         None => RenderFn::new(|_: WindowHandle| {

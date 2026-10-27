@@ -5,10 +5,9 @@ use std::rc::{Rc, Weak};
 use beui::NodeId;
 use beui::dock::unstyled::{
     DockBodies, DockDeclaration, DockDeclaredTab, DockHostEvent, DockHostLink, DockHostSlot,
-    DockHosted,
-    DockMapping, DockMode, DockPlain, DockPlainEntry, DockPlainHome, DockPlainNode, DockPlainPlace,
-    DockPlainWindow, DockRequest, DockSpec, DockSpecEntry, DockSpecNode, DockSpecPane,
-    DockSpecWindow, DockState, TabId,
+    DockHosted, DockMapping, DockMode, DockPlain, DockPlainEntry, DockPlainHome, DockPlainNode,
+    DockPlainPlace, DockPlainWindow, DockRequest, DockSpec, DockSpecEntry, DockSpecNode,
+    DockSpecPane, DockSpecWindow, DockState, TabId,
 };
 use beui::icons::Glyph;
 use beui::reactive::*;
