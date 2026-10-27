@@ -1,0 +1,9 @@
+# A virtual list builds only the rows its Offset shows, measures them, and
+# builds the last ones when the Offset moves to the end.
+clock stop
+wait '#rows.row0'
+wait 'Row 5'
+gone '#rows.row999'
+click '#rows.end'
+wait '#rows.row999'
+gone '#rows.row0'
