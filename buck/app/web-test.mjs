@@ -9,6 +9,8 @@
 // automate(words) (beui-core-html's automate: tree, ids, find, wait, gone,
 // settle, pause, clock); click, move, down, up, drag, wheel, type and key are real Playwright input, at the
 // place `find` answers, so the browser's own focus, key and text paths run.
+// `selection none` and `selection some` (browser only) fail unless the page's
+// text selection is empty, or holds some text.
 // After every command the document itself must not scroll or overflow the
 // viewport (a beui app owns its viewport, and only its Scrolls scroll), and the
 // browser must not draw its focus ring on what beui draws its own for.
@@ -243,6 +245,15 @@ async function step(page, words) {
         case "key":
             for (const pressed of args) await page.keyboard.press(chord(pressed));
             return settle();
+        case "selection": {
+            const wanted = { none: false, some: true }[args[0]];
+            if (wanted === undefined) throw new Failure(`selection takes none or some, not ${args[0]}`);
+            const selected = await page.evaluate(() => String(getSelection() ?? ""));
+            if ((selected.trim() !== "") !== wanted) {
+                throw new Failure(selected ? `the page selected ${JSON.stringify(selected)}` : "the page selected nothing");
+            }
+            return "";
+        }
         default:
             return answer(page, [...options, `--timeout=${timeout}`, command, ...args]);
     }

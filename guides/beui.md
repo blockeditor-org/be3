@@ -660,7 +660,7 @@ What each primitive is on the HTML core (the bodies are in
 | `Overlay` | a `<dialog>` (`showModal()` for one that blocks everything, else a manual popover) placed with CSS anchor positioning, a one-cell grid like `Frame` while open; `window` and `shown_in` are ignored |
 | `Portal` | moves the shown subtree's element (`moveBefore` where the browser has it) |
 | `Interactive` | an element with `tabindex` and listeners; `pastes`, `key_active`, `claims_touch` and the forwarding props do nothing yet |
-| `Selectable` | the browser's own selection |
+| `Selectable` | the browser's own selection; the root is `user-select: none`, so nothing outside a `Selectable` (or a native text field) selects |
 | `Drawing` | an escape hatch: a pink box of its size, narrowed to the width it is offered and keeping its shape as natively, so `Picture` and the scrollbar thumb are pink too |
 
 `Drawing` is the escape hatch for what is not an arrangement of nodes, and

@@ -54,7 +54,9 @@ pub fn Selectable(
     let _ = (color, handle_color, caret_width, on_toolbar);
     api.fill(state);
     let region = beui_core_html::document::wrap("Selectable", children);
-    beui_core_html::document::set_style(region, "user-select", Some("text".to_owned()));
+    for property in ["-webkit-user-select", "user-select"] {
+        beui_core_html::document::set_style(region, property, Some("text".to_owned()));
+    }
     state.0.fill(region);
     on_key(KeyAt::Node(state.0), KeyPhase::Bubble, move |event| {
         event.press().is_some_and(|press| {

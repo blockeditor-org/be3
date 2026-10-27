@@ -48,8 +48,8 @@ app(
     visibility = ["PUBLIC"],
 )
 
-# src/drive/*.drive in Chromium against :web: every page opens, and the long
-# modal sheet opens and closes.
+# src/drive/*.drive in Chromium against :web: every page opens, the long modal
+# sheet opens and closes, and only Selectable text selects.
 web_drive_test(
     name = "web-test",
     bundle = ":web",

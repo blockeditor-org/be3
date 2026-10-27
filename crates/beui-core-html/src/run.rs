@@ -17,6 +17,8 @@ const BASE_STYLES: &str = "\
 .beui-root { color-scheme: light dark; display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); position: fixed; inset: 0; overflow: clip; overscroll-behavior: none; }
 .beui-root, .beui-root * { box-sizing: border-box; margin: 0; }
 .beui-root [tabindex], .beui-overlay { outline: none; }
+.beui-root { -webkit-user-select: none; user-select: none; }
+.beui-root :is(input, textarea, [contenteditable]) { -webkit-user-select: text; user-select: text; }
 .beui-break::after { content: \"\\A\"; white-space: pre; }
 .beui-icon { display: inline-block; vertical-align: top; }
 .beui-icon:not(:first-child) { margin-inline-start: var(--beui-icon-spacing, 0); }
