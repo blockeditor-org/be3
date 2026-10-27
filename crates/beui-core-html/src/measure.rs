@@ -1,8 +1,8 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 
-use beui_types::text::LineBox;
 use beui_types::text::FontId;
+use beui_types::text::LineBox;
 use beui_types::{Pos2, Rect, Vec2};
 use reactive::{Get, ReadSignal, Set, Signal, create_signal};
 
