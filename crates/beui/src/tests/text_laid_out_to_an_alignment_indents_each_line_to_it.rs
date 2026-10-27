@@ -4,7 +4,7 @@ use crate::font::{FontId, TextLayout};
 
 #[test]
 fn text_laid_out_to_an_alignment_indents_each_line_to_it() {
-    let context = Context::new(crate::FreetypeFonts::default());
+    let context = Context::new(crate::native::FreetypeFonts::default());
     let font = FontId::proportional(14.0);
     let output = context.run(|context| {
         let painter = context.painter();
@@ -34,12 +34,12 @@ fn text_laid_out_to_an_alignment_indents_each_line_to_it() {
         .shapes()
         .iter()
         .filter_map(|shape| match shape {
-            crate::Shape::Text { galley, .. } => Some(galley.clone()),
+            crate::native::Shape::Text { galley, .. } => Some(galley.clone()),
             _ => None,
         })
         .collect();
 
-    let second = |galley: &crate::Galley| galley.line_rects(Pos2::ZERO)[1].left();
+    let second = |galley: &crate::native::Galley| galley.line_rects(Pos2::ZERO)[1].left();
     assert_eq!(
         second(&galleys[0]),
         0.0,

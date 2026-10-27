@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::reactive::Draw;
+use crate::painter::{Draw, Painter};
 use crate::reactive::Get;
 use crate::reactive::NodeId;
 use crate::reactive::Prop;
@@ -13,7 +13,7 @@ use beui_core_html::drawing::{Images, draw_svg};
 
 use super::bind;
 
-pub fn drawing(draw: Prop<Draw>, size: Prop<Option<Vec2>>) -> NodeId {
+pub(crate) fn drawing(draw: Prop<Draw>, size: Prop<Option<Vec2>>) -> NodeId {
     let drawing = create("Drawing", "div");
     bind(size, move |size| {
         let (width, height, ratio, max_width) = match size {
@@ -31,7 +31,7 @@ pub fn drawing(draw: Prop<Draw>, size: Prop<Option<Vec2>>) -> NodeId {
         set_style(drawing, "aspect-ratio", ratio);
         set_style(drawing, "max-width", max_width);
     });
-    let measured = super::measure(drawing);
+    let measured = super::measure::measure(drawing);
     let area = create_memo(move || {
         let size = size.get();
         let room = measured.get().map(|measured| measured.size).or(size)?;
@@ -41,7 +41,10 @@ pub fn drawing(draw: Prop<Draw>, size: Prop<Option<Vec2>>) -> NodeId {
     let images = Rc::new(RefCell::new(Images::default()));
     create_binding(move || {
         let markup = area.get().map(|(room, clipped)| {
-            draw_svg(&draw.get(), room, clipped, &ids, &mut images.borrow_mut())
+            let draw = draw.get();
+            let draw: beui_core_html::drawing::Draw =
+                Rc::new(move |painter, rect| draw(&Painter::of(painter), rect));
+            draw_svg(&draw, room, clipped, &ids, &mut images.borrow_mut())
         });
         set_markup(drawing, markup);
     });

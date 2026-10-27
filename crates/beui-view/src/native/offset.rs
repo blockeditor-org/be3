@@ -3,12 +3,12 @@ use crate::reactive::Child;
 use crate::reactive::Get;
 use crate::reactive::Prop;
 use crate::reactive::create_effect;
-use crate::reactive::with_document;
 use beui_core::base::list::Direction;
 use beui_core::base::offset::ScrollPosition;
+use beui_core::current::with_document;
 use beui_core::node::NodeId;
 
-pub fn offset(
+pub(crate) fn offset(
     offset: Prop<f32>,
     direction: Prop<Direction>,
     fit: bool,

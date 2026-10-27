@@ -16,12 +16,12 @@ pub(crate) trait Shown {
 
     fn content(&self, region: EditorRegion) -> RenderFn<WindowHandle>;
 
-    fn before(&self, view: &View, context: &beui::Context, document: &mut Document);
+    fn before(&self, view: &View, context: &beui::native::Context, document: &mut Document);
 
     fn after(
         &self,
         view: &View,
-        context: &beui::Context,
+        context: &beui::native::Context,
         document: &mut Document,
         window: WindowId,
     ) -> Report;
@@ -78,9 +78,9 @@ impl Module {
         if self.launched.replace(true) {
             return;
         }
-        let options = beui::RunOptions {
+        let options = beui::native::RunOptions {
             accessibility_tree: keeps_accessibility,
-            ..beui::RunOptions::default()
+            ..beui::native::RunOptions::default()
         };
         let app = ModuleApp {
             module: Rc::clone(self),
@@ -122,8 +122,8 @@ struct ModuleApp {
     requested: OwnedSignal<Vec<View>>,
 }
 
-impl beui::App for ModuleApp {
-    fn setup(&mut self, setup: &beui::Setup) {
+impl beui::native::App for ModuleApp {
+    fn setup(&mut self, setup: &beui::native::Setup) {
         let Some(views) = setup.get::<Views>().cloned() else {
             return;
         };
@@ -134,7 +134,7 @@ impl beui::App for ModuleApp {
         self.views = Some(views);
     }
 
-    fn update(&mut self, context: &beui::Context, rect: beui::Rect) {
+    fn update(&mut self, context: &beui::native::Context, rect: beui::Rect) {
         let Some(views) = self.views.clone() else {
             return;
         };
@@ -145,7 +145,7 @@ impl beui::App for ModuleApp {
             let requested = self.requested.read_only();
             let registry = Rc::clone(&module.registry);
             let views = views.clone();
-            beui::reactive::build(move || {
+            beui::native::build(move || {
                 view! {
                     <beui::styled::Root clear_color=ColorRole::None>
                         <ModuleWindows registry requested views />

@@ -1,5 +1,8 @@
 use super::*;
+use crate::native::rich::RichLayout;
+use crate::native::*;
 use crate::native::{Embed, EmbedPlacement, EmbedSlot};
+use crate::reactive::Painter;
 use crate::{CanvasView, FontId};
 
 mod a_back_gesture_lowers_a_sheet_and_it_slides_away_from_there;
@@ -1056,13 +1059,13 @@ pub(crate) fn prompt_and_late<T>(run: impl Fn() -> T) -> (T, T) {
     struct Prompt;
     impl Drop for Prompt {
         fn drop(&mut self) {
-            crate::testing::delay_measurement(false);
+            crate::native::testing::delay_measurement(false);
         }
     }
     let _prompt = Prompt;
-    crate::testing::delay_measurement(false);
+    crate::native::testing::delay_measurement(false);
     let prompt = run();
-    crate::testing::delay_measurement(true);
+    crate::native::testing::delay_measurement(true);
     (prompt, run())
 }
 
@@ -1087,10 +1090,10 @@ pub(crate) fn text_rects(harness: &Harness) -> Vec<(String, Option<Rect>)> {
         .collect()
 }
 
-pub(crate) struct Harness(crate::testing::Stepped);
+pub(crate) struct Harness(crate::native::testing::Stepped);
 
 impl std::ops::Deref for Harness {
-    type Target = crate::testing::Stepped;
+    type Target = crate::native::testing::Stepped;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -1109,15 +1112,15 @@ impl Harness {
     }
 
     pub(crate) fn sized(mut document: Document, viewport: Vec2) -> Self {
-        crate::verify_paint(true);
+        crate::native::verify_paint(true);
         crate::inspector::install(&mut document);
         let window = beui_core::window::WindowSize {
             size: viewport,
             scale: 1.0,
         };
-        let mut stepped = crate::testing::Stepped::new(
+        let mut stepped = crate::native::testing::Stepped::new(
             context(),
-            crate::testing::Showing(document),
+            crate::native::testing::Showing(document),
             window,
             None,
         );
@@ -1126,33 +1129,33 @@ impl Harness {
     }
 
     pub(crate) fn hosting_windows(mut document: Document, viewport: Vec2) -> Self {
-        crate::verify_paint(true);
+        crate::native::verify_paint(true);
         crate::inspector::install(&mut document);
         let window = beui_core::window::WindowSize {
             size: viewport,
             scale: 1.0,
         };
-        let mut stepped = crate::testing::Stepped::hosting_windows(
+        let mut stepped = crate::native::testing::Stepped::hosting_windows(
             context(),
-            crate::testing::Showing(document),
+            crate::native::testing::Showing(document),
             window,
         );
         stepped.settle_after_gestures(false);
         Self(stepped)
     }
 
-    pub(crate) fn frame(&mut self, inputs: Vec<Input>) -> crate::FrameOutput {
+    pub(crate) fn frame(&mut self, inputs: Vec<Input>) -> crate::native::FrameOutput {
         self.0.frame(inputs)
     }
 
-    pub(crate) fn click(&mut self, target: impl Into<crate::testing::Target>) {
+    pub(crate) fn click(&mut self, target: impl Into<crate::native::testing::Target>) {
         self.0.click(target);
     }
 
     pub(crate) fn drag(
         &mut self,
-        from: impl Into<crate::testing::Target>,
-        to: impl Into<crate::testing::Target>,
+        from: impl Into<crate::native::testing::Target>,
+        to: impl Into<crate::native::testing::Target>,
     ) {
         self.0.drag(from, to);
     }
@@ -1234,7 +1237,7 @@ impl Harness {
         self.fingers(TouchPhase::Move, &[(1, first), (2, second)]);
     }
 
-    pub(crate) fn touch(&mut self, phase: TouchPhase, pos: Pos2) -> crate::FrameOutput {
+    pub(crate) fn touch(&mut self, phase: TouchPhase, pos: Pos2) -> crate::native::FrameOutput {
         self.finger(1, phase, pos)
     }
 
@@ -1243,7 +1246,7 @@ impl Harness {
         finger: u64,
         phase: TouchPhase,
         pos: Pos2,
-    ) -> crate::FrameOutput {
+    ) -> crate::native::FrameOutput {
         self.fingers(phase, &[(finger, pos)]);
         self.take_output()
     }
@@ -1885,13 +1888,13 @@ pub(crate) fn track_within(harness: &Harness, bar: NodeId) -> Rect {
     harness.rect(document.children(inset)[0])
 }
 
-pub(crate) fn thumb_painted(output: &crate::FrameOutput, track: Rect) -> bool {
+pub(crate) fn thumb_painted(output: &crate::native::FrameOutput, track: Rect) -> bool {
     output.main().shapes().iter().any(|shape| {
         matches!(shape, crate::painter::Shape::Rect { rect, .. } if track.contains_rect(*rect) && *rect != track)
     })
 }
 
-pub(crate) fn painted_thumb(output: &crate::FrameOutput, track: Rect) -> Rect {
+pub(crate) fn painted_thumb(output: &crate::native::FrameOutput, track: Rect) -> Rect {
     output
         .main()
         .shapes()
@@ -1908,7 +1911,7 @@ pub(crate) fn painted_thumb(output: &crate::FrameOutput, track: Rect) -> Rect {
         .expect("the thumb is painted inside its track")
 }
 
-pub(crate) fn flashed(output: &crate::FrameOutput, bounds: Rect, color: Color32) -> bool {
+pub(crate) fn flashed(output: &crate::native::FrameOutput, bounds: Rect, color: Color32) -> bool {
     output.main().shapes().iter().any(|shape| {
         matches!(
             shape,
@@ -2241,7 +2244,7 @@ pub(crate) fn toolbar_of<const N: usize>(
 }
 
 use crate::node::{Element, Rects};
-use crate::painter::Painter;
+use crate::painter::Painter as CorePainter;
 use std::any::Any;
 use std::time::Duration;
 
@@ -2254,17 +2257,17 @@ struct Counted {
 }
 
 impl Element for Counted {
-    fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
+    fn measure(&self, doc: &mut Document, painter: &CorePainter, available: Vec2) -> Vec2 {
         self.measures.update(|measures| *measures += 1);
         self.inner.measure(doc, painter, available)
     }
 
-    fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
+    fn layout(&mut self, doc: &mut Document, painter: &CorePainter, rect: Rect, out: &Rects) {
         self.layouts.update(|layouts| *layouts += 1);
         self.inner.layout(doc, painter, rect, out);
     }
 
-    fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect) {
+    fn paint(&self, doc: &Document, painter: &CorePainter, rects: &Rects, rect: Rect) {
         if !painter.ctx().is_verifying_paint() {
             self.paints.update(|paints| *paints += 1);
         }
@@ -2313,14 +2316,14 @@ struct Counts {
 const BLINK: Duration = Duration::from_millis(530);
 
 fn blinking() -> crate::reactive::Draw {
-    Rc::new(|painter: &crate::painter::Painter, rect: Rect| {
+    Rc::new(|painter: &Painter, rect: Rect| {
         painter.rect_filled(rect, 0.0, Color32::WHITE);
-        painter.ctx().request_repaint_after(BLINK);
+        core_painter(painter).ctx().request_repaint_after(BLINK);
     })
 }
 
 fn still() -> crate::reactive::Draw {
-    Rc::new(|painter: &crate::painter::Painter, rect: Rect| {
+    Rc::new(|painter: &Painter, rect: Rect| {
         painter.rect_filled(rect, 0.0, Color32::WHITE);
     })
 }
@@ -2441,21 +2444,21 @@ fn reopens_after(close: impl Fn(&mut Harness)) {
 
 #[derive(Default)]
 struct DrivenPlatform {
-    unanswered: Vec<crate::PasteAnswer>,
+    unanswered: Vec<crate::native::PasteAnswer>,
 }
 
 impl beui_core::runner::PlatformServices for DrivenPlatform {
-    fn paste(&mut self, _kinds: &[crate::PasteKind], answer: crate::PasteAnswer) {
+    fn paste(&mut self, _kinds: &[crate::PasteKind], answer: crate::native::PasteAnswer) {
         self.unanswered.push(answer);
     }
 }
 
-pub(crate) fn stepped<A: App + 'static>(app: A) -> crate::testing::Stepped<A> {
-    crate::testing::Stepped::on(context(), app, VIEWPORT, DrivenPlatform::default())
+pub(crate) fn stepped<A: App + 'static>(app: A) -> crate::native::testing::Stepped<A> {
+    crate::native::testing::Stepped::on(context(), app, VIEWPORT, DrivenPlatform::default())
 }
 
-pub(crate) fn headless<A: App + 'static>(app: A) -> crate::testing::Stepped<A> {
-    crate::testing::Stepped::new(
+pub(crate) fn headless<A: App + 'static>(app: A) -> crate::native::testing::Stepped<A> {
+    crate::native::testing::Stepped::new(
         context(),
         app,
         beui_core::window::WindowSize {
@@ -2593,7 +2596,8 @@ fn FocusPanel(
     }
 }
 
-pub(crate) type PasteAsk = Rc<RefCell<Option<(crate::PasteRequest, Vec<crate::PasteKind>)>>>;
+pub(crate) type PasteAsk =
+    Rc<RefCell<Option<(crate::native::PasteRequest, Vec<crate::PasteKind>)>>>;
 
 struct Seeing(Rc<RefCell<Vec<Event>>>, PasteAsk);
 
@@ -2603,9 +2607,9 @@ impl App for Seeing {
         if let Some((request, kinds)) = self.1.borrow_mut().take() {
             context.accept_pastes(&kinds);
             match request {
-                crate::PasteRequest::Asked => context.request_paste(),
-                crate::PasteRequest::Shortcut => context.paste_shortcut(),
-                crate::PasteRequest::Typed => context.request_typed_paste(),
+                crate::native::PasteRequest::Asked => context.request_paste(),
+                crate::native::PasteRequest::Shortcut => context.paste_shortcut(),
+                crate::native::PasteRequest::Typed => context.request_typed_paste(),
             }
         }
     }
@@ -2621,7 +2625,7 @@ pub(crate) struct IntakePlatform {
 }
 
 impl beui_core::runner::PlatformServices for IntakePlatform {
-    fn paste(&mut self, kinds: &[crate::PasteKind], answer: crate::PasteAnswer) {
+    fn paste(&mut self, kinds: &[crate::PasteKind], answer: crate::native::PasteAnswer) {
         self.pastes.push(kinds.to_vec());
         answer.send(kinds.iter().find_map(|kind| match kind {
             crate::PasteKind::Text => self.clipboard.clone().map(crate::Pasted::Text),
@@ -2658,7 +2662,7 @@ impl Intaken {
         runner
             .start(
                 beui_core::renderer::Loaded {
-                    renderer: Box::new(crate::testing::Screen(VIEWPORT)),
+                    renderer: Box::new(crate::native::testing::Screen(VIEWPORT)),
                     fonts: None,
                 },
                 Setup::new(Waker::new(|| {})),
@@ -2777,7 +2781,7 @@ fn open_anchored_in(
     rect
 }
 
-fn beak(output: &crate::FrameOutput) -> Option<Pos2> {
+fn beak(output: &crate::native::FrameOutput) -> Option<Pos2> {
     output
         .main()
         .shapes()
@@ -2792,7 +2796,7 @@ fn beak(output: &crate::FrameOutput) -> Option<Pos2> {
         })
 }
 
-fn dims(output: &crate::FrameOutput, panel: Rect) -> bool {
+fn dims(output: &crate::native::FrameOutput, panel: Rect) -> bool {
     output.main().shapes().into_iter().any(|shape| match shape {
         crate::painter::Shape::Rect { rect, color, .. } => {
             let [red, green, blue, alpha] = color.to_array();
@@ -2882,7 +2886,7 @@ impl beui_core::renderer::Renderer for SpaceScreen {
 
     fn prepare(
         &mut self,
-        _output: &crate::WindowOutput,
+        _output: &crate::native::WindowOutput,
         _scale: f32,
         _background: Color32,
     ) -> bool {
@@ -2896,7 +2900,7 @@ impl beui_core::renderer::Renderer for SpaceScreen {
 
 struct SharedDocument(Rc<RefCell<Document>>);
 
-impl crate::App for SharedDocument {
+impl crate::native::App for SharedDocument {
     fn update(&mut self, context: &Context, rect: crate::geometry::Rect) {
         self.0.borrow_mut().show(context, rect);
     }

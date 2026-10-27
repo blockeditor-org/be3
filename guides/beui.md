@@ -312,21 +312,21 @@ direction:
 | `beui-components-styled` | `beui::styled`: themes, styled controls, the styled `Frame`, `Text`, `Span` and `Icon`, and every primitive with no styled version re-exported unchanged |
 | `beui-inspector` | the inspector, the simulated screen reader and the simulated mouse and keyboard |
 | `beui-dock` | `beui::dock`: the dock, as `dock::unstyled` (the tree, the dragging, the keyboard and the layout state, painting nothing) and `dock::styled` (`Docking` painted with theme tokens) |
-| `beui-keyboard` | `beui::keyboard`: the on-screen keyboard, as `keyboard::unstyled` (layouts, tables and the gesture engine) and `keyboard::styled`; the facade installs it on every document |
+| `beui-keyboard` | `beui::native::keyboard`: the on-screen keyboard, as `keyboard::unstyled` (layouts, tables and the gesture engine) and `keyboard::styled`; the facade installs it on every document |
 | `beui-renderer-wgpu` | the wgpu renderer, its shaders and filters, and presenting to a surface |
 | `beui-platform-winit`, `beui-platform-android`, `beui-platform-web` | each platform's `Platform` and `PlatformServices`: its event loop, window or view, input (the web's through `beui-web-input`), IME, clipboard, file picker and accessibility adapter (winit's is its own `accessibility.rs` over `accesskit_unix`, `accesskit_windows` and `accesskit_macos`, since `accesskit_winit` has no release for winit 0.31) |
-| `beui-platform-drm` | Linux's displays and input devices through DRM/KMS and libinput: a `Platform`, `PlatformServices` and `Renderer` that shows one window per display (see Displays under beui-platform-drm below), each display keeping a retained frame of its window, drawn when the display flips (the app's frames are paced to the flips too, by `pacing.rs`: at most one per flip, none while nothing changes), handing the flip a fence (or, without atomic fences, waiting for it in the event loop) instead of blocking on the GPU; callers run it with `beui::run_on` |
+| `beui-platform-drm` | Linux's displays and input devices through DRM/KMS and libinput: a `Platform`, `PlatformServices` and `Renderer` that shows one window per display (see Displays under beui-platform-drm below), each display keeping a retained frame of its window, drawn when the display flips (the app's frames are paced to the flips too, by `pacing.rs`: at most one per flip, none while nothing changes), handing the flip a fence (or, without atomic fences, waiting for it in the event loop) instead of blocking on the GPU; callers run it with `beui::native::run_on` |
 | `beui-layer-space` | the VR simulator `Layer` that `BEUI_LAYERS=space` stacks over a native or headless platform: the app's windows as panels in a 3D scene ("Space: the VR simulator layer" below) |
 | `beui-layer-xr` | space on an OpenXR headset (`BEUI_LAYERS=xr`): the runtime, the Vulkan device it picks, its session, swapchains and frame pacing, and `XrSpace`, the `Layer` that drives `Space` from them ("Headsets" in the space section below) |
-| `beui-layer-drive` | `beui::drive`: drive as a `Layer` (`Drive`, one layer or a tap under each of several layers sharing a session), its command `Inbox` and `Reply`, its socket protocol and the gestures it and the editor tests share (guides/running/drive.md) |
-| `beui-platform-headless` | `beui::Headless`, the platform that draws offscreen with no window or display server; `beui::Simulation`, the headless window and its stand-in services; and `beui::testing`, the harness that steps an app frame by frame under a drive layer |
+| `beui-layer-drive` | `beui::native::drive`: drive as a `Layer` (`Drive`, one layer or a tap under each of several layers sharing a session), its command `Inbox` and `Reply`, its socket protocol and the gestures it and the editor tests share (guides/running/drive.md) |
+| `beui-platform-headless` | `beui::native::Headless`, the platform that draws offscreen with no window or display server; `beui::native::Simulation`, the headless window and its stand-in services; and `beui::native::testing`, the harness that steps an app frame by frame under a drive layer |
 | `beui-platform-plugin` | the `Platform`, `PlatformServices` and `Renderer` for a block editor plugin module: `launch` starts the module's one app and registers its runner with the plugin framework as the module's `Regions` handler, whose batched calls then drive its frames; every region the host shows is a window of that app, which the app opens from the `Views` handle the platform provides through `Setup` (guides/adding_a_plugin_editor.md); it depends on the plugin framework, so the facade does not offer it, and it reads no `BEUI_*` variable |
 
 Core cannot see the crates above it, so the few places it used to reach up are
 hooks the higher crates fill in:
 
-- The inspector is a `Tools` object on the document. `beui::reactive::build`
-  installs it (`beui::install_inspector`), and `Document::show` hands the frame
+- The inspector is a `Tools` object on the document. `beui::native::build`
+  installs it (`beui::native::install_inspector`), and `Document::show` hands the frame
   to it; a document built by `beui_view::reactive::build` has none.
 - The simulated mouse is an `InputSimulation` the inspector installs on the
   `Context`.
@@ -334,8 +334,8 @@ hooks the higher crates fill in:
   only shapes one line (`FontBackend::shape`, text with no `\n`); core breaks
   and aligns lines once, in `RichLayout`, which `Fonts::layout` (and so
   `Painter::layout`) uses for wrapped, aligned or multi-line text.
-  `beui::context()` makes one over `FreetypeFonts` and only the fonts beui
-  bundles, which is what tests use; `beui::system_context()`, which the
+  `beui::native::context()` makes one over `FreetypeFonts` and only the fonts beui
+  bundles, which is what tests use; `beui::native::system_context()`, which the
   runners use, adds the system's own fonts for whatever the bundled ones do
   not cover. The fonts live in a `FontLibrary` that contexts can share and
   that can be given more fonts later, which lays their text out again.
@@ -343,10 +343,10 @@ hooks the higher crates fill in:
   (`Document::extension`, which components reach as `tree_local`). Both cores
   make a tree-local value in the document's own scope, so it outlives the
   component that first asked for it.
-- A gpu `Drawing` holds whatever its renderer draws; `beui::drawing` makes one
+- A gpu `Drawing` holds whatever its renderer draws; `beui::native::drawing` makes one
   for the wgpu renderer. It is native only.
 - Each platform is a `beui_core::runner::Platform`, a trait object the facade
-  picks (`beui::native_platform`, `beui::web_platform`) and runs with a `Launch`
+  picks (`beui::native::native_platform`, `beui::native::web_platform`) and runs with a `Launch`
   (`RunOptions`, `Context`, the `App`). The platform owns the event loop and
   turns native input into `Event`s; everything one frame does is
   `beui_core::runner::Runner::frame`, shared by all of them: it runs the
@@ -612,13 +612,38 @@ platform builds the native core. Code reads which one it is built for from the
 constant `beui::CORE` (`Core::Native` or `Core::Html`) and switches with
 `if CORE == Core::Html`; `#[cfg(beui_html)]` belongs only in beui-view, beui and
 beui-core-html. Such a switch is a deliberate choice for one component, never a
-way around a primitive one core lacks. What only the native document can do is
-in `beui::native` (`Document`, `with_document`, `Embed`, ...); the
-inspector, the on-screen keyboard and plugin hosting are native only. The dock
-runs on both: on HTML a `Window` (so a `DockWindow`) shows as its overlay,
-`window_of` is always the main window, and `stacked_at` orders nodes by the
-open overlays that hold them. The HTML facade adds `beui::html`
-(below).
+way around a primitive one core lacks. The inspector, the on-screen keyboard
+and plugin hosting are native only. The dock runs on both: on HTML a `Window`
+(so a `DockWindow`) shows as its overlay, `window_of` is always the main
+window, and `stacked_at` orders nodes by the open overlays that hold them.
+
+**The public API is the same on both cores.** Code that type-checks against
+beui on one core type-checks on the other; only the bodies differ. So:
+
+- Every public type, function, trait and re-export of beui-view and beui is
+  declared once, in shared code: plain values (`NodeId`, `NodeRef`, `KeyAt`,
+  `KeyEvent`, `OverlayAnchor`, `ImeCursor`, `Placed` and its `ListChild`,
+  `GridCell`, `Layer`, `CanvasItem`, `ForwardedInput`, ...) in beui-types,
+  everything else in beui-view's shared modules (`reactive.rs`,
+  `components/`, `measure.rs`, `painter.rs`, `drag.rs`, ...).
+- `src/native/` and `src/html/` give only `pub(crate)` bodies, called as
+  `crate::core::<module>::<name>(..)` from the shared declaration, so each
+  core's body is checked against the one signature in its own configuration.
+- A handle whose insides differ by core is one shared type with a private
+  per-core field and its methods written once, forwarding to the core:
+  `TextGeometry` (a snapshot natively, the live DOM on HTML),
+  `TextGeometrySignal`, `Painter` and its `Draw`, `Timer`, `drag::Board`,
+  `SelectableState`. A method only one core can give is not on the type.
+- What exists on one core only lives in one of a few public modules, each
+  listed with its reason in `ONE_CORE_MODULES` in
+  crates/fix-rust-source/src/core_api.rs: `beui::native` (apps, platforms,
+  runners, `Document`, renderers, fonts, GPU `Drawing`s and `draw_gpu`, and
+  `core_painter` for the native painter behind a `Painter`), `beui::html`
+  (`run`, `hydrate`, `render_to_string`, ...) and the beui-view modules they
+  re-export (`native_api`, `running`). fix-rust-source rejects a `pub` item in
+  `src/native/` or `src/html/`, and a `pub` item under a `cfg(beui_html)`
+  choice anywhere else in beui-view or beui; to add a one-core item, put it in
+  one of those modules, or add a module to that list with its reason.
 
 The contract both keep:
 
@@ -673,15 +698,19 @@ only that SVG when the callback, its measured size or a colour it resolved
 changes. SVG rather than `<canvas>` because a server-rendered page shows it
 before wasm loads. The callback is handed the drawing's measured size, or its
 `size` before it is measured, so a drawing with neither (one that fills what
-places it) draws nothing in a server-rendered page. The HTML `Painter` has the
-methods with an SVG equivalent: rectangles (rounded per corner, filled or
+places it) draws nothing in a server-rendered page. `Painter` (beui-view's
+`painter.rs`, one type over each core's painter) has the methods both cores
+can draw: rectangles (rounded per corner, filled or
 stroked inside like native), `line`, `fill_path` and `stroke_path` (fill rule,
 joins, caps, miter limit, dashes), `image` (a PNG data URL, cropped, rounded,
 tinted, pixelated when not `smooth`), `text`, `transformed`, `rotated`,
-`with_clip_rect`, `clip_rect`, `pixel_grid` and `resolve_color`. Colours a
+`with_clip_rect`, `clip_rect`, `pixel_grid` and `resolve_color`; rotations
+stack on both cores, each turning what is already turned. Colours a
 `Painter` takes are `Color`s, so references become `var(--…)` and
 `color-mix()` there and follow the scheme without a redraw. A gpu `Drawing`
-(`beui_view::drawing`, `Painter::drawing`) is native only; the colour wheel
+(`beui::native::Drawing`, drawn by `beui::native::draw_gpu`) is native only,
+as is the rest of the native painter (galleys, paths prepared for the GPU,
+fades), which native code reaches with `beui::native::core_painter(painter)`; the colour wheel
 paints its faces as an image on the CPU instead (`color_wheel/cpu.rs`, used
 without the `gpu` feature). Text editing is not an escape hatch:
 `TextArea` and `TextInput` are the same unstyled code on both cores, built on
@@ -727,7 +756,7 @@ To test on both cores:
   advances and hinting, and the browser rounding a font's ascent and descent to
   the nearest pixel where FreeType rounds them outward, which moves a 20px
   title and some icons by a pixel.
-- Native tests take the late path with `beui::testing::delay_measurement(true)`
+- Native tests take the late path with `beui::native::testing::delay_measurement(true)`
   (`BEUI_DELAY_MEASUREMENT=1` for a driven program), so a component that only
   works when measurement is synchronous fails natively too.
 
@@ -2932,7 +2961,7 @@ viewport and scissor as it found them: position what it draws from the
 rectangle it was given, the way beui's own shader does, rather than by setting
 a viewport.
 
-`beui::drawing` wraps a `Draw` in a `Drawing`, and two drawings are the same shape when they
+`beui::native::drawing` wraps a `Draw` in a `Drawing`, and two drawings are the same shape when they
 are the same `Rc`. That is what decides whether the frame changed, so a drawing
 whose contents have moved is a new `Drawing` and a frame that is showing the
 same thing keeps the one it had, which is what leaves an idle editor idle. The
@@ -2957,7 +2986,7 @@ component takes tokens.
 
 The default `beui` feature is `window`, which includes the winit runner and the
 wgpu renderer. A standalone app builds its document once and implements
-`beui::App`:
+`beui::native::App`:
 
 ```rust
 use beui::reactive::*;
@@ -2965,7 +2994,7 @@ use beui::styled::*;
 use beui::{App, Context, Document, NodeId, Rect};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    beui::run(CounterApp::new())
+    beui::native::run(CounterApp::new())
 }
 
 #[component]
@@ -3055,8 +3084,8 @@ Beui's features:
   hosts AccessKit. It has to be a view that input reaches through the view
   system: TalkBack's touch exploration arrives as hover events on it, which
   NativeActivity's input queue never delivers. The library defines
-  `#[unsafe(no_mangle)] fn android_main(app: beui::AndroidApp)`, which beui
-  calls on a thread of its own, and which calls `beui::run_with`.
+  `#[unsafe(no_mangle)] fn android_main(app: beui::native::AndroidApp)`, which beui
+  calls on a thread of its own, and which calls `beui::native::run_with`.
   The activity draws edge to edge under transparent status and navigation
   bars: the app fills the safe area inside them, the bars show its clear color,
   and their icons turn dark when its `Root`'s `system_bars` is `Light`.
@@ -3067,26 +3096,26 @@ asks for `interactive-widget=resizes-content`. When the rectangle a document is
 shown in changes size while the focus takes text, the document scrolls the
 focused field into what is left, through every scroll it sits in.
 - `web` enables `render` and adds the browser runner,
-  `beui::run_web(element_id, options, layers, app)`, which draws with wgpu
+  `beui::native::run_web(element_id, options, layers, app)`, which draws with wgpu
   into the element if it is a canvas and into a canvas it adds otherwise.
   `crates/beui-web-demo` is the demo in a browser:
   `./scripts/buck run //crates/beui-web-demo:web` serves it on
   http://127.0.0.1:8070.
 
-`beui::run_with` takes `RunOptions` (app id, starting size) where
-`beui::run` takes only the app; both load wgpu, and
-`beui::run_with_device` takes the `beui::OpenDevice` to open wgpu's device
+`beui::native::run_with` takes `RunOptions` (app id, starting size) where
+`beui::native::run` takes only the app; both load wgpu, and
+`beui::native::run_with_device` takes the `beui::native::OpenDevice` to open wgpu's device
 with instead (block-app's opens its device itself, to import Wayland clients' buffers), and
-`beui::run_on` runs on a platform of the caller's choosing, such as
+`beui::native::run_on` runs on a platform of the caller's choosing, such as
 `beui_platform_drm::Drm`, which drives the displays and input devices itself, or
-`beui::Headless`, which draws offscreen with no window or display server. The rest of
+`beui::native::Headless`, which draws offscreen with no window or display server. The rest of
 `App` is optional:
 
 - `setup(&Setup)` runs once, after the gpu exists and before the first frame.
   `Setup` hands over a `Waker`, and whatever the renderer and runner provide:
-  `setup.get::<beui::GpuSetup>()` is the wgpu device, queue and surface format,
+  `setup.get::<beui::native::GpuSetup>()` is the wgpu device, queue and surface format,
   for an app that paints with the gpu itself through `draw_gpu`, and on the
-  desktop `setup.get::<Arc<beui::winit::window::Window>>()` is the window. `Waker::wake`
+  desktop `setup.get::<Arc<beui::native::winit::window::Window>>()` is the window. `Waker::wake`
   can be called from any thread, and asks the runner for another frame: it is
   how work finishing elsewhere is pushed to the ui instead of polled for.
 - `close_requested` is asked when the window is closed, and can refuse by
@@ -3131,7 +3160,7 @@ A driver is a layer, `beui_layer_drive::Drive` (guides/running/drive.md): the na
 functions stack it where `BEUI_LAYERS` names `drive` and serve its commands on
 `BEUI_DRIVE_SOCKET`, pick their platform and renderer from `BEUI_PLATFORM` and
 `BEUI_RENDERER` (`beui_core::runner::environment`), and block-app's web build stacks one
-its `automate` export feeds (`beui::run_web` takes the layers). `Drive::new(inbox)` is one
+its `automate` export feeds (`beui::native::run_web` takes the layers). `Drive::new(inbox)` is one
 drive layer with the app directly above it; `Drive::taps(inbox, under)` is a tap for each entry
 of `under`, bottom first, sharing one session, each named by the layer just above it (`None` for
 the app), for a stack with other layers between them (`drive,space,drive` is
@@ -3152,7 +3181,7 @@ them, `resize` asks `PlatformServices::resize` (which only a headless window ans
 `state` reads the size, scale and fullscreen the window last reported. Its lowest tap answers
 the app's file and save dialogs itself (`Layer::pick_file`, `save_file`), so `upload` and
 `dismiss` answer them in any window, and it keeps the focus `focus` and `blur` gave. The headless platform's window is
-`beui_platform_headless::Simulation` (`beui::Simulation`), a `PlatformServices` like any other:
+`beui_platform_headless::Simulation` (`beui::native::Simulation`), a `PlatformServices` like any other:
 it keeps a clipboard, grows to its screen for fullscreen, and reports its size, scale and
 fullscreen through its `WindowReports`. beui's own tests drive one the same way, with a
 renderer that draws nothing. `Renderer::capture` reads the presented frame back as a
@@ -3402,7 +3431,7 @@ plugin protocol's input too, and a plugin region is always one window.
 
 A `beui_core::runner::Layer` is middleware between a platform and the app's
 runner. `Launch::layers` is the stack, the layer nearest the platform first;
-the native run functions (`beui::run_with`, `run_on`) build it from
+the native run functions (`beui::native::run_with`, `run_on`) build it from
 `BEUI_LAYERS` (`choose_platform` and `stack` in `crates/beui/src/window.rs`).
 Input goes up the stack, from the platform through each layer to the app, and
 the app's output and its calls on the platform go down it. Every hook has a
@@ -3411,7 +3440,7 @@ default that changes nothing:
 - `attach(&Context)` once, as the runner is made: a layer that opens the app's
   windows sets `WindowHosting::Any` here (see above).
 - `setup(&Setup)` after the renderers load and whenever the GPU is replaced;
-  `setup.get::<beui::GpuSetup>()` is the wgpu device, queue and surface format,
+  `setup.get::<beui::native::GpuSetup>()` is the wgpu device, queue and surface format,
   `setup.get::<Context>()` the app's context and `setup.waker` wakes the
   platform.
 - `pace() -> Option<Instant>`, before everything else in a frame: a layer that
@@ -3468,7 +3497,7 @@ such a handle can sit at different heights in one stack.
 With a layer that opens windows, the main window's size is the one the layer
 reports, not the platform window's, and the app gets no safe area. A wgpu
 layer draws each window into a texture of its own and composites them through
-a `Drawing` (`beui::drawing`, whose `Draw::prepare` has the device, queue and
+a `Drawing` (`beui::native::drawing`, whose `Draw::prepare` has the device, queue and
 an encoder) in a `display::Layer::Shape(Shape::Drawing { .. })` covering the window it
 returns. beui-platform-drm under such a layer shows the main window on its
 first display.
@@ -4075,7 +4104,7 @@ the layers and Compose itself stay); a key with nothing left on it fades whole.
 
 It is three pieces:
 
-- `beui::keyboard::unstyled` (crate `beui-keyboard`): the layouts as Rust data
+- `beui::native::keyboard::unstyled` (crate `beui-keyboard`): the layouts as Rust data
   (`layout.rs`: `QWERTY`, `GREEK`, `NUMPAD`, built with `KeyDef`'s const
   builders; there is no user configuration), the Fn, superscript and subscript
   tables (`tables.rs`), the compose table (`compose.rs`, generated from X.org's
@@ -4085,11 +4114,11 @@ It is three pieces:
   `Interactive` with `press_focus=false`, so every finger reaches the engine as
   its own pointer and pressing a key never moves the focus. It hands each key's
   appearance to a `cap` render function and the emoji layer to `emoji`.
-- `beui::keyboard::styled::SoftwareKeyboard`: the keys painted with theme tokens under a
+- `beui::native::keyboard::styled::SoftwareKeyboard`: the keys painted with theme tokens under a
   separator along its top, a bar with the close button, and the emoji panel (`emojis` grouped as the
   `emojis` crate groups them, leaving out what the fonts cannot draw).
   `install_keyboard` puts a `KeyboardWindow` on a document as its
-  `KeyboardHost`, which `beui::reactive::build` does for every document.
+  `KeyboardHost`, which `beui::native::build` does for every document.
 - `beui_core::software_keyboard`: whether it shows and where. A context shows
   one only once `Context::enable_keyboard` has been called, which the runner
   does on its first frame unless its `Platform::shows_keyboard` says the
@@ -4476,7 +4505,7 @@ Where a node was laid out is asked one way, the same on every core
 
 ```rust
 pub fn measure(node: NodeId) -> ReadSignal<Option<Measured>>;
-pub fn measure_text(node: NodeId) -> ReadSignal<Option<TextGeometry>>;
+pub fn measure_text(node: NodeId) -> TextGeometrySignal; // Get<Option<TextGeometry>>
 
 pub struct Measured {
     pub rect: Rect,
@@ -4491,7 +4520,9 @@ unplaced. `Measured::rect` is in the window's coordinates, the space
 any zoom, for content that builds from its own size, so a `Container` in a
 zoomed `CanvasItem scales=true` answers the same at every zoom. Each node has one signal per function, made on the first call and
 dropped with the node, so a handler may call `measure(node).get_untracked()`
-as often as it likes. `TextGeometry` is a snapshot of a `Text`'s last layout:
+as often as it likes. `TextGeometrySignal` reads like a `ReadSignal` (it is
+`Get<Option<TextGeometry>>` over the core's own signal). `TextGeometry` is a
+`Text`'s last layout (a snapshot natively, read from the DOM on HTML):
 `bounds()`, `caret_rect(index, width)`, `index_at(pos)`, `inline_at(pos)`,
 `lines()` (each a `LineBox` of its byte range, its rect and its baseline's y,
 in the window), and `scale()`, the scale of the space it sits in. Offsets are
@@ -4521,7 +4552,7 @@ out, can keep. The native core answers in the same frame: `Document::report_laid
 writes every signal that changed after each layout of `update_layout`'s loop,
 so an effect that reacts by changing the tree is laid out again before the
 frame paints, and a scroll moving a measured node only runs the effects that
-read it. `beui::testing::delay_measurement(true)` (or
+read it. `beui::native::testing::delay_measurement(true)` (or
 `BEUI_DELAY_MEASUREMENT=1` for a driven program) makes the native core publish
 measurements at the start of the next frame instead and ask for that frame, so
 headless tests take the late path. The beui tests named
@@ -4575,7 +4606,7 @@ eighth layout holds its own reports back for the next frame, the frame is
 painted from it and asks for another, and debug builds log what was still
 changing. Tests fail there instead: beui-core's own, and every test run through
 `block-ui-test`'s `DocumentTest` or `BeuiTest`, which turn on
-`beui::fail_unsettled_layout`. An open overlay whose anchor moved is placed
+`beui::native::fail_unsettled_layout`. An open overlay whose anchor moved is placed
 again after the walk, but only one the walk placed: an overlay under a culled
 ancestor is not placed at all, so its anchor moving is nothing to report. Each of those extra layouts is a cost the frame pays, so keep what a
 report drives to painting where you can: a scrollbar's thumb is painted where
@@ -5364,7 +5395,7 @@ the area they cover, so a large change spread over nearby spots is drawn once. A
 `draw_gpu(Some(drawing.redrawn(region)))` rather than a new `Drawing`: only that region, in the
 drawing's own coordinates, is damaged (the plugin host does this with the
 rectangles each plugin frame reports it changed). beui's own tests, and every test that drives a plugin through
-`block-ui-test` (which turns on `beui::verify_paint`), paint every frame again
+`block-ui-test` (which turns on `beui::native::verify_paint`), paint every frame again
 from scratch and fail when the retained painting differs from it or changed
 outside the damage. The second check (`paint/verify.rs`) sets the frame before
 against this one node by node, matched by id: a node's own shapes, the fades
@@ -5374,9 +5405,9 @@ must be damaged, or, inside a region the frame copied, must be what the copy
 brought there. Painting from scratch runs every paint again, so a test that
 counts paints skips the ones made while `Context::is_verifying_paint` is set.
 With `BEUI_OVER_REPAINT=1` in the environment (or
-`beui::detect_over_repaint(true)` on the thread that paints) they also report
+`beui::native::detect_over_repaint(true)` on the thread that paints) they also report
 every frame whose damage is more than four times the area of the shapes that
-changed, to stderr and to `beui::take_over_repaints`.
+changed, to stderr and to `beui::native::take_over_repaints`.
 
 A frame hands the renderer these trees, with the frame's own groups around them
 (`Context::clipped`, `Context::scaled` and `Context::apply_filter` wrap what
@@ -5386,7 +5417,7 @@ shapes once and keeps their instances in a GPU buffer, only walks the trees that
 reach the damage, and draws a scroll group through a translation and clip of its
 own, so a scroll or a pan encodes nothing again. A scroll whose offset changed
 reports its copy as `WindowOutput::moved`, and a host that keeps its last frame,
-as `beui::run` does, copies that region by the scroll with `Renderer::shift` and
+as `beui::native::run` does, copies that region by the scroll with `Renderer::shift` and
 repaints only what the copy cannot supply - the rows it exposes, whatever
 changed, and whatever does not move with the rows, such as a fade's bands or a
 scrollbar drawn over them. Only one region is copied per frame: when several
@@ -5422,7 +5453,7 @@ Beui behavior is tested headlessly. For library behavior, add a test under the
 relevant `tests` directory and declare it in that directory's `tests.rs`; this
 repository keeps one test per file.
 
-Every test that runs a document or an app runs it through `beui::testing::Stepped`, the way
+Every test that runs a document or an app runs it through `beui::native::testing::Stepped`, the way
 a platform does: through the real `Runner` under one drive layer, on the headless window's `Simulation`
 (`Stepped::new`) or on a `PlatformServices` the test supplies (`Stepped::on`), with a gpu-free
 `testing::Screen`, the clock stopped, and one frame interval per frame.

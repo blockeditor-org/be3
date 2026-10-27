@@ -4,7 +4,7 @@ use crate::primitives::*;
 use crate::reactive::*;
 use crate::unstyled::Picture;
 
-fn painted(output: &crate::FrameOutput) -> Vec<(Rect, Image, bool)> {
+fn painted(output: &crate::native::FrameOutput) -> Vec<(Rect, Image, bool)> {
     output
         .main()
         .shapes()

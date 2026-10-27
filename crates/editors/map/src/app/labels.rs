@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::{Color32, FontId, Pos2, Rect, TextAlign, TextLayout, Vec2};
+use block_editor_beui::beui::{Color32, FontId, Pos2, Rect, TextAlign, Vec2, native::TextLayout};
 
 use crate::geo::MapView;
 use crate::raster::TILE_PIXELS;
@@ -13,6 +13,7 @@ use crate::tiles::TileId;
 
 use super::state::TileState;
 use super::tiles;
+use beui::native::layout_text;
 
 const HALO: Color32 = Color32::from_rgba_unmultiplied(255, 255, 255, 200);
 const HALO_PADDING: Space = Space::Xs2;

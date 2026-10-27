@@ -250,6 +250,7 @@ pub(crate) fn with_colors<R>(
     result
 }
 
+#[derive(Clone)]
 pub struct Painter {
     context: Context,
     state: PainterState,
@@ -406,12 +407,8 @@ impl Painter {
     }
 
     pub fn rotated(&self, pivot: Pos2, angle: f32) -> Self {
-        let rotation = match angle == 0.0 {
-            true => Rotation::NONE,
-            false => Rotation::new(pivot, angle),
-        };
         self.with(PainterState {
-            rotation,
+            rotation: self.state.rotation.then(Rotation::new(pivot, angle)),
             ..self.state
         })
     }

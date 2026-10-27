@@ -6,6 +6,7 @@ pub mod tables;
 use std::cell::RefCell;
 use std::time::Duration;
 
+use beui_core::current::{close_keyboard, request_typed_paste, type_events};
 use beui_core::geometry::vec2;
 use beui_core::input::{PointerButton, PointerPhase};
 use beui_core::interact::forward::ForwardedInput;

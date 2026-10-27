@@ -4,7 +4,7 @@ use super::*;
 use crate::reactive::*;
 use crate::styled::*;
 
-fn progress_node(output: &crate::FrameOutput) -> Node {
+fn progress_node(output: &crate::native::FrameOutput) -> Node {
     output
         .accessibility_tree("Test", VIEWPORT)
         .nodes

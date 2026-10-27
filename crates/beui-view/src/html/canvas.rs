@@ -3,11 +3,11 @@ use crate::reactive::Child;
 use crate::reactive::Children;
 use crate::reactive::Get;
 use crate::reactive::NodeId;
-use crate::reactive::Placed;
 use crate::reactive::Prop;
 use crate::reactive::create_binding;
 use crate::types::CanvasView;
 use crate::types::Vec2;
+use crate::types::tree::CanvasItem;
 use beui_core_html::canvas::scale_property;
 use beui_core_html::css;
 use beui_core_html::document::{append, create, set_style};
@@ -15,9 +15,7 @@ use beui_core_html::tree::{CanvasKind, host};
 
 use super::bind;
 
-pub type CanvasItem = Placed<CanvasKind>;
-
-pub fn canvas(
+pub(crate) fn canvas(
     view: Prop<Option<CanvasView>>,
     width: Prop<f32>,
     height: Prop<f32>,
@@ -57,7 +55,7 @@ pub fn canvas(
     canvas
 }
 
-pub fn canvas_item(
+pub(crate) fn canvas_item(
     x: Prop<f32>,
     y: Prop<f32>,
     width: Prop<f32>,

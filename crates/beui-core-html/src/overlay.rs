@@ -2,38 +2,14 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
-use beui_tree::reactive::{Callback, IntoProp, Prop};
-use beui_types::{Color, Dismiss, LayerLevel, LayerPolicy, Placement, Pos2, Rect};
+use beui_tree::reactive::Callback;
+use beui_types::{Color, Dismiss, LayerLevel, LayerPolicy, Placement, Rect};
 
 use crate::css::px;
 use crate::document::{set_attribute, set_style, style_value};
 use crate::node::{NodeId, NodeRef};
 
-#[derive(Clone, PartialEq)]
-pub enum OverlayAnchor {
-    Node(NodeRef),
-    Point(Pos2),
-    Rect(Rect),
-    Pinned { node: NodeRef, rect: Rect },
-}
-
-impl IntoProp<OverlayAnchor> for &NodeRef {
-    fn into_prop(self) -> Prop<OverlayAnchor> {
-        Prop::Static(OverlayAnchor::Node(*self))
-    }
-}
-
-impl IntoProp<OverlayAnchor> for NodeRef {
-    fn into_prop(self) -> Prop<OverlayAnchor> {
-        Prop::Static(OverlayAnchor::Node(self))
-    }
-}
-
-impl Default for OverlayAnchor {
-    fn default() -> Self {
-        OverlayAnchor::Point(Pos2::ZERO)
-    }
-}
+pub use beui_types::layer::OverlayAnchor;
 
 const PLACED: [&str; 14] = [
     "position-anchor",

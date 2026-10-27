@@ -1,18 +1,15 @@
 use crate::reactive::Child;
 use crate::reactive::Children;
 use crate::reactive::Get;
-use crate::reactive::Placed;
 use crate::reactive::Prop;
 use crate::reactive::create_effect;
-use crate::reactive::with_document;
-use beui_core::base::grid::GridNode;
+use crate::types::tree::GridCell;
 use beui_core::base::grid::Track;
+use beui_core::current::with_document;
 use beui_core::document::Document;
 use beui_core::node::NodeId;
 
-pub type GridCell = Placed<GridNode>;
-
-pub fn grid(
+pub(crate) fn grid(
     columns: Prop<Vec<Track>>,
     column_spacing: Prop<f32>,
     row_spacing: Prop<f32>,
@@ -31,7 +28,7 @@ pub fn grid(
     grid.id()
 }
 
-pub fn grid_cell(span: Prop<usize>, children: Child) -> GridCell {
+pub(crate) fn grid_cell(span: Prop<usize>, children: Child) -> GridCell {
     GridCell {
         node: children,
         data: span,

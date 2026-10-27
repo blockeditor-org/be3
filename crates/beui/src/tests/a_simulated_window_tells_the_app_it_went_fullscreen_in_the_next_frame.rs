@@ -1,5 +1,5 @@
 use super::*;
-use beui::{Simulation, WindowSize};
+use beui::{native::Simulation, native::WindowSize};
 use beui_core::app::SafeArea;
 use beui_core::renderer::Loaded;
 use beui_core::runner::{Launch, RunOptions, Runner};
@@ -39,7 +39,7 @@ fn a_simulated_window_tells_the_app_it_went_fullscreen_in_the_next_frame() {
     runner
         .start(
             Loaded {
-                renderer: Box::new(crate::testing::Screen(vec2(200.0, 100.0))),
+                renderer: Box::new(crate::native::testing::Screen(vec2(200.0, 100.0))),
                 fonts: None,
             },
             Setup::new(Waker::new(|| {})),

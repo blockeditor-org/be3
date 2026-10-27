@@ -108,8 +108,7 @@ fn last_rect(node: NodeId) -> ReadSignal<Rect> {
 pub(super) fn tracked_scale(held: Stored<Held>) -> f32 {
     held.with(|held| {
         held.rows_measured.get();
-        let texts: Vec<ReadSignal<Option<TextGeometry>>> =
-            held.texts.borrow().values().copied().collect();
+        let texts: Vec<TextGeometrySignal> = held.texts.borrow().values().copied().collect();
         texts
             .into_iter()
             .find_map(|text| text.get())

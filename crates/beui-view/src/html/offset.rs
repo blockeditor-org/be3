@@ -9,7 +9,7 @@ use beui_core_html::document::{append, create, set_placed_style, set_style};
 
 use super::bind;
 
-pub fn offset(
+pub(crate) fn offset(
     offset: Prop<f32>,
     direction: Prop<Direction>,
     fit: bool,

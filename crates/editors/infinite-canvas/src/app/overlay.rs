@@ -1,8 +1,9 @@
 use block_editor_beui::ResizeMode;
 use block_editor_beui::beui::icons::Glyph;
+use block_editor_beui::beui::native::core_painter;
 use block_editor_beui::beui::{
-    Color32, FillRule, FontId, LineCap, LineJoin, Painter, Path, Pos2, Rect, Stroke, TextAlign,
-    TextLayout, Vec2, pos2,
+    Color32, FillRule, FontId, LineCap, LineJoin, Path, Pos2, Rect, Stroke, TextAlign, Vec2,
+    native::TextLayout, pos2, reactive::Painter,
 };
 use infinite_canvas_types::{CanvasPoint, CanvasStyle};
 
@@ -50,13 +51,13 @@ impl FrameBackdrop {
             return;
         }
         painter.rect_stroke(rect, 0.0, FRAME_OUTLINE, self.outline);
-        let galley = painter.layout(
+        let galley = core_painter(painter).layout(
             &self.name,
             FontId::proportional(FRAME_LABEL_SIZE),
             f32::INFINITY,
         );
         let height = galley.size().y;
-        painter.galley(
+        core_painter(painter).galley(
             pos2(
                 rect.left(),
                 rect.top() - height - (FRAME_LABEL_HEIGHT - height) / 2.0,
@@ -74,7 +75,7 @@ pub(crate) struct Hint {
 
 impl Hint {
     pub(crate) fn draw(&self, painter: &Painter, stage: Rect) {
-        let galley = painter.layout_text(
+        let galley = core_painter(painter).layout_text(
             HINT,
             FontId::proportional(16.0),
             TextLayout {
@@ -83,7 +84,7 @@ impl Hint {
             },
         );
         let size = galley.size();
-        painter.galley(
+        core_painter(painter).galley(
             pos2(
                 stage.center().x - size.x / 2.0,
                 stage.center().y - size.y / 2.0,
@@ -106,9 +107,10 @@ impl Badge {
         let badge = Rect::from_center_size(center, Vec2::splat(BADGE_SIDE));
         painter.rect_filled(badge, 5.0, palette.surface);
         painter.rect_stroke(badge, 5.0, 1.0, palette.border);
-        let icon = painter.layout(self.glyph.as_str(), FontId::icons(16.0), f32::INFINITY);
+        let icon =
+            core_painter(painter).layout(self.glyph.as_str(), FontId::icons(16.0), f32::INFINITY);
         let size = icon.size();
-        painter.galley(
+        core_painter(painter).galley(
             pos2(center.x - size.x / 2.0, center.y - size.y / 2.0),
             icon,
             palette.auto,

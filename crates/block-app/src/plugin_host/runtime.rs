@@ -40,10 +40,10 @@ const REMEMBERED_PRESENTS: usize = 16;
 
 thread_local! {
     static HOST: RefCell<Host> = RefCell::new(Host::new());
-    static STEPS: RefCell<BTreeMap<String, beui::FrameTimes>> = const { RefCell::new(BTreeMap::new()) };
+    static STEPS: RefCell<BTreeMap<String, beui::native::FrameTimes>> = const { RefCell::new(BTreeMap::new()) };
 }
 
-pub(crate) fn take_steps() -> Vec<(String, beui::FrameTimes)> {
+pub(crate) fn take_steps() -> Vec<(String, beui::native::FrameTimes)> {
     STEPS.with(|steps| {
         std::mem::take(&mut *steps.borrow_mut())
             .into_iter()
@@ -539,7 +539,7 @@ impl Runtime {
         let mut shared = self.shared.borrow_mut();
         shared.paintings.clear();
         shared.overflows.clear();
-        let Ok(paintings) = beui::painting::ScreenPaintings::decode(payload) else {
+        let Ok(paintings) = beui::native::painting::ScreenPaintings::decode(payload) else {
             return;
         };
         for (screen, painting) in paintings.screens {
@@ -689,7 +689,7 @@ impl Runtime {
                     .borrow_mut()
                     .entry(self.plugin.identity.id.clone())
                     .or_default()
-                    .merge(beui::FrameTimes { count, longest });
+                    .merge(beui::native::FrameTimes { count, longest });
             });
         }
         if let Some(took) = self.backend.took() {
@@ -1087,7 +1087,7 @@ pub(crate) fn place_screens(blits: &[Blit], scale: f32, background: beui::Color3
     });
 }
 
-pub(crate) fn install(setup: &beui::Setup) {
+pub(crate) fn install(setup: &beui::native::Setup) {
     let availability = presenter::install(setup);
     HOST.with(|host| {
         host.borrow_mut().availability = availability;
@@ -1106,7 +1106,7 @@ pub(crate) fn exiting() {
     presenter::stop();
 }
 
-pub(crate) fn replace_gpu(setup: &beui::Setup) {
+pub(crate) fn replace_gpu(setup: &beui::native::Setup) {
     install(setup);
     HOST.with(|host| {
         for runtime in host.borrow_mut().runtimes.values_mut() {
@@ -2620,7 +2620,7 @@ pub(crate) fn region_drawing(
     pieces: &[Piece],
     rotation: f32,
     opacity: f32,
-) -> Option<beui::Drawing> {
+) -> Option<beui::native::Drawing> {
     if pieces.is_empty() || view.loading {
         return None;
     }
@@ -2628,7 +2628,7 @@ pub(crate) fn region_drawing(
         let screen = runtime.instances.screen_id(instance, region)?;
         let mut template = runtime.template(screen, view.drawn);
         template.quad.opacity = opacity;
-        Some(beui::painted_drawing(RegionDrawing::new(
+        Some(beui::native::painted_drawing(RegionDrawing::new(
             template,
             pieces.to_vec(),
             view.held,

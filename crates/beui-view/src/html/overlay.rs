@@ -1,8 +1,8 @@
+use crate::components::overlay::OverlayPresence;
 use std::cell::RefCell;
 
 use crate::reactive::Callback;
 use crate::reactive::Get;
-use crate::reactive::Memo;
 use crate::reactive::NodeId;
 use crate::reactive::NodeRef;
 use crate::reactive::OverlayAnchor;
@@ -10,15 +10,12 @@ use crate::reactive::Prop;
 use crate::reactive::RenderFn;
 use crate::reactive::Scope;
 use crate::reactive::Set;
-use crate::reactive::Signal;
 use crate::reactive::create_effect;
 use crate::reactive::create_memo;
-use crate::reactive::create_signal;
 use crate::reactive::owner_scope;
 use crate::reactive::provide_context;
 use crate::reactive::store;
 use crate::reactive::untrack;
-use crate::reactive::use_context;
 use crate::types::Color;
 use crate::types::Dismiss;
 use crate::types::LayerLevel;
@@ -31,31 +28,11 @@ use beui_core_html::overlay::Parts;
 
 use super::bind;
 
-#[derive(Clone, Copy)]
-pub struct OverlayPresence {
-    open: Memo<bool>,
-    lingering: Signal<Vec<Memo<bool>>>,
-}
-
-impl OverlayPresence {
-    pub fn open(self) -> Memo<bool> {
-        self.open
-    }
-
-    pub fn linger_while(self, showing: Memo<bool>) {
-        self.lingering.update(|lingering| lingering.push(showing));
-    }
-}
-
-pub fn use_overlay_presence() -> Option<OverlayPresence> {
-    use_context::<OverlayPresence>()
-}
-
 struct Mounted {
     scope: Scope,
 }
 
-pub fn overlay(
+pub(crate) fn overlay(
     anchor: Prop<OverlayAnchor>,
     placement: Prop<Placement>,
     scrim: Prop<Color>,
@@ -108,14 +85,11 @@ pub fn overlay(
     bind(traps_focus, move |traps| held.set_traps_focus(traps));
     let held = layer.clone();
     bind(beak, move |reach| held.set_beak(reach));
-    let presence = OverlayPresence {
-        open: create_memo(move || open.get()),
-        lingering: create_signal(Vec::new()),
-    };
+    let presence = OverlayPresence::new(create_memo(move || open.get()));
     let shown = create_memo(move || {
-        presence.open.get()
+        presence.open().get()
             || presence
-                .lingering
+                .lingering()
                 .with(|lingering| lingering.iter().any(Get::get))
     });
     let owner = owner_scope().expect("an overlay is built inside a scope");
@@ -156,7 +130,7 @@ pub fn overlay(
                     }
                 }
                 false => {
-                    presence.lingering.update(Vec::clear);
+                    presence.lingering().update(Vec::clear);
                     layered.fill(slot, Vec::new());
                     drop(held.take());
                 }

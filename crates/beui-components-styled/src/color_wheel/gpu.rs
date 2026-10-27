@@ -1,8 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use beui_renderer_wgpu::{Draw, DrawAt};
-use beui_view::drawing::Drawing;
+use beui_renderer_wgpu::{Draw, DrawAt, Drawing};
 use beui_view::reactive::Painter;
 use beui_view::types::Rect;
 use bytemuck::{Pod, Zeroable};
@@ -62,7 +61,7 @@ impl Faces {
                 }
             }
         };
-        painter.drawing(bounds, &drawing);
+        beui_view::native_api::core_painter(painter).drawing(bounds, &drawing);
     }
 }
 

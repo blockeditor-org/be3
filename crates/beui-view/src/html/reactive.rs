@@ -3,21 +3,17 @@ use std::rc::Rc;
 
 use beui_tree::reactive::*;
 
-use crate::types::{Color, KeyPhase, Outline};
+use crate::types::{KeyAt, KeyEvent, KeyPhase, NodeId, NodeRef};
 use beui_core_html::keys::KeyHandler;
 
-pub use beui_core_html::drawing::Draw;
-pub use beui_core_html::focus::{ImeCursor, focus_ancestry, focused_node, set_focus};
-pub use beui_core_html::frame::{Timer, create_timer, now, pin_wall_clock, wall_clock};
-pub use beui_core_html::keys::held_modifiers;
-pub use beui_core_html::keys::{KeyAt, KeyEvent};
-pub use beui_core_html::overlay::OverlayAnchor;
-pub use beui_core_html::page::{
+pub(crate) use beui_core_html::focus::{focus_ancestry, focused_node, set_focus};
+pub(crate) use beui_core_html::frame::{Timer, create_timer, now, pin_wall_clock, wall_clock};
+pub(crate) use beui_core_html::keys::held_modifiers;
+pub(crate) use beui_core_html::page::{
     pixels_per_point, use_font_revision, use_preference_layers, use_preferences, use_viewport_size,
 };
-pub use beui_core_html::{NodeId, NodeRef};
 
-pub fn use_preference_layer(
+pub(crate) fn use_preference_layer(
     source: crate::types::PreferenceSource,
 ) -> Binding<crate::types::PreferenceLayer> {
     let layers = use_preference_layers();
@@ -29,63 +25,62 @@ pub fn use_preference_layer(
     )
 }
 
-pub fn copy_text(text: impl Into<String>) {
-    beui_core_html::page::copy_text(text.into());
+pub(crate) fn copy_text(text: String) {
+    beui_core_html::page::copy_text(text);
 }
 
-pub fn focus_ring(focused: impl IntoProp<bool>) -> Memo<bool> {
-    let focused = focused.into_prop();
+pub(crate) fn copy_image(png: Vec<u8>) {
+    let _ = png;
+}
+
+pub(crate) fn focus_takes_text() -> bool {
+    false
+}
+
+pub(crate) fn on_finger_tap(tap: impl Fn(usize) -> bool + 'static) {
+    let _ = tap;
+}
+
+pub(crate) fn use_fullscreen() -> ReadSignal<bool> {
+    create_signal(false).read_only()
+}
+
+pub(crate) fn window_of(_node: NodeId) -> crate::types::WindowId {
+    crate::types::WindowId::MAIN
+}
+
+pub(crate) fn stacked_at(
+    nodes: &[NodeId],
+    window: crate::types::WindowId,
+    pos: crate::types::Pos2,
+) -> Vec<NodeId> {
+    if window != crate::types::WindowId::MAIN {
+        return Vec::new();
+    }
+    beui_core_html::nodes::stacked_at(nodes, pos)
+}
+
+pub(crate) fn focus_ring(focused: Prop<bool>) -> Memo<bool> {
     beui_core_html::focus::focus_ring(create_memo(move || focused.get()))
 }
 
-pub fn holds_focus(node: NodeRef) -> Memo<bool> {
+pub(crate) fn holds_focus(node: NodeRef) -> Memo<bool> {
     beui_core_html::focus::holds_focus(node)
 }
 
-pub fn focus_outline(
-    focused: impl IntoProp<bool>,
-    color: impl IntoProp<Color>,
-    width: f32,
-    offset: f32,
-) -> Memo<Option<Outline>> {
-    let ring = focus_ring(focused);
-    let color = color.into_prop();
-    create_memo(move || {
-        ring.get()
-            .then(|| Outline::new(color.get(), width).offset(offset))
-    })
-}
-
-pub fn on_key(at: KeyAt, phase: KeyPhase, handler: impl Fn(KeyEvent) -> bool + 'static) {
+pub(crate) fn on_key(at: KeyAt, phase: KeyPhase, handler: impl Fn(KeyEvent) -> bool + 'static) {
     let handler: Rc<KeyHandler> = Rc::new(handler);
     beui_core_html::keys::listen(at, phase, handler);
 }
 
-pub fn on_shortcut(shortcut: impl Fn(crate::types::KeyPress) -> bool + 'static) {
-    let at = match try_current_component() {
-        Some(_) => KeyAt::Node(beui_core_html::tree::component_node()),
-        None => KeyAt::Root,
-    };
-    on_key(at, KeyPhase::Capture, move |event| {
-        match (event.press(), event.phase) {
-            (Some(press), KeyPhase::Capture) => shortcut(press),
-            _ => false,
-        }
-    });
-}
-
-pub fn on_global_key(handler: impl Fn(KeyEvent) -> bool + 'static) {
-    on_key(KeyAt::Window, KeyPhase::Capture, handler);
-}
-
-pub fn bind(node: NodeId, effect: impl FnMut() + 'static) {
+pub(crate) fn bind(node: NodeId, effect: impl FnMut() + 'static) {
     match beui_core_html::document::owner(node).filter(ScopeContext::is_alive) {
         Some(owner) => owner.run(|| create_effect(effect)),
         None => create_effect(effect),
     };
 }
 
-pub fn bind_test_id(node: NodeId, test_id: Prop<String>) {
+pub(crate) fn bind_test_id(node: NodeId, test_id: Prop<String>) {
     let reading = match test_id {
         Prop::Static(value) => {
             beui_core_html::document::add_test_id(node, value);
@@ -105,32 +100,34 @@ pub fn bind_test_id(node: NodeId, test_id: Prop<String>) {
     });
 }
 
-pub fn tree_local<T: Clone + 'static>(make: impl FnOnce() -> T) -> T {
+pub(crate) fn tree_local<T: Clone + 'static>(make: impl FnOnce() -> T) -> T {
     beui_core_html::document::extension_or_insert_with(make)
 }
 
-pub use beui_core_html::drawing::Painter;
-pub use beui_core_html::frame::after_input;
-pub use beui_core_html::keys::KeyInput;
-pub use beui_core_html::page::touched_by_finger;
+pub(crate) use beui_core_html::frame::after_input;
+pub(crate) use beui_core_html::page::touched_by_finger;
 
-pub fn on_scroll_key(at: KeyAt, phase: KeyPhase, handler: impl Fn(KeyEvent) -> bool + 'static) {
+pub(crate) fn on_scroll_key(
+    at: KeyAt,
+    phase: KeyPhase,
+    handler: impl Fn(KeyEvent) -> bool + 'static,
+) {
     on_key(at, phase, handler);
 }
 
-pub fn on_back(
-    _enabled: impl IntoProp<bool>,
+pub(crate) fn on_back(
+    _enabled: Prop<bool>,
     _handler: impl Fn(crate::types::BackGesture) + 'static,
 ) {
 }
 
-pub fn use_keyboard() -> ReadSignal<bool> {
+pub(crate) fn use_keyboard() -> ReadSignal<bool> {
     create_signal(true).read_only()
 }
 
-pub fn request_paste() {}
+pub(crate) fn request_paste() {}
 
-pub fn arrow_focus(row: NodeRef, direction: crate::types::Direction) {
+pub(crate) fn arrow_focus(row: NodeRef, direction: crate::types::Direction) {
     let (back, forth) = match direction {
         crate::types::Direction::Horizontal => {
             (crate::types::Key::ArrowLeft, crate::types::Key::ArrowRight)
@@ -170,19 +167,4 @@ pub fn arrow_focus(row: NodeRef, direction: crate::types::Direction) {
         }
         true
     });
-}
-
-pub fn window_of(_node: NodeId) -> crate::types::WindowId {
-    crate::types::WindowId::MAIN
-}
-
-pub fn stacked_at(
-    nodes: &[NodeId],
-    window: crate::types::WindowId,
-    pos: crate::types::Pos2,
-) -> Vec<NodeId> {
-    if window != crate::types::WindowId::MAIN {
-        return Vec::new();
-    }
-    beui_core_html::nodes::stacked_at(nodes, pos)
 }

@@ -18,7 +18,12 @@ impl Renderer for Screen {
         Some(vec2(400.0, 300.0))
     }
 
-    fn prepare(&mut self, _output: &crate::WindowOutput, _scale: f32, background: Color32) -> bool {
+    fn prepare(
+        &mut self,
+        _output: &crate::native::WindowOutput,
+        _scale: f32,
+        background: Color32,
+    ) -> bool {
         self.0.borrow_mut().push(background);
         false
     }
@@ -61,7 +66,7 @@ impl Layer for Host {
         self.seen.borrow_mut().push((main.size, view.platform));
         let mut window = WindowState::default();
         window.appearance.clear_color = Color32::WHITE;
-        shown.windows = vec![crate::WindowOutput {
+        shown.windows = vec![crate::native::WindowOutput {
             id: WindowId::MAIN,
             size: view.platform / view.pixels_per_point,
             layers: Rc::new(Vec::new()),

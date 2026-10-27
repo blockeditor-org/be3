@@ -56,7 +56,7 @@ fn a_layer_sees_the_time_of_the_frame_it_is_in() {
         layers: vec![Box::new(Recording(log.clone()))],
     });
     let loaded = Loaded {
-        renderer: Box::new(crate::testing::Screen(vec2(200.0, 100.0))),
+        renderer: Box::new(crate::native::testing::Screen(vec2(200.0, 100.0))),
         fonts: None,
     };
     runner

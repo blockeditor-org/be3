@@ -3,12 +3,13 @@ use std::ops::Range;
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{
-    Color32, CursorIcon, FontId, Key, KeyPress, NodeId, Page, PageShape, PointerPress, Pos2, Rect,
-    TextLayout, Vec2,
+    Color32, CursorIcon, FontId, Key, KeyPress, NodeId, PointerPress, Pos2, Rect, Vec2,
+    native::Page, native::PageShape, native::TextLayout,
 };
 use text_editor_core::{CursorLeftRightStop, EditorCommand, LRDirection};
 
 use crate::app::state::State;
+use beui::native::{core_painter, layout_text};
 
 const BYTES_PER_ROW: usize = 16;
 const GROUP_SIZE: usize = 8;
@@ -388,7 +389,12 @@ pub(crate) fn HexView(state: State) -> NodeId {
             content_size.get(),
         )
     });
-    let draw: Prop<Draw> = Prop::dynamic(move || drawn.get().draw());
+    let draw: Prop<Draw> = Prop::dynamic(move || {
+        let draw = drawn.get().draw();
+        let draw: Draw =
+            std::rc::Rc::new(move |painter: &Painter, rect| draw(core_painter(painter), rect));
+        draw
+    });
 
     let cx = HexSurface {
         state,

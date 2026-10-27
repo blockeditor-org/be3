@@ -9,8 +9,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use beui::{
-    Keystroke, Launch, Modifiers, Pen, PenPhase, PlatformServices, PointerButton, Pos2,
-    ScrollDelta, Setup, TouchId, TouchPhase, Waker, vec2,
+    Keystroke, Modifiers, Pen, PenPhase, PointerButton, Pos2, ScrollDelta, TouchId, TouchPhase,
+    native::Launch, native::PlatformServices, native::Setup, native::Waker, vec2,
 };
 use beui_core::app::SafeArea;
 use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
@@ -423,8 +423,9 @@ fn open_gpu(node: u64, lost: &Arc<AtomicBool>) -> Result<(wgpu::Device, wgpu::Qu
         memory_hints: wgpu::MemoryHints::Performance,
         trace: wgpu::Trace::Off,
     };
-    let (device, queue) = beui::open_vulkan_device(&adapter, &descriptor, &DEVICE_EXTENSIONS)
-        .ok_or("the Vulkan device could not be opened")?;
+    let (device, queue) =
+        beui::native::open_vulkan_device(&adapter, &descriptor, &DEVICE_EXTENSIONS)
+            .ok_or("the Vulkan device could not be opened")?;
     let flag = lost.clone();
     device.set_device_lost_callback(move |_, message| {
         eprintln!("beui: the GPU was lost: {message}");
@@ -1047,15 +1048,15 @@ impl Session {
         }
     }
 
-    fn push(&mut self, input: impl Into<beui::Incoming>) {
+    fn push(&mut self, input: impl Into<beui::native::Incoming>) {
         self.runner.push(input);
         self.pacer.ask();
     }
 
-    fn push_sample(&mut self, event: impl Into<beui::Incoming>) {
+    fn push_sample(&mut self, event: impl Into<beui::native::Incoming>) {
         self.push(event);
         if let Some(at) = self.sampled {
-            self.push(beui::Incoming::Time(at));
+            self.push(beui::native::Incoming::Time(at));
         }
     }
 

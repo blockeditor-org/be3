@@ -3,17 +3,18 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use be_block::ObjectId;
+use beui::native::rich::TextCaret;
 use beui::reactive::*;
-use beui::rich::TextCaret;
 use beui::styled::*;
 use beui::{
-    Key, KeyPress, NodeId, Overflow, PasteKind, Pasted, PointerPress, Pos2, ScrollGesture,
-    TextLayout, Vec2,
+    Key, KeyPress, NodeId, Overflow, PasteKind, Pasted, PointerPress, Pos2, ScrollGesture, Vec2,
+    native::TextLayout,
 };
 use terminal_types::{TerminalColors, TerminalCursor, TerminalLine, TerminalWheel};
 
 use crate::keys::{TerminalInput, key_event, text_event};
 use crate::lines::{Lines, Look, Piece, Shown, color, screen};
+use beui::native::layout_text;
 
 const TEXT: TextStyle = TextStyle::CODE;
 const PADDING: Space = Space::Sm;

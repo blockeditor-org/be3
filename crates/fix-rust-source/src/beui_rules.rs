@@ -141,7 +141,11 @@ pub(crate) fn beui_violations(tree: &SourceFile, source: &str, relative: &str) -
     {
         violations.extend(core_cfg_uses(tree, source, relative));
     }
-    if !test_source {
+    if !test_source
+        && !crate::core_api::CORE_FILES
+            .iter()
+            .any(|file| relative.starts_with(file))
+    {
         violations.extend(component_uses(tree, source, relative));
     }
     if !test_source

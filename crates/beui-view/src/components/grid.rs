@@ -1,9 +1,9 @@
-pub use crate::core::grid::GridCell;
 use crate::reactive::Child;
 use crate::reactive::Children;
 use crate::reactive::NodeId;
 use crate::reactive::Prop;
 use crate::types::Track;
+pub use crate::types::tree::GridCell;
 use beui_macros::component;
 
 #[component]

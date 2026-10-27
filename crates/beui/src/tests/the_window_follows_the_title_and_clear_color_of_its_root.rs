@@ -17,7 +17,12 @@ impl Renderer for Screen {
         Some(vec2(200.0, 100.0))
     }
 
-    fn prepare(&mut self, _output: &crate::WindowOutput, _scale: f32, background: Color32) -> bool {
+    fn prepare(
+        &mut self,
+        _output: &crate::native::WindowOutput,
+        _scale: f32,
+        background: Color32,
+    ) -> bool {
         self.0.borrow_mut().push(background);
         false
     }
@@ -55,7 +60,7 @@ fn the_window_follows_the_title_and_clear_color_of_its_root() {
     let mut runner = Runner::new(Launch {
         options: RunOptions::default(),
         context: context(),
-        app: Box::new(crate::testing::Showing(document)),
+        app: Box::new(crate::native::testing::Showing(document)),
         layers: Vec::new(),
     });
     let loaded = Loaded {

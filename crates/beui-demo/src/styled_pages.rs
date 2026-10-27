@@ -9,7 +9,9 @@ use beui::icons::{
     ICON_UNDO_2, ICON_WIFI, ICON_X, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
 #[cfg(feature = "native")]
-use beui::keyboard::styled::SoftwareKeyboard;
+use beui::native::keyboard::styled::SoftwareKeyboard;
+#[cfg(feature = "native")]
+use beui::native::toggle_keyboard;
 use beui::{Align, CanvasView, Extent};
 
 const COLUMN_SPACING: Space = Space::Xl2;

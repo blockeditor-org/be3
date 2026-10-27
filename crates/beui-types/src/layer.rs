@@ -213,3 +213,32 @@ pub fn resolve_rect(
     origin.y = origin.y.max(viewport.top());
     Rect::from_min_size(origin, content_size)
 }
+
+#[derive(Clone, PartialEq)]
+pub enum OverlayAnchor {
+    Node(crate::node::NodeRef),
+    Point(geometry::Pos2),
+    Rect(Rect),
+    Pinned {
+        node: crate::node::NodeRef,
+        rect: Rect,
+    },
+}
+
+impl beui_tree::reactive::IntoProp<OverlayAnchor> for &crate::node::NodeRef {
+    fn into_prop(self) -> beui_tree::reactive::Prop<OverlayAnchor> {
+        beui_tree::reactive::Prop::Static(OverlayAnchor::Node(*self))
+    }
+}
+
+impl beui_tree::reactive::IntoProp<OverlayAnchor> for crate::node::NodeRef {
+    fn into_prop(self) -> beui_tree::reactive::Prop<OverlayAnchor> {
+        beui_tree::reactive::Prop::Static(OverlayAnchor::Node(self))
+    }
+}
+
+impl Default for OverlayAnchor {
+    fn default() -> Self {
+        OverlayAnchor::Point(geometry::Pos2::ZERO)
+    }
+}

@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use beui::{
-    Color32, CursorIcon, GpuSetup, Pos2, Rect, RendererInfo, Repainting, Setup, Vec2, WindowId,
-    WindowOutput,
+    Color32, CursorIcon, Pos2, Rect, Vec2, WindowId, native::GpuSetup, native::RendererInfo,
+    native::Repainting, native::Setup, native::WindowOutput,
 };
 use beui_core::renderer::Renderer;
 
@@ -216,7 +216,7 @@ fn blank(size: Vec2) -> WindowOutput {
         layers: Rc::new(Vec::new()),
         window: beui_core::window::WindowState::default(),
         changed: true,
-        damage: beui::Region::NOTHING,
+        damage: beui::native::Region::NOTHING,
         moved: None,
         pixels_per_point: 1.0,
     }

@@ -48,7 +48,7 @@ fn parts<A: BeuiApp>(instance: &dyn Instance) -> &dyn Parts {
 }
 
 pub struct Drawn {
-    pub output: beui::FrameOutput,
+    pub output: beui::native::FrameOutput,
     pub windows: Vec<(ScreenPlacement, beui::WindowId)>,
 }
 
@@ -74,7 +74,7 @@ impl std::ops::DerefMut for HeadlessPlugin {
 
 impl HeadlessPlugin {
     pub fn new(id: &str, name: &str, version: &str) -> Self {
-        crate::fonts::use_fonts(beui::FontLibrary::bundled());
+        crate::fonts::use_fonts(beui::native::FontLibrary::bundled());
         let core = Core::new(id, name, version);
         let module = core.module().local(Module::default);
         Self {

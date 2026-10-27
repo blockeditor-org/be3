@@ -6,12 +6,12 @@ use std::sync::mpsc::{Receiver, TryRecvError};
 
 use be_win32::{EntryId, EntryKind, FocusEvent, Handle, Hotkey, Program, Snapshot, Watcher};
 use be_win32_capture::{Capture, Device, Lost, Target};
-use beui::native::Document;
+use beui::native::{Document, draw_gpu};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{
-    Context, Drawing, Forwarded, ForwardedInput, NodeId, PointerPhase, Pos2, Rect, Setup, Vec2,
-    WindowPlacement, WindowReport, WindowRole,
+    Forwarded, ForwardedInput, NodeId, PointerPhase, Pos2, Rect, Vec2, WindowPlacement,
+    WindowReport, WindowRole, native::Context, native::Drawing, native::Setup,
 };
 use block_plugin_api::{HostImage, HostProgram, HostWindow, HostWindowId};
 
@@ -114,7 +114,7 @@ pub(crate) fn create() {
 }
 
 pub(crate) fn start(setup: &Setup) {
-    if let Some(gpu) = setup.get::<beui::GpuSetup>() {
+    if let Some(gpu) = setup.get::<beui::native::GpuSetup>() {
         GPU.set(Some(Gpu {
             device: gpu.device.clone(),
             queue: gpu.queue.clone(),
@@ -122,8 +122,8 @@ pub(crate) fn start(setup: &Setup) {
         }));
     }
     if let Some(hwnd) = setup
-        .get::<beui::NativeWindow>()
-        .and_then(beui::NativeWindow::win32)
+        .get::<beui::native::NativeWindow>()
+        .and_then(beui::native::NativeWindow::win32)
     {
         HOST_WINDOW.set(Some(Handle(hwnd as u64)));
     }
@@ -354,7 +354,7 @@ pub(crate) fn before(_context: &Context, rect: Rect, document: &mut Document) {
             {
                 captured.drawn = frame.version();
                 let texture = frame.texture().clone();
-                let drawing = beui::drawing(TextureDraw::new(texture, frame));
+                let drawing = beui::native::drawing(TextureDraw::new(texture, frame));
                 frames.extend(
                     captured
                         .users

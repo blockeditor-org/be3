@@ -12,8 +12,6 @@ use crate::reactive::{
     provide_context, use_context,
 };
 
-pub use crate::core::window::opens_windows;
-
 #[derive(Clone, Copy)]
 pub struct WindowHandle {
     pub id: WindowId,
@@ -128,4 +126,8 @@ pub fn Window(
             <Frame width=width height=height>{provided(handle, content)}</Frame>
         </Overlay>
     }
+}
+
+pub fn opens_windows() -> crate::reactive::ReadSignal<bool> {
+    crate::core::window::opens_windows()
 }

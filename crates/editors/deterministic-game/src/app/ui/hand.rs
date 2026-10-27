@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::{NodeId, Painter, Pos2, Rect, Vec2, pos2};
+use block_editor_beui::beui::{NodeId, Pos2, Rect, Vec2, pos2, reactive::Painter};
 use game_api::Spot;
 use game_api::board::{CARD_HEIGHT, CARD_WIDTH, HandCard, ItemId};
 

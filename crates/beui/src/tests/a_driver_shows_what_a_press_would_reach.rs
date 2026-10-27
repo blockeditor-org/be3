@@ -31,7 +31,7 @@ fn a_driver_shows_what_a_press_would_reach() {
             </Canvas>
         }
     });
-    let mut driven = stepped(crate::testing::Showing(document));
+    let mut driven = stepped(crate::native::testing::Showing(document));
 
     let wrapped = driven.ask(&["hit", "50,50"]).expect("the driver hit tests");
     assert!(

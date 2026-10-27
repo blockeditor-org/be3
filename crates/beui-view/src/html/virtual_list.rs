@@ -200,7 +200,7 @@ impl<K: Clone + Hash + Eq + 'static> Rows<K> {
     }
 }
 
-pub fn virtual_list<K>(
+pub(crate) fn virtual_list<K>(
     keys: Prop<Vec<K>>,
     item_size: Prop<f32>,
     direction: Prop<Direction>,

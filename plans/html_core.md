@@ -524,7 +524,7 @@ impl TextGeometry {           // Clone; each core's own type, same methods
 - **HTML** fills them in the frame loop's measure pass (below):
   `getBoundingClientRect` minus the root's origin, and `TextGeometry` queries
   `caretPositionFromPoint` and `Range.getClientRects()` synchronously.
-- **Delayed measurement for tests:** `beui::testing::delay_measurement(true)`,
+- **Delayed measurement for tests:** `beui::native::testing::delay_measurement(true)`,
   or `BEUI_DELAY_MEASUREMENT=1` for a driven program, makes native publish
   measurements after the frame paints and request another frame, so headless
   tests take the late path the HTML core can take.

@@ -1,4 +1,5 @@
 use super::*;
+use beui::native::build;
 
 fn display(id: &str, rect: beui::Rect, scale: f32) -> crate::display::shown::ShownDisplay {
     crate::display::shown::ShownDisplay {
@@ -73,12 +74,12 @@ fn each_display_shows_its_own_lock_screen_at_its_own_scale() {
         let windows = stepped.windows();
         let output = windows.output(*window).expect("each display window paints");
         assert_eq!(output.pixels_per_point, scale, "at its display's own scale");
-        let painted = beui::painting::painting(
+        let painted = beui::native::painting::painting(
             output,
             *size,
             scale,
             output.window.appearance.clear_color,
-            beui::painting::Punches::Shown,
+            beui::native::painting::Punches::Shown,
         )
         .unwrap();
         let snapshot = paint_snapshot::Snapshot::of_painting(painted).unwrap();

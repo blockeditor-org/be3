@@ -98,6 +98,7 @@ struct Layer {
     attributes: Rc<str>,
 }
 
+#[derive(Clone)]
 pub struct Painter {
     out: Rc<RefCell<Out>>,
     layers: Rc<Vec<Layer>>,

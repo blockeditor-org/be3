@@ -1,5 +1,5 @@
 use super::*;
-use crate::drive::{Drive, Inbox, Reply, ask};
+use crate::native::drive::{Drive, Inbox, Reply, ask};
 use crate::primitives::Text;
 use crate::reactive::*;
 use crate::styled::*;
@@ -45,7 +45,7 @@ fn a_driver_around_space_clicks_by_name_from_either_side_and_shoots_the_scene() 
     let mut runner = Runner::new(Launch {
         options: RunOptions::default(),
         context: context(),
-        app: Box::new(crate::testing::Showing(document)),
+        app: Box::new(crate::native::testing::Showing(document)),
         layers: vec![
             Box::new(screen),
             Box::new(beui_layer_space::Space::new()),

@@ -1,6 +1,7 @@
 use beui::native::Document;
-use beui::reactive::{build, view};
-use beui::{Context, Rect};
+use beui::native::build;
+use beui::reactive::view;
+use beui::{Rect, native::Context};
 
 use crate::Fixture;
 
@@ -20,7 +21,7 @@ impl FixtureApp {
     }
 }
 
-impl beui::App for FixtureApp {
+impl beui::native::App for FixtureApp {
     fn update(&mut self, context: &Context, rect: Rect) {
         self.document.show(context, rect);
     }

@@ -1,7 +1,7 @@
 use super::*;
 use crate::styled::*;
 
-fn keyboard(output: &crate::FrameOutput) -> Option<Keyboard> {
+fn keyboard(output: &crate::native::FrameOutput) -> Option<Keyboard> {
     output
         .main()
         .window

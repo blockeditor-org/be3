@@ -24,7 +24,7 @@ fn bind_extent(node: NodeId, extent: Prop<Extent>, properties: [&'static str; 3]
     });
 }
 
-pub fn frame(
+pub(crate) fn frame(
     width: Prop<Extent>,
     height: Prop<Extent>,
     aspect_ratio: Prop<Option<f32>>,

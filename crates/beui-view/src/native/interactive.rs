@@ -6,10 +6,10 @@ use crate::reactive::Prop;
 use crate::reactive::create_binding;
 use crate::reactive::create_effect;
 use crate::reactive::on_cleanup;
-use crate::reactive::with_document;
 use beui_core::base::interactive::InteractiveNode;
 use beui_core::clipboard::PasteKind;
 use beui_core::clipboard::Pasted;
+use beui_core::current::with_document;
 use beui_core::focus::ImeCursor;
 use beui_core::geometry::Pos2;
 use beui_core::geometry::Vec2;
@@ -28,7 +28,7 @@ use beui_types::region::{Area, Claim};
 use std::cell::Cell;
 use std::rc::Rc;
 
-pub fn interactive(
+pub(crate) fn interactive(
     focusable: bool,
     tab_stop: Prop<bool>,
     yields_tab_stop: bool,

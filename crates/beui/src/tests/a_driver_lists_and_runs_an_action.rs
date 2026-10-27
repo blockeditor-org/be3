@@ -17,7 +17,7 @@ fn a_driver_lists_and_runs_an_action() {
             </List>
         }
     });
-    let mut driven = stepped(crate::testing::Showing(document));
+    let mut driven = stepped(crate::native::testing::Showing(document));
 
     let listed = driven.ask(&["actions"]).expect("the actions are listed");
     assert!(

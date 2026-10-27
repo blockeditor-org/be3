@@ -1,11 +1,13 @@
 use std::any::Any;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 
 use beui_html::Node;
 use beui_types::Direction;
 use reactive::ScopeContext;
+
+use beui_types::node::NodeCell;
 
 use crate::node::NodeId;
 
@@ -25,6 +27,7 @@ pub(crate) struct Entry {
     pub(crate) direction: Direction,
     pub(crate) states: Vec<Box<dyn Any>>,
     pub(crate) accessibility: Option<accesskit::Node>,
+    refs: Vec<Weak<NodeCell>>,
 }
 
 #[derive(Default)]
@@ -63,28 +66,44 @@ fn remove_released() {
     if removed.is_empty() {
         return;
     }
-    let dropped: Vec<Entry> = ARENA.with(|arena| {
+    let dropped: Vec<(NodeId, Entry)> = ARENA.with(|arena| {
         let mut arena = arena.borrow_mut();
         let mut dropped = Vec::new();
         for node in removed {
-            let Some(slot) = arena.slots.get_mut(node.index as usize) else {
+            let Some(slot) = arena.slots.get_mut(node.index() as usize) else {
                 continue;
             };
-            if slot.0 != node.generation {
+            if slot.0 != node.generation() {
                 continue;
             }
             if let Some(entry) = slot.1.take() {
-                dropped.push(entry);
+                dropped.push((node, entry));
             }
             slot.0 = slot.0.wrapping_add(1);
-            arena.free.push(node.index);
+            arena.free.push(node.index());
         }
         dropped
     });
-    drop(dropped);
+    for (node, entry) in dropped {
+        for cell in &entry.refs {
+            if let Some(cell) = cell.upgrade()
+                && cell.get() == Some(node)
+            {
+                cell.set(None);
+            }
+        }
+    }
+}
+
+pub(crate) fn fill_ref(node: NodeId, cell: Weak<NodeCell>) {
+    with_entry(node, |entry| {
+        entry.refs.retain(|cell| cell.strong_count() > 0);
+        entry.refs.push(cell);
+    });
 }
 
 fn create_on(kind: &'static str, element: Node, shared: Rc<RefCell<Shared>>, wraps: u32) -> NodeId {
+    crate::tree::install_hooks();
     remove_released();
     let entry = Entry {
         element,
@@ -95,6 +114,7 @@ fn create_on(kind: &'static str, element: Node, shared: Rc<RefCell<Shared>>, wra
         direction: Direction::Vertical,
         states: Vec::new(),
         accessibility: None,
+        refs: Vec::new(),
     };
     let node = ARENA.with(|arena| {
         let mut arena = arena.borrow_mut();
@@ -102,18 +122,12 @@ fn create_on(kind: &'static str, element: Node, shared: Rc<RefCell<Shared>>, wra
             Some(index) => {
                 let slot = &mut arena.slots[index as usize];
                 slot.1 = Some(entry);
-                NodeId {
-                    index,
-                    generation: slot.0,
-                }
+                NodeId::new(index, slot.0)
             }
             None => {
                 let index = u32::try_from(arena.slots.len()).expect("fewer than 2^32 nodes");
                 arena.slots.push((0, Some(entry)));
-                NodeId {
-                    index,
-                    generation: 0,
-                }
+                NodeId::new(index, 0)
             }
         }
     });
@@ -141,8 +155,8 @@ pub fn wrap(kind: &'static str, child: NodeId) -> NodeId {
 pub(crate) fn with_entry<R>(node: NodeId, read: impl FnOnce(&mut Entry) -> R) -> Option<R> {
     ARENA.with(|arena| {
         let mut arena = arena.borrow_mut();
-        let slot = arena.slots.get_mut(node.index as usize)?;
-        if slot.0 != node.generation {
+        let slot = arena.slots.get_mut(node.index() as usize)?;
+        if slot.0 != node.generation() {
             return None;
         }
         slot.1.as_mut().map(read)
@@ -290,10 +304,7 @@ fn outermost(keep: impl Fn(&Entry) -> bool) -> Vec<(NodeId, Node)> {
             let Some(entry) = entry.as_ref().filter(|entry| keep(entry)) else {
                 continue;
             };
-            let node = NodeId {
-                index: index as u32,
-                generation: *generation,
-            };
+            let node = NodeId::new(index as u32, *generation);
             match found
                 .iter_mut()
                 .find(|held| Rc::ptr_eq(&held.2, &entry.shared))
@@ -390,10 +401,7 @@ pub fn about_elements() -> Vec<About> {
             let Some(entry) = entry.as_ref() else {
                 continue;
             };
-            let node = NodeId {
-                index: index as u32,
-                generation: *generation,
-            };
+            let node = NodeId::new(index as u32, *generation);
             let at = *by_element
                 .entry(Rc::as_ptr(&entry.shared))
                 .or_insert_with(|| {

@@ -1,4 +1,5 @@
 use block_editor_beui::beui::CanvasView;
+use block_editor_beui::beui::native::core_painter;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -6,7 +7,8 @@ use block_editor_beui::Editor;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{
-    Color32, FontId, Key, KeyPress, NodeId, Painter, PointerPress, Pos2, Rect, SecondaryDrag, Vec2,
+    Color32, FontId, Key, KeyPress, NodeId, PointerPress, Pos2, Rect, SecondaryDrag, Vec2,
+    reactive::Painter,
 };
 use game_api::Spot;
 use game_api::board::{CARD_HEIGHT, CARD_WIDTH, HandCard, ItemId, Sprite};
@@ -522,9 +524,10 @@ fn paint_item(
         }
         Sprite::Label(text) => {
             let size = (LABEL_SIZE * zoom).max(1.0);
-            let galley = painter.layout(text, FontId::proportional(size), f32::INFINITY);
+            let galley =
+                core_painter(painter).layout(text, FontId::proportional(size), f32::INFINITY);
             let origin = rect.min + Vec2::new(0.0, (rect.height() - galley.size().y) / 2.0);
-            painter.galley(origin, galley, theme.text_muted);
+            core_painter(painter).galley(origin, galley, theme.text_muted);
         }
         sprite => paint_sprite(painter, rect, sprite),
     }

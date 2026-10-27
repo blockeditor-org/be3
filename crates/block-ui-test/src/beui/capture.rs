@@ -1,4 +1,4 @@
-use beui::{Color32, Vec2, WindowOutput};
+use beui::{Color32, Vec2, native::WindowOutput};
 use paint_snapshot::Snapshot;
 
 pub(crate) fn capture(
@@ -7,12 +7,12 @@ pub(crate) fn capture(
     pixels_per_point: f32,
     background: Color32,
 ) -> Result<Snapshot, String> {
-    Snapshot::of_painting(beui::painting::painting(
+    Snapshot::of_painting(beui::native::painting::painting(
         output,
         size,
         pixels_per_point,
         background,
-        beui::painting::Punches::Shown,
+        beui::native::painting::Punches::Shown,
     )?)
 }
 
@@ -21,11 +21,11 @@ pub(crate) fn capture_window(
     pixels_per_point: f32,
     background: Color32,
 ) -> Result<Snapshot, String> {
-    Snapshot::of_painting(beui::painting::painting(
+    Snapshot::of_painting(beui::native::painting::painting(
         output,
         output.size,
         pixels_per_point,
         background,
-        beui::painting::Punches::Shown,
+        beui::native::painting::Punches::Shown,
     )?)
 }

@@ -1,4 +1,3 @@
-use crate::core::ForwardedInput;
 use crate::reactive::Callback;
 use crate::reactive::Child;
 use crate::reactive::ClickCallback;
@@ -16,6 +15,7 @@ use crate::types::Pos2;
 use crate::types::SoftKeyboard;
 use crate::types::TouchDrags;
 use crate::types::Vec2;
+use crate::types::forward::ForwardedInput;
 use crate::types::input::PointerInput;
 use crate::types::input::WheelInput;
 use crate::types::region::{Area, Claim};

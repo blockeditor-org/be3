@@ -25,7 +25,7 @@ fn a_frame_turned_by_quarter_turns_paints_its_child_turned_in_its_box() {
     let output = harness.frame(Vec::new());
     let turned = harness.rect(turn.get());
     assert_eq!(turned.size(), vec2(40.0, 40.0), "a turn keeps the box");
-    let painted = |output: &crate::FrameOutput| {
+    let painted = |output: &crate::native::FrameOutput| {
         flatten(&output.main().layers)
             .iter()
             .find_map(|shape| match shape {

@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use beui::Context;
+use beui::native::Context;
 
 use super::Compositor;
 

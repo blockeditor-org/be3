@@ -5,22 +5,7 @@ use std::rc::Rc;
 
 use beui_types::{Pos2, Rect, WindowId};
 
-use crate::node::NodeRef;
-
-pub type Accepts = Rc<dyn Fn(&dyn Any) -> bool>;
-pub type Dropped = Rc<dyn Fn(&dyn Any, DragPoint)>;
-pub type Over = Rc<dyn Fn(Option<(&dyn Any, DragPoint)>)>;
-pub type Pending = Rc<dyn Fn(DragPoint)>;
-pub type Outside = Rc<dyn Fn(DragPoint)>;
-
-pub struct Target {
-    pub id: u64,
-    pub node: NodeRef,
-    pub accepts: Accepts,
-    pub carrying: Rc<dyn Fn(bool)>,
-    pub over: Over,
-    pub dropped: Dropped,
-}
+pub use beui_types::drag::{Accepts, Dropped, Outside, Over, Pending, Target};
 
 pub struct Carried {
     pub payload: Rc<dyn Any>,

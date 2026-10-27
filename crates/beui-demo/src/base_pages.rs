@@ -9,10 +9,11 @@ use beui::primitives::Icon;
 use beui::primitives::Span;
 use beui::primitives::Text;
 use beui::primitives::{Grid, List};
+use beui::reactive::Painter;
 use beui::unstyled::FirstFit;
 use beui::{Align, Align2, Corners, Dismiss, Extent, Justify, Outline, Placement, Track};
 use beui::{Color, Pos2, vec2};
-use beui::{FillRule, LineCap, LineJoin, Painter, Path, Stroke};
+use beui::{FillRule, LineCap, LineJoin, Path, Stroke};
 use beui::{Overflow, WrapAt};
 #[cfg(feature = "native")]
 use beui::{Window, WindowHandle};

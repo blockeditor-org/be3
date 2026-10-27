@@ -9,7 +9,7 @@ use be_wayland::{Compositor, Launch, Server, WindowId, WindowView, Windows};
 use beui::native::Document;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{Context, NodeId, Rect, Setup};
+use beui::{NodeId, Rect, native::Context, native::Setup};
 use block_plugin_api::{
     HostImage, HostProgram, HostWindow, HostWindowId, WindowKind, WindowOrigin,
 };
@@ -73,7 +73,7 @@ fn windows() -> Option<Windows> {
 }
 
 pub(crate) fn start(setup: &Setup) {
-    let (Some(windows), Some(gpu)) = (windows(), setup.get::<beui::GpuSetup>()) else {
+    let (Some(windows), Some(gpu)) = (windows(), setup.get::<beui::native::GpuSetup>()) else {
         return;
     };
     let mut server = match Server::new() {
@@ -257,7 +257,7 @@ pub(crate) fn set_keyboard(keyboard: &be_wayland::KeyboardConfig) -> bool {
 }
 
 pub(crate) fn replace_gpu(setup: &Setup) {
-    let Some(gpu) = setup.get::<beui::GpuSetup>() else {
+    let Some(gpu) = setup.get::<beui::native::GpuSetup>() else {
         return;
     };
     with(|running| {

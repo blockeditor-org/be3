@@ -44,10 +44,11 @@ mod bench {
     use std::rc::Rc;
     use std::time::{Duration, Instant};
 
-    use beui::testing::Screen;
+    use beui::native::testing::Screen;
     use beui::{
-        Color32, Context, Incoming, Input, Launch, PlatformServices, PointerButton, Pos2, Rect,
-        RunOptions, ScrollDelta, Setup, Vec2, Waker, WindowOutput,
+        Color32, Input, PointerButton, Pos2, Rect, ScrollDelta, Vec2, native::Context,
+        native::Incoming, native::Launch, native::PlatformServices, native::RunOptions,
+        native::Setup, native::Waker, native::WindowOutput,
     };
     use beui_core::app::SafeArea;
     use beui_core::context::RendererInfo;
@@ -143,7 +144,7 @@ mod bench {
         prepare: Duration,
         present: Duration,
         repaint: bool,
-        perf: beui::PerformanceSnapshot,
+        perf: beui::native::PerformanceSnapshot,
     }
 
     impl Bench {
@@ -367,7 +368,7 @@ mod bench {
 
     pub fn main() {
         let filter = std::env::args().nth(1);
-        let context = beui::context();
+        let context = beui::native::context();
         context.stop_clock();
         let started = Instant::now();
         let gpu = std::env::var_os("GPU").map(|_| {

@@ -107,7 +107,7 @@ impl RowEntry {
 struct Held {
     rows: RefCell<BTreeMap<usize, RowEntry>>,
     measured: RefCell<HashMap<NodeId, ReadSignal<Option<Measured>>>>,
-    texts: RefCell<HashMap<NodeId, ReadSignal<Option<TextGeometry>>>>,
+    texts: RefCell<HashMap<NodeId, TextGeometrySignal>>,
     rows_measured: Signal<u64>,
     registered: Cell<u64>,
     reveal_attempts: Cell<u8>,

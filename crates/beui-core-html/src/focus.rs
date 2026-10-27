@@ -2,15 +2,9 @@ use std::cell::Cell;
 
 use reactive::{Get, Memo, ReadSignal, Signal, create_memo};
 
-use beui_types::Rect;
-
 use crate::node::{NodeId, NodeRef};
 
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub struct ImeCursor {
-    pub node: NodeId,
-    pub rect: Option<Rect>,
-}
+pub use beui_types::node::ImeCursor;
 
 #[derive(Clone, Copy)]
 struct FocusSignals {

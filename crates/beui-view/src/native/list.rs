@@ -3,14 +3,14 @@ use crate::reactive::Get;
 use crate::reactive::ListChild;
 use crate::reactive::Prop;
 use crate::reactive::create_binding;
-use crate::reactive::with_document;
 use crate::types::Align;
 use crate::types::Direction;
 use crate::types::Justify;
+use beui_core::current::with_document;
 use beui_core::document::Document;
 use beui_core::node::NodeId;
 
-pub fn list(
+pub(crate) fn list(
     direction: Prop<Direction>,
     align: Prop<Align>,
     justify: Prop<Justify>,
@@ -43,6 +43,6 @@ pub fn list(
     list.id()
 }
 
-pub fn spacer() -> NodeId {
+pub(crate) fn spacer() -> NodeId {
     with_document(Document::create_frame).id()
 }

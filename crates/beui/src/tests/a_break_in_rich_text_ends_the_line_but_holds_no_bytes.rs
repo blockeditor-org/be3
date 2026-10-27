@@ -8,7 +8,7 @@ fn ranges(layout: &RichLayout) -> Vec<std::ops::Range<usize>> {
 
 #[test]
 fn a_break_in_rich_text_ends_the_line_but_holds_no_bytes() {
-    let context = Context::new(crate::FreetypeFonts::default());
+    let context = Context::new(crate::native::FreetypeFonts::default());
     let mut shaper =
         |text: &str, font: FontId| -> Galley { context.layout(text, font, TextLayout::DEFAULT) };
     let style = SpanStyle::new(FontId::monospace(14.0), Color32::WHITE);

@@ -2,7 +2,6 @@ use crate::reactive::Child;
 use crate::reactive::Get;
 use crate::reactive::Prop;
 use crate::reactive::create_binding;
-use crate::reactive::with_document;
 use beui_core::base::frame::Align2;
 use beui_core::base::frame::Extent;
 use beui_core::base::frame::FrameNode;
@@ -10,6 +9,7 @@ use beui_core::base::frame::FrameStyle;
 use beui_core::base::frame::Outline;
 use beui_core::base::frame::Sides;
 use beui_core::color::Color;
+use beui_core::current::with_document;
 use beui_core::document::Document;
 use beui_core::geometry::Vec2;
 use beui_core::node::NodeId;
@@ -30,7 +30,7 @@ fn bind<T: Clone + 'static>(
     }
 }
 
-pub fn frame(
+pub(crate) fn frame(
     width: Prop<Extent>,
     height: Prop<Extent>,
     aspect_ratio: Prop<Option<f32>>,

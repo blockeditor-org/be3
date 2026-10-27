@@ -2,14 +2,13 @@ use crate::reactive::Callback;
 use crate::reactive::Child;
 use crate::reactive::Children;
 use crate::reactive::Get;
-use crate::reactive::Placed;
 use crate::reactive::Prop;
 use crate::reactive::create_effect;
 use crate::reactive::create_memo;
 use crate::reactive::create_timer;
-use crate::reactive::with_document;
-use beui_core::base::canvas::CanvasNode;
+use crate::types::tree::CanvasItem;
 use beui_core::base::canvas::CanvasView;
+use beui_core::current::with_document;
 use beui_core::document::Document;
 use beui_core::geometry::Rect;
 use beui_core::geometry::Vec2;
@@ -17,11 +16,9 @@ use beui_core::geometry::pos2;
 use beui_core::node::NodeId;
 use std::time::Duration;
 
-pub type CanvasItem = Placed<CanvasNode>;
-
 const RASTER_SETTLE: Duration = Duration::from_millis(150);
 
-pub fn canvas(
+pub(crate) fn canvas(
     view: Prop<Option<CanvasView>>,
     width: Prop<f32>,
     height: Prop<f32>,
@@ -60,7 +57,7 @@ pub fn canvas(
     canvas.id()
 }
 
-pub fn canvas_item(
+pub(crate) fn canvas_item(
     x: Prop<f32>,
     y: Prop<f32>,
     width: Prop<f32>,

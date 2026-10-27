@@ -20,7 +20,7 @@ impl Renderer for Screen {
 
     fn prepare(
         &mut self,
-        _output: &crate::WindowOutput,
+        _output: &crate::native::WindowOutput,
         _scale: f32,
         _background: Color32,
     ) -> bool {

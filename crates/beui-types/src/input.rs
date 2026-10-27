@@ -249,3 +249,153 @@ pub fn scrolled(delta: ScrollDelta, scale: f32) -> Vec2 {
         ScrollDelta::Pages(delta) => delta * SCROLL_PAGE,
     }
 }
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct DroppedFile {
+    pub name: String,
+    pub path: Option<std::path::PathBuf>,
+    pub bytes: Option<std::sync::Arc<[u8]>>,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum FileDrag {
+    Hovered,
+    Cancelled,
+    Dropped(DroppedFile),
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub enum Event {
+    Focus(bool),
+    Modifiers(Modifiers),
+    Key {
+        press: KeyPress,
+        evdev: Option<u32>,
+        text: Option<String>,
+    },
+    PointerButton {
+        pos: Pos2,
+        button: PointerButton,
+        pressed: bool,
+        modifiers: Modifiers,
+    },
+    PointerGone,
+    PointersCancelled,
+    PointerMotion(Vec2),
+    PointerUnlocked,
+    PointerMoved(Pos2),
+    ScrollStarted,
+    Scroll(Vec2),
+    ScrollEnded,
+    Text(String),
+    Paste(ui_types::clipboard::Pasted),
+    Touch {
+        id: TouchId,
+        phase: TouchPhase,
+        pos: Pos2,
+        force: Option<f32>,
+    },
+    Pen {
+        phase: PenPhase,
+        pos: Pos2,
+        pen: Pen,
+    },
+    Predicted(Pos2),
+    Time(Instant),
+    Zoom(f32),
+    Ime(ImeEvent),
+    FileHovered,
+    FileHoverCancelled,
+    FileDropped(DroppedFile),
+    Back(BackGesture),
+    InterceptedKey(KeyPress),
+    InterceptedTap(Key),
+    PointerWindow(crate::window::WindowId),
+    PointerOutside,
+}
+
+impl Event {
+    pub fn key(press: KeyPress) -> Self {
+        Self::Key {
+            press,
+            evdev: None,
+            text: None,
+        }
+    }
+
+    pub fn press(&self) -> Option<KeyPress> {
+        match self {
+            Self::Key { press, .. } => Some(*press),
+            _ => None,
+        }
+    }
+
+    pub fn is_pointer(&self) -> bool {
+        matches!(
+            self,
+            Self::PointerButton { .. }
+                | Self::PointerGone
+                | Self::PointersCancelled
+                | Self::PointerMotion(_)
+                | Self::PointerMoved(_)
+                | Self::ScrollStarted
+                | Self::Scroll(_)
+                | Self::ScrollEnded
+                | Self::Touch { .. }
+                | Self::Pen { .. }
+                | Self::Predicted(_)
+                | Self::Time(_)
+                | Self::Zoom(_)
+                | Self::PointerWindow(_)
+                | Self::PointerOutside
+        )
+    }
+
+    pub fn is_key(&self) -> bool {
+        matches!(
+            self,
+            Self::Key { .. }
+                | Self::Text(_)
+                | Self::Ime(_)
+                | Self::Modifiers(_)
+                | Self::InterceptedKey(_)
+                | Self::InterceptedTap(_)
+        )
+    }
+
+    pub fn modifiers(&self) -> Option<Modifiers> {
+        match self {
+            Self::Key { press, .. } | Self::InterceptedKey(press) => Some(press.modifiers),
+            Self::Modifiers(modifiers) | Self::PointerButton { modifiers, .. } => Some(*modifiers),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum PointerPhase {
+    Down(PointerButton),
+    Move,
+    Up(PointerButton),
+    Cancel,
+    Gone,
+    ScrollStarted,
+    Scroll(Vec2),
+    ScrollEnded { fling: Vec2 },
+    Zoom(f32),
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct PointerEvent {
+    pub pointer: PointerId,
+    pub window: crate::window::WindowId,
+    pub phase: PointerPhase,
+    pub pos: Pos2,
+    pub modifiers: Modifiers,
+    pub clicks: u32,
+    pub force: Option<f32>,
+    pub pen: Option<Pen>,
+    pub predicted: Option<Pos2>,
+    pub time: Instant,
+    pub source: usize,
+}

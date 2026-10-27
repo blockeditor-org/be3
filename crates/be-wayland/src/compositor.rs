@@ -7,8 +7,8 @@ use std::time::{Duration, Instant};
 use beui::native::Document;
 use beui::reactive::*;
 use beui::{
-    Context, CursorIcon, Event, Forwarded, ForwardedInput, ImeEvent, NodeId, PointerButton,
-    PointerId, PointerPhase, Pos2, Rect, Vec2, Waker,
+    CursorIcon, Event, Forwarded, ForwardedInput, ImeEvent, NodeId, PointerButton, PointerId,
+    PointerPhase, Pos2, Rect, Vec2, native::Context, native::Waker,
 };
 use smithay::backend::renderer::utils::with_renderer_surface_state;
 use smithay::input::pointer::{CursorImageStatus, CursorImageSurfaceData};
@@ -295,7 +295,7 @@ impl Compositor {
         if let Some(dir) = &launch.working_dir {
             process.current_dir(dir);
         }
-        for variable in beui::environment::VARIABLES {
+        for variable in beui::native::environment::VARIABLES {
             process.env_remove(variable);
         }
         process
@@ -546,7 +546,7 @@ impl Compositor {
         })
     }
 
-    fn drawing(&self, id: WindowId) -> (Option<beui::Drawing>, Option<Popups>) {
+    fn drawing(&self, id: WindowId) -> (Option<beui::native::Drawing>, Option<Popups>) {
         let textures = self.textures.borrow();
         let (Some(gpu), Some(signals)) = (textures.gpu(), self.windows.signals(id)) else {
             return (None, None);

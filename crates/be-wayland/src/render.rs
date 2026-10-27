@@ -2,10 +2,10 @@ use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
 
-use beui::painting::{
+use beui::native::painting::{
     Content, Fade, Frame, Painting, Paints, Pixels, Primitive, Triangle, Vertex as PaintVertex,
 };
-use beui::{Draw, DrawAt, Drawing, Rect, Waker};
+use beui::{Rect, native::Draw, native::DrawAt, native::Drawing, native::Waker};
 use bytemuck::{Pod, Zeroable};
 use smithay::backend::allocator::dmabuf::{Dmabuf, WeakDmabuf};
 use smithay::backend::renderer::utils::{Buffer, with_renderer_surface_state};
@@ -417,7 +417,7 @@ impl WindowDraw {
             .into_iter()
             .map(|(current, layer)| (current.texture, layer))
             .collect();
-        beui::painted_drawing(Self {
+        beui::native::painted_drawing(Self {
             gpu,
             layers,
             buffers,
@@ -547,7 +547,7 @@ impl Paints for WindowDraw {
                 continue;
             }
             let Some(capture) =
-                beui::read_texture(&self.gpu.device, &self.gpu.queue, &texture.texture)
+                beui::native::read_texture(&self.gpu.device, &self.gpu.queue, &texture.texture)
             else {
                 continue;
             };

@@ -2,11 +2,11 @@ use crate::reactive::Get;
 use crate::reactive::Prop;
 use crate::reactive::create_binding;
 use crate::reactive::on_cleanup;
-use crate::reactive::with_document;
+use beui_core::current::with_document;
 use beui_core::document::Document;
 use beui_core::node::NodeId;
 
-pub fn portal(node: Prop<Option<NodeId>>) -> NodeId {
+pub(crate) fn portal(node: Prop<Option<NodeId>>) -> NodeId {
     let portal = with_document(Document::create_portal);
     create_binding(move || {
         let node = node.get();

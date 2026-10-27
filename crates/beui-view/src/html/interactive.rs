@@ -26,7 +26,7 @@ use std::rc::Rc;
 
 use super::bind;
 
-pub fn interactive(
+pub(crate) fn interactive(
     focusable: bool,
     tab_stop: Prop<bool>,
     yields_tab_stop: bool,

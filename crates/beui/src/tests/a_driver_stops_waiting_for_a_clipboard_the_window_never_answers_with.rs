@@ -11,7 +11,7 @@ fn a_driver_stops_waiting_for_a_clipboard_the_window_never_answers_with() {
             </List>
         }
     });
-    let mut driven = stepped(crate::testing::Showing(document));
+    let mut driven = stepped(crate::native::testing::Showing(document));
 
     let read = driven.ask(&["clipboard"]);
     assert!(

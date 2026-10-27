@@ -1,15 +1,17 @@
 use block_editor_beui::beui::icons::Glyph;
+use block_editor_beui::beui::native::{core_painter, wrap_painter};
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
 use block_editor_beui::be_block::BlockContent;
-use block_editor_beui::beui::painting::{Punches, painting, rasterize};
+use block_editor_beui::beui::native::painting::{Punches, painting, rasterize};
+use block_editor_beui::beui::native::rich::{RichLayout, SpanKind, SpanStyle};
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::beui::rich::{RichLayout, SpanKind, SpanStyle};
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{
-    Color32, Context, FontFamily, FontId, FreetypeFonts, Galley, Image, LineCap, LineJoin, NodeId,
-    Painter, Path, PathElement, Pos2, Rect, Stroke, TextAlign, Vec2, line_height, pos2,
+    Color32, FontFamily, FontId, Image, LineCap, LineJoin, NodeId, Path, PathElement, Pos2, Rect,
+    Stroke, TextAlign, Vec2, native::Context, native::FreetypeFonts, native::Galley,
+    native::line_height, pos2, reactive::Painter,
 };
 use block_editor_beui::{FileSave, SavedFile};
 use infinite_canvas_types::{CanvasEntity, CanvasPoint, CanvasShape, CanvasTextWeight};
@@ -369,7 +371,7 @@ pub(crate) fn png(
     context.set_pixels_per_point(scale);
     let output = context.run(|context| {
         let whole = Rect::from_min_size(Pos2::ZERO, size);
-        let painter = context.painter();
+        let painter = wrap_painter(&context.painter());
         let painter = match scene.clipped {
             true => painter.with_clip_rect(whole),
             false => painter,
@@ -474,7 +476,7 @@ fn paint_written(painter: &Painter, entity: &CanvasEntity, ink: Color32, camera:
         for rect in missing {
             painter.rect_filled(rect, 0.0, MISSING);
         }
-        layout.paint_runs(painter, origin, |run| {
+        layout.paint_runs(core_painter(painter), origin, |run| {
             (
                 run.style.color.resolve(|_| None),
                 run.style.underline,
@@ -524,7 +526,7 @@ fn written(painter: &Painter, entity: &CanvasEntity, ink: Color32, camera: Camer
         &colors,
         text_area_geometry(),
         square,
-        |pieces, options| Some(painter.rich_layout(pieces, options)),
+        |pieces, options| Some(core_painter(painter).rich_layout(pieces, options)),
     ) else {
         return Vec::new();
     };
@@ -590,7 +592,7 @@ pub(crate) fn svg(scene: &Scene, options: ExportOptions, images: &Images) -> Str
     }
     let context = Context::new(FreetypeFonts::new(block_editor_beui::fonts::fonts()));
     context.run(|context| {
-        let painter = context.painter();
+        let painter = wrap_painter(&context.painter());
         for entity in &scene.entities {
             svg_entity(&mut out, &painter, scene, entity, images);
         }
@@ -653,7 +655,8 @@ fn svg_entity(
                     .and_then(|block| scene.embeds.get(&block))
                     .map(|embed| embed.title.clone())
                     .unwrap_or_default();
-                let galley = painter.layout(title, FontId::proportional(18.0), rect.width());
+                let galley =
+                    core_painter(painter).layout(title, FontId::proportional(18.0), rect.width());
                 let size = galley.size();
                 let at = pos2(
                     rect.center().x - size.x / 2.0,

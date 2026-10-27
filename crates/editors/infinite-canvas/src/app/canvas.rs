@@ -6,7 +6,9 @@ use std::cell::RefCell;
 
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::{KeyPress, NodeId, Painter, PointerPress, Pos2, Rect, Vec2, pos2};
+use block_editor_beui::beui::{
+    KeyPress, NodeId, PointerPress, Pos2, Rect, Vec2, pos2, reactive::Painter,
+};
 use block_editor_beui::{ChildBlock, ChildMode, ChildState, ChildTarget};
 use uuid::Uuid;
 

@@ -6,7 +6,7 @@ use block_editor_beui::beui::native::with_document;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{
-    Color32, Key, KeyAt, KeyPhase, NodeId, Rect, TextAlign, Vec2, line_height, pos2,
+    Color32, Key, KeyAt, KeyPhase, NodeId, Rect, TextAlign, Vec2, native::line_height, pos2,
 };
 use block_editor_beui::live_text::{FieldOf, LiveText, Synced};
 use block_editor_beui::{SharedCaret, remote_carets};

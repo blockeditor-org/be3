@@ -5,10 +5,10 @@ mod bench {
     use std::rc::Rc;
     use std::time::{Duration, Instant};
 
-    use beui::testing::Screen;
+    use beui::native::testing::Screen;
     use beui::{
-        Context, Incoming, Input, Launch, PlatformServices, PointerButton, Pos2, RunOptions, Setup,
-        Vec2, Waker, WindowId,
+        Input, PointerButton, Pos2, Vec2, WindowId, native::Context, native::Incoming,
+        native::Launch, native::PlatformServices, native::RunOptions, native::Setup, native::Waker,
     };
     use beui_core::app::SafeArea;
     use beui_core::renderer::{Loaded, Renderer};
@@ -44,7 +44,7 @@ mod bench {
 
     impl Bench {
         fn new(gpu: bool) -> Self {
-            let context: Context = beui::context();
+            let context: Context = beui::native::context();
             context.stop_clock();
             let space = Rc::new(RefCell::new(Space::new()));
             let mut runner = Runner::new(Launch {

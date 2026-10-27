@@ -1,5 +1,4 @@
 use super::*;
-use crate::reactive::*;
 use beui_core::font::{FontId, Galley, TextLayout};
 use beui_core::rich::Piece;
 use beui_core::rich::{OBJECT, RichOptions};
@@ -40,7 +39,7 @@ fn breaks(layout: &RichLayout) -> Vec<std::ops::Range<usize>> {
 
 #[test]
 fn a_reused_or_resumed_rich_layout_breaks_lines_as_a_fresh_one_would() {
-    let context = Context::new(crate::FreetypeFonts::default());
+    let context = Context::new(crate::native::FreetypeFonts::default());
     let mut shaper =
         |text: &str, font: FontId| -> Galley { context.layout(text, font, TextLayout::DEFAULT) };
     let mut seed: u64 = 7;

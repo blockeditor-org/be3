@@ -1,10 +1,13 @@
 use std::ops::{Deref, DerefMut};
 use std::time::Duration;
 
-use beui::WindowSize;
 use beui::native::Document;
-use beui::testing::{Showing, Stepped, Target};
-use beui::{Color32, Context, FontLibrary, FrameOutput, FreetypeFonts, Rect, Vec2};
+use beui::native::WindowSize;
+use beui::native::testing::{Showing, Stepped, Target};
+use beui::{
+    Color32, Rect, Vec2, native::Context, native::FontLibrary, native::FrameOutput,
+    native::FreetypeFonts,
+};
 
 use crate::beui::capture;
 use crate::overflow;
@@ -42,7 +45,7 @@ impl DocumentTest {
     }
 
     fn start(document: Document, size: Vec2, hosting: bool) -> Self {
-        beui::fail_unsettled_layout(true);
+        beui::native::fail_unsettled_layout(true);
         let fonts = FontLibrary::bundled();
         let context = Context::new(FreetypeFonts::new(fonts.clone()));
         let window = WindowSize { size, scale: 1.0 };

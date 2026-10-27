@@ -10,7 +10,7 @@ use beui_core_html::tree::{ListKind, host};
 
 use super::bind;
 
-pub fn list(
+pub(crate) fn list(
     direction: Prop<Direction>,
     align: Prop<Align>,
     justify: Prop<Justify>,
@@ -48,6 +48,6 @@ pub fn list(
     list
 }
 
-pub fn spacer() -> NodeId {
+pub(crate) fn spacer() -> NodeId {
     create("Spacer", "div")
 }

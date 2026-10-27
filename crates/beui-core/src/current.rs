@@ -127,3 +127,47 @@ pub fn try_with_document<R>(f: impl FnOnce(&mut Document) -> R) -> Option<R> {
         }
     })
 }
+
+pub fn layout_text(
+    text: &str,
+    font: crate::font::FontId,
+    layout: crate::font::TextLayout,
+) -> Option<crate::font::Galley> {
+    try_with_document(|document| document.layout_text(text, font, layout)).flatten()
+}
+
+pub fn type_events(events: Vec<crate::input::Input>) {
+    with_document(|document| {
+        if let Some(context) = document.context() {
+            context.type_events(events);
+        }
+    });
+}
+
+pub fn request_typed_paste() {
+    with_document(|document| {
+        if let Some(context) = document.context() {
+            context.request_typed_paste();
+        }
+    });
+}
+
+pub fn toggle_keyboard() {
+    with_document(|document| {
+        if let Some(context) = document.context() {
+            context.toggle_keyboard();
+        }
+    });
+}
+
+pub fn close_keyboard() {
+    with_document(|document| {
+        if let Some(context) = document.context() {
+            context.close_keyboard();
+        }
+    });
+}
+
+pub fn last_pointer() -> Option<crate::input::PointerSample> {
+    try_with_document(|document| document.last_pointer).flatten()
+}

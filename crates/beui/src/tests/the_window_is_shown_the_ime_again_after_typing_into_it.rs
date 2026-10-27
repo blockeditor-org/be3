@@ -36,7 +36,7 @@ fn the_window_is_shown_the_ime_again_after_typing_into_it() {
     runner
         .start(
             Loaded {
-                renderer: Box::new(crate::testing::Screen(vec2(200.0, 100.0))),
+                renderer: Box::new(crate::native::testing::Screen(vec2(200.0, 100.0))),
                 fonts: None,
             },
             Setup::new(Waker::new(|| {})),

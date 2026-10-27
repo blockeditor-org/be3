@@ -20,7 +20,7 @@ impl Renderer for Screen {
 
     fn prepare(
         &mut self,
-        _output: &crate::WindowOutput,
+        _output: &crate::native::WindowOutput,
         _scale: f32,
         _background: Color32,
     ) -> bool {
@@ -59,7 +59,7 @@ fn the_space_host_opens_an_apps_window_as_a_panel_at_the_pointer_and_clicks_reac
     let mut runner = Runner::new(Launch {
         options: RunOptions::default(),
         context: context.clone(),
-        app: Box::new(crate::testing::Showing(document)),
+        app: Box::new(crate::native::testing::Showing(document)),
         layers: vec![Box::new(beui_layer_space::Space::new())],
     });
     runner

@@ -1,7 +1,7 @@
 use super::*;
 use crate::native::Document;
-use beui::drive::{Drive, Reply, ask};
-use beui::{Simulation, WindowSize};
+use beui::native::drive::{Drive, Reply, ask};
+use beui::{native::Simulation, native::WindowSize};
 use beui_core::app::SafeArea;
 use beui_core::renderer::Capture;
 use beui_core::renderer::{Loaded, Renderer};
@@ -28,7 +28,7 @@ impl Renderer for Screen {
 
     fn prepare(
         &mut self,
-        _output: &crate::WindowOutput,
+        _output: &crate::native::WindowOutput,
         _scale: f32,
         _background: Color32,
     ) -> bool {
@@ -36,7 +36,7 @@ impl Renderer for Screen {
         true
     }
 
-    fn note(&mut self, _output: &crate::WindowOutput, _scale: f32, _background: Color32) {}
+    fn note(&mut self, _output: &crate::native::WindowOutput, _scale: f32, _background: Color32) {}
 
     fn present(&mut self, _background: Color32) -> bool {
         false
@@ -84,7 +84,7 @@ fn an_occluded_window_shows_itself_for_a_shot_once_the_app_has_drawn() {
     let prepared = Rc::new(Cell::new(0));
     let seen = Rc::new(Cell::new(Vec::new()));
     let drawing = Rc::new(Cell::new(3));
-    let inbox = beui::drive::Inbox::default();
+    let inbox = beui::native::drive::Inbox::default();
     let options = RunOptions::default();
     let mut runner = Runner::new(Launch {
         options,

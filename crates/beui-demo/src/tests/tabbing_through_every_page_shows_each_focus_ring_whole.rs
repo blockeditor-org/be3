@@ -1,6 +1,6 @@
 use super::*;
 use beui::Key;
-use beui::overflow::OverflowKind;
+use beui::native::overflow::OverflowKind;
 
 const MOST_STOPS: usize = 200;
 

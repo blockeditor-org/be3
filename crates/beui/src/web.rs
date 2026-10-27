@@ -13,7 +13,7 @@ pub async fn run_web(
 ) -> Result<(), Box<dyn Error>> {
     let launch = Launch {
         options,
-        context: crate::context(),
+        context: crate::native::context(),
         app: Box::new(app),
         layers,
     };

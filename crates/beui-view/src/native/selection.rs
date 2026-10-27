@@ -11,7 +11,7 @@ use beui_core::geometry::{Pos2, Rect};
 use beui_core::node::NodeId;
 
 use crate::core::nodes::tree_local;
-use crate::reactive::with_document;
+use beui_core::current::with_document;
 
 trait AnyKey {
     fn as_any(&self) -> &dyn Any;
@@ -29,7 +29,7 @@ impl<K: PartialEq + 'static> AnyKey for K {
 }
 
 #[derive(Clone)]
-pub struct RowKey(Rc<dyn AnyKey>);
+pub(crate) struct RowKey(Rc<dyn AnyKey>);
 
 impl RowKey {
     pub fn new<K: PartialEq + 'static>(key: K) -> Self {
@@ -53,7 +53,7 @@ impl fmt::Debug for RowKey {
     }
 }
 
-pub trait SelectableRows {
+pub(crate) trait SelectableRows {
     fn count(&self) -> usize;
     fn key_at(&self, index: usize) -> Option<RowKey>;
     fn index_of(&self, key: &RowKey) -> Option<usize>;
@@ -64,7 +64,7 @@ pub trait SelectableRows {
     fn watch(&self, watcher: &Rc<dyn RowWatcher>);
 }
 
-pub trait RowWatcher {
+pub(crate) trait RowWatcher {
     fn row_shown(&self, list: NodeId, row: NodeId, key: RowKey);
     fn keys_changed(&self, list: NodeId);
 }
@@ -78,11 +78,11 @@ fn registry() -> Lists {
     tree_local(Registry::default).0
 }
 
-pub fn register_rows(list: NodeId, rows: Rc<dyn SelectableRows>) {
+pub(crate) fn register_rows(list: NodeId, rows: Rc<dyn SelectableRows>) {
     registry().borrow_mut().insert(list, rows);
 }
 
-pub fn unregister_rows(list: NodeId) {
+pub(crate) fn unregister_rows(list: NodeId) {
     if let Some(lists) = beui_core::current::try_with_document(|document| {
         document.extension::<Registry>().map(|registry| registry.0)
     })
@@ -92,17 +92,17 @@ pub fn unregister_rows(list: NodeId) {
     }
 }
 
-pub fn rows_of(list: NodeId) -> Option<Rc<dyn SelectableRows>> {
+pub(crate) fn rows_of(list: NodeId) -> Option<Rc<dyn SelectableRows>> {
     registry().borrow().get(&list).cloned()
 }
 
 #[derive(Clone)]
-pub enum SelectionItem {
+pub(crate) enum SelectionItem {
     Text(NodeId),
     Rows(NodeId, Rc<dyn SelectableRows>),
 }
 
-pub fn selection_items(root: NodeId) -> Vec<SelectionItem> {
+pub(crate) fn selection_items(root: NodeId) -> Vec<SelectionItem> {
     let lists = registry();
     let lists = lists.borrow();
     with_document(|document| {
@@ -131,7 +131,7 @@ pub fn selection_items(root: NodeId) -> Vec<SelectionItem> {
     })
 }
 
-pub fn texts_under(root: NodeId) -> Vec<NodeId> {
+pub(crate) fn texts_under(root: NodeId) -> Vec<NodeId> {
     with_document(|document| {
         let mut found = Vec::new();
         let mut pending = vec![root];
@@ -149,12 +149,12 @@ pub fn texts_under(root: NodeId) -> Vec<NodeId> {
     })
 }
 
-pub struct Beyond {
+pub(crate) struct Beyond {
     pub inside: Pos2,
     pub scrolled: bool,
 }
 
-pub fn scroll_toward(node: NodeId, pos: Pos2, rate: f32) -> Beyond {
+pub(crate) fn scroll_toward(node: NodeId, pos: Pos2, rate: f32) -> Beyond {
     with_document(|document| {
         let mut current = document.arena.parent(node);
         let offset = loop {

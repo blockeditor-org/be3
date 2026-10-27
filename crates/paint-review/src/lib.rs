@@ -5,7 +5,7 @@ use beui::dock::styled::{DockPane, DockSplit, DockTab};
 use beui::native::Document;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{Context, Key, KeyPress, NodeId, Rect};
+use beui::{Key, KeyPress, NodeId, Rect, native::Context};
 
 mod images;
 mod painting;
@@ -15,6 +15,7 @@ mod stage;
 
 pub use images::{ImageRequest, ImageState, Images};
 
+use beui::native::build;
 use beui::{Align, ItemSize};
 use paint_review_manifest::Manifest;
 use painting::PaintingView;
@@ -65,7 +66,7 @@ impl PaintReviewApp {
     }
 }
 
-impl beui::App for PaintReviewApp {
+impl beui::native::App for PaintReviewApp {
     fn update(&mut self, context: &Context, rect: Rect) {
         self.document.show(context, rect);
     }

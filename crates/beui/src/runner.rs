@@ -41,7 +41,7 @@ pub fn run_with_device(
     })?;
     let launch = Launch {
         options,
-        context: crate::system_context(),
+        context: crate::native::system_context(),
         app,
         layers,
     };
@@ -208,7 +208,7 @@ pub fn run_on(
     let (platform, layers) = choose_platform(choice, None, OpenDevice::default(), || platform)?;
     let launch = Launch {
         options,
-        context: crate::system_context(),
+        context: crate::native::system_context(),
         app: Box::new(app),
         layers,
     };

@@ -4,15 +4,15 @@ use std::ops::Range;
 use std::rc::Rc;
 
 use crate::actions::Chord;
-use crate::components::selectable::{COPY_KEY, SELECT_ALL_KEY};
+use crate::components::selectable::SelectableState;
+use crate::core::selection::{
+    RowKey, RowWatcher, SelectableRows, SelectionItem, rows_of, scroll_toward, selection_items,
+    texts_under,
+};
 use crate::primitives::*;
 use crate::reactive::KeyAt;
 use crate::reactive::NodeId;
 use crate::reactive::*;
-use crate::selection::{
-    RowKey, RowWatcher, SelectableRows, SelectionItem, rows_of, scroll_toward, selection_items,
-    texts_under,
-};
 use crate::types::CaretHandle;
 use crate::types::Color;
 use crate::types::KeyPhase;
@@ -20,7 +20,7 @@ use crate::types::{Area, Claim};
 use crate::types::{KeyPress, PointerPress};
 use crate::types::{Pos2, Rect, Vec2};
 use crate::types::{handle_center, toolbar_anchor};
-use beui_macros::{component, view};
+use beui_macros::view;
 
 const HANDLE_HIT_RADIUS: f32 = 24.0;
 const END: usize = usize::MAX;
@@ -92,9 +92,9 @@ struct Coverage {
 }
 
 #[derive(Clone, Copy)]
-pub struct SelectableState(Stored<Inner>);
+pub(crate) struct State(Stored<Inner>);
 
-impl Default for SelectableState {
+impl Default for State {
     fn default() -> Self {
         Self(store(Inner::default()))
     }
@@ -118,7 +118,7 @@ struct Inner {
     watcher: RefCell<Option<Rc<dyn RowWatcher>>>,
 }
 
-struct Watcher(SelectableState);
+struct Watcher(State);
 
 impl RowWatcher for Watcher {
     fn row_shown(&self, list: NodeId, row: NodeId, key: RowKey) {
@@ -139,7 +139,7 @@ struct Candidate {
     spot: Spot,
 }
 
-impl SelectableState {
+impl State {
     fn items(&self) -> Vec<SelectionItem> {
         let items = self
             .0
@@ -612,7 +612,7 @@ impl SelectableState {
         }
     }
 
-    fn select_all(&self) {
+    pub(crate) fn select_all(&self) {
         let items = self.items();
         let first = items.iter().find_map(|item| match item {
             SelectionItem::Text(text) => Some(Caret::text(*text, 0)),
@@ -640,7 +640,7 @@ impl SelectableState {
         self.select(Some(start), Some(end));
     }
 
-    pub fn selected_text(&self) -> String {
+    pub(crate) fn selected_text(&self) -> String {
         let items = self.items();
         let Some(ordered) = self.ordered(&items).filter(|(start, end, ..)| start != end) else {
             return String::new();
@@ -774,7 +774,7 @@ fn word_bounds(text: &str, index: usize) -> (usize, usize) {
 }
 
 fn key(
-    state: SelectableState,
+    state: State,
     copy_key: Option<Chord>,
     select_all_key: Option<Chord>,
     press: KeyPress,
@@ -794,23 +794,23 @@ fn key(
     false
 }
 
-pub fn copy_selection(state: SelectableState) {
+pub(crate) fn copy_selection(state: State) {
     let text = state.selected_text();
     if !text.is_empty() {
         copy_text(text);
     }
 }
 
-pub fn select_all(state: SelectableState) {
+pub(crate) fn select_all(state: State) {
     state.select_all();
 }
 
 fn precedes(items: &[SelectionItem], left: &Caret, right: &Caret) -> bool {
-    SelectableState::order(items, left) < SelectableState::order(items, right)
+    State::order(items, left) < State::order(items, right)
 }
 
 fn press(
-    state: SelectableState,
+    state: State,
     focusable: &NodeRef,
     on_toolbar: Callback<Option<Rect>>,
     press: PointerPress,
@@ -864,7 +864,7 @@ fn press(
     }
 }
 
-fn drag(state: SelectableState, autoscroll: Signal<bool>, press: PointerPress) {
+fn drag(state: State, autoscroll: Signal<bool>, press: PointerPress) {
     let grab = state.0.value().grab.borrow().clone();
     if let Some(grab) = grab {
         if let Some(caret) = state.caret_at(press.pos - grab.offset) {
@@ -899,11 +899,11 @@ fn drag(state: SelectableState, autoscroll: Signal<bool>, press: PointerPress) {
     state.select(Some(anchor), Some(focus));
 }
 
-fn show_toolbar(state: SelectableState, on_toolbar: Callback<Option<Rect>>) {
+fn show_toolbar(state: State, on_toolbar: Callback<Option<Rect>>) {
     on_toolbar.call(state.toolbar_rect());
 }
 
-fn tap(state: SelectableState, on_toolbar: Callback<Option<Rect>>, press: PointerPress) {
+fn tap(state: State, on_toolbar: Callback<Option<Rect>>, press: PointerPress) {
     if !press.touch {
         return;
     }
@@ -925,7 +925,7 @@ fn tap(state: SelectableState, on_toolbar: Callback<Option<Rect>>, press: Pointe
     on_toolbar.call(None);
 }
 
-fn long_press(state: SelectableState, on_toolbar: Callback<Option<Rect>>, press: PointerPress) {
+fn long_press(state: State, on_toolbar: Callback<Option<Rect>>, press: PointerPress) {
     if !press.touch {
         return;
     }
@@ -935,19 +935,20 @@ fn long_press(state: SelectableState, on_toolbar: Callback<Option<Rect>>, press:
     show_toolbar(state, on_toolbar);
 }
 
-#[component]
-pub fn Selectable(
-    #[prop(default = ComponentRef::new())] api: ComponentRef<SelectableState>,
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn selectable(
+    api: ComponentRef<SelectableState>,
     children: Child,
-    #[prop(default = SelectableState::default())] state: SelectableState,
+    state: SelectableState,
     color: Prop<Color>,
     handle_color: Prop<Color>,
     caret_width: Prop<f32>,
-    #[prop(default = Some(COPY_KEY))] copy_key: Prop<Option<Chord>>,
-    #[prop(default = Some(SELECT_ALL_KEY))] select_all_key: Prop<Option<Chord>>,
+    copy_key: Prop<Option<Chord>>,
+    select_all_key: Prop<Option<Chord>>,
     on_toolbar: Callback<Option<Rect>>,
 ) -> NodeId {
     api.fill(state);
+    let state = state.0;
     state.0.value().region.fill(children);
     let focusable = NodeRef::new();
     let autoscroll = create_signal(false);

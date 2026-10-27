@@ -1,7 +1,8 @@
-use crate::reactive::{Get, Memo, Set, Signal, create_effect, with_document};
+use crate::reactive::{Get, Memo, Set, Signal, create_effect};
 use crate::types::{ColorDefinitions, ColorScheme};
+use beui_core::current::with_document;
 
-pub fn apply(definitions: Memo<ColorDefinitions>, scheme: Signal<ColorScheme>) {
+pub(crate) fn apply(definitions: Memo<ColorDefinitions>, scheme: Signal<ColorScheme>) {
     create_effect(move || {
         let definitions = definitions.get();
         with_document(|document| document.set_color_definitions(definitions));

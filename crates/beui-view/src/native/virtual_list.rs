@@ -1,3 +1,8 @@
+use crate::core::selection::RowKey;
+use crate::core::selection::RowWatcher;
+use crate::core::selection::SelectableRows;
+use crate::core::selection::register_rows;
+use crate::core::selection::unregister_rows;
 use crate::reactive::Callback;
 use crate::reactive::Get;
 use crate::reactive::OwnedSignal;
@@ -10,13 +15,8 @@ use crate::reactive::create_effect;
 use crate::reactive::on_cleanup;
 use crate::reactive::owner_scope;
 use crate::reactive::untrack;
-use crate::reactive::with_document;
-use crate::selection::RowKey;
-use crate::selection::RowWatcher;
-use crate::selection::SelectableRows;
-use crate::selection::register_rows;
-use crate::selection::unregister_rows;
 use beui_core::base::list::Direction;
+use beui_core::current::with_document;
 use beui_core::node::NodeId;
 use std::cell::Cell;
 use std::cell::RefCell;
@@ -40,7 +40,7 @@ struct Pool<K: 'static> {
     peak: usize,
 }
 
-pub fn virtual_list<K>(
+pub(crate) fn virtual_list<K>(
     keys: Prop<Vec<K>>,
     item_size: Prop<f32>,
     direction: Prop<Direction>,

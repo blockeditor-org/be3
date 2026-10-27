@@ -1,5 +1,5 @@
 use super::*;
-use crate::{PasteKind, PasteRequest};
+use crate::{PasteKind, native::PasteRequest};
 
 #[test]
 fn a_typed_paste_types_the_clipboard_key_by_key() {

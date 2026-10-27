@@ -282,6 +282,7 @@ static NEXT_ZONE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::n
 
 impl Document {
     pub fn new() -> Self {
+        crate::tree::install_hooks();
         let rects = Rc::new(Rects::default());
         let zone = NEXT_ZONE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         Self {

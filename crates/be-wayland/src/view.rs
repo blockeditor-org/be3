@@ -7,6 +7,7 @@ use beui::{ForwardedInput, Key, NodeId, Rect, Vec2, WindowPlacement, WindowRepor
 
 use crate::state::WindowId;
 use crate::windows::Windows;
+use beui::native::draw_gpu;
 
 #[component]
 pub fn WindowView(

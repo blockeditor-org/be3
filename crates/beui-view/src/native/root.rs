@@ -1,38 +1,13 @@
+use crate::components::root::Root;
 use crate::reactive::Child;
-use crate::reactive::ChildValue;
-use crate::reactive::ComponentContext;
 use crate::reactive::Get;
 use crate::reactive::Prop;
-use crate::reactive::ScopeContext;
 use crate::reactive::create_effect;
-use crate::reactive::with_document;
 use beui_core::color::Color;
-use beui_core::node::NodeId;
+use beui_core::current::with_document;
 use beui_core::window::SystemBars;
 
-pub struct Root {
-    child: NodeId,
-}
-
-impl ChildValue for Root {
-    fn finish_component(&mut self, component: &ComponentContext, scope: &ScopeContext) {
-        if component.has_extensions() {
-            self.child.finish_component(component, scope);
-        }
-    }
-}
-
-impl Root {
-    pub fn child(&self) -> NodeId {
-        self.child
-    }
-
-    pub fn holding(self, child: NodeId) -> Root {
-        Root { child }
-    }
-}
-
-pub fn root(
+pub(crate) fn root(
     clear_color: Prop<Color>,
     title: Option<Prop<String>>,
     system_bars: Prop<SystemBars>,
@@ -67,5 +42,5 @@ pub fn root(
             document.update_appearance(window, |appearance| appearance.system_bars = bars)
         });
     });
-    Root { child: children }
+    Root::holding_child(children)
 }

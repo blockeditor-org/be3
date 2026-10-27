@@ -15,7 +15,7 @@ fn exiting_takes_the_compositor_down_before_the_thread_ends() {
         ..Default::default()
     }))
     .expect("the adapter did not provide a device");
-    let document = beui::reactive::build(|| {
+    let document = beui::native::build(|| {
         create();
         view! {
             <beui::styled::Root>
@@ -23,8 +23,8 @@ fn exiting_takes_the_compositor_down_before_the_thread_ends() {
             </beui::styled::Root>
         }
     });
-    let mut setup = Setup::new(beui::Waker::new(|| {}));
-    setup.provide(beui::GpuSetup {
+    let mut setup = Setup::new(beui::native::Waker::new(|| {}));
+    setup.provide(beui::native::GpuSetup {
         device,
         queue,
         format: wgpu::TextureFormat::Rgba8Unorm,

@@ -1,15 +1,16 @@
 use beui_core::window::WindowRequest;
 
-use crate::reactive::{ReadSignal, with_document};
+use crate::reactive::ReadSignal;
+use beui_core::current::with_document;
 
-pub fn request_window(request: WindowRequest) -> bool {
+pub(crate) fn request_window(request: WindowRequest) -> bool {
     with_document(|document| document.request_window(request))
 }
 
-pub fn opens_windows() -> ReadSignal<bool> {
+pub(crate) fn opens_windows() -> ReadSignal<bool> {
     with_document(|document| document.watch_opens_windows())
 }
 
-pub fn placed_windows() -> ReadSignal<bool> {
+pub(crate) fn placed_windows() -> ReadSignal<bool> {
     with_document(|document| document.watch_placed_windows())
 }

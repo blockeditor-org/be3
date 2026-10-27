@@ -5,7 +5,7 @@ use beui_core_html::document::{create, set_style};
 
 use super::bind;
 
-pub fn portal(node: Prop<Option<NodeId>>) -> NodeId {
+pub(crate) fn portal(node: Prop<Option<NodeId>>) -> NodeId {
     let element = create("Portal", "div");
     set_style(element, "display", Some("grid".to_owned()));
     set_style(

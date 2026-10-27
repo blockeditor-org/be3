@@ -43,7 +43,7 @@ fn frames_while_minimised(paces: bool) -> Vec<Vec2> {
         })],
     });
     let loaded = Loaded {
-        renderer: Box::new(crate::testing::Screen(vec2(200.0, 100.0))),
+        renderer: Box::new(crate::native::testing::Screen(vec2(200.0, 100.0))),
         fonts: None,
     };
     runner

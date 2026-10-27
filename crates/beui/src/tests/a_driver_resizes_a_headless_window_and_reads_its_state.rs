@@ -13,7 +13,7 @@ fn a_driver_resizes_a_headless_window_and_reads_its_state() {
             </beui_view::primitives::Root>
         }
     });
-    let mut driven = headless(crate::testing::Showing(document));
+    let mut driven = headless(crate::native::testing::Showing(document));
 
     driven
         .ask(&["resize", "200x100@2"])

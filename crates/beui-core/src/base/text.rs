@@ -24,41 +24,7 @@ pub use beui_types::text::DEFAULT_FONT_SIZE;
 pub const CARET_BLINK: Duration = Duration::from_millis(530);
 const CARET_FLAG: Vec2 = Vec2::new(6.0, 4.0);
 
-#[derive(Clone, Copy, PartialEq, Debug, Default)]
-pub struct FontPatch {
-    pub size: Option<f32>,
-    pub family: Option<FontFamily>,
-    pub bold: Option<bool>,
-    pub italic: Option<bool>,
-}
-
-impl FontPatch {
-    pub fn apply(self, base: FontId) -> FontId {
-        FontId {
-            size: self.size.unwrap_or(base.size),
-            family: self.family.unwrap_or(base.family),
-            bold: self.bold.unwrap_or(base.bold),
-            italic: self.italic.unwrap_or(base.italic),
-        }
-    }
-}
-
-impl From<FontId> for FontPatch {
-    fn from(font: FontId) -> Self {
-        Self {
-            size: Some(font.size),
-            family: Some(font.family),
-            bold: Some(font.bold),
-            italic: Some(font.italic),
-        }
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub struct IconSpan {
-    pub scale: f32,
-    pub spacing_em: f32,
-}
+pub use beui_types::text::{FontPatch, IconSpan};
 
 #[derive(Clone, PartialEq, Debug, Default)]
 pub struct SpanContent {

@@ -18,7 +18,7 @@ fn a_driver_pinches_with_two_fingers_and_zooms_with_a_touchpad() {
             </Interactive>
         }
     });
-    let mut driven = stepped(crate::testing::Showing(document));
+    let mut driven = stepped(crate::native::testing::Showing(document));
 
     driven
         .ask(&["pinch", "#surface", "2"])

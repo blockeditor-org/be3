@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
-use beui::painting::{Content, Frame, Painting, Paints, Primitive, Triangle, Vertex};
-use beui::{Drawing, Rect};
+use beui::native::painting::{Content, Frame, Painting, Paints, Primitive, Triangle, Vertex};
+use beui::{Rect, native::Drawing};
 use block_plugin_api::PreviewImage;
 
 #[cfg(target_arch = "wasm32")]
@@ -31,7 +31,7 @@ struct PicturePaints {
 
 impl Paints for PicturePaints {
     fn painting(&self, rect: Rect) -> Option<Painting> {
-        let key = beui::painting::preview_key(self.image);
+        let key = beui::native::painting::preview_key(self.image);
         let center = rect.center();
         let (sin, cos) = self.rotation.sin_cos();
         let alpha = (self.opacity.clamp(0.0, 1.0) * 255.0).round() as u8;
@@ -60,7 +60,7 @@ impl Paints for PicturePaints {
                 background: [0; 4],
                 primitives: vec![Primitive {
                     clip: [f32::MIN, f32::MIN, f32::MAX, f32::MAX],
-                    fade: beui::painting::Fade::NONE,
+                    fade: beui::native::painting::Fade::NONE,
                     content: Content::Mesh(vec![
                         Triangle {
                             texture: key,

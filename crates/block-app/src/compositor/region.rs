@@ -11,8 +11,8 @@ use beui::reactive::*;
 use beui::styled::*;
 use beui::{
     Align, CursorIcon, Forwarded, ForwardedInput, ImeCursor, Modifiers, NodeId, PointerButton,
-    PointerEvent, PointerId, PointerPhase, Pos2, Rect, Region, Vec2, WindowId, WindowPlacement,
-    WindowReport, WindowRole, pos2,
+    PointerEvent, PointerId, PointerPhase, Pos2, Rect, Vec2, WindowId, WindowPlacement,
+    WindowReport, WindowRole, native::Region, pos2,
 };
 use block_plugin_api::{ChildId, EditorInstanceId, EditorRegion, FrameSpec, PluginManifest};
 use uuid::Uuid;
@@ -23,6 +23,8 @@ use crate::plugin_host::{
     RegionView,
 };
 use crate::surfaces::{CrashNotice, HostItemFace};
+use beui::native::draw_gpu;
+use beui::native::toggle_keyboard;
 
 #[derive(Clone, Debug, PartialEq)]
 struct Failure {
@@ -399,7 +401,7 @@ pub(crate) fn PluginRegion(
                 placed.get(),
             )
         });
-        let held: Rc<RefCell<Option<(DrawingKey, beui::Drawing, u64)>>> =
+        let held: Rc<RefCell<Option<(DrawingKey, beui::native::Drawing, u64)>>> =
             Rc::new(RefCell::new(None));
         let drawn = create_memo(move || {
             let (_, rotation, opacity, pieces, _, placed) = shown.get();

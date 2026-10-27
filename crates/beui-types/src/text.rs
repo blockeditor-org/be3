@@ -301,3 +301,39 @@ pub struct RichOptions {
     pub anywhere: bool,
     pub least: bool,
 }
+
+#[derive(Clone, Copy, PartialEq, Debug, Default)]
+pub struct FontPatch {
+    pub size: Option<f32>,
+    pub family: Option<FontFamily>,
+    pub bold: Option<bool>,
+    pub italic: Option<bool>,
+}
+
+impl FontPatch {
+    pub fn apply(self, base: FontId) -> FontId {
+        FontId {
+            size: self.size.unwrap_or(base.size),
+            family: self.family.unwrap_or(base.family),
+            bold: self.bold.unwrap_or(base.bold),
+            italic: self.italic.unwrap_or(base.italic),
+        }
+    }
+}
+
+impl From<FontId> for FontPatch {
+    fn from(font: FontId) -> Self {
+        Self {
+            size: Some(font.size),
+            family: Some(font.family),
+            bold: Some(font.bold),
+            italic: Some(font.italic),
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct IconSpan {
+    pub scale: f32,
+    pub spacing_em: f32,
+}

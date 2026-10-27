@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use beui::Context;
+use beui::native::Context;
 
 use super::Compositor;
 use crate::state::{PING_TIMEOUT, WindowId};

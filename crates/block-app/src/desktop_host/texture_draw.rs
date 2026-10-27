@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use beui::{Draw, DrawAt};
+use beui::{native::Draw, native::DrawAt};
 
 const UNIFORM_BYTES: u64 = 48;
 const KEPT_RENDERERS: usize = 4;

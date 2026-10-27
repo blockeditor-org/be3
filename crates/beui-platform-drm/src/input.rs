@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
 
-use beui::Waker;
+use beui::native::Waker;
 
 pub use ui_types::{InputDevice, PointerSettings, PointerSpeed};
 

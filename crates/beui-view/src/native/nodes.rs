@@ -38,46 +38,46 @@ fn text_node(document: &Document, node: NodeId) -> Option<NodeOf<TextNode>> {
     document.arena.kind_of::<TextNode>(node)
 }
 
-pub fn exists(node: NodeId) -> bool {
+pub(crate) fn exists(node: NodeId) -> bool {
     with_document(|document| document.contains(node))
 }
 
-pub fn children(node: NodeId) -> Vec<NodeId> {
+pub(crate) fn children(node: NodeId) -> Vec<NodeId> {
     with_document(|document| match document.contains(node) {
         true => document.children(node),
         false => Vec::new(),
     })
 }
 
-pub fn focus(node: NodeId) {
+pub(crate) fn focus(node: NodeId) {
     with_document(|document| document.focus_focusable(node));
 }
 
-pub fn focus_into(node: NodeId) {
+pub(crate) fn focus_into(node: NodeId) {
     with_document(|document| document.focus_into(node));
 }
 
-pub fn focus_is_within(node: NodeId) -> bool {
+pub(crate) fn focus_is_within(node: NodeId) -> bool {
     with_document(|document| document.focus_is_within(node))
 }
 
-pub fn focus_pending_within(node: NodeId) -> bool {
+pub(crate) fn focus_pending_within(node: NodeId) -> bool {
     with_document(|document| document.focus_pending_within(node))
 }
 
-pub fn focusables_within(node: NodeId) -> Vec<NodeId> {
+pub(crate) fn focusables_within(node: NodeId) -> Vec<NodeId> {
     with_document(|document| document.focusables_within(node))
 }
 
-pub fn raise_overlay(node: NodeId) {
+pub(crate) fn raise_overlay(node: NodeId) {
     with_document(|document| document.raise_overlay(node));
 }
 
-pub fn dismiss_overlay(node: NodeId, reason: Dismiss) {
+pub(crate) fn dismiss_overlay(node: NodeId, reason: Dismiss) {
     with_document(|document| document.dismiss_overlay(node, reason));
 }
 
-pub fn close_overlay(node: NodeId) {
+pub(crate) fn close_overlay(node: NodeId) {
     with_document(|document| {
         if let Some(overlay) = document.arena.kind_of::<OverlayNode>(node) {
             document.close_overlay(overlay);
@@ -85,30 +85,30 @@ pub fn close_overlay(node: NodeId) {
     });
 }
 
-pub fn is_overlay_open(node: NodeId) -> bool {
+pub(crate) fn is_overlay_open(node: NodeId) -> bool {
     with_document(|document| document.is_overlay_open(node))
 }
 
-pub fn reveal(node: NodeId) {
+pub(crate) fn reveal(node: NodeId) {
     with_document(|document| document.reveal_node(node));
 }
 
-pub fn first_offset_within(node: NodeId) -> Option<NodeId> {
+pub(crate) fn first_offset_within(node: NodeId) -> Option<NodeId> {
     with_document(|document| match document.contains(node) {
         true => document.first_offset_within(node).map(NodeOf::id),
         false => None,
     })
 }
 
-pub fn offset(node: NodeId) -> Option<f32> {
+pub(crate) fn offset(node: NodeId) -> Option<f32> {
     with_document(|document| Some(document.offset_value(offset_node(document, node)?)))
 }
 
-pub fn scroll_position(node: NodeId) -> Option<ScrollPosition> {
+pub(crate) fn scroll_position(node: NodeId) -> Option<ScrollPosition> {
     with_document(|document| document.offset_position(offset_node(document, node)?))
 }
 
-pub fn drive_offset(node: NodeId, value: f32) {
+pub(crate) fn drive_offset(node: NodeId, value: f32) {
     with_document(|document| {
         if let Some(offset) = offset_node(document, node) {
             document.drive_offset(offset, value);
@@ -116,7 +116,7 @@ pub fn drive_offset(node: NodeId, value: f32) {
     });
 }
 
-pub fn offset_to_end(node: NodeId) {
+pub(crate) fn offset_to_end(node: NodeId) {
     with_document(|document| {
         if let Some(offset) = offset_node(document, node) {
             document.offset_to_end(offset);
@@ -124,7 +124,7 @@ pub fn offset_to_end(node: NodeId) {
     });
 }
 
-pub fn on_steer(node: NodeId, handler: impl FnMut(()) + 'static) {
+pub(crate) fn on_steer(node: NodeId, handler: impl FnMut(()) + 'static) {
     with_document(|document| {
         if let Some(offset) = offset_node(document, node) {
             document.set_offset_on_steer(offset, handler);
@@ -132,24 +132,24 @@ pub fn on_steer(node: NodeId, handler: impl FnMut(()) + 'static) {
     });
 }
 
-pub fn row_offset<K: Clone + Hash + Eq + 'static>(node: NodeId, key: &K) -> Option<f32> {
+pub(crate) fn row_offset<K: Clone + Hash + Eq + 'static>(node: NodeId, key: &K) -> Option<f32> {
     try_with_document(|document| document.virtual_list_offset::<K>(node, key)).flatten()
 }
 
-pub fn texts_within(node: NodeId) -> Vec<NodeId> {
+pub(crate) fn texts_within(node: NodeId) -> Vec<NodeId> {
     with_document(|document| document.texts_within(node))
         .into_iter()
         .map(NodeOf::id)
         .collect()
 }
 
-pub fn text(node: NodeId) -> String {
+pub(crate) fn text(node: NodeId) -> String {
     with_document(|document| {
         text_node(document, node).map_or_else(String::new, |text| document.text(text).to_owned())
     })
 }
 
-pub fn set_text_selection(node: NodeId, selection: Option<(Range<usize>, Color)>) {
+pub(crate) fn set_text_selection(node: NodeId, selection: Option<(Range<usize>, Color)>) {
     with_document(|document| {
         if let Some(text) = text_node(document, node) {
             document.set_text_selection(text, selection);
@@ -157,7 +157,7 @@ pub fn set_text_selection(node: NodeId, selection: Option<(Range<usize>, Color)>
     });
 }
 
-pub fn set_text_selection_handles(node: NodeId, handles: Vec<(usize, CaretHandle, Color)>) {
+pub(crate) fn set_text_selection_handles(node: NodeId, handles: Vec<(usize, CaretHandle, Color)>) {
     with_document(|document| {
         if let Some(text) = text_node(document, node) {
             document.set_text_selection_handles(text, handles);
@@ -165,23 +165,23 @@ pub fn set_text_selection_handles(node: NodeId, handles: Vec<(usize, CaretHandle
     });
 }
 
-pub fn window_of(node: NodeId) -> WindowId {
+pub(crate) fn window_of(node: NodeId) -> WindowId {
     with_document(|document| document.window_of(node))
 }
 
-pub fn focused_node() -> Option<NodeId> {
+pub(crate) fn focused_node() -> Option<NodeId> {
     with_document(|document| document.focused_node())
 }
 
-pub fn set_focus(node: Option<NodeId>) {
+pub(crate) fn set_focus(node: Option<NodeId>) {
     with_document(|document| document.update_focus(node));
 }
 
-pub fn focus_ancestry() -> Vec<NodeId> {
+pub(crate) fn focus_ancestry() -> Vec<NodeId> {
     with_document(|document| document.focus_ancestry())
 }
 
-pub fn stacked_at(nodes: &[NodeId], window: WindowId, pos: Pos2) -> Vec<NodeId> {
+pub(crate) fn stacked_at(nodes: &[NodeId], window: WindowId, pos: Pos2) -> Vec<NodeId> {
     with_document(|document| {
         let layers = document.layers();
         let mut placed: Vec<(usize, NodeId)> = nodes
@@ -207,7 +207,7 @@ pub fn stacked_at(nodes: &[NodeId], window: WindowId, pos: Pos2) -> Vec<NodeId> 
     })
 }
 
-pub fn tree_local<T: Clone + 'static>(make: impl FnOnce() -> T) -> T {
+pub(crate) fn tree_local<T: Clone + 'static>(make: impl FnOnce() -> T) -> T {
     if let Some(held) = with_document(|document| document.extension::<T>()) {
         return held;
     }
@@ -222,7 +222,7 @@ pub fn tree_local<T: Clone + 'static>(make: impl FnOnce() -> T) -> T {
     })
 }
 
-pub fn use_preferences() -> Memo<Preferences> {
+pub(crate) fn use_preferences() -> Memo<Preferences> {
     let (theme, motion, canvas_touch) = with_document(|document| {
         (
             document.watch_theme(),
@@ -237,11 +237,11 @@ pub fn use_preferences() -> Memo<Preferences> {
     })
 }
 
-pub fn use_preference_layers() -> ReadSignal<PreferenceLayers> {
+pub(crate) fn use_preference_layers() -> ReadSignal<PreferenceLayers> {
     with_document(|document| document.watch_preference_layers())
 }
 
-pub fn use_preference_layer(source: PreferenceSource) -> Binding<PreferenceLayer> {
+pub(crate) fn use_preference_layer(source: PreferenceSource) -> Binding<PreferenceLayer> {
     let layers = use_preference_layers();
     Binding::new(
         create_memo(move || layers.get().layer(source)),
@@ -255,6 +255,6 @@ pub fn use_preference_layer(source: PreferenceSource) -> Binding<PreferenceLayer
     )
 }
 
-pub fn use_font_revision() -> ReadSignal<u64> {
+pub(crate) fn use_font_revision() -> ReadSignal<u64> {
     with_document(|document| document.watch_context())
 }

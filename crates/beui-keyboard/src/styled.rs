@@ -4,6 +4,7 @@ use crate::unstyled::{
     composed_face, emojis_in, face,
 };
 use beui_components_unstyled as unstyled;
+use beui_core::current::{close_keyboard, layout_text};
 use beui_core::font::Overflow;
 use beui_core::geometry::Rect;
 use beui_core::icons;

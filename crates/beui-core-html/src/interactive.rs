@@ -8,9 +8,7 @@ use beui_types::{Pasted, Pos2, SoftKeyboard, Vec2};
 
 use crate::node::NodeId;
 
-pub enum Never {}
-
-pub struct ForwardedInput(Never);
+pub use beui_types::forward::ForwardedInput;
 
 #[derive(Default)]
 pub struct Handlers {

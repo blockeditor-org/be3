@@ -41,7 +41,7 @@ fn the_window_is_asked_for_fullscreen_and_says_when_it_is() {
     runner
         .start(
             Loaded {
-                renderer: Box::new(crate::testing::Screen(vec2(200.0, 100.0))),
+                renderer: Box::new(crate::native::testing::Screen(vec2(200.0, 100.0))),
                 fonts: None,
             },
             Setup::new(Waker::new(|| {})),

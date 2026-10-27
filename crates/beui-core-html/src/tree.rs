@@ -4,9 +4,14 @@ use std::rc::Rc;
 
 use beui_html::Node;
 use beui_tree::reactive::{
-    ChildSegment, ChildValue, Children, ComponentContext, Get, IntoChild, IntoProp, IntoSegment,
-    IntoSlotHost, Prop, ReadSignal, ScopeContext, Set, Signal, SlotChild, SlotHost, SlotId,
-    create_effect, create_signal, current_component,
+    ComponentContext, Get, IntoProp, IntoSlotHost, Prop, ReadSignal, ScopeContext, Set, Signal,
+    SlotHost, SlotId, create_effect, create_signal, current_component,
+};
+pub use beui_types::node::BuildsNode;
+use beui_types::node::{CoreHooks, install_core_hooks};
+pub use beui_types::tree::{
+    BareChild, CanvasKind, FromPlaced, GridKind, LayersKind, ListKind, Placed, PlacedItem,
+    WithSizing, with_sizing,
 };
 use beui_types::{Align, Direction, ItemSize, Sizing};
 
@@ -75,115 +80,35 @@ pub fn component_accessibility(node: impl IntoProp<accesskit::Node>) {
     });
 }
 
-impl ChildValue for NodeId {
-    fn finish_component(&mut self, component: &ComponentContext, scope: &ScopeContext) {
-        let root = *self;
-        let Some(bindings) = component.find_extension::<NodeBindings>() else {
-            return;
-        };
-        bindings.target.set(Some(root));
-        if let Some(node) = bindings.node.borrow().as_ref() {
-            node.fill(root);
-        }
-        if let Some(placed) = bindings.placed.take() {
-            let watched = crate::frame::watch_placed(root);
-            scope.run(|| create_effect(move || placed.set(watched.get())));
-        }
-        for state in bindings.states.take() {
-            document::set_state(root, state);
-        }
-        if let Some(node) = bindings.accessibility.take() {
-            document::set_accessibility(root, node);
-        }
+fn finish_component(root: NodeId, component: &ComponentContext, scope: &ScopeContext) {
+    let Some(bindings) = component.find_extension::<NodeBindings>() else {
+        return;
+    };
+    bindings.target.set(Some(root));
+    if let Some(node) = bindings.node.borrow().as_ref() {
+        node.fill(root);
+    }
+    if let Some(placed) = bindings.placed.take() {
+        let watched = crate::frame::watch_placed(root);
+        scope.run(|| create_effect(move || placed.set(watched.get())));
+    }
+    for state in bindings.states.take() {
+        document::set_state(root, state);
+    }
+    if let Some(node) = bindings.accessibility.take() {
+        document::set_accessibility(root, node);
     }
 }
 
-#[diagnostic::on_unimplemented(
-    message = "a `{Self}` is no node, so `@test_id` and `@node_ref` have nothing to name",
-    label = "put `@test_id` or `@node_ref` on a tag that builds a node, inside this one or around it"
-)]
-pub trait BuildsNode {
-    fn built_node(&self) -> NodeId;
+pub(crate) fn install_hooks() {
+    install_core_hooks(CoreHooks {
+        fill_ref: document::fill_ref,
+        finish_component,
+    });
 }
 
-impl BuildsNode for NodeId {
-    fn built_node(&self) -> NodeId {
-        *self
-    }
-}
-
-impl SlotChild for NodeId {
-    type Stored = NodeId;
-
-    fn store(self) -> NodeId {
-        self
-    }
-}
-
-impl IntoChild<NodeId> for NodeId {
-    fn into_child(self) -> NodeId {
-        self
-    }
-}
-
-impl IntoSegment<NodeId> for NodeId {
-    fn into_segment(self) -> ChildSegment<NodeId> {
-        ChildSegment::One(self)
-    }
-}
-
-impl From<NodeId> for Children<NodeId> {
-    fn from(node: NodeId) -> Self {
-        Self::from(ChildSegment::One(node))
-    }
-}
-
-#[diagnostic::on_unimplemented(
-    message = "a `{Self}` does not keep placed children",
-    label = "implement `ParentKind` for the node that keeps these children"
-)]
-pub trait ParentKind: Sized + 'static {
-    type Data: Clone + 'static;
-
+pub trait ParentKind: beui_types::tree::ParentKind {
     fn place(parent: NodeId, child: NodeId, data: Self::Data);
-}
-
-pub trait BareChild: ParentKind {
-    fn bare() -> Self::Data;
-}
-
-pub struct Placed<P: ParentKind> {
-    pub node: NodeId,
-    pub data: Prop<P::Data>,
-}
-
-impl<P: ParentKind> Placed<P> {
-    pub fn new(node: NodeId, data: impl IntoProp<P::Data>) -> Self {
-        Self {
-            node,
-            data: data.into_prop(),
-        }
-    }
-}
-
-impl<P: ParentKind> BuildsNode for Placed<P> {
-    fn built_node(&self) -> NodeId {
-        self.node
-    }
-}
-
-impl<P: ParentKind> ChildValue for Placed<P> {
-    fn finish_component(&mut self, component: &ComponentContext, scope: &ScopeContext) {
-        self.node.finish_component(component, scope);
-    }
-}
-
-impl<P: ParentKind> SlotChild for Placed<P> {
-    type Stored = NodeId;
-
-    fn store(self) -> NodeId {
-        self.node
-    }
 }
 
 struct ElementHost<P> {
@@ -197,20 +122,24 @@ fn elements(nodes: Vec<NodeId>) -> Vec<Node> {
 }
 
 impl<P: ParentKind> SlotHost<Placed<P>> for ElementHost<P> {
-    fn store(&self, child: Placed<P>) -> NodeId {
+    fn store(&self, child: Placed<P>) -> PlacedItem<P> {
         let Placed { node, data } = child;
         let parent = self.parent;
+        let initial = data.get_untracked();
         match data {
             Prop::Static(data) => P::place(parent, node, data),
             Prop::Dynamic(read) => {
                 create_effect(move || P::place(parent, node, read.get()));
             }
         }
-        node
+        PlacedItem {
+            node,
+            data: initial,
+        }
     }
 
-    fn append(&self, stored: NodeId) {
-        if let Some(element) = element(stored) {
+    fn append(&self, stored: PlacedItem<P>) {
+        if let Some(element) = element(stored.node) {
             self.inner.append(element);
         }
     }
@@ -219,8 +148,11 @@ impl<P: ParentKind> SlotHost<Placed<P>> for ElementHost<P> {
         self.inner.open()
     }
 
-    fn fill(&self, slot: SlotId, items: Vec<NodeId>) {
-        self.inner.fill(slot, elements(items));
+    fn fill(&self, slot: SlotId, items: Vec<PlacedItem<P>>) {
+        self.inner.fill(
+            slot,
+            elements(items.into_iter().map(|item| item.node).collect()),
+        );
     }
 }
 
@@ -232,73 +164,6 @@ pub fn host<P: ParentKind>(parent: NodeId) -> Rc<dyn SlotHost<Placed<P>>> {
         kind: std::marker::PhantomData,
     })
 }
-
-#[diagnostic::on_unimplemented(
-    message = "a child made for a `{P}` cannot be a child of this component",
-    label = "`@sizing` makes a list child: remove it, or put this child in a `Row`, `Column`, `List` or `Stack`"
-)]
-pub trait FromPlaced<P: ParentKind> {
-    fn from_placed(child: Placed<P>) -> Self;
-}
-
-impl<P: ParentKind> FromPlaced<P> for Placed<P> {
-    fn from_placed(child: Placed<P>) -> Self {
-        child
-    }
-}
-
-impl<P: ParentKind, T: FromPlaced<P>> IntoChild<T> for Placed<P> {
-    fn into_child(self) -> T {
-        T::from_placed(self)
-    }
-}
-
-impl<P: ParentKind, T: FromPlaced<P> + SlotChild> IntoSegment<T> for Placed<P> {
-    fn into_segment(self) -> ChildSegment<T> {
-        ChildSegment::One(self.into_child())
-    }
-}
-
-impl<P: ParentKind, T: FromPlaced<P> + SlotChild> From<Placed<P>> for Children<T> {
-    fn from(child: Placed<P>) -> Self {
-        Self::from(ChildSegment::One(child.into_child()))
-    }
-}
-
-impl<P: ParentKind> IntoSegment<Placed<P>> for Option<Placed<P>> {
-    fn into_segment(self) -> ChildSegment<Placed<P>> {
-        ChildSegment::Many(self.into_iter().collect())
-    }
-}
-
-impl<P: BareChild> IntoChild<Placed<P>> for NodeId {
-    fn into_child(self) -> Placed<P> {
-        Placed {
-            node: self,
-            data: Prop::Static(P::bare()),
-        }
-    }
-}
-
-impl<P: BareChild> IntoSegment<Placed<P>> for NodeId {
-    fn into_segment(self) -> ChildSegment<Placed<P>> {
-        ChildSegment::One(self.into_child())
-    }
-}
-
-impl<P: BareChild> IntoSegment<Placed<P>> for Option<NodeId> {
-    fn into_segment(self) -> ChildSegment<Placed<P>> {
-        ChildSegment::Many(self.into_iter().map(IntoChild::into_child).collect())
-    }
-}
-
-impl<P: BareChild> From<NodeId> for Children<Placed<P>> {
-    fn from(node: NodeId) -> Self {
-        Self::from(IntoSegment::<Placed<P>>::into_segment(node))
-    }
-}
-
-pub struct ListKind;
 
 pub type ListChild = Placed<ListKind>;
 
@@ -313,8 +178,6 @@ fn align_css(align: Align) -> &'static str {
 }
 
 impl ParentKind for ListKind {
-    type Data = Sizing;
-
     fn place(parent: NodeId, child: NodeId, sizing: Sizing) {
         let (min, max) = match document::direction(parent) {
             Direction::Horizontal => ("min-width", "max-width"),
@@ -341,17 +204,7 @@ impl ParentKind for ListKind {
     }
 }
 
-impl BareChild for ListKind {
-    fn bare() -> Sizing {
-        Sizing::default()
-    }
-}
-
-pub struct GridKind;
-
 impl ParentKind for GridKind {
-    type Data = usize;
-
     fn place(_parent: NodeId, child: NodeId, span: usize) {
         set_placed_style(
             child,
@@ -361,31 +214,13 @@ impl ParentKind for GridKind {
     }
 }
 
-impl BareChild for GridKind {
-    fn bare() -> usize {
-        1
-    }
-}
-
-pub struct LayersKind;
-
 impl ParentKind for LayersKind {
-    type Data = ();
-
     fn place(_parent: NodeId, child: NodeId, _: ()) {
         set_placed_style(child, "grid-area", Some("1 / 1".to_owned()));
     }
 }
 
-impl BareChild for LayersKind {
-    fn bare() {}
-}
-
-pub struct CanvasKind;
-
 impl ParentKind for CanvasKind {
-    type Data = ();
-
     fn place(parent: NodeId, child: NodeId, _: ()) {
         crate::canvas::place(parent, child);
     }
@@ -393,9 +228,11 @@ impl ParentKind for CanvasKind {
 
 pub struct FitKind;
 
-impl ParentKind for FitKind {
+impl beui_types::tree::ParentKind for FitKind {
     type Data = ();
+}
 
+impl ParentKind for FitKind {
     fn place(_parent: NodeId, _child: NodeId, _: ()) {}
 }
 
@@ -405,40 +242,12 @@ impl BareChild for FitKind {
 
 pub struct TextKind;
 
-impl ParentKind for TextKind {
+impl beui_types::tree::ParentKind for TextKind {
     type Data = crate::text::TextSlot;
+}
 
+impl ParentKind for TextKind {
     fn place(_parent: NodeId, _child: NodeId, _slot: crate::text::TextSlot) {}
-}
-
-#[diagnostic::on_unimplemented(
-    message = "`@sizing` cannot size a `{Self}`",
-    label = "`@sizing` takes a node, or an `Option` of one"
-)]
-pub trait WithSizing {
-    type Sized;
-
-    fn with_sizing(self, size: Prop<Sizing>) -> Self::Sized;
-}
-
-impl WithSizing for NodeId {
-    type Sized = ListChild;
-
-    fn with_sizing(self, size: Prop<Sizing>) -> ListChild {
-        ListChild::new(self, size)
-    }
-}
-
-impl WithSizing for Option<NodeId> {
-    type Sized = Option<ListChild>;
-
-    fn with_sizing(self, size: Prop<Sizing>) -> Option<ListChild> {
-        self.map(|node| ListChild::new(node, size))
-    }
-}
-
-pub fn with_sizing<C: WithSizing>(child: C, size: impl IntoProp<Sizing>) -> C::Sized {
-    child.with_sizing(size.into_prop())
 }
 
 struct NodeHost {

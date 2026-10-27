@@ -24,7 +24,7 @@ fn a_driver_answers_a_file_dialog_in_a_window_that_is_not_simulated() {
             </List>
         }
     });
-    let mut driven = stepped(crate::testing::Showing(document));
+    let mut driven = stepped(crate::native::testing::Showing(document));
     let directory = std::env::temp_dir().join(format!(
         "a_driver_answers_a_file_dialog_in_a_window.{}",
         std::process::id()

@@ -26,7 +26,7 @@ pub fn either() -> bool {
         fs::create_dir_all(&elsewhere).unwrap();
         fs::write(
             elsewhere.join("lib.rs"),
-            "#[cfg(beui_html)]\npub fn web() {}\n",
+            "#[cfg(beui_html)]\npub(crate) fn web() {}\n",
         )
         .unwrap();
     }

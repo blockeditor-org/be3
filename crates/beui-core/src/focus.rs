@@ -20,11 +20,7 @@ enum TabStop {
     Unbuilt(NodeId, Range<usize>),
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub struct ImeCursor {
-    pub node: NodeId,
-    pub rect: Option<Rect>,
-}
+pub use beui_types::node::ImeCursor;
 
 pub struct Focus {
     pub tab_stop: bool,

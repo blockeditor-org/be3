@@ -1,8 +1,9 @@
+use beui::native::core_painter;
 use std::cell::Cell;
 
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{FontId, NodeId, Painter, PointerPress};
+use beui::{FontId, NodeId, PointerPress, reactive::Painter};
 
 use super::session::Session;
 use super::*;
@@ -917,9 +918,9 @@ fn paint_graph(painter: &Painter, rect: Rect, shape: &GraphShape) {
             ),
             (detail, FontId::monospace(11.0), GRAPH_DETAIL_COLOR, 10.0),
         ] {
-            let galley = painter.layout(text, font, GRAPH_NODE_SIZE.x);
+            let galley = core_painter(painter).layout(text, font, GRAPH_NODE_SIZE.x);
             let size = galley.size();
-            painter.galley(
+            core_painter(painter).galley(
                 Pos2::new(center.x - size.x * 0.5, center.y + offset - size.y * 0.5),
                 galley,
                 color,

@@ -248,7 +248,7 @@ fn steer(document: &mut Document, control: Option<DialogControl>, host: &EditorH
 
 fn measured(
     document: &mut Document,
-    context: &beui::Context,
+    context: &beui::native::Context,
     node: Option<beui::NodeId>,
     width: f32,
 ) -> Option<beui::Rect> {
@@ -292,7 +292,7 @@ impl<A: BeuiApp> Shown for Parts<A> {
         Self::window_report(size, document, window)
     }
 
-    fn before(&self, view: &View, context: &beui::Context, document: &mut Document) {
+    fn before(&self, view: &View, context: &beui::native::Context, document: &mut Document) {
         self.scale.set(BeuiScale {
             ratio: view.ratio,
             pixels_per_point: context.pixels_per_point(),
@@ -348,7 +348,7 @@ impl<A: BeuiApp> Shown for Parts<A> {
     fn after(
         &self,
         view: &View,
-        context: &beui::Context,
+        context: &beui::native::Context,
         document: &mut Document,
         window: WindowId,
     ) -> Report {

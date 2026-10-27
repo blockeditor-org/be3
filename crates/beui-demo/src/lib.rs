@@ -4,8 +4,6 @@ use base_pages::{
     ControlFlowPage, FramesPage, InteractionPage, LayeringPage, ListsPage, PathsPage, TextNodesPage,
 };
 use beui::Align;
-#[cfg(feature = "native")]
-use beui::Context;
 use beui::KeyAt;
 use beui::Overflow;
 use beui::datetime::{Date, DateTime, HourCycle, Time};
@@ -29,7 +27,11 @@ use beui::icons::{
     ICON_TRASH, ICON_TYPE,
 };
 #[cfg(feature = "native")]
+use beui::native::Context;
+#[cfg(feature = "native")]
 use beui::native::Document;
+#[cfg(feature = "native")]
+use beui::native::build;
 #[cfg(feature = "native")]
 use beui::native::with_document;
 use beui::reactive::*;
@@ -414,7 +416,7 @@ fn LonePage(page: Page) -> NodeId {
 }
 
 #[cfg(feature = "native")]
-impl beui::App for DemoApp {
+impl beui::native::App for DemoApp {
     fn update(&mut self, context: &Context, rect: Rect) {
         self.document.show(context, rect);
     }

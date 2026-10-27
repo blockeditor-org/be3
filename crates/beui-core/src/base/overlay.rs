@@ -12,13 +12,7 @@ use crate::layer::{Dismiss, LayerLevel, LayerPolicy};
 use crate::node::{Element, NodeId, NodeOf, Rects};
 use crate::window::WindowId;
 
-#[derive(Clone, PartialEq)]
-pub enum OverlayAnchor {
-    Node(NodeRef),
-    Point(Pos2),
-    Rect(Rect),
-    Pinned { node: NodeRef, rect: Rect },
-}
+pub use beui_types::layer::OverlayAnchor;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 struct Pin {
@@ -66,24 +60,6 @@ impl Pin {
             },
         );
         Rect::from_min_size(edge + self.offset, self.size)
-    }
-}
-
-impl beui_tree::reactive::IntoProp<OverlayAnchor> for &NodeRef {
-    fn into_prop(self) -> beui_tree::reactive::Prop<OverlayAnchor> {
-        beui_tree::reactive::Prop::Static(OverlayAnchor::Node(*self))
-    }
-}
-
-impl beui_tree::reactive::IntoProp<OverlayAnchor> for NodeRef {
-    fn into_prop(self) -> beui_tree::reactive::Prop<OverlayAnchor> {
-        beui_tree::reactive::Prop::Static(OverlayAnchor::Node(self))
-    }
-}
-
-impl Default for OverlayAnchor {
-    fn default() -> Self {
-        OverlayAnchor::Point(Pos2::ZERO)
     }
 }
 

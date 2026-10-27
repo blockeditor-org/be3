@@ -1,8 +1,8 @@
-pub use crate::core::text::{Break, Gap, Span, SpanText, TextChild, TextItem};
 use crate::reactive::Child;
 use crate::reactive::Children;
 use crate::reactive::NodeId;
 use crate::reactive::Prop;
+pub use crate::text_children::{Break, Gap, Span, SpanText, TextChild, TextItem};
 use crate::types::Color;
 use crate::types::FontFamily;
 use crate::types::FontId;
@@ -64,7 +64,7 @@ pub fn Span(
     #[prop(default = false)] break_after: Prop<bool>,
     children: Children<SpanText>,
 ) -> Span {
-    crate::core::span(
+    crate::text_children::span(
         font,
         size,
         family,
@@ -87,12 +87,12 @@ pub fn Icon(
     #[prop(default = 0.0)] spacing_em: f32,
     #[prop(default = None)] color: Prop<Option<Color>>,
 ) -> Span {
-    crate::core::icon(glyph, size, scale, spacing_em, color)
+    crate::text_children::icon(glyph, size, scale, spacing_em, color)
 }
 
 #[component]
 pub fn Gap(width: f32) -> Gap {
-    crate::core::gap(width)
+    Gap { width }
 }
 
 #[component]
@@ -106,5 +106,5 @@ pub fn TextItem(
 
 #[component]
 pub fn Break() -> Break {
-    crate::core::line_break()
+    Break {}
 }

@@ -1,10 +1,10 @@
-pub use crate::core::overlay::{OverlayPresence, use_overlay_presence};
 use crate::reactive::Callback;
 use crate::reactive::NodeId;
 use crate::reactive::NodeRef;
 use crate::reactive::OverlayAnchor;
 use crate::reactive::Prop;
 use crate::reactive::RenderFn;
+use crate::reactive::{Memo, Set, Signal, create_signal, use_context};
 use crate::types::Color;
 use crate::types::Dismiss;
 use crate::types::LayerLevel;
@@ -49,4 +49,35 @@ pub fn Overlay(
         on_dismiss,
         content,
     )
+}
+
+#[derive(Clone, Copy)]
+pub struct OverlayPresence {
+    open: Memo<bool>,
+    lingering: Signal<Vec<Memo<bool>>>,
+}
+
+impl OverlayPresence {
+    pub(crate) fn new(open: Memo<bool>) -> Self {
+        Self {
+            open,
+            lingering: create_signal(Vec::new()),
+        }
+    }
+
+    pub(crate) fn lingering(self) -> Signal<Vec<Memo<bool>>> {
+        self.lingering
+    }
+
+    pub fn open(self) -> Memo<bool> {
+        self.open
+    }
+
+    pub fn linger_while(self, showing: Memo<bool>) {
+        self.lingering.update(|lingering| lingering.push(showing));
+    }
+}
+
+pub fn use_overlay_presence() -> Option<OverlayPresence> {
+    use_context::<OverlayPresence>()
 }

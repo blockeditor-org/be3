@@ -6,19 +6,19 @@ use crate::reactive::{KeyAt, KeyEvent, NodeId};
 use crate::types::input::KeyChord;
 use crate::types::{KeyPhase, WindowId};
 
-pub fn focus_ancestry() -> Vec<NodeId> {
+pub(crate) fn focus_ancestry() -> Vec<NodeId> {
     beui_core_html::focus::focus_ancestry()
 }
 
-pub fn key_window() -> Option<WindowId> {
+pub(crate) fn key_window() -> Option<WindowId> {
     None
 }
 
-pub fn window_hosts() -> Vec<(WindowId, WindowId)> {
+pub(crate) fn window_hosts() -> Vec<(WindowId, WindowId)> {
     Vec::new()
 }
 
-pub fn listen_keys(at: KeyAt, phase: KeyPhase, handler: Weak<dyn Fn(KeyEvent) -> bool>) {
+pub(crate) fn listen_keys(at: KeyAt, phase: KeyPhase, handler: Weak<dyn Fn(KeyEvent) -> bool>) {
     beui_core_html::document::in_document_scope(|| {
         beui_core_html::keys::listen(
             at,
@@ -28,14 +28,14 @@ pub fn listen_keys(at: KeyAt, phase: KeyPhase, handler: Weak<dyn Fn(KeyEvent) ->
     });
 }
 
-pub fn register(describe: Rc<Describe>) -> Rc<dyn Any> {
+pub(crate) fn register(describe: Rc<Describe>) -> Rc<dyn Any> {
     Rc::new(describe)
 }
 
-pub fn intercepted_keys() -> impl Fn(Vec<KeyChord>) + 'static {
+pub(crate) fn intercepted_keys() -> impl Fn(Vec<KeyChord>) + 'static {
     |_| {}
 }
 
-pub fn in_document_scope(run: Box<dyn FnOnce()>) {
+pub(crate) fn in_document_scope(run: Box<dyn FnOnce()>) {
     beui_core_html::document::in_document_scope(run);
 }

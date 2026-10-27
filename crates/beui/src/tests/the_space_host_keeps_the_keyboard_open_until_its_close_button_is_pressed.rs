@@ -1,7 +1,7 @@
 use beui_core::runner::Hand;
 
 use super::*;
-use crate::keyboard::styled::close_center;
+use crate::native::keyboard::styled::close_center;
 use crate::reactive::*;
 use crate::styled::List;
 use crate::styled::*;

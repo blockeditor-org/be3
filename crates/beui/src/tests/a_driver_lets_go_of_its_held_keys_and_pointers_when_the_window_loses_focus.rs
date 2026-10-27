@@ -10,7 +10,7 @@ fn a_driver_lets_go_of_its_held_keys_and_pointers_when_the_window_loses_focus() 
             <TextInput @test_id={"field"} value={text} />
         }
     });
-    let mut driven = stepped(crate::testing::Showing(document));
+    let mut driven = stepped(crate::native::testing::Showing(document));
     driven
         .ask(&["click", "#field"])
         .expect("the field is focused");

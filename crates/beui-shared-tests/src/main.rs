@@ -3,12 +3,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut fixture = String::new();
     for argument in std::env::args().skip(1) {
         match argument.as_str() {
-            "--delay-measurement" => beui::testing::delay_measurement(true),
+            "--delay-measurement" => beui::native::testing::delay_measurement(true),
             _ => fixture = argument,
         }
     }
-    beui::run_with(
-        beui::RunOptions::default(),
+    beui::native::run_with(
+        beui::native::RunOptions::default(),
         beui_shared_tests::FixtureApp::new(fixture),
     )
 }
