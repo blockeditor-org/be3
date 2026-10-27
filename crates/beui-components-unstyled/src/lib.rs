@@ -22,9 +22,9 @@ pub mod dialog;
 pub mod disclosure;
 pub mod drag;
 pub mod first_fit;
-pub mod form;
 pub mod fling;
 pub mod floating;
+pub mod form;
 pub mod gestures;
 pub mod list_row;
 pub mod menu;
@@ -103,8 +103,8 @@ pub use drag::{
     DRAG_PREVIEW_OFFSET, DRAG_THRESHOLD, DragHandle, Draggable, DropHandle, DropTarget,
 };
 pub use first_fit::FirstFit;
-pub use form::Form;
 pub use floating::{Edge, Floating};
+pub use form::Form;
 pub use list_row::ListRow;
 pub use menu::{
     MenuCaption, MenuGrid, MenuItem, MenuListApi, MenuNodes, MenuRowHandle, MenuRowKind, MenuThen,

@@ -950,14 +950,14 @@ pub(crate) fn InputsPage() -> NodeId {
             <Sample title="Text input" code={vec![NameInput::SOURCE, greeting_label::SOURCE]}>
                 <NameInput />
             </Sample>
-            <Sample title="Sign-in form" code={vec![SignInForm::SOURCE]}>
-                <SignInForm />
-            </Sample>
             <Sample title="On-screen keyboard" code={vec![KeyboardInput::SOURCE]}>
                 <KeyboardInput />
             </Sample>
             <Sample title="Number input" code={vec![SeatsInput::SOURCE]}>
                 <SeatsInput />
+            </Sample>
+            <Sample title="Sign-in form" code={vec![SignInForm::SOURCE]}>
+                <SignInForm />
             </Sample>
             <Sample title="One value, two bindings" code={vec![Temperatures::SOURCE]}>
                 <Temperatures />
@@ -1041,7 +1041,11 @@ fn SignInForm() -> NodeId {
 fn KeyboardInput() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
-            <TextInput value=String::new() placeholder="Type with the keys below" />
+            <TextInput
+                @test_id="demo.keyboard.field"
+                value=String::new()
+                placeholder="Type with the keys below"
+            />
             <Frame height={Size::Custom(240.0)}>
                 <SoftwareKeyboard />
             </Frame>

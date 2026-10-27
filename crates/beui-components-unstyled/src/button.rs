@@ -143,7 +143,10 @@ pub fn Button(
             "button",
             vec![
                 ("type", Prop::Static(Some("submit".to_owned()))),
-                ("disabled", Prop::dynamic(move || disabled.get().then(String::new))),
+                (
+                    "disabled",
+                    Prop::dynamic(move || disabled.get().then(String::new)),
+                ),
             ],
         )),
         _ => None,

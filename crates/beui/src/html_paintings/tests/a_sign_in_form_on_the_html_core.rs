@@ -32,7 +32,10 @@ fn sign_in() -> crate::primitives::Root {
                         />
                         <List direction={crate::Direction::Horizontal} spacing=Space::Md>
                             <Button label="Sign in" variant=ButtonVariant::Primary submit=true />
-                            <Link label="Forgot your password?" href={Some("/auth/forgot".to_owned())} />
+                            <Link
+                                label="Forgot your password?"
+                                href={Some("/auth/forgot".to_owned())}
+                            />
                         </List>
                     </List>
                 </Form>

@@ -374,22 +374,52 @@ fn BrowserField(
     }));
     let present = |text: String| Some(text).filter(|text| !text.is_empty());
     let attributes = vec![
-        ("type", Prop::dynamic(move || Some(kind.get().html_type().to_owned()))),
+        (
+            "type",
+            Prop::dynamic(move || Some(kind.get().html_type().to_owned())),
+        ),
         ("value", Prop::dynamic(move || Some(value.get()))),
         ("name", Prop::dynamic(move || present(name.get()))),
-        ("autocomplete", Prop::dynamic(move || present(autocomplete.get()))),
-        ("placeholder", Prop::dynamic(move || present(placeholder.get()))),
-        ("disabled", Prop::dynamic(move || disabled.get().then(String::new))),
+        (
+            "autocomplete",
+            Prop::dynamic(move || present(autocomplete.get())),
+        ),
+        (
+            "placeholder",
+            Prop::dynamic(move || present(placeholder.get())),
+        ),
+        (
+            "disabled",
+            Prop::dynamic(move || disabled.get().then(String::new)),
+        ),
         ("spellcheck", Prop::Static(Some("false".to_owned()))),
     ];
     let styles = vec![
-        ("align-self", Prop::Static(Some(CssValue::Keyword("stretch")))),
+        (
+            "align-self",
+            Prop::Static(Some(CssValue::Keyword("stretch"))),
+        ),
         ("width", Prop::Static(Some(CssValue::Keyword("100%")))),
-        ("font", Prop::dynamic(move || Some(CssValue::Font(FontId::proportional(font_size.get()))))),
-        ("color", Prop::dynamic(move || Some(CssValue::Color(color.get())))),
-        ("caret-color", Prop::dynamic(move || Some(CssValue::Color(caret_color.get())))),
-        ("--beui-placeholder", Prop::dynamic(move || Some(CssValue::Color(placeholder_color.get())))),
-        ("--beui-selection", Prop::dynamic(move || Some(CssValue::Color(selection_color.get())))),
+        (
+            "font",
+            Prop::dynamic(move || Some(CssValue::Font(FontId::proportional(font_size.get())))),
+        ),
+        (
+            "color",
+            Prop::dynamic(move || Some(CssValue::Color(color.get()))),
+        ),
+        (
+            "caret-color",
+            Prop::dynamic(move || Some(CssValue::Color(caret_color.get()))),
+        ),
+        (
+            "--beui-placeholder",
+            Prop::dynamic(move || Some(CssValue::Color(placeholder_color.get()))),
+        ),
+        (
+            "--beui-selection",
+            Prop::dynamic(move || Some(CssValue::Color(selection_color.get()))),
+        ),
         (
             "padding",
             Prop::dynamic(move || {

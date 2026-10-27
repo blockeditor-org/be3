@@ -22,7 +22,9 @@ pub(crate) fn element(
         bind(value, move |value| set_attribute(node, name, value));
     }
     for (property, value) in styles {
-        bind(value, move |value| set_style(node, property, value.map(css)));
+        bind(value, move |value| {
+            set_style(node, property, value.map(css))
+        });
     }
     if let Some(held) = element_of(node) {
         for (name, handler) in events {

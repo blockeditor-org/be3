@@ -54,10 +54,7 @@ pub fn Form(
         })
         .collect();
     let body = view! {
-        <List spacing=0.0>
-            {Children::<ListChild>::from_iter(fields)}
-            {content}
-        </List>
+        <List spacing=0.0>{Children::<ListChild>::from_iter(fields)}{content}</List>
     };
     let action = Prop::dynamic(move || Some(action.get()).filter(|action| !action.is_empty()));
     view! {

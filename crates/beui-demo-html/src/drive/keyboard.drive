@@ -2,7 +2,7 @@
 # focus, key by key, without taking the focus itself.
 clock stop
 click '#demo.catalog.Inputs'
-click 'Type with the keys below'
+click '#demo.keyboard.field'
 click 'Button "h"'
 click 'Button "i"'
 wait 'TextInput value="hi" focused'
