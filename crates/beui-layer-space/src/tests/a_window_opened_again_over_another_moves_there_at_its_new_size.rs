@@ -26,7 +26,10 @@ fn a_window_opened_again_over_another_moves_there_at_its_new_size() {
     let incoming = send(&mut space, now, []);
     let main = main(&space).clone();
     let panel = space.panel(window).unwrap();
-    assert_eq!(panel.size, size, "it takes the size it is opened again with");
+    assert_eq!(
+        panel.size, size,
+        "it takes the size it is opened again with"
+    );
     assert!(
         close(
             panel.world(Pos2::ZERO),

@@ -1342,7 +1342,10 @@ impl Space {
     fn reopen(&mut self, window: WindowId, placement: &WindowPlacement, size: Vec2) {
         if self.holders().any(|held| {
             held.resize.is_some_and(|resize| resize.window == window)
-                || held.carry.as_ref().is_some_and(|carry| carry.window == window)
+                || held
+                    .carry
+                    .as_ref()
+                    .is_some_and(|carry| carry.window == window)
         }) {
             return;
         }
@@ -1429,7 +1432,13 @@ impl Space {
         self.over(None, window, at, size)
     }
 
-    fn over(&self, own: Option<WindowId>, other: WindowId, at: Pos2, size: Vec2) -> Option<(Pose, f32)> {
+    fn over(
+        &self,
+        own: Option<WindowId>,
+        other: WindowId,
+        at: Pos2,
+        size: Vec2,
+    ) -> Option<(Pose, f32)> {
         let other = self.panel(other)?;
         let mut panel = Panel::new(WindowId::MAIN, other.pose, size);
         panel.metres_per_point = other.metres_per_point;
@@ -1441,13 +1450,17 @@ impl Space {
         let centre = corner + Vec3::new(half.x, -half.y, 0.0);
         let mut depth = OVER_NEARER;
         for _ in 0..self.panels.len() {
-            let stacked = self.panels.iter().filter(|placed| Some(placed.window) != own).any(|placed| {
-                let at = local(placed);
-                let reach = placed.metres() / 2.0 + half;
-                (at.z - depth).abs() < OVER_NEARER / 2.0
-                    && (at.x - centre.x).abs() < reach.x
-                    && (at.y - centre.y).abs() < reach.y
-            });
+            let stacked = self
+                .panels
+                .iter()
+                .filter(|placed| Some(placed.window) != own)
+                .any(|placed| {
+                    let at = local(placed);
+                    let reach = placed.metres() / 2.0 + half;
+                    (at.z - depth).abs() < OVER_NEARER / 2.0
+                        && (at.x - centre.x).abs() < reach.x
+                        && (at.y - centre.y).abs() < reach.y
+                });
             if !stacked {
                 break;
             }
