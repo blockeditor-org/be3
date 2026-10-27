@@ -75,7 +75,6 @@ const SIDEBAR_STEP: f32 = 16.0;
 const SIDEBAR_SECONDS: f32 = 0.18;
 const FLOAT_INSET: Vec2 = Vec2::new(64.0, 48.0);
 const GRAB_OFFSET: Vec2 = Vec2::new(72.0, 14.0);
-const GROUP_ZONE: f32 = 0.3;
 const OUTER_EDGE: f32 = 18.0;
 const WINDOW_KEEP_VISIBLE: f32 = 96.0;
 
@@ -119,6 +118,10 @@ pub struct DockPreviewHandle {
     pub dragged: DockDragged,
     pub title: Memo<String>,
     pub icon: Memo<Option<Glyph>>,
+}
+
+pub struct DockHighlightHandle {
+    pub group_with: Memo<Option<String>>,
 }
 
 pub struct DockChromeHandle {
@@ -350,6 +353,7 @@ struct Drag {
     dragged: DockDragged,
     target: Option<DockDrop>,
     highlight: Option<Rect>,
+    group_with: Option<Entry>,
 }
 
 #[derive(Clone, Copy)]
@@ -392,7 +396,7 @@ struct State {
     bar: RenderFn<DockBarHandle>,
     splitter: RenderFn<DockSplitterHandle>,
     grip: RenderFn<DockGripHandle>,
-    highlight: RenderFn<()>,
+    highlight: RenderFn<DockHighlightHandle>,
     preview: RenderFn<DockPreviewHandle>,
     stack: Option<RenderFn<DockStackHandle>>,
     switcher: Option<RenderFn<DockSwitcherHandle>>,
@@ -933,6 +937,7 @@ impl State {
             dragged,
             target: None,
             highlight: None,
+            group_with: None,
         }));
     }
 
@@ -946,6 +951,7 @@ impl State {
         };
         drag.target = target;
         drag.highlight = highlight;
+        drag.group_with = target.and_then(|target| self.groups_with(drag.dragged, target));
         self.drag.set(Some(drag));
     }
 
@@ -965,7 +971,7 @@ impl State {
     }
 
     fn admitted(&self, point: DragPoint, dragged: DockDragged) -> (Option<DockDrop>, Option<Rect>) {
-        let (target, highlight) = self.resolve(point, dragged);
+        let (target, highlight) = self.resolve(point);
         let refused = target.is_some_and(|target| {
             self.state.with_untracked(|state| match dragged {
                 DockDragged::Entry(entry) => !state.admits(entry, target),
@@ -978,7 +984,7 @@ impl State {
         }
     }
 
-    fn resolve(&self, point: DragPoint, dragged: DockDragged) -> (Option<DockDrop>, Option<Rect>) {
+    fn resolve(&self, point: DragPoint) -> (Option<DockDrop>, Option<Rect>) {
         let pos = point.pos;
         let state = self.state.get_untracked();
         if !point.modifiers.alt {
@@ -991,7 +997,7 @@ impl State {
                 }
                 let split = state.window_rect(surface).is_none();
                 if let Some(found) =
-                    self.resolve_in(&state, Tree::Surface(surface), pos, split, dragged)
+                    self.resolve_in(&state, Tree::Surface(surface), pos, split)
                 {
                     return found;
                 }
@@ -1018,7 +1024,6 @@ impl State {
         tree: Tree,
         pos: Pos2,
         split: bool,
-        dragged: DockDragged,
     ) -> Option<(Option<DockDrop>, Option<Rect>)> {
         let area = self.pane_rect(tree)?;
         let layout = layout_tree(state, tree, area, self.thickness);
@@ -1028,7 +1033,7 @@ impl State {
             .map(|(leaf, _)| *leaf)
             .find(|leaf| self.bar_rect(*leaf).is_some_and(|bar| bar.contains(pos)));
         if let Some(leaf) = over_bar {
-            let (target, marker) = self.bar_target(state, leaf, pos, dragged);
+            let (target, marker) = self.bar_target(state, leaf, pos);
             return Some((Some(target), Some(marker)));
         }
         let leaf = nearest_leaf(&layout, pos)?;
@@ -1038,7 +1043,7 @@ impl State {
                 .bar_rect(leaf)
                 .is_some_and(|bar| pos.y >= bar.top() && pos.y <= bar.bottom());
         if bar {
-            let (target, marker) = self.bar_target(state, leaf, pos, dragged);
+            let (target, marker) = self.bar_target(state, leaf, pos);
             return Some((Some(target), Some(marker)));
         }
         let hosted = state.active_entry(leaf).and_then(Entry::group);
@@ -1053,7 +1058,7 @@ impl State {
                     Some(side_rect(rect, side)),
                 ));
             }
-            if let Some(found) = self.resolve_in(state, Tree::Group(group), pos, true, dragged) {
+            if let Some(found) = self.resolve_in(state, Tree::Group(group), pos, true) {
                 return Some(found);
             }
         }
@@ -1062,34 +1067,19 @@ impl State {
                 Some(DockDrop::Split { leaf, side }),
                 Some(side_rect(rect, side)),
             ),
-            None => (Some(DockDrop::Pane { leaf }), Some(rect)),
+            None => (Some(middle_target(state, leaf)), Some(rect)),
         })
     }
 
-    fn bar_target(
-        &self,
-        state: &DockState,
-        leaf: LeafId,
-        pos: Pos2,
-        dragged: DockDragged,
-    ) -> (DockDrop, Rect) {
+    fn bar_target(&self, state: &DockState, leaf: LeafId, pos: Pos2) -> (DockDrop, Rect) {
         let bar = self.bar_rect(leaf).unwrap_or(Rect::ZERO);
         let rects = self.tab_rects(leaf);
-        let entries = state.entries(leaf);
         let direction = match state.is_vertical(leaf) {
             true => Direction::Vertical,
             false => Direction::Horizontal,
         };
         let along = |point: Pos2| direction.main(point.to_vec2());
         for (index, rect) in rects.iter().enumerate() {
-            let across = (along(pos) - along(rect.min)) / direction.main(rect.size()).max(1.0);
-            let onto = entries
-                .get(index)
-                .is_some_and(|onto| DockDragged::Entry(*onto) != dragged)
-                && matches!(dragged, DockDragged::Entry(_));
-            if onto && (GROUP_ZONE..=1.0 - GROUP_ZONE).contains(&across) {
-                return (DockDrop::Group { leaf, index }, *rect);
-            }
             if along(pos) < along(rect.center()) {
                 let at = match index.checked_sub(1).and_then(|before| rects.get(before)) {
                     Some(before) => (along(before.max) + along(rect.min)) / 2.0,
@@ -1111,6 +1101,36 @@ impl State {
         )
     }
 
+    fn groups_with(&self, dragged: DockDragged, target: DockDrop) -> Option<Entry> {
+        let DockDrop::Group { leaf, index } = target else {
+            return None;
+        };
+        let mut next = self.state.get_untracked();
+        let onto = next.entries(leaf).get(index).copied()?;
+        let moved = match dragged {
+            DockDragged::Entry(entry) => {
+                next.drop_entry(entry, target);
+                entry
+            }
+            DockDragged::Pane(pane) => {
+                let shown = next.active_entry(pane)?;
+                next.drop_leaf(pane, target);
+                shown
+            }
+        };
+        let (landed, _) = next.locate(moved)?;
+        (landed != leaf).then_some(onto)
+    }
+
+    fn highlight_handle(&self) -> DockHighlightHandle {
+        let dock = *self;
+        let group_with = create_memo(move || {
+            let onto = dock.drag.get()?.group_with?;
+            Some(dock.entry_title(onto))
+        });
+        DockHighlightHandle { group_with }
+    }
+
     fn splitter_of(&self, tree: Tree, split: SplitId) -> Option<DockSplitter> {
         let area = self.pane_rect(tree)?;
         let state = self.state.get_untracked();
@@ -1122,6 +1142,16 @@ pub fn sidebar_size(vertical: bool, width: Memo<f32>) -> Prop<ItemSize> {
     match vertical {
         true => width.into_prop().map(ItemSize::Fixed),
         false => ItemSize::Intrinsic.into_prop(),
+    }
+}
+
+fn middle_target(state: &DockState, leaf: LeafId) -> DockDrop {
+    match state.active_entry(leaf) {
+        Some(_) => DockDrop::Group {
+            leaf,
+            index: state.active_index(leaf),
+        },
+        None => DockDrop::Tab { leaf, index: 0 },
     }
 }
 
@@ -1349,7 +1379,7 @@ pub(crate) struct DockConfig {
     pub(crate) bar: Option<RenderFn<DockBarHandle>>,
     pub(crate) splitter: Option<RenderFn<DockSplitterHandle>>,
     pub(crate) grip: Option<RenderFn<DockGripHandle>>,
-    pub(crate) highlight: Option<RenderFn<()>>,
+    pub(crate) highlight: Option<RenderFn<DockHighlightHandle>>,
     pub(crate) preview: Option<RenderFn<DockPreviewHandle>>,
     pub(crate) stack: Option<RenderFn<DockStackHandle>>,
     pub(crate) switcher: Option<RenderFn<DockSwitcherHandle>>,
@@ -1515,7 +1545,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                     })
                 }),
                 highlight: highlight.unwrap_or_else(|| {
-                    RenderFn::new(|()| {
+                    RenderFn::new(|_| {
                         view! {
                             <Frame />
                         }
@@ -2073,7 +2103,7 @@ fn DockDropMarker(
     view! {
         <Show condition={shown}>
             <CanvasItem x={x} y={y} width={width} height={height}>
-                {dock.highlight.call(())}
+                {dock.highlight.call(dock.highlight_handle())}
             </CanvasItem>
         </Show>
     }
@@ -3230,7 +3260,9 @@ fn DockDragLayer(dock: State) -> NodeId {
                 traps_focus=false
                 open={marking}
             >
-                <Frame width=marker_width height=marker_height>{dock.highlight.call(())}</Frame>
+                <Frame width=marker_width height=marker_height>
+                    {dock.highlight.call(dock.highlight_handle())}
+                </Frame>
             </Overlay>
         </List>
     }

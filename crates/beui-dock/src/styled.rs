@@ -15,7 +15,7 @@ pub use crate::unstyled::{
 };
 use crate::unstyled::{
     DockAwayHandle, DockBarHandle, DockChromeHandle, DockDialogHandle, DockDragged, DockGripHandle,
-    DockKey, DockPreviewHandle, DockSheetHandle, DockSplitterHandle, DockStackHandle,
+    DockHighlightHandle, DockKey, DockPreviewHandle, DockSheetHandle, DockSplitterHandle, DockStackHandle,
     DockSwitchHandle, DockSwitcherHandle, DockTabHandle, Entry,
 };
 use beui_components_styled::List;
@@ -65,6 +65,8 @@ pub const WINDOW_CHROME: beui_core::geometry::Vec2 =
 const DIALOG_CHROME: beui_core::geometry::Vec2 =
     beui_core::geometry::Vec2::new(2.0 * CHROME_BORDER, TAB_HEIGHT.px() + 2.0 * CHROME_BORDER);
 const DROP_OPACITY: f32 = 0.25;
+const DROP_LABEL_MARGIN: Space = Space::Md;
+const DROP_LABEL_PADDING: Padding = Padding::symmetric(Space::Md, Space::Xs);
 const AWAY_SPACING: Space = Space::Lg;
 const AWAY_PADDING: Space = Space::Xl3;
 const PREVIEW_OPACITY: f32 = 0.92;
@@ -149,8 +151,8 @@ where
             grip={move |handle: DockGripHandle| view! {
                 <DockGrip handle />
             }}
-            highlight={move || view! {
-                <DockDropHighlight />
+            highlight={move |handle: DockHighlightHandle| view! {
+                <DockDropHighlight handle />
             }}
             preview={move |handle: DockPreviewHandle| {
                 let DockPreviewHandle { dragged, title, icon } = handle;
@@ -798,13 +800,33 @@ fn DockSplitterFace(handle: DockSplitterHandle) -> NodeId {
 }
 
 #[component]
-fn DockDropHighlight() -> NodeId {
+fn DockDropHighlight(handle: DockHighlightHandle) -> NodeId {
+    let DockHighlightHandle { group_with } = handle;
+    let grouping = create_memo(move || group_with.get().is_some());
+    let label = create_memo(move || {
+        group_with
+            .get()
+            .map(|title| format!("Group with {title}"))
+            .unwrap_or_default()
+    });
     view! {
         <Layers>
             <Fade opacity=DROP_OPACITY>
                 <Frame fill=ColorRole::Accent radius=Radius::Md />
             </Fade>
             <Frame @test_id={"dock.drop"} border={Border::FOCUS} radius=Radius::Md />
+            <Show condition={grouping}>
+                <Frame align=Align2::CENTER padding=DROP_LABEL_MARGIN>
+                    <Frame
+                        fill=ColorRole::Accent
+                        radius=Radius::Md
+                        padding=DROP_LABEL_PADDING
+                        @test_id="dock.drop.label"
+                    >
+                        <Text color=TextColor::OnAccent overflow=Overflow::Ellipsis>{label}</Text>
+                    </Frame>
+                </Frame>
+            </Show>
         </Layers>
     }
 }

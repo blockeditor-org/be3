@@ -2319,16 +2319,23 @@ in one covered there by a layer that is not the dock's (a menu, a dialog, the
 fullscreen tab).
 
 Dragging a tab picks a drop target from what is under the pointer: a tab bar
-inserts it between the tabs there, the middle of a pane joins that pane, and an
-edge of one splits it. Holding Alt while dropping floats the tab into a window
+inserts it between the tabs there (the only way to join a pane), an edge of a
+pane splits it, and the middle of a pane groups the tab with the entry that pane
+shows (`DockDrop::Group` at the pane's active index; dropping the shown entry on
+its own pane is refused). When the tidying below would fold that group straight
+back into the pane (a pane left holding only the group), the drop only joins
+it. The highlight then says which: `DockHighlightHandle::group_with` holds the
+title of the entry a drop would group with, which the styled dock shows as a
+"Group with ..." label, and nothing for a plain join. Holding Alt while dropping floats the tab into a window
 instead, which is also what "Pop out into a window" on a tab's own menu does. Every pane
 and every window wears the same bar: a grip, the tabs, and a button that closes
 them all, shown only when every tab in it can close. A middle click on a tab closes it. A finger picks a tab up by
 dragging it out of its bar, across the way the bar scrolls; sliding along the
 bar scrolls it. Dragging a docked pane's
 grip carries the whole pane (`DockState::drop_leaf`), with the same drop targets
-a tab has. A window holds one pane, so a tab dropped anywhere inside one joins
-it rather than splitting it, and that pane's bar is the window's title bar:
+a tab has; a pane dropped on the middle of another is grouped, all its tabs
+in one group with the entry shown there. A window holds one pane, so a tab dropped
+anywhere in its body groups with what it shows rather than splitting it, and that pane's bar is the window's title bar:
 anywhere on it that is not a tab drags the window. Right-clicking a grip moves
 that pane's tabs into a sidebar beside its body (`DockState::set_vertical`),
 whose edge drags or arrows to a new width (`set_sidebar_width`); a window in
@@ -2366,8 +2373,8 @@ A place in a tab bar holds an `Entry`: either a `Tab` or a `Group`. A group is a
 tab that holds a dock tree of its own, so choosing it shows that tree in the
 pane's body - one pane with a second tab bar under the first, or panes split
 side by side - and the same drops work inside it as anywhere else. Dropping a
-tab onto the middle of another tab groups the two (onto a group, it joins the
-group); the outer edge of a pane showing a group still splits the outer pane,
+tab on the middle of a pane groups it with the tab shown there (with a group
+shown, it joins the group); the outer edge of a pane showing a group still splits the outer pane,
 so the drop zones of the group sit inside a thin band that belongs to its
 parent. A tab's menu offers "Group with next tab" and "Split with next tab",
 and a group's own menu ungroups it, closes every tab in it, or floats it into a

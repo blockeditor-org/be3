@@ -111,9 +111,8 @@ pub(crate) fn DockingPage() -> NodeId {
             <Sample title="The dock around this page" code={vec![DemoShell::SOURCE]}>
                 <List spacing=SECTION_SPACING>
                     <Text style=TextStyle::PARAGRAPH>
-                        "Drag a tab by its label. Drop it over the middle of a pane to join \
-                         that pane, over an edge to split it, or over a tab bar to land between the \
-                         tabs there. With a finger, pull the tab down out of its bar first: sliding \
+                        "Drag a tab by its label. Drop it over a tab bar to land between the tabs \
+                         there, or over the edge of a pane to split it. With a finger, pull the tab down out of its bar first: sliding \
                          along the bar scrolls it. The arrow keys walk a tab bar, and Ctrl+Tab and \
                          Ctrl+Shift+Tab walk the tabs of whichever pane you are in."
                     </Text>
@@ -131,8 +130,8 @@ pub(crate) fn DockingPage() -> NodeId {
                          resizes from any edge."
                     </Text>
                     <Text style=TextStyle::PARAGRAPH>
-                        "Drop a tab onto the middle of another tab to group them: the group \
-                         becomes one tab, and choosing it shows a second tab bar holding the tabs \
+                        "Drop a tab over the middle of a pane to group it with the tab the pane \
+                         shows: the group becomes one tab, and choosing it shows a second tab bar holding the tabs \
                          inside. A group ungroups from its own right-click menu."
                     </Text>
                     <Text style=TextStyle::PARAGRAPH>

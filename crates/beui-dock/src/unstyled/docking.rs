@@ -24,7 +24,7 @@ use super::state::{
 };
 use super::{
     Dock, DockApi, DockAwayHandle, DockBarHandle, DockChromeHandle, DockConfig, DockGripHandle,
-    DockMode, DockPreviewHandle, DockSplitterHandle, DockStackHandle, DockState, DockSwitchHandle,
+    DockHighlightHandle, DockMode, DockPreviewHandle, DockSplitterHandle, DockStackHandle, DockState, DockSwitchHandle,
     DockSwitcherHandle, DockTabHandle, GroupId, LeafId, SIDEBAR_WIDTH, TabId,
 };
 use beui_components_unstyled::menu_popup::MenuStyle;
@@ -718,7 +718,7 @@ pub fn Docking<K>(
     bar: Option<RenderFn<DockBarHandle>>,
     splitter: Option<RenderFn<DockSplitterHandle>>,
     grip: Option<RenderFn<DockGripHandle>>,
-    highlight: Option<RenderFn<()>>,
+    highlight: Option<RenderFn<DockHighlightHandle>>,
     preview: Option<RenderFn<DockPreviewHandle>>,
     stack: Option<RenderFn<DockStackHandle>>,
     switcher: Option<RenderFn<DockSwitcherHandle>>,

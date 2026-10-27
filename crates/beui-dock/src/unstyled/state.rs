@@ -93,7 +93,6 @@ impl Side {
 pub enum DockDrop {
     Tab { leaf: LeafId, index: usize },
     Group { leaf: LeafId, index: usize },
-    Pane { leaf: LeafId },
     Split { leaf: LeafId, side: Side },
     Window { pos: Pos2 },
 }
@@ -103,7 +102,6 @@ impl DockDrop {
         match self {
             DockDrop::Tab { leaf, .. }
             | DockDrop::Group { leaf, .. }
-            | DockDrop::Pane { leaf }
             | DockDrop::Split { leaf, .. } => Some(leaf),
             DockDrop::Window { .. } => None,
         }
@@ -1194,14 +1192,7 @@ impl DockState {
                     return;
                 }
                 self.take(entry);
-                self.join(onto, entry);
-            }
-            DockDrop::Pane { leaf } => {
-                if leaf == source && alone {
-                    return;
-                }
-                self.take(entry);
-                self.place(leaf, entry, |state, leaf| state.push_entry(leaf, entry));
+                self.join(onto, vec![entry], Some(entry));
             }
             DockDrop::Split { leaf, side } => {
                 if leaf == source && alone {
@@ -1265,13 +1256,16 @@ impl DockState {
         let shown = moved.entries.get(moved.active).copied();
         let entries = moved.entries.clone();
         let landed = match target {
-            DockDrop::Tab { leaf: onto, index } | DockDrop::Group { leaf: onto, index } => {
+            DockDrop::Tab { leaf: onto, index } => {
                 self.vacate(leaf, moved.keep);
                 self.insert_entries(onto, index, entries, shown)
             }
-            DockDrop::Pane { leaf: onto } => {
+            DockDrop::Group { leaf: onto, index } => {
+                let Some(target) = self.entries(onto).get(index).copied() else {
+                    return;
+                };
                 self.vacate(leaf, moved.keep);
-                self.insert_entries(onto, usize::MAX, entries, shown)
+                self.join(target, entries, shown)
             }
             DockDrop::Split { leaf: onto, side } => {
                 self.prune(leaf);
@@ -1431,23 +1425,25 @@ impl DockState {
         }
     }
 
-    fn join(&mut self, onto: Entry, entry: Entry) {
+    fn join(&mut self, onto: Entry, entries: Vec<Entry>, shown: Option<Entry>) -> Option<LeafId> {
         match onto {
             Entry::Group(group) => {
                 let inner = self
                     .focus
                     .filter(|focus| self.tree_of(*focus) == Some(Tree::Group(group)))
-                    .or_else(|| self.group(group).map(|group| group.root.first_leaf().id));
-                if let Some(inner) = inner {
-                    self.push_entry(inner, entry);
-                }
+                    .or_else(|| self.group(group).map(|group| group.root.first_leaf().id))?;
+                let landed = self.insert_entries(inner, usize::MAX, entries, shown)?;
+                self.focus(landed);
+                Some(landed)
             }
             Entry::Tab(_) => {
-                let Some((leaf, index)) = self.locate(onto) else {
-                    return;
-                };
-                let mut inner = self.new_leaf(vec![onto, entry]);
-                inner.active = 1;
+                let (leaf, index) = self.locate(onto)?;
+                let mut held = vec![onto];
+                held.extend(entries);
+                let mut inner = self.new_leaf(held);
+                inner.active = shown
+                    .and_then(|shown| inner.entries.iter().position(|entry| *entry == shown))
+                    .unwrap_or(1);
                 let inner_id = inner.id;
                 let group = GroupId(self.mint());
                 self.invalidate();
@@ -1461,6 +1457,7 @@ impl DockState {
                     leaf.entries[index] = Entry::Group(group);
                 }
                 self.focus(inner_id);
+                Some(inner_id)
             }
         }
     }
@@ -1645,12 +1642,12 @@ impl DockState {
         let destination = match target {
             DockDrop::Window { .. } => None,
             DockDrop::Group { leaf, index } => match self.entries(leaf).get(index) {
+                None => return false,
+                Some(onto) if *onto == entry => return false,
                 Some(Entry::Group(group)) if self.is_pinned(*group) => Some(*group),
                 _ => self.pinned_group_of(leaf),
             },
-            DockDrop::Tab { leaf, .. } | DockDrop::Pane { leaf } | DockDrop::Split { leaf, .. } => {
-                self.pinned_group_of(leaf)
-            }
+            DockDrop::Tab { leaf, .. } | DockDrop::Split { leaf, .. } => self.pinned_group_of(leaf),
         };
         let tabs = self.entry_tabs(entry);
         let held = tabs.iter().any(|tab| {
