@@ -1,3 +1,4 @@
+use beui::Align;
 use block_editor_beui::beui::icons::ICON_MAP_PIN;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -48,11 +49,11 @@ pub(crate) fn Marker(
                     width={Size::Custom(RING_SIZE)}
                     height={Size::Custom(RING_SIZE)}
                     radius=Radius::Full
-                    border={create_memo(move || selected.get().then_some(Border::new(ColorRole::Custom(SELECTION_COLOR)).width(Stroke::Focus)))}
+                    border={create_memo(move || selected.get().then_some(Border::new(ColorRole::Custom(SELECTION_COLOR.into())).width(Stroke::Focus)))}
                 >
                     <Text
                         size=MARKER_SIZE
-                        color={color.map(TextColor::Custom)}
+                        color={color.map(|color| TextColor::Custom(color.into()))}
                         align=TextAlign::Center
                     >
                         <Icon glyph=ICON_MAP_PIN />
@@ -62,7 +63,7 @@ pub(crate) fn Marker(
                     let label = label.clone();
                     view! {
                         <Frame
-                            fill={ColorRole::Custom(LABEL_BACKGROUND)}
+                            fill={ColorRole::Custom(LABEL_BACKGROUND.into())}
                             radius=Radius::Xs
                             padding={Padding::horizontal(Space::Xs2)}
                             height={Size::Custom(LABEL_HEIGHT)}
@@ -70,7 +71,7 @@ pub(crate) fn Marker(
                             <Text
                                 style=TextStyle::CAPTION
                                 align=TextAlign::Center
-                                color={TextColor::Custom(LABEL_COLOR)}
+                                color={TextColor::Custom(LABEL_COLOR.into())}
                             >
                                 {label}
                             </Text>

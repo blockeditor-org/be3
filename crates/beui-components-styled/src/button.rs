@@ -1,7 +1,7 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
-use beui_core::font::Overflow;
-use beui_core::icons::Glyph;
 use beui_macros::{component, view};
+use beui_view::types::Overflow;
+use beui_view::types::icons::Glyph;
 
 use crate::focus_ring::FocusRing;
 use crate::list::List;
@@ -10,11 +10,12 @@ use crate::text::{Icon, Text, TextColor, TextSize};
 use crate::tokens::{Length, Padding, Size, Space, Stroke};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled::{self as unstyled, Picture};
-use beui_core::base::frame::Align2;
-use beui_core::base::{ItemSize, TextAlign};
-use beui_core::image::Image;
-use beui_core::node::NodeId;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::Align2;
+use beui_view::types::Image;
+use beui_view::types::{Align, Direction, Justify};
+use beui_view::types::{ItemSize, TextAlign};
 
 const GLYPH_SPACING: Space = Space::Sm;
 

@@ -41,19 +41,26 @@ members = [
     "crates/beui-components-styled",
     "crates/beui-components-unstyled",
     "crates/beui-core",
+    "crates/beui-core-html",
     "crates/beui-demo",
+    "crates/beui-demo-html",
     "crates/beui-dock",
     "crates/beui-font-browser",
     "crates/beui-font-freetype",
+    "crates/beui-fonts",
     "crates/beui-inspector",
     "crates/beui-keyboard",
     "crates/beui-macros",
-    "crates/beui-renderer-dom",
     "crates/beui-renderer-wgpu",
     "crates/beui-tree",
+    "crates/beui-types",
     "crates/beui-html",
+    "crates/beui-html-spike",
+    "crates/beui-shared-tests",
     "crates/beui-view",
+    "crates/beui-web-input",
     "crates/beui-web-demo",
+    "crates/block-accounts-ui",
     "crates/block-app",
     "crates/block-editor-beui",
     "crates/block-editor-plugin",
@@ -179,6 +186,9 @@ resolver = "3"
 edition = "2024"
 version = "0.1.0"
 license = "MIT"
+
+[workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(beui_html)"] }
 
 [workspace.lints.clippy]
 too_many_arguments = "allow"

@@ -8,6 +8,7 @@ use block_editor_beui::{
 
 use super::embeds::ResolvedEmbed;
 use super::state::{FocusedEmbed, State};
+use beui::{Align, Direction, ItemSize};
 
 const TITLE_SPACING: Space = Space::Sm;
 const TITLE_PADDING: Space = Space::Sm;

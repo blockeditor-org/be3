@@ -23,9 +23,9 @@ fn a_fullscreen_dock_tab_covers_everything_and_returns_to_its_pane() {
                         <Interactive
                             @test_id="bar"
                             on_hover_change={move |on: bool| bar.update(|bar| bar.hovered = on)}
-                            on_scroll={move |scroll: ScrollGesture| {
+                            on_wheel={crate::unstyled::gestures::scroll_wheel(None, move |scroll: ScrollGesture| {
                                 bar.update(|bar| bar.scrolled += scroll.delta);
-                            }}
+                            })}
                         />
                     </Frame>
                     <dock::styled::Docking @sizing=ItemSize::Percent(100.0) layout focus=2u64>
@@ -43,9 +43,9 @@ fn a_fullscreen_dock_tab_covers_everything_and_returns_to_its_pane() {
                                             on_hover_change={move |on: bool| {
                                                 tab.update(|tab| tab.hovered = on);
                                             }}
-                                            on_scroll={move |scroll: ScrollGesture| {
+                                            on_wheel={crate::unstyled::gestures::scroll_wheel(None, move |scroll: ScrollGesture| {
                                                 tab.update(|tab| tab.scrolled += scroll.delta);
-                                            }}
+                                            })}
                                         />
                                     }
                                 }}

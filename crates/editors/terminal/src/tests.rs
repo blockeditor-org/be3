@@ -1,7 +1,8 @@
 use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::be_block::be_model::{Anchor, FieldRef, List};
 use block_editor_beui::be_block::presence::PresenceKind;
-use block_editor_beui::beui::{Document, Key, Modifiers, NodeId, PointerButton, Pos2, Rect, Vec2};
+use block_editor_beui::beui::native::Document;
+use block_editor_beui::beui::{Key, Modifiers, NodeId, PointerButton, Pos2, Rect, Vec2};
 use block_editor_beui::{EditorHost, OwnedEditor, PeerPresence};
 use block_ui_test::BeuiTest;
 use terminal_types::{

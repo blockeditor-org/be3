@@ -9,6 +9,7 @@ use uuid::Uuid;
 use crate::database_view::app::data::Data;
 use crate::database_view::app::display::DisplayOptions;
 use crate::database_view::app::filters::{FilterBar, FilterList};
+use beui::{Align, Direction, ItemSize};
 
 const GUTTER: Space = Space::Lg;
 const SPACING: Space = Space::Md;

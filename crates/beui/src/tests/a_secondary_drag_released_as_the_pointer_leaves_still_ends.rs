@@ -10,7 +10,7 @@ fn a_secondary_drag_released_as_the_pointer_leaves_still_ends() {
     let document = build_node(move || {
         view! {
             <Interactive
-                on_secondary_drag={move |drag: SecondaryDrag| drags.update(|drags| drags.push(drag))}
+                on_pointer={crate::unstyled::gestures::secondary_drag(move |drag: SecondaryDrag| drags.update(|drags| drags.push(drag)))}
             >
                 <Frame />
             </Interactive>

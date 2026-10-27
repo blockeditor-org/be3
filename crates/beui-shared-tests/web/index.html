@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>beui shared tests</title>
+<script type="importmap">
+{ "imports": { "wasi_snapshot_preview1": "./wasi.js", "wasi": "./threads.js" } }
+</script>
+</head>
+<body>
+<div id="app"></div>
+<script type="module">
+// The fixture named by ?fixture=NAME on beui's HTML core, or with ?checks
+// nothing, for the live DOM checks. buck/app/web-test.mjs waits on
+// beuiStarted and calls what it resolves to: automate(words) and checks().
+import { bindMemory } from "./wasi.js";
+import { bindThreads } from "./threads.js";
+import init, * as tests from "./beui_shared_tests.js";
+
+globalThis.beuiStarted = (async () => {
+    const module = await WebAssembly.compileStreaming(fetch("./beui_shared_tests_bg.wasm"));
+    const wasm = await init({ module_or_path: module });
+    bindMemory(wasm.memory);
+    bindThreads(module, wasm.memory);
+    const fixture = new URLSearchParams(location.search).get("fixture");
+    if (fixture) tests.start(fixture);
+    return tests;
+})();
+</script>
+</body>
+</html>

@@ -38,6 +38,7 @@ use toolbar::{ImportError, ToolDock, ZoomPill};
 use touch::TouchSetting;
 
 use crate::geometry::MIN_SIZE;
+use beui::{Direction, ItemSize};
 
 pub struct CanvasApp;
 

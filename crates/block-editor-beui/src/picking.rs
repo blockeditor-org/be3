@@ -1,11 +1,13 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use beui::dock::styled::{CARD_GAP, CARD_INSET, CARD_MARGIN, CARD_POINTER, DockCard};
+use beui::dock::styled::{
+    CARD_GAP, CARD_INSET, CARD_MARGIN, CARD_POINTER, DockCard, PointerSide, Pointing,
+};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{
-    NodeId, PointerSide, Pointing, Pos2, Rect, Vec2, WindowPlacement, WindowReport, WindowRole,
+    NodeId, Pos2, Rect, Vec2, WindowPlacement, WindowReport, WindowRole,
 };
 use block_editor_plugin::{BlockFilter, BlockParent, BlockPick, Failure, PickedBlock};
 

@@ -1,0 +1,13 @@
+# An accordion opens and closes from its title by pointer and keys, and a
+# table names its rows, columns and cells.
+clock stop
+wait 'value="About open false"'
+gone 'Retained nodes, composed.'
+click 'DisclosureTriangle'
+wait 'value="About open true"'
+wait 'Retained nodes, composed.'
+key space
+wait 'value="About open false"'
+wait 'ColumnHeader "Moons"'
+wait 'RowHeader "Mars"'
+wait 'Cell "687 days" #table.mars.year'

@@ -1,21 +1,20 @@
-use beui_core::font::Overflow;
-use beui_core::layer::LayerPolicy;
+use beui_view::types::LayerPolicy;
+use beui_view::types::Overflow;
 use std::collections::HashMap;
 use std::rc::Rc;
 
 use beui_macros::{component, view};
 
-use beui_core::base::drawing::Draw;
-use beui_core::base::overlay::{OverlayAnchor, Placement};
-use beui_core::base::{Align, ItemSize};
-use beui_core::color::Color32;
-use beui_core::font::{FontFamily, FontId, TextAlign};
-use beui_core::geometry::{Rect, Vec2};
-use beui_core::icons::{ICON_CHEVRON_DOWN, ICON_CHEVRON_RIGHT};
-use beui_core::node::NodeId;
-use beui_core::painter::Painter;
-use beui_core::rich::{SpanStyle, TextCaret, TextGlyph, TextMark, handle_shape};
 use beui_view::components::overlay::Overlay;
+use beui_view::reactive::NodeId;
+use beui_view::reactive::OverlayAnchor;
+use beui_view::types::Color;
+use beui_view::types::Placement;
+use beui_view::types::icons::{ICON_CHEVRON_DOWN, ICON_CHEVRON_RIGHT};
+use beui_view::types::{Align, ItemSize};
+use beui_view::types::{FontFamily, FontId, TextAlign, TextLayout};
+use beui_view::types::{Rect, Vec2};
+use beui_view::types::{SpanStyle, TextCaret, TextGlyph, TextMark};
 use text_editor_core::{SynHlColorScope, SynHlStyle, TextLanguage};
 
 use beui_view::primitives::*;
@@ -25,15 +24,10 @@ use super::colors::TextAreaColors;
 use super::hooks::{MARGIN_MIN_WIDTH_EM, Margin, MarkerKind, TextLeaf, TextLine, TextMarker};
 use super::rows::{
     Inline, InlineItem, Row, RowInputs, RowKey, RowOptions, SpanKind, TableColumns, build_row,
-    galley, line_range, row_key, table_columns,
+    line_range, row_key, table_columns,
 };
-use super::{Context, GeometryCell, RowEntry};
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(super) enum Layer {
-    All,
-    Text,
-}
+use super::{Context, GeometryCell, Held, RowEntry};
+use beui_view::types::{Align2, Extent, Sides};
 
 #[component]
 pub(super) fn Lines(cx: Context) -> NodeId {
@@ -73,8 +67,12 @@ pub(super) fn Lines(cx: Context) -> NodeId {
             </List>
         </Frame>
     };
-    let area = node_rect(canvas.get());
-    let rows = node_rect(list.get());
+    cx.held.with(|held| {
+        held.track(canvas.get());
+        held.track(list.get());
+    });
+    let area = last_rect(canvas.get());
+    let rows = last_rect(list.get());
     let content = create_memo(move || {
         let left = area.get().min.x;
         let padding = cx.padding.get();
@@ -82,7 +80,7 @@ pub(super) fn Lines(cx: Context) -> NodeId {
             .rights
             .with(|rights| rights.values().copied().reduce(f32::max))?;
         let below = bottom.get().unwrap_or(0.0);
-        let scale = scale_of(cx, canvas);
+        let scale = tracked_scale(cx.held);
         Some(Vec2::new(
             (right.max(left) - left) / scale + padding.right,
             padding.top + rows.get().height() / scale + below,
@@ -96,13 +94,38 @@ pub(super) fn Lines(cx: Context) -> NodeId {
     lines
 }
 
-fn scale_of(cx: Context, canvas: NodeRef) -> f32 {
-    canvas
-        .try_get()
-        .map_or(1.0, |canvas| {
-            cx.held.with(|held| held.placements.scale(canvas))
-        })
-        .max(f32::EPSILON)
+fn last_rect(node: NodeId) -> ReadSignal<Rect> {
+    let measured = measure(node);
+    let held = create_signal(Rect::ZERO);
+    create_effect(move || {
+        if let Some(measured) = measured.get() {
+            held.set(measured.rect);
+        }
+    });
+    held.read_only()
+}
+
+pub(super) fn tracked_scale(held: Stored<Held>) -> f32 {
+    held.with(|held| {
+        held.rows_measured.get();
+        let texts: Vec<TextGeometrySignal> = held.texts.borrow().values().copied().collect();
+        texts
+            .into_iter()
+            .find_map(|text| text.get())
+            .map_or(1.0, |text| text.scale())
+    })
+    .max(f32::EPSILON)
+}
+
+pub(super) fn scale_of(held: &Stored<Held>) -> f32 {
+    held.with(|held| {
+        held.rows
+            .borrow()
+            .values()
+            .find_map(|entry| entry.text(held))
+            .map_or(1.0, |text| text.scale())
+    })
+    .max(f32::EPSILON)
 }
 
 #[component]
@@ -112,11 +135,15 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
     let bounds = create_signal(Rect::ZERO);
     let geometry = GeometryCell::default();
     let text = create_memo(move || {
-        let scale = scale_of(cx, canvas);
+        let scale = tracked_scale(cx.held);
         let laid = bounds.get().size() / scale;
         cx.metrics.get();
-        let body = galley("", FontId::proportional(cx.font_size.get()))
-            .map_or(0.0, |galley| galley.line_height());
+        let body = lay_out_text(
+            "",
+            FontId::proportional(cx.font_size.get()),
+            TextLayout::DEFAULT,
+        )
+        .map_or(0.0, |line| line.line_height());
         Vec2::new(laid.x, laid.y.max(body))
     });
     create_effect(move || cx.text_extent.set(text.get()));
@@ -140,62 +167,15 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
     });
     let text_width = create_memo(move || text.get().x + cx.geometry.get().caret_width);
     let text_height = create_memo(move || text.get().y);
-    let handles = handles_drawing(cx, model, geometry.clone(), bounds.read_only());
-    view! {
+    let built = view! {
         <Canvas @node_ref=&canvas width={canvas_width} height={canvas_height} scrolls_across=true>
-            <CanvasItem x={x} y={y} width={text_width} height={text_height}>
+            <CanvasItem x={x} y={y} width={text_width} height={text_height} clip=false>
                 <AreaText cx={cx} model={model} geometry bounds />
             </CanvasItem>
-            <CanvasItem x y width={text_width} height={text_height} clip=false>
-                <Drawing draw={handles} />
-            </CanvasItem>
         </Canvas>
-    }
-}
-
-fn handles_drawing(
-    cx: Context,
-    model: Memo<Rc<Row>>,
-    geometry: GeometryCell,
-    bounds: ReadSignal<Rect>,
-) -> ReadSignal<Draw> {
-    let cursors = row_cursors(cx, model, Layer::All);
-    let draw = create_signal::<Draw>(Rc::new(|_: &Painter, _: Rect| {}));
-    create_effect(move || {
-        bounds.get();
-        let row = model.get();
-        let color = cx.colors.get().caret;
-        let caret_width = cx.geometry.get().caret_width;
-        let handles: Vec<_> = cursors
-            .get()
-            .handles
-            .iter()
-            .map(|(handle, byte)| (*handle, row.to_display(*byte)))
-            .collect();
-        let geometry = geometry.clone();
-        draw.set_unconditionally(Rc::new(move |painter: &Painter, rect: Rect| {
-            let Some(text) = geometry.borrow().clone() else {
-                return;
-            };
-            let Some(laid) = text.rect() else {
-                return;
-            };
-            for (handle, at) in &handles {
-                let Some(caret) = text.caret_rect(*at, caret_width) else {
-                    continue;
-                };
-                let caret = caret
-                    .translate(-laid.min.to_vec2())
-                    .scaled(text.scale().recip())
-                    .translate(rect.min.to_vec2());
-                let (shape, corners, angle) = handle_shape(caret, *handle);
-                painter
-                    .rotated(shape.center(), angle)
-                    .rect_filled(shape, corners, color);
-            }
-        }));
-    });
-    draw.read_only()
+    };
+    cx.held.with(|held| held.track(built));
+    built
 }
 
 #[component]
@@ -282,9 +262,9 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
         table: create_memo(move || model.get().table.clone()),
         text: lines,
     });
-    view! {
+    let built = view! {
         <Frame @node_ref=&row>
-            <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
+            <List direction=beui_view::types::Direction::Horizontal spacing=0.0>
                 <Show condition={numbered}>
                     <Frame width=gutter>
                         <Gutter cx={cx} model={model} />
@@ -293,7 +273,17 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
                 <Frame @sizing=ItemSize::Percent(100.0)>{wrapped}</Frame>
             </List>
         </Frame>
-    }
+    };
+    track_row(&cx, built);
+    built
+}
+
+fn track_row(cx: &Context, row: NodeId) {
+    let held = cx.held;
+    held.with(|held| held.track(row));
+    on_cleanup(move || {
+        held.try_with(|held| held.forget(row));
+    });
 }
 
 #[component]
@@ -305,18 +295,19 @@ fn AreaText(
 ) -> NodeId {
     let row = NodeRef::new();
     register_row(&cx, || 0, &row, &geometry, &NodeRef::new(), model);
-    view! {
+    let built = view! {
         <Frame @node_ref=&row>
             <RowText
                 cx
                 model
                 text={geometry}
                 wrap=false
-                layer=Layer::Text
                 on_bounds={move |laid: Rect| bounds.set(laid)}
             />
         </Frame>
-    }
+    };
+    track_row(&cx, built);
+    built
 }
 
 fn register_row(
@@ -362,7 +353,7 @@ struct RowCursors {
     selection: Vec<std::ops::Range<usize>>,
     carets: Vec<usize>,
     anchor: Option<usize>,
-    handles: Vec<(beui_core::rich::CaretHandle, usize)>,
+    handles: Vec<(beui_view::types::CaretHandle, usize)>,
 }
 
 impl RowCursors {
@@ -371,7 +362,7 @@ impl RowCursors {
     }
 }
 
-fn row_cursors(cx: Context, model: Memo<Rc<Row>>, layer: Layer) -> Memo<RowCursors> {
+fn row_cursors(cx: Context, model: Memo<Rc<Row>>) -> Memo<RowCursors> {
     let span = create_memo(move || {
         let row = model.get();
         (row.start, row.end)
@@ -381,7 +372,7 @@ fn row_cursors(cx: Context, model: Memo<Rc<Row>>, layer: Layer) -> Memo<RowCurso
         let (start, end) = span.get();
         let contains = |byte: &usize| *byte >= start && *byte <= end;
         let carets = cx.state.caret_indices();
-        let touch = cx.state.touch_mode().get() && layer != Layer::Text;
+        let touch = cx.state.touch_mode().get();
         let handles = match touch {
             true => {
                 cx.state.caret_handle().get();
@@ -413,7 +404,7 @@ struct RowEnv {
     colors: TextAreaColors,
     metrics: (f32, u64),
     options: RowOptions,
-    client_colors: Vec<(u64, Color32)>,
+    client_colors: Vec<(u64, Color)>,
 }
 
 const ROW_CACHE_LIMIT: usize = 1024;
@@ -569,21 +560,11 @@ fn RowText(
     model: Memo<Rc<Row>>,
     text: GeometryCell,
     wrap: bool,
-    #[prop(default = Layer::All)] layer: Layer,
     on_bounds: Callback<Rect>,
 ) -> NodeId {
     let node = NodeRef::new();
-    let placed = component_placed();
-    create_effect(move || {
-        placed.get();
-        if text.borrow().is_none()
-            && let Some(id) = node.try_get()
-        {
-            *text.borrow_mut() = id.text_geometry();
-        }
-    });
     let keys = create_memo(move || piece_keys(&model.get()));
-    let cursors = row_cursors(cx, model, layer);
+    let cursors = row_cursors(cx, model);
     let padding = create_memo(move || match (cx.single_line, cx.prose.get()) {
         (true, _) => (0.0, 0.0),
         (false, Some(prose)) => prose.line_padding,
@@ -607,13 +588,9 @@ fn RowText(
         for remote in cx.remote_cursors.get() {
             let range = remote.selection;
             if range.start < range.end && range.start <= row.end && range.end > row.start {
-                let [red, green, blue, _] = remote.color.to_array();
-                let fill = Color32::from_rgba_unmultiplied(
-                    red,
-                    green,
-                    blue,
-                    colors.remote_selection_alpha,
-                );
+                let fill = remote
+                    .color
+                    .scale_alpha(f32::from(colors.remote_selection_alpha) / 255.0);
                 marks.push(TextMark::new(row.display_range(&range), fill));
             }
         }
@@ -713,12 +690,23 @@ fn RowText(
             </Show>
         </Text>
     };
-    if let Some(bounds) = text_bounds(shown) {
-        create_effect(move || {
-            let laid = bounds.get();
-            untrack(|| on_bounds.call(laid));
-        });
-    }
+    text.set(Some(shown));
+    let held = cx.held;
+    held.with(|held| held.track_text(shown));
+    on_cleanup(move || {
+        held.try_with(|held| held.forget(shown));
+    });
+    let measured = measure_text(shown);
+    let bounds = create_signal(Rect::ZERO);
+    create_effect(move || {
+        if let Some(geometry) = measured.get() {
+            bounds.set(geometry.bounds());
+        }
+    });
+    create_effect(move || {
+        let laid = bounds.get();
+        untrack(|| on_bounds.call(laid));
+    });
     shown
 }
 
@@ -748,7 +736,7 @@ enum PieceKey {
     Text {
         text: String,
         font: (u32, FontFamily, bool, bool),
-        color: Color32,
+        color: Color,
         underline: bool,
         strikethrough: bool,
         leaf: Option<SynHlStyle>,
@@ -888,10 +876,7 @@ fn marker(cx: Context, model: Memo<Rc<Row>>, item: Memo<Option<InlineItem>>) -> 
     });
     let style = create_memo(move || {
         item.get().map_or(
-            SpanStyle::new(
-                FontId::proportional(cx.font_size.get()),
-                Color32::TRANSPARENT,
-            ),
+            SpanStyle::new(FontId::proportional(cx.font_size.get()), Color::TRANSPARENT),
             |item| item.style,
         )
     });
@@ -919,7 +904,7 @@ fn RunChip(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
     let label = create_memo(move || item.get().map(|item| item.label).unwrap_or_default());
     let color = create_memo(move || {
         item.get()
-            .map_or(Color32::TRANSPARENT, |item| item.style.color)
+            .map_or(Color::TRANSPARENT, |item| item.style.color)
     });
     let chip = create_memo(move || cx.geometry.get().run_chip);
     let height = create_memo(move || Extent::px(chip.get().height));
@@ -957,7 +942,7 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
     let label = create_memo(move || item.get().map(|item| item.label).unwrap_or_default());
     let color = create_memo(move || {
         item.get()
-            .map_or(Color32::TRANSPARENT, |item| item.style.color)
+            .map_or(Color::TRANSPARENT, |item| item.style.color)
     });
     let font = create_memo(move || {
         item.get()
@@ -987,7 +972,7 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
     let pill = NodeRef::new();
     view! {
         <Frame @node_ref=&pill height fill=fill radius>
-            <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
+            <List direction=beui_view::types::Direction::Horizontal spacing=0.0>
                 <Show condition={has_icon}>||
                     <Frame width=icon_width>
                         <Text font=icon_font color={color} align=TextAlign::Center>
@@ -1063,7 +1048,7 @@ fn Gutter(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
     let number_color = create_memo(move || cx.colors.get().gutter_text);
     view! {
         <Frame padding=above>
-            <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
+            <List direction=beui_view::types::Direction::Horizontal spacing=0.0>
                 <Frame width=arrow_width height=height>
                     <Text font=arrow_font color={arrow_color} align=TextAlign::Center>
                         <Icon glyph={arrow} />

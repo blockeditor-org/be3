@@ -7,6 +7,7 @@ use beui::{CursorIcon, ImageFit, NodeId, TextAlign};
 use super::glyph::{GLYPH_HEIGHT, GLYPH_WIDTH, Glyph};
 use super::session::Session;
 use super::*;
+use beui::{Align, Direction, ItemSize};
 
 const SLOT_SIZE: f32 = 64.0;
 const SLOT_INSET: f32 = 4.0;

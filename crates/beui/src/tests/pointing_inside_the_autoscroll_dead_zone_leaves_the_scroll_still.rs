@@ -29,7 +29,7 @@ fn pointing_inside_the_autoscroll_dead_zone_leaves_the_scroll_still() {
     harness.frame(vec![Input::PointerMoved(origin + Vec2::new(0.0, 5.0))]);
     harness.frame(Vec::new());
 
-    assert!(harness.document().autoscroll.is_some());
+    assert!(harness.document().pointer_grabber().is_some());
     assert!(!harness.document().api::<ScrollApi>(scroll).animating());
     assert_eq!(harness.document().scroll_offset(scroll), 0.0);
 }

@@ -7,6 +7,7 @@ use infinite_canvas_types::CanvasProfile;
 use super::actions::CanvasActions;
 use super::selection_bar::SelectionTools;
 use super::state::{CanvasState, Tool};
+use beui::{Align, Direction};
 
 const TOOLS: [(Tool, &str); 10] = [
     (Tool::Select, "Select"),

@@ -1,9 +1,9 @@
 use beui_macros::{component, view};
 
-use beui_core::base::{Direction, Sizing};
-use beui_core::node::NodeId;
 use beui_view::primitives::*;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::{Direction, Sizing};
 
 #[component]
 pub fn Stack(spacing: Prop<f32>, narrow: Prop<bool>, children: Children<ListChild>) -> NodeId {

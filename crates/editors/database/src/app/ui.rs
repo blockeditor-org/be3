@@ -1,3 +1,4 @@
+use beui::{Direction, ItemSize};
 use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;

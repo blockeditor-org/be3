@@ -1,5 +1,5 @@
-use beui_core::base::Direction;
-use beui_core::geometry::Rect;
+use beui_view::types::Direction;
+use beui_view::types::Rect;
 
 use super::{
     DockHome, DockState, Entry, Group, GroupId, Home, MIN_FRACTION, MIN_SIDEBAR_WIDTH, Node, Split,

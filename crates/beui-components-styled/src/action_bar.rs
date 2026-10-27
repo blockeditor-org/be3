@@ -1,11 +1,11 @@
 use accesskit::Role;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ActionBarHandle, MenuNodes, ToggleHandle};
-use beui_core::icons::ICON_ELLIPSIS_VERTICAL;
-use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::actions::{Action, MenuNode};
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::icons::ICON_ELLIPSIS_VERTICAL;
 
 use crate::border::Separator;
 use crate::button::{Button, ButtonFace, ButtonSize, ButtonVariant};
@@ -13,6 +13,7 @@ use crate::frame::Frame;
 use crate::list::List;
 use crate::menu_button::MenuButton;
 use crate::tokens::{Padding, Size, Space};
+use beui_view::types::{Align, Direction};
 
 const SPACING: Space = Space::Xs2;
 const DIVIDER_HEIGHT: Size = Size::Custom(18.0);

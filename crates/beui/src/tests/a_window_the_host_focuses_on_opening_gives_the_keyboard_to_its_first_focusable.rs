@@ -1,5 +1,5 @@
 use super::*;
-use crate::primitives::{Window, WindowHandle};
+use crate::{Window, WindowHandle};
 use crate::{WindowId, WindowReport};
 
 #[test]

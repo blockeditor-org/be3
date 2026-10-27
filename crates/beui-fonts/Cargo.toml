@@ -1,0 +1,11 @@
+[package]
+name = "beui-fonts"
+description = "The fonts beui bundles: their files, the families they are named by, and their bytes"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

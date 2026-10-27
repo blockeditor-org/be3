@@ -1,6 +1,6 @@
-use beui_core::geometry::{Pos2, Vec2};
-use beui_core::input::{Keystroke, PointerButton, ScrollDelta};
-use beui_core::runner::{SCROLL_LINE, scrolled};
+use beui_types::input::{Keystroke, PointerButton, ScrollDelta};
+use beui_types::input::{SCROLL_LINE, scrolled};
+use beui_types::{Pos2, Vec2};
 
 use crate::mapping::{PixelPoint, PixelRect, absolute};
 use crate::scancode::{scan_of_evdev, virtual_key_of_evdev};

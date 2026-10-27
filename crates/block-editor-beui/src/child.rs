@@ -1,5 +1,6 @@
 use beui::NodeId;
 use beui::icons::Glyph;
+use beui::native::{Embed, EmbedSlot};
 use beui::reactive::*;
 use beui::styled::*;
 use std::cell::RefCell;
@@ -12,6 +13,8 @@ use block_plugin_api::{
 use uuid::Uuid;
 
 use crate::{ChildState, ChildTarget, Editor, SubregionContent, watch_block_label};
+use beui::native::draw_gpu;
+use beui::{Align, Align2};
 
 #[derive(Clone, Copy)]
 pub struct ChildDockTab {

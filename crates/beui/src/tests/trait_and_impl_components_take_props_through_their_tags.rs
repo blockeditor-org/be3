@@ -54,7 +54,7 @@ fn shelf<T: Theme>() -> NodeId {
 #[test]
 fn trait_and_impl_components_take_props_through_their_tags() {
     let document = build_node(shelf::<Plain>);
-    let mut driven = stepped(crate::testing::Showing(document));
+    let mut driven = stepped(crate::native::testing::Showing(document));
     let components = driven
         .ask(&["comps"])
         .expect("the component tree is answered through a frame");

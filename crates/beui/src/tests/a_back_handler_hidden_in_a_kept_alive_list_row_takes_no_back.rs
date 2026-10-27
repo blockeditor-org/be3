@@ -11,13 +11,17 @@ fn a_back_handler_hidden_in_a_kept_alive_list_row_takes_no_back() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <BackHandler on_back={move || outer.update(|backs| *backs += 1)}>
+                <BackTo
+                    on_gesture={move |gesture: BackGesture| if gesture == BackGesture::Invoked { outer.update(|backs| *backs += 1) }}
+                >
                     <Frame width=40.0 height=30.0 />
-                </BackHandler>
+                </BackTo>
                 <ShowKeepAlive condition={shown}>
-                    <BackHandler on_back={move || inner.update(|backs| *backs += 1)}>
+                    <BackTo
+                        on_gesture={move |gesture: BackGesture| if gesture == BackGesture::Invoked { inner.update(|backs| *backs += 1) }}
+                    >
                         <Frame width=40.0 height=30.0 />
-                    </BackHandler>
+                    </BackTo>
                 </ShowKeepAlive>
             </List>
         }

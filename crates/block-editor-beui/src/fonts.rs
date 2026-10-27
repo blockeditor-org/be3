@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use beui::{FontData, FontLibrary, FontSources};
+use beui::{native::FontData, native::FontLibrary, native::FontSources};
 use block_editor_plugin::fonts::{HostFont, host_fonts, report_missing, watch_fonts};
 use block_plugin_api::FontRole;
 
@@ -29,8 +29,8 @@ pub fn use_fonts(library: FontLibrary) {
     LIBRARY.with(|held| *held.borrow_mut() = Some(library));
 }
 
-pub(crate) fn context() -> beui::Context {
-    beui::Context::new(beui::FreetypeFonts::new(fonts()))
+pub(crate) fn context() -> beui::native::Context {
+    beui::native::Context::new(beui::native::FreetypeFonts::new(fonts()))
 }
 
 fn sources(faces: &[HostFont]) -> FontSources {
@@ -48,5 +48,8 @@ fn sources(faces: &[HostFont]) -> FontSources {
 }
 
 fn data(face: &HostFont) -> FontData {
-    FontData::new(beui::FontBytes::Shared(face.data.clone()), face.index)
+    FontData::new(
+        beui::native::FontBytes::Shared(face.data.clone()),
+        face.index,
+    )
 }

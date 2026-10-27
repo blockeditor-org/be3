@@ -3,16 +3,19 @@ use beui::KeyPress;
 use beui::Sides;
 use beui::Vec2;
 use beui::primitives::Drawing;
-use beui::primitives::FirstFit;
 use beui::primitives::Frame;
 use beui::primitives::Gap;
 use beui::primitives::Icon;
 use beui::primitives::Span;
 use beui::primitives::Text;
 use beui::primitives::{Grid, List};
-use beui::primitives::{Window, WindowHandle};
-use beui::{Color32, FillRule, LineCap, LineJoin, Painter, Path, Pos2, Stroke, vec2};
-use beui::{Overflow, WrapAt};
+use beui::reactive::Painter;
+use beui::unstyled::FirstFit;
+use beui::{Align, Align2, Corners, Dismiss, Extent, Justify, Outline, Placement, Track};
+use beui::{Color, Pos2, vec2};
+use beui::{FillRule, LineCap, LineJoin, Path, Stroke};
+use beui::{Overflow, TextLayout, WrapAt};
+use beui::{Window, WindowHandle};
 use beui::{WindowPlacement, WindowRole};
 
 const SWATCH: f32 = 72.0;
@@ -152,6 +155,9 @@ pub(crate) fn TextNodesPage() -> NodeId {
             <Sample title="Icons" code={vec![TextIcons::SOURCE]}>
                 <TextIcons />
             </Sample>
+            <Sample title="Text in a drawing" code={vec![TextInADrawing::SOURCE]}>
+                <TextInADrawing />
+            </Sample>
         </ScrollPage>
     }
 }
@@ -192,6 +198,57 @@ fn TextIcons() -> NodeId {
                 <Icon glyph=ICON_STAR scale=1.25 spacing_em=0.25 />
                 "scaled, and its room from both sides"
             </Text>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn TextInADrawing() -> NodeId {
+    let theme = use_theme();
+    let font = FontId::proportional(16.0);
+    let draw = Prop::dynamic(move || -> Draw {
+        let (fill, ink, accent) = (
+            theme.surface_raised.get(),
+            theme.text.get(),
+            theme.accent.get(),
+        );
+        Rc::new(move |painter: &Painter, rect: Rect| {
+            let label = painter.lay_out_text("Placed at its corner", font, TextLayout::DEFAULT);
+            painter.rect_filled(Rect::from_min_size(rect.min, label.size()), 0.0, fill);
+            painter.draw_text(rect.min, &label, ink);
+            let wrapped = painter.lay_out_text(
+                "Measured, wrapped and centred as it is drawn",
+                font,
+                TextLayout {
+                    align: TextAlign::Center,
+                    ..TextLayout::wrapped(140.0)
+                },
+            );
+            let at = rect.min + vec2(0.0, label.size().y + 12.0);
+            painter.rect_filled(Rect::from_min_size(at, wrapped.size()), 0.0, fill);
+            for line in wrapped.lines() {
+                painter.line(
+                    at + vec2(line.rect.left(), line.baseline),
+                    at + vec2(line.rect.right(), line.baseline),
+                    1.0,
+                    accent,
+                );
+            }
+            painter.draw_text(at, &wrapped, ink);
+        })
+    });
+    view! {
+        <List
+            @test_id="demo.text.drawn"
+            direction=Direction::Horizontal
+            align=Align::Start
+            spacing={SECTION_SPACING.px()}
+        >
+            <Frame fill={theme.surface_raised}>
+                <Text color={theme.text} font>"Placed at its corner"</Text>
+            </Frame>
+            <Drawing draw size={Some(vec2(200.0, 100.0))} />
         </List>
     }
 }
@@ -295,7 +352,7 @@ pub(crate) fn ListsPage() -> NodeId {
             <Sample title="Grid" code={vec![TrackGrid::SOURCE, Tile::SOURCE]}>
                 <TrackGrid />
             </Sample>
-            <Sample title="LayoutBuilder" code={vec![ColumnsForWidth::SOURCE, Tile::SOURCE]}>
+            <Sample title="measure" code={vec![ColumnsForWidth::SOURCE, Tile::SOURCE]}>
                 <ColumnsForWidth />
             </Sample>
             <Sample title="FirstFit" code={vec![FittingLabels::SOURCE, Tile::SOURCE]}>
@@ -346,22 +403,26 @@ fn FittingLabels() -> NodeId {
 #[sample]
 #[component]
 fn ColumnsForWidth() -> NodeId {
-    view! {
-        <LayoutBuilder>|size: ReadSignal<Vec2>| {
-            let wide = create_memo(move || size.get().x >= 480.0);
-            let direction = create_memo(move || match wide.get() {
-                true => Direction::Horizontal,
-                false => Direction::Vertical,
-            });
-            let label = create_memo(move || format!("{:.0} wide", size.get().x));
-            view! {
-                <List direction spacing=8.0>
-                    <Tile @sizing=ItemSize::Percent(100.0) label />
-                    <Tile @sizing=ItemSize::Percent(100.0) label="Side by side from 480" />
-                </List>
-            }
-        }</LayoutBuilder>
-    }
+    let width = create_signal(0.0f32);
+    let wide = create_memo(move || width.get() >= 480.0);
+    let direction = create_memo(move || match wide.get() {
+        true => Direction::Horizontal,
+        false => Direction::Vertical,
+    });
+    let label = create_memo(move || format!("{:.0} wide", width.get()));
+    let columns = view! {
+        <List direction spacing=8.0>
+            <Tile @sizing=ItemSize::Percent(100.0) label />
+            <Tile @sizing=ItemSize::Percent(100.0) label="Side by side from 480" />
+        </List>
+    };
+    let measured = measure(columns);
+    create_effect(move || {
+        if let Some(measured) = measured.get() {
+            width.set(measured.size.x);
+        }
+    });
+    columns
 }
 
 #[sample]
@@ -593,14 +654,20 @@ pub(crate) fn LayeringPage() -> NodeId {
             <Sample title="Popup window" code={vec![PopupWindow::SOURCE]}>
                 <PopupWindow />
             </Sample>
-            <Sample title="Shift" code={vec![NudgedTile::SOURCE]}>
+            <Sample title="Translate" code={vec![NudgedTile::SOURCE]}>
                 <NudgedTile />
             </Sample>
-            <Sample title="Turn" code={vec![TurnedLabel::SOURCE]}>
+            <Sample title="Rotate" code={vec![TiltedLabel::SOURCE]}>
+                <TiltedLabel />
+            </Sample>
+            <Sample title="Quarter turns" code={vec![TurnedLabel::SOURCE]}>
                 <TurnedLabel />
             </Sample>
-            <Sample title="Fade" code={vec![FadedStrip::SOURCE]}>
+            <Sample title="Fade edges" code={vec![FadedStrip::SOURCE]}>
                 <FadedStrip />
+            </Sample>
+            <Sample title="Frame effects" code={vec![FrameEffects::SOURCE]}>
+                <FrameEffects />
             </Sample>
             <Sample title="Opacity" code={vec![FadedTiles::SOURCE]}>
                 <FadedTiles />
@@ -661,9 +728,35 @@ fn NudgedTile() -> NodeId {
                     <Text color={ink}>"Nudge"</Text>
                 </Frame>
             </Interactive>
-            <Shift by={by}>
-                <Frame width=SWATCH height=SWATCH fill={theme.accent} radius=12.0 />
-            </Shift>
+            <Frame translate={by} width=SWATCH height=SWATCH fill={theme.accent} radius=12.0 />
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn TiltedLabel() -> NodeId {
+    let theme = use_theme();
+    let angle = create_signal(0.25f32);
+    let face = theme.surface_raised;
+    let ink = theme.text;
+    view! {
+        <List direction=Direction::Horizontal align=Align::Center spacing=16.0>
+            <Interactive
+                on_click={move || angle.update(|angle| *angle = (*angle + 0.25) % std::f32::consts::FRAC_PI_2)}
+            >
+                <Frame fill=face radius={Radius::Md.px()} padding={Sides::symmetric(16.0, 10.0)}>
+                    <Text color={ink}>"Tilt"</Text>
+                </Frame>
+            </Interactive>
+            <Frame
+                rotate={angle}
+                fill={theme.accent}
+                radius={Radius::Md.px()}
+                padding={Sides::symmetric(16.0, 10.0)}
+            >
+                <Text color={theme.on_accent}>"Tilted in its own box"</Text>
+            </Frame>
         </List>
     }
 }
@@ -673,9 +766,9 @@ fn NudgedTile() -> NodeId {
 fn TurnedLabel() -> NodeId {
     let theme = use_theme();
     let quarters = create_signal(1u8);
-    let angle = create_signal(0.0f32);
     let face = theme.surface_raised;
     let ink = theme.text;
+    let angle = create_memo(move || f32::from(quarters.get()) * std::f32::consts::FRAC_PI_2);
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=16.0>
             <Interactive
@@ -685,22 +778,17 @@ fn TurnedLabel() -> NodeId {
                     <Text color={ink}>"Turn"</Text>
                 </Frame>
             </Interactive>
-            <Interactive
-                on_click={move || angle.update(|angle| *angle = (*angle + 0.25) % std::f32::consts::FRAC_PI_2)}
+            <Frame
+                width=96.0
+                height=96.0
+                fill={theme.accent}
+                radius={Radius::Md.px()}
+                padding={Sides::all(12.0)}
+                align=Align2::CENTER
+                rotate={angle}
             >
-                <Frame fill=face radius={Radius::Md.px()} padding={Sides::symmetric(16.0, 10.0)}>
-                    <Text color={ink}>"Tilt"</Text>
-                </Frame>
-            </Interactive>
-            <Turn quarter_turns={quarters} angle={angle}>
-                <Frame
-                    fill={theme.accent}
-                    radius={Radius::Md.px()}
-                    padding={Sides::symmetric(16.0, 10.0)}
-                >
-                    <Text color={theme.on_accent}>"Upright at no turns"</Text>
-                </Frame>
-            </Turn>
+                <Text color={theme.on_accent} align=TextAlign::Center>"Upright at no turns"</Text>
+            </Frame>
         </List>
     }
 }
@@ -710,7 +798,7 @@ fn TurnedLabel() -> NodeId {
 fn FadedStrip() -> NodeId {
     let edges = Sides::symmetric(48.0, 0.0);
     view! {
-        <Fade edges>
+        <Frame fade_edges={edges}>
             <Scroll direction=Direction::Horizontal>
                 <List direction=Direction::Horizontal spacing=8.0>
                     <ForEach keys={PLANETS.to_vec()}>|planet: &'static str|
@@ -718,7 +806,7 @@ fn FadedStrip() -> NodeId {
                     </ForEach>
                 </List>
             </Scroll>
-        </Fade>
+        </Frame>
     }
 }
 
@@ -728,10 +816,37 @@ fn FadedTiles() -> NodeId {
     view! {
         <List @test_id="demo.layering.opacity" direction=Direction::Horizontal spacing=8.0>
             <ForEach keys={vec![100_u32, 60, 30]}>|percent: u32|
-                <Fade opacity={percent as f32 / 100.0}>
+                <Frame opacity={percent as f32 / 100.0}>
                     <Tile label={format!("{percent}%")} />
-                </Fade>
+                </Frame>
             </ForEach>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn FrameEffects() -> NodeId {
+    view! {
+        <List
+            @test_id="demo.layering.frame_effects"
+            direction=Direction::Horizontal
+            wrap=true
+            align=Align::Center
+            spacing=24.0
+        >
+            <Frame translate={vec2(0.0, 12.0)}>
+                <Tile label={"translate".to_owned()} />
+            </Frame>
+            <Frame rotate=0.3>
+                <Tile label={"rotate".to_owned()} />
+            </Frame>
+            <Frame opacity=0.5>
+                <Tile label={"opacity".to_owned()} />
+            </Frame>
+            <Frame fade_edges={Sides::symmetric(32.0, 0.0)}>
+                <Tile label={"fade edges at both sides".to_owned()} />
+            </Frame>
         </List>
     }
 }
@@ -961,19 +1076,17 @@ fn AnimationSample() -> NodeId {
             spring_position.set(target.get());
         },
     );
-    let preference = with_document(|document| document.watch_motion());
+    let preferences = use_preferences();
+    let app_layer = use_preference_layer(PreferenceSource::App);
     view! {
         <List spacing={SECTION_SPACING.px()}>
             <Checkbox
                 @test_id="animation.instant"
                 label="Disable animations"
-                checked={Binding::new(create_memo(move || !preference.get().animates()), move |disabled: bool| with_document(|document| {
-                    if let Some(context) = document.context() {
-                        let app = context.preference_layer(PreferenceSource::App);
-                        let motion = disabled.then_some(Motion::Instant);
-                        context.set_preference_layer(PreferenceSource::App, PreferenceLayer { motion, ..app });
-                    }
-                }))}
+                checked={Binding::new(create_memo(move || !preferences.get().motion.animates()), move |disabled: bool| {
+                    let motion = disabled.then_some(Motion::Instant);
+                    app_layer.set(PreferenceLayer { motion, ..app_layer.get_untracked() });
+                })}
             />
             <Button
                 @test_id="animation.retarget"
@@ -1030,11 +1143,11 @@ pub(crate) fn PathsPage() -> NodeId {
 
 #[derive(Clone, Copy, PartialEq)]
 struct PathColors {
-    accent: Color32,
-    success: Color32,
-    warning: Color32,
-    danger: Color32,
-    text: Color32,
+    accent: Color,
+    success: Color,
+    warning: Color,
+    danger: Color,
+    text: Color,
 }
 
 type PaintTile = fn(&Painter, Pos2, PathColors);

@@ -1,0 +1,15 @@
+# An overlay opens below its anchor and is dismissed by Escape and by a press
+# outside it.
+clock stop
+gone '#overlay.content'
+click '#overlay.open'
+wait '#overlay.content'
+wait 'Menu at 0,0 below'
+key Escape
+gone '#overlay.content'
+wait 'Dismissed Escape'
+click '#overlay.open'
+wait '#overlay.content'
+click '#overlay.report'
+gone '#overlay.content'
+wait 'Dismissed OutsidePress'

@@ -35,7 +35,7 @@ fn typing_on_a_line_rebuilds_only_that_line() {
     harness.click(pos2(250.0, 20.0));
     harness.frame(Vec::new());
     let state = held.get_untracked().expect("the text area was built");
-    crate::reactive::with_reactive_scope(harness.document_mut(), || {
+    crate::native::with_reactive_scope(harness.document_mut(), || {
         let at = state.with_core(|core| core.position(2));
         state.execute(EditorCommand::SetSelection {
             anchor: at,

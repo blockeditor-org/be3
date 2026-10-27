@@ -1,15 +1,16 @@
-use beui_core::layer::{Dismiss, LayerPolicy};
+use beui_view::types::{Dismiss, LayerPolicy};
 use std::ops::Range;
 use std::rc::Rc;
 
 use beui_macros::{component, view};
 
-use beui_core::base::overlay::{OverlayAnchor, Placement};
-use beui_core::input::CursorIcon;
-use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::primitives::*;
+use beui_view::reactive::NodeId;
+use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
+use beui_view::types::CursorIcon;
+use beui_view::types::Placement;
 
 use super::{Context, TextAreaState};
 

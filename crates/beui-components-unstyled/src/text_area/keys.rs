@@ -3,8 +3,8 @@ use text_editor_core::{
     MoveMode, SyntaxNodeDirection, UDDirection, VerticalMoveMode,
 };
 
-use beui_core::input::{Key, KeyPress};
 use beui_view::reactive::*;
+use beui_view::types::{Key, KeyPress};
 
 use super::{Context, TextAreaState};
 

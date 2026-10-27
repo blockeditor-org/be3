@@ -1,4 +1,6 @@
 use super::*;
+use crate::native::Document;
+use crate::native::with_document;
 use crate::reactive::*;
 
 #[test]

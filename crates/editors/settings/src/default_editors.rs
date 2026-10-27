@@ -7,6 +7,7 @@ use settings_types::EditorSettings;
 
 mod ui;
 
+use beui::ItemSize;
 use ui::DefaultEditorsView;
 
 const INTRINSIC_WIDTH: f32 = 360.0;

@@ -2,12 +2,12 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use accesskit::{Node, Role, Toggled};
-use beui_core::color::Color32;
-use beui_core::icons::Glyph;
-use beui_core::image::Image;
-use beui_core::node::NodeId;
 use beui_macros::{component, view};
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::Color;
+use beui_view::types::Image;
+use beui_view::types::icons::Glyph;
 
 use crate::modal::{Modal, ModalHandle, ModalMotion};
 use crate::scroll::ScrollbarStyle;
@@ -107,10 +107,10 @@ pub fn CommandPalette(
     #[prop(default = create_signal(String::new()))] query: Signal<String>,
     on_choose: Callback<String>,
     #[prop(default = "Command palette".to_owned())] label: Prop<String>,
-    #[prop(default = None)] shown_in: Prop<Option<beui_core::window::WindowId>>,
+    #[prop(default = None)] shown_in: Prop<Option<beui_view::types::WindowId>>,
     list_height: Prop<f32>,
     spacing: f32,
-    scrim: Prop<Color32>,
+    scrim: Prop<Color>,
     search_placeholder: Prop<String>,
     search_content: RenderFn<TextInputHandle>,
     search_style: TextInputStyle,

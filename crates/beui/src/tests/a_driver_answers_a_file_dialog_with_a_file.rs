@@ -24,7 +24,7 @@ fn a_driver_answers_a_file_dialog_with_a_file() {
             </List>
         }
     });
-    let mut driven = headless(crate::testing::Showing(document));
+    let mut driven = headless(crate::native::testing::Showing(document));
     let directory = std::env::temp_dir().join(format!(
         "a_driver_answers_a_file_dialog.{}",
         std::process::id()

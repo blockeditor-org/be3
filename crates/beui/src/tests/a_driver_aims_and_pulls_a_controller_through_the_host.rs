@@ -11,10 +11,10 @@ fn a_driver_aims_and_pulls_a_controller_through_the_host() {
             <Frame width=300.0 height=300.0 />
         }
     });
-    let mut driven = crate::testing::Stepped::hosting_windows(
+    let mut driven = crate::native::testing::Stepped::hosting_windows(
         context(),
-        crate::testing::Showing(document),
-        crate::WindowSize {
+        crate::native::testing::Showing(document),
+        crate::native::WindowSize {
             size: VIEWPORT,
             scale: 1.0,
         },

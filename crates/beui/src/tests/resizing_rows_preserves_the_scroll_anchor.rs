@@ -1,5 +1,6 @@
 use super::*;
 use crate::base::frame::Sides;
+use crate::primitives::Spacer;
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::unstyled::Scroll;

@@ -1,5 +1,5 @@
-use beui_core::font::Overflow;
-use beui_core::icons::Glyph;
+use beui_view::types::Overflow;
+use beui_view::types::icons::Glyph;
 mod stack;
 mod switch;
 
@@ -28,17 +28,22 @@ use beui_components_styled::tokens::{Padding, Size, Space, Stroke};
 use beui_components_styled::tooltip::Tooltip;
 use beui_components_unstyled::Container;
 use beui_components_unstyled::Picture;
-use beui_core::base::frame::Align2;
-use beui_core::base::{Align, Direction, ItemSize, Justify};
-use beui_core::geometry::Vec2;
+use beui_view::types::Align2;
+use beui_view::types::{Align, Direction, ItemSize, Justify};
+use beui_view::primitives::Drawing;
+use beui_view::types::{Color, Corners, Rect, Vec2, pos2};
+use std::rc::Rc;
 
-use beui_core::font::TextAlign;
-use beui_core::icons::{ICON_APP_WINDOW, ICON_GRIP_VERTICAL, ICON_MAXIMIZE, ICON_MINIMIZE, ICON_X};
-use beui_core::image::Image;
-use beui_core::input::Modifiers;
-use beui_core::node::NodeId;
-use beui_view::primitives::{Fade, Layers};
+use beui_view::primitives::Layers;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::Image;
+use beui_view::types::Modifiers;
+use beui_view::types::Sides;
+use beui_view::types::TextAlign;
+use beui_view::types::icons::{
+    ICON_APP_WINDOW, ICON_GRIP_VERTICAL, ICON_MAXIMIZE, ICON_MINIMIZE, ICON_X,
+};
 use stack::{DockStackBar, DockSwitcher};
 use switch::DockSwitchPanel;
 
@@ -63,10 +68,10 @@ const DROP_MARKER: Stroke = Stroke::Focus;
 const SPLITTER_REACH: f32 = 3.0;
 const SPLITTER_HELD: f32 = 3.0;
 const GROUP_GLYPH: Size = Size::Xs;
-pub const WINDOW_CHROME: beui_core::geometry::Vec2 =
-    beui_core::geometry::Vec2::new(2.0 * CHROME_BORDER, BAR_HEIGHT + 2.0 * CHROME_BORDER + RULE);
-const DIALOG_CHROME: beui_core::geometry::Vec2 =
-    beui_core::geometry::Vec2::new(2.0 * CHROME_BORDER, TAB_HEIGHT.px() + 2.0 * CHROME_BORDER);
+pub const WINDOW_CHROME: beui_view::types::Vec2 =
+    beui_view::types::Vec2::new(2.0 * CHROME_BORDER, BAR_HEIGHT + 2.0 * CHROME_BORDER + RULE);
+const DIALOG_CHROME: beui_view::types::Vec2 =
+    beui_view::types::Vec2::new(2.0 * CHROME_BORDER, TAB_HEIGHT.px() + 2.0 * CHROME_BORDER);
 const DROP_OPACITY: f32 = 0.25;
 const AWAY_SPACING: Space = Space::Lg;
 const AWAY_PADDING: Space = Space::Xl3;
@@ -136,6 +141,7 @@ where
             dialog_scrim={dialog_scrim}
             dialog_margin=CARD_MARGIN
             dialog_gap=CARD_GAP
+            dialog_beak=POINTER_REACH
             dialog_outset=DIALOG_CHROME
             tab={move |handle: DockTabHandle| view! {
                 <DockTabFace handle />
@@ -527,11 +533,23 @@ fn DockCardFace(handle: DockDialogHandle) -> NodeId {
 pub const CARD_INSET: f32 = POINTER_REACH + CHROME_PADDING.px();
 pub const CARD_POINTER: f32 = POINTER_REACH;
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum PointerSide {
+    Top,
+    Bottom,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct Pointing {
+    pub side: PointerSide,
+    pub at: f32,
+}
+
 #[component]
 pub fn DockCard(
     #[prop(default = true)] focused: Prop<bool>,
     #[prop(default = false)] attention: Prop<bool>,
-    #[prop(default = None)] pointing: Prop<Option<beui_core::base::frame::Pointing>>,
+    #[prop(default = None)] pointing: Prop<Option<Pointing>>,
     pointer: NodeRef,
     children: Option<Child>,
 ) -> NodeId {
@@ -550,23 +568,76 @@ pub fn DockCard(
                 fill=ColorRole::SurfaceRaised
                 border
                 radius=Radius::Lg
-                pointer=true
                 padding=CHROME_PADDING
             >
                 {body}
             </Frame>
         </Frame>
     };
-    if !matches!(pointing, Prop::Static(None)) {
-        create_binding(move || {
-            let pointing = pointing.get();
-            let Some(node) = pointer.try_get() else {
-                return;
-            };
-            point_frame(node, pointing);
-        });
+    if matches!(pointing, Prop::Static(None)) {
+        return card;
     }
-    card
+    let theme = use_theme();
+    let draw = Prop::dynamic(move || {
+        let pointing = pointing.get();
+        let fill = ColorRole::SurfaceRaised.resolve(&theme);
+        let outline = border.get().map(|border| border.color.resolve(&theme));
+        Rc::new(move |painter: &Painter, rect: Rect| {
+            if let Some(pointing) = pointing {
+                draw_card_pointer(painter, rect.shrink(POINTER_REACH), pointing, fill, outline);
+            }
+        }) as Draw
+    });
+    view! {
+        <Layers>
+            {card}
+            <Drawing draw />
+        </Layers>
+    }
+}
+
+fn draw_card_pointer(
+    painter: &Painter,
+    rect: Rect,
+    pointing: Pointing,
+    fill: Color,
+    outline: Option<Color>,
+) {
+    const TIP_RADIUS: f32 = 2.0;
+    let reach = CARD_POINTER;
+    let width = CHROME_BORDER;
+    let radius = Radius::Lg.px();
+    let (lowest, highest) = (
+        rect.left() + radius + reach + width,
+        rect.right() - radius - reach - width,
+    );
+    if lowest > highest {
+        return;
+    }
+    let x = (rect.left() + pointing.at).clamp(lowest, highest);
+    let half = (reach + width) / std::f32::consts::SQRT_2;
+    let around = rect.expand(reach + 1.0);
+    let (y, clip, tip) = match pointing.side {
+        PointerSide::Top => (
+            rect.top() + width,
+            Rect::from_min_max(around.min, pos2(around.right(), rect.top() + width)),
+            Corners::new(TIP_RADIUS, 0.0, 0.0, 0.0),
+        ),
+        PointerSide::Bottom => (
+            rect.bottom() - width,
+            Rect::from_min_max(pos2(around.left(), rect.bottom() - width), around.max),
+            Corners::new(0.0, 0.0, TIP_RADIUS, 0.0),
+        ),
+    };
+    let centre = pos2(x, y);
+    let square = Rect::from_center_size(centre, Vec2::splat(2.0 * half));
+    let turned = painter
+        .with_clip_rect(clip)
+        .rotated(centre, std::f32::consts::FRAC_PI_4);
+    turned.rect_filled(square, tip, fill);
+    if let Some(outline) = outline {
+        turned.rect_stroke(square, tip, width, outline);
+    }
 }
 
 #[component]
@@ -901,9 +972,7 @@ fn DockSplitterFace(handle: DockSplitterHandle) -> NodeId {
 fn DockDropHighlight() -> NodeId {
     view! {
         <Layers>
-            <Fade opacity=DROP_OPACITY>
-                <Frame fill=ColorRole::Accent radius=Radius::Md />
-            </Fade>
+            <Frame fill=ColorRole::Accent radius=Radius::Md opacity=DROP_OPACITY />
             <Frame @test_id={"dock.drop"} border={Border::FOCUS} radius=Radius::Md />
         </Layers>
     }
@@ -914,29 +983,28 @@ fn DockDragPreview(title: Prop<String>, icon: Memo<Option<Glyph>>, grouped: bool
     let pictured = create_memo(move || !grouped && icon.get().is_some());
     let pictured_color = TextColor::Default;
     view! {
-        <Fade opacity=PREVIEW_OPACITY>
-            <Frame
-                fill=ColorRole::SurfaceRaised
-                border={Border::FOCUS}
-                radius=TAB_RADIUS
-                height=TAB_HEIGHT
-                padding={Padding::horizontal(PREVIEW_PADDING)}
-            >
-                <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
-                    <Show condition={grouped}>
-                        <Text size=TextSize::Sm align=TextAlign::Center>
-                            <Icon glyph=ICON_APP_WINDOW />
-                        </Text>
-                    </Show>
-                    <Show condition={pictured}>
-                        <Text size=TextSize::Sm color={pictured_color} align=TextAlign::Center>
-                            <Icon glyph={icon} />
-                        </Text>
-                    </Show>
-                    <Text overflow=Overflow::Ellipsis>{title}</Text>
-                </List>
-            </Frame>
-        </Fade>
+        <Frame
+            opacity=PREVIEW_OPACITY
+            fill=ColorRole::SurfaceRaised
+            border={Border::FOCUS}
+            radius=TAB_RADIUS
+            height=TAB_HEIGHT
+            padding={Padding::horizontal(PREVIEW_PADDING)}
+        >
+            <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
+                <Show condition={grouped}>
+                    <Text size=TextSize::Sm align=TextAlign::Center>
+                        <Icon glyph=ICON_APP_WINDOW />
+                    </Text>
+                </Show>
+                <Show condition={pictured}>
+                    <Text size=TextSize::Sm color={pictured_color} align=TextAlign::Center>
+                        <Icon glyph={icon} />
+                    </Text>
+                </Show>
+                <Text overflow=Overflow::Ellipsis>{title}</Text>
+            </List>
+        </Frame>
     }
 }
 

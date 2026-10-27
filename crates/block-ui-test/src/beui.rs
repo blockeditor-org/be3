@@ -1,7 +1,7 @@
-use beui::testing::{Target, button_name};
+use beui::native::Document;
+use beui::native::testing::{Target, button_name};
 use beui::{
-    Document, Input, Key, KeyChord, Modifiers, Pen, PenPhase, PointerButton, Pos2, Rect,
-    TouchPhase, Vec2,
+    Input, Key, KeyChord, Modifiers, Pen, PenPhase, PointerButton, Pos2, Rect, TouchPhase, Vec2,
 };
 use block_editor_beui::FromEditor;
 use block_editor_beui::be_block::{LiveEdit, Merge};
@@ -49,7 +49,7 @@ use uuid::Uuid;
 use crate::document::FRAME_INTERVAL;
 use crate::link::Sent;
 use crate::{ContentStore, overflow, snapshot};
-use beui::drive::gestures::{Frames, Gestures};
+use beui::native::drive::gestures::{Frames, Gestures};
 
 pub(crate) mod capture;
 mod desk;
@@ -114,7 +114,7 @@ pub struct BeuiTest<A: BeuiApp> {
     completed:
         std::collections::HashMap<block_plugin_api::ops::OpId, block_plugin_api::ops::Outcome>,
     menu: Vec<MenuEntry>,
-    output: Option<beui::FrameOutput>,
+    output: Option<beui::native::FrameOutput>,
     shown_window: Option<beui::WindowId>,
     drew: bool,
     recording: Option<snapshot::Snapshot>,
@@ -227,8 +227,8 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     fn open(kind: Kind, adopted: Adopted, data: Vec<u8>) -> Self {
-        beui::verify_paint(true);
-        beui::fail_unsettled_layout(true);
+        beui::native::verify_paint(true);
+        beui::native::fail_unsettled_layout(true);
         block_editor_beui::pin_wall_clock(Some(WALL_CLOCK));
         let host = match &adopted {
             Adopted::Editor(editor, _) | Adopted::Preview(editor) => editor.host(),
@@ -699,18 +699,18 @@ impl<A: BeuiApp> BeuiTest<A> {
         })
     }
 
-    pub fn drawn(&self) -> Option<&beui::WindowOutput> {
+    pub fn drawn(&self) -> Option<&beui::native::WindowOutput> {
         self.shown_output().filter(|_| self.drew)
     }
 
-    pub fn test_ids(&self) -> std::rc::Rc<beui::accessibility_dump::TestIds> {
+    pub fn test_ids(&self) -> std::rc::Rc<beui::native::accessibility_dump::TestIds> {
         self.output
             .as_ref()
             .expect("the editor has not drawn a frame yet")
             .test_ids()
     }
 
-    fn shown_output(&self) -> Option<&beui::WindowOutput> {
+    fn shown_output(&self) -> Option<&beui::native::WindowOutput> {
         self.output.as_ref()?.window(self.shown_window?)
     }
 
@@ -1898,7 +1898,7 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn drag(&mut self, from: impl Into<Target>, to: impl Into<Target>) {
         let at = self.locate("drag", &[from.into(), to.into()], &[]);
-        let frames = self.gestures.drag(at[0], at[1], 2);
+        let frames = self.gestures.drag(at[0], at[1], 2, PointerButton::Primary);
         self.perform(frames);
     }
 

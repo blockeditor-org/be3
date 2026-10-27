@@ -1,4 +1,5 @@
 use super::*;
+use crate::native::Document;
 use crate::primitives::*;
 use crate::reactive::*;
 
@@ -38,7 +39,7 @@ fn a_driver_reads_the_environment_an_app_gives_its_programs() {
             <Text>"Plain"</Text>
         }
     });
-    let mut driven = stepped(crate::testing::Showing(plain));
+    let mut driven = stepped(crate::native::testing::Showing(plain));
     assert_eq!(
         driven
             .ask(&["env"])

@@ -7,6 +7,7 @@ use beui::{NodeId, TextAlign};
 use crate::review::{Mode, Review};
 use crate::sidebar::{color, glyph, label, role};
 use crate::stage::Stage;
+use beui::{Align, Direction, ItemSize};
 use paint_review_manifest::Status;
 
 const PADDING: Space = Space::Xl;

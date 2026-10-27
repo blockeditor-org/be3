@@ -32,10 +32,10 @@ fn the_screen_reader_readout_sits_at_the_bottom_above_the_filters() {
             _ => None,
         })
         .expect("the filter covered no shapes");
-    let highlight = |shape: &crate::Shape| {
+    let highlight = |shape: &crate::native::Shape| {
         matches!(
             shape,
-            crate::Shape::Rect { color, stroke_width, .. }
+            crate::native::Shape::Rect { color, stroke_width, .. }
                 if *stroke_width == 0.0 && color.to_array() == [82, 137, 255, 72]
         )
     };

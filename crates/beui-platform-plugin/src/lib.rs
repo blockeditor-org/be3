@@ -60,7 +60,7 @@ impl Platform for PluginPlatform {
             };
             let mut setup = Setup::new(Waker::new(move || waker.wake()));
             setup.provide(views.clone());
-            runner.start(vec![loaded], setup)?;
+            runner.start(loaded, setup)?;
             let handler = ModuleRunner {
                 runner,
                 services: HostPlatform::new(self.host.clone()),

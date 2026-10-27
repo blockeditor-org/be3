@@ -11,6 +11,7 @@ mod power;
 mod screens;
 mod ui;
 
+use beui::ItemSize;
 use ui::DisplaySettingsView;
 
 const INTRINSIC_WIDTH: f32 = 420.0;

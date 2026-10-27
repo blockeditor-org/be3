@@ -1,0 +1,32 @@
+# A menu button opens its menu and a submenu, chooses by pointer and by keys;
+# a select picks an option; a context menu opens on a right click.
+clock stop
+wait 'value="Chose nothing fruit Some(0)"'
+click 'Button "Actions"'
+wait 'MenuItem "Copy"'
+click 'MenuItem "Share"'
+wait 'MenuItem "Email"'
+click 'MenuItem "Email"'
+wait 'value="Chose Email fruit Some(0)"'
+gone 'MenuItem "Copy"'
+key Enter
+wait 'MenuItem "Copy"'
+key down
+wait 'MenuItem "Copy" focused'
+key Enter
+wait 'value="Chose Copy fruit Some(0)"'
+gone 'MenuItem "Copy"'
+click '#menus.fruit'
+wait 'ListBoxOption "Cherry"'
+click 'ListBoxOption "Cherry"'
+wait 'value="Chose Copy fruit Some(2)"'
+gone 'ListBoxOption "Cherry"'
+click '#menus.card' right
+wait 'MenuItem "Share"'
+key down down
+wait 'MenuItem "Share" focused'
+key right
+wait 'MenuItem "Email" focused'
+key Enter
+wait 'value="Chose Email fruit Some(2)"'
+gone 'MenuItem "Share"'

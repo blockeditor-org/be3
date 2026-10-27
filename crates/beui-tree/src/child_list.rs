@@ -77,6 +77,20 @@ impl<T> ChildList<T> {
         self.slots.iter().flat_map(|slot| slot.items.as_slice())
     }
 
+    pub fn slots(&self) -> impl Iterator<Item = (Option<SlotId>, &[T])> {
+        self.slots.iter().map(|slot| {
+            let id = matches!(slot.items, SlotItems::Many(_)).then_some(slot.id);
+            (id, slot.items.as_slice())
+        })
+    }
+
+    pub fn slot(&self, id: SlotId) -> Option<&[T]> {
+        self.slots
+            .iter()
+            .find(|slot| slot.id == id)
+            .map(|slot| slot.items.as_slice())
+    }
+
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
         self.revision += 1;
         self.slots

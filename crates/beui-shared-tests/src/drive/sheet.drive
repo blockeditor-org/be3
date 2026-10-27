@@ -1,0 +1,11 @@
+# A modal sheet opens to rest at half the screen and closes when its handle
+# is dragged down.
+clock stop
+wait 'value="Sheet open false closed 0"'
+click 'Button "Pick"'
+pause 1000
+wait 'Row 1'
+drag '#sheet.handle' '#sheet.handle+20,300' 6
+pause 1000
+wait 'value="Sheet open false closed 1"'
+gone 'Row 1'

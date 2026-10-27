@@ -1,6 +1,6 @@
 use super::*;
-use crate::primitives::{Window, WindowHandle};
 use crate::{HostPlacement, WindowId, WindowPlacement, WindowRequest};
+use crate::{Window, WindowHandle};
 
 #[test]
 fn a_hosted_window_asks_to_open_where_it_is_placed_and_paints_on_its_own() {

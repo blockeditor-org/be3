@@ -1,0 +1,27 @@
+# A dock's tabs switch, move between panes, split a pane from its edge,
+# resize by the splitter, float out into a window, move the window by its
+# title bar and by its grip, and dock back.
+clock stop
+wait 'value="([Alpha* Beta] |0.5 [Gamma*])"'
+click '#dock.tab.2'
+wait 'value="([Alpha Beta*] |0.5 [Gamma*])"'
+drag '#dock.tab.2' '#docking.gamma' 6
+wait 'value="([Alpha*] |0.5 [Gamma Beta*])"'
+drag '#dock.splitter.root' '#dock.splitter.root+-180,200' 6
+wait 'value="([Alpha*] |0.3 [Gamma Beta*])"'
+drag '#dock.tab.3' '#docking.beta+100,440' 6
+wait 'value="([Alpha*] |0.3 ([Beta*] /0.5 [Gamma*]))"'
+click '#dock.tab.1.close'
+gone '#docking.alpha'
+wait 'value="([Beta*] /0.5 [Gamma*])"'
+click '#dock.tab.3' right
+wait 'MenuItem "Pop out into a window"'
+click 'MenuItem "Pop out into a window"'
+wait 'value="[Beta*] + window at 64,48 [Gamma*]"'
+wait '#docking.gamma'
+drag '#dock.tab.3+150,0' '#dock.tab.3+270,90' 6
+wait 'value="[Beta*] + window at 184,138 [Gamma*]"'
+drag '#dock.tab.3+-12,15' '#dock.tab.3+48,75' 6
+wait 'value="[Beta*] + window at 244,198 [Gamma*]"'
+drag '#dock.tab.3' '#docking.beta+700,350' 6
+wait 'value="[Beta Gamma*]"'

@@ -405,6 +405,28 @@ impl Rotation {
         }
     }
 
+    pub fn then(self, inner: Rotation) -> Self {
+        if !inner.turns() {
+            return self;
+        }
+        if !self.turns() {
+            return inner;
+        }
+        let angle = self.angle + inner.angle;
+        let moved = self.apply(inner.apply(Pos2::ZERO));
+        let (sin, cos) = angle.sin_cos();
+        let (a, b) = (1.0 - cos, sin);
+        let det = a * a + b * b;
+        if det < 1e-12 {
+            return Rotation::NONE;
+        }
+        let pivot = pos2(
+            (a * moved.x - b * moved.y) / det,
+            (b * moved.x + a * moved.y) / det,
+        );
+        Self { pivot, angle }
+    }
+
     pub fn scaled(self, scale: f32) -> Self {
         Self {
             pivot: pos2(self.pivot.x * scale, self.pivot.y * scale),

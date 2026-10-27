@@ -1,4 +1,5 @@
 use super::*;
+use beui::Align;
 use beui::Rect;
 use beui::unstyled::{
     AnchoredSheetHandle, AnchoredStyle, ButtonHandle, ChoiceKind, ChoiceOptionHandle,
@@ -1175,7 +1176,7 @@ fn PadFace(handle: ColorAreaHandle) -> NodeId {
     });
     view! {
         <Frame height=PAD_HEIGHT fill={ColorRole::custom(fill)} radius=Radius::Md padding=Space::Md>
-            <Text color={TextColor::Custom(Color32::WHITE)}>{place}</Text>
+            <Text color={TextColor::Custom(Color32::WHITE.into())}>{place}</Text>
         </Frame>
     }
 }

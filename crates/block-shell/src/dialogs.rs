@@ -13,6 +13,7 @@ use uuid::Uuid;
 use super::phone::DetailsSheet;
 use super::share::{GRANTABLE, Member, Person, Share, ShareAction};
 use super::workspace::Workspace;
+use beui::{Align, Direction, ItemSize};
 use block_editor_beui::beui::TextAlign;
 
 const MEMBERS_HEIGHT: Size = Size::Custom(280.0);

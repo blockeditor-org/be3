@@ -1,4 +1,4 @@
-use beui_core::input::Key;
+use beui_view::types::Key;
 
 use super::layout::{Layer, Value};
 

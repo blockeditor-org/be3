@@ -2,13 +2,14 @@ use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
 use super::modal::{Modal, ModalHandle};
-use beui_core::color::Color32;
-use beui_core::input::Key;
-use beui_core::keys::{KeyAt, KeyPhase};
-use beui_core::node::NodeId;
 use beui_view::components::portal::Portal;
 use beui_view::primitives::*;
+use beui_view::reactive::KeyAt;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::Color;
+use beui_view::types::Key;
+use beui_view::types::KeyPhase;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum DialogKind {
@@ -227,7 +228,7 @@ pub fn DialogBody(
         node
     }));
     on_key(
-        KeyAt::Node(beui_core::tree::component_node()),
+        KeyAt::Node(component_node()),
         KeyPhase::Bubble,
         move |event| {
             event.press().is_some_and(|press| {
@@ -336,7 +337,7 @@ pub struct DialogSheetHandle {
 pub fn Dialog(
     open: Prop<bool>,
     kind: DialogKind,
-    scrim: Prop<Color32>,
+    scrim: Prop<Color>,
     sheet_below: f32,
     #[prop(default = false)] narrow: Prop<bool>,
     on_dismiss: ClickCallback,

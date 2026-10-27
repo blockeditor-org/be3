@@ -1,5 +1,6 @@
 use super::*;
 use crate::icons::ICON_CHEVRON_RIGHT;
+use crate::native::Document;
 use crate::reactive::*;
 use crate::styled::*;
 

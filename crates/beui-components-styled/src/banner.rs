@@ -1,6 +1,6 @@
 use beui_components_unstyled as unstyled;
-use beui_core::node::NodeId;
 use beui_macros::{component, view};
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
 use crate::button::{Button, ButtonSize, ButtonVariant};
@@ -8,6 +8,7 @@ use crate::frame::{ColorRole, Frame};
 use crate::list::List;
 use crate::text::{Text, TextColor};
 use crate::tokens::{Padding, Space};
+use beui_view::types::{Align, Direction, ItemSize};
 
 #[component]
 pub fn Banner(

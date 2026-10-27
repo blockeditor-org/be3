@@ -9,6 +9,7 @@ use block_editor_beui::block_ui::BlockTypes;
 use uuid::Uuid;
 
 use super::workspace::Workspace;
+use beui::{Align, Align2, Direction, ItemSize};
 
 pub(crate) const RENAME: TabId = TabId::new((1 << 39) + 2);
 const SIZE: Vec2 = Vec2::new(392.0, 620.0);
@@ -182,7 +183,11 @@ fn RenameBody(
         let look = look.get();
         look.icon.and_then(named).or(look.type_icon)
     });
-    let tinted = create_memo(move || shown.get().map_or(TextColor::Muted, TextColor::Custom));
+    let tinted = create_memo(move || {
+        shown
+            .get()
+            .map_or(TextColor::Muted, |color| TextColor::Custom(color.into()))
+    });
     let tile = use_size(TILE);
     let gap = use_space(TILE_SPACING);
     let row_size = create_memo(move || tile.get() + gap.get());
@@ -268,7 +273,7 @@ fn RenameBody(
         </DialogBody>
     };
     if let Some(node) = field.try_get() {
-        with_document(|document| document.focus_into(node));
+        node.focus_into();
     }
     built
 }
@@ -292,7 +297,11 @@ fn IconTile(
         Tile::Default => look.get().icon.is_none(),
         Tile::Icon(name) => look.get().icon == Some(name),
     });
-    let color = create_memo(move || shown.get().map_or(TextColor::Muted, TextColor::Custom));
+    let color = create_memo(move || {
+        shown
+            .get()
+            .map_or(TextColor::Muted, |color| TextColor::Custom(color.into()))
+    });
     view! {
         <TileButton
             @test_id={format!("rename.icon.{id}")}

@@ -5,6 +5,7 @@ use beui::NodeId;
 use beui::icons::{
     ICON_INFO, ICON_PENCIL_LINE, ICON_REDO_2, ICON_SHARE_2, ICON_TERMINAL, ICON_UNDO_2, ICON_X,
 };
+use beui::native::{Embed, EmbedSlot};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{Key, KeyAt, KeyPhase, Pos2, Rect, Vec2, pos2};
@@ -14,6 +15,7 @@ use crate::chrome::ChromeRoot;
 use crate::docked::DockedTabs;
 use crate::picking::Pickers;
 use crate::{BlockInfo, BlockList, BlockQuery, Editor};
+use beui::ItemSize;
 
 const PALETTE: Chord = Chord::ctrl(Key::P).shift();
 

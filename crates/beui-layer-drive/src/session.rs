@@ -92,7 +92,7 @@ its input goes to that window, in its points:
   down TARGET [BUTTON] / up [TARGET] [BUTTON]   press and let go, for any gesture; BUTTON is
                             right, middle, back, forward or button:CODE (an evdev code,
                             such as button:0x115)
-  drag FROM TO [STEPS]      press, move in STEPS (2), let go
+  drag FROM TO [STEPS] [BUTTON]   press BUTTON (left), move in STEPS (2), let go
   wheel TARGET TICKS [XTICKS]   turn a mouse wheel, down (right) when positive
   scroll TARGET DY [DX]     a touchpad scroll of DY pixels, down when positive
   zoom TARGET FACTOR        a touchpad pinch, such as 2 to zoom in or 0.5 out
@@ -1263,13 +1263,19 @@ impl Session {
             "drag" => {
                 let from = at(argument(0)?)?;
                 let to = at(argument(1)?)?;
-                let steps: usize = match arguments.get(2) {
-                    Some(steps) => steps
-                        .parse()
-                        .map_err(|_| format!("{steps} is not a number of steps"))?,
-                    None => 2,
-                };
-                input(self.gestures[gesture].drag(from, to, steps))
+                let (mut steps, mut button) = (2, PointerButton::Primary);
+                for extra in arguments.iter().skip(2) {
+                    match (button_named(extra), extra.parse::<usize>()) {
+                        (Some(named), _) => button = named,
+                        (None, Ok(count)) => steps = count,
+                        (None, Err(_)) => {
+                            return Err(format!(
+                                "drag takes a number of steps and a button, not {extra}"
+                            ));
+                        }
+                    }
+                }
+                input(self.gestures[gesture].drag(from, to, steps, button))
             }
             "wheel" => {
                 let at = at(argument(0)?)?;

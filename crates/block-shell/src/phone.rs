@@ -14,6 +14,7 @@ use super::menu::{Action, apply, permissions};
 use super::panel::{Info, Refs, Watched, read_info};
 use super::tab::TabItem;
 use super::workspace::{PhoneSheet, Workspace};
+use beui::{Align, Direction, ItemSize};
 use block_editor_beui::beui::TextAlign;
 
 const SHEET_PADDING: Space = Space::Lg;

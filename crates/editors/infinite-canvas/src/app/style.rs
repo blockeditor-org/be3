@@ -11,6 +11,7 @@ use infinite_canvas_types::{
 use super::selection_bar::Swatch;
 use super::sidebar::{closed, colored, stroked};
 use super::state::{CanvasState, CommonValue, common_value};
+use beui::{Align, Direction, ItemSize};
 
 const LABEL_WIDTH: f32 = 72.0;
 const ROW_SPACING: Space = Space::Xs;

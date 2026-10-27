@@ -20,6 +20,7 @@ use super::linked::LinkedBar;
 use super::revisions::RevisionPreviewBar;
 use super::tab::TabItem;
 use super::workspace::{PanelStatus, PhoneSheet, Workspace};
+use beui::{Align, ItemSize};
 
 const PANEL_PADDING: Space = Space::Lg;
 const PANEL_SPACING: Space = Space::Sm;

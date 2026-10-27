@@ -21,12 +21,12 @@ fn a_save_that_takes_a_while_shows_a_toast_until_it_finishes() {
         "which stays up past the usual toast duration while saving goes on"
     );
     let output = app.stepped.frame(Vec::new());
-    let painted = beui::painting::painting(
+    let painted = beui::native::painting::painting(
         output.main(),
         vec2(1100.0, 720.0),
         1.0,
         output.main().window.appearance.clear_color,
-        beui::painting::Punches::Shown,
+        beui::native::painting::Punches::Shown,
     )
     .unwrap();
     let snapshot = paint_snapshot::Snapshot::of_painting(painted).unwrap();

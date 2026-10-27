@@ -6,6 +6,7 @@ use beui::styled::*;
 use beui::{NodeId, TextAlign};
 
 use crate::review::Review;
+use beui::{Align, Direction, ItemSize};
 use paint_review_manifest::Status;
 
 const PADDING: Space = Space::Lg;

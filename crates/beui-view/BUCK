@@ -3,3 +3,11 @@ load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
 cargo_library()
 
 cargo_test()
+
+# The HTML core's paintings: each primitive rendered to a string on the host,
+# as a browser painting.
+cargo_test(
+    name = "html-test",
+    default_target_platform = "root//buck/platforms:linux_x86_64_html",
+    paints = True,
+)

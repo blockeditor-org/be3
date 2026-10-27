@@ -3,7 +3,7 @@ use ra_ap_syntax::{SourceFile, SyntaxNode};
 
 const SIGNAL_WRITES: [&str; 3] = ["set", "update", "set_unconditionally"];
 
-const PRIMITIVE_USERS: [&str; 18] = [
+const PRIMITIVE_USERS: [&str; 20] = [
     "crates/beui/",
     "crates/beui-view/",
     "crates/beui-components-styled/",
@@ -13,6 +13,7 @@ const PRIMITIVE_USERS: [&str; 18] = [
     "crates/beui-keyboard/",
     "crates/beui-renderer-wgpu/",
     "crates/beui-demo/src/base_pages.rs",
+    "crates/beui-shared-tests/",
     "crates\\beui\\",
     "crates\\beui-view\\",
     "crates\\beui-components-styled\\",
@@ -22,6 +23,7 @@ const PRIMITIVE_USERS: [&str; 18] = [
     "crates\\beui-keyboard\\",
     "crates\\beui-renderer-wgpu\\",
     "crates\\beui-demo\\src\\base_pages.rs",
+    "crates\\beui-shared-tests\\",
 ];
 
 const COMPONENT_CRATES: [&str; 8] = [
@@ -35,7 +37,21 @@ const COMPONENT_CRATES: [&str; 8] = [
     "crates\\beui-keyboard\\",
 ];
 
-const BASE_CRATES: [&str; 2] = ["crates/beui-core/", "crates\\beui-core\\"];
+const BASE_CRATES: [&str; 4] = [
+    "crates/beui-core/",
+    "crates/beui-types/",
+    "crates\\beui-core\\",
+    "crates\\beui-types\\",
+];
+
+const CORE_CHOOSERS: [&str; 6] = [
+    "crates/beui/",
+    "crates/beui-view/",
+    "crates/beui-core-html/",
+    "crates\\beui\\",
+    "crates\\beui-view\\",
+    "crates\\beui-core-html\\",
+];
 
 const DOCUMENT_ACCESS: [&str; 5] = [
     "with_document",
@@ -119,7 +135,17 @@ pub(crate) fn beui_violations(tree: &SourceFile, source: &str, relative: &str) -
             violations.extend(fixed_extent_uses(tree, source, relative));
         }
     }
-    if !test_source {
+    if !CORE_CHOOSERS
+        .iter()
+        .any(|allowed| relative.starts_with(allowed))
+    {
+        violations.extend(core_cfg_uses(tree, source, relative));
+    }
+    if !test_source
+        && !crate::core_api::CORE_FILES
+            .iter()
+            .any(|file| relative.starts_with(file))
+    {
         violations.extend(component_uses(tree, source, relative));
     }
     if !test_source
@@ -192,8 +218,12 @@ fn component_uses(tree: &SourceFile, source: &str, relative: &str) -> Vec<String
                     if let Some(renderer) = ast::CallExpr::cast(parent)
                         && (calls(&renderer, "render")
                             || calls(&renderer, "render_fragment")
+                            || calls(&renderer, "render_to_string")
                             || calls(&renderer, "build")
                             || calls(&renderer, "enter")
+                            || calls(&renderer, "run")
+                            || calls(&renderer, "hydrate")
+                            || calls(&renderer, "mount")
                             || deferred_renderer(&renderer)
                             || (deferred && calls(&renderer, "store")))
                     {
@@ -274,6 +304,45 @@ fn fixed_extent_uses(tree: &SourceFile, source: &str, relative: &str) -> Vec<Str
             let line = source[..offset].matches('\n').count() + 1;
             format!(
                 "fixed extent outside beui: {relative}:{line} a styled length takes a Size for a fixed length (Size::Custom for one that comes from content); keep Extent for intrinsic, fill, fraction and bounds"
+            )
+        })
+        .collect()
+}
+
+fn core_cfg_uses(tree: &SourceFile, source: &str, relative: &str) -> Vec<String> {
+    let attributes = tree
+        .syntax()
+        .descendants()
+        .filter_map(ast::Attr::cast)
+        .filter(|attribute| {
+            matches!(
+                attribute.meta(),
+                Some(ast::Meta::CfgMeta(_) | ast::Meta::CfgAttrMeta(_))
+            )
+        })
+        .map(|attribute| attribute.syntax().clone());
+    let macros = tree
+        .syntax()
+        .descendants()
+        .filter_map(ast::MacroCall::cast)
+        .filter(|call| {
+            call.path()
+                .is_some_and(|path| path.syntax().text() == "cfg")
+        })
+        .filter_map(|call| call.token_tree())
+        .map(|tokens| tokens.syntax().clone());
+    attributes
+        .chain(macros)
+        .filter_map(|node| {
+            node.descendants_with_tokens()
+                .filter_map(|element| element.into_token())
+                .find(|token| token.text() == "beui_html")
+        })
+        .map(|token| {
+            let offset = u32::from(token.text_range().start()) as usize;
+            let line = source[..offset].matches('\n').count() + 1;
+            format!(
+                "core cfg outside the cores: {relative}:{line} only beui-view, beui and beui-core-html choose by cfg(beui_html); elsewhere branch on `if CORE == Core::Html`"
             )
         })
         .collect()

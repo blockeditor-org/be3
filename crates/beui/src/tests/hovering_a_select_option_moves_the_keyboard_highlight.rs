@@ -22,7 +22,7 @@ fn hovering_a_select_option_moves_the_keyboard_highlight() {
         .api::<unstyled::SelectApi>(select)
         .trigger();
     with_installed(harness.document_mut(), |_| {
-        crate::focus_within(trigger);
+        crate::native::focus_within(trigger);
     });
     harness.frame(Vec::new());
     harness.key(Key::ArrowDown, Modifiers::NONE);

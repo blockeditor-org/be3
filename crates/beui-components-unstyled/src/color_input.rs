@@ -1,7 +1,7 @@
-use beui_core::color::Color32;
-use beui_core::node::NodeId;
 use beui_macros::{component, view};
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::Color32;
 
 use crate::anchored::AnchoredStyle;
 use crate::color_picker::HexText;

@@ -1,9 +1,9 @@
 use super::*;
 use crate::WindowId;
-use crate::primitives::{Window, WindowHandle};
 use crate::unstyled::{
     DRAG_PREVIEW_OFFSET, DragHandle, DragPoint, Draggable, DropHandle, DropTarget,
 };
+use crate::{Window, WindowHandle};
 
 #[test]
 fn a_drag_carried_into_another_window_shows_its_preview_there() {

@@ -1,0 +1,10 @@
+# The on-screen keyboard on the Inputs page types into the field that has the
+# focus, key by key, without taking the focus itself.
+clock stop
+click '#demo.catalog.Inputs'
+click 'Type with the keys below'
+click 'Button "h"'
+click 'Button "i"'
+wait 'TextInput value="hi" focused'
+click 'Button "Backspace"'
+wait 'TextInput value="h" focused'

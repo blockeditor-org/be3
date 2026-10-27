@@ -7,7 +7,7 @@ use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 
 use block_editor_beui::beui::{
-    Color32, Dismiss, LayerPolicy, NodeId, OverlayAnchor, Placement, Pos2, Rect, TextAlign, Vec2,
+    BackGesture, Color, Color32, Dismiss, LayerPolicy, NodeId, OverlayAnchor, Placement, Pos2, Rect, TextAlign, Vec2,
 };
 use block_editor_beui::block_ui::TemplateEntry;
 use block_editor_beui::{
@@ -20,6 +20,7 @@ use super::picker::{
     link_rows, place_rows, slides, tile_key,
 };
 use super::picking::Picker;
+use beui::{Align, Direction, ItemSize};
 
 const MENU_WIDTH: Size = Size::Custom(256.0);
 const SURFACE_SIZE: Vec2 = Vec2::new(520.0, 560.0);
@@ -53,16 +54,20 @@ pub fn PickerView(picker: Picker) -> NodeId {
         let host = picker.host();
         create_effect(move || host.show_card(surface.get()));
     }
-    view! {
-        <BackHandler enabled={surface} on_back={move || close_surface(picker)}>
-            <List spacing=Space::None>
-                <PickerMenu picker held act templates placing overlay=menu />
-                <PickerCard picker held />
-                <CreationChild picker held />
-                <PickerError picker error act node=failure />
-            </List>
-        </BackHandler>
-    }
+    let view = view! {
+        <List spacing=Space::None>
+            <PickerMenu picker held act templates placing overlay=menu />
+            <PickerCard picker held />
+            <CreationChild picker held />
+            <PickerError picker error act node=failure />
+        </List>
+    };
+    on_back(surface, move |gesture| {
+        if gesture == BackGesture::Invoked {
+            close_surface(picker);
+        }
+    });
+    view
 }
 
 fn fit(picker: Picker, held: Memo<Option<Pick>>, menu: NodeRef, failure: NodeRef) {
@@ -297,7 +302,7 @@ fn TypeItem(
         entry
             .get()
             .and_then(|entry| entry.color)
-            .map(|[r, g, b]| Color32::from_rgb(r, g, b))
+            .map(|[r, g, b]| Color::from(Color32::from_rgb(r, g, b)))
     });
     let label = create_memo(move || entry.get().map(|entry| entry.name).unwrap_or_default());
     let glyph = create_memo(move || entry.get().and_then(|entry| entry.icon));
@@ -599,7 +604,7 @@ fn SurfaceHeader(
         </List>
     };
     if let Some(node) = field.try_get() {
-        with_document(|document| document.focus_into(node));
+        node.focus_into();
     }
     built
 }
@@ -691,7 +696,7 @@ fn TypeRow(act: Act, key: String, entry: Memo<Option<TemplateEntry>>) -> NodeId 
     let glyph_color = create_memo(move || {
         let color = entry.get().and_then(|entry| entry.color);
         Some(color.map_or(TextColor::Muted, |[r, g, b]| {
-            TextColor::Custom(Color32::from_rgb(r, g, b))
+            TextColor::Custom(Color32::from_rgb(r, g, b).into())
         }))
     });
     let label = create_memo(move || entry.get().map(|entry| entry.name).unwrap_or_default());

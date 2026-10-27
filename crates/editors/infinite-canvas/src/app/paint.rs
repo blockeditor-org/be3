@@ -2,7 +2,8 @@ use block_editor_beui::beui::icons::Glyph;
 use std::rc::Rc;
 
 use block_editor_beui::beui::{
-    Color32, FontId, Image, LineCap, LineJoin, Painter, Pos2, Rect, Stroke, Vec2, pos2,
+    Color32, FontId, Image, LineCap, LineJoin, Pos2, Rect, Stroke, TextLayout, Vec2, pos2,
+    reactive::Painter,
 };
 use infinite_canvas_types::{
     CanvasArrowhead, CanvasColor, CanvasEntity, CanvasFill, CanvasLook, CanvasPoint, CanvasShape,
@@ -196,30 +197,30 @@ impl EntityPaint {
         self.fill_uncovered(&painter, rect, opacity);
         let title_size = (18.0 * self.camera.scale).clamp(8.0, 42.0);
         let note_size = (12.0 * self.camera.scale).clamp(7.0, 30.0);
-        let title = painter.layout(
-            self.title.clone(),
+        let title = painter.lay_out_text(
+            &self.title,
             FontId::proportional(title_size),
-            rect.width(),
+            TextLayout::wrapped(rect.width()),
         );
-        let note = painter.layout(
+        let note = painter.lay_out_text(
             "(TODO: preview)",
             FontId::proportional(note_size),
-            rect.width(),
+            TextLayout::wrapped(rect.width()),
         );
         let gap = (4.0 * self.camera.scale).clamp(2.0, 10.0);
         let total = title.size().y + gap + note.size().y;
         let top = rect.center().y - total / 2.0;
-        painter.galley(
+        painter.draw_text(
             pos2(rect.center().x - title.size().x / 2.0, top),
-            title,
+            &title,
             color,
         );
-        painter.galley(
+        painter.draw_text(
             pos2(
                 rect.center().x - note.size().x / 2.0,
                 top + total - note.size().y,
             ),
-            note,
+            &note,
             color,
         );
     }
@@ -251,22 +252,26 @@ impl EntityPaint {
         let painter = painter.with_clip_rect(title_bar);
         let mut x = title_bar.left() + padding;
         if let Some(glyph) = self.glyph {
-            let icon = painter.layout(glyph.as_str(), FontId::icons(font_size), f32::INFINITY);
-            painter.galley(
+            let icon = painter.lay_out_text(
+                glyph.as_str(),
+                FontId::icons(font_size),
+                TextLayout::DEFAULT,
+            );
+            painter.draw_text(
                 pos2(x, title_bar.center().y - icon.size().y / 2.0),
-                icon,
+                &icon,
                 color,
             );
             x += font_size + padding;
         }
-        let title = painter.layout(
-            self.title.clone(),
+        let title = painter.lay_out_text(
+            &self.title,
             FontId::proportional(font_size),
-            (title_bar.right() - x).max(1.0),
+            TextLayout::wrapped((title_bar.right() - x).max(1.0)),
         );
-        painter.galley(
+        painter.draw_text(
             pos2(x, title_bar.center().y - title.size().y / 2.0),
-            title,
+            &title,
             color,
         );
     }

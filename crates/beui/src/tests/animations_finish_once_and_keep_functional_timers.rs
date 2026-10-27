@@ -1,4 +1,5 @@
 use super::*;
+use crate::native::with_reactive_scope;
 use crate::reactive::*;
 use crate::{PreferenceLayer, PreferenceSource};
 use std::cell::Cell;

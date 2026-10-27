@@ -7,6 +7,7 @@ use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, TextAlign};
 
 use super::{Steps, Table};
+use beui::{Align, Direction, ItemSize};
 
 const NUMBER_WIDTH: f32 = 30.0;
 

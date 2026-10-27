@@ -1,0 +1,10 @@
+# The floating window sample on the Layering page opens its window as an
+# overlay beside its button, and closes it from the button again.
+clock stop
+wheel '#demo.catalog.Docking' 30
+click '#demo.catalog.Layering'
+wheel '#dock.tab.2+0,300' 5
+click '#demo.window.trigger'
+wait '#demo.window.panel'
+click '#demo.window.trigger'
+gone '#demo.window.panel'

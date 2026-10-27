@@ -1,16 +1,16 @@
 use std::time::Instant;
 
-use beui_core::geometry::Pos2;
-use beui_core::input::TouchId;
 use beui_core::runner::{Hand, HandPose};
-use beui_core::window::WindowId;
+use beui_types::Pos2;
+use beui_types::WindowId;
+use beui_types::input::TouchId;
 use glam::{Quat, Vec3};
 
 use crate::head::{Head, Ray};
 use crate::panel::Pose;
 use crate::space::Held;
 
-pub const DEVICE: u64 = beui_core::input::CONTROLLER_TOUCH_DEVICE;
+pub const DEVICE: u64 = beui_types::input::CONTROLLER_TOUCH_DEVICE;
 pub const PRESS: f32 = 0.6;
 pub const LET_GO: f32 = 0.4;
 pub const FREEZE: f32 = 0.02;

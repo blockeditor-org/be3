@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
-use beui_core::base::Direction;
-use beui_core::geometry::{Pos2, Rect};
+use beui_view::types::Direction;
+use beui_view::types::{Pos2, Rect};
 
 use super::{
     DockHome, DockState, Entry, FLOATING_SIZE, Group, GroupId, Home, Leaf, LeafId, MIN_FRACTION,

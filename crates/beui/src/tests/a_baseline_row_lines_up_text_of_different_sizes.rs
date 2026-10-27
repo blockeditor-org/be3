@@ -22,7 +22,7 @@ fn a_baseline_row_lines_up_text_of_different_sizes() {
         .shapes()
         .iter()
         .filter_map(|shape| match shape {
-            crate::Shape::Text { origin, galley, .. } => {
+            crate::native::Shape::Text { origin, galley, .. } => {
                 let top = galley.lines().first().map_or(0.0, |line| line.top);
                 Some((origin.y, origin.y + top + galley.baseline()))
             }

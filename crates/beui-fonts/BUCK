@@ -1,0 +1,21 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
+
+cargo_library()
+
+cargo_test()
+
+# The bundled fonts as files, for a page on beui's HTML core to stage beside
+# its bundle, where beui-core-html's @font-face rules (fonts.rs) find them.
+[
+    export_file(
+        name = path.split("/")[-1],
+        src = "src/assets/" + path,
+        visibility = ["PUBLIC"],
+    )
+    for path in [
+        "fonts/Inter-Regular.ttf",
+        "fonts/Hack-Regular.ttf",
+        "fonts/NotoEmoji-Regular.ttf",
+        "icons/lucide.ttf",
+    ]
+]

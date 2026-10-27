@@ -1,0 +1,24 @@
+# A text field takes typing over its placeholder, a number input opens a field
+# for a typed number on a click and follows a drag across it, a point a step,
+# and a slider moves with the keys.
+clock stop
+wait 'value="Name \"\" seats 4 load 0.5"'
+click '#fields.name'
+type 'Ada'
+wait 'value="Name \"Ada\" seats 4 load 0.5"'
+click 'SpinButton "Seats"'
+wait 'TextInput "Seats" value="4"'
+type '3'
+key Enter
+wait 'value="Name \"Ada\" seats 3 load 0.5"'
+gone 'TextInput "Seats"'
+drag '#fields.seats+10,10' '#fields.seats+16,10'
+wait 'value="Name \"Ada\" seats 9 load 0.5"'
+gone 'TextInput "Seats"'
+drag '#fields.seats+30,10' '#fields.seats+10,10'
+wait 'value="Name \"Ada\" seats 1 load 0.5"'
+click 'Slider "Load"'
+key Home
+wait 'value="Name \"Ada\" seats 1 load 0.0"'
+key End
+wait 'value="Name \"Ada\" seats 1 load 1.0"'

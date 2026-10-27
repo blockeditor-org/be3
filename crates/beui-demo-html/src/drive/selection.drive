@@ -1,0 +1,9 @@
+# Only what beui makes selectable selects: a double-click on a sample's title
+# selects nothing, and a drag from the middle of its code (a Selectable) up to
+# its Code button selects the lines it crosses.
+click '#demo.catalog.Overlays'
+click 'Label value="Popover"' double
+selection none
+click '#demo.code.Popover'
+drag '#demo.code' '#demo.code.Popover' 4
+selection some

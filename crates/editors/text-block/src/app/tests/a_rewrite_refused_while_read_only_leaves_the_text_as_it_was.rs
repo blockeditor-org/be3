@@ -1,6 +1,6 @@
 use super::{ORGANIZATION_ID, Uuid, block_url, editor, text};
 
-fn shown(document: &beui::Document, id: beui::NodeId, out: &mut String) {
+fn shown(document: &beui::native::Document, id: beui::NodeId, out: &mut String) {
     if let Some(node) = document.arena.kind_of(id) {
         out.push_str(document.text(node));
     }

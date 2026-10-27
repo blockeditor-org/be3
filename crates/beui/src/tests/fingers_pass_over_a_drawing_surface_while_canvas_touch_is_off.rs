@@ -14,11 +14,13 @@ fn fingers_pass_over_a_drawing_surface_while_canvas_touch_is_off() {
     let surface = NodeRef::new();
     let button = NodeRef::new();
     let document = build_node(move || {
+        let zoomed =
+            crate::unstyled::gestures::pan_zoom(Callback::empty(), move |gesture: ZoomGesture| {
+                zoom.set(zoom.get_untracked() * gesture.factor)
+            });
         view! {
             <List spacing=0.0>
-                <Interactive
-                    on_zoom={move |gesture: ZoomGesture| zoom.set(zoom.get_untracked() * gesture.factor)}
-                >
+                <Interactive on_pointer={zoomed.pointer} on_wheel={zoomed.wheel}>
                     <Interactive
                         @node_ref=&surface
                         drawing=true

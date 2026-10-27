@@ -8,6 +8,7 @@ license.workspace = true
 beui-core = { path = "../beui-core" }
 beui-font-freetype = { path = "../beui-font-freetype" }
 beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
+beui-types = { path = "../beui-types" }
 bytemuck = { version = "1", features = ["derive"] }
 glam = "0.30"
 wgpu = { version = "29", default-features = false, features = ["std", "wgsl"] }

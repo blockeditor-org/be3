@@ -1,3 +1,4 @@
+use block_editor_beui::beui::CanvasView;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -14,6 +15,7 @@ use uuid::Uuid;
 use crate::geo::MapView;
 use crate::raster::{TILE_PIXELS, TileLabel};
 use crate::tiles::{TileId, TileWorker};
+use beui::Pasted;
 use image_block_types::{ImageContent, ImageFile};
 
 pub(crate) const WORLD_POINTS: f32 = 1024.0;

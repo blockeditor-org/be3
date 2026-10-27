@@ -81,17 +81,22 @@ fn closing_a_fullscreen_tab_leaves_the_tab_beside_it_in_its_window() {
 
 #[component]
 fn Panel(id: u64) -> NodeId {
-    view! {
-        <PlacementBuilder>|rect: ReadSignal<Rect>| {
-            let anchor = create_memo(move || OverlayAnchor::Point(rect.get().min));
-            view! {
-                <Layers>
-                    <Frame @test_id={format!("content.{id}")} />
-                    <Overlay anchor traps_focus=false open=false>
-                        <Frame width=40.0 height=20.0 />
-                    </Overlay>
-                </Layers>
-            }
-        }</PlacementBuilder>
-    }
+    let rect_held = create_signal(Rect::ZERO);
+    let rect = rect_held.read_only();
+    let anchor = create_memo(move || OverlayAnchor::Point(rect.get().min));
+    let built = view! {
+        <Layers>
+            <Frame @test_id={format!("content.{id}")} />
+            <Overlay anchor traps_focus=false open=false>
+                <Frame width=40.0 height=20.0 />
+            </Overlay>
+        </Layers>
+    };
+    let rect_measured = measure(built);
+    create_effect(move || {
+        if let Some(measured) = rect_measured.get() {
+            rect_held.set(measured.rect);
+        }
+    });
+    built
 }

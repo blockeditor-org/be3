@@ -24,7 +24,7 @@ fn a_vertical_separator_rules_down_the_row_it_sits_in() {
     );
 }
 
-fn rule(output: &crate::FrameOutput) -> Option<Rect> {
+fn rule(output: &crate::native::FrameOutput) -> Option<Rect> {
     output.main().shapes().iter().find_map(|shape| match shape {
         crate::painter::Shape::Rect { rect, color, .. } if *color == Theme::DARK.border => {
             Some(*rect)

@@ -23,6 +23,7 @@ use block_editor_beui::{BlockFilter, ChildTarget, ContentProjection, Editor, wat
 use uuid::Uuid;
 
 use super::field_line_count;
+use beui::{Align, Direction, ItemSize};
 use block_editor_beui::beui::TextAlign;
 
 #[derive(Clone, Copy)]

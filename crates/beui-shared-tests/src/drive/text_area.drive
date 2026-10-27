@@ -1,0 +1,18 @@
+# A multiline field takes Enter as a new line, and Backspace joins the lines
+# again.
+clock stop
+wait 'value="Note \"\""'
+click '#text_area.note'
+type 'one'
+key Enter
+type 'two'
+wait 'value="Note \"one\\ntwo\""'
+key Home Backspace
+wait 'value="Note \"onetwo\""'
+# A double click selects the word under it, so typing replaces the word.
+key End
+type ' x'
+wait 'value="Note \"onetwo x\""'
+click '#text_area.note+24,19' double
+type 'y'
+wait 'value="Note \"y x\""'

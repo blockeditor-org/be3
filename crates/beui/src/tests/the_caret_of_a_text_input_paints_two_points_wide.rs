@@ -14,7 +14,7 @@ fn the_caret_of_a_text_input_paints_two_points_wide() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     with_installed(harness.document_mut(), |_| {
-        crate::focus_within(input);
+        crate::native::focus_within(input);
     });
     let output = harness.frame(Vec::new());
 
@@ -23,7 +23,7 @@ fn the_caret_of_a_text_input_paints_two_points_wide() {
         .shapes()
         .iter()
         .find_map(|shape| match shape {
-            crate::Shape::Rect {
+            crate::native::Shape::Rect {
                 rect,
                 stroke_width,
                 color,

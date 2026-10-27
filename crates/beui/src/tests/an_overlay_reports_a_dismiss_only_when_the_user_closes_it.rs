@@ -2,6 +2,7 @@ use super::*;
 use crate::Dismiss;
 use crate::base::overlay::{OverlayAnchor, OverlayNode, Placement};
 use crate::input::BackGesture;
+use crate::native::{with_document, with_reactive_scope};
 use crate::primitives::*;
 use crate::reactive::*;
 

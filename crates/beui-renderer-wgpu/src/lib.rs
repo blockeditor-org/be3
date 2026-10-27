@@ -11,7 +11,7 @@ use beui_core::context::{Moved, WindowOutput};
 use beui_core::damage::Region;
 use beui_core::display::{Display, Group, Layer, Part};
 use beui_core::draw::{Quad, Turn, push_quads};
-use beui_core::drawing::Drawing;
+pub use beui_core::drawing::Drawing;
 use beui_core::fade::Fade;
 use beui_core::filter::Filter;
 use beui_core::font::{GlyphId, GlyphImage};

@@ -1,4 +1,4 @@
-use beui::accessibility::Embedded;
+use beui::native::accessibility::Embedded;
 use beui::{ImeArea, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
     AccessLevel, ArtifactDescription, AudioCommand, BlockCommand, BlockPick, ChildContent, ChildId,
@@ -833,7 +833,7 @@ impl Instances {
                 holding: false,
                 used: None,
                 report: None,
-                accessibility: Embedded::new(beui::accessibility::next_document_id()),
+                accessibility: Embedded::new(beui::native::accessibility::next_document_id()),
                 focus_requested: false,
                 dragging: false,
                 file_dropping: false,

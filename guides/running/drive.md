@@ -41,7 +41,7 @@ else, or `--into` on a command that is not input, is an error that says what it 
 
 ## Starting any beui program
 
-beui's run functions (`beui::run`, `run_with`, `run_with_renderers`, `run_on`) read these
+beui's run functions (`beui::native::run`, `run_with`, `run_with_device`, `run_on`) read these
 variables (on every platform but Android, which reads none), so a program needs nothing of its
 own to be driven:
 
@@ -53,7 +53,7 @@ own to be driven:
   names separated by commas, the one nearest the platform first: `space` and `drive`; an
   unknown name is an error. Every `drive` named is a tap of one session, named by the layer
   just above it; `drive` twice in a row, or two taps under the same layer, is an error.
-- `BEUI_PLATFORM=headless` runs it on `beui::Headless` (crates/beui-platform-headless), which draws
+- `BEUI_PLATFORM=headless` runs it on `beui::native::Headless` (crates/beui-platform-headless), which draws
   offscreen with wgpu and needs no display server. `BEUI_HEADLESS_WINDOW=WIDTHxHEIGHT[@SCALE]`
   (1100x720 by default) is its window and `BEUI_HEADLESS_SCREEN=WIDTHxHEIGHT` the screen a
   fullscreen window grows to; either is an error under another platform.
@@ -238,7 +238,7 @@ A command that acts on something takes a TARGET:
     drive click TARGET [right|middle|double]
     drive move TARGET                         hover
     drive down TARGET; drive pause 600; drive move TARGET; drive up   any gesture, step by step
-    drive drag FROM TO [STEPS]
+    drive drag FROM TO [STEPS] [BUTTON]       BUTTON as down takes it, such as middle
     drive wheel TARGET 3                      three mouse-wheel ticks down; a second number turns sideways
     drive scroll TARGET 300                   a touchpad scroll of 300 pixels
     drive zoom TARGET 2                       a touchpad pinch
@@ -315,7 +315,10 @@ so the app waits as it does in a window; time how long something takes to show w
 such as `drive hurry off; drive --no-settle click TARGET; time drive wait TEXT`.
 
 `drive -` reads commands from standard input, one a line, quoted as a shell would, prints each
-before its answer and stops at the first that fails:
+before its answer and stops at the first that fails. A line whose first character other than
+a space is `#` is a comment, skipped before its quotes are read, so an apostrophe in it is
+fine; `be_drive::commands` is that reading, and buck/app/drive-words.mjs reads scripts the
+same way for the browser:
 
     drive - <<'EOF'
     click "Add a root block"
