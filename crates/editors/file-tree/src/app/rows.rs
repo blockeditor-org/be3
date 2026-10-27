@@ -57,6 +57,7 @@ pub(crate) struct Row {
     pub(crate) can_add: bool,
     pub(crate) can_edit: bool,
     pub(crate) can_delete: bool,
+    pub(crate) can_reorder: bool,
     pub(crate) can_leave: bool,
     pub(crate) unlink: Result<(), &'static str>,
     pub(crate) inspection: Option<Inspection>,
@@ -109,6 +110,7 @@ impl Row {
             can_add: false,
             can_edit: false,
             can_delete: false,
+            can_reorder: false,
             can_leave: false,
             unlink: Err("Loading…"),
             inspection: None,
@@ -822,6 +824,7 @@ pub(crate) fn describe(
             is_reference,
         );
     let unlink = unlink_permission(client, types, block_types, container);
+    let can_reorder = !trashed && can_reorder_in(client, types, block_types, container);
     let expandable = !is_reference && !reference.references.is_empty();
     let label = reference
         .label(types)
@@ -874,6 +877,7 @@ pub(crate) fn describe(
         can_add,
         can_edit,
         can_delete,
+        can_reorder,
         can_leave: false,
         unlink,
         inspection: Some(inspection),
@@ -959,6 +963,20 @@ pub(crate) fn can_move_out_of(
         }
     };
     can_delete && (is_reference || client.access(child).can_edit())
+}
+
+pub(crate) fn can_reorder_in(
+    client: &Blocks,
+    types: &dyn BlockTypes,
+    block_types: &HashMap<Uuid, Uuid>,
+    container: Option<Uuid>,
+) -> bool {
+    container.is_some_and(|id| {
+        block_types
+            .get(&id)
+            .is_some_and(|block_type| types.child_edits(*block_type).reorder)
+            && client.access(id).can_edit()
+    })
 }
 
 pub(crate) fn unlink_permission(

@@ -9,7 +9,7 @@ use be_block::{BlockContent, LiveEdit, Merge, Undo, history::History};
 use be_commit::MergeResult;
 use block_type_api::{
     Change, ChildChange, ClientId, CommitId, Description, EditorId, Endpoint, FileChange, Merged,
-    Opening, Plain, PlainFile, PublishOutcome, ReplaceChild, ReplicaId, SessionState, TypeInfo,
+    Opening, Plain, PlainFile, PublishOutcome, ReorderChild, ReplaceChild, ReplicaId, SessionState, TypeInfo,
     guest::{exports::replicas, host},
     ops::guest::{self as ops, Executor, Pending, Sender},
     types::Failure,
@@ -169,6 +169,9 @@ pub(crate) fn be_child(change: ChildChange) -> be_block::ChildChange {
         ChildChange::Delete(block) => be_block::ChildChange::Delete(block),
         ChildChange::Replace(ReplaceChild { old, new }) => {
             be_block::ChildChange::Replace { old, new }
+        }
+        ChildChange::Reorder(ReorderChild { block, after }) => {
+            be_block::ChildChange::Reorder { block, after }
         }
     }
 }

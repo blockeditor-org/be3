@@ -377,6 +377,16 @@ impl PluginEditor {
         }
     }
 
+    pub(crate) fn reorder_child(&self, child: Uuid, after: Option<Uuid>) -> Option<bool> {
+        if !discovery::block_type(self.block_type)?.children.reorder {
+            return Some(false);
+        }
+        self.change_child(be_block::ChildChange::Reorder {
+            block: child,
+            after,
+        })
+    }
+
     fn change_child(&self, change: be_block::ChildChange) -> Option<bool> {
         crate::be::change_child(self.id, self.block_type, change)
     }

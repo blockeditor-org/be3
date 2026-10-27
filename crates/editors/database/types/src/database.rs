@@ -527,7 +527,7 @@ impl Root for Database {
 
     fn child_edit(&self, change: ChildChange) -> Option<Edit> {
         let (old, new) = match change {
-            ChildChange::Add(_) => return None,
+            ChildChange::Add(_) | ChildChange::Reorder { .. } => return None,
             ChildChange::Delete(old) => (old, None),
             ChildChange::Replace { old, new } => (old, Some(new)),
         };

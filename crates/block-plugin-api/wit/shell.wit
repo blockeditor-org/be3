@@ -202,6 +202,8 @@ interface shell-types {
         add: bool,
         delete: bool,
         replace: bool,
+        /// Moves a child among its siblings, in an order the type keeps.
+        reorder: bool,
     }
 
     /// What pressing a block in a container does.

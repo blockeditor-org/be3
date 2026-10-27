@@ -218,7 +218,7 @@ impl Root for Settings {
 
     fn child_edit(&self, change: ChildChange) -> Option<Edit> {
         match change {
-            ChildChange::Add(_) => None,
+            ChildChange::Add(_) | ChildChange::Reorder { .. } => None,
             ChildChange::Delete(old) => Some(self.repoint(old, None)),
             ChildChange::Replace { old, new } => Some(self.repoint(old, Some(new))),
         }
@@ -259,7 +259,7 @@ impl Root for SettingsProfile {
 
     fn child_edit(&self, change: ChildChange) -> Option<Edit> {
         let (old, new) = match change {
-            ChildChange::Add(_) => return None,
+            ChildChange::Add(_) | ChildChange::Reorder { .. } => return None,
             ChildChange::Delete(old) => (old, None),
             ChildChange::Replace { old, new } => (old, Some(new)),
         };

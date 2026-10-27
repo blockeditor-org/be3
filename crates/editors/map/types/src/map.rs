@@ -185,6 +185,7 @@ impl Root for Map {
 
     fn child_edit(&self, change: ChildChange) -> Option<Edit> {
         Some(match change {
+            ChildChange::Reorder { .. } => return None,
             ChildChange::Add(block) => {
                 if !self.showing(block).is_empty() {
                     return Some(Edit::default());

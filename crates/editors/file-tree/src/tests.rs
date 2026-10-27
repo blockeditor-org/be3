@@ -23,6 +23,7 @@ mod a_row_whose_access_or_settings_are_its_own_opens_them_from_an_icon;
 mod a_tag_from_the_workspace_marks_a_block_and_shows_on_its_row;
 mod a_workspace_header_adds_into_that_workspace;
 mod a_workspace_is_shown_with_what_it_holds_already_listed;
+mod a_workspace_s_rows_follow_the_order_it_lists_its_children_in;
 mod an_opened_folder_is_kept_open_in_the_view_and_reopens_open;
 mod clicking_the_chevron_opens_and_closes_its_own_row;
 mod expanding_a_folder_shows_its_children_without_more_input;
@@ -159,6 +160,7 @@ fn containers_hold_blocks(fixture: &mut Fixture) {
             add: true,
             delete: true,
             replace: true,
+            reorder: true,
         },
     );
 }

@@ -963,6 +963,16 @@ impl EditorHost {
         ));
     }
 
+    pub fn reorder_block(&self, block_id: Uuid, parent: Uuid, after: Option<Uuid>) {
+        self.block_commands.borrow_mut().push((
+            block_id,
+            BlockCommand::Reorder {
+                parent: parent.into_bytes(),
+                after: after.map(Uuid::into_bytes),
+            },
+        ));
+    }
+
     pub fn place_block(&self, block_id: Uuid, block_type: Uuid, parent: Uuid, linked: bool) {
         self.block_commands.borrow_mut().push((
             block_id,

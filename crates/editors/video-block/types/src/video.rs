@@ -429,6 +429,7 @@ impl Root for VideoProject {
         };
         Some(
             self.edit_for(&match change {
+                ChildChange::Reorder { .. } => return None,
                 ChildChange::Add(block) => VideoOperation::InsertClip {
                     clip: VideoClip::new(
                         block,

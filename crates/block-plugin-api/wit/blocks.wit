@@ -93,6 +93,13 @@ interface blocks {
         is-reference: bool,
     }
 
+    /// Moves the block among the children of `parent`: after the child
+    /// `after`, or first when it is none.
+    record reorder-command {
+        parent: block-id,
+        after: option<block-id>,
+    }
+
     record place-command {
         block-type: block-type-id,
         parent: block-id,
@@ -100,7 +107,7 @@ interface blocks {
     }
 
     /// What an editor asks the host to do with a block it draws: undo or redo
-    /// it, act on its artifact, unlink, delete, move, place or restore it.
+    /// it, act on its artifact, unlink, delete, move, reorder, place or restore it.
     variant block-command {
         undo,
         redo,
@@ -108,6 +115,7 @@ interface blocks {
         unlink(unlink-command),
         delete(delete-command),
         move(move-command),
+        reorder(reorder-command),
         place(place-command),
         restore,
     }

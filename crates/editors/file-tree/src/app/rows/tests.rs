@@ -9,6 +9,7 @@ mod a_listing_says_loading_only_after_a_grace_and_shows_a_failure;
 mod access_marker_marks_limited_access;
 mod deleting_needs_a_container_that_can_delete_children;
 mod icon_overrides_keep_lock_and_deleted_markers;
+mod reordering_needs_a_container_that_keeps_an_order;
 mod unlinking_needs_a_container_that_can_replace_a_child;
 
 const CONTAINER: Uuid = Uuid::from_u128(1);

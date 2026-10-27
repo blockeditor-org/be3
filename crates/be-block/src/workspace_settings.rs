@@ -197,6 +197,7 @@ impl Root for Tags {
 
     fn child_edit(&self, change: ChildChange) -> Option<Edit> {
         match change {
+            ChildChange::Reorder { .. } => None,
             ChildChange::Add(tag) => Some(Self::add(tag)),
             ChildChange::Delete(tag) => Some(Self::remove(tag)),
             ChildChange::Replace { old, new } => Some(

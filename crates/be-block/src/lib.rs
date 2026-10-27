@@ -134,6 +134,7 @@ pub enum ChildChange {
     Add(Uuid),
     Delete(Uuid),
     Replace { old: Uuid, new: Uuid },
+    Reorder { block: Uuid, after: Option<Uuid> },
 }
 
 pub trait LiveEdit: BlockContent {
