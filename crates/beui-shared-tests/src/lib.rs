@@ -11,6 +11,7 @@ mod controls;
 mod layers;
 #[cfg(not(target_arch = "wasm32"))]
 mod native;
+mod rows;
 #[cfg(test)]
 mod tests;
 #[cfg(target_arch = "wasm32")]
@@ -111,6 +112,15 @@ pub fn Fixture(name: String) -> Root {
         },
         "dates" => view! {
             <collections::DatesFixture />
+        },
+        "rows" => view! {
+            <rows::RowsFixture />
+        },
+        "scroll" => view! {
+            <rows::ScrollFixture />
+        },
+        "drag" => view! {
+            <rows::DragFixture />
         },
         other => {
             let message = format!("No fixture is named {other}");

@@ -348,7 +348,7 @@ pub fn extension_or_insert_with<T: Clone + 'static>(make: impl FnOnce() -> T) ->
             .expect("extensions are keyed by their type")
             .clone();
     }
-    let made = make();
+    let made = in_document_scope(make);
     ARENA.with(|arena| {
         arena
             .borrow_mut()

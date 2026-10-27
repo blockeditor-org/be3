@@ -362,9 +362,12 @@ mod web {
     fn attach(state: &Rc<State>, element: &web_sys::Element) -> Vec<Listener> {
         let target: &web_sys::EventTarget = element.as_ref();
         let mut listeners = Vec::new();
+        let node = state.node;
         let on = |name: &str, handler: Box<dyn Fn(web_sys::Event)>| {
             crate::dom::listen(target, name, false, move |event: web_sys::Event| {
-                handler(event)
+                if crate::document::contains(node) {
+                    handler(event);
+                }
             })
         };
         let held = state.clone();
@@ -528,7 +531,7 @@ mod web {
                 else {
                     return;
                 };
-                if !held.claims(&element, pointer) {
+                if !crate::document::contains(held.node) || !held.claims(&element, pointer) {
                     return;
                 }
                 held.down(&element, pointer);
@@ -550,7 +553,7 @@ mod web {
                     else {
                         return;
                     };
-                    if pointer.button() != 0 {
+                    if pointer.button() != 0 || !crate::document::contains(held.node) {
                         return;
                     }
                     let inside = event

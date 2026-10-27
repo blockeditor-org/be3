@@ -118,6 +118,11 @@ const browser = await chromium.launch({
 async function open(query, colorScheme = "light") {
     const context = await browser.newContext({ viewport: SIZE, colorScheme });
     const page = await context.newPage();
+    // A panic in wasm unwinds through a dozen frames of std before the code
+    // that panicked, past the default limit of ten.
+    await page.addInitScript(() => {
+        Error.stackTraceLimit = 60;
+    });
     const log = [];
     const errors = [];
     page.on("console", (message) => log.push(`[${message.type()}] ${message.text()}`));

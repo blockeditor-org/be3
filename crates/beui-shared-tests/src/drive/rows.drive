@@ -1,0 +1,18 @@
+# Rows, links and split buttons click, the menu of a split button chooses, and a
+# goes when dismissed.
+clock stop
+wait 'Alert "Saving failed"'
+click '#banner.dismiss'
+gone 'Alert "Saving failed"'
+click 'Button "Wi-Fi"'
+wait 'value="Chose Wi-Fi"'
+click 'Button "Sign out"'
+wait 'value="Chose Sign out"'
+click 'Link "Read more"'
+wait 'value="Chose the link"'
+click 'Button "Export"'
+wait 'value="Chose Export"'
+click 'Button "More options"'
+click 'MenuItem "As PDF"'
+wait 'value="Chose As PDF"'
+wait 'ProgressIndicator "Working" value="0.5"'
