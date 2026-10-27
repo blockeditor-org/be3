@@ -3,18 +3,17 @@ use be_block::{
     workspace_settings::{retagged, tagged},
 };
 use beui::reactive::*;
-use beui::styled::theme::ThemeKind;
 use beui::styled::*;
-use beui::{Color32, NodeId};
+use beui::{Color, NodeId};
 use block_editor_plugin::root_settings::RootSetting;
 use database_types::database_schema::ChoiceColor;
 use uuid::Uuid;
 
-use crate::database::choice_color;
+use crate::database::{ChoiceColors, use_choice_colors};
 use crate::{BlockInfo, BlockParent, Editor};
 use beui::{Align, Direction};
 
-pub fn tag_color(color: TagColor, kind: ThemeKind) -> Color32 {
+pub fn tag_color(colors: ChoiceColors, color: TagColor) -> Color {
     let choice = match color {
         TagColor::Gray => ChoiceColor::Gray,
         TagColor::Blue => ChoiceColor::Blue,
@@ -26,7 +25,7 @@ pub fn tag_color(color: TagColor, kind: ThemeKind) -> Color32 {
         TagColor::Pink => ChoiceColor::Pink,
         TagColor::Purple => ChoiceColor::Purple,
     };
-    choice_color(choice, kind)
+    colors.get(choice)
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -52,8 +51,8 @@ pub fn tags_of(metadata: &BlockMetadata) -> Vec<Uuid> {
 
 #[component]
 pub fn TagDot(color: Prop<TagColor>, #[prop(default = TextSize::Sm)] size: TextSize) -> NodeId {
-    let theme = use_theme();
-    let fill = create_memo(move || tag_color(color.get(), theme.kind.get()));
+    let colors = use_choice_colors();
+    let fill = create_memo(move || tag_color(colors, color.get()));
     let dot = Size::Custom((size.icon_px() * 0.6).round());
     view! {
         <Frame width=dot height=dot radius=Radius::Full fill={ColorRole::custom(fill)} />

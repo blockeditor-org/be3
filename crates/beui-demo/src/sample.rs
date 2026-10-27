@@ -1,6 +1,6 @@
 use super::*;
 use beui::Align;
-use beui::{Color, ColorScheme};
+use beui::Color;
 
 #[component]
 pub(crate) fn ScrollPage(children: Children<ListChild>) -> NodeId {
@@ -39,12 +39,10 @@ pub(crate) fn Sample(title: &'static str, code: Vec<&'static str>, children: Chi
 #[component]
 fn CodeBlock(source: String) -> NodeId {
     let theme = use_theme();
+    let syntax = theme.syntax;
     let tokens = create_memo({
         let source = source.clone();
-        move || {
-            let theme = theme.get();
-            code_tokens(&source, theme.kind, theme.syntax, theme.text)
-        }
+        move || code_tokens(&source, syntax.get())
     });
     view! {
         <Frame
@@ -66,16 +64,7 @@ fn CodeBlock(source: String) -> NodeId {
     }
 }
 
-pub(crate) fn code_tokens(
-    source: &str,
-    kind: ThemeKind,
-    syntax: SyntaxColors,
-    text: Color,
-) -> Vec<(usize, usize, Color)> {
-    let colors = match ColorScheme::from(kind) {
-        ColorScheme::Dark => syntax,
-        ColorScheme::Light => SyntaxColors::uniform(text),
-    };
+pub(crate) fn code_tokens(source: &str, colors: SyntaxColors) -> Vec<(usize, usize, Color)> {
     let document = Arc::new(TextBuffer::new(source)) as Arc<dyn text_editor_core::Document>;
     let highlight = Highlighter::new(document, Language::Rust).highlight();
     let mut tokens: Vec<(usize, usize, Color)> = Vec::new();

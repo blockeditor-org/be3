@@ -1,6 +1,7 @@
 use super::*;
 
 mod a_color_round_trips_through_hsv;
+mod a_color_variable_is_named_by_where_it_is_declared;
 mod a_color_round_trips_through_oklch;
 mod a_grey_keeps_its_oklch_hue;
 mod a_grey_keeps_the_hue_it_was_dragged_from;

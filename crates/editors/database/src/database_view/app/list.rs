@@ -5,7 +5,7 @@ use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, TextAlign};
 use block_editor_beui::block_ui::database::cell_text;
-use block_editor_beui::database::{ChoiceMark, choice_color};
+use block_editor_beui::database::{ChoiceMark, use_choice_colors};
 use block_editor_beui::narrow_chrome;
 use database_types::database::{DatabaseRow, DatabaseValue, short_id};
 use database_types::database_schema::{
@@ -504,14 +504,14 @@ fn RowPart(part: Memo<Option<Part>>) -> NodeId {
 
 #[component]
 fn Chip(part: Memo<Option<Part>>, text: Memo<String>) -> NodeId {
-    let theme = use_theme();
+    let colors = use_choice_colors();
     let choice = create_memo(move || match part.get() {
         Some(Part::Choice(option)) => Some(option),
         _ => None,
     });
     let dotted = create_memo(move || choice.with(Option::is_some));
     let dot = create_memo(move || match choice.get() {
-        Some(option) => ColorRole::Custom((choice_color(option.color, theme.kind.get())).into()),
+        Some(option) => ColorRole::Custom(colors.get(option.color)),
         None => ColorRole::TextMuted,
     });
     let linked = create_memo(move || part.with(|part| matches!(part, Some(Part::Links(..)))));

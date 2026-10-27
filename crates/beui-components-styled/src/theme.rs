@@ -276,9 +276,20 @@ const EPAPER_SYNTAX: SyntaxColors = SyntaxColors {
 
 macro_rules! color_roles {
     (roles: [$($role:ident),* $(,)?], outlines: [$($outline:ident),* $(,)?], syntax: [$($syntax:ident),* $(,)?] $(,)?) => {
+        #[allow(non_upper_case_globals)]
+        mod role_vars {
+            beui_view::types::color_var!($(pub $role,)* $(pub $outline,)*);
+        }
+
+        #[allow(non_upper_case_globals)]
+        mod syntax_vars {
+            beui_view::types::color_var!($(pub $syntax,)*);
+        }
+
         #[derive(Clone, Copy, PartialEq, Eq, Debug, Store)]
         pub struct ThemeTokens {
             pub kind: ThemeKind,
+            pub referenced: bool,
             $(pub $role: Color,)*
             $(pub $outline: Option<Color>,)*
             pub syntax: SyntaxColors,
@@ -288,6 +299,7 @@ macro_rules! color_roles {
             pub fn literal(theme: &Theme) -> Self {
                 Self {
                     kind: theme.kind,
+                    referenced: false,
                     $($role: theme.$role.into(),)*
                     $($outline: theme.$outline.map(Color::from),)*
                     syntax: theme.syntax,
@@ -306,11 +318,12 @@ macro_rules! color_roles {
             pub fn referenced(kind: ThemeKind, light: &Theme, dark: &Theme) -> Self {
                 Self {
                     kind,
-                    $($role: ColorVar::new(concat!("color-", stringify!($role))).color(),)*
+                    referenced: true,
+                    $($role: role_vars::$role.color(),)*
                     $($outline: (light.$outline.is_some() || dark.$outline.is_some())
-                        .then(|| ColorVar::new(concat!("color-", stringify!($outline))).color()),)*
+                        .then(|| role_vars::$outline.color()),)*
                     syntax: SyntaxColors {
-                        $($syntax: ColorVar::new(concat!("syntax-", stringify!($syntax))).color(),)*
+                        $($syntax: syntax_vars::$syntax.color(),)*
                     },
                 }
             }
@@ -322,15 +335,15 @@ macro_rules! color_roles {
                 let outline = |color: Option<Color32>| color.unwrap_or(Color32::TRANSPARENT);
                 ColorDefinitions::from([
                     $((
-                        ColorVar::new(concat!("color-", stringify!($role))),
+                        role_vars::$role,
                         SchemeColors::new(light.$role, dark.$role),
                     ),)*
                     $((
-                        ColorVar::new(concat!("color-", stringify!($outline))),
+                        role_vars::$outline,
                         SchemeColors::new(outline(light.$outline), outline(dark.$outline)),
                     ),)*
                     $((
-                        ColorVar::new(concat!("syntax-", stringify!($syntax))),
+                        syntax_vars::$syntax,
                         SchemeColors::new(syntax(light.syntax.$syntax), syntax(dark.syntax.$syntax)),
                     ),)*
                 ])
@@ -401,16 +414,58 @@ pub fn use_theme() -> ThemeStore {
     use_context::<ThemeStore>().unwrap_or_else(tree_theme_store)
 }
 
-fn scheme_themes(kind: ThemeKind) -> (Theme, Theme) {
+fn scheme_kinds(kind: ThemeKind) -> (ThemeKind, ThemeKind) {
     let light = match kind {
-        ThemeKind::EPaper => Theme::EPAPER,
-        _ => Theme::LIGHT,
+        ThemeKind::EPaper => ThemeKind::EPaper,
+        _ => ThemeKind::Light,
     };
     let dark = match kind {
-        ThemeKind::OledDark => Theme::OLED,
-        _ => Theme::DARK,
+        ThemeKind::OledDark => ThemeKind::OledDark,
+        _ => ThemeKind::Dark,
     };
     (light, dark)
+}
+
+fn scheme_themes(kind: ThemeKind) -> (Theme, Theme) {
+    let (light, dark) = scheme_kinds(kind);
+    (Theme::of(light), Theme::of(dark))
+}
+
+pub type ThemedDefinitions = fn(light: ThemeKind, dark: ThemeKind) -> ColorDefinitions;
+
+#[derive(Clone, Copy)]
+struct ThemedColors(Signal<Vec<ThemedDefinitions>>);
+
+pub fn define_themed_colors(definitions: ThemedDefinitions) {
+    let preferences = use_preferences();
+    let ThemedColors(held) = tree_local(|| {
+        let held = create_signal(Vec::<ThemedDefinitions>::new());
+        define_colors(create_memo(move || {
+            let (light, dark) = scheme_kinds(preferences.get().theme);
+            held.with(|held| {
+                held.iter()
+                    .flat_map(|define| define(light, dark))
+                    .collect::<ColorDefinitions>()
+            })
+        }));
+        ThemedColors(held)
+    });
+    let known = held.with_untracked(|held| {
+        held.iter()
+            .any(|known| std::ptr::fn_addr_eq(*known, definitions))
+    });
+    if !known {
+        held.update(|held| held.push(definitions));
+    }
+}
+
+impl ThemeTokensStore {
+    pub fn themed(&self, var: ColorVar, literal: impl FnOnce(ThemeKind) -> Color32) -> Color {
+        match self.referenced.get() {
+            true => var.color(),
+            false => literal(self.kind.get()).into(),
+        }
+    }
 }
 
 fn tree_theme_store() -> ThemeStore {

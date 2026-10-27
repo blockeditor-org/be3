@@ -32,13 +32,19 @@ pub fn resolve(color: Color) -> Color32 {
 
 pub fn stylesheet(definitions: &ColorDefinitions) -> String {
     let mut sorted: Vec<_> = definitions.iter().collect();
-    sorted.sort_by_key(|(var, _)| var.name());
+    sorted.sort_by_key(|(var, _)| var.css_name());
+    debug_assert!(
+        sorted
+            .windows(2)
+            .all(|pair| pair[0].0.css_name() != pair[1].0.css_name()),
+        "two colour variables hash to the same CSS name"
+    );
     let block = |selector: &str, scheme: ColorScheme| {
         let mut out = format!("{selector} {{");
         for (var, colors) in &sorted {
             out.push_str(&format!(
                 " --{}: {};",
-                var.name(),
+                var.css_name(),
                 literal_color(colors.get(scheme))
             ));
         }

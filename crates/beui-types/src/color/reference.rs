@@ -6,15 +6,55 @@ use ui_types::ThemeKind;
 use super::Color32;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub struct ColorVar(&'static str);
+pub struct ColorVar {
+    id: u32,
+    module: &'static str,
+    name: &'static str,
+}
+
+#[macro_export]
+macro_rules! color_var {
+    ($($vis:vis $name:ident),+ $(,)?) => {
+        $(
+            $vis const $name: $crate::ColorVar =
+                $crate::ColorVar::__declared_at(module_path!(), stringify!($name));
+        )+
+    };
+}
 
 impl ColorVar {
-    pub const fn new(name: &'static str) -> Self {
-        Self(name)
+    #[doc(hidden)]
+    pub const fn __declared_at(module: &'static str, name: &'static str) -> Self {
+        let mut hash: u32 = 0x811c_9dc5;
+        let parts = [module.as_bytes(), b"::", name.as_bytes()];
+        let mut part = 0;
+        while part < parts.len() {
+            let bytes = parts[part];
+            let mut index = 0;
+            while index < bytes.len() {
+                hash ^= bytes[index] as u32;
+                hash = hash.wrapping_mul(0x0100_0193);
+                index += 1;
+            }
+            part += 1;
+        }
+        Self {
+            id: hash,
+            module,
+            name,
+        }
+    }
+
+    pub fn css_name(self) -> String {
+        format!("v-{:08x}", self.id)
     }
 
     pub const fn name(self) -> &'static str {
-        self.0
+        self.name
+    }
+
+    pub const fn module(self) -> &'static str {
+        self.module
     }
 
     pub const fn color(self) -> Color {
@@ -161,7 +201,7 @@ impl Color {
     pub fn describe(self) -> String {
         let source = |source: ColorSource| match source {
             ColorSource::Literal(color) => super::format_hex(color, true),
-            ColorSource::Var(var) => format!("--{}", var.name()),
+            ColorSource::Var(var) => format!("var({})", var.name()),
         };
         let mut out = source(self.base);
         if let Some((other, share)) = self.mixed {

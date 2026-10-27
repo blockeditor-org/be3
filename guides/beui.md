@@ -4939,11 +4939,18 @@ rather than designed: labels on a zoomable canvas, a terminal, a game board.
 A colour prop on a primitive (`Frame` `fill`, `Text` and `Span` `color`, `Outline`,
 `SpanStyle`, `TextMark`, `TextGlyph`, `SpanBackground`, `TextCaret`, `Overlay`
 `scrim`, `Root` `clear_color`) is a `beui::Color` (beui-types), not a `Color32`. A
-`Color` is a literal `Color32`, or a reference to a `ColorVar` (a name the caller
-picks), plus a small algebra the cores can both carry: `scale_alpha(f)` and
+`Color` is a literal `Color32`, or a reference to a `ColorVar`, plus a small algebra the cores can both carry: `scale_alpha(f)` and
 `mix(other, share)` (two unmixed colours). A `Color32` converts into a `Color`,
 and a `Color32`, `Memo<Color32>` or `Signal<Color32>` passes for a `Prop<Color>`,
 so code with literal colours is unchanged.
+
+A `ColorVar` is declared, never named by a string: `beui::color_var!(pub SURFACE,
+TEXT)` declares constants whose identity is where they are declared (module path
+and item name), so a variable is reached only by importing it and two crates
+cannot collide. Its CSS name (`css_name()`, `--v-` and a hash of that path) is
+the same in every build, so a page prerendered on the server hydrates to the same
+names; `name()` keeps the readable name for the inspector and `describe()`
+(`var(SURFACE)`).
 
 Whoever references a variable defines it, with a value per `ColorScheme`
 (`Light`, `Dark`): `define_colors(definitions)` (`beui::reactive`) takes a
@@ -4958,7 +4965,10 @@ values on `.beui-root`, the dark ones under `@media (prefers-color-scheme: dark)
 and both again under `.beui-root[data-scheme=light|dark]`, which the core sets
 when the app chose a theme (`beui::html::choose_theme`). So a page prerendered by
 `render_to_string` already shows the browser's scheme before any script runs, and
-hydration computes the same references and changes no colour. Code that needs the
+hydration computes the same references and changes no colour. So code must not
+choose a colour by reading the theme's kind or the scheme: the server and the
+browser can disagree. Choose a reference whose definitions differ per scheme
+instead. Code that needs the
 `Color32` itself (a `Drawing`'s painter, image tints) calls
 `resolve_color(color)`, which tracks the definitions and the scheme;
 `color_scheme()` reads the scheme.
@@ -4969,14 +4979,22 @@ tokens as `Color`s. The built-in themes are `Theme::DARK`,
 `Theme::LIGHT`, and `Theme::EPAPER`, one for each `ThemeKind`, with literal colours;
 `Theme::of(kind)` picks one, and a theme's `kind` says which it is, for code that
 must tell them apart without comparing colors. Styled components that no provider
-covers use the document's theme, whose tokens are references: `--color-NAME` for
-each token and `--syntax-NAME` for the syntax colours, defined with the light
+covers use the document's theme, whose tokens are references, one variable for each token
+and each syntax colour, defined with the light
 values of `Theme::LIGHT` (`EPAPER` when that theme is chosen) and the dark values of
 `Theme::DARK` (`OLED` when chosen), so the scheme picks between them on either
 core. `Theme::referenced` and `Theme::definitions` build those. What dims the app
 under an overlay is a theme colour too: `scrim` under a dialog, sheet or dock
 dialog, `scrim_soft` under the command palette and launcher, which leave the app
 readable, and `scrim_strong` under `Fullscreen`.
+
+Colours of a caller's own with a value for each built-in theme (the choice colours
+in block-editor-beui, for example) follow the theme the same way:
+`define_themed_colors(definitions)` takes a `fn(light: ThemeKind, dark: ThemeKind) ->
+ColorDefinitions` and defines it once per tree for the kinds the scheme would pick,
+and `theme.themed(var, |kind| literal)` (on the `ThemeStore` from `use_theme()`)
+gives the reference under the document's theme and the literal for the provided
+theme's kind under a `ThemeProvider` (the `referenced` field of `ThemeTokens` says which).
 `Theme::of(document.preferences().theme)` reads the literal theme, for example to
 pick an app's clear color.
 

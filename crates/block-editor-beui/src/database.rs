@@ -20,7 +20,7 @@ use uuid::Uuid;
 mod choice;
 
 use beui::{Align, Direction, ItemSize};
-pub use choice::{ChoiceMark, choice_color, choice_color_label, choice_glyph, choice_icon_label};
+pub use choice::{ChoiceColors, ChoiceMark, choice_color_label, choice_glyph, choice_icon_label, use_choice_colors};
 
 const SPACING: Space = Space::Sm;
 const FIELD_SPACING: Space = Space::Lg;

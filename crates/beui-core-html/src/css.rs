@@ -22,7 +22,7 @@ pub fn color(color: Color) -> String {
     }
     let source = |source: ColorSource| match source {
         ColorSource::Literal(color) => literal_color(color),
-        ColorSource::Var(var) => format!("var(--{})", var.name()),
+        ColorSource::Var(var) => format!("var(--{})", var.css_name()),
     };
     let mut out = source(color.source());
     if let Some((other, share)) = color.mixed() {
