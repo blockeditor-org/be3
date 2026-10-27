@@ -340,7 +340,9 @@ hooks the higher crates fill in:
   not cover. The fonts live in a `FontLibrary` that contexts can share and
   that can be given more fonts later, which lays their text out again.
 - The document's theme store lives in a typed slot on the document
-  (`Document::extension`, which components reach as `tree_local`).
+  (`Document::extension`, which components reach as `tree_local`). Both cores
+  make a tree-local value in the document's own scope, so it outlives the
+  component that first asked for it.
 - A `Drawing` holds whatever its renderer draws; `beui::drawing` makes one for
   the wgpu renderer.
 - Each platform is a `beui_core::runner::Platform`, a trait object the facade

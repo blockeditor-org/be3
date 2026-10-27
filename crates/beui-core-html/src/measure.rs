@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use beui_types::text::FontId;
 use beui_types::text::LineBox;
 use beui_types::{Measured, Pos2, Rect, Vec2};
-use reactive::{Get, ReadSignal, Set, Signal, create_signal};
+use reactive::{Get, OwnedSignal, ReadSignal, Set, Signal};
 
 use crate::node::NodeId;
 
@@ -63,23 +63,21 @@ impl TextGeometry {
 }
 
 thread_local! {
-    static RECTS: RefCell<HashMap<NodeId, Signal<Option<Measured>>>> = RefCell::default();
-    static TEXTS: RefCell<HashMap<NodeId, Signal<Option<TextGeometry>>>> = RefCell::default();
+    static RECTS: RefCell<HashMap<NodeId, OwnedSignal<Option<Measured>>>> = RefCell::default();
+    static TEXTS: RefCell<HashMap<NodeId, OwnedSignal<Option<TextGeometry>>>> = RefCell::default();
 }
 
 fn watch<T: 'static>(
-    store: &'static std::thread::LocalKey<RefCell<HashMap<NodeId, Signal<Option<T>>>>>,
+    store: &'static std::thread::LocalKey<RefCell<HashMap<NodeId, OwnedSignal<Option<T>>>>>,
     node: NodeId,
 ) -> ReadSignal<Option<T>> {
-    let held = store.with(|held| held.borrow().get(&node).copied());
+    let held = store.with(|held| held.borrow().get(&node).map(|signal| signal.handle()));
     let signal = match held {
         Some(signal) => signal,
         None => {
-            let signal = match crate::document::owner(node) {
-                Some(owner) => owner.run(|| create_signal(None)),
-                None => create_signal(None),
-            };
-            store.with(|held| held.borrow_mut().insert(node, signal));
+            let owned = OwnedSignal::new(None);
+            let signal = owned.handle();
+            store.with(|held| held.borrow_mut().insert(node, owned));
             crate::frame::request_frame();
             signal
         }
@@ -113,19 +111,20 @@ pub(crate) fn watched() -> bool {
 }
 
 fn publish<T: Clone + PartialEq + 'static>(
-    store: &'static std::thread::LocalKey<RefCell<HashMap<NodeId, Signal<Option<T>>>>>,
+    store: &'static std::thread::LocalKey<RefCell<HashMap<NodeId, OwnedSignal<Option<T>>>>>,
     read: impl Fn(NodeId) -> Option<T>,
 ) -> bool {
     let held: Vec<(NodeId, Signal<Option<T>>)> = store.with(|held| {
         held.borrow()
             .iter()
-            .map(|(node, signal)| (*node, *signal))
+            .map(|(node, signal)| (*node, signal.handle()))
             .collect()
     });
     let mut changed = false;
     for (node, signal) in held {
-        if !crate::document::contains(node) || !signal.is_alive() {
-            store.with(|held| held.borrow_mut().remove(&node));
+        if !crate::document::contains(node) {
+            let removed = store.with(|held| held.borrow_mut().remove(&node));
+            drop(removed);
             continue;
         }
         let value = read(node);

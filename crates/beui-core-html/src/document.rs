@@ -44,7 +44,7 @@ impl reactive::Release for Removals {
 }
 
 thread_local! {
-    static SCOPE: reactive::Scope = reactive::Scope::detached();
+    static SCOPE: reactive::Scope = reactive::Scope::root();
     static ARENA: RefCell<Arena> = RefCell::default();
     static REMOVALS: Rc<Removals> = Rc::default();
 }

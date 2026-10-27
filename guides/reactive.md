@@ -437,7 +437,10 @@ A scope has exactly one owner, and there are two kinds:
 - A `Scope` value owns its scope and disposes it when dropped.
   `Scope::detached()` opens one under the current scope, so it reads that
   scope's context and pauses with it, but only the value disposes it;
-  `Scope::new()` is also disposed with the current scope. Keep the value where
+  `Scope::new()` is also disposed with the current scope. `Scope::root()`
+  opens one under no scope at all, reading no context and pausing with
+  nothing, for state that belongs to a whole tree (the HTML core's document
+  scope, where `tree_local` values are made). Keep the value where
   its lifetime belongs: in a `store` when it should go with the current scope
   (the control-flow components keep each branch's scope in one, beside the
   child it built), or in a map entry when it goes with the entry, as

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use reactive::{Get, ReadSignal, Set, Signal, Stored, create_signal, on_cleanup, store};
+use reactive::{Get, OwnedSignal, ReadSignal, Set, Signal, Stored, on_cleanup, store};
 
 use crate::node::NodeId;
 
@@ -19,7 +19,7 @@ thread_local! {
     static FIRING: Cell<bool> = const { Cell::new(false) };
     static TIMERS: RefCell<Vec<Weak<TimerState>>> = RefCell::default();
     static LAYOUT: RefCell<Vec<Weak<dyn Fn() -> bool>>> = RefCell::default();
-    static PLACED: RefCell<HashMap<NodeId, Signal<bool>>> = RefCell::default();
+    static PLACED: RefCell<HashMap<NodeId, OwnedSignal<bool>>> = RefCell::default();
     static ANIMATIONS: Rc<Cell<usize>> = Rc::default();
     static AFTER_INPUT: RefCell<Vec<Box<dyn FnOnce()>>> = RefCell::default();
 }
@@ -172,15 +172,13 @@ pub fn on_layout(pass: Rc<dyn Fn() -> bool>) {
 }
 
 pub fn watch_placed(node: NodeId) -> ReadSignal<bool> {
-    let held = PLACED.with(|placed| placed.borrow().get(&node).copied());
+    let held = PLACED.with(|placed| placed.borrow().get(&node).map(|signal| signal.handle()));
     let signal = match held {
         Some(signal) => signal,
         None => {
-            let signal = match crate::document::owner(node) {
-                Some(owner) => owner.run(|| create_signal(false)),
-                None => create_signal(false),
-            };
-            PLACED.with(|placed| placed.borrow_mut().insert(node, signal));
+            let owned = OwnedSignal::new(false);
+            let signal = owned.handle();
+            PLACED.with(|placed| placed.borrow_mut().insert(node, owned));
             request_frame();
             signal
         }
@@ -202,12 +200,13 @@ fn layout_pass() -> bool {
         placed
             .borrow()
             .iter()
-            .map(|(node, signal)| (*node, *signal))
+            .map(|(node, signal)| (*node, signal.handle()))
             .collect()
     });
     for (node, signal) in placed {
-        if !crate::document::contains(node) || !signal.is_alive() {
-            PLACED.with(|placed| placed.borrow_mut().remove(&node));
+        if !crate::document::contains(node) {
+            let removed = PLACED.with(|placed| placed.borrow_mut().remove(&node));
+            drop(removed);
             continue;
         }
         let connected = crate::dom::connected(node);
