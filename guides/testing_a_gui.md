@@ -436,7 +436,7 @@ holds what must behave the same on both: screens, each a `#[component]` in src/l
 `Fixture` picks by name, built from primitives the HTML core has, and a script per screen,
 src/drive/NAME.drive, `drive -` input that drives the screen of its file name. A script uses
 only the commands both cores answer: `settle`, `pause`, `clock stop|run`, `tree`, `ids`,
-`find`, `wait`, `gone`, `click`, `type` and `key`. It asserts with `wait` and `gone`, and names
+`find`, `wait`, `gone`, `click`, `move`, `drag`, `type` and `key`. It asserts with `wait` and `gone`, and names
 what it waits for by test id or by text the screen writes itself, never by coordinates, since
 text metrics differ: to check a layout, `measure` the nodes and print the sizes and offsets in a
 `Text` (`wait 'Inner 50x20 at 140,50'`).
@@ -449,7 +449,7 @@ text metrics differ: to check a layout, `measure` the nodes and print the sizes 
   screens built for `wasi_html`, and runs every script in Chromium through Playwright
   (buck/app/web-test.mjs, `web_drive_test` in buck/app/drive.bzl). The page answers the reading
   commands through beui-core-html's `automate` (its tree is in native's line format, from the
-  core's nodes and `getBoundingClientRect`); `click`, `type` and `key` are real Playwright input
+  core's nodes and `getBoundingClientRect`); `click`, `move`, `drag`, `type` and `key` are real Playwright input
   at the place `find` answers, so the browser's own focus, key and IME paths run. It also runs
   `checks()`, the live DOM backend's checks in src/web/live.rs (mounting, hydration, listeners),
   failing on any line that is not `ok`. It runs on this machine, not a worker, which have no

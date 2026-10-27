@@ -1,0 +1,18 @@
+# A popover opens from its button and closes from inside; a tooltip shows
+# after the pointer dwells on what it describes.
+wait 'value="Starred false"'
+click 'Button "Filters"'
+wait 'CheckBox "Only starred"'
+click 'CheckBox "Only starred"'
+wait 'value="Starred true"'
+click 'Button "Done"'
+gone 'CheckBox "Only starred"'
+key Enter
+wait 'CheckBox "Only starred"'
+key Escape
+gone 'CheckBox "Only starred"'
+gone 'Says more'
+move '#popups.hint'
+wait 'Says more'
+move '#popups.filters'
+gone 'Says more'

@@ -789,8 +789,20 @@ mod web {
                 return false;
             }
             let listeners = attach(&state, &element);
+            let active = crate::dom::document().and_then(|document| document.active_element());
+            let holds = attached.is_none()
+                && active.is_some_and(|active| element.contains(Some(active.as_ref())));
             *attached = Some((element, listeners));
-            false
+            drop(attached);
+            if holds {
+                state.handlers.on_focus_change.call(true);
+                if state.takes_text() {
+                    let sink = state.clone();
+                    crate::ime::begin(state.node, Rc::new(move |events| sink.ime_events(events)));
+                    crate::ime::keyboard(state.node, state.switches.keyboard.get());
+                }
+            }
+            holds
         }));
     }
 }

@@ -83,6 +83,15 @@ pub fn Fixture(name: String) -> Root {
         "choices" => view! {
             <controls::ChoicesFixture />
         },
+        "menus" => view! {
+            <controls::MenusFixture />
+        },
+        "popups" => view! {
+            <controls::PopupsFixture />
+        },
+        "fields" => view! {
+            <controls::FieldsFixture />
+        },
         other => {
             let message = format!("No fixture is named {other}");
             view! {

@@ -5,7 +5,7 @@ use beui_types::{Rect, Vec2, pos2};
 
 pub const TIMEOUT: Duration = Duration::from_secs(30);
 
-const ANSWERS: &str = "the HTML core answers tree, ids, find TARGET, wait TEXT, gone TEXT, settle, pause MILLISECONDS, clock stop|run and help; input (click, type, key) comes from the browser, as a person's does";
+const ANSWERS: &str = "the HTML core answers tree, ids, find TARGET, wait TEXT, gone TEXT, settle, pause MILLISECONDS, clock stop|run and help; input (click, move, drag, type, key) comes from the browser, as a person's does";
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Line {
@@ -344,6 +344,7 @@ mod web {
         keys: js_sys::Map,
         focused: Option<web_sys::Node>,
         ratio: f32,
+        viewport: Rect,
         lines: Vec<Line>,
     }
 
@@ -365,6 +366,23 @@ mod web {
             };
             let Some(element) = dom.dyn_ref::<web_sys::Element>() else {
                 return;
+            };
+            let rendered = crate::dom::call(element.as_ref(), "checkVisibility", &[])
+                .and_then(|shown| shown.as_bool())
+                .unwrap_or(true)
+                || crate::dom::window()
+                    .and_then(|window| {
+                        crate::dom::call(window.as_ref(), "getComputedStyle", &[element.into()])
+                    })
+                    .and_then(|style| js_sys::Reflect::get(&style, &"display".into()).ok())
+                    .and_then(|display| display.as_string())
+                    .is_some_and(|display| display == "contents");
+            if !rendered {
+                return;
+            }
+            let clip = match about.kinds.contains(&"OverlayLayer") {
+                true => self.viewport,
+                false => clip,
             };
             let rect = rect_of(element, self.ratio);
             let focused = self.focused.as_ref() == Some(dom);
@@ -480,6 +498,7 @@ mod web {
             keys,
             focused,
             ratio,
+            viewport,
             lines: Vec::new(),
         };
         let root_rect = root_dom

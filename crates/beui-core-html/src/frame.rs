@@ -240,6 +240,7 @@ fn lay_out() {
         }
         reactive::flush();
     }
+    crate::focus::apply_wanted();
 }
 
 pub fn relayout() {

@@ -432,6 +432,7 @@ mod web {
     pub(super) struct Held {
         pub(super) shown: Option<bool>,
         dialog: Option<web_sys::Element>,
+        returns_to: Option<web_sys::HtmlElement>,
         listeners: Vec<Listener>,
     }
 
@@ -738,12 +739,28 @@ mod web {
         let wanted = layer.wanted.get().then(|| layer.modal());
         let mut changed = false;
         if held.shown != wanted || state(&dialog) != wanted {
+            let active = crate::dom::document().and_then(|document| document.active_element());
+            let inside = active.as_ref().is_some_and(|active| within(&dialog, Some(active.as_ref())));
             match wanted {
                 Some(modal) => {
+                    if held.shown.is_none() && !inside {
+                        held.returns_to = active.and_then(|active| active.dyn_into().ok());
+                    }
                     listen_globally();
                     show(&dialog, modal);
                 }
-                None => hide(&dialog),
+                None => {
+                    hide(&dialog);
+                    let returns_to = held.returns_to.take();
+                    let lost = crate::dom::document()
+                        .and_then(|document| document.active_element())
+                        .is_none_or(|active| active.tag_name() == "BODY");
+                    if (inside || lost)
+                        && let Some(element) = returns_to.filter(|element| element.is_connected())
+                    {
+                        let _ = element.focus();
+                    }
+                }
             }
             held.shown = wanted;
             changed = true;

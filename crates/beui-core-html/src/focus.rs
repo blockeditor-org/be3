@@ -63,9 +63,23 @@ pub(crate) fn apply_wanted() {
         let Some(element) = crate::dom::html_element(node) else {
             return;
         };
-        if element.is_connected() {
+        if !crate::document::contains(node) {
             WANTED.with(|wanted| wanted.set(None));
+            return;
+        }
+        if !element.is_connected() {
+            return;
+        }
+        let holds = || {
+            let active = crate::dom::document().and_then(|document| document.active_element());
+            let target: &web_sys::Node = element.as_ref();
+            active.is_some_and(|active| target.contains(Some(active.as_ref())))
+        };
+        if !holds() {
             let _ = element.focus();
+        }
+        if holds() {
+            WANTED.with(|wanted| wanted.set(None));
         }
     }
 }

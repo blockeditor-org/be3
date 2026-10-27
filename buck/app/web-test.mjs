@@ -180,6 +180,25 @@ async function step(page, words) {
             await page.mouse.click(x, y, { button, clickCount });
             return settle();
         }
+        case "move": {
+            const { x, y } = await center(page, args[0], timeout);
+            await page.mouse.move(x, y);
+            return settle();
+        }
+        case "drag": {
+            const from = await center(page, args[0], timeout);
+            const to = await center(page, args[1], timeout);
+            const steps = Number(args[2] ?? 2);
+            await page.mouse.move(from.x, from.y);
+            await page.mouse.down();
+            for (let at = 1; at <= steps; at += 1) {
+                const part = at / steps;
+                await page.mouse.move(from.x + (to.x - from.x) * part, from.y + (to.y - from.y) * part);
+                await settle();
+            }
+            await page.mouse.up();
+            return settle();
+        }
         case "type":
             await page.keyboard.type(args.join(" "));
             return settle();
