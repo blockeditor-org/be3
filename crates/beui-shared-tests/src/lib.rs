@@ -782,13 +782,32 @@ fn TextItemFixture() -> NodeId {
 #[component]
 fn TextInputFixture() -> NodeId {
     let value = create_signal("ab cd".to_owned());
+    let secret = create_signal(String::new());
+    let sent = create_signal(0);
     let report = create_memo(move || format!("Value {}", value.get()));
+    let hidden = create_memo(move || format!("Secret {}", secret.get()));
+    let count = create_memo(move || format!("Sent {}", sent.get()));
     view! {
-        <List spacing=12.0>
-            <Frame width=240.0>
-                <beui::styled::TextInput @test_id="text_input.field" value={value} />
-            </Frame>
-            <Text color={INK}>{report}</Text>
-        </List>
+        <beui::styled::Form on_submit={move || sent.update(|sent| *sent += 1)}>
+            <List spacing=12.0>
+                <Frame width=240.0>
+                    <beui::styled::TextInput @test_id="text_input.field" value={value} />
+                </Frame>
+                <Frame width=240.0>
+                    <beui::styled::TextInput
+                        @test_id="text_input.password"
+                        value={secret}
+                        label="Password"
+                        kind={beui::styled::InputKind::Password}
+                        name="password"
+                        autocomplete="current-password"
+                    />
+                </Frame>
+                <beui::styled::Button label="Send" submit=true />
+                <Text color={INK}>{report}</Text>
+                <Text color={INK}>{hidden}</Text>
+                <Text color={INK}>{count}</Text>
+            </List>
+        </beui::styled::Form>
     }
 }

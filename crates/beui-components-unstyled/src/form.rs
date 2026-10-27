@@ -9,14 +9,8 @@ struct FormContext {
     submit: ClickCallback,
 }
 
-pub(crate) fn submit_form() {
-    if let Some(form) = use_context::<FormContext>() {
-        form.submit.call();
-    }
-}
-
-pub(crate) fn in_form() -> bool {
-    use_context::<FormContext>().is_some()
+pub(crate) fn form_submit() -> Option<ClickCallback> {
+    use_context::<FormContext>().map(|form| form.submit)
 }
 
 pub(crate) fn cell_styles() -> Vec<(&'static str, Prop<Option<CssValue>>)> {

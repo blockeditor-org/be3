@@ -181,13 +181,15 @@ pub fn TextInput(
         false => Role::TextInput,
     };
     let accessibility = crate::labelled_node(role, accessibility, label);
-    let in_form = crate::form::in_form();
-    let submit = match (on_submit.is_empty(), in_form) {
-        (true, false) => ClickCallback::empty(),
+    let form = crate::form::form_submit();
+    let submit = match (on_submit.is_empty(), form) {
+        (true, None) => ClickCallback::empty(),
         _ => ClickCallback::new(move || {
             on_submit.call(text_of(state));
-            if CORE != Core::Html || !browser {
-                crate::form::submit_form();
+            if let Some(form) = form
+                && !browser
+            {
+                form.call();
             }
         }),
     };

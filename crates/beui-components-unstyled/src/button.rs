@@ -103,6 +103,7 @@ pub fn Button(
         })
     });
 
+    let form = crate::form::form_submit().filter(|_| submit && CORE != Core::Html);
     let click = move || {
         if disabled.get_untracked() {
             return;
@@ -111,8 +112,8 @@ pub fn Button(
             action.run();
         }
         on_click.call();
-        if submit && CORE != Core::Html {
-            crate::form::submit_form();
+        if let Some(form) = form {
+            form.call();
         }
     };
     let key_click = click.clone();
