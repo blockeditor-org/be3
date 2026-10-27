@@ -7,7 +7,6 @@ use beui_core_html::beui_html::Node;
 use beui_core_html::css;
 use beui_core_html::document::{adopt, element, set_style};
 
-
 #[derive(Default)]
 pub(crate) struct Inner {
     styles: RefCell<Vec<(&'static str, Prop<Option<String>>)>>,

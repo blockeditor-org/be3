@@ -147,16 +147,11 @@ pub fn Button(
                 .into_iter()
                 .collect();
             match link {
-                true => {
-                    let link = view! {
-                        <html::A>{inner}</html::A>
-                    };
-                    let held = link.clone();
-                    create_binding(move || {
-                        held.set_attribute("href", href.get().filter(|_| !disabled.get()));
-                    });
-                    link
-                }
+                true => view! {
+                    <html::A href={Prop::dynamic(move || href.get().filter(|_| !disabled.get()))}>
+                        {inner}
+                    </html::A>
+                },
                 false => view! {
                     <html::Button r#type="submit" disabled={disabled}>{inner}</html::Button>
                 },

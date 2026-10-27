@@ -425,7 +425,7 @@ fn bind_attribute<T: Clone + ToString + 'static>(
         Prop::Dynamic(read) => {
             let name = name.to_owned();
             let weak = Rc::downgrade(&node.0);
-            create_effect(move || {
+            create_binding(move || {
                 let value = read.get().map(|value| value.to_string());
                 if let Some(data) = weak.upgrade() {
                     set_attr(&Node(data), &name, value);
@@ -449,7 +449,7 @@ fn bind_flag(node: &Node, name: &'static str, value: Prop<bool>) {
         }
         Prop::Dynamic(read) => {
             let weak = Rc::downgrade(&node.0);
-            create_effect(move || {
+            create_binding(move || {
                 let value = read.get();
                 if let Some(data) = weak.upgrade() {
                     set_attr(&Node(data), name, value.then(String::new));

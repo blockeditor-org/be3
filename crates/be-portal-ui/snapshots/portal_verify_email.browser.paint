@@ -63,7 +63,7 @@ BE3BROWSER 1
     "</div>",
     "<!--[-->",
     "<!--]-->",
-    "<form method=\"post\" novalidate=\"\" style=\"display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); flex: 0 0 auto;\" action=\"/auth/verify\">",
+    "<form method=\"post\" action=\"/auth/verify\" novalidate=\"\" style=\"display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); flex: 0 0 auto;\">",
     "<input type=\"hidden\" name=\"csrf\" value=\"snapshot-form-token\">",
     "<input type=\"hidden\" name=\"code\" value=\"\">",
     "<input type=\"hidden\" name=\"token\" value=\"snapshot-mail-token\">",
