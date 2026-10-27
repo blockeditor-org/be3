@@ -52,7 +52,7 @@ pub use keys::{KeyAt, KeyEvent, KeyInput, KeyTarget};
 pub use layer::{Dismiss, LayerLevel, LayerPolicy, OverlayAnchor, Placement};
 pub use layout::{
     Align, Align2, CanvasView, Corners, Direction, Extent, ItemSize, Justify, Measured, Outline,
-    ScrollPosition, Sides, Sizing, Track,
+    PlatformScroll, ScrollPosition, Sides, Sizing, Track,
 };
 pub use node::{BuildsNode, ImeCursor, NodeId, NodeRef};
 pub use path::{FillRule, LineCap, LineJoin, Path, PathElement, PathStyle, Stroke};

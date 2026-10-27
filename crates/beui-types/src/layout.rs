@@ -423,6 +423,14 @@ impl ScrollPosition {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default)]
+pub enum PlatformScroll {
+    #[default]
+    Off,
+    Bare,
+    Bar,
+}
+
 impl Default for ScrollPosition {
     fn default() -> Self {
         Self::ZERO

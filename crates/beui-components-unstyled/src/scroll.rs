@@ -25,7 +25,8 @@ use beui_view::types::Sides;
 use beui_view::types::{
     AutoscrollGesture, CursorIcon, DragGesture, Key, KeyPress, PointerPress, ScrollGesture,
 };
-use beui_view::types::{Direction, ItemSize, Justify, ScrollPosition, Sizing};
+use beui_view::types::{Direction, ItemSize, Justify, PlatformScroll, ScrollPosition, Sizing};
+use beui_view::{CORE, Core};
 
 const STEP: f32 = 40.0;
 const AUTOSCROLL_GAIN: f32 = 6.0;
@@ -758,10 +759,27 @@ pub fn Scroll(
     on_change: Callback<ScrollPosition>,
     children: Children<ListChild>,
 ) -> NodeId {
+    let rows = NodeRef::new();
+    if CORE == Core::Html {
+        let scroll = browser_scroll(BrowserScroll {
+            api,
+            offset,
+            direction,
+            fit,
+            follow_end,
+            bleed,
+            focus_ring,
+            scrollbar,
+            on_change,
+            rows,
+            children,
+        });
+        reveal_row(reveal, rows);
+        return scroll;
+    }
     let fade = scrollbar.fade();
     let faded = create_signal(None::<ScrollPosition>);
     let edges = create_memo(move || fade_edges(direction.get(), faded.get(), fade));
-    let rows = NodeRef::new();
     let marker = marker.unwrap_or_else(|| {
         Render::new(|_| {
             view! {
@@ -798,6 +816,11 @@ pub fn Scroll(
             </Frame>
         </Scrolling>
     };
+    reveal_row(reveal, rows);
+    scroll
+}
+
+fn reveal_row(reveal: Prop<Option<usize>>, rows: NodeRef) {
     create_effect(move || {
         let Some(index) = reveal.get() else {
             return;
@@ -807,7 +830,98 @@ pub fn Scroll(
             row.reveal();
         }
     });
-    scroll
+}
+
+struct BrowserScroll {
+    api: ComponentRef<ScrollApi>,
+    offset: Prop<f32>,
+    direction: Prop<Direction>,
+    fit: bool,
+    follow_end: Prop<bool>,
+    bleed: Prop<Sides>,
+    focus_ring: Prop<Option<Outline>>,
+    scrollbar: ScrollbarStyle,
+    on_change: Callback<ScrollPosition>,
+    rows: NodeRef,
+    children: Children<ListChild>,
+}
+
+fn browser_scroll(scroll: BrowserScroll) -> NodeId {
+    let BrowserScroll {
+        api,
+        offset,
+        direction,
+        fit,
+        follow_end,
+        bleed,
+        focus_ring,
+        scrollbar,
+        on_change,
+        rows,
+        children,
+    } = scroll;
+    let reported = create_signal(None::<ScrollPosition>);
+    let fade = scrollbar.fade();
+    let edges = create_memo(move || fade_edges(direction.get(), reported.get(), fade));
+    let platform_scroll = match scrollbar.bar {
+        Some(_) => PlatformScroll::Bar,
+        None => PlatformScroll::Bare,
+    };
+    let content = view! {
+        <Offset
+            offset
+            direction={direction}
+            fit
+            follow_end
+            platform_scroll
+            on_change={move |position: ScrollPosition| {
+                reported.set(Some(position));
+                on_change.call(position);
+            }}
+        >
+            <Frame padding={bleed}>
+                <List @node_ref=&rows direction={direction} spacing=0.0>{children}</List>
+            </Frame>
+        </Offset>
+    };
+    let motion = store(Motion {
+        node: Some(content),
+        reported: reported.read_only(),
+        direction,
+        momentum: Watched::new(Momentum::new(), Momentum::coasting),
+        animation: Cell::default(),
+        autoscrolling: Cell::default(),
+        autoscrolled: Cell::new(now()),
+    });
+    api.fill(ScrollApi(motion));
+    component_accessibility(create_memo(move || {
+        scroll_view(reported.get(), direction.get())
+    }));
+    let overflows = create_memo(move || {
+        reported
+            .get()
+            .is_some_and(|position| position.max_offset() > 0.0)
+    });
+    let focused = create_signal(false);
+    let outset = create_memo(move || -bleed.get());
+    view! {
+        <Frame padding={outset}>
+            <Frame outline={ring_when(focused, focus_ring)}>
+                <List direction={direction} spacing=0.0>
+                    <Frame fade_edges={edges} @sizing={content_sizing(fit)}>
+                        <Interactive
+                            focusable=true
+                            tab_stop={overflows}
+                            yields_tab_stop=true
+                            on_focus_change={focused}
+                        >
+                            {content}
+                        </Interactive>
+                    </Frame>
+                </List>
+            </Frame>
+        </Frame>
+    }
 }
 
 fn content_sizing(fit: bool) -> Sizing {

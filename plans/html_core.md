@@ -67,13 +67,19 @@ end lists.
   `password` mode stays beui's own. A real password input, for
   password-manager autofill, is a follow-up switch in unstyled, like
   `Scroll`'s.
-- **The first version keeps owning scrolling.** `Scroll` stays in unstyled,
-  built on `Offset` and `Interactive`. The HTML core implements `Offset` as an
+- **The browser scrolls `Scroll` on HTML.** The first version kept owning
+  scrolling: `Scroll` stays in unstyled, built on `Offset` and
+  `Interactive`, and the HTML core implements `Offset` as an
   `overflow: hidden` element moved through `scrollTop` and `scrollLeft`, not
   a transform, so find-in-page, `scrollIntoView`, `#anchor` links and
-  `position: sticky` still work. A follow-up makes unstyled and styled switch
-  to a real `overflow: auto` scroller on the HTML core; that changes who
-  drives the scrolling, not the element tree, and is not a core change.
+  `position: sticky` still work. The follow-up switched unstyled's `Scroll`
+  (so styled's, which wraps it) to a real `overflow: auto` scroller on the
+  HTML core: compositor-thread scrolling, the browser's wheel, touch, keys and
+  scrollbar, none of beui's momentum, band, autoscroll or drawn bar. That
+  changed who drives the scrolling, not the core's scroller: it needed one
+  base prop, `Offset`'s `platform_scroll` (`PlatformScroll::Off`, `Bare`,
+  `Bar`), since only the core sets an element's CSS; the core's scroller
+  already adopted outside scrolls as the offset. Natively it changes nothing.
 - **Out of scope.** Plugin editors stay on canvas/wgpu on the web for now
   (they run in workers). Later, web plugins become iframes, which could run
   beui on the HTML core.
@@ -280,9 +286,9 @@ children.
   events.
 - **Scrolling is composed in unstyled.** `unstyled::Scroll` (904 lines) builds
   wheel, fling, overscroll and steering from `Offset` and `Interactive`. It has
-  55 users. The first version keeps it; the follow-up switch to the browser's
-  scroller (compositor-thread scrolling, `Sheet`'s stops as CSS scroll snap)
-  happens in unstyled and styled.
+  55 users. On HTML it now hands all of that to the browser's scroller
+  (compositor-thread scrolling) through `Offset`'s `platform_scroll`;
+  `Sheet` still drives its own offset there.
 - **No image primitive.** `Picture` (18 users) paints images through
   `Drawing`, and `ScrollbarThumb` paints a rounded rect through one. On HTML
   those would be `<canvas>`es for what `<img>` and a `Frame` do.
@@ -456,7 +462,7 @@ stylesheet are a later size optimisation.
 | `List`, `Spacer` | `div`, `display: flex` (or `flex-wrap`), `gap`, `align-items` incl. `baseline`, `justify-content`; a child's `@sizing` becomes `flex` on that child's element. `Spacer` is an empty `div` |
 | `Grid` / `GridCell` | `display: grid`, `grid-template-columns` from `Track`s (px, `max-content`, `fr`), `grid-column: span n` |
 | `Layers` / `Layer` | `display: grid`, each child at `grid-area: 1 / 1` |
-| `Offset` | `overflow: hidden; overflow-anchor: none`, moved by `scrollTop`/`scrollLeft`; anchoring, `follow_end` and `reveal` are beui's, computed from the measurement API as native does |
+| `Offset` | `overflow: hidden; overflow-anchor: none`, moved by `scrollTop`/`scrollLeft` (with `platform_scroll`, `overflow: auto` along its direction, scrolled by the browser too); anchoring, `follow_end` and `reveal` are beui's, computed from the measurement API as native does |
 | `VirtualList` | flow layout between two spacer `div`s; builds the rows that the parent `Offset`'s position reaches plus overscan; row sizes from `measure`, remembered per key; anchoring corrects the `Offset` in the same frame |
 | `Canvas` / `CanvasItem` | `position: relative; overflow: hidden`, an inner `div` with `transform: translate() scale()`, items `position: absolute`; `raster` is ignored, `on_reveal` is late |
 | `Text` | `div` with `white-space: pre-wrap`, `overflow-wrap: anywhere`, `line-clamp`/`text-overflow` from `Overflow`, `line-height`, `tab-size`; `hang` as negative `text-indent` with `padding-left`; `marks` as CSS Custom Highlights (one `Highlight` per mark colour, `::highlight(beN)` rules); `glyphs` as `span`s replacing their range; `carets` as absolutely placed `div`s at a `Range`'s rect |
@@ -738,7 +744,11 @@ have landed; its tasks run in parallel unless marked.
 - A `Drawing` with no `size` draws nothing in a server-rendered page, since
   the HTML core measures nothing there; so the scrollbar thumb and the colour
   picker's areas and sliders appear only once the page runs.
-- `Scroll` switching to a real `overflow: auto` scroller on the HTML core.
+- `Sheet`'s stops as CSS scroll snap: `Sheet` still drives its `Offset`
+  itself on HTML, as natively.
+- The browser's scrollbar on a styled `Scroll` is the browser's default look
+  (following `color-scheme`), not the theme's: `scrollbar-color` from the
+  theme, and `SCROLLBAR_WIDTH`, are not passed down.
 - `TreeNode`'s `row_offset`, `texts_within`, `set_text_selection` and
   `set_text_selection_handles` do nothing on HTML.
 - Props the HTML core ignores: `Interactive`'s `pastes`, `key_active`,

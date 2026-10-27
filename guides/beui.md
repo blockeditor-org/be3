@@ -684,7 +684,7 @@ What each primitive is on the HTML core (the bodies are in
 | `List`, `Spacer` | flexbox and a flex child; `@sizing` becomes flex grow, shrink and basis |
 | `Grid`, `Layers` | CSS grid; `Layers` stacks every child in one cell |
 | `Text` and its spans | a `div` of `span`s and text nodes with `white-space: pre-wrap`; `marks` are CSS Custom Highlights, `carets` positioned boxes, `glyphs` `::before` content, `Break` an `::after` newline no browser copies; a `TextItem` with `at` an absolutely placed box that a layout pass moves onto that index's caret |
-| `Offset` | an `overflow: hidden` element moved through `scrollTop`/`scrollLeft`, never a transform |
+| `Offset` | an `overflow: hidden` element moved through `scrollTop`/`scrollLeft`, never a transform; with `platform_scroll` an `overflow: auto` one along its direction, which the browser scrolls too (`Bare` hides its scrollbar with `scrollbar-width: none`) |
 | `VirtualList` | rows in flow between two spacer elements, measured by `ResizeObserver` |
 | `Canvas` | an inner element translated to the view, `--beui-scale` scaling items |
 | `Overlay` | a `<dialog>` (`showModal()` for one that blocks everything, else a manual popover) placed with CSS anchor positioning, a one-cell grid like `Frame` while open; `window` and `shown_in` are ignored |
@@ -1654,6 +1654,20 @@ focusable `Interactive` for the keys, the wheel and the drag, keeps the
 momentum an unfinished fling carries, and drives the offset from all three. So reach for `Offset` when something needs its
 content shifted under a viewport and nothing more, and for a `Scroll` whenever
 something needs to scroll.
+
+On the HTML core `unstyled::Scroll` leaves all of that to the browser
+(`if CORE == Core::Html` in scroll.rs): it sets the offset's
+`platform_scroll` (`PlatformScroll::Bar` when its `ScrollbarStyle` has a bar,
+`Bare` when not), so the element is a real `overflow: auto` scroller, scrolled
+on the compositor by the wheel, touch, the keys (from the scroller or anything
+focused in it) and the browser's own scrollbar, with no momentum, rubber band,
+autoscroll or drawn scrollbar of beui's. The focusable `Interactive` sits on
+the scroller itself, so it takes focus and keys as the browser expects. The
+offset adopts each browser scroll as its position and reports it, so
+`on_change`, `offset`, `follow_end`, `reveal`, anchoring, `fade_edges` and
+`ScrollApi::scroll_to_end` work as natively (`ScrollApi::animating` is always
+false there). `platform_scroll` changes nothing natively, where the platform has
+no scroller of its own. The sheet's offset is still beui's on both cores.
 
 A `Scroll`'s momentum is one motion across the edge, not a fling with a band
 laid over it. It keeps how far its content has gone past an end unbanded (the
@@ -5226,8 +5240,9 @@ primitive and turns props into inline CSS. Hooks follow the same pattern:
 `reactive` module. On the HTML core a container's own behaviour lives in a
 `beui-core-html` module its body hands the elements to: `scroll` (`Offset`:
 an `overflow: hidden` element moved through `scrollTop`/`scrollLeft`, never a
-transform, so the browser's own scrolls - find in page, `scrollIntoView`,
-focus - are adopted as the offset; it anchors on the first element under the
+transform, or `overflow: auto` with `platform_scroll`, so the browser's own
+scrolls - find in page, `scrollIntoView`, focus, and with `platform_scroll`
+the user's - are adopted as the offset; it anchors on the first element under the
 offset and corrects by its drift, snaps to the end, and reveals), `rows`
 (`VirtualList`'s window and row measurement; rows are flow between two
 `data-beui-spacer` elements that anchoring skips), `canvas` (an inner element
