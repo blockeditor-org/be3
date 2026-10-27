@@ -761,19 +761,22 @@ pub fn Scroll(
 ) -> NodeId {
     let rows = NodeRef::new();
     if CORE == Core::Html {
-        let scroll = browser_scroll(BrowserScroll {
-            api,
-            offset,
-            direction,
-            fit,
-            follow_end,
-            bleed,
-            focus_ring,
-            scrollbar,
-            on_change,
-            rows,
-            children,
-        });
+        let scroll = view! {
+            <BrowserScroll
+                api
+                offset
+                direction
+                fit
+                follow_end
+                bleed
+                focus_ring
+                scrollbar
+                on_change={on_change}
+                rows
+            >
+                {children}
+            </BrowserScroll>
+        };
         reveal_row(reveal, rows);
         return scroll;
     }
@@ -832,7 +835,8 @@ fn reveal_row(reveal: Prop<Option<usize>>, rows: NodeRef) {
     });
 }
 
-struct BrowserScroll {
+#[component]
+fn BrowserScroll(
     api: ComponentRef<ScrollApi>,
     offset: Prop<f32>,
     direction: Prop<Direction>,
@@ -844,22 +848,7 @@ struct BrowserScroll {
     on_change: Callback<ScrollPosition>,
     rows: NodeRef,
     children: Children<ListChild>,
-}
-
-fn browser_scroll(scroll: BrowserScroll) -> NodeId {
-    let BrowserScroll {
-        api,
-        offset,
-        direction,
-        fit,
-        follow_end,
-        bleed,
-        focus_ring,
-        scrollbar,
-        on_change,
-        rows,
-        children,
-    } = scroll;
+) -> NodeId {
     let reported = create_signal(None::<ScrollPosition>);
     let fade = scrollbar.fade();
     let edges = create_memo(move || fade_edges(direction.get(), reported.get(), fade));
