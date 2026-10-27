@@ -24,22 +24,52 @@ export function leadingOptions(args) {
     return { timeout, options, rest };
 }
 
+// A line split into words as be-drive's `words` splits it: single quotes keep
+// everything to the next one, double quotes take backslash escapes, a
+// backslash outside quotes escapes the next character, and an unclosed quote
+// is an error.
 export function words(line) {
     const found = [];
-    const pattern = /'([^']*)'|"((?:\\.|[^"\\])*)"|(\S+)/g;
-    for (const match of line.matchAll(pattern)) {
-        found.push(match[1] ?? match[2]?.replace(/\\(.)/g, "$1") ?? match[3]);
+    let word = "";
+    let started = false;
+    const characters = [...line];
+    for (let at = 0; at < characters.length; at++) {
+        const character = characters[at];
+        if (character === "'" || character === '"') {
+            started = true;
+            for (at++; ; at++) {
+                if (at >= characters.length) throw new Error(`an unclosed quote in: ${line}`);
+                if (characters[at] === character) break;
+                if (character === '"' && characters[at] === "\\") at++;
+                word += characters[at] ?? "";
+            }
+        } else if (character === "\\") {
+            started = true;
+            at++;
+            word += characters[at] ?? "";
+        } else if (/\s/.test(character)) {
+            if (started) found.push(word);
+            word = "";
+            started = false;
+        } else {
+            started = true;
+            word += character;
+        }
     }
+    if (started) found.push(word);
     return found;
 }
 
-// The lines of a script, `drive -`'s input: each line's words, skipping blank
-// lines and # comments.
+// The lines of a script, `drive -`'s input, as be-drive's `commands` reads
+// them: each line's words, skipping blank lines and lines starting with #,
+// before their quotes are read.
 export function commands(text) {
     return text
         .split("\n")
-        .map((line) => ({ line: line.trim(), words: words(line) }))
-        .filter(({ words }) => words.length > 0 && !words[0].startsWith("#"));
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0 && !line.startsWith("#"))
+        .map((line) => ({ line, words: words(line) }))
+        .filter(({ words }) => words.length > 0);
 }
 
 const KEYS = {
@@ -67,6 +97,9 @@ const KEYS = {
     end: "End",
     pageup: "PageUp",
     pagedown: "PageDown",
+    plus: "Equal",
+    equal: "Equal",
+    minus: "Minus",
 };
 
 // A chord such as ctrl+z or shift+Tab, as Playwright's keyboard.press takes it.

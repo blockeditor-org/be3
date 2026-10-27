@@ -1,5 +1,7 @@
 mod driven;
 mod launch;
+#[cfg(test)]
+mod tests;
 
 use std::io::{BufReader, Write};
 use std::os::unix::net::UnixStream;
@@ -97,12 +99,8 @@ pub(crate) fn script(socket: &Path, options: &[String], timeout: Duration) -> Re
     let mut script = String::new();
     std::io::Read::read_to_string(&mut std::io::stdin(), &mut script)
         .map_err(|error| format!("could not read the commands: {error}"))?;
-    for line in script.lines() {
-        let words = words(line)?;
-        if words.is_empty() || words[0].starts_with('#') {
-            continue;
-        }
-        println!("> {}", line.trim());
+    for (line, words) in commands(&script)? {
+        println!("> {line}");
         command(
             socket,
             options.iter().cloned().chain(words).collect(),
@@ -248,6 +246,20 @@ fn exec(socket: &Path, arguments: &[String], timeout: Duration) -> Result<(), St
 
 fn quoted(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\\''"))
+}
+
+pub fn commands(script: &str) -> Result<Vec<(&str, Vec<String>)>, String> {
+    let mut found = Vec::new();
+    for line in script.lines().map(str::trim) {
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let words = words(line)?;
+        if !words.is_empty() {
+            found.push((line, words));
+        }
+    }
+    Ok(found)
 }
 
 fn words(line: &str) -> Result<Vec<String>, String> {

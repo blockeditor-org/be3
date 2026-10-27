@@ -313,7 +313,10 @@ so the app waits as it does in a window; time how long something takes to show w
 such as `drive hurry off; drive --no-settle click TARGET; time drive wait TEXT`.
 
 `drive -` reads commands from standard input, one a line, quoted as a shell would, prints each
-before its answer and stops at the first that fails:
+before its answer and stops at the first that fails. A line whose first character other than
+a space is `#` is a comment, skipped before its quotes are read, so an apostrophe in it is
+fine; `be_drive::commands` is that reading, and buck/app/drive-words.mjs reads scripts the
+same way for the browser:
 
     drive - <<'EOF'
     click "Add a root block"
