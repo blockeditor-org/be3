@@ -1,18 +1,19 @@
 use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
-use beui_core::base::TextAlign;
-use beui_core::font::Overflow;
-use beui_core::node::NodeId;
 use beui_macros::{component, view};
+use beui_view::reactive::NodeId;
+use beui_view::types::Overflow;
+use beui_view::types::TextAlign;
 
 use crate::list::List;
 use crate::select::Select;
 use crate::tokens::{Padding, Size, Space, Stroke};
-use beui_components_unstyled::{ChoiceOption, ChoiceOptionHandle};
-use beui_view::primitives::{FirstFit, Layers};
+use beui_components_unstyled::{ChoiceOption, ChoiceOptionHandle, FirstFit};
+use beui_view::primitives::Layers;
 use beui_view::reactive::*;
 
 use crate::text::{Text, TextColor};
 pub(super) use beui_components_unstyled::ChoiceKind as Kind;
+use beui_view::types::{Align, Direction, ItemSize};
 
 pub(crate) const OPTION_SPACING: Space = Space::Sm;
 const MARK_SPACING: Space = Space::Md;

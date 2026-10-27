@@ -8,6 +8,7 @@ use block_editor_beui::{HostDisplay, LayeredSettingsRow, RotationPicker};
 
 use super::modes::{Size, effective, mode_label, rate_label, rates, size_label, size_of, sizes};
 use super::ui::Settings;
+use beui::{Extent, ItemSize};
 
 #[component]
 pub(super) fn ScreenSection(

@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn the_window_sample_opens_a_window_of_its_own_where_a_host_opens_windows() {
     let (year, month, day) = TODAY;
-    let document = DemoApp::alone(Date::new(year, month, day), Page::Layering).document;
+    let document = alone_document(Date::new(year, month, day), Page::Layering);
     let mut test = DocumentTest::hosting_windows(document, WIDE);
     reveal(&mut test, "demo.window.trigger");
 

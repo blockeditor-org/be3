@@ -14,86 +14,7 @@ use crate::path::{FillRule, Path, PathPaint, PathStyle, Stroke};
 use crate::pixel_grid::PixelGrid;
 use crate::rich::{Piece, RichLayout, RichOptions, Shaper};
 
-#[derive(Clone, Copy, PartialEq, Debug, Default)]
-pub struct Corners {
-    pub top_left: f32,
-    pub top_right: f32,
-    pub bottom_right: f32,
-    pub bottom_left: f32,
-}
-
-impl Corners {
-    pub const ZERO: Corners = Corners::all(0.0);
-
-    pub const fn new(top_left: f32, top_right: f32, bottom_right: f32, bottom_left: f32) -> Self {
-        Self {
-            top_left,
-            top_right,
-            bottom_right,
-            bottom_left,
-        }
-    }
-
-    pub const fn all(radius: f32) -> Self {
-        Self::new(radius, radius, radius, radius)
-    }
-
-    pub const fn top(radius: f32) -> Self {
-        Self::new(radius, radius, 0.0, 0.0)
-    }
-
-    pub const fn bottom(radius: f32) -> Self {
-        Self::new(0.0, 0.0, radius, radius)
-    }
-
-    pub const fn left(radius: f32) -> Self {
-        Self::new(radius, 0.0, 0.0, radius)
-    }
-
-    pub const fn right(radius: f32) -> Self {
-        Self::new(0.0, radius, radius, 0.0)
-    }
-
-    pub fn fitted(self, rect: Rect) -> Self {
-        let limit = (rect.width().min(rect.height()) / 2.0).max(0.0);
-        Self::new(
-            self.top_left.min(limit),
-            self.top_right.min(limit),
-            self.bottom_right.min(limit),
-            self.bottom_left.min(limit),
-        )
-    }
-
-    pub fn to_array(self) -> [f32; 4] {
-        [
-            self.top_left,
-            self.top_right,
-            self.bottom_right,
-            self.bottom_left,
-        ]
-    }
-
-    pub fn largest(self) -> f32 {
-        self.to_array().into_iter().fold(0.0, f32::max)
-    }
-
-    pub fn scaled(self, scale: f32) -> Self {
-        let [top_left, top_right, bottom_right, bottom_left] =
-            self.to_array().map(|radius| radius * scale);
-        Self {
-            top_left,
-            top_right,
-            bottom_right,
-            bottom_left,
-        }
-    }
-}
-
-impl From<f32> for Corners {
-    fn from(radius: f32) -> Self {
-        Self::all(radius)
-    }
-}
+pub use beui_types::layout::Corners;
 
 #[derive(Clone, PartialEq)]
 pub enum Shape {
@@ -313,6 +234,23 @@ impl PainterState {
     }
 }
 
+thread_local! {
+    static COLORS: std::cell::RefCell<Option<(Rc<crate::color::ColorDefinitions>, crate::color::ColorScheme)>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+pub(crate) fn with_colors<R>(
+    definitions: Rc<crate::color::ColorDefinitions>,
+    scheme: crate::color::ColorScheme,
+    run: impl FnOnce() -> R,
+) -> R {
+    let held = COLORS.with(|colors| colors.replace(Some((definitions, scheme))));
+    let result = run();
+    COLORS.with(|colors| *colors.borrow_mut() = held);
+    result
+}
+
+#[derive(Clone)]
 pub struct Painter {
     context: Context,
     state: PainterState,
@@ -320,6 +258,16 @@ pub struct Painter {
 }
 
 impl Painter {
+    pub fn resolve_color(&self, color: crate::color::Color) -> Color32 {
+        if let Some(color) = color.as_literal() {
+            return color;
+        }
+        COLORS.with(|colors| match &*colors.borrow() {
+            Some((definitions, scheme)) => color.resolve_in(definitions, *scheme),
+            None => color.resolve(|_| None),
+        })
+    }
+
     pub fn new(context: Context, clip: Rect) -> Self {
         Self {
             context,
@@ -459,12 +407,8 @@ impl Painter {
     }
 
     pub fn rotated(&self, pivot: Pos2, angle: f32) -> Self {
-        let rotation = match angle == 0.0 {
-            true => Rotation::NONE,
-            false => Rotation::new(pivot, angle),
-        };
         self.with(PainterState {
-            rotation,
+            rotation: self.state.rotation.then(Rotation::new(pivot, angle)),
             ..self.state
         })
     }
@@ -494,7 +438,13 @@ impl Painter {
         RichLayout::new(pieces, options, &mut PainterShaper(self))
     }
 
-    pub fn rect_filled(&self, rect: Rect, corner_radius: impl Into<Corners>, color: Color32) {
+    pub fn rect_filled(
+        &self,
+        rect: Rect,
+        corner_radius: impl Into<Corners>,
+        color: impl Into<crate::color::Color>,
+    ) {
+        let color = self.resolve_color(color.into());
         if color.alpha() == 0 {
             return;
         }
@@ -513,8 +463,9 @@ impl Painter {
         rect: Rect,
         corner_radius: impl Into<Corners>,
         width: f32,
-        color: Color32,
+        color: impl Into<crate::color::Color>,
     ) {
+        let color = self.resolve_color(color.into());
         if color.alpha() == 0 || width <= 0.0 {
             return;
         }
@@ -528,7 +479,8 @@ impl Painter {
         });
     }
 
-    pub fn line(&self, from: Pos2, to: Pos2, width: f32, color: Color32) {
+    pub fn line(&self, from: Pos2, to: Pos2, width: f32, color: impl Into<crate::color::Color>) {
+        let color = self.resolve_color(color.into());
         if color.alpha() == 0 || width <= 0.0 {
             return;
         }
@@ -546,10 +498,11 @@ impl Painter {
         rect: Rect,
         source: Rect,
         image: &Image,
-        tint: Color32,
+        tint: impl Into<crate::color::Color>,
         corner_radius: f32,
         smooth: bool,
     ) {
+        let tint = self.resolve_color(tint.into());
         if tint.alpha() == 0 || !rect.is_positive() || image.width() == 0 || image.height() == 0 {
             return;
         }
@@ -588,15 +541,23 @@ impl Painter {
         });
     }
 
-    pub fn fill_path(&self, path: &Path, rule: FillRule, color: Color32) {
-        self.path(path, PathStyle::Fill(rule), color);
+    pub fn fill_path(&self, path: &Path, rule: FillRule, color: impl Into<crate::color::Color>) {
+        self.path(
+            path,
+            PathStyle::Fill(rule),
+            self.resolve_color(color.into()),
+        );
     }
 
-    pub fn stroke_path(&self, path: &Path, stroke: &Stroke, color: Color32) {
+    pub fn stroke_path(&self, path: &Path, stroke: &Stroke, color: impl Into<crate::color::Color>) {
         if stroke.width.is_nan() || stroke.width <= 0.0 {
             return;
         }
-        self.path(path, PathStyle::Stroke(stroke.clone()), color);
+        self.path(
+            path,
+            PathStyle::Stroke(stroke.clone()),
+            self.resolve_color(color.into()),
+        );
     }
 
     fn path(&self, path: &Path, style: PathStyle, color: Color32) {
@@ -638,7 +599,14 @@ impl Painter {
         });
     }
 
-    pub fn text(&self, origin: Pos2, text: impl Into<String>, font: FontId, color: Color32) {
+    pub fn text(
+        &self,
+        origin: Pos2,
+        text: impl Into<String>,
+        font: FontId,
+        color: impl Into<crate::color::Color>,
+    ) {
+        let color = self.resolve_color(color.into());
         let galley = self.layout(text, font, f32::INFINITY);
         self.galley(origin, galley, color);
     }

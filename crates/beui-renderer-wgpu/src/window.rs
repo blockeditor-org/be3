@@ -33,10 +33,6 @@ impl WindowSurface {
 }
 
 impl Renderer for WindowSurface {
-    fn name(&self) -> &'static str {
-        "wgpu"
-    }
-
     fn info(&self) -> RendererInfo {
         self.gpu.info()
     }

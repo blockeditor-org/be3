@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use accesskit::{Node as AccessNode, NodeId as AccessNodeId, TreeUpdate};
 
 use super::*;
-use crate::accessibility::{AccessibilityTree, WINDOW_NODE};
+use crate::native::accessibility::{AccessibilityTree, WINDOW_NODE};
 use crate::primitives::*;
 use crate::reactive::*;
 

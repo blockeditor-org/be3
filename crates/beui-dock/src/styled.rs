@@ -1,5 +1,5 @@
-use beui_core::font::Overflow;
-use beui_core::icons::Glyph;
+use beui_view::types::Overflow;
+use beui_view::types::icons::Glyph;
 mod stack;
 mod switch;
 
@@ -27,16 +27,19 @@ use beui_components_styled::theme::{NARROW_WIDTH, POINTER_REACH, use_theme};
 use beui_components_styled::tokens::{Padding, Size, Space, Stroke};
 use beui_components_styled::tooltip::Tooltip;
 use beui_components_unstyled::Picture;
-use beui_core::base::frame::Align2;
-use beui_core::base::{Align, Direction, ItemSize, Justify};
+use beui_view::types::Align2;
+use beui_view::types::{Align, Direction, ItemSize, Justify};
 
-use beui_core::font::TextAlign;
-use beui_core::icons::{ICON_APP_WINDOW, ICON_GRIP_VERTICAL, ICON_MAXIMIZE, ICON_MINIMIZE, ICON_X};
-use beui_core::image::Image;
-use beui_core::input::Modifiers;
-use beui_core::node::NodeId;
-use beui_view::primitives::{Fade, Layers};
+use beui_view::primitives::Layers;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::Image;
+use beui_view::types::Modifiers;
+use beui_view::types::Sides;
+use beui_view::types::TextAlign;
+use beui_view::types::icons::{
+    ICON_APP_WINDOW, ICON_GRIP_VERTICAL, ICON_MAXIMIZE, ICON_MINIMIZE, ICON_X,
+};
 use stack::{DockStackBar, DockSwitcher};
 use switch::DockSwitchPanel;
 
@@ -60,10 +63,10 @@ const DROP_MARKER: Stroke = Stroke::Focus;
 const SPLITTER_REACH: f32 = 3.0;
 const SPLITTER_HELD: f32 = 3.0;
 const GROUP_GLYPH: Size = Size::Xs;
-pub const WINDOW_CHROME: beui_core::geometry::Vec2 =
-    beui_core::geometry::Vec2::new(2.0 * CHROME_BORDER, BAR_HEIGHT + 2.0 * CHROME_BORDER + RULE);
-const DIALOG_CHROME: beui_core::geometry::Vec2 =
-    beui_core::geometry::Vec2::new(2.0 * CHROME_BORDER, TAB_HEIGHT.px() + 2.0 * CHROME_BORDER);
+pub const WINDOW_CHROME: beui_view::types::Vec2 =
+    beui_view::types::Vec2::new(2.0 * CHROME_BORDER, BAR_HEIGHT + 2.0 * CHROME_BORDER + RULE);
+const DIALOG_CHROME: beui_view::types::Vec2 =
+    beui_view::types::Vec2::new(2.0 * CHROME_BORDER, TAB_HEIGHT.px() + 2.0 * CHROME_BORDER);
 const DROP_OPACITY: f32 = 0.25;
 const AWAY_SPACING: Space = Space::Lg;
 const AWAY_PADDING: Space = Space::Xl3;
@@ -133,6 +136,7 @@ where
             dialog_scrim={dialog_scrim}
             dialog_margin=CARD_MARGIN
             dialog_gap=CARD_GAP
+            dialog_beak=POINTER_REACH
             dialog_outset=DIALOG_CHROME
             tab={move |handle: DockTabHandle| view! {
                 <DockTabFace handle />
@@ -522,7 +526,6 @@ fn DockCardFace(handle: DockDialogHandle) -> NodeId {
                 fill=ColorRole::SurfaceRaised
                 border={dialog_outline(focused, attention)}
                 radius=Radius::Lg
-                pointer=true
                 padding=CHROME_PADDING
             >
                 {body}
@@ -832,9 +835,7 @@ fn DockSplitterFace(handle: DockSplitterHandle) -> NodeId {
 fn DockDropHighlight() -> NodeId {
     view! {
         <Layers>
-            <Fade opacity=DROP_OPACITY>
-                <Frame fill=ColorRole::Accent radius=Radius::Md />
-            </Fade>
+            <Frame fill=ColorRole::Accent radius=Radius::Md opacity=DROP_OPACITY />
             <Frame @test_id={"dock.drop"} border={Border::FOCUS} radius=Radius::Md />
         </Layers>
     }
@@ -845,29 +846,28 @@ fn DockDragPreview(title: Prop<String>, icon: Memo<Option<Glyph>>, grouped: bool
     let pictured = create_memo(move || !grouped && icon.get().is_some());
     let pictured_color = TextColor::Default;
     view! {
-        <Fade opacity=PREVIEW_OPACITY>
-            <Frame
-                fill=ColorRole::SurfaceRaised
-                border={Border::FOCUS}
-                radius=TAB_RADIUS
-                height=TAB_HEIGHT
-                padding={Padding::horizontal(PREVIEW_PADDING)}
-            >
-                <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
-                    <Show condition={grouped}>
-                        <Text size=TextSize::Sm align=TextAlign::Center>
-                            <Icon glyph=ICON_APP_WINDOW />
-                        </Text>
-                    </Show>
-                    <Show condition={pictured}>
-                        <Text size=TextSize::Sm color={pictured_color} align=TextAlign::Center>
-                            <Icon glyph={icon} />
-                        </Text>
-                    </Show>
-                    <Text overflow=Overflow::Ellipsis>{title}</Text>
-                </List>
-            </Frame>
-        </Fade>
+        <Frame
+            opacity=PREVIEW_OPACITY
+            fill=ColorRole::SurfaceRaised
+            border={Border::FOCUS}
+            radius=TAB_RADIUS
+            height=TAB_HEIGHT
+            padding={Padding::horizontal(PREVIEW_PADDING)}
+        >
+            <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
+                <Show condition={grouped}>
+                    <Text size=TextSize::Sm align=TextAlign::Center>
+                        <Icon glyph=ICON_APP_WINDOW />
+                    </Text>
+                </Show>
+                <Show condition={pictured}>
+                    <Text size=TextSize::Sm color={pictured_color} align=TextAlign::Center>
+                        <Icon glyph={icon} />
+                    </Text>
+                </Show>
+                <Text overflow=Overflow::Ellipsis>{title}</Text>
+            </List>
+        </Frame>
     }
 }
 

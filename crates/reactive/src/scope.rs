@@ -179,6 +179,13 @@ impl Scope {
         }
     }
 
+    pub fn root() -> Self {
+        Self {
+            owner: open_owner(None),
+            gate: None,
+        }
+    }
+
     pub fn pausable(self) -> Self {
         self.gated(false)
     }

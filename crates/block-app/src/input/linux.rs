@@ -10,7 +10,7 @@ thread_local! {
     static CONTROL: RefCell<Option<InputControl>> = const { RefCell::new(None) };
 }
 
-pub(crate) fn start(setup: &beui::Setup) {
+pub(crate) fn start(setup: &beui::native::Setup) {
     let control = setup.get::<InputControl>().cloned();
     if let Some(control) = &control {
         control.on_devices(|devices| {

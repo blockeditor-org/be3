@@ -1,0 +1,18 @@
+# A tree selects a clicked row, walks its rows with the arrow keys and selects
+# on Enter, and folds a folder from its chevron and the arrow keys.
+clock stop
+wait 'value="Selected nothing rows 5"'
+click '#tree.lib.rs.row'
+wait 'value="Selected lib.rs rows 5"'
+key down
+wait 'TreeItem "main.rs" focused'
+key Enter
+wait 'value="Selected main.rs rows 5"'
+click '#tree.src.chevron'
+wait 'value="Selected main.rs rows 3"'
+gone '#tree.lib.rs.row'
+key right
+wait 'value="Selected main.rs rows 5"'
+wait '#tree.lib.rs.row'
+key left
+wait 'value="Selected main.rs rows 3"'

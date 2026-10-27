@@ -88,9 +88,9 @@ would make. Setting the same state on the EditorHost directly skips the protocol
 session overwrites what it owns - the chrome, the view, a drag - on the next frame.
 
 Both harnesses, BeuiTest here and DocumentTest (below), are driven and read through one
-trait, `beui::testing::Gui`, and paint through `block_ui_test::Snapshots`; a test imports
+trait, `beui::native::testing::Gui`, and paint through `block_ui_test::Snapshots`; a test imports
 both with `use block_ui_test::prelude::*;` (a beui or block-app test that runs a bare
-`Stepped` imports `beui::testing::Gui`). What a harness supplies is only what differs between
+`Stepped` imports `beui::native::testing::Gui`). What a harness supplies is only what differs between
 them: its document, its latest frame, and how a frame of input reaches the app; everything
 below is written once on the trait.
 
@@ -105,7 +105,7 @@ asks the latest frame: shown(), rect_of(), rects_of(), point_of(), test_ids(), a
 (the text under the node) and accessible_label() from the document; a harness has to have
 painted once before any of them, and before a gesture aims at a test id.
 
-The gestures are drive's, built by the same `beui::drive::gestures::Gestures`
+The gestures are drive's, built by the same `beui::native::drive::gestures::Gestures`
 (guides/running/drive.md), so a test presses, types and touches as drive and the app tests
 do: the pointer spends a frame arriving where a click, a press or a drag starts before it
 presses, a click or a key then arrives in one frame, a key carries the text it types and a
@@ -273,15 +273,6 @@ the runner's intake as a platform would, and its gestures, reading, settle() and
 snapshot() are the ones above. Its clock is a frame clock too. settle() never finishes on a
 page that animates forever, such as one showing a spinner.
 
-DocumentTest paints through the DOM renderer too: render_dom() starts feeding every frame
-to a `DomRenderer` over an in-memory DOM, and snapshot_dom(name) saves what it built as the
-browser painting `name.browser` (below). It first checks that the elements the renderer
-updated frame by frame are those it builds from the last frame alone, so a test that
-opens and closes something catches an element the DOM renderer lost or left behind. Its
-HTML names the page's fonts but carries none, so a preview draws text in the rasterizer's
-fonts and icons as stray letters. crates/beui-demo's
-the_inspector_opens_and_closes_beside_the_demo_in_the_dom is one.
-
 A snapshot never holds the glyph atlases. Each glyph carries its own image - coverage, or
 colour for an emoji from a colour font - keyed by what is in it, so where a glyph happened
 to land in an atlas cannot reach the file: text an earlier frame drew - a temporary directory's name, a uuid, the time - repacks the atlases
@@ -307,9 +298,13 @@ The name ends in `.browser`, making `snapshots/<name>.browser.paint` a text file
 It contains the viewport, the complete SSR document and every embedded resource, with
 DOM tokens and resource lines on separate JSON lines for readable Git diffs. Tokens
 are concatenated without adding whitespace, preserving the exact rendered document.
-Binary resources such as images and fonts can be supplied through the same `file` method.
+Binary resources such as images can be supplied through the same `file` method.
 Resources use absolute paths or full URLs; the document is served at
-`https://snapshot.invalid/`. Include resources referenced by CSS or scripts as well.
+`https://snapshot.invalid/`. Include resources referenced by CSS or scripts as well,
+except beui's bundled fonts: the rasterizer serves each file in `beui_fonts::FACES`
+(`/Inter-Regular.ttf`, `/lucide.ttf`, ...) at the origin's root unless the painting embeds
+that path, so a page on beui's HTML core whose `<style>` is `beui::html::stylesheet()`
+draws its text and icons without copying the fonts into every painting.
 Keep dynamic ids, form tokens and displayed times fixed in fixtures.
 Native test crates opt into acceptance and cleanup with `cargo_test(paints = True)` in
 BUCK. The portal's tests in `crates/be-server/src/portal/tests/` demonstrate this.
@@ -450,3 +445,45 @@ which close() checks, so a test that ends without calling it fails too.
 
   ./scripts/test //crates/app-tests:test
   ./scripts/test //crates/app-tests:test --update
+
+7. Testing both of beui's cores
+
+beui has two cores (plans/html_core.md): the native one, which lays out and paints itself, and
+the HTML one, whose primitives are DOM elements the browser lays out. crates/beui-shared-tests
+holds what must behave the same on both: screens, each a `#[component]` in src/lib.rs that
+`Fixture` picks by name, built from primitives the HTML core has, and a script per screen,
+src/drive/NAME.drive, `drive -` input that drives the screen of its file name. A script uses
+only the commands both cores answer: `settle`, `pause`, `clock stop|run`, `tree`, `ids`,
+`find`, `wait`, `gone`, `click` (also `double`, `right`, `middle`), `move`, `down`/`up` (with a
+button, to check what a gesture does while held), `drag` (with a button too), `wheel`, `type`
+and `key`. It asserts with `wait` and `gone`, and names
+what it waits for by test id or by text the screen writes itself, never by coordinates, since
+text metrics differ: to check a layout, `measure` the nodes and print the sizes and offsets in a
+`Text` (`wait 'Inner 50x20 at 140,50'`). A point a fixed distance into a node is `#TEST_ID+X,Y`,
+from its top left, as in `drag '#fields.seats+10,10' '#fields.seats+16,10'`. Stop the clock
+(`clock stop`) and move it with `pause` to cross a timeout, such as a toast's expiry.
+
+- Natively, `./scripts/test //crates/beui-shared-tests:test` runs each script against the
+  crate's `:bin` under `be_drive::Driven` with no GPU, once as it is and once with every
+  measurement a frame late (`--delay-measurement`, as `BEUI_DELAY_MEASUREMENT=1`), so a screen
+  that only works when measurement is synchronous fails. A test per script is in src/tests/.
+- In a browser, `./scripts/test //crates/beui-shared-tests:web-test [NAME]` serves `:web`, the
+  screens built for `wasi_html`, and runs every script in Chromium through Playwright
+  (buck/app/web-test.mjs, `web_drive_test` in buck/app/drive.bzl). The page answers the reading
+  commands through beui-core-html's `automate` (its tree is in native's line format, from the
+  core's nodes and `getBoundingClientRect`); `click`, `move`, `down`, `up`, `drag`, `wheel` (a tick is a line, 40 pixels), `type` and `key` are real Playwright input
+  at the place `find` answers, so the browser's own focus, key and IME paths run. It also runs
+  `checks()`, the live DOM backend's checks in src/web/live.rs (mounting, hydration, listeners),
+  failing on any line that is not `ok`. It runs on this machine, not a worker, which have no
+  browser: `BE3_CHROME` when set, else Playwright's Chromium, through Node's `playwright`
+  package (installed globally, or from buck/app/browser-tests' lockfile with `npm ci` and
+  `NODE_PATH` pointing at its node_modules, as CI does); without them it fails rather than skipping.
+  ./scripts/verify runs it too, as `:web-test-run`.
+- To see a screen: `./scripts/buck run //crates/beui-shared-tests:dev -- NAME` and `drive`
+  natively; in a browser, serve the `:web` bundle with any server that sends
+  Cross-Origin-Opener-Policy `same-origin` and Cross-Origin-Embedder-Policy `require-corp` and
+  open `index.html?fixture=NAME`.
+- To cover a component on both cores: add a `#[component]` screen to src/lib.rs, a branch for its
+  name in `Fixture`, the script src/drive/NAME.drive, and
+  src/tests/NAME.rs calling `drive("NAME", include_str!("../drive/NAME.drive"))`. The web test
+  picks up the script by itself.

@@ -19,7 +19,7 @@ fn a_frame_rounds_each_corner_on_its_own() {
         .shapes()
         .iter()
         .find_map(|shape| match shape {
-            crate::Shape::Rect {
+            crate::native::Shape::Rect {
                 color,
                 corner_radius,
                 ..

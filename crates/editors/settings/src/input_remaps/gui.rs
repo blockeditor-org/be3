@@ -5,6 +5,7 @@ use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{ItemSize, NodeId};
 
 use super::ui::Shared;
+use beui::Extent;
 
 const ROW_SPACING: Space = Space::Md;
 const MS_WIDTH: f32 = 96.0;

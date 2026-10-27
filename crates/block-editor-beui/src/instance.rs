@@ -4,9 +4,10 @@ use std::cell::{Cell, RefCell};
 use std::marker::PhantomData;
 use std::rc::Rc;
 
+use beui::WindowId;
+use beui::native::Document;
 use beui::reactive::RenderFn;
 use beui::styled::WindowHandle;
-use beui::{Document, WindowId};
 use beui_platform_plugin::{Report, View};
 use block_editor_plugin::{Artifact, EditorHost, EditorInstanceId, EditorRegion, Instance};
 use uuid::Uuid;
@@ -237,7 +238,7 @@ fn steer(document: &mut Document, control: Option<DialogControl>, host: &EditorH
         return;
     };
     let dismissed = host.take_dismiss_request();
-    beui::reactive::with_reactive_scope(document, || {
+    beui::native::with_reactive_scope(document, || {
         control.frame(view.spec.dialog);
         if dismissed {
             control.dismiss();
@@ -247,7 +248,7 @@ fn steer(document: &mut Document, control: Option<DialogControl>, host: &EditorH
 
 fn measured(
     document: &mut Document,
-    context: &beui::Context,
+    context: &beui::native::Context,
     node: Option<beui::NodeId>,
     width: f32,
 ) -> Option<beui::Rect> {
@@ -291,7 +292,7 @@ impl<A: BeuiApp> Shown for Parts<A> {
         Self::window_report(size, document, window)
     }
 
-    fn before(&self, view: &View, context: &beui::Context, document: &mut Document) {
+    fn before(&self, view: &View, context: &beui::native::Context, document: &mut Document) {
         self.scale.set(BeuiScale {
             ratio: view.ratio,
             pixels_per_point: context.pixels_per_point(),
@@ -315,7 +316,7 @@ impl<A: BeuiApp> Shown for Parts<A> {
                 let picks = self.host.take_menu_picks();
                 if !picks.is_empty() {
                     let menu = views.chrome.menu();
-                    beui::reactive::with_reactive_scope(document, || {
+                    beui::native::with_reactive_scope(document, || {
                         for id in &picks {
                             beui_frame::run_menu_pick(&menu, id);
                         }
@@ -335,7 +336,7 @@ impl<A: BeuiApp> Shown for Parts<A> {
                 if let (Some(artifacts), Some(settings)) =
                     (views.artifacts.as_ref(), self.host.settings_draft())
                 {
-                    beui::reactive::with_reactive_scope(document, || {
+                    beui::native::with_reactive_scope(document, || {
                         artifacts.receive_settings(&settings.saved, &settings.draft);
                     });
                 }
@@ -347,7 +348,7 @@ impl<A: BeuiApp> Shown for Parts<A> {
     fn after(
         &self,
         view: &View,
-        context: &beui::Context,
+        context: &beui::native::Context,
         document: &mut Document,
         window: WindowId,
     ) -> Report {

@@ -12,6 +12,7 @@ use block_editor_beui::{
 };
 
 use super::remapper::RemapperSetting;
+use beui::{Extent, ItemSize};
 
 const VALUE_WIDTH: f32 = 64.0;
 

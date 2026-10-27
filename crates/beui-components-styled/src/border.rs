@@ -2,8 +2,9 @@ use crate::frame::{ColorRole, Frame};
 use beui_macros::{component, view};
 
 use crate::tokens::{Length, Size, Stroke};
-use beui_core::node::NodeId;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::Direction;
 
 fn measurement_along(
     axis: Direction,

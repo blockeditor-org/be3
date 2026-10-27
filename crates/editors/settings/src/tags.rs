@@ -1,3 +1,4 @@
+use beui::{Align, Direction};
 use block_editor_beui::be_block::{
     BlockContent, SettingsContent, TAGS_TYPE, Tag, TagColor, TagContent, TagsContent,
 };

@@ -2,7 +2,7 @@ use beui_macros::{component, view};
 
 use crate::choice::{Collapsing, Kind, OptionFace, Wide};
 use beui_components_unstyled::{Choice, ChoiceOption};
-use beui_core::node::NodeId;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
 #[component]

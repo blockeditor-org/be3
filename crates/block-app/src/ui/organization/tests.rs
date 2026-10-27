@@ -1,10 +1,10 @@
-use beui::WindowSize;
-use beui::testing::Gui;
-use beui::testing::{Showing, Stepped};
-use beui::{Context, FreetypeFonts, Rect, pos2, vec2};
+use beui::native::WindowSize;
+use beui::native::testing::{Gui, Showing, Stepped};
+use beui::{Rect, native::Context, native::FreetypeFonts, pos2, vec2};
 
 use super::*;
 use crate::ui::{AppView, UnsentRow, UnsentView};
+use beui::native::build;
 
 const SIZE: beui::Vec2 = vec2(720.0, 640.0);
 
@@ -67,12 +67,12 @@ impl Shown {
 
     fn painted(&mut self, name: &str) {
         let output = self.stepped.frame(Vec::new());
-        let painted = beui::painting::painting(
+        let painted = beui::native::painting::painting(
             output.main(),
             SIZE,
             1.0,
             output.main().window.appearance.clear_color,
-            beui::painting::Punches::Shown,
+            beui::native::painting::Punches::Shown,
         )
         .unwrap();
         let snapshot = paint_snapshot::Snapshot::of_painting(painted).unwrap();

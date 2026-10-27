@@ -4,7 +4,8 @@ use block_editor_beui::be_block::{
     DESKTOP_EDITOR, DisplaySettings, DisplaySettingsContent, Root, Settings, SettingsContent,
     SettingsProfile, SettingsProfileContent, VIEW_EDITOR, WORKSPACE_EDITOR,
 };
-use block_editor_beui::beui::{Document, Key, KeyChord, Modifiers, NodeId, Rect, Vec2};
+use block_editor_beui::beui::native::Document;
+use block_editor_beui::beui::{Key, KeyChord, Modifiers, NodeId, Rect, Vec2};
 use block_editor_beui::{
     AudioOutput, BlockInfo, BlockParent, ChildContent, DisplaysWatch, EditorHost, EpaperWatch,
     HostDisplay, HostImage, HostProgram, HostWindow, HostWindowId, IncomingNotification,

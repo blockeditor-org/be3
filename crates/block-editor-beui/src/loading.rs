@@ -3,6 +3,7 @@ use std::time::Duration;
 use beui::NodeId;
 use beui::reactive::*;
 use beui::styled::*;
+use beui::{Align, ItemSize};
 
 const GRACE: Duration = Duration::from_millis(300);
 

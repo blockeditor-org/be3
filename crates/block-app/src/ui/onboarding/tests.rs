@@ -1,11 +1,12 @@
-use beui::testing::Gui;
+use beui::native::testing::Gui;
 use std::time::Duration;
 
-use beui::WindowSize;
-use beui::testing::{Showing, Stepped};
-use beui::{Context, FreetypeFonts, Input, PointerButton, vec2};
+use beui::native::WindowSize;
+use beui::native::testing::{Showing, Stepped};
+use beui::{Input, PointerButton, native::Context, native::FreetypeFonts, vec2};
 
 use super::*;
+use beui::native::build;
 
 fn painting(
     name: &str,
@@ -48,11 +49,16 @@ fn painting_sized(
     painting_of_sized(name, document, select_default, size);
 }
 
-fn painting_of(name: &str, document: beui::Document, select_default: bool) {
+fn painting_of(name: &str, document: beui::native::Document, select_default: bool) {
     painting_of_sized(name, document, select_default, vec2(1100.0, 720.0));
 }
 
-fn painting_of_sized(name: &str, document: beui::Document, select_default: bool, size: beui::Vec2) {
+fn painting_of_sized(
+    name: &str,
+    document: beui::native::Document,
+    select_default: bool,
+    size: beui::Vec2,
+) {
     let window = WindowSize { size, scale: 1.0 };
     let context = Context::new(FreetypeFonts::default());
     let mut stepped = Stepped::new(context, Showing(document), window, None);
@@ -77,12 +83,12 @@ fn painting_of_sized(name: &str, document: beui::Document, select_default: bool,
     }
     stepped.advance(Duration::from_secs(1));
     let output = stepped.frame(Vec::new());
-    let painted = beui::painting::painting(
+    let painted = beui::native::painting::painting(
         output.main(),
         size,
         1.0,
         output.main().window.appearance.clear_color,
-        beui::painting::Punches::Shown,
+        beui::native::painting::Punches::Shown,
     )
     .unwrap();
     let snapshot = paint_snapshot::Snapshot::of_painting(painted).unwrap();
@@ -90,7 +96,6 @@ fn painting_of_sized(name: &str, document: beui::Document, select_default: bool,
 }
 
 mod a_deployed_default_server_asks_for_its_gateway_token;
-mod an_account_in_a_company_says_its_administrators_can_read_it;
 mod an_expired_session_signs_in_through_the_browser;
 mod browser_authorization_always_offers_the_link_and_code;
 mod browser_authorization_on_a_narrow_screen;

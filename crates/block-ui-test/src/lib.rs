@@ -1,6 +1,5 @@
 mod beui;
 mod document;
-mod dom;
 mod link;
 mod overflow;
 
@@ -17,5 +16,5 @@ pub use store::ContentStore;
 
 pub mod prelude {
     pub use crate::Snapshots;
-    pub use beui::testing::Gui;
+    pub use beui::native::testing::Gui;
 }

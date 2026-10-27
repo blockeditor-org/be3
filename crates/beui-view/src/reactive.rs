@@ -1,36 +1,43 @@
-use std::cell::Cell;
-use std::rc::Rc;
-
-pub use beui_core::base::frame::{Align2, Extent, Outline, Sides};
-pub use beui_core::base::{Align, Direction, ItemSize, Justify, Sizing, Track};
-pub use beui_core::painter::Corners;
-pub use beui_core::tree::{
-    BareChild, BuildsNode, FromPlaced, ListChild, ParentKind, Placed, WithSizing,
-    component_accessibility, component_placed, with_sizing,
-};
 pub use beui_tree::reactive::*;
 
-use beui_core::document::Document;
-use beui_core::geometry::{Rect, Vec2};
-use beui_core::input::Key;
-use beui_core::node::NodeId;
+use std::time::{Duration, Instant};
 
-pub use beui_core::animation::{
+use crate::core::reactive as core;
+use crate::types::{
+    BackGesture, Color, Direction, KeyPhase, KeyPress, Modifiers, Outline, Pos2, PreferenceLayer,
+    PreferenceLayers, PreferenceSource, Preferences, Vec2, WindowId,
+};
+
+pub use crate::actions::{
+    Action, ActionBuilder, ActionScope, Chord, MenuNode, Pin, Submenu, action_checked,
+    action_disabled, action_glyph, action_label, action_scope, action_tooltip, active_actions,
+    active_actions_from, add_to_menu, document_menu, menu_action, tidy_menu,
+};
+pub use crate::animation::{
     Animation, AnimationFrame, Easing, Fling, Motion, Spring, create_animation, motion, tween,
 };
-pub use beui_core::callback::NodeRef;
-pub use beui_core::timer::{Timer, create_timer, now, pin_wall_clock, wall_clock};
-
-pub use beui_core::current::enter;
-pub use beui_core::current::{try_with_document, with_document, with_reactive_scope};
+pub use crate::colors::{color_scheme, define_colors, resolve_color};
+pub use crate::component_ref::ComponentRef;
+pub use crate::file_picker::{FileFilter, FilePick, FilePicker, create_file_picker, pick_file};
+pub use crate::file_saver::{FileSave, SavedFile, save_file};
+pub use crate::measure::{
+    LineBox, Measured, TextGeometry, TextGeometrySignal, lay_out_text, measure, measure_text,
+};
+pub use crate::nodes::{Inspect, TreeNode};
+pub use crate::painter::{Draw, Painter, TextBlock};
+pub use crate::types::keys::{KeyAt, KeyEvent, KeyInput};
+pub use crate::types::layer::OverlayAnchor;
+pub use crate::types::node::{BuildsNode, ImeCursor, NodeId, NodeRef};
+pub use crate::types::tree::{
+    BareChild, FromPlaced, ListChild, ParentKind, Placed, WithSizing, with_sizing,
+    with_sizing as sizing,
+};
 
 pub type Child = NodeId;
 
 pub type Render<H = (), C = NodeId> = beui_tree::reactive::Render<H, C>;
 
 pub type RenderFn<H, C = NodeId> = beui_tree::reactive::RenderFn<H, C>;
-
-pub use beui_core::tree::with_sizing as sizing;
 
 #[diagnostic::on_unimplemented(
     message = "a `{Self}` is no node, so `@test_id` has nothing to name",
@@ -56,133 +63,134 @@ pub fn node_ref<T: BuildsNode>(built: T, reference: &NodeRef) -> T {
     built
 }
 
-pub fn build(f: impl FnOnce() -> crate::primitives::Root) -> Document {
-    let mut document = Document::new();
-    let root = enter(&mut document, f);
-    document.set_root(root.child());
-    document
+#[derive(Clone, Copy)]
+pub struct Timer(core::Timer);
+
+impl Timer {
+    pub fn start(&self, delay: Duration) {
+        self.0.start(delay);
+    }
+
+    pub fn restart(&self, delay: Duration) {
+        self.0.restart(delay);
+    }
+
+    pub fn stop(&self) {
+        self.0.stop();
+    }
+
+    pub fn running(&self) -> bool {
+        self.0.running()
+    }
 }
 
-pub fn node_rect(node: NodeId) -> ReadSignal<Rect> {
-    with_document(|document| document.watch_placement(node))
+pub fn create_timer(work: impl Fn() -> Option<Duration> + 'static) -> Timer {
+    Timer(core::create_timer(work))
 }
 
-pub fn text_bounds(node: NodeId) -> Option<ReadSignal<Rect>> {
-    with_document(|document| {
-        let text = document
-            .arena
-            .kind_of::<beui_core::base::text::TextNode>(node)?;
-        Some(document.watch_text_bounds(text))
-    })
+pub fn now() -> Instant {
+    core::now()
 }
 
-pub fn node_placed(node: NodeId) -> ReadSignal<bool> {
-    with_document(|document| document.watch_placed(node))
+pub fn wall_clock() -> Duration {
+    core::wall_clock()
 }
 
-pub fn layout_text(
-    text: &str,
-    font: beui_core::font::FontId,
-    layout: beui_core::font::TextLayout,
-) -> Option<beui_core::font::Galley> {
-    try_with_document(|document| document.layout_text(text, font, layout)).flatten()
+pub fn pin_wall_clock(at: Option<(Instant, Duration)>) {
+    core::pin_wall_clock(at);
 }
 
-pub fn rich_layout(
-    pieces: &[beui_core::rich::Piece],
-    options: beui_core::rich::RichOptions,
-) -> Option<beui_core::rich::RichLayout> {
-    try_with_document(|document| document.rich_layout(pieces, options)).flatten()
+pub fn after_input(after: impl FnOnce() + 'static) {
+    core::after_input(after);
+}
+
+pub fn component_node() -> NodeRef {
+    crate::core::tree::component_node()
+}
+
+pub fn component_placed() -> ReadSignal<bool> {
+    crate::core::tree::component_placed()
+}
+
+pub fn component_accessibility(node: impl IntoProp<accesskit::Node>) {
+    crate::core::tree::component_accessibility(node);
+}
+
+pub fn bind(node: NodeId, effect: impl FnMut() + 'static) {
+    core::bind(node, effect);
+}
+
+pub fn bind_test_id(node: NodeId, test_id: Prop<String>) {
+    core::bind_test_id(node, test_id);
+}
+
+pub fn tree_local<T: Clone + 'static>(make: impl FnOnce() -> T) -> T {
+    core::tree_local(make)
 }
 
 pub fn copy_text(text: impl Into<String>) {
-    let text = text.into();
-    with_document(|document| document.copy_text(text));
+    core::copy_text(text.into());
 }
 
 pub fn copy_image(png: Vec<u8>) {
-    with_document(|document| document.copy_image(png));
+    core::copy_image(png);
 }
-
-pub use beui_core::clipboard::{PasteKind, Pasted};
 
 pub fn request_paste() {
-    with_document(Document::request_paste);
+    core::request_paste();
 }
 
-pub fn type_events(events: Vec<beui_core::input::Input>) {
-    with_document(|document| {
-        if let Some(context) = document.context() {
-            context.type_events(events);
-        }
-    });
+pub fn type_events(events: Vec<crate::types::Input>) {
+    core::type_events(events);
 }
 
 pub fn request_typed_paste() {
-    with_document(|document| {
-        if let Some(context) = document.context() {
-            context.request_typed_paste();
-        }
-    });
+    core::request_typed_paste();
 }
 
 pub fn toggle_keyboard() {
-    with_document(|document| {
-        if let Some(context) = document.context() {
-            context.toggle_keyboard();
-        }
-    });
+    core::toggle_keyboard();
 }
 
 pub fn close_keyboard() {
-    with_document(|document| {
-        if let Some(context) = document.context() {
-            context.close_keyboard();
-        }
-    });
+    core::close_keyboard();
 }
 
-pub fn pixels_per_point() -> ReadSignal<f32> {
-    with_document(|document| document.watch_pixels_per_point())
+pub fn window_of(node: NodeId) -> WindowId {
+    core::window_of(node)
 }
 
-pub fn use_viewport_size() -> ReadSignal<Vec2> {
-    with_document(|document| document.watch_viewport_size())
+pub fn stacked_at(nodes: &[NodeId], window: WindowId, pos: Pos2) -> Vec<NodeId> {
+    core::stacked_at(nodes, window, pos)
 }
 
-pub fn use_fullscreen() -> ReadSignal<bool> {
-    with_document(|document| document.watch_fullscreen())
+pub fn focused_node() -> Option<NodeId> {
+    core::focused_node()
 }
 
-pub fn touched_by_finger() -> bool {
-    try_with_document(|document| document.touched_by_finger()).unwrap_or(false)
+pub fn set_focus(node: Option<NodeId>) {
+    core::set_focus(node);
 }
 
-pub fn use_keyboard() -> ReadSignal<bool> {
-    with_document(|document| document.watch_keyboard())
+pub fn focus_ancestry() -> Vec<NodeId> {
+    core::focus_ancestry()
+}
+
+pub fn focus_takes_text() -> bool {
+    core::focus_takes_text()
 }
 
 pub fn focus_ring(focused: impl IntoProp<bool>) -> Memo<bool> {
-    let focused = focused.into_prop();
-    let visible = with_document(|document| document.watch_focus_visible());
-    let keyboard = with_document(|document| document.watch_keyboard());
-    create_memo(move || focused.get() && visible.get() && keyboard.get())
+    core::focus_ring(focused.into_prop())
 }
 
 pub fn holds_focus(node: NodeRef) -> Memo<bool> {
-    let focused = with_document(|document| document.watch_focused());
-    create_memo(move || {
-        focused.get().is_some()
-            && with_document(|document| {
-                node.try_get()
-                    .is_some_and(|node| document.focus_is_within(node))
-            })
-    })
+    core::holds_focus(node)
 }
 
 pub fn focus_outline(
     focused: impl IntoProp<bool>,
-    color: impl IntoProp<beui_core::color::Color32>,
+    color: impl IntoProp<Color>,
     width: f32,
     offset: f32,
 ) -> Memo<Option<Outline>> {
@@ -194,170 +202,79 @@ pub fn focus_outline(
     })
 }
 
-pub fn on_key(
-    at: beui_core::keys::KeyAt,
-    phase: beui_core::keys::KeyPhase,
-    handler: impl Fn(beui_core::keys::KeyEvent) -> bool + 'static,
-) {
-    listen(at, phase, true, handler);
-}
-
-pub fn on_scroll_key(
-    at: beui_core::keys::KeyAt,
-    phase: beui_core::keys::KeyPhase,
-    handler: impl Fn(beui_core::keys::KeyEvent) -> bool + 'static,
-) {
-    listen(at, phase, false, handler);
-}
-
-fn listen(
-    at: beui_core::keys::KeyAt,
-    phase: beui_core::keys::KeyPhase,
-    reveal: bool,
-    handler: impl Fn(beui_core::keys::KeyEvent) -> bool + 'static,
-) {
-    let handler: Rc<beui_core::keys::KeyHandler> = Rc::new(handler);
-    let window = crate::components::window::use_window().map(|window| window.id);
-    with_document(|document| {
-        document.listen_keys(at, phase, reveal, Rc::downgrade(&handler), window)
-    });
-    on_cleanup(move || drop(handler));
-}
-
 pub fn arrow_focus(row: NodeRef, direction: Direction) {
-    let (back, forth) = match direction {
-        Direction::Horizontal => (Key::ArrowLeft, Key::ArrowRight),
-        Direction::Vertical => (Key::ArrowUp, Key::ArrowDown),
-    };
-    on_key(
-        beui_core::keys::KeyAt::Node(row),
-        beui_core::keys::KeyPhase::Bubble,
-        move |event| {
-            let Some(press) = event.press() else {
-                return false;
-            };
-            if press.modifiers.ctrl || press.modifiers.alt || press.modifiers.shift {
-                return false;
-            }
-            with_document(|document| {
-                let Some(row) = row.try_get() else {
-                    return false;
-                };
-                let stops = document.tab_stops_within(row);
-                let Some(at) = document
-                    .focused_node()
-                    .and_then(|focused| stops.iter().position(|stop| *stop == focused))
-                else {
-                    return false;
-                };
-                let to = match press.key {
-                    key if key == back => at.checked_sub(1),
-                    key if key == forth => Some(at + 1).filter(|to| *to < stops.len()),
-                    Key::Home => Some(0),
-                    Key::End => Some(stops.len() - 1),
-                    _ => None,
-                };
-                let Some(to) = to else {
-                    return false;
-                };
-                if press.pressed {
-                    document.focus_focusable(stops[to]);
-                }
-                true
-            })
-        },
-    );
+    core::arrow_focus(row, direction);
 }
 
-pub fn on_shortcut(shortcut: impl Fn(beui_core::input::KeyPress) -> bool + 'static) {
-    let at = match beui_tree::reactive::try_current_component() {
-        Some(_) => beui_core::keys::KeyAt::Node(beui_core::tree::component_node()),
-        None => beui_core::keys::KeyAt::Root,
+pub fn held_modifiers() -> ReadSignal<Modifiers> {
+    core::held_modifiers()
+}
+
+pub fn on_key(at: KeyAt, phase: KeyPhase, handler: impl Fn(KeyEvent) -> bool + 'static) {
+    core::on_key(at, phase, handler);
+}
+
+pub fn on_scroll_key(at: KeyAt, phase: KeyPhase, handler: impl Fn(KeyEvent) -> bool + 'static) {
+    core::on_scroll_key(at, phase, handler);
+}
+
+pub fn on_shortcut(shortcut: impl Fn(KeyPress) -> bool + 'static) {
+    let at = match try_current_component() {
+        Some(_) => KeyAt::Node(component_node()),
+        None => KeyAt::Root,
     };
-    on_key(
-        at,
-        beui_core::keys::KeyPhase::Capture,
-        move |event| match (event.press(), event.phase) {
-            (Some(press), beui_core::keys::KeyPhase::Capture) => shortcut(press),
+    on_key(at, KeyPhase::Capture, move |event| {
+        match (event.press(), event.phase) {
+            (Some(press), KeyPhase::Capture) => shortcut(press),
             _ => false,
-        },
-    );
+        }
+    });
 }
 
-pub fn on_global_key(handler: impl Fn(beui_core::keys::KeyEvent) -> bool + 'static) {
-    on_key(
-        beui_core::keys::KeyAt::Window,
-        beui_core::keys::KeyPhase::Capture,
-        handler,
-    );
+pub fn on_global_key(handler: impl Fn(KeyEvent) -> bool + 'static) {
+    on_key(KeyAt::Window, KeyPhase::Capture, handler);
 }
 
-pub fn held_modifiers() -> ReadSignal<beui_core::input::Modifiers> {
-    with_document(|document| document.watch_modifiers())
+pub fn on_back(enabled: impl IntoProp<bool>, handler: impl Fn(BackGesture) + 'static) {
+    core::on_back(enabled.into_prop(), handler);
 }
 
 pub fn on_finger_tap(tap: impl Fn(usize) -> bool + 'static) {
-    let tap: Rc<beui_core::document::FingerTap> = Rc::new(tap);
-    with_document(|document| document.register_finger_tap(Rc::downgrade(&tap)));
-    on_cleanup(move || drop(tap));
+    core::on_finger_tap(tap);
 }
 
-pub fn last_pointer() -> Option<beui_core::input::PointerSample> {
-    try_with_document(|document| document.last_pointer).flatten()
+pub fn touched_by_finger() -> bool {
+    core::touched_by_finger()
 }
 
-pub fn focus_takes_text() -> bool {
-    with_document(|document| document.focus_takes_text())
+pub fn use_keyboard() -> ReadSignal<bool> {
+    core::use_keyboard()
 }
 
-pub fn bind(node: NodeId, effect: impl FnMut() + 'static) {
-    let owner = with_document(|document| document.arena.owner(node));
-    match owner.filter(ScopeContext::is_alive) {
-        Some(owner) => owner.run(|| create_effect(effect)),
-        None => create_effect(effect),
-    };
+pub fn use_fullscreen() -> ReadSignal<bool> {
+    core::use_fullscreen()
 }
 
-pub fn bind_test_id(node: NodeId, test_id: Prop<String>) {
-    let reading = match test_id {
-        Prop::Static(value) => {
-            with_document(|document| document.set_test_id(node, value));
-            return;
-        }
-        Prop::Dynamic(reading) => reading,
-    };
-    let published: Cell<Option<String>> = Cell::new(None);
-    bind(node, move || {
-        let next = reading.get();
-        let previous = published.replace(Some(next.clone()));
-        with_document(|document| {
-            if let Some(previous) = previous
-                && previous != next
-            {
-                document.clear_test_id(node, &previous);
-            }
-            document.set_test_id(node, next);
-        });
-    });
+pub fn pixels_per_point() -> ReadSignal<f32> {
+    core::pixels_per_point()
 }
 
-pub use crate::actions::{
-    Action, ActionBuilder, ActionScope, Chord, MenuNode, Pin, Submenu, action_checked,
-    action_disabled, action_glyph, action_label, action_scope, action_tooltip, active_actions,
-    active_actions_from, add_to_menu, document_menu, menu_action, tidy_menu,
-};
-pub use crate::component_ref::ComponentRef;
-pub use crate::file_picker::{
-    FileFilter, FilePick, FilePicker, PickedFile, create_file_picker, pick_file,
-};
-pub use crate::file_saver::{FileSave, SavedFile, save_file};
-pub use crate::nodes::*;
-pub use beui_core::base::canvas::CanvasView;
-pub use beui_core::base::drawing::{Draw, draw_gpu};
-pub use beui_core::base::embed::{EmbedPlacement, EmbedSlot};
-pub use beui_core::base::overlay::{OverlayAnchor, Placement};
-pub use beui_core::layer::{Dismiss, LayerLevel, LayerPolicy};
-pub use beui_core::rich::{
-    CaretHandle, Piece, RichLayout, SpanBackground, SpanKind, SpanStyle, TextCaret, TextGlyph,
-    TextMark,
-};
+pub fn use_viewport_size() -> ReadSignal<Vec2> {
+    core::use_viewport_size()
+}
+
+pub fn use_font_revision() -> ReadSignal<u64> {
+    core::use_font_revision()
+}
+
+pub fn use_preferences() -> Memo<Preferences> {
+    core::use_preferences()
+}
+
+pub fn use_preference_layers() -> Memo<PreferenceLayers> {
+    core::use_preference_layers()
+}
+
+pub fn use_preference_layer(source: PreferenceSource) -> Binding<PreferenceLayer> {
+    core::use_preference_layer(source)
+}

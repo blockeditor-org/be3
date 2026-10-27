@@ -1,18 +1,13 @@
 use std::any::Any;
 
-use crate::base::child_list::{ChildHost, ChildItem, ChildList, NodeChildren};
-use crate::base::share::{Part, share, snapped_run};
+use crate::child_list::{ChildHost, ChildItem, ChildList, NodeChildren};
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2, pos2, vec2};
+use crate::layout::share::{Part, share, snapped_run};
 use crate::node::{Element, NodeId, NodeOf, Rects};
 use crate::painter::Painter;
 
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub enum Track {
-    Fixed(f32),
-    Intrinsic,
-    Fraction(f32),
-}
+pub use beui_types::layout::Track;
 
 #[derive(Clone, Copy)]
 pub struct GridItem {
@@ -237,7 +232,7 @@ impl Element for GridNode {
     }
 
     fn remove_child(&mut self, child: NodeId) {
-        crate::base::child_list::remove_hosted(self, child);
+        crate::child_list::remove_hosted(self, child);
     }
 
     fn kind(&self) -> &'static str {

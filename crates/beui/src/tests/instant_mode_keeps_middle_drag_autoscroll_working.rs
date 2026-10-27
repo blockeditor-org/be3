@@ -43,7 +43,7 @@ fn instant_mode_keeps_middle_drag_autoscroll_working() {
     harness.middle_button(below, false);
     harness.frame(Vec::new());
 
-    assert!(harness.document().autoscroll.is_none());
+    assert!(harness.document().pointer_grabber().is_none());
     assert!(!harness.document().api::<ScrollApi>(scroll).animating());
     let offset = harness.document().scroll_offset(scroll);
     assert!(offset > 0.0, "the scroll stayed at {offset}");

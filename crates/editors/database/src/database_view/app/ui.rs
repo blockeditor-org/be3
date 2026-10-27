@@ -16,6 +16,7 @@ use crate::database_view::app::list::{ListView, RowBeside};
 use crate::database_view::app::scatter::Scatter;
 use crate::database_view::app::spreadsheet::Spreadsheet;
 use crate::database_view::sort::{ROW_HEADER_WIDTH, ROW_HEIGHT, column_name, column_width};
+use beui::{Align, Direction, ItemSize};
 
 const CELL_LABEL_WIDTH: f32 = 56.0;
 const CELL_EDITOR_HEIGHT: Size = Size::Xl;

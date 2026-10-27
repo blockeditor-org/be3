@@ -1,5 +1,5 @@
 use super::*;
-use crate::{PasteAnswer, PasteKind, Pasted};
+use crate::{PasteKind, Pasted, native::PasteAnswer};
 use beui_core::app::SafeArea;
 use beui_core::renderer::Loaded;
 use beui_core::runner::{Launch, PlatformServices, RunOptions, Runner};
@@ -71,10 +71,10 @@ fn the_runner_tells_the_platform_only_what_changed() {
         runner.frame(&mut platform, SafeArea::default()).is_none(),
         "nothing is drawn before the renderers are loaded"
     );
-    let loaded = vec![Loaded {
-        renderer: Box::new(crate::testing::Screen(vec2(200.0, 100.0))),
+    let loaded = Loaded {
+        renderer: Box::new(crate::native::testing::Screen(vec2(200.0, 100.0))),
         fonts: None,
-    }];
+    };
     runner
         .start(loaded, Setup::new(Waker::new(|| {})))
         .expect("the renderer loads");

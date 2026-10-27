@@ -252,7 +252,10 @@ pub trait Gui {
 
     fn drag(&mut self, from: impl Into<Target>, to: impl Into<Target>) {
         let at = locate(self, "drag", &[from.into(), to.into()], &[]);
-        let frames = self.driving_mut().gestures.drag(at[0], at[1], 2);
+        let frames = self
+            .driving_mut()
+            .gestures
+            .drag(at[0], at[1], 2, PointerButton::Primary);
         self.perform(frames);
     }
 

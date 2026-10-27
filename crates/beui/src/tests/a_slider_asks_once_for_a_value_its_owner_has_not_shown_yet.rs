@@ -1,7 +1,7 @@
 use super::*;
+use crate::native::testing::Showing;
 use crate::reactive::*;
 use crate::styled::*;
-use crate::testing::Showing;
 
 #[test]
 fn a_slider_asks_once_for_a_value_its_owner_has_not_shown_yet() {

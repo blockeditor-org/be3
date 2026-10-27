@@ -8,6 +8,7 @@ use block_editor_beui::{BlockParent, Editor, LayeredSettingsRow};
 use uuid::Uuid;
 
 use super::ui::Settings;
+use beui::{Extent, ItemSize};
 
 #[component]
 pub(super) fn RemapperSetting(editor: Editor, settings: Settings, read_only: Memo<bool>) -> NodeId {

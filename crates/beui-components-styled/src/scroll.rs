@@ -11,12 +11,13 @@ use crate::theme::{SCROLL_FADE, SCROLLBAR_WIDTH, use_theme};
 use crate::tokens::{Padding, Size, Space, Stroke, use_size};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ScrollHandle, ScrollbarStyle};
-use beui_core::base::{Align, Direction, ItemSize, ScrollPosition, Sides};
-use beui_core::font::TextAlign;
-use beui_core::icons::{ICON_MOVE_HORIZONTAL, ICON_MOVE_VERTICAL};
-use beui_core::node::NodeId;
 use beui_view::primitives::Spacer;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::Outline;
+use beui_view::types::TextAlign;
+use beui_view::types::icons::{ICON_MOVE_HORIZONTAL, ICON_MOVE_VERTICAL};
+use beui_view::types::{Align, Direction, ItemSize, ScrollPosition, Sides};
 
 const FOCUS_RING_WIDTH: Stroke = Stroke::Focus;
 const FOCUS_RING_OFFSET: Stroke = Stroke::Custom(-1.0);

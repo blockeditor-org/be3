@@ -3,7 +3,8 @@ use block_editor_beui::be_block::{
     DisplaySettings, DisplaySettingsContent, Root, Settings, SettingsContent, SettingsProfile,
     SettingsProfileContent, ThemeKind,
 };
-use block_editor_beui::beui::{Document, Key, Modifiers, NodeId, TurnNode, Vec2};
+use block_editor_beui::beui::native::Document;
+use block_editor_beui::beui::{Key, Modifiers, NodeId, Vec2};
 use block_editor_beui::{
     BlockInfo, BlockParent, DisplaysWatch, EditorHost, HostDisplay, OwnedEditor, PowerAvailability,
     PowerWatch,
@@ -228,16 +229,14 @@ fn tile(rotation: Rotation) -> String {
     format!("display.DP-1.rotation.{}", rotation.degrees())
 }
 
-fn turns_within(document: &Document, id: NodeId) -> Option<u8> {
-    if document.arena.contains(id)
-        && let Some(turn) = document.arena.get(id).as_any().downcast_ref::<TurnNode>()
-    {
-        return Some(turn.quarter_turns());
-    }
-    document
-        .children(id)
+fn turns_within(document: &Document, tile: &str) -> Option<u8> {
+    let screen = document.find_test_id(&format!("{tile}.screen"))?;
+    let (_, rotate) = document
+        .node_properties(screen)
         .into_iter()
-        .find_map(|child| turns_within(&document, child))
+        .find(|(name, _)| *name == "rotate")?;
+    let quarters = rotate.parse::<f32>().ok()? / std::f32::consts::FRAC_PI_2;
+    Some(quarters.round() as u8 % 4)
 }
 
 fn text_within(document: &Document, id: NodeId, words: &str) -> bool {

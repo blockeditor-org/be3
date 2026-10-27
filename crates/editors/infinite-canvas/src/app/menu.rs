@@ -8,6 +8,7 @@ use block_editor_beui::beui::styled::*;
 
 use super::actions::CanvasActions;
 use super::state::Tool;
+use beui::ItemSize;
 
 const TOOLS: [Tool; 11] = [
     Tool::Select,

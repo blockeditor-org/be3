@@ -9,6 +9,7 @@ use super::model::{
     SECONDS_PER_DAY, Shown, WEEKDAY_ABBR, assign_lanes, events_on, today_days_since_epoch,
     weekday_from_days,
 };
+use beui::{Direction, ItemSize};
 
 const HEADER_HEIGHT: Size = Size::Custom(22.0);
 const HOUR_HEIGHT: f32 = 40.0;
@@ -86,71 +87,75 @@ fn Grid(
     on_pick_slot: Callback<(i64, u8)>,
     on_pick_event: Callback<Shown>,
 ) -> NodeId {
-    view! {
-        <LayoutBuilder>|size: ReadSignal<Vec2>| {
-            let column_width = create_memo(move || {
-                ((size.get().x - GUTTER) / days as f32).max(MIN_COLUMN_WIDTH)
-            });
-            let hours = create_memo(|| (0..=24u8).collect::<Vec<u8>>());
-            let rules = create_memo(move || (0..=days).collect::<Vec<usize>>());
-            let placed = placements(first_day, days, events, column_width);
-            let keys = create_memo(move || {
-                placed.with(|placed| placed.iter().map(|item| item.key).collect::<Vec<_>>())
-            });
-            let slot = move |at: block_editor_beui::beui::Pos2| {
-                let x = at.x - GUTTER;
-                if x < 0.0 {
-                    return;
-                }
-                let column = (x / column_width.get_untracked()).floor() as i64;
-                let hour = (at.y / HOUR_HEIGHT).floor().clamp(0.0, 23.0) as u8;
-                let day = first_day.get_untracked() + column.min(days as i64 - 1);
-                on_pick_slot.call((day, hour));
-            };
-            view! {
-                <Frame height={Size::Custom(CONTENT_HEIGHT)}>
-                    <Interactive on_click_at={move |press: PointerPress| slot(press.local)}>
-                        <Canvas>
-                            <ForEach keys={hours}>|hour: u8| {
-                                let top = f32::from(hour) * HOUR_HEIGHT;
-                                view! {
-                                    <CanvasItem x=0.0 y={top} width=10000.0 height=RULE>
-                                        <Frame fill=ColorRole::Border />
-                                    </CanvasItem>
-                                }
-                            }</ForEach>
-                            <ForEach keys={hours}>|hour: u8| {
-                                let top = f32::from(hour) * HOUR_HEIGHT + 2.0;
-                                let label = match hour < 24 {
-                                    true => format!("{hour:02}:00"),
-                                    false => String::new(),
-                                };
-                                view! {
-                                    <CanvasItem x=4.0 y={top} width=GUTTER height=16.0>
-                                        <Text style=TextStyle::CAPTION>{label}</Text>
-                                    </CanvasItem>
-                                }
-                            }</ForEach>
-                            <ForEach keys={rules}>|index: usize| {
-                                let x = create_memo(move || GUTTER + index as f32 * column_width.get());
-                                view! {
-                                    <CanvasItem x={x} y=0.0 width=RULE height=CONTENT_HEIGHT>
-                                        <Frame fill=ColorRole::Border />
-                                    </CanvasItem>
-                                }
-                            }</ForEach>
-                            <ForEach keys={keys}>|key: (ObjectId, i64)| {
-                                let item = item_of(placed, key);
-                                view! {
-                                    <EventBlock item={item} on_pick={forward(on_pick_event)} />
-                                }
-                            }</ForEach>
-                        </Canvas>
-                    </Interactive>
-                </Frame>
-            }
-        }</LayoutBuilder>
-    }
+    let size_held = create_signal(Vec2::ZERO);
+    let size = size_held.read_only();
+    let column_width =
+        create_memo(move || ((size.get().x - GUTTER) / days as f32).max(MIN_COLUMN_WIDTH));
+    let hours = create_memo(|| (0..=24u8).collect::<Vec<u8>>());
+    let rules = create_memo(move || (0..=days).collect::<Vec<usize>>());
+    let placed = placements(first_day, days, events, column_width);
+    let keys = create_memo(move || {
+        placed.with(|placed| placed.iter().map(|item| item.key).collect::<Vec<_>>())
+    });
+    let slot = move |at: block_editor_beui::beui::Pos2| {
+        let x = at.x - GUTTER;
+        if x < 0.0 {
+            return;
+        }
+        let column = (x / column_width.get_untracked()).floor() as i64;
+        let hour = (at.y / HOUR_HEIGHT).floor().clamp(0.0, 23.0) as u8;
+        let day = first_day.get_untracked() + column.min(days as i64 - 1);
+        on_pick_slot.call((day, hour));
+    };
+    let built = view! {
+        <Frame height={Size::Custom(CONTENT_HEIGHT)}>
+            <Interactive on_click_at={move |press: PointerPress| slot(press.local)}>
+                <Canvas>
+                    <ForEach keys={hours}>|hour: u8| {
+                        let top = f32::from(hour) * HOUR_HEIGHT;
+                        view! {
+                            <CanvasItem x=0.0 y={top} width=10000.0 height=RULE>
+                                <Frame fill=ColorRole::Border />
+                            </CanvasItem>
+                        }
+                    }</ForEach>
+                    <ForEach keys={hours}>|hour: u8| {
+                        let top = f32::from(hour) * HOUR_HEIGHT + 2.0;
+                        let label = match hour < 24 {
+                            true => format!("{hour:02}:00"),
+                            false => String::new(),
+                        };
+                        view! {
+                            <CanvasItem x=4.0 y={top} width=GUTTER height=16.0>
+                                <Text style=TextStyle::CAPTION>{label}</Text>
+                            </CanvasItem>
+                        }
+                    }</ForEach>
+                    <ForEach keys={rules}>|index: usize| {
+                        let x = create_memo(move || GUTTER + index as f32 * column_width.get());
+                        view! {
+                            <CanvasItem x={x} y=0.0 width=RULE height=CONTENT_HEIGHT>
+                                <Frame fill=ColorRole::Border />
+                            </CanvasItem>
+                        }
+                    }</ForEach>
+                    <ForEach keys={keys}>|key: (ObjectId, i64)| {
+                        let item = item_of(placed, key);
+                        view! {
+                            <EventBlock item={item} on_pick={forward(on_pick_event)} />
+                        }
+                    }</ForEach>
+                </Canvas>
+            </Interactive>
+        </Frame>
+    };
+    let size_measured = measure(built);
+    create_effect(move || {
+        if let Some(measured) = size_measured.get() {
+            size_held.set(measured.size);
+        }
+    });
+    built
 }
 
 #[component]

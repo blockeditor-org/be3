@@ -1,157 +1,15 @@
 use std::any::Any;
 
-use crate::geometry::{Rect, Vec2, pos2, vec2};
+use crate::geometry::{Rect, Vec2, pos2};
 use crate::painter::Painter;
 use crate::pixel_grid::PixelGrid;
 
-use crate::base::child_list::{ChildHost, ChildItem, ChildList, NodeChildren};
-use crate::base::share::{Part, share, snapped_run};
+use crate::child_list::{ChildHost, ChildItem, ChildList, NodeChildren};
 use crate::document::Document;
+use crate::layout::share::{Part, share, snapped_run};
 use crate::node::{Element, NodeId, NodeOf, Rects};
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Direction {
-    Horizontal,
-    Vertical,
-}
-
-impl Direction {
-    pub fn axes(self, main: f32, cross: f32) -> Vec2 {
-        match self {
-            Direction::Horizontal => vec2(main, cross),
-            Direction::Vertical => vec2(cross, main),
-        }
-    }
-
-    pub fn main(self, size: Vec2) -> f32 {
-        self.main_and_cross(size).0
-    }
-
-    pub fn main_and_cross(self, size: Vec2) -> (f32, f32) {
-        match self {
-            Direction::Horizontal => (size.x, size.y),
-            Direction::Vertical => (size.y, size.x),
-        }
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Align {
-    Start,
-    Center,
-    End,
-    Stretch,
-    Baseline,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
-pub enum Justify {
-    #[default]
-    Start,
-    Center,
-    End,
-    SpaceBetween,
-    SpaceAround,
-    SpaceEvenly,
-}
-
-#[derive(Clone, Copy, PartialEq, Debug, Default)]
-pub enum ItemSize {
-    #[default]
-    Intrinsic,
-    Fixed(f32),
-    Percent(f32),
-}
-
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub struct Sizing {
-    pub size: ItemSize,
-    pub min: f32,
-    pub max: f32,
-    pub shrink: f32,
-    pub align: Option<Align>,
-    pub gap: Option<f32>,
-}
-
-impl Default for Sizing {
-    fn default() -> Self {
-        Self {
-            size: ItemSize::Intrinsic,
-            min: 0.0,
-            max: f32::INFINITY,
-            shrink: 0.0,
-            align: None,
-            gap: None,
-        }
-    }
-}
-
-impl From<ItemSize> for Sizing {
-    fn from(size: ItemSize) -> Self {
-        Self {
-            size,
-            ..Self::default()
-        }
-    }
-}
-
-impl Sizing {
-    pub fn min(self, min: f32) -> Self {
-        Self { min, ..self }
-    }
-
-    pub fn max(self, max: f32) -> Self {
-        Self { max, ..self }
-    }
-
-    pub fn shrink(self, shrink: f32) -> Self {
-        Self { shrink, ..self }
-    }
-
-    pub fn align(self, align: Align) -> Self {
-        Self {
-            align: Some(align),
-            ..self
-        }
-    }
-
-    pub fn gap(self, gap: f32) -> Self {
-        Self {
-            gap: Some(gap),
-            ..self
-        }
-    }
-
-    fn clamp(self, length: f32) -> f32 {
-        length.min(self.max).max(self.min)
-    }
-
-    fn yields(self) -> bool {
-        matches!(self.size, ItemSize::Percent(_)) || self.shrink > 0.0
-    }
-}
-
-impl ItemSize {
-    pub fn min(self, min: f32) -> Sizing {
-        Sizing::from(self).min(min)
-    }
-
-    pub fn max(self, max: f32) -> Sizing {
-        Sizing::from(self).max(max)
-    }
-
-    pub fn shrink(self, shrink: f32) -> Sizing {
-        Sizing::from(self).shrink(shrink)
-    }
-
-    pub fn align(self, align: Align) -> Sizing {
-        Sizing::from(self).align(align)
-    }
-
-    pub fn gap(self, gap: f32) -> Sizing {
-        Sizing::from(self).gap(gap)
-    }
-}
+pub use beui_types::layout::{Align, Direction, ItemSize, Justify, Sizing};
 
 #[derive(Clone, Copy)]
 pub struct ListItem {
@@ -583,7 +441,7 @@ impl Element for ListNode {
     }
 
     fn remove_child(&mut self, child: NodeId) {
-        crate::base::child_list::remove_hosted(self, child);
+        crate::child_list::remove_hosted(self, child);
     }
 
     fn passes_scroll_anchor(&self) -> bool {

@@ -3,6 +3,7 @@ use beui::reactive::*;
 use beui::styled::*;
 
 use crate::chrome::sheet_open;
+use beui::Align;
 
 const DOCK_MARGIN: Space = Space::Md;
 

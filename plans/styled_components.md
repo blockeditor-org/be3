@@ -5,7 +5,7 @@ styled components that carry behaviour, components that don't belong in beui,
 and parallel components that should be one. This plan is the agreed list of
 changes. Implemented, except what each section records as left: the
 inspector's compact App/Inspector bar (§4.3), true group opacity (§Polish:
-`Fade` fades each shape on its own), and a rounded clip for plugin dialog
+`Frame`'s `opacity` fades each shape on its own), and a rounded clip for plugin dialog
 regions carried through the plugin protocol (§Polish).
 
 ## The rules this plan applies
@@ -981,7 +981,7 @@ Problems earlier steps found in the beui crates, fixed at their source:
   on a phone (a fitted sheet) its rows.
 - **Done.** **Subtree opacity.** The base `Fade` takes `opacity` (1 by
   default) besides `edges`: the mask's `Fade` carries it through the wgpu
-  shader, the DOM renderer (CSS `opacity`), and paintings (`paint_format::Fade`
+  shader and paintings (`paint_format::Fade`
   gained a defaulted `opacity`). An opacity change damages the fade's
   rectangle. The level OSD, the dock's drop highlight and drag preview, and
   the split button's divider use it with colour roles. It multiplies each

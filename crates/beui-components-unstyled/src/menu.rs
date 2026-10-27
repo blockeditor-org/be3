@@ -1,12 +1,12 @@
 use accesskit::{Node, Role, Toggled};
-use beui_core::base::grid::Track;
-use beui_core::base::overlay::Placement;
-use beui_core::icons::Glyph;
-use beui_core::input::{Key, KeyPress};
-use beui_core::layer::Dismiss;
-use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;
+use beui_view::reactive::NodeId;
+use beui_view::types::Dismiss;
+use beui_view::types::Placement;
+use beui_view::types::Track;
+use beui_view::types::icons::Glyph;
+use beui_view::types::{Key, KeyPress};
 
 use crate as unstyled;
 use crate::button::ButtonHandle;
@@ -37,7 +37,7 @@ pub struct MenuRowHandle {
     pub label: Prop<String>,
     pub lead: Prop<String>,
     pub glyph: Prop<Option<Glyph>>,
-    pub glyph_color: Prop<Option<beui_core::color::Color32>>,
+    pub glyph_color: Prop<Option<beui_view::types::Color>>,
     pub detail: Prop<String>,
     pub checked: Prop<Option<bool>>,
     pub radio: bool,
@@ -67,7 +67,7 @@ pub struct MenuItem {
     pub(crate) label: Memo<String>,
     lead: Memo<String>,
     pub(crate) glyph: Memo<Option<Glyph>>,
-    glyph_color: Memo<Option<beui_core::color::Color32>>,
+    glyph_color: Memo<Option<beui_view::types::Color>>,
     detail: Memo<String>,
     checked: Memo<Option<bool>>,
     radio: bool,
@@ -126,7 +126,7 @@ pub fn MenuItem(
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = String::new())] lead: Prop<String>,
     #[prop(default = None)] glyph: Prop<Option<Glyph>>,
-    #[prop(default = None)] glyph_color: Prop<Option<beui_core::color::Color32>>,
+    #[prop(default = None)] glyph_color: Prop<Option<beui_view::types::Color>>,
     #[prop(default = String::new())] detail: Prop<String>,
     #[prop(default = None)] checked: Prop<Option<bool>>,
     #[prop(default = false)] radio: bool,

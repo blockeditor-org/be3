@@ -30,7 +30,7 @@ fn accent_rings(selected: Option<&'static str>) -> usize {
         .shapes()
         .iter()
         .filter(|shape| {
-            matches!(shape, crate::Shape::Rect { rect, stroke_width, color, .. }
+            matches!(shape, crate::native::Shape::Rect { rect, stroke_width, color, .. }
                 if *color == styled::Theme::DARK.accent
                     && *stroke_width == RING_WIDTH
                     && rect.width() == MARK_BOX)

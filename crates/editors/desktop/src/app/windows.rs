@@ -2,6 +2,7 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_APP_WINDOW, ICON_EYE_OFF, ICON_LAYERS, ICON_MONITOR};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
+use block_editor_beui::beui::{Align, Direction, ItemSize};
 use block_editor_beui::desktop;
 use block_editor_beui::{HostWindow, HostWindowId, WindowAction, WindowKind};
 use block_shell::{Workspace, window_picture, window_title};

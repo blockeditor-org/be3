@@ -6,7 +6,9 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
+beui-fonts = { path = "../beui-fonts" }
 paint-snapshot = { path = "../paint-snapshot" }
+serde_json = "1"
 
 [lints]
 workspace = true

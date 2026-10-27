@@ -22,7 +22,7 @@ fn arrow_down_on_a_closed_select_trigger_opens_it_and_highlights_the_first_optio
         .api::<unstyled::SelectApi<&str>>(select)
         .trigger();
     with_installed(harness.document_mut(), |_| {
-        crate::focus_within(trigger);
+        crate::native::focus_within(trigger);
     });
     harness.frame(Vec::new());
 

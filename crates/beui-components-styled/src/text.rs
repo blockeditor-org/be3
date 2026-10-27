@@ -1,17 +1,17 @@
-use beui_core::color::Color32;
-use beui_core::font::{FontFamily, FontId, Overflow, TextAlign};
-use beui_core::node::NodeId;
-use beui_core::rich::{TextCaret, TextMark};
 use beui_macros::{component, view};
 use beui_view::primitives;
 use beui_view::primitives::*;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::Color;
+use beui_view::types::{FontFamily, FontId, Overflow, TextAlign};
+use beui_view::types::{TextCaret, TextMark};
 
 use crate::frame::ColorRole;
 use crate::theme::{ThemeStore, use_theme};
 use crate::tokens::{Space, use_space};
-use beui_core::geometry::Vec2;
-use beui_core::rich::SpanBackground;
+use beui_view::types::SpanBackground;
+use beui_view::types::Vec2;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum TextSize {
@@ -121,7 +121,7 @@ pub enum TextColor {
     Danger,
     Warning,
     Success,
-    Custom(Color32),
+    Custom(Color),
 }
 
 impl TextColor {
@@ -139,9 +139,9 @@ impl TextColor {
         TextColor::Success,
     ];
 
-    pub fn resolve(self, theme: &ThemeStore) -> Color32 {
+    pub fn resolve(self, theme: &ThemeStore) -> Color {
         match self {
-            TextColor::None => Color32::TRANSPARENT,
+            TextColor::None => Color::TRANSPARENT,
             TextColor::Default => theme.text.get(),
             TextColor::Muted => theme.text_muted.get(),
             TextColor::Faint => theme.border.get(),
@@ -176,8 +176,8 @@ impl TextColor {
     }
 }
 
-impl From<Color32> for TextColor {
-    fn from(color: Color32) -> Self {
+impl From<Color> for TextColor {
+    fn from(color: Color) -> Self {
         TextColor::Custom(color)
     }
 }
@@ -344,7 +344,7 @@ pub fn Text(
     }
 }
 
-fn color_part(color: Option<Prop<TextColor>>, theme: ThemeStore) -> Prop<Option<Color32>> {
+fn color_part(color: Option<Prop<TextColor>>, theme: ThemeStore) -> Prop<Option<Color>> {
     match color {
         None => Prop::Static(None),
         Some(color) => Prop::dynamic(move || Some(color.get().resolve(&theme))),
@@ -409,7 +409,7 @@ pub fn Span(
 
 #[component]
 pub fn Icon(
-    glyph: Prop<Option<beui_core::icons::Glyph>>,
+    glyph: Prop<Option<beui_view::types::icons::Glyph>>,
     size: Option<Prop<TextSize>>,
     color: Option<Prop<TextColor>>,
 ) -> primitives::Span {

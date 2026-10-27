@@ -1,4 +1,4 @@
-use beui::testing::Gui;
+use beui::native::testing::Gui;
 use beui::{Input, NodeId, PointerButton, Pos2, Rect, Vec2, pos2, vec2};
 use block_editor_beui::{BeuiApp, EditorRegion};
 use block_plugin_api::{
@@ -447,12 +447,12 @@ impl<A: BeuiApp> BeuiTest<A> {
                 .find(|(held, _)| *held == screen)
                 .map(|(_, window)| *window)?;
             let window = output.window(window)?;
-            beui::painting::painting(
+            beui::native::painting::painting(
                 window,
                 size,
                 shown.scale,
                 window.window.appearance.clear_color,
-                beui::painting::Punches::Shown,
+                beui::native::painting::Punches::Shown,
             )
             .ok()
         };
@@ -472,7 +472,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             painting
                 .frame
                 .primitives
-                .extend(drawn.placed(beui::painting::Placement {
+                .extend(drawn.placed(beui::native::painting::Placement {
                     source: [0.0, 0.0, 1.0, 1.0],
                     corners: [
                         [at.min.x, at.min.y],

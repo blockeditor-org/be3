@@ -5,6 +5,7 @@ use block_editor_beui::beui::{NodeId, ThemeKind};
 use block_editor_beui::{Editor, LayeredSettingsRow, PreferenceSourcesWatch};
 
 use super::ui::Settings;
+use beui::{Extent, ItemSize};
 
 #[component]
 pub(super) fn AppearanceSection(

@@ -1,4 +1,5 @@
 use super::*;
+use beui::Extent;
 use beui_macros::view;
 
 #[test]

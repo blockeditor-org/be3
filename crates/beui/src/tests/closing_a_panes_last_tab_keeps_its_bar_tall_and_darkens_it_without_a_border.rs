@@ -60,7 +60,11 @@ fn closing_a_panes_last_tab_keeps_its_bar_tall_and_darkens_it_without_a_border()
     );
 }
 
-fn fills_above(output: &crate::FrameOutput, top: f32, fill: crate::color::Color32) -> usize {
+fn fills_above(
+    output: &crate::native::FrameOutput,
+    top: f32,
+    fill: crate::color::Color32,
+) -> usize {
     output
         .main()
         .shapes()

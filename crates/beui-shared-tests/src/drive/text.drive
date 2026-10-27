@@ -1,0 +1,8 @@
+# A text reads as one label of all its spans, and follows its signals.
+clock stop
+wait 'Label value="Plain, bold and italic" #text.styled'
+wait 'value="Count 0"'
+click '#text.change'
+wait 'value="Plain, bold and underlined"'
+wait 'value="Count 1"'
+gone 'italic'

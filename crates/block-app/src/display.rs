@@ -23,7 +23,7 @@ use linux::apply;
 pub(crate) use linux::{epaper, run_epaper, start, stop};
 
 #[cfg(not(target_os = "linux"))]
-pub(crate) fn start(_setup: &beui::Setup) {}
+pub(crate) fn start(_setup: &beui::native::Setup) {}
 
 #[cfg(not(target_os = "linux"))]
 pub(crate) fn epaper() -> bool {

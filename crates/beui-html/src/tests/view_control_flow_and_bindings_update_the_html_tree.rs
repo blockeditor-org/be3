@@ -24,13 +24,13 @@ fn view_control_flow_and_bindings_update_the_html_tree() {
     });
     assert_eq!(
         node.to_html(),
-        "<main title=\"first\">first<p>visible</p><ul><li>one</li><li>two</li></ul></main>"
+        "<main title=\"first\">first<!--[--><p>visible</p><!--]--><ul><!--[--><li>one</li><li>two</li><!--]--></ul></main>"
     );
     value.set("<&".into());
     shown.set(false);
     items.set(vec!["two".into(), "three".into()]);
     assert_eq!(
         node.to_html(),
-        "<main title=\"&lt;&amp;\">&lt;&amp;<ul><li>two</li><li>three</li></ul></main>"
+        "<main title=\"&lt;&amp;\">&lt;&amp;<!--[--><!--]--><ul><!--[--><li>two</li><li>three</li><!--]--></ul></main>"
     );
 }

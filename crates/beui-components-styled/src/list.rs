@@ -1,9 +1,12 @@
-use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::primitives::{self, GridCell};
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
+use crate::theme::Density;
 use crate::tokens::{Space, resolved};
+use beui_view::types::Extent;
+use beui_view::types::{Align, Direction, Justify, Track};
 
 #[component]
 pub fn List(
@@ -17,6 +20,28 @@ pub fn List(
     let spacing = resolved(spacing, Space::resolve);
     view! {
         <primitives::List direction align justify wrap spacing children />
+    }
+}
+
+fn spaced(space: Space, density: Density) -> Extent {
+    match space {
+        Space::None => Extent::INTRINSIC,
+        space => {
+            let length = space.resolve(density);
+            Extent::px(length).min(length)
+        }
+    }
+}
+
+#[component]
+pub fn Spacer(
+    #[prop(default = Space::None)] width: Prop<Space>,
+    #[prop(default = Space::None)] height: Prop<Space>,
+) -> NodeId {
+    let width = resolved(width, spaced);
+    let height = resolved(height, spaced);
+    view! {
+        <primitives::Frame width height />
     }
 }
 

@@ -14,6 +14,7 @@ use crate::github::PullRequest;
 use crate::model::{Model, Tab};
 use crate::pane::TerminalPane;
 use crate::view::{PADDING, state_glyph};
+use beui::{Align, Direction, ItemSize};
 
 #[component]
 pub(crate) fn Workspace(model: Model) -> NodeId {

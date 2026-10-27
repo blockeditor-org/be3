@@ -1,4 +1,4 @@
-use beui::testing::Gui;
+use beui::native::testing::Gui;
 use beui::{Input, Key, Vec2, pos2};
 use block_ui_test::DocumentTest;
 

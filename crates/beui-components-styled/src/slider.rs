@@ -6,8 +6,9 @@ use crate::theme::{knob_border, use_theme};
 use crate::tokens::{Size, Space, Stroke};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{SliderHandle, SliderScale};
-use beui_core::node::NodeId;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::{Align, Direction, ItemSize};
 
 const HEIGHT: Size = Size::Sm;
 const TRACK_HEIGHT: Size = Size::Track;

@@ -8,6 +8,7 @@ use block_editor_beui::beui::{ItemSize, NodeId};
 use text_editor_core::{Document, TextBuffer, TextLanguage};
 
 use super::ui::Shared;
+use beui::Direction;
 
 const ROW_SPACING: Space = Space::Md;
 const TEXT_HEIGHT: f32 = 360.0;

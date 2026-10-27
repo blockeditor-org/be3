@@ -38,10 +38,10 @@ fn a_runner_whose_app_panics_lets_the_app_exit_and_reports_why() {
         app: Box::new(Failing { log, frames: 0 }),
         layers: Vec::new(),
     });
-    let loaded = vec![Loaded {
-        renderer: Box::new(crate::testing::Screen(vec2(200.0, 100.0))),
+    let loaded = Loaded {
+        renderer: Box::new(crate::native::testing::Screen(vec2(200.0, 100.0))),
         fonts: None,
-    }];
+    };
     runner
         .start(loaded, Setup::new(Waker::new(|| {})))
         .expect("the renderer loads");

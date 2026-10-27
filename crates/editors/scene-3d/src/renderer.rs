@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use beui::{Draw, DrawAt, Drawing};
+use beui::{native::Draw, native::DrawAt, native::Drawing};
 use bytemuck::{Pod, Zeroable};
 
 use crate::camera::Camera;
@@ -54,7 +54,7 @@ pub(crate) struct Scene(Rc<RefCell<Option<SceneRenderer>>>);
 
 impl Scene {
     pub(crate) fn drawing(&self, camera: Camera) -> Drawing {
-        beui::drawing(SceneDraw {
+        beui::native::drawing(SceneDraw {
             scene: self.clone(),
             camera,
         })

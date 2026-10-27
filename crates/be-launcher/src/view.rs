@@ -5,9 +5,11 @@ use beui::icons::{
     ICON_CIRCLE_X, ICON_FILE, ICON_MERGE, ICON_REFRESH_CW, ICON_SCAN_SEARCH, ICON_SEARCH,
     ICON_SPLIT,
 };
+use beui::native::Document;
+use beui::native::with_document;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{Color32, Document, NodeId};
+use beui::{Color32, NodeId};
 
 use crate::actions::MainActions;
 #[cfg(target_os = "android")]
@@ -19,6 +21,7 @@ use crate::viewer::ImageViewer;
 #[cfg(not(target_os = "android"))]
 use crate::workspace::Workspace;
 use beui::TextAlign;
+use beui::{Align, Direction, ItemSize};
 
 #[cfg(not(target_os = "android"))]
 const SIDEBAR_WIDTH: f32 = 380.0;
@@ -277,7 +280,7 @@ pub(crate) fn StateIcon(state: Memo<State>) -> NodeId {
     let color = create_memo(move || match state.get() {
         State::Open => TextColor::Success,
         State::Draft => TextColor::Muted,
-        State::Merged => TextColor::Custom(MERGED),
+        State::Merged => TextColor::Custom(MERGED.into()),
         State::Closed => TextColor::Danger,
     });
     view! {
@@ -303,7 +306,7 @@ pub(crate) fn Labels(labels: Memo<Vec<Label>>, checked_out: Memo<bool>) -> NodeI
     view! {
         <List direction=Direction::Horizontal spacing=Space::Sm>
             <Show condition={checked_out}>
-                <Chip text=CURRENT color={theme.accent} />
+                <Chip text=CURRENT color={create_memo(move || resolve_color(theme.accent.get()))} />
             </Show>
             <ForEach keys>|index: usize| {
                 let label = create_memo(move || labels.get().get(index).cloned());
@@ -320,7 +323,7 @@ pub(crate) fn Labels(labels: Memo<Vec<Label>>, checked_out: Memo<bool>) -> NodeI
 
 #[component]
 fn Chip(text: Prop<String>, color: Prop<Color32>) -> NodeId {
-    let ink = create_memo(move || TextColor::Custom(readable_on(color.get())));
+    let ink = create_memo(move || TextColor::Custom((readable_on(color.get())).into()));
     view! {
         <Frame
             fill={ColorRole::custom(color)}

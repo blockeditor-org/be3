@@ -1,3 +1,5 @@
+load("@root//buck/cargo:defs.bzl", "test_run")
+
 # A beui program started headless for an agent to drive with `drive`
 # (guides/running/drive.md): `./scripts/buck run //crates/<crate>:dev`. Arguments
 # after `--` go to `be-drive launch`, which passes on the ones it does not know.
@@ -14,3 +16,48 @@ def headless(name, program, app_name, args = [], data = False):
         + (["--data"] if data else [])
         + args,
     )
+
+# The drive scripts of a crate run in a browser against its web bundle on
+# beui's HTML core (guides/testing_a_gui.md, 7): buck/app/web-test.mjs serves
+# the bundle, opens each script's fixture in Chromium through Playwright and
+# runs the script, and with checks also runs the page's own checks(). It runs
+# on this machine, since the workers have no browser: BE3_CHROME when set,
+# else Playwright's Chromium, and it fails, never skips, when neither is there.
+# :<name> is the test (`./scripts/test //crates/<crate>:<name>`), and
+# :<name>-run the action ./scripts/verify builds.
+def _web_drive_test_impl(ctx: AnalysisContext) -> list[Provider]:
+    runner = ctx.attrs._scripts[DefaultInfo].default_outputs[0]
+    command = cmd_args(
+        "node",
+        cmd_args(runner, format = "{}/web-test.mjs"),
+        cmd_args(ctx.attrs.bundle[DefaultInfo].default_outputs[0], format = "--bundle={}"),
+        ["--checks"] if ctx.attrs.checks else [],
+        ctx.attrs.scripts,
+    )
+    local = CommandExecutorConfig(local_enabled = True, remote_enabled = False)
+    return [
+        DefaultInfo(),
+        RunInfo(args = command),
+        ExternalRunnerTestInfo(
+            command = [command],
+            default_executor = local,
+            labels = ["local"],
+            run_from_project_root = True,
+            type = "custom",
+            use_project_relative_paths = True,
+        ),
+    ]
+
+_web_drive_test = rule(
+    attrs = {
+        "bundle": attrs.dep(),
+        "checks": attrs.bool(default = False),
+        "scripts": attrs.list(attrs.source()),
+        "_scripts": attrs.default_only(attrs.dep(default = "root//buck/app:drive-browser")),
+    },
+    impl = _web_drive_test_impl,
+)
+
+def web_drive_test(name, bundle, scripts, checks = False):
+    _web_drive_test(name = name, bundle = bundle, checks = checks, scripts = scripts)
+    test_run(name = name + "-run", local_only = True, test = ":" + name)

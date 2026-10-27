@@ -30,7 +30,7 @@ fn a_text_input_in_a_tall_slot_keeps_its_text_inside_its_field() {
         .shapes()
         .iter()
         .find_map(|shape| match shape {
-            crate::Shape::Rect {
+            crate::native::Shape::Rect {
                 rect,
                 stroke_width,
                 color,

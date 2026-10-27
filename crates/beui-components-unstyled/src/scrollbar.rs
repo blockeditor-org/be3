@@ -3,15 +3,15 @@ use std::rc::Rc;
 
 use beui_macros::{component, view};
 
-use beui_core::base::drawing::Draw;
-use beui_core::base::{Direction, ScrollPosition};
-use beui_core::color::Color32;
-use beui_core::geometry::{Pos2, Rect, pos2};
-use beui_core::input::PointerPress;
-use beui_core::node::NodeId;
-use beui_core::painter::Painter;
 use beui_view::primitives::*;
+use beui_view::reactive::Draw;
+use beui_view::reactive::NodeId;
+use beui_view::reactive::Painter;
 use beui_view::reactive::*;
+use beui_view::types::Color;
+use beui_view::types::PointerPress;
+use beui_view::types::{Direction, ScrollPosition};
+use beui_view::types::{Rect, pos2};
 
 const MINIMUM_THUMB: f32 = 0.08;
 
@@ -60,12 +60,13 @@ pub fn thumb_rect(rect: Rect, direction: Direction, position: ScrollPosition) ->
 pub fn ScrollbarThumb(
     position: Memo<ScrollPosition>,
     direction: Prop<Direction>,
-    color: Prop<Color32>,
+    color: Prop<Color>,
     #[prop(default = 0.0)] radius: f32,
 ) -> NodeId {
     let draw = Prop::dynamic(move || {
         let (position, direction, color) = (position.get(), direction.get(), color.get());
         Rc::new(move |painter: &Painter, rect: Rect| {
+            let color = painter.resolve_color(color);
             if color.alpha() == 0 {
                 return;
             }
@@ -75,8 +76,14 @@ pub fn ScrollbarThumb(
             painter.rect_filled(thumb, radius, color);
         }) as Draw
     });
+    let opacity = create_memo(move || match color.get().is_clear() {
+        true => 0.0,
+        false => 1.0,
+    });
     view! {
-        <Drawing draw />
+        <Frame opacity>
+            <Drawing draw />
+        </Frame>
     }
 }
 
@@ -184,9 +191,7 @@ pub fn Scrollbar(
                     hovered.set(false);
                 }
             }}
-            hit_at={move |_: Pos2| {
-                shown.get_untracked() && position.get_untracked().max_offset() > 0.0
-            }}
+            hit_area={create_memo(move || shown.get() && position.get().max_offset() > 0.0)}
             on_active_change={move |active: bool| {
                 held.set(active);
                 dragging.set(active && active_grab.get().is_some());

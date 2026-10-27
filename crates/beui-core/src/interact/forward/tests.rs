@@ -1,7 +1,11 @@
 use std::time::Duration;
 
+use crate::geometry::Rect;
 use crate::geometry::{pos2, vec2};
-use crate::input::{Key, Pen, PointerButton, TouchId};
+use crate::input::{
+    Input, Key, KeyPress, Keystroke, Modifiers, Pen, PenPhase, PointerButton, PointerEvent,
+    PointerPhase, ScrollDelta, TouchId, TouchPhase,
+};
 
 use super::*;
 

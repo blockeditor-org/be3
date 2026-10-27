@@ -1,14 +1,14 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
-use beui_core::icons::Glyph;
 use beui_macros::{component, view};
+use beui_view::types::icons::Glyph;
 
 use crate::context_menu::menu_style;
 use crate::text_area::text_area_geometry;
 use crate::theme::{field_border, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{TextInputHandle, TextInputStyle};
-use beui_core::icons::{ICON_COPY, ICON_X};
-use beui_core::node::NodeId;
+use beui_view::reactive::NodeId;
+use beui_view::types::icons::{ICON_COPY, ICON_X};
 
 use crate::list::List;
 use crate::tokens::{Padding, Size, Space, Stroke, use_space};
@@ -16,7 +16,8 @@ use beui_view::reactive::*;
 
 use crate::button::{Button, ButtonSize};
 use crate::text::{Icon, Text, TextColor, TextSize};
-use beui_core::font::TextAlign;
+use beui_view::types::TextAlign;
+use beui_view::types::{Align, Direction, ItemSize};
 
 const HEIGHT: Size = Size::Field;
 const MULTILINE_HEIGHT: Size = Size::Custom(104.0);

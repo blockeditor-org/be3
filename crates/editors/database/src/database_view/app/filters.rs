@@ -17,6 +17,7 @@ use uuid::Uuid;
 
 use crate::database_view::app::controls::MARK;
 use crate::database_view::app::data::Data;
+use beui::{Align, Direction, ItemSize};
 use block_editor_beui::beui::TextAlign;
 
 const SPACING: Space = Space::Sm;
@@ -608,7 +609,7 @@ fn ValueChoices(
                                     <ChoiceMark option={option} size=MARK />
                                 </Show>
                                 <Checkbox
-                                    @sizing={block_editor_beui::beui::reactive::ItemSize::Percent(100.0).shrink(1.0)}
+                                    @sizing={block_editor_beui::beui::ItemSize::Percent(100.0).shrink(1.0)}
                                     label={label}
                                     checked={Binding::new(checked, toggle)}
                                     disabled={read_only}

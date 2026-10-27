@@ -1,6 +1,10 @@
 use super::*;
-use crate::FontId;
-use crate::testing::Gui;
+use crate::native::rich::RichLayout;
+use crate::native::*;
+use crate::native::{Embed, EmbedPlacement, EmbedSlot};
+use crate::reactive::Painter;
+use crate::{CanvasView, FontId};
+use crate::native::testing::Gui;
 
 mod a_back_gesture_lowers_a_sheet_and_it_slides_away_from_there;
 mod a_back_gesture_slides_a_dialog_away_once_its_owner_closes_it;
@@ -63,8 +67,14 @@ mod a_component_can_return_a_show_for_its_parent_to_lay_out;
 mod a_component_function_returns_its_base_node;
 mod a_component_that_builds_no_node_lives_as_long_as_the_scope_that_built_it;
 mod a_component_wrapping_a_node_less_component_keeps_its_scope;
+mod a_container_built_inside_another_settles_before_the_frame_paints;
+mod a_container_in_a_scroll_rebuilds_for_the_width_it_is_given;
+mod a_container_in_a_wrapping_row_builds_only_for_the_width_it_is_laid_out_at;
+mod a_container_in_a_zoomed_canvas_item_answers_with_its_unzoomed_size;
+mod a_containers_content_reads_the_context_its_caller_provides;
 mod a_context_menu_as_tall_as_the_window_allows_shows_every_item;
 mod a_context_menu_item_follows_the_signals_its_tag_was_written_with;
+mod a_context_menu_opens_at_the_press_when_measurement_comes_late;
 mod a_context_menu_reads_its_rows_as_named_menu_items;
 mod a_context_menu_too_long_for_the_window_stays_inside_it_and_scrolls;
 mod a_copyable_text_input_copies_from_its_button_without_selecting;
@@ -105,6 +115,7 @@ mod a_dock_tab_floated_into_a_window_its_host_focuses_takes_the_keyboard_with_it
 mod a_dock_tab_in_a_window_opens_its_menu_over_the_window;
 mod a_dock_tab_made_fullscreen_from_inside_covers_only_the_area_it_names;
 mod a_dock_tab_that_offers_fullscreen_enters_and_leaves_it_from_its_menu_and_pane;
+mod a_dock_window_lays_its_tab_out_at_the_windows_size_from_the_first_layout;
 mod a_dock_with_no_tabs_shows_the_view_it_was_given_for_nothing_open;
 mod a_docked_pane_lays_its_content_edge_to_edge;
 mod a_double_tap_on_the_simulated_trackpad_locks_the_left_button_until_the_next_tap;
@@ -161,6 +172,8 @@ mod a_finger_on_a_hidden_scrollbar_scrolls_the_content_under_it;
 mod a_finger_press_that_moves_the_focus_keeps_it_when_the_finger_lifts;
 mod a_finger_swiping_a_sheet_raises_it_before_scrolling_what_it_holds;
 mod a_finger_swiping_along_a_tab_bar_moves_no_tab;
+mod a_first_fit_moves_on_when_the_child_it_shows_grows_too_wide;
+mod a_first_fit_sized_by_its_row_shows_its_first_child_again_when_the_row_widens;
 mod a_fitted_sheet_taller_than_the_screen_stops_short_of_the_top_and_scrolls;
 mod a_fling_to_the_start_bounces_the_whole_sheet;
 mod a_floating_child_pins_itself_over_the_scroll_it_names;
@@ -190,6 +203,7 @@ mod a_frame_places_a_smaller_child_by_its_alignment;
 mod a_frame_reports_animating_while_a_fling_glides_and_not_after;
 mod a_frame_rounds_each_corner_on_its_own;
 mod a_frame_takes_a_fraction_of_the_space_it_is_offered;
+mod a_frame_turned_by_quarter_turns_paints_its_child_turned_in_its_box;
 mod a_frame_width_bound_to_a_signal_measures_intrinsically_once_it_clears;
 mod a_frame_with_a_max_width_stops_growing_at_it_but_still_shrinks;
 mod a_fullscreen_dock_tab_comes_back_over_a_window_raised_above_it;
@@ -223,10 +237,6 @@ mod a_key_pressed_in_a_held_select_search_shows_the_keyboard;
 mod a_key_typed_before_a_click_in_one_frame_reaches_the_field_focused_before_it;
 mod a_keyed_view_rebuilds_only_when_its_key_changes;
 mod a_layer_sees_the_time_of_the_frame_it_is_in;
-mod a_layout_builder_built_inside_another_settles_in_one_layout;
-mod a_layout_builder_in_a_scroll_rebuilds_for_the_width_it_is_given;
-mod a_layout_builder_in_a_wrapping_row_builds_only_for_the_width_it_is_laid_out_at;
-mod a_layout_builders_content_reads_the_context_its_caller_provides;
 mod a_layout_put_back_from_its_snapshot_keeps_the_tabs_where_they_were;
 mod a_list_in_a_scroll_lays_out_only_the_rows_near_the_view;
 mod a_list_sizes_plain_nodes_handed_to_it_intrinsically;
@@ -238,6 +248,7 @@ mod a_long_press_in_a_text_area_selects_the_word_and_its_toolbar_steps_aside_whi
 mod a_long_press_in_a_zoomed_text_area_selects_the_word_and_its_handles_and_toolbar_follow_the_zoom;
 mod a_long_press_on_selectable_text_selects_the_word_and_its_toolbar_copies_it;
 mod a_long_text_area_only_builds_the_lines_in_view;
+mod a_measured_row_inside_a_scroll_follows_it_without_laying_its_content_out_again;
 mod a_menu_item_shows_its_icon_and_detail_and_runs_its_click_in_a_dropdown_and_a_sheet;
 mod a_menu_opened_from_a_zoomed_text_area_opens_where_it_was_asked_for;
 mod a_menu_row_with_a_submenu_shows_an_arrow_the_leaf_rows_do_not;
@@ -246,6 +257,7 @@ mod a_middle_drag_on_a_pan_zoom_in_a_scroll_pans_it_rather_than_autoscrolling;
 mod a_modal_dock_dialog_blocks_its_parent_until_it_closes;
 mod a_modal_sheet_fits_its_content_and_a_tap_above_it_closes_it;
 mod a_modal_sheet_opened_again_rests_where_it_did_the_first_time;
+mod a_modal_sheet_rests_where_it_would_when_measurement_comes_late;
 mod a_modal_sheet_slides_in_and_out;
 mod a_modal_with_nothing_to_focus_hears_escape;
 mod a_modifier_drag_moves_a_floating_window_by_its_content_or_its_tab_bar;
@@ -276,7 +288,6 @@ mod a_picture_given_a_source_paints_only_that_part_of_the_image;
 mod a_picture_paints_the_image_it_is_given;
 mod a_picture_scaled_down_never_grows_past_its_own_pixels;
 mod a_picture_shows_its_thumbhash_until_the_image_arrives;
-mod a_placement_built_inside_a_scroll_follows_it_without_laying_its_content_out_again;
 mod a_platform_keystroke_types_only_without_a_shortcut_held;
 mod a_plugin_tree_reads_as_a_pane_under_the_window;
 mod a_plugin_tree_that_is_not_a_tree_is_cut_into_one;
@@ -286,6 +297,7 @@ mod a_pointer_lock_lets_go_when_the_window_loses_focus;
 mod a_pointer_lock_reports_motion_only_while_it_holds_the_pointer;
 mod a_pointer_that_leaves_while_pressed_and_comes_back_is_not_gone_after_the_release;
 mod a_pointer_that_leaves_while_pressed_is_gone_after_the_release;
+mod a_popover_opens_beside_its_trigger_when_measurement_comes_late;
 mod a_popover_panel_stops_at_its_max_width_rather_than_spanning_the_window;
 mod a_portal_shows_a_subtree_it_does_not_own;
 mod a_press_a_catcher_declines_focuses_the_catcher_beneath;
@@ -326,9 +338,11 @@ mod a_scroll_in_a_dialog_copies_what_it_showed_over_the_page_beneath;
 mod a_scroll_in_a_dialog_follows_the_wheel;
 mod a_scroll_in_a_scaled_canvas_item_follows_the_finger_and_reveals_what_is_focused;
 mod a_scroll_inside_a_scroll_lays_out_the_rows_it_holds;
+mod a_scroll_keeps_its_place_when_a_container_above_reflows_after_a_resize;
 mod a_scroll_keeps_the_pointer_off_the_part_of_a_row_it_clips;
 mod a_scroll_mixes_plain_children_with_a_nested_virtual_list;
 mod a_scroll_only_re_measures_the_row_that_changed;
+mod a_scroll_sent_to_its_end_reaches_a_row_that_sizes_itself_from_its_width;
 mod a_scroll_with_a_button_atop_its_text_is_scrolled_from_the_button;
 mod a_scroll_with_nothing_to_scroll_is_not_a_tab_stop;
 mod a_scrollbar_shows_while_its_scroll_moves_and_fades_once_it_stops;
@@ -428,7 +442,6 @@ mod a_trackpad_fling_into_the_start_bounces_without_passing_it;
 mod a_tree_given_on_open_opens_a_row_on_enter_and_a_second_click;
 mod a_tree_row_decides_which_part_of_it_is_clickable;
 mod a_tree_rows_more_button_opens_its_menu_below_itself_and_a_right_click_opens_it_too;
-mod a_turned_child_paints_turned_about_the_middle_of_its_box;
 mod a_twelve_hour_time_field_types_the_afternoon_with_a_p;
 mod a_two_finger_drag_on_the_simulated_trackpad_scrolls_smoothly;
 mod a_typed_paste_types_the_clipboard_key_by_key;
@@ -443,6 +456,7 @@ mod a_virtual_list_in_a_box_taller_than_its_rows_builds_every_row;
 mod a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view;
 mod a_virtual_list_reaches_the_end_when_rows_outgrow_their_estimate;
 mod a_virtual_list_scrolled_out_of_view_releases_its_rows;
+mod a_virtual_list_scrolled_shows_the_same_rows_when_measurement_comes_late;
 mod a_virtual_list_scrolled_to_rows_of_unestimated_heights_fills_its_window_in_one_walk;
 mod a_virtual_list_shows_new_keys_in_the_rows_that_left;
 mod a_virtual_scroll_only_builds_the_items_in_view;
@@ -525,6 +539,7 @@ mod appending_to_a_virtual_list_keeps_the_rows_it_built;
 mod arrow_and_page_keys_walk_a_calendar_by_day_week_month_and_year;
 mod arrow_down_on_a_closed_select_trigger_opens_it_and_highlights_the_first_option;
 mod arrow_keys_in_a_select_search_box_move_the_highlighted_option_without_editing_the_search_text;
+mod arrow_keys_move_a_text_area_caret_the_same_when_measurement_comes_late;
 mod arrow_keys_move_a_visible_highlight_through_an_open_context_menu;
 mod arrow_keys_pan_a_focused_pan_zoom;
 mod arrow_keys_step_a_curved_slider_evenly_along_its_track;
@@ -808,7 +823,6 @@ mod swiping_left_with_the_screen_reader_does_not_read_what_the_finger_crosses;
 mod swiping_the_simulated_middle_button_scrolls_in_ticks;
 mod switching_a_show_damages_both_panels;
 mod switching_dock_tabs_keeps_the_panel_it_hides;
-mod switching_renderers_moves_the_window_and_the_fonts_to_the_chosen_one;
 mod tab_builds_the_virtual_rows_beyond_the_ones_in_view;
 mod tab_focus_stays_in_the_active_document_when_the_inspector_is_open;
 mod tab_is_trapped_inside_an_open_context_menu;
@@ -828,8 +842,10 @@ mod tapping_the_caret_handle_shows_a_toolbar_that_asks_the_host_to_paste;
 mod tapping_the_focused_text_input_again_asks_for_the_keyboard_again;
 mod tapping_then_dragging_on_the_simulated_trackpad_drags_from_where_the_tap_landed;
 mod text_culled_out_of_sight_is_not_an_overflow_after_the_window_narrows;
+mod text_geometry_counts_utf8_bytes_and_only_the_bytes_inline_children_stand_for;
 mod text_in_a_zoomed_canvas_wraps_where_it_did_at_every_zoom;
 mod text_in_a_zooming_canvas_scales_with_it_before_its_glyphs_are_rasterised_again;
+mod text_laid_out_in_a_drawing_measures_what_it_draws;
 mod text_laid_out_to_an_alignment_indents_each_line_to_it;
 mod text_that_does_not_fit_ends_in_an_ellipsis;
 mod text_widgets_sit_in_the_text_and_blocks_below_their_line;
@@ -889,6 +905,7 @@ mod the_space_host_carries_the_main_window_its_app_asks_to_move;
 mod the_space_host_keeps_the_keyboard_open_until_its_close_button_is_pressed;
 mod the_space_host_opens_an_apps_window_as_a_panel_at_the_pointer_and_clicks_reach_it;
 mod the_space_host_opens_the_keyboard_as_a_panel_lasers_type_on_only_while_controllers_are_active;
+mod the_theme_follows_the_preferences_after_the_first_component_that_asked_for_it_goes;
 mod the_top_layer_takes_a_click_over_the_layer_below;
 mod the_window_follows_the_title_and_clear_color_of_its_root;
 mod the_window_is_asked_for_fullscreen_and_says_when_it_is;
@@ -956,6 +973,16 @@ use crate::styled::*;
 use crate::unstyled;
 use beui_macros::{component, view};
 
+#[component]
+fn BackTo(
+    #[prop(default = true)] enabled: Prop<bool>,
+    on_gesture: Callback<crate::input::BackGesture>,
+    children: Child,
+) -> NodeId {
+    on_back(enabled, move |gesture| on_gesture.call(gesture));
+    children
+}
+
 const VIEWPORT: Vec2 = Vec2::new(400.0, 300.0);
 const WIDE_VIEWPORT: Vec2 = Vec2::new(1000.0, 600.0);
 const TALL_VIEWPORT: Vec2 = Vec2::new(1000.0, 1400.0);
@@ -1014,7 +1041,7 @@ pub(crate) const AREA_FONT_SIZE: f32 = 14.0;
 pub(crate) const AREA_PADDING: Sides = Sides::symmetric(12.0, 8.0);
 
 pub(crate) fn area_colors() -> unstyled::TextAreaColors {
-    styled::text_area_colors(&styled::Theme::DARK)
+    styled::text_area_colors(&styled::ThemeTokens::literal(&styled::Theme::DARK))
 }
 
 pub(crate) fn area_look() -> unstyled::TextAreaLook {
@@ -1032,10 +1059,45 @@ pub(crate) fn build_node(view: impl FnOnce() -> NodeId) -> Document {
     })
 }
 
-pub(crate) struct Harness(crate::testing::Stepped);
+pub(crate) fn prompt_and_late<T>(run: impl Fn() -> T) -> (T, T) {
+    struct Prompt;
+    impl Drop for Prompt {
+        fn drop(&mut self) {
+            crate::native::testing::delay_measurement(false);
+        }
+    }
+    let _prompt = Prompt;
+    crate::native::testing::delay_measurement(false);
+    let prompt = run();
+    crate::native::testing::delay_measurement(true);
+    (prompt, run())
+}
+
+pub(crate) fn shown_fit(document: &Document, first_fit: NodeId) -> NodeId {
+    let mut node = *document
+        .children(first_fit)
+        .last()
+        .expect("a first fit shows one of its children");
+    while document.node_kind(node) != "portal" {
+        node = document.children(node)[0];
+    }
+    document.children(node)[0]
+}
+
+pub(crate) fn text_rects(harness: &Harness) -> Vec<(String, Option<Rect>)> {
+    let document = harness.document();
+    let root = document.root().expect("the document has a root");
+    document
+        .texts_within(root)
+        .into_iter()
+        .map(|text| (document.text(text).to_owned(), document.node_rect(text)))
+        .collect()
+}
+
+pub(crate) struct Harness(crate::native::testing::Stepped);
 
 impl std::ops::Deref for Harness {
-    type Target = crate::testing::Stepped;
+    type Target = crate::native::testing::Stepped;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -1054,15 +1116,15 @@ impl Harness {
     }
 
     pub(crate) fn sized(mut document: Document, viewport: Vec2) -> Self {
-        crate::verify_paint(true);
+        crate::native::verify_paint(true);
         crate::inspector::install(&mut document);
         let window = beui_core::window::WindowSize {
             size: viewport,
             scale: 1.0,
         };
-        let mut stepped = crate::testing::Stepped::new(
+        let mut stepped = crate::native::testing::Stepped::new(
             context(),
-            crate::testing::Showing(document),
+            crate::native::testing::Showing(document),
             window,
             None,
         );
@@ -1071,33 +1133,33 @@ impl Harness {
     }
 
     pub(crate) fn hosting_windows(mut document: Document, viewport: Vec2) -> Self {
-        crate::verify_paint(true);
+        crate::native::verify_paint(true);
         crate::inspector::install(&mut document);
         let window = beui_core::window::WindowSize {
             size: viewport,
             scale: 1.0,
         };
-        let mut stepped = crate::testing::Stepped::hosting_windows(
+        let mut stepped = crate::native::testing::Stepped::hosting_windows(
             context(),
-            crate::testing::Showing(document),
+            crate::native::testing::Showing(document),
             window,
         );
         stepped.settle_after_gestures(false);
         Self(stepped)
     }
 
-    pub(crate) fn frame(&mut self, inputs: Vec<Input>) -> crate::FrameOutput {
+    pub(crate) fn frame(&mut self, inputs: Vec<Input>) -> crate::native::FrameOutput {
         self.0.frame(inputs)
     }
 
-    pub(crate) fn click(&mut self, target: impl Into<crate::testing::Target>) {
+    pub(crate) fn click(&mut self, target: impl Into<crate::native::testing::Target>) {
         self.0.click(target);
     }
 
     pub(crate) fn drag(
         &mut self,
-        from: impl Into<crate::testing::Target>,
-        to: impl Into<crate::testing::Target>,
+        from: impl Into<crate::native::testing::Target>,
+        to: impl Into<crate::native::testing::Target>,
     ) {
         self.0.drag(from, to);
     }
@@ -1180,7 +1242,7 @@ impl Harness {
         self.fingers(TouchPhase::Move, &[(1, first), (2, second)]);
     }
 
-    pub(crate) fn touch(&mut self, phase: TouchPhase, pos: Pos2) -> crate::FrameOutput {
+    pub(crate) fn touch(&mut self, phase: TouchPhase, pos: Pos2) -> crate::native::FrameOutput {
         self.finger(1, phase, pos)
     }
 
@@ -1189,7 +1251,7 @@ impl Harness {
         finger: u64,
         phase: TouchPhase,
         pos: Pos2,
-    ) -> crate::FrameOutput {
+    ) -> crate::native::FrameOutput {
         self.fingers(phase, &[(finger, pos)]);
         self.output().clone()
     }
@@ -1593,8 +1655,8 @@ impl Harness {
 }
 
 fn selected_text(harness: &mut Harness, region: NodeId) -> String {
-    let state = harness.document().api::<unstyled::SelectableState>(region);
-    crate::reactive::with_reactive_scope(harness.document_mut(), || state.selected_text())
+    let state = harness.document().api::<styled::SelectableState>(region);
+    crate::native::with_reactive_scope(harness.document_mut(), || state.selected_text())
 }
 
 fn pressed_with(key: Key, modifiers: Modifiers) -> Vec<Input> {
@@ -1614,7 +1676,7 @@ fn key_event(key: Key, pressed: bool) -> Input {
 }
 
 pub(crate) fn with_installed<R>(document: &mut Document, f: impl FnOnce(&mut Document) -> R) -> R {
-    crate::reactive::with_reactive_scope(document, || crate::reactive::with_document(f))
+    crate::native::with_reactive_scope(document, || crate::native::with_document(f))
 }
 
 #[component]
@@ -1835,13 +1897,13 @@ pub(crate) fn track_within(harness: &Harness, bar: NodeId) -> Rect {
     harness.rect(document.children(inset)[0])
 }
 
-pub(crate) fn thumb_painted(output: &crate::FrameOutput, track: Rect) -> bool {
+pub(crate) fn thumb_painted(output: &crate::native::FrameOutput, track: Rect) -> bool {
     output.main().shapes().iter().any(|shape| {
         matches!(shape, crate::painter::Shape::Rect { rect, .. } if track.contains_rect(*rect) && *rect != track)
     })
 }
 
-pub(crate) fn painted_thumb(output: &crate::FrameOutput, track: Rect) -> Rect {
+pub(crate) fn painted_thumb(output: &crate::native::FrameOutput, track: Rect) -> Rect {
     output
         .main()
         .shapes()
@@ -1858,7 +1920,7 @@ pub(crate) fn painted_thumb(output: &crate::FrameOutput, track: Rect) -> Rect {
         .expect("the thumb is painted inside its track")
 }
 
-pub(crate) fn flashed(output: &crate::FrameOutput, bounds: Rect, color: Color32) -> bool {
+pub(crate) fn flashed(output: &crate::native::FrameOutput, bounds: Rect, color: Color32) -> bool {
     output.main().shapes().iter().any(|shape| {
         matches!(
             shape,
@@ -2191,7 +2253,7 @@ pub(crate) fn toolbar_of<const N: usize>(
 }
 
 use crate::node::{Element, Rects};
-use crate::painter::Painter;
+use crate::painter::Painter as CorePainter;
 use std::any::Any;
 use std::time::Duration;
 
@@ -2204,17 +2266,17 @@ struct Counted {
 }
 
 impl Element for Counted {
-    fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
+    fn measure(&self, doc: &mut Document, painter: &CorePainter, available: Vec2) -> Vec2 {
         self.measures.update(|measures| *measures += 1);
         self.inner.measure(doc, painter, available)
     }
 
-    fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
+    fn layout(&mut self, doc: &mut Document, painter: &CorePainter, rect: Rect, out: &Rects) {
         self.layouts.update(|layouts| *layouts += 1);
         self.inner.layout(doc, painter, rect, out);
     }
 
-    fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect) {
+    fn paint(&self, doc: &Document, painter: &CorePainter, rects: &Rects, rect: Rect) {
         if !painter.ctx().is_verifying_paint() {
             self.paints.update(|paints| *paints += 1);
         }
@@ -2263,14 +2325,14 @@ struct Counts {
 const BLINK: Duration = Duration::from_millis(530);
 
 fn blinking() -> crate::reactive::Draw {
-    Rc::new(|painter: &crate::painter::Painter, rect: Rect| {
+    Rc::new(|painter: &Painter, rect: Rect| {
         painter.rect_filled(rect, 0.0, Color32::WHITE);
-        painter.ctx().request_repaint_after(BLINK);
+        core_painter(painter).ctx().request_repaint_after(BLINK);
     })
 }
 
 fn still() -> crate::reactive::Draw {
-    Rc::new(|painter: &crate::painter::Painter, rect: Rect| {
+    Rc::new(|painter: &Painter, rect: Rect| {
         painter.rect_filled(rect, 0.0, Color32::WHITE);
     })
 }
@@ -2309,6 +2371,7 @@ fn counted_with_measures(document: &mut Document, node: impl Into<NodeId>) -> Co
 }
 
 use crate::interact::WHEEL_LATCH_TIMEOUT;
+use crate::native::Document;
 use crate::unstyled::Scroll;
 
 fn nested() -> Document {
@@ -2390,21 +2453,21 @@ fn reopens_after(close: impl Fn(&mut Harness)) {
 
 #[derive(Default)]
 struct DrivenPlatform {
-    unanswered: Vec<crate::PasteAnswer>,
+    unanswered: Vec<crate::native::PasteAnswer>,
 }
 
 impl beui_core::runner::PlatformServices for DrivenPlatform {
-    fn paste(&mut self, _kinds: &[crate::PasteKind], answer: crate::PasteAnswer) {
+    fn paste(&mut self, _kinds: &[crate::PasteKind], answer: crate::native::PasteAnswer) {
         self.unanswered.push(answer);
     }
 }
 
-pub(crate) fn stepped<A: App + 'static>(app: A) -> crate::testing::Stepped<A> {
-    crate::testing::Stepped::on(context(), app, VIEWPORT, DrivenPlatform::default())
+pub(crate) fn stepped<A: App + 'static>(app: A) -> crate::native::testing::Stepped<A> {
+    crate::native::testing::Stepped::on(context(), app, VIEWPORT, DrivenPlatform::default())
 }
 
-pub(crate) fn headless<A: App + 'static>(app: A) -> crate::testing::Stepped<A> {
-    crate::testing::Stepped::new(
+pub(crate) fn headless<A: App + 'static>(app: A) -> crate::native::testing::Stepped<A> {
+    crate::native::testing::Stepped::new(
         context(),
         app,
         beui_core::window::WindowSize {
@@ -2542,7 +2605,8 @@ fn FocusPanel(
     }
 }
 
-pub(crate) type PasteAsk = Rc<RefCell<Option<(crate::PasteRequest, Vec<crate::PasteKind>)>>>;
+pub(crate) type PasteAsk =
+    Rc<RefCell<Option<(crate::native::PasteRequest, Vec<crate::PasteKind>)>>>;
 
 struct Seeing(Rc<RefCell<Vec<Event>>>, PasteAsk);
 
@@ -2552,9 +2616,9 @@ impl App for Seeing {
         if let Some((request, kinds)) = self.1.borrow_mut().take() {
             context.accept_pastes(&kinds);
             match request {
-                crate::PasteRequest::Asked => context.request_paste(),
-                crate::PasteRequest::Shortcut => context.paste_shortcut(),
-                crate::PasteRequest::Typed => context.request_typed_paste(),
+                crate::native::PasteRequest::Asked => context.request_paste(),
+                crate::native::PasteRequest::Shortcut => context.paste_shortcut(),
+                crate::native::PasteRequest::Typed => context.request_typed_paste(),
             }
         }
     }
@@ -2570,7 +2634,7 @@ pub(crate) struct IntakePlatform {
 }
 
 impl beui_core::runner::PlatformServices for IntakePlatform {
-    fn paste(&mut self, kinds: &[crate::PasteKind], answer: crate::PasteAnswer) {
+    fn paste(&mut self, kinds: &[crate::PasteKind], answer: crate::native::PasteAnswer) {
         self.pastes.push(kinds.to_vec());
         answer.send(kinds.iter().find_map(|kind| match kind {
             crate::PasteKind::Text => self.clipboard.clone().map(crate::Pasted::Text),
@@ -2606,10 +2670,10 @@ impl Intaken {
         });
         runner
             .start(
-                vec![beui_core::renderer::Loaded {
-                    renderer: Box::new(crate::testing::Screen(VIEWPORT)),
+                beui_core::renderer::Loaded {
+                    renderer: Box::new(crate::native::testing::Screen(VIEWPORT)),
                     fonts: None,
-                }],
+                },
                 Setup::new(Waker::new(|| {})),
             )
             .expect("the screen loads");
@@ -2726,7 +2790,7 @@ fn open_anchored_in(
     rect
 }
 
-fn beak(output: &crate::FrameOutput) -> Option<Pos2> {
+fn beak(output: &crate::native::FrameOutput) -> Option<Pos2> {
     output
         .main()
         .shapes()
@@ -2741,7 +2805,7 @@ fn beak(output: &crate::FrameOutput) -> Option<Pos2> {
         })
 }
 
-fn dims(output: &crate::FrameOutput, panel: Rect) -> bool {
+fn dims(output: &crate::native::FrameOutput, panel: Rect) -> bool {
     output.main().shapes().into_iter().any(|shape| match shape {
         crate::painter::Shape::Rect { rect, color, .. } => {
             let [red, green, blue, alpha] = color.to_array();
@@ -2819,10 +2883,6 @@ pub(crate) const SPACE_SCREEN: Vec2 = Vec2::new(800.0, 600.0);
 struct SpaceScreen;
 
 impl beui_core::renderer::Renderer for SpaceScreen {
-    fn name(&self) -> &'static str {
-        "screen"
-    }
-
     fn info(&self) -> RendererInfo {
         RendererInfo::default()
     }
@@ -2835,7 +2895,7 @@ impl beui_core::renderer::Renderer for SpaceScreen {
 
     fn prepare(
         &mut self,
-        _output: &crate::WindowOutput,
+        _output: &crate::native::WindowOutput,
         _scale: f32,
         _background: Color32,
     ) -> bool {
@@ -2849,7 +2909,7 @@ impl beui_core::renderer::Renderer for SpaceScreen {
 
 struct SharedDocument(Rc<RefCell<Document>>);
 
-impl crate::App for SharedDocument {
+impl crate::native::App for SharedDocument {
     fn update(&mut self, context: &Context, rect: crate::geometry::Rect) {
         self.0.borrow_mut().show(context, rect);
     }
@@ -2878,10 +2938,10 @@ impl InSpace {
         });
         runner
             .start(
-                vec![beui_core::renderer::Loaded {
+                beui_core::renderer::Loaded {
                     renderer: Box::new(SpaceScreen),
                     fonts: None,
-                }],
+                },
                 Setup::new(Waker::new(|| {})),
             )
             .expect("the renderer loads");

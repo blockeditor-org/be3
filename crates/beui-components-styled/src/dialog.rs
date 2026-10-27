@@ -1,7 +1,7 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
-use beui_core::icons::ICON_X;
-use beui_core::layer::LayerLevel;
 use beui_macros::{component, view};
+use beui_view::types::LayerLevel;
+use beui_view::types::icons::ICON_X;
 
 use crate::button::{Button, ButtonSize, ButtonVariant};
 use crate::scroll::{Bleed, Scroll};
@@ -13,14 +13,15 @@ use beui_components_unstyled::{
     ActionRole, DialogAction, DialogBodyHandle, DialogKind, DialogLayout, DialogSheetHandle,
     ModalHandle, ModalMotion, ModalPlacement,
 };
-use beui_core::base::ItemSize;
-use beui_core::node::NodeId;
 use beui_view::primitives::Spacer;
+use beui_view::reactive::NodeId;
+use beui_view::types::ItemSize;
 
 use crate::list::List;
 use crate::theme::Density;
 use crate::tokens::{Length, Padding, Size, Space};
 use beui_view::reactive::*;
+use beui_view::types::{Align, Direction, Extent, Justify};
 
 pub(crate) const PADDING: Padding = Padding::symmetric(Space::Xl2, Space::Xl);
 pub(crate) const SPACING: Space = Space::Lg;

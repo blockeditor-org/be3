@@ -3,7 +3,7 @@ use super::*;
 const RED: [u8; 4] = [0, 0, 255, 255];
 const BLUE: [u8; 4] = [255, 0, 0, 255];
 
-fn paint(context: &beui::Context, square: bool) -> beui::WindowOutput {
+fn paint(context: &beui::native::Context, square: bool) -> beui::native::WindowOutput {
     context
         .run(|context| {
             let painter = context.painter();
@@ -33,7 +33,7 @@ fn paint(context: &beui::Context, square: bool) -> beui::WindowOutput {
 fn a_turned_screen_draws_its_picture_turned_onto_the_panel() {
     let (device, queue) = vulkan_device();
     let gpu = Gpu::new(device.clone(), queue.clone(), FORMAT);
-    let context = beui::context();
+    let context = beui::native::context();
     let mut screen = Screen::new(&gpu, (WIDTH, HEIGHT), Rotation::Clockwise90);
     assert_eq!(
         screen.picture(),

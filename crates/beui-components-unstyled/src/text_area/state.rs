@@ -9,17 +9,18 @@ use text_editor_core::{
     TextIndentation, TextLanguage, TextRun,
 };
 
-use beui_core::font::FontId;
-use beui_core::geometry::{Pos2, Rect, Vec2};
-use beui_core::rich::{Piece, RichLayout, RichOptions, SpanStyle};
 use beui_view::reactive::*;
+use beui_view::types::FontId;
+use beui_view::types::SpanStyle;
+use beui_view::types::{Piece, RichOptions};
+use beui_view::types::{Pos2, Rect, Vec2};
 
 use super::colors::TextAreaColors;
 use super::look::TextAreaGeometry;
 use super::rows::{Prose, RowInputs, RowOptions, build_row, line_range, line_starts};
 
-pub struct ProseLine {
-    pub layout: RichLayout,
+pub struct ProseLine<L> {
+    pub layout: L,
     pub quote: usize,
 }
 
@@ -508,7 +509,7 @@ impl TextAreaState {
         inner.layout.get_untracked().index_at(pos)
     }
 
-    pub fn lay_out_prose(
+    pub fn lay_out_prose<L>(
         &self,
         font_size: f32,
         prose: Prose,
@@ -517,8 +518,8 @@ impl TextAreaState {
         colors: &TextAreaColors,
         geometry: TextAreaGeometry,
         square: f32,
-        mut lay_out: impl FnMut(&[Piece], RichOptions) -> Option<RichLayout>,
-    ) -> Option<Vec<ProseLine>> {
+        mut lay_out: impl FnMut(&[Piece], RichOptions) -> Option<L>,
+    ) -> Option<Vec<ProseLine<L>>> {
         let inner = self.0.value();
         let snapshot = inner.snapshot.borrow();
         if !snapshot.loaded {

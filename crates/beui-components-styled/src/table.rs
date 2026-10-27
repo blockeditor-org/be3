@@ -4,9 +4,10 @@ use crate::list::List;
 use crate::text::{Text, TextColor, TextStyle};
 use crate::tokens::{Padding, Space};
 use beui_components_unstyled as unstyled;
-use beui_core::node::NodeId;
 use beui_macros::{component, view};
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::{Direction, ItemSize};
 
 const LABEL_WEIGHT: f32 = 4.0;
 const CELL_WEIGHT: f32 = 3.0;

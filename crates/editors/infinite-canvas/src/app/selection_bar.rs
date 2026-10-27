@@ -3,6 +3,7 @@ use super::paint::resolve_color;
 use super::sidebar::{set_foreground, styled_entities};
 use super::state::{CanvasState, CommonValue, common_value};
 use super::style::{STROKES, StylePopover};
+use beui::{Align, Direction};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_SLIDERS_HORIZONTAL;
 use block_editor_beui::beui::reactive::*;
@@ -122,7 +123,8 @@ pub(crate) fn Swatch(
     on_pick: Callback<CanvasColor>,
 ) -> NodeId {
     let theme = use_theme();
-    let fill = create_memo(move || resolve_color(color, theme.text.get()));
+    let fill =
+        create_memo(move || resolve_color(color, beui::reactive::resolve_color(theme.text.get())));
     let chosen = create_memo(move || value.get() == CommonValue::Uniform(color));
     view! {
         <SwatchButton

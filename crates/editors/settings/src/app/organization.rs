@@ -12,6 +12,7 @@ use uuid::Uuid;
 
 use super::block::name_of;
 use super::ui::Section;
+use beui::{Extent, ItemSize};
 
 const ABOUT: &str = "Applies to every member. Only its administrators change it, and the server reads it to enforce sharing, workspaces, history and storage.";
 const OFFLINE_ABOUT: &str = "Whether this device keeps a workspace's blocks so they open without a connection. When off, this device forgets them when the app closes, except edits that have not reached the server yet.";

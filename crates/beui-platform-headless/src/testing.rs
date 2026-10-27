@@ -13,6 +13,7 @@ use beui_core::color::Color32;
 use beui_core::context::RendererInfo;
 use beui_core::context::{Context, FrameOutput, WindowOutput};
 use beui_core::document::Document;
+pub use beui_core::document::delay_measurement;
 use beui_core::geometry::{Pos2, Rect, Vec2};
 use beui_core::input::{Input, PointerButton};
 use beui_core::renderer::{Loaded, Renderer};
@@ -43,10 +44,6 @@ enum Hosting {
 }
 
 impl Renderer for Screen {
-    fn name(&self) -> &'static str {
-        "screen"
-    }
-
     fn info(&self) -> RendererInfo {
         RendererInfo::default()
     }
@@ -138,8 +135,6 @@ impl From<Pos2> for Target {
         Self::point(at)
     }
 }
-
-type Observer = Box<dyn FnMut(&FrameOutput)>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct HostedWindow {
@@ -263,7 +258,6 @@ pub struct Stepped<A: App = Showing> {
     size: Vec2,
     painted: bool,
     settling: bool,
-    observers: Vec<Observer>,
     inbox: Inbox,
     driving: Driving,
     wakes: Arc<Wakes>,
@@ -366,10 +360,10 @@ impl<A: App + 'static> Stepped<A> {
         let window = window(&runner);
         runner
             .start(
-                vec![Loaded {
+                Loaded {
                     renderer: Box::new(Screen(size * scale)),
                     fonts: None,
-                }],
+                },
                 setup,
             )
             .expect("a screen without a gpu always loads");
@@ -382,7 +376,6 @@ impl<A: App + 'static> Stepped<A> {
             size,
             painted: false,
             settling: true,
-            observers: Vec::new(),
             inbox,
             driving: Driving::default(),
             wakes,
@@ -492,10 +485,6 @@ impl<A: App + 'static> Stepped<A> {
         windows.reports.push(report);
     }
 
-    pub fn observe(&mut self, observer: impl FnMut(&FrameOutput) + 'static) {
-        self.observers.push(Box::new(observer));
-    }
-
     pub fn advance(&mut self, by: Duration) {
         self.runner.context().advance_clock(by);
     }
@@ -541,9 +530,6 @@ impl<A: App + 'static> Stepped<A> {
         };
         self.runner.frame(platform, SafeArea::default());
         if let Some(output) = self.runner.take_output() {
-            for observer in &mut self.observers {
-                observer(&output);
-            }
             self.latest = Some(output);
         }
         self.closed |= self.runner.exited();

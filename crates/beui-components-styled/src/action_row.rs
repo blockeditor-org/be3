@@ -1,11 +1,11 @@
-use beui_core::icons::Glyph;
-use beui_core::image::Image;
 use beui_macros::{component, view};
+use beui_view::types::Image;
+use beui_view::types::icons::Glyph;
 
 use crate::row::{RowFace, RowSize, RowTrailing};
 use crate::text::TextColor;
 use beui_components_unstyled as unstyled;
-use beui_core::node::NodeId;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
 #[component]

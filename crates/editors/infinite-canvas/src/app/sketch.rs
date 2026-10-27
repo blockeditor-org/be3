@@ -1,7 +1,9 @@
+use block_editor_beui::beui::native::core_painter;
 use std::rc::Rc;
 
 use block_editor_beui::beui::{
-    Color32, FillRule, LineCap, LineJoin, Painter, Path, PathPaint, Pos2, Stroke, Vec2, pos2,
+    Color32, FillRule, LineCap, LineJoin, Path, Pos2, Stroke, Vec2, native::PathPaint, pos2,
+    reactive::Painter,
 };
 use infinite_canvas_types::{
     CanvasEntity, CanvasFill, CanvasLook, CanvasPathPoint, CanvasPoint, CanvasShape,
@@ -297,9 +299,9 @@ impl Sketch {
             match &part.mark {
                 Mark::Fill(path) => painter.fill_path(path, FillRule::NonZero, color),
                 Mark::Stroke(path, line) => painter.stroke_path(path, line, color),
-                Mark::Painted(paint, offset) => {
-                    painter.transformed(*offset, 1.0).paint_path(paint, color)
-                }
+                Mark::Painted(paint, offset) => core_painter(painter)
+                    .transformed(*offset, 1.0)
+                    .paint_path(paint, color),
             }
         }
     }

@@ -1,5 +1,5 @@
 use super::*;
-use crate::renderer_info;
+use crate::native::renderer_info;
 
 #[test]
 fn the_inspector_shows_the_renderer_the_host_reports() {

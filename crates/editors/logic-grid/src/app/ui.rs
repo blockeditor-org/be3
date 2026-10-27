@@ -11,6 +11,8 @@ use super::panels::Panels;
 use super::session::Session;
 use super::*;
 use crate::renderer::GridScene;
+use beui::native::draw_gpu;
+use beui::{Direction, ItemSize};
 
 const ZOOM_STEP: f32 = 1.25;
 
@@ -150,122 +152,125 @@ fn GridToolbar(session: Session, shown: ReadSignal<bool>) -> DynamicSegment<List
 #[component]
 fn GridCanvas(session: Session) -> NodeId {
     let editor = session.editor();
-    view! {
-        <PlacementBuilder>|placed: ReadSignal<Rect>| {
-            let view = editor.canvas();
-            let world = editor.world();
-            let camera = create_memo(move || {
-                Camera::from_view(view.get(), world.get(), placed.get())
-            });
-            create_effect(move || {
-                let camera = camera.get();
-                session.set_camera(camera);
-            });
-            let grid_view = create_memo(move || {
-                Some(camera.get().view(placed.get()))
-            });
-            let width = create_memo(move || placed.get().width());
-            let height = create_memo(move || placed.get().height());
+    let placed_held = create_signal(Rect::ZERO);
+    let placed = placed_held.read_only();
+    let view = editor.canvas();
+    let world = editor.world();
+    let camera = create_memo(move || Camera::from_view(view.get(), world.get(), placed.get()));
+    create_effect(move || {
+        let camera = camera.get();
+        session.set_camera(camera);
+    });
+    let grid_view = create_memo(move || Some(camera.get().view(placed.get())));
+    let width = create_memo(move || placed.get().width());
+    let height = create_memo(move || placed.get().height());
 
-            let scene = GridScene::default();
-            let pointer = session.pointer;
-            let debug_hover = session.debug_hover;
-            let graph_hover = session.graph_hover;
-            let drawing = create_memo(move || {
-                let camera = camera.get();
-                let size = placed.get().size();
-                let pointer = pointer.get();
-                let hovered = debug_hover.get();
-                let graph = graph_hover.get();
-                let frame = session.read(|model| model.render_frame(size, camera, pointer, hovered, &graph));
-                Some(scene.drawing(frame))
-            });
+    let scene = GridScene::default();
+    let pointer = session.pointer;
+    let debug_hover = session.debug_hover;
+    let graph_hover = session.graph_hover;
+    let drawing = create_memo(move || {
+        let camera = camera.get();
+        let size = placed.get().size();
+        let pointer = pointer.get();
+        let hovered = debug_hover.get();
+        let graph = graph_hover.get();
+        let frame =
+            session.read(|model| model.render_frame(size, camera, pointer, hovered, &graph));
+        Some(scene.drawing(frame))
+    });
 
-            let labels =
-                create_memo(move || session.read(LogicGridEditor::component_labels));
-            let label_keys = create_memo(move || {
-                labels.with(|labels| labels.iter().map(|label| label.key).collect::<Vec<_>>())
-            });
-            let zoom = create_memo(move || camera.get().zoom);
+    let labels = create_memo(move || session.read(LogicGridEditor::component_labels));
+    let label_keys = create_memo(move || {
+        labels.with(|labels| labels.iter().map(|label| label.key).collect::<Vec<_>>())
+    });
+    let zoom = create_memo(move || camera.get().zoom);
 
-            let last = store(Cell::new(None::<[f32; 2]>));
-            let at = move |press: PointerPress| {
-                camera.get_untracked().screen_to_world(press.pos, placed.get_untracked())
-            };
-            let on_press = move |press: PointerPress| {
-                let world = at(press);
-                last.value().set(Some(world));
-                session.pointer.set(Some(world));
-                let additive = press.modifiers.shift;
-                session.edit(|model| model.press(world, additive));
-            };
-            let on_drag = move |press: PointerPress| {
-                let world = at(press);
-                last.value().set(Some(world));
-                session.pointer.set(Some(world));
-            };
-            let on_active_change = move |active: bool| {
-                if active {
-                    return;
-                }
-                let Some(world) = last.value().take() else {
-                    return;
-                };
-                if session.read_untracked(|model| model.gesture.is_some()) {
-                    session.update(|model| model.release(world));
-                }
-            };
-            let on_secondary = move |press: PointerPress| {
-                let world = at(press);
-                session.edit(|model| model.delete_wire_at(world));
-            };
-            let on_hover_move = move |press: PointerPress| {
-                session.pointer.set(Some(at(press)));
-            };
-            let on_hover_change = move |hovered: bool| {
-                if !hovered && last.value().get().is_none() {
-                    session.pointer.set(None);
-                }
-            };
+    let last = store(Cell::new(None::<[f32; 2]>));
+    let at = move |press: PointerPress| {
+        camera
+            .get_untracked()
+            .screen_to_world(press.pos, placed.get_untracked())
+    };
+    let on_press = move |press: PointerPress| {
+        let world = at(press);
+        last.value().set(Some(world));
+        session.pointer.set(Some(world));
+        let additive = press.modifiers.shift;
+        session.edit(|model| model.press(world, additive));
+    };
+    let on_drag = move |press: PointerPress| {
+        let world = at(press);
+        last.value().set(Some(world));
+        session.pointer.set(Some(world));
+    };
+    let on_active_change = move |active: bool| {
+        if active {
+            return;
+        }
+        let Some(world) = last.value().take() else {
+            return;
+        };
+        if session.read_untracked(|model| model.gesture.is_some()) {
+            session.update(|model| model.release(world));
+        }
+    };
+    let on_secondary = move |press: PointerPress| {
+        let world = at(press);
+        session.edit(|model| model.delete_wire_at(world));
+    };
+    let on_hover_move = move |press: PointerPress| {
+        session.pointer.set(Some(at(press)));
+    };
+    let on_hover_change = move |hovered: bool| {
+        if !hovered && last.value().get().is_none() {
+            session.pointer.set(None);
+        }
+    };
 
-            let content = NodeRef::new();
-            editor.content(&content);
-            view! {
-                <Frame @node_ref={&content}>
-                    <Interactive
-                        cursor=CursorIcon::Crosshair
-                        @test_id={"logic-grid.canvas"}
-                        on_press={on_press}
-                        on_drag={on_drag}
-                        on_active_change={on_active_change}
-                        on_secondary_press={on_secondary}
-                        on_hover_move={on_hover_move}
-                        on_hover_change={on_hover_change}
-                    >
-                        <Canvas>
-                            <CanvasItem x=0.0 y=0.0 width={width} height={height}>
-                                <Drawing draw={Prop::dynamic(move || draw_gpu(drawing.get()))} />
-                            </CanvasItem>
-                            <CanvasItem x=0.0 y=0.0 width={width} height={height}>
-                                <Canvas view={grid_view}>
-                                    <ForEach keys={label_keys}>|key: LabelKey| {
-                                        let label = create_memo(move || {
-                                            labels.with(|labels| {
-                                                labels.iter().find(|label| label.key == key).cloned()
-                                            })
-                                        });
-                                        view! {
-                                            <GridLabel label={label} zoom={zoom} />
-                                        }
-                                    }</ForEach>
-                                </Canvas>
-                            </CanvasItem>
+    let content = NodeRef::new();
+    editor.content(&content);
+    let built = view! {
+        <Frame @node_ref={&content}>
+            <Interactive
+                cursor=CursorIcon::Crosshair
+                @test_id={"logic-grid.canvas"}
+                on_press={on_press}
+                on_drag={on_drag}
+                on_active_change={on_active_change}
+                on_secondary_press={on_secondary}
+                on_hover_move={on_hover_move}
+                on_hover_change={on_hover_change}
+            >
+                <Canvas>
+                    <CanvasItem x=0.0 y=0.0 width={width} height={height}>
+                        <Drawing draw={Prop::dynamic(move || draw_gpu(drawing.get()))} />
+                    </CanvasItem>
+                    <CanvasItem x=0.0 y=0.0 width={width} height={height}>
+                        <Canvas view={grid_view}>
+                            <ForEach keys={label_keys}>|key: LabelKey| {
+                                let label = create_memo(move || {
+                                    labels.with(|labels| {
+                                        labels.iter().find(|label| label.key == key).cloned()
+                                    })
+                                });
+                                view! {
+                                    <GridLabel label={label} zoom={zoom} />
+                                }
+                            }</ForEach>
                         </Canvas>
-                    </Interactive>
-                </Frame>
-            }
-        }</PlacementBuilder>
-    }
+                    </CanvasItem>
+                </Canvas>
+            </Interactive>
+        </Frame>
+    };
+    let placed_measured = measure(built);
+    create_effect(move || {
+        if let Some(measured) = placed_measured.get() {
+            placed_held.set(measured.rect);
+        }
+    });
+    built
 }
 
 #[component]
@@ -286,7 +291,7 @@ fn GridLabel(label: Memo<Option<ComponentLabel>>, zoom: Memo<f32>) -> CanvasItem
         )
     });
     let color = create_memo(move || {
-        TextColor::Custom(label.get().map_or(LABEL_COLOR, |label| label.kind.color()))
+        TextColor::Custom((label.get().map_or(LABEL_COLOR, |label| label.kind.color())).into())
     });
     let align = create_memo(move || label.get().map_or(TextAlign::Center, |label| label.align));
     let vertical_align = create_memo(move || {

@@ -1,14 +1,15 @@
-use std::cell::RefCell;
 use std::ops::{Deref, DerefMut};
-use std::rc::Rc;
 use std::time::Duration;
 
-use beui::WindowSize;
-use beui::testing::{Gui, Showing, Stepped};
-use beui::{Color32, Context, Document, FontLibrary, FrameOutput, FreetypeFonts, Vec2};
+use beui::native::Document;
+use beui::native::WindowSize;
+use beui::native::testing::{Gui, Showing, Stepped};
+use beui::{
+    Color32, Vec2, native::Context, native::FontLibrary, native::FrameOutput,
+    native::FreetypeFonts,
+};
 
 use crate::beui::capture;
-use crate::dom::DomPainting;
 use crate::overflow;
 use crate::snapshot::{self, Recording, Snapshot, Snapshots};
 
@@ -18,7 +19,6 @@ pub struct DocumentTest {
     stepped: Stepped,
     fonts: FontLibrary,
     recording: Recording,
-    dom: Option<Rc<RefCell<DomPainting>>>,
 }
 
 impl Deref for DocumentTest {
@@ -45,7 +45,7 @@ impl DocumentTest {
     }
 
     fn start(document: Document, size: Vec2, hosting: bool) -> Self {
-        beui::fail_unsettled_layout(true);
+        beui::native::fail_unsettled_layout(true);
         let fonts = FontLibrary::bundled();
         let context = Context::new(FreetypeFonts::new(fonts.clone()));
         let window = WindowSize { size, scale: 1.0 };
@@ -59,22 +59,11 @@ impl DocumentTest {
             stepped,
             fonts,
             recording: Recording::default(),
-            dom: None,
         }
     }
 
     pub fn fonts(&self) -> &FontLibrary {
         &self.fonts
-    }
-
-    pub fn render_dom(&mut self) {
-        let dom = Rc::new(RefCell::new(DomPainting::new(self.stepped.size())));
-        let output = self.stepped.output();
-        dom.borrow_mut().show(output, background(output));
-        let shown = Rc::clone(&dom);
-        self.stepped
-            .observe(move |output| shown.borrow_mut().show(output, background(output)));
-        self.dom = Some(dom);
     }
 
     pub fn snapshot_window(&mut self, name: &str, window: beui::WindowId) {
@@ -88,17 +77,6 @@ impl DocumentTest {
         let painting = capture::capture_window(&output, 1.0, background)
             .expect("the painting could not be rendered");
         snapshot::assert_snapshot(name, &painting);
-    }
-
-    pub fn snapshot_dom(&mut self, name: &str) {
-        let size = self.stepped.size();
-        let output = self.stepped.output();
-        let dom = self
-            .dom
-            .as_ref()
-            .expect("call render_dom before the frames a DOM snapshot shows");
-        dom.borrow()
-            .snapshot(name, output, size, background(output));
     }
 }
 

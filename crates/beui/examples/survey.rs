@@ -1,9 +1,11 @@
+use beui::native::Document;
+use beui::native::build;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{App, Context, Document, Rect};
+use beui::{Rect, native::App, native::Context};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    beui::run(SurveyApp::new())
+    beui::native::run(SurveyApp::new())
 }
 
 struct SurveyApp {

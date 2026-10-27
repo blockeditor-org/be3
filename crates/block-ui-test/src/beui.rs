@@ -1,5 +1,6 @@
-use beui::testing::{Driving, Gui, Wakes};
-use beui::{Document, Input, Key, KeyChord, Modifiers, Pos2, Rect, Vec2};
+use beui::native::Document;
+use beui::native::testing::{Driving, Gui, Wakes};
+use beui::{Input, Key, KeyChord, Modifiers, Pos2, Rect, Vec2};
 use block_editor_beui::FromEditor;
 use block_editor_beui::be_block::{LiveEdit, Merge};
 use block_editor_beui::headless::{Adopted, HeadlessPlugin};
@@ -47,7 +48,7 @@ use crate::document::FRAME_INTERVAL;
 use crate::link::Sent;
 use crate::snapshot::{Recording, Snapshots};
 use crate::{ContentStore, overflow, snapshot};
-use beui::drive::gestures::Frames;
+use beui::native::drive::gestures::Frames;
 
 pub(crate) mod capture;
 mod desk;
@@ -105,7 +106,7 @@ pub struct BeuiTest<A: BeuiApp> {
     completed:
         std::collections::HashMap<block_plugin_api::ops::OpId, block_plugin_api::ops::Outcome>,
     menu: Vec<MenuEntry>,
-    output: Option<beui::FrameOutput>,
+    output: Option<beui::native::FrameOutput>,
     shown_window: Option<beui::WindowId>,
     drew: bool,
     recording: Recording,
@@ -170,8 +171,8 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     fn open(kind: Kind, adopted: Adopted, data: Vec<u8>) -> Self {
-        beui::verify_paint(true);
-        beui::fail_unsettled_layout(true);
+        beui::native::verify_paint(true);
+        beui::native::fail_unsettled_layout(true);
         block_editor_beui::pin_wall_clock(Some(WALL_CLOCK));
         let host = match &adopted {
             Adopted::Editor(editor, _) | Adopted::Preview(editor) => editor.host(),
@@ -615,11 +616,11 @@ impl<A: BeuiApp> BeuiTest<A> {
         })
     }
 
-    pub fn drawn(&self) -> Option<&beui::WindowOutput> {
+    pub fn drawn(&self) -> Option<&beui::native::WindowOutput> {
         self.shown_output().filter(|_| self.drew)
     }
 
-    fn shown_output(&self) -> Option<&beui::WindowOutput> {
+    fn shown_output(&self) -> Option<&beui::native::WindowOutput> {
         self.output.as_ref()?.window(self.shown_window?)
     }
 
@@ -1573,13 +1574,13 @@ impl<A: BeuiApp> Gui for BeuiTest<A> {
             .expect("the editor has not built its view yet")
     }
 
-    fn output(&self) -> &beui::FrameOutput {
+    fn output(&self) -> &beui::native::FrameOutput {
         self.output
             .as_ref()
             .expect("the editor has not drawn a frame yet")
     }
 
-    fn window_output(&self) -> &beui::WindowOutput {
+    fn window_output(&self) -> &beui::native::WindowOutput {
         self.shown_output()
             .expect("the editor has not drawn its window yet")
     }

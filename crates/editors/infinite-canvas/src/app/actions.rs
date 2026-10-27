@@ -181,7 +181,7 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     let exporter = Exporter::new(
         state,
         create_memo(move || super::canvas::palette(&theme)),
-        create_memo(move || theme.background.get()),
+        create_memo(move || beui::reactive::resolve_color(theme.background.get())),
     );
     let drawn = when(|state| state.entities.ids().with(|ids| !ids.is_empty()));
     let export =

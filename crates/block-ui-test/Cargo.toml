@@ -9,13 +9,11 @@ be-session = { path = "../be-session" }
 be-store = { path = "../be-store" }
 beui = { path = "../beui", default-features = false }
 beui-core = { path = "../beui-core" }
-beui-renderer-dom = { path = "../beui-renderer-dom" }
 block-editor-beui = { path = "../block-editor-beui" }
 block-plugin-api = { path = "../block-plugin-api" }
 block-type-guest = { path = "../block-type-guest" }
 host-types = { path = "../host-types" }
 workspace-ui-types = { path = "../editors/workspace-ui/types" }
-image = { version = "0.25", default-features = false, features = ["png"] }
 paint-snapshot = { path = "../paint-snapshot" }
 serde = "1"
 uuid = "1"

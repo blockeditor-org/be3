@@ -4,47 +4,15 @@ use std::time::{Duration, Instant};
 
 use foldhash::{HashMap, HashSet};
 
-use crate::base::child_list::{ChildHost, ChildList, NodeChildren};
 use crate::callback::Callback;
+use crate::child_list::{ChildHost, ChildList, NodeChildren};
 use crate::current::with_document;
 use crate::document::Document;
-use crate::geometry::{Pos2, Rect, Vec2, pos2};
+use crate::geometry::{Rect, Vec2, pos2};
 use crate::node::{ANCESTOR_LIMIT, Element, NodeId, NodeOf, Rects, SpaceId};
 use crate::painter::{Painter, Zoom};
 
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub struct CanvasView {
-    pub origin: Pos2,
-    pub scale: f32,
-}
-
-impl CanvasView {
-    pub fn new(origin: Pos2, scale: f32) -> Self {
-        Self { origin, scale }
-    }
-
-    pub fn to_screen(self, point: Pos2) -> Pos2 {
-        pos2(
-            self.origin.x + point.x * self.scale,
-            self.origin.y + point.y * self.scale,
-        )
-    }
-
-    pub fn to_canvas(self, point: Pos2) -> Pos2 {
-        pos2(
-            (point.x - self.origin.x) / self.scale,
-            (point.y - self.origin.y) / self.scale,
-        )
-    }
-
-    pub fn rect_to_screen(self, rect: Rect) -> Rect {
-        Rect::from_min_max(self.to_screen(rect.min), self.to_screen(rect.max))
-    }
-
-    pub fn rect_to_canvas(self, rect: Rect) -> Rect {
-        Rect::from_min_max(self.to_canvas(rect.min), self.to_canvas(rect.max))
-    }
-}
+pub use beui_types::layout::CanvasView;
 
 impl ChildHost for CanvasNode {
     type Stored = NodeId;
@@ -523,7 +491,7 @@ impl Element for CanvasNode {
     }
 
     fn remove_child(&mut self, child: NodeId) {
-        crate::base::child_list::remove_hosted(self, child);
+        crate::child_list::remove_hosted(self, child);
     }
 
     fn kind(&self) -> &'static str {

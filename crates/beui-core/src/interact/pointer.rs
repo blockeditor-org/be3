@@ -1,4 +1,3 @@
-use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
 use crate::base::interactive::{InteractiveNode, local_in, press_at};
@@ -8,15 +7,15 @@ use crate::context::Context;
 use crate::document::{Acted, Document};
 use crate::geometry::{Pos2, Rect, Vec2, vec2};
 use crate::input::{
-    DragGesture, FINGER_TAP_TIME, MAX_TOUCH_VELOCITY, Modifiers, Pen, PointerButton, PointerEvent,
-    PointerId, PointerPhase, PointerPress, PointerSample, ScrollGesture, SecondaryDrag,
-    TOUCH_DRAG_THRESHOLD, TOUCH_VELOCITY_WINDOW, TouchId, ZoomGesture,
+    FINGER_TAP_TIME, Modifiers, Pen, PointerButton, PointerEvent, PointerId, PointerInput,
+    PointerPhase, PointerPress, PointerSample, PointerStage, ScrollGesture, TOUCH_DRAG_THRESHOLD,
+    TouchId, WheelInput, ZoomGesture,
 };
 use crate::node::{NodeId, NodeOf, Rects};
 use crate::window::WindowId;
 
 use super::hit::{self, Hit, interactive};
-use super::{WHEEL_LATCH_SLOP, WHEEL_LATCH_TIMEOUT, autoscroll};
+use super::{WHEEL_LATCH_SLOP, WHEEL_LATCH_TIMEOUT, grab};
 
 #[derive(Default)]
 pub struct Pointers {
@@ -25,8 +24,10 @@ pub struct Pointers {
     wheel_latch: Option<(NodeId, Instant, WindowId, Pos2)>,
     wheel_held: bool,
     fingers: Fingers,
-    pinch_target: Option<NodeId>,
     kept_off: Vec<TouchId>,
+    pub(crate) grabber: Option<NodeId>,
+    pub(crate) grabbed: Option<NodeId>,
+    after_input: Vec<Box<dyn FnOnce()>>,
     hits: Vec<(WindowId, Pos2, bool, Hit)>,
     current: usize,
     pub(crate) routed: Vec<Routed>,
@@ -69,6 +70,12 @@ impl Pointers {
                 )),
                 PointerId::Mouse | PointerId::Pen => None,
             })
+    }
+}
+
+impl Document {
+    pub fn after_input(&mut self, after: impl FnOnce() + 'static) {
+        self.pointers.after_input.push(Box::new(after));
     }
 }
 
@@ -154,15 +161,14 @@ struct Session {
     role: Role,
     origin: Pos2,
     pos: Pos2,
-    previous: Pos2,
     shift: Vec2,
     path: Vec<NodeId>,
     owners: Vec<NodeId>,
+    listeners: Vec<NodeId>,
     claimed: bool,
     focus: Option<NodeId>,
     pressed_focus: Option<NodeId>,
     sink: Option<NodeId>,
-    pan: Option<NodeId>,
     modifiers: Modifiers,
     clicks: u32,
     pen: Option<Pen>,
@@ -171,13 +177,10 @@ struct Session {
     dragged: bool,
     axis: Option<Direction>,
     drag_target: Option<NodeId>,
-    drag_started: bool,
     cancelled: bool,
     long_press: Option<Instant>,
     last_drag: Option<Pos2>,
     dragged_this_frame: bool,
-    samples: VecDeque<(Instant, Pos2)>,
-    velocity: Vec2,
     outside: Option<Vec<NodeOf<OverlayNode>>>,
 }
 
@@ -199,15 +202,75 @@ impl Session {
         }
     }
 
-    fn secondary(&self, pos: Pos2) -> SecondaryDrag {
-        SecondaryDrag {
-            from: self.origin,
-            pos,
-            started: false,
-            ended: false,
-            cancelled: false,
-            modifiers: self.modifiers,
-        }
+    fn input(&self, rects: &Rects, id: NodeId, stage: PointerStage, pos: Pos2) -> PointerInput {
+        let button = match self.role {
+            Role::Middle => PointerButton::Middle,
+            _ => self.button,
+        };
+        input_at(
+            rects,
+            id,
+            self.pointer,
+            Some(button),
+            stage,
+            pos - self.shift,
+            self.modifiers,
+            self.time,
+        )
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn input_at(
+    rects: &Rects,
+    id: NodeId,
+    pointer: PointerId,
+    button: Option<PointerButton>,
+    stage: PointerStage,
+    pos: Pos2,
+    modifiers: Modifiers,
+    time: Instant,
+) -> PointerInput {
+    let (local, size, scale) = rects
+        .scaled(&id)
+        .map_or((pos, Vec2::ZERO, 1.0), |(rect, scale)| {
+            (local_in(rect, scale, pos), rect.size() / scale, scale)
+        });
+    PointerInput {
+        pointer,
+        button,
+        stage,
+        pos,
+        local,
+        size,
+        scale,
+        inside: over(rects, id, pos),
+        modifiers,
+        time,
+        settles: None,
+    }
+}
+
+fn hear(doc: &Document, id: NodeId, input: PointerInput) -> bool {
+    if doc.pointers.grabbed == Some(id) {
+        return false;
+    }
+    let Some(on_pointer) = interactive(doc, id).map(|node| node.on_pointer) else {
+        return false;
+    };
+    !on_pointer.is_empty() && on_pointer.call(input)
+}
+
+fn listeners(doc: &Document, path: &[NodeId]) -> Vec<NodeId> {
+    path.iter()
+        .copied()
+        .filter(|id| interactive(doc, *id).is_some_and(InteractiveNode::hears_pointers))
+        .collect()
+}
+
+fn tell(doc: &Document, rects: &Rects, session: &Session, stage: PointerStage, pos: Pos2) {
+    for id in session.listeners.clone() {
+        hear(doc, id, session.input(rects, id, stage, pos));
     }
 }
 
@@ -217,18 +280,14 @@ struct Fingers {
     moved: bool,
     since: Option<Instant>,
     hold: Option<Hold>,
-    span: Option<f32>,
-    center: Option<Pos2>,
-    pinch: f32,
-    pan: Vec2,
     tap: Option<usize>,
 }
 
 struct Hold {
     finger: TouchId,
     anchor: Pos2,
-    owners: Vec<NodeId>,
-    drag: SecondaryDrag,
+    listeners: Vec<NodeId>,
+    pos: Pos2,
 }
 
 pub(crate) struct Frame<'a> {
@@ -267,8 +326,6 @@ pub(crate) fn begin(doc: &mut Document, frame: &Frame) -> Vec<LongPressed> {
     let count = frame.ctx.input(|input| input.pointer_events.len());
     doc.pointers.routed = vec![Routed::default(); count];
     doc.pointers.hits.clear();
-    doc.pointers.fingers.pinch = 1.0;
-    doc.pointers.fingers.pan = Vec2::ZERO;
     doc.pointers.fingers.tap = None;
     for session in &mut doc.pointers.sessions {
         session.dragged_this_frame = false;
@@ -288,7 +345,7 @@ pub(crate) fn begin(doc: &mut Document, frame: &Frame) -> Vec<LongPressed> {
     };
     let outside = left && frame.ctx.opens_windows() && !pos.is_some_and(within);
     doc.drag_board().set_outside(outside);
-    autoscroll::frame(doc, frame.ctx);
+    grab::frame(doc, frame.ctx);
     long_presses(doc, frame)
 }
 
@@ -323,7 +380,9 @@ fn route_over(doc: &mut Document, frame: &Frame, index: usize, event: PointerEve
 pub(crate) fn end_frame(doc: &mut Document, frame: &Frame) {
     doc.pointers.hits.clear();
     frame_drags(doc, frame);
-    pinch(doc, frame);
+    for after in std::mem::take(&mut doc.pointers.after_input) {
+        after();
+    }
     let mouse = frame
         .ctx
         .input(|input| input.pointer.mouse().map(|pos| (input.pointer.window, pos)));
@@ -335,12 +394,13 @@ pub(crate) fn end_frame(doc: &mut Document, frame: &Frame) {
     }
     cursor(doc, frame);
     track(doc, frame);
-    autoscroll::show_cursor(doc, frame.ctx);
 }
 
 fn pointer_event(doc: &mut Document, frame: &Frame, event: PointerEvent) -> Option<Down> {
     doc.pointers.hits.clear();
-    if autoscroll::pointer(doc, &event) {
+    doc.pointers.grabbed = None;
+    let held = doc.pointers.wheel_held;
+    if grab::pointer(doc, frame.rects, &event, held) {
         return None;
     }
     if kept_off(doc, frame, &event) {
@@ -374,21 +434,26 @@ fn pointer_event(doc: &mut Document, frame: &Frame, event: PointerEvent) -> Opti
         }
         PointerPhase::Zoom(factor) => {
             let path = hit(doc, frame.rects, event.window, event.pos, false).path;
-            let sink = match gesture_claimant(doc, &path, event.pos) {
+            let sink = match gesture_claimant(doc, frame.rects, &path, event.pos) {
                 Some(_) => None,
                 None => wheel_sink(doc, frame, event.window, event.pos),
             };
             doc.pointers.route(sink);
-            if let Some(target) = gesture_target(doc, frame, event.window, event.pos)
-                && let Some(node) = interactive(doc, target)
-            {
-                let (local, size) = local(frame.rects, target, event.pos);
-                node.on_zoom.clone().call(ZoomGesture {
+            let candidates = match gesture_claimant(doc, frame.rects, &path, event.pos) {
+                Some(claimant) => vec![claimant],
+                None => path,
+            };
+            for id in candidates {
+                let (local, size) = local(frame.rects, id, event.pos);
+                let zoom = WheelInput::Zoom(ZoomGesture {
                     factor,
                     pos: event.pos,
                     local,
                     size,
                 });
+                if turn(doc, id, zoom) {
+                    break;
+                }
             }
         }
     }
@@ -424,7 +489,7 @@ fn on_drawing(doc: &mut Document, frame: &Frame, window: WindowId, pos: Pos2) ->
     hit.path.iter().any(|id| {
         interactive(doc, *id)
             .zip(frame.rects.visible(id))
-            .is_some_and(|(node, rect)| node.draws_at(at, rect))
+            .is_some_and(|_| hit::draws_at(doc, frame.rects, *id, at))
     })
 }
 
@@ -443,7 +508,17 @@ fn rect_of(doc: &Document, rects: &Rects, id: NodeId) -> Option<(Rect, f32)> {
     rects.scaled(&id)
 }
 
-fn local(rects: &Rects, id: NodeId, pos: Pos2) -> (Pos2, Vec2) {
+fn turn(doc: &Document, id: NodeId, wheel: WheelInput) -> bool {
+    if doc.pointers.grabbed == Some(id) {
+        return false;
+    }
+    let Some(on_wheel) = interactive(doc, id).map(|node| node.on_wheel) else {
+        return false;
+    };
+    !on_wheel.is_empty() && on_wheel.call(wheel)
+}
+
+pub(crate) fn local(rects: &Rects, id: NodeId, pos: Pos2) -> (Pos2, Vec2) {
     rects
         .scaled(&id)
         .map_or((pos, Vec2::ZERO), |(rect, scale)| {
@@ -500,7 +575,7 @@ fn down(
         Role::Press
             if kind.buttons
                 && doc.pointers.space
-                && gesture_claimant(doc, &hit.path, event.pos).is_some() =>
+                && gesture_claimant(doc, frame.rects, &hit.path, event.pos).is_some() =>
         {
             Role::Middle
         }
@@ -547,7 +622,7 @@ fn press_down(doc: &mut Document, frame: &Frame, down: Down) {
         _ => None,
     };
     let panned = match role {
-        Role::Middle => gesture_claimant(doc, &hit.path, pos),
+        Role::Middle => gesture_claimant(doc, frame.rects, &hit.path, pos),
         _ => None,
     };
     let sink = kind
@@ -570,15 +645,19 @@ fn press_down(doc: &mut Document, frame: &Frame, down: Down) {
         role,
         origin: pos,
         pos,
-        previous: pos,
         shift: hit.shift,
         path: hit.path.clone(),
         owners: Vec::new(),
+        listeners: match (role, claimant) {
+            _ if hit.blocked => Vec::new(),
+            (Role::Middle, _) => Vec::new(),
+            (_, Some(claimant)) => listeners(doc, &[claimant]),
+            (_, None) => listeners(doc, &hit.path),
+        },
         claimed: claimant.is_some(),
         focus: None,
         pressed_focus: None,
         sink,
-        pan: None,
         modifiers: event.modifiers,
         clicks: event.clicks,
         pen: event.pen,
@@ -587,13 +666,10 @@ fn press_down(doc: &mut Document, frame: &Frame, down: Down) {
         dragged: false,
         axis: None,
         drag_target: None,
-        drag_started: false,
         cancelled: false,
         long_press: None,
         last_drag: None,
         dragged_this_frame: false,
-        samples: VecDeque::from([(event.time, pos)]),
-        velocity: Vec2::ZERO,
         outside: match kind.settles && role == Role::Press {
             true => Some(hit.outside.clone()),
             false => None,
@@ -606,6 +682,18 @@ fn press_down(doc: &mut Document, frame: &Frame, down: Down) {
         Role::Middle => middle(doc, frame, &mut session, &hit, panned),
         Role::Finger | Role::Other => {}
     }
+    if role != Role::Middle {
+        for id in session.listeners.clone() {
+            if hear(
+                doc,
+                id,
+                session.input(frame.rects, id, PointerStage::Down, pos),
+            ) {
+                session.listeners = vec![id];
+                break;
+            }
+        }
+    }
     doc.pointers.sessions.push(session);
     if let PointerId::Touch(id) = event.pointer {
         finger_down(doc, frame, id, event.pos);
@@ -617,7 +705,7 @@ fn reached(doc: &Document, rects: &Rects, path: &[NodeId], pos: Pos2) -> (Vec<No
     for id in path {
         reached.push(*id);
         let captures = match (interactive(doc, *id), rects.visible(id)) {
-            (Some(node), Some(rect)) => node.captures(pos, rect),
+            (Some(_), Some(_)) => hit::captures(doc, rects, *id, pos),
             _ => false,
         };
         if captures {
@@ -713,19 +801,6 @@ fn secondary(doc: &mut Document, frame: &Frame, session: &mut Session, claimant:
                 .call(session.press(rect, pos));
         }
     }
-    let drag = SecondaryDrag {
-        started: true,
-        ..session.secondary(pos)
-    };
-    secondary_drag(doc, &session.owners, drag);
-}
-
-fn secondary_drag(doc: &mut Document, owners: &[NodeId], drag: SecondaryDrag) {
-    for owner in owners.iter().rev() {
-        if let Some(node) = interactive(doc, *owner) {
-            node.on_secondary_drag.clone().call(drag);
-        }
-    }
 }
 
 fn middle(
@@ -736,23 +811,35 @@ fn middle(
     panned: Option<NodeId>,
 ) {
     let pos = session.pos;
-    let target = match (panned, hit.embed) {
-        (Some(panned), _) => Some(panned),
-        (None, true) => None,
-        (None, false) => session
-            .path
-            .iter()
-            .copied()
-            .find(|id| interactive(doc, *id).is_some_and(InteractiveNode::claims_middle)),
+    let takes = |doc: &Document, id: NodeId| {
+        hear(
+            doc,
+            id,
+            session.input(frame.rects, id, PointerStage::Down, pos),
+        )
     };
-    if let Some(target) = target
-        && interactive(doc, target).is_some_and(InteractiveNode::wants_autoscroll)
-    {
-        autoscroll::start(doc, target, pos);
-        return;
-    }
-    session.pan =
-        target.filter(|id| interactive(doc, *id).is_some_and(|node| !node.on_pan_drag.is_empty()));
+    let taker = match (panned, hit.embed) {
+        (Some(panned), _) => takes(doc, panned).then_some(panned),
+        (None, true) => None,
+        (None, false) => {
+            let mut taker = None;
+            for id in session.path.clone() {
+                let Some(node) = interactive(doc, id) else {
+                    continue;
+                };
+                let stops = node.stops_middle();
+                if takes(doc, id) {
+                    taker = Some(id);
+                    break;
+                }
+                if stops {
+                    break;
+                }
+            }
+            taker
+        }
+    };
+    session.listeners = taker.into_iter().collect();
     session.owners = session
         .path
         .iter()
@@ -762,20 +849,6 @@ fn middle(
                 && interactive(doc, *id).is_some_and(|node| !node.on_middle_click.is_empty())
         })
         .collect();
-    if let Some(pan) = session.pan {
-        set_pan(doc, pan, true);
-    }
-}
-
-fn set_pan(doc: &mut Document, id: NodeId, active: bool) {
-    let Some(node) = node_mut(doc, id) else {
-        return;
-    };
-    if node.pan_active == active {
-        return;
-    }
-    node.pan_active = active;
-    node.on_pan_active_change.clone().call(active);
 }
 
 fn moved(doc: &mut Document, frame: &Frame, event: PointerEvent) {
@@ -788,6 +861,9 @@ fn moved(doc: &mut Document, frame: &Frame, event: PointerEvent) {
         }
     };
     doc.pointers.route(sink);
+    if let PointerId::Touch(id) = event.pointer {
+        finger_moved(doc, frame, id, event.pos);
+    }
     for index in 0..doc.pointers.sessions.len() {
         if doc.pointers.sessions[index].pointer != event.pointer {
             continue;
@@ -799,11 +875,8 @@ fn moved(doc: &mut Document, frame: &Frame, event: PointerEvent) {
             session.pen = event.pen;
             session.predicted = event.predicted.map(|predicted| predicted + session.shift);
             session.time = event.time;
-            follow(doc, frame, session, pos, false);
+            follow(doc, frame, session, pos, PointerStage::Move);
         });
-    }
-    if let PointerId::Touch(id) = event.pointer {
-        finger_moved(doc, id, event.pos);
     }
 }
 
@@ -817,88 +890,84 @@ fn with_session(
     doc.pointers.sessions.insert(index, session);
 }
 
-fn follow(doc: &mut Document, frame: &Frame, session: &mut Session, pos: Pos2, releasing: bool) {
-    match session.role {
-        Role::Press => {
-            if session.kind.settles {
-                settle(doc, session, pos);
-            }
-            session.pos = pos;
-            if !session.cancelled && session.last_drag != Some(pos) {
-                drag(doc, frame, session, pos);
-            }
-        }
-        Role::Secondary if releasing => session.pos = pos,
-        Role::Secondary => {
-            if session.pos != pos {
-                session.pos = pos;
-                let drag = session.secondary(pos);
-                secondary_drag(doc, &session.owners, drag);
-            }
-        }
-        Role::Middle => {
-            if let Some(pan) = session.pan
-                && pos != session.pos
-                && let Some(node) = interactive(doc, pan)
-            {
-                node.on_pan_drag.clone().call(pos - session.pos);
-            }
-            session.pos = pos;
-        }
-        Role::Finger | Role::Other => session.pos = pos,
-    }
-}
-
-fn settle(doc: &mut Document, session: &mut Session, pos: Pos2) {
-    sample(session, session.time, pos);
-    if session.cancelled {
-        return;
-    }
-    let delta = match session.axis {
-        None => {
-            let movement = pos - session.origin;
-            let distance = movement.x.hypot(movement.y);
-            if distance < TOUCH_DRAG_THRESHOLD {
-                return;
-            }
-            session.dragged = true;
-            session.long_press = None;
-            let axis = match movement.y.abs() >= movement.x.abs() {
-                true => Direction::Vertical,
-                false => Direction::Horizontal,
-            };
-            session.axis = Some(axis);
-            decide(doc, session, axis);
-            along(axis, movement * (1.0 - TOUCH_DRAG_THRESHOLD / distance))
-        }
-        Some(axis) => along(axis, pos - session.previous),
+fn follow(
+    doc: &mut Document,
+    frame: &Frame,
+    session: &mut Session,
+    pos: Pos2,
+    stage: PointerStage,
+) {
+    let settles = match session.role == Role::Press && session.kind.settles {
+        true => settle(session, pos),
+        false => None,
     };
-    session.previous = pos;
-    scroll_drag(doc, session, delta, false, false);
-}
-
-fn along(axis: Direction, movement: Vec2) -> Vec2 {
-    match axis {
-        Direction::Vertical => vec2(0.0, movement.y),
-        Direction::Horizontal => vec2(movement.x, 0.0),
+    offer(doc, frame, session, stage, pos, settles);
+    session.pos = pos;
+    if session.role == Role::Press && !session.cancelled && session.last_drag != Some(pos) {
+        drag(doc, frame, session, pos);
     }
 }
 
-fn decide(doc: &mut Document, session: &mut Session, axis: Direction) {
-    if session.claimed {
-        session.drag_target = session
-            .owners
-            .first()
-            .copied()
-            .filter(|id| interactive(doc, *id).is_some_and(|node| node.catches_drag(axis)));
+fn settle(session: &mut Session, pos: Pos2) -> Option<Direction> {
+    if session.cancelled || session.axis.is_some() {
+        return None;
+    }
+    let movement = pos - session.origin;
+    if movement.x.hypot(movement.y) < TOUCH_DRAG_THRESHOLD {
+        return None;
+    }
+    session.dragged = true;
+    session.long_press = None;
+    let axis = match movement.y.abs() >= movement.x.abs() {
+        true => Direction::Vertical,
+        false => Direction::Horizontal,
+    };
+    session.axis = Some(axis);
+    Some(axis)
+}
+
+fn offer(
+    doc: &mut Document,
+    frame: &Frame,
+    session: &mut Session,
+    stage: PointerStage,
+    pos: Pos2,
+    settles: Option<Direction>,
+) {
+    let Some(axis) = settles else {
+        tell(doc, frame.rects, session, stage, pos);
         return;
+    };
+    let candidates: Vec<NodeId> = match session.claimed {
+        true => session.owners.first().copied().into_iter().collect(),
+        false => session.path.clone(),
+    };
+    let mut heard = Vec::new();
+    let mut winner = None;
+    for id in candidates {
+        if interactive(doc, id).is_some_and(|node| node.holds_drag(axis)) {
+            winner = Some(id);
+            break;
+        }
+        if session.listeners.contains(&id) {
+            heard.push(id);
+            let input = PointerInput {
+                settles: Some(axis),
+                ..session.input(frame.rects, id, stage, pos)
+            };
+            if hear(doc, id, input) {
+                winner = Some(id);
+                break;
+            }
+        }
     }
-    session.drag_target = session
-        .path
-        .iter()
-        .copied()
-        .find(|id| interactive(doc, *id).is_some_and(|node| node.catches_drag(axis)));
-    if session.drag_target.is_none() {
+    for id in session.listeners.clone() {
+        if !heard.contains(&id) {
+            hear(doc, id, session.input(frame.rects, id, stage, pos));
+        }
+    }
+    session.drag_target = winner;
+    if winner.is_none() || session.claimed {
         return;
     }
     let (kept, lost): (Vec<NodeId>, Vec<NodeId>) = session
@@ -920,54 +989,6 @@ fn cancel_owner(doc: &mut Document, owner: NodeId) {
     arm(doc, owner, false);
 }
 
-fn scroll_drag(
-    doc: &mut Document,
-    session: &mut Session,
-    delta: Vec2,
-    ended: bool,
-    cancelled: bool,
-) {
-    let Some(target) = session.drag_target else {
-        return;
-    };
-    let Some(node) = interactive(doc, target) else {
-        return;
-    };
-    let started = !std::mem::replace(&mut session.drag_started, true);
-    let scale = doc.rects.scale_of(&target);
-    node.on_scroll_drag.clone().call(DragGesture {
-        started,
-        ended,
-        cancelled,
-        delta: delta / scale,
-        velocity: session.velocity / scale,
-    });
-}
-
-fn sample(session: &mut Session, now: Instant, pos: Pos2) {
-    session.samples.push_back((now, pos));
-    while session.samples.len() > 2
-        && session.samples.front().is_some_and(|(when, _)| {
-            now.duration_since(*when).as_secs_f32() > TOUCH_VELOCITY_WINDOW
-        })
-    {
-        session.samples.pop_front();
-    }
-    let Some((then, origin)) = session.samples.front().copied() else {
-        return;
-    };
-    let elapsed = now.duration_since(then).as_secs_f32();
-    if elapsed <= f32::EPSILON {
-        return;
-    }
-    let measured = (pos - origin) * elapsed.recip();
-    let speed = measured.x.hypot(measured.y);
-    session.velocity = match speed > MAX_TOUCH_VELOCITY {
-        true => measured * (MAX_TOUCH_VELOCITY / speed),
-        false => measured,
-    };
-}
-
 fn up(doc: &mut Document, frame: &Frame, event: PointerEvent, button: PointerButton) {
     let primary = is_primary(doc, event.pointer);
     let kind = Kind::of(event.pointer);
@@ -983,16 +1004,16 @@ fn up(doc: &mut Document, frame: &Frame, event: PointerEvent, button: PointerBut
     session.window = event.window;
     session.predicted = None;
     session.time = event.time;
-    follow(doc, frame, &mut session, pos, true);
+    follow(doc, frame, &mut session, pos, PointerStage::Up);
     end(doc, frame, session, false);
     if let PointerId::Touch(id) = event.pointer {
-        finger_lifted(doc, id, Some(event.pos), false, primary);
+        finger_lifted(doc, frame, id, Some(event.pos), false, primary);
     }
 }
 
-fn end(doc: &mut Document, frame: &Frame, mut session: Session, cancelled: bool) {
+fn end(doc: &mut Document, frame: &Frame, mut session: Session, lost: bool) {
     let pos = session.pos;
-    let cancelled = cancelled || session.cancelled;
+    let cancelled = lost || session.cancelled;
     match session.role {
         Role::Press => {
             let focused = doc.focused_node();
@@ -1026,7 +1047,6 @@ fn end(doc: &mut Document, frame: &Frame, mut session: Session, cancelled: bool)
                     false => arm(doc, *owner, false),
                 }
             }
-            scroll_drag(doc, &mut session, Vec2::ZERO, !cancelled, cancelled);
             if session.kind.settles
                 && !session.dragged
                 && !cancelled
@@ -1055,19 +1075,8 @@ fn end(doc: &mut Document, frame: &Frame, mut session: Session, cancelled: bool)
                 }
             }
         }
-        Role::Secondary => {
-            let drag = SecondaryDrag {
-                ended: !cancelled,
-                cancelled,
-                ..session.secondary(pos)
-            };
-            secondary_drag(doc, &session.owners, drag);
-        }
+        Role::Secondary => {}
         Role::Middle => {
-            if let Some(pan) = session.pan {
-                let pinched = doc.pointers.pinch_target == Some(pan);
-                set_pan(doc, pan, pinched);
-            }
             if !cancelled {
                 for owner in session.owners.iter().rev() {
                     if session.window != session.origin_window || !over(frame.rects, *owner, pos) {
@@ -1080,6 +1089,9 @@ fn end(doc: &mut Document, frame: &Frame, mut session: Session, cancelled: bool)
             }
         }
         Role::Finger | Role::Other => {}
+    }
+    if lost {
+        tell(doc, frame.rects, &session, PointerStage::Cancel, pos);
     }
 }
 
@@ -1094,7 +1106,7 @@ fn cancel(doc: &mut Document, frame: &Frame, pointer: PointerId) {
     if let PointerId::Touch(id) = pointer
         && held
     {
-        finger_lifted(doc, id, None, true, primary);
+        finger_lifted(doc, frame, id, None, true, primary);
     }
 }
 
@@ -1181,7 +1193,6 @@ fn finger_down(doc: &mut Document, frame: &Frame, id: TouchId, pos: Pos2) {
         fingers.since = Some(frame.now);
     }
     fingers.most = fingers.most.max(count);
-    measure(doc);
     let Some(primary) = primary_touch(doc)
         .filter(|index| doc.pointers.sessions[*index].pointer != PointerId::Touch(id))
     else {
@@ -1203,38 +1214,28 @@ fn cancel_primary(
     let holds = !session.dragged && doc.pointers.fingers.hold.is_none() && second;
     if holds {
         let hit = hit(doc, frame.rects, session.window, pos, false);
-        let owners: Vec<NodeId> = hit
-            .path
-            .iter()
-            .copied()
-            .filter(|node| {
-                over(frame.rects, *node, pos)
-                    && interactive(doc, *node)
-                        .is_some_and(|catcher| !catcher.on_secondary_drag.is_empty())
-            })
-            .collect();
-        let drag = SecondaryDrag {
-            from: pos,
-            pos,
-            started: true,
-            ended: false,
-            cancelled: false,
-            modifiers: Modifiers::NONE,
-        };
-        secondary_drag(doc, &owners, drag);
-        doc.pointers.fingers.hold = Some(Hold {
+        let hold = Hold {
             finger: id,
             anchor: session.pos,
-            owners,
-            drag,
-        });
+            listeners: listeners(doc, &hit.path),
+            pos,
+        };
+        tell_hold(doc, frame.rects, &hold, PointerStage::Down, pos, frame.now);
+        doc.pointers.fingers.hold = Some(hold);
     }
     let owners = std::mem::take(&mut session.owners);
     for owner in owners.into_iter().rev() {
         cancel_owner(doc, owner);
     }
-    if !session.cancelled {
-        scroll_drag(doc, session, Vec2::ZERO, false, true);
+    if !session.cancelled
+        && let Some(target) = session.drag_target
+    {
+        let pos = session.pos;
+        hear(
+            doc,
+            target,
+            session.input(frame.rects, target, PointerStage::Cancel, pos),
+        );
     }
     session.cancelled = true;
     session.dragged = true;
@@ -1242,7 +1243,30 @@ fn cancel_primary(
     session.drag_target = None;
 }
 
-fn finger_moved(doc: &mut Document, id: TouchId, pos: Pos2) {
+fn tell_hold(
+    doc: &Document,
+    rects: &Rects,
+    hold: &Hold,
+    stage: PointerStage,
+    pos: Pos2,
+    time: Instant,
+) {
+    for id in hold.listeners.clone() {
+        let input = input_at(
+            rects,
+            id,
+            PointerId::Touch(hold.finger),
+            Some(PointerButton::Secondary),
+            stage,
+            pos,
+            Modifiers::NONE,
+            time,
+        );
+        hear(doc, id, input);
+    }
+}
+
+fn finger_moved(doc: &mut Document, frame: &Frame, id: TouchId, pos: Pos2) {
     let primary = is_primary(doc, PointerId::Touch(id));
     let Some((_, _, origin)) = doc.pointers.touches().find(|(finger, _, _)| *finger == id) else {
         return;
@@ -1251,38 +1275,36 @@ fn finger_moved(doc: &mut Document, id: TouchId, pos: Pos2) {
     if origin.distance(pos) >= TOUCH_DRAG_THRESHOLD {
         fingers.moved = true;
     }
-    let mut moved_hold = None;
-    let mut dropped_hold = None;
+    let mut moved = false;
+    let mut dropped = None;
     if let Some(hold) = &mut fingers.hold {
         if hold.finger == id {
-            if hold.drag.pos != pos {
-                hold.drag = SecondaryDrag {
-                    pos,
-                    started: false,
-                    ..hold.drag
-                };
-                moved_hold = Some((hold.owners.clone(), hold.drag));
+            if hold.pos != pos {
+                hold.pos = pos;
+                moved = true;
             }
         } else if primary && pos.distance(hold.anchor) >= TOUCH_DRAG_THRESHOLD {
-            dropped_hold = fingers.hold.take();
+            dropped = fingers.hold.take();
         }
     }
-    measure(doc);
-    if let Some((owners, drag)) = moved_hold {
-        secondary_drag(doc, &owners, drag);
+    if moved && let Some(hold) = &doc.pointers.fingers.hold {
+        tell_hold(doc, frame.rects, hold, PointerStage::Move, pos, frame.now);
     }
-    if let Some(hold) = dropped_hold {
-        let drag = SecondaryDrag {
-            cancelled: true,
-            started: false,
-            ..hold.drag
-        };
-        secondary_drag(doc, &hold.owners, drag);
+    if let Some(hold) = dropped {
+        tell_hold(
+            doc,
+            frame.rects,
+            &hold,
+            PointerStage::Cancel,
+            hold.pos,
+            frame.now,
+        );
     }
 }
 
 fn finger_lifted(
     doc: &mut Document,
+    frame: &Frame,
     id: TouchId,
     pos: Option<Pos2>,
     cancelled: bool,
@@ -1300,8 +1322,6 @@ fn finger_lifted(
             fingers.tap = Some(fingers.most);
         }
     }
-    fingers.span = None;
-    fingers.center = None;
     let lifted = fingers.hold.as_ref().is_some_and(|hold| hold.finger == id);
     if !lifted && !primary {
         return;
@@ -1309,116 +1329,33 @@ fn finger_lifted(
     let Some(hold) = fingers.hold.take() else {
         return;
     };
-    let ended = lifted && !cancelled;
-    let drag = SecondaryDrag {
-        pos: pos.filter(|_| lifted).unwrap_or(hold.drag.pos),
-        started: false,
-        ended,
-        cancelled: !ended,
-        ..hold.drag
-    };
-    secondary_drag(doc, &hold.owners, drag);
-}
-
-fn measure(doc: &mut Document) {
-    let held: Vec<Pos2> = doc
-        .pointers
-        .touches()
-        .map(|(_, pos, _)| pos)
-        .take(3)
-        .collect();
-    let fingers = &mut doc.pointers.fingers;
-    let [first, second] = held[..] else {
-        fingers.span = None;
-        fingers.center = None;
-        return;
-    };
-    let span = first.distance(second);
-    let center = Pos2::new((first.x + second.x) * 0.5, (first.y + second.y) * 0.5);
-    if let (Some(previous_span), Some(previous_center)) = (fingers.span, fingers.center)
-        && fingers.hold.is_none()
-        && previous_span > 0.0
-        && span > 0.0
-    {
-        fingers.pinch *= span / previous_span;
-        fingers.pan += center - previous_center;
+    match lifted && !cancelled {
+        true => {
+            let pos = pos.unwrap_or(hold.pos);
+            tell_hold(doc, frame.rects, &hold, PointerStage::Up, pos, frame.now);
+        }
+        false => tell_hold(
+            doc,
+            frame.rects,
+            &hold,
+            PointerStage::Cancel,
+            hold.pos,
+            frame.now,
+        ),
     }
-    fingers.span = Some(span);
-    fingers.center = Some(center);
 }
 
-fn gesture_target(
-    doc: &mut Document,
-    frame: &Frame,
-    window: WindowId,
-    pos: Pos2,
-) -> Option<NodeId> {
-    if let Some(target) = doc.pointers.pinch_target {
-        return Some(target);
-    }
-    let path = hit(doc, frame.rects, window, pos, false).path;
-    gesture_claimant(doc, &path, pos).or_else(|| {
-        path.into_iter()
-            .find(|id| interactive(doc, *id).is_some_and(InteractiveNode::wants_gestures))
-    })
-}
-
-fn gesture_claimant(doc: &Document, path: &[NodeId], pos: Pos2) -> Option<NodeId> {
+fn gesture_claimant(doc: &Document, rects: &Rects, path: &[NodeId], pos: Pos2) -> Option<NodeId> {
     path.iter()
         .rev()
         .copied()
-        .find(|id| interactive(doc, *id).is_some_and(|node| node.takes_gestures_at(pos)))
-}
-
-fn pinch(doc: &mut Document, frame: &Frame) {
-    let (zoom, pan) = (doc.pointers.fingers.pinch, doc.pointers.fingers.pan);
-    let fingers = doc.pointers.touches().count();
-    if fingers < 2
-        && let Some(target) = doc.pointers.pinch_target.take()
-    {
-        let panning = doc
-            .pointers
-            .sessions
-            .iter()
-            .any(|session| session.pan == Some(target));
-        set_pan(doc, target, panning);
-    }
-    if zoom == 1.0 && pan == Vec2::ZERO {
-        return;
-    }
-    let Some(pos) = doc.pointers.fingers.center else {
-        return;
-    };
-    let window = frame.ctx.input(|input| input.pointer.window);
-    let Some(target) = gesture_target(doc, frame, window, pos) else {
-        return;
-    };
-    if fingers >= 2 {
-        doc.pointers.pinch_target = Some(target);
-        set_pan(doc, target, true);
-    }
-    let Some(node) = interactive(doc, target) else {
-        return;
-    };
-    let (on_zoom, on_pan_drag) = (node.on_zoom, node.on_pan_drag);
-    if zoom != 1.0 {
-        let (local, size) = local(frame.rects, target, pos);
-        on_zoom.call(ZoomGesture {
-            factor: zoom,
-            pos,
-            local,
-            size,
-        });
-    }
-    if pan != Vec2::ZERO {
-        on_pan_drag.call(pan);
-    }
+        .find(|id| hit::takes_gestures_at(doc, rects, *id, pos))
 }
 
 fn wheel(doc: &mut Document, frame: &Frame, event: PointerEvent, delta: Vec2, fling: Vec2) {
     let pos = event.pos;
     let path = hit(doc, frame.rects, event.window, pos, false).path;
-    let claimed = gesture_claimant(doc, &path, pos);
+    let claimed = gesture_claimant(doc, frame.rects, &path, pos);
     let sink = match claimed {
         Some(_) => None,
         None => wheel_sink(doc, frame, event.window, pos),
@@ -1435,93 +1372,74 @@ fn wheel(doc: &mut Document, frame: &Frame, event: PointerEvent, delta: Vec2, fl
     if along == Vec2::ZERO {
         return;
     }
-    let claimed =
-        claimed.filter(|id| interactive(doc, *id).is_some_and(|node| node.wants_wheel(along)));
-    let target = latched(doc, frame, event.window, pos, along)
-        .or(claimed)
+    let held = doc.pointers.wheel_held;
+    let gesture = |id: NodeId| {
+        let (local, size) = local(frame.rects, id, pos);
+        WheelInput::Scroll(ScrollGesture {
+            delta,
+            fling,
+            pos,
+            local,
+            size,
+            modifiers: event.modifiers,
+            held,
+        })
+    };
+    let target = latched(doc, frame, event.window, pos)
+        .filter(|id| turn(doc, *id, gesture(*id)))
+        .or_else(|| claimed.filter(|id| turn(doc, *id, gesture(*id))))
         .or_else(|| {
             for id in path {
                 let node = interactive(doc, id)?;
-                if node.wants_wheel(along) {
+                let forwards = node.forwards_wheels();
+                if turn(doc, id, gesture(id)) {
                     return Some(id);
                 }
-                if node.forwards_wheels() {
+                if forwards {
                     return None;
                 }
             }
             None
         });
     doc.pointers.wheel_latch = target.map(|target| (target, frame.now, event.window, pos));
-    let Some((target, node)) = target.and_then(|target| Some((target, interactive(doc, target)?)))
-    else {
-        return;
-    };
-    let (local, size) = local(frame.rects, target, pos);
-    node.on_scroll.clone().call(ScrollGesture {
-        delta,
-        fling,
-        pos,
+}
+
+fn still(doc: &Document, frame: &Frame, target: NodeId, event: PointerEvent, held: bool) {
+    let (local, size) = local(frame.rects, target, event.pos);
+    let wheel = WheelInput::Scroll(ScrollGesture {
+        delta: Vec2::ZERO,
+        fling: Vec2::ZERO,
+        pos: event.pos,
         local,
         size,
         modifiers: event.modifiers,
-        held: doc.pointers.wheel_held,
+        held,
     });
+    turn(doc, target, wheel);
 }
 
 fn catch_wheel(doc: &mut Document, frame: &Frame, event: PointerEvent) {
-    let Some((target, on_scroll)) =
-        hit::claimant(doc, frame.rects, event.window, event.pos, event.modifiers)
-            .and_then(|target| Some((target, interactive(doc, target)?.on_scroll)))
-            .filter(|(_, on_scroll)| !on_scroll.is_empty())
+    let Some(target) = hit::claimant(doc, frame.rects, event.window, event.pos, event.modifiers)
+        .filter(|target| interactive(doc, *target).is_some_and(|node| !node.on_wheel.is_empty()))
     else {
         return;
     };
     doc.pointers.wheel_latch = Some((target, frame.now, event.window, event.pos));
-    let (local, size) = local(frame.rects, target, event.pos);
-    on_scroll.call(ScrollGesture {
-        delta: Vec2::ZERO,
-        fling: Vec2::ZERO,
-        pos: event.pos,
-        local,
-        size,
-        modifiers: event.modifiers,
-        held: true,
-    });
+    still(doc, frame, target, event, true);
 }
 
 fn lift_latched(doc: &mut Document, frame: &Frame, event: PointerEvent) {
-    let Some((target, node)) = doc
-        .pointers
-        .wheel_latch
-        .and_then(|(target, _, _, _)| Some((target, interactive(doc, target)?)))
-    else {
-        return;
-    };
-    let (local, size) = local(frame.rects, target, event.pos);
-    node.on_scroll.clone().call(ScrollGesture {
-        delta: Vec2::ZERO,
-        fling: Vec2::ZERO,
-        pos: event.pos,
-        local,
-        size,
-        modifiers: event.modifiers,
-        held: false,
-    });
+    if let Some((target, _, _, _)) = doc.pointers.wheel_latch {
+        still(doc, frame, target, event, false);
+    }
 }
 
-fn latched(
-    doc: &Document,
-    frame: &Frame,
-    window: WindowId,
-    pos: Pos2,
-    wheel: Vec2,
-) -> Option<NodeId> {
+fn latched(doc: &Document, frame: &Frame, window: WindowId, pos: Pos2) -> Option<NodeId> {
     let (latched, last, held, at) = doc.pointers.wheel_latch?;
     let recent = frame.now.saturating_duration_since(last) < WHEEL_LATCH_TIMEOUT;
     let still = held == window && at.distance(pos) <= WHEEL_LATCH_SLOP;
     let under = over(frame.rects, latched, pos);
-    let wants = interactive(doc, latched).is_some_and(|node| node.wants_wheel(wheel));
-    (recent && still && under && wants).then_some(latched)
+    (recent && still && under).then_some(latched)
 }
 
 fn wheel_sink(doc: &mut Document, frame: &Frame, window: WindowId, pos: Pos2) -> Option<NodeId> {
@@ -1530,7 +1448,7 @@ fn wheel_sink(doc: &mut Document, frame: &Frame, window: WindowId, pos: Pos2) ->
         .into_iter()
         .find_map(|id| {
             let node = interactive(doc, id)?;
-            match (node.forwards_wheels(), node.on_scroll.is_empty()) {
+            match (node.forwards_wheels(), node.on_wheel.is_empty()) {
                 (true, _) => Some(Some(id)),
                 (false, false) => Some(None),
                 (false, true) => None,
@@ -1637,6 +1555,7 @@ fn hover(doc: &mut Document, frame: &Frame, pointer: Option<(WindowId, Pos2)>) {
 }
 
 fn cursor(doc: &Document, frame: &Frame) {
+    let grabbed = grab::grabber(doc).and_then(|id| interactive(doc, id)?.cursor);
     let held = doc
         .pointers
         .sessions
@@ -1645,7 +1564,7 @@ fn cursor(doc: &Document, frame: &Frame) {
         .flat_map(|session| session.owners.iter())
         .chain(doc.pointers.hovered.iter())
         .find_map(|id| interactive(doc, *id).and_then(|node| node.cursor));
-    if let Some(cursor) = held {
+    if let Some(cursor) = grabbed.or(held) {
         frame.ctx.set_cursor_icon(cursor);
     }
 }

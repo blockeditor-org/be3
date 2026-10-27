@@ -21,12 +21,12 @@ fn the_inspectors_theme_overrides_the_apps_until_it_is_cleared() {
     harness
         .context()
         .set_preference_layer(PreferenceSource::App, app);
-    let captions = |output: &crate::FrameOutput, theme: Theme| {
+    let captions = |output: &crate::native::FrameOutput, theme: Theme| {
         output
             .main().shapes()
             .iter()
             .filter(|shape| {
-                matches!(shape, crate::Shape::Text { color, .. } if *color == theme.text_muted)
+                matches!(shape, crate::native::Shape::Text { color, .. } if *color == theme.text_muted)
             })
             .count()
     };

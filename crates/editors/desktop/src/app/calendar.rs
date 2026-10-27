@@ -1,3 +1,4 @@
+use beui::Extent;
 use block_editor_beui::be_block::Root;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;

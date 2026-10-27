@@ -1,4 +1,6 @@
-use crate::{Children, Kind, Node, Prop, bind_attribute, bind_flag, component};
+use crate::{
+    Callback, Children, Event, Kind, Node, Prop, bind_attribute, bind_flag, component, listen,
+};
 
 macro_rules! element {
     (normal $name:ident $tag:literal $strings:tt $numbers:tt $flags:tt) => {
@@ -13,7 +15,6 @@ macro_rules! element {
         [$($flag:ident => $flag_name:literal),*]) => {
         #[component]
         pub fn $name(
-            #[prop(default = Children::default())] css: Children<crate::tw::Style>,
             #[prop(default = None)] id: Prop<Option<String>>,
             #[prop(default = None)] class: Prop<Option<String>>,
             #[prop(default = None)] style: Prop<Option<String>>,
@@ -24,13 +25,23 @@ macro_rules! element {
             #[prop(default = None)] tabindex: Prop<Option<i32>>,
             #[prop(default = false)] hidden: Prop<bool>,
             #[prop(default = false)] inert: Prop<bool>,
+            on_click: Callback<Event>,
+            on_input: Callback<Event>,
+            on_change: Callback<Event>,
+            on_submit: Callback<Event>,
+            on_keydown: Callback<Event>,
+            on_keyup: Callback<Event>,
+            on_focus: Callback<Event>,
+            on_blur: Callback<Event>,
+            on_pointerdown: Callback<Event>,
+            on_pointermove: Callback<Event>,
+            on_pointerup: Callback<Event>,
             $(#[prop(default = None)] $string: Prop<Option<String>> ,)*
             $(#[prop(default = None)] $number: Prop<Option<$number_type>> ,)*
             $(#[prop(default = false)] $flag: Prop<bool> ,)*
             $($children)*
         ) -> Node {
             let $node = Node::new(Kind::Element($tag));
-            css.mount(crate::tw::host(&$node));
             bind_attribute(&$node, "id", id);
             bind_attribute(&$node, "class", class);
             bind_attribute(&$node, "style", style);
@@ -41,6 +52,17 @@ macro_rules! element {
             bind_attribute(&$node, "tabindex", tabindex);
             bind_flag(&$node, "hidden", hidden);
             bind_flag(&$node, "inert", inert);
+            listen(&$node, "click", on_click);
+            listen(&$node, "input", on_input);
+            listen(&$node, "change", on_change);
+            listen(&$node, "submit", on_submit);
+            listen(&$node, "keydown", on_keydown);
+            listen(&$node, "keyup", on_keyup);
+            listen(&$node, "focus", on_focus);
+            listen(&$node, "blur", on_blur);
+            listen(&$node, "pointerdown", on_pointerdown);
+            listen(&$node, "pointermove", on_pointermove);
+            listen(&$node, "pointerup", on_pointerup);
             $(bind_attribute(&$node, $string_name, $string);)*
             $(bind_attribute(&$node, $number_name, $number);)*
             $(bind_flag(&$node, $flag_name, $flag);)*

@@ -1,5 +1,6 @@
 use super::*;
 use crate::dock::unstyled::{DockPane, DockTab, DockingLayout};
+use crate::native::Document;
 
 #[test]
 fn dock_tabs_are_the_same_height_whether_or_not_they_close() {

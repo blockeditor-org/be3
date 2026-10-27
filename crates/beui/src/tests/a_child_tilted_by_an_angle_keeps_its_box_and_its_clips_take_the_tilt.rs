@@ -14,13 +14,13 @@ fn a_child_tilted_by_an_angle_keeps_its_box_and_its_clips_take_the_tilt() {
         view! {
             <List spacing=0.0 align=Align::Start>
                 <Frame width=200.0 height=200.0 padding={Sides::all(70.0)}>
-                    <Turn @node_ref=&turn angle=TILT>
+                    <Frame @node_ref=&turn rotate=TILT>
                         <Canvas width=60.0 height=60.0>
                             <CanvasItem x=0.0 y=0.0 width=60.0 height=60.0>
                                 <Frame fill=MARK radius=0.0 />
                             </CanvasItem>
                         </Canvas>
-                    </Turn>
+                    </Frame>
                 </Frame>
             </List>
         }

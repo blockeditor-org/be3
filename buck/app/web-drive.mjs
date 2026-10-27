@@ -3,6 +3,8 @@
 
 import { createRequire } from "node:module";
 
+import { commands, leadingOptions } from "./drive-words.mjs";
+
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
 
@@ -18,23 +20,7 @@ and these of its own:
   size W H                  make the page W by H
   quit                      close the browser`;
 
-let args = process.argv.slice(2);
-let timeout = 30;
-const options = [];
-while (args[0]?.startsWith("--")) {
-    if (args[0].startsWith("--timeout=")) {
-        timeout = Number(args[0].slice("--timeout=".length));
-    } else if (
-        args[0] === "--no-settle" ||
-        args[0].startsWith("--changes=") ||
-        args[0].startsWith("--into=")
-    ) {
-        options.push(args[0]);
-    } else {
-        break;
-    }
-    args = args.slice(1);
-}
+const { timeout, options, rest: args } = leadingOptions(process.argv.slice(2));
 const [command, ...rest] = args;
 const number = (index) => {
     const value = Number(rest[index]);
@@ -231,22 +217,12 @@ switch (command) {
 return true;
 }
 
-const words = (line) => {
-    const found = [];
-    const pattern = /'([^']*)'|"((?:\\.|[^"\\])*)"|(\S+)/g;
-    for (const match of line.matchAll(pattern)) {
-        found.push(match[1] ?? match[2]?.replace(/\\(.)/g, "$1") ?? match[3]);
-    }
-    return found;
-};
-
 if (command === "-") {
     const chunks = [];
     for await (const chunk of process.stdin) chunks.push(chunk);
-    for (const line of Buffer.concat(chunks).toString().split("\n")) {
-        const [first, ...others] = words(line);
-        if (!first || first.startsWith("#")) continue;
-        console.log(`> ${line.trim()}`);
+    for (const { line, words } of commands(Buffer.concat(chunks).toString())) {
+        const [first, ...others] = words;
+        console.log(`> ${line}`);
         await run(first, others);
     }
 } else {

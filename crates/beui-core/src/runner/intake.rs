@@ -2,14 +2,11 @@ use std::time::Instant;
 
 use crate::geometry::{Pos2, Vec2};
 use crate::input::{
-    Event, FileDrag, Input, Key, KeyPress, Keystroke, Modifiers, PointerButton, ScrollDelta,
-    TouchId, TouchPhase,
+    Event, FileDrag, Input, Key, KeyPress, Keystroke, Modifiers, PointerButton, TouchId, TouchPhase,
 };
 use crate::window::{WindowId, WindowReport};
 
-pub const SCROLL_LINE: f32 = 40.0;
-pub const SCROLL_PAGE: f32 = 800.0;
-pub const PINCH_SPEED: f32 = 0.01;
+pub use beui_types::input::{PINCH_SPEED, SCROLL_LINE, SCROLL_PAGE, scrolled};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Units {
@@ -354,14 +351,6 @@ fn points_into_window(input: &Input) -> bool {
             | Input::ScrollEnded
             | Input::Zoom(_)
     )
-}
-
-pub fn scrolled(delta: ScrollDelta, scale: f32) -> Vec2 {
-    match delta {
-        ScrollDelta::Pixels(delta) => delta / scale,
-        ScrollDelta::Lines(delta) => delta * SCROLL_LINE,
-        ScrollDelta::Pages(delta) => delta * SCROLL_PAGE,
-    }
 }
 
 fn button_bit(button: PointerButton) -> u8 {

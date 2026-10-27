@@ -1,0 +1,57 @@
+load("@root//buck/app:defs.bzl", "app")
+load("@root//buck/app:drive.bzl", "web_drive_test")
+load("@root//buck/cargo:defs.bzl", "cargo_library")
+load("@root//buck/wasm:defs.bzl", "wasi_app_flags", "wasi_html_module")
+
+# beui's demo (crates/beui-demo) on beui's
+# HTML core: `./scripts/buck run //crates/beui-demo:web-html` serves it with
+# Caddy on http://127.0.0.1:8075, or on the address after `--`.
+cargo_library(
+    rustc_flags = select({
+        "DEFAULT": [],
+        "prelude//cpu/constraints:cpu[wasm32]": wasi_app_flags,
+    }),
+    target_compatible_with = ["root//buck/constraints:html"],
+)
+
+wasi_html_module(
+    name = "web-module",
+    library = ":beui-demo-html",
+    module = "beui_demo_html",
+)
+
+app(
+    name = "web",
+    bindgen = [":web-module"],
+    files = [
+        "web/index.html",
+        "//crates/beui-fonts:Inter-Regular.ttf",
+        "//crates/beui-fonts:Hack-Regular.ttf",
+        "//crates/beui-fonts:NotoEmoji-Regular.ttf",
+        "//crates/beui-fonts:lucide.ttf",
+        "//crates/block-app:wasi.js",
+        "//crates/block-app:threads.js",
+        "//crates/block-app:thread.js",
+        "//crates/block-app:dylink.js",
+        "//crates/block-app:env.js",
+    ],
+    manifests = [],
+    modules = [],
+    run_with = [
+        "sh",
+        "$(location //buck/app:serve-bundle.sh)",
+        "$(location //buck/tools:caddy)",
+        "$(location //buck/app:bundle.Caddyfile)",
+        "127.0.0.1:8075",
+    ],
+    wasm_bindgen = "//buck/cargo:wasm-bindgen",
+    visibility = ["PUBLIC"],
+)
+
+# src/drive/*.drive in Chromium against :web: every page opens, the long modal
+# sheet opens and closes, and only Selectable text selects.
+web_drive_test(
+    name = "web-test",
+    bundle = ":web",
+    scripts = glob(["src/drive/*.drive"]),
+)

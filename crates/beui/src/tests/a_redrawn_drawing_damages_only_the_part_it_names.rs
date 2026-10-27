@@ -32,7 +32,7 @@ fn a_redrawn_drawing_damages_only_the_part_it_names() {
     let show = |drawing: Drawing, harness: &mut Harness| {
         harness
             .document_mut()
-            .set_drawing(viewport, draw_gpu(Some(drawing)));
+            .set_drawing(viewport, crate::base::drawing::draw_gpu(Some(drawing)));
     };
     show(drawing.clone(), &mut harness);
     harness.frame(Vec::new());

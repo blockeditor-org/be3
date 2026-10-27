@@ -1,4 +1,5 @@
 use super::*;
+use crate::native::Document;
 use crate::sight::CULLING_MARGIN;
 
 const ROWS: usize = 500;

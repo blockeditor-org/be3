@@ -1,4 +1,4 @@
-use beui::Document;
+use beui::native::Document;
 
 pub(crate) fn overflows(document: &Document) -> Vec<String> {
     document

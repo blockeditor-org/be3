@@ -1,9 +1,9 @@
 use super::*;
 use crate::color::Hsva;
+use crate::native::testing::{Showing, Stepped, Target};
 use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
-use crate::testing::{Showing, Stepped, Target};
 use beui_core::window::WindowSize;
 
 #[test]

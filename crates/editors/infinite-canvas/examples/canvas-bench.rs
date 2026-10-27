@@ -2,7 +2,7 @@ use block_ui_test::prelude::*;
 use std::time::{Duration, Instant};
 
 use block_editor_beui::beui::{
-    self, FramePerformance, Input, Pen, PenPhase, PointerButton, Pos2, Rect, Vec2,
+    self, Input, Pen, PenPhase, PointerButton, Pos2, Rect, Vec2, native::FramePerformance,
 };
 use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
@@ -70,7 +70,7 @@ fn open(count: usize) -> BeuiTest<CanvasApp> {
     host.set_editable(true);
     let editor = OwnedEditor::new(host, Uuid::new_v4());
     let mut test = BeuiTest::<CanvasApp>::new(editor).in_viewport();
-    beui::verify_paint(false);
+    beui::native::verify_paint(false);
     let canvas = Canvas::with_entities((0..count).map(shape));
     test.hold(None, CanvasContent::new(&canvas));
     test.store().keep_history::<CanvasContent>(None);

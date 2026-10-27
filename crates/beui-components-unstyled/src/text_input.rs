@@ -6,9 +6,9 @@ use accesskit::{Node, Role};
 
 use text_editor_core::{EditorCommand, TextBuffer, TextLanguage};
 
-use beui_core::base::ItemSize;
-use beui_core::color::Color32;
-use beui_core::geometry::{Pos2, Rect};
+use beui_view::types::Color;
+use beui_view::types::ItemSize;
+use beui_view::types::{Pos2, Rect};
 
 use crate::ContextMenuApi;
 use crate::MenuListApi;
@@ -22,11 +22,12 @@ use crate::TextAreaLook;
 use crate::TextAreaState;
 use crate::menu_popup::MenuStyle;
 use crate::text_menu::TextContextMenu;
-use beui_core::node::NodeId;
 use beui_macros::{component, view};
+use beui_view::reactive::NodeId;
 
 use beui_view::primitives::*;
 use beui_view::reactive::*;
+use beui_view::types::Sides;
 
 pub struct TextInputHandle {
     pub field: Child,
@@ -41,10 +42,10 @@ pub struct TextInputHandle {
 #[derive(Clone, Copy)]
 pub struct TextInputStyle {
     pub font_size: Prop<f32>,
-    pub color: Prop<Color32>,
-    pub placeholder_color: Prop<Color32>,
-    pub selection_color: Prop<Color32>,
-    pub caret_color: Prop<Color32>,
+    pub color: Prop<Color>,
+    pub placeholder_color: Prop<Color>,
+    pub selection_color: Prop<Color>,
+    pub caret_color: Prop<Color>,
     pub padding_horizontal: Prop<f32>,
     pub padding_vertical: Prop<f32>,
     pub prose: Prop<Option<Prose>>,
@@ -131,12 +132,12 @@ pub fn TextInput(
         caret: caret_color.get(),
         placeholder: placeholder_color.get(),
         syntax: SyntaxColors::uniform(color.get()),
-        gutter_border: Color32::TRANSPARENT,
-        gutter_text: Color32::TRANSPARENT,
-        gutter_arrow: Color32::TRANSPARENT,
-        code_background: Color32::TRANSPARENT,
-        widget: Color32::TRANSPARENT,
-        broken_widget: Color32::TRANSPARENT,
+        gutter_border: Color::TRANSPARENT,
+        gutter_text: Color::TRANSPARENT,
+        gutter_arrow: Color::TRANSPARENT,
+        code_background: Color::TRANSPARENT,
+        widget: Color::TRANSPARENT,
+        broken_widget: Color::TRANSPARENT,
         remote_selection_alpha: 0,
     });
     let role = match multiline {

@@ -1,0 +1,25 @@
+# A calendar picks a clicked day and pages to the next month, and the arrow
+# keys move its focus on from the day it's clicked (an apostrophe in a comment
+# is no quote); a date field steps a segment with the arrow keys and takes a
+# typed one.
+clock stop
+wait 'value="Day Tuesday, 10 March 2026 booked none"'
+click 'GridCell "Thursday, 12 March 2026"'
+wait 'value="Day Tuesday, 10 March 2026 booked Thursday, 12 March 2026"'
+click 'Button "Next month"'
+wait 'Grid "April 2026"'
+click 'GridCell "Friday, 17 April 2026"'
+wait 'value="Day Tuesday, 10 March 2026 booked Friday, 17 April 2026"'
+wait 'GridCell "Friday, 17 April 2026" selected focused'
+key right
+wait 'GridCell "Saturday, 18 April 2026" focused'
+key down
+wait 'GridCell "Saturday, 25 April 2026" focused'
+key enter
+wait 'value="Day Tuesday, 10 March 2026 booked Saturday, 25 April 2026"'
+click 'SpinButton "Day"'
+wait 'SpinButton "Day" value="10" focused'
+key up
+wait 'value="Day Wednesday, 11 March 2026 booked Saturday, 25 April 2026"'
+type '21'
+wait 'value="Day Saturday, 21 March 2026 booked Saturday, 25 April 2026"'

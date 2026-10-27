@@ -9,7 +9,7 @@ fn a_frame_paints_its_outline_over_its_fill() {
     document.set_frame_style(
         frame,
         beui_core::base::frame::FrameStyle {
-            fill: interior,
+            fill: interior.into(),
             outline: Some(beui_core::base::frame::Outline::new(Color32::WHITE, 1.0)),
             ..Default::default()
         },

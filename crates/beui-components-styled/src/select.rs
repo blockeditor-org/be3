@@ -1,6 +1,6 @@
 use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
-use beui_core::font::Overflow;
 use beui_macros::{component, view};
+use beui_view::types::Overflow;
 
 use crate::list::List;
 use crate::scroll::scrollbar_style;
@@ -13,10 +13,11 @@ use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     AnchoredStyle, ChoiceOption, SelectOptionHandle, SelectTriggerHandle, TextInputHandle,
 };
-use beui_core::base::TextAlign;
-use beui_core::icons::ICON_CHEVRON_DOWN;
-use beui_core::node::NodeId;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::TextAlign;
+use beui_view::types::icons::ICON_CHEVRON_DOWN;
+use beui_view::types::{Align, Direction, Extent, ItemSize};
 
 const TRIGGER_MAX_WIDTH: f32 = 220.0;
 const POPUP_WIDTH: Size = Size::Custom(220.0);

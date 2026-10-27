@@ -1,86 +1,16 @@
+pub use beui_types::drag::DragPoint;
 use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use foldhash::HashMap;
 
-use crate::callback::NodeRef;
 use crate::document::Document;
-use crate::geometry::{Pos2, Rect, Vec2};
-use crate::input::{Modifiers, PointerPress};
+use crate::geometry::{Pos2, Rect};
 use crate::node::Rects;
 use crate::window::WindowId;
 
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub struct DragPoint {
-    pub window: WindowId,
-    pub pos: Pos2,
-    pub local: Pos2,
-    pub size: Vec2,
-    pub fraction: Vec2,
-    pub modifiers: Modifiers,
-}
-
-impl DragPoint {
-    pub fn of(press: PointerPress) -> Self {
-        Self {
-            window: press.window,
-            pos: press.pos,
-            local: press.local,
-            size: press.size,
-            fraction: press.fraction,
-            modifiers: press.modifiers,
-        }
-    }
-
-    pub fn at(pos: Pos2, modifiers: Modifiers) -> Self {
-        Self {
-            window: WindowId::MAIN,
-            pos,
-            local: pos,
-            size: Vec2::ZERO,
-            fraction: Vec2::ZERO,
-            modifiers,
-        }
-    }
-
-    pub fn in_window(self, window: WindowId) -> Self {
-        Self { window, ..self }
-    }
-
-    pub fn within(self, (rect, scale): (Rect, f32)) -> Self {
-        let press = crate::base::interactive::press_at(
-            rect,
-            scale,
-            self.pos,
-            0,
-            self.modifiers,
-            false,
-            crate::timer::now(),
-        );
-        Self {
-            local: press.local,
-            size: press.size,
-            fraction: press.fraction,
-            ..self
-        }
-    }
-}
-
-pub type Accepts = Rc<dyn Fn(&dyn Any) -> bool>;
-pub type Dropped = Rc<dyn Fn(&dyn Any, DragPoint)>;
-pub type Over = Rc<dyn Fn(Option<(&dyn Any, DragPoint)>)>;
-pub type Pending = Rc<dyn Fn(DragPoint)>;
-pub type Outside = Rc<dyn Fn(DragPoint)>;
-
-pub struct Target {
-    pub id: u64,
-    pub node: NodeRef,
-    pub accepts: Accepts,
-    pub carrying: Rc<dyn Fn(bool)>,
-    pub over: Over,
-    pub dropped: Dropped,
-}
+pub use beui_types::drag::{Accepts, Dropped, Outside, Over, Pending, Target};
 
 pub struct Carried {
     pub payload: Rc<dyn Any>,

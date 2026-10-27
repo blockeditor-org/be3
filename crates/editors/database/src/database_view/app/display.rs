@@ -15,6 +15,7 @@ use uuid::Uuid;
 
 use crate::database_view::app::data::Data;
 use crate::database_view::groups::groupable;
+use beui::{Align, Direction, ItemSize};
 
 const SPACING: Space = Space::Md;
 const LABEL_WIDTH: f32 = 96.0;

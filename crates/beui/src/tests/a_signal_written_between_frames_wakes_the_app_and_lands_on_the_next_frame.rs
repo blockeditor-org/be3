@@ -1,5 +1,5 @@
 use super::*;
-use crate::Waker;
+use crate::native::Waker;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 

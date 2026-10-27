@@ -4,6 +4,7 @@ use block_editor_beui::beui::icons::{
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
+use block_editor_beui::database::use_choice_colors;
 use block_editor_beui::tags::{tag_color, tags_of};
 use block_editor_beui::{BlockQuery, Editor};
 use uuid::Uuid;
@@ -38,7 +39,7 @@ pub(crate) fn TagsMenu(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
         <MenuItem label="Tags" glyph=ICON_TAG @test_id={"file-tree.tags".to_owned()}>
             <ForEach keys={keys}>|tag: Uuid| {
                 let found = editor.watch_blocks(BlockQuery::Block(tag));
-                let theme = use_theme();
+                let colors = use_choice_colors();
                 let info = create_memo(move || found.get().ok().and_then(|found| found.into_iter().next()));
                 let label = create_memo(move || {
                     info.get()
@@ -47,7 +48,7 @@ pub(crate) fn TagsMenu(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
                 });
                 let color = create_memo(move || {
                     let held = info.get().and_then(|info| info.metadata.get(&TAG_COLOR)).unwrap_or_default();
-                    Some(tag_color(held, theme.kind.get()))
+                    Some(tag_color(colors, held))
                 });
                 let on = create_memo(move || {
                     block.is_some_and(|block| {

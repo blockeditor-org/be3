@@ -8,10 +8,6 @@ use std::cell::Cell;
 struct Screen;
 
 impl Renderer for Screen {
-    fn name(&self) -> &'static str {
-        "screen"
-    }
-
     fn info(&self) -> RendererInfo {
         RendererInfo::default()
     }
@@ -24,7 +20,7 @@ impl Renderer for Screen {
 
     fn prepare(
         &mut self,
-        _output: &crate::WindowOutput,
+        _output: &crate::native::WindowOutput,
         _scale: f32,
         _background: Color32,
     ) -> bool {
@@ -62,10 +58,10 @@ fn the_space_host_carries_the_main_window_its_app_asks_to_move() {
     });
     runner
         .start(
-            vec![Loaded {
+            Loaded {
                 renderer: Box::new(Screen),
                 fonts: None,
-            }],
+            },
             Setup::new(Waker::new(|| {})),
         )
         .expect("the renderer loads");

@@ -11,6 +11,7 @@ use crate::geometry::{Rect, Vec2};
 use crate::node::{Element, FocusChild, NodeId, NodeOf, Rects};
 use crate::painter::Painter;
 use ::reactive::{KeyedItems, ScopeContext, numbered, owner_scope};
+use beui_types::rows::RowMetrics;
 
 const ROW_LIMIT: usize = 4096;
 const ANCHOR_SLACK: f32 = 4.0;
@@ -24,110 +25,12 @@ struct Row<K> {
     length: f32,
 }
 
-struct Metrics {
-    count: usize,
-    estimated: f32,
-    lengths: HashMap<usize, f32>,
-    counts: Vec<u32>,
-    sums: Vec<f64>,
-    measured: f32,
-}
-
-impl Metrics {
-    fn new(count: usize, estimated: f32) -> Self {
-        Self::measured(count, estimated, Vec::new())
-    }
-
-    fn measured(count: usize, estimated: f32, entries: Vec<(usize, f32)>) -> Self {
-        let mut metrics = Self {
-            count,
-            estimated: estimated.max(0.0),
-            lengths: HashMap::default(),
-            counts: vec![0; count + 1],
-            sums: vec![0.0; count + 1],
-            measured: 0.0,
-        };
-        for (index, length) in entries {
-            metrics.record(index, length);
-        }
-        metrics
-    }
-
-    fn record(&mut self, index: usize, length: f32) {
-        if index >= self.count {
-            return;
-        }
-        let length = length.max(0.0);
-        let (added, change) = match self.lengths.insert(index, length) {
-            Some(stored) if stored == length => return,
-            Some(stored) => {
-                self.measured += length - stored;
-                (0, f64::from(length) - f64::from(stored))
-            }
-            None => {
-                self.measured += length;
-                (1, f64::from(length))
-            }
-        };
-        let mut at = index + 1;
-        while at <= self.count {
-            self.counts[at] += added;
-            self.sums[at] += change;
-            at += at.isolate_lowest_one();
-        }
-    }
-
-    fn guess(&self) -> f32 {
-        match self.lengths.len() {
-            0 => self.estimated,
-            measured => self.measured / measured as f32,
-        }
-    }
-
-    fn height(&self, index: usize) -> f32 {
-        self.lengths
-            .get(&index)
-            .copied()
-            .unwrap_or_else(|| self.guess())
-    }
-
-    fn position(&self, index: usize) -> f32 {
-        let (mut measured, mut sum) = (0_usize, 0.0_f64);
-        let mut at = index.min(self.count);
-        while at > 0 {
-            measured += self.counts[at] as usize;
-            sum += self.sums[at];
-            at &= at - 1;
-        }
-        (index - measured) as f32 * self.guess() + sum as f32
-    }
-
-    fn total(&self) -> f32 {
-        (self.count - self.lengths.len()) as f32 * self.guess() + self.measured
-    }
-
-    fn index_at(&self, position: f32) -> usize {
-        if self.count == 0 {
-            return 0;
-        }
-        let (mut low, mut high) = (0, self.count - 1);
-        while low < high {
-            let mid = low + (high - low).div_ceil(2);
-            match self.position(mid) <= position {
-                true => low = mid,
-                false => high = mid - 1,
-            }
-        }
-        low
-    }
-}
-
 pub struct VirtualListNode<K> {
     pub direction: Direction,
     keys: Vec<K>,
     indices: HashMap<K, usize>,
     sizes: HashMap<K, f32>,
-    metrics: Metrics,
+    metrics: RowMetrics,
     rows: Rc<KeyedItems<K, NodeId>>,
     owner: Option<ScopeContext>,
     placed: Vec<Row<K>>,
@@ -144,7 +47,7 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
             keys: Vec::new(),
             indices: HashMap::default(),
             sizes: HashMap::default(),
-            metrics: Metrics::new(0, 0.0),
+            metrics: RowMetrics::new(0, 0.0),
             rows: Rc::new(KeyedItems::new(build)),
             owner: owner_scope(),
             placed: Vec::new(),
@@ -168,7 +71,7 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
             .map(|(key, length)| (indices[key], *length))
             .collect();
         entries.sort_unstable_by_key(|(index, _)| *index);
-        self.metrics = Metrics::measured(keys.len(), self.metrics.estimated, entries);
+        self.metrics = RowMetrics::measured(keys.len(), self.metrics.estimated(), entries);
         self.origin = self.origin.take().and_then(|(key, position)| {
             if indices.contains_key(&key) {
                 return Some((key, position));
@@ -286,7 +189,7 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
 
     fn anchor(&mut self, window: (f32, f32), at_start: bool) -> (usize, f32) {
         let (first, last) = window;
-        let slack = (last - first) + ANCHOR_SLACK * self.metrics.estimated.max(1.0);
+        let slack = (last - first) + ANCHOR_SLACK * self.metrics.estimated().max(1.0);
         if !at_start
             && let Some((key, position)) = &self.origin
             && let Some(&index) = self.indices.get(key)
@@ -308,7 +211,7 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         main: Option<f32>,
         cross: f32,
     ) -> f32 {
-        if self.metrics.count == 0 || window.1 <= window.0 {
+        if self.metrics.count() == 0 || window.1 <= window.0 {
             self.origin = None;
             let mut held = self.holding(doc, &[]);
             self.measure_held(doc, list, painter, &mut held, cross);
@@ -361,7 +264,7 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
     ) -> Vec<Row<K>> {
         let (first, last) = window;
         let mut rows = Vec::new();
-        let (mut cursor, mut at, mut scanned) = (end, self.metrics.count, 0);
+        let (mut cursor, mut at, mut scanned) = (end, self.metrics.count(), 0);
         while at > 0 && cursor > first && scanned < ROW_LIMIT {
             at -= 1;
             scanned += 1;
@@ -397,7 +300,7 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         let before = self.metrics.total();
         let mut below = Vec::new();
         let (mut cursor, mut at, mut scanned) = (position, index, 0);
-        while at < self.metrics.count && cursor < self.reach(last, main) && scanned < ROW_LIMIT {
+        while at < self.metrics.count() && cursor < self.reach(last, main) && scanned < ROW_LIMIT {
             let estimate = self.metrics.height(at);
             let row = match cursor + estimate > first {
                 true => Some(self.measured_row(doc, list, painter, at, cross)),
@@ -420,7 +323,7 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
             scanned += 1;
         }
         let shrunk = (before - self.metrics.total()).max(0.0);
-        let deficit = match at >= self.metrics.count {
+        let deficit = match at >= self.metrics.count() {
             true => (last - cursor).clamp(0.0, shrunk),
             false => 0.0,
         };
@@ -477,7 +380,7 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         if head.index == 0 && first <= 0.0 {
             return -head.position;
         }
-        if tail.index + 1 == self.metrics.count && last >= main {
+        if tail.index + 1 == self.metrics.count() && last >= main {
             return main - (tail.position + tail.length);
         }
         0.0
@@ -599,8 +502,8 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
             children.push(FocusChild::Node(row.node));
             next = row.index + 1;
         }
-        if next < self.metrics.count {
-            children.push(FocusChild::Unbuilt(next..self.metrics.count));
+        if next < self.metrics.count() {
+            children.push(FocusChild::Unbuilt(next..self.metrics.count()));
         }
         Some(children)
     }
@@ -645,7 +548,7 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
                 "{}..{} of {}",
                 row.index,
                 row.index + self.placed.len(),
-                self.metrics.count
+                self.metrics.count()
             )
         });
         let detail = [horizontal.map(str::to_string), realized]
@@ -659,10 +562,10 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
     fn properties(&self) -> Vec<(&'static str, String)> {
         vec![
             ("direction", format!("{:?}", self.direction)),
-            ("rows", self.metrics.count.to_string()),
+            ("rows", self.metrics.count().to_string()),
             ("realized", self.placed.len().to_string()),
             ("held for focus", self.held.len().to_string()),
-            ("estimated row length", self.metrics.estimated.to_string()),
+            ("estimated row length", self.metrics.estimated().to_string()),
         ]
     }
 
@@ -756,13 +659,13 @@ impl Document {
             .arena
             .get_as::<VirtualListNode<(K, usize)>>(list)
             .metrics
-            .estimated
+            .estimated()
             == item_size
         {
             return;
         }
         let node = self.arena.get_mut_as::<VirtualListNode<(K, usize)>>(list);
         node.sizes.clear();
-        node.metrics = Metrics::new(node.metrics.count, item_size);
+        node.metrics = RowMetrics::new(node.metrics.count(), item_size);
     }
 }

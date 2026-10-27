@@ -17,6 +17,7 @@ pub(crate) mod moves;
 mod play;
 mod skin;
 
+use beui::{Align, Direction, ItemSize};
 use board::Stage;
 use layout::Layout;
 use moves::MoveTable;

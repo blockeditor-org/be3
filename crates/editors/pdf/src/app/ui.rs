@@ -1,4 +1,5 @@
 use block_editor_beui::Fit;
+use block_editor_beui::beui::CanvasView;
 use block_editor_beui::beui::icons::{ICON_ARROW_LEFT, ICON_ARROW_RIGHT};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -7,6 +8,8 @@ use block_editor_beui::{Editor, FileChooser, Sidebar, Toolbar};
 
 use super::pages::{Pages, Shown, Viewport};
 use super::{filter, imported};
+use beui::unstyled::gestures;
+use beui::{Direction, ItemSize};
 use pdf_types::PdfContent;
 
 const PAGE_FILL: Color32 = Color32::from_rgb(255, 255, 255);
@@ -83,6 +86,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
+    let pan = gestures::pan_zoom(move |delta: Vec2| editor.pan(delta), Callback::empty());
     view! {
         <List spacing=Space::None>
             <Toolbar shown={chrome}>
@@ -120,7 +124,8 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
                 <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
                     <Interactive
                         on_press={move |_: PointerPress| editor.pan_drag()}
-                        on_pan_drag={move |delta: Vec2| editor.pan(delta)}
+                        on_pointer={pan.pointer}
+                        on_wheel={pan.wheel}
                     >
                         <PageCanvas shown={shown} view={editor.canvas()} />
                     </Interactive>
@@ -161,7 +166,7 @@ fn PageCanvas(
         <List spacing=Space::None>
             <Canvas @sizing=ItemSize::Percent(100.0) view={view}>
                 <CanvasItem x=0.0 y=0.0 width={width} height={height}>
-                    <Frame fill={ColorRole::Custom(PAGE_FILL)} />
+                    <Frame fill={ColorRole::Custom(PAGE_FILL.into())} />
                 </CanvasItem>
                 <ForEach keys={keys}>|index: usize| {
                     let tile = create_memo(move || {

@@ -8,6 +8,7 @@ use crate::timeline::timecode;
 use uuid::Uuid;
 
 use super::state::VideoState;
+use beui::{Align, Direction};
 
 #[component]
 pub(crate) fn EffectsPanel(state: VideoState) -> NodeId {

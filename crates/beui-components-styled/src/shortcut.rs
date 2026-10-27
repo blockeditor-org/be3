@@ -4,9 +4,10 @@ use crate::Chip;
 use crate::list::List;
 use crate::text::{Text, TextColor, TextSize};
 use crate::tokens::Space;
-use beui_core::base::TextAlign;
-use beui_core::node::NodeId;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::TextAlign;
+use beui_view::types::{Align, Direction, ItemSize};
 
 const SPACING: Space = Space::Md;
 

@@ -42,7 +42,7 @@ fn line_starts_follow_edits() {
         (3, 0, b"- [X] \n- "),
         (0, 0, b"- [ ] "),
     ];
-    crate::reactive::with_reactive_scope(harness.document_mut(), || {
+    crate::native::with_reactive_scope(harness.document_mut(), || {
         for (at, delete, insert) in edits {
             let length = state.bytes().len();
             let start = state.with_core(|core| core.position(at.min(length)));

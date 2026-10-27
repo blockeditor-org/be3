@@ -31,10 +31,6 @@ impl OffscreenSurface {
 }
 
 impl Renderer for OffscreenSurface {
-    fn name(&self) -> &'static str {
-        "wgpu"
-    }
-
     fn info(&self) -> RendererInfo {
         self.gpu.info()
     }

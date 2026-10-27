@@ -2,9 +2,10 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use beui::WindowId;
+use beui::native::Document;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{Document, WindowId};
 use beui_platform_plugin::{Report, View, Views};
 use block_editor_plugin::{EditorHost, EditorInstanceId, EditorRegion, RegionId};
 
@@ -15,12 +16,12 @@ pub(crate) trait Shown {
 
     fn content(&self, region: EditorRegion) -> RenderFn<WindowHandle>;
 
-    fn before(&self, view: &View, context: &beui::Context, document: &mut Document);
+    fn before(&self, view: &View, context: &beui::native::Context, document: &mut Document);
 
     fn after(
         &self,
         view: &View,
-        context: &beui::Context,
+        context: &beui::native::Context,
         document: &mut Document,
         window: WindowId,
     ) -> Report;
@@ -77,9 +78,9 @@ impl Module {
         if self.launched.replace(true) {
             return;
         }
-        let options = beui::RunOptions {
+        let options = beui::native::RunOptions {
             accessibility_tree: keeps_accessibility,
-            ..beui::RunOptions::default()
+            ..beui::native::RunOptions::default()
         };
         let app = ModuleApp {
             module: Rc::clone(self),
@@ -121,8 +122,8 @@ struct ModuleApp {
     requested: OwnedSignal<Vec<View>>,
 }
 
-impl beui::App for ModuleApp {
-    fn setup(&mut self, setup: &beui::Setup) {
+impl beui::native::App for ModuleApp {
+    fn setup(&mut self, setup: &beui::native::Setup) {
         let Some(views) = setup.get::<Views>().cloned() else {
             return;
         };
@@ -133,7 +134,7 @@ impl beui::App for ModuleApp {
         self.views = Some(views);
     }
 
-    fn update(&mut self, context: &beui::Context, rect: beui::Rect) {
+    fn update(&mut self, context: &beui::native::Context, rect: beui::Rect) {
         let Some(views) = self.views.clone() else {
             return;
         };
@@ -144,7 +145,7 @@ impl beui::App for ModuleApp {
             let requested = self.requested.read_only();
             let registry = Rc::clone(&module.registry);
             let views = views.clone();
-            beui::reactive::build(move || {
+            beui::native::build(move || {
                 view! {
                     <beui::styled::Root clear_color=ColorRole::None>
                         <ModuleWindows registry requested views />
@@ -152,7 +153,7 @@ impl beui::App for ModuleApp {
                 }
             })
         });
-        beui::reactive::with_reactive_scope(document, || {});
+        beui::native::with_reactive_scope(document, || {});
         for view in &shown_views {
             if let Some(shown) = module.shown(view.id.instance) {
                 shown

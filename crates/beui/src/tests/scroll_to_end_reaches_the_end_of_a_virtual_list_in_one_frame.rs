@@ -1,4 +1,5 @@
 use super::*;
+use crate::primitives::Spacer;
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::unstyled::{Scroll, ScrollApi};

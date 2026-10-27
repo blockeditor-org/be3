@@ -14,7 +14,7 @@ thread_local! {
     static DISPLAYS: RefCell<Vec<Display>> = const { RefCell::new(Vec::new()) };
 }
 
-pub(crate) fn start(setup: &beui::Setup) {
+pub(crate) fn start(setup: &beui::native::Setup) {
     let control = setup.get::<DisplayControl>().cloned();
     if let Some(control) = &control {
         control.on_monitors(|monitors| {

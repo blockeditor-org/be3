@@ -11,7 +11,7 @@ fn a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given() {
     let painted = create_signal(0);
     let drawn = move |color: Color32| -> Draw {
         Rc::new(move |painter: &Painter, rect: Rect| {
-            if !painter.ctx().is_verifying_paint() {
+            if !core_painter(painter).ctx().is_verifying_paint() {
                 painted.update(|painted| *painted += 1);
             }
             painter.rect_filled(rect, 0.0, color);
@@ -49,7 +49,7 @@ fn a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given() {
     assert_eq!(fills(&output), vec![(VIEWPORT, Color32::BLACK)]);
 }
 
-fn fills(output: &crate::FrameOutput) -> Vec<(Vec2, Color32)> {
+fn fills(output: &crate::native::FrameOutput) -> Vec<(Vec2, Color32)> {
     output
         .main()
         .shapes()

@@ -18,7 +18,7 @@ fn a_driver_cancels_the_fingers_the_system_takes_back() {
             </List>
         }
     });
-    let mut driven = stepped(crate::testing::Showing(document));
+    let mut driven = stepped(crate::native::testing::Showing(document));
 
     driven.drive(&["touch", "down", "0=\"Press\""]);
     driven.drive(&["touch", "cancel"]);

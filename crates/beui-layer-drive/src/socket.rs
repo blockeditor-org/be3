@@ -115,6 +115,13 @@ pub fn write_request(
 }
 
 pub fn write_reply(writer: &mut impl Write, reply: &Reply) -> io::Result<()> {
+    let mut buffer = Vec::new();
+    encode_reply(&mut buffer, reply)?;
+    writer.write_all(&buffer)?;
+    writer.flush()
+}
+
+fn encode_reply(writer: &mut Vec<u8>, reply: &Reply) -> io::Result<()> {
     match reply {
         Reply::Text(text) => {
             writeln!(writer, "text {}", text.len())?;
@@ -142,7 +149,8 @@ pub fn write_reply(writer: &mut impl Write, reply: &Reply) -> io::Result<()> {
 
 pub fn read_reply(reader: &mut impl BufRead) -> io::Result<Reply> {
     let mut header = String::new();
-    if reader.read_line(&mut header)? == 0 {
+    reader.read_line(&mut header)?;
+    if !header.ends_with('\n') {
         return Err(io::ErrorKind::UnexpectedEof.into());
     }
     let invalid = || io::Error::new(io::ErrorKind::InvalidData, "malformed reply header");

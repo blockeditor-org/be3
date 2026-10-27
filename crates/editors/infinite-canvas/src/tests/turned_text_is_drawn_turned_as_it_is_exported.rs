@@ -1,6 +1,6 @@
 use super::copying_as_svg_writes_every_shape_kind::palette_runs;
 use super::*;
-use block_editor_beui::beui::{Key, Modifiers, Rect, Shape};
+use block_editor_beui::beui::{Key, Modifiers, Rect, native::Shape};
 
 const TURN: f32 = 0.5;
 

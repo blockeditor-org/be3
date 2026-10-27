@@ -1,0 +1,15 @@
+[package]
+name = "block-accounts-ui"
+description = "block-app's account picker, built from props and callbacks so that it runs on either of beui's cores"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+beui = { path = "../beui", default-features = false }
+
+[dev-dependencies]
+paint-snapshot = { path = "../paint-snapshot" }
+
+[lints]
+workspace = true

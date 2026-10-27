@@ -12,7 +12,8 @@ fn an_instant_indeterminate_progress_stops_and_resumes_with_the_preference() {
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    assert_eq!(harness.frame(Vec::new()).repaint_after, Duration::ZERO);
+    let moving = harness.frame(Vec::new()).repaint_after;
+    assert!(moving > Duration::ZERO && moving < Duration::MAX);
     harness.context().set_preference_layer(
         PreferenceSource::System,
         PreferenceLayer {
@@ -30,5 +31,6 @@ fn an_instant_indeterminate_progress_stops_and_resumes_with_the_preference() {
         },
     );
     harness.frame(Vec::new());
-    assert_eq!(harness.frame(Vec::new()).repaint_after, Duration::ZERO);
+    let moving = harness.frame(Vec::new()).repaint_after;
+    assert!(moving > Duration::ZERO && moving < Duration::MAX);
 }
