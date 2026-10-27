@@ -89,6 +89,8 @@ fn FrameFixture() -> NodeId {
     };
     let inner_rect = measure(inner);
     let outer_rect = measure(outer);
+    let inner_rect = create_memo(move || inner_rect.get().map(|measured| measured.rect));
+    let outer_rect = create_memo(move || outer_rect.get().map(|measured| measured.rect));
     let report = create_memo(move || match (inner_rect.get(), outer_rect.get()) {
         (Some(inner), Some(outer)) => format!(
             "Inner {} at {:.0},{:.0}",
@@ -123,7 +125,7 @@ fn ListFixture() -> NodeId {
     };
     let measured = measure(list);
     let report =
-        create_memo(move || format!("Rows {} in {}", rows.with(Vec::len), size(measured.get())));
+        create_memo(move || format!("Rows {} in {}", rows.with(Vec::len), size(measured.get().map(|measured| measured.rect))));
     view! {
         <List spacing=12.0>
             {list}
