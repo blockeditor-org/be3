@@ -9,12 +9,14 @@ use beui::dock::unstyled::{
     DockPlainPlace, DockPlainWindow, DockRequest, DockSpec, DockSpecEntry, DockSpecNode,
     DockSpecPane, DockSpecWindow, DockState, TabId,
 };
+use beui::dock::unstyled::{DockMenus, DockTabControl, DockTabMenu, dock_menu};
 use beui::icons::Glyph;
 use beui::reactive::*;
 use block_editor_plugin::{EditorHost, EditorRegion, Pushed};
 use block_plugin_api as api;
 use block_plugin_api::{ChildId, DockTabPath};
 
+use crate::child::{ChildDockTab, MenuMirror};
 use crate::{Editor, Subregion};
 
 #[derive(Clone)]
@@ -72,7 +74,12 @@ impl DockedTabs {
         self.revision.handle().update(|revision| *revision += 1);
     }
 
-    pub(crate) fn link(self: &Rc<Self>, host: EditorHost, editor: Editor) -> Rc<dyn DockHostLink> {
+    pub(crate) fn link(
+        self: &Rc<Self>,
+        host: EditorHost,
+        editor: Editor,
+        frame: ReadSignal<Vec<MenuNode>>,
+    ) -> Rc<dyn DockHostLink> {
         let link = Rc::new_cyclic(|this| ProtocolLink {
             this: Weak::clone(this),
             host,
@@ -81,8 +88,25 @@ impl DockedTabs {
             tabs: Rc::downgrade(self),
             bodies: RefCell::default(),
             panels: RefCell::default(),
+            menus: OwnedSignal::new(DockMenus::new()),
+            frame,
+            declared: RefCell::default(),
+            watched: Cell::new(None),
         });
         *self.link.borrow_mut() = Some(Rc::clone(&link));
+        let menus = link.menus.handle();
+        let menued = Rc::downgrade(&link);
+        create_effect(move || {
+            frame.with(|_| ());
+            menus.with(|menus| {
+                for (_, items) in menus.values() {
+                    items.with(|_| ());
+                }
+            });
+            if let Some(link) = menued.upgrade() {
+                untrack(|| link.send());
+            }
+        });
         let tabs = Rc::downgrade(self);
         let held = Rc::downgrade(&link);
         on_cleanup(move || {
@@ -105,6 +129,24 @@ impl DockedTabs {
     fn panel(&self, tab: TabId) -> Option<NodeId> {
         let link = self.link.borrow().clone()?;
         link.panel(tab)
+    }
+
+    pub(crate) fn pick(&self, id: &str) -> bool {
+        let Some(link) = self.link.borrow().clone() else {
+            return false;
+        };
+        let picked = link.menus.handle().with_untracked(|menus| {
+            menus
+                .values()
+                .find_map(|(_, items)| menu_action(&items.get_untracked(), id))
+        });
+        match picked {
+            Some(action) => {
+                untrack(|| action.run());
+                true
+            }
+            None => false,
+        }
     }
 }
 
@@ -132,9 +174,39 @@ struct ProtocolLink {
     tabs: Weak<DockedTabs>,
     bodies: RefCell<Option<DockBodies>>,
     panels: RefCell<HashMap<TabId, (NodeId, Scope)>>,
+    menus: OwnedSignal<DockMenus>,
+    frame: ReadSignal<Vec<MenuNode>>,
+    declared: RefCell<Option<DockDeclaration>>,
+    watched: Cell<Option<Memo<Option<DockHosted>>>>,
 }
 
 impl ProtocolLink {
+    fn send(&self) {
+        let declared = self.declared.borrow();
+        let Some(declaration) = declared.as_ref() else {
+            return;
+        };
+        let menus = self.menus.handle();
+        let frame = self.frame.get_untracked();
+        let menu = |tab: TabId| {
+            let mut nodes = menus.with_untracked(|menus| {
+                menus
+                    .get(&tab)
+                    .map(|(_, items)| items.get_untracked())
+                    .unwrap_or_default()
+            });
+            if !nodes.is_empty() && !frame.is_empty() {
+                nodes.push(MenuNode::Separator);
+            }
+            nodes.extend(frame.iter().cloned());
+            api::MenuEntry::flatten(&crate::beui_frame::menu_entries(&nodes))
+        };
+        self.host.declare_dock(
+            self.region,
+            Some(declaration_to_api(declaration, &own_path, &menu)),
+        );
+    }
+
     fn bump(&self) {
         if let Some(tabs) = self.tabs.upgrade() {
             tabs.bump();
@@ -151,8 +223,28 @@ impl ProtocolLink {
             tab: tab.value(),
             claimed: Rc::default(),
         };
+        let menu = DockTabMenu {
+            tab,
+            menu: self.menus.handle(),
+        };
+        let this = Weak::clone(&self.this);
+        let control = self.watched.get().map(|hosted| {
+            DockTabControl::hosted(
+                tab,
+                hosted,
+                Callback::new(move |request: DockRequest| {
+                    if let Some(link) = this.upgrade() {
+                        link.request(request);
+                    }
+                }),
+            )
+        });
         let panel = scope.context().run(|| {
             provide_context(docked);
+            provide_context(menu);
+            if let Some(control) = control {
+                provide_context(control);
+            }
             bodies.body.call(tab)
         });
         self.panels.borrow_mut().insert(tab, (panel, scope));
@@ -188,10 +280,8 @@ fn own_path(tab: TabId) -> Option<DockTabPath> {
 
 impl DockHostLink for ProtocolLink {
     fn declare(&self, declaration: DockDeclaration) {
-        self.host.declare_dock(
-            self.region,
-            Some(declaration_to_api(&declaration, &own_path)),
-        );
+        *self.declared.borrow_mut() = Some(declaration);
+        self.send();
     }
 
     fn hosted(&self) -> Memo<Option<DockHosted>> {
@@ -228,6 +318,7 @@ impl DockHostLink for ProtocolLink {
     fn place(&self, bodies: DockBodies) {
         *self.bodies.borrow_mut() = Some(bodies);
         let hosted = self.hosted();
+        self.watched.set(Some(hosted));
         let this = Weak::clone(&self.this);
         create_effect(move || {
             let held = hosted.with(|hosted| {
@@ -244,6 +335,7 @@ impl DockHostLink for ProtocolLink {
     }
 
     fn withdraw(&self) {
+        self.declared.borrow_mut().take();
         self.host.declare_dock(self.region, None);
         self.bodies.borrow_mut().take();
         let panels = std::mem::take(&mut *self.panels.borrow_mut());
@@ -313,6 +405,7 @@ pub(crate) fn bridge_child_dock(
     editor: Editor,
     link: Rc<dyn DockHostLink>,
     state: ReadSignal<crate::ChildState>,
+    docked_tab: Option<RenderFn<ChildDockTab, NodeId>>,
 ) {
     let host = editor.host();
     let pushed = editor.pushed(Pushed::Docks);
@@ -397,13 +490,15 @@ pub(crate) fn bridge_child_dock(
     if let Some(scope) = owner_scope() {
         let paths = Rc::clone(&paths);
         let shown = Rc::clone(&last);
+        let host = host.clone();
         let body = RenderFn::new(move |tab: TabId| {
             let path = paths.borrow().path(tab);
+            let menu = tab_menu(editor, host.clone(), pushed, shown.get(), path.clone());
             let placed = shown
                 .get()
                 .zip(path)
                 .map(|(child, path)| crate::SubregionContent::DockTab(path.through(child)));
-            view! {
+            let body = view! {
                 <beui::styled::List spacing=beui::styled::Space::None>
                     <Subregion
                         @sizing=beui::ItemSize::Percent(100.0)
@@ -412,6 +507,13 @@ pub(crate) fn bridge_child_dock(
                         mode=api::ChildMode::Live
                     />
                 </beui::styled::List>
+            };
+            match docked_tab {
+                Some(framed) => framed.call(ChildDockTab { menu, body }),
+                None => {
+                    dock_menu(menu);
+                    body
+                }
             }
         });
         link.place(DockBodies {
@@ -426,6 +528,33 @@ pub(crate) fn bridge_child_dock(
         }
         link.withdraw();
     });
+}
+
+fn tab_menu(
+    editor: Editor,
+    host: EditorHost,
+    pushed: ReadSignal<u64>,
+    child: Option<ChildId>,
+    path: Option<DockTabPath>,
+) -> Memo<Vec<MenuNode>> {
+    let nodes = create_signal(Vec::<MenuNode>::new());
+    let mirror = RefCell::new(MenuMirror::new(editor));
+    let own = child.zip(path.filter(DockTabPath::is_own));
+    create_effect(move || {
+        pushed.get();
+        let Some((child, path)) = own.clone() else {
+            return;
+        };
+        let entries = untrack(|| host.child_dock(child))
+            .and_then(|declaration| declaration.tab(&path).map(|tab| tab.menu.clone()))
+            .and_then(|menu| api::MenuEntry::nest(menu).ok())
+            .unwrap_or_default();
+        let updated = mirror.borrow_mut().update(Some(child), &entries);
+        if let Some(updated) = updated {
+            untrack(|| nodes.set(updated));
+        }
+    });
+    create_memo(move || nodes.get())
 }
 
 fn nested_restore(
@@ -659,6 +788,7 @@ fn spec_node(node: &DockSpecNode, path: PathOf<'_>) -> api::DockNode {
 pub(crate) fn declaration_to_api(
     declaration: &DockDeclaration,
     path: PathOf<'_>,
+    menu: &dyn Fn(TabId) -> Vec<api::MenuItem>,
 ) -> api::DockDeclaration {
     let spec = &declaration.spec;
     let nodes = api::DockNodes {
@@ -690,6 +820,7 @@ pub(crate) fn declaration_to_api(
                         .map(|icon| icon.as_str().to_owned())
                         .unwrap_or_default(),
                     closable: tab.closable,
+                    menu: menu(tab.tab),
                 })
             })
             .collect(),

@@ -26,9 +26,11 @@ use beui_components_styled::text::{Icon, Text, TextColor, TextSize};
 use beui_components_styled::theme::{NARROW_WIDTH, POINTER_REACH, use_theme};
 use beui_components_styled::tokens::{Padding, Size, Space, Stroke};
 use beui_components_styled::tooltip::Tooltip;
+use beui_components_unstyled::Container;
 use beui_components_unstyled::Picture;
 use beui_core::base::frame::Align2;
 use beui_core::base::{Align, Direction, ItemSize, Justify};
+use beui_core::geometry::Vec2;
 
 use beui_core::font::TextAlign;
 use beui_core::icons::{ICON_APP_WINDOW, ICON_GRIP_VERTICAL, ICON_MAXIMIZE, ICON_MINIMIZE, ICON_X};
@@ -45,6 +47,7 @@ const TAB_HEIGHT: Size = Size::Toolbar;
 const TAB_RADIUS: Radius = Radius::Tab;
 const TAB_SPACING: Space = Space::Md;
 const BAR_HEIGHT: f32 = 39.0;
+const ROOMY_BAR: f32 = 400.0;
 const BAR_PADDING: Space = Space::Xs;
 const BAR_SPACING: Space = Space::Xs2;
 const GRIP_WIDTH: Size = Size::Xs;
@@ -208,6 +211,7 @@ fn DockTabFace(handle: DockTabHandle) -> NodeId {
         close,
         vertical,
         icons_only,
+        host,
         ..
     } = handle;
     let grouped = matches!(entry, Entry::Group(_));
@@ -244,7 +248,7 @@ fn DockTabFace(handle: DockTabHandle) -> NodeId {
                             closable
                             waiting
                             waiting_test_id={waiting_test_id(entry)}
-                            close_test_id={close_test_id(entry)}
+                            close_test_id={close_test_id(entry, host)}
                             close={close}
                         />
                     },
@@ -619,21 +623,36 @@ fn DockTitleBar(
                 padding={Padding::horizontal(BAR_PADDING)}
                 align={Align2::new(Align::Stretch, Align::Center)}
             >
-                <Frame>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
-                        {grip}
-                        {tabs} @sizing=ItemSize::Percent(100.0)
-                        <Show condition={titled}>|| {
-                            let title = title.clone(); view! {
-                                <Text overflow=Overflow::Ellipsis @sizing=ItemSize::Percent(100.0)>
-                                    {title}
-                                </Text>
-                            }
-                        }</Show>
-                        <DockMenu menu room=BarRoom::Wide />
-                        <DockClose closable close={close} />
-                    </List>
-                </Frame>
+                <Container>|size: ReadSignal<Vec2>| {
+                    let room = create_memo(move || match size.get().x < ROOMY_BAR {
+                        true => BarRoom::Narrow,
+                        false => BarRoom::Wide,
+                    });
+                    view! {
+                        <List
+                            direction=Direction::Horizontal
+                            align=Align::Center
+                            spacing=BAR_SPACING
+                        >
+                            {grip}
+                            {tabs} @sizing=ItemSize::Percent(100.0)
+                            <Show condition={titled}>|| {
+                                let title = title.clone(); view! {
+                                    <Text
+                                        overflow=Overflow::Ellipsis
+                                        @sizing=ItemSize::Percent(100.0)
+                                    >
+                                        {title}
+                                    </Text>
+                                }
+                            }</Show>
+                            <Dynamic value={room}>|room: BarRoom|
+                                <DockMenu menu room />
+                            </Dynamic>
+                            <DockClose closable close={close} />
+                        </List>
+                    }
+                }</Container>
             </Frame>
             <Frame fill={rule} height={Size::Custom(RULE)} />
         </List>
@@ -847,10 +866,12 @@ fn waiting_test_id(entry: Entry) -> String {
     }
 }
 
-fn close_test_id(entry: Entry) -> String {
-    match entry {
-        Entry::Tab(tab) => format!("dock.tab.{}.close", tab.value()),
-        Entry::Group(_) => String::new(),
+fn close_test_id(entry: Entry, host: Option<TabId>) -> String {
+    match (entry, host) {
+        (Entry::Tab(tab), _) | (Entry::Group(_), Some(tab)) => {
+            format!("dock.tab.{}.close", tab.value())
+        }
+        (Entry::Group(_), None) => String::new(),
     }
 }
 

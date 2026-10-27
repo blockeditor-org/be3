@@ -47,6 +47,7 @@ fn declaration(key: &str, tabs: &[(u64, &str)]) -> DockDeclaration {
                 title: (*key).into(),
                 glyph: String::new(),
                 closable: true,
+                menu: Vec::new(),
             })
             .collect(),
     }

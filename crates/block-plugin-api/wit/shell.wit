@@ -4,7 +4,8 @@ package be3:plugin@0.1.0;
 /// actions of its bar and the children it places.
 interface shell-types {
     use types.{
-        block-pick, child-id, editor-id, editor-instance-id, editor-region, size, web-view-id,
+        block-pick, child-id, editor-id, editor-instance-id, editor-region, menu-check,
+        menu-command, menu-heading, menu-item, menu-item-kind, menu-pin, size, web-view-id,
     };
     use be3:shared/ids@0.1.0.{block-id, block-type-id, image-id};
     use be3:ui/types@0.1.0.{key-chord, pos2, rect, vec2};
@@ -12,50 +13,6 @@ interface shell-types {
     /// An action of the bar the host draws above a frame or a child.
     enum bar-action {
         details,
-    }
-
-    /// Where a command shows outside its menu.
-    enum menu-pin {
-        none,
-        icon,
-        label,
-        title,
-    }
-
-    variant menu-check {
-        none,
-        checkbox(bool),
-        radio(bool),
-    }
-
-    record menu-command {
-        id: string,
-        label: string,
-        glyph: string,
-        enabled: bool,
-        check: menu-check,
-        shortcut: option<key-chord>,
-        pin: menu-pin,
-    }
-
-    /// A submenu's own fields; its entries follow it.
-    record menu-heading {
-        id: string,
-        label: string,
-        glyph: string,
-    }
-
-    variant menu-item-kind {
-        command(menu-command),
-        submenu(menu-heading),
-        separator,
-    }
-
-    /// One entry of a menu flattened in order: the entries of a submenu
-    /// follow it one level deeper.
-    record menu-item {
-        depth: u32,
-        kind: menu-item-kind,
     }
 
     /// A block dragged over the editor, where, and whether it was dropped there.

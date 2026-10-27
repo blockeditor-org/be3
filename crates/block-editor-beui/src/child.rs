@@ -12,6 +12,12 @@ use block_plugin_api::{
 
 use crate::{ChildState, ChildTarget, Editor, SubregionContent, watch_block_label};
 
+#[derive(Clone, Copy)]
+pub struct ChildDockTab {
+    pub menu: Memo<Vec<MenuNode>>,
+    pub body: NodeId,
+}
+
 #[derive(Clone)]
 pub struct ChildHandle {
     pub state: ReadSignal<ChildState>,
@@ -33,11 +39,13 @@ pub fn ChildBlock(
     on_state: Callback<ChildState>,
     on_bar: Callback<BarAction>,
     on_focus: Callback<()>,
+    docked_tab: Option<RenderFn<ChildDockTab, NodeId>>,
     #[prop(children)] content: Option<Render<ChildHandle>>,
 ) -> NodeId {
     let placed = create_memo(move || block.get().map(SubregionContent::Block));
     let placing = Placing {
         claims: true,
+        docked_tab,
         mode,
         layer,
         own_frame,
@@ -87,6 +95,7 @@ pub fn Subregion(
     };
     let placing = Placing {
         claims: false,
+        docked_tab: None,
         mode,
         layer,
         own_frame,
@@ -108,6 +117,7 @@ pub fn Subregion(
 
 struct Placing {
     claims: bool,
+    docked_tab: Option<RenderFn<ChildDockTab, NodeId>>,
     mode: Prop<ChildMode>,
     layer: Prop<ChildLayer>,
     own_frame: Prop<bool>,
@@ -131,6 +141,7 @@ fn SubregionView(
 ) -> NodeId {
     let Placing {
         claims,
+        docked_tab,
         mode,
         layer,
         own_frame,
@@ -188,7 +199,7 @@ fn SubregionView(
         docks,
     );
     if let Some(link) = link {
-        crate::docked::bridge_child_dock(editor, link, state);
+        crate::docked::bridge_child_dock(editor, link, state, docked_tab);
     }
     let preview = create_memo(move || state.with(|state| state.preview));
     let pictured = create_memo(move || {
@@ -302,14 +313,14 @@ struct Mirrored {
     checked: OwnedSignal<bool>,
 }
 
-struct MenuMirror {
+pub(crate) struct MenuMirror {
     editor: Editor,
     commands: HashMap<String, Mirrored>,
     shape: Option<(Option<ChildId>, Vec<Shape>)>,
 }
 
 impl MenuMirror {
-    fn new(editor: Editor) -> Self {
+    pub(crate) fn new(editor: Editor) -> Self {
         Self {
             editor,
             commands: HashMap::new(),
@@ -317,7 +328,11 @@ impl MenuMirror {
         }
     }
 
-    fn update(&mut self, child: Option<ChildId>, entries: &[MenuEntry]) -> Option<Vec<MenuNode>> {
+    pub(crate) fn update(
+        &mut self,
+        child: Option<ChildId>,
+        entries: &[MenuEntry],
+    ) -> Option<Vec<MenuNode>> {
         let entries = match child {
             Some(_) => entries,
             None => &[],

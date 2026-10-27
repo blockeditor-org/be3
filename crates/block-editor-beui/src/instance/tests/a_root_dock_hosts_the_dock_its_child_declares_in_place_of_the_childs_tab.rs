@@ -33,6 +33,7 @@ fn inner() -> DockDeclaration {
             title: "Inner".to_owned(),
             glyph: String::new(),
             closable: false,
+            menu: Vec::new(),
         }],
     }
 }

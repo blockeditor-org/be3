@@ -22,6 +22,7 @@ pub struct FrameBar {
     pub framed: bool,
     pub closable: bool,
     pub on_phone: bool,
+    pub docked: bool,
 }
 
 #[derive(Clone)]
@@ -39,6 +40,7 @@ pub struct BeuiFrame {
     bar: Signal<FrameBar>,
     exit: Rc<Cell<bool>>,
     menu: Rc<RefCell<Vec<MenuNode>>>,
+    listed: OwnedSignal<Vec<MenuNode>>,
     _bar: OwnedSignal<FrameBar>,
 }
 
@@ -50,6 +52,7 @@ impl Default for BeuiFrame {
             bar: owned_bar.handle(),
             exit: Rc::new(Cell::new(false)),
             menu: Rc::default(),
+            listed: OwnedSignal::new(Vec::new()),
             _bar: owned_bar,
         }
     }
@@ -71,6 +74,10 @@ impl BeuiFrame {
     pub fn menu(&self) -> Rc<RefCell<Vec<MenuNode>>> {
         Rc::clone(&self.menu)
     }
+
+    pub(crate) fn listed(&self) -> ReadSignal<Vec<MenuNode>> {
+        self.listed.read_only()
+    }
 }
 
 #[component]
@@ -82,6 +89,7 @@ pub(crate) fn FrameChrome(
     let bar = chrome.bar;
     let exit_writer = chrome.exit.clone();
     let published = Rc::clone(&chrome.menu);
+    let listed = chrome.listed.handle();
     let content_slot_writer = chrome.content.clone();
     provide_context(PhoneLayout(create_memo(move || bar.get().on_phone)));
     let phone = create_memo(move || bar.get().on_phone);
@@ -117,6 +125,7 @@ pub(crate) fn FrameChrome(
                     bar={bar.read_only()}
                     palette={opener}
                     published
+                    listed
                     on_exit={move || exit_writer.set(true)}
                 />
                 <CommandPalette open={palette} />
@@ -136,11 +145,13 @@ pub(crate) fn FrameChrome(
         .holding(frame)
 }
 
-pub(crate) fn run_menu_pick(menu: &RefCell<Vec<MenuNode>>, id: &str) {
+pub(crate) fn run_menu_pick(menu: &RefCell<Vec<MenuNode>>, id: &str) -> bool {
     let picked = menu_action(&menu.borrow(), id);
+    let found = picked.is_some();
     if let Some(action) = picked {
         untrack(|| action.run());
     }
+    found
 }
 
 pub(crate) fn menu_entries(nodes: &[MenuNode]) -> Vec<MenuEntry> {
@@ -342,12 +353,14 @@ pub(crate) fn FrameMenu(
     bar: ReadSignal<FrameBar>,
     palette: Action,
     published: Rc<RefCell<Vec<MenuNode>>>,
+    listed: Signal<Vec<MenuNode>>,
     on_exit: ClickCallback,
 ) -> NodeId {
     let on_phone = create_memo(move || bar.get().on_phone);
     let shown = create_memo(move || bar.get().shown && !on_phone.get());
     let closable = create_memo(move || bar.get().closable);
-    let live = create_memo(move || shown.get() || on_phone.get());
+    let docked = create_memo(move || bar.get().docked);
+    let live = create_memo(move || shown.get() || on_phone.get() || docked.get());
     let framed = create_memo(move || bar.get().framed);
     let answering = create_memo(move || live.get() || framed.get());
     let state = create_signal(BarState::default());
@@ -381,7 +394,7 @@ pub(crate) fn FrameMenu(
         details,
         close,
     } = actions;
-    let listed = create_memo(move || {
+    let menu = create_memo(move || {
         if !live.get() {
             return Vec::new();
         }
@@ -400,9 +413,10 @@ pub(crate) fn FrameMenu(
     });
     let host = editor.host();
     create_effect(move || {
-        let listed = listed.get();
-        let entries = menu_entries(&listed);
-        *published.borrow_mut() = listed;
+        let menu = menu.get();
+        let entries = menu_entries(&menu);
+        *published.borrow_mut() = menu.clone();
+        untrack(|| listed.set(menu));
         host.set_menu(entries);
     });
     view! {

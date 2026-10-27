@@ -8,7 +8,8 @@ use block_editor_beui::beui::styled::*;
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use block_editor_beui::{
-    ArtifactState, BarAction, ChildBlock, ChildBlockHandle, ChildMode, ChildTarget, Editor, TopBar,
+    ArtifactState, BarAction, ChildBlock, ChildBlockHandle, ChildDockTab, ChildMode, ChildTarget,
+    Editor, TopBar,
 };
 use uuid::Uuid;
 
@@ -197,6 +198,11 @@ pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
             }),
         }
     }));
+    let docked_tab = RenderFn::new(move |docked: ChildDockTab| {
+        view! {
+            <DockedBlockTab workspace={workspace} tab info={info.read_only()} session docked />
+        }
+    });
     view! {
         <Frame>
             <List spacing=Space::None>
@@ -226,6 +232,7 @@ pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
                                         editor={editor}
                                         info={info.read_only()}
                                         menu={child_menu}
+                                        docked_tab
                                         top_bar={top_bar}
                                         on_bar={move |action: BarAction| match action {
                                             BarAction::Details => {
@@ -262,6 +269,7 @@ fn BlockChild(
     editor: Editor,
     info: ReadSignal<Option<Info>>,
     menu: Signal<Vec<MenuNode>>,
+    docked_tab: RenderFn<ChildDockTab, NodeId>,
     top_bar: Memo<TopBar>,
     on_bar: block_editor_beui::beui::reactive::Callback<BarAction>,
 ) -> NodeId {
@@ -287,6 +295,7 @@ fn BlockChild(
             top_bar={top_bar}
             on_bar={on_bar}
             on_focus={move |()| tab.iter().for_each(|tab| tab.show())}
+            docked_tab={docked_tab}
             @test_id={"workspace.block"}
         >|handle: ChildBlockHandle| {
             let own = handle.menu;
@@ -296,6 +305,42 @@ fn BlockChild(
                 <PanelStatus state={handle.state} loading="This block is loading…" />
             }
         }</ChildBlock>
+    }
+}
+
+#[component]
+fn DockedBlockTab(
+    workspace: Workspace,
+    tab: TabId,
+    info: ReadSignal<Option<Info>>,
+    session: bool,
+    docked: ChildDockTab,
+) -> NodeId {
+    let ChildDockTab { menu, body } = docked;
+    dock_menu(create_memo(move || {
+        let nodes = menu.get();
+        match session {
+            true => nodes,
+            false => info.with(|info| match info {
+                Some(info) => with_block_menu(workspace, info, nodes),
+                None => nodes,
+            }),
+        }
+    }));
+    view! {
+        <List spacing=Space::None>
+            <Show condition={!session}>
+                <ArtifactBar workspace={workspace} info={info} />
+            </Show>
+            <Show condition={!session}>
+                <DeletedBar workspace={workspace} info={info} />
+            </Show>
+            <Show condition={!session}>
+                <LinkedBar workspace={workspace} info={info} />
+            </Show>
+            <RevisionPreviewBar history={workspace.revisions} tab={tab} workspace />
+            <Layers @sizing=ItemSize::Percent(100.0)>{body}</Layers>
+        </List>
     }
 }
 

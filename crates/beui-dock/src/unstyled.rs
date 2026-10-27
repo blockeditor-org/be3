@@ -110,6 +110,7 @@ pub struct DockTabHandle {
     pub dragged: Memo<bool>,
     pub closable: Memo<bool>,
     pub waiting: Memo<bool>,
+    pub host: Option<TabId>,
     pub close: ClickCallback,
 }
 
@@ -192,13 +193,65 @@ pub struct DockSwitcherCardHandle {
 #[derive(Clone, Copy)]
 pub struct DockTabControl {
     tab: TabId,
-    state: Binding<DockState>,
-    dock: State,
+    backing: Backing,
+}
+
+#[derive(Clone, Copy)]
+enum Backing {
+    Local {
+        state: Binding<DockState>,
+        dock: State,
+    },
+    Hosted {
+        hosted: Memo<Option<DockHosted>>,
+        request: Callback<DockRequest>,
+    },
 }
 
 impl DockTabControl {
+    fn local(tab: TabId, state: Binding<DockState>, dock: State) -> Self {
+        Self {
+            tab,
+            backing: Backing::Local { state, dock },
+        }
+    }
+
+    pub fn hosted(
+        tab: TabId,
+        hosted: Memo<Option<DockHosted>>,
+        request: Callback<DockRequest>,
+    ) -> Self {
+        Self {
+            tab,
+            backing: Backing::Hosted { hosted, request },
+        }
+    }
+
     fn dock(&self) -> Option<State> {
-        self.dock.panels.is_alive().then_some(self.dock)
+        match self.backing {
+            Backing::Local { dock, .. } => dock.panels.is_alive().then_some(dock),
+            Backing::Hosted { .. } => None,
+        }
+    }
+
+    fn read_hosted<R>(&self, read: impl FnOnce(&DockHosted) -> R) -> Option<R> {
+        match self.backing {
+            Backing::Hosted { hosted, .. } => hosted.with(|hosted| hosted.as_ref().map(read)),
+            Backing::Local { .. } => None,
+        }
+    }
+
+    fn ask(&self, request: DockRequest) {
+        if let Backing::Hosted { request: send, .. } = self.backing {
+            send.call(request);
+        }
+    }
+
+    fn with_state<R>(&self, read: impl FnOnce(&DockState) -> R) -> Option<R> {
+        match self.backing {
+            Backing::Local { state, .. } => Some(state.with(read)),
+            Backing::Hosted { .. } => None,
+        }
     }
 
     pub fn tab(&self) -> TabId {
@@ -206,21 +259,29 @@ impl DockTabControl {
     }
 
     pub fn fullscreen(&self) -> bool {
-        self.state.with(|state| {
+        if let Some(fullscreen) = self.read_hosted(|hosted| hosted.fullscreen == Some(self.tab)) {
+            return fullscreen;
+        }
+        self.with_state(|state| {
             state
                 .fullscreen()
                 .is_some_and(|shown| shown.tab == self.tab)
         })
+        .unwrap_or(false)
     }
 
     pub fn enter_fullscreen(&self, area: Option<Rect>) {
         let tab = self.tab;
+        self.ask(DockRequest::Fullscreen(Some((tab, area))));
         if let Some(dock) = self.dock() {
             dock.edit(|state| state.set_fullscreen(Some(DockFullscreen { tab, area })));
         }
     }
 
     pub fn leave_fullscreen(&self) {
+        if self.fullscreen() {
+            self.ask(DockRequest::Fullscreen(None));
+        }
         if let Some(dock) = self.dock() {
             dock.leave_fullscreen(self.tab);
         }
@@ -249,16 +310,19 @@ impl DockTabControl {
     }
 
     pub fn focused(&self) -> bool {
+        if let Some(focused) = self.read_hosted(|hosted| hosted.focused == Some(self.tab)) {
+            return focused;
+        }
+        let focused_tab = || {
+            self.with_state(|state| state.focused_tab() == Some(self.tab))
+                .unwrap_or(false)
+        };
         let Some(dock) = self.dock() else {
-            return self
-                .state
-                .with(|state| state.focused_tab() == Some(self.tab));
+            return focused_tab();
         };
         match dock.dialog_focus.get() {
             Some(dialog) => dialog == self.tab,
-            None => self
-                .state
-                .with(|state| state.focused_tab() == Some(self.tab)),
+            None => focused_tab(),
         }
     }
 
@@ -269,6 +333,7 @@ impl DockTabControl {
     }
 
     pub fn show(&self) {
+        self.ask(DockRequest::Show(self.tab));
         let Some(dock) = self.dock() else {
             return;
         };
@@ -502,11 +567,7 @@ impl State {
         }
         let scope = self.open_scope();
         let menus = self.menus;
-        let control = DockTabControl {
-            tab,
-            state: self.state,
-            dock: *self,
-        };
+        let control = DockTabControl::local(tab, self.state, *self);
         let panel = scope.context().run(|| {
             provide_context(DockTabMenu { tab, menu: menus });
             provide_context(control);
@@ -2490,6 +2551,7 @@ fn DockTabView(
         dragged,
         closable,
         waiting,
+        host,
         close,
     });
     let menu = dock.menu;

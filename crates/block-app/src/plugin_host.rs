@@ -33,6 +33,7 @@ mod web;
 mod wire;
 
 pub(crate) use description::describe;
+pub(crate) use docks::docked_children;
 pub(crate) use input::BlockDrag;
 pub(crate) use instances::EditorView;
 pub(crate) use presenter::Piece;

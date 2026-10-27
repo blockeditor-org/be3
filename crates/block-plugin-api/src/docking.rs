@@ -385,6 +385,8 @@ impl DockDeclaration {
             string(&tab.key)?;
             string(&tab.title)?;
             string(&tab.glyph)?;
+            collection(tab.menu.len())?;
+            crate::MenuEntry::nest(tab.menu.clone())?;
         }
         let declared: HashSet<&DockTabPath> = self.tabs.iter().map(|tab| &tab.tab).collect();
         let keys: HashSet<&str> = self.tabs.iter().map(|tab| tab.key.as_str()).collect();

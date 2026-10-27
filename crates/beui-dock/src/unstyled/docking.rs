@@ -682,20 +682,8 @@ impl<K: DockKey> DockingLayout<K> {
             return;
         }
         self.edit(|state| {
-            let shown = match state.find_group(&joined_key(tab)) {
-                Some(group) if !state.contains(tab) => {
-                    let inside = state.group_tabs(group);
-                    state
-                        .recent_tabs()
-                        .into_iter()
-                        .find(|recent| inside.contains(recent))
-                        .or_else(|| inside.first().copied())
-                }
-                _ => Some(tab),
-            };
-            if let Some(shown) = shown {
-                state.show(shown);
-            }
+            let shown = standing_in(state, tab);
+            state.show(shown);
         });
     }
 
@@ -1370,7 +1358,14 @@ where
             layout.reconcile(&spec, &dialogs, &hosts);
         });
     });
-    let dialogs = create_memo(move || found.with(|found| found.dialogs.clone()));
+    let dialogs = create_memo(move || {
+        let held = found.with(|found| found.dialogs.clone());
+        layout.state.with(|state| {
+            held.into_iter()
+                .map(|(dialog, parent)| (dialog, standing_in(state, parent)))
+                .collect::<Vec<_>>()
+        })
+    });
     let dialog =
         Func::new(move |tab: TabId| found.with_untracked(|found| found.parts.get(&tab).cloned()));
     let declared = move |tab: TabId| -> Option<DockDeclaredTab> {
@@ -1563,6 +1558,22 @@ where
             }}
         />
     }
+}
+
+fn standing_in(state: &DockState, tab: TabId) -> TabId {
+    if state.contains(tab) {
+        return tab;
+    }
+    let Some(group) = state.find_group(&joined_key(tab)) else {
+        return tab;
+    };
+    let inside = state.group_tabs(group);
+    state
+        .recent_tabs()
+        .into_iter()
+        .find(|recent| inside.contains(recent))
+        .or_else(|| inside.first().copied())
+        .unwrap_or(tab)
 }
 
 #[component]

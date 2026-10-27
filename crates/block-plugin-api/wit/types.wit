@@ -4,12 +4,56 @@ package be3:plugin@0.1.0;
 interface types {
     use accessibility.{description};
     use be3:ui/types@0.1.0.{
-        modifiers, pos2, rect, input, preferences, window-requests, window-role,
+        key-chord, modifiers, pos2, rect, input, preferences, window-requests, window-role,
     };
 
     use be3:shared/ids@0.1.0.{
         account-id, block-id, block-type-id, organization-id, surface-id, uuid,
     };
+
+    /// Where a command shows outside its menu.
+    enum menu-pin {
+        none,
+        icon,
+        label,
+        title,
+    }
+
+    variant menu-check {
+        none,
+        checkbox(bool),
+        radio(bool),
+    }
+
+    record menu-command {
+        id: string,
+        label: string,
+        glyph: string,
+        enabled: bool,
+        check: menu-check,
+        shortcut: option<key-chord>,
+        pin: menu-pin,
+    }
+
+    /// A submenu's own fields; its entries follow it.
+    record menu-heading {
+        id: string,
+        label: string,
+        glyph: string,
+    }
+
+    variant menu-item-kind {
+        command(menu-command),
+        submenu(menu-heading),
+        separator,
+    }
+
+    /// One entry of a menu flattened in order: the entries of a submenu
+    /// follow it one level deeper.
+    record menu-item {
+        depth: u32,
+        kind: menu-item-kind,
+    }
 
     /// An editor a plugin's manifest declares.
     type editor-id = uuid;
@@ -622,6 +666,9 @@ interface types {
         title: string,
         glyph: string,
         closable: bool,
+        /// The tab's own menu, which the root shows on the tab's bar; a pick
+        /// reaches the tab's owner as a `menu-pick` of its frame.
+        menu: list<menu-item>,
     }
 
     /// The dock a region declares, which its holder shows in place of the

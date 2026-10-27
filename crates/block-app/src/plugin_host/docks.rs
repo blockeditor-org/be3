@@ -161,6 +161,18 @@ impl Docks {
         self.docked.contains(&instance)
     }
 
+    fn records(&self, placer: EditorInstanceId) -> Vec<(ChildId, Uuid)> {
+        self.children
+            .get(&placer)
+            .map(|children| {
+                children
+                    .iter()
+                    .map(|(child, placed)| (*child, placed.block))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     pub(super) fn resolve(
         &self,
         placer: EditorInstanceId,
@@ -568,6 +580,10 @@ pub(super) fn heard(plugin: &str, messages: Vec<DockMessage>) {
 
 pub(super) fn docked(instance: EditorInstanceId) -> bool {
     DOCKS.with(|docks| docks.borrow().docked(instance))
+}
+
+pub(crate) fn docked_children(placer: EditorInstanceId) -> Vec<(ChildId, Uuid)> {
+    DOCKS.with(|docks| docks.borrow().records(placer))
 }
 
 pub(super) fn resolve(placer: EditorInstanceId, path: &DockTabPath) -> Option<(Uuid, u64)> {

@@ -2441,7 +2441,11 @@ implements it too: a `Docking` that finds no outer dock claims the
 way. block-editor-beui provides one in the frame of an editor whose dock joins
 another plugin's (guides/adding_a_plugin_editor.md), and its `ChildBlock` in a
 tab body claims that tab's `DockJoin` (`use_dock_join()`, `DockJoin::host`,
-`claim`) for the child editor's dock.
+`claim`) for the child editor's dock. Such a platform builds the tab bodies
+itself, and provides `DockTabMenu` and `DockTabControl::hosted(tab, hosted,
+request)` in each body's scope, so `dock_menu` and `use_dock_tab()` work there
+as in a local dock. A `DockDialog` whose parent tab is hosting a group hangs
+from the group's shown tab.
 
 A tab's panel is built the first time the tab is shown and belongs to the dock
 rather than to the pane showing it: the pane holds a `Portal` pointed at it, so

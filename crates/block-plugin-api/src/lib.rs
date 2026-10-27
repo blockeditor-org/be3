@@ -67,8 +67,7 @@ pub use shared::access::AccessLevel;
 pub use shell_types::{
     ArtifactDescription, AudioCommand, AudioSource, AudioStatus, BarAction, Catalog, ChildPreview,
     CreationProgress, DialogAnswer, DialogStatus, DroppedFile, EditorDescriptor, FitArea,
-    MenuCheck, MenuCommand, MenuHeading, MenuItem, MenuItemKind, MenuPin, PreviewImage,
-    ShellCommand, Stopped, TemplateDescriptor, ViewChange, WebViewEvent,
+    PreviewImage, ShellCommand, Stopped, TemplateDescriptor, ViewChange, WebViewEvent,
 };
 pub use shell_types::{
     BlockTypeDescriptor, ChildOperations, ChildStatus, EditorCapabilities, Edits, InteractionMode,
@@ -89,6 +88,7 @@ pub use types::{
     DockMessage, DockPane, DockPlace, DockRegionRequest, DockRequest, DockSplit, DockTab,
     DockTabPath, DockTree, DockWindow,
 };
+pub use types::{MenuCheck, MenuCommand, MenuHeading, MenuItem, MenuItemKind, MenuPin};
 pub use types::{
     RegionRef, WindowEdge, WindowOpen, WindowOver, WindowPlacement, WindowRequest, WindowResize,
     WindowResizeBegin,

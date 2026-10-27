@@ -119,7 +119,7 @@ impl<A: BeuiApp> Parts<A> {
         let tabs = Rc::clone(&self.docked);
         let host = self.host.clone();
         RenderFn::new(move |_: WindowHandle| {
-            let link = docked.then(|| tabs.link(host.clone(), editor));
+            let link = docked.then(|| tabs.link(host.clone(), editor, chrome.listed()));
             tabs.provide_slot(link, docked);
             let custom = Rc::clone(&custom);
             let view: Rc<dyn Fn() -> beui::styled::Root> =
@@ -342,13 +342,17 @@ impl<A: BeuiApp> Shown for Parts<A> {
                     framed: view.chrome_drawn(),
                     closable: spec.content.is_some(),
                     on_phone: spec.top_bar.phone(),
+                    docked: view.docked,
                 });
                 let picks = self.host.take_menu_picks();
                 if !picks.is_empty() {
                     let menu = views.chrome.menu();
+                    let docked = Rc::clone(&self.docked);
                     beui::reactive::with_reactive_scope(document, || {
                         for id in &picks {
-                            beui_frame::run_menu_pick(&menu, id);
+                            if !beui_frame::run_menu_pick(&menu, id) {
+                                docked.pick(id);
+                            }
                         }
                     });
                 }

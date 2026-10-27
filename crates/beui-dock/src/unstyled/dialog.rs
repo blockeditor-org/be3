@@ -304,11 +304,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         }
     });
     let scope = dock.open_scope();
-    let control = DockTabControl {
-        tab,
-        state: dock.state,
-        dock,
-    };
+    let control = DockTabControl::local(tab, dock.state, dock);
     let body = scope.context().run(|| {
         provide_context(control);
         provide_context(DialogLayout {

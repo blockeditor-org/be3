@@ -320,12 +320,17 @@ pub(crate) fn PluginRegion(
                 super::act(from, action);
             }
         }
-        let placed: Vec<(ChildId, Uuid)> = state.with_untracked(|view| {
+        let mut placed: Vec<(ChildId, Uuid)> = state.with_untracked(|view| {
             view.children
                 .iter()
                 .filter_map(|child| Some((child.child, child.block_id()?)))
                 .collect()
         });
+        for docked in plugin_host::docked_children(instance) {
+            if !placed.iter().any(|(child, _)| *child == docked.0) {
+                placed.push(docked);
+            }
+        }
         let children: Vec<ChildId> = placed.iter().map(|(child, _)| *child).collect();
         for (child, pick) in
             plugin_host::take_child_menu_picks(&plugin_id.value(), instance, &children)

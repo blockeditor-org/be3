@@ -469,7 +469,11 @@ only for tabs the owner's `dock-hosted.visible` lists. The host keeps a docked
 child open while its placer places it or, once the child declares a dock, still
 declares the tab it was placed in (for the root, from the declaration it hears until it lets go with a `host`
 of `none`), requesting its frame at its last size without drawing it; a tab closes
-when its owner stops declaring it.
+when its owner stops declaring it. Each `dock-tab` carries the menu its owner
+gives that tab (`menu`, the same `menu-item`s as a frame's menu, the owner's
+frame menu included), which the root shows on the tab's bar; a pick is the
+owner's ordinary `menu-pick`, which the host routes to a docked child whether or
+not its placer still places it.
 
 A frame surface is transparent wherever its owner does not paint, so whatever
 the host draws beneath shows through there. The plugin publishes, with every
