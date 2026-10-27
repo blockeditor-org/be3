@@ -337,6 +337,24 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "linux-x86_64-html": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-model:be-model",
+                    "//crates/be-store:be-store",
+                    "//crates/ui-types:ui-types",
+                    "//third-party/rust:memchr-2.8.1",
+                    "//third-party/rust:postcard-1.1.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
@@ -1298,6 +1316,22 @@ crates = {
                     "default",
                     "store",
                 ],
+            },
+            "linux-x86_64-html": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-store:be-store",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:similar-3.1.1",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [
+                    "default",
+                    "store",
+                ],
+                "test_deps": [],
+                "test_features": [],
             },
             "macos-arm64": {
                 "binaries": {},
@@ -2353,6 +2387,19 @@ crates = {
                 ],
                 "test_features": [],
             },
+            "linux-x86_64-html": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-store:be-store",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
@@ -2552,6 +2599,26 @@ crates = {
                 "test_features": [],
             },
             "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bip39-2.2.2",
+                    "//third-party/rust:chacha20poly1305-0.10.1",
+                    "//third-party/rust:ed25519-dalek-2.2.0",
+                    "//third-party/rust:hkdf-0.12.4",
+                    "//third-party/rust:postcard-1.1.3",
+                    "//third-party/rust:rand-0.9.4",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_bytes-0.11.19",
+                    "//third-party/rust:sha2-0.10.9",
+                    "//third-party/rust:spake2-0.4.0",
+                    "//third-party/rust:x25519-dalek-2.0.1",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64-html": {
                 "binaries": {},
                 "deps": [
                     "//third-party/rust:bip39-2.2.2",
@@ -3001,6 +3068,23 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "linux-x86_64-html": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-model-derive:be-model-derive",
+                    "//crates/be-store:be-store",
+                    "//crates/sequence:sequence",
+                    "//third-party/rust:ciborium-0.2.2",
+                    "//third-party/rust:postcard-1.1.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
@@ -3160,6 +3244,18 @@ crates = {
                 "test_features": [],
             },
             "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:proc-macro2-1.0.106",
+                    "//third-party/rust:quote-1.0.45",
+                    "//third-party/rust:syn-2.0.117",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64-html": {
                 "binaries": {},
                 "deps": [
                     "//third-party/rust:proc-macro2-1.0.106",
@@ -3587,6 +3683,161 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
+    "crates/be-portal": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "be_portal",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "be-portal",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64-html": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-html": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/be-portal-ui": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "be_portal_ui",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "be-portal-ui",
+        "platforms": {
+            "linux-x86_64-html": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-portal:be-portal",
+                    "//crates/beui:beui",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/paint-snapshot:paint-snapshot",
+                ],
+                "test_features": [],
+            },
+            "wasi-html": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-portal:be-portal",
+                    "//crates/beui:beui",
+                    "//crates/wasi-threads:wasi-threads",
+                    "//third-party/rust:wasm-bindgen-0.2.122",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
     "crates/be-protocol": {
         "binaries": [],
         "edition": "2024",
@@ -3631,6 +3882,22 @@ crates = {
                 "test_features": [],
             },
             "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-store:be-store",
+                    "//third-party/rust:postcard-1.1.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_bytes-0.11.19",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64-html": {
                 "binaries": {},
                 "deps": [
                     "//crates/be-commit:be-commit",
@@ -3785,13 +4052,14 @@ crates = {
                         "//crates/be-commit:be-commit",
                         "//crates/be-graph:be-graph",
                         "//crates/be-keys:be-keys",
+                        "//crates/be-portal:be-portal",
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
-                        "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
                         "//crates/sqlite-schema:sqlite-schema",
                         "//third-party/rust:argon2-0.5.3",
+                        "//third-party/rust:base64-0.22.1",
                         "//third-party/rust:chacha20poly1305-0.10.1",
                         "//third-party/rust:futures-util-0.3.32",
                         "//third-party/rust:httparse-1.10.1",
@@ -3812,13 +4080,14 @@ crates = {
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
                     "//crates/be-keys:be-keys",
+                    "//crates/be-portal:be-portal",
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
-                    "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
                     "//crates/sqlite-schema:sqlite-schema",
                     "//third-party/rust:argon2-0.5.3",
+                    "//third-party/rust:base64-0.22.1",
                     "//third-party/rust:chacha20poly1305-0.10.1",
                     "//third-party/rust:futures-util-0.3.32",
                     "//third-party/rust:httparse-1.10.1",
@@ -3835,9 +4104,7 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [
-                    "//crates/paint-snapshot:paint-snapshot",
-                ],
+                "test_deps": [],
                 "test_features": [],
             },
             "linux-arm64": {
@@ -3847,13 +4114,14 @@ crates = {
                         "//crates/be-commit:be-commit",
                         "//crates/be-graph:be-graph",
                         "//crates/be-keys:be-keys",
+                        "//crates/be-portal:be-portal",
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
-                        "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
                         "//crates/sqlite-schema:sqlite-schema",
                         "//third-party/rust:argon2-0.5.3",
+                        "//third-party/rust:base64-0.22.1",
                         "//third-party/rust:chacha20poly1305-0.10.1",
                         "//third-party/rust:futures-util-0.3.32",
                         "//third-party/rust:httparse-1.10.1",
@@ -3874,13 +4142,14 @@ crates = {
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
                     "//crates/be-keys:be-keys",
+                    "//crates/be-portal:be-portal",
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
-                    "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
                     "//crates/sqlite-schema:sqlite-schema",
                     "//third-party/rust:argon2-0.5.3",
+                    "//third-party/rust:base64-0.22.1",
                     "//third-party/rust:chacha20poly1305-0.10.1",
                     "//third-party/rust:futures-util-0.3.32",
                     "//third-party/rust:httparse-1.10.1",
@@ -3897,9 +4166,7 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [
-                    "//crates/paint-snapshot:paint-snapshot",
-                ],
+                "test_deps": [],
                 "test_features": [],
             },
             "linux-x86_64": {
@@ -3909,13 +4176,14 @@ crates = {
                         "//crates/be-commit:be-commit",
                         "//crates/be-graph:be-graph",
                         "//crates/be-keys:be-keys",
+                        "//crates/be-portal:be-portal",
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
-                        "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
                         "//crates/sqlite-schema:sqlite-schema",
                         "//third-party/rust:argon2-0.5.3",
+                        "//third-party/rust:base64-0.22.1",
                         "//third-party/rust:chacha20poly1305-0.10.1",
                         "//third-party/rust:futures-util-0.3.32",
                         "//third-party/rust:httparse-1.10.1",
@@ -3936,13 +4204,14 @@ crates = {
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
                     "//crates/be-keys:be-keys",
+                    "//crates/be-portal:be-portal",
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
-                    "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
                     "//crates/sqlite-schema:sqlite-schema",
                     "//third-party/rust:argon2-0.5.3",
+                    "//third-party/rust:base64-0.22.1",
                     "//third-party/rust:chacha20poly1305-0.10.1",
                     "//third-party/rust:futures-util-0.3.32",
                     "//third-party/rust:httparse-1.10.1",
@@ -3959,9 +4228,71 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [
-                    "//crates/paint-snapshot:paint-snapshot",
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64-html": {
+                "binaries": {
+                    "be-server": [
+                        "//crates/be-block:be-block",
+                        "//crates/be-commit:be-commit",
+                        "//crates/be-graph:be-graph",
+                        "//crates/be-keys:be-keys",
+                        "//crates/be-portal-ui:be-portal-ui",
+                        "//crates/be-portal:be-portal",
+                        "//crates/be-protocol:be-protocol",
+                        "//crates/be-session:be-session",
+                        "//crates/be-store:be-store",
+                        "//crates/build-id:build-id",
+                        "//crates/sqlite-schema:sqlite-schema",
+                        "//third-party/rust:argon2-0.5.3",
+                        "//third-party/rust:base64-0.22.1",
+                        "//third-party/rust:chacha20poly1305-0.10.1",
+                        "//third-party/rust:futures-util-0.3.32",
+                        "//third-party/rust:httparse-1.10.1",
+                        "//third-party/rust:rand-0.9.4",
+                        "//third-party/rust:rusqlite-0.32.1",
+                        "//third-party/rust:serde-1.0.228",
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:tokio-1.52.3",
+                        "//third-party/rust:tokio-tungstenite-0.23.1",
+                        "//third-party/rust:tracing-0.1.44",
+                        "//third-party/rust:tracing-subscriber-0.3.23",
+                        "//third-party/rust:ureq-2.12.1",
+                        "//third-party/rust:uuid-1.23.2",
+                    ],
+                },
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
+                    "//crates/be-portal-ui:be-portal-ui",
+                    "//crates/be-portal:be-portal",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-session:be-session",
+                    "//crates/be-store:be-store",
+                    "//crates/build-id:build-id",
+                    "//crates/sqlite-schema:sqlite-schema",
+                    "//third-party/rust:argon2-0.5.3",
+                    "//third-party/rust:base64-0.22.1",
+                    "//third-party/rust:chacha20poly1305-0.10.1",
+                    "//third-party/rust:futures-util-0.3.32",
+                    "//third-party/rust:httparse-1.10.1",
+                    "//third-party/rust:rand-0.9.4",
+                    "//third-party/rust:rusqlite-0.32.1",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:sha2-0.10.9",
+                    "//third-party/rust:tokio-1.52.3",
+                    "//third-party/rust:tokio-tungstenite-0.23.1",
+                    "//third-party/rust:tracing-0.1.44",
+                    "//third-party/rust:tracing-subscriber-0.3.23",
+                    "//third-party/rust:ureq-2.12.1",
+                    "//third-party/rust:uuid-1.23.2",
                 ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
                 "test_features": [],
             },
             "macos-arm64": {
@@ -3971,13 +4302,14 @@ crates = {
                         "//crates/be-commit:be-commit",
                         "//crates/be-graph:be-graph",
                         "//crates/be-keys:be-keys",
+                        "//crates/be-portal:be-portal",
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
-                        "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
                         "//crates/sqlite-schema:sqlite-schema",
                         "//third-party/rust:argon2-0.5.3",
+                        "//third-party/rust:base64-0.22.1",
                         "//third-party/rust:chacha20poly1305-0.10.1",
                         "//third-party/rust:futures-util-0.3.32",
                         "//third-party/rust:httparse-1.10.1",
@@ -3998,13 +4330,14 @@ crates = {
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
                     "//crates/be-keys:be-keys",
+                    "//crates/be-portal:be-portal",
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
-                    "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
                     "//crates/sqlite-schema:sqlite-schema",
                     "//third-party/rust:argon2-0.5.3",
+                    "//third-party/rust:base64-0.22.1",
                     "//third-party/rust:chacha20poly1305-0.10.1",
                     "//third-party/rust:futures-util-0.3.32",
                     "//third-party/rust:httparse-1.10.1",
@@ -4021,9 +4354,7 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [
-                    "//crates/paint-snapshot:paint-snapshot",
-                ],
+                "test_deps": [],
                 "test_features": [],
             },
             "macos-x86_64": {
@@ -4033,13 +4364,14 @@ crates = {
                         "//crates/be-commit:be-commit",
                         "//crates/be-graph:be-graph",
                         "//crates/be-keys:be-keys",
+                        "//crates/be-portal:be-portal",
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
-                        "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
                         "//crates/sqlite-schema:sqlite-schema",
                         "//third-party/rust:argon2-0.5.3",
+                        "//third-party/rust:base64-0.22.1",
                         "//third-party/rust:chacha20poly1305-0.10.1",
                         "//third-party/rust:futures-util-0.3.32",
                         "//third-party/rust:httparse-1.10.1",
@@ -4060,13 +4392,14 @@ crates = {
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
                     "//crates/be-keys:be-keys",
+                    "//crates/be-portal:be-portal",
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
-                    "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
                     "//crates/sqlite-schema:sqlite-schema",
                     "//third-party/rust:argon2-0.5.3",
+                    "//third-party/rust:base64-0.22.1",
                     "//third-party/rust:chacha20poly1305-0.10.1",
                     "//third-party/rust:futures-util-0.3.32",
                     "//third-party/rust:httparse-1.10.1",
@@ -4083,9 +4416,7 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [
-                    "//crates/paint-snapshot:paint-snapshot",
-                ],
+                "test_deps": [],
                 "test_features": [],
             },
             "windows-arm64": {
@@ -4095,13 +4426,14 @@ crates = {
                         "//crates/be-commit:be-commit",
                         "//crates/be-graph:be-graph",
                         "//crates/be-keys:be-keys",
+                        "//crates/be-portal:be-portal",
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
-                        "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
                         "//crates/sqlite-schema:sqlite-schema",
                         "//third-party/rust:argon2-0.5.3",
+                        "//third-party/rust:base64-0.22.1",
                         "//third-party/rust:chacha20poly1305-0.10.1",
                         "//third-party/rust:futures-util-0.3.32",
                         "//third-party/rust:httparse-1.10.1",
@@ -4122,13 +4454,14 @@ crates = {
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
                     "//crates/be-keys:be-keys",
+                    "//crates/be-portal:be-portal",
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
-                    "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
                     "//crates/sqlite-schema:sqlite-schema",
                     "//third-party/rust:argon2-0.5.3",
+                    "//third-party/rust:base64-0.22.1",
                     "//third-party/rust:chacha20poly1305-0.10.1",
                     "//third-party/rust:futures-util-0.3.32",
                     "//third-party/rust:httparse-1.10.1",
@@ -4145,9 +4478,7 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [
-                    "//crates/paint-snapshot:paint-snapshot",
-                ],
+                "test_deps": [],
                 "test_features": [],
             },
             "windows-x86_64": {
@@ -4157,13 +4488,14 @@ crates = {
                         "//crates/be-commit:be-commit",
                         "//crates/be-graph:be-graph",
                         "//crates/be-keys:be-keys",
+                        "//crates/be-portal:be-portal",
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
-                        "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
                         "//crates/sqlite-schema:sqlite-schema",
                         "//third-party/rust:argon2-0.5.3",
+                        "//third-party/rust:base64-0.22.1",
                         "//third-party/rust:chacha20poly1305-0.10.1",
                         "//third-party/rust:futures-util-0.3.32",
                         "//third-party/rust:httparse-1.10.1",
@@ -4184,13 +4516,14 @@ crates = {
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
                     "//crates/be-keys:be-keys",
+                    "//crates/be-portal:be-portal",
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
-                    "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
                     "//crates/sqlite-schema:sqlite-schema",
                     "//third-party/rust:argon2-0.5.3",
+                    "//third-party/rust:base64-0.22.1",
                     "//third-party/rust:chacha20poly1305-0.10.1",
                     "//third-party/rust:futures-util-0.3.32",
                     "//third-party/rust:httparse-1.10.1",
@@ -4207,9 +4540,7 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [
-                    "//crates/paint-snapshot:paint-snapshot",
-                ],
+                "test_deps": [],
                 "test_features": [],
             },
         },
@@ -4286,6 +4617,23 @@ crates = {
                     "default",
                     "store",
                 ],
+            },
+            "linux-x86_64-html": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-store:be-store",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [
+                    "default",
+                    "store",
+                ],
+                "test_deps": [],
+                "test_features": [],
             },
             "macos-arm64": {
                 "binaries": {},
@@ -4495,6 +4843,25 @@ crates = {
                     "default",
                     "vault",
                 ],
+            },
+            "linux-x86_64-html": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:chacha20poly1305-0.10.1",
+                    "//third-party/rust:ciborium-0.2.2",
+                    "//third-party/rust:libc-0.2.186",
+                    "//third-party/rust:rand-0.9.4",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:sha2-0.10.9",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [
+                    "default",
+                    "vault",
+                ],
+                "test_deps": [],
+                "test_features": [],
             },
             "macos-arm64": {
                 "binaries": {},
@@ -16256,6 +16623,17 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "linux-x86_64-html": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
@@ -24537,6 +24915,16 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "linux-x86_64-html": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:rusqlite-0.32.1",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
@@ -27349,6 +27737,17 @@ third_party = {
                     "rand_core",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":crypto-common-0.1.7",
+                    ":generic-array-0.14.7",
+                ],
+                "features": [
+                    "alloc",
+                    "getrandom",
+                    "rand_core",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":crypto-common-0.1.7",
@@ -27742,6 +28141,13 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":once_cell-1.21.4",
+                    ":zerocopy-0.8.50",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":cfg-if-1.0.4",
                     ":once_cell-1.21.4",
@@ -28530,6 +28936,20 @@ third_party = {
                     "rand",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":base64ct-1.8.3",
+                    ":blake2-0.10.6",
+                    ":cpufeatures-0.2.17",
+                    ":password-hash-0.5.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "password-hash",
+                    "rand",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":base64ct-1.8.3",
@@ -28663,6 +29083,7 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {},
             "macos-arm64": {
                 "features": [
                     "default",
@@ -30253,6 +30674,11 @@ third_party = {
                     "alloc",
                 ],
             },
+            "linux-x86_64-html": {
+                "features": [
+                    "alloc",
+                ],
+            },
             "macos-arm64": {
                 "features": [
                     "alloc",
@@ -30443,6 +30869,19 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":bitcoin_hashes-0.14.101",
+                    ":serde-1.0.228",
+                    ":unicode-normalization-0.1.25",
+                ],
+                "features": [
+                    "alloc",
+                    "serde",
+                    "std",
+                    "unicode-normalization",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":bitcoin_hashes-0.14.101",
                     ":serde-1.0.228",
@@ -30669,6 +31108,11 @@ third_party = {
                     "hex": ":hex-conservative-0.2.3",
                 },
             },
+            "linux-x86_64-html": {
+                "named_deps": {
+                    "hex": ":hex-conservative-0.2.3",
+                },
+            },
             "macos-arm64": {
                 "named_deps": {
                     "hex": ":hex-conservative-0.2.3",
@@ -30868,6 +31312,11 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":digest-0.10.7",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":digest-0.10.7",
                 ],
@@ -31597,6 +32046,12 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "features": [
                     "default",
@@ -31749,6 +32204,12 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
                 "features": [
                     "default",
                     "std",
@@ -32797,6 +33258,16 @@ third_party = {
                     "zeroize",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":cipher-0.4.4",
+                    ":cpufeatures-0.2.17",
+                ],
+                "features": [
+                    "zeroize",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":cfg-if-1.0.4",
@@ -32912,6 +33383,21 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":aead-0.5.2",
+                    ":chacha20-0.9.1",
+                    ":cipher-0.4.4",
+                    ":poly1305-0.8.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "getrandom",
+                    "rand_core",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":aead-0.5.2",
                     ":chacha20-0.9.1",
@@ -33409,6 +33895,16 @@ third_party = {
                     "zeroize",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":crypto-common-0.1.7",
+                    ":inout-0.1.4",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "zeroize",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":crypto-common-0.1.7",
@@ -33888,6 +34384,11 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":thiserror-2.0.18",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":thiserror-2.0.18",
                 ],
@@ -36722,9 +37223,12 @@ third_party = {
             "linux-x86_64-html": {
                 "deps": [
                     ":generic-array-0.14.7",
+                    ":rand_core-0.6.4",
                     ":typenum-1.20.1",
                 ],
                 "features": [
+                    "getrandom",
+                    "rand_core",
                     "std",
                 ],
             },
@@ -37151,6 +37655,24 @@ third_party = {
                     "zeroize",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":cpufeatures-0.2.17",
+                    ":curve25519-dalek-derive-0.1.1",
+                    ":digest-0.10.7",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "digest",
+                    "precomputed-tables",
+                    "rand_core",
+                    "zeroize",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":cfg-if-1.0.4",
@@ -37376,6 +37898,13 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
                 "features": [
                     "alloc",
                     "default",
@@ -38211,13 +38740,16 @@ third_party = {
                 "deps": [
                     ":block-buffer-0.10.4",
                     ":crypto-common-0.1.7",
+                    ":subtle-2.6.1",
                 ],
                 "features": [
                     "alloc",
                     "block-buffer",
                     "core-api",
                     "default",
+                    "mac",
                     "std",
+                    "subtle",
                 ],
             },
             "macos-arm64": {
@@ -39312,6 +39844,15 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":signature-2.2.0",
+                ],
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":signature-2.2.0",
@@ -39417,6 +39958,22 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":curve25519-dalek-4.1.3",
+                    ":ed25519-2.2.3",
+                    ":sha2-0.10.9",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "fast",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":curve25519-dalek-4.1.3",
                     ":ed25519-2.2.3",
@@ -40082,6 +40639,15 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":libc-0.2.186",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":libc-0.2.186",
@@ -40397,6 +40963,12 @@ third_party = {
                     "default",
                 ],
             },
+            "linux-x86_64-html": {
+                "features": [
+                    "alloc",
+                    "default",
+                ],
+            },
             "macos-arm64": {
                 "features": [
                     "alloc",
@@ -40455,6 +41027,7 @@ third_party = {
             "android-arm64": {},
             "linux-arm64": {},
             "linux-x86_64": {},
+            "linux-x86_64-html": {},
             "macos-arm64": {},
             "macos-x86_64": {},
             "wasi": {},
@@ -41399,6 +41972,15 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":percent-encoding-2.3.2",
+                ],
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":percent-encoding-2.3.2",
@@ -42002,6 +42584,12 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "features": [
                     "alloc",
@@ -42298,6 +42886,7 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {},
             "macos-arm64": {},
             "macos-x86_64": {},
             "windows-arm64": {},
@@ -42341,6 +42930,12 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
                 "features": [
                     "alloc",
                     "std",
@@ -42499,6 +43094,27 @@ third_party = {
                     "futures-sink",
                     "io",
                     "memchr",
+                    "sink",
+                    "slab",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":futures-core-0.3.32",
+                    ":futures-macro-0.3.32",
+                    ":futures-sink-0.3.32",
+                    ":futures-task-0.3.32",
+                    ":pin-project-lite-0.2.17",
+                    ":slab-0.4.12",
+                ],
+                "features": [
+                    "alloc",
+                    "async-await",
+                    "async-await-macro",
+                    "default",
+                    "futures-macro",
+                    "futures-sink",
                     "sink",
                     "slab",
                     "std",
@@ -43081,6 +43697,15 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":libc-0.2.186",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":cfg-if-1.0.4",
@@ -43175,6 +43800,15 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":libc-0.2.186",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":cfg-if-1.0.4",
                     ":libc-0.2.186",
@@ -43293,6 +43927,12 @@ third_party = {
                 "features": [
                     "std",
                     "sys_rng",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":libc-0.2.186",
                 ],
             },
             "macos-arm64": {
@@ -44760,6 +45400,11 @@ third_party = {
                     ":byteorder-1.5.0",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":byteorder-1.5.0",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":byteorder-1.5.0",
@@ -44840,6 +45485,15 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":ahash-0.8.12",
+                ],
+                "features": [
+                    "ahash",
+                    "inline-more",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":ahash-0.8.12",
                 ],
@@ -45243,6 +45897,11 @@ third_party = {
                     ":hashbrown-0.14.5",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":hashbrown-0.14.5",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":hashbrown-0.14.5",
@@ -45324,6 +45983,19 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":hash32-0.2.1",
+                    ":serde-1.0.228",
+                    ":spin-0.9.9",
+                    ":stable_deref_trait-1.2.1",
+                ],
+                "features": [
+                    "atomic-polyfill",
+                    "cas",
+                    "serde",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":hash32-0.2.1",
                     ":serde-1.0.228",
@@ -45563,6 +46235,11 @@ third_party = {
                     ":arrayvec-0.7.6",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":arrayvec-0.7.6",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":arrayvec-0.7.6",
@@ -45663,6 +46340,11 @@ third_party = {
                     ":hmac-0.12.1",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":hmac-0.12.1",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":hmac-0.12.1",
@@ -45724,6 +46406,11 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":digest-0.10.7",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":digest-0.10.7",
                 ],
@@ -45903,6 +46590,16 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":bytes-1.11.1",
+                    ":itoa-1.0.18",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":bytes-1.11.1",
@@ -45984,6 +46681,12 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
                 "features": [
                     "default",
                     "std",
@@ -46433,6 +47136,18 @@ third_party = {
                     "compiled_data",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":icu_collections-2.4.0",
+                    ":icu_normalizer_data-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":smallvec-1.15.1",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "compiled_data",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":icu_collections-2.4.0",
@@ -46514,6 +47229,7 @@ third_party = {
             "android-arm64": {},
             "linux-arm64": {},
             "linux-x86_64": {},
+            "linux-x86_64-html": {},
             "macos-arm64": {},
             "macos-x86_64": {},
             "windows-arm64": {},
@@ -47020,6 +47736,18 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":idna_adapter-1.2.2",
+                    ":smallvec-1.15.1",
+                    ":utf8_iter-1.0.4",
+                ],
+                "features": [
+                    "alloc",
+                    "compiled_data",
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":idna_adapter-1.2.2",
@@ -47114,6 +47842,15 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":icu_normalizer-2.4.0",
+                    ":icu_properties-2.4.0",
+                ],
+                "features": [
+                    "compiled_data",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":icu_normalizer-2.4.0",
                     ":icu_properties-2.4.0",
@@ -48130,6 +48867,11 @@ third_party = {
                     ":generic-array-0.14.7",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":generic-array-0.14.7",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":generic-array-0.14.7",
@@ -49086,6 +49828,7 @@ third_party = {
             "macos-x86_64": {},
             "wasi": {},
             "wasi-guest": {},
+            "wasi-html": {},
             "wasm32": {},
             "windows-arm64": {},
             "windows-x86_64": {},
@@ -49960,6 +50703,7 @@ third_party = {
                     "spin_no_std",
                 ],
             },
+            "linux-x86_64-html": {},
             "macos-arm64": {
                 "deps": [
                     ":spin-0.9.9",
@@ -50204,6 +50948,12 @@ third_party = {
                 "features": [
                     "default",
                     "extra_traits",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
+                "features": [
+                    "default",
                     "std",
                 ],
             },
@@ -50640,6 +51390,17 @@ third_party = {
                     "vcpkg",
                 ],
             },
+            "linux-x86_64-html": {
+                "features": [
+                    "bundled",
+                    "bundled_bindings",
+                    "cc",
+                    "default",
+                    "min_sqlite_version_3_14_0",
+                    "pkg-config",
+                    "vcpkg",
+                ],
+            },
             "macos-arm64": {
                 "features": [
                     "bundled",
@@ -51045,6 +51806,15 @@ third_party = {
                     "default",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":scopeguard-1.2.0",
+                ],
+                "features": [
+                    "atomic_usize",
+                    "default",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":scopeguard-1.2.0",
@@ -51136,6 +51906,11 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
                 "features": [
                     "std",
                 ],
@@ -51619,6 +52394,11 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":regex-automata-0.4.16",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":regex-automata-0.4.16",
                 ],
@@ -52219,6 +52999,16 @@ third_party = {
                 "features": [
                     "default",
                     "log",
+                    "net",
+                    "os-ext",
+                    "os-poll",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":libc-0.2.186",
+                ],
+                "features": [
                     "net",
                     "os-ext",
                     "os-poll",
@@ -53439,6 +54229,12 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
                 "features": [
                     "default",
                     "std",
@@ -55711,6 +56507,14 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "race",
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "features": [
                     "alloc",
@@ -55787,6 +56591,7 @@ third_party = {
             "android-arm64": {},
             "linux-arm64": {},
             "linux-x86_64": {},
+            "linux-x86_64-html": {},
             "macos-arm64": {},
             "macos-x86_64": {},
             "wasi": {},
@@ -56534,6 +57339,18 @@ third_party = {
                     "rand_core",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":base64ct-1.8.3",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "rand_core",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":base64ct-1.8.3",
@@ -56886,6 +57703,12 @@ third_party = {
                 "features": [
                     "alloc",
                     "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
+                "features": [
+                    "alloc",
                     "std",
                 ],
             },
@@ -57325,6 +58148,7 @@ third_party = {
             "android-arm64": {},
             "linux-arm64": {},
             "linux-x86_64": {},
+            "linux-x86_64-html": {},
             "macos-arm64": {},
             "macos-x86_64": {},
             "wasi": {},
@@ -58265,6 +59089,13 @@ third_party = {
                     ":universal-hash-0.5.1",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":cpufeatures-0.2.17",
+                    ":opaque-debug-0.3.1",
+                    ":universal-hash-0.5.1",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":opaque-debug-0.3.1",
@@ -58704,6 +59535,20 @@ third_party = {
                     "use-std",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":cobs-0.3.0",
+                    ":heapless-0.7.17",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "heapless",
+                    "heapless-cas",
+                    "use-std",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":cobs-0.3.0",
@@ -58994,6 +59839,15 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":zerocopy-0.8.50",
+                ],
+                "features": [
+                    "simd",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":zerocopy-0.8.50",
                 ],
@@ -60497,6 +61351,22 @@ third_party = {
                     "std_rng",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":libc-0.2.186",
+                    ":rand_chacha-0.3.1",
+                    ":rand_core-0.6.4",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "getrandom",
+                    "libc",
+                    "rand_chacha",
+                    "std",
+                    "std_rng",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":libc-0.2.186",
@@ -60617,6 +61487,21 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":rand_chacha-0.9.0",
+                    ":rand_core-0.9.5",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "os_rng",
+                    "small_rng",
+                    "std",
+                    "std_rng",
+                    "thread_rng",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":rand_chacha-0.9.0",
                     ":rand_core-0.9.5",
@@ -60783,6 +61668,15 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":ppv-lite86-0.2.21",
+                    ":rand_core-0.6.4",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":ppv-lite86-0.2.21",
@@ -60873,6 +61767,15 @@ third_party = {
                 ],
                 "features": [
                     "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":ppv-lite86-0.2.21",
+                    ":rand_core-0.9.5",
+                ],
+                "features": [
                     "std",
                 ],
             },
@@ -61035,6 +61938,16 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":getrandom-0.2.17",
+                ],
+                "features": [
+                    "alloc",
+                    "getrandom",
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":getrandom-0.2.17",
@@ -61137,6 +62050,15 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":getrandom-0.3.4",
+                ],
+                "features": [
+                    "os_rng",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":getrandom-0.3.4",
                 ],
@@ -62175,7 +63097,9 @@ third_party = {
                 ],
                 "features": [
                     "alloc",
+                    "dfa-build",
                     "dfa-onepass",
+                    "dfa-search",
                     "hybrid",
                     "meta",
                     "nfa-backtrack",
@@ -63013,6 +63937,18 @@ third_party = {
                     "dev_urandom_fallback",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":getrandom-0.2.17",
+                    ":untrusted-0.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "dev_urandom_fallback",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":cfg-if-1.0.4",
@@ -63693,6 +64629,20 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":fallible-iterator-0.3.0",
+                    ":fallible-streaming-iterator-0.1.9",
+                    ":hashlink-0.9.1",
+                    ":libsqlite3-sys-0.30.1",
+                    ":smallvec-1.15.1",
+                ],
+                "features": [
+                    "bundled",
+                    "modern_sqlite",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":bitflags-2.12.1",
                     ":fallible-iterator-0.3.0",
@@ -64592,6 +65542,26 @@ third_party = {
                     "pki_types": ":rustls-pki-types-1.15.1",
                 },
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":log-0.4.31",
+                    ":once_cell-1.21.4",
+                    ":ring-0.17.14",
+                    ":rustls-webpki-0.103.13",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "log",
+                    "logging",
+                    "ring",
+                    "std",
+                    "tls12",
+                ],
+                "named_deps": {
+                    "pki_types": ":rustls-pki-types-1.15.1",
+                },
+            },
             "macos-arm64": {
                 "deps": [
                     ":log-0.4.31",
@@ -64728,6 +65698,16 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":zeroize-1.9.0",
@@ -64822,6 +65802,20 @@ third_party = {
                 },
             },
             "linux-x86_64": {
+                "deps": [
+                    ":ring-0.17.14",
+                    ":untrusted-0.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "ring",
+                    "std",
+                ],
+                "named_deps": {
+                    "pki_types": ":rustls-pki-types-1.15.1",
+                },
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":ring-0.17.14",
                     ":untrusted-0.9.0",
@@ -65102,6 +66096,7 @@ third_party = {
                     "use_std",
                 ],
             },
+            "linux-x86_64-html": {},
             "macos-arm64": {
                 "features": [
                     "default",
@@ -65973,6 +66968,18 @@ third_party = {
                     "std",
                 ],
             },
+            "wasi-html": {
+                "deps": [
+                    ":itoa-1.0.18",
+                    ":memchr-2.8.1",
+                    ":serde_core-1.0.228",
+                    ":zmij-1.0.21",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
             "wasm32": {
                 "deps": [
                     ":itoa-1.0.18",
@@ -66270,6 +67277,17 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":cpufeatures-0.2.17",
+                    ":digest-0.10.7",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":cfg-if-1.0.4",
                     ":cpufeatures-0.2.17",
@@ -66742,6 +67760,11 @@ third_party = {
                     ":lazy_static-1.5.0",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":lazy_static-1.5.0",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":lazy_static-1.5.0",
@@ -66973,6 +67996,12 @@ third_party = {
                     ":libc-0.2.186",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":errno-0.3.14",
+                    ":libc-0.2.186",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":errno-0.3.14",
@@ -67044,6 +68073,12 @@ third_party = {
                     "alloc",
                     "digest",
                     "rand_core",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
+                "features": [
+                    "alloc",
                     "std",
                 ],
             },
@@ -67618,6 +68653,11 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "features": [
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "features": [
                     "default",
@@ -67762,6 +68802,11 @@ third_party = {
                     "const_new",
                     "serde",
                     "union",
+                ],
+            },
+            "linux-x86_64-html": {
+                "features": [
+                    "const_generics",
                 ],
             },
             "macos-arm64": {
@@ -68508,6 +69553,14 @@ third_party = {
                     "all",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":libc-0.2.186",
+                ],
+                "features": [
+                    "all",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":libc-0.2.186",
@@ -68592,6 +69645,18 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":curve25519-dalek-4.1.3",
+                    ":hkdf-0.12.4",
+                    ":rand_core-0.6.4",
+                    ":sha2-0.10.9",
+                ],
+                "features": [
+                    "default",
+                    "getrandom",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":curve25519-dalek-4.1.3",
                     ":hkdf-0.12.4",
@@ -68719,6 +69784,22 @@ third_party = {
                     "rwlock",
                     "spin_mutex",
                     "std",
+                ],
+                "named_deps": {
+                    "lock_api_crate": ":lock_api-0.4.14",
+                },
+            },
+            "linux-x86_64-html": {
+                "features": [
+                    "barrier",
+                    "default",
+                    "lazy",
+                    "lock_api",
+                    "lock_api_crate",
+                    "mutex",
+                    "once",
+                    "rwlock",
+                    "spin_mutex",
                 ],
                 "named_deps": {
                     "lock_api_crate": ":lock_api-0.4.14",
@@ -69254,6 +70335,7 @@ third_party = {
             "android-arm64": {},
             "linux-arm64": {},
             "linux-x86_64": {},
+            "linux-x86_64-html": {},
             "macos-arm64": {},
             "macos-x86_64": {},
             "wasi": {},
@@ -70410,6 +71492,11 @@ third_party = {
                     ":thiserror-impl-1.0.69",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":thiserror-impl-1.0.69",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":thiserror-impl-1.0.69",
@@ -70484,6 +71571,11 @@ third_party = {
                 "features": [
                     "default",
                     "std",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":thiserror-impl-2.0.18",
                 ],
             },
             "macos-arm64": {
@@ -70638,6 +71730,11 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":cfg-if-1.0.4",
                 ],
@@ -71533,6 +72630,16 @@ third_party = {
                     "tinyvec_macros",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":tinyvec_macros-0.1.1",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "tinyvec_macros",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":tinyvec_macros-0.1.1",
@@ -71610,6 +72717,7 @@ third_party = {
             "android-arm64": {},
             "linux-arm64": {},
             "linux-x86_64": {},
+            "linux-x86_64-html": {},
             "macos-arm64": {},
             "macos-x86_64": {},
             "wasi": {},
@@ -71714,6 +72822,34 @@ third_party = {
                     "bytes",
                     "default",
                     "io-std",
+                    "io-util",
+                    "libc",
+                    "macros",
+                    "mio",
+                    "net",
+                    "rt",
+                    "rt-multi-thread",
+                    "signal",
+                    "signal-hook-registry",
+                    "socket2",
+                    "sync",
+                    "time",
+                    "tokio-macros",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":bytes-1.11.1",
+                    ":libc-0.2.186",
+                    ":mio-1.2.1",
+                    ":pin-project-lite-0.2.17",
+                    ":signal-hook-registry-1.4.8",
+                    ":socket2-0.6.4",
+                    ":tokio-macros-2.7.0",
+                ],
+                "features": [
+                    "bytes",
+                    "default",
                     "io-util",
                     "libc",
                     "macros",
@@ -72088,6 +73224,20 @@ third_party = {
                     "stream",
                     "tokio-rustls",
                     "webpki-roots",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":futures-util-0.3.32",
+                    ":log-0.4.31",
+                    ":tokio-1.52.3",
+                    ":tungstenite-0.23.0",
+                ],
+                "features": [
+                    "connect",
+                    "default",
+                    "handshake",
+                    "stream",
                 ],
             },
             "macos-arm64": {
@@ -72996,6 +74146,19 @@ third_party = {
                     "tracing-attributes",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":pin-project-lite-0.2.17",
+                    ":tracing-attributes-0.1.31",
+                    ":tracing-core-0.1.36",
+                ],
+                "features": [
+                    "attributes",
+                    "default",
+                    "std",
+                    "tracing-attributes",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":log-0.4.31",
@@ -73147,6 +74310,16 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":once_cell-1.21.4",
+                ],
+                "features": [
+                    "default",
+                    "once_cell",
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":once_cell-1.21.4",
@@ -73237,6 +74410,17 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":log-0.4.31",
+                    ":once_cell-1.21.4",
+                    ":tracing-core-0.1.36",
+                ],
+                "features": [
+                    "log-tracer",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":log-0.4.31",
                     ":once_cell-1.21.4",
@@ -73381,6 +74565,37 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":matchers-0.2.0",
+                    ":nu-ansi-term-0.50.3",
+                    ":once_cell-1.21.4",
+                    ":regex-automata-0.4.16",
+                    ":sharded-slab-0.1.7",
+                    ":smallvec-1.15.1",
+                    ":thread_local-1.1.10",
+                    ":tracing-0.1.44",
+                    ":tracing-core-0.1.36",
+                    ":tracing-log-0.2.0",
+                ],
+                "features": [
+                    "alloc",
+                    "ansi",
+                    "default",
+                    "env-filter",
+                    "fmt",
+                    "matchers",
+                    "nu-ansi-term",
+                    "once_cell",
+                    "registry",
+                    "sharded-slab",
+                    "smallvec",
+                    "std",
+                    "thread_local",
+                    "tracing",
+                    "tracing-log",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":matchers-0.2.0",
                     ":nu-ansi-term-0.50.3",
@@ -74320,6 +75535,27 @@ third_party = {
                     "sha1",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":byteorder-1.5.0",
+                    ":bytes-1.11.1",
+                    ":data-encoding-2.11.0",
+                    ":http-1.4.1",
+                    ":httparse-1.10.1",
+                    ":log-0.4.31",
+                    ":rand-0.8.6",
+                    ":sha1-0.10.6",
+                    ":thiserror-1.0.69",
+                    ":utf-8-0.7.6",
+                ],
+                "features": [
+                    "data-encoding",
+                    "handshake",
+                    "http",
+                    "httparse",
+                    "sha1",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":byteorder-1.5.0",
@@ -74793,6 +76029,14 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":tinyvec-1.12.0",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":tinyvec-1.12.0",
@@ -75119,6 +76363,12 @@ third_party = {
                     ":subtle-2.6.1",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":crypto-common-0.1.7",
+                    ":subtle-2.6.1",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":crypto-common-0.1.7",
@@ -75271,6 +76521,7 @@ third_party = {
             "android-arm64": {},
             "linux-arm64": {},
             "linux-x86_64": {},
+            "linux-x86_64-html": {},
             "macos-arm64": {},
             "macos-x86_64": {},
             "windows-arm64": {},
@@ -75342,6 +76593,26 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":base64-0.22.1",
+                    ":flate2-1.1.9",
+                    ":log-0.4.31",
+                    ":once_cell-1.21.4",
+                    ":rustls-0.23.43",
+                    ":rustls-pki-types-1.15.1",
+                    ":serde-1.0.228",
+                    ":serde_json-1.0.150",
+                    ":url-2.5.8",
+                    ":webpki-roots-0.26.11",
+                ],
+                "features": [
+                    "default",
+                    "gzip",
+                    "json",
+                    "tls",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":base64-0.22.1",
                     ":flate2-1.1.9",
@@ -75503,6 +76774,17 @@ third_party = {
                 "features": [
                     "default",
                     "serde",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":form_urlencoded-1.2.2",
+                    ":idna-1.1.0",
+                    ":percent-encoding-2.3.2",
+                ],
+                "features": [
+                    "default",
                     "std",
                 ],
             },
@@ -75708,6 +76990,7 @@ third_party = {
             "android-arm64": {},
             "linux-arm64": {},
             "linux-x86_64": {},
+            "linux-x86_64-html": {},
             "macos-arm64": {},
             "macos-x86_64": {},
             "windows-arm64": {},
@@ -75818,7 +77101,19 @@ third_party = {
                     "v7",
                 ],
             },
-            "linux-x86_64-html": {},
+            "linux-x86_64-html": {
+                "deps": [
+                    ":getrandom-0.4.2",
+                    ":serde_core-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "rng",
+                    "serde",
+                    "std",
+                    "v4",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":getrandom-0.4.2",
@@ -80809,6 +82104,11 @@ third_party = {
                     "parent": ":webpki-roots-1.0.9",
                 },
             },
+            "linux-x86_64-html": {
+                "named_deps": {
+                    "parent": ":webpki-roots-1.0.9",
+                },
+            },
             "macos-arm64": {
                 "named_deps": {
                     "parent": ":webpki-roots-1.0.9",
@@ -80866,6 +82166,11 @@ third_party = {
                 },
             },
             "linux-x86_64": {
+                "named_deps": {
+                    "pki_types": ":rustls-pki-types-1.15.1",
+                },
+            },
+            "linux-x86_64-html": {
                 "named_deps": {
                     "pki_types": ":rustls-pki-types-1.15.1",
                 },
@@ -85569,6 +86874,20 @@ third_party = {
                     "zeroize",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":curve25519-dalek-4.1.3",
+                    ":rand_core-0.6.4",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "precomputed-tables",
+                    "static_secrets",
+                    "zeroize",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":curve25519-dalek-4.1.3",
@@ -87125,6 +88444,16 @@ third_party = {
                     "zeroize_derive",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":zeroize_derive-1.5.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "zeroize_derive",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":zeroize_derive-1.5.0",
@@ -87786,6 +89115,7 @@ third_party = {
             "macos-x86_64": {},
             "wasi": {},
             "wasi-guest": {},
+            "wasi-html": {},
             "wasm32": {},
             "windows-arm64": {},
             "windows-x86_64": {},

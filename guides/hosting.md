@@ -213,6 +213,27 @@ stays enabled, but submitted passwords are never echoed into HTML after errors.
 Keep the portal’s Referrer-Policy at `strict-origin`: `no-referrer` makes browser
 form navigations send a null Origin, which the same-origin check rejects.
 
+be-server decides what each request shows as a `be_portal::Page` (crates/be-portal) and
+renders it through the `Portal` in `ServerConfig::portal`. The executable's is
+crates/be-portal-ui: beui styled components rendered with `render_to_string` on beui's
+HTML core, which is why `//crates/be-server:bin` and its tests build for
+`linux_x86_64_html` (`:bin` transitions there from any configuration, so `:dist`,
+deploy and block-app's web scripts get it unchanged). Each page embeds its `Page` as JSON
+and loads be-portal-ui's hydration bundle, which adds live checks such as mismatched
+passwords; every form and link works before and without it. The executable embeds that
+bundle (the wasm module, its JS, the WASI shims and the fonts), so deployment still copies
+only `be-server` and `build-info.json`; it serves them under `/auth/assets/HASH/`, HASH
+from their contents, with `Cache-Control: public, max-age=31536000, immutable`. Pages send
+`Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`,
+since the module's memory is shared, and a Content-Security-Policy that allows only the
+server's own scripts, `'wasm-unsafe-eval'` and the import map's hash. A server with no
+`Portal`, as every server embedded in a native program is (block-app's local server, and
+the servers be-frozen's and block-app's tests and app-bench drive the portal of), answers each `/auth` page with its
+`Page` as JSON instead, with the same routes, redirects, cookies and form checks.
+To look at the portal locally: `./scripts/buck build //crates/be-server:dist --show-output`,
+then run the staged `be-server --allow-login --allow-registration` and open
+http://127.0.0.1:9090/auth; verification and reset links are in its log.
+
 The browser is assumed to already have the API host's gateway cookie. No gateway or
 account token is put in the device URL. `--session` does not launch a browser automatically.
 The portal authenticates the account; encryption unlocking and pairing stay in Block.

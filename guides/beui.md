@@ -728,8 +728,10 @@ An app on the HTML core starts with `beui::html::run(element_id, build)` in
 the browser. To serve a page that shows before any script runs, render it on
 the host with `beui::html::render_to_string(build)` (a program built for
 `linux_x86_64_html`, run at build time by the `prerendered_page` rule in
-buck/app/defs.bzl), put `beui::html::stylesheet()` in a `<style
-id=STYLES_ID>` in its head, and call `beui::html::hydrate(element_id, build)`
+buck/app/defs.bzl, or at request time, as be-server's account portal does
+with crates/be-portal-ui), put `beui::html::stylesheet(font_base)` in a
+`<style id=STYLES_ID>` in its head, with `font_base` the URL its `@font-face`
+rules find the bundled fonts under, and call `beui::html::hydrate(element_id, build)`
 with the same view in the browser: it claims the server's elements instead of
 building new ones (beui-html's hydration, [Live DOM and
 hydration](#live-dom-and-hydration)), and `run` and `hydrate` read the
@@ -750,8 +752,8 @@ To test on both cores:
   //crates/beui-view:html-test` for primitives, `./scripts/test
   //crates/beui:html-test` for unstyled and styled components (tests in
   `crates/beui/src/html_paintings/tests/`), and the spike's `:html-test`. Build
-  the page's `<style>` from `stylesheet()`: its `@font-face` rules name the
-  bundled fonts at the page's root, which the browser rasterizer serves, so
+  the page's `<style>` from `stylesheet("/")`: its `@font-face` rules then
+  name the bundled fonts at the page's root, which the browser rasterizer serves, so
   text and icons draw as they do natively. Paintings show layout, colour and
   text, not what needs the browser's layout (marks, carets).
 - The spike's dark painting

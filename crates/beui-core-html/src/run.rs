@@ -50,8 +50,8 @@ const BASE_STYLES: &str = "\
 
 pub const STYLES_ID: &str = "beui-styles";
 
-pub fn stylesheet() -> String {
-    format!("{BASE_STYLES}{}", crate::fonts::font_faces("."))
+pub fn stylesheet(font_base: &str) -> String {
+    format!("{BASE_STYLES}{}", crate::fonts::font_faces(font_base))
 }
 
 thread_local! {
@@ -136,7 +136,7 @@ mod web {
             return;
         };
         style.set_id(super::STYLES_ID);
-        style.set_text_content(Some(&super::stylesheet()));
+        style.set_text_content(Some(&super::stylesheet(".")));
         let _ = head.append_child(&style);
     }
 

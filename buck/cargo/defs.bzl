@@ -171,7 +171,8 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apa
         library_path_test(name = name, env = _env(crate, library["crate"], env), harness = ":" + name + "-harness", **kwargs)
     else:
         native.rust_test(name = name, env = _env(crate, library["crate"], env), rustc_flags = rustc_flags, **(common | kwargs))
-    test_run(name = name + "-run", local_only = kwargs.get("remote_execution") == "disabled", test = ":" + name)
+    platform = {key: kwargs[key] for key in ["default_target_platform", "target_compatible_with"] if key in kwargs}
+    test_run(name = name + "-run", local_only = kwargs.get("remote_execution") == "disabled", test = ":" + name, **platform)
 
 # A Rust test harness run with its LD_LIBRARY_PATH carried as
 # BE3_LD_LIBRARY_PATH and put back by the shell that starts it, so it survives
