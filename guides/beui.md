@@ -2066,9 +2066,10 @@ window's own `(0, 0)`-cornered rect less any on-screen keyboard there):
 rect (`OverlayAnchor::Rect`, in that window's coordinates) is placed against it
 and kept inside the window. Where an app shows one window per monitor (block-app
 under `--session`, one per display), each window is a monitor, so a dialog opened
-in it stays on it. `use_viewport_size()` is the size of the main window a
-document is shown in (a `Dialog` reads it, or its hosted window's size, to become
-a sheet on a narrow one). `styled::Toasts` takes any anchor this way, so linux-desktop stacks its toasts in the
+in it stays on it. `use_viewport_size()` is the size of the window the
+caller is built in: the hosted window around it (a plugin region is one), or else
+the main window the document is shown in (a `Dialog` reads it to become a sheet on
+a narrow one). `styled::Toasts` takes any anchor this way, so linux-desktop stacks its toasts in the
 corner of a display above its bar. A toast goes after its `duration` unless it is `sticky` or
 `danger`: an error stays until it is dismissed, so it cannot be missed. All of that is
 `unstyled::Toasts`: the overlay at an `edge` that lets input through, the stack, each

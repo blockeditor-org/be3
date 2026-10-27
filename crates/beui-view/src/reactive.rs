@@ -132,8 +132,24 @@ pub fn pixels_per_point() -> ReadSignal<f32> {
     with_document(|document| document.watch_pixels_per_point())
 }
 
-pub fn use_viewport_size() -> ReadSignal<Vec2> {
-    with_document(|document| document.watch_viewport_size())
+pub fn point_frame(node: NodeId, pointing: Option<beui_core::base::frame::Pointing>) {
+    with_document(|document| {
+        if let Some(frame) = document
+            .arena
+            .kind_of::<beui_core::base::frame::FrameNode>(node)
+        {
+            document.set_frame_pointing(frame, pointing);
+        }
+    });
+}
+
+pub fn use_viewport_size() -> Memo<Vec2> {
+    let viewport = with_document(|document| document.watch_viewport_size());
+    let window = crate::components::window::use_window();
+    create_memo(move || match window.filter(|window| window.is_window()) {
+        Some(window) => window.size.get(),
+        None => viewport.get(),
+    })
 }
 
 pub fn use_fullscreen() -> ReadSignal<bool> {
