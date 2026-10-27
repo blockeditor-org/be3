@@ -6,6 +6,7 @@ pub mod image;
 pub mod input;
 pub mod layer;
 pub mod layout;
+pub mod path;
 pub mod pixel_grid;
 pub mod preferences;
 pub mod region;
@@ -43,6 +44,7 @@ pub use layout::{
     Align, Align2, CanvasView, Corners, Direction, Extent, ItemSize, Justify, Measured, Outline,
     ScrollPosition, Sides, Sizing, Track,
 };
+pub use path::{FillRule, LineCap, LineJoin, Path, PathElement, PathStyle, Stroke};
 pub use pixel_grid::PixelGrid;
 pub use preferences::{PreferenceLayers, PreferenceSource};
 pub use region::{Area, Claim, HitRegion};

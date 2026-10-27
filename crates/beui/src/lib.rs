@@ -254,7 +254,7 @@ use beui_renderer_wgpu as renderer;
 mod tests;
 
 #[cfg(beui_html)]
-pub use beui_view::reactive::{KeyAt, KeyEvent, NodeId, OverlayAnchor};
+pub use beui_view::reactive::{KeyAt, KeyEvent, NodeId, OverlayAnchor, Painter};
 #[cfg(beui_html)]
 pub use beui_view::types::*;
 

@@ -7,10 +7,12 @@ license.workspace = true
 
 [dependencies]
 accesskit = "0.24.1"
+base64 = "0.22"
 beui-fonts = { path = "../beui-fonts" }
 beui-html = { path = "../beui-html" }
 beui-tree = { path = "../beui-tree" }
 beui-types = { path = "../beui-types" }
+png = "0.18"
 reactive = { path = "../reactive" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

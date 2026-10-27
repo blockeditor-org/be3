@@ -1,7 +1,6 @@
 use crate::focus_ring::FocusRing;
 use crate::frame::{Frame, Radius};
 use crate::tokens::{Size, Stroke};
-use std::cell::RefCell;
 use std::rc::Rc;
 
 use beui_macros::{component, view};
@@ -25,31 +24,15 @@ const WHEEL: Size = Size::Custom(WHEEL_SIZE);
 const GAMUT_LINE_WIDTH: f32 = 1.25;
 const OUTLINE_DARK: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 110);
 
+#[cfg(not(feature = "gpu"))]
+mod cpu;
 #[cfg(feature = "gpu")]
 mod gpu;
 
+#[cfg(not(feature = "gpu"))]
+use cpu::Faces;
 #[cfg(feature = "gpu")]
-use gpu::Slot;
-
-#[derive(Clone, Default)]
-struct Drawn {
-    slot: Slot,
-    held: Rc<RefCell<Option<(Face, beui_view::drawing::Drawing)>>>,
-}
-
-impl Drawn {
-    fn drawing(&self, face: Face) -> beui_view::drawing::Drawing {
-        let mut held = self.held.borrow_mut();
-        match held.as_ref() {
-            Some((drawn, drawing)) if *drawn == face => drawing.clone(),
-            _ => {
-                let drawing = self.slot.drawing(face);
-                *held = Some((face, drawing.clone()));
-                drawing
-            }
-        }
-    }
-}
+use gpu::Faces;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Model {
@@ -64,17 +47,6 @@ struct Face {
     ring_width: f32,
     ring_gap: f32,
     gamut_line: f32,
-}
-
-#[cfg(not(feature = "gpu"))]
-#[derive(Clone, Default)]
-struct Slot;
-
-#[cfg(not(feature = "gpu"))]
-impl Slot {
-    fn drawing(&self, _face: Face) -> beui_view::drawing::Drawing {
-        beui_view::drawing::Drawing::erased(())
-    }
 }
 
 #[component]
@@ -161,10 +133,10 @@ pub fn OklchColorWheel(
 #[component]
 fn WheelFace(handle: ColorWheelHandle, model: Model) -> NodeId {
     let ColorWheelHandle { point, focused, .. } = handle;
-    let drawn = Drawn::default();
+    let faces = Faces::default();
     let draw = Prop::dynamic(move || {
         let point = point.get();
-        let drawn = drawn.clone();
+        let faces = faces.clone();
         Rc::new(move |painter: &Painter, rect: Rect| {
             let wheel = WheelGeometry::new(rect, RING_WIDTH);
             if wheel.outer <= 0.0 {
@@ -174,15 +146,16 @@ fn WheelFace(handle: ColorWheelHandle, model: Model) -> NodeId {
                 wheel.centre,
                 Vec2::new(wheel.outer * 2.0, wheel.outer * 2.0),
             );
-            painter.drawing(
+            faces.paint(
+                painter,
                 bounds,
-                &drawn.drawing(Face {
+                Face {
                     model,
                     hue: point.hue,
                     ring_width: RING_WIDTH,
                     ring_gap: RING_GAP,
                     gamut_line: GAMUT_LINE_WIDTH,
-                }),
+                },
             );
             let rim = |radius: f32| {
                 painter.rect_stroke(
@@ -211,7 +184,7 @@ fn WheelFace(handle: ColorWheelHandle, model: Model) -> NodeId {
     view! {
         <FocusRing focused radius=Radius::Full offset=Stroke::Focus>
             <Frame width=WHEEL height=WHEEL>
-                <Drawing draw />
+                <Drawing draw size={Some(Vec2::splat(WHEEL_SIZE))} />
             </Frame>
         </FocusRing>
     }

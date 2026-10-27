@@ -3,6 +3,8 @@ use std::rc::Rc;
 
 use beui_renderer_wgpu::{Draw, DrawAt};
 use beui_view::drawing::Drawing;
+use beui_view::reactive::Painter;
+use beui_view::types::Rect;
 use bytemuck::{Pod, Zeroable};
 
 use super::{Face, Model};
@@ -42,10 +44,33 @@ thread_local! {
 }
 
 #[derive(Clone, Default)]
-pub(super) struct Slot(Rc<RefCell<Option<Bound>>>);
+pub(super) struct Faces {
+    slot: Slot,
+    held: Rc<RefCell<Option<(Face, Drawing)>>>,
+}
+
+impl Faces {
+    pub(super) fn paint(&self, painter: &Painter, bounds: Rect, face: Face) {
+        let drawing = {
+            let mut held = self.held.borrow_mut();
+            match held.as_ref() {
+                Some((drawn, drawing)) if *drawn == face => drawing.clone(),
+                _ => {
+                    let drawing = self.slot.drawing(face);
+                    *held = Some((face, drawing.clone()));
+                    drawing
+                }
+            }
+        };
+        painter.drawing(bounds, &drawing);
+    }
+}
+
+#[derive(Clone, Default)]
+struct Slot(Rc<RefCell<Option<Bound>>>);
 
 impl Slot {
-    pub(super) fn drawing(&self, face: Face) -> Drawing {
+    fn drawing(&self, face: Face) -> Drawing {
         beui_renderer_wgpu::drawing(WheelDraw {
             slot: self.clone(),
             face,

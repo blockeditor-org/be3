@@ -441,7 +441,13 @@ impl Painter {
         RichLayout::new(pieces, options, &mut PainterShaper(self))
     }
 
-    pub fn rect_filled(&self, rect: Rect, corner_radius: impl Into<Corners>, color: Color32) {
+    pub fn rect_filled(
+        &self,
+        rect: Rect,
+        corner_radius: impl Into<Corners>,
+        color: impl Into<crate::color::Color>,
+    ) {
+        let color = self.resolve_color(color.into());
         if color.alpha() == 0 {
             return;
         }
@@ -460,8 +466,9 @@ impl Painter {
         rect: Rect,
         corner_radius: impl Into<Corners>,
         width: f32,
-        color: Color32,
+        color: impl Into<crate::color::Color>,
     ) {
+        let color = self.resolve_color(color.into());
         if color.alpha() == 0 || width <= 0.0 {
             return;
         }
@@ -475,7 +482,8 @@ impl Painter {
         });
     }
 
-    pub fn line(&self, from: Pos2, to: Pos2, width: f32, color: Color32) {
+    pub fn line(&self, from: Pos2, to: Pos2, width: f32, color: impl Into<crate::color::Color>) {
+        let color = self.resolve_color(color.into());
         if color.alpha() == 0 || width <= 0.0 {
             return;
         }
@@ -493,10 +501,11 @@ impl Painter {
         rect: Rect,
         source: Rect,
         image: &Image,
-        tint: Color32,
+        tint: impl Into<crate::color::Color>,
         corner_radius: f32,
         smooth: bool,
     ) {
+        let tint = self.resolve_color(tint.into());
         if tint.alpha() == 0 || !rect.is_positive() || image.width() == 0 || image.height() == 0 {
             return;
         }
@@ -535,15 +544,24 @@ impl Painter {
         });
     }
 
-    pub fn fill_path(&self, path: &Path, rule: FillRule, color: Color32) {
-        self.path(path, PathStyle::Fill(rule), color);
+    pub fn fill_path(&self, path: &Path, rule: FillRule, color: impl Into<crate::color::Color>) {
+        self.path(path, PathStyle::Fill(rule), self.resolve_color(color.into()));
     }
 
-    pub fn stroke_path(&self, path: &Path, stroke: &Stroke, color: Color32) {
+    pub fn stroke_path(
+        &self,
+        path: &Path,
+        stroke: &Stroke,
+        color: impl Into<crate::color::Color>,
+    ) {
         if stroke.width.is_nan() || stroke.width <= 0.0 {
             return;
         }
-        self.path(path, PathStyle::Stroke(stroke.clone()), color);
+        self.path(
+            path,
+            PathStyle::Stroke(stroke.clone()),
+            self.resolve_color(color.into()),
+        );
     }
 
     fn path(&self, path: &Path, style: PathStyle, color: Color32) {
@@ -585,7 +603,14 @@ impl Painter {
         });
     }
 
-    pub fn text(&self, origin: Pos2, text: impl Into<String>, font: FontId, color: Color32) {
+    pub fn text(
+        &self,
+        origin: Pos2,
+        text: impl Into<String>,
+        font: FontId,
+        color: impl Into<crate::color::Color>,
+    ) {
+        let color = self.resolve_color(color.into());
         let galley = self.layout(text, font, f32::INFINITY);
         self.galley(origin, galley, color);
     }

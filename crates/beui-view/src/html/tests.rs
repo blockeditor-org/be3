@@ -26,7 +26,9 @@ fn swatch(color: Color32, width: f32, height: f32) -> NodeId {
 }
 
 mod a_canvas_pans_and_scales_its_items;
-mod a_drawing_is_a_pink_box_of_its_size;
+mod a_drawing_draws_images_cropped_rounded_and_tinted;
+mod a_drawing_paints_shapes_paths_transforms_and_clips_as_svg;
+mod a_drawing_redraws_its_svg_when_its_callback_changes;
 mod a_frame_moves_turns_and_fades_what_it_holds;
 mod a_frame_sizes_pads_fills_rounds_and_aligns_what_it_holds;
 mod a_grid_shares_its_columns_between_its_cells;

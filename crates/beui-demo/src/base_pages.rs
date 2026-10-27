@@ -11,8 +11,7 @@ use beui::primitives::Text;
 use beui::primitives::{Grid, List};
 use beui::unstyled::FirstFit;
 use beui::{Align, Align2, Corners, Dismiss, Extent, Justify, Outline, Placement, Track};
-use beui::{Color32, Pos2, vec2};
-#[cfg(feature = "native")]
+use beui::{Color, Pos2, vec2};
 use beui::{FillRule, LineCap, LineJoin, Painter, Path, Stroke};
 use beui::{Overflow, WrapAt};
 #[cfg(feature = "native")]
@@ -981,18 +980,8 @@ fn AnimationSample() -> NodeId {
     }
 }
 
-#[cfg(feature = "native")]
 const PATH_TILE: f32 = 100.0;
 
-#[cfg(not(feature = "native"))]
-#[component]
-pub(crate) fn PathsPage() -> NodeId {
-    view! {
-        <NativeOnly />
-    }
-}
-
-#[cfg(feature = "native")]
 #[component]
 pub(crate) fn PathsPage() -> NodeId {
     view! {
@@ -1010,30 +999,27 @@ pub(crate) fn PathsPage() -> NodeId {
     }
 }
 
-#[cfg(feature = "native")]
 #[derive(Clone, Copy, PartialEq)]
 struct PathColors {
-    accent: Color32,
-    success: Color32,
-    warning: Color32,
-    danger: Color32,
-    text: Color32,
+    accent: Color,
+    success: Color,
+    warning: Color,
+    danger: Color,
+    text: Color,
 }
 
-#[cfg(feature = "native")]
 type PaintTile = fn(&Painter, Pos2, PathColors);
 
-#[cfg(feature = "native")]
 #[sample]
 #[component]
 fn PathTiles(tiles: Vec<PaintTile>) -> NodeId {
     let theme = use_theme();
     let colors = create_memo(move || PathColors {
-        accent: resolve_color(theme.accent.get()),
-        success: resolve_color(theme.success.get()),
-        warning: resolve_color(theme.warning.get()),
-        danger: resolve_color(theme.danger.get()),
-        text: resolve_color(theme.text.get()),
+        accent: theme.accent.get(),
+        success: theme.success.get(),
+        warning: theme.warning.get(),
+        danger: theme.danger.get(),
+        text: theme.text.get(),
     });
     let count = tiles.len();
     let keys = create_memo(move || (0..count).collect::<Vec<usize>>());
@@ -1062,7 +1048,6 @@ fn PathTiles(tiles: Vec<PaintTile>) -> NodeId {
     }
 }
 
-#[cfg(feature = "native")]
 fn star(center: Pos2, points: usize, outer: f32, inner: f32) -> Path {
     Path::polygon((0..points * 2).map(|point| {
         let reach = if point % 2 == 0 { outer } else { inner };
@@ -1071,7 +1056,6 @@ fn star(center: Pos2, points: usize, outer: f32, inner: f32) -> Path {
     }))
 }
 
-#[cfg(feature = "native")]
 fn pentagram(center: Pos2, reach: f32) -> Path {
     Path::polygon((0..5).map(|point| {
         let angle = std::f32::consts::PI * (point as f32 * 0.8 - 0.5);
@@ -1079,7 +1063,6 @@ fn pentagram(center: Pos2, reach: f32) -> Path {
     }))
 }
 
-#[cfg(feature = "native")]
 #[sample]
 #[component]
 fn PathFills() -> NodeId {
@@ -1122,7 +1105,6 @@ fn PathFills() -> NodeId {
     }
 }
 
-#[cfg(feature = "native")]
 #[sample]
 #[component]
 fn PathJoins() -> NodeId {
@@ -1161,7 +1143,6 @@ fn PathJoins() -> NodeId {
     }
 }
 
-#[cfg(feature = "native")]
 #[sample]
 #[component]
 fn PathDashes() -> NodeId {

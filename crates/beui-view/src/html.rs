@@ -21,7 +21,6 @@ pub mod text;
 pub mod virtual_list;
 pub mod window;
 
-pub use beui_core_html::drawing::Drawing;
 pub use beui_core_html::interactive::ForwardedInput;
 pub use beui_core_html::measure::TextGeometry;
 pub(crate) use beui_core_html::measure::{measure, measure_line, measure_text};

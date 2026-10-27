@@ -15,6 +15,7 @@ struct NodeData {
     kind: Kind,
     attrs: RefCell<Vec<(String, Option<String>)>>,
     children: RefCell<ChildList<Node>>,
+    markup: RefCell<Option<String>>,
     #[cfg(target_arch = "wasm32")]
     listeners: RefCell<Vec<(&'static str, Callback<Event>)>>,
     #[cfg(target_arch = "wasm32")]
@@ -34,6 +35,7 @@ impl Node {
             kind,
             attrs: RefCell::default(),
             children: RefCell::default(),
+            markup: RefCell::default(),
             #[cfg(target_arch = "wasm32")]
             listeners: RefCell::default(),
             #[cfg(target_arch = "wasm32")]
@@ -83,6 +85,28 @@ impl Node {
 
     pub fn set_text(&self, value: String) {
         set_text(self, value);
+    }
+
+    pub fn set_markup(&self, markup: Option<String>) {
+        assert!(
+            matches!(self.0.kind, Kind::Element(_)) && !self.is_void() && !self.holds_raw_text(),
+            "markup goes inside an element that holds children"
+        );
+        assert!(
+            self.0.children.borrow().iter().next().is_none(),
+            "an element holds markup or children, not both"
+        );
+        if *self.0.markup.borrow() == markup {
+            return;
+        }
+        *self.0.markup.borrow_mut() = markup;
+        #[cfg(target_arch = "wasm32")]
+        dom::set_markup(self);
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn markup(&self) -> Option<String> {
+        self.0.markup.borrow().clone()
     }
 
     pub fn listen(&self, name: &'static str, handler: Callback<Event>) {
@@ -135,7 +159,12 @@ impl Node {
                     }
                 }
                 output.push('>');
-                if !self.is_void() {
+                if let Some(markup) = self.0.markup.borrow().as_deref() {
+                    output.push_str(markup);
+                    output.push_str("</");
+                    output.push_str(tag);
+                    output.push('>');
+                } else if !self.is_void() {
                     let raw_text_of = UNESCAPED_ELEMENTS
                         .iter()
                         .find(|raw| tag.eq_ignore_ascii_case(raw))
@@ -294,6 +323,10 @@ impl SlotHost<Node> for Host {
             assert!(
                 !Node(data.clone()).is_void(),
                 "void HTML elements cannot have children"
+            );
+            assert!(
+                data.markup.borrow().is_none(),
+                "an element holds markup or children, not both"
             );
             data.children.borrow_mut().push(node);
             #[cfg(target_arch = "wasm32")]

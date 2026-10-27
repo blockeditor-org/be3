@@ -1,18 +1,20 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use crate::reactive::Draw;
+use crate::reactive::Get;
 use crate::reactive::NodeId;
 use crate::reactive::Prop;
+use crate::reactive::{create_binding, create_memo};
 use crate::types::Vec2;
 use beui_core_html::css;
-use beui_core_html::document::{create, set_attribute, set_style};
-use beui_core_html::run::PINK;
+use beui_core_html::document::{create, set_markup, set_style};
+use beui_core_html::drawing::{Images, draw_svg};
 
 use super::bind;
 
 pub fn drawing(draw: Prop<Draw>, size: Prop<Option<Vec2>>) -> NodeId {
-    let _ = draw;
     let drawing = create("Drawing", "div");
-    set_attribute(drawing, "title", Some("TODO: Drawing".to_owned()));
-    set_style(drawing, "background-color", Some(PINK.to_owned()));
     bind(size, move |size| {
         let (width, height, ratio, max_width) = match size {
             Some(size) if size.x > 0.0 && size.y > 0.0 => (
@@ -28,6 +30,20 @@ pub fn drawing(draw: Prop<Draw>, size: Prop<Option<Vec2>>) -> NodeId {
         set_style(drawing, "height", Some(height));
         set_style(drawing, "aspect-ratio", ratio);
         set_style(drawing, "max-width", max_width);
+    });
+    let measured = super::measure(drawing);
+    let area = create_memo(move || {
+        let size = size.get();
+        let room = measured.get().map(|measured| measured.size).or(size)?;
+        (room.x > 0.0 && room.y > 0.0).then_some((room, size.is_some()))
+    });
+    let ids = format!("beui-drawing{}-{}-", drawing.index(), drawing.generation());
+    let images = Rc::new(RefCell::new(Images::default()));
+    create_binding(move || {
+        let markup = area.get().map(|(room, clipped)| {
+            draw_svg(&draw.get(), room, clipped, &ids, &mut images.borrow_mut())
+        });
+        set_markup(drawing, markup);
     });
     drawing
 }

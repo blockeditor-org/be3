@@ -21,6 +21,10 @@ impl PixelGrid {
         }
     }
 
+    pub fn scale(self) -> f32 {
+        self.scale
+    }
+
     pub fn snap(self, value: f32) -> f32 {
         match value.is_finite() {
             true => (value * self.scale).round() / self.scale,

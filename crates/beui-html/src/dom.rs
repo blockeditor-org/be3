@@ -124,6 +124,12 @@ pub(crate) fn set_attribute(node: &Node, name: &str, value: Option<&str>) {
     }
 }
 
+pub(crate) fn set_markup(node: &Node) {
+    if let Some(element) = live_node(node).and_then(|dom| dom.dyn_into::<web_sys::Element>().ok()) {
+        element.set_inner_html(node.markup().as_deref().unwrap_or_default());
+    }
+}
+
 pub(crate) fn set_text(node: &Node, value: &str) {
     if let Some(dom) = live_node(node) {
         dom.set_text_content(Some(value));
@@ -185,6 +191,10 @@ pub(crate) fn sync_children(node: &Node) {
     let Some(parent) = live_node(node) else {
         return;
     };
+    if node.markup().is_some() {
+        set_markup(node);
+        return;
+    }
     let mut wanted = Vec::new();
     for (slot, items) in children_of(node) {
         match slot {
@@ -316,6 +326,14 @@ fn comment(dom: Option<&web_sys::Node>, data: &str) -> Option<web_sys::Comment> 
 }
 
 fn claim_children(node: &Node, parent: &web_sys::Node) {
+    if let Some(markup) = node.markup() {
+        if let Some(element) = parent.dyn_ref::<web_sys::Element>()
+            && element.inner_html() != markup
+        {
+            element.set_inner_html(&markup);
+        }
+        return;
+    }
     let children = children_of(node);
     if node.holds_raw_text() && children.iter().any(|(slot, _)| slot.is_some()) {
         sync_children(node);

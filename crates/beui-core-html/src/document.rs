@@ -244,6 +244,12 @@ pub fn set_attribute(node: NodeId, name: &str, value: Option<String>) {
     }
 }
 
+pub fn set_markup(node: NodeId, markup: Option<String>) {
+    if let Some(element) = element(node) {
+        element.set_markup(markup);
+    }
+}
+
 pub fn append(parent: NodeId, child: NodeId) {
     let (Some(parent), Some(child)) = (element(parent), element(child)) else {
         return;
