@@ -290,7 +290,7 @@ Programs reach it through `zwp_text_input_v3` (be-wayland's `text_input.rs`; the
 method protocol, since the keyboard is the compositor's own): a text input is entered on the surface
 with the keyboard focus, and while one of the focused window's is enabled the window's
 `WindowView` is a field that takes text (`ime`) with the number of enables so far as its
-`keyboard_asks`, so a program enabling its field again, as GTK does when a focused entry is tapped,
+`keyboard` (`SoftKeyboard::Shown { asks }`), so a program enabling its field again, as GTK does when a focused entry is tapped,
 asks for the keyboard again. Keys reach a program as any key does, by scan code; text no key types
 (é, π, an emoji) reaches it as `commit_string`, and a program without an enabled text input never
 gets it. X11 programs, and programs such as foot that use no text input, take the keyboard's keys

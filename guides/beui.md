@@ -300,13 +300,13 @@ direction:
 | Crate | Owns |
 | --- | --- |
 | `ui-types` | the vocabulary beui shares with the plugin protocol, which depends on nothing but serde and `geometry`: `Key` (with its names for drive, `Key::from_name` and `Key::name`, its evdev code, `Key::evdev`, and what every platform names keys with: `Key::from_typed`, the one rule for a character key, `Key::from_value` for a W3C key value, and `Key::evdev_from_code` and `Key::from_evdev` for a physical place), `Modifiers`, `KeyChord`, `PointerButton`, the touch, pen and back phases, `ImeEvent`, `CursorIcon`, `Pasted` and `PickedFile`; `Input`, the raw input every platform, drive's gestures, the on-screen keyboard and the plugin protocol produce; `WindowRequests` and `ImeArea`, what an app asks of its window; the window vocabulary of window-hosting layers (`WindowId`, `WindowPlacement`, `HostPlacement`, `WindowEdge`, `WindowRole`, `WindowRequest`, `WindowReport`, which `beui_core::window` re-exports); the preferences (`ThemeKind`, `Motion`, `Preferences`, `PreferenceLayer`); and the display and pointer settings `beui-platform-drm` applies and block settings store (`DisplayMode`, `Rotation`, `InputDevice`, `PointerSettings`) |
-| `beui-types` | the plain values components share whichever core draws them, with no nodes in them: colours (`Color32`, `Hsva`, `Oklch`), `Image` and `Thumbhash`, the layout values (`Direction`, `Align`, `Justify`, `ItemSize`, `Sizing`, `Sides`, `Extent`, `Track`, `ScrollPosition`, `Corners`, `Outline`), the text values (`FontId`, `TextAlign`, `Overflow`, `SpanStyle`, `TextMark`, `TextGlyph`, `TextCaret`), the layer values (`Placement`, `LayerPolicy`, `LayerLevel`, `Dismiss`), raw pointer and wheel input (`PointerId`, `PointerInput`, `PointerStage`, `WheelInput`) and the gestures (`PointerPress`, `ScrollGesture`, `DragGesture`, `ZoomGesture`), `KeyPhase` and `SystemBars`, with `geometry`, `ui-types`' input values and lucide's `icons` re-exported. beui-core re-exports each where it used to live; unstyled and styled reach them as `beui_view::types` and apps as `beui::`, and values that hold a node (`NodeId`, `OverlayAnchor`, `KeyAt`, `KeyEvent`, `ImeCursor`) through `beui::reactive` |
+| `beui-types` | the plain values components share whichever core draws them, with no nodes in them: colours (`Color32`, `Hsva`, `Oklch`, and `Color`, `ColorVar` and `color_var!`, which both cores resolve), `Image` and `Thumbhash`, the layout values (`Direction`, `Align`, `Justify`, `ItemSize`, `Sizing`, `Sides`, `Extent`, `Track`, `ScrollPosition`, `Corners`, `Outline`, `CanvasView`, and `Measured`, what `measure` answers), the text values (`FontId`, `TextAlign`, `Overflow`, `SpanStyle`, `TextMark`, `TextGlyph`, `TextCaret`), the layer values (`Placement`, `LayerPolicy`, `LayerLevel`, `Dismiss`), raw pointer and wheel input (`PointerId`, `PointerInput`, `PointerStage`, `WheelInput`), the declarative hit areas (`Area`, `HitRegion`, `Claim`) and the gestures (`PointerPress`, `ScrollGesture`, `DragGesture`, `ZoomGesture`), `KeyPhase` and `SystemBars`, with `geometry`, `ui-types`' input values and lucide's `icons` re-exported. beui-core re-exports each where it used to live; unstyled and styled reach them as `beui_view::types` and apps as `beui::`, and values that hold a node (`NodeId`, `OverlayAnchor`, `KeyAt`, `KeyEvent`, `ImeCursor`) through `beui::reactive` |
 | `beui-tree` | what makes a tree of components, whatever it is made of: `#[component]` and `view!`'s runtime, `Prop`, child slots (`Children`, `Run`, `SlotChild`, `SlotHost`) and `Show`, `ShowKeepAlive`, `Dynamic`, `Keyed` and `ForEach` |
 | `beui-core` | `Document` and `Context`, the retained nodes and their layout, input and its dispatch, accessibility, paint output and damage, the font and image interfaces, the icon codepoints, the `App` contract, and the `Runner` every platform drives it through |
 | `beui-font-freetype` | `FreetypeFonts`: FreeType and HarfBuzz shaping and rasterizing, and the fonts beui compiles in |
 | `beui-font-browser` | `BrowserFonts`: text measured with the browser's own fonts through a canvas; no fonts in the module, and nothing uses it yet |
-| `beui-view` | `beui::reactive`: `beui-tree` re-exported with the rest of the framework (actions, timers, `NodeRef`, layout values such as `Align`, `Align2`, `Extent`, `Sides`, `Corners` and `Outline`, and the node functions and `Inspect` through which components reach the tree); `beui::primitives`: the base components (`Frame`, `List`, `Text`, ...) that wrap core's nodes; `beui_core::tree` is what makes a `NodeId` a child |
-| `beui-core-html` | the HTML core (plans/html_core.md), which beui-view builds on under `cfg(beui_html)`: an arena from `NodeId` to a `beui-html` element, what makes a `NodeId` a child there (`tree`), values as inline CSS (`css`), the frame loop, clock and timers (`frame`), browser focus, key listeners, the hidden IME text agent, page preferences, viewport and font revision, and `run`, `hydrate` and `render_to_string` |
+| `beui-view` | the API both cores share: `beui::reactive`, `beui-tree` re-exported with the rest of the framework (actions, timers, `NodeRef`, `measure`, and the node functions and `Inspect` through which components reach the tree); `beui::primitives`, the base components (`Frame`, `List`, `Text`, ...), each declared once in `src/components/` with a body per core in `src/native/` and `src/html/`; `CORE`; and under HTML, `running` (`beui::html`) |
+| `beui-core-html` | the HTML core (plans/html_core.md), which beui-view builds on under `cfg(beui_html)`: an arena from `NodeId` to a `beui-html` element, what makes a `NodeId` a child there (`tree`), values as inline CSS (`css`), the frame loop, clock and timers (`frame`), measurement, the containers' behaviour (`scroll`, `rows`, `canvas`, `overlay`, `portal`), text and its geometry (`text`), browser focus, key listeners, the hidden IME text agent, page preferences, viewport and font revision, `run`, `hydrate` and `render_to_string`, and `automate`, which answers `drive` in a browser (see [Cores](#cores)) |
 | `beui-web-input` | what both web cores read from the browser: keys (`key`, `keystroke`, `prevents_default`), wheel deltas and pinches, `ImeMirror`, and the hidden text agent |
 | `beui-components-unstyled` | `beui::unstyled` and `beui::datetime` |
 | `beui-components-styled` | `beui::styled`: themes, styled controls, the styled `Frame`, `Text`, `Span` and `Icon`, and every primitive with no styled version re-exported unchanged |
@@ -594,6 +594,115 @@ shadows its name. An untyped `Render`/`RenderFn` child or a `Child` prop is
 `beui::reactive::Child`, a `NodeId`. `beui-tree`'s tests build a small DOM this
 way.
 
+## Cores
+
+beui has two cores under the same components. The native core is
+`beui-core`: retained nodes beui lays out, focuses, hit-tests and paints
+itself (with wgpu), on every native platform and in block-app's web build. The
+HTML core is `beui-core-html`: each primitive is a DOM element, and the browser
+lays out, focuses, selects and paints. beui-view holds both behind one API
+(`src/components/` declares each primitive once; `src/native/` and `src/html/`
+are the bodies), and unstyled, styled and the code above them are the same
+source on both.
+
+The core is chosen at compile time by `--cfg beui_html`, which the buck
+platforms `wasi_html` (the browser) and `linux_x86_64_html` (the host, for
+server rendering and HTML paintings) set (guides/buck2.md); every other
+platform builds the native core. Code reads which one it is built for from the
+constant `beui::CORE` (`Core::Native` or `Core::Html`) and switches with
+`if CORE == Core::Html`; `#[cfg(beui_html)]` belongs only in beui-view, beui and
+beui-core-html. Such a switch is a deliberate choice for one component, never a
+way around a primitive one core lacks. What only the native document can do is
+in `beui::native` (`Document`, `with_document`, `Embed`, ...); the dock, the
+inspector, the on-screen keyboard and plugin hosting are native only, and on
+HTML a `Window` shows as its overlay. The HTML facade adds `beui::html`
+(below).
+
+The contract both keep:
+
+- **Answers may come late.** Whatever layout decides (`measure`,
+  `measure_text`, a scroll's position, an overlay's side) is a signal that is
+  `None` until the first layout and may arrive a frame after the change that
+  caused it. Native answers in the same frame and must keep doing so (virtual
+  scrolling and scroll anchoring stay frame-perfect); callers are written for
+  the late answer.
+- **The browser owns focus on HTML.** Focus is real DOM focus (`tabindex`,
+  `:focus-visible`); `set_focus`, Tab order and `focused` bindings go through
+  it, so code never assumes focus moved until it hears so.
+- **Each core does the best its platform allows**: the browser's own
+  selection, find in page and scrolling into view on HTML; native's own
+  selection and frame-perfect layout.
+- **No feature exists on only one core.** A new prop or hook gets a body in
+  both; where one cannot do it yet, the HTML body is a visible stand-in (an
+  outlined pink box, or a prop it ignores), listed in plans/html_core.md.
+
+Measurement is `measure(node) -> ReadSignal<Option<Measured>>` (`rect` in
+window space, `size` in the node's own units), `measure_text(node)` for a
+`Text`'s `TextGeometry`, and `measure_line(text, font)` for text not in the
+tree, all described under [Measurement](#measurement). Colours are `Color`s
+that may reference declared variables, so both cores and a server-rendered page
+agree on them ([Colours](#colours)).
+
+What each primitive is on the HTML core (the bodies are in
+`beui-view/src/html/`, with their larger parts in `beui-core-html`; see
+[Develop a base component](#develop-a-base-component)):
+
+| Primitive | On HTML |
+| --- | --- |
+| `Root` | `div.beui-root`, which fills the page and holds the colour definitions |
+| `Frame` | a one-cell CSS grid; `translate` and `rotate` are a transform, `opacity` CSS opacity, `fade_edges` a mask image |
+| `List`, `Spacer` | flexbox and a flex child; `@sizing` becomes flex grow, shrink and basis |
+| `Grid`, `Layers` | CSS grid; `Layers` stacks every child in one cell |
+| `Text` and its spans | a `div` of `span`s and text nodes with `white-space: pre-wrap`; `marks` are CSS Custom Highlights, `carets` positioned boxes, `glyphs` `::before` content, `Break` an `::after` newline no browser copies; a `TextItem` with `at` is a stand-in |
+| `Offset` | an `overflow: hidden` element moved through `scrollTop`/`scrollLeft`, never a transform |
+| `VirtualList` | rows in flow between two spacer elements, measured by `ResizeObserver` |
+| `Canvas` | an inner element translated to the view, `--beui-scale` scaling items |
+| `Overlay` | a `<dialog>` (`showModal()` for one that blocks everything, else a manual popover) placed with CSS anchor positioning; `window` and `shown_in` are ignored |
+| `Portal` | moves the shown subtree's element (`moveBefore` where the browser has it) |
+| `Interactive` | an element with `tabindex` and listeners; `pastes`, `key_active`, `claims_touch` and the forwarding props do nothing yet |
+| `Selectable` | the browser's own selection |
+| `Drawing` | an escape hatch: a pink box of its size, so `Picture` and the scrollbar thumb are pink too |
+
+`Drawing` is the escape hatch for what is not an arrangement of nodes, and
+`Embed` (native only) the one for what is not beui's. On HTML a `Drawing` draws
+a pink TODO rectangle of the right size in this version; whether it becomes an
+SVG or a `<canvas>` is undecided. Text editing is not an escape hatch:
+`TextArea` and `TextInput` are the same unstyled code on both cores, built on
+`Text`'s `marks`, `glyphs`, `carets` and `hang` and on `measure_text`, typing
+through a hidden textarea on HTML.
+
+An app on the HTML core starts with `beui::html::run(element_id, build)` in
+the browser. To serve a page that shows before any script runs, render it on
+the host with `beui::html::render_to_string(build)` (a program built for
+`linux_x86_64_html`, run at build time by the `prerendered_page` rule in
+buck/app/defs.bzl), put `beui::html::stylesheet()` in a `<style
+id=STYLES_ID>` in its head, and call `beui::html::hydrate(element_id, build)`
+with the same view in the browser: it claims the server's elements instead of
+building new ones (beui-html's hydration, [Live DOM and
+hydration](#live-dom-and-hydration)), and `run` and `hydrate` read the
+browser's preferences before they build so the first frame matches the page.
+`beui::html::choose_theme` sets a scheme the app picked over the browser's.
+crates/beui-html-spike is the worked example: block-app's account picker
+(crates/block-accounts-ui) prerendered by `:ssr` and hydrated by `:web`
+(guides/running/web.md). crates/beui-demo-html runs beui-demo's pages on this
+core.
+
+To test on both cores:
+
+- Behaviour that must match goes in a shared script in crates/beui-shared-tests:
+  a screen and a `drive` script, run natively (once with late measurement) and
+  in Chromium (guides/testing_a_gui.md, 7).
+- What the HTML core draws is checked with browser paintings rendered from
+  `render_to_string` on `linux_x86_64_html`: `./scripts/test
+  //crates/beui-view:html-test` for primitives, `./scripts/test
+  //crates/beui:html-test` for unstyled and styled components (tests in
+  `crates/beui/src/html_paintings/tests/`), and the spike's `:html-test`. They
+  show layout and colour, not what needs the browser's layout (marks, carets)
+  or the bundled fonts (icons).
+- Native tests take the late path with `beui::testing::delay_measurement(true)`
+  (`BEUI_DELAY_MEASUREMENT=1` for a driven program), so a component that only
+  works when measurement is synchronous fails natively too.
+
 ## Component layers
 
 Beui separates mechanism, behavior, and appearance. The dependency direction is
@@ -601,7 +710,7 @@ deliberate:
 
 | Layer | Location and public path | Responsibility |
 | --- | --- | --- |
-| Base | nodes in `crates/beui-core/src/base`, components in `crates/beui-view/src/components`; re-exported from `beui::reactive` | Retained nodes for layout, painting, visibility, focus, pointer input, offset content, and text. |
+| Base | declared in `crates/beui-view/src/components`, with a body per core in `src/native/` (over `beui-core`'s nodes in `crates/beui-core/src/base`) and `src/html/` (over `beui-core-html`); `beui::primitives`, which beui's own crates use and apps reach through `beui::styled` | Layout, painting, visibility, focus, pointer input, offset content, and text, implemented by each core (see [Cores](#cores)). |
 | Unstyled | `crates/beui-components-unstyled`; `beui::unstyled` | Accessible interaction behavior composed from base components, without theme colors, typography, borders, or spacing. |
 | Styled | `crates/beui-components-styled`; `beui::styled` | Application-ready controls that compose an unstyled control and paint its state with base components and `styled::theme` tokens. |
 
@@ -5056,10 +5165,7 @@ with a small core-specific part (`actions`, `animation`, `nodes`'s `TreeNode`,
 the HTML core has no body for yet is an outlined pink stand-in there. unstyled
 and styled build on both cores; under HTML, `Selectable` is the browser's
 selection, a window is its overlay, `on_back` never fires and file pick and
-save go through `<input type=file>` and a download link. The HTML bodies'
-paintings are browser paintings rendered with `render_to_string` on
-`linux_x86_64_html`: `./scripts/test //crates/beui-view:html-test`, and styled
-components' `./scripts/test //crates/beui:html-test`.
+save go through `<input type=file>` and a download link. How to test a body on both cores is under [Cores](#cores).
 
 `run` and `hydrate` read the browser's preferences before they build, so
 hydration starts from the scheme the prerendered page shows (Colours, above).
@@ -5454,11 +5560,11 @@ each handler; for signals set anywhere else, the host installs a flush with
 `reactive::wake_with`.
 
 `web-sys` and `dom` exist only for `target_arch = "wasm32"`, so native builds
-never compile them. Nothing on the web uses beui-html yet, so its BUCK has
-`:web`, the library built for the web app's wasi (`wasi_app_library` in
-`buck/wasm/defs.bzl`), and `buckify.sh` plans beui-html for wasi; that is what
-puts the live backend under `//:check`. There is no browser test runner yet:
-the live backend is only compiled, and its behaviour needs browser tests.
+never compile them. beui's HTML core builds its elements with beui-html
+([Cores](#cores)); beui-html's own BUCK has `:web`, the library built for the
+web app's wasi (`wasi_app_library` in `buck/wasm/defs.bzl`), which puts the live
+backend under `//:check`, and crates/beui-shared-tests' `checks()` exercise
+mounting, hydration and listeners in Chromium (guides/testing_a_gui.md, 7).
 
 The web entry points are generated by `local-tools web-page` through its
 `:block-index` and `:demo-index` Buck targets. Their scripts, import maps and

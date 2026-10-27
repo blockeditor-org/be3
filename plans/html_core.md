@@ -1,8 +1,9 @@
 # An HTML core for beui on the web
 
-beui on the web gets a second core. This file is step 1: an inventory of the
-base layer both cores would have to implement, and a proposal for what that
-layer should be.
+beui on the web gets a second core. This file is the inventory of the base
+layer both cores implement, the proposal for what that layer is, and the design
+that built it. Implemented (guides/beui.md, Cores), except what "Left" at the
+end lists.
 
 ## The decision
 
@@ -728,20 +729,29 @@ have landed; its tasks run in parallel unless marked.
     out the web. Each earlier task updates the guide it touches; this one
     writes the overview, after 11.
 
-## Next steps
+## Left
 
-2. Move shared value types (`NodeId`, `Align`, `Direction`, `TextAlign`,
-   `Overflow`, `Placement`, `Key`, `LayerPolicy`, ...) into a core-independent
-   crate, and drop `beui-core` from unstyled's and styled's deps so buck
-   enforces the boundary.
-3. Redesign the real leaks: layout queries, `Painter` outside `Drawing`,
-   `rich::` internals, focus.
-4. Spike the HTML core (`Frame`, `List`, `Text`, `Interactive`, hydration) on
-   one sign-in-style screen.
-5. Shared drive-script tests across native headless and the HTML core under
-   Playwright.
-6. Port unstyled bottom-up; `TextArea` last.
-7. Follow-ups: real implementations for the pink escape hatches; unstyled
-   and styled switching `Scroll` to a real scroller and `TextInput`'s
-   `password` mode to `<input type=password>`; EditContext for text input.
-8. A "cores" section in guides/beui.md, and settle VISION's open question.
+- Browser-native text editing: EditContext (or `contenteditable`) for
+  `TextArea` and `TextInput` on the HTML core, and `TextInput`'s `password`
+  mode as `<input type=password>`, each a switch in unstyled.
+- Real escape hatches: `Drawing` as SVG or `<canvas>` (undecided), `Picture`
+  as `<img>`, the scrollbar thumb as a `Frame`. All are pink boxes now.
+- `Scroll` switching to a real `overflow: auto` scroller on the HTML core.
+- `TreeNode`'s `row_offset`, `texts_within`, `set_text_selection` and
+  `set_text_selection_handles` do nothing on HTML.
+- Props the HTML core ignores: `Interactive`'s `pastes`, `key_active`,
+  `claims_touch` and the forwarding group (`on_forward`, `inhibits_shortcuts`,
+  `clipboard_keys`, `forwards_wheel`); `Overlay`'s `window` and `shown_in`;
+  `Root`'s `system_bars`; `Canvas`'s `scrolls_across`; `VirtualList`'s `text`;
+  `Selectable`'s colours, handles and toolbar. A `TextItem` with `at` is a
+  stand-in, `on_back` never fires and `use_keyboard()` is always true.
+- `Break`'s copy test across Firefox and WebKit (§5, Decided 4): the shared
+  scripts run only in Chromium.
+- Porting block-app itself to the HTML core; it runs the native core with wgpu
+  on the web.
+- Web plugins as iframes, which could run the HTML core.
+- `color_var!` is meant to be the only way to make a `ColorVar`, but
+  `ColorVar::__declared_at`, which it expands to, is public (doc-hidden), so
+  any code can name one by string.
+- HTML paintings carry no fonts, so icons do not draw in them, and
+  `beui-font-browser` is still unused.

@@ -5,7 +5,7 @@ styled components that carry behaviour, components that don't belong in beui,
 and parallel components that should be one. This plan is the agreed list of
 changes. Implemented, except what each section records as left: the
 inspector's compact App/Inspector bar (§4.3), true group opacity (§Polish:
-`Fade` fades each shape on its own), and a rounded clip for plugin dialog
+`Frame`'s `opacity` fades each shape on its own), and a rounded clip for plugin dialog
 regions carried through the plugin protocol (§Polish).
 
 ## The rules this plan applies

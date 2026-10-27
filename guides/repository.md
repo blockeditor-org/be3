@@ -29,6 +29,8 @@ that build on it. VISION.md says why each part exists.
 - The build and test tools: `buck-tools`, `local-tools`, `verify`, `bootstrap`,
   `be-drive`, `app-tests`, `beui-shared-tests` (beui's two cores driven alike),
   `paint-snapshot` and the rest.
+- `beui-html-spike` and `beui-demo-html`: beui's HTML core running block-app's
+  account picker and beui's demo pages, for trying that core (guides/running/web.md).
 
 ## Debug and example editors
 

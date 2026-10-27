@@ -144,15 +144,30 @@ desktop, mobile and web, and isn't webtech. No big option does that:
 The project's own needs point the same way: plugins are sandboxed guests that
 render offscreen and hand over GPU textures, and the same UI is also a desktop
 shell. Owning the framework means owning text shaping, IME, accessibility
-(through AccessKit) and every platform's quirks. On the web beui has Flutter's
-problems, and Rust's wasm binaries stay large, but it already feels better there
-than Flutter.
+(through AccessKit) and every platform's quirks. Drawn on the web, beui has Flutter's
+problems, and Rust's wasm binaries stay large, though it already feels better
+there than Flutter. The HTML core, below, is how it leaves them.
 
 A compositor isn't usually written with a GUI framework: most composite client
 buffers with simple GPU operations. GNOME Shell, KWin and COSMIC (smithay with
 iced) do put one in the shell. What matters is that client windows stay
 textures passed straight through, so the framework costs only what the shell
 itself draws.
+
+**beui on the web is the DOM.** Swapping leaf elements of a drawn page for real
+DOM ones, as Flutter's platform views do, costs the same everywhere: a DOM
+element can't sit between two layers beui draws, it must follow beui's clips
+and scrolling without lagging a frame, and input and focus move between the
+two. So beui has two cores under the same components (`guides/beui.md`,
+Cores): the native one draws everything itself, and on the web the HTML one
+makes each primitive a DOM element, so the browser lays out, focuses and
+selects, pages render on the server and hydrate, and find in page and screen
+readers see real content. beui keeps text editing its own in the first
+version, the same code on both cores (the browser's EditContext and password
+inputs may follow), and owns drawing, the escape hatch (`Drawing`) on both.
+Plugins stay on canvas on the web for now, and later become iframes that could
+run the HTML core themselves. block-app itself is still drawn on the web until
+it moves to that core.
 
 **Why a session owner instead of a CRDT.** A single order makes merging, undo
 and the wire protocol simple, and lets an editor use plain data. Offline edits
@@ -327,12 +342,6 @@ pixel ray tracer editors are examples, tests and experiments, not apps.
 
 - How far the version control UI can go for someone who has never used git:
   whether branches need a plainer name, and how the change graph is drawn.
-- Whether beui on the web keeps its own layout but swaps some leaf elements for
-  real DOM ones: text inputs first, then selection, links, video and web plugins
-  in iframes. That is what Flutter's platform views do, and it costs the same: a
-  DOM element can't sit between two layers beui draws, it must follow beui's
-  clips and scrolling without lagging a frame, and input and focus move between
-  the two. Building on beui's unstyled components keeps the option open.
 - Property-based views, as described under Database.
 - How a plugin provides its own live sync, and what the app tells people about
   the guarantees such a block keeps.
