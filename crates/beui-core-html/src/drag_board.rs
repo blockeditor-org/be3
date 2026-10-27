@@ -457,10 +457,15 @@ mod web {
         };
         let target: &web_sys::EventTarget = window.as_ref();
         vec![
-            crate::dom::listen(target, "pointermove", true, |event: web_sys::PointerEvent| {
-                super::drag_board().track(point(&event));
-                reactive::flush();
-            }),
+            crate::dom::listen(
+                target,
+                "pointermove",
+                true,
+                |event: web_sys::PointerEvent| {
+                    super::drag_board().track(point(&event));
+                    reactive::flush();
+                },
+            ),
             crate::dom::listen(target, "pointerup", true, |event: web_sys::PointerEvent| {
                 let board = super::drag_board();
                 board.track(point(&event));
