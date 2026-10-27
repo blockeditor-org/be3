@@ -25,7 +25,7 @@ pub use picker::PickAnchor;
 pub use picker_view::{PickerDialog, Pickers};
 pub use rename::RenameDialog;
 pub use saved::saved_windows;
-pub use window::{window_tab, window_title};
+pub use window::{shown_windows, window_picture, window_tab, window_title};
 pub use workspace::{
     AttachedWindow, BlockTab, FILES, Failure, FloatingWindow, PanelStatus, PanelWindow, REVISIONS,
     SETTINGS, WindowTab, Workspace,

@@ -3,8 +3,8 @@ use std::collections::HashMap;
 
 use be_block::settings::{Settings, SettingsProfile};
 use be_block::{
-    BlockContent, BlockMetadata, DeviceClass, DisplaySettingsContent, LINUX_DESKTOP_EDITOR,
-    LiveEdit, NAME, OfflineSettings, OfflineSettingsContent, Resolution, ResolutionLayers, Root,
+    BlockContent, BlockMetadata, DESKTOP_EDITOR, DeviceClass, DisplaySettingsContent, LiveEdit,
+    NAME, OfflineSettings, OfflineSettingsContent, Resolution, ResolutionLayers, Root,
     SettingsContent, SettingsProfileContent, VIEW_EDITOR, VIEW_TYPE, WORKSPACE_EDITOR,
     WORKSPACE_TYPE, organization_settings,
 };
@@ -15,7 +15,7 @@ use crate::be;
 
 pub(crate) const SESSION_TYPES: [(Uuid, &str); 2] = [
     (WORKSPACE_EDITOR, "Workspace UI"),
-    (LINUX_DESKTOP_EDITOR, "Linux desktop"),
+    (DESKTOP_EDITOR, "Desktop"),
 ];
 
 pub(crate) fn session_type_name(editor: Uuid) -> &'static str {
@@ -488,7 +488,7 @@ impl RootSettings {
         if self.created_session.is_some() {
             return self.created_session;
         }
-        let name = match self.shell == LINUX_DESKTOP_EDITOR {
+        let name = match self.shell == DESKTOP_EDITOR {
             true => "Desktop",
             false => device_name(class),
         };

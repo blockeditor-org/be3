@@ -116,7 +116,7 @@ Arguments after `--` go to the launcher, which passes on those it does not know:
   reads, so a program started any other way can set it too. `settle` waits only until nothing
   is left to draw, not for the server, so wait for what should appear with `wait`, or poll
   `tree` after an input sent with `--no-settle`.
-- Anything else, such as block-app's `--desktop` (guides/linux_desktop.md), goes to the program.
+- Anything else, such as block-app's `--desktop` (guides/desktop.md), goes to the program.
 
 A program's output goes to `~/.cache/be3/NAME/app.log`. `BE_DRIVE_DIR` moves the directory,
 for two copies of one program at once, so agents sharing a machine each give theirs a

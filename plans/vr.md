@@ -16,7 +16,7 @@ pointer, per-window rasters that change without relayout, and placements
 (PR #691); nothing keeps them across restarts yet. Every Wayland toplevel is a
 panel of its own, shown as a
 floating dock window with its dialogs as windows over it, and each of its
-popups, a window over it (guides/linux_desktop.md, "Program windows"). It draws through any
+popups, a window over it (guides/desktop.md, "Program windows"). It draws through any
 number of views, each a pose with an off-axis field of view (`head::View`,
 `head::Fov`): the simulator's one, or tracked views an XR layer hands
 `Space::set_views` and draws with `Space::draw` (guides/beui.md, "Views"), and

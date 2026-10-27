@@ -151,7 +151,7 @@ impl KeyboardState {
         std::mem::take(&mut self.typed)
     }
 
-    fn decide(&mut self) -> bool {
+    fn decide(&mut self, stays: bool) -> bool {
         let before = self.opened;
         if self.toggles != self.applied_toggles {
             self.applied_toggles = self.toggles;
@@ -169,7 +169,7 @@ impl KeyboardState {
             }
             _ => {
                 self.asks = None;
-                if self.opened == Opened::Asked {
+                if self.opened == Opened::Asked && !stays {
                     self.opened = Opened::Closed;
                 }
             }
@@ -269,8 +269,9 @@ pub fn show_with_keyboard(
     show: impl FnOnce(&mut Document, Rect),
 ) {
     let mut host = document.take_keyboard_host();
-    let (placed, changed, moved, left) = ctx.keyboard(|state| {
-        let changed = state.decide();
+    let (placed, changed, moved, left, hidden) = ctx.keyboard(|state| {
+        let changed = state.decide(ctx.opens_windows() && ctx.keyboard_in_a_window());
+        let shown = state.rect.is_some() || state.shown_in.is_some();
         let placed = state.place(document, ctx, rect, host.as_mut());
         let before = (state.window, state.rect);
         let (rect, window, own) = match placed {
@@ -283,7 +284,7 @@ pub fn show_with_keyboard(
         let after = (state.window, state.rect);
         let moved = (before != after).then_some([before.0, after.0]);
         let left = std::mem::replace(&mut state.shown_in, own).filter(|_| own.is_none());
-        (placed, changed, moved, left)
+        (placed, changed, moved, left, shown && placed.is_none())
     });
     for window in moved
         .into_iter()
@@ -297,11 +298,9 @@ pub fn show_with_keyboard(
     }
     if changed {
         ctx.request_repaint();
-        if placed.is_none()
-            && let Some(host) = host.as_mut()
-        {
-            host.closed();
-        }
+    }
+    if hidden && let Some(host) = host.as_mut() {
+        host.closed();
     }
     let Some((window, keyboard, content)) = placed else {
         ctx.keyboard(|state| {

@@ -106,6 +106,7 @@ pub struct DockTabHandle {
     pub dragged: Memo<bool>,
     pub closable: Memo<bool>,
     pub waiting: Memo<bool>,
+    pub notice: Memo<Option<String>>,
     pub close: ClickCallback,
 }
 
@@ -158,6 +159,7 @@ pub struct DockGripHandle {
 
 pub struct DockStackHandle {
     pub title: Memo<String>,
+    pub notice: Memo<Option<String>>,
     pub icon: Memo<Option<Glyph>>,
     pub backward: Memo<bool>,
     pub menu: Memo<Vec<MenuNode>>,
@@ -278,6 +280,25 @@ impl DockTabControl {
         }
     }
 
+    pub fn show_notice(&self, notice: Memo<Option<String>>) {
+        let Some(dock) = self.dock() else {
+            return;
+        };
+        let tab = self.tab;
+        let key = NEXT_MENU.with(|next| next.replace(next.get() + 1));
+        let notices = dock.notices;
+        notices.update(|notices| {
+            notices.insert(tab, (key, notice));
+        });
+        on_cleanup(move || {
+            notices.update(|notices| {
+                if notices.get(&tab).is_some_and(|(held, _)| *held == key) {
+                    notices.remove(&tab);
+                }
+            });
+        });
+    }
+
     pub fn resize_window(&self, size: Vec2) {
         let tab = self.tab;
         let Some(dock) = self.dock() else {
@@ -302,6 +323,8 @@ pub fn use_dock_tab() -> Option<DockTabControl> {
 }
 
 pub type DockMenus = HashMap<TabId, (u64, Memo<Vec<MenuNode>>)>;
+
+type DockNotices = HashMap<TabId, (u64, Memo<Option<String>>)>;
 
 #[derive(Clone, Copy)]
 pub struct DockTabMenu {
@@ -366,6 +389,7 @@ struct State {
     menu: MenuStyle,
     drag_modifier: Memo<Option<Modifiers>>,
     menus: Signal<DockMenus>,
+    notices: Signal<DockNotices>,
     offers: Signal<HashMap<TabId, u64>>,
     thickness: f32,
     reach: f32,
@@ -428,6 +452,12 @@ impl State {
 
     fn title(&self, tab: TabId) -> String {
         self.title.call(tab)
+    }
+
+    pub(crate) fn notice(&self, tab: TabId) -> Option<String> {
+        self.notices
+            .with(|notices| notices.get(&tab).map(|(_, notice)| *notice))
+            .and_then(|notice| notice.get())
     }
 
     fn all_closable(&self, contents: Memo<Vec<TabId>>) -> Memo<bool> {
@@ -1425,6 +1455,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
             let attention = create_signal((0, None));
             let given = create_signal((0, None));
             let menus = create_signal(DockMenus::new());
+            let notices = create_signal(DockNotices::new());
             let offers = create_signal(HashMap::new());
             let drag = create_signal(None);
             let dock = State {
@@ -1443,6 +1474,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                 menu,
                 drag_modifier: create_memo(move || drag_modifier.get()),
                 menus,
+                notices,
                 offers,
                 stack,
                 switcher,
@@ -1732,6 +1764,7 @@ fn stack_handle(
     switching: Signal<bool>,
 ) -> DockStackHandle {
     let title = create_memo(move || shown.get().map(|tab| dock.title(tab)).unwrap_or_default());
+    let notice = create_memo(move || shown.get().and_then(|tab| dock.notice(tab)));
     let icon = create_memo(move || shown.get().map(|tab| dock.icon(tab)).unwrap_or_default());
     let menus = dock.menus;
     let menu = create_memo(move || dock_menu_items(menus.read_only(), shown.get()));
@@ -1745,6 +1778,7 @@ fn stack_handle(
     });
     DockStackHandle {
         title,
+        notice,
         icon,
         backward,
         menu,
@@ -2455,6 +2489,8 @@ fn DockTabView(
         !pinned && tabs.with(|tabs| tabs.iter().all(|tab| dock.closable.call(*tab)))
     });
     let waiting = create_memo(move || tabs.with(|tabs| dock.waiting(tabs)));
+    let notice =
+        create_memo(move || tabs.with(|tabs| tabs.iter().find_map(|tab| dock.notice(*tab))));
     let icons_only = dock.icons_only(Some(leaf));
     let face = dock.tab.call(DockTabHandle {
         entry,
@@ -2476,6 +2512,7 @@ fn DockTabView(
         dragged,
         closable,
         waiting,
+        notice,
         close,
     });
     let menu = dock.menu;
@@ -2954,6 +2991,16 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
             .unwrap_or_default()
     });
     let window_title = create_memo(move || Some(title.get()));
+    let window_notice = create_memo(move || {
+        state
+            .with(|state| {
+                state
+                    .leaves(surface)
+                    .first()
+                    .and_then(|leaf| state.active_tab(*leaf))
+            })
+            .and_then(|tab| dock.notice(tab))
+    });
     let parent = dock.home();
     let placement = create_memo(move || dock.placement(surface, parent));
     let contents = create_memo(move || state.with(|state| state.surface_tabs(surface)));
@@ -2987,6 +3034,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
             at={at}
             placement={placement}
             title={window_title}
+            notice={window_notice}
             on_report={move |report: WindowReport| dock.window_reported(surface, report)}
         >|handle: WindowHandle| {
             let grabbed = StoredCell::new(None::<(Rect, Pos2)>);

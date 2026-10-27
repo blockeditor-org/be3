@@ -217,9 +217,15 @@ pub enum PointerId {
     Pen,
 }
 
+pub const CONTROLLER_TOUCH_DEVICE: u64 = 0x1a5e_0000;
+
 impl PointerId {
     pub fn is_touch(self) -> bool {
         matches!(self, Self::Touch(_))
+    }
+
+    pub fn is_controller(self) -> bool {
+        matches!(self, Self::Touch(id) if id.device == CONTROLLER_TOUCH_DEVICE)
     }
 
     pub fn hovers(self) -> bool {

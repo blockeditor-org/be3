@@ -1,0 +1,9 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
+
+# Windows.Graphics.Capture is Windows's alone, but only its calls are behind
+# cfg(windows): the slot ring, the sizes and the adapter matching build and are
+# tested everywhere, and on Windows verify checks the rest (_CROSS_CHECKS in
+# buck/dev/verify.bxl).
+cargo_library()
+
+cargo_test()

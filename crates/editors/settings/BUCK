@@ -1,7 +1,7 @@
 load("@root//buck/wasm:defs.bzl", "editor")
 
 # The remapper the input remaps blocks name is this plugin's data, remapper.wasm,
-# which block-app runs on a Linux session's input (guides/linux_desktop.md).
+# which block-app runs on a Linux session's input (guides/desktop/linux.md).
 editor(
     data = {"remapper.wasm": "//crates/remap/module:module"},
     module = "settings",
