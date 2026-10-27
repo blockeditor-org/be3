@@ -385,6 +385,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                 frame: self.frame,
                 windows: false,
                 placement: None,
+                docked: false,
             }]
         });
         block_plugin_api::embed::exports::plugin::screens(&mut self.connection, screens);

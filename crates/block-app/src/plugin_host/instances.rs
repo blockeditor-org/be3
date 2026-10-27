@@ -824,6 +824,7 @@ impl Instances {
                     frame,
                     windows: false,
                     placement: None,
+                    docked: false,
                 },
                 last_seen: pass,
                 mounted: 0,
@@ -1953,7 +1954,7 @@ impl Instances {
                 ChildContent::ArtifactSettings { block_id } => {
                     super::HostContent::ArtifactSettings(Uuid::from_bytes(*block_id))
                 }
-                ChildContent::WebView(_) => continue,
+                ChildContent::WebView(_) | ChildContent::DockTab(_) => continue,
             };
             if !child.rect.is_positive() {
                 continue;

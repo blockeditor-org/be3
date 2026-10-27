@@ -300,6 +300,7 @@ enum Identity {
     Window(HostWindowId),
     Creation([u8; 16], String),
     ArtifactSettings([u8; 16]),
+    DockTab(block_plugin_api::DockTabPath),
 }
 
 impl Identity {
@@ -313,6 +314,7 @@ impl Identity {
                 Self::Creation(*editor, template.clone())
             }
             ChildContent::ArtifactSettings { block_id } => Self::ArtifactSettings(*block_id),
+            ChildContent::DockTab(tab) => Self::DockTab(tab.clone()),
         }
     }
 }
@@ -1878,6 +1880,7 @@ impl EditorHost {
                 opacity: opacity.clamp(0.0, 1.0),
                 follows_view,
                 dialog,
+                docks: false,
             });
         child
     }

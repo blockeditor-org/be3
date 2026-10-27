@@ -61,6 +61,7 @@ fn screen(screen: ScreenId, instance: EditorInstanceId) -> ScreenRequest {
         },
         windows: false,
         placement: None,
+        docked: false,
     }
 }
 

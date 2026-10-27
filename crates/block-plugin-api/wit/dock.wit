@@ -1,0 +1,52 @@
+package be3:plugin@0.1.0;
+
+/// What the host tells an editor instance about the docks it declares and
+/// the docks of the children it placed. What the instance says back travels
+/// in its frames, as `dock-message`s.
+interface dock {
+    use types.{
+        child-id, dock-declaration, dock-hosted, dock-request, dock-tab-path,
+        editor-instance-id, editor-region,
+    };
+
+    record dock-hosted-region {
+        region: editor-region,
+        hosted: option<dock-hosted>,
+    }
+
+    record dock-closed-tab {
+        region: editor-region,
+        tab: dock-tab-path,
+    }
+
+    record dock-declared-child {
+        child: child-id,
+        declaration: option<dock-declaration>,
+    }
+
+    record dock-child-request {
+        child: child-id,
+        request: dock-request,
+    }
+
+    /// For a docked region of the instance: what its holder shows of its
+    /// dock (`none` until the holder hosts it, and again once it lets go),
+    /// and the user closing one of its tabs, which the instance closes or,
+    /// for a tab through a child, passes on. For a docked child the instance
+    /// placed: the child's latest declaration (`none` once it withdrew it or
+    /// closed), and what the child asks of the dock that holds it.
+    variant dock-update {
+        hosted(dock-hosted-region),
+        close(dock-closed-tab),
+        child(dock-declared-child),
+        child-request(dock-child-request),
+    }
+
+    /// The dock updates of an instance. `next` answers with every update
+    /// since the last answer, in order, except that a `hosted` for a region
+    /// or a `child` for a child replaces one still waiting, at the end.
+    resource dock-watch {
+        constructor(instance: editor-instance-id);
+        next: async func() -> list<dock-update>;
+    }
+}

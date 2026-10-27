@@ -29,6 +29,7 @@ fn a_click_outside_a_frame_child_hands_the_frame_back() {
             opacity: 1.0,
             follows_view: false,
             dialog: None,
+            docks: false,
         }],
         occluders: Vec::new(),
     });

@@ -970,6 +970,7 @@ impl Runtime {
             animating,
             presented,
             window_requests,
+            docks: _,
         } = commit;
         crate::compositor::request_windows(&self.plugin.identity.id, window_requests);
         self.pacing.animating = animating;

@@ -36,7 +36,8 @@ impl ChildPlacements {
                 ChildContent::WebView(_)
                 | ChildContent::Host(_)
                 | ChildContent::Window(_)
-                | ChildContent::Creation { .. } => {}
+                | ChildContent::Creation { .. }
+                | ChildContent::DockTab(_) => {}
                 ChildContent::ArtifactSettings { block_id } => {
                     visit(self.instance, BlockIdRole::Existing, block_id);
                 }

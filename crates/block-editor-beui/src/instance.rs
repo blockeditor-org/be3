@@ -280,7 +280,7 @@ impl<A: BeuiApp> Shown for Parts<A> {
             EditorRegion::Preview => self.preview_content(),
             EditorRegion::ArtifactSettings => self.settings_content(),
             EditorRegion::Display(display) => self.display_content(display),
-            EditorRegion::Window(_) => empty(),
+            EditorRegion::Window(_) | EditorRegion::Tab(_) => empty(),
         }
     }
 
@@ -330,7 +330,7 @@ impl<A: BeuiApp> Shown for Parts<A> {
                     editor.begin_frame();
                 }
             }
-            EditorRegion::Display(_) | EditorRegion::Window(_) => {}
+            EditorRegion::Display(_) | EditorRegion::Window(_) | EditorRegion::Tab(_) => {}
             EditorRegion::ArtifactSettings => {
                 if let (Some(artifacts), Some(settings)) =
                     (views.artifacts.as_ref(), self.host.settings_draft())
@@ -375,7 +375,7 @@ impl<A: BeuiApp> Shown for Parts<A> {
                 }
                 Report::default()
             }
-            EditorRegion::Display(_) | EditorRegion::Window(_) => {
+            EditorRegion::Display(_) | EditorRegion::Window(_) | EditorRegion::Tab(_) => {
                 if let Some(editor) = self.views.borrow().editor.as_deref() {
                     editor.end_frame(document, window);
                 }

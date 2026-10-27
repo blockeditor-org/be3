@@ -33,6 +33,7 @@ fn frame(serial: u64) -> FrameCommit {
         animating: false,
         presented: None,
         window_requests: Vec::new(),
+        docks: Vec::new(),
     }
 }
 
@@ -86,6 +87,7 @@ fn region_screen(
         },
         windows: false,
         placement: None,
+        docked: false,
     }
 }
 
@@ -97,6 +99,7 @@ mod a_menu_nested_too_deeply_is_refused_while_nesting;
 mod a_paste_over_the_text_limit_arrives_in_pieces;
 mod a_screen_readers_action_round_trips;
 mod a_show_request_already_waiting_moves_to_the_end;
+mod a_dock_declaration_round_trips_and_nests;
 mod a_watch_answers_its_next_with_the_latest_change;
 mod an_artifact_settings_child_round_trips;
 mod an_intercepted_key_round_trips;

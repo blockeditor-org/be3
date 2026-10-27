@@ -67,6 +67,7 @@ fn configure(plugin: &mut HeadlessPlugin, height: f32, serial: u64) {
             },
             windows: false,
             placement: None,
+            docked: false,
         }])
         .unwrap();
     plugin.configure(serial).unwrap();

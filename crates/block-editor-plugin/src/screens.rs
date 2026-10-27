@@ -133,6 +133,7 @@ impl Screens {
             animating: false,
             presented: None,
             window_requests: Vec::new(),
+            docks: Vec::new(),
         };
         let mut laid_out: Vec<_> = self.laid_out.drain().collect();
         laid_out.sort_by_key(|instance| instance.0);

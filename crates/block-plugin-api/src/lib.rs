@@ -48,7 +48,7 @@ be_ops_bindgen::generate!({
         "program-list", "program-launch", "program-exec", "tray-scroll", "tray-menu-chosen",
     ],
     lenient: ["editor-capabilities", "child-operations"],
-    ordered: ["child-content"],
+    ordered: ["child-content", "dock-tab-path"],
     own_debug: ["font-face"],
 });
 
@@ -82,6 +82,16 @@ pub use types::{
     OpenCreation, Opening, PluginIdentity, PresentedFrame, PressClaim, RegionSize, ScreenDamage,
     ScreenLayout, ScreenPlacement, ScreenRequest, ScreenWindow, Size, SurfaceFormat, SurfaceRect,
     SurfaceSpec, SurfaceSupport, TimedInput, TopBar, ViewportMetrics,
+};
+pub use dock::{
+    DockChildRequest, DockClosedTab, DockDeclaredChild, DockHostedRegion, DockUpdate,
+};
+pub use guest::dock::DockWatch;
+pub use types::{
+    DockChild, DockChildClose, DockChildHosted, DockDeclaration, DockDeclare, DockDirection,
+    DockFullscreen, DockGroup, DockHome, DockHosted, DockItem, DockItemKind, DockLayout,
+    DockMessage, DockPane, DockPlace, DockRegionRequest, DockRequest, DockSplit, DockTab,
+    DockTabPath, DockTree, DockWindow,
 };
 pub use types::{
     RegionRef, WindowEdge, WindowOpen, WindowOver, WindowPlacement, WindowRequest, WindowResize,
@@ -125,6 +135,7 @@ pub use linux_desktop::{
 
 mod accesskit_mirror;
 mod block_ids;
+mod docking;
 mod input;
 mod linux;
 mod manifest;
@@ -133,6 +144,7 @@ mod opening;
 pub mod requested;
 mod watch;
 pub use block_ids::BlockIdRole;
+pub use docking::{DockEntry, DockFloating, DockNode, DockNodes, MAX_DOCK_DEPTH, MAX_DOCK_NESTING};
 pub use manifest::{
     EditorDocument, InOrder, ManifestDocument, TemplateDocument, manifest_from_json,
 };
@@ -342,7 +354,7 @@ impl ScreenLayout {
     }
 }
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct ChildId(pub u64);
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -368,7 +380,8 @@ impl ChildContent {
             | Self::Host(_)
             | Self::Window(_)
             | Self::Creation { .. }
-            | Self::ArtifactSettings { .. } => None,
+            | Self::ArtifactSettings { .. }
+            | Self::DockTab(_) => None,
         }
     }
 }
@@ -782,7 +795,8 @@ impl FrameCommit {
                 covered = after;
             }
         }
-        Ok(())
+        collection(self.docks.len())?;
+        self.docks.iter().try_for_each(DockMessage::validate)
     }
 }
 

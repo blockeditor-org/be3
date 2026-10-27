@@ -113,6 +113,7 @@ world editor-plugin {
     import host-services;
     import account;
     import contacts;
+    import dock;
     import be3:linux-desktop/windows@0.1.0;
     import be3:linux-desktop/input@0.1.0;
     import be3:linux-desktop/displays@0.1.0;

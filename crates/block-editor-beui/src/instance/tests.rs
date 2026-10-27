@@ -55,6 +55,7 @@ fn frame(session: &mut EditorSession, content: Option<Rect>, top_bar: TopBar) {
             }),
             windows: false,
             placement: None,
+            docked: false,
         }],
     );
 }
