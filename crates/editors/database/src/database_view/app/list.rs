@@ -115,7 +115,10 @@ pub fn ListView(data: Data) -> NodeId {
                                     <Text style=TextStyle::CAPTION>{blank}</Text>
                                 </Frame>
                             </Show>
-                            <VirtualList keys={reorder.order} item_size=LINE_HEIGHT>|line: ReadSignal<Line>|
+                            <VirtualList
+                                keys={reorder.order}
+                                item_size=LINE_HEIGHT
+                            >|line: ReadSignal<Line>|
                                 <ReorderItem
                                     reorder
                                     item={line}
@@ -199,9 +202,8 @@ fn landing(
     after: Option<Line>,
     groups: Memo<Vec<Group>>,
 ) -> (GroupKey, Option<ObjectId>) {
-    let first = || {
-        groups.with_untracked(|groups| groups.first().map_or(GroupKey::All, |group| group.key))
-    };
+    let first =
+        || groups.with_untracked(|groups| groups.first().map_or(GroupKey::All, |group| group.key));
     let Some(after) = after else {
         return (first(), None);
     };
@@ -226,7 +228,9 @@ fn landing(
 
 pub fn row_name(data: Data, row: ObjectId) -> String {
     let field = data.title_field.get_untracked();
-    let index = data.row_index.with_untracked(|indices| indices.get(&row).copied());
+    let index = data
+        .row_index
+        .with_untracked(|indices| indices.get(&row).copied());
     data.rows
         .with_untracked(|rows| row_title(index.and_then(|index| rows.get(index)), field))
 }

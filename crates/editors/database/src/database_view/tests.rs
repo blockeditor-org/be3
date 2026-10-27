@@ -3,9 +3,9 @@ use std::rc::Rc;
 use std::{cmp::Ordering, collections::HashMap};
 
 use block_editor_beui::be_block::{Edit, ObjectId};
-use block_editor_beui::beui::{Key, PointerButton, Pos2, Vec2};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::Root;
+use block_editor_beui::beui::{Key, PointerButton, Pos2, Vec2};
 use block_editor_beui::{
     BeuiApp, Creation, EditorHost, OwnedEditor, block_ui::BlockLabel,
     database::DatabaseBlockPickRequest,

@@ -39,7 +39,9 @@ fn a_card_dragged_down_its_column_parts_the_cards_it_passes() {
 
     fixture.put(below);
     fixture.harness.record();
-    fixture.harness.snapshot("a_card_dragged_down_its_column_parts_the_cards_it_passes");
+    fixture
+        .harness
+        .snapshot("a_card_dragged_down_its_column_parts_the_cards_it_passes");
     assert_eq!(fixture.order(), vec![b, c, a, d]);
     assert_eq!(
         fixture.data().selected_row(),
