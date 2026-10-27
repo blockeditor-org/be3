@@ -1116,10 +1116,10 @@ fn LockedControls() -> NodeId {
             <TextInput value="Read only while locked" disabled={locked} />
             <Select
                 options={view! {
-                    <ChoiceOption label="String" />
-                    <ChoiceOption label="Number" />
+                    <ChoiceOption value="string" label="String" />
+                    <ChoiceOption value="number" label="Number" />
                 }}
-                selected=Some(0)
+                selected=Some("string")
                 label="Field type"
                 disabled={locked}
             />
@@ -1190,19 +1190,18 @@ pub(crate) fn ChoicesPage() -> NodeId {
 #[sample]
 #[component]
 fn UpdateModes() -> NodeId {
-    let modes = ["Automatic", "Manual", "Scheduled"];
-    let mode = create_signal(Some(0));
+    let mode = create_signal(Some("Automatic"));
     let mode_text = create_memo(move || {
         mode.get()
-            .map_or_else(String::new, |index| format!("{} updates", modes[index]))
+            .map_or_else(String::new, |mode| format!("{mode} updates"))
     });
     view! {
         <List spacing=SECTION_SPACING>
             <RadioGroup
                 options={view! {
-                    <ChoiceOption label="Automatic" />
-                    <ChoiceOption label="Manual" />
-                    <ChoiceOption label="Scheduled" />
+                    <ChoiceOption value="Automatic" label="Automatic" />
+                    <ChoiceOption value="Manual" label="Manual" />
+                    <ChoiceOption value="Scheduled" label="Scheduled" />
                 }}
                 selected={mode}
             />
@@ -1215,21 +1214,20 @@ fn UpdateModes() -> NodeId {
 #[component]
 fn ColorListbox() -> NodeId {
     let colors = ["Amber", "Blue", "Green", "Purple"];
-    let color = create_signal(Some(1));
+    let color = create_signal(Some("Blue"));
     let color_text = create_memo(move || {
         color
             .get()
-            .map_or_else(String::new, |index| format!("{} selected", colors[index]))
+            .map_or_else(String::new, |color| format!("{color} selected"))
     });
     view! {
         <List spacing=SECTION_SPACING>
             <Text style=TextStyle::CAPTION>"Type to search"</Text>
             <Listbox
                 options={view! {
-                    <ChoiceOption label="Amber" />
-                    <ChoiceOption label="Blue" />
-                    <ChoiceOption label="Green" />
-                    <ChoiceOption label="Purple" />
+                    <ForEach keys={colors.to_vec()}>|label: &'static str|
+                        <ChoiceOption value=label label />
+                    </ForEach>
                 }}
                 selected={color}
             />
@@ -1241,9 +1239,9 @@ fn ColorListbox() -> NodeId {
 #[sample]
 #[component]
 fn FruitSelect() -> NodeId {
-    let fruit = create_signal(Some(0));
+    let fruit = create_signal(Some(FRUITS[0]));
     let fruit_text = create_memo(move || {
-        fruit.get().and_then(|index| FRUITS.get(index)).map_or_else(
+        fruit.get().map_or_else(
             || "Nothing selected".to_owned(),
             |label| format!("{label} selected"),
         )
@@ -1253,7 +1251,7 @@ fn FruitSelect() -> NodeId {
             <Select
                 options={view! {
                     <ForEach keys={FRUITS.to_vec()}>|label: &'static str|
-                        <ChoiceOption label />
+                        <ChoiceOption value=label label />
                     </ForEach>
                 }}
                 selected={fruit}
@@ -1264,7 +1262,7 @@ fn FruitSelect() -> NodeId {
             <Select
                 options={view! {
                     <ForEach keys={FRUITS.to_vec()}>|label: &'static str|
-                        <ChoiceOption label />
+                        <ChoiceOption value=label label />
                     </ForEach>
                 }}
                 selected=None
@@ -1278,15 +1276,15 @@ fn FruitSelect() -> NodeId {
 #[sample]
 #[component]
 fn ScaleTabs() -> NodeId {
-    let scale = create_signal(1usize);
-    let scale_text = create_memo(move || format!("Drawn at {}x", scale.get() + 1));
+    let scale = create_signal(2u32);
+    let scale_text = create_memo(move || format!("Drawn at {}x", scale.get()));
     view! {
         <List spacing=SECTION_SPACING>
             <Tabs
                 options={view! {
-                    <ChoiceOption label="1x" />
-                    <ChoiceOption label="2x" />
-                    <ChoiceOption label="3x" />
+                    <ChoiceOption value=1 label="1x" />
+                    <ChoiceOption value=2 label="2x" />
+                    <ChoiceOption value=3 label="3x" />
                 }}
                 selected={scale}
             />
@@ -1298,22 +1296,17 @@ fn ScaleTabs() -> NodeId {
 #[sample]
 #[component]
 fn PeriodSegments() -> NodeId {
-    let period = create_signal(1usize);
-    let period_text = create_memo(move || {
-        format!(
-            "Showing the {} view",
-            ["day", "week", "month", "year"][period.get()]
-        )
-    });
+    let period = create_signal("week");
+    let period_text = create_memo(move || format!("Showing the {} view", period.get()));
     view! {
         <List spacing=SECTION_SPACING>
             <SegmentedControl
                 label="Period"
                 options={view! {
-                    <ChoiceOption label="Day" />
-                    <ChoiceOption label="Week" />
-                    <ChoiceOption label="Month" />
-                    <ChoiceOption label="Year" />
+                    <ChoiceOption value="day" label="Day" />
+                    <ChoiceOption value="week" label="Week" />
+                    <ChoiceOption value="month" label="Month" />
+                    <ChoiceOption value="year" label="Year" />
                 }}
                 selected={period}
             />
@@ -1367,21 +1360,22 @@ fn NarrowChoices() -> NodeId {
                 <Tabs
                     label="Section"
                     options={view! {
-                        <ChoiceOption label="Overview" />
-                        <ChoiceOption label="Details" />
-                        <ChoiceOption label="History" />
+                        <ChoiceOption value="overview" label="Overview" />
+                        <ChoiceOption value="details" label="Details" />
+                        <ChoiceOption value="history" label="History" />
                     }}
+                    selected="overview"
                 />
             </Frame>
             <Frame width=NARROW_CHOICE_WIDTH>
                 <SegmentedControl
                     label="Sort"
                     options={view! {
-                        <ChoiceOption label="Newest" />
-                        <ChoiceOption label="Oldest" />
-                        <ChoiceOption label="Largest" />
+                        <ChoiceOption value="newest" label="Newest" />
+                        <ChoiceOption value="oldest" label="Oldest" />
+                        <ChoiceOption value="largest" label="Largest" />
                     }}
-                    selected=2
+                    selected="largest"
                 />
             </Frame>
         </List>
@@ -2135,7 +2129,7 @@ fn FolderRow(folder: usize, location: Signal<usize>, expanded: Signal<Vec<usize>
             expanded={open}
             checked
             then=MenuThen::Back
-            row_test_id={format!("demo.new.folder.{folder}")}
+            @test_id={format!("demo.new.folder.{folder}")}
             on_click={move || location.set(folder)}
         />
     }
@@ -2169,7 +2163,7 @@ fn NewBlockMenu() -> NodeId {
                             label={place}
                             glyph=ICON_FOLDER
                             page=true
-                            row_test_id="demo.new.location"
+                            @test_id="demo.new.location"
                         >
                             <ForEach keys={shown}>|folder: usize|
                                 <FolderRow folder location expanded />
@@ -2189,7 +2183,7 @@ fn NewBlockMenu() -> NodeId {
                             glyph=ICON_BLOCKS
                             separated=true
                             page=true
-                            row_test_id="demo.new.more"
+                            @test_id="demo.new.more"
                         >
                             <ForEach keys={(0..MORE_BLOCKS.len()).collect::<Vec<_>>()}>|kind: usize|
                                 <MenuItem label={MORE_BLOCKS[kind]} />
@@ -2284,7 +2278,7 @@ fn NewSlideMenu() -> NodeId {
                                 <MenuItem
                                     label={SLIDE_LAYOUTS[layout].0}
                                     glyph={SLIDE_LAYOUTS[layout].1}
-                                    row_test_id={format!("demo.slide.{layout}")}
+                                    @test_id={format!("demo.slide.{layout}")}
                                 />
                             </ForEach>
                         </MenuGrid>
@@ -3307,7 +3301,7 @@ fn ProjectTree() -> NodeId {
                         <MenuItem
                             label="Rename"
                             glyph=ICON_PENCIL
-                            row_test_id={"demo.tree.rename".to_owned()}
+                            @test_id={"demo.tree.rename".to_owned()}
                             on_click={move || editing.set(Some(row))}
                         />
                         <MenuItem
@@ -3665,10 +3659,10 @@ fn PlanetTable() -> NodeId {
 fn SettingsSections() -> NodeId {
     let sounds = create_signal(true);
     let volume = create_signal(DEFAULT_VOLUME);
-    let size = create_signal(Some(1));
+    let size = create_signal(Some("medium"));
     let effects = create_signal(true);
     let volume_changed = create_memo(move || volume.get() != DEFAULT_VOLUME);
-    let size_changed = create_memo(move || size.get() != Some(1));
+    let size_changed = create_memo(move || size.get() != Some("medium"));
     let haptics = create_signal(false);
     let haptics_pinned = create_signal(true);
     let haptics_changed = create_memo(move || haptics.get());
@@ -3718,7 +3712,7 @@ fn SettingsSections() -> NodeId {
                         <MenuItem
                             label="Reset to default"
                             glyph={beui::icons::ICON_ROTATE_CCW.to_owned()}
-                            on_click={move || size.set(Some(1))}
+                            on_click={move || size.set(Some("medium"))}
                         />
                     }}
                 >
@@ -3726,9 +3720,9 @@ fn SettingsSections() -> NodeId {
                         @sizing=ItemSize::Percent(100.0)
                         width={Extent::fraction(1.0)}
                         options={view! {
-                            <ChoiceOption label="Small" />
-                            <ChoiceOption label="Medium" />
-                            <ChoiceOption label="Large" />
+                            <ChoiceOption value="small" label="Small" />
+                            <ChoiceOption value="medium" label="Medium" />
+                            <ChoiceOption value="large" label="Large" />
                         }}
                         selected={size}
                         label="Text size"
@@ -4069,9 +4063,9 @@ fn WindowSample() -> NodeId {
             <TextInput @test_id="demo.window.title" value={window.title} label="Window title" />
             <RadioGroup
                 options={view! {
-                    <ChoiceOption label="Background" />
-                    <ChoiceOption label="Surface" />
-                    <ChoiceOption label="Raised surface" />
+                    <ChoiceOption value=ColorRole::Background label="Background" />
+                    <ChoiceOption value=ColorRole::Surface label="Surface" />
+                    <ChoiceOption value=ColorRole::SurfaceRaised label="Raised surface" />
                 }}
                 selected={window.background}
             />

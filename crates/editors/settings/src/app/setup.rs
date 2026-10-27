@@ -187,11 +187,6 @@ pub(super) fn DeviceSection(setup: DeviceSetup, blocked: Memo<bool>) -> NodeId {
             .unwrap_or_default()
     });
     let class = setup.class;
-    let selected = create_memo(move || {
-        class
-            .get()
-            .and_then(|class| DeviceClass::ALL.iter().position(|known| *known == class))
-    });
     view! {
         <SettingsSection title="Device">
             <SettingsRow label="Name" locked={blocked}>
@@ -216,12 +211,12 @@ pub(super) fn DeviceSection(setup: DeviceSetup, blocked: Memo<bool>) -> NodeId {
                     width={Extent::fraction(1.0)}
                     options={view! {
                         <ForEach keys={DeviceClass::ALL.to_vec()}>|class: DeviceClass|
-                            <ChoiceOption label={class.name().to_owned()} />
+                            <ChoiceOption value=class label={class.name().to_owned()} />
                         </ForEach>
                     }}
-                    selected={Binding::new(selected, move |index: Option<usize>| {
-                        if let Some(class) = index.and_then(|index| DeviceClass::ALL.get(index)) {
-                            setup.choose(*class);
+                    selected={Binding::new(class, move |chosen: Option<DeviceClass>| {
+                        if let Some(class) = chosen {
+                            setup.choose(class);
                         }
                     })}
                     label="Kind of device"

@@ -406,35 +406,30 @@ pub fn FieldPicker(
     picker_id: String,
     on_change: Callback<Option<Uuid>>,
 ) -> NodeId {
-    let keys =
-        create_memo(move || options.with(|options| (0..=options.len()).collect::<Vec<usize>>()));
-    let selected = create_memo(move || match chosen.get() {
-        None => Some(0),
-        Some(chosen) => options
-            .with(|options| options.iter().position(|field| field.id == chosen))
-            .map(|index| index + 1),
+    let keys = create_memo(move || {
+        options.with(|options| options.iter().map(|field| field.id).collect::<Vec<Uuid>>())
     });
-    let picked = move |index: Option<usize>| {
-        let field = match index {
-            None | Some(0) => None,
-            Some(index) => {
-                options.with_untracked(|options| options.get(index - 1).map(|field| field.id))
-            }
-        };
-        on_change.call(field);
+    let selected = create_memo(move || Some(chosen.get()));
+    let picked = move |field: Option<Option<Uuid>>| {
+        if let Some(field) = field {
+            on_change.call(field);
+        }
     };
     view! {
         <Select
             options={view! {
-                <ForEach keys={keys}>|index: usize| {
-                    let name = create_memo(move || match index {
-                        0 => none.to_owned(),
-                        index => options.with(|options| {
-                            options.get(index - 1).map_or_else(String::new, |field| field.name.clone())
-                        }),
+                <ChoiceOption value=None label=none />
+                <ForEach keys={keys}>|id: Uuid| {
+                    let name = create_memo(move || {
+                        options.with(|options| {
+                            options
+                                .iter()
+                                .find(|field| field.id == id)
+                                .map_or_else(String::new, |field| field.name.clone())
+                        })
                     });
                     view! {
-                        <ChoiceOption label={name} />
+                        <ChoiceOption value={Some(id)} label={name} />
                     }
                 }</ForEach>
             }}

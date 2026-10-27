@@ -8,16 +8,16 @@ const RING_WIDTH: f32 = 2.0;
 #[test]
 fn a_selected_radio_option_marks_its_ring_with_the_accent_colour() {
     assert_eq!(accent_rings(None), 0);
-    assert_eq!(accent_rings(Some(0)), 1);
+    assert_eq!(accent_rings(Some("One")), 1);
 }
 
-fn accent_rings(selected: Option<usize>) -> usize {
+fn accent_rings(selected: Option<&'static str>) -> usize {
     let (document, [_group]) = toolbar_of(move || {
         [view! {
             <RadioGroup
                 options={view! {
-                    <unstyled::ChoiceOption label="One" />
-                    <unstyled::ChoiceOption label="Two" />
+                    <unstyled::ChoiceOption value="One" label="One" />
+                    <unstyled::ChoiceOption value="Two" label="Two" />
                 }}
                 selected
             />

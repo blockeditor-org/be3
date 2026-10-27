@@ -41,12 +41,6 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
 
     let read_only = editor.read_only();
     let header = create_memo(move || mode.get().header(anchor.get()));
-    let mode_index = create_memo(move || {
-        CalendarView::ALL
-            .iter()
-            .position(|shown| *shown == mode.get())
-            .unwrap_or(0)
-    });
     let previous = move || {
         anchor.set(mode.get_untracked().previous(anchor.get_untracked()));
     };
@@ -117,15 +111,14 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
                     @sizing={ItemSize::Intrinsic.shrink(1.0)}
                     label="View"
                     options={view! {
-                        <ChoiceOption label={CalendarView::Day.label()} />
-                        <ChoiceOption label={CalendarView::Week.label()} />
-                        <ChoiceOption label={CalendarView::Month.label()} />
+                        <ChoiceOption value=CalendarView::Day label={CalendarView::Day.label()} />
+                        <ChoiceOption value=CalendarView::Week label={CalendarView::Week.label()} />
+                        <ChoiceOption
+                            value=CalendarView::Month
+                            label={CalendarView::Month.label()}
+                        />
                     }}
-                    selected={Binding::new(mode_index, move |chosen: usize| {
-                        if let Some(shown) = CalendarView::ALL.get(chosen) {
-                            mode.set(*shown);
-                        }
-                    })}
+                    selected={mode}
                     @test_id={"calendar.layout"}
                 />
                 <Spacer @sizing=ItemSize::Percent(100.0) />

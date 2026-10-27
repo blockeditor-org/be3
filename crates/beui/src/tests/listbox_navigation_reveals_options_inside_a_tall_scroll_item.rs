@@ -13,14 +13,14 @@ fn listbox_navigation_reveals_options_inside_a_tall_scroll_item() {
                 <Listbox
                     @node_ref=&listbox
                     options={view! {
-                        <unstyled::ChoiceOption label="One" />
-                        <unstyled::ChoiceOption label="Two" />
-                        <unstyled::ChoiceOption label="Three" />
-                        <unstyled::ChoiceOption label="Four" />
-                        <unstyled::ChoiceOption label="Five" />
-                        <unstyled::ChoiceOption label="Six" />
+                        <unstyled::ChoiceOption value="One" label="One" />
+                        <unstyled::ChoiceOption value="Two" label="Two" />
+                        <unstyled::ChoiceOption value="Three" label="Three" />
+                        <unstyled::ChoiceOption value="Four" label="Four" />
+                        <unstyled::ChoiceOption value="Five" label="Five" />
+                        <unstyled::ChoiceOption value="Six" label="Six" />
                     }}
-                    selected=Some(0)
+                    selected=Some("One")
                 />
             </Scroll>
         }
@@ -33,9 +33,9 @@ fn listbox_navigation_reveals_options_inside_a_tall_scroll_item() {
     assert_eq!(
         harness
             .document()
-            .api::<styled::ChoiceApi>(listbox)
+            .api::<styled::ChoiceApi<&str>>(listbox)
             .selected(),
-        Some(5)
+        Some("Six")
     );
     let focused = harness.document().focused_node().unwrap();
     let rect = harness.rect(focused);

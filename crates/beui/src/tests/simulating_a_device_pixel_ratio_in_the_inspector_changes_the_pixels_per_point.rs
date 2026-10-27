@@ -9,7 +9,7 @@ fn simulating_a_device_pixel_ratio_in_the_inspector_changes_the_pixels_per_point
     harness.toggle_inspector();
     harness.show_inspector_tab(crate::inspector::InspectorTab::Simulation);
     harness.frame(vec![]);
-    harness.choose_in_simulation("pixel_ratio", 3);
+    harness.choose_in_simulation("pixel_ratio", Some(2.0_f32));
     assert_eq!(harness.frame(vec![]).pixels_per_point(), 2.0);
 
     harness.toggle_inspector();
@@ -18,6 +18,6 @@ fn simulating_a_device_pixel_ratio_in_the_inspector_changes_the_pixels_per_point
     harness.toggle_inspector();
     harness.show_inspector_tab(crate::inspector::InspectorTab::Simulation);
     harness.frame(vec![]);
-    harness.choose_in_simulation("pixel_ratio", 0);
+    harness.choose_in_simulation("pixel_ratio", None::<f32>);
     assert_eq!(harness.frame(vec![]).pixels_per_point(), 1.5);
 }

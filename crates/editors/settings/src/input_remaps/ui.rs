@@ -46,9 +46,9 @@ pub fn InputRemapsView(editor: Editor) -> NodeId {
         stored,
         read_only,
     };
-    let tab = create_signal(0usize);
-    let editing = create_memo(move || tab.get() == 0);
-    let raw = create_memo(move || tab.get() == 1);
+    let tab = create_signal(false);
+    let editing = create_memo(move || !tab.get());
+    let raw = create_memo(move || tab.get());
     let status = create_memo(move || {
         match device.get() {
             RemapState::Off => "This device runs no remaps.",
@@ -68,8 +68,8 @@ pub fn InputRemapsView(editor: Editor) -> NodeId {
                 <SettingsRow label="Edit as" compact=true>
                     <Tabs
                         options={view! {
-                            <ChoiceOption label="Editor" />
-                            <ChoiceOption label="TOML" />
+                            <ChoiceOption value=false label="Editor" />
+                            <ChoiceOption value=true label="TOML" />
                         }}
                         selected={tab}
                         @test_id={"input-remaps.tabs"}

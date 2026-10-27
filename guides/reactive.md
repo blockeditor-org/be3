@@ -636,7 +636,9 @@ such as `{content.call(())} @sizing=ItemSize::Percent(100.0)`.
 
 The GUI modifiers `@test_id="toolbar.button"`, `@node_ref=&panel`, and `@sizing`
 respectively name the node for `find_test_id`, fill a `NodeRef`, and place the
-node with its sizing among siblings. They are imported from `beui::reactive`,
+node with its sizing among siblings. `@test_id` also goes on a value child that
+implements `TakesTestId` (`MenuItem`, `ChoiceOption`), naming the node its
+parent builds for it. They are imported from `beui::reactive`,
 usually through `use beui::reactive::*`. If a local binding shadows a modifier,
 qualify the function path. Ordinary `test_id` and `node_ref` props are allowed
 when the component declares them.

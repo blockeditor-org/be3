@@ -13,17 +13,20 @@ const TRACK_PADDING: Space = Space::Xs2;
 const SEGMENT_SPACING: Space = Space::Xs2;
 
 #[component]
-pub fn SegmentedControl(
-    #[prop(default = ComponentRef::new())] api: ComponentRef<crate::ChoiceApi>,
+pub fn SegmentedControl<T>(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<crate::ChoiceApi<T>>,
 
-    options: Children<ChoiceOption>,
-    #[prop(default = 0)] selected: Binding<usize>,
+    options: Children<ChoiceOption<T>>,
+    selected: Binding<T>,
     #[prop(default = String::new())] label: Prop<String>,
-) -> NodeId {
+) -> NodeId
+where
+    T: Clone + PartialEq + Default + 'static,
+{
     let label = create_memo(move || label.get());
     let choice = ComponentRef::new();
     let built = view! {
-        <Collapsing options selected label>|wide: Wide|
+        <Collapsing options selected label>|wide: Wide<T>|
             <List direction=Direction::Horizontal spacing=Space::None>
                 <Frame border=Border::DEFAULT radius=Radius::Md padding=TRACK_PADDING>
                     <Choice

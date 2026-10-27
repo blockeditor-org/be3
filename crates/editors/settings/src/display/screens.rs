@@ -45,14 +45,7 @@ pub(super) fn ScreenSection(
         Some(chosen) => offered.with(|modes| rates(modes, size_of(chosen))),
         None => Vec::new(),
     });
-    let size_selected = create_memo(move || {
-        let size = size_of(chosen.get()?);
-        size_list.with(|sizes| sizes.iter().position(|known| *known == size))
-    });
-    let rate_selected = create_memo(move || {
-        let chosen = chosen.get()?;
-        rate_list.with(|rates| rates.iter().position(|known| *known == chosen))
-    });
+    let size_selected = create_memo(move || chosen.get().map(size_of));
     let name = create_memo(move || {
         display.with(|display| {
             display
@@ -108,11 +101,11 @@ pub(super) fn ScreenSection(
                     width={Extent::fraction(1.0)}
                     options={view! {
                         <ForEach keys={size_list}>|size: Size|
-                            <ChoiceOption label={size_label(size)} />
+                            <ChoiceOption value=size label={size_label(size)} />
                         </ForEach>
                     }}
-                    selected={Binding::new(size_selected, move |index: Option<usize>| {
-                        let Some(size) = index.and_then(|index| size_list.with_untracked(|sizes| sizes.get(index).copied())) else {
+                    selected={Binding::new(size_selected, move |picked: Option<Size>| {
+                        let Some(size) = picked else {
                             return;
                         };
                         let fastest = offered.with_untracked(|modes| rates(modes, size).first().copied());
@@ -136,7 +129,7 @@ pub(super) fn ScreenSection(
                         label="Use the fastest rate"
                         glyph=ICON_ROTATE_CCW
                         disabled={at_fastest}
-                        row_test_id={format!("display.{connector}.refresh.reset")}
+                        @test_id={format!("display.{connector}.refresh.reset")}
                         on_click={move || set.call(fastest.get_untracked())}
                     />
                 }}
@@ -146,11 +139,10 @@ pub(super) fn ScreenSection(
                     width={Extent::fraction(1.0)}
                     options={view! {
                         <ForEach keys={rate_list}>|mode: DisplayMode|
-                            <ChoiceOption label={rate_label(mode.refresh_millihertz)} />
+                            <ChoiceOption value=mode label={rate_label(mode.refresh_millihertz)} />
                         </ForEach>
                     }}
-                    selected={Binding::new(rate_selected, move |index: Option<usize>| {
-                        let mode = index.and_then(|index| rate_list.with_untracked(|rates| rates.get(index).copied()));
+                    selected={Binding::new(chosen, move |mode: Option<DisplayMode>| {
                         if mode.is_some() {
                             set.call(mode);
                         }

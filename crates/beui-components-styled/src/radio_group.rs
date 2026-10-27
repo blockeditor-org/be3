@@ -6,12 +6,15 @@ use beui_core::node::NodeId;
 use beui_view::reactive::*;
 
 #[component]
-pub fn RadioGroup(
-    #[prop(default = ComponentRef::new())] api: ComponentRef<crate::ChoiceApi>,
+pub fn RadioGroup<T>(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<crate::ChoiceApi<T>>,
 
-    options: Children<ChoiceOption>,
-    #[prop(default = None)] selected: Binding<Option<usize>>,
-) -> NodeId {
+    options: Children<ChoiceOption<T>>,
+    #[prop(default = None)] selected: Binding<Option<T>>,
+) -> NodeId
+where
+    T: Clone + PartialEq + 'static,
+{
     view! {
         <Choice
             api

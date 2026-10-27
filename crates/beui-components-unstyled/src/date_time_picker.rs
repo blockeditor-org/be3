@@ -55,14 +55,21 @@ pub struct DateTimeTimesHandle {
     pub pick: Callback<Time>,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default)]
+pub enum DateTimePage {
+    #[default]
+    Date,
+    Time,
+}
+
 pub struct DateTimePanelHandle {
     pub field: Child,
     pub field_width: Memo<f32>,
     pub layout: Memo<DateTimePanelLayout>,
     pub calendar: DateTimeCalendarHandle,
     pub times: DateTimeTimesHandle,
-    pub page: ReadSignal<usize>,
-    pub show_page: Callback<usize>,
+    pub page: ReadSignal<DateTimePage>,
+    pub show_page: Callback<DateTimePage>,
     pub now: ClickCallback,
     pub now_label: &'static str,
     pub clear: ClickCallback,
@@ -324,7 +331,7 @@ fn PickerPanel(
             )),
         }
     });
-    let tab = create_signal(0usize);
+    let tab = create_signal(DateTimePage::Date);
     create_effect(move || {
         if open.get() {
             let timed = inner_focus.get_untracked().is_some_and(|segment| {
@@ -333,14 +340,17 @@ fn PickerPanel(
                     DateSegment::Hour | DateSegment::Minute | DateSegment::Period
                 )
             });
-            tab.set(usize::from(timed));
+            tab.set(match timed {
+                true => DateTimePage::Time,
+                false => DateTimePage::Date,
+            });
         }
     });
     let date = create_memo(move || current.get().map(|value| value.date));
     let time = create_memo(move || current.get().map(|value| value.time));
     let calendar_focused = create_memo(move || open.get() && !from_field.get() && parts.has_date());
     let list_focused = create_memo(move || {
-        open.get() && !from_field.get() && (!parts.has_date() || tab.get() == 1)
+        open.get() && !from_field.get() && (!parts.has_date() || tab.get() == DateTimePage::Time)
     });
     let pick_date = Callback::new(move |date: Date| {
         let time = current
@@ -349,7 +359,7 @@ fn PickerPanel(
         current.set(Some(DateTime::new(date, time)));
         match parts {
             DateTimeParts::Date => close.call(()),
-            DateTimeParts::DateTime if paged.get_untracked() => tab.set(1),
+            DateTimeParts::DateTime if paged.get_untracked() => tab.set(DateTimePage::Time),
             DateTimeParts::DateTime | DateTimeParts::Time => {}
         }
     });

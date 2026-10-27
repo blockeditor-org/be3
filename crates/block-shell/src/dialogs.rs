@@ -208,11 +208,11 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
     let has_pending = create_memo(move || !pending_keys.get().is_empty());
     let pending_access = create_memo(move || {
         state.with(|share| {
-            share.as_ref().map_or(Some(1), |share| {
-                GRANTABLE
-                    .iter()
-                    .position(|access| *access == share.pending_access)
-            })
+            Some(
+                share
+                    .as_ref()
+                    .map_or(AccessLevel::Edit, |share| share.pending_access),
+            )
         })
     });
     let name_of = move |id: Uuid| {
@@ -345,17 +345,16 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                         </List>
                         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                             <Select
-                                selected={Binding::new(pending_access, move |index: Option<usize>| {
-                                    if let Some(access) = index.and_then(|index| GRANTABLE.get(index)) {
-                                        act.call(ShareAction::PendingAccess(*access));
+                                selected={Binding::new(pending_access, move |access: Option<AccessLevel>| {
+                                    if let Some(access) = access {
+                                        act.call(ShareAction::PendingAccess(access));
                                     }
                                 })}
                                 label="Access to grant"
                                 options={view! {
-                                    <ChoiceOption label={AccessLevel::Manage.label()} />
-                                    <ChoiceOption label={AccessLevel::Edit.label()} />
-                                    <ChoiceOption label={AccessLevel::View.label()} />
-                                    <ChoiceOption label={AccessLevel::KnowExists.label()} />
+                                    <ForEach keys={GRANTABLE.to_vec()}>|level: AccessLevel|
+                                        <ChoiceOption value=level label={level.label()} />
+                                    </ForEach>
                                 }}
                             />
                             <Spacer @sizing=ItemSize::Percent(100.0) />
@@ -488,10 +487,7 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
             .map(|member| member.choices())
             .unwrap_or_default()
     });
-    let selected = create_memo(move || {
-        let access = member.get()?.access;
-        choices.get().iter().position(|choice| *choice == access)
-    });
+    let selected = create_memo(move || Some(member.get()?.access));
     let removable = create_memo(move || member.get().is_some_and(|member| member.removable));
     view! {
         <Frame padding={Padding::vertical(Space::Xs)}>
@@ -531,11 +527,11 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                     </Show>
                     <Show condition={editable}>
                         <Select
-                            selected={Binding::new(selected, move |index: Option<usize>| {
+                            selected={Binding::new(selected, move |access: Option<AccessLevel>| {
                                 let Some(member) = member.get_untracked() else {
                                     return;
                                 };
-                                let Some(access) = index.and_then(|index| choices.get_untracked().get(index).copied()) else {
+                                let Some(access) = access else {
                                     return;
                                 };
                                 if let Some(access) = member.choose(access) {
@@ -545,7 +541,7 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                             label="Access"
                             options={view! {
                                 <ForEach keys={choices}>|level: AccessLevel|
-                                    <ChoiceOption label={level.label()} />
+                                    <ChoiceOption value=level label={level.label()} />
                                 </ForEach>
                             }}
                         />

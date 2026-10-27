@@ -295,23 +295,17 @@ pub struct DemoApp {
 #[derive(Clone, Copy)]
 struct Today(Date);
 
-const WINDOW_BACKGROUNDS: [ColorRole; 3] = [
-    ColorRole::Background,
-    ColorRole::Surface,
-    ColorRole::SurfaceRaised,
-];
-
 #[derive(Clone, Copy)]
 struct DemoWindow {
     title: Signal<String>,
-    background: Signal<Option<usize>>,
+    background: Signal<Option<ColorRole>>,
 }
 
 impl DemoWindow {
     fn provide() -> Self {
         let window = Self {
             title: create_signal("beui demo".to_owned()),
-            background: create_signal(Some(0)),
+            background: create_signal(Some(ColorRole::Background)),
         };
         provide_context(window);
         window
@@ -319,7 +313,7 @@ impl DemoWindow {
 
     fn clear_color(self) -> Memo<ColorRole> {
         let background = self.background;
-        create_memo(move || WINDOW_BACKGROUNDS[background.get().unwrap_or_default()])
+        create_memo(move || background.get().unwrap_or(ColorRole::Background))
     }
 }
 
@@ -798,14 +792,7 @@ fn PageView(page: Page) -> NodeId {
 #[component]
 fn DemoToolbar(pages: Pages) -> NodeId {
     let layers = with_document(|document| document.watch_preference_layers());
-    let selected_theme = create_memo(move || {
-        let theme = layers.get().layer(PreferenceSource::App).theme;
-        Some(
-            theme
-                .and_then(|theme| ThemeKind::ALL.iter().position(|kind| *kind == theme))
-                .map_or(0, |index| index + 1),
-        )
-    });
+    let selected_theme = create_memo(move || Some(layers.get().layer(PreferenceSource::App).theme));
     let narrow = narrower_than(NARROW_WIDTH);
     let wide = create_memo(move || !narrow.get());
     view! {
@@ -818,15 +805,13 @@ fn DemoToolbar(pages: Pages) -> NodeId {
             <Select
                 label="Theme"
                 options={view! {
-                    <ChoiceOption label="System" />
+                    <ChoiceOption value=None label="System" />
                     <ForEach keys={ThemeKind::ALL.to_vec()}>|kind: ThemeKind|
-                        <ChoiceOption label={kind.name()} />
+                        <ChoiceOption value={Some(kind)} label={kind.name()} />
                     </ForEach>
                 }}
-                selected={Binding::new(selected_theme, move |index: Option<usize>| {
-                    let theme = index
-                        .and_then(|index| index.checked_sub(1))
-                        .and_then(|index| ThemeKind::ALL.get(index).copied());
+                selected={Binding::new(selected_theme, move |theme: Option<Option<ThemeKind>>| {
+                    let theme = theme.flatten();
                     with_document(|document| {
                         if let Some(context) = document.context() {
                             let app = context.preference_layer(PreferenceSource::App);

@@ -8,8 +8,8 @@ fn enter_confirms_the_highlighted_select_option_and_closes_the_popup() {
     let changes = create_signal(Vec::new());
     let (document, [select]) = toolbar_of(|| {
         let options = view! {
-            <unstyled::ChoiceOption label="Apple" />
-            <unstyled::ChoiceOption label="Banana" />
+            <unstyled::ChoiceOption value="Apple" label="Apple" />
+            <unstyled::ChoiceOption value="Banana" label="Banana" />
         };
         [view! {
             <Select
@@ -25,7 +25,7 @@ fn enter_confirms_the_highlighted_select_option_and_closes_the_popup() {
 
     let trigger = harness
         .document()
-        .api::<unstyled::SelectApi>(select)
+        .api::<unstyled::SelectApi<&str>>(select)
         .trigger();
     harness.click(harness.center(trigger));
     harness.frame(Vec::new());
@@ -38,12 +38,17 @@ fn enter_confirms_the_highlighted_select_option_and_closes_the_popup() {
     assert_eq!(
         harness
             .document()
-            .api::<styled::SelectApi>(select)
+            .api::<styled::SelectApi<&str>>(select)
             .selected(),
-        Some(0)
+        Some("Apple")
     );
-    assert!(!harness.document().api::<styled::SelectApi>(select).open());
-    assert_eq!(changes.get_untracked().as_slice(), &[Some(0)]);
+    assert!(
+        !harness
+            .document()
+            .api::<styled::SelectApi<&str>>(select)
+            .open()
+    );
+    assert_eq!(changes.get_untracked().as_slice(), &[Some("Apple")]);
     assert!(
         harness
             .document()

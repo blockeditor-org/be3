@@ -849,13 +849,13 @@ impl Inspector {
             return;
         }
         let scale = scale(ctx);
-        let selected = usize::from(!self.state().app_shown.get());
+        let shown = self.state().app_shown.get();
         let panel::Bar {
             document,
-            selected: shown_selected,
+            app_shown,
             ..
         } = &mut self.bar;
-        shown_selected.set(selected);
+        app_shown.set(shown);
         ctx.scaled(scale, || {
             ctx.with_input(
                 |input| keyed(input, false),

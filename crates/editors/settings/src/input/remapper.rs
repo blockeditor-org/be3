@@ -30,11 +30,7 @@ pub(super) fn RemapperSetting(editor: Editor, settings: Settings, read_only: Mem
         remappers.with(|remappers| remappers.iter().map(|(id, _)| *id).collect::<Vec<Uuid>>())
     });
     let chosen = create_memo(move || effective.get().remapper);
-    let selected = create_memo(move || {
-        chosen.get().and_then(|choice| {
-            keys.with(|keys| keys.iter().position(|editor| *editor == choice.editor))
-        })
-    });
+    let selected = create_memo(move || chosen.get().map(|choice| choice.editor));
     let set_here = row.modified();
     let none = create_memo(move || keys.with(Vec::is_empty));
     let link_off = create_memo(move || none.get() || (read_only.get() && chosen.get().is_none()));
@@ -74,10 +70,8 @@ pub(super) fn RemapperSetting(editor: Editor, settings: Settings, read_only: Mem
         set_remapper.call(Some(choice));
         Some(choice)
     };
-    let choose = move |index: Option<usize>| {
-        let Some(remapper) =
-            index.and_then(|index| keys.with_untracked(|keys| keys.get(index).copied()))
-        else {
+    let choose = move |picked: Option<Uuid>| {
+        let Some(remapper) = picked else {
             return;
         };
         if chosen.get_untracked().map(|choice| choice.editor) != Some(remapper) {
@@ -132,7 +126,7 @@ pub(super) fn RemapperSetting(editor: Editor, settings: Settings, read_only: Mem
                                 })
                             });
                             view! {
-                                <ChoiceOption label={label} />
+                                <ChoiceOption value=remapper label={label} />
                             }
                         }</ForEach>
                     }}

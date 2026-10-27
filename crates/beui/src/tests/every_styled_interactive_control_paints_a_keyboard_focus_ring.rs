@@ -35,10 +35,10 @@ fn every_styled_interactive_control_paints_a_keyboard_focus_ring() {
             view! {
                 <Tabs
                     options={view! {
-                        <unstyled::ChoiceOption label="One" />
-                        <unstyled::ChoiceOption label="Two" />
+                        <unstyled::ChoiceOption value="One" label="One" />
+                        <unstyled::ChoiceOption value="Two" label="Two" />
                     }}
-                    selected=0
+                    selected="One"
                 />
             }
         },
@@ -46,10 +46,10 @@ fn every_styled_interactive_control_paints_a_keyboard_focus_ring() {
             view! {
                 <RadioGroup
                     options={view! {
-                        <unstyled::ChoiceOption label="One" />
-                        <unstyled::ChoiceOption label="Two" />
+                        <unstyled::ChoiceOption value="One" label="One" />
+                        <unstyled::ChoiceOption value="Two" label="Two" />
                     }}
-                    selected=Some(0)
+                    selected=Some("One")
                 />
             }
         },
@@ -57,10 +57,10 @@ fn every_styled_interactive_control_paints_a_keyboard_focus_ring() {
             view! {
                 <Listbox
                     options={view! {
-                        <unstyled::ChoiceOption label="One" />
-                        <unstyled::ChoiceOption label="Two" />
+                        <unstyled::ChoiceOption value="One" label="One" />
+                        <unstyled::ChoiceOption value="Two" label="Two" />
                     }}
-                    selected=Some(0)
+                    selected=Some("One")
                 />
             }
         },

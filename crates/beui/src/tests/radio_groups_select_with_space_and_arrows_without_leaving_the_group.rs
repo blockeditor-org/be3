@@ -11,9 +11,9 @@ fn radio_groups_select_with_space_and_arrows_without_leaving_the_group() {
             view! {
                 <RadioGroup
                     options={view! {
-                        <unstyled::ChoiceOption label="One" />
-                        <unstyled::ChoiceOption label="Two" />
-                        <unstyled::ChoiceOption label="Three" />
+                        <unstyled::ChoiceOption value="One" label="One" />
+                        <unstyled::ChoiceOption value="Two" label="Two" />
+                        <unstyled::ChoiceOption value="Three" label="Three" />
                     }}
                     selected={Binding::new(None, move |value| {
                         changes.update(|changes| changes.push(value))
@@ -31,7 +31,7 @@ fn radio_groups_select_with_space_and_arrows_without_leaving_the_group() {
     assert_eq!(
         harness
             .document()
-            .api::<styled::ChoiceApi>(group)
+            .api::<styled::ChoiceApi<&str>>(group)
             .selected(),
         None
     );
@@ -41,12 +41,15 @@ fn radio_groups_select_with_space_and_arrows_without_leaving_the_group() {
     assert_eq!(
         harness
             .document()
-            .api::<styled::ChoiceApi>(group)
+            .api::<styled::ChoiceApi<&str>>(group)
             .selected(),
-        Some(2)
+        Some("Three")
     );
     harness.key(Key::ArrowDown, Modifiers::NONE);
-    assert_eq!(changes.get_untracked(), vec![Some(0), Some(2), Some(0)]);
+    assert_eq!(
+        changes.get_untracked(),
+        vec![Some("One"), Some("Three"), Some("One")]
+    );
     harness.key(Key::Tab, Modifiers::NONE);
     assert!(after_focus.get());
 }

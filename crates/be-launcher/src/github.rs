@@ -22,8 +22,9 @@ impl Repository {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) enum Filter {
+    #[default]
     Open,
     Closed,
 }

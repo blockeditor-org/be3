@@ -24,7 +24,7 @@ const EDITOR_WIDTH: f32 = 300.0;
 const EDITOR_POPOVER_WIDTH: Size = Size::Custom(EDITOR_WIDTH + PANEL_PADDING.px() * 2.0);
 const CHOICES_HEIGHT: Size = Size::Custom(280.0);
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Kind {
     AnyOf,
     NoneOf,
@@ -365,15 +365,9 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
     let kinds =
         create_memo(move || field.with(|field| field.as_ref().map(kinds_for).unwrap_or_default()));
     let kind = create_memo(move || filter.with(|filter| Kind::of(&filter.condition)));
-    let selected = create_memo(move || {
-        let kind = kind.get();
-        kinds.with(|kinds| kinds.iter().position(|held| *held == kind))
-    });
-    let kind_keys = create_memo(move || (0..kinds.with(Vec::len)).collect::<Vec<usize>>());
-    let recondition = move |index: Option<usize>| {
-        let Some(kind) =
-            index.and_then(|index| kinds.with_untracked(|kinds| kinds.get(index).copied()))
-        else {
+    let selected = create_memo(move || Some(kind.get()));
+    let recondition = move |chosen: Option<Kind>| {
+        let Some(kind) = chosen else {
             return;
         };
         let Some(field) = field.get_untracked() else {
@@ -429,16 +423,9 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
                     <Frame @sizing=ItemSize::Percent(100.0)>
                         <Select
                             options={view! {
-                                <ForEach keys={kind_keys}>|index: usize| {
-                                    let label = create_memo(move || {
-                                        kinds.with(|kinds| {
-                                            kinds.get(index).map(|kind| kind.label()).unwrap_or_default().to_owned()
-                                        })
-                                    });
-                                    view! {
-                                        <ChoiceOption label={label} />
-                                    }
-                                }</ForEach>
+                                <ForEach keys={kinds}>|kind: Kind|
+                                    <ChoiceOption value=kind label={kind.label()} />
+                                </ForEach>
                             }}
                             selected={Binding::new(selected, recondition)}
                             label="Condition"
@@ -645,12 +632,13 @@ pub fn FilterList(data: Data) -> NodeId {
     });
     let none = create_memo(move || keys.with(Vec::is_empty));
     let names = data.fields;
-    let field_keys =
-        create_memo(move || names.with(|fields| (0..fields.len()).collect::<Vec<usize>>()));
-    let add = move |index: Option<usize>| {
-        let Some(field) = index.and_then(|index| {
+    let field_keys = create_memo(move || {
+        names.with(|fields| fields.iter().map(|field| field.id).collect::<Vec<Uuid>>())
+    });
+    let add = move |chosen: Option<Uuid>| {
+        let Some(field) = chosen.and_then(|chosen| {
             data.fields
-                .with_untracked(|fields| fields.get(index).cloned())
+                .with_untracked(|fields| fields.iter().find(|field| field.id == chosen).cloned())
         }) else {
             return;
         };
@@ -687,12 +675,12 @@ pub fn FilterList(data: Data) -> NodeId {
                 <Frame @sizing=ItemSize::Percent(100.0)>
                     <Select
                         options={view! {
-                            <ForEach keys={field_keys}>|index: usize| {
+                            <ForEach keys={field_keys}>|field: Uuid| {
                                 let label = create_memo(move || {
-                                    names.with(|fields| fields.get(index).map(|field| field.name.clone()).unwrap_or_default())
+                                    names.with(|fields| fields.iter().find(|held| held.id == field).map(|held| held.name.clone()).unwrap_or_default())
                                 });
                                 view! {
-                                    <ChoiceOption label={label} />
+                                    <ChoiceOption value=field label={label} />
                                 }
                             }</ForEach>
                         }}

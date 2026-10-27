@@ -9,7 +9,7 @@ use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{ContentProjection, Editor};
 use uuid::Uuid;
 
-#[derive(Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub(crate) enum FolderSort {
     #[default]
     Intrinsic,

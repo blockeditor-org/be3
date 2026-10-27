@@ -6,9 +6,9 @@ use crate::styled::*;
 fn hovering_a_select_option_moves_the_keyboard_highlight() {
     let (document, [select]) = toolbar_of(|| {
         let options = view! {
-            <unstyled::ChoiceOption label="Apple" />
-            <unstyled::ChoiceOption label="Banana" />
-            <unstyled::ChoiceOption label="Cherry" />
+            <unstyled::ChoiceOption value="Apple" label="Apple" />
+            <unstyled::ChoiceOption value="Banana" label="Banana" />
+            <unstyled::ChoiceOption value="Cherry" label="Cherry" />
         };
         [view! {
             <Select options selected=None />
@@ -19,7 +19,7 @@ fn hovering_a_select_option_moves_the_keyboard_highlight() {
 
     let trigger = harness
         .document()
-        .api::<unstyled::SelectApi>(select)
+        .api::<unstyled::SelectApi<&str>>(select)
         .trigger();
     with_installed(harness.document_mut(), |_| {
         crate::focus_within(trigger);
@@ -31,15 +31,15 @@ fn hovering_a_select_option_moves_the_keyboard_highlight() {
     assert_eq!(
         harness
             .document()
-            .api::<unstyled::SelectApi>(select)
+            .api::<unstyled::SelectApi<&str>>(select)
             .highlighted(),
-        Some(0)
+        Some("Apple")
     );
 
     let cherry = harness
         .document()
-        .api::<unstyled::SelectApi>(select)
-        .option_button(2)
+        .api::<unstyled::SelectApi<&str>>(select)
+        .option_button(&"Cherry")
         .expect("cherry is shown");
     let cherry_pos = harness.center(cherry);
     harness.frame(vec![Input::PointerMoved(cherry_pos)]);
@@ -47,9 +47,9 @@ fn hovering_a_select_option_moves_the_keyboard_highlight() {
     assert_eq!(
         harness
             .document()
-            .api::<unstyled::SelectApi>(select)
+            .api::<unstyled::SelectApi<&str>>(select)
             .highlighted(),
-        Some(2)
+        Some("Cherry")
     );
 
     harness.key(Key::ArrowUp, Modifiers::NONE);
@@ -58,8 +58,8 @@ fn hovering_a_select_option_moves_the_keyboard_highlight() {
     assert_eq!(
         harness
             .document()
-            .api::<unstyled::SelectApi>(select)
+            .api::<unstyled::SelectApi<&str>>(select)
             .highlighted(),
-        Some(1)
+        Some("Banana")
     );
 }

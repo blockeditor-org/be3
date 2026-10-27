@@ -28,7 +28,7 @@ fn turning_off_animations_in_the_inspector_stops_a_scroll_at_its_end() {
     harness.toggle_inspector();
     harness.show_inspector_tab(crate::inspector::InspectorTab::Simulation);
     harness.frame(Vec::new());
-    harness.choose_in_simulation("motion", 2);
+    harness.choose_in_simulation("motion", Some(beui_core::preferences::Motion::Instant));
     harness.frame(Vec::new());
     harness.toggle_inspector();
     harness.frame(Vec::new());

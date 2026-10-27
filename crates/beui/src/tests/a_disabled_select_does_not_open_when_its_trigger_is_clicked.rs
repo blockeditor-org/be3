@@ -6,11 +6,11 @@ use crate::styled::*;
 fn a_disabled_select_does_not_open_when_its_trigger_is_clicked() {
     let (document, [select]) = toolbar_of(|| {
         let options = view! {
-            <unstyled::ChoiceOption label="String" />
-            <unstyled::ChoiceOption label="Number" />
+            <unstyled::ChoiceOption value="String" label="String" />
+            <unstyled::ChoiceOption value="Number" label="Number" />
         };
         [view! {
-            <Select options selected=Some(0) disabled=true />
+            <Select options selected=Some("String") disabled=true />
         }]
     });
     let mut harness = Harness::new(document);
@@ -19,12 +19,17 @@ fn a_disabled_select_does_not_open_when_its_trigger_is_clicked() {
     harness.click(harness.center(select));
     harness.frame(Vec::new());
 
-    assert!(!harness.document().api::<unstyled::SelectApi>(select).open());
+    assert!(
+        !harness
+            .document()
+            .api::<unstyled::SelectApi<&str>>(select)
+            .open()
+    );
     assert_eq!(
         harness
             .document()
-            .api::<unstyled::SelectApi>(select)
+            .api::<unstyled::SelectApi<&str>>(select)
             .selected(),
-        Some(0)
+        Some("String")
     );
 }

@@ -88,8 +88,8 @@ pub use date_time_field::{
     DateDraft, DateSegment, DateSegmentHandle, DateTimeField, DateTimeFieldApi, DateTimeParts,
 };
 pub use date_time_picker::{
-    DateTimeBoxHandle, DateTimeCalendarHandle, DateTimePanelHandle, DateTimePanelLayout,
-    DateTimePicker, DateTimeTimesHandle, DateTimeTriggerHandle,
+    DateTimeBoxHandle, DateTimeCalendarHandle, DateTimePage, DateTimePanelHandle,
+    DateTimePanelLayout, DateTimePicker, DateTimeTimesHandle, DateTimeTriggerHandle,
 };
 pub use dialog::{
     ActionRole, Dialog, DialogAction, DialogBody, DialogBodyHandle, DialogDismissal, DialogKind,

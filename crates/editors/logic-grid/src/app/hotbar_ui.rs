@@ -501,7 +501,8 @@ fn ScalePicker(session: Session, output: bool) -> NodeId {
             };
             SCALES
                 .iter()
-                .position(|value| i64::from(*value) == scale.get())
+                .copied()
+                .find(|value| i64::from(*value) == scale.get())
         })
     });
     let label = match output {
@@ -509,11 +510,8 @@ fn ScalePicker(session: Session, output: bool) -> NodeId {
         false => "Scale",
     }
     .to_owned();
-    let chose = move |index: Option<usize>| {
-        let Some(scale) = index
-            .and_then(|index| SCALES.get(index))
-            .and_then(|value| Scale::new(*value).ok())
-        else {
+    let chose = move |chosen: Option<u8>| {
+        let Some(scale) = chosen.and_then(|value| Scale::new(value).ok()) else {
             return;
         };
         session.update(|model| match output {
@@ -526,7 +524,7 @@ fn ScalePicker(session: Session, output: bool) -> NodeId {
             label
             options={view! {
                 <ForEach keys={SCALES.to_vec()}>|value: u8|
-                    <ChoiceOption label={format!("{value}x")} />
+                    <ChoiceOption value label={format!("{value}x")} />
                 </ForEach>
             }}
             selected={Binding::new(selected, chose)}

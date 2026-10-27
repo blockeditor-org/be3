@@ -24,8 +24,6 @@ pub(crate) enum CalendarView {
 }
 
 impl CalendarView {
-    pub(crate) const ALL: [Self; 3] = [Self::Day, Self::Week, Self::Month];
-
     pub(crate) fn label(self) -> &'static str {
         match self {
             Self::Day => "Day",

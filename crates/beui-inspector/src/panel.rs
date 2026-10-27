@@ -49,16 +49,12 @@ fn labels<T>(options: &[(&'static str, T)]) -> Vec<&'static str> {
 
 const NO_OVERRIDE: &str = "No override";
 
-fn override_index<T: PartialEq>(choices: &[T], chosen: Option<T>) -> usize {
-    chosen
-        .and_then(|chosen| choices.iter().position(|choice| *choice == chosen))
-        .map_or(0, |index| index + 1)
-}
-
-fn overridden<T: Copy>(choices: &[T], index: Option<usize>) -> Option<T> {
-    index
-        .and_then(|index| index.checked_sub(1))
-        .and_then(|index| choices.get(index).copied())
+fn labelled<T: Copy>(options: &[(&'static str, T)], label: &str) -> T {
+    options
+        .iter()
+        .find(|(candidate, _)| *candidate == label)
+        .map(|(_, value)| *value)
+        .expect("a label from the same options")
 }
 const COMMANDS: [(&str, &str, Command); 12] = [
     ("First", "first", Command::First),
@@ -444,12 +440,12 @@ fn SimulationTool(state: Stored<State>, summary: Signal<Summary>) -> NodeId {
 pub struct Bar {
     pub document: Document,
     _scope: Scope,
-    pub selected: Signal<usize>,
+    pub app_shown: Signal<bool>,
 }
 
 pub fn build_bar(state: Stored<State>) -> Bar {
     let owner = RootScope::new();
-    let selected = create_signal(1);
+    let app_shown = create_signal(false);
     let mut document = Document::new();
     let root = enter(&mut document, || {
         provide_context(ThemeStore::new(Theme::DARK));
@@ -466,12 +462,12 @@ pub fn build_bar(state: Stored<State>) -> Bar {
                                 @test_id={"inspector.bar"}
                                 @sizing=ItemSize::Percent(100.0)
                                 options={view! {
-                                    <ChoiceOption label="App" />
-                                    <ChoiceOption label="Inspector" />
+                                    <ChoiceOption value=true label="App" />
+                                    <ChoiceOption value=false label="Inspector" />
                                 }}
-                                selected={Binding::new(selected, move |index| {
-                                    selected.set(index);
-                                    state.value().show_app(index == 0);
+                                selected={Binding::new(app_shown, move |shown: bool| {
+                                    app_shown.set(shown);
+                                    state.value().show_app(shown);
                                 })}
                             />
                             <CloseButton @test_id={"inspector.bar.close"} state={state} />
@@ -486,7 +482,7 @@ pub fn build_bar(state: Stored<State>) -> Bar {
     Bar {
         document,
         _scope: owner.into_scope(),
-        selected,
+        app_shown,
     }
 }
 
@@ -497,14 +493,10 @@ fn SimulationPanel(
     handles_back: Memo<bool>,
 ) -> NodeId {
     let simulated = state.value().simulated_pixels_per_point.get();
-    let selected = PIXEL_RATIOS
-        .iter()
-        .position(|(_, ratio)| *ratio == simulated)
-        .unwrap_or(0);
-    let ratio = create_signal(Some(selected));
+    let ratio = create_signal(Some(simulated));
     let developer = state.value().developer.get();
-    let theme = create_signal(Some(override_index(&ThemeKind::ALL, developer.theme)));
-    let motion = create_signal(Some(override_index(&Motion::ALL, developer.motion)));
+    let theme = create_signal(Some(developer.theme));
+    let motion = create_signal(Some(developer.motion));
     view! {
         <Scroll>
             <Frame padding=BODY_PADDING>
@@ -533,13 +525,12 @@ fn SimulationPanel(
                             label="Device pixel ratio"
                             options={view! {
                                 <ForEach keys={labels(&PIXEL_RATIOS)}>|label: &'static str|
-                                    <ChoiceOption label />
+                                    <ChoiceOption value={labelled(&PIXEL_RATIOS, label)} label />
                                 </ForEach>
                             }}
-                            selected={Binding::new(ratio, move |index: Option<usize>| {
-                                ratio.set(index);
-                                let ratio = index.and_then(|index| PIXEL_RATIOS.get(index));
-                                state.value().simulate_pixels_per_point(ratio.and_then(|(_, ratio)| *ratio));
+                            selected={Binding::new(ratio, move |chosen: Option<Option<f32>>| {
+                                ratio.set(chosen);
+                                state.value().simulate_pixels_per_point(chosen.flatten());
                             })}
                         />
                     </List>
@@ -556,14 +547,14 @@ fn SimulationPanel(
                             @test_id={"inspector.simulation.theme"}
                             label="Theme"
                             options={view! {
-                                <ChoiceOption label=NO_OVERRIDE />
+                                <ChoiceOption value=None label=NO_OVERRIDE />
                                 <ForEach keys={ThemeKind::ALL.to_vec()}>|kind: ThemeKind|
-                                    <ChoiceOption label={kind.name()} />
+                                    <ChoiceOption value={Some(kind)} label={kind.name()} />
                                 </ForEach>
                             }}
-                            selected={Binding::new(theme, move |index: Option<usize>| {
-                                theme.set(index);
-                                let chosen = overridden(&ThemeKind::ALL, index);
+                            selected={Binding::new(theme, move |chosen: Option<Option<ThemeKind>>| {
+                                theme.set(chosen);
+                                let chosen = chosen.flatten();
                                 let developer = state.value().developer.get();
                                 state.value().override_preferences(PreferenceLayer { theme: chosen, ..developer });
                             })}
@@ -575,14 +566,14 @@ fn SimulationPanel(
                             @test_id={"inspector.simulation.motion"}
                             label="Motion"
                             options={view! {
-                                <ChoiceOption label=NO_OVERRIDE />
-                                <ForEach keys={Motion::ALL.to_vec()}>|motion: Motion|
-                                    <ChoiceOption label={motion.name()} />
+                                <ChoiceOption value=None label=NO_OVERRIDE />
+                                <ForEach keys={Motion::ALL.to_vec()}>|choice: Motion|
+                                    <ChoiceOption value={Some(choice)} label={choice.name()} />
                                 </ForEach>
                             }}
-                            selected={Binding::new(motion, move |index: Option<usize>| {
-                                motion.set(index);
-                                let chosen = overridden(&Motion::ALL, index);
+                            selected={Binding::new(motion, move |chosen: Option<Option<Motion>>| {
+                                motion.set(chosen);
+                                let chosen = chosen.flatten();
                                 let developer = state.value().developer.get();
                                 state.value().override_preferences(PreferenceLayer { motion: chosen, ..developer });
                             })}
@@ -682,11 +673,7 @@ fn FilterSection(state: Stored<State>) -> NodeId {
     let blur_text = create_memo(move || blur_label(blur.get()));
     let contrast_text = create_memo(move || contrast_label(contrast.get()));
     let vision = state.value().color_vision.get();
-    let selected_vision = ColorVision::ALL
-        .iter()
-        .position(|(_, candidate)| *candidate == vision)
-        .unwrap_or(0);
-    let vision = create_signal(Some(selected_vision));
+    let vision = create_signal(Some(vision));
     let vision_labels = labels(&ColorVision::ALL);
     view! {
         <List spacing=TIMING_SPACING>
@@ -718,13 +705,13 @@ fn FilterSection(state: Stored<State>) -> NodeId {
                 label="Colour vision"
                 options={view! {
                     <ForEach keys={vision_labels}>|label: &'static str|
-                        <ChoiceOption label />
+                        <ChoiceOption value={labelled(&ColorVision::ALL, label)} label />
                     </ForEach>
                 }}
-                selected={Binding::new(vision, move |index: Option<usize>| {
-                    vision.set(index);
-                    if let Some((_, vision)) = index.and_then(|index| ColorVision::ALL.get(index)) {
-                        state.value().choose_color_vision(*vision);
+                selected={Binding::new(vision, move |chosen: Option<ColorVision>| {
+                    vision.set(chosen);
+                    if let Some(chosen) = chosen {
+                        state.value().choose_color_vision(chosen);
                     }
                 })}
             />
@@ -897,7 +884,9 @@ fn RendererSection(
     let missing = create_memo(move || rows.with(Vec::is_empty));
     let names = create_memo(move || renderers.with(|renderers| renderers.names.clone()));
     let choosable = create_memo(move || names.with(|names| names.len() > 1));
-    let active = create_memo(move || Some(renderers.with(|renderers| renderers.active)));
+    let active = create_memo(move || {
+        renderers.with(|renderers| renderers.names.get(renderers.active).copied())
+    });
     view! {
         <List spacing=TIMING_SPACING>
             <Text style=TextStyle::HEADING>"Renderer"</Text>
@@ -906,10 +895,13 @@ fn RendererSection(
                     @test_id={"inspector.performance.renderer.choice"}
                     options={view! {
                         <ForEach keys={names}>|label: &'static str|
-                            <ChoiceOption label />
+                            <ChoiceOption value=label label />
                         </ForEach>
                     }}
-                    selected={Binding::new(active, move |index: Option<usize>| {
+                    selected={Binding::new(active, move |name: Option<&'static str>| {
+                        let index = renderers.with_untracked(|renderers| {
+                            renderers.names.iter().position(|candidate| Some(*candidate) == name)
+                        });
                         if let Some(index) = index {
                             state.value().choose_renderer(index);
                         }

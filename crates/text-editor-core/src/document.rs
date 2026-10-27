@@ -10,7 +10,7 @@ use sequence::{Pos, SeqOp, Sequence, Splice};
 use crate::rich::{Change, FormatOp, Formats, MarkId, Marks, RichOp, Seed};
 use crate::{ChangeLog, CursorPosition, TextChange};
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum TextLanguage {
     #[default]
     Markdown,

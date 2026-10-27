@@ -8,13 +8,13 @@ fn a_select_following_its_prop_does_not_report_a_change() {
     let _root = crate::reactive::RootScope::new();
     let changes = create_signal(Vec::new());
     let document = build_node(move || {
-        let selected = create_signal(None::<usize>);
-        selected.set(Some(1));
+        let selected = create_signal(None::<&str>);
+        selected.set(Some("Done"));
         view! {
             <Select
                 options={view! {
-                    <ChoiceOption label="To do" />
-                    <ChoiceOption label="Done" />
+                    <ChoiceOption value="To do" label="To do" />
+                    <ChoiceOption value="Done" label="Done" />
                 }}
                 selected={Binding::new(selected, move |index| changes.update(|changes| changes.push(index)))}
                 label="Status"

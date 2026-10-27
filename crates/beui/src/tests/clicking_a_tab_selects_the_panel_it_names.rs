@@ -5,13 +5,13 @@ use crate::styled::*;
 #[test]
 fn clicking_a_tab_selects_the_panel_it_names() {
     let _root = crate::reactive::RootScope::new();
-    let reported = create_signal(0);
+    let reported = create_signal("List");
     let (document, [tabs]) = toolbar_of(|| {
         [view! {
             <Tabs
                 options={view! {
-                    <unstyled::ChoiceOption label="List" />
-                    <unstyled::ChoiceOption label="Load" />
+                    <unstyled::ChoiceOption value="List" label="List" />
+                    <unstyled::ChoiceOption value="Load" label="Load" />
                 }}
                 selected={reported}
             />
@@ -23,10 +23,9 @@ fn clicking_a_tab_selects_the_panel_it_names() {
     assert_eq!(
         harness
             .document()
-            .api::<styled::ChoiceApi>(tabs)
-            .selected()
-            .unwrap_or(0),
-        0
+            .api::<styled::ChoiceApi<&str>>(tabs)
+            .selected(),
+        Some("List")
     );
 
     let list = harness.document().children(tabs)[0];
@@ -37,10 +36,9 @@ fn clicking_a_tab_selects_the_panel_it_names() {
     assert_eq!(
         harness
             .document()
-            .api::<styled::ChoiceApi>(tabs)
-            .selected()
-            .unwrap_or(0),
-        1
+            .api::<styled::ChoiceApi<&str>>(tabs)
+            .selected(),
+        Some("Load")
     );
-    assert_eq!(reported.get_untracked(), 1);
+    assert_eq!(reported.get_untracked(), "Load");
 }

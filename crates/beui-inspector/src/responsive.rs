@@ -50,11 +50,15 @@ pub struct Toolbar {
 
 impl Toolbar {
     pub fn open(&self) -> bool {
-        [&self.device, &self.zoom].into_iter().any(|select| {
-            select
-                .try_get()
-                .is_some_and(|select| self.document.api::<SelectApi>(select).open())
-        })
+        let device = self
+            .device
+            .try_get()
+            .is_some_and(|select| self.document.api::<SelectApi<&'static str>>(select).open());
+        let zoom = self
+            .zoom
+            .try_get()
+            .is_some_and(|select| self.document.api::<SelectApi<Option<f32>>>(select).open());
+        device || zoom
     }
 }
 
@@ -87,6 +91,14 @@ fn device_index(size: Vec2) -> usize {
         .map_or(0, |index| index + 1)
 }
 
+fn zoom_of(label: &str) -> Option<f32> {
+    ZOOMS
+        .iter()
+        .find(|(candidate, _)| *candidate == label)
+        .map(|(_, zoom)| *zoom)
+        .expect("a label from ZOOMS")
+}
+
 fn labels<T>(options: &[(&'static str, T)]) -> Vec<&'static str> {
     options.iter().map(|(label, _)| *label).collect()
 }
@@ -98,13 +110,10 @@ fn ResponsiveToolbar(
     device: NodeRef,
     zoom: NodeRef,
 ) -> NodeId {
-    let selected_device = create_memo(move || Some(device_index(screen.get().size)));
+    let selected_device = create_memo(move || Some(DEVICES[device_index(screen.get().size)].0));
     let width = create_memo(move || f64::from(screen.get().size.x));
     let height = create_memo(move || f64::from(screen.get().size.y));
-    let selected_zoom = create_memo(move || {
-        let zoom = screen.get().zoom;
-        ZOOMS.iter().position(|(_, candidate)| *candidate == zoom)
-    });
+    let selected_zoom = create_memo(move || Some(screen.get().zoom));
     view! {
         <List spacing=Space::None>
             <Frame fill=ColorRole::Surface padding=PADDING>
@@ -115,11 +124,11 @@ fn ResponsiveToolbar(
                             @test_id={"inspector.responsive.device"}
                             options={view! {
                                 <ForEach keys={labels(&DEVICES)}>|label: &'static str|
-                                    <ChoiceOption label />
+                                    <ChoiceOption value=label label />
                                 </ForEach>
                             }}
-                            selected={Binding::new(selected_device, move |index: Option<usize>| {
-                                if let Some((_, size)) = index.and_then(|index| DEVICES.get(index))
+                            selected={Binding::new(selected_device, move |label: Option<&'static str>| {
+                                if let Some((_, size)) = DEVICES.iter().find(|(candidate, _)| Some(*candidate) == label)
                                     && *size != Vec2::ZERO
                                 {
                                     state.value().update_screen(|screen| screen.resized(*size));
@@ -169,13 +178,13 @@ fn ResponsiveToolbar(
                             @test_id={"inspector.responsive.zoom"}
                             options={view! {
                                 <ForEach keys={labels(&ZOOMS)}>|label: &'static str|
-                                    <ChoiceOption label />
+                                    <ChoiceOption value={zoom_of(label)} label />
                                 </ForEach>
                             }}
-                            selected={Binding::new(selected_zoom, move |index: Option<usize>| {
-                                if let Some((_, zoom)) = index.and_then(|index| ZOOMS.get(index)) {
+                            selected={Binding::new(selected_zoom, move |zoom: Option<Option<f32>>| {
+                                if let Some(zoom) = zoom {
                                     state.value().update_screen(|screen| ScreenSimulation {
-                                        zoom: *zoom,
+                                        zoom,
                                         ..screen
                                     });
                                 }

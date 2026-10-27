@@ -207,12 +207,7 @@ fn Pointers(
             .filter(|key| keys.with(|keys| keys.contains(key)))
     });
     let scopes = create_memo(move || vec![scope.get()]);
-    let selected = create_memo(move || {
-        let index = scope
-            .get()
-            .and_then(|key| keys.with(|keys| keys.iter().position(|known| *known == key)));
-        Some(index.map_or(0, |index| index + 1))
-    });
+    let selected = create_memo(move || Some(scope.get()));
     let description = create_memo(move || match none.get() {
         true => "No pointer is connected to this session.".to_owned(),
         false => String::new(),
@@ -222,18 +217,17 @@ fn Pointers(
             <SettingsRow label="Change" description="Every pointer at once, or one on its own.">
                 <Select
                     options={view! {
-                        <ChoiceOption label="All pointers" />
+                        <ChoiceOption value=None label="All pointers" />
                         <ForEach keys={keys}>|key: DeviceKey|
-                            <ChoiceOption label={key.0} />
+                            <ChoiceOption value={Some(key.clone())} label={key.0} />
                         </ForEach>
                     }}
                     @sizing=ItemSize::Percent(100.0)
                     width={Extent::fraction(1.0)}
-                    selected={Binding::new(selected, move |index: Option<usize>| {
-                        let key = index
-                            .and_then(|index| index.checked_sub(1))
-                            .and_then(|index| keys.with_untracked(|keys| keys.get(index).cloned()));
-                        chosen.set(key);
+                    selected={Binding::new(selected, move |picked: Option<Option<DeviceKey>>| {
+                        if let Some(key) = picked {
+                            chosen.set(key);
+                        }
                     })}
                     label="Pointer"
                     @test_id={"input.pointer"}

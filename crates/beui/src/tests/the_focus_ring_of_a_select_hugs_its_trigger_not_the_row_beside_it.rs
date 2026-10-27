@@ -8,9 +8,9 @@ const RING_ALLOWANCE: f32 = 10.0;
 fn the_focus_ring_of_a_select_hugs_its_trigger_not_the_row_beside_it() {
     let (document, [select]) = toolbar_of(|| {
         let options = view! {
-            <unstyled::ChoiceOption label="Apple" />
-            <unstyled::ChoiceOption label="Banana" />
-            <unstyled::ChoiceOption label="Cherry" />
+            <unstyled::ChoiceOption value="Apple" label="Apple" />
+            <unstyled::ChoiceOption value="Banana" label="Banana" />
+            <unstyled::ChoiceOption value="Cherry" label="Cherry" />
         };
         [view! {
             <Select options selected=None />
@@ -21,7 +21,7 @@ fn the_focus_ring_of_a_select_hugs_its_trigger_not_the_row_beside_it() {
     harness.key(Key::Tab, Modifiers::NONE);
     let trigger = harness
         .document()
-        .api::<unstyled::SelectApi>(select)
+        .api::<unstyled::SelectApi<&str>>(select)
         .trigger();
     assert!(harness.document().focus_is_within(trigger));
     let output = harness.frame(Vec::new());

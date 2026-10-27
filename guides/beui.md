@@ -61,18 +61,25 @@ That is how an item made of data rather than nodes — a label, a key, a
 callback — can still be a component, with its own scope, context, memos and
 cleanups, and still be written as a tag. Such a component has nothing for `ComponentRef::fill`, `component_accessibility`,
 or `component_placed` to watch, so calling any of them in its body
-panics when it is built, and `@test_id` and `@node_ref` on its tag do not compile,
-because they only take a component whose output implements `BuildsNode`.
+panics when it is built, and `@node_ref` on its tag does not compile, because
+it only takes a component whose output implements `BuildsNode`. `@test_id`
+takes anything that implements `TakesTestId`: every `BuildsNode` does, binding
+the id on its node, and a value child type implements it by keeping the
+`Prop<String>` it is handed, so the parent binds it on the node it builds for
+that child (with `bind_test_id`).
 `unstyled::MenuItem` is one: a menu item is a label, an icon, a detail, a
 `checked` state (`Some` makes it a check box item, or a radio item with
 `radio`, ticked when true; an `action`'s own tick by default), a
 disabled and a danger flag, a separator above it, an `on_click` and its
 own submenu or page items, so a menu is written as tags and each row follows
-the signals its tag was given, and `unstyled::ChoiceOption` is the same for the
-options of a tab bar, a listbox, a radio group and a select. Declare the type
+the signals its tag was given, and `<MenuItem label="Rename" @test_id="tree.menu.rename" />`
+names the row the menu builds for it. `unstyled::ChoiceOption<T>` is the same
+for the options of a tab bar, a segmented control, a listbox, a radio group and
+a select: each carries the `value: T` it stands for, and the control's
+`selected` is that value, never a position (see "Choices" below). Declare the type
 with `value_child_type!`, which makes it a `ChildValue` and says how a run of it
 is kept, so a `show` or a `for_each` can build one; a generic type names its
-parameters first, as in `value_child_type!(<K> DockNode<K>)`.
+parameters first, as in `value_child_type!(<T> ChoiceOption<T>)`.
 
 Functions that build no part of a view are ordinary functions. Deriving a
 colour from theme tokens and interaction state, mapping a value to a label —
@@ -242,6 +249,42 @@ State a control both shows and changes (`checked`, `value`, `open`,
 pass a signal (`<Slider value={volume} />`), leave it out for the control to
 own, or pass `Binding::new(read, write)` for derived state
 (guides/reactive.md, "Bindings").
+
+#### Choices
+
+`Choice`, `Select`, `Listbox` and `RadioGroup` take `selected:
+Binding<Option<T>>`, and `Tabs` and `SegmentedControl`, which always show one
+option chosen, take `selected: Binding<T>` (`T: Default`, the value an
+unbound one starts at). Each `ChoiceOption` names its value: an option built
+by a `ForEach` over ids passes the id, and a fixed list passes an enum value.
+
+```rust
+<Select
+    options={view! {
+        <ForEach keys={output_ids}>|id: String|
+            <ChoiceOption value={id.clone()} label={output_name(&id)} />
+        </ForEach>
+    }}
+    selected={Binding::new(default_output, choose_output)}
+/>
+<SegmentedControl
+    options={view! {
+        <ChoiceOption value=View::Day label="Day" />
+        <ChoiceOption value=View::Week label="Week" />
+    }}
+    selected={view}
+/>
+```
+
+Never map a position back to an item in a write callback: the list can change
+between the frame a person saw and their click, and the position then names a
+different item, the wrong output, the wrong row to delete, the wrong person to
+share with. A selected value that is not among the current options shows
+nothing chosen, and its option is chosen again if it comes back; the control
+never falls back to whatever sits where it was. Positions stay private to
+`Choice`, for its roving focus, arrow keys and typeahead. A "nothing" entry, such
+as "Default" or "All", is an option whose value is `None`, which makes the
+binding an `Option<Option<V>>`.
 
 Do not wrap a prop in a `create_memo` just to read it twice. A memo adds a
 node to the graph, and a `T` that is not `PartialEq` cannot go in one at all.
@@ -1099,7 +1142,7 @@ unstyled one without a sheet stays a dropdown. Every component with a menu
 requires its `MenuStyle`; a text field's context menu is
 `TextInputStyle::menu: Option<MenuStyle>`, where `None` means no menu. An item's children cascade as a
 submenu in a dropdown; in a sheet, or with `page`, they open in place of the menu as a page led by a back row
-titled by the item (`<id>.back` for an item with a `row_test_id`); Left, Escape
+titled by the item (`<id>.back` for an item with an `@test_id`); Left, Escape
 and the back row return to the item, and the dropdown or sheet resizes to each
 page. `then` says what choosing an item does: `MenuThen::Close` (the default),
 `Back` to the page before (a location picked on a page), or `Stay`. `MenuCaption` is a
@@ -4202,7 +4245,9 @@ ones from `beui::unstyled`.
 `view!` supports three framework attributes on every tag, in their own `@`
 namespace so a component can name its props whatever it likes:
 
-- `@test_id` gives a node a name for headless interaction tests. It takes a
+- `@test_id` gives a node a name for headless interaction tests. On a value
+  child, such as a `MenuItem` or a `ChoiceOption`, it names the row its parent
+  builds for it. It takes a
   `Prop<String>`, so a row whose identity is itself reactive can carry one:
   bind a memo and the name follows it, and the name it left behind stops
   resolving. A test id is one word. It is a property of the node like its
@@ -4616,7 +4661,7 @@ State that belongs to the component's own handlers should be captured directly.
 When callers, tests or host integration need to read it, the component exposes a
 typed handle: a `Copy` struct named after it (`ToggleApi`, `SelectApi`), usually
 wrapping its private state, whose methods answer what may be asked
-(`checked()`, `selected()`, `option_button(index)`). The component takes it as
+(`checked()`, `selected()`, `option_button(&value)`). The component takes it as
 an ordinary prop, `#[prop(default = ComponentRef::new())] api: ComponentRef<SelectApi>`,
 and calls `api.fill(SelectApi(state))` while it builds. A caller that wants the
 handle passes its own `ComponentRef` (`<Select api=select ...>`, then

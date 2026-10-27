@@ -410,15 +410,15 @@ fn SegmentedControl() -> NodeId {
             <Frame fill=ColorRole::SurfaceRaised radius=PILL_RADIUS padding=Space::Xs>
                 <unstyled::Choice
                     options={view! {
-                        <ChoiceOption label="List" />
-                        <ChoiceOption label="Board" />
-                        <ChoiceOption label="Calendar" />
+                        <ChoiceOption value="list" label="List" />
+                        <ChoiceOption value="board" label="Board" />
+                        <ChoiceOption value="calendar" label="Calendar" />
                     }}
-                    selected=Some(0)
+                    selected=Some("list")
                     kind=ChoiceKind::Tabs
                     direction=Direction::Horizontal
                     spacing=6.0
-                >|handle: ChoiceOptionHandle|
+                >|handle: ChoiceOptionHandle<&'static str>|
                     <SegmentFace handle />
                 </unstyled::Choice>
             </Frame>
@@ -428,7 +428,7 @@ fn SegmentedControl() -> NodeId {
 
 #[sample]
 #[component]
-fn SegmentFace(handle: ChoiceOptionHandle) -> NodeId {
+fn SegmentFace(handle: ChoiceOptionHandle<&'static str>) -> NodeId {
     let ChoiceOptionHandle {
         label,
         selected,
@@ -460,24 +460,20 @@ fn SegmentFace(handle: ChoiceOptionHandle) -> NodeId {
 #[sample]
 #[component]
 fn SizeRadios() -> NodeId {
-    let sizes = ["Small", "Medium", "Large"];
-    let size = create_signal(Some(1));
-    let chosen = create_memo(move || {
-        size.get()
-            .map_or_else(String::new, |index| sizes[index].to_owned())
-    });
+    let size = create_signal(Some("Medium"));
+    let chosen = create_memo(move || size.get().unwrap_or_default().to_owned());
     view! {
         <List spacing=SECTION_SPACING>
             <unstyled::Choice
                 options={view! {
-                    <ChoiceOption label="Small" />
-                    <ChoiceOption label="Medium" />
-                    <ChoiceOption label="Large" />
+                    <ChoiceOption value="Small" label="Small" />
+                    <ChoiceOption value="Medium" label="Medium" />
+                    <ChoiceOption value="Large" label="Large" />
                 }}
                 selected={size}
                 kind=ChoiceKind::Radio
                 spacing=6.0
-            >|handle: ChoiceOptionHandle|
+            >|handle: ChoiceOptionHandle<&'static str>|
                 <RadioFace handle />
             </unstyled::Choice>
             <Text color=TextColor::Muted>{chosen}</Text>
@@ -487,7 +483,7 @@ fn SizeRadios() -> NodeId {
 
 #[sample]
 #[component]
-fn RadioFace(handle: ChoiceOptionHandle) -> NodeId {
+fn RadioFace(handle: ChoiceOptionHandle<&'static str>) -> NodeId {
     let ChoiceOptionHandle {
         label,
         selected,

@@ -123,23 +123,21 @@ fn EffectsColumn(state: VideoState) -> NodeId {
 #[component]
 fn FrameRateBar(state: VideoState, shown: Prop<bool>) -> DynamicSegment<ListChild> {
     let rate = state.frame_rate;
-    let chosen = create_memo(move || {
-        FRAME_RATES
-            .into_iter()
-            .position(|option| option == rate.get())
-    });
+    let chosen = create_memo(move || Some(rate.get()));
     let options = (0..FRAME_RATES.len()).collect::<Vec<usize>>();
     view! {
         <Toolbar shown={shown}>
             <Select
                 options={view! {
                     <ForEach keys={options}>|index: usize|
-                        <ChoiceOption label={frame_rate_label(FRAME_RATES[index])} />
+                        <ChoiceOption
+                            value={FRAME_RATES[index]}
+                            label={frame_rate_label(FRAME_RATES[index])}
+                        />
                     </ForEach>
                 }}
-                selected={Binding::new(chosen, move |index: Option<usize>| {
-                    let Some(frame_rate) = index.and_then(|index| FRAME_RATES.get(index).copied())
-                    else {
+                selected={Binding::new(chosen, move |chosen: Option<VideoFrameRate>| {
+                    let Some(frame_rate) = chosen else {
                         return;
                     };
                     state.operate(VideoOperation::SetFrameRate { frame_rate });

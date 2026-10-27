@@ -120,7 +120,7 @@ fn AppMenu(status: Memo<StatusView>, menu: Prop<Option<AppMenuView>>) -> NodeId 
             on_dismiss={|| send(UiCommand::AppMenu(false))}
             items={view! {
                 <MenuItem
-                    row_test_id={"app.menu.status".to_owned()}
+                    @test_id={"app.menu.status".to_owned()}
                     label={sync_label}
                     glyph={sync_glyph}
                     detail={sync_detail}
@@ -128,7 +128,7 @@ fn AppMenu(status: Memo<StatusView>, menu: Prop<Option<AppMenuView>>) -> NodeId 
                 />
                 <Show condition={has_unsent}>
                     <MenuItem
-                        row_test_id={"app.menu.unsent".to_owned()}
+                        @test_id={"app.menu.unsent".to_owned()}
                         label="Unsent edits"
                         glyph=ICON_ARCHIVE_RESTORE
                         detail={unsent_detail}
@@ -137,7 +137,7 @@ fn AppMenu(status: Memo<StatusView>, menu: Prop<Option<AppMenuView>>) -> NodeId 
                 </Show>
                 <Show condition={warned}>
                     <MenuItem
-                        row_test_id={"app.menu.escrow-warning".to_owned()}
+                        @test_id={"app.menu.escrow-warning".to_owned()}
                         label="Escrow key not verified"
                         glyph=ICON_SHIELD_ALERT
                         detail={escrow_warning}
@@ -145,7 +145,7 @@ fn AppMenu(status: Memo<StatusView>, menu: Prop<Option<AppMenuView>>) -> NodeId 
                     />
                 </Show>
                 <MenuItem
-                    row_test_id={"app.menu.contacts".to_owned()}
+                    @test_id={"app.menu.contacts".to_owned()}
                     label="Contacts"
                     glyph=ICON_CONTACT
                     separated=true
@@ -153,7 +153,7 @@ fn AppMenu(status: Memo<StatusView>, menu: Prop<Option<AppMenuView>>) -> NodeId 
                 />
                 <Show condition={company}>
                     <MenuItem
-                        row_test_id={"app.menu.invite".to_owned()}
+                        @test_id={"app.menu.invite".to_owned()}
                         label="Invite member"
                         glyph=ICON_USER_PLUS
                         detail={organization}
@@ -162,26 +162,26 @@ fn AppMenu(status: Memo<StatusView>, menu: Prop<Option<AppMenuView>>) -> NodeId 
                 </Show>
                 <Show condition={administrator}>
                     <MenuItem
-                        row_test_id={"app.menu.members".to_owned()}
+                        @test_id={"app.menu.members".to_owned()}
                         label="Members"
                         glyph=ICON_USERS
                         on_click={|| pick(UiCommand::OpenMembers)}
                     />
                 </Show>
                 <MenuItem
-                    row_test_id={"app.menu.agents".to_owned()}
+                    @test_id={"app.menu.agents".to_owned()}
                     label="Agents"
                     glyph=ICON_BOT
                     on_click={|| pick(UiCommand::OpenAgents)}
                 />
                 <MenuItem
-                    row_test_id={"app.menu.switch-session".to_owned()}
+                    @test_id={"app.menu.switch-session".to_owned()}
                     label="Sessions and profiles"
                     glyph=ICON_LAYOUT_PANEL_LEFT
                     on_click={|| pick(UiCommand::SwitchSession)}
                 />
                 <MenuItem
-                    row_test_id={"app.menu.switch-organization".to_owned()}
+                    @test_id={"app.menu.switch-organization".to_owned()}
                     label="Switch organization"
                     glyph=ICON_ARROW_LEFT_RIGHT
                     on_click={|| pick(UiCommand::SwitchOrganization)}
@@ -192,7 +192,7 @@ fn AppMenu(status: Memo<StatusView>, menu: Prop<Option<AppMenuView>>) -> NodeId 
                     on_click={|| pick(UiCommand::NewRecoveryPhrase)}
                 />
                 <MenuItem
-                    row_test_id={"app.menu.accounts".to_owned()}
+                    @test_id={"app.menu.accounts".to_owned()}
                     label="Manage accounts"
                     glyph=ICON_USER_COG
                     detail={signed_in_as}
@@ -200,14 +200,14 @@ fn AppMenu(status: Memo<StatusView>, menu: Prop<Option<AppMenuView>>) -> NodeId 
                     on_click={|| pick(UiCommand::ManageAccounts)}
                 />
                 <MenuItem
-                    row_test_id={"app.menu.about".to_owned()}
+                    @test_id={"app.menu.about".to_owned()}
                     label="About"
                     glyph=ICON_INFO
                     on_click={|| pick(UiCommand::About(true))}
                 />
                 <Show condition={can_close}>
                     <MenuItem
-                        row_test_id={"app.menu.close".to_owned()}
+                        @test_id={"app.menu.close".to_owned()}
                         label="Close block-app"
                         glyph=ICON_POWER
                         on_click={|| pick(UiCommand::CloseApp)}
@@ -215,7 +215,7 @@ fn AppMenu(status: Memo<StatusView>, menu: Prop<Option<AppMenuView>>) -> NodeId 
                 </Show>
                 <ForEach keys={HostPanel::ALL.to_vec()}>|shown: HostPanel|
                     <MenuItem
-                        row_test_id={format!("app.menu.panel.{shown:?}")}
+                        @test_id={format!("app.menu.panel.{shown:?}")}
                         label={shown.title().to_owned()}
                         glyph={panel_icon(shown).to_owned()}
                         separated={shown == HostPanel::ALL[0]}

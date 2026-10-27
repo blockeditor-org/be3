@@ -11,11 +11,11 @@ fn tabs_collapse_into_a_select_when_their_container_is_narrow() {
             <Tabs
                 @node_ref=&tabs
                 options={view! {
-                    <unstyled::ChoiceOption label="List" />
-                    <unstyled::ChoiceOption label="Load" />
-                    <unstyled::ChoiceOption label="Name" />
+                    <unstyled::ChoiceOption value="List" label="List" />
+                    <unstyled::ChoiceOption value="Load" label="Load" />
+                    <unstyled::ChoiceOption value="Name" label="Name" />
                 }}
-                selected=1
+                selected="Load"
             />
         }
     });
@@ -33,8 +33,11 @@ fn tabs_collapse_into_a_select_when_their_container_is_narrow() {
         "tabs that fit lay out only the tab list"
     );
     assert_eq!(
-        harness.document().api::<styled::ChoiceApi>(wide).selected(),
-        Some(1)
+        harness
+            .document()
+            .api::<styled::ChoiceApi<&str>>(wide)
+            .selected(),
+        Some("Load")
     );
 
     harness.resize(vec2(120.0, VIEWPORT.y));
@@ -48,8 +51,8 @@ fn tabs_collapse_into_a_select_when_their_container_is_narrow() {
     assert_eq!(
         harness
             .document()
-            .api::<styled::SelectApi>(narrow)
+            .api::<styled::SelectApi<&str>>(narrow)
             .selected(),
-        Some(1)
+        Some("Load")
     );
 }

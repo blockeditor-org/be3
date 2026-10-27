@@ -20,7 +20,7 @@ const SMALL_ICON: TextSize = TextSize::Xl;
 const ROW_ICON: TextSize = TextSize::Sm;
 const DROP_OUTLINE: Stroke = Stroke::Focus;
 
-#[derive(Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, Hash)]
 enum FolderView {
     #[default]
     LargeGrid,
@@ -107,16 +107,8 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
         true => "Descending".to_owned(),
         false => "Ascending".to_owned(),
     });
-    let mode_index = create_memo(move || {
-        FolderView::ALL
-            .iter()
-            .position(|shown| *shown == mode.get())
-    });
-    let sort_index = create_memo(move || {
-        FolderSort::ALL
-            .iter()
-            .position(|order| *order == sort.get())
-    });
+    let mode_chosen = create_memo(move || Some(mode.get()));
+    let sort_chosen = create_memo(move || Some(sort.get()));
     let flip = move || {
         descending.set(!descending.get_untracked());
     };
@@ -139,14 +131,13 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
             <Toolbar shown={chrome}>
                 <Select
                     options={view! {
-                        <ChoiceOption label={FolderView::LargeGrid.label()} />
-                        <ChoiceOption label={FolderView::SmallGrid.label()} />
-                        <ChoiceOption label={FolderView::List.label()} />
+                        <ForEach keys={FolderView::ALL.to_vec()}>|shown: FolderView|
+                            <ChoiceOption value=shown label={shown.label()} />
+                        </ForEach>
                     }}
-                    selected={Binding::new(mode_index, move |chosen: Option<usize>| {
-                        if let Some(shown) = chosen.and_then(|index| FolderView::ALL.get(index))
-                        {
-                            mode.set(*shown);
+                    selected={Binding::new(mode_chosen, move |chosen: Option<FolderView>| {
+                        if let Some(shown) = chosen {
+                            mode.set(shown);
                         }
                     })}
                     label="Layout"
@@ -154,14 +145,13 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                 />
                 <Select
                     options={view! {
-                        <ChoiceOption label={FolderSort::Intrinsic.label()} />
-                        <ChoiceOption label={FolderSort::Name.label()} />
-                        <ChoiceOption label={FolderSort::Type.label()} />
+                        <ForEach keys={FolderSort::ALL.to_vec()}>|order: FolderSort|
+                            <ChoiceOption value=order label={order.label()} />
+                        </ForEach>
                     }}
-                    selected={Binding::new(sort_index, move |chosen: Option<usize>| {
-                        if let Some(order) = chosen.and_then(|index| FolderSort::ALL.get(index))
-                        {
-                            sort.set(*order);
+                    selected={Binding::new(sort_chosen, move |chosen: Option<FolderSort>| {
+                        if let Some(order) = chosen {
+                            sort.set(order);
                         }
                     })}
                     label="Sort"

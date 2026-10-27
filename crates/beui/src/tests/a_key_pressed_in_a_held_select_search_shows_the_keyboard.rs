@@ -6,8 +6,8 @@ use crate::styled::*;
 fn a_key_pressed_in_a_held_select_search_shows_the_keyboard() {
     let (document, [select]) = toolbar_of(|| {
         let options = view! {
-            <unstyled::ChoiceOption label="Apple" />
-            <unstyled::ChoiceOption label="Banana" />
+            <unstyled::ChoiceOption value="Apple" label="Apple" />
+            <unstyled::ChoiceOption value="Banana" label="Banana" />
         };
         [view! {
             <Select options selected=None />
@@ -18,7 +18,7 @@ fn a_key_pressed_in_a_held_select_search_shows_the_keyboard() {
 
     let trigger = harness
         .document()
-        .api::<unstyled::SelectApi>(select)
+        .api::<unstyled::SelectApi<&str>>(select)
         .trigger();
     let at = harness.center(trigger);
     harness.touch(TouchPhase::Start, at);

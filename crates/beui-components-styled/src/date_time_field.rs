@@ -17,7 +17,7 @@ use beui_components_unstyled as unstyled;
 use beui_components_unstyled::datetime::{Date, DateTime, HourCycle, Time, Weekday};
 use beui_components_unstyled::{
     ButtonHandle, ChoiceOption, DateSegmentHandle, DateTimeBoxHandle, DateTimeCalendarHandle,
-    DateTimePanelHandle, DateTimePanelLayout, DateTimeParts, DateTimeTimesHandle,
+    DateTimePage, DateTimePanelHandle, DateTimePanelLayout, DateTimeParts, DateTimeTimesHandle,
     DateTimeTriggerHandle, PopoverPlacement, PopupTriggerHandle, TimeOptionHandle, grid_columns,
     narrower_than,
 };
@@ -287,8 +287,8 @@ fn PanelBody(
     shape: DateTimePanelLayout,
     calendar: DateTimeCalendarHandle,
     times: DateTimeTimesHandle,
-    page: ReadSignal<usize>,
-    show_page: Callback<usize>,
+    page: ReadSignal<DateTimePage>,
+    show_page: Callback<DateTimePage>,
     width: Memo<f32>,
     first_weekday: Weekday,
     step_minutes: u32,
@@ -298,8 +298,8 @@ fn PanelBody(
         (width.get() - spacing.get() - TIME_LIST_WIDTH).min(CALENDAR_MAX_WIDTH)
     });
     let alone = create_memo(move || width.get().min(CALENDAR_MAX_WIDTH));
-    let dates = create_memo(move || page.get() == 0);
-    let times_shown = create_memo(move || page.get() == 1);
+    let dates = create_memo(move || page.get() == DateTimePage::Date);
+    let times_shown = create_memo(move || page.get() == DateTimePage::Time);
     view! {
         <List spacing=PANEL_SPACING>
             <Show condition={shape == DateTimePanelLayout::Beside}>
@@ -331,8 +331,8 @@ fn PanelBody(
                 <List spacing=PANEL_SPACING>
                     <Tabs
                         options={view! {
-                            <ChoiceOption label="Date" />
-                            <ChoiceOption label="Time" />
+                            <ChoiceOption value=DateTimePage::Date label="Date" />
+                            <ChoiceOption value=DateTimePage::Time label="Time" />
                         }}
                         selected={Binding::new(page, show_page)}
                     />

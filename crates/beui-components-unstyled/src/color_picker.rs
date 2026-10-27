@@ -348,7 +348,7 @@ pub fn AlphaSlider(
 
 pub struct SwatchHandle {
     pub color: Color32,
-    pub option: ChoiceOptionHandle,
+    pub option: ChoiceOptionHandle<Color32>,
 }
 
 #[component]
@@ -359,32 +359,25 @@ pub fn Swatches(
     #[prop(children)] content: RenderFn<SwatchHandle>,
 ) -> NodeId {
     let shown = picker.shown();
-    let held = swatches.clone();
-    let chosen = create_memo(move || held.iter().position(|swatch| *swatch == shown.get()));
-    let labels: Vec<String> = swatches
-        .iter()
-        .map(|swatch| format_hex(*swatch, false))
-        .collect();
-    let indices: Vec<usize> = (0..swatches.len()).collect();
-    let picked = swatches.clone();
+    let chosen = create_memo(move || Some(shown.get()));
     view! {
         <Choice
             options={view! {
-                <ForEach keys={indices}>|index: usize|
-                    <ChoiceOption label={labels[index].clone()} />
+                <ForEach keys={swatches}>|swatch: Color32|
+                    <ChoiceOption value=swatch label={format_hex(swatch, false)} />
                 </ForEach>
             }}
-            selected={Binding::new(chosen, move |index: Option<usize>| {
-                if let Some(swatch) = index.and_then(|index| picked.get(index)) {
-                    picker.pick(*swatch);
+            selected={Binding::new(chosen, move |swatch: Option<Color32>| {
+                if let Some(swatch) = swatch {
+                    picker.pick(swatch);
                 }
             })}
             kind=ChoiceKind::Radio
             direction=Direction::Horizontal
             wrap=true
             spacing
-        >|option: ChoiceOptionHandle| {
-            let color = swatches[option.index];
+        >|option: ChoiceOptionHandle<Color32>| {
+            let color = option.value;
             content.call(SwatchHandle { color, option })
         }</Choice>
     }
