@@ -152,7 +152,15 @@ mod web {
         let (Some(agent), Some(host)) = (agent(), crate::dom::dom(node)) else {
             return;
         };
-        SESSION.with(|session| *session.borrow_mut() = Some((node, sink)));
+        let moved = SESSION.with(|session| {
+            let mut session = session.borrow_mut();
+            let moved = session.as_ref().is_none_or(|(held, _)| *held != node);
+            *session = Some((node, sink));
+            moved
+        });
+        if moved {
+            forget(&agent);
+        }
         let agent_node: &web_sys::Node = agent.as_ref();
         if agent_node.parent_node().as_ref() != Some(&host) {
             let _ = host.append_child(&agent);
@@ -211,9 +219,14 @@ mod web {
                 false
             }
         });
-        if ended {
-            MIRROR.with(|mirror| mirror.borrow_mut().sync(None));
+        if ended && let Some(agent) = agent() {
+            forget(&agent);
         }
+    }
+
+    fn forget(agent: &web_sys::HtmlTextAreaElement) {
+        MIRROR.with(|mirror| mirror.borrow_mut().sync(None));
+        agent.set_value("");
     }
 
     pub(super) fn sync(text: Option<&ImeText>) {

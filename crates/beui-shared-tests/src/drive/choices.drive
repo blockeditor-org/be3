@@ -1,5 +1,6 @@
 # Radio groups, segments, tabs and a listbox choose by pointer and move their
-# choice with the arrow keys.
+# choice with the arrow keys; a listbox also jumps to the option whose label
+# starts with what's typed, starting afresh after a pause.
 clock stop
 wait 'value="Mode Some(0) period 1 tab 0 color Some(1)"'
 click 'RadioButton "Manual"'
@@ -18,4 +19,14 @@ wait 'value="Mode Some(2) period 1 tab 0 color Some(1)"'
 click 'ListBoxOption "Green"'
 wait 'value="Mode Some(2) period 1 tab 0 color Some(2)"'
 key up
+wait 'value="Mode Some(2) period 1 tab 0 color Some(1)"'
+type g
+wait 'value="Mode Some(2) period 1 tab 0 color Some(2)"'
+pause 1500
+type a
+wait 'value="Mode Some(2) period 1 tab 0 color Some(0)"'
+type b
+wait 'value="Mode Some(2) period 1 tab 0 color Some(0)"'
+pause 1500
+type b
 wait 'value="Mode Some(2) period 1 tab 0 color Some(1)"'
