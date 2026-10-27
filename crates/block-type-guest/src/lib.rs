@@ -9,7 +9,8 @@ use be_block::{BlockContent, LiveEdit, Merge, Undo, history::History};
 use be_commit::MergeResult;
 use block_type_api::{
     Change, ChildChange, ClientId, CommitId, Description, EditorId, Endpoint, FileChange, Merged,
-    Opening, Plain, PlainFile, PublishOutcome, ReorderChild, ReplaceChild, ReplicaId, SessionState, TypeInfo,
+    Opening, Plain, PlainFile, PublishOutcome, ReorderChild, ReplaceChild, ReplicaId, SessionState,
+    TypeInfo,
     guest::{exports::replicas, host},
     ops::guest::{self as ops, Executor, Pending, Sender},
     types::Failure,

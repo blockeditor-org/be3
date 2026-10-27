@@ -43,9 +43,10 @@ fn a_child_reordered_in_a_folder_is_listed_in_its_new_place() {
         );
     }
     let [first, second, third] = children;
-    wait_until("listed the children in the order they were added", |shared| {
-        listed(shared, folder) == [first, second, third]
-    });
+    wait_until(
+        "listed the children in the order they were added",
+        |shared| listed(shared, folder) == [first, second, third],
+    );
 
     let reorder = |block, after| {
         change_child(
@@ -59,7 +60,8 @@ fn a_child_reordered_in_a_folder_is_listed_in_its_new_place() {
         listed(shared, folder) == [third, first, second]
     });
     assert_eq!(reorder(third, Some(second)), Some(true));
-    wait_until("listed the child after the one it was put after", |shared| {
-        listed(shared, folder) == [first, second, third]
-    });
+    wait_until(
+        "listed the child after the one it was put after",
+        |shared| listed(shared, folder) == [first, second, third],
+    );
 }
