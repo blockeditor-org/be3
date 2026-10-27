@@ -60,6 +60,7 @@ disposed later in the same flush; one still alive that reads it panics.
 | "Is this row the selected one?" across N rows | `create_selector`: wakes only the two rows whose answer flips |
 | A struct whose fields change separately | `#[derive(Store)]`: a signal per field |
 | A list whose rows bind to their own item | `KeyedStore`: a signal per item, one for the order, `reconcile` writes what differs |
+| A sum, extreme, sort or filter of a `KeyedStore`'s items | its views (below), never a memo reading every item |
 | Shared non-reactive state | `store`, or `StoredCell` for a `Copy` value |
 
 Reading and writing are the `Get` and `Set` traits, implemented by signals,
@@ -67,6 +68,29 @@ memos, stores, `Prop` and `Binding`; import them with the types, and take
 `impl Get<T>` in a helper that only reads. `get`/`with` subscribe the running
 computation; the `_untracked` forms and `untrack(|| ...)` do not. Dependencies
 are rediscovered on every run, so a branch not taken unsubscribes.
+
+### Keyed stores
+
+`KeyedStore` writes one item at a time with `set(key, value)` (a new key goes
+last), `remove(&key)` and `update(&key, |item| ..)`, which edits in place and
+wakes the item's readers only if it changed; `reconcile` writes a whole list.
+A memo that reads `get(&key)` for every key reruns over all of them when one
+changes, so the store keeps derived views itself, told of every insert, update,
+removal and reorder. Each is a `ReadSignal` that wakes only when its result
+changes:
+
+- `sum_by(|item| ..)` applies each change's difference. Over floats the
+  rounding error builds up until the view rebuilds.
+- `max_by` and `min_by` are `None` for an empty store and cost O(log n) a
+  write.
+- `sorted_by_key` keeps the keys ordered by the closure's value, ties in the
+  store's order; `filter` keeps the keys that pass, in the store's order. Both
+  move only the key whose result changed, and a reorder re-sorts from the
+  results they hold.
+
+Each closure is called with the changed item only. A signal it reads is
+tracked, and a change to one rebuilds the view from every item once, at the
+next flush. A view belongs to the scope that made it, like a memo.
 
 ## When things run
 
