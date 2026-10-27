@@ -32,6 +32,7 @@ use winit::event_loop::{
 };
 use winit::keyboard::{NativeKeyCode, PhysicalKey};
 use winit::monitor::Fullscreen;
+use winit::raw_window_handle::HasWindowHandle as _;
 use winit::window::{
     CursorGrabMode, ImeCapabilities, ImeEnableRequest, ImeRequest, ImeRequestData, Window,
     WindowAttributes, WindowId,
@@ -39,7 +40,7 @@ use winit::window::{
 
 use accessibility::{Accessibility, Request};
 use accesskit::TreeUpdate;
-use beui_core::app::{Lifecycle, SafeArea, Setup, Waker};
+use beui_core::app::{Lifecycle, NativeWindow, SafeArea, Setup, Waker};
 use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest};
 use beui_core::file_saver::{FileSaveAnswer, FileSaveRequest};
@@ -582,6 +583,9 @@ impl ApplicationHandler for Runner {
         let proxy = self.proxy.clone();
         let mut setup = Setup::new(Waker::new(move || proxy.wake_up()));
         setup.provide(window.clone());
+        if let Ok(handle) = window.window_handle() {
+            setup.provide(NativeWindow(handle.as_raw()));
+        }
         self.surface = Some(Surface {
             window,
             touch_cursor,

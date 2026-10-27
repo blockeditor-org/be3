@@ -3,7 +3,7 @@ use block_editor_beui::be_block::{
     BlockContent, BlockMetadata, FILES_EDITOR, Home, PREFERRED_EDITOR, Recents, VIEW_EDITOR,
     WORKSPACE_TYPE,
 };
-use block_editor_beui::linux_desktop;
+use block_editor_beui::desktop;
 use settings_types::EditorSettings;
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
@@ -35,8 +35,8 @@ use super::saved::{self, LAYOUT, TITLES};
 use super::share::{Share, ShareAction};
 use super::tab::TabItem;
 use super::window::{
-    WindowPanel, floating_window, kept_window, shown_size, tab_window, window_picture, window_tab,
-    window_title,
+    WindowPanel, floating_window, kept_window, shown_size, shown_windows, tab_window,
+    window_picture, window_tab, window_title,
 };
 
 pub const FILES: TabId = TabId::new(1);
@@ -87,6 +87,7 @@ pub struct Workspace {
     pub(crate) dialog: Signal<Option<OpenDialog>>,
     renaming: Signal<Option<Renaming>>,
     pub(crate) share: Signal<Option<Share>>,
+    entries: Memo<Vec<HostWindow>>,
     windows: Memo<Vec<HostWindow>>,
     keeps_windows: bool,
     kept: Signal<Kept>,
@@ -112,7 +113,8 @@ impl Workspace {
         let renaming = create_signal(None);
         let share = create_signal(None);
         let panels = create_signal(Vec::new());
-        let windows = editor.watch::<WindowsWatch>();
+        let entries = editor.watch::<WindowsWatch>();
+        let windows = create_memo(move || entries.with(|entries| shown_windows(entries)));
         let kept = create_signal(Kept::default());
         let desk = create_memo(move || {
             kept.with(|kept| windows.with(|windows| kept::sort_out(kept, windows)))
@@ -149,6 +151,7 @@ impl Workspace {
             dialog,
             renaming,
             share,
+            entries,
             windows,
             keeps_windows,
             kept,
@@ -210,7 +213,7 @@ impl Workspace {
                 if fullscreen {
                     let window = *window;
                     self.host().act(move || {
-                        linux_desktop::windows::request(WindowAction::Fullscreen {
+                        desktop::windows::request(WindowAction::Fullscreen {
                             window,
                             fullscreen: true,
                         })
@@ -334,6 +337,10 @@ impl Workspace {
             tabs.sort();
             tabs
         })
+    }
+
+    pub fn entries(&self) -> Memo<Vec<HostWindow>> {
+        self.entries
     }
 
     pub fn windows(&self) -> Memo<Vec<HostWindowId>> {
@@ -993,11 +1000,11 @@ impl Workspace {
             match self.desk.with_untracked(|desk| desk.window(key)) {
                 Some(window) => self
                     .host()
-                    .act(move || linux_desktop::windows::request(WindowAction::Close(window))),
+                    .act(move || desktop::windows::request(WindowAction::Close(window))),
                 None if self.keeps_windows => self.dismiss(key),
                 None => self
                     .host()
-                    .act(move || linux_desktop::windows::request(WindowAction::Close(key))),
+                    .act(move || desktop::windows::request(WindowAction::Close(key))),
             }
             return;
         }
@@ -1236,6 +1243,7 @@ pub fn WindowTab(
     let fullscreen = create_memo(move || info.get()?.fullscreen);
     let focused = create_memo(move || info.get().is_some_and(|info| info.focused));
     let size = create_memo(move || info.get().map(|info| info.size));
+    let note = create_memo(move || info.get()?.note);
     let picture = create_memo(move || info.get()?.icon.as_ref().and_then(window_picture));
     let editor = workspace.editor();
     let tab = window_tab(key);
@@ -1260,6 +1268,7 @@ pub fn WindowTab(
                                 responding={responding}
                                 focused={focused}
                                 size={size}
+                                note={note}
                             />
                         },
                         (None, Some(placeholder)) => placeholder.call(key),
@@ -1315,6 +1324,7 @@ pub fn AttachedWindow(
     let modal = create_memo(move || info.get().is_some_and(|info| info.modal));
     let responding = create_memo(move || info.get().is_none_or(|info| info.responding));
     let focused = create_memo(move || info.get().is_some_and(|info| info.focused));
+    let note = create_memo(move || info.get()?.note);
     let fullscreen = create_memo(|| None);
     let editor = workspace.editor();
     view! {
@@ -1336,6 +1346,7 @@ pub fn AttachedWindow(
                 responding={responding}
                 focused={focused}
                 size={followed}
+                note={note}
             />
         </DockDialog>
     }

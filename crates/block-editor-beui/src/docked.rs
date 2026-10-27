@@ -1111,6 +1111,7 @@ fn declaration_from_api(
             .focus
             .as_ref()
             .map(|focus| paths.tab(focus)),
+        see_through: Vec::new(),
     };
     let tabs = declaration
         .tabs

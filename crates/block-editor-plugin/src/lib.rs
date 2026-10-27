@@ -32,7 +32,7 @@ mod wire;
 
 pub use asked::{Asked, Task};
 pub use block_plugin_api::accesskit;
-pub use block_plugin_api::guest::linux_desktop;
+pub use block_plugin_api::guest::desktop;
 pub use block_plugin_api::{
     AccessGrant, AccessLevel, AccessListing, AdministratorWatch, ArtifactAction, AudioCommand,
     AudioOutput, AudioSource, AudioStatus, BarAction, BlockCommand, BlockFilter, BlockLocation,
@@ -55,7 +55,7 @@ pub use block_plugin_api::{
     TrayWatch, VersionBranch, VersionChange, VersionChangeKind, VersionCommand, VersionCommit,
     VersionOperation, VersionStatus, ViewChange, Watched, WebViewCommand, WebViewEvent, WebViewId,
     WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus, WifiWatch, WindowAction,
-    WindowOrigin, WindowRequests, WindowsWatch,
+    WindowKind, WindowOrigin, WindowRequests, WindowsWatch,
 };
 pub use block_plugin_api::{
     HostPreferenceSources, Motion, PreferenceLayer, PreferenceSourcesWatch, Preferences, ThemeKind,

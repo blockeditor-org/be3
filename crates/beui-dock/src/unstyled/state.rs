@@ -516,6 +516,8 @@ pub struct DockState {
     lookup: Lookup,
     #[serde(skip)]
     shows: u64,
+    #[serde(skip)]
+    see_through: Vec<TabId>,
 }
 
 impl Default for DockState {
@@ -539,6 +541,7 @@ impl DockState {
             switch: None,
             lookup: Lookup::default(),
             shows: 0,
+            see_through: Vec::new(),
         };
         let leaf = state.new_leaf(tabs.into_iter().map(Entry::Tab).collect());
         let focus = leaf.id;
@@ -1695,6 +1698,17 @@ impl DockState {
     }
 
     pub fn admits(&self, entry: Entry, target: DockDrop) -> bool {
+        let away = target
+            .leaf()
+            .is_none_or(|leaf| self.surface_of(leaf) != Some(self.main()));
+        if away
+            && self
+                .entry_tabs(entry)
+                .iter()
+                .any(|tab| self.is_see_through(*tab))
+        {
+            return false;
+        }
         let destination = match target {
             DockDrop::Window { .. } => None,
             DockDrop::Group { leaf, index } => match self.entries(leaf).get(index) {
@@ -1734,6 +1748,18 @@ impl DockState {
         }
         tabs.into_iter()
             .all(|tab| self.home_group(tab) == Some(destination))
+    }
+
+    pub fn is_see_through(&self, tab: TabId) -> bool {
+        self.see_through.contains(&tab)
+    }
+
+    pub fn shows_see_through(&self, leaf: LeafId) -> bool {
+        self.active_entry(leaf).is_some_and(|entry| {
+            self.entry_tabs(entry)
+                .iter()
+                .any(|tab| self.is_see_through(*tab))
+        })
     }
 
     pub fn admits_leaf(&self, leaf: LeafId, target: DockDrop) -> bool {

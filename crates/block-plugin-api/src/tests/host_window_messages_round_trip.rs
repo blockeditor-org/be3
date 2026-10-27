@@ -4,6 +4,8 @@ use super::*;
 fn host_window_messages_round_trip() {
     let window = HostWindow {
         id: HostWindowId(7),
+        kind: WindowKind::Display,
+        shown: false,
         title: "Terminal".into(),
         app_id: "foot".into(),
         parent: Some(HostWindowId(3)),
@@ -23,6 +25,7 @@ fn host_window_messages_round_trip() {
             command: vec!["foot".into(), "--server".into()],
             launch: Some(9),
         },
+        note: None,
     };
     watched_round_trips::<WindowsWatch>(vec![window.clone()]);
     for action in [
@@ -32,6 +35,8 @@ fn host_window_messages_round_trip() {
             fullscreen: true,
         },
         WindowAction::Close(window.id),
+        WindowAction::Show(window.id),
+        WindowAction::Hide(window.id),
     ] {
         round_trips(&action);
     }

@@ -73,6 +73,7 @@ pub enum SystemBars {
 pub struct Appearance {
     pub clear_color: Color32,
     pub title: Option<String>,
+    pub notice: Option<String>,
     pub system_bars: SystemBars,
 }
 
@@ -81,6 +82,7 @@ impl Default for Appearance {
         Self {
             clear_color: Color32::BLACK,
             title: None,
+            notice: None,
             system_bars: SystemBars::default(),
         }
     }

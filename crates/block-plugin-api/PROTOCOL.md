@@ -19,13 +19,13 @@ Rust on both sides is generated from it into this crate. The world imports:
 - `account` and `contacts` (`account.wit`): whether the account administers its
   company, the base of block links, where preferences come from, and the
   account's contacts, which the host answers only to the shell;
-- the interfaces of `be3:linux-desktop` (`wit/deps/linux-desktop`), an extension
-  beside the core protocol rather than part of it: what a host running a Linux
-  desktop session offers the editors that draw it, one interface per part of the
-  session (windows, input devices and remaps, displays, power, media, Wi-Fi,
+- the interfaces of `be3:desktop` (`wit/deps/desktop`), an extension
+  beside the core protocol rather than part of it: what a host running a desktop
+  (a Linux session, or Windows) offers the editors that draw it, one interface
+  per part of the desktop (windows, input devices and remaps, displays, power, media, Wi-Fi,
   e-paper, notifications, the screen lock, programs, the tray). A plugin's
   manifest names the extensions it uses (`extensions`); the host answers a call
-  into one it did not name `denied`, and a host without the session answers its
+  into one it did not name `denied`, and a host without a desktop answers its
   watches `unsupported`;
 - `be3:debug/debug` (`wit/deps/debug`), the debugging extension, beside the core
   protocol too: performance measurements, simulating a lower access to a block,

@@ -102,6 +102,8 @@ rodio = "0.20"
 # The plugin side of the protocol, for the tests that check the host only sends
 # a plugin's session messages it accepts. Nothing in the app links it.
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+# The Windows host's mapping to the desktop's types, tested everywhere.
+be-win32 = { path = "../be-win32" }
 block-editor-plugin = { path = "../block-editor-plugin" }
 fault-relay = { path = "../fault-relay" }
 # The plugins' type modules, which the unit tests run in process beside the
@@ -143,6 +145,12 @@ pollster = "0.4"
 # keys set the default sink's and source's volume and mute through it.
 pulseaudio = "0.3"
 zbus = { version = "5", default-features = false, features = ["async-io"] }
+
+# Windows's monitors and windows are captured onto the app's own Vulkan device.
+[target.'cfg(windows)'.dependencies]
+be-win32 = { path = "../be-win32" }
+be-win32-capture = { path = "../be-win32-capture" }
+be-win32-input = { path = "../be-win32-input" }
 
 [target.'cfg(all(unix, not(target_os = "android"), not(target_arch = "wasm32")))'.dependencies]
 libc = "0.2"

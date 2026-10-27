@@ -67,6 +67,6 @@
       "module": "workspace_ui_types.wasm"
     }
   },
-  "extensions": ["be3:linux-desktop"],
+  "extensions": ["be3:desktop"],
   "entry_point": "workspace_ui.wasm"
 }

@@ -112,6 +112,7 @@ enum EntryKind<K: 'static> {
         icon: Memo<Option<Glyph>>,
         picture: Memo<Option<Image>>,
         on_close: Option<ClickCallback>,
+        see_through: bool,
         content: RenderFn<()>,
     },
     Group {
@@ -231,6 +232,7 @@ pub fn DockTab<K>(
     #[prop(default = None)] icon: Prop<Option<Glyph>>,
     #[prop(default = None)] picture: Prop<Option<Image>>,
     on_close: Option<ClickCallback>,
+    #[prop(default = false)] see_through: bool,
     #[prop(children)] content: RenderFn<()>,
 ) -> DockEntry<K>
 where
@@ -243,6 +245,7 @@ where
             icon: create_memo(move || icon.get()),
             picture: create_memo(move || picture.get()),
             on_close,
+            see_through,
             content,
         },
     }
@@ -1078,6 +1081,21 @@ impl<K: DockKey> DockingLayout<K> {
         }
         spec.windows.append(&mut found.windows);
         spec.focus = focus.map(|key| self.mint(key));
+        spec.see_through = found
+            .tabs
+            .iter()
+            .filter(|(_, entry)| {
+                matches!(
+                    entry.kind,
+                    EntryKind::Tab {
+                        see_through: true,
+                        ..
+                    }
+                )
+            })
+            .map(|(tab, _)| *tab)
+            .collect();
+        spec.see_through.sort();
         spec
     }
 
@@ -1398,6 +1416,18 @@ impl<K: DockKey> Found<K> {
         }
     }
 
+    fn see_through(&self, tab: TabId) -> bool {
+        self.tabs.get(&tab).is_some_and(|entry| {
+            matches!(
+                entry.kind,
+                EntryKind::Tab {
+                    see_through: true,
+                    ..
+                }
+            )
+        })
+    }
+
     fn picture(&self, tab: TabId) -> Option<Image> {
         match &self.tabs.get(&tab)?.kind {
             EntryKind::Tab { picture, .. } => picture.get(),
@@ -1491,10 +1521,11 @@ where
                 },
             };
         };
+        let see_through = found.with_untracked(|found| found.see_through(tab));
         let body = content.call(());
         match &frame {
-            Some(frame) => frame.call(body),
-            None => body,
+            Some(frame) if !see_through => frame.call(body),
+            _ => body,
         }
     });
     let link = match use_dock_join().and_then(|join| join.claim()) {

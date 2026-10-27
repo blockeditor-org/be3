@@ -23,6 +23,7 @@ use beui_core::painter::Painter;
 use crate::screen_reader::{Command, ScreenReader};
 use beui_components_styled::Theme;
 use beui_core::document::{Document, Tools, trim_bottom};
+use beui_core::layer::LayerPolicy;
 use beui_core::node::NodeId;
 use beui_core::preferences::{PreferenceLayer, PreferenceSource};
 use beui_core::screen_simulation::ScreenSimulation;
@@ -33,12 +34,6 @@ use panel::Summary;
 use tree::{Entry, Key};
 
 const DEFAULT_WIDTH: f32 = 340.0;
-const MINIMUM_WIDTH: f32 = 200.0;
-const GRIP_WIDTH: f32 = 4.0;
-const GRIP_PAINT_WIDTH: f32 = 2.0;
-const MINIMUM_APP_WIDTH: f32 = 480.0;
-const NARROWEST_APP_WIDTH: f32 = 200.0;
-const BAR_HEIGHT: f32 = 44.0;
 const HANDLE_REACH: f32 = beui_core::screen_simulation::MARGIN;
 const HANDLE_THICKNESS: f32 = 4.0;
 const HANDLE_LENGTH: f32 = 40.0;
@@ -46,6 +41,7 @@ const HANDLE_CORNER: f32 = 14.0;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq, Hash, Debug)]
 pub enum InspectorTab {
+    App,
     #[default]
     Beui,
     Components,
@@ -55,13 +51,6 @@ pub enum InspectorTab {
 }
 
 impl InspectorTab {
-    pub const ALL: [InspectorTab; 5] = [
-        InspectorTab::Beui,
-        InspectorTab::Components,
-        InspectorTab::AccessKit,
-        InspectorTab::Performance,
-        InspectorTab::Simulation,
-    ];
     pub const TREES: [InspectorTab; 3] = [
         InspectorTab::Beui,
         InspectorTab::Components,
@@ -70,6 +59,7 @@ impl InspectorTab {
 
     pub fn title(self) -> &'static str {
         match self {
+            InspectorTab::App => "App",
             InspectorTab::Beui => "Beui",
             InspectorTab::Components => "Comp",
             InspectorTab::AccessKit => "A11y",
@@ -111,8 +101,14 @@ pub struct State {
     reset_performance: Cell<bool>,
     closed: Cell<bool>,
     keyboard_toggled: Cell<bool>,
-    compact: Cell<bool>,
-    app_shown: Cell<bool>,
+    reveal: Cell<Option<Reveal>>,
+    release_keyboard: Cell<bool>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Reveal {
+    App,
+    Tool,
 }
 
 impl State {
@@ -143,8 +139,8 @@ impl State {
             reset_performance: Cell::new(false),
             closed: Cell::new(false),
             keyboard_toggled: Cell::new(false),
-            compact: Cell::new(false),
-            app_shown: Cell::new(false),
+            reveal: Cell::new(None),
+            release_keyboard: Cell::new(false),
         }
     }
 
@@ -300,7 +296,7 @@ impl State {
             return;
         }
         self.picking.set(true);
-        self.app_shown.set(true);
+        self.reveal.set(Some(Reveal::App));
         self.touch();
     }
 
@@ -310,13 +306,9 @@ impl State {
         self.touch();
     }
 
-    fn show_app(&self, shown: bool) {
-        self.app_shown.set(shown);
+    fn release_keyboard(&self) {
+        self.release_keyboard.set(true);
         self.touch();
-    }
-
-    pub fn app_visible(&self) -> bool {
-        !self.compact.get() || self.app_shown.get()
     }
 
     fn touch(&self) {
@@ -325,23 +317,26 @@ impl State {
 }
 
 pub struct Layout {
-    pub bar: Rect,
     pub toolbar: Rect,
     pub content: Rect,
     pub readout: Rect,
-    pub panel: Rect,
     pub app_visible: bool,
 }
 
 impl Layout {
     pub fn app(rect: Rect) -> Self {
         Self {
-            bar: Rect::NOTHING,
             toolbar: Rect::NOTHING,
             content: rect,
             readout: Rect::NOTHING,
-            panel: Rect::NOTHING,
             app_visible: true,
+        }
+    }
+
+    fn hidden() -> Self {
+        Self {
+            app_visible: false,
+            ..Self::app(Rect::NOTHING)
         }
     }
 }
@@ -398,17 +393,16 @@ pub struct Inspector {
     performance: Signal<panel::PerformanceSummary>,
     renderer: Signal<panel::RendererRows>,
     renderers: Signal<RendererChoices>,
-    panel_compact: Signal<bool>,
-    shown_compact: bool,
-    bar: panel::Bar,
+    app: EmbedSlot,
+    width: Signal<f32>,
+    last_tool: InspectorTab,
     toolbar: responsive::Toolbar,
     resizing: Option<Resize>,
     handle: Option<Handle>,
     handle_bounds: Cell<Rect>,
     toolbar_area: Rect,
-    pub width: f32,
-    grabbed: Option<f32>,
-    grip: bool,
+    held: bool,
+    letting_go: bool,
     parked: bool,
     seen: u64,
     overlay_bounds: Cell<Rect>,
@@ -417,13 +411,11 @@ pub struct Inspector {
 }
 
 impl Inspector {
-    pub fn new(ctx: &Context) -> Self {
+    pub fn new(ctx: &Context, rect: Rect) -> Self {
         let state = OwnedStored::new(State::new(ctx));
-        let panel = panel::build(state.handle());
-        let bar = panel::build_bar(state.handle());
+        let panel = panel::build(state.handle(), rect.width() / scale(ctx));
         let toolbar = responsive::build(state.handle());
         Self {
-            bar,
             toolbar,
             resizing: None,
             handle: None,
@@ -441,11 +433,11 @@ impl Inspector {
             performance: panel.performance,
             renderer: panel.renderer,
             renderers: panel.renderers,
-            panel_compact: panel.compact,
-            shown_compact: false,
-            width: DEFAULT_WIDTH,
-            grabbed: None,
-            grip: false,
+            app: panel.app,
+            width: panel.width,
+            last_tool: InspectorTab::default(),
+            held: false,
+            letting_go: false,
             parked: false,
             seen: 0,
             overlay_bounds: Cell::new(Rect::NOTHING),
@@ -480,18 +472,6 @@ impl Inspector {
             .unwrap_or_else(|| panic!("the inspector shows no {} tab", tab.title()))
     }
 
-    pub fn bar_option_rect(&self, index: usize) -> Option<Rect> {
-        let document = &self.bar.document;
-        let bar = document.find_test_id("inspector.bar")?;
-        let tabs = *document.children(bar).first()?;
-        document.node_rect(*document.children(tabs).get(index)?)
-    }
-
-    pub fn bar_rect(&self, test_id: &str) -> Option<Rect> {
-        let document = &self.bar.document;
-        document.node_rect(document.find_test_id(test_id)?)
-    }
-
     pub fn toolbar_rect(&self, test_id: &str) -> Option<Rect> {
         let document = &self.toolbar.document;
         document.node_rect(document.find_test_id(test_id)?)
@@ -501,6 +481,14 @@ impl Inspector {
         self.document
             .root()
             .and_then(|root| self.document.node_rect(root))
+    }
+
+    pub fn app_visible(&self) -> bool {
+        self.app.placement().is_some()
+    }
+
+    pub fn app_rect(&self) -> Option<Rect> {
+        self.app.placement().map(|placement| placement.rect)
     }
 
     pub fn reader(&self) -> &ScreenReader {
@@ -530,13 +518,6 @@ impl Inspector {
         })
     }
 
-    pub fn panel_width(&self, ctx: &Context, rect: Rect) -> f32 {
-        let scale = scale(ctx);
-        (self.width * scale)
-            .min(rect.width() - NARROWEST_APP_WIDTH * scale)
-            .max(0.0)
-    }
-
     pub fn closed(&self) -> bool {
         self.state().closed.get()
     }
@@ -548,44 +529,81 @@ impl Inspector {
         }
     }
 
-    pub fn layout(&mut self, ctx: &Context, rect: Rect) -> Layout {
+    pub fn show_panel(
+        &mut self,
+        target: &Document,
+        ctx: &Context,
+        rect: Rect,
+        keyboard_interactive: bool,
+    ) -> Layout {
         ctx.set_screen_simulation(self.screen_simulation());
         let scale = scale(ctx);
-        let compact = rect.width() < (MINIMUM_APP_WIDTH + DEFAULT_WIDTH) * scale;
-        self.state().compact.set(compact);
-        let layout = match compact {
-            false => {
-                self.grab(ctx, rect);
-                let (content, panel) = split(rect, self.panel_width(ctx, rect));
-                Layout {
-                    panel,
-                    ..Layout::app(content)
-                }
-            }
-            true => {
-                self.grabbed = None;
-                self.grip = false;
-                let (bar, rect) = trim_top(rect, BAR_HEIGHT * scale);
-                let app_visible = self.state().app_visible();
-                Layout {
-                    bar,
-                    toolbar: Rect::NOTHING,
-                    content: rect,
-                    readout: Rect::NOTHING,
-                    panel: if app_visible { Rect::NOTHING } else { rect },
-                    app_visible,
-                }
-            }
-        };
-        if !layout.app_visible || self.state().screen_simulation.get().is_none() {
-            return layout;
+        let width = rect.width() / scale;
+        if self.width.get_untracked() != width {
+            self.width.set(width);
         }
-        let (toolbar, content) = trim_top(layout.content, responsive::HEIGHT * scale);
+        if let Some(tab) = self.tools.focused().filter(|tab| *tab != InspectorTab::App) {
+            self.last_tool = tab;
+        }
+        let revealed = self.state().reveal.get().map(|reveal| match reveal {
+            Reveal::App => InspectorTab::App,
+            Reveal::Tool => self.last_tool,
+        });
+        if let Some(tab) = revealed.filter(|tab| self.tools.tab_of(tab).is_some()) {
+            self.tools.show(&tab);
+            self.state().reveal.set(None);
+        }
+        self.forget_removed(target);
+        self.sync(target, ctx);
+        let document = &mut self.document;
+        let keys = keyboard_interactive && document.focused_node().is_some();
+        ctx.scaled(scale, || {
+            ctx.with_input(
+                |input| keyed(input, keys),
+                || document.show_content(ctx, rect.scaled(scale.recip())),
+            );
+        });
+        if self.tools_shown() != self.synced_shown {
+            ctx.request_repaint();
+        }
+        let Some(content) = self.app_rect().map(|app| app.scaled(scale)) else {
+            return Layout::hidden();
+        };
+        if self.state().screen_simulation.get().is_none() {
+            return Layout::app(content);
+        }
+        let (toolbar, content) = trim_top(content, responsive::HEIGHT * scale);
         Layout {
             toolbar,
-            content,
-            ..layout
+            ..Layout::app(content)
         }
+    }
+
+    pub fn hold(&mut self, ctx: &Context) {
+        if std::mem::take(&mut self.letting_go) {
+            self.held = false;
+        }
+        for (down, at) in primary(ctx) {
+            match down {
+                true => self.held = self.covers(ctx, at),
+                false => self.letting_go = self.held,
+            }
+        }
+    }
+
+    pub fn covers(&self, ctx: &Context, pos: Pos2) -> bool {
+        let scale = scale(ctx);
+        let pos = pos2(pos.x / scale, pos.y / scale);
+        let layers = self.document.layers();
+        layers.iter().skip(1).any(|layer| {
+            layer.window.is_main()
+                && layer.policy != LayerPolicy::Inert
+                && self
+                    .document
+                    .layer_covers(layer)
+                    .iter()
+                    .any(|cover| cover.contains(pos))
+        })
     }
 
     pub fn has_focus(&self) -> bool {
@@ -594,14 +612,14 @@ impl Inspector {
 
     pub fn intercepts(&self) -> bool {
         self.state().picking.get()
-            || self.grabbed.is_some()
+            || self.held
             || self.resizing.is_some()
             || self.toolbar.open()
             || self.state().screen_reader.get()
     }
 
     pub fn takes_keys(&self) -> bool {
-        self.state().picking.get() || self.grabbed.is_some() || self.resizing.is_some()
+        self.state().picking.get() || self.resizing.is_some()
     }
 
     pub fn claims(&self, event: &Event) -> bool {
@@ -616,38 +634,6 @@ impl Inspector {
         self.state().toggle_responsive();
     }
 
-    fn grab(&mut self, ctx: &Context, rect: Rect) {
-        let scale = scale(ctx);
-        let edge = rect.right() - self.panel_width(ctx, rect);
-        let grip = Rect::from_min_max(
-            pos2(edge - GRIP_WIDTH, rect.top()),
-            pos2(edge + GRIP_WIDTH, rect.bottom()),
-        );
-        let maximum = (rect.width() / scale - NARROWEST_APP_WIDTH).max(MINIMUM_WIDTH);
-        let width_at = |at: Pos2, grabbed: f32| {
-            ((rect.right() - at.x + grabbed) / scale).clamp(MINIMUM_WIDTH, maximum)
-        };
-        for (down, at) in primary(ctx) {
-            match down {
-                true if grip.contains(at) => self.grabbed = Some(at.x - edge),
-                true => {}
-                false => {
-                    if let Some(grabbed) = self.grabbed.take() {
-                        self.width = width_at(at, grabbed);
-                    }
-                }
-            }
-        }
-        let Some(pointer) = ctx.input(|input| input.pointer.interact_pos()) else {
-            self.grip = false;
-            return;
-        };
-        if let Some(grabbed) = self.grabbed {
-            self.width = width_at(pointer, grabbed);
-        }
-        self.grip = self.grabbed.is_some() || grip.contains(pointer);
-    }
-
     pub fn show(
         &mut self,
         target: &mut Document,
@@ -656,36 +642,14 @@ impl Inspector {
         keyboard_interactive: bool,
     ) {
         let Layout {
-            bar,
             toolbar,
             content,
             readout,
-            panel,
             app_visible,
         } = *layout;
-        self.forget_removed(target);
-        self.sync(target, ctx);
-        let scale = scale(ctx);
-        let compact = self.state().compact.get();
-        if std::mem::replace(&mut self.shown_compact, compact) != compact {
-            self.panel_compact.set(compact);
+        if self.state().release_keyboard.take() {
+            self.blur();
         }
-        let document = &mut self.document;
-        if panel.is_positive() {
-            let keys = keyboard_interactive && document.focused_node().is_some();
-            ctx.scaled(scale, || {
-                ctx.with_input(
-                    |input| keyed(input, keys),
-                    || document.show_content(ctx, panel.scaled(scale.recip())),
-                );
-            });
-        } else {
-            document.hide();
-        }
-        if self.tools_shown() != self.synced_shown {
-            ctx.request_repaint();
-        }
-        self.show_bar(ctx, bar);
         if self.state().reset_performance.take() {
             target.reset_performance();
             ctx.request_repaint();
@@ -712,7 +676,7 @@ impl Inspector {
         self.release_focus(ctx);
         if app_visible {
             self.read(target, ctx, content, keyboard_interactive);
-            self.paint(target, ctx, content, panel);
+            self.paint(target, ctx, content);
             let covering = self.reader.painting();
             if covering {
                 self.cover(ctx, content, readout, Layer::Below(target.screen_scale()));
@@ -849,27 +813,6 @@ impl Inspector {
         });
     }
 
-    fn show_bar(&mut self, ctx: &Context, bar: Rect) {
-        if !bar.is_positive() {
-            self.bar.document.hide();
-            return;
-        }
-        let scale = scale(ctx);
-        let selected = usize::from(!self.state().app_shown.get());
-        let panel::Bar {
-            document,
-            selected: shown_selected,
-            ..
-        } = &mut self.bar;
-        shown_selected.set(selected);
-        ctx.scaled(scale, || {
-            ctx.with_input(
-                |input| keyed(input, false),
-                || document.show_content(ctx, bar.scaled(scale.recip())),
-            );
-        });
-    }
-
     fn read(&mut self, target: &Document, ctx: &Context, content: Rect, panel_has_focus: bool) {
         self.reader.configure(self.state().screen_reader.get());
         let commands = self.state().take_commands();
@@ -912,16 +855,20 @@ impl Inspector {
     }
 
     fn tools_shown(&self) -> [bool; 3] {
+        InspectorTab::TREES.map(|tab| self.tab_shown(tab))
+    }
+
+    fn tab_shown(&self, tab: InspectorTab) -> bool {
         let tools = self.tools;
         let stacked = tools.mode().get_untracked() == DockMode::Stacked;
-        tools.state().with_untracked(|state| {
-            InspectorTab::TREES.map(|tab| match state.is_empty() {
+        tools
+            .state()
+            .with_untracked(|state| match state.is_empty() {
                 true => tab == InspectorTab::default(),
                 false => tools
                     .tab_of(&tab)
                     .is_some_and(|id| state.is_shown(id, stacked)),
             })
-        })
     }
 
     fn current_tree(&self) -> Option<usize> {
@@ -1089,7 +1036,7 @@ impl Inspector {
         let pressed = primary(ctx).into_iter().find(|(down, _)| *down);
         if let Some(id) = pressed.and_then(|(_, at)| under(at)) {
             self.state().stop_picking();
-            self.state().app_shown.set(false);
+            self.state().reveal.set(Some(Reveal::Tool));
             self.state().select(id);
             return;
         }
@@ -1113,11 +1060,11 @@ impl Inspector {
                 tree::component_path(target, id, self.state().selected_component.get())
             }
             InspectorTab::AccessKit => tree::accesskit_path(target, id),
-            InspectorTab::Performance | InspectorTab::Simulation => Vec::new(),
+            InspectorTab::App | InspectorTab::Performance | InspectorTab::Simulation => Vec::new(),
         }
     }
 
-    fn paint(&self, target: &Document, ctx: &Context, content: Rect, panel: Rect) {
+    fn paint(&self, target: &Document, ctx: &Context, content: Rect) {
         let scale = scale(ctx);
         let local = scale.recip();
         let screen = local * target.screen_scale();
@@ -1127,15 +1074,6 @@ impl Inspector {
                 flashes(&painter, target, screen);
                 if let Some(id) = self.highlighted() {
                     overlay::highlight(&painter, target, id, screen);
-                }
-                if self.grip {
-                    let panel = panel.scaled(local);
-                    let grip = Rect::from_min_max(
-                        panel.min,
-                        pos2(panel.left() + GRIP_PAINT_WIDTH, panel.bottom()),
-                    );
-                    ctx.painter().rect_filled(grip, 0.0, Theme::DARK.accent);
-                    ctx.set_cursor_icon(CursorIcon::ResizeHorizontal);
                 }
             });
             ctx.report_damage(painted.union(self.overlay_bounds.replace(painted)));
@@ -1209,14 +1147,6 @@ fn handle_grips(shown: Rect, handle: Handle) -> Vec<Rect> {
     }
 }
 
-fn split(rect: Rect, width: f32) -> (Rect, Rect) {
-    let edge = rect.right() - width;
-    (
-        Rect::from_min_max(rect.min, pos2(edge, rect.bottom())),
-        Rect::from_min_max(pos2(edge, rect.top()), rect.max),
-    )
-}
-
 fn trim_top(rect: Rect, height: f32) -> (Rect, Rect) {
     let height = height.clamp(0.0, rect.height().max(0.0));
     let edge = rect.top() + height;
@@ -1249,7 +1179,7 @@ fn total(target: &Document, tab: InspectorTab) -> usize {
         InspectorTab::Beui => target.root().map_or(0, |root| tree::count(target, root)),
         InspectorTab::Components => tree::component_count(target),
         InspectorTab::AccessKit => tree::accesskit_count(target),
-        InspectorTab::Performance | InspectorTab::Simulation => 0,
+        InspectorTab::App | InspectorTab::Performance | InspectorTab::Simulation => 0,
     }
 }
 
@@ -1307,21 +1237,20 @@ pub fn install(document: &mut Document) {
 
 impl Tools for InspectorTools {
     fn show(&mut self, document: &mut Document, ctx: &Context, rect: Rect) {
+        let viewport = rect;
+        let rect = trim_bottom(rect, ctx.measure_mouse_simulation(viewport)).0;
+        let open = || Box::new(Inspector::new(ctx, rect));
         if chord_pressed(ctx, InputKey::I) {
             self.inspector = match self.inspector {
                 Some(_) => None,
-                None => Some(Box::new(Inspector::new(ctx))),
+                None => Some(open()),
             };
         }
         if chord_pressed(ctx, InputKey::C) && !document.clipboard_keys() {
-            self.inspector
-                .get_or_insert_with(|| Box::new(Inspector::new(ctx)))
-                .toggle_picking();
+            self.inspector.get_or_insert_with(open).toggle_picking();
         }
         if chord_pressed(ctx, InputKey::M) {
-            self.inspector
-                .get_or_insert_with(|| Box::new(Inspector::new(ctx)))
-                .toggle_responsive();
+            self.inspector.get_or_insert_with(open).toggle_responsive();
         }
         if chord_pressed(ctx, InputKey::F)
             && let Some(inspector) = self.inspector.as_mut()
@@ -1334,25 +1263,28 @@ impl Tools for InspectorTools {
             document.track_damage(false);
         }
 
-        let viewport = rect;
-        let rect = trim_bottom(rect, ctx.measure_mouse_simulation(viewport)).0;
-        let mut layout = match &mut self.inspector {
-            Some(inspector) => inspector.layout(ctx, rect),
-            None => Layout::app(rect),
+        let inspector_has_focus = self
+            .inspector
+            .as_ref()
+            .is_some_and(|inspector| inspector.has_focus());
+        let (mut layout, panel) = match &mut self.inspector {
+            Some(inspector) => {
+                ctx.set_aside(|| inspector.show_panel(document, ctx, rect, inspector_has_focus))
+            }
+            None => (Layout::app(rect), Vec::new()),
         };
         let reserved = match &self.inspector {
             Some(inspector) if layout.app_visible => inspector.readout_height(ctx),
             _ => 0.0,
         };
         (layout.content, layout.readout) = trim_bottom(layout.content, reserved);
-        let intercepted = self
-            .inspector
-            .as_ref()
-            .is_some_and(|inspector| inspector.intercepts());
-        let inspector_has_focus = self
-            .inspector
-            .as_ref()
-            .is_some_and(|inspector| inspector.has_focus());
+        if let Some(inspector) = self.inspector.as_mut() {
+            inspector.hold(ctx);
+        }
+        let pointer = ctx.input(|input| input.pointer.interact_pos());
+        let intercepted = self.inspector.as_ref().is_some_and(|inspector| {
+            inspector.intercepts() || pointer.is_some_and(|pointer| inspector.covers(ctx, pointer))
+        });
         let withheld = Withheld {
             pointer: intercepted,
             keys: inspector_has_focus
@@ -1399,16 +1331,16 @@ impl Tools for InspectorTools {
         } else {
             document.hide();
         }
-        if document.take_inspector_request() && self.inspector.is_none() {
-            self.inspector = Some(Box::new(Inspector::new(ctx)));
-            ctx.request_repaint();
-        }
-
         if let Some(mut inspector) = self.inspector.take() {
             inspector.show(document, ctx, &layout, inspector_has_focus);
             if !inspector.closed() {
                 self.inspector = Some(inspector);
             }
+        }
+        ctx.put_back(panel);
+        if document.take_inspector_request() && self.inspector.is_none() {
+            self.inspector = Some(open());
+            ctx.request_repaint();
         }
         ctx.show_mouse_simulation(viewport);
     }

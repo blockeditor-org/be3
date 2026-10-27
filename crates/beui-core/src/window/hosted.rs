@@ -498,10 +498,12 @@ impl Document {
                 .find(|(id, _)| *id == window)
                 .map(|(_, painting)| painting.clone())
                 .unwrap_or_default();
-            let title = self
+            let (title, notice) = self
                 .window_node(window)
                 .and_then(|node| self.overlay_window(node))
-                .and_then(|spec| spec.title.clone());
+                .map_or((None, None), |spec| {
+                    (spec.title.clone(), spec.notice.clone())
+                });
             let appearance = self.windows.appearances.get(&window);
             ctx.show_window(
                 window,
@@ -510,6 +512,7 @@ impl Document {
                 damage,
                 moved,
                 title,
+                notice,
                 appearance,
             );
         }

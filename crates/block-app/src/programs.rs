@@ -11,7 +11,7 @@ use std::sync::mpsc::Receiver;
 use block_plugin_api::{EditorDescriptor, Edits, HostWindowId, ProgramAction, ProgramsWatch};
 use uuid::Uuid;
 
-use crate::{plugin_host, wayland};
+use crate::{desktop_host, plugin_host};
 
 use files::OnDisk;
 
@@ -51,7 +51,7 @@ fn set_editors(listed: Vec<EditorDescriptor>) {
     }
 }
 
-fn descriptors(openers: &[wayland::Opener]) -> Vec<EditorDescriptor> {
+fn descriptors(openers: &[desktop_host::Opener]) -> Vec<EditorDescriptor> {
     openers
         .iter()
         .map(|opener| EditorDescriptor {
@@ -132,7 +132,7 @@ pub(crate) fn show(block: Uuid, block_type: Uuid, editor: Uuid, parent: Uuid) {
         Some(old.and_then(|old| window_of(&old.stage)))
     });
     if let Some(window) = replaced.flatten() {
-        wayland::close(window);
+        desktop_host::close(window);
     }
     if replaced.is_some() {
         crate::compositor::changed();
@@ -195,7 +195,7 @@ pub(crate) fn close(closed: Uuid) {
         windows
     });
     for window in windows {
-        wayland::close(window);
+        desktop_host::close(window);
     }
 }
 
@@ -221,7 +221,7 @@ fn window_of(stage: &Stage) -> Option<HostWindowId> {
 type Read = (Uuid, Result<be_types_host::PlainFile, String>);
 
 pub(crate) struct Programs {
-    programs: wayland::Programs,
+    programs: desktop_host::Programs,
     offered: bool,
     listed_editors: bool,
     files: Option<PathBuf>,
@@ -233,7 +233,7 @@ pub(crate) struct Programs {
 impl Default for Programs {
     fn default() -> Self {
         Self {
-            programs: wayland::Programs::default(),
+            programs: desktop_host::Programs::default(),
             offered: false,
             listed_editors: false,
             files: None,
@@ -253,7 +253,7 @@ impl Programs {
     pub(crate) fn frame(&mut self) {
         for action in plugin_host::take_calls(block_plugin_api::requested::program) {
             match action {
-                ProgramAction::List { icon_size } if wayland::running() => {
+                ProgramAction::List { icon_size } if desktop_host::running() => {
                     self.programs
                         .scan(icon_size.clamp(1, ProgramAction::MAX_ICON_SIZE));
                 }
@@ -262,14 +262,14 @@ impl Programs {
                     self.programs.launch(&program, launch);
                 }
                 ProgramAction::Run(line) => {
-                    wayland::launch(line);
+                    desktop_host::launch(line);
                 }
                 ProgramAction::Exec { command, launch } => {
-                    wayland::exec(command, launch);
+                    desktop_host::exec(command, launch);
                 }
             }
         }
-        let offering = !self.offered && wayland::running();
+        let offering = !self.offered && desktop_host::running();
         self.offered |= offering;
         if offering && self.files.is_some() {
             self.programs.scan(WAITING_ICON_SIZE);
@@ -414,7 +414,7 @@ impl Programs {
     }
 
     fn bind_windows(&mut self) -> bool {
-        let opening = wayland::opening_windows();
+        let opening = desktop_host::opening_windows();
         let mut gone = Vec::new();
         let mut unwanted = Vec::new();
         let changed = with(|sessions| {
@@ -447,7 +447,7 @@ impl Programs {
             changed
         });
         for window in unwanted {
-            wayland::close(window);
+            desktop_host::close(window);
         }
         for block in gone {
             self.write_back(block);
