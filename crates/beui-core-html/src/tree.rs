@@ -326,7 +326,7 @@ impl ParentKind for ListKind {
             ItemSize::Percent(share) => format!("{share} {} 0%", sizing.shrink),
         };
         set_placed_style(child, "flex", Some(flex));
-        let sized_by_content = sizing.size == ItemSize::Intrinsic && sizing.shrink == 0.0;
+        let sized_by_content = sizing.size == ItemSize::Intrinsic;
         set_placed_style(
             child,
             min,
