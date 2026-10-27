@@ -1,6 +1,6 @@
 use std::cell::Ref;
 
-use foldhash::HashMap;
+use foldhash::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use accesskit::{
@@ -694,13 +694,15 @@ impl Document {
         let mut changed = std::mem::take(&mut tree.changed);
         let nodes: Vec<(AccessNodeId, Node)> =
             if full {
-                tree.entries
+                let held: HashMap<AccessNodeId, &Node> = tree
+                    .entries
                     .iter()
-                    .map(|(id, entry)| (self.access_node_id(id), entry.node.clone()))
+                    .map(|(id, entry)| (self.access_node_id(id), &entry.node))
                     .chain(tree.spaces.iter().map(|(space, (entry, _))| {
-                        (self.access_space_id(*space), entry.node.clone())
+                        (self.access_space_id(*space), &entry.node)
                     }))
-                    .collect()
+                    .collect();
+                attached(&held, root)
             } else {
                 changed.sort_unstable_by_key(|key| {
                     (key.node().index(), key.node().generation(), key.slot())
@@ -1049,4 +1051,18 @@ fn is_focusable_control(role: Role) -> bool {
             | Role::PhoneNumberInput
             | Role::UrlInput
     )
+}
+
+fn attached(held: &HashMap<AccessNodeId, &Node>, root: AccessNodeId) -> Vec<(AccessNodeId, Node)> {
+    let mut reached = HashSet::default();
+    let mut nodes = Vec::new();
+    let mut pending = vec![root];
+    while let Some(id) = pending.pop() {
+        let Some(node) = held.get(&id).filter(|_| reached.insert(id)) else {
+            continue;
+        };
+        pending.extend(node.children().iter().copied());
+        nodes.push((id, (*node).clone()));
+    }
+    nodes
 }
