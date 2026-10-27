@@ -1,15 +1,13 @@
 use crate::window::WindowId;
 use std::any::Any;
 
-use crate::base::focus::Focus;
 use crate::base::list::Direction;
 use crate::base::overlay::OverlayNode;
+use crate::focus::Focus;
 use crate::geometry::{Pos2, Rect, Vec2};
-use crate::input::{
-    AutoscrollGesture, CursorIcon, DragGesture, Modifiers, PointerPress, ScrollGesture,
-    SecondaryDrag, ZoomGesture,
-};
+use crate::input::{CursorIcon, Modifiers, PointerInput, PointerPress, TouchDrags, WheelInput};
 use crate::painter::Painter;
+use beui_types::region::{Area, Claim};
 
 use crate::callback::{Callback, ClickCallback};
 use crate::document::Document;
@@ -20,21 +18,19 @@ pub struct InteractiveNode {
     pub focus: Option<Focus>,
     pub cursor: Option<CursorIcon>,
     pub locks_pointer: bool,
-    pub scroll_axis: Option<Direction>,
-    pub capture_presses: bool,
+    pub grabs_pointer: bool,
+    pub captures: Area,
     pub press_focus: bool,
     pub repeat_drag: bool,
-    pub touch_drags: bool,
-    pub touch_drag_axis: Option<Direction>,
+    pub touch_drags: TouchDrags,
     pub claims_touch: bool,
-    pub drawing: bool,
+    pub drawing: Area,
     pub every_sample: bool,
     pub key_active: bool,
     pub armed: bool,
     pub hovered: bool,
     pub hover_pos: Option<Pos2>,
     pub active: bool,
-    pub pan_active: bool,
     pub on_click: ClickCallback,
     pub on_click_at: Callback<PointerPress>,
     pub on_hover_change: Callback<bool>,
@@ -45,24 +41,16 @@ pub struct InteractiveNode {
     pub on_press: Callback<PointerPress>,
     pub on_secondary_press: Callback<PointerPress>,
     pub on_long_press_drag: Callback<PointerPress>,
-    pub on_secondary_drag: Callback<SecondaryDrag>,
     pub on_drag: Callback<PointerPress>,
-    pub on_pan_drag: Callback<Vec2>,
-    pub on_pan_active_change: Callback<bool>,
-    pub on_scroll: Callback<ScrollGesture>,
-    pub on_scroll_drag: Callback<DragGesture>,
-    pub on_autoscroll: Callback<AutoscrollGesture>,
-    pub on_zoom: Callback<ZoomGesture>,
-    pub capture_at: Callback<Pos2, bool>,
-    pub gestures_at: Callback<Pos2, bool>,
-    pub hit_at: Callback<Pos2, bool>,
-    pub drawing_at: Callback<Pos2, bool>,
+    pub on_pointer: Callback<PointerInput, bool>,
+    pub on_wheel: Callback<WheelInput, bool>,
+    pub gesture_area: Area,
+    pub hit_area: Area,
     pub on_forward: Callback<crate::interact::forward::ForwardedInput>,
     pub inhibits_shortcuts: bool,
     pub clipboard_keys: bool,
     pub forwards_wheel: bool,
-    pub claim_modifiers: Option<Modifiers>,
-    pub claim_at: Callback<(Pos2, Modifiers), bool>,
+    pub claims: Vec<Claim>,
     pub on_press_outside: Callback<Pos2>,
 }
 
@@ -79,21 +67,19 @@ impl InteractiveNode {
             focus: None,
             cursor: None,
             locks_pointer: false,
-            scroll_axis: None,
-            capture_presses: false,
+            grabs_pointer: false,
+            captures: Area::Nowhere,
             press_focus: true,
             repeat_drag: false,
-            touch_drags: false,
-            touch_drag_axis: None,
+            touch_drags: TouchDrags::None,
             claims_touch: true,
-            drawing: false,
+            drawing: Area::Nowhere,
             every_sample: false,
             key_active: false,
             armed: false,
             hovered: false,
             hover_pos: None,
             active: false,
-            pan_active: false,
             on_click: ClickCallback::empty(),
             on_click_at: Callback::empty(),
             on_hover_change: Callback::empty(),
@@ -104,51 +90,18 @@ impl InteractiveNode {
             on_press: Callback::empty(),
             on_secondary_press: Callback::empty(),
             on_long_press_drag: Callback::empty(),
-            on_secondary_drag: Callback::empty(),
             on_drag: Callback::empty(),
-            on_pan_drag: Callback::empty(),
-            on_pan_active_change: Callback::empty(),
-            on_scroll: Callback::empty(),
-            on_scroll_drag: Callback::empty(),
-            on_autoscroll: Callback::empty(),
-            on_zoom: Callback::empty(),
-            capture_at: Callback::empty(),
-            gestures_at: Callback::empty(),
-            hit_at: Callback::empty(),
-            drawing_at: Callback::empty(),
+            on_pointer: Callback::empty(),
+            on_wheel: Callback::empty(),
+            gesture_area: Area::Nowhere,
+            hit_area: Area::Whole,
             on_forward: Callback::empty(),
             inhibits_shortcuts: false,
             clipboard_keys: false,
             forwards_wheel: true,
-            claim_modifiers: None,
-            claim_at: Callback::empty(),
+            claims: Vec::new(),
             on_press_outside: Callback::empty(),
         }
-    }
-
-    pub fn hits(&self, pos: Pos2, rect: Rect, scale: f32) -> bool {
-        self.hit_at.is_empty() || self.hit_at.call(local_in(rect, scale, pos))
-    }
-
-    pub fn claims(&self, pos: Pos2, rect: Rect, held: Modifiers) -> bool {
-        let whole = self.claim_modifiers.is_some_and(|claimed| {
-            claimed.any() && held.holds(claimed) && rect.contains_half_open(pos)
-        });
-        whole || (!self.claim_at.is_empty() && self.claim_at.call((pos, held)))
-    }
-
-    pub fn captures(&self, pos: Pos2, rect: Rect) -> bool {
-        (self.capture_presses && rect.contains_half_open(pos))
-            || (!self.capture_at.is_empty() && self.capture_at.call(pos))
-    }
-
-    pub fn draws_at(&self, pos: Pos2, rect: Rect) -> bool {
-        (self.drawing && rect.contains_half_open(pos))
-            || (!self.drawing_at.is_empty() && self.drawing_at.call(pos))
-    }
-
-    pub fn takes_gestures_at(&self, pos: Pos2) -> bool {
-        !self.gestures_at.is_empty() && self.gestures_at.call(pos)
     }
 
     pub fn forwards(&self) -> bool {
@@ -160,7 +113,7 @@ impl InteractiveNode {
     }
 
     pub fn takes_presses(&self) -> bool {
-        self.capture_presses
+        self.captures == Area::Whole
             || !self.on_click.is_empty()
             || !self.on_click_at.is_empty()
             || !self.on_press.is_empty()
@@ -173,53 +126,28 @@ impl InteractiveNode {
             || !self.on_long_press_drag.is_empty()
             || !self.on_cancel.is_empty()
             || !self.on_active_change.is_empty()
-            || !self.capture_at.is_empty()
-            || !self.claim_at.is_empty()
-            || self.claim_modifiers.is_some()
+            || !matches!(self.captures, Area::Nowhere | Area::Whole)
+            || !self.claims.is_empty()
     }
 
     pub fn takes_secondary(&self) -> bool {
-        !self.on_secondary_press.is_empty() || !self.on_secondary_drag.is_empty()
+        !self.on_secondary_press.is_empty()
+    }
+
+    pub fn hears_pointers(&self) -> bool {
+        !self.on_pointer.is_empty()
     }
 
     pub fn claims_touches(&self) -> bool {
         self.claims_touch && self.takes_presses()
     }
 
-    pub fn wants_gestures(&self) -> bool {
-        !self.on_zoom.is_empty() || !self.on_pan_drag.is_empty()
-    }
-
-    pub fn wants_autoscroll(&self) -> bool {
-        !self.on_autoscroll.is_empty()
-    }
-
-    pub fn claims_middle(&self) -> bool {
-        self.wants_autoscroll()
-            || !self.on_pan_drag.is_empty()
-            || !self.on_middle_click.is_empty()
-            || self.forwards()
-    }
-
-    pub fn wants_wheel(&self, wheel: Vec2) -> bool {
-        !self.on_scroll.is_empty() && self.along(wheel)
-    }
-
-    pub fn catches_drag(&self, direction: Direction) -> bool {
-        self.holds_drag(direction)
-            || (!self.on_scroll_drag.is_empty()
-                && self.scroll_axis.is_none_or(|axis| axis == direction))
+    pub fn stops_middle(&self) -> bool {
+        !self.on_middle_click.is_empty() || self.forwards()
     }
 
     pub fn holds_drag(&self, direction: Direction) -> bool {
-        self.touch_drags || self.touch_drag_axis == Some(direction)
-    }
-
-    fn along(&self, wheel: Vec2) -> bool {
-        match self.scroll_axis {
-            Some(axis) => axis.main(wheel) != 0.0,
-            None => wheel != Vec2::ZERO,
-        }
+        self.touch_drags.holds(direction)
     }
 
     pub fn is_active(&self) -> bool {
@@ -351,7 +279,6 @@ impl Element for InteractiveNode {
             (self.on_click_at.is_empty(), "click at"),
             (self.on_press.is_empty(), "press"),
             (self.on_secondary_press.is_empty(), "secondary press"),
-            (self.on_secondary_drag.is_empty(), "secondary drag"),
             (self.on_middle_click.is_empty(), "middle click"),
             (self.on_cancel.is_empty(), "cancel"),
             (self.on_hover_change.is_empty(), "hover"),
@@ -359,11 +286,8 @@ impl Element for InteractiveNode {
             (self.on_active_change.is_empty(), "active"),
             (self.on_drag.is_empty(), "drag"),
             (self.on_long_press_drag.is_empty(), "long press drag"),
-            (self.on_pan_drag.is_empty(), "pan"),
-            (self.on_scroll.is_empty(), "scroll"),
-            (self.on_scroll_drag.is_empty(), "scroll drag"),
-            (self.on_autoscroll.is_empty(), "autoscroll"),
-            (self.on_zoom.is_empty(), "zoom"),
+            (self.on_pointer.is_empty(), "pointer"),
+            (self.on_wheel.is_empty(), "wheel"),
             (self.on_forward.is_empty(), "forward"),
         ]
         .into_iter()
@@ -374,7 +298,7 @@ impl Element for InteractiveNode {
             (self.active, "active"),
             (self.armed, "armed"),
             (self.key_active, "key active"),
-            (self.pan_active, "panning"),
+            (self.grabs_pointer, "grabbing the pointer"),
         ]
         .into_iter()
         .filter_map(|(on, name)| on.then_some(name))
@@ -387,7 +311,10 @@ impl Element for InteractiveNode {
                     (focus.yields_tab_stop, "yields tab stop"),
                     (self.press_focus, "press"),
                     (focus.ime, "ime"),
-                    (focus.keyboard_on_focus, "keyboard"),
+                    (
+                        focus.keyboard != beui_types::input::SoftKeyboard::OnPress,
+                        "keyboard",
+                    ),
                 ]
                 .into_iter()
                 .filter_map(|(on, name)| on.then_some(name))
@@ -408,11 +335,6 @@ impl Element for InteractiveNode {
                 "cursor",
                 self.cursor
                     .map_or_else(|| "default".to_owned(), |cursor| format!("{cursor:?}")),
-            ),
-            (
-                "scroll axis",
-                self.scroll_axis
-                    .map_or_else(|| "none".to_owned(), |axis| format!("{axis:?}")),
             ),
             ("handlers", list(handlers)),
             ("state", list(states)),
@@ -479,15 +401,21 @@ impl Document {
         }
     }
 
-    pub fn set_interactive_capture_presses(
-        &mut self,
-        id: NodeOf<InteractiveNode>,
-        capture_presses: bool,
-    ) {
-        if self.arena.get_as::<InteractiveNode>(id).capture_presses != capture_presses {
-            self.arena
-                .touch_mut_as::<InteractiveNode>(id)
-                .capture_presses = capture_presses;
+    pub fn set_interactive_captures(&mut self, id: NodeOf<InteractiveNode>, captures: Area) {
+        if self.arena.get_as::<InteractiveNode>(id).captures != captures {
+            self.arena.touch_mut_as::<InteractiveNode>(id).captures = captures;
+        }
+    }
+
+    pub fn set_interactive_hit_area(&mut self, id: NodeOf<InteractiveNode>, area: Area) {
+        if self.arena.get_as::<InteractiveNode>(id).hit_area != area {
+            self.arena.touch_mut_as::<InteractiveNode>(id).hit_area = area;
+        }
+    }
+
+    pub fn set_interactive_gesture_area(&mut self, id: NodeOf<InteractiveNode>, area: Area) {
+        if self.arena.get_as::<InteractiveNode>(id).gesture_area != area {
+            self.arena.touch_mut_as::<InteractiveNode>(id).gesture_area = area;
         }
     }
 
@@ -497,31 +425,21 @@ impl Document {
         }
     }
 
-    pub fn set_interactive_scroll_axis(
-        &mut self,
-        id: NodeOf<InteractiveNode>,
-        axis: Option<Direction>,
-    ) {
-        if self.arena.get_as::<InteractiveNode>(id).scroll_axis != axis {
-            self.arena.touch_mut_as::<InteractiveNode>(id).scroll_axis = axis;
+    pub fn set_interactive_grabs_pointer(&mut self, id: NodeOf<InteractiveNode>, grabs: bool) {
+        if self.arena.get_as::<InteractiveNode>(id).grabs_pointer == grabs {
+            return;
+        }
+        self.arena.touch_mut_as::<InteractiveNode>(id).grabs_pointer = grabs;
+        match grabs {
+            true => self.pointers.grabber = Some(id.id()),
+            false if self.pointers.grabber == Some(id.id()) => self.pointers.grabber = None,
+            false => {}
         }
     }
 
-    pub fn set_interactive_touch_drags(&mut self, id: NodeOf<InteractiveNode>, touch_drags: bool) {
-        if self.arena.get_as::<InteractiveNode>(id).touch_drags != touch_drags {
-            self.arena.touch_mut_as::<InteractiveNode>(id).touch_drags = touch_drags;
-        }
-    }
-
-    pub fn set_interactive_touch_drag_axis(
-        &mut self,
-        id: NodeOf<InteractiveNode>,
-        axis: Option<Direction>,
-    ) {
-        if self.arena.get_as::<InteractiveNode>(id).touch_drag_axis != axis {
-            self.arena
-                .touch_mut_as::<InteractiveNode>(id)
-                .touch_drag_axis = axis;
+    pub fn set_interactive_touch_drags(&mut self, id: NodeOf<InteractiveNode>, drags: TouchDrags) {
+        if self.arena.get_as::<InteractiveNode>(id).touch_drags != drags {
+            self.arena.touch_mut_as::<InteractiveNode>(id).touch_drags = drags;
         }
     }
 
@@ -535,15 +453,15 @@ impl Document {
         }
     }
 
-    pub fn set_interactive_drawing(&mut self, id: NodeOf<InteractiveNode>, drawing: bool) {
+    pub fn set_interactive_drawing(&mut self, id: NodeOf<InteractiveNode>, drawing: Area) {
         if self.arena.get_as::<InteractiveNode>(id).drawing == drawing {
             return;
         }
-        self.arena.touch_mut_as::<InteractiveNode>(id).drawing = drawing;
         match drawing {
-            true => self.drawing_surfaces.insert(id.id()),
-            false => self.drawing_surfaces.remove(&id.id()),
+            Area::Nowhere => self.drawing_surfaces.remove(&id.id()),
+            _ => self.drawing_surfaces.insert(id.id()),
         };
+        self.arena.touch_mut_as::<InteractiveNode>(id).drawing = drawing;
     }
 
     pub fn set_interactive_every_sample(&mut self, id: NodeOf<InteractiveNode>, every: bool) {
@@ -567,9 +485,40 @@ impl Document {
         self.drawing_surfaces
             .iter()
             .filter(|id| self.arena.contains(**id) && self.window_of(**id) == window)
-            .filter_map(|id| self.rects.visible(id))
+            .filter_map(|id| {
+                let node = self
+                    .arena
+                    .get(*id)
+                    .as_any()
+                    .downcast_ref::<InteractiveNode>()?;
+                Some(self.area_rects(*id, &node.drawing))
+            })
+            .flatten()
             .filter(|rect| rect.is_positive())
             .collect()
+    }
+
+    pub fn area_rects(&self, id: NodeId, area: &Area) -> Vec<Rect> {
+        match area {
+            Area::Nowhere | Area::CaretHandles => Vec::new(),
+            Area::Whole => self.rects.visible(&id).into_iter().collect(),
+            Area::Within(region) => {
+                self.rects
+                    .scaled(&id)
+                    .map_or_else(Vec::new, |(rect, scale)| {
+                        region
+                            .rects()
+                            .iter()
+                            .map(|local| {
+                                Rect::from_min_max(
+                                    rect.min + local.min.to_vec2() * scale,
+                                    rect.min + local.max.to_vec2() * scale,
+                                )
+                            })
+                            .collect()
+                    })
+            }
+        }
     }
 
     pub fn set_interactive_inhibits_shortcuts(
@@ -620,35 +569,15 @@ impl Document {
         }
     }
 
-    pub fn set_interactive_claim_modifiers(
-        &mut self,
-        id: NodeOf<InteractiveNode>,
-        claimed: Option<Modifiers>,
-    ) {
-        if self.arena.get_as::<InteractiveNode>(id).claim_modifiers == claimed {
+    pub fn set_interactive_claims(&mut self, id: NodeOf<InteractiveNode>, claims: Vec<Claim>) {
+        if self.arena.get_as::<InteractiveNode>(id).claims == claims {
             return;
         }
-        let node = self.arena.touch_mut_as::<InteractiveNode>(id);
-        node.claim_modifiers = claimed;
-        let claims = claimed.is_some() || !node.claim_at.is_empty();
-        match claims {
-            true => self.press_claimants.insert(id.id()),
-            false => self.press_claimants.remove(&id.id()),
+        match claims.is_empty() {
+            true => self.press_claimants.remove(&id.id()),
+            false => self.press_claimants.insert(id.id()),
         };
-    }
-
-    pub fn set_interactive_claim_at(
-        &mut self,
-        id: NodeOf<InteractiveNode>,
-        claim_at: Callback<(Pos2, Modifiers), bool>,
-    ) {
-        let node = self.arena.touch_mut_as::<InteractiveNode>(id);
-        node.claim_at = claim_at;
-        let claims = !node.claim_at.is_empty() || node.claim_modifiers.is_some();
-        match claims {
-            true => self.press_claimants.insert(id.id()),
-            false => self.press_claimants.remove(&id.id()),
-        };
+        self.arena.touch_mut_as::<InteractiveNode>(id).claims = claims;
     }
 
     pub fn set_interactive_on_press_outside(
@@ -705,15 +634,25 @@ impl Document {
             .iter()
             .filter(|id| self.arena.contains(**id) && self.window_of(**id) == window)
             .filter_map(|id| {
-                let claimed = self
+                let node = self
                     .arena
                     .get(*id)
                     .as_any()
-                    .downcast_ref::<InteractiveNode>()?
-                    .claim_modifiers?;
-                let rect = self.rects.visible(id)?;
-                (claimed.any() && rect.is_positive()).then_some((claimed, rect))
+                    .downcast_ref::<InteractiveNode>()?;
+                Some(
+                    node.claims
+                        .iter()
+                        .filter(|claim| claim.modifiers.any())
+                        .flat_map(|claim| {
+                            self.area_rects(*id, &claim.area)
+                                .into_iter()
+                                .map(|rect| (claim.modifiers, rect))
+                        })
+                        .collect::<Vec<_>>(),
+                )
             })
+            .flatten()
+            .filter(|(_, rect)| rect.is_positive())
             .collect()
     }
 

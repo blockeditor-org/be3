@@ -1,0 +1,8 @@
+# A canvas places its items through its view: panning moves them, zooming
+# scales the items that scale.
+clock stop
+wait 'Item 20x20 at 20,10'
+click '#canvas.pan'
+wait 'Item 20x20 at 70,10'
+click '#canvas.zoom'
+wait 'Item 40x40 at 90,20'

@@ -57,7 +57,10 @@ fn a_text_with_breaks_draws_its_lines_apart_but_keeps_its_text_whole() {
             vec![0..5, 5..11, 11..16],
             "each break ends a line ({overflow:?})"
         );
-        let geometry = harness.document().text_geometry(text);
+        let geometry = harness
+            .document()
+            .text_geometry(text)
+            .expect("the text is laid out");
         let second = geometry.caret_rect(5, 1.0).expect("an index has a caret");
         let start = geometry.caret_rect(0, 1.0).expect("an index has a caret");
         assert_eq!(

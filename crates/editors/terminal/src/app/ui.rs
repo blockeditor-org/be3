@@ -7,6 +7,7 @@ use terminal_view::{Fit, Lines, TerminalInput, TerminalView};
 
 use super::offline::{Offline, SetupSteps};
 use super::session::Session;
+use beui::{Align, Align2, Direction, Extent, ItemSize};
 
 const BAR_PADDING: Space = Space::Md;
 const BAR_HEIGHT: Size = Size::Xl2;

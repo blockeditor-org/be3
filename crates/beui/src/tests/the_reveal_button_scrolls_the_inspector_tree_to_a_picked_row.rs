@@ -32,7 +32,7 @@ fn the_reveal_button_scrolls_the_inspector_tree_to_a_picked_row() {
         .expect("the frame was not laid out")
         .center();
     harness.click(target);
-    harness.frame(Vec::new());
+    harness.settle();
 
     assert_eq!(harness.inspector().state().selected.get(), Some(picked));
     assert!(

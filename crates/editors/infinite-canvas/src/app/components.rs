@@ -13,6 +13,7 @@ use database_types::database_schema::DatabaseSchemaContent;
 use uuid::Uuid;
 
 use super::state::{CanvasState, attach_component, remove_component, set_component_value};
+use beui::{Align, Direction, ItemSize};
 
 const SPACING: Space = Space::Md;
 

@@ -1,6 +1,6 @@
 use beui_components_styled::frame::{Border, ColorRole, Frame, Radius, focus_border};
-use beui_core::font::Overflow;
 use beui_macros::{component, view};
+use beui_view::types::Overflow;
 
 use crate::styled::{BarRoom, DockMenu};
 use crate::unstyled::{DockStackHandle, DockSwitcherCardHandle, DockSwitcherHandle, TabId};
@@ -17,11 +17,14 @@ use beui_components_styled::tokens::{Padding, Size, Space, Stroke};
 use beui_components_styled::{Grid, List};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::title_action;
-use beui_core::base::frame::Align2;
-use beui_core::base::{Align, Direction, ItemSize, TextAlign};
-use beui_core::icons::{Glyph, ICON_ARROW_LEFT, ICON_CHEVRON_DOWN, ICON_ELLIPSIS_VERTICAL, ICON_X};
-use beui_core::node::NodeId;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::Align2;
+use beui_view::types::Track;
+use beui_view::types::icons::{
+    Glyph, ICON_ARROW_LEFT, ICON_CHEVRON_DOWN, ICON_ELLIPSIS_VERTICAL, ICON_X,
+};
+use beui_view::types::{Align, Direction, ItemSize, TextAlign};
 
 const BAR_PADDING: Space = Space::Xs;
 const BAR_SPACING: Space = Space::Xs2;
@@ -43,6 +46,7 @@ const CARD_LINES: Space = Space::Sm;
 pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
     let DockStackHandle {
         title,
+        notice,
         icon,
         backward,
         menu,
@@ -52,6 +56,8 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
         open_switcher,
     } = handle;
     let action = create_memo(move || menu.with(|nodes| title_action(nodes)));
+    let noticed = create_memo(move || notice.with(Option::is_some));
+    let title = create_memo(move || notice.get().unwrap_or_else(|| title.get()));
     let titled = create_memo(move || action.with(Option::is_some));
     view! {
         <List spacing=Space::None>
@@ -71,11 +77,11 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
                         <Dynamic value={titled}>|titled: bool| {
                             match titled {
                                 true => view! {
-                                    <DockTitleButton action title icon />
+                                    <DockTitleButton action title icon noticed />
                                 },
                                 false => view! {
                                     <Frame padding={Padding::horizontal(TITLE_PADDING)}>
-                                        <DockTitle title icon opens=false />
+                                        <DockTitle title icon noticed opens=false />
                                     </Frame>
                                 },
                             }
@@ -99,6 +105,7 @@ fn DockTitleButton(
     action: Memo<Option<Action>>,
     title: Memo<String>,
     icon: Memo<Option<Glyph>>,
+    noticed: Memo<bool>,
 ) -> NodeId {
     let disabled = create_memo(move || {
         action.with(|action| action.as_ref().is_none_or(|action| !action.enabled().get()))
@@ -137,7 +144,7 @@ fn DockTitleButton(
                     padding={Padding::horizontal(TITLE_PADDING)}
                     align={Align2::new(Align::Stretch, Align::Center)}
                 >
-                    <DockTitle title icon opens />
+                    <DockTitle title icon noticed opens />
                 </Frame>
             }
         }</unstyled::Button>
@@ -145,8 +152,17 @@ fn DockTitleButton(
 }
 
 #[component]
-fn DockTitle(title: Memo<String>, icon: Memo<Option<Glyph>>, opens: Prop<bool>) -> NodeId {
+fn DockTitle(
+    title: Memo<String>,
+    icon: Memo<Option<Glyph>>,
+    noticed: Memo<bool>,
+    opens: Prop<bool>,
+) -> NodeId {
     let pictured = create_memo(move || icon.get().is_some());
+    let label = create_memo(move || match noticed.get() {
+        true => TextColor::Accent,
+        false => TextColor::Default,
+    });
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=TITLE_SPACING>
             <Show condition={pictured}>
@@ -154,7 +170,7 @@ fn DockTitle(title: Memo<String>, icon: Memo<Option<Glyph>>, opens: Prop<bool>) 
                     <Icon glyph={icon} />
                 </Text>
             </Show>
-            <Text overflow=Overflow::Ellipsis>{title}</Text>
+            <Text color={label} overflow=Overflow::Ellipsis>{title}</Text>
             <Show condition={opens}>
                 <Text color=TextColor::Muted align=TextAlign::Center>
                     <Icon glyph=ICON_CHEVRON_DOWN />

@@ -127,7 +127,7 @@ impl Date {
     }
 
     pub fn today() -> Self {
-        let seconds = beui_core::timer::wall_clock().as_secs() as i64;
+        let seconds = beui_view::reactive::wall_clock().as_secs() as i64;
         Self::from_days(seconds.div_euclid(SECONDS_PER_DAY))
     }
 
@@ -235,7 +235,7 @@ impl Time {
     }
 
     pub fn now() -> Self {
-        let seconds = beui_core::timer::wall_clock().as_secs() as i64;
+        let seconds = beui_view::reactive::wall_clock().as_secs() as i64;
         Self::from_minutes((seconds.rem_euclid(SECONDS_PER_DAY) / 60) as u32)
     }
 

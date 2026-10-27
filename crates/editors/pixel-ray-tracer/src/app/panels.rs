@@ -6,6 +6,7 @@ use pixel_ray_tracer_types::{PIXEL_RAY_TRACER_PALETTE, RayEntity, RaySettings};
 use crate::overlay::palette_color;
 
 use super::state::{RayState, Surface, Tool};
+use beui::{Align, Direction};
 
 #[component]
 pub(crate) fn ToolsPanel(state: RayState) -> NodeId {

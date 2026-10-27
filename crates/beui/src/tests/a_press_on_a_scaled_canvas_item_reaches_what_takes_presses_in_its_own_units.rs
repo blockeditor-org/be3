@@ -1,4 +1,5 @@
 use super::*;
+use crate::HitRegion;
 use crate::input::PointerPress;
 use crate::primitives::*;
 use crate::reactive::*;
@@ -22,7 +23,7 @@ fn a_press_on_a_scaled_canvas_item_reaches_what_takes_presses_in_its_own_units()
                 <CanvasItem x=10.0 y=10.0 width=40.0 height=20.0 scales=true>
                     <Interactive
                         @node_ref=&button
-                        hit_at={|local: Pos2| local.x < 30.0}
+                        hit_area={HitRegion::rect(Rect::from_min_max(pos2(0.0, 0.0), pos2(30.0, 20.0)))}
                         on_click_at={move |press: PointerPress| heard.update(|heard| heard.push(press))}
                     >
                         <Frame width=40.0 height=20.0 />

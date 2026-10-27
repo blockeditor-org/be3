@@ -1,0 +1,8 @@
+# A stack sets its children side by side and stacks them once its container
+# is narrow.
+clock stop
+wait 'value="Second beside"'
+click 'Button "Narrow"'
+wait 'value="Second below"'
+click 'Button "Wide"'
+wait 'value="Second beside"'

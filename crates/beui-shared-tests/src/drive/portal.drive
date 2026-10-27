@@ -1,0 +1,10 @@
+# A portal shows a node built elsewhere; moving it to another portal keeps it
+# live.
+clock stop
+wait 'Shown in first, clicked 0'
+click '#portal.lent'
+wait 'Shown in first, clicked 1'
+click '#portal.move'
+wait 'Shown in second, clicked 1'
+click '#portal.lent'
+wait 'Shown in second, clicked 2'

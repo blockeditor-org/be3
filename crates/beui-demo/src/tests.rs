@@ -1,9 +1,10 @@
 use beui::datetime::Date;
-use beui::{Document, Input, NodeId, Pos2, Vec2, pos2};
+use beui::native::{Document, build};
+use beui::{Input, NodeId, Pos2, Vec2, pos2};
 use block_ui_test::DocumentTest;
 
 use super::*;
-use crate::{DemoApp, PAGES, Page};
+use crate::{DemoRoot, LoneRoot, PAGES, Page};
 
 mod a_banner_says_what_failed_until_it_is_dismissed;
 mod a_card_floats_from_its_tab_and_waits_while_another_tab_is_shown;
@@ -19,6 +20,7 @@ mod a_dialog_on_a_narrow_screen_is_a_sheet_with_its_buttons_stacked;
 mod a_docked_page_shown_fullscreen_covers_the_dock_until_escape;
 mod a_dragged_task_lifts_parts_its_neighbours_and_settles_where_it_is_dropped;
 mod a_fade_shows_what_it_holds_at_its_opacity;
+mod a_frame_moves_turns_and_fades_what_it_holds;
 mod a_list_leaves_no_gap_for_a_hidden_frame;
 mod a_long_menu_page_scrolls_to_the_row_the_keyboard_is_on;
 mod a_long_press_on_the_code_of_a_sample_shows_its_selection_toolbar;
@@ -36,6 +38,7 @@ mod a_sample_shows_its_code_when_asked;
 mod a_scrollbar_shows_over_a_page_as_it_scrolls_and_widens_to_a_track_under_the_pointer;
 mod a_selected_row_stays_selected_under_the_pointer;
 mod a_sheet_rises_from_the_bottom_on_a_phone;
+mod a_spacer_keeps_each_space_token_between_its_neighbours;
 mod a_swatch_button_rings_the_colour_picked;
 mod a_table_lines_its_cells_up_under_its_columns;
 mod a_tabs_pinned_action_sits_in_its_bar_tiled_and_stacked;
@@ -65,8 +68,10 @@ mod swiping_back_on_a_phone_shows_the_catalog_behind_the_page;
 mod tabbing_through_every_page_shows_each_focus_ring_whole;
 mod tabs_and_segments_without_room_become_selects;
 mod text_breaks_end_lines_and_breaking_anywhere_fills_them;
+mod text_in_a_drawing_lands_where_a_text_node_puts_it;
 mod the_action_bar_sample_pins_what_fits_and_offers_the_rest;
 mod the_arrow_keys_move_across_a_menu_grid_and_on_to_the_rows_below;
+mod the_catalog_is_locked_to_its_pane_until_unlocked_from_its_menu;
 mod the_catalog_shows_a_page_in_place_of_the_one_shown_unless_ctrl_is_held;
 mod the_code_of_a_sample_can_be_selected;
 mod the_command_palette_ticks_what_a_menu_ticks;
@@ -75,7 +80,6 @@ mod the_demo_opens_every_page_from_its_catalog;
 mod the_demo_pages_scroll_rather_than_spilling_off_a_small_window;
 mod the_demo_paints_with_only_the_fonts_beui_carries;
 mod the_editor_takes_on_a_theme_chosen_while_it_is_open;
-mod the_inspector_opens_and_closes_beside_the_demo_in_the_dom;
 mod the_inspector_paints_the_component_shadow_tree;
 mod the_inspector_paints_with_the_styled_components;
 mod the_launcher_sample_narrows_its_programs_as_a_name_is_typed;
@@ -95,6 +99,22 @@ mod typing_a_fahrenheit_temperature_moves_the_celsius_one;
 mod waiting_for_data_shows_progress_until_it_arrives;
 
 const TODAY: (i32, u8, u8) = (2026, 1, 15);
+
+fn demo_document(today: Date) -> Document {
+    build(move || {
+        view! {
+            <DemoRoot today />
+        }
+    })
+}
+
+fn alone_document(today: Date, page: Page) -> Document {
+    build(move || {
+        view! {
+            <LoneRoot today page />
+        }
+    })
+}
 const WIDE: Vec2 = Vec2::new(1100.0, 800.0);
 const REVEAL_TICKS: usize = 40;
 const REVEAL_STEP: f32 = 120.0;
@@ -102,12 +122,12 @@ const CATALOG_X: f32 = 40.0;
 
 fn demo(size: Vec2) -> DocumentTest {
     let (year, month, day) = TODAY;
-    DocumentTest::new(DemoApp::on(Date::new(year, month, day)).document, size)
+    DocumentTest::new(demo_document(Date::new(year, month, day)), size)
 }
 
 fn demo_in(size: Vec2, theme: beui::ThemeKind) -> DocumentTest {
     let (year, month, day) = TODAY;
-    let mut test = DocumentTest::new(DemoApp::on(Date::new(year, month, day)).document, size);
+    let mut test = DocumentTest::new(demo_document(Date::new(year, month, day)), size);
     test.context().set_preference_layer(
         beui::PreferenceSource::App,
         beui::PreferenceLayer {
@@ -130,10 +150,7 @@ fn open_pointing_card(test: &mut DocumentTest) -> (beui::Rect, beui::Rect) {
 
 fn alone(size: Vec2, page: Page) -> DocumentTest {
     let (year, month, day) = TODAY;
-    DocumentTest::new(
-        DemoApp::alone(Date::new(year, month, day), page).document,
-        size,
-    )
+    DocumentTest::new(alone_document(Date::new(year, month, day), page), size)
 }
 
 fn open(test: &mut DocumentTest, page: Page) {
@@ -188,10 +205,8 @@ fn select_line(test: &mut DocumentTest, at: Pos2) {
 }
 
 fn selected_text(test: &mut DocumentTest, region: beui::NodeId) -> String {
-    let state = test
-        .document()
-        .api::<beui::unstyled::SelectableState>(region);
-    beui::reactive::with_reactive_scope(test.document_mut(), || state.selected_text())
+    let state = test.document().api::<beui::styled::SelectableState>(region);
+    beui::native::with_reactive_scope(test.document_mut(), || state.selected_text())
 }
 
 fn focused(test: &DocumentTest, test_id: &str) -> bool {

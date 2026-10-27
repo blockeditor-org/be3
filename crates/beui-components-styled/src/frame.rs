@@ -1,12 +1,11 @@
-use beui_core::color::Color32;
-use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::primitives;
-use beui_view::reactive::{
-    Align2, Child, Corners, Get, IntoProp, Memo, Outline, Prop, create_memo, focus_ring,
-};
+use beui_view::reactive::NodeId;
+use beui_view::reactive::{Child, Get, IntoProp, Memo, Prop, create_memo, focus_ring};
+use beui_view::types::{Align2, Corners, Outline};
+use beui_view::types::{Color, Sides, Vec2};
 
-use crate::theme::{POINTER_REACH, ThemeStore, use_theme};
+use crate::theme::{ThemeStore, use_theme};
 use crate::tokens::{CornerSet, Length, Padding, Stroke, resolved};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -45,7 +44,7 @@ pub enum ColorRole {
     Scrim,
     ScrimSoft,
     ScrimStrong,
-    Custom(Color32),
+    Custom(Color),
 }
 
 impl ColorRole {
@@ -85,9 +84,9 @@ impl ColorRole {
         ColorRole::ScrimStrong,
     ];
 
-    pub fn resolve(self, theme: &ThemeStore) -> Color32 {
+    pub fn resolve(self, theme: &ThemeStore) -> Color {
         match self {
-            ColorRole::None => Color32::TRANSPARENT,
+            ColorRole::None => Color::TRANSPARENT,
             ColorRole::Background => theme.background.get(),
             ColorRole::Surface => theme.surface.get(),
             ColorRole::SurfaceRaised => theme.surface_raised.get(),
@@ -115,10 +114,8 @@ impl ColorRole {
             ColorRole::ScrollThumbActive => theme.scroll_thumb_active.get(),
             ColorRole::Track => theme.track.get(),
             ColorRole::Knob => theme.knob.get(),
-            ColorRole::ControlOutline => {
-                theme.control_outline.get().unwrap_or(Color32::TRANSPARENT)
-            }
-            ColorRole::KnobOutline => theme.knob_outline.get().unwrap_or(Color32::TRANSPARENT),
+            ColorRole::ControlOutline => theme.control_outline.get().unwrap_or(Color::TRANSPARENT),
+            ColorRole::KnobOutline => theme.knob_outline.get().unwrap_or(Color::TRANSPARENT),
             ColorRole::Dim => theme.dim.get(),
             ColorRole::Scrim => theme.scrim.get(),
             ColorRole::ScrimSoft => theme.scrim_soft.get(),
@@ -167,7 +164,7 @@ impl ColorRole {
         }
     }
 
-    pub fn custom(color: impl IntoProp<Color32>) -> Prop<ColorRole> {
+    pub fn custom(color: impl IntoProp<Color>) -> Prop<ColorRole> {
         color.into_prop().map(ColorRole::Custom)
     }
 
@@ -282,7 +279,7 @@ pub fn focus_border(focused: impl IntoProp<bool>, border: Border) -> Memo<Option
     create_memo(move || ring.get().then_some(border))
 }
 
-fn fill_color(fill: Prop<ColorRole>, theme: ThemeStore) -> Prop<Color32> {
+fn fill_color(fill: Prop<ColorRole>, theme: ThemeStore) -> Prop<Color> {
     match fill {
         Prop::Static(role) if !role.themed() => Prop::Static(role.resolve(&theme)),
         fill => Prop::dynamic(move || fill.get().resolve(&theme)),
@@ -310,7 +307,10 @@ pub fn Frame(
     #[prop(default = Radius::None)] radius: Prop<Radius>,
     #[prop(default = CornerSet::ALL)] corners: Prop<CornerSet>,
     #[prop(default = None)] border: Prop<Option<Border>>,
-    #[prop(default = false)] pointer: Prop<bool>,
+    #[prop(default = Vec2::ZERO)] translate: Prop<Vec2>,
+    #[prop(default = 0.0)] rotate: Prop<f32>,
+    #[prop(default = 1.0)] opacity: Prop<f32>,
+    #[prop(default = Sides::ZERO)] fade_edges: Prop<Sides>,
     children: Option<Child>,
 ) -> NodeId {
     let theme = use_theme();
@@ -323,10 +323,22 @@ pub fn Frame(
     let width = resolved(width, Length::resolve);
     let height = resolved(height, Length::resolve);
     let padding = resolved(padding, Padding::resolve);
-    let pointer = pointer.map(|pointer| if pointer { POINTER_REACH } else { 0.0 });
     match children {
         Some(child) => view! {
-            <primitives::Frame width height aspect_ratio padding align fill radius outline pointer>
+            <primitives::Frame
+                width
+                height
+                aspect_ratio
+                padding
+                align
+                fill
+                radius
+                outline
+                translate
+                rotate
+                opacity
+                fade_edges
+            >
                 {child}
             </primitives::Frame>
         },
@@ -340,7 +352,10 @@ pub fn Frame(
                 fill
                 radius
                 outline
-                pointer
+                translate
+                rotate
+                opacity
+                fade_edges
             />
         },
     }

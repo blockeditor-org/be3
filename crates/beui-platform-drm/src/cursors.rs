@@ -60,7 +60,7 @@ pub fn names(icon: CursorIcon) -> Vec<&'static str> {
 pub enum Choice {
     Hidden,
     Arrow,
-    Touch(beui::touch_cursor::CursorImage),
+    Touch(beui::native::touch_cursor::CursorImage),
     Themed {
         image: Image,
         size: Vec2,
@@ -71,7 +71,7 @@ pub enum Choice {
 pub fn choose(theme: &Theme, icon: CursorIcon, scale: f32) -> Choice {
     match icon {
         CursorIcon::None => return Choice::Hidden,
-        CursorIcon::Touch => return Choice::Touch(beui::touch_cursor::image(scale)),
+        CursorIcon::Touch => return Choice::Touch(beui::native::touch_cursor::image(scale)),
         _ => {}
     }
     let wanted = (theme.size() as f32 * scale).round().max(1.0) as u32;
@@ -124,8 +124,8 @@ impl Cursors {
                     },
                     Choice::Touch(image) => Shape {
                         sprite: gpu.rgba(image.width, image.height, &image.rgba),
-                        size: Vec2::splat(beui::touch_cursor::SIZE),
-                        hotspot: Vec2::splat(beui::touch_cursor::SIZE / 2.0),
+                        size: Vec2::splat(beui::native::touch_cursor::SIZE),
+                        hotspot: Vec2::splat(beui::native::touch_cursor::SIZE / 2.0),
                     },
                     Choice::Themed {
                         image,

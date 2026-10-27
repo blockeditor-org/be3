@@ -8,6 +8,8 @@ use beui::{CursorIcon, Key, KeyPress, NodeId, Vec2};
 
 use crate::camera::Camera;
 use crate::renderer::Scene;
+use beui::native::draw_gpu;
+use beui::{Align, Direction, ItemSize};
 
 const LONGEST_STEP: f32 = 0.1;
 const HINT_INSET: Space = Space::Xl;

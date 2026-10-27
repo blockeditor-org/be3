@@ -5,6 +5,7 @@ use beui::styled::*;
 use block_editor_plugin::{VersionCommand, VersionCommit, VersionOperation};
 
 use crate::Editor;
+use beui::{Align, Direction, ItemSize};
 
 pub fn short_id(id: &[u8]) -> String {
     id.iter()

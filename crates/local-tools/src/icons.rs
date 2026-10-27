@@ -5,7 +5,7 @@ use std::process::ExitCode;
 use serde_json::Value;
 
 const LIST: &str = "crates/lucide/src/list.rs";
-const FONT: &str = "crates/beui-font-freetype/src/assets/icons/lucide.ttf";
+const FONT: &str = "crates/beui-fonts/src/assets/icons/lucide.ttf";
 
 pub fn main(arguments: Vec<String>) -> ExitCode {
     let [package] = arguments.as_slice() else {

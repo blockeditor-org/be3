@@ -62,8 +62,8 @@ fn pointing_at_the_edge_of_a_scroll_brings_back_its_scrollbar_with_its_track() {
     assert!(!thumb_painted(&output, track), "before it fades out");
 }
 
-fn painted_rect(output: &crate::FrameOutput, rect: Rect, color: Color32) -> bool {
+fn painted_rect(output: &crate::native::FrameOutput, rect: Rect, color: Color32) -> bool {
     output.main().shapes().iter().any(|shape| {
-        matches!(shape, crate::Shape::Rect { rect: painted, color: fill, .. } if *painted == rect && *fill == color)
+        matches!(shape, crate::native::Shape::Rect { rect: painted, color: fill, .. } if *painted == rect && *fill == color)
     })
 }

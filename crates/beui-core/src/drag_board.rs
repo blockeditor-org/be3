@@ -1,116 +1,17 @@
-use std::any::Any;
+pub use beui_types::drag::DragPoint;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use foldhash::HashMap;
 
-use crate::base::list::Direction;
-use crate::callback::{Callback, NodeRef};
 use crate::document::Document;
-use crate::geometry::{Pos2, Rect, Vec2};
-use crate::input::{AutoscrollGesture, Modifiers, PointerPress};
-use crate::node::{NodeId, Rects};
+use crate::geometry::Rect;
+use crate::node::Rects;
 use crate::window::WindowId;
 
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub struct DragPoint {
-    pub window: WindowId,
-    pub pos: Pos2,
-    pub local: Pos2,
-    pub size: Vec2,
-    pub fraction: Vec2,
-    pub modifiers: Modifiers,
-    pub item: Rect,
-}
-
-impl DragPoint {
-    pub fn of(press: PointerPress) -> Self {
-        Self {
-            window: press.window,
-            pos: press.pos,
-            local: press.local,
-            size: press.size,
-            fraction: press.fraction,
-            modifiers: press.modifiers,
-            item: Rect::ZERO,
-        }
-    }
-
-    pub fn at(pos: Pos2, modifiers: Modifiers) -> Self {
-        Self {
-            window: WindowId::MAIN,
-            pos,
-            local: pos,
-            size: Vec2::ZERO,
-            fraction: Vec2::ZERO,
-            modifiers,
-            item: Rect::ZERO,
-        }
-    }
-
-    pub fn in_window(self, window: WindowId) -> Self {
-        Self { window, ..self }
-    }
-
-    pub fn within(self, (rect, scale): (Rect, f32)) -> Self {
-        let press = crate::base::interactive::press_at(
-            rect,
-            scale,
-            self.pos,
-            0,
-            self.modifiers,
-            false,
-            crate::timer::now(),
-        );
-        Self {
-            local: press.local,
-            size: press.size,
-            fraction: press.fraction,
-            ..self
-        }
-    }
-}
-
-pub type Accepts = Rc<dyn Fn(&dyn Any) -> bool>;
-pub type Dropped = Rc<dyn Fn(&dyn Any, DragPoint)>;
-pub type Over = Rc<dyn Fn(Option<(&dyn Any, DragPoint)>)>;
-pub type Pending = Rc<dyn Fn(DragPoint)>;
-pub type Outside = Rc<dyn Fn(DragPoint)>;
-
-pub struct Target {
-    pub id: u64,
-    pub node: NodeRef,
-    pub accepts: Accepts,
-    pub takes: Rc<dyn Fn(DragPoint) -> bool>,
-    pub carrying: Rc<dyn Fn(bool)>,
-    pub over: Over,
-    pub dropped: Dropped,
-    pub hides_preview: Rc<dyn Fn() -> bool>,
-}
-
-pub struct DragSource {
-    pub payload: Rc<dyn Any>,
-    pub item: Rect,
-    pub follow: Rc<dyn Fn(DragPoint)>,
-    pub floating: Rc<dyn Fn(bool)>,
-    pub outside: Outside,
-    pub cancelled: Rc<dyn Fn()>,
-    pub dropped: Rc<dyn Fn()>,
-}
-
-impl DragSource {
-    pub fn new(payload: Rc<dyn Any>) -> Self {
-        Self {
-            payload,
-            item: Rect::ZERO,
-            follow: Rc::new(|_| {}),
-            floating: Rc::new(|_| {}),
-            outside: Rc::new(|_| {}),
-            cancelled: Rc::new(|| {}),
-            dropped: Rc::new(|| {}),
-        }
-    }
-}
+pub use beui_types::drag::{
+    Accepts, DragSource, Dropped, EDGE_BAND, EdgeScroller, Outside, Over, Pending, Target,
+};
 
 struct Carried {
     source: DragSource,
@@ -118,16 +19,6 @@ struct Carried {
     last: Option<DragPoint>,
     floating: Option<bool>,
 }
-
-#[derive(Clone, Copy)]
-struct Edge {
-    catcher: NodeId,
-    report: Callback<AutoscrollGesture>,
-    gesture: AutoscrollGesture,
-}
-
-pub const EDGE_BAND: f32 = 40.0;
-const EDGE_GAIN: f32 = 3.0;
 
 pub struct Board {
     rects: Rc<Rects>,
@@ -137,7 +28,8 @@ pub struct Board {
     painted: RefCell<HashMap<u64, Vec<usize>>>,
     windows: RefCell<HashMap<u64, WindowId>>,
     outside: Cell<bool>,
-    edge: Cell<Option<Edge>>,
+    scrollers: RefCell<Vec<EdgeScroller>>,
+    scrolling: RefCell<Option<(u64, f32, Rc<dyn Fn(Option<f32>)>)>>,
     next: Cell<u64>,
 }
 
@@ -151,7 +43,8 @@ impl Board {
             painted: RefCell::default(),
             windows: RefCell::default(),
             outside: Cell::default(),
-            edge: Cell::default(),
+            scrollers: RefCell::default(),
+            scrolling: RefCell::default(),
             next: Cell::default(),
         }
     }
@@ -278,20 +171,27 @@ impl Board {
         if !self.carrying() && self.pressed.borrow().is_none() {
             return;
         }
-        let painted = self
+        let nodes = self
             .targets
             .borrow()
             .iter()
-            .filter_map(|target| Some((target.id, doc.paint_order(target.node.try_get()?))))
-            .collect();
-        *self.painted.borrow_mut() = painted;
-        let windows = self
-            .targets
-            .borrow()
+            .map(|target| (target.id, target.node))
+            .chain(
+                self.scrollers
+                    .borrow()
+                    .iter()
+                    .map(|scroller| (scroller.id, scroller.node)),
+            )
+            .filter_map(|(id, node)| Some((id, node.try_get()?)))
+            .collect::<Vec<_>>();
+        *self.painted.borrow_mut() = nodes
             .iter()
-            .filter_map(|target| Some((target.id, doc.window_of(target.node.try_get()?))))
+            .map(|(id, node)| (*id, doc.paint_order(*node)))
             .collect();
-        *self.windows.borrow_mut() = windows;
+        *self.windows.borrow_mut() = nodes
+            .iter()
+            .map(|(id, node)| (*id, doc.window_of(*node)))
+            .collect();
     }
 
     pub fn track(&self, point: DragPoint) {
@@ -306,6 +206,7 @@ impl Board {
             if let Some(carried) = self.carried.borrow_mut().as_mut() {
                 carried.last = Some(point);
             }
+            self.stop_edge();
             self.leave();
             return;
         }
@@ -321,12 +222,14 @@ impl Board {
                 Some(Rc::clone(&carried.source.follow))
             }
         };
-        match follow {
-            Some(follow) => follow(self.stamp(point)),
-            None if self.edge.get().is_none() => return,
-            None => {}
+        let moved = follow.is_some();
+        if let Some(follow) = follow {
+            follow(self.stamp(point));
         }
-        self.move_to(point);
+        self.edge_scroll(point);
+        if moved || self.scrolling.borrow().is_some() {
+            self.move_to(point);
+        }
     }
 
     pub fn finish(&self) {
@@ -481,72 +384,77 @@ impl Board {
         false
     }
 
-    pub(crate) fn edge_scroll(
-        &self,
-        pos: Pos2,
-        edges: impl Iterator<
-            Item = (
-                NodeId,
-                Rect,
-                Direction,
-                Callback<AutoscrollGesture>,
-                [bool; 2],
-            ),
-        >,
-    ) {
+    pub fn register_scroller(&self, mut scroller: EdgeScroller) -> u64 {
+        let id = self.next.get();
+        self.next.set(id + 1);
+        scroller.id = id;
+        self.scrollers.borrow_mut().push(scroller);
+        id
+    }
+
+    pub fn unregister_scroller(&self, id: u64) {
+        self.scrollers.borrow_mut().retain(|scroller| scroller.id != id);
+        self.painted.borrow_mut().remove(&id);
+        self.windows.borrow_mut().remove(&id);
+        let stopped = self
+            .scrolling
+            .borrow()
+            .as_ref()
+            .is_some_and(|(scrolling, ..)| *scrolling == id);
+        if stopped {
+            self.scrolling.borrow_mut().take();
+        }
+    }
+
+    fn edge_scroll(&self, point: DragPoint) {
         if !self.carrying() || self.outside.get() {
             self.stop_edge();
             return;
         }
-        let found = edges
-            .filter_map(|(catcher, rect, axis, report, movable)| {
-                let along = |pos: Pos2| axis.main(pos.to_vec2());
-                let (start, end) = (along(rect.min), along(rect.max));
-                let band = EDGE_BAND.min((end - start) / 4.0);
-                let at = along(pos);
-                let depth = match () {
-                    _ if at < start + band && movable[0] => at - (start + band),
-                    _ if at > end - band && movable[1] => at - (end - band),
-                    _ => return None,
-                };
-                let reach =
-                    crate::interact::autoscroll::AUTOSCROLL_DEAD_ZONE + depth.abs() * EDGE_GAIN;
-                let origin = pos - axis.axes(reach * depth.signum(), 0.0);
-                Some(Edge {
-                    catcher,
-                    report,
-                    gesture: AutoscrollGesture {
-                        origin,
-                        pos,
-                        ended: false,
-                        edge: true,
-                    },
-                })
+        let windows = self.windows.borrow();
+        let painted = self.painted.borrow();
+        let found = self
+            .scrollers
+            .borrow()
+            .iter()
+            .filter(|scroller| {
+                windows.get(&scroller.id).copied().unwrap_or(WindowId::MAIN) == point.window
             })
-            .next();
-        let previous = self.edge.get();
+            .filter_map(|scroller| {
+                let rect = self.rects.visible(&scroller.node.try_get()?)?;
+                if !rect.contains_half_open(point.pos) {
+                    return None;
+                }
+                let depth = scroller.depth(rect, point.pos)?;
+                Some((scroller.id, depth, Rc::clone(&scroller.scroll)))
+            })
+            .max_by(|(id, ..), (other, ..)| painted.get(id).cmp(&painted.get(other)));
+        drop((windows, painted));
+        let previous = self
+            .scrolling
+            .borrow()
+            .as_ref()
+            .map(|(id, depth, _)| (*id, *depth));
         match (previous, found) {
-            (Some(previous), Some(found)) if previous.catcher == found.catcher => {
-                if previous.gesture != found.gesture {
-                    self.edge.set(Some(found));
-                    found.report.call(found.gesture);
+            (Some((was, depth)), Some((id, now, scroll))) if was == id => {
+                if depth != now {
+                    *self.scrolling.borrow_mut() = Some((id, now, Rc::clone(&scroll)));
+                    scroll(Some(now));
                 }
             }
-            (_, Some(found)) => {
+            (_, Some((id, depth, scroll))) => {
                 self.stop_edge();
-                self.edge.set(Some(found));
-                found.report.call(found.gesture);
+                *self.scrolling.borrow_mut() = Some((id, depth, Rc::clone(&scroll)));
+                scroll(Some(depth));
             }
             (_, None) => self.stop_edge(),
         }
     }
 
-    fn stop_edge(&self) {
-        if let Some(edge) = self.edge.take() {
-            edge.report.call(AutoscrollGesture {
-                ended: true,
-                ..edge.gesture
-            });
+    pub fn stop_edge(&self) {
+        let stopped = self.scrolling.borrow_mut().take();
+        if let Some((_, _, scroll)) = stopped {
+            scroll(None);
         }
     }
 }

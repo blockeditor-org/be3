@@ -2,6 +2,7 @@ use super::*;
 use beui_components_unstyled::Scroll;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
+use beui_view::types::Outline;
 
 const SHADES: [Color32; 3] = [
     Color32::from_rgb(200, 40, 0),

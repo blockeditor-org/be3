@@ -1,7 +1,7 @@
 use std::cell::Cell;
 
-use beui::accessibility::Fragment;
 use beui::accesskit::Action;
+use beui::native::accessibility::Fragment;
 use beui::{ActionGroup, ActionInfo};
 use block_plugin_api::{EditorRegion, ScreenId};
 
@@ -23,7 +23,7 @@ struct Region {
     actions: ActionGroup,
 }
 
-pub(crate) fn describe(context: &beui::Context) {
+pub(crate) fn describe(context: &beui::native::Context) {
     let on = context.accessibility_active()
         && (context.automated() || context.accessibility_requested());
     let was = DESCRIBING.with(|describing| describing.replace(on));
@@ -109,7 +109,7 @@ pub(crate) fn describe(context: &beui::Context) {
     });
     regions.sort_by_key(|region| region.document);
     for (_, requested) in context.action_requests() {
-        let (pane, id) = match requested.split_once(beui::drive::PANE) {
+        let (pane, id) = match requested.split_once(beui::native::drive::PANE) {
             Some((pane, id)) => (Some(pane), id),
             None => (None, requested.as_str()),
         };

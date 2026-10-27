@@ -1,11 +1,11 @@
 use accesskit::{Node, Role};
-use beui_core::icons::Glyph;
 use beui_macros::{component, view};
+use beui_view::types::icons::Glyph;
 
-use beui_core::input::{CursorIcon, KeyPress, PointerPress};
+use beui_view::types::{CursorIcon, KeyPress, PointerPress};
 
-use beui_core::node::NodeId;
 use beui_view::primitives::*;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
 #[derive(Clone, Copy)]
@@ -50,7 +50,6 @@ pub fn Button(
     accessibility: Option<Prop<Node>>,
 ) -> NodeId {
     let focus_request = focused;
-    let takes_text = !on_text.is_empty();
     let hovered = create_signal(false);
     let active = create_signal(false);
     let focused = create_signal(false);
@@ -132,7 +131,6 @@ pub fn Button(
             focused={focus_request}
             on_key={on_key}
             on_text={on_text}
-            takes_text
             on_focus_change={move |has_focus: bool| {
                 focused.set(has_focus);
                 on_focus_change.call(has_focus);

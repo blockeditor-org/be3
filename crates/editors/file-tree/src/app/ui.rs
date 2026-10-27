@@ -22,6 +22,7 @@ use super::menu::{RowMenu, RowTools};
 use super::rename::Renaming;
 use super::rows::{Inspection, Row, RowKey, Tree as FileTree, access_hint, access_marker};
 use super::zoom::{Zoom, ZoomBar, zooms};
+use beui::{Align, Direction, ItemSize};
 use block_editor_beui::beui::TextAlign;
 
 const PADDING: Space = Space::Md;
@@ -493,7 +494,7 @@ fn TreeRow(
         row.get()
             .and_then(|row| row.icon_color)
             .map_or(TextColor::Muted, |[r, g, b]| {
-                TextColor::Custom(Color32::from_rgb(r, g, b))
+                TextColor::Custom(Color32::from_rgb(r, g, b).into())
             })
     });
     let generated_color = TextColor::Muted;
@@ -1019,7 +1020,7 @@ fn land(editor: Editor, rows: &[Row], carried: &Carried, drop: Option<TreeDrop<R
 }
 
 fn row_rect(tree: TreeApi<RowKey>, key: &RowKey) -> Option<Rect> {
-    placements().rect(tree.row_node(key)?)
+    Some(measure(tree.row_node(key)?).get_untracked()?.rect)
 }
 
 #[derive(Clone, Copy)]

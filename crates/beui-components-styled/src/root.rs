@@ -1,7 +1,7 @@
-use beui_core::window::SystemBars;
 use beui_macros::{component, view};
 use beui_view::primitives;
 use beui_view::reactive::{Child, Get, Prop, create_memo};
+use beui_view::types::SystemBars;
 
 use crate::frame::ColorRole;
 use crate::theme::{ThemeKind, use_theme};

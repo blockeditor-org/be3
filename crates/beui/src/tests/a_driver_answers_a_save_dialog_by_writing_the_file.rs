@@ -29,7 +29,7 @@ fn a_driver_answers_a_save_dialog_by_writing_the_file() {
             </List>
         }
     });
-    let mut driven = headless(crate::testing::Showing(document));
+    let mut driven = headless(crate::native::testing::Showing(document));
     let directory = std::env::temp_dir().join(format!(
         "a_driver_answers_a_save_dialog.{}",
         std::process::id()

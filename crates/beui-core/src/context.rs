@@ -1,3 +1,4 @@
+pub use beui_types::action::{ActionGroup, ActionInfo};
 use foldhash::HashSet;
 use std::any::Any;
 use std::cell::{Cell, Ref, RefCell};
@@ -51,6 +52,7 @@ struct ShownWindow {
     damage: Region,
     moved: Option<Moved>,
     title: Option<String>,
+    notice: Option<String>,
     appearance: Option<Appearance>,
 }
 
@@ -132,8 +134,6 @@ struct Inner {
     accessibility_published: RefCell<HashSet<u32>>,
     kept: RefCell<Option<Kept>>,
     renderer_info: RefCell<Option<RendererInfo>>,
-    renderers: RefCell<RendererChoices>,
-    renderer_choice: Cell<Option<usize>>,
     clock: Cell<Option<Instant>>,
     now: Cell<Instant>,
 }
@@ -181,12 +181,6 @@ pub struct RendererInfo {
     pub rows: Vec<(&'static str, String)>,
 }
 
-#[derive(Clone, Debug, PartialEq, Default)]
-pub struct RendererChoices {
-    pub names: Vec<&'static str>,
-    pub active: usize,
-}
-
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Moved {
     pub from: Rect,
@@ -197,23 +191,6 @@ impl Moved {
     pub fn to(&self) -> Rect {
         self.from.translate(self.by)
     }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct ActionInfo {
-    pub id: String,
-    pub label: String,
-    pub shortcut: Option<String>,
-    pub enabled: bool,
-    pub checked: Option<bool>,
-    pub live: bool,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct ActionGroup {
-    pub name: String,
-    pub window: Option<WindowId>,
-    pub actions: Vec<ActionInfo>,
 }
 
 #[derive(Clone)]
@@ -421,8 +398,6 @@ impl Context {
                 accessibility_published: RefCell::new(HashSet::default()),
                 kept: RefCell::new(Some(Kept::default())),
                 renderer_info: RefCell::new(None),
-                renderers: RefCell::new(RendererChoices::default()),
-                renderer_choice: Cell::new(None),
                 clock: Cell::new(None),
                 now: Cell::new(Instant::now()),
             }),
@@ -435,25 +410,6 @@ impl Context {
 
     pub fn renderer_info(&self) -> Option<RendererInfo> {
         self.inner.renderer_info.borrow().clone()
-    }
-
-    pub fn set_renderers(&self, renderers: RendererChoices) {
-        *self.inner.renderers.borrow_mut() = renderers;
-    }
-
-    pub fn renderers(&self) -> RendererChoices {
-        self.inner.renderers.borrow().clone()
-    }
-
-    pub fn choose_renderer(&self, index: usize) {
-        if index != self.inner.renderers.borrow().active {
-            self.inner.renderer_choice.set(Some(index));
-            self.request_repaint();
-        }
-    }
-
-    pub fn take_renderer_choice(&self) -> Option<usize> {
-        self.inner.renderer_choice.take()
     }
 
     pub fn replace_fonts(&self, fonts: Box<dyn FontBackend>) -> Box<dyn FontBackend> {
@@ -1164,6 +1120,7 @@ impl Context {
         damage: Region,
         moved: Option<Moved>,
         title: Option<String>,
+        notice: Option<String>,
         appearance: Option<&Appearance>,
     ) {
         let layers = painting
@@ -1177,6 +1134,7 @@ impl Context {
             damage,
             moved,
             title,
+            notice,
             appearance: appearance.cloned(),
         });
     }
@@ -1195,6 +1153,7 @@ impl Context {
             state.appearance.clear_color = own.clear_color;
             state.appearance.system_bars = own.system_bars;
             state.appearance.title.clone_from(&window.title);
+            state.appearance.notice.clone_from(&window.notice);
             if pointer == window.id {
                 state.requests.cursor = main.requests.cursor;
                 state.requests.pointer_locked = main.requests.pointer_locked;
@@ -1603,6 +1562,17 @@ impl Context {
                 .iter()
                 .map(|(display, at)| Layer::Display(*at, Rc::clone(display))),
         );
+    }
+
+    pub fn set_aside<R>(&self, content: impl FnOnce() -> R) -> (R, Vec<Layer>) {
+        let layers = self.inner.layers.borrow().len();
+        let result = content();
+        let aside = self.inner.layers.borrow_mut().drain(layers..).collect();
+        (result, aside)
+    }
+
+    pub fn put_back(&self, layers: Vec<Layer>) {
+        self.inner.layers.borrow_mut().extend(layers);
     }
 
     fn grouping<R>(&self, layers: usize, content: impl FnOnce() -> R) -> R {

@@ -1,3 +1,4 @@
+use block_editor_beui::beui::CanvasView;
 use block_editor_beui::beui::icons::ICON_ARROW_RIGHT;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -13,6 +14,7 @@ use crate::drawing::{ActiveDrawing, MAX_BRUSH_SIZE, PixelTool, rasterize_drawing
 
 use super::pane::{Pane, Shown};
 use super::state::Tools;
+use beui::ItemSize;
 
 const GRID_MIN_CELL: f32 = 6.0;
 const GRID_ALPHA: u8 = 60;
@@ -31,171 +33,176 @@ pub(crate) fn ArtworkCanvas(
     let editor = tools.editor();
     let view = editor.canvas();
     let scale = editor.scale();
-    view! {
-        <PlacementBuilder>|placed: ReadSignal<Rect>| {
-            let world = editor.world();
-            let artwork = create_memo(move || {
-                let (width, height) = size.get();
-                if width == 0 || height == 0 {
-                    return Rect::ZERO;
-                }
-                let available = world.get().unwrap_or_else(|| placed.get().size());
-                canvas_rect(
-                    Rect::from_min_size(Pos2::ZERO, available.max(Vec2::new(1.0, 1.0))),
-                    width,
-                    height,
-                )
-            });
+    let placed_held = create_signal(Rect::ZERO);
+    let placed = placed_held.read_only();
+    let world = editor.world();
+    let artwork = create_memo(move || {
+        let (width, height) = size.get();
+        if width == 0 || height == 0 {
+            return Rect::ZERO;
+        }
+        let available = world.get().unwrap_or_else(|| placed.get().size());
+        canvas_rect(
+            Rect::from_min_size(Pos2::ZERO, available.max(Vec2::new(1.0, 1.0))),
+            width,
+            height,
+        )
+    });
 
-            let held = held_modifiers();
-            create_effect(move || {
-                let shift = held.get().shift;
-                untrack(|| tools.constrained.set(shift));
-            });
+    let held = held_modifiers();
+    create_effect(move || {
+        let shift = held.get().shift;
+        untrack(|| tools.constrained.set(shift));
+    });
 
-            let on_press = move |press: PointerPress| {
-                let (width, height) = size.get_untracked();
-                if width == 0 || tools.busy() || !tools.editable() {
-                    return;
-                }
-                tools.constrained.set(press.modifiers.shift);
-                let Some(pixel) = pixel_of(
-                    press.pos,
-                    view.get_untracked(),
-                    editor.content_rect(),
-                    artwork.get_untracked(),
-                    width,
-                    height,
-                ) else {
-                    return;
-                };
-                begin(tools, pixel);
-            };
+    let on_press = move |press: PointerPress| {
+        let (width, height) = size.get_untracked();
+        if width == 0 || tools.busy() || !tools.editable() {
+            return;
+        }
+        tools.constrained.set(press.modifiers.shift);
+        let Some(pixel) = pixel_of(
+            press.pos,
+            view.get_untracked(),
+            editor.content_rect(),
+            artwork.get_untracked(),
+            width,
+            height,
+        ) else {
+            return;
+        };
+        begin(tools, pixel);
+    };
 
-            let on_drag = move |press: PointerPress| {
-                let (width, height) = size.get_untracked();
-                if width == 0 || tools.busy() || !tools.editable() {
-                    return;
-                }
-                tools.constrained.set(press.modifiers.shift);
-                let Some(pixel) = pixel_of(
-                    press.pos,
-                    view.get_untracked(),
-                    editor.content_rect(),
-                    artwork.get_untracked(),
-                    width,
-                    height,
-                ) else {
-                    return;
-                };
-                tools.draw(|drawing| {
-                    if let Some(drawing) = drawing.as_mut() {
-                        drawing.extend(pixel);
-                    }
-                });
-            };
-
-            let on_click_at = move |press: PointerPress| {
-                let (width, height) = size.get_untracked();
-                if width == 0 || tools.busy() || !tools.editable() {
-                    return;
-                }
-                tools.constrained.set(press.modifiers.shift);
-                if let Some(pixel) = pixel_of(
-                    press.pos,
-                    view.get_untracked(),
-                    editor.content_rect(),
-                    artwork.get_untracked(),
-                    width,
-                    height,
-                ) {
-                    finish(tools, pixel, width, height);
-                }
-            };
-
-            let on_secondary = move |press: PointerPress| {
-                let (width, height) = size.get_untracked();
-                if width == 0 {
-                    return;
-                }
-                if let Some(pixel) = pixel_of(
-                    press.pos,
-                    view.get_untracked(),
-                    editor.content_rect(),
-                    artwork.get_untracked(),
-                    width,
-                    height,
-                ) {
-                    sample(tools, pixel);
-                }
-            };
-
-            let on_hover_move = move |press: PointerPress| {
-                let (width, height) = size.get_untracked();
-                if width == 0 {
-                    return;
-                }
-                tools.constrained.set(press.modifiers.shift);
-                hovered.set(pixel_of(
-                    press.pos,
-                    view.get_untracked(),
-                    editor.content_rect(),
-                    artwork.get_untracked(),
-                    width,
-                    height,
-                ));
-            };
-            let on_hover_change = move |inside: bool| {
-                if !inside {
-                    hovered.set(None);
-                }
-            };
-
-            let theme = use_theme();
-            let background = theme.background;
-            create_effect(move || {
-                let (width, height) = size.get();
-                if width == 0 {
-                    return;
-                }
-                let (pixels, color) = pending(tools, hovered.get(), width, height);
-                let dark = is_dark(background.get());
-                pane.refresh(&tools.block(), dark, &pixels, color);
-            });
-
-            let on_key = move |press: KeyPress| shortcut(tools, editor, press);
-
-            let content = NodeRef::new();
-            editor.content(&content);
-            view! {
-                <Frame @node_ref={&content} @test_id={"pixel-art.canvas"}>
-                    <Interactive
-                        focusable=true
-                        on_key={on_key}
-                        cursor=CursorIcon::Crosshair
-                        on_press={on_press}
-                        on_drag={on_drag}
-                        on_click_at={on_click_at}
-                        on_secondary_press={on_secondary}
-                        on_hover_move={on_hover_move}
-                        on_hover_change={on_hover_change}
-                    >
-                        <List spacing=Space::None>
-                            <Artwork
-                                @sizing=ItemSize::Percent(100.0)
-                                shown={shown}
-                                view={view}
-                                scale={scale}
-                                artwork={artwork}
-                                show_grid={tools.show_grid.read_only()}
-                                hovered={hovered.read_only()}
-                            />
-                        </List>
-                    </Interactive>
-                </Frame>
+    let on_drag = move |press: PointerPress| {
+        let (width, height) = size.get_untracked();
+        if width == 0 || tools.busy() || !tools.editable() {
+            return;
+        }
+        tools.constrained.set(press.modifiers.shift);
+        let Some(pixel) = pixel_of(
+            press.pos,
+            view.get_untracked(),
+            editor.content_rect(),
+            artwork.get_untracked(),
+            width,
+            height,
+        ) else {
+            return;
+        };
+        tools.draw(|drawing| {
+            if let Some(drawing) = drawing.as_mut() {
+                drawing.extend(pixel);
             }
-        }</PlacementBuilder>
-    }
+        });
+    };
+
+    let on_click_at = move |press: PointerPress| {
+        let (width, height) = size.get_untracked();
+        if width == 0 || tools.busy() || !tools.editable() {
+            return;
+        }
+        tools.constrained.set(press.modifiers.shift);
+        if let Some(pixel) = pixel_of(
+            press.pos,
+            view.get_untracked(),
+            editor.content_rect(),
+            artwork.get_untracked(),
+            width,
+            height,
+        ) {
+            finish(tools, pixel, width, height);
+        }
+    };
+
+    let on_secondary = move |press: PointerPress| {
+        let (width, height) = size.get_untracked();
+        if width == 0 {
+            return;
+        }
+        if let Some(pixel) = pixel_of(
+            press.pos,
+            view.get_untracked(),
+            editor.content_rect(),
+            artwork.get_untracked(),
+            width,
+            height,
+        ) {
+            sample(tools, pixel);
+        }
+    };
+
+    let on_hover_move = move |press: PointerPress| {
+        let (width, height) = size.get_untracked();
+        if width == 0 {
+            return;
+        }
+        tools.constrained.set(press.modifiers.shift);
+        hovered.set(pixel_of(
+            press.pos,
+            view.get_untracked(),
+            editor.content_rect(),
+            artwork.get_untracked(),
+            width,
+            height,
+        ));
+    };
+    let on_hover_change = move |inside: bool| {
+        if !inside {
+            hovered.set(None);
+        }
+    };
+
+    let theme = use_theme();
+    let background = theme.background;
+    create_effect(move || {
+        let (width, height) = size.get();
+        if width == 0 {
+            return;
+        }
+        let (pixels, color) = pending(tools, hovered.get(), width, height);
+        let dark = is_dark(resolve_color(background.get()));
+        pane.refresh(&tools.block(), dark, &pixels, color);
+    });
+
+    let on_key = move |press: KeyPress| shortcut(tools, editor, press);
+
+    let content = NodeRef::new();
+    editor.content(&content);
+    let built = view! {
+        <Frame @node_ref={&content} @test_id={"pixel-art.canvas"}>
+            <Interactive
+                focusable=true
+                on_key={on_key}
+                cursor=CursorIcon::Crosshair
+                on_press={on_press}
+                on_drag={on_drag}
+                on_click_at={on_click_at}
+                on_secondary_press={on_secondary}
+                on_hover_move={on_hover_move}
+                on_hover_change={on_hover_change}
+            >
+                <List spacing=Space::None>
+                    <Artwork
+                        @sizing=ItemSize::Percent(100.0)
+                        shown={shown}
+                        view={view}
+                        scale={scale}
+                        artwork={artwork}
+                        show_grid={tools.show_grid.read_only()}
+                        hovered={hovered.read_only()}
+                    />
+                </List>
+            </Interactive>
+        </Frame>
+    };
+    let placed_measured = measure(built);
+    create_effect(move || {
+        if let Some(measured) = placed_measured.get() {
+            placed_held.set(measured.rect);
+        }
+    });
+    built
 }
 
 fn shortcut(tools: Tools, editor: block_editor_beui::Editor, press: KeyPress) -> bool {
@@ -360,7 +367,7 @@ fn Artwork(
             </CanvasItem>
             <CanvasItem x={left} y={top} width={width} height={height}>
                 <Frame
-                    border={create_memo(move || Some(Border::new(ColorRole::Custom(Color32::from_rgba_unmultiplied(0, 0, 0, BORDER_ALPHA))).width(Stroke::Custom(thin.get()))))}
+                    border={create_memo(move || Some(Border::new(ColorRole::Custom(Color32::from_rgba_unmultiplied(0, 0, 0, BORDER_ALPHA).into())).width(Stroke::Custom(thin.get()))))}
                 />
             </CanvasItem>
             <Show condition={has_preview}>
@@ -395,7 +402,7 @@ fn Artwork(
                 view! {
                     <CanvasItem x={x} y={y} width={line_width} height={line_height}>
                         <Frame
-                            fill={ColorRole::Custom(Color32::from_rgba_unmultiplied(0, 0, 0, GRID_ALPHA))}
+                            fill={ColorRole::Custom(Color32::from_rgba_unmultiplied(0, 0, 0, GRID_ALPHA).into())}
                         />
                     </CanvasItem>
                 }
@@ -403,7 +410,7 @@ fn Artwork(
             <Show condition={over}>
                 <CanvasItem x={hover_x} y={hover_y} width={hover_size} height={hover_size}>
                     <Frame
-                        border={Border::new(ColorRole::Custom(Color32::WHITE)).width(Stroke::Hairline)}
+                        border={Border::new(ColorRole::Custom(Color32::WHITE.into())).width(Stroke::Hairline)}
                     />
                 </CanvasItem>
             </Show>

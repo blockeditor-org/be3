@@ -46,7 +46,7 @@ fn tapping_the_caret_handle_of_a_text_area_shows_a_toolbar_that_pastes() {
     let row = harness.center(paste);
     harness.touch(TouchPhase::Start, row);
     let output = harness.touch(TouchPhase::End, row);
-    assert_eq!(output.paste, Some(crate::PasteRequest::Asked));
+    assert_eq!(output.paste, Some(crate::native::PasteRequest::Asked));
     assert_eq!(
         output.main().window.requests.pastes,
         [crate::PasteKind::Text]

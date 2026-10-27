@@ -1,0 +1,15 @@
+# A web bundle, BUNDLE_ROOT, at BUNDLE_ADDRESS (serve-bundle.sh). The module's
+# memory is shared, which a browser only hands to a cross-origin isolated page.
+{
+	admin off
+}
+
+{$BUNDLE_ADDRESS} {
+	header {
+		Cross-Origin-Opener-Policy same-origin
+		Cross-Origin-Embedder-Policy require-corp
+	}
+	file_server {
+		root {$BUNDLE_ROOT}
+	}
+}

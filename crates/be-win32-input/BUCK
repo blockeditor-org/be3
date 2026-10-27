@@ -1,0 +1,9 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
+
+# The Win32 calls are behind cfg(windows); the mapping, scan codes and the
+# SendInput entries they build are plain Rust tested here on Linux. verify
+# checks the Windows build (_CROSS_CHECKS).
+
+cargo_library()
+
+cargo_test()

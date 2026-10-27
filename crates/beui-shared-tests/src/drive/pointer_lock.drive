@@ -1,0 +1,7 @@
+# A pointer lock takes the pointer when clicked and lets it go on Escape.
+clock stop
+wait 'value="Locked false"'
+click '#pointer_lock.area'
+wait 'value="Locked true"'
+key escape
+wait 'value="Locked false"'

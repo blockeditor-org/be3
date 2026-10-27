@@ -21,8 +21,10 @@ pub mod datetime;
 pub mod dialog;
 pub mod disclosure;
 pub mod drag;
+pub mod first_fit;
 pub mod fling;
 pub mod floating;
+pub mod gestures;
 pub mod list_row;
 pub mod menu;
 pub mod menu_button;
@@ -42,7 +44,6 @@ pub mod scroll;
 pub mod scrollbar;
 pub mod search_list;
 pub mod select;
-pub mod selectable;
 pub mod sheet;
 pub mod slider;
 pub mod split_button;
@@ -57,13 +58,14 @@ pub mod toggle;
 pub mod tooltip;
 pub mod tree;
 pub mod typeahead;
+mod watched;
 
 pub use accessibility::labelled_node;
 pub use action_bar::{ActionBar, ActionBarHandle, title_action};
 pub use anchored::{Anchored, AnchoredHandle, AnchoredSheetHandle, AnchoredStyle, SheetWhen};
 pub use back_slide::BackSlide;
 pub use banner::Banner;
-pub use beui_core::drag_board::{DragPoint, DragSource};
+pub use beui_view::drag::{DragPoint, DragSource};
 pub use button::{Button, ButtonApi, ButtonHandle};
 pub use calendar::{Calendar, CalendarApi, CalendarCellHandle, CalendarHeaderHandle, CalendarMode};
 pub use choice::{Choice, ChoiceApi, ChoiceItem, ChoiceKind, ChoiceOption, ChoiceOptionHandle};
@@ -100,6 +102,7 @@ pub use disclosure::{Disclosure, DisclosureApi, DisclosureHandle};
 pub use drag::{
     DRAG_PREVIEW_OFFSET, DRAG_THRESHOLD, DragHandle, Draggable, DropHandle, DropTarget,
 };
+pub use first_fit::FirstFit;
 pub use floating::{Edge, Floating};
 pub use list_row::ListRow;
 pub use menu::{
@@ -131,7 +134,6 @@ pub use search_list::{
     SearchList, SearchListApi, SearchRowHandle, fuzzy_score, rank, substring_score,
 };
 pub use select::{Select, SelectApi, SelectOptionHandle, SelectTriggerHandle};
-pub use selectable::{Selectable, SelectableState, copy_selection, select_all};
 pub use sheet::{ModalSheet, Sheet, SheetGripHandle};
 pub use slider::{Slider, SliderApi, SliderHandle, SliderScale};
 pub use split_button::SplitButton;

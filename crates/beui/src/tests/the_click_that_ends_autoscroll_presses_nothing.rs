@@ -30,11 +30,11 @@ fn the_click_that_ends_autoscroll_presses_nothing() {
     harness.frame(vec![Input::PointerMoved(origin)]);
     harness.middle_button(origin, true);
     harness.middle_button(origin, false);
-    assert!(harness.document().autoscroll.is_some());
+    assert!(harness.document().pointer_grabber().is_some());
 
     harness.click(origin);
 
-    assert!(harness.document().autoscroll.is_none());
+    assert!(harness.document().pointer_grabber().is_none());
     assert_eq!(clicks.get_untracked(), 0);
 
     harness.click(origin);

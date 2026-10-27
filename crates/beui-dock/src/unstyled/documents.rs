@@ -1,12 +1,13 @@
 use std::cell::Cell;
 use std::collections::HashMap;
 
-use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::primitives::*;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
 use super::{DockEntry, DockKey, DockingLayout};
+use beui_view::types::ItemSize;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct DockSlot(u64);

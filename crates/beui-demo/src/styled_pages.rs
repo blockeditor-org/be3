@@ -10,6 +10,7 @@ use beui::icons::{
     ICON_UNDO_2, ICON_WIFI, ICON_X, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
 use beui::keyboard::styled::SoftwareKeyboard;
+use beui::{Align, CanvasView, Extent};
 
 const COLUMN_SPACING: Space = Space::Xl2;
 const COLUMNS_BREAKPOINT: f32 = 460.0;
@@ -138,7 +139,8 @@ pub(crate) fn DockingPage() -> NodeId {
                     <Text style=TextStyle::PARAGRAPH>
                         "A page picked in Components takes the place of the page shown, in \
                          the same tab. Hold Ctrl (Cmd on a Mac) while picking one to open it in a \
-                         tab of its own instead."
+                         tab of its own instead. The Components pane is locked: its tab stays \
+                         in it until its right-click menu frees it."
                     </Text>
                     <Text style=TextStyle::CAPTION>
                         "A dock narrower than a phone's width stacks its panes: one tab fills it, and the bar goes back or switches tabs."
@@ -159,6 +161,9 @@ pub(crate) fn DockingPage() -> NodeId {
             </Sample>
             <Sample title="Fullscreen" code={vec![FullscreenTab::SOURCE]}>
                 <FullscreenTab />
+            </Sample>
+            <Sample title="A notice in the tab" code={vec![NoticeTab::SOURCE]}>
+                <NoticeTab />
             </Sample>
             <Sample title="Moving windows by their content" code={vec![ContentDrag::SOURCE]}>
                 <ContentDrag />
@@ -220,7 +225,7 @@ fn AttachedDialogs() -> NodeId {
                     variant=ButtonVariant::Secondary
                     on_click={move || {
                         open_card(pointing.try_get().and_then(|button| {
-                            with_document(|document| document.node_rect(button))
+                            Some(measure(button).get_untracked()?.rect)
                         }))
                     }}
                 />
@@ -372,7 +377,7 @@ fn ContentDrag() -> NodeId {
                  While it is held, dragging anywhere in a window, its bar and tabs included, \
                  moves the whole window, and dragging with the right button resizes it from \
                  its nearest edge or corner, or moves the split nearest the pointer in a docked \
-                 pane. Nothing in the dock or its tabs sees those presses. The Linux desktop \
+                 pane. Nothing in the dock or its tabs sees those presses. The desktop shell \
                  uses Super."
             </Text>
         </List>
@@ -449,6 +454,40 @@ fn FullscreenTab() -> NodeId {
                 "The tab covers the whole window, its bar and every pane around it. \
                  Escape or the same button brings it back. Full screen in the tab's \
                  right-click menu shows it the same way."
+            </Text>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn NoticeTab() -> NodeId {
+    let noticed = create_signal(false);
+    let notice = create_memo(move || {
+        noticed
+            .get()
+            .then(|| "Press Escape to come back".to_owned())
+    });
+    if let Some(control) = use_dock_tab() {
+        control.show_notice(notice);
+    }
+    let label = create_memo(move || match noticed.get() {
+        true => "Hide the notice".to_owned(),
+        false => "Show a notice in this tab".to_owned(),
+    });
+    view! {
+        <List spacing=SECTION_SPACING>
+            <List direction=Direction::Horizontal spacing=ROW_SPACING>
+                <Button
+                    @test_id="demo.notice"
+                    label
+                    variant=ButtonVariant::Secondary
+                    on_click={move || noticed.update(|noticed| *noticed = !*noticed)}
+                />
+            </List>
+            <Text style=TextStyle::CAPTION>
+                "While its content has something to say, such as how to come back from it, \
+                 the tab shows that in place of its title."
             </Text>
         </List>
     }
@@ -3531,6 +3570,9 @@ pub(crate) fn LayoutPage() -> NodeId {
             <Sample title="Frame tokens" code={vec![FrameTokens::SOURCE]}>
                 <FrameTokens />
             </Sample>
+            <Sample title="Spacers" code={vec![SpacedMarks::SOURCE]}>
+                <SpacedMarks />
+            </Sample>
             <Sample title="Pictures" code={vec![Pictures::SOURCE, sunset::SOURCE]}>
                 <Pictures />
             </Sample>
@@ -3575,6 +3617,34 @@ fn Pictures() -> NodeId {
                     </List>
                 }
             }</ForEach>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn SpacedMarks() -> NodeId {
+    view! {
+        <List @test_id="demo.layout.spacers" spacing=Space::Xs>
+            <ForEach keys={(0..Space::ALL.len()).collect::<Vec<_>>()}>|index: usize|
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
+                    <Frame
+                        width=Size::Xs
+                        height=Size::Xs
+                        fill=ColorRole::Accent
+                        radius=Radius::Sm
+                    />
+                    <Spacer width={Space::ALL[index]} />
+                    <Frame
+                        width=Size::Xs
+                        height=Size::Xs
+                        fill=ColorRole::Accent
+                        radius=Radius::Sm
+                    />
+                    <Spacer @sizing=ItemSize::Percent(100.0) />
+                    <Text style=TextStyle::CAPTION>{Space::ALL[index].name()}</Text>
+                </List>
+            </ForEach>
         </List>
     }
 }

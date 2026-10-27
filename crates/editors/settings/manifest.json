@@ -94,6 +94,6 @@
       "module": "settings_types.wasm"
     }
   },
-  "extensions": ["be3:linux-desktop"],
+  "extensions": ["be3:desktop"],
   "entry_point": "settings.wasm"
 }

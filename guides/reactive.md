@@ -437,7 +437,10 @@ A scope has exactly one owner, and there are two kinds:
 - A `Scope` value owns its scope and disposes it when dropped.
   `Scope::detached()` opens one under the current scope, so it reads that
   scope's context and pauses with it, but only the value disposes it;
-  `Scope::new()` is also disposed with the current scope. Keep the value where
+  `Scope::new()` is also disposed with the current scope. `Scope::root()`
+  opens one under no scope at all, reading no context and pausing with
+  nothing, for state that belongs to a whole tree (the HTML core's document
+  scope, where `tree_local` values are made). Keep the value where
   its lifetime belongs: in a `store` when it should go with the current scope
   (the control-flow components keep each branch's scope in one, beside the
   child it built), or in a map entry when it goes with the entry, as
@@ -1039,17 +1042,15 @@ fn Page(#[prop(children)] sections: Render<(), Children<ListChild>>) -> NodeId {
 
 ## Containers and responsive layout
 
-Content that depends on the space it is given is built inside layout, not
-after it: a `LayoutBuilder` hands its render prop a `ReadSignal<Vec2>` of the
-size it is laid out at, and rebuilds its content in the same walk when that
-size changes (see "One layout per frame" in the beui guide). `node_rect(id)`
-watches where a node was placed, for content positioned in document
-coordinates; content that needs a rect to lay itself out uses a
-`LayoutBuilder` instead.
+Content that depends on the space it is given reads it from `measure(node)`, a
+`ReadSignal<Option<Measured>>` of where that node was laid out and at what size, and changes the
+tree from an effect; the native core lays the change out again before the
+frame paints (see "Measurement" in the beui guide).
 
-`unstyled::container` ties the two together: it is a `LayoutBuilder`, which
-builds its content in a scope of its own under the caller's, the way `Show`
-and `Dynamic` do, so context the caller provides still reaches it. It provides
+`unstyled::container` ties the two together: it builds its content, measures
+the content's root, and writes the size into a signal, keeping the last one
+while the content is unplaced. Its content is a render prop called in its own
+scope, so context the caller provides still reaches it. It provides
 the size it is laid out at as `ContainerSize`, and hands the signal to its `content`
 render prop. Anything below it can then ask `container_size()`, or
 `narrower_than(width)` for a `Memo<bool>` that is true when the nearest container

@@ -5,7 +5,7 @@ use std::{collections::HashSet, path::PathBuf};
 use block_plugin_api::{FontFace, FontRole, Fonts};
 
 pub(super) fn bundled() -> Fonts {
-    let sources = beui::FontSources::bundled();
+    let sources = beui::native::FontSources::bundled();
     let faces = [
         (FontRole::Text, &sources.proportional),
         (FontRole::Monospace, &sources.monospace),
@@ -76,12 +76,12 @@ impl Fallbacks {
 #[cfg(not(target_arch = "wasm32"))]
 fn candidates(character: char) -> Vec<(PathBuf, u32)> {
     thread_local! {
-        static SYSTEM: RefCell<Option<beui::SystemFonts>> = const { RefCell::new(None) };
+        static SYSTEM: RefCell<Option<beui::native::SystemFonts>> = const { RefCell::new(None) };
     }
     SYSTEM.with(|system| {
         system
             .borrow_mut()
-            .get_or_insert_with(beui::SystemFonts::new)
+            .get_or_insert_with(beui::native::SystemFonts::new)
             .candidates(character)
     })
 }

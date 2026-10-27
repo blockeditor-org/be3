@@ -1,4 +1,5 @@
 use super::*;
+use crate::native::Document;
 use crate::primitives::Frame;
 use crate::reactive::*;
 use crate::styled::*;

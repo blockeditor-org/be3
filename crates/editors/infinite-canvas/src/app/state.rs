@@ -1,4 +1,5 @@
 use block_editor_beui::be_block::BlockContent;
+use block_editor_beui::beui::CanvasView;
 use block_editor_beui::beui::icons::Glyph;
 use database_types::DatabaseSchemaContent;
 use std::cell::{Cell, RefCell};
@@ -12,6 +13,7 @@ use block_editor_beui::beui::icons::{
     ICON_BRUSH, ICON_CIRCLE, ICON_DIAMOND, ICON_ERASER, ICON_LASSO_SELECT, ICON_MOUSE_POINTER_2,
     ICON_MOVE_UP_RIGHT, ICON_RECTANGLE_HORIZONTAL, ICON_SCAN, ICON_SLASH, ICON_TYPE,
 };
+use block_editor_beui::beui::native::with_document;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{Pos2, Rect, Thumbhash, Vec2, pos2};
 use block_editor_beui::block_ui::BlockLabel;
@@ -35,6 +37,7 @@ use crate::geometry::*;
 use super::entities::Entities;
 use super::text::labels;
 use crate::images::{image_filter, imported_image};
+use beui::Pasted;
 use image_block_types::{ImageContent, ImageFile};
 
 pub(crate) const ZOOM_STEP: f32 = 1.25;
@@ -1208,7 +1211,7 @@ impl CanvasState {
 
     pub(crate) fn focus_surface(&self) {
         if let Some(surface) = self.surface().try_get() {
-            with_document(|document| document.focus_focusable(surface));
+            surface.focus();
         }
     }
 

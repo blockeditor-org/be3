@@ -27,3 +27,10 @@ cargo_example("space-resize-bench")
 
 # Times switching the space cursor's icon: `./scripts/buck run -m release //crates/beui-demo:example-space-cursor-bench`.
 cargo_example("space-cursor-bench")
+
+# The demo's pages on beui's HTML core, in a browser (crates/beui-demo-html):
+# `./scripts/buck run //crates/beui-demo:web-html`.
+alias(
+    name = "web-html",
+    actual = "//crates/beui-demo-html:web",
+)

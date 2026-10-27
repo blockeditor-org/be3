@@ -1,3 +1,4 @@
+use block_editor_beui::beui::CanvasView;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -5,7 +6,8 @@ use block_editor_beui::Editor;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{
-    Color32, FontId, Key, KeyPress, NodeId, Painter, PointerPress, Pos2, Rect, SecondaryDrag, Vec2,
+    Color32, FontId, Key, KeyPress, NodeId, PointerPress, Pos2, Rect, SecondaryDrag, TextLayout,
+    Vec2, reactive::Painter,
 };
 use game_api::Spot;
 use game_api::board::{CARD_HEIGHT, CARD_WIDTH, HandCard, ItemId, Sprite};
@@ -17,6 +19,7 @@ use super::layout::{Layout, Look, Placed, SpotPlace, movable};
 use super::motion::{Motion, flights, sightings};
 use super::play::{Dragging, Mark, Play};
 use super::skin::paint_sprite;
+use beui::ItemSize;
 
 const DRAG_THRESHOLD: f32 = 6.0;
 const LABEL_SIZE: f32 = 13.0;
@@ -325,7 +328,7 @@ pub(crate) fn Stage(
             on_drag={on_drag}
             on_click_at={on_click_at}
             on_active_change={on_active_change}
-            on_secondary_drag={on_secondary_drag}
+            on_pointer={beui::unstyled::gestures::secondary_drag(on_secondary_drag)}
         >
             <Layers>
                 <List spacing=Space::None>
@@ -398,7 +401,7 @@ fn TableItem(
             _ => Mark::None,
         };
         let hidden = hidden.with(|hidden| hidden.contains(&id));
-        let theme = theme.get();
+        let theme = theme.get().resolve();
         Rc::new(move |painter: &Painter, rect: Rect| {
             if let Some((placed, unit)) = &placed
                 && !hidden
@@ -434,7 +437,7 @@ fn SpotItem(spot: Spot, layout: Memo<Layout>, play: Play) -> CanvasItem {
     let draw: Prop<Draw> = Prop::dynamic(move || {
         let place = place.get();
         let mark = play.mark(spot);
-        let theme = theme.get();
+        let theme = theme.get().resolve();
         Rc::new(move |painter: &Painter, rect: Rect| {
             if let Some((place, unit)) = &place {
                 let zoom = rect.width() / place.rect.width().max(1.0) * unit;
@@ -520,9 +523,9 @@ fn paint_item(
         }
         Sprite::Label(text) => {
             let size = (LABEL_SIZE * zoom).max(1.0);
-            let galley = painter.layout(text, FontId::proportional(size), f32::INFINITY);
-            let origin = rect.min + Vec2::new(0.0, (rect.height() - galley.size().y) / 2.0);
-            painter.galley(origin, galley, theme.text_muted);
+            let label = painter.lay_out_text(text, FontId::proportional(size), TextLayout::DEFAULT);
+            let origin = rect.min + Vec2::new(0.0, (rect.height() - label.size().y) / 2.0);
+            painter.draw_text(origin, &label, theme.text_muted);
         }
         sprite => paint_sprite(painter, rect, sprite),
     }

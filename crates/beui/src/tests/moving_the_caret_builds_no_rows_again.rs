@@ -39,7 +39,7 @@ fn moving_the_caret_builds_no_rows_again() {
     assert!(built > 0, "the rows in view were built");
 
     let select = |harness: &mut Harness, anchor: usize, focus: usize| {
-        crate::reactive::with_reactive_scope(harness.document_mut(), || {
+        crate::native::with_reactive_scope(harness.document_mut(), || {
             let (anchor, focus) =
                 state.with_core(|core| (core.position(anchor), core.position(focus)));
             state.execute(EditorCommand::SetSelection { anchor, focus });

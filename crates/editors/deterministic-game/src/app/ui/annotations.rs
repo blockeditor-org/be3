@@ -1,4 +1,4 @@
-use block_editor_beui::beui::{Color32, Modifiers, Painter, Pos2, Rect, Vec2};
+use block_editor_beui::beui::{Color32, Modifiers, Pos2, Rect, Vec2, reactive::Painter};
 use game_api::Spot;
 
 use super::layout::Layout;

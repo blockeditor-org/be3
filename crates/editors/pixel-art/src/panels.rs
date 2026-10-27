@@ -20,6 +20,7 @@ use crate::color::{format_hex_color, parse_hex_color, swatch_color};
 use crate::drawing::{BrushShape, MAX_BRUSH_SIZE, PixelTool};
 
 use crate::app::state::{Dialog, Tools};
+use beui::{Align, Direction, ItemSize};
 
 const SPACING: Space = Space::Md;
 const TOOL_WIDTH: f32 = 76.0;

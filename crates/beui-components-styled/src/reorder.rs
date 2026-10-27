@@ -1,11 +1,10 @@
 use std::hash::Hash;
 
-use beui_core::geometry::Vec2;
-use beui_core::input::CursorIcon;
-use beui_core::node::NodeId;
 use beui_macros::{component, view};
-use beui_view::primitives::{Layers, Shift};
+use beui_view::primitives::Layers;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::{CursorIcon, Vec2};
 
 use beui_components_unstyled::{ReorderHandle, ReorderItemHandle};
 
@@ -59,9 +58,7 @@ where
             view! {
                 <Frame padding={margin}>
                     <Layers>
-                        <Shift by={drop}>
-                            <Frame fill={shadow} radius />
-                        </Shift>
+                        <Frame fill={shadow} radius translate={drop} />
                         <Frame fill={fill} border={border} radius>{face}</Frame>
                     </Layers>
                 </Frame>

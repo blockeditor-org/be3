@@ -3,23 +3,26 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use beui_tree::reactive::{
-    ChildSegment, ChildValue, Children, ComponentContext, Get, IntoChild, IntoProp, IntoSegment,
-    IntoSlotHost, Memo, Prop, ReadSignal, ScopeContext, Set, Signal, SlotChild, SlotHost, SlotId,
-    create_effect, create_signal, current_component, on_cleanup,
-};
+use std::rc::Weak;
 
+use beui_tree::reactive::{
+    ComponentContext, Get, IntoProp, IntoSlotHost, Prop, ReadSignal, ScopeContext, Set, Signal,
+    SlotHost, SlotId, create_effect, create_signal, current_component, on_cleanup,
+};
+use beui_types::node::{CoreHooks, NodeCell, install_core_hooks};
+
+use crate::base::Sizing;
 use crate::base::canvas::CanvasNode;
-use crate::base::child_list::{ChildHost, ChildItem};
-use crate::base::first_fit::FirstFitNode;
 use crate::base::grid::{GridItem, GridNode};
 use crate::base::layers::LayersNode;
 use crate::base::list::{ListItem, ListNode};
 use crate::base::text::{TextNode, TextPart};
-use crate::base::{ItemSize, Sizing};
+use crate::child_list::ChildHost;
 use crate::current::with_document;
 use crate::document::Document;
 use crate::node::{NodeId, NodeOf};
+
+pub use beui_types::node::BuildsNode;
 
 #[derive(Default)]
 struct NodeBindings {
@@ -50,7 +53,10 @@ pub fn component_node() -> crate::callback::NodeRef {
 pub fn component_placed() -> ReadSignal<bool> {
     let bindings = bindings();
     if let Some(target) = bindings.target.get() {
-        return with_document(|document| document.watch_placed(target));
+        let measured = with_document(|document| document.watch_measure(target));
+        let placed = create_signal(measured.get_untracked().is_some());
+        create_effect(move || placed.set(measured.get().is_some()));
+        return placed.read_only();
     }
     if let Some(placed) = bindings.placed.borrow().as_ref() {
         return placed.read_only();
@@ -84,74 +90,42 @@ pub fn component_accessibility(node: impl IntoProp<accesskit::Node>) {
     });
 }
 
-impl ChildValue for NodeId {
-    fn finish_component(&mut self, component: &ComponentContext, scope: &ScopeContext) {
-        let root = *self;
-        let Some(bindings) = component.find_extension::<NodeBindings>() else {
-            with_document(|document| document.name_component(root, component.record()));
-            return;
-        };
-        bindings.target.set(Some(root));
-        let states = bindings.states.take();
-        let accessibility = bindings.accessibility.take();
-        let placed = bindings.placed.take();
-        if let Some(node) = bindings.node.borrow().as_ref() {
-            node.fill(root);
+fn finish_component(root: NodeId, component: &ComponentContext, scope: &ScopeContext) {
+    let Some(bindings) = component.find_extension::<NodeBindings>() else {
+        with_document(|document| document.name_component(root, component.record()));
+        return;
+    };
+    bindings.target.set(Some(root));
+    let states = bindings.states.take();
+    let accessibility = bindings.accessibility.take();
+    let placed = bindings.placed.take();
+    if let Some(node) = bindings.node.borrow().as_ref() {
+        node.fill(root);
+    }
+    if let Some(placed) = placed {
+        let watched = with_document(|document| document.watch_measure(root));
+        scope.run(|| create_effect(move || placed.set(watched.get().is_some())));
+    }
+    with_document(|document| {
+        document.name_component(root, component.record());
+        for state in states {
+            document.set_component_state_dyn(root, state);
         }
-        if let Some(placed) = placed {
-            let watched = with_document(|document| document.watch_placed(root));
-            scope.run(|| create_effect(move || placed.set(watched.get())));
+        if let Some(node) = accessibility {
+            document.set_accessibility(root, node);
         }
-        with_document(|document| {
-            document.name_component(root, component.record());
-            for state in states {
-                document.set_component_state_dyn(root, state);
-            }
-            if let Some(node) = accessibility {
-                document.set_accessibility(root, node);
-            }
-        });
-    }
+    });
 }
 
-#[diagnostic::on_unimplemented(
-    message = "a `{Self}` is no node, so `@test_id` and `@node_ref` have nothing to name",
-    label = "put `@test_id` or `@node_ref` on a tag that builds a node, inside this one or around it"
-)]
-pub trait BuildsNode {
-    fn built_node(&self) -> NodeId;
+fn fill_ref(node: NodeId, cell: Weak<NodeCell>) {
+    crate::current::try_with_document(|document| document.register_node_ref(node, cell));
 }
 
-impl BuildsNode for NodeId {
-    fn built_node(&self) -> NodeId {
-        *self
-    }
-}
-
-impl SlotChild for NodeId {
-    type Stored = NodeId;
-
-    fn store(self) -> NodeId {
-        self
-    }
-}
-
-impl IntoChild<NodeId> for NodeId {
-    fn into_child(self) -> NodeId {
-        self
-    }
-}
-
-impl IntoSegment<NodeId> for NodeId {
-    fn into_segment(self) -> ChildSegment<NodeId> {
-        ChildSegment::One(self)
-    }
-}
-
-impl From<NodeId> for Children<NodeId> {
-    fn from(node: NodeId) -> Self {
-        Self::from(ChildSegment::One(node))
-    }
+pub(crate) fn install_hooks() {
+    install_core_hooks(CoreHooks {
+        fill_ref,
+        finish_component,
+    });
 }
 
 #[diagnostic::on_unimplemented(
@@ -159,76 +133,47 @@ impl From<NodeId> for Children<NodeId> {
     label = "implement `ParentKind` for the node that keeps these children"
 )]
 pub trait ParentKind: ChildHost<Stored: Clone + 'static> + Sized {
-    type Data: Clone + 'static;
+    type Kind: beui_types::tree::ParentKind;
 
-    fn item(node: NodeId, data: Self::Data) -> Self::Stored;
+    fn item(node: NodeId, data: Data<Self>) -> Self::Stored;
 
-    fn update(_document: &mut Document, _parent: NodeOf<Self>, _node: NodeId, _data: Self::Data) {}
+    fn update(_document: &mut Document, _parent: NodeOf<Self>, _node: NodeId, _data: Data<Self>) {}
 }
 
-pub trait BareChild: ParentKind {
-    fn bare() -> Self::Data;
-}
+pub type Data<P> = <<P as ParentKind>::Kind as beui_types::tree::ParentKind>::Data;
 
-pub struct Placed<P: ParentKind> {
-    pub node: NodeId,
-    pub data: Prop<P::Data>,
-}
+pub type ListChild = Placed<ListKind>;
 
-pub type ListChild = Placed<ListNode>;
-
-impl<P: ParentKind> Placed<P> {
-    pub fn new(node: NodeId, data: impl IntoProp<P::Data>) -> Self {
-        Self {
-            node,
-            data: data.into_prop(),
-        }
-    }
-
-    fn store_in(self, parent: NodeId, latest: &Latest<P>) -> P::Stored {
-        let Placed { node, data } = self;
-        let initial = data.get_untracked();
-        if let Prop::Dynamic(read) = data {
-            let held = Rc::clone(latest);
-            create_effect(move || {
-                let data = read.get();
-                held.borrow_mut().insert(node, data.clone());
-                with_document(|document| {
-                    if let Some(parent) = document.arena.kind_of::<P>(parent) {
-                        P::update(document, parent, node, data);
-                    }
-                });
+fn store_in<P: ParentKind>(
+    child: Placed<P::Kind>,
+    parent: NodeId,
+    latest: &Latest<P>,
+) -> PlacedItem<P::Kind> {
+    let Placed { node, data } = child;
+    let initial = data.get_untracked();
+    if let Prop::Dynamic(read) = data {
+        let held = Rc::clone(latest);
+        create_effect(move || {
+            let data = read.get();
+            held.borrow_mut().insert(node, data.clone());
+            with_document(|document| {
+                if let Some(parent) = document.arena.kind_of::<P>(parent) {
+                    P::update(document, parent, node, data);
+                }
             });
-            let held = Rc::clone(latest);
-            on_cleanup(move || {
-                held.borrow_mut().remove(&node);
-            });
-        }
-        P::item(node, initial)
+        });
+        let held = Rc::clone(latest);
+        on_cleanup(move || {
+            held.borrow_mut().remove(&node);
+        });
+    }
+    PlacedItem {
+        node,
+        data: initial,
     }
 }
 
-impl<P: ParentKind> BuildsNode for Placed<P> {
-    fn built_node(&self) -> NodeId {
-        self.node
-    }
-}
-
-impl<P: ParentKind> ChildValue for Placed<P> {
-    fn finish_component(&mut self, component: &ComponentContext, scope: &ScopeContext) {
-        self.node.finish_component(component, scope);
-    }
-}
-
-impl<P: ParentKind> SlotChild for Placed<P> {
-    type Stored = P::Stored;
-
-    fn store(self) -> P::Stored {
-        P::item(self.node, self.data.get_untracked())
-    }
-}
-
-type Latest<P> = Rc<RefCell<HashMap<NodeId, <P as ParentKind>::Data>>>;
+type Latest<P> = Rc<RefCell<HashMap<NodeId, Data<P>>>>;
 
 struct NodeHost<P: ParentKind> {
     parent: NodeOf<P>,
@@ -236,23 +181,20 @@ struct NodeHost<P: ParentKind> {
 }
 
 impl<P: ParentKind> NodeHost<P> {
-    fn current(&self, item: P::Stored) -> P::Stored {
-        let Some(node) = item.node() else {
-            return item;
-        };
-        match self.latest.borrow().get(&node) {
-            Some(data) => P::item(node, data.clone()),
-            None => item,
+    fn current(&self, item: PlacedItem<P::Kind>) -> P::Stored {
+        match self.latest.borrow().get(&item.node) {
+            Some(data) => P::item(item.node, data.clone()),
+            None => P::item(item.node, item.data),
         }
     }
 }
 
-impl<P: ParentKind> SlotHost<Placed<P>> for NodeHost<P> {
-    fn store(&self, child: Placed<P>) -> P::Stored {
-        child.store_in(self.parent.id(), &self.latest)
+impl<P: ParentKind> SlotHost<Placed<P::Kind>> for NodeHost<P> {
+    fn store(&self, child: Placed<P::Kind>) -> PlacedItem<P::Kind> {
+        store_in::<P>(child, self.parent.id(), &self.latest)
     }
 
-    fn append(&self, stored: P::Stored) {
+    fn append(&self, stored: PlacedItem<P::Kind>) {
         let stored = self.current(stored);
         with_document(|document| document.append_child_item(self.parent, stored));
     }
@@ -261,7 +203,7 @@ impl<P: ParentKind> SlotHost<Placed<P>> for NodeHost<P> {
         with_document(|document| document.open_child_slot(self.parent))
     }
 
-    fn fill(&self, slot: SlotId, items: Vec<P::Stored>) {
+    fn fill(&self, slot: SlotId, items: Vec<PlacedItem<P::Kind>>) {
         let items = items.into_iter().map(|item| self.current(item)).collect();
         with_document(|document| {
             if document.contains(self.parent) {
@@ -271,8 +213,8 @@ impl<P: ParentKind> SlotHost<Placed<P>> for NodeHost<P> {
     }
 }
 
-impl<P: ParentKind> IntoSlotHost<Placed<P>> for NodeOf<P> {
-    fn into_slot_host(self) -> Rc<dyn SlotHost<Placed<P>>> {
+impl<P: ParentKind> IntoSlotHost<Placed<P::Kind>> for NodeOf<P> {
+    fn into_slot_host(self) -> Rc<dyn SlotHost<Placed<P::Kind>>> {
         Rc::new(NodeHost {
             parent: self,
             latest: Rc::default(),
@@ -280,73 +222,8 @@ impl<P: ParentKind> IntoSlotHost<Placed<P>> for NodeOf<P> {
     }
 }
 
-#[diagnostic::on_unimplemented(
-    message = "a child made for a `{P}` cannot be a child of this component",
-    label = "`@sizing` makes a list child: remove it, or put this child in a `Row`, `Column`, `List` or `Stack`"
-)]
-pub trait FromPlaced<P: ParentKind> {
-    fn from_placed(child: Placed<P>) -> Self;
-}
-
-impl<P: ParentKind> FromPlaced<P> for Placed<P> {
-    fn from_placed(child: Placed<P>) -> Self {
-        child
-    }
-}
-
-impl<P: ParentKind, T: FromPlaced<P>> IntoChild<T> for Placed<P> {
-    fn into_child(self) -> T {
-        T::from_placed(self)
-    }
-}
-
-impl<P: ParentKind, T: FromPlaced<P> + SlotChild> IntoSegment<T> for Placed<P> {
-    fn into_segment(self) -> ChildSegment<T> {
-        ChildSegment::One(self.into_child())
-    }
-}
-
-impl<P: ParentKind, T: FromPlaced<P> + SlotChild> From<Placed<P>> for Children<T> {
-    fn from(child: Placed<P>) -> Self {
-        Self::from(ChildSegment::One(child.into_child()))
-    }
-}
-
-impl<P: ParentKind> IntoSegment<Placed<P>> for Option<Placed<P>> {
-    fn into_segment(self) -> ChildSegment<Placed<P>> {
-        ChildSegment::Many(self.into_iter().collect())
-    }
-}
-
-impl<P: BareChild> IntoChild<Placed<P>> for NodeId {
-    fn into_child(self) -> Placed<P> {
-        Placed {
-            node: self,
-            data: Prop::Static(P::bare()),
-        }
-    }
-}
-
-impl<P: BareChild> IntoSegment<Placed<P>> for NodeId {
-    fn into_segment(self) -> ChildSegment<Placed<P>> {
-        ChildSegment::One(self.into_child())
-    }
-}
-
-impl<P: BareChild> IntoSegment<Placed<P>> for Option<NodeId> {
-    fn into_segment(self) -> ChildSegment<Placed<P>> {
-        ChildSegment::Many(self.into_iter().map(IntoChild::into_child).collect())
-    }
-}
-
-impl<P: BareChild> From<NodeId> for Children<Placed<P>> {
-    fn from(node: NodeId) -> Self {
-        Self::from(IntoSegment::<Placed<P>>::into_segment(node))
-    }
-}
-
 impl ParentKind for ListNode {
-    type Data = Sizing;
+    type Kind = ListKind;
 
     fn item(node: NodeId, size: Sizing) -> ListItem {
         ListItem { child: node, size }
@@ -357,14 +234,8 @@ impl ParentKind for ListNode {
     }
 }
 
-impl BareChild for ListNode {
-    fn bare() -> Sizing {
-        Sizing::default()
-    }
-}
-
 impl ParentKind for GridNode {
-    type Data = usize;
+    type Kind = GridKind;
 
     fn item(node: NodeId, span: usize) -> GridItem {
         GridItem { child: node, span }
@@ -375,38 +246,16 @@ impl ParentKind for GridNode {
     }
 }
 
-impl BareChild for GridNode {
-    fn bare() -> usize {
-        1
-    }
-}
-
 impl ParentKind for LayersNode {
-    type Data = ();
+    type Kind = LayersKind;
 
     fn item(node: NodeId, _: ()) -> NodeId {
         node
     }
-}
-
-impl BareChild for LayersNode {
-    fn bare() {}
-}
-
-impl ParentKind for FirstFitNode {
-    type Data = ();
-
-    fn item(node: NodeId, _: ()) -> NodeId {
-        node
-    }
-}
-
-impl BareChild for FirstFitNode {
-    fn bare() {}
 }
 
 impl ParentKind for CanvasNode {
-    type Data = ();
+    type Kind = CanvasKind;
 
     fn item(node: NodeId, _: ()) -> NodeId {
         node
@@ -414,7 +263,7 @@ impl ParentKind for CanvasNode {
 }
 
 impl ParentKind for TextNode {
-    type Data = bool;
+    type Kind = TextKind;
 
     fn item(node: NodeId, anchored: bool) -> TextPart {
         match anchored {
@@ -424,62 +273,13 @@ impl ParentKind for TextNode {
     }
 }
 
-#[diagnostic::on_unimplemented(
-    message = "`@sizing` cannot size a `{Self}`",
-    label = "`@sizing` takes a node, or an `Option` of one"
-)]
-pub trait WithSizing {
-    type Sized;
+pub struct TextKind;
 
-    fn with_sizing(self, size: Prop<Sizing>) -> Self::Sized;
+impl beui_types::tree::ParentKind for TextKind {
+    type Data = bool;
 }
 
-impl WithSizing for NodeId {
-    type Sized = ListChild;
-
-    fn with_sizing(self, size: Prop<Sizing>) -> ListChild {
-        ListChild::new(self, size)
-    }
-}
-
-impl WithSizing for Option<NodeId> {
-    type Sized = Option<ListChild>;
-
-    fn with_sizing(self, size: Prop<Sizing>) -> Option<ListChild> {
-        self.map(|node| ListChild::new(node, size))
-    }
-}
-
-pub fn with_sizing<C: WithSizing>(child: C, size: impl IntoProp<Sizing>) -> C::Sized {
-    child.with_sizing(size.into_prop())
-}
-
-impl IntoProp<Sizing> for ItemSize {
-    fn into_prop(self) -> Prop<Sizing> {
-        Prop::Static(self.into())
-    }
-}
-
-impl IntoProp<Sizing> for Prop<ItemSize> {
-    fn into_prop(self) -> Prop<Sizing> {
-        self.map(Sizing::from)
-    }
-}
-
-impl IntoProp<Sizing> for ReadSignal<ItemSize> {
-    fn into_prop(self) -> Prop<Sizing> {
-        Prop::dynamic(move || self.get().into())
-    }
-}
-
-impl IntoProp<Sizing> for Signal<ItemSize> {
-    fn into_prop(self) -> Prop<Sizing> {
-        Prop::dynamic(move || self.get().into())
-    }
-}
-
-impl IntoProp<Sizing> for Memo<ItemSize> {
-    fn into_prop(self) -> Prop<Sizing> {
-        Prop::dynamic(move || self.get().into())
-    }
-}
+pub use beui_types::tree::{
+    BareChild, CanvasKind, FromPlaced, GridKind, LayersKind, ListKind, Placed, PlacedItem,
+    WithSizing, with_sizing,
+};

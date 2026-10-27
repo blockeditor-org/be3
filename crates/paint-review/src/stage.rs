@@ -4,6 +4,7 @@ use beui::{ImageFit, NodeId, Vec2, pos2};
 
 use crate::images::ImageState;
 use crate::review::{Mode, Review};
+use beui::{Align, Align2, Direction};
 
 const GAP: f32 = 24.0;
 const MESSAGE_PADDING: Space = Space::Xl3;

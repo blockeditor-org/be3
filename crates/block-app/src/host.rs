@@ -7,7 +7,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-use beui::{FileFilter, FilePick, FilePickId, FileSave, FileSaveId, SavedFile, Waker};
+use beui::{
+    FileFilter, FilePick, FileSave, SavedFile, native::FilePickId, native::FileSaveId,
+    native::Waker,
+};
 use uuid::Uuid;
 
 static WAKER: OnceLock<Waker> = OnceLock::new();
@@ -130,7 +133,7 @@ impl Default for Frame {
     }
 }
 
-pub(crate) fn begin(context: &beui::Context) {
+pub(crate) fn begin(context: &beui::native::Context) {
     let mut picked = Vec::new();
     let mut saved = Vec::new();
     with(|host| {
@@ -197,7 +200,7 @@ fn finish() -> Output {
     with(|host| std::mem::take(&mut host.output))
 }
 
-pub(crate) fn end(context: &beui::Context) {
+pub(crate) fn end(context: &beui::native::Context) {
     let output = finish();
     if let Some(fullscreen) = output.fullscreen {
         context.set_fullscreen(fullscreen);

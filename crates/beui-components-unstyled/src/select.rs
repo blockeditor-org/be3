@@ -5,11 +5,11 @@ use crate::button::ButtonHandle;
 use crate::scroll::ScrollbarStyle;
 use crate::search_list::{SearchList, SearchListApi, SearchRowHandle};
 use crate::text_input::{TextInputHandle, TextInputStyle};
-use beui_core::input::{Key, KeyPress};
-use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::primitives::*;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::{Key, KeyPress};
 
 use accesskit::{Node, Role};
 

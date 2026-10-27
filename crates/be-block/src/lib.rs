@@ -45,8 +45,7 @@ pub use organization::{
     my_files, my_files_of, organization_settings,
 };
 pub use profile::{
-    FILES_EDITOR, LINUX_DESKTOP_EDITOR, RecentBlock, Recents, VIEW_TYPE, WORKSPACE_EDITOR,
-    WORKSPACE_TYPE,
+    DESKTOP_EDITOR, FILES_EDITOR, RecentBlock, Recents, VIEW_TYPE, WORKSPACE_EDITOR, WORKSPACE_TYPE,
 };
 pub use setting::{Layers, Setting, SettingsLayer};
 pub use settings::{

@@ -1136,6 +1136,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-win32"
+version = "0.1.0"
+dependencies = [
+ "windows 0.62.2",
+]
+
+[[package]]
+name = "be-win32-capture"
+version = "0.1.0"
+dependencies = [
+ "ash",
+ "wgpu",
+ "windows 0.62.2",
+]
+
+[[package]]
+name = "be-win32-input"
+version = "0.1.0"
+dependencies = [
+ "be-win32",
+ "beui-types",
+ "windows 0.62.2",
+]
+
+[[package]]
 name = "bench"
 version = "0.1.0"
 
@@ -1149,7 +1174,6 @@ dependencies = [
  "beui-components-unstyled",
  "beui-core",
  "beui-dock",
- "beui-font-browser",
  "beui-font-freetype",
  "beui-inspector",
  "beui-keyboard",
@@ -1160,10 +1184,10 @@ dependencies = [
  "beui-platform-headless",
  "beui-platform-web",
  "beui-platform-winit",
- "beui-renderer-dom",
  "beui-renderer-wgpu",
  "beui-view",
  "beui_macros",
+ "paint-snapshot",
  "pollster",
  "raw-window-handle",
  "reactive",
@@ -1180,7 +1204,6 @@ version = "0.1.0"
 dependencies = [
  "accesskit",
  "beui-components-unstyled",
- "beui-core",
  "beui-renderer-wgpu",
  "beui-view",
  "beui_macros",
@@ -1195,7 +1218,6 @@ name = "beui-components-unstyled"
 version = "0.1.0"
 dependencies = [
  "accesskit",
- "beui-core",
  "beui-view",
  "beui_macros",
  "emojis",
@@ -1211,6 +1233,7 @@ version = "0.1.0"
 dependencies = [
  "accesskit",
  "beui-tree",
+ "beui-types",
  "foldhash 0.2.0",
  "geometry",
  "grapheme-segmentation",
@@ -1222,6 +1245,26 @@ dependencies = [
  "reactive",
  "thumbhash",
  "ui-types",
+]
+
+[[package]]
+name = "beui-core-html"
+version = "0.1.0"
+dependencies = [
+ "accesskit",
+ "base64",
+ "beui-fonts",
+ "beui-html",
+ "beui-tree",
+ "beui-types",
+ "beui-web-input",
+ "js-sys",
+ "png",
+ "reactive",
+ "ttf-parser",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]
@@ -1241,13 +1284,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "beui-demo-html"
+version = "0.1.0"
+dependencies = [
+ "beui",
+ "beui-demo",
+ "wasi-threads",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+]
+
+[[package]]
 name = "beui-dock"
 version = "0.1.0"
 dependencies = [
  "accesskit",
  "beui-components-styled",
  "beui-components-unstyled",
- "beui-core",
  "beui-view",
  "beui_macros",
  "reactive",
@@ -1269,12 +1322,17 @@ name = "beui-font-freetype"
 version = "0.1.0"
 dependencies = [
  "beui-core",
+ "beui-fonts",
  "foldhash 0.2.0",
  "freetype",
  "harfbuzz_rs",
  "libloading 0.8.9",
  "unicode-script",
 ]
+
+[[package]]
+name = "beui-fonts"
+version = "0.1.0"
 
 [[package]]
 name = "beui-gallery-types"
@@ -1292,6 +1350,21 @@ name = "beui-html"
 version = "0.1.0"
 dependencies = [
  "beui-tree",
+ "js-sys",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
+name = "beui-html-spike"
+version = "0.1.0"
+dependencies = [
+ "beui",
+ "block-accounts-ui",
+ "paint-snapshot",
+ "wasi-threads",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
 ]
 
 [[package]]
@@ -1315,7 +1388,6 @@ dependencies = [
  "accesskit",
  "beui-components-styled",
  "beui-components-unstyled",
- "beui-core",
  "beui-view",
  "beui_macros",
  "emojis",
@@ -1339,6 +1411,7 @@ dependencies = [
  "beui-font-freetype",
  "beui-keyboard",
  "beui-renderer-wgpu",
+ "beui-types",
  "beui-view",
  "beui_macros",
  "bytemuck",
@@ -1423,6 +1496,7 @@ name = "beui-platform-web"
 version = "0.1.0"
 dependencies = [
  "beui-core",
+ "beui-web-input",
  "futures-util",
  "js-sys",
  "wasm-bindgen",
@@ -1449,17 +1523,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "beui-renderer-dom"
-version = "0.1.0"
-dependencies = [
- "beui-core",
- "beui-font-browser",
- "js-sys",
- "wasm-bindgen",
- "web-sys",
-]
-
-[[package]]
 name = "beui-renderer-wgpu"
 version = "0.1.0"
 dependencies = [
@@ -1475,6 +1538,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "beui-shared-tests"
+version = "0.1.0"
+dependencies = [
+ "be-drive",
+ "beui",
+ "beui-html",
+ "beui-layer-drive",
+ "wasi-threads",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
 name = "beui-tree"
 version = "0.1.0"
 dependencies = [
@@ -1483,13 +1560,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "beui-types"
+version = "0.1.0"
+dependencies = [
+ "beui-tree",
+ "geometry",
+ "lucide",
+ "thumbhash",
+ "ui-types",
+]
+
+[[package]]
 name = "beui-view"
 version = "0.1.0"
 dependencies = [
  "accesskit",
  "beui-core",
+ "beui-core-html",
  "beui-tree",
+ "beui-types",
  "beui_macros",
+ "paint-snapshot",
  "reactive",
 ]
 
@@ -1502,6 +1593,15 @@ dependencies = [
  "wasi-threads",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+]
+
+[[package]]
+name = "beui-web-input"
+version = "0.1.0"
+dependencies = [
+ "beui-types",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]
@@ -1610,6 +1710,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "block-accounts-ui"
+version = "0.1.0"
+dependencies = [
+ "beui",
+ "paint-snapshot",
+]
+
+[[package]]
 name = "block-app"
 version = "0.1.0"
 dependencies = [
@@ -1631,8 +1739,12 @@ dependencies = [
  "be-types-host",
  "be-vcs",
  "be-wayland",
+ "be-win32",
+ "be-win32-capture",
+ "be-win32-input",
  "beui",
  "beui-platform-drm",
+ "block-accounts-ui",
  "block-editor-plugin",
  "block-guest-abi",
  "block-guest-host",
@@ -1909,12 +2021,10 @@ dependencies = [
  "be-store",
  "beui",
  "beui-core",
- "beui-renderer-dom",
  "block-editor-beui",
  "block-plugin-api",
  "block-type-guest",
  "host-types",
- "image",
  "paint-snapshot",
  "serde",
  "text-block-types",
@@ -2010,7 +2120,9 @@ dependencies = [
 name = "browser-rasterizer"
 version = "0.1.0"
 dependencies = [
+ "beui-fonts",
  "paint-snapshot",
+ "serde_json",
 ]
 
 [[package]]
@@ -3110,6 +3222,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "916a94e407b54f9034d71dd748234cd1e516ced6284009906ae246f177eafe5a"
 dependencies = [
  "cipher 0.5.2",
+]
+
+[[package]]
+name = "desktop"
+version = "0.1.0"
+dependencies = [
+ "beui",
+ "block-editor-beui",
+ "block-plugin-api",
+ "block-shell",
+ "block-ui-test",
+ "calendar-types",
+ "uuid",
+ "workspace-ui-types",
 ]
 
 [[package]]
@@ -4927,20 +5053,6 @@ name = "linux-raw-sys"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
-
-[[package]]
-name = "linux_desktop"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-editor-beui",
- "block-plugin-api",
- "block-shell",
- "block-ui-test",
- "calendar-types",
- "uuid",
- "workspace-ui-types",
-]
 
 [[package]]
 name = "litemap"

@@ -10,7 +10,7 @@ fn a_driver_types_into_a_field_found_by_its_test_id() {
             <TextInput @test_id={"form.name"} value={name} placeholder="Name" />
         }
     });
-    let mut driven = stepped(crate::testing::Showing(document));
+    let mut driven = stepped(crate::native::testing::Showing(document));
 
     assert!(
         driven

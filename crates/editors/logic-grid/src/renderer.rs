@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use beui::{Draw, DrawAt, Drawing};
+use beui::{native::Draw, native::DrawAt, native::Drawing};
 use bytemuck::{Pod, Zeroable};
 
 use crate::frame::{
@@ -68,7 +68,7 @@ pub(crate) struct GridScene(Rc<RefCell<Option<GridRenderer>>>);
 
 impl GridScene {
     pub(crate) fn drawing(&self, frame: RenderFrame) -> Drawing {
-        beui::drawing(GridDraw {
+        beui::native::drawing(GridDraw {
             scene: self.clone(),
             frame,
         })

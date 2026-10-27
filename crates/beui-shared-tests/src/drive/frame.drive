@@ -1,0 +1,8 @@
+# A frame pads its child and aligns it to its end corner, and measurement
+# reports where the child is: 200x80 less 10 of padding a side.
+clock stop
+wait 'Inner 50x20 at 140,50'
+click '#frame.grow'
+wait 'Inner 100x20 at 90,50'
+click '#frame.grow'
+wait 'Inner 50x20 at 140,50'

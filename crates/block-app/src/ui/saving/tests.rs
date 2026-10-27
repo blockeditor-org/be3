@@ -1,11 +1,12 @@
 use std::time::Duration;
 
-use beui::WindowSize;
-use beui::testing::{Showing, Stepped};
-use beui::{Context, FreetypeFonts, vec2};
+use beui::native::WindowSize;
+use beui::native::testing::{Showing, Stepped};
+use beui::{native::Context, native::FreetypeFonts, vec2};
 
 use super::*;
 use crate::ui::{AppView, Root as AppRoot, StatusView, SyncState};
+use beui::native::build;
 
 fn saving(saved: bool, saves: u64) -> AppView {
     AppView {
@@ -31,7 +32,7 @@ impl Saving {
         let mut view = None;
         let document = build(|| {
             crate::compositor::install();
-            crate::wayland::create();
+            crate::desktop_host::create();
             crate::surfaces::create_handles();
             let store = AppViewStore::new(saving(false, 0));
             view = Some(store);

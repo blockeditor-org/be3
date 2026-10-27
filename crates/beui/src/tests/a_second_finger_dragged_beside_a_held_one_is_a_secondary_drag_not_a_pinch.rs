@@ -9,10 +9,17 @@ fn a_second_finger_dragged_beside_a_held_one_is_a_secondary_drag_not_a_pinch() {
     let drags = create_signal::<Vec<SecondaryDrag>>(Vec::new());
     let zoomed = create_signal(false);
     let document = build_node(move || {
+        let pinch =
+            crate::unstyled::gestures::pan_zoom(Callback::empty(), move |_: ZoomGesture| {
+                zoomed.set(true)
+            });
         view! {
             <Interactive
-                on_secondary_drag={move |drag| drags.update(|drags| drags.push(drag))}
-                on_zoom={move |_: ZoomGesture| zoomed.set(true)}
+                on_pointer={crate::unstyled::gestures::first_of([
+                    crate::unstyled::gestures::secondary_drag(move |drag| drags.update(|drags| drags.push(drag))),
+                    pinch.pointer,
+                ])}
+                on_wheel={pinch.wheel}
             >
                 <Frame width=300.0 height=300.0 />
             </Interactive>

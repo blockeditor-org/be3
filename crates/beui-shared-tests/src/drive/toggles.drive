@@ -1,0 +1,15 @@
+# A checkbox and a switch flip by pointer and by Space, and a disabled one
+# keeps its state.
+clock stop
+wait 'value="Remember false lights true"'
+click 'CheckBox "Remember me"'
+wait 'value="Remember true lights true"'
+wait 'CheckBox "Remember me" toggled=True'
+key space
+wait 'value="Remember false lights true"'
+click 'Switch "Lights"'
+wait 'value="Remember false lights false"'
+key space
+wait 'value="Remember false lights true"'
+click 'CheckBox "Locked"'
+wait 'CheckBox "Locked" toggled=True disabled'

@@ -35,7 +35,7 @@ be_ops_bindgen::generate!({
         "power-availability", "media-level", "audio-output", "media-levels", "wifi-security",
         "wifi-network", "wifi-link", "wifi-status", "incoming-notification", "notification-inbox",
         "notification-report", "host-program", "tray-toggle", "tray-menu-item", "host-tray-item",
-        "dialog-status", "dialog-frame",
+        "dialog-status", "dialog-frame", "window-kind",
     ],
     inline: [
         "rename-command", "artifact-command", "unlink-command",
@@ -91,23 +91,7 @@ pub use types::{
 pub use account::HostPreferenceSources;
 pub use be_ops::Watched;
 pub use contacts::HostContact;
-pub use guest::account::{AdministratorWatch, LinkBaseWatch, PreferenceSourcesWatch};
-pub use guest::contacts::ContactsWatch;
-pub use guest::linux_desktop::{
-    displays::DisplaysWatch,
-    epaper::EpaperWatch,
-    input::{InputDevicesWatch, RemapsWatch},
-    media::MediaWatch,
-    notifications::NotificationsWatch,
-    power::PowerWatch,
-    programs::ProgramsWatch,
-    screen_lock::ScreenLockedWatch,
-    tray::TrayWatch,
-    wifi::WifiWatch,
-    windows::WindowsWatch,
-};
-pub use linux::TrayMenuEntry;
-pub use linux_desktop::{
+pub use desktop::{
     displays::HostDisplay,
     input::{HostInputDevice, RemapState},
     media::{AudioOutput, MediaLevel, MediaLevels, MediaRequest, PlayerCommand},
@@ -120,13 +104,29 @@ pub use linux_desktop::{
     tray::{HostTrayItem, TrayMenuItem, TrayRequest, TrayStatus, TrayToggle},
     types::HostImage,
     wifi::{WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus},
-    windows::{HostWindow, WindowAction, WindowOrigin},
+    windows::{HostWindow, WindowAction, WindowKind, WindowOrigin},
+};
+pub use desktop_types::TrayMenuEntry;
+pub use guest::account::{AdministratorWatch, LinkBaseWatch, PreferenceSourcesWatch};
+pub use guest::contacts::ContactsWatch;
+pub use guest::desktop::{
+    displays::DisplaysWatch,
+    epaper::EpaperWatch,
+    input::{InputDevicesWatch, RemapsWatch},
+    media::MediaWatch,
+    notifications::NotificationsWatch,
+    power::PowerWatch,
+    programs::ProgramsWatch,
+    screen_lock::ScreenLockedWatch,
+    tray::TrayWatch,
+    wifi::WifiWatch,
+    windows::WindowsWatch,
 };
 
 mod accesskit_mirror;
 mod block_ids;
+mod desktop_types;
 mod input;
-mod linux;
 mod manifest;
 mod nesting;
 mod opening;
@@ -392,7 +392,7 @@ pub struct PluginManifest {
     pub extensions: Vec<String>,
 }
 
-pub const EXTENSIONS: &[&str] = &["be3:linux-desktop"];
+pub const EXTENSIONS: &[&str] = &["be3:desktop"];
 
 pub fn is_published(interface: &str) -> bool {
     interface == AdministratorWatch::INTERFACE

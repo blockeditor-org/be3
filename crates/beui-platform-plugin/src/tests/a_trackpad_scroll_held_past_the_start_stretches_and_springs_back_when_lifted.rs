@@ -4,6 +4,7 @@ use beui::styled::*;
 use block_editor_plugin::{ScrollDelta, TimedInput};
 
 use super::*;
+use beui::ItemSize;
 
 #[test]
 fn a_trackpad_scroll_held_past_the_start_stretches_and_springs_back_when_lifted() {

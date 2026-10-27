@@ -1,6 +1,6 @@
 use std::cell::Ref;
 
-use foldhash::HashMap;
+use foldhash::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use accesskit::{
@@ -8,10 +8,10 @@ use accesskit::{
     Role, Tree, TreeId, TreeUpdate,
 };
 
-use crate::base::focus::focus_of;
 use crate::base::list::Direction;
 use crate::base::offset::OffsetNode;
 use crate::base::overlay::OverlayNode;
+use crate::focus::focus_of;
 
 pub const LAYER_CLASS: &str = "beui-layer";
 pub const TEST_ID_SEPARATOR: char = '\u{1f}';
@@ -692,28 +692,31 @@ impl Document {
         let root = self.refresh_accessibility()?;
         let mut tree = self.accessibility_tree.borrow_mut();
         let mut changed = std::mem::take(&mut tree.changed);
-        let nodes: Vec<(AccessNodeId, Node)> =
-            if full {
-                tree.entries
-                    .iter()
-                    .map(|(id, entry)| (self.access_node_id(id), entry.node.clone()))
-                    .chain(tree.spaces.iter().map(|(space, (entry, _))| {
-                        (self.access_space_id(*space), entry.node.clone())
-                    }))
-                    .collect()
-            } else {
-                changed.sort_unstable_by_key(|key| {
-                    (key.node().index(), key.node().generation(), key.slot())
-                });
-                changed.dedup();
-                changed
-                    .into_iter()
-                    .filter_map(|key| {
-                        let entry = tree.entry(key)?;
-                        Some((self.access_space_id(key), entry.node.clone()))
-                    })
-                    .collect()
-            };
+        let nodes: Vec<(AccessNodeId, Node)> = if full {
+            let held: HashMap<AccessNodeId, &Node> = tree
+                .entries
+                .iter()
+                .map(|(id, entry)| (self.access_node_id(id), &entry.node))
+                .chain(
+                    tree.spaces
+                        .iter()
+                        .map(|(space, (entry, _))| (self.access_space_id(*space), &entry.node)),
+                )
+                .collect();
+            attached(&held, root)
+        } else {
+            changed.sort_unstable_by_key(|key| {
+                (key.node().index(), key.node().generation(), key.slot())
+            });
+            changed.dedup();
+            changed
+                .into_iter()
+                .filter_map(|key| {
+                    let entry = tree.entry(key)?;
+                    Some((self.access_space_id(key), entry.node.clone()))
+                })
+                .collect()
+        };
         drop(tree);
         let (windows, window_roots) = match self.opens_windows() {
             true => (
@@ -1024,6 +1027,7 @@ fn is_focusable_control(role: Role) -> bool {
     matches!(
         role,
         Role::TreeItem
+            | Role::GridCell
             | Role::ListBoxOption
             | Role::MenuItem
             | Role::CheckBox
@@ -1049,4 +1053,18 @@ fn is_focusable_control(role: Role) -> bool {
             | Role::PhoneNumberInput
             | Role::UrlInput
     )
+}
+
+fn attached(held: &HashMap<AccessNodeId, &Node>, root: AccessNodeId) -> Vec<(AccessNodeId, Node)> {
+    let mut reached = HashSet::default();
+    let mut nodes = Vec::new();
+    let mut pending = vec![root];
+    while let Some(id) = pending.pop() {
+        let Some(node) = held.get(&id).filter(|_| reached.insert(id)) else {
+            continue;
+        };
+        pending.extend(node.children().iter().copied());
+        nodes.push((id, (*node).clone()));
+    }
+    nodes
 }

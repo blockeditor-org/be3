@@ -9,7 +9,7 @@ license.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-beui = { path = "../beui", default-features = false, features = ["dom", "web"] }
+beui = { path = "../beui", default-features = false, features = ["web"] }
 image = { version = "0.25", default-features = false, features = ["png"] }
 js-sys = "0.3"
 paint-review = { path = "../paint-review" }

@@ -16,6 +16,7 @@ use crate::database_view::app::data::Data;
 use crate::database_view::sort::{
     DisplayRow, ROW_HEADER_WIDTH, ROW_HEIGHT, column_name, column_width, display_rows, next_sort,
 };
+use beui::{Align, Direction, ItemSize};
 
 const CELL_PADDING: Space = Space::Sm;
 const SWATCH_WIDTH: f32 = 18.0;
@@ -322,7 +323,7 @@ fn Cell(
         if selected.get()
             && let Some(node) = shown.try_get()
         {
-            with_document(|document| document.reveal_node(node));
+            node.reveal();
         }
     });
     let glyph_color = TextColor::Default;

@@ -1,7 +1,7 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use beui::Waker;
+use beui::native::Waker;
 
 use crate::rotation::Rotation;
 

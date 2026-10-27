@@ -1,6 +1,7 @@
 use block_editor_beui::be_block::BlockContent;
 use logic_grid_types::CompiledLogicContent;
 
+use beui::{Align, Direction, ItemSize};
 use block_editor_beui::be_block::Item;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::TextAlign;
@@ -88,7 +89,7 @@ fn SlotRow(
     read_only: Memo<bool>,
 ) -> NodeId {
     let indent = create_memo(move || {
-        ItemSize::Fixed(row.with(|row| row.as_ref().map_or(0.0, |row| row.depth as f32 * INDENT)))
+        Space::Custom(row.with(|row| row.as_ref().map_or(0.0, |row| row.depth as f32 * INDENT)))
     });
     let note = create_memo(move || {
         row.with(|row| match row {
@@ -154,7 +155,7 @@ fn SlotRow(
     };
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-            <Spacer @sizing={indent} />
+            <Spacer width={indent} />
             <Show condition={is_folder}>
                 <Text color=TextColor::Muted align=TextAlign::Center>
                     <Icon glyph=ICON_FOLDER />

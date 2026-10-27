@@ -1,5 +1,6 @@
 use super::*;
 use crate::ForwardedInput;
+use crate::HitRegion;
 use crate::primitives::*;
 use crate::reactive::*;
 
@@ -26,7 +27,7 @@ fn a_press_a_catcher_declines_focuses_the_catcher_beneath() {
                 <CanvasItem x=0.0 y=0.0 width=200.0 height=200.0>
                     <Interactive
                         focusable=true
-                        hit_at={|local: Pos2| local.x >= 100.0}
+                        hit_area={HitRegion::rect(Rect::from_min_max(pos2(100.0, 0.0), pos2(200.0, 200.0)))}
                         on_forward={move |input: ForwardedInput| {
                             if input.focused {
                                 above.update(|above| above.extend(flattened(input)));

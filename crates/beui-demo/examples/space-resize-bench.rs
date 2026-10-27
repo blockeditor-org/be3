@@ -5,16 +5,19 @@ mod bench {
     use std::rc::Rc;
     use std::time::{Duration, Instant};
 
-    use beui::testing::Screen;
+    use beui::datetime::Date;
+    use beui::native::Document;
+    use beui::native::testing::Screen;
+    use beui::reactive::view;
     use beui::{
-        Context, Incoming, Input, Launch, PlatformServices, PointerButton, Pos2, RunOptions, Setup,
-        Vec2, Waker, WindowId,
+        Input, PointerButton, Pos2, Vec2, WindowId, native::Context, native::Incoming,
+        native::Launch, native::PlatformServices, native::RunOptions, native::Setup, native::Waker,
     };
     use beui_core::app::SafeArea;
     use beui_core::renderer::{Loaded, Renderer};
     use beui_core::runner::Runner;
     use beui_core::window::WindowEdge;
-    use beui_demo::DemoApp;
+    use beui_demo::DemoRoot;
     use beui_layer_space::Space;
     use beui_renderer_wgpu::offscreen::OffscreenSurface;
 
@@ -44,7 +47,7 @@ mod bench {
 
     impl Bench {
         fn new(gpu: bool) -> Self {
-            let context: Context = beui::context();
+            let context: Context = beui::native::context();
             context.stop_clock();
             let space = Rc::new(RefCell::new(Space::new()));
             let mut runner = Runner::new(Launch {
@@ -53,7 +56,11 @@ mod bench {
                     ..RunOptions::default()
                 },
                 context,
-                app: Box::new(DemoApp::new()),
+                app: Box::new(beui::native::build(|| {
+                    view! {
+                        <DemoRoot today={Date::today()} />
+                    }
+                })),
                 layers: vec![Box::new(Rc::clone(&space))],
             });
             let renderer: Box<dyn Renderer> = match gpu {
@@ -69,17 +76,17 @@ mod bench {
             };
             runner
                 .start(
-                    vec![Loaded {
+                    Loaded {
                         renderer,
                         fonts: None,
-                    }],
+                    },
                     Setup::new(Waker::new(|| {})),
                 )
                 .expect("the bench's renderer starts");
             Self { runner, space }
         }
 
-        fn app(&self) -> &DemoApp {
+        fn app(&self) -> &Document {
             let app: &dyn Any = self.runner.app();
             app.downcast_ref().expect("the bench runs the demo")
         }
@@ -105,7 +112,7 @@ mod bench {
                     .filter(|window| window.changed)
                     .count()
             });
-            let latest = self.app().document.performance().latest;
+            let latest = self.app().performance().latest;
             Timed {
                 frame,
                 present,
@@ -144,7 +151,7 @@ mod bench {
         }
 
         fn docking_tab(&self) -> Pos2 {
-            let document = &self.app().document;
+            let document = self.app();
             let close = (0..64)
                 .find_map(|tab| document.find_test_id(&format!("dock.tab.{tab}.close")))
                 .expect("the Docking page is open in a tab");

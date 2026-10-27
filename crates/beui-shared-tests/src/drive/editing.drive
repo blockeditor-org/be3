@@ -1,0 +1,24 @@
+# Typing into a Text with carets, marks and glyphs, moving its caret with
+# keys, and asking its geometry where the caret is.
+clock stop
+click '#editing.field'
+key Home
+wait 'value="Text ab cd caret 0 selected 0..0"'
+wait 'value="Round trip ok"'
+type 'x'
+wait 'value="Text xab cd caret 1 selected 1..1"'
+key ArrowRight
+key ArrowRight
+wait 'value="Text xab cd caret 3 selected 3..3"'
+wait 'value="Round trip ok"'
+key shift+ArrowRight
+key shift+ArrowRight
+wait 'value="Text xab cd caret 5 selected 3..5"'
+key End
+wait 'value="Text xab cd caret 6 selected 6..6"'
+wait 'value="Round trip ok"'
+key Backspace
+wait 'value="Text xab c caret 5 selected 5..5"'
+type 'é'
+wait 'value="Text xab cé caret 7 selected 7..7"'
+wait 'value="Round trip ok"'

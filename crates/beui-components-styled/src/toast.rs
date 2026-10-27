@@ -10,13 +10,14 @@ use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     Edge, Picture, Pressable, TOAST_DURATION, Toast, ToastAction, ToastHandle,
 };
-use beui_core::base::Justify;
-use beui_core::base::overlay::OverlayAnchor;
-use beui_core::font::TextAlign;
-use beui_core::icons::{ICON_CIRCLE_ALERT, ICON_INFO, ICON_X};
-use beui_core::image::Image;
-use beui_core::node::NodeId;
+use beui_view::reactive::NodeId;
+use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
+use beui_view::types::Image;
+use beui_view::types::Justify;
+use beui_view::types::TextAlign;
+use beui_view::types::icons::{ICON_CIRCLE_ALERT, ICON_INFO, ICON_X};
+use beui_view::types::{Align, Direction, ItemSize};
 use std::time::Duration;
 
 const MARGIN: Space = Space::Xl;

@@ -1,5 +1,5 @@
-use beui_core::font::Overflow;
-use beui_core::icons::Glyph;
+use beui_view::types::Overflow;
+use beui_view::types::icons::Glyph;
 mod stack;
 mod switch;
 
@@ -27,16 +27,19 @@ use beui_components_styled::theme::{NARROW_WIDTH, POINTER_REACH, use_theme};
 use beui_components_styled::tokens::{Padding, Size, Space, Stroke};
 use beui_components_styled::tooltip::Tooltip;
 use beui_components_unstyled::Picture;
-use beui_core::base::frame::Align2;
-use beui_core::base::{Align, Direction, ItemSize, Justify};
+use beui_view::types::Align2;
+use beui_view::types::{Align, Direction, ItemSize, Justify};
 
-use beui_core::font::TextAlign;
-use beui_core::icons::{ICON_APP_WINDOW, ICON_GRIP_VERTICAL, ICON_MAXIMIZE, ICON_MINIMIZE, ICON_X};
-use beui_core::image::Image;
-use beui_core::input::Modifiers;
-use beui_core::node::NodeId;
-use beui_view::primitives::{Fade, Layers};
+use beui_view::primitives::Layers;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::Image;
+use beui_view::types::Modifiers;
+use beui_view::types::Sides;
+use beui_view::types::TextAlign;
+use beui_view::types::icons::{
+    ICON_APP_WINDOW, ICON_GRIP_VERTICAL, ICON_MAXIMIZE, ICON_MINIMIZE, ICON_X,
+};
 use stack::{DockStackBar, DockSwitcher};
 use switch::DockSwitchPanel;
 
@@ -59,10 +62,10 @@ const TAB_STRIP_SPACING: Space = Space::Sm;
 const SPLITTER_REACH: f32 = 3.0;
 const SPLITTER_HELD: f32 = 3.0;
 const GROUP_GLYPH: Size = Size::Xs;
-pub const WINDOW_CHROME: beui_core::geometry::Vec2 =
-    beui_core::geometry::Vec2::new(2.0 * CHROME_BORDER, BAR_HEIGHT + 2.0 * CHROME_BORDER + RULE);
-const DIALOG_CHROME: beui_core::geometry::Vec2 =
-    beui_core::geometry::Vec2::new(2.0 * CHROME_BORDER, TAB_HEIGHT.px() + 2.0 * CHROME_BORDER);
+pub const WINDOW_CHROME: beui_view::types::Vec2 =
+    beui_view::types::Vec2::new(2.0 * CHROME_BORDER, BAR_HEIGHT + 2.0 * CHROME_BORDER + RULE);
+const DIALOG_CHROME: beui_view::types::Vec2 =
+    beui_view::types::Vec2::new(2.0 * CHROME_BORDER, TAB_HEIGHT.px() + 2.0 * CHROME_BORDER);
 const DROP_OPACITY: f32 = 0.25;
 const DROP_LABEL_MARGIN: Space = Space::Md;
 const DROP_LABEL_PADDING: Padding = Padding::symmetric(Space::Md, Space::Xs);
@@ -133,6 +136,7 @@ where
             dialog_scrim={dialog_scrim}
             dialog_margin=CARD_MARGIN
             dialog_gap=CARD_GAP
+            dialog_beak=POINTER_REACH
             dialog_outset=DIALOG_CHROME
             tab={move |handle: DockTabHandle| view! {
                 <DockTabFace handle />
@@ -205,12 +209,15 @@ fn DockTabFace(handle: DockTabHandle) -> NodeId {
         dragged,
         closable,
         waiting,
+        notice,
         close,
         vertical,
         icons_only,
         ..
     } = handle;
     let grouped = matches!(entry, Entry::Group(_));
+    let noticed = create_memo(move || notice.with(Option::is_some));
+    let title = create_memo(move || notice.get().unwrap_or_else(|| title.get()));
     view! {
         <List spacing=Space::None>
             <Dynamic value={icons_only}>|icons_only: bool| {
@@ -227,6 +234,7 @@ fn DockTabFace(handle: DockTabHandle) -> NodeId {
                             focused
                             dragged
                             waiting
+                            noticed
                         />
                     },
                     false => view! {
@@ -243,6 +251,7 @@ fn DockTabFace(handle: DockTabHandle) -> NodeId {
                             dragged
                             closable
                             waiting
+                            noticed
                             waiting_test_id={waiting_test_id(entry)}
                             close_test_id={close_test_id(entry)}
                             close={close}
@@ -259,10 +268,12 @@ fn tab_fill(
     hovered: ReadSignal<bool>,
     active: ReadSignal<bool>,
     dragged: Memo<bool>,
+    noticed: Memo<bool>,
 ) -> Memo<ColorRole> {
     create_memo(
         move || match (selected.get(), hovered.get() || active.get(), dragged.get()) {
             (_, _, true) => ColorRole::AccentSoft,
+            _ if noticed.get() => ColorRole::AccentSoft,
             (true, _, false) => ColorRole::SurfaceRaised,
             (false, true, false) => ColorRole::Hover,
             (false, false, false) => ColorRole::Surface,
@@ -282,13 +293,16 @@ fn DockIconTab(
     focused: ReadSignal<bool>,
     dragged: Memo<bool>,
     waiting: Memo<bool>,
+    noticed: Memo<bool>,
 ) -> NodeId {
-    let fill = tab_fill(selected, hovered, active, dragged);
-    let label = create_memo(move || match (waiting.get(), selected.get()) {
-        (true, _) => TextColor::Accent,
-        (false, true) => TextColor::Default,
-        (false, false) => TextColor::Muted,
-    });
+    let fill = tab_fill(selected, hovered, active, dragged, noticed);
+    let label = create_memo(
+        move || match (waiting.get() || noticed.get(), selected.get()) {
+            (true, _) => TextColor::Accent,
+            (false, true) => TextColor::Default,
+            (false, false) => TextColor::Muted,
+        },
+    );
     let shows_picture = create_memo(move || !grouped && picture.with(Option::is_some));
     let glyph = create_memo(move || match grouped {
         true => Some(ICON_APP_WINDOW),
@@ -349,14 +363,16 @@ fn DockTabChrome(
     dragged: Memo<bool>,
     closable: Memo<bool>,
     waiting: Memo<bool>,
+    noticed: Memo<bool>,
     waiting_test_id: String,
     close_test_id: String,
     close: ClickCallback,
 ) -> NodeId {
-    let fill = tab_fill(selected, hovered, active, dragged);
-    let label = create_memo(move || match selected.get() {
-        true => TextColor::Default,
-        false => TextColor::Muted,
+    let fill = tab_fill(selected, hovered, active, dragged, noticed);
+    let label = create_memo(move || match (noticed.get(), selected.get()) {
+        (true, _) => TextColor::Accent,
+        (false, true) => TextColor::Default,
+        (false, false) => TextColor::Muted,
     });
     let shows_picture = create_memo(move || !grouped && picture.with(Option::is_some));
     let pictured = create_memo(move || !grouped && !shows_picture.get() && icon.get().is_some());
@@ -428,9 +444,14 @@ fn DockChromeFace(handle: DockChromeHandle) -> NodeId {
         floating,
         barred,
         focused,
+        see_through,
         content,
     } = handle;
     let framed = barred && floating;
+    let fill = create_memo(move || match see_through.get() {
+        true => ColorRole::None,
+        false => ColorRole::Background,
+    });
     let outline = create_memo(move || {
         framed.then(|| {
             let color = match focused.get() {
@@ -446,7 +467,7 @@ fn DockChromeFace(handle: DockChromeHandle) -> NodeId {
     };
     view! {
         <Frame
-            fill=ColorRole::Background
+            fill={fill}
             border=outline
             radius={if framed { Radius::Lg } else { Radius::None }}
             padding=border
@@ -505,7 +526,6 @@ fn DockCardFace(handle: DockDialogHandle) -> NodeId {
                 fill=ColorRole::SurfaceRaised
                 border={dialog_outline(focused, attention)}
                 radius=Radius::Lg
-                pointer=true
                 padding=CHROME_PADDING
             >
                 {body}
@@ -519,6 +539,7 @@ fn DockWindowFace(handle: DockDialogHandle) -> NodeId {
     let DockDialogHandle {
         tab,
         title,
+        notice,
         icon,
         size,
         focused,
@@ -530,6 +551,15 @@ fn DockWindowFace(handle: DockDialogHandle) -> NodeId {
     } = handle;
     let pictured = create_memo(move || icon.get().is_some());
     let width = create_memo(move || Size::Custom(size.get().x + 2.0 * CHROME_BORDER));
+    let header = create_memo(move || match notice.with(Option::is_some) {
+        true => ColorRole::AccentSoft,
+        false => ColorRole::Surface,
+    });
+    let label = create_memo(move || match notice.with(Option::is_some) {
+        true => TextColor::Accent,
+        false => TextColor::Default,
+    });
+    let title = create_memo(move || notice.get().unwrap_or_else(|| title.get()));
     view! {
         <Frame
             width=width
@@ -540,7 +570,7 @@ fn DockWindowFace(handle: DockDialogHandle) -> NodeId {
         >
             <List spacing=Space::None>
                 <Frame
-                    fill=ColorRole::Surface
+                    fill={header}
                     height=TAB_HEIGHT
                     padding={Padding::horizontal(TAB_PADDING_HORIZONTAL)}
                 >
@@ -550,7 +580,11 @@ fn DockWindowFace(handle: DockDialogHandle) -> NodeId {
                                 <Icon glyph={icon} />
                             </Text>
                         </Show>
-                        <Text overflow=Overflow::Ellipsis @sizing=ItemSize::Percent(100.0)>
+                        <Text
+                            color={label}
+                            overflow=Overflow::Ellipsis
+                            @sizing=ItemSize::Percent(100.0)
+                        >
                             {title}
                         </Text>
                         <Show condition={closable}>
@@ -809,9 +843,7 @@ fn DockDropHighlight(handle: DockHighlightHandle) -> NodeId {
     });
     view! {
         <Layers>
-            <Fade opacity=DROP_OPACITY>
-                <Frame fill=ColorRole::Accent radius=Radius::Md />
-            </Fade>
+            <Frame fill=ColorRole::Accent radius=Radius::Md opacity=DROP_OPACITY />
             <Frame @test_id={"dock.drop"} border={Border::FOCUS} radius=Radius::Md />
             <Show condition={grouping}>
                 <Frame align=Align2::CENTER padding=DROP_LABEL_MARGIN>
@@ -834,29 +866,28 @@ fn DockDragPreview(title: Prop<String>, icon: Memo<Option<Glyph>>, grouped: bool
     let pictured = create_memo(move || !grouped && icon.get().is_some());
     let pictured_color = TextColor::Default;
     view! {
-        <Fade opacity=PREVIEW_OPACITY>
-            <Frame
-                fill=ColorRole::SurfaceRaised
-                border={Border::FOCUS}
-                radius=TAB_RADIUS
-                height=TAB_HEIGHT
-                padding={Padding::horizontal(PREVIEW_PADDING)}
-            >
-                <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
-                    <Show condition={grouped}>
-                        <Text size=TextSize::Sm align=TextAlign::Center>
-                            <Icon glyph=ICON_APP_WINDOW />
-                        </Text>
-                    </Show>
-                    <Show condition={pictured}>
-                        <Text size=TextSize::Sm color={pictured_color} align=TextAlign::Center>
-                            <Icon glyph={icon} />
-                        </Text>
-                    </Show>
-                    <Text overflow=Overflow::Ellipsis>{title}</Text>
-                </List>
-            </Frame>
-        </Fade>
+        <Frame
+            opacity=PREVIEW_OPACITY
+            fill=ColorRole::SurfaceRaised
+            border={Border::FOCUS}
+            radius=TAB_RADIUS
+            height=TAB_HEIGHT
+            padding={Padding::horizontal(PREVIEW_PADDING)}
+        >
+            <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
+                <Show condition={grouped}>
+                    <Text size=TextSize::Sm align=TextAlign::Center>
+                        <Icon glyph=ICON_APP_WINDOW />
+                    </Text>
+                </Show>
+                <Show condition={pictured}>
+                    <Text size=TextSize::Sm color={pictured_color} align=TextAlign::Center>
+                        <Icon glyph={icon} />
+                    </Text>
+                </Show>
+                <Text overflow=Overflow::Ellipsis>{title}</Text>
+            </List>
+        </Frame>
     }
 }
 

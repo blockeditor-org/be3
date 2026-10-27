@@ -87,6 +87,50 @@ config_setting(
     visibility = ["PUBLIC"],
 )
 
+# The browser and the host again, for crates built on beui's HTML core
+# (buck/constraints:html): its wasm module, and its server rendering and string
+# tests. Each is the platform above it with one more constraint, as wasi_guest
+# is, so select() takes its setting as the more specific one.
+platform(
+    name = "wasi_html",
+    constraint_values = [
+        "prelude//cpu/constraints:cpu[wasm32]",
+        "prelude//os/constraints:os[wasi]",
+        "root//buck/constraints:html",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+config_setting(
+    name = "wasi_html_setting",
+    constraint_values = [
+        "prelude//cpu/constraints:cpu[wasm32]",
+        "prelude//os/constraints:os[wasi]",
+        "root//buck/constraints:html",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+platform(
+    name = "linux_x86_64_html",
+    constraint_values = [
+        "prelude//cpu/constraints:cpu[x86_64]",
+        "prelude//os/constraints:os[linux]",
+        "root//buck/constraints:html",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+config_setting(
+    name = "linux_x86_64_html_setting",
+    constraint_values = [
+        "prelude//cpu/constraints:cpu[x86_64]",
+        "prelude//os/constraints:os[linux]",
+        "root//buck/constraints:html",
+    ],
+    visibility = ["PUBLIC"],
+)
+
 platform(
     name = "wasm32",
     constraint_values = [

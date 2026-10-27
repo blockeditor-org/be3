@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 
 use crate::geometry::{Pos2, Vec2};
 
-pub mod typing;
+pub use beui_types::input::typing;
 
 pub use ui_types::input::{
     BackEdge, BackGesture, CursorIcon, ImeEvent, ImeText, Input, Key, KeyChord, KeyPress, Keyboard,
@@ -11,250 +11,18 @@ pub use ui_types::input::{
 };
 pub use ui_types::window::ImeArea;
 
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub struct DroppedFile {
-    pub name: String,
-    pub path: Option<std::path::PathBuf>,
-    pub bytes: Option<std::sync::Arc<[u8]>>,
-}
-
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub enum FileDrag {
-    Hovered,
-    Cancelled,
-    Dropped(DroppedFile),
-}
-
-const MULTI_CLICK_DELAY: f32 = 0.3;
-const MULTI_CLICK_DISTANCE: f32 = 6.0;
-const MULTI_CLICK_LIMIT: u32 = 4;
-pub const TOUCH_DRAG_THRESHOLD: f32 = 8.0;
 pub const LONG_PRESS_DELAY: Duration = Duration::from_millis(500);
 pub const FINGER_TAP_TIME: Duration = Duration::from_millis(350);
-pub const TOUCH_VELOCITY_WINDOW: f32 = 0.12;
-pub const MAX_TOUCH_VELOCITY: f32 = 4_000.0;
 const WHEEL_VELOCITY_WINDOW: Duration = Duration::from_millis(100);
 const SYNTHESIZED_SLOP: f32 = 2.0;
 
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub struct PointerPress {
-    pub window: crate::window::WindowId,
-    pub pos: Pos2,
-    pub local: Pos2,
-    pub size: Vec2,
-    pub fraction: Vec2,
-    pub clicks: u32,
-    pub modifiers: Modifiers,
-    pub touch: bool,
-    pub pen: Option<Pen>,
-    pub predicted: Option<Pos2>,
-    pub time: Instant,
-}
+pub use beui_types::input::{
+    AutoscrollGesture, ClickCounter, DragGesture, MAX_TOUCH_VELOCITY, PointerId, PointerInput,
+    PointerPress, PointerSample, PointerStage, ScrollGesture, SecondaryDrag, SoftKeyboard,
+    TOUCH_DRAG_THRESHOLD, TOUCH_VELOCITY_WINDOW, TouchDrags, WheelInput, ZoomGesture,
+};
 
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub struct PointerSample {
-    pub pos: Pos2,
-    pub touch: bool,
-}
-
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub struct ScrollGesture {
-    pub delta: Vec2,
-    pub fling: Vec2,
-    pub pos: Pos2,
-    pub local: Pos2,
-    pub size: Vec2,
-    pub modifiers: Modifiers,
-    pub held: bool,
-}
-
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub struct DragGesture {
-    pub started: bool,
-    pub ended: bool,
-    pub cancelled: bool,
-    pub delta: Vec2,
-    pub velocity: Vec2,
-}
-
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub struct AutoscrollGesture {
-    pub origin: Pos2,
-    pub pos: Pos2,
-    pub ended: bool,
-    pub edge: bool,
-}
-
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub struct SecondaryDrag {
-    pub from: Pos2,
-    pub pos: Pos2,
-    pub started: bool,
-    pub ended: bool,
-    pub cancelled: bool,
-    pub modifiers: Modifiers,
-}
-
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub struct ZoomGesture {
-    pub factor: f32,
-    pub pos: Pos2,
-    pub local: Pos2,
-    pub size: Vec2,
-}
-
-#[derive(Clone, PartialEq, Debug)]
-pub enum Event {
-    Focus(bool),
-    Modifiers(Modifiers),
-    Key {
-        press: KeyPress,
-        evdev: Option<u32>,
-        text: Option<String>,
-    },
-    PointerButton {
-        pos: Pos2,
-        button: PointerButton,
-        pressed: bool,
-        modifiers: Modifiers,
-    },
-    PointerGone,
-    PointersCancelled,
-    PointerMotion(Vec2),
-    PointerUnlocked,
-    PointerMoved(Pos2),
-    ScrollStarted,
-    Scroll(Vec2),
-    ScrollEnded,
-    Text(String),
-    Paste(crate::clipboard::Pasted),
-    Touch {
-        id: TouchId,
-        phase: TouchPhase,
-        pos: Pos2,
-        force: Option<f32>,
-    },
-    Pen {
-        phase: PenPhase,
-        pos: Pos2,
-        pen: Pen,
-    },
-    Predicted(Pos2),
-    Time(Instant),
-    Zoom(f32),
-    Ime(ImeEvent),
-    FileHovered,
-    FileHoverCancelled,
-    FileDropped(DroppedFile),
-    Back(BackGesture),
-    InterceptedKey(KeyPress),
-    InterceptedTap(Key),
-    PointerWindow(crate::window::WindowId),
-    PointerOutside,
-}
-
-impl Event {
-    pub fn key(press: KeyPress) -> Self {
-        Self::Key {
-            press,
-            evdev: None,
-            text: None,
-        }
-    }
-
-    pub fn press(&self) -> Option<KeyPress> {
-        match self {
-            Self::Key { press, .. } => Some(*press),
-            _ => None,
-        }
-    }
-
-    pub fn is_pointer(&self) -> bool {
-        matches!(
-            self,
-            Self::PointerButton { .. }
-                | Self::PointerGone
-                | Self::PointersCancelled
-                | Self::PointerMotion(_)
-                | Self::PointerMoved(_)
-                | Self::ScrollStarted
-                | Self::Scroll(_)
-                | Self::ScrollEnded
-                | Self::Touch { .. }
-                | Self::Pen { .. }
-                | Self::Predicted(_)
-                | Self::Time(_)
-                | Self::Zoom(_)
-                | Self::PointerWindow(_)
-                | Self::PointerOutside
-        )
-    }
-
-    pub fn is_key(&self) -> bool {
-        matches!(
-            self,
-            Self::Key { .. }
-                | Self::Text(_)
-                | Self::Ime(_)
-                | Self::Modifiers(_)
-                | Self::InterceptedKey(_)
-                | Self::InterceptedTap(_)
-        )
-    }
-
-    pub fn modifiers(&self) -> Option<Modifiers> {
-        match self {
-            Self::Key { press, .. } | Self::InterceptedKey(press) => Some(press.modifiers),
-            Self::Modifiers(modifiers) | Self::PointerButton { modifiers, .. } => Some(*modifiers),
-            _ => None,
-        }
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub enum PointerId {
-    Mouse,
-    Touch(TouchId),
-    Pen,
-}
-
-impl PointerId {
-    pub fn is_touch(self) -> bool {
-        matches!(self, Self::Touch(_))
-    }
-
-    pub fn hovers(self) -> bool {
-        !self.is_touch()
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub enum PointerPhase {
-    Down(PointerButton),
-    Move,
-    Up(PointerButton),
-    Cancel,
-    Gone,
-    ScrollStarted,
-    Scroll(Vec2),
-    ScrollEnded { fling: Vec2 },
-    Zoom(f32),
-}
-
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub struct PointerEvent {
-    pub pointer: PointerId,
-    pub window: crate::window::WindowId,
-    pub phase: PointerPhase,
-    pub pos: Pos2,
-    pub modifiers: Modifiers,
-    pub clicks: u32,
-    pub force: Option<f32>,
-    pub pen: Option<Pen>,
-    pub predicted: Option<Pos2>,
-    pub time: Instant,
-    pub source: usize,
-}
+pub use beui_types::input::{DroppedFile, Event, FileDrag, PointerEvent, PointerPhase};
 
 #[derive(Clone, Debug)]
 pub struct InputState {
@@ -328,10 +96,7 @@ impl InputState {
         }
         input.pointer.pos = input.pointer.pos.map(scale);
         input.pointer.motion *= factor;
-        input.pointer.last_click = input
-            .pointer
-            .last_click
-            .map(|(when, pos)| (when, scale(pos)));
+        input.pointer.clicks.scale(scale);
         input
     }
 
@@ -548,7 +313,7 @@ impl InputState {
             phase,
             pos,
             modifiers: self.modifiers,
-            clicks: self.pointer.clicks,
+            clicks: self.pointer.clicks(),
             force: self.force,
             pen: self.pen,
             predicted: None,
@@ -669,27 +434,17 @@ pub struct Pointer {
     pub window: crate::window::WindowId,
     pub outside: bool,
     pub motion: Vec2,
-    clicks: u32,
-    last_click: Option<(Instant, Pos2)>,
+    clicks: ClickCounter,
     from_touch: bool,
 }
 
 impl Pointer {
     fn count_click(&mut self, pos: Pos2, now: Instant) {
-        let repeated = self.last_click.is_some_and(|(when, at)| {
-            now.duration_since(when).as_secs_f32() <= MULTI_CLICK_DELAY
-                && at.distance(pos) <= MULTI_CLICK_DISTANCE
-        });
-        self.clicks = if repeated {
-            self.clicks % MULTI_CLICK_LIMIT + 1
-        } else {
-            1
-        };
-        self.last_click = Some((now, pos));
+        self.clicks.count(pos, now);
     }
 
     pub fn clicks(&self) -> u32 {
-        self.clicks
+        self.clicks.clicks()
     }
 
     pub fn interact_pos(&self) -> Option<Pos2> {

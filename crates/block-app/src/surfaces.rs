@@ -10,6 +10,7 @@ use uuid::Uuid;
 
 use crate::compositor::{ChildView, PluginRegion, RegionEditor, ShellSurface};
 use crate::host::HostItem;
+use beui::{Align2, Direction};
 
 mod notices;
 

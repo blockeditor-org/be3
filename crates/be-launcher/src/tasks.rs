@@ -7,7 +7,7 @@ use std::sync::mpsc::Sender;
 use std::sync::{Arc, OnceLock};
 use std::thread;
 
-use beui::Waker;
+use beui::native::Waker;
 
 use crate::github::{Entry, Filter, GitHub, PullRequest, download};
 use crate::runs;
@@ -160,7 +160,7 @@ pub(crate) fn start(program: &Path) -> Result<(), String> {
 #[cfg(not(target_os = "android"))]
 pub(crate) fn command(program: impl AsRef<std::ffi::OsStr>) -> Command {
     let mut command = Command::new(program);
-    for variable in beui::environment::VARIABLES {
+    for variable in beui::native::environment::VARIABLES {
         command.env_remove(variable);
     }
     #[cfg(windows)]

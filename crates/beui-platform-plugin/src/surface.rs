@@ -268,10 +268,6 @@ fn shifted(output: &WindowOutput, by: Vec2) -> WindowOutput {
 pub(crate) struct ModuleRenderer;
 
 impl Renderer for ModuleRenderer {
-    fn name(&self) -> &'static str {
-        "plugin surfaces"
-    }
-
     fn info(&self) -> RendererInfo {
         #[cfg(target_arch = "wasm32")]
         if let Some(gpu) = block_editor_plugin::surface_gpu() {

@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use beui_core::tree::set_component_state;
+use crate::core::tree::set_component_state;
 use beui_tree::reactive::{Stored, store};
 
 pub struct ComponentRef<A: 'static>(Stored<RefCell<Option<A>>>);

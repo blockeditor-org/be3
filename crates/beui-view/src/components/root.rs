@@ -1,10 +1,19 @@
-use crate::reactive::{
-    Child, ChildValue, ComponentContext, Get, Prop, ScopeContext, create_effect, with_document,
-};
-use beui_core::color::Color32;
-use beui_core::node::NodeId;
-pub use beui_core::window::SystemBars;
+use crate::reactive::Child;
+use crate::reactive::Prop;
+use crate::reactive::{ChildValue, ComponentContext, NodeId, ScopeContext};
+use crate::types::Color;
+pub use crate::types::SystemBars;
 use beui_macros::component;
+
+#[component]
+pub fn Root(
+    clear_color: Prop<Color>,
+    title: Option<Prop<String>>,
+    #[prop(default = SystemBars::default())] system_bars: Prop<SystemBars>,
+    children: Child,
+) -> Root {
+    crate::core::root(clear_color, title, system_bars, children)
+}
 
 pub struct Root {
     child: NodeId,
@@ -28,41 +37,8 @@ impl Root {
     }
 }
 
-#[component]
-pub fn Root(
-    clear_color: Prop<Color32>,
-    title: Option<Prop<String>>,
-    #[prop(default = SystemBars::default())] system_bars: Prop<SystemBars>,
-    children: Child,
-) -> Root {
-    let handle = crate::components::window::use_window();
-    let window = move || {
-        handle
-            .filter(|handle| handle.is_window())
-            .map(|handle| handle.id)
-    };
-    create_effect(move || {
-        let color = clear_color.get();
-        let window = window();
-        with_document(|document| {
-            document.update_appearance(window, |appearance| appearance.clear_color = color)
-        });
-    });
-    if let Some(title) = title {
-        create_effect(move || {
-            let title = title.get();
-            let window = window();
-            with_document(|document| {
-                document.update_appearance(window, |appearance| appearance.title = Some(title))
-            });
-        });
+impl Root {
+    pub(crate) fn holding_child(child: NodeId) -> Root {
+        Root { child }
     }
-    create_effect(move || {
-        let bars = system_bars.get();
-        let window = window();
-        with_document(|document| {
-            document.update_appearance(window, |appearance| appearance.system_bars = bars)
-        });
-    });
-    Root { child: children }
 }

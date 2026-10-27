@@ -5,6 +5,7 @@ use block_editor_beui::beui::styled::*;
 
 use super::panel::Info;
 use super::workspace::Workspace;
+use beui::{Align, Direction, ItemSize};
 
 const PADDING_HORIZONTAL: Space = Space::Md;
 const PADDING_VERTICAL: Space = Space::Xs;

@@ -8,11 +8,15 @@ fn picking_in_a_narrow_window_returns_to_the_inspector() {
 
     harness.toggle_inspector();
     harness.toggle_picking();
-    assert!(harness.inspector().state().app_visible());
+    harness.settle();
+    assert!(harness.inspector().app_visible(), "picking shows the app");
 
     harness.click(harness.center(text));
-    harness.frame(Vec::new());
+    harness.settle();
 
     assert_eq!(harness.inspector().state().selected.get(), Some(text));
-    assert!(!harness.inspector().state().app_visible());
+    assert!(
+        !harness.inspector().app_visible(),
+        "a pick returns to the tool it came from"
+    );
 }

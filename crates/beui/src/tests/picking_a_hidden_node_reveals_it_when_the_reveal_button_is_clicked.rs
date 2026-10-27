@@ -39,7 +39,7 @@ fn picking_a_hidden_node_reveals_it_when_the_reveal_button_is_clicked() {
         .expect("the text was not laid out")
         .center();
     harness.click(target);
-    harness.frame(Vec::new());
+    harness.settle();
 
     assert!(!harness.inspector().state().picking.get());
     assert_eq!(harness.inspector().state().selected.get(), Some(text));

@@ -1,5 +1,6 @@
 use super::*;
-use crate::primitives::{Text, Window, WindowHandle};
+use crate::primitives::Text;
+use crate::{Window, WindowHandle};
 use crate::{WindowId, WindowReport};
 
 #[derive(Debug, PartialEq)]

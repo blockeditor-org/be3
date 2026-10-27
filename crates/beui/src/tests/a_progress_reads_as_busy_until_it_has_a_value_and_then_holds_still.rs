@@ -4,7 +4,7 @@ use super::*;
 use crate::reactive::*;
 use crate::styled::*;
 
-fn progress_node(output: &crate::FrameOutput) -> Node {
+fn progress_node(output: &crate::native::FrameOutput) -> Node {
     output
         .accessibility_tree("Test", VIEWPORT)
         .nodes
@@ -28,10 +28,10 @@ fn a_progress_reads_as_busy_until_it_has_a_value_and_then_holds_still() {
     assert!(progress.is_busy());
     assert_eq!(progress.label(), Some("Copying"));
     assert_eq!(progress.numeric_value(), None);
-    assert_eq!(
-        harness.frame(Vec::new()).repaint_after,
-        Duration::ZERO,
-        "an indeterminate progress moves"
+    let moving = harness.frame(Vec::new()).repaint_after;
+    assert!(
+        moving > Duration::ZERO && moving < Duration::MAX,
+        "an indeterminate progress moves a frame's time apart, not as soon as it can"
     );
 
     value.set(Some(1.5));

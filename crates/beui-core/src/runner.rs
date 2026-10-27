@@ -17,7 +17,7 @@ use crate::file_picker::{FilePick, FilePickAnswer, FilePickId, FilePickRequest};
 use crate::file_saver::{FileSave, FileSaveAnswer, FileSaveId, FileSaveRequest};
 use crate::geometry::Vec2;
 use crate::input::{Event, Input};
-use crate::renderer::{Capture, Loaded, Renderers};
+use crate::renderer::{Capture, Loaded, Rendering};
 use crate::window::{Resize, WindowId, WindowReport, WindowReports, WindowState};
 
 mod controller;
@@ -169,7 +169,7 @@ pub struct Runner {
     layers: Vec<Box<dyn Layer>>,
     shown: Option<Shown>,
     context: Context,
-    renderers: Option<Renderers>,
+    rendering: Option<Rendering>,
     waker: Option<Waker>,
     events: Vec<Event>,
     intake: Intake,
@@ -227,7 +227,7 @@ impl Runner {
             layers,
             shown: None,
             context,
-            renderers: None,
+            rendering: None,
             waker: None,
             events: Vec::new(),
             intake: Intake::default(),
@@ -266,11 +266,11 @@ impl Runner {
         &mut *self.app
     }
 
-    pub fn start(&mut self, loaded: Vec<Loaded>, mut setup: Setup) -> Result<(), Box<dyn Error>> {
-        let renderers = Renderers::new(&self.context, loaded)?;
-        renderers.provide(&mut setup);
+    pub fn start(&mut self, loaded: Loaded, mut setup: Setup) -> Result<(), Box<dyn Error>> {
+        let rendering = Rendering::new(&self.context, loaded);
+        rendering.provide(&mut setup);
         setup.provide(self.context.clone());
-        self.renderers = Some(renderers);
+        self.rendering = Some(rendering);
         self.waker = Some(setup.waker.clone());
         self.context.set_waker(setup.waker.clone());
         self.app.setup(&setup);
@@ -281,11 +281,11 @@ impl Runner {
     }
 
     pub fn started(&self) -> bool {
-        self.renderers.is_some()
+        self.rendering.is_some()
     }
 
-    pub fn renderers(&mut self) -> Option<&mut Renderers> {
-        self.renderers.as_mut()
+    pub fn rendering(&mut self) -> Option<&mut Rendering> {
+        self.rendering.as_mut()
     }
 
     pub fn push(&mut self, input: impl Into<Incoming>) {
@@ -432,13 +432,13 @@ impl Runner {
         safe_area: SafeArea,
     ) -> Option<Frame> {
         let started = std::time::Instant::now();
-        let renderers = self.renderers.as_mut()?;
-        match renderers.recover() {
+        let rendering = self.rendering.as_mut()?;
+        match rendering.recover() {
             Ok(false) => {}
             Ok(true) => {
                 if let Some(waker) = &self.waker {
                     let mut setup = Setup::new(waker.clone());
-                    renderers.provide(&mut setup);
+                    rendering.provide(&mut setup);
                     setup.provide(self.context.clone());
                     self.app.renderer_replaced(&setup);
                     for layer in &mut self.layers {
@@ -458,14 +458,11 @@ impl Runner {
         {
             self.context.enable_keyboard();
         }
-        if let Err(error) = renderers.follow_choice(&self.context) {
-            eprintln!("beui: could not switch renderers: {error}");
-        }
         if let Some(fullscreen) = self.reports.take_fullscreen() {
             self.context.fullscreen_changed(fullscreen);
         }
         if let Some((width, height)) = self.reports.take_size() {
-            renderers.resize(width, height);
+            rendering.resize(width, height);
         }
         if let Some(scale) = self.reports.take_scale() {
             self.native = scale;
@@ -481,7 +478,7 @@ impl Runner {
                 .set_preference_layer(crate::preferences::PreferenceSource::System, preferences);
         }
         let pixels_per_point = self.native;
-        let visible = renderers.physical();
+        let visible = rendering.physical();
         let paced = match (visible, self.last_physical) {
             (Some(_), _) | (None, Some(_)) => self
                 .layers
@@ -497,7 +494,7 @@ impl Runner {
         self.last_physical = Some(physical);
         self.context.set_pixels_per_point(pixels_per_point);
         let scale = self.context.pixels_per_point();
-        renderers.set_vsync(paced.is_none());
+        rendering.set_vsync(paced.is_none());
         let mut now = match paced {
             Some(at) if !self.context.clock_stopped() => {
                 let at = self.paced.map_or(at, |last| at.max(last));
@@ -666,9 +663,9 @@ impl Runner {
 
         let background = self.background;
         let pending = match seen {
-            true => renderers.prepare(shown, scale, background),
+            true => rendering.prepare(shown, scale, background),
             false => {
-                renderers.note(shown, scale, background);
+                rendering.note(shown, scale, background);
                 false
             }
         };
@@ -693,7 +690,7 @@ impl Runner {
         .downward(|layer, layer_frame| layer.framed(&mut frame, &output, layer_frame));
         self.unpresented |= pending;
         if !self.unpresented && self.layers.iter().any(|layer| layer.wants_capture()) {
-            capture_for(&mut self.layers, renderers.capture());
+            capture_for(&mut self.layers, rendering.capture());
         }
         let closing = output.close_requested || self.closing;
         self.shown = layered;
@@ -717,14 +714,14 @@ impl Runner {
             return false;
         }
         let background = self.background;
-        let Some(renderers) = self.renderers.as_mut() else {
+        let Some(rendering) = self.rendering.as_mut() else {
             return false;
         };
-        let again = renderers.present(background);
+        let again = rendering.present(background);
         if !again {
             self.unpresented = false;
             if self.layers.iter().any(|layer| layer.wants_capture()) {
-                capture_for(&mut self.layers, renderers.capture());
+                capture_for(&mut self.layers, rendering.capture());
             }
         }
         again

@@ -1,4 +1,5 @@
 use super::*;
+use crate::native::enter;
 use crate::primitives::Span;
 use crate::primitives::*;
 use crate::reactive::*;

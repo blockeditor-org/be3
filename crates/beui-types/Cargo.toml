@@ -1,0 +1,16 @@
+[package]
+name = "beui-types"
+description = "The plain values beui's components share across cores: colours, geometry, layout, text, layers, input and images"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+beui-tree = { path = "../beui-tree" }
+geometry = { path = "../geometry" }
+lucide = { path = "../lucide" }
+thumbhash = "0.1"
+ui-types = { path = "../ui-types" }
+
+[lints]
+workspace = true

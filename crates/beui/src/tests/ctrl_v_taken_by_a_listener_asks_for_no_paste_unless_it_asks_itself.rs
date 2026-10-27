@@ -1,5 +1,5 @@
 use super::*;
-use crate::PasteRequest;
+use crate::native::PasteRequest;
 use crate::reactive::*;
 
 #[test]

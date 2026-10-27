@@ -1,0 +1,12 @@
+# A floating panel sits inside an edge of its anchor, moves to the edge it's
+# asked for, takes presses and hides when closed.
+clock stop
+wait 'value="Asked bottom placed bottom pressed 0"'
+click 'Button "Press"'
+wait 'value="Asked bottom placed bottom pressed 1"'
+click 'Button "Top"'
+wait 'value="Asked top placed top pressed 1"'
+click 'Button "Bottom end"'
+wait 'value="Asked bottom end placed bottom end pressed 1"'
+click 'Button "Hide"'
+gone '#floating.note'

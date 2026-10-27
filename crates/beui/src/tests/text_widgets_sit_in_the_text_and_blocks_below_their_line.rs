@@ -85,7 +85,7 @@ fn text_widgets_sit_in_the_text_and_blocks_below_their_line() {
         "the text after it stays on the line"
     );
 
-    crate::reactive::with_reactive_scope(harness.document_mut(), || {
+    crate::native::with_reactive_scope(harness.document_mut(), || {
         let (anchor, focus) = state.with_core(|core| (core.position(4), core.position(7)));
         state.execute(EditorCommand::SetSelection { anchor, focus });
     });

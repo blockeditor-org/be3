@@ -2,7 +2,7 @@ load("@root//buck/cargo:defs.bzl", "cargo_library")
 load("@root//buck/wasm:defs.bzl", "wasm32_module")
 
 # The remaps block-app runs on the input of a Linux session, as a WebAssembly
-# module (guides/linux_desktop.md, Input remaps). The host is be-remap-host.
+# module (guides/desktop/linux.md, Input remaps). The host is be-remap-host.
 cargo_library()
 
 cargo_library(

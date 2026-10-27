@@ -3,7 +3,7 @@ use crate::filter::Filter;
 
 #[test]
 fn changing_a_filter_damages_only_the_region_it_covers() {
-    let context = Context::new(crate::FreetypeFonts::default());
+    let context = Context::new(crate::native::FreetypeFonts::default());
     let page = Rect::from_min_max(Pos2::ZERO, pos2(200.0, 200.0));
     let region = Rect::from_min_max(pos2(10.0, 10.0), pos2(60.0, 40.0));
     let frame = |blur: f32| {

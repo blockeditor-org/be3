@@ -40,12 +40,23 @@ def per_cross_platform(default, value, extra = {}):
 def plan_name(platform: str) -> str:
     return platform.replace("_", "-", 1)
 
-# Every plan, and the setting a configuration is matched to it by. The two
-# wasi plans are the same triple: the guest's setting is the app's with one
-# more constraint, so select() takes it as the more specific of the two.
+# Every plan, and the setting a configuration is matched to it by. The three
+# wasi plans are the same triple, and the two host plans another: the guest's
+# and the HTML core's settings are the plain one's with one more constraint, so
+# select() takes them as the more specific.
 PLAN_SETTINGS = {
     "linux-x86_64": "root//buck/platforms:linux_x86_64_setting",
+    "linux-x86_64-html": "root//buck/platforms:linux_x86_64_html_setting",
     "wasi": "root//buck/platforms:wasi_setting",
     "wasi-guest": "root//buck/platforms:wasi_guest_setting",
+    "wasi-html": "root//buck/platforms:wasi_html_setting",
     "wasm32": "root//buck/platforms:wasm32_setting",
 } | {plan_name(name): cross_setting(name) for name in CROSS_PLATFORMS}
+
+# The plans for beui's HTML core (buck/constraints:html), and the platform each
+# is built for: the crates cargo plans in them are what //:check and
+# ./scripts/verify check there.
+HTML_PLANS = {
+    "linux-x86_64-html": "root//buck/platforms:linux_x86_64_html",
+    "wasi-html": "root//buck/platforms:wasi_html",
+}

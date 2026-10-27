@@ -1,3 +1,4 @@
+use block_editor_beui::beui::CanvasView;
 use std::rc::Rc;
 
 use infinite_canvas_types::{CanvasColor, CanvasEntity, CanvasShape};
@@ -5,7 +6,9 @@ use std::cell::RefCell;
 
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::{KeyPress, NodeId, Painter, PointerPress, Pos2, Rect, Vec2, pos2};
+use block_editor_beui::beui::{
+    KeyPress, NodeId, PointerPress, Pos2, Rect, Vec2, pos2, reactive::Painter,
+};
 use block_editor_beui::{ChildBlock, ChildMode, ChildState, ChildTarget};
 use uuid::Uuid;
 
@@ -19,102 +22,109 @@ use super::sketch::{Sketch, SketchKey, rough_reach};
 use super::state::{CanvasState, Gesture};
 use super::text::{EntityText, path_label_reach, text_region, writes};
 use crate::freehand::LiveStroke;
+use beui::{PasteKind, Pasted, Sides};
 
 const ITEM_MARGIN: f32 = 2.0;
 
 #[component]
 pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
-    view! {
-        <PlacementBuilder>|placed: ReadSignal<Rect>| {
-            let parent = state.editor().placed_content();
-            let shown = create_memo(move || match parent.get() {
-                Some(parent) => parent.intersect(placed.get()),
-                None => placed.get(),
-            });
-            create_effect(move || state.set_stage(shown.get()));
+    let placed_held = create_signal(Rect::ZERO);
+    let placed = placed_held.read_only();
+    let parent = state.editor().placed_content();
+    let shown = create_memo(move || match parent.get() {
+        Some(parent) => parent.intersect(placed.get()),
+        None => placed.get(),
+    });
+    create_effect(move || state.set_stage(shown.get()));
 
-            let view = state.editor().canvas();
-            let world = state.editor().world();
-            let camera = create_memo(move || {
-                super::state::camera_view(view.get(), world.get(), placed.get(), state.framed())
-            });
-            let ids = state.entities.ids();
-            let embedding = create_memo(move || state.entities.embedding());
-            let inset = create_memo(move || {
-                let (placed, shown) = (placed.get(), shown.get());
-                Padding::custom(Sides::new(
-                    (shown.left() - placed.left()).max(0.0),
-                    (shown.top() - placed.top()).max(0.0),
-                    (placed.right() - shown.right()).max(0.0),
-                    (placed.bottom() - shown.bottom()).max(0.0),
-                ))
-            });
-            let previewing = state.previewing();
-            let (grid, tiles) = grid_of(state, camera, shown);
-            let frames = create_memo(move || {
-                state
-                    .entities
-                    .frames()
-                    .iter()
-                    .filter(|frame| !frame.hidden)
-                    .map(|frame| entity_bounds(frame).rect())
-                    .collect::<Vec<_>>()
-            });
-            let frame_ids = create_memo(move || {
-                state
-                    .entities
-                    .frames()
-                    .iter()
-                    .filter(|frame| !frame.hidden)
-                    .map(|frame| frame.id)
-                    .collect::<Vec<_>>()
-            });
-            let outside_frames = create_memo(move || {
-                match !previewing && frames.with(|frames| !frames.is_empty()) {
-                    true => ColorRole::Dim,
-                    false => ColorRole::None,
-                }
-            });
-            view! {
-                <CanvasMenu disabled={previewing}>
-                    <Frame padding={inset} fill={outside_frames}>
-                        <CanvasSurface state={state}>
-                            <Canvas
-                                view={create_memo(move || Some(camera.get()))}
-                                on_reveal={reveal_by(state.editor())}
-                                @test_id={"infinite-canvas.canvas"}
-                            >
-                                <ForEach keys={frame_ids}>|id: Uuid| {
-                                    let camera = camera;
-                                    view! {
-                                        <FrameBackdropItem state id camera />
-                                    }
-                                }</ForEach>
-                                <ForEach keys={tiles}>|tile: GridTile|
-                                    <GridTileItem tile look={grid} frames />
-                                </ForEach>
-                                <ForEach keys={ids}>|id: Uuid|
-                                    <EntityShape state id />
-                                </ForEach>
-                                <ForEach keys={embedding}>|id: Uuid|
-                                    <EntityEmbed state id />
-                                </ForEach>
-                                <Show condition={!previewing}>
-                                    <CanvasHint state={state} camera={camera} stage={shown} />
-                                </Show>
-                                <Show condition={!previewing}>
-                                    <CanvasOverlay state={state} camera={camera} />
-                                </Show>
-                                <Show condition={!previewing}>
-                                    <LiveOverlay state={state} camera={camera} stage={shown} />
-                                </Show>
-                            </Canvas>
-                        </CanvasSurface>
-                    </Frame>
-                </CanvasMenu>
-            }
-        }</PlacementBuilder>
-    }
+    let view = state.editor().canvas();
+    let world = state.editor().world();
+    let camera = create_memo(move || {
+        super::state::camera_view(view.get(), world.get(), placed.get(), state.framed())
+    });
+    let ids = state.entities.ids();
+    let embedding = create_memo(move || state.entities.embedding());
+    let inset = create_memo(move || {
+        let (placed, shown) = (placed.get(), shown.get());
+        Padding::custom(Sides::new(
+            (shown.left() - placed.left()).max(0.0),
+            (shown.top() - placed.top()).max(0.0),
+            (placed.right() - shown.right()).max(0.0),
+            (placed.bottom() - shown.bottom()).max(0.0),
+        ))
+    });
+    let previewing = state.previewing();
+    let (grid, tiles) = grid_of(state, camera, shown);
+    let frames = create_memo(move || {
+        state
+            .entities
+            .frames()
+            .iter()
+            .filter(|frame| !frame.hidden)
+            .map(|frame| entity_bounds(frame).rect())
+            .collect::<Vec<_>>()
+    });
+    let frame_ids = create_memo(move || {
+        state
+            .entities
+            .frames()
+            .iter()
+            .filter(|frame| !frame.hidden)
+            .map(|frame| frame.id)
+            .collect::<Vec<_>>()
+    });
+    let outside_frames =
+        create_memo(
+            move || match !previewing && frames.with(|frames| !frames.is_empty()) {
+                true => ColorRole::Dim,
+                false => ColorRole::None,
+            },
+        );
+    let built = view! {
+        <CanvasMenu disabled={previewing}>
+            <Frame padding={inset} fill={outside_frames}>
+                <CanvasSurface state={state}>
+                    <Canvas
+                        view={create_memo(move || Some(camera.get()))}
+                        on_reveal={reveal_by(state.editor())}
+                        @test_id={"infinite-canvas.canvas"}
+                    >
+                        <ForEach keys={frame_ids}>|id: Uuid| {
+                            let camera = camera;
+                            view! {
+                                <FrameBackdropItem state id camera />
+                            }
+                        }</ForEach>
+                        <ForEach keys={tiles}>|tile: GridTile|
+                            <GridTileItem tile look={grid} frames />
+                        </ForEach>
+                        <ForEach keys={ids}>|id: Uuid|
+                            <EntityShape state id />
+                        </ForEach>
+                        <ForEach keys={embedding}>|id: Uuid|
+                            <EntityEmbed state id />
+                        </ForEach>
+                        <Show condition={!previewing}>
+                            <CanvasHint state={state} camera={camera} stage={shown} />
+                        </Show>
+                        <Show condition={!previewing}>
+                            <CanvasOverlay state={state} camera={camera} />
+                        </Show>
+                        <Show condition={!previewing}>
+                            <LiveOverlay state={state} camera={camera} stage={shown} />
+                        </Show>
+                    </Canvas>
+                </CanvasSurface>
+            </Frame>
+        </CanvasMenu>
+    };
+    let placed_measured = measure(built);
+    create_effect(move || {
+        if let Some(measured) = placed_measured.get() {
+            placed_held.set(measured.rect);
+        }
+    });
+    built
 }
 
 const REVEAL_STEP: f32 = 0.35;
@@ -139,7 +149,11 @@ fn grid_of(
     let theme = use_theme();
     let look = create_memo(move || {
         let spacing = grid.get().shown().filter(|_| live)?;
-        GridLook::new(spacing, camera.get().scale, theme.border.get())
+        GridLook::new(
+            spacing,
+            camera.get().scale,
+            beui::reactive::resolve_color(theme.border.get()),
+        )
     });
     let tiles = create_memo(move || match look.get() {
         Some(look) => look.tiles(camera.get().rect_to_canvas(stage.get())),
@@ -204,7 +218,7 @@ fn CanvasHint(
         let empty = state.entities.ids().with(Vec::is_empty);
         let busy = state.gesture.with(Option::is_some);
         (empty && !busy).then(|| Hint {
-            color: theme.text_muted.get(),
+            color: beui::reactive::resolve_color(theme.text_muted.get()),
         })
     });
     let shown = create_memo(move || hint.with(Option::is_some));
@@ -379,11 +393,11 @@ fn FrameBackdropItem(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> 
         Some(FrameBackdrop {
             name: entity.text.to_str_lossy().into_owned(),
             fill: match entity.style.filled().unwrap_or_default() {
-                CanvasColor::Auto => theme.background.get(),
-                color => resolve_color(color, theme.text.get()),
+                CanvasColor::Auto => beui::reactive::resolve_color(theme.background.get()),
+                color => resolve_color(color, beui::reactive::resolve_color(theme.text.get())),
             },
-            label: theme.text_muted.get(),
-            outline: theme.border.get(),
+            label: beui::reactive::resolve_color(theme.text_muted.get()),
+            outline: beui::reactive::resolve_color(theme.border.get()),
             chrome,
         })
     });
@@ -642,10 +656,10 @@ fn entity_of(state: CanvasState, id: Uuid) -> Memo<Option<CanvasEntity>> {
 
 pub(crate) fn palette(theme: &block_editor_beui::beui::styled::ThemeStore) -> Palette {
     Palette {
-        auto: theme.text.get(),
-        surface: theme.surface_raised.get(),
-        border: theme.border.get(),
-        muted: theme.text_muted.get(),
+        auto: beui::reactive::resolve_color(theme.text.get()),
+        surface: beui::reactive::resolve_color(theme.surface_raised.get()),
+        border: beui::reactive::resolve_color(theme.border.get()),
+        muted: beui::reactive::resolve_color(theme.text_muted.get()),
     }
 }
 

@@ -1,13 +1,13 @@
 use std::rc::Rc;
 
-use beui_core::color::Color32;
-use beui_core::geometry::{Pos2, Rect, Vec2, pos2};
-use beui_core::image::{Image, ImageFit, Thumbhash};
-use beui_core::node::NodeId;
-use beui_core::painter::Painter;
 use beui_macros::{component, view};
 use beui_view::primitives::*;
+use beui_view::reactive::NodeId;
+use beui_view::reactive::Painter;
 use beui_view::reactive::*;
+use beui_view::types::Color;
+use beui_view::types::{Image, ImageFit, Thumbhash};
+use beui_view::types::{Pos2, Rect, Vec2, pos2};
 
 #[derive(Clone, PartialEq)]
 struct Shown {
@@ -46,7 +46,7 @@ pub fn Picture(
     #[prop(default = None)] thumbhash: Prop<Option<Thumbhash>>,
     #[prop(default = None)] source: Prop<Option<Rect>>,
     #[prop(default = ImageFit::Contain)] fit: Prop<ImageFit>,
-    #[prop(default = Color32::WHITE)] tint: Prop<Color32>,
+    #[prop(default = Color::WHITE)] tint: Prop<Color>,
     #[prop(default = 0.0)] radius: Prop<f32>,
     #[prop(default = true)] smooth: Prop<bool>,
 ) -> NodeId {
@@ -83,7 +83,14 @@ pub fn Picture(
             let placed = fit.place(rect, cropped(shown.size, source));
             let uv = source.unwrap_or(Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)));
             let (placed, uv) = visible_part(placed, uv, rect);
-            painter.image(placed, uv, &shown.image, tint, radius, shown.smooth);
+            painter.image(
+                placed,
+                uv,
+                &shown.image,
+                painter.resolve_color(tint),
+                radius,
+                shown.smooth,
+            );
         })
     });
     view! {

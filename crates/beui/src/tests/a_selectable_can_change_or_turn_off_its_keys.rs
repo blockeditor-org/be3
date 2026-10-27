@@ -1,4 +1,5 @@
 use super::*;
+use crate::native::with_reactive_scope;
 use crate::primitives::Text;
 use crate::reactive::*;
 use crate::styled::*;
@@ -39,9 +40,9 @@ fn a_selectable_can_change_or_turn_off_its_keys() {
 
     let state = harness
         .document()
-        .api::<crate::unstyled::SelectableState>(region.get());
+        .api::<crate::styled::SelectableState>(region.get());
     with_reactive_scope(harness.document_mut(), || {
-        crate::unstyled::select_all(state)
+        crate::selectable::select_all(state)
     });
     assert_eq!(
         copy(&mut harness, Modifiers::CTRL),

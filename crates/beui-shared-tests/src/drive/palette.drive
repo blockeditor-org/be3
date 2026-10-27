@@ -1,0 +1,20 @@
+# A command palette narrows its list as a query is typed and launches the
+# highlighted item on Enter, or the one clicked.
+clock stop
+click 'Button "Launch"'
+wait '#palette.item.files'
+type 'ter'
+gone '#palette.item.files'
+wait '#palette.item.terminal'
+key Enter
+gone '#palette.search'
+wait 'value="Launched terminal"'
+click 'Button "Launch"'
+wait '#palette.item.files'
+click '#palette.item.files'
+gone '#palette.search'
+wait 'value="Launched files"'
+click 'Button "Launch"'
+wait '#palette.search'
+key Escape
+gone '#palette.search'

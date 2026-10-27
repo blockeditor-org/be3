@@ -1,6 +1,5 @@
 use std::any::Any;
 
-use crate::animation::Spring;
 use crate::base::list::Direction;
 use crate::callback::Callback;
 use crate::document::Document;
@@ -8,16 +7,7 @@ use crate::geometry::{Pos2, Rect, Vec2};
 use crate::node::{Element, NodeId, NodeOf, Placed, Rects};
 use crate::painter::Painter;
 
-pub const GLIDE_SPRING: Spring = Spring {
-    stiffness: 500.0,
-    damping: 42.0,
-};
-
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub struct GlideHold {
-    pub at: Pos2,
-    pub along: Option<Direction>,
-}
+pub use beui_types::layout::{GLIDE_SPRING, GlideHold};
 
 #[derive(Clone, Copy)]
 struct Origin {

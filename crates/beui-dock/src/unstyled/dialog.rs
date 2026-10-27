@@ -1,21 +1,23 @@
 use beui_components_unstyled::DialogLayout;
-use beui_core::icons::Glyph;
+use beui_view::types::icons::Glyph;
 use std::time::Duration;
 
-use beui_core::base::overlay::{OverlayAnchor, Placement};
-use beui_core::color::Color32;
-use beui_core::geometry::{Rect, Vec2};
-use beui_core::input::PointerPress;
-use beui_core::layer::{Dismiss, LayerPolicy};
-use beui_core::node::NodeId;
-use beui_core::window::{WindowPlacement, WindowReport};
 use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;
-use beui_view::components::window::{Window, WindowHandle, opens_windows};
 use beui_view::primitives::*;
+use beui_view::reactive::NodeId;
+use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
+use beui_view::types::Color;
+use beui_view::types::Placement;
+use beui_view::types::PointerPress;
+use beui_view::types::window::{WindowPlacement, WindowReport};
+use beui_view::types::{Dismiss, LayerPolicy};
+use beui_view::types::{Rect, Vec2};
+use beui_view::window::{Window, WindowHandle, opens_windows};
 
 use super::{DockMode, DockState, DockTabControl, State, TabId};
+use beui_view::types::Extent;
 
 const ATTENTION: Duration = Duration::from_millis(400);
 
@@ -43,6 +45,7 @@ pub struct DockDialogHandle {
     pub tab: TabId,
     pub presentation: DockDialogPresentation,
     pub title: Memo<String>,
+    pub notice: Memo<Option<String>>,
     pub icon: Memo<Option<Glyph>>,
     pub size: Memo<Vec2>,
     pub modal: Memo<bool>,
@@ -347,11 +350,13 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
     let pointer = NodeRef::new();
     let closable = on_close.is_some();
     let chrome = dock.dialog_chrome;
+    let notice = create_memo(move || dock.notice(tab));
     let face = Render::new(move |()| {
         chrome.call(DockDialogHandle {
             tab,
             presentation,
             title,
+            notice,
             icon,
             size,
             modal,
@@ -389,7 +394,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
             (true, Some(rect)) => (
                 OverlayAnchor::Pinned { node: anchor, rect },
                 Placement::Popover { gap, margin },
-                Color32::TRANSPARENT,
+                Color::TRANSPARENT,
             ),
             (true, None) => (
                 OverlayAnchor::Node(anchor),
@@ -399,7 +404,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
             (false, _) => (
                 OverlayAnchor::Node(anchor),
                 Placement::CenterOn,
-                Color32::TRANSPARENT,
+                Color::TRANSPARENT,
             ),
         }
     });
@@ -426,7 +431,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         let node = anchor.get().try_get();
         untrack(|| {
             let node = node?;
-            let rect = placements().rect(node)?;
+            let rect = measure(node).get_untracked()?.rect;
             Some(WindowPlacement::Over {
                 window: window_of(node),
                 at: rect.center() - size / 2.0,
@@ -435,6 +440,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         .unwrap_or(WindowPlacement::AtPointer)
     });
     let window_title = create_memo(move || Some(title.get()));
+    let window_notice = create_memo(move || dock.notice(tab));
     let view = view! {
         <List spacing=0.0>
             <Overlay
@@ -442,6 +448,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
                 anchor={at}
                 placement
                 pointer
+                beak={dock.dialog_beak}
                 scrim
                 policy
                 traps_focus=false
@@ -463,6 +470,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
                 size={window_size}
                 placement={window_placement}
                 title={window_title}
+                notice={window_notice}
                 open={windowed_open}
                 keep_alive=true
                 on_report={move |report: WindowReport| match report {

@@ -7,7 +7,6 @@ use crate::geometry::{Rect, Vec2, pos2};
 use crate::input::{Event, TouchPhase};
 
 pub mod accessibility_dump;
-pub mod ime_mirror;
 
 #[derive(Clone, Copy, PartialEq, Debug, Default)]
 pub struct SafeArea {
@@ -83,6 +82,18 @@ impl FrameTimes {
     pub fn merge(&mut self, other: Self) {
         self.count += other.count;
         self.longest = self.longest.max(other.longest);
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct NativeWindow(pub raw_window_handle::RawWindowHandle);
+
+impl NativeWindow {
+    pub fn win32(&self) -> Option<isize> {
+        match self.0 {
+            raw_window_handle::RawWindowHandle::Win32(handle) => Some(handle.hwnd.get()),
+            _ => None,
+        }
     }
 }
 

@@ -3,19 +3,16 @@ use std::hash::Hash;
 use std::rc::Rc;
 
 use accesskit::{Live, Node, Role};
-use beui_core::base::Direction;
-use beui_core::base::glide::GlideHold;
-use beui_core::base::overlay::{OverlayAnchor, Placement};
-use beui_core::drag_board::{Board, DragPoint, DragSource, Pending};
-use beui_core::geometry::{Pos2, Rect};
-use beui_core::input::{CursorIcon, Key, PointerPress, TOUCH_DRAG_THRESHOLD};
-use beui_core::keys::{KeyAt, KeyPhase};
-use beui_core::layer::{LayerLevel, LayerPolicy};
-use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;
+use beui_view::drag::{Board, DragPoint, DragSource, Pending, drag_board};
 use beui_view::primitives::*;
 use beui_view::reactive::*;
+use beui_view::reactive::{KeyAt, NodeId, OverlayAnchor};
+use beui_view::types::{
+    CursorIcon, Direction, GlideHold, Key, KeyPhase, LayerLevel, LayerPolicy, Placement,
+    PointerPress, Pos2, Rect, Sides, TOUCH_DRAG_THRESHOLD, TouchDrags,
+};
 
 use crate::drag::{DRAG_THRESHOLD, DropHandle, DropTarget};
 
@@ -86,7 +83,7 @@ struct State<K: 'static, P: 'static> {
     pressed: RefCell<Option<Press<K>>>,
     arrival: RefCell<Option<Arrival<K>>>,
     glides: RefCell<Vec<(K, NodeId, NodeId)>>,
-    board: Rc<Board>,
+    board: Board,
     gone: Cell<bool>,
 }
 
@@ -163,7 +160,7 @@ fn glide_of<K: PartialEq, P>(state: &State<K, P>, key: &K) -> Option<NodeId> {
 }
 
 fn resting(outer: NodeId, inner: NodeId) -> Option<Rect> {
-    let rect = placements().rect(inner)?;
+    let rect = measure(inner).get_untracked()?.rect;
     let moved = glide_displacement(outer)?;
     Some(rect.translate(-moved))
 }
@@ -189,7 +186,7 @@ fn shown_at<K: Clone + PartialEq, P: Clone>(state: &State<K, P>) -> Option<Pos2>
     let lifted = state.lifted.get_untracked()?;
     let point = (*state.point.borrow())?;
     let at = point.pos + lifted.item.min.to_vec2();
-    let resting = glide_of(state, &lifted.key).and_then(|glide| placements().rect(glide));
+    let resting = glide_of(state, &lifted.key).and_then(|glide| measure(glide).get_untracked().map(|measured| measured.rect));
     Some(match (lifted.home, resting) {
         (true, Some(resting)) => match state.direction.get_untracked() {
             Direction::Horizontal => Pos2::new(at.x, resting.min.y),
@@ -469,7 +466,7 @@ where
             state.floating_at.set(Some(point));
         }
         state.on_drag_change.call(Some(press.key.clone()));
-        Some((payload, Rc::clone(&state.board)))
+        Some((payload, state.board.clone()))
     }) else {
         return;
     };
@@ -573,7 +570,7 @@ where
         state
             .lifted
             .with_untracked(Option::is_some)
-            .then(|| Rc::clone(&state.board))
+            .then(|| state.board.clone())
     });
     if let Some(board) = board {
         board.finish();
@@ -675,7 +672,7 @@ where
             state
                 .lifted
                 .with_untracked(Option::is_some)
-                .then(|| Rc::clone(&state.board))
+                .then(|| state.board.clone())
         });
         if let Some(Some(board)) = carried {
             board.end(None);
@@ -870,7 +867,7 @@ where
             if !can_drag(state, &key) {
                 return;
             }
-            let shown = placements().rect(face);
+            let shown = measure(face).get_untracked().map(|measured| measured.rect);
             *state.pressed.borrow_mut() = Some(Press {
                 key,
                 origin: press.pos,
@@ -896,11 +893,12 @@ where
             on_click.call();
         }
     };
-    let across = create_memo(move || {
-        draggable.get().then(|| match direction.get() {
+    let across = create_memo(move || match draggable.get() {
+        true => TouchDrags::Along(match direction.get() {
             Direction::Horizontal => Direction::Vertical,
             Direction::Vertical => Direction::Horizontal,
-        })
+        }),
+        false => TouchDrags::None,
     });
     let long_press = state.with(|state| state.long_press);
     let on_long_press = match long_press {
@@ -912,7 +910,7 @@ where
             <Interactive
                 cursor
                 capture_presses
-                touch_drag_axis={across}
+                touch_drags={across}
                 on_press={pressed}
                 on_drag={move |press: PointerPress| moved(state, DragPoint::of(press))}
                 on_long_press_drag={on_long_press}

@@ -79,12 +79,12 @@ impl Gestures {
         ]]
     }
 
-    pub fn drag(&mut self, from: Pos2, to: Pos2, steps: usize) -> Frames {
+    pub fn drag(&mut self, from: Pos2, to: Pos2, steps: usize, button: PointerButton) -> Frames {
         let mut frames = self.arrive(from);
         self.pointer = to;
         frames.push(vec![
             Input::PointerMoved(from),
-            self.button(from, PointerButton::Primary, true),
+            self.button(from, button, true),
         ]);
         for step in 1..steps.max(1) {
             frames.push(vec![Input::PointerMoved(
@@ -93,7 +93,7 @@ impl Gestures {
         }
         frames.push(vec![
             Input::PointerMoved(to),
-            self.button(to, PointerButton::Primary, false),
+            self.button(to, button, false),
         ]);
         frames
     }

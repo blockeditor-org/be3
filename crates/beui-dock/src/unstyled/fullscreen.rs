@@ -1,7 +1,7 @@
-use beui_core::icons::Glyph;
-use beui_core::node::NodeId;
 use beui_macros::component;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::icons::Glyph;
 
 use super::{State, TabId};
 

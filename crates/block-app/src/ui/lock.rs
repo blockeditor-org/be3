@@ -12,6 +12,7 @@ use block_plugin_api::PowerAction;
 
 use super::{AppViewStore, UiCommand, send};
 use crate::password::Password;
+use beui::{Align, Align2, Direction};
 
 const SECONDS_PER_MINUTE: u64 = 60;
 const FIELD_WIDTH: Size = Size::Custom(280.0);

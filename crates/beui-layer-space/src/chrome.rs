@@ -16,23 +16,23 @@ use glam::{Quat, Vec3};
 use crate::head::Ray;
 use crate::panel::{Hit, MOST_BEND, POINTS_PER_METRE, Panel};
 
-pub const GAP: f32 = 0.012;
-pub const ARM: f32 = 0.045;
-pub const THICKNESS: f32 = 0.007;
-pub const SLOP: f32 = 0.005;
-pub const BAR_GAP: f32 = 0.016;
-pub const BAR: f32 = 0.04;
-pub const BUTTON: f32 = 0.032;
-pub const TRACK: f32 = 0.14;
-pub const KNOB: f32 = 0.018;
-pub const ICON: f32 = 0.018;
+pub const GAP: f32 = 0.006;
+pub const ARM: f32 = 0.0225;
+pub const THICKNESS: f32 = 0.0035;
+pub const SLOP: f32 = 0.0025;
+pub const BAR_GAP: f32 = 0.008;
+pub const BAR: f32 = 0.02;
+pub const BUTTON: f32 = 0.016;
+pub const TRACK: f32 = 0.07;
+pub const KNOB: f32 = 0.009;
+pub const ICON: f32 = 0.009;
 pub const FAINT: f32 = 0.35;
 pub const TURN_GAIN: f32 = 2.0;
 pub const SMALLEST_SCALE: f32 = 0.2;
 pub const LARGEST_SCALE: f32 = 8.0;
 pub const LIFT: f32 = 0.001;
-pub const TITLE: f32 = 0.016;
-pub const TITLE_PADDING: f32 = 0.012;
+pub const TITLE: f32 = 0.008;
+pub const TITLE_PADDING: f32 = 0.006;
 pub const REFERENCE: f32 = 0.6;
 pub const KEPT: f32 = 1.05;
 const NEAREST: f32 = 0.05;
@@ -41,10 +41,11 @@ const HANDLE: Color32 = Color32::from_rgba_unmultiplied(214, 220, 232, 220);
 const ACCENT: Color32 = Color32::from_rgb(132, 170, 255);
 const PILL: Color32 = Color32::from_rgba_unmultiplied(30, 34, 43, 230);
 const BUTTON_HOT: Color32 = Color32::from_rgb(60, 68, 86);
+const NOTICE: Color32 = Color32::from_rgba_unmultiplied(36, 52, 92, 235);
 const BUTTON_ON: Color32 = Color32::from_rgb(52, 84, 156);
 const GLYPH: Color32 = Color32::from_rgb(226, 231, 240);
 const GROOVE: Color32 = Color32::from_rgb(78, 86, 104);
-const GROOVE_HEIGHT: f32 = 0.004;
+const GROOVE_HEIGHT: f32 = 0.002;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Corner {
@@ -234,11 +235,17 @@ pub struct Chrome {
     pub slider: Option<WindowId>,
 }
 
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct Title {
+    pub text: String,
+    pub notice: bool,
+}
+
 #[derive(Clone, PartialEq, Debug)]
 pub struct Look {
     pub metres: Vec2,
     pub fit: Fit,
-    pub title: Option<String>,
+    pub title: Option<Title>,
     pub hovered: Option<Part>,
     pub held: Option<Part>,
     pub slider: bool,
@@ -441,7 +448,7 @@ pub fn title_width(context: &Context, title: &str) -> f32 {
 }
 
 fn inset(track: Rect) -> f32 {
-    (KNOB / 2.0 + 0.004) * track.height() / BAR
+    (KNOB / 2.0 + 0.002) * track.height() / BAR
 }
 
 pub fn fraction(track: Rect, x: f32) -> f32 {
@@ -585,13 +592,13 @@ pub fn look(
     chrome: &Chrome,
     held: Option<Part>,
     pixels_per_point: f32,
-    title: Option<&str>,
+    title: Option<&Title>,
 ) -> Look {
     let mine = |window: WindowId| window == panel.window;
     Look {
         metres: metres_of(panel),
         fit: panel.chrome,
-        title: title.map(str::to_owned),
+        title: title.cloned(),
         hovered: chrome
             .hovered
             .filter(|(window, _)| mine(*window))
@@ -644,9 +651,13 @@ pub fn output(window: WindowId, look: &Look, context: Option<&Context>) -> Windo
         }
     }
     fill(layout.pill, BAR / 2.0, PILL);
-    let title = layout.title.zip(look.title.as_deref());
-    if let Some((label, _)) = title {
-        let color = if hot(Part::Title) { BUTTON_HOT } else { PILL };
+    let title = layout.title.zip(look.title.as_ref());
+    if let Some((label, title)) = title {
+        let color = match (title.notice, hot(Part::Title)) {
+            (true, _) => NOTICE,
+            (false, true) => BUTTON_HOT,
+            (false, false) => PILL,
+        };
         fill(label, BAR / 2.0, color);
     }
     let mut icons = Vec::new();
@@ -685,7 +696,7 @@ pub fn output(window: WindowId, look: &Look, context: Option<&Context>) -> Windo
     }
     if let Some(context) = context {
         let raster = look.pixels_per_point / context.pixels_per_point();
-        let mut text = |text: &str, font: FontId, centre: Pos2, clip: Rect| {
+        let mut text = |text: &str, font: FontId, centre: Pos2, clip: Rect, color: Color32| {
             let galley = context.layout(text, font, TextLayout::DEFAULT);
             let galley = context.rastered(&galley, raster);
             let centre = point(centre);
@@ -693,21 +704,22 @@ pub fn output(window: WindowId, look: &Look, context: Option<&Context>) -> Windo
                 origin: centre - galley.size() / 2.0,
                 galley,
                 scale: 1.0,
-                color: GLYPH,
+                color,
                 rotation: Rotation::NONE,
                 clip,
             }));
         };
         for (glyph, centre) in icons {
             let font = FontId::icons(ICON * scale * POINTS_PER_METRE);
-            text(glyph.as_str(), font, centre, Rect::EVERYTHING);
+            text(glyph.as_str(), font, centre, Rect::EVERYTHING, GLYPH);
         }
         if let Some((label, title)) = title {
             let font = FontId::proportional(TITLE * scale * POINTS_PER_METRE);
             let clip = points(label);
             let room = clip.width() - TITLE_PADDING * scale * POINTS_PER_METRE;
-            let title = elided(context, title, font, room);
-            text(&title, font, label.center(), clip);
+            let color = if title.notice { ACCENT } else { GLYPH };
+            let shown = elided(context, &title.text, font, room);
+            text(&shown, font, label.center(), clip, color);
         }
     }
     let mut state = WindowState::default();

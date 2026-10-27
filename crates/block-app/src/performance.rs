@@ -60,7 +60,7 @@ pub fn end_frame() {
     }
 }
 
-pub fn record_update(started: Instant, document: &beui::PerformanceTimings) {
+pub fn record_update(started: Instant, document: &beui::native::PerformanceTimings) {
     const CONTINUOUS: Duration = Duration::from_millis(100);
     let (previous, ended) = {
         let mut state = state();

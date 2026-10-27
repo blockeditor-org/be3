@@ -1,8 +1,11 @@
 use std::time::Duration;
 
-use beui::WindowSize;
-use beui::testing::{Showing, Stepped};
-use beui::{Context, FreetypeFonts, HostPlacement, WindowPlacement, WindowReport, pos2, vec2};
+use beui::native::WindowSize;
+use beui::native::testing::{Showing, Stepped};
+use beui::{
+    HostPlacement, WindowPlacement, WindowReport, native::Context, native::FreetypeFonts, pos2,
+    vec2,
+};
 
 use super::*;
 

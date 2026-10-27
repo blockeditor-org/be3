@@ -58,7 +58,7 @@ fn a_driver_types_key_by_key_and_sends_what_no_key_makes_as_text() {
             <TextInput @test_id={"form.name"} value={name} placeholder="Name" />
         }
     });
-    let mut driven = stepped(crate::testing::Showing(document));
+    let mut driven = stepped(crate::native::testing::Showing(document));
     driven
         .ask(&["click", "#form.name"])
         .expect("the field is clicked");

@@ -1,4 +1,5 @@
 load("//buck/cargo/buckify.bxl", buckify = "generate")
+load("//buck/cargo/html.bzl", "html_libraries")
 
 # Everything ./scripts/verify and ./scripts/ci build, in one buck2 command: the
 # generated rules and Cargo.lock, the sysroot's lockfile, the autofixes
@@ -47,16 +48,25 @@ def _outputs(ctx, kind: str, universe: str) -> list[Artifact]:
 # run on, so that beui-layer-xr's OpenXR and the rest of beui's native stack keep
 # compiling there: Windows, where the first headset is.
 _CROSS_CHECKS = {
+    "root//crates/be-win32-capture:be-win32-capture": ["windows_x86_64"],
+    "root//crates/be-win32-input:be-win32-input": ["windows_x86_64"],
+    "root//crates/be-win32:be-win32": ["windows_x86_64"],
     "root//crates/beui:beui": ["windows_x86_64"],
+    "root//crates/block-app:block-app": ["windows_x86_64"],
 }
 
+# And over every library planned for beui's HTML core on its platforms
+# (html.bzl), which no test builds yet.
 def _cross_checks(ctx) -> list[Artifact]:
-    checks = []
+    configurations = []
     for target, platforms in _CROSS_CHECKS.items():
-        for platform in platforms:
-            for configured in ctx.cquery(target_platform = "root//buck/platforms:" + platform).eval(target):
-                sub_targets = ctx.analysis(configured).providers()[DefaultInfo].sub_targets
-                checks.append(sub_targets["check"][DefaultInfo].default_outputs[0])
+        configurations.extend([(target, "root//buck/platforms:" + platform) for platform in platforms])
+    configurations.extend(html_libraries())
+    checks = []
+    for target, platform in configurations:
+        for configured in ctx.cquery(target_platform = platform).eval(target):
+            sub_targets = ctx.analysis(configured).providers()[DefaultInfo].sub_targets
+            checks.append(sub_targets["check"][DefaultInfo].default_outputs[0])
     return checks
 
 # The package that owns a file: the deepest crate directory above it.

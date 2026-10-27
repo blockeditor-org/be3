@@ -16,12 +16,13 @@ use crate::popup_trigger::PopupTriggerHandle;
 use crate::reorder::{Reorder, ReorderGap, ReorderHandle, ReorderItem, ReorderItemHandle};
 use crate::text_input::{TextInput, TextInputHandle, TextInputStyle};
 use crate::typeahead::Typeahead;
-use beui_core::geometry::{Pos2, Rect};
-use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
-use beui_core::keys::{KeyAt, KeyPhase};
-use beui_core::node::NodeId;
 use beui_view::primitives::*;
+use beui_view::reactive::KeyAt;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::KeyPhase;
+use beui_view::types::{CursorIcon, Key, KeyPress, PointerPress};
+use beui_view::types::{Pos2, Rect};
 
 const ROW_DRAG_THRESHOLD: f32 = 6.0;
 const EDGE_BAND: f32 = 0.25;
@@ -608,12 +609,6 @@ pub fn TreeRowEditor(
         }
         escaped
     });
-    let placed = create_memo(move || field.try_get().is_some_and(|node| node_placed(node).get()));
-    create_effect(move || {
-        if placed.get() {
-            field.get().reveal();
-        }
-    });
     let keyboard = use_keyboard();
     let held = Cell::new(keyboard.get_untracked());
     let (away, left) = (once.clone(), typed.clone());
@@ -624,7 +619,7 @@ pub fn TreeRowEditor(
         }
     });
     let (submit, leave, changed) = (once.clone(), once, typed.clone());
-    view! {
+    let built = view! {
         <TextInput
             @node_ref=&field
             value={Binding::new(initial, move |text: String| *changed.borrow_mut() = text)}
@@ -641,7 +636,15 @@ pub fn TreeRowEditor(
                 }
             }}
         />
-    }
+    };
+    let measured = measure(field.get());
+    let placed = create_memo(move || measured.get().is_some());
+    create_effect(move || {
+        if placed.get() {
+            field.get().reveal();
+        }
+    });
+    built
 }
 
 #[component]
@@ -660,19 +663,16 @@ where
     let astray = create_memo(move || {
         let key = shown.get()?;
         keys.with(|_| ());
-        node_rect(list).get();
+        measure(list).get();
         let row = state
             .nodes
             .value()
             .borrow()
             .get(&key)
             .and_then(NodeRef::try_get)?;
-        if !node_placed(row).get() || !node_placed(scroll).get() {
-            return None;
-        }
         stray_edge(
-            node_rect(row).get(),
-            node_rect(scroll).get(),
+            measure(row).get()?.rect,
+            measure(scroll).get()?.rect,
             buried.get().is_some(),
         )
     });
@@ -682,7 +682,7 @@ where
             return;
         };
         keys.with(|_| ());
-        node_rect(list).get();
+        measure(list).get();
         let Some(row) = state
             .nodes
             .value()
@@ -692,7 +692,7 @@ where
         else {
             return;
         };
-        if !node_placed(row).get() {
+        if measure(row).get().is_none() {
             return;
         }
         row.reveal();
@@ -919,7 +919,7 @@ impl<K: Clone + Eq + Hash + 'static> TreeApi<K> {
         let within = state
             .list
             .try_get()
-            .and_then(|list| placements().rect(list))
+            .and_then(|list| measure(list).get_untracked().map(|measured| measured.rect))
             .is_some_and(|list| list.contains(at));
         let found = keys.iter().enumerate().find_map(|(index, key)| {
             let rect = parted.resting(key)?;

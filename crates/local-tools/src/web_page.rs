@@ -1,5 +1,5 @@
-use beui_html::{Children, Node, Script, render, view};
-use beui_html::{elements as html, tw};
+use beui_html::elements as html;
+use beui_html::{Children, Node, Script, Stylesheet, render, view};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Page {
@@ -20,6 +20,57 @@ pub fn main(args: Vec<String>) -> std::process::ExitCode {
     std::process::ExitCode::SUCCESS
 }
 
+const STYLES: &str = "
+html, body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    background: #1b1b1b;
+    color: #d0d0d0;
+    font-family: system-ui, sans-serif;
+}
+#demo, #review {
+    width: 100%;
+    height: 100%;
+}
+#plugins {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+#plugins canvas {
+    position: absolute;
+    left: 0;
+    top: 0;
+    transform-origin: 0 0;
+}
+#block {
+    position: relative;
+    z-index: 1;
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+#status {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+#status[hidden] {
+    display: none;
+}
+.detail {
+    max-width: 40rem;
+    font-size: .875rem;
+    color: #9a9a9a;
+    white-space: pre-wrap;
+}
+";
+
 pub(crate) fn page(kind: Page, base: Option<String>) -> String {
     render(|| {
         let base: Children<Node> = match base {
@@ -35,13 +86,7 @@ pub(crate) fn page(kind: Page, base: Option<String>) -> String {
                 include_str!("web_page/demo.json"),
                 include_str!("web_page/demo.js"),
                 Children::<Node>::from(view! {
-                    <html::Div
-                        id="demo"
-                        css=<>
-                            <tw::WFull />
-                            <tw::HFull />
-                        </>
-                    />
+                    <html::Div id="demo" />
                 }),
             ),
             Page::PaintReview => (
@@ -49,13 +94,7 @@ pub(crate) fn page(kind: Page, base: Option<String>) -> String {
                 include_str!("web_page/paint_review.json"),
                 include_str!("web_page/paint_review.js"),
                 Children::<Node>::from(view! {
-                    <html::Div
-                        id="review"
-                        css=<>
-                            <tw::WFull />
-                            <tw::HFull />
-                        </>
-                    />
+                    <html::Div id="review" />
                 }),
             ),
             Page::Block => (
@@ -63,73 +102,27 @@ pub(crate) fn page(kind: Page, base: Option<String>) -> String {
                 include_str!("web_page/block.json"),
                 include_str!("web_page/block.js"),
                 view! {
-                    <html::Div
-                        id="plugins"
-                        css=<>
-                            <tw::Fixed />
-                            <tw::Inset0 />
-                            <tw::OverflowHidden />
-                            <tw::PointerEventsNone />
-                            <tw::Descendants target=tw::Target::Canvas>
-                                <tw::Absolute />
-                                <tw::Left0 />
-                                <tw::Top0 />
-                                <tw::OriginTopLeft />
-                            </tw::Descendants>
-                        </>
-                    />
-                    <html::Canvas
-                        id="block"
-                        css=<>
-                            <tw::Relative />
-                            <tw::Z1 />
-                            <tw::Block />
-                            <tw::WFull />
-                            <tw::HFull />
-                        </>
-                    />
+                    <html::Div id="plugins" />
+                    <html::Canvas id="block" />
                 },
             ),
         };
         let status = if kind != Page::Block {
             view! {
-                <html::Div
-                    id="status"
-                    css=<>
-                        <StatusStyles />
-                        <tw::WhitespacePreWrap />
-                    </>
-                >
-                    "Loading…"
-                </html::Div>
+                <html::Div id="status" style="white-space: pre-wrap">"Loading…"</html::Div>
             }
         } else {
             view! {
                 <html::Div
                     id="status"
-                    css=<>
-                        <StatusStyles />
-                        <tw::FlexCol />
-                        <tw::Gap3 />
-                        <tw::TextCenter />
-                    </>
+                    style="flex-direction: column; gap: .75rem; text-align: center"
                 >
-                    <html::Div
-                        class="detail"
-                        css=<>
-                            <tw::MaxW160 />
-                            <tw::TextSm />
-                            <tw::TextMuted />
-                            <tw::WhitespacePreWrap />
-                        </>
-                    >
-                        "Loading Block…"
-                    </html::Div>
+                    <html::Div class="detail">"Loading Block…"</html::Div>
                 </html::Div>
             }
         };
         view! {
-            <html::Html lang="en" css=<PageStyles />>
+            <html::Html lang="en">
                 <html::Head>
                     {base}
                     <html::Meta charset="utf-8" />
@@ -138,10 +131,10 @@ pub(crate) fn page(kind: Page, base: Option<String>) -> String {
                         content="width=device-width, initial-scale=1, user-scalable=no, interactive-widget=resizes-content"
                     />
                     <html::Title>{title}</html::Title>
-                    <tw::Styles />
+                    <Stylesheet css={STYLES.to_string()} />
                     <Script kind="importmap" source={imports} />
                 </html::Head>
-                <html::Body css=<PageStyles />>
+                <html::Body>
                     {content}
                     {status}
                     <Script kind="module" source={js} />
@@ -149,31 +142,4 @@ pub(crate) fn page(kind: Page, base: Option<String>) -> String {
             </html::Html>
         }
     })
-}
-
-#[beui_html::component]
-fn PageStyles() -> Children<tw::Style> {
-    view! {
-        <tw::M0 />
-        <tw::HFull />
-        <tw::OverflowHidden />
-        <tw::BgSurface />
-        <tw::TextForeground />
-        <tw::FontSans />
-    }
-}
-
-#[beui_html::component]
-fn StatusStyles() -> Children<tw::Style> {
-    view! {
-        <tw::Absolute />
-        <tw::Inset0 />
-        <tw::Flex />
-        <tw::ItemsCenter />
-        <tw::JustifyCenter />
-        <tw::P4 />
-        <tw::WhenHidden>
-            <tw::Hidden />
-        </tw::WhenHidden>
-    }
 }

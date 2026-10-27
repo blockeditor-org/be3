@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 pub const WORKSPACE_EDITOR: Uuid = Uuid::from_u128(0xde8b_500a_12d8_4bc0_8381_8bbf_dc9f_e34f);
 pub const FILES_EDITOR: Uuid = Uuid::from_u128(0x9026_bab5_b23e_4b81_a693_d3a2_5090_5f9e);
-pub const LINUX_DESKTOP_EDITOR: Uuid = Uuid::from_u128(0x378d_6c68_d52a_4781_addb_fde9_a8af_f2e2);
+pub const DESKTOP_EDITOR: Uuid = Uuid::from_u128(0x378d_6c68_d52a_4781_addb_fde9_a8af_f2e2);
 pub const WORKSPACE_TYPE: Uuid = Uuid::from_u128(0x776f_726b_7370_6163_652d_626c_6f63_6b01);
 pub const VIEW_TYPE: Uuid = Uuid::from_u128(0x6564_6974_6f72_2d76_6965_772d_626c_6b31);
 pub const RECENTS: &str = "recents";

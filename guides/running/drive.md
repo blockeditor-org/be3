@@ -41,7 +41,7 @@ else, or `--into` on a command that is not input, is an error that says what it 
 
 ## Starting any beui program
 
-beui's run functions (`beui::run`, `run_with`, `run_with_renderers`, `run_on`) read these
+beui's run functions (`beui::native::run`, `run_with`, `run_with_device`, `run_on`) read these
 variables (on every platform but Android, which reads none), so a program needs nothing of its
 own to be driven:
 
@@ -53,7 +53,7 @@ own to be driven:
   names separated by commas, the one nearest the platform first: `space` and `drive`; an
   unknown name is an error. Every `drive` named is a tap of one session, named by the layer
   just above it; `drive` twice in a row, or two taps under the same layer, is an error.
-- `BEUI_PLATFORM=headless` runs it on `beui::Headless` (crates/beui-platform-headless), which draws
+- `BEUI_PLATFORM=headless` runs it on `beui::native::Headless` (crates/beui-platform-headless), which draws
   offscreen with wgpu and needs no display server. `BEUI_HEADLESS_WINDOW=WIDTHxHEIGHT[@SCALE]`
   (1100x720 by default) is its window and `BEUI_HEADLESS_SCREEN=WIDTHxHEIGHT` the screen a
   fullscreen window grows to; either is an error under another platform.
@@ -110,7 +110,13 @@ Arguments after `--` go to the launcher, which passes on those it does not know:
   keep it in `~/.cache/be3/NAME/data` through `XDG_DATA_HOME`).
 - `--stop` stops it.
 - `--size=WIDTHxHEIGHT[@SCALE]` (1100x720 by default) and `--screen=WIDTHxHEIGHT` (1440x900).
-- Anything else, such as block-app's `--desktop` (guides/linux_desktop.md), goes to the program.
+- `--latency=MS` adds MS milliseconds to every round trip between the program and its server,
+  half each way, to see what a distant server does to a change; `:dev`'s server is in-process
+  and otherwise answers at once. It sets `BE_LATENCY`, which be-client's native transport
+  reads, so a program started any other way can set it too. `settle` waits only until nothing
+  is left to draw, not for the server, so wait for what should appear with `wait`, or poll
+  `tree` after an input sent with `--no-settle`.
+- Anything else, such as block-app's `--desktop` (guides/desktop.md), goes to the program.
 
 A program's output goes to `~/.cache/be3/NAME/app.log`. `BE_DRIVE_DIR` moves the directory,
 for two copies of one program at once, so agents sharing a machine each give theirs a
@@ -230,7 +236,7 @@ A command that acts on something takes a TARGET:
     drive click TARGET [right|middle|double]
     drive move TARGET                         hover
     drive down TARGET; drive pause 600; drive move TARGET; drive up   any gesture, step by step
-    drive drag FROM TO [STEPS]
+    drive drag FROM TO [STEPS] [BUTTON]       BUTTON as down takes it, such as middle
     drive wheel TARGET 3                      three mouse-wheel ticks down; a second number turns sideways
     drive scroll TARGET 300                   a touchpad scroll of 300 pixels
     drive zoom TARGET 2                       a touchpad pinch
@@ -307,7 +313,10 @@ so the app waits as it does in a window; time how long something takes to show w
 such as `drive hurry off; drive --no-settle click TARGET; time drive wait TEXT`.
 
 `drive -` reads commands from standard input, one a line, quoted as a shell would, prints each
-before its answer and stops at the first that fails:
+before its answer and stops at the first that fails. A line whose first character other than
+a space is `#` is a comment, skipped before its quotes are read, so an apostrophe in it is
+fine; `be_drive::commands` is that reading, and buck/app/drive-words.mjs reads scripts the
+same way for the browser:
 
     drive - <<'EOF'
     click "Add a root block"
