@@ -29,7 +29,9 @@ fn a_dock_window_lays_its_tab_out_at_the_windows_size_from_the_first_layout() {
                     rect={Rect::from_min_size(pos2(60.0, 60.0), vec2(360.0, 240.0))}
                 >
                     <dock::unstyled::DockPane id="window">
-                        <dock::unstyled::DockTab id={1u64} title="Program">{content}</dock::unstyled::DockTab>
+                        <dock::unstyled::DockTab id={1u64} title="Program">
+                            {content}
+                        </dock::unstyled::DockTab>
                     </dock::unstyled::DockPane>
                 </dock::unstyled::DockWindow>
             </dock::styled::Docking>

@@ -1507,8 +1507,13 @@ result: a `VirtualList` whose rows above the view measured differently from
 their estimate reports the difference with `Document::report_anchor_shift`,
 and the nearest enclosing offset sums what its child reported with how far the
 anchor drifted and any reveal it was asked for. When that sum is not zero the
-offset moves by it and is laid out again in the frame's next layout, where it
-does not re-anchor. Anything that moves the offset from outside its layout
+offset moves by it and is laid out again in the frame's next layout. An offset
+picks its anchor once a frame, from the layout the frame started from, which is
+what was painted, and measures the drift against it in each of the frame's
+layouts, moving by what it has not moved by yet; so content that changes in a
+later layout of the frame, such as a `Container` that heard its new width,
+keeps the anchor in place too, and an anchor picked from a layout the frame
+replaced never steers it. Anything that moves the offset from outside its layout
 (`set_offset_value`, a reveal) calls its `on_steer` callback, which a `Scroll`
 uses to stop a fling or a spring the moment it is steered.
 
@@ -4276,19 +4281,23 @@ is laid out within it, so the outer box is the only place the number belongs.
 state; `unstyled::Stack` and `styled::Stack` switch between a row and a column
 without rebuilding their children.
 `unstyled::FirstFit` is "this, or that when it does not fit", built on
-`measure`: it holds its children built and shows one through a `Portal`. To
-choose, it tries each but the last in a horizontal `Offset` (which lays it out
-at its natural width) and measures it against the width it was laid out at,
-then shows the first that fits, or the last, at that width. It chooses again
-when the width it is shown at changes or its children change, not when a shown
-child grows; the probes take a layout each, all before the frame paints. The
-others are held by no portal, so they paint nothing and take no input or Tab
-stop. That is how `styled::Tabs` and `styled::SegmentedControl` become a
-`Select` of the same options, sharing one `selected`, when their row of
-options does not fit: from the room they are given, not from a breakpoint. It
-learns that room only from the width it is laid out at, so give it the room
-(a stretch, a share or `.shrink()` in a row): one sized to its own content
-narrows when the room does, but cannot grow back.
+`measure`: it holds its children built and shows one through a `Portal`. It
+asks for the width its first child last measured at, up to what it is offered,
+through a zero-height `Frame` beside the child it shows, and that frame's
+measured width is its room. Every child but the last is laid out in a
+horizontal `List` that gives it its natural width or the room, whichever is
+wider, so the child is shown across the room and its own measured width tells
+whether it still fits; the last is shown as it is. It moves on when the child
+it shows no longer fits (the room narrowed or the child grew), and goes back
+to an earlier child when the room reaches the width that child last measured
+at, so in a row with `.shrink()` it narrows and widens with the row. It learns
+a hidden child's width only by trying it, so one that shrinks while hidden
+comes back when the room next changes. Each try takes a layout, all before the
+frame paints. The others are held by no portal, so they paint nothing and take
+no input or Tab stop. That is how `styled::Tabs` and
+`styled::SegmentedControl` become a `Select` of the same options, sharing one
+`selected`, when their row of options does not fit: from the room they are
+given, not from a breakpoint.
 
 ### One layout per frame
 
@@ -4332,13 +4341,21 @@ Where a node was laid out is asked one way, the same on every core
 (`beui-view/src/measure.rs`, re-exported by `beui::reactive`):
 
 ```rust
-pub fn measure(node: NodeId) -> ReadSignal<Option<Rect>>;
+pub fn measure(node: NodeId) -> ReadSignal<Option<Measured>>;
 pub fn measure_text(node: NodeId) -> ReadSignal<Option<TextGeometry>>;
+
+pub struct Measured {
+    pub rect: Rect,
+    pub size: Vec2,
+}
 ```
 
 Both are `None` until the node is first laid out, and again once it is
-unplaced; rects are in the window's coordinates, the space `PointerPress::pos`
-is in. Each node has one signal per function, made on the first call and
+unplaced. `Measured::rect` is in the window's coordinates, the space
+`PointerPress::pos` is in, for hit tests and placing things over the node;
+`Measured::size` is the size the node was laid out at in its own units, before
+any zoom, for content that builds from its own size, so a `Container` in a
+zoomed `CanvasItem scales=true` answers the same at every zoom. Each node has one signal per function, made on the first call and
 dropped with the node, so a handler may call `measure(node).get_untracked()`
 as often as it likes. `TextGeometry` is a snapshot of a `Text`'s last layout:
 `bounds()`, `caret_rect(index, width)`, `index_at(pos)`, `inline_at(pos)`,
@@ -4385,15 +4402,19 @@ let width = create_signal(0.0);
 let columns = view! { <List direction={..}>...</List> };
 let measured = measure(columns);
 create_effect(move || {
-    if let Some(rect) = measured.get() {
-        width.set(rect.width());
+    if let Some(measured) = measured.get() {
+        width.set(measured.size.x);
     }
 });
 columns
 ```
 
 Keeping the last answer when it turns `None` keeps a hidden panel from
-rebuilding for a size of zero. Content that changes the layout from its own
+rebuilding for a size of zero. Content that is placed by the measured size
+rather than only choosing a variant (the dock's panes, laid out from its
+tree's size) is built once the first answer is in, not at a guessed size first:
+a layout at a size nobody sees still moves scroll anchors and reports scroll
+positions. Content that changes the layout from its own
 size takes one more layout per level of nesting, all in the same frame (a
 frame lays out at most eight times); give such a component its room from its
 parent on the axis it reads, since a size it decides itself is what it would

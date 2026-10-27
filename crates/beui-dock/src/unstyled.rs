@@ -2048,8 +2048,11 @@ fn DockTreeView(
             .then_some(surface),
         Tree::Group(_) => None,
     };
-    let pane_origin =
-        create_memo(move || placement_held.get().map_or(Pos2::ZERO, |held| held.rect.min));
+    let pane_origin = create_memo(move || {
+        placement_held
+            .get()
+            .map_or(Pos2::ZERO, |held| held.rect.min)
+    });
     let built = view! {
         <Canvas @node_ref=&canvas>
             <ForEach keys={leaves}>|leaf: LeafId| {
@@ -3283,8 +3286,12 @@ fn grip_reach(frame: &NodeRef, grip: &NodeRef) -> f32 {
     let (Some(frame), Some(grip)) = (frame.try_get(), grip.try_get()) else {
         return 0.0;
     };
-    let reach =
-        || Some(measure(grip).get_untracked()?.rect.bottom() - measure(frame).get_untracked()?.rect.top());
+    let reach = || {
+        Some(
+            measure(grip).get_untracked()?.rect.bottom()
+                - measure(frame).get_untracked()?.rect.top(),
+        )
+    };
     reach().unwrap_or(0.0)
 }
 

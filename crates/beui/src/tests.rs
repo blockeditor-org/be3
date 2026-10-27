@@ -338,6 +338,7 @@ mod a_scroll_keeps_its_place_when_a_container_above_reflows_after_a_resize;
 mod a_scroll_keeps_the_pointer_off_the_part_of_a_row_it_clips;
 mod a_scroll_mixes_plain_children_with_a_nested_virtual_list;
 mod a_scroll_only_re_measures_the_row_that_changed;
+mod a_scroll_sent_to_its_end_reaches_a_row_that_sizes_itself_from_its_width;
 mod a_scroll_with_a_button_atop_its_text_is_scrolled_from_the_button;
 mod a_scroll_with_nothing_to_scroll_is_not_a_tab_stop;
 mod a_scrollbar_shows_while_its_scroll_moves_and_fades_once_it_stops;
@@ -1063,11 +1064,14 @@ pub(crate) fn prompt_and_late<T>(run: impl Fn() -> T) -> (T, T) {
 }
 
 pub(crate) fn shown_fit(document: &Document, first_fit: NodeId) -> NodeId {
-    let mut node = first_fit;
-    while matches!(document.node_kind(node), "layers" | "portal" | "offset") {
+    let mut node = *document
+        .children(first_fit)
+        .last()
+        .expect("a first fit shows one of its children");
+    while document.node_kind(node) != "portal" {
         node = document.children(node)[0];
     }
-    node
+    document.children(node)[0]
 }
 
 pub(crate) fn text_rects(harness: &Harness) -> Vec<(String, Option<Rect>)> {

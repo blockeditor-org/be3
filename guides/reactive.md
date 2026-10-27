@@ -1040,7 +1040,7 @@ fn Page(#[prop(children)] sections: Render<(), Children<ListChild>>) -> NodeId {
 ## Containers and responsive layout
 
 Content that depends on the space it is given reads it from `measure(node)`, a
-`ReadSignal<Option<Rect>>` of where that node was laid out, and changes the
+`ReadSignal<Option<Measured>>` of where that node was laid out and at what size, and changes the
 tree from an effect; the native core lays the change out again before the
 frame paints (see "Measurement" in the beui guide).
 

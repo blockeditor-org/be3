@@ -32,6 +32,7 @@ pub struct OffsetNode {
     pub follows_end: bool,
     pinned: bool,
     to_end: bool,
+    reached_end: Option<u64>,
     translation: Vec2,
     host: Option<NodeId>,
 }
@@ -53,6 +54,7 @@ impl OffsetNode {
             follows_end: false,
             pinned: true,
             to_end: false,
+            reached_end: None,
             translation: Vec2::ZERO,
             host: None,
         }
@@ -273,6 +275,10 @@ impl Element for OffsetNode {
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         let host = doc.laying_out().expect("an offset is laid out as itself");
         let (main, cross) = self.direction.main_and_cross(rect.size());
+        let frame = doc.layout_frame();
+        if self.to_end && self.reached_end.is_some_and(|reached| reached != frame) {
+            self.to_end = false;
+        }
         let snapping = self.snaps_to_end();
         let anchor = self.frame_anchor(doc, out, host, snapping);
         self.anchored = true;
@@ -304,7 +310,7 @@ impl Element for OffsetNode {
             self.pinned = self.offset >= position.max_offset() - END_SLACK;
         }
         if self.to_end && !settling {
-            self.to_end = false;
+            self.reached_end = Some(frame);
         }
         self.position = Some(position);
         if !self.on_change.is_empty() && self.reported != Some(position) {
@@ -451,6 +457,7 @@ impl Document {
         let node = self.arena.relayout_alone_mut_as::<OffsetNode>(offset);
         node.pinned = true;
         node.to_end = true;
+        node.reached_end = None;
         node.unanchor();
     }
 

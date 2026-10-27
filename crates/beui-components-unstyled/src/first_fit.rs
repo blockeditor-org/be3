@@ -31,8 +31,9 @@ impl Stage {
         naturals: &[Option<f32>],
     ) -> Stage {
         let fits = |width: f32| width <= room + SLACK;
-        let stale = stretched
-            .is_some_and(|stretched| stretched > room + SLACK && (width - stretched).abs() <= SLACK);
+        let stale = stretched.is_some_and(|stretched| {
+            stretched > room + SLACK && (width - stretched).abs() <= SLACK
+        });
         let last = count.saturating_sub(1);
         let earlier = |before: usize| {
             naturals
@@ -102,7 +103,8 @@ pub fn FirstFit(children: Children<NodeId>) -> NodeId {
                 }
             });
         }
-        let next = naturals.with_untracked(|naturals| current.next(count, (room, stretched), width, naturals));
+        let next = naturals
+            .with_untracked(|naturals| current.next(count, (room, stretched), width, naturals));
         if next != current {
             stage.set(next);
         }

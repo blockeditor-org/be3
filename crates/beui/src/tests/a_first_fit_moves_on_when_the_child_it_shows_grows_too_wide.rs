@@ -31,7 +31,10 @@ fn a_first_fit_moves_on_when_the_child_it_shows_grows_too_wide() {
         "the first child no longer fits once it grows past the room it has"
     );
     assert_eq!(
-        harness.document().node_rect(narrow).map(|rect| rect.width()),
+        harness
+            .document()
+            .node_rect(narrow)
+            .map(|rect| rect.width()),
         Some(200.0),
         "the child that fits is shown across the room"
     );

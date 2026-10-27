@@ -482,8 +482,13 @@ change only after `hydrate` returns.
 One API in `beui-view`, the same on both cores:
 
 ```rust
-pub fn measure(node: NodeId) -> ReadSignal<Option<Rect>>;
+pub fn measure(node: NodeId) -> ReadSignal<Option<Measured>>;
 pub fn measure_text(node: NodeId) -> ReadSignal<Option<TextGeometry>>;
+
+pub struct Measured {         // beui-types
+    pub rect: Rect,           // window space: getBoundingClientRect on the HTML core
+    pub size: Vec2,           // laid-out size before transforms: offsetWidth/offsetHeight
+}
 
 impl TextGeometry {           // Clone; each core's own type, same methods
     pub fn bounds(&self) -> Rect;
@@ -496,7 +501,8 @@ impl TextGeometry {           // Clone; each core's own type, same methods
 
 - `None` until the node is first laid out, and again when it is unplaced.
   Rects are logical pixels in the window's space, the space `PointerPress`
-  positions use. Each node has at most one signal per function, made on first
+  positions use; `Measured::size` is the node's own laid-out size, unscaled by
+  any zoom, which is what content built from its own size reads. Each node has at most one signal per function, made on first
   call and dropped with the node, so a handler may call
   `measure(node).get_untracked()` as often as it likes.
 - It replaces `LayoutBuilder` (`measure` of a filling `Frame`, then `Show`
