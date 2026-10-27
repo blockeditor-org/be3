@@ -147,6 +147,8 @@ pub fn Button(
     #[prop(default = true)] press_focus: Prop<bool>,
     #[prop(default = true)] tab_stop: Prop<bool>,
     #[prop(default = true)] revealed: Prop<bool>,
+    #[prop(default = None)] href: Prop<Option<String>>,
+    #[prop(default = false)] submit: bool,
     action: Option<Action>,
     on_click: ClickCallback,
     on_focus_change: Callback<bool>,
@@ -164,6 +166,8 @@ pub fn Button(
             capture_presses
             press_focus
             tab_stop
+            href
+            submit
             on_click={on_click}
             on_focus_change={on_focus_change}
         >|handle|

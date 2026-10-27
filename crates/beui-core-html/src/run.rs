@@ -19,6 +19,12 @@ const BASE_STYLES: &str = "\
 .beui-root [tabindex], .beui-overlay { outline: none; }
 .beui-root { -webkit-user-select: none; user-select: none; }
 .beui-root :is(input, textarea, [contenteditable]) { -webkit-user-select: text; user-select: text; }
+.beui-root :is(input, button) { font: inherit; color: inherit; text-align: inherit; background: none; border: 0; border-radius: 0; padding: 0; outline: none; -webkit-appearance: none; appearance: none; min-width: 0; cursor: inherit; }
+.beui-root a { color: inherit; text-decoration: none; }
+.beui-root input::placeholder { color: var(--beui-placeholder, GrayText); opacity: 1; }
+.beui-root input::selection { background-color: var(--beui-selection, Highlight); }
+.beui-root input:autofill { -webkit-text-fill-color: currentColor; transition: background-color 86400s; }
+.beui-root input::-webkit-search-cancel-button { display: none; }
 .beui-break::after { content: \"\\A\"; white-space: pre; }
 .beui-icon { display: inline-block; vertical-align: top; }
 .beui-icon:not(:first-child) { margin-inline-start: var(--beui-icon-spacing, 0); }

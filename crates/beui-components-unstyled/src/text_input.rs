@@ -8,7 +8,7 @@ use text_editor_core::{EditorCommand, TextBuffer, TextLanguage};
 
 use beui_view::types::Color;
 use beui_view::types::ItemSize;
-use beui_view::types::{Pos2, Rect};
+use beui_view::types::{CursorIcon, FontId, Pos2, Rect};
 
 use crate::ContextMenuApi;
 use crate::MenuListApi;
@@ -28,6 +28,7 @@ use beui_view::reactive::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 use beui_view::types::Sides;
+use beui_view::{CORE, Core};
 
 pub struct TextInputHandle {
     pub field: Child,
@@ -53,12 +54,41 @@ pub struct TextInputStyle {
     pub menu: Option<MenuStyle>,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum InputKind {
+    #[default]
+    Text,
+    Password,
+    Email,
+    Search,
+    Url,
+    Tel,
+}
+
+impl InputKind {
+    pub fn html_type(self) -> &'static str {
+        match self {
+            Self::Text => "text",
+            Self::Password => "password",
+            Self::Email => "email",
+            Self::Search => "search",
+            Self::Url => "url",
+            Self::Tel => "tel",
+        }
+    }
+
+    pub fn masked(self) -> bool {
+        self == Self::Password
+    }
+}
+
 #[derive(Clone, Copy)]
 struct Input {
     state: TextAreaState,
     area: NodeRef,
     menu: NodeRef,
     focused: ReadSignal<bool>,
+    browser: bool,
 }
 
 #[component]
@@ -68,7 +98,9 @@ pub fn TextInput(
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = true)] keyboard_on_focus: bool,
     #[prop(default = false)] disabled: Prop<bool>,
-    #[prop(default = false)] password: Prop<bool>,
+    #[prop(default = InputKind::Text)] kind: Prop<InputKind>,
+    #[prop(default = String::new())] name: Prop<String>,
+    #[prop(default = String::new())] autocomplete: Prop<String>,
     #[prop(default = false)] select_on_focus: Prop<bool>,
     #[prop(default = false)] multiline: bool,
     #[prop(children)] content: Option<Render<TextInputHandle>>,
@@ -97,13 +129,17 @@ pub fn TextInput(
     let hovered = create_signal(false);
     let is_focused = create_signal(false);
     let disabled = create_memo(move || disabled.get());
-    let masked = create_memo(move || password.get());
+    let masked = create_memo(move || kind.get().masked());
     let (area, menu_node) = (NodeRef::new(), NodeRef::new());
+    let browser = CORE == Core::Html
+        && !multiline
+        && untrack(|| prose.get().is_none() && !select_on_focus.get());
     api.fill(TextInputApi(Input {
         state,
         area,
         menu: menu_node,
         focused: is_focused.read_only(),
+        browser,
     }));
 
     create_effect(move || {
@@ -145,6 +181,56 @@ pub fn TextInput(
         false => Role::TextInput,
     };
     let accessibility = crate::labelled_node(role, accessibility, label);
+    let in_form = crate::form::in_form();
+    let submit = match (on_submit.is_empty(), in_form) {
+        (true, false) => ClickCallback::empty(),
+        _ => ClickCallback::new(move || {
+            on_submit.call(text_of(state));
+            if CORE != Core::Html || !browser {
+                crate::form::submit_form();
+            }
+        }),
+    };
+
+    if browser {
+        let field = view! {
+            <BrowserField
+                @node_ref=&area
+                value
+                kind
+                name
+                autocomplete
+                placeholder
+                disabled={disabled}
+                focused
+                style
+                accessibility
+                on_submit={move |_: String| on_submit.call(value.get_untracked())}
+                on_focus_change={move |focused: bool| {
+                    is_focused.set(focused);
+                    on_focus_change.call(focused);
+                }}
+                on_hover_change={move |is_hovered: bool| {
+                    hovered.set(is_hovered);
+                    on_hover_change.call(is_hovered);
+                }}
+            />
+        };
+        let clear = ClickCallback::new(move || value.set(String::new()));
+        let copy = ClickCallback::new(move || copy_text(value.get_untracked()));
+        return match content {
+            Some(build) => build.call(TextInputHandle {
+                field,
+                hovered: hovered.read_only(),
+                focused: is_focused.read_only(),
+                disabled,
+                empty,
+                clear,
+                copy,
+            }),
+            None => field,
+        };
+    }
 
     let opener = store(Cell::new(None::<Callback<Option<Rect>>>));
     let open_menu = move |at: Option<Rect>| {
@@ -202,10 +288,6 @@ pub fn TextInput(
         true => Sides::symmetric(padding_horizontal.get(), padding_vertical.get()),
         false => Sides::ZERO,
     });
-    let submit = match on_submit.is_empty() {
-        true => ClickCallback::empty(),
-        false => ClickCallback::new(move || on_submit.call(text_of(state))),
-    };
     let area_node = view! {
         <TextArea
             @node_ref=&area
@@ -245,6 +327,146 @@ pub fn TextInput(
     }
 }
 
+#[component]
+fn BrowserField(
+    value: Binding<String>,
+    kind: Prop<InputKind>,
+    name: Prop<String>,
+    autocomplete: Prop<String>,
+    placeholder: Prop<String>,
+    disabled: Memo<bool>,
+    focused: Prop<bool>,
+    style: TextInputStyle,
+    accessibility: Prop<Node>,
+    on_submit: Callback<String>,
+    on_focus_change: Callback<bool>,
+    on_hover_change: Callback<bool>,
+) -> NodeId {
+    let TextInputStyle {
+        font_size,
+        color,
+        placeholder_color,
+        selection_color,
+        caret_color,
+        padding_horizontal,
+        padding_vertical,
+        ..
+    } = style;
+    let shown = placeholder.clone();
+    component_accessibility(create_memo(move || {
+        let mut node = accessibility.get();
+        let text = value.get();
+        node.set_value(match kind.get().masked() {
+            true => crate::text_area::rows::mask(&text),
+            false => text,
+        });
+        let placeholder = shown.get();
+        if !placeholder.is_empty() {
+            node.set_placeholder(placeholder);
+        }
+        match disabled.get() {
+            true => node.set_disabled(),
+            false => node.clear_disabled(),
+        }
+        node
+    }));
+    let present = |text: String| Some(text).filter(|text| !text.is_empty());
+    let attributes = vec![
+        ("type", Prop::dynamic(move || Some(kind.get().html_type().to_owned()))),
+        ("value", Prop::dynamic(move || Some(value.get()))),
+        ("name", Prop::dynamic(move || present(name.get()))),
+        ("autocomplete", Prop::dynamic(move || present(autocomplete.get()))),
+        ("placeholder", Prop::dynamic(move || present(placeholder.get()))),
+        ("disabled", Prop::dynamic(move || disabled.get().then(String::new))),
+        ("spellcheck", Prop::Static(Some("false".to_owned()))),
+    ];
+    let styles = vec![
+        ("align-self", Prop::Static(Some(CssValue::Keyword("stretch")))),
+        ("width", Prop::Static(Some(CssValue::Keyword("100%")))),
+        ("font", Prop::dynamic(move || Some(CssValue::Font(FontId::proportional(font_size.get()))))),
+        ("color", Prop::dynamic(move || Some(CssValue::Color(color.get())))),
+        ("caret-color", Prop::dynamic(move || Some(CssValue::Color(caret_color.get())))),
+        ("--beui-placeholder", Prop::dynamic(move || Some(CssValue::Color(placeholder_color.get())))),
+        ("--beui-selection", Prop::dynamic(move || Some(CssValue::Color(selection_color.get())))),
+        (
+            "padding",
+            Prop::dynamic(move || {
+                Some(CssValue::Sides(Sides::symmetric(
+                    padding_horizontal.get(),
+                    padding_vertical.get(),
+                )))
+            }),
+        ),
+    ];
+    let events = vec![
+        (
+            "input",
+            Callback::new(move |event: ElementEvent| {
+                if let Some(text) = event.value() {
+                    value.set(text);
+                }
+            }),
+        ),
+        (
+            "change",
+            Callback::new(move |event: ElementEvent| {
+                if let Some(text) = event.value() {
+                    value.set(text);
+                }
+            }),
+        ),
+        (
+            "keydown",
+            Callback::new(move |event: ElementEvent| {
+                if event.composing() {
+                    return;
+                }
+                let key = event.key().unwrap_or_default();
+                if key == "Enter" {
+                    if let Some(text) = event.value() {
+                        value.set(text);
+                    }
+                    if !on_submit.is_empty() {
+                        on_submit.call(value.get_untracked());
+                        event.stop_propagation();
+                    }
+                    return;
+                }
+                if edits(&key, event.holds("Control") || event.holds("Meta")) {
+                    event.stop_propagation();
+                }
+            }),
+        ),
+    ];
+    view! {
+        <Interactive
+            focusable=true
+            focused
+            on_focus_change={on_focus_change}
+            on_hover_change={on_hover_change}
+            cursor={create_memo(move || (!disabled.get()).then_some(CursorIcon::Text))}
+        >
+            <Element tag="input" attributes styles events />
+        </Interactive>
+    }
+}
+
+fn edits(key: &str, command: bool) -> bool {
+    match command {
+        true => matches!(
+            key.to_ascii_lowercase().as_str(),
+            "a" | "c" | "v" | "x" | "z" | "y" | "backspace" | "delete" | "arrowleft" | "arrowright"
+        ),
+        false => {
+            key.chars().count() == 1
+                || matches!(
+                    key,
+                    "Backspace" | "Delete" | "ArrowLeft" | "ArrowRight" | "Home" | "End"
+                )
+        }
+    }
+}
+
 fn plain_text(value: &str) -> TextAreaState {
     let buffer = Arc::new(TextBuffer::new(value.as_bytes()));
     let state = TextAreaState::new(buffer as Arc<dyn text_editor_core::Document>);
@@ -271,14 +493,23 @@ pub struct TextInputApi(Input);
 
 impl TextInputApi {
     pub fn text(&self) -> NodeId {
-        self.0.state.canvas().get()
+        match self.0.browser {
+            true => self.0.area.get(),
+            false => self.0.state.canvas().get(),
+        }
     }
 
     pub fn shown(&self, tree: &impl Inspect) -> String {
+        if self.0.browser {
+            return text_of(self.0.state);
+        }
         tree.api::<TextAreaApi>(self.0.area.get()).shown()
     }
 
     pub fn index_at(&self, tree: &impl Inspect, pos: Pos2) -> usize {
+        if self.0.browser {
+            return 0;
+        }
         tree.api::<TextAreaApi>(self.0.area.get())
             .index_at(tree, pos)
     }
@@ -324,6 +555,9 @@ impl TextInputApi {
     }
 
     pub fn handles(&self, tree: &impl Inspect) -> Vec<Pos2> {
+        if self.0.browser {
+            return Vec::new();
+        }
         tree.api::<crate::TextAreaApi>(self.0.area.get())
             .handles(tree)
     }

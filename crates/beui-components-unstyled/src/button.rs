@@ -7,6 +7,7 @@ use beui_view::types::{CursorIcon, KeyPress, PointerPress};
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::{CORE, Core};
 
 #[derive(Clone, Copy)]
 pub struct ButtonHandle {
@@ -40,6 +41,8 @@ pub fn Button(
     #[prop(default = true)] press_focus: Prop<bool>,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = false)] icon_only: Prop<bool>,
+    #[prop(default = None)] href: Prop<Option<String>>,
+    #[prop(default = false)] submit: bool,
     expanded: Option<Prop<bool>>,
     on_click: ClickCallback,
     on_click_at: Callback<PointerPress>,
@@ -108,6 +111,9 @@ pub fn Button(
             action.run();
         }
         on_click.call();
+        if submit && CORE != Core::Html {
+            crate::form::submit_form();
+        }
     };
     let key_click = click.clone();
     let click_at = move |press: PointerPress| {
@@ -123,6 +129,36 @@ pub fn Button(
         focused: focused.read_only(),
     }));
 
+    let linked = untrack(|| href.get().is_some());
+    let element = match (CORE, linked, submit) {
+        (Core::Html, true, _) => Some((
+            "a",
+            vec![(
+                "href",
+                Prop::dynamic(move || href.get().filter(|_| !disabled.get())),
+            )],
+        )),
+        (Core::Html, false, true) => Some((
+            "button",
+            vec![
+                ("type", Prop::Static(Some("submit".to_owned()))),
+                ("disabled", Prop::dynamic(move || disabled.get().then(String::new))),
+            ],
+        )),
+        _ => None,
+    };
+    let browser_activates = element.is_some();
+    let content_node = match element {
+        Some((tag, attributes)) => Some(view! {
+            <Element tag attributes styles={crate::form::cell_styles()} children={content_node} />
+        }),
+        None => content_node,
+    };
+    let (key_active_change, key_click): (Callback<bool>, ClickCallback) = match browser_activates {
+        true => (Callback::empty(), ClickCallback::empty()),
+        false => (key_active.into(), ClickCallback::new(key_click)),
+    };
+
     view! {
         <Interactive
             focusable=true
@@ -135,7 +171,7 @@ pub fn Button(
                 focused.set(has_focus);
                 on_focus_change.call(has_focus);
             }}
-            on_activate_change={key_active}
+            on_activate_change={key_active_change}
             on_activate={key_click}
             cursor=CursorIcon::PointingHand
             capture_presses
