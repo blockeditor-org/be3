@@ -321,16 +321,15 @@ fn Filmstrip(editor: Editor, slides: Slides) -> NodeId {
                 <Show condition={empty}>
                     <Text style=TextStyle::CAPTION>"Add a slide to start this deck."</Text>
                 </Show>
-                <Reorder
-                    @sizing=ItemSize::Percent(100.0)
-                    keys={keys}
-                    payload={Func::new(Some)}
-                    disabled={read_only}
-                    text={text}
-                    preview={ghost}
-                    on_move={moved}
-                >|reorder: ReorderHandle<Uuid, Uuid>|
-                    <Scroll @test_id={"presentation.filmstrip"}>
+                <Scroll @sizing=ItemSize::Percent(100.0) @test_id={"presentation.filmstrip"}>
+                    <Reorder
+                        keys={keys}
+                        payload={Func::new(Some)}
+                        disabled={read_only}
+                        text={text}
+                        preview={ghost}
+                        on_move={moved}
+                    >|reorder: ReorderHandle<Uuid, Uuid>|
                         <Frame padding=TILE_INSET>
                             <List spacing=TILE_GAP>
                                 <ForEach keys={reorder.order}>|id: Uuid|
@@ -344,8 +343,8 @@ fn Filmstrip(editor: Editor, slides: Slides) -> NodeId {
                                 </ForEach>
                             </List>
                         </Frame>
-                    </Scroll>
-                </Reorder>
+                    </Reorder>
+                </Scroll>
             </List>
         </Frame>
     }

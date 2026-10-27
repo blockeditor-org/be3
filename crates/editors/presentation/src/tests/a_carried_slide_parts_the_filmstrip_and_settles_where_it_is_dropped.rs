@@ -26,7 +26,11 @@ fn a_carried_slide_parts_the_filmstrip_and_settles_where_it_is_dropped() {
         test.advance(Duration::from_millis(50));
         test.record();
     }
-    assert_eq!(slide_ids(&test), ids, "nothing moves until the slide is dropped");
+    assert_eq!(
+        slide_ids(&test),
+        ids,
+        "nothing moves until the slide is dropped"
+    );
 
     test.up(past, PointerButton::Primary);
     test.run();
