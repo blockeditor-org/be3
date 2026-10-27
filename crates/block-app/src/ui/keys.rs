@@ -2,9 +2,9 @@ use beui::NodeId;
 use beui::reactive::*;
 use beui::styled::*;
 
-use super::onboarding::{Column, ErrorText};
 use super::{AppViewStore, UiCommand, send};
 use beui::{Align, Direction, ItemSize};
+use block_accounts_ui::{Column, ErrorText};
 
 #[component]
 pub(super) fn RecoveryScreen(view: AppViewStore) -> NodeId {

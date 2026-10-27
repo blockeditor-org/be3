@@ -1,0 +1,78 @@
+load("@root//buck/app:defs.bzl", "app", "prerendered_page")
+load("@root//buck/app:drive.bzl", "web_drive_test")
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
+load("@root//buck/wasm:defs.bzl", "wasi_app_flags", "wasi_html_module")
+
+# block-app's account picker (crates/block-accounts-ui) on beui's HTML core,
+# with fixture accounts: :ssr renders the page on the host, and :web's module
+# hydrates it in the browser. `./scripts/buck run //crates/beui-html-spike:web`
+# serves it with Caddy on http://127.0.0.1:8060, or on the address after `--`.
+cargo_library(
+    rustc_flags = select({
+        "DEFAULT": [],
+        "prelude//cpu/constraints:cpu[wasm32]": wasi_app_flags,
+    }),
+    target_compatible_with = ["root//buck/constraints:html"],
+)
+
+cargo_binary(
+    name = "ssr",
+    default_target_platform = "root//buck/platforms:linux_x86_64_html",
+    target_compatible_with = ["root//buck/constraints:html"],
+)
+
+# A painting of the page as :ssr renders it, before any script runs:
+# `./scripts/test //crates/beui-html-spike:html-test`.
+cargo_test(
+    name = "html-test",
+    default_target_platform = "root//buck/platforms:linux_x86_64_html",
+    paints = True,
+    target_compatible_with = ["root//buck/constraints:html"],
+)
+
+prerendered_page(
+    name = "index",
+    renderer = ":ssr",
+)
+
+wasi_html_module(
+    name = "web-module",
+    library = ":beui-html-spike",
+    module = "beui_html_spike",
+)
+
+app(
+    name = "web",
+    bindgen = [":web-module"],
+    files = [
+        ":index",
+        "web/start.js",
+        "//crates/beui-font-freetype:Inter-Regular.ttf",
+        "//crates/beui-font-freetype:Hack-Regular.ttf",
+        "//crates/beui-font-freetype:lucide.ttf",
+        "//crates/block-app:wasi.js",
+        "//crates/block-app:threads.js",
+        "//crates/block-app:thread.js",
+        "//crates/block-app:dylink.js",
+        "//crates/block-app:env.js",
+    ],
+    manifests = [],
+    modules = [],
+    run_with = [
+        "sh",
+        "$(location //buck/app:serve-bundle.sh)",
+        "$(location //buck/tools:caddy)",
+        "$(location //buck/app:bundle.Caddyfile)",
+        "127.0.0.1:8060",
+    ],
+    wasm_bindgen = "//buck/cargo:wasm-bindgen",
+)
+
+# src/drive/accounts.drive in Chromium against :web, and the page's checks()
+# (web/start.js): it arrives prerendered and hydration keeps every element.
+web_drive_test(
+    name = "web-test",
+    bundle = ":web",
+    checks = True,
+    scripts = glob(["src/drive/*.drive"]),
+)

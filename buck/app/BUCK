@@ -33,3 +33,15 @@ export_file(
     name = "bundle.sh",
     visibility = ["PUBLIC"],
 )
+
+# A web bundle served as it is, with Caddy: beui-web-demo's and
+# beui-html-spike's :web.
+export_file(
+    name = "serve-bundle.sh",
+    visibility = ["PUBLIC"],
+)
+
+export_file(
+    name = "bundle.Caddyfile",
+    visibility = ["PUBLIC"],
+)

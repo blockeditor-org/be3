@@ -5,45 +5,13 @@ use beui::icons::{
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{NodeId, TextAlign};
+use block_accounts_ui::{AccountDetails, Column, ErrorText};
 use uuid::Uuid;
 
-use super::{
-    AccountForm, AccountRow, AppViewStore, ErrorAction, OrganizationsState, UiCommand, send,
-};
+use super::{AccountForm, AppViewStore, ErrorAction, OrganizationsState, UiCommand, send};
 use crate::platform;
 use crate::root_settings::{SESSION_TYPES, session_type_name};
-use beui::{Align, Direction, Extent, ItemSize, Justify};
-
-const COLUMN_WIDTH: f32 = 460.0;
-
-#[component]
-pub(super) fn ErrorText(text: Memo<Option<String>>) -> NodeId {
-    let shown = create_memo(move || text.get().is_some());
-    let content = create_memo(move || text.get().unwrap_or_default());
-    view! {
-        <List spacing=Space::None>
-            <Show condition={shown}>
-                <Text style=TextStyle::PARAGRAPH color=TextColor::Danger>{content}</Text>
-            </Show>
-        </List>
-    }
-}
-
-#[component]
-pub(super) fn Column(children: beui::reactive::Children<beui::reactive::ListChild>) -> NodeId {
-    view! {
-        <Scroll>
-            <List spacing=Space::None align=Align::Center>
-                <Frame
-                    width={Extent::at_most(COLUMN_WIDTH)}
-                    padding={Padding::symmetric(Space::Xl, Space::Xl3)}
-                >
-                    <List spacing=Space::Lg>{children}</List>
-                </Frame>
-            </List>
-        </Scroll>
-    }
-}
+use beui::{Align, Direction, ItemSize};
 
 #[component]
 pub(super) fn ErrorScreen(view: AppViewStore) -> NodeId {
@@ -134,145 +102,21 @@ pub(super) fn ErrorScreen(view: AppViewStore) -> NodeId {
 
 #[component]
 pub(super) fn AccountsScreen(view: AppViewStore) -> NodeId {
-    let keys = create_memo(move || {
-        view.accounts
-            .get()
-            .into_iter()
-            .map(|account| account.key)
-            .collect::<Vec<_>>()
-    });
-    let empty = create_memo(move || view.accounts.get().is_empty());
+    let accounts = create_memo(move || view.accounts.get());
     let error = create_memo(move || match view.add_account.get().open {
         true => None,
         false => view.account_error.get(),
     });
-    let accounts = view.accounts;
     view! {
-        <Column>
-            <Text style=TextStyle::TITLE>"Block Editor"</Text>
-            <Text style=TextStyle::CAPTION>"Choose an account to continue."</Text>
-            <ForEach keys={keys}>|key: String| {
-                let account = create_memo(move || {
-                    accounts
-                        .get()
-                        .into_iter()
-                        .find(|account| account.key == key)
-                        .unwrap_or_default()
-                });
-                view! {
-                    <AccountCard account />
-                }
-            }</ForEach>
-            <Show condition={empty}>
-                <Card>
-                    <Text style=TextStyle::CAPTION>"No accounts yet. Add one to get started."</Text>
-                </Card>
-            </Show>
-            <Button
-                label="Add account"
-                glyph=ICON_PLUS
-                variant=ButtonVariant::Secondary
-                on_click={|| send(UiCommand::OpenAddAccount)}
-            />
-            <ErrorText text={error} />
-        </Column>
+        <block_accounts_ui::AccountsScreen
+            accounts
+            error
+            on_add={|| send(UiCommand::OpenAddAccount)}
+            on_open={|key: String| send(UiCommand::OpenAccount(key))}
+            on_choose_organization={|key: String| send(UiCommand::ChooseOrganization(key))}
+            on_log_out={|key: String| send(UiCommand::LogOut(key))}
+        />
     }
-}
-
-#[component]
-fn AccountCard(account: Memo<AccountRow>) -> NodeId {
-    let name = create_memo(move || account.get().name);
-    let key = create_memo(move || account.get().key);
-    let open_hint = create_memo(move || match account.get().has_last_organization {
-        true => "Open the last organization used".to_owned(),
-        false => "Choose an organization".to_owned(),
-    });
-    view! {
-        <Card>
-            <List spacing=Space::Sm>
-                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                    <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0)>{name}</Text>
-                    <MenuButton
-                        label="Account options"
-                        glyph=ICON_ELLIPSIS
-                        icon_only=true
-                        arrow=false
-                        on_select={move |_path: Vec<usize>| {
-                            send(UiCommand::LogOut(key.get_untracked()));
-                        }}
-                        items={view! {
-                            <MenuItem
-                                label={create_memo(move || if account.get().local { "Close account" } else { "Log out" }.to_owned())}
-                            />
-                        }}
-                    />
-                </List>
-                <AccountDetails account />
-                <List
-                    direction=Direction::Horizontal
-                    align=Align::Center
-                    justify=Justify::End
-                    spacing=Space::Xs
-                >
-                    <Tooltip label={open_hint}>
-                        <Button
-                            label="Open"
-                            variant=ButtonVariant::Primary
-                            @test_id={format!("account.open.{}", name.get_untracked())}
-                            on_click={move || send(UiCommand::OpenAccount(key.get_untracked()))}
-                        />
-                    </Tooltip>
-                    <Button
-                        icon_only=true
-                        glyph=ICON_CHEVRON_DOWN
-                        label="Open a different organization"
-                        on_click={move || send(UiCommand::ChooseOrganization(key.get_untracked()))}
-                    />
-                </List>
-            </List>
-        </Card>
-    }
-}
-
-#[component]
-fn AccountDetails(account: Memo<AccountRow>) -> NodeId {
-    let email = create_memo(move || account.get().email);
-    let server = create_memo(move || account.get().server);
-    let glyph = create_memo(move || match account.get().local {
-        true => ICON_MONITOR,
-        false => ICON_CLOUD,
-    });
-    let seen_by = create_memo(move || administrators_note(&account.get().companies));
-    let seen = create_memo(move || !seen_by.get().is_empty());
-    view! {
-        <List spacing=Space::Xs2>
-            <Show condition={create_memo(move || !email.get().is_empty())}>
-                <Text style=TextStyle::CAPTION>{email}</Text>
-            </Show>
-            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
-                <Text size=TextSize::Sm align=TextAlign::Center>
-                    <Icon glyph={glyph} />
-                </Text>
-                <Text style=TextStyle::CAPTION>{server}</Text>
-            </List>
-            <Show condition={seen}>
-                <Text style=TextStyle::CAPTION>{seen_by}</Text>
-            </Show>
-        </List>
-    }
-}
-
-fn administrators_note(companies: &[String]) -> String {
-    let named = match companies {
-        [] => return String::new(),
-        [only] => only.clone(),
-        [rest @ .., last] => format!("{} and {last}", rest.join(", ")),
-    };
-    let place = match companies.len() {
-        1 => "there",
-        _ => "in each",
-    };
-    format!("The administrators of {named} can read your settings and blocks {place}.")
 }
 
 #[component]

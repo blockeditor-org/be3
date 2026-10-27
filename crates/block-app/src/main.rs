@@ -3316,11 +3316,11 @@ impl BlockApp {
             .accounts
             .iter()
             .map(|account| {
-                ui::AccountRow::of(
+                ui::account_row(
                     account,
                     account.server == self.account.server && account.id == self.account.id,
+                    companies(account),
                 )
-                .in_companies(companies(account))
             })
             .collect();
         let organization_name = self
@@ -3350,7 +3350,7 @@ impl BlockApp {
                     .then(|| self.account_error.clone())
                     .flatten(),
             },
-            account: ui::AccountRow::of(&self.account, true).in_companies(companies(&self.account)),
+            account: ui::account_row(&self.account, true, companies(&self.account)),
             recovery: self.keys.recovery_view(),
             unlock: self.keys.unlock_view(&self.account.name),
             pairing: match screen {

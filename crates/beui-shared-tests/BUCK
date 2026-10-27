@@ -50,6 +50,9 @@ app(
     bindgen = [":web-module"],
     files = [
         "web/index.html",
+        "//crates/beui-font-freetype:Inter-Regular.ttf",
+        "//crates/beui-font-freetype:Hack-Regular.ttf",
+        "//crates/beui-font-freetype:lucide.ttf",
         "//crates/block-app:wasi.js",
         "//crates/block-app:threads.js",
         "//crates/block-app:thread.js",

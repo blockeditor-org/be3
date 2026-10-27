@@ -51,6 +51,7 @@ be-store = { path = "../be-store" }
 be-session = { path = "../be-session" }
 be-vcs = { path = "../be-vcs" }
 beui = { path = "../beui", default-features = false, features = ["render"] }
+block-accounts-ui = { path = "../block-accounts-ui" }
 block-guest-abi = { path = "../block-guest-abi" }
 block-guest-host = { path = "../block-guest-host" }
 block-plugin-api = { path = "../block-plugin-api" }

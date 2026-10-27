@@ -214,6 +214,7 @@ fn component_uses(tree: &SourceFile, source: &str, relative: &str) -> Vec<String
                     if let Some(renderer) = ast::CallExpr::cast(parent)
                         && (calls(&renderer, "render")
                             || calls(&renderer, "render_fragment")
+                            || calls(&renderer, "render_to_string")
                             || calls(&renderer, "build")
                             || calls(&renderer, "enter")
                             || calls(&renderer, "run")

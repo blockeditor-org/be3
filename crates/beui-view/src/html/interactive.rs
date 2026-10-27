@@ -91,6 +91,7 @@ pub fn interactive(
         Some(child) => wrap("Interactive", child),
         None => create("Interactive", "div"),
     };
+    set_style(node, "pointer-events", Some("auto".to_owned()));
     if focusable {
         let stop = TabStop::new(node, yields_tab_stop);
         bind(tab_stop, move |tab_stop| stop.set(tab_stop));

@@ -1,0 +1,21 @@
+# The prerendered account picker, once hydrated, takes clicks and Tab, and its
+# callbacks reach the page: Open, the organization chooser, Add account (a new
+# card) and Log out (the card goes).
+clock stop
+wait 'Choose an account to continue.'
+wait 'Nothing chosen yet'
+click '#account.open.Ada'
+wait 'Opened Ada'
+wait 'focused #account.open.Ada'
+key Tab
+wait 'focused #account.choose.Ada'
+key Enter
+wait 'Choosing an organization for Ada'
+click '"Add account"'
+wait 'Added account 3'
+wait '#account.open.Added account 3'
+click '#account.options.Ada'
+click 'MenuItem "Log out"'
+wait 'Logged out of Ada'
+gone 'Label value="Ada"'
+wait '#account.open.Ada at home'

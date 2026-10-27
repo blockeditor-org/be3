@@ -62,6 +62,15 @@ not go through it: the browser gives it, from Playwright. crates/beui-shared-tes
 does that for its scripts (guides/testing_a_gui.md, 7), with buck/app/web-test.mjs, which
 shares its command parsing with web-drive.mjs (buck/app/drive-words.mjs).
 
+crates/beui-html-spike is block-app's account picker (crates/block-accounts-ui) on that core,
+rendered on the host and hydrated in the browser: `./scripts/buck run //crates/beui-html-spike:web`
+serves it on http://127.0.0.1:8060 (or the address after `--`). Its `:ssr` program writes the
+page at build time with `beui::html::render_to_string`; the module calls `beui::html::hydrate`.
+`./scripts/test //crates/beui-html-spike:web-test` drives it in Chromium and checks that
+hydration kept every prerendered element. A bundle on this core stages the bundled fonts
+(`//crates/beui-font-freetype:Inter-Regular.ttf` and the others) beside its index.html, where
+the core's `@font-face` rules look for them.
+
 ## Files and offline
 
 The web build keeps the same files as the native app, under `/block` in the

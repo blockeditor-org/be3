@@ -3,9 +3,9 @@ use super::*;
 #[test]
 fn an_account_in_a_company_says_its_administrators_can_read_it() {
     let document = build(|| {
-        let view = AppViewStore::new(crate::ui::AppView {
-            accounts: vec![
-                crate::ui::AccountRow {
+        let accounts = create_memo(|| {
+            vec![
+                AccountRow {
                     key: "work".into(),
                     name: "Ada".into(),
                     email: "ada@example.com".into(),
@@ -14,25 +14,31 @@ fn an_account_in_a_company_says_its_administrators_can_read_it() {
                     companies: vec!["Analytical Engines".into()],
                     ..Default::default()
                 },
-                crate::ui::AccountRow {
+                AccountRow {
                     key: "home".into(),
                     name: "Ada at home".into(),
                     email: "ada@home.example".into(),
                     server: "https://api.example.com".into(),
                     ..Default::default()
                 },
-            ],
-            ..Default::default()
+            ]
         });
+        let error = create_memo(|| None);
         view! {
             <beui::styled::Root>
-                <AccountsScreen view />
+                <AccountsScreen
+                    accounts
+                    error
+                    on_add={|| {}}
+                    on_open={|_: String| {}}
+                    on_choose_organization={|_: String| {}}
+                    on_log_out={|_: String| {}}
+                />
             </beui::styled::Root>
         }
     });
     painting_of(
         "an_account_in_a_company_says_its_administrators_can_read_it",
         document,
-        false,
     );
 }

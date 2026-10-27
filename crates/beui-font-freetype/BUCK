@@ -3,3 +3,23 @@ load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
 cargo_library()
 
 cargo_test()
+
+# The bundled fonts as files, for a page on beui's HTML core to stage beside
+# its bundle, where beui-core-html's @font-face rules (fonts.rs) find them.
+export_file(
+    name = "Inter-Regular.ttf",
+    src = "src/assets/fonts/Inter-Regular.ttf",
+    visibility = ["PUBLIC"],
+)
+
+export_file(
+    name = "Hack-Regular.ttf",
+    src = "src/assets/fonts/Hack-Regular.ttf",
+    visibility = ["PUBLIC"],
+)
+
+export_file(
+    name = "lucide.ttf",
+    src = "src/assets/icons/lucide.ttf",
+    visibility = ["PUBLIC"],
+)

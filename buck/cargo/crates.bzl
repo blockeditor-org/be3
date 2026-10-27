@@ -8595,6 +8595,58 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
+    "crates/beui-html-spike": {
+        "binaries": [
+            {
+                "crate_root": "src/main.rs",
+                "name": "beui-html-spike",
+            },
+        ],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "beui_html_spike",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "beui-html-spike",
+        "platforms": {
+            "linux-x86_64-html": {
+                "binaries": {
+                    "beui-html-spike": [
+                        "//crates/beui:beui",
+                        "//crates/block-accounts-ui:block-accounts-ui",
+                    ],
+                },
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-accounts-ui:block-accounts-ui",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/paint-snapshot:paint-snapshot",
+                ],
+                "test_features": [],
+            },
+            "wasi-html": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-accounts-ui:block-accounts-ui",
+                    "//crates/wasi-threads:wasi-threads",
+                    "//third-party/rust:wasm-bindgen-0.2.122",
+                    "//third-party/rust:wasm-bindgen-futures-0.4.72",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
     "crates/beui-inspector": {
         "binaries": [],
         "edition": "2024",
@@ -11203,6 +11255,137 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
+    "crates/block-accounts-ui": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "block_accounts_ui",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "block-accounts-ui",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/paint-snapshot:paint-snapshot",
+                ],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/paint-snapshot:paint-snapshot",
+                ],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/paint-snapshot:paint-snapshot",
+                ],
+                "test_features": [],
+            },
+            "linux-x86_64-html": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/paint-snapshot:paint-snapshot",
+                ],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/paint-snapshot:paint-snapshot",
+                ],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/paint-snapshot:paint-snapshot",
+                ],
+                "test_features": [],
+            },
+            "wasi": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-html": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/paint-snapshot:paint-snapshot",
+                ],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/paint-snapshot:paint-snapshot",
+                ],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
     "crates/block-app": {
         "binaries": [
             {
@@ -11234,6 +11417,7 @@ crates = {
                         "//crates/be-types-host:be-types-host",
                         "//crates/be-vcs:be-vcs",
                         "//crates/beui:beui",
+                        "//crates/block-accounts-ui:block-accounts-ui",
                         "//crates/block-guest-abi:block-guest-abi",
                         "//crates/block-guest-host:block-guest-host",
                         "//crates/block-plugin-api:block-plugin-api",
@@ -11276,6 +11460,7 @@ crates = {
                     "//crates/be-types-host:be-types-host",
                     "//crates/be-vcs:be-vcs",
                     "//crates/beui:beui",
+                    "//crates/block-accounts-ui:block-accounts-ui",
                     "//crates/block-guest-abi:block-guest-abi",
                     "//crates/block-guest-host:block-guest-host",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -11344,6 +11529,7 @@ crates = {
                         "//crates/be-wayland:be-wayland",
                         "//crates/beui-platform-drm:beui-platform-drm",
                         "//crates/beui:beui",
+                        "//crates/block-accounts-ui:block-accounts-ui",
                         "//crates/block-guest-abi:block-guest-abi",
                         "//crates/block-guest-host:block-guest-host",
                         "//crates/block-plugin-api:block-plugin-api",
@@ -11394,6 +11580,7 @@ crates = {
                     "//crates/be-wayland:be-wayland",
                     "//crates/beui-platform-drm:beui-platform-drm",
                     "//crates/beui:beui",
+                    "//crates/block-accounts-ui:block-accounts-ui",
                     "//crates/block-guest-abi:block-guest-abi",
                     "//crates/block-guest-host:block-guest-host",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -11467,6 +11654,7 @@ crates = {
                         "//crates/be-wayland:be-wayland",
                         "//crates/beui-platform-drm:beui-platform-drm",
                         "//crates/beui:beui",
+                        "//crates/block-accounts-ui:block-accounts-ui",
                         "//crates/block-guest-abi:block-guest-abi",
                         "//crates/block-guest-host:block-guest-host",
                         "//crates/block-plugin-api:block-plugin-api",
@@ -11517,6 +11705,7 @@ crates = {
                     "//crates/be-wayland:be-wayland",
                     "//crates/beui-platform-drm:beui-platform-drm",
                     "//crates/beui:beui",
+                    "//crates/block-accounts-ui:block-accounts-ui",
                     "//crates/block-guest-abi:block-guest-abi",
                     "//crates/block-guest-host:block-guest-host",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -11587,6 +11776,7 @@ crates = {
                         "//crates/be-types-host:be-types-host",
                         "//crates/be-vcs:be-vcs",
                         "//crates/beui:beui",
+                        "//crates/block-accounts-ui:block-accounts-ui",
                         "//crates/block-guest-abi:block-guest-abi",
                         "//crates/block-guest-host:block-guest-host",
                         "//crates/block-plugin-api:block-plugin-api",
@@ -11626,6 +11816,7 @@ crates = {
                     "//crates/be-types-host:be-types-host",
                     "//crates/be-vcs:be-vcs",
                     "//crates/beui:beui",
+                    "//crates/block-accounts-ui:block-accounts-ui",
                     "//crates/block-guest-abi:block-guest-abi",
                     "//crates/block-guest-host:block-guest-host",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -11689,6 +11880,7 @@ crates = {
                         "//crates/be-types-host:be-types-host",
                         "//crates/be-vcs:be-vcs",
                         "//crates/beui:beui",
+                        "//crates/block-accounts-ui:block-accounts-ui",
                         "//crates/block-guest-abi:block-guest-abi",
                         "//crates/block-guest-host:block-guest-host",
                         "//crates/block-plugin-api:block-plugin-api",
@@ -11728,6 +11920,7 @@ crates = {
                     "//crates/be-types-host:be-types-host",
                     "//crates/be-vcs:be-vcs",
                     "//crates/beui:beui",
+                    "//crates/block-accounts-ui:block-accounts-ui",
                     "//crates/block-guest-abi:block-guest-abi",
                     "//crates/block-guest-host:block-guest-host",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -11790,6 +11983,7 @@ crates = {
                     "//crates/be-types-host:be-types-host",
                     "//crates/be-vcs:be-vcs",
                     "//crates/beui:beui",
+                    "//crates/block-accounts-ui:block-accounts-ui",
                     "//crates/block-guest-abi:block-guest-abi",
                     "//crates/block-guest-host:block-guest-host",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -11834,6 +12028,7 @@ crates = {
                         "//crates/be-types-host:be-types-host",
                         "//crates/be-vcs:be-vcs",
                         "//crates/beui:beui",
+                        "//crates/block-accounts-ui:block-accounts-ui",
                         "//crates/block-guest-abi:block-guest-abi",
                         "//crates/block-guest-host:block-guest-host",
                         "//crates/block-plugin-api:block-plugin-api",
@@ -11872,6 +12067,7 @@ crates = {
                     "//crates/be-types-host:be-types-host",
                     "//crates/be-vcs:be-vcs",
                     "//crates/beui:beui",
+                    "//crates/block-accounts-ui:block-accounts-ui",
                     "//crates/block-guest-abi:block-guest-abi",
                     "//crates/block-guest-host:block-guest-host",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -11934,6 +12130,7 @@ crates = {
                         "//crates/be-types-host:be-types-host",
                         "//crates/be-vcs:be-vcs",
                         "//crates/beui:beui",
+                        "//crates/block-accounts-ui:block-accounts-ui",
                         "//crates/block-guest-abi:block-guest-abi",
                         "//crates/block-guest-host:block-guest-host",
                         "//crates/block-plugin-api:block-plugin-api",
@@ -11972,6 +12169,7 @@ crates = {
                     "//crates/be-types-host:be-types-host",
                     "//crates/be-vcs:be-vcs",
                     "//crates/beui:beui",
+                    "//crates/block-accounts-ui:block-accounts-ui",
                     "//crates/block-guest-abi:block-guest-abi",
                     "//crates/block-guest-host:block-guest-host",
                     "//crates/block-plugin-api:block-plugin-api",

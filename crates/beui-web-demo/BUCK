@@ -31,19 +31,10 @@ app(
     modules = [],
     run_with = [
         "sh",
-        "$(location :serve.sh)",
+        "$(location //buck/app:serve-bundle.sh)",
         "$(location //buck/tools:caddy)",
-        "$(location :Caddyfile)",
+        "$(location //buck/app:bundle.Caddyfile)",
+        "127.0.0.1:8070",
     ],
     wasm_bindgen = "//buck/cargo:wasm-bindgen",
-)
-
-export_file(
-    name = "serve.sh",
-    src = "web/serve.sh",
-)
-
-export_file(
-    name = "Caddyfile",
-    src = "web/Caddyfile",
 )

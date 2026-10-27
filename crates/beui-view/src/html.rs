@@ -63,7 +63,7 @@ pub mod running {
     pub use super::nodes::Page;
     #[cfg(target_arch = "wasm32")]
     pub use beui_core_html::automate::automate;
-    pub use beui_core_html::run::{BASE_STYLES, stylesheet};
+    pub use beui_core_html::run::{BASE_STYLES, STYLES_ID, stylesheet};
 
     use crate::primitives::Root;
 

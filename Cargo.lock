@@ -1312,6 +1312,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "beui-html-spike"
+version = "0.1.0"
+dependencies = [
+ "beui",
+ "block-accounts-ui",
+ "paint-snapshot",
+ "wasi-threads",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+]
+
+[[package]]
 name = "beui-inspector"
 version = "0.1.0"
 dependencies = [
@@ -1654,6 +1666,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "block-accounts-ui"
+version = "0.1.0"
+dependencies = [
+ "beui",
+ "paint-snapshot",
+]
+
+[[package]]
 name = "block-app"
 version = "0.1.0"
 dependencies = [
@@ -1677,6 +1697,7 @@ dependencies = [
  "be-wayland",
  "beui",
  "beui-platform-drm",
+ "block-accounts-ui",
  "block-editor-plugin",
  "block-guest-abi",
  "block-guest-host",

@@ -6,7 +6,7 @@ use beui::reactive::*;
 use beui::styled::*;
 use uuid::Uuid;
 
-use super::onboarding::ErrorText;
+use block_accounts_ui::ErrorText;
 
 use super::{AppViewStore, UiCommand, send};
 use beui::{Align, Direction, ItemSize};
