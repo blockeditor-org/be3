@@ -112,12 +112,8 @@ impl Element for GlideNode {
     }
 
     fn detail(&self) -> Option<String> {
-        (self.displacement != Vec2::ZERO).then(|| {
-            format!(
-                "{:.1}, {:.1}",
-                self.displacement.x, self.displacement.y
-            )
-        })
+        (self.displacement != Vec2::ZERO)
+            .then(|| format!("{:.1}, {:.1}", self.displacement.x, self.displacement.y))
     }
 
     fn as_any(&self) -> &dyn Any {

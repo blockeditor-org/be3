@@ -39,7 +39,10 @@ fn a_glide_armed_by_a_reorder_paints_where_it_was_and_springs_to_its_new_place()
     );
 
     let frames = harness.frames_to_settle();
-    assert!(frames < 60, "the glide comes to rest within a second, after {frames} frames");
+    assert!(
+        frames < 60,
+        "the glide comes to rest within a second, after {frames} frames"
+    );
     assert_eq!(top_of(&harness, "row.1"), 2.0 * GLIDE_ROW);
     assert_eq!(top_of(&harness, "row.2"), 0.0);
 }

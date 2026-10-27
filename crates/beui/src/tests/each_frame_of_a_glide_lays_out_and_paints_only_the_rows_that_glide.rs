@@ -18,7 +18,10 @@ fn each_frame_of_a_glide_lays_out_and_paints_only_the_rows_that_glide() {
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     let moving = top_of(&harness, "row.1");
-    assert!(moving > 0.0 && moving < GLIDE_ROW, "row 1 is mid-glide at {moving}");
+    assert!(
+        moving > 0.0 && moving < GLIDE_ROW,
+        "row 1 is mid-glide at {moving}"
+    );
     let work = harness.document().performance().latest.work;
     assert!(
         work.placed <= 4,

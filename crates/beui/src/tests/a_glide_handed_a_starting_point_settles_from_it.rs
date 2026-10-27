@@ -23,7 +23,11 @@ fn a_glide_handed_a_starting_point_settles_from_it() {
 
     shown.set(true);
     harness.frame(Vec::new());
-    assert_eq!(top_of(&harness, "slot"), 100.0, "the glide rests below the spacer");
+    assert_eq!(
+        top_of(&harness, "slot"),
+        100.0,
+        "the glide rests below the spacer"
+    );
     assert_eq!(
         harness.rect(harness.find("row")).min,
         pos2(200.0, 300.0),
