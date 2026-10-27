@@ -428,9 +428,14 @@ fn DockChromeFace(handle: DockChromeHandle) -> NodeId {
         floating,
         barred,
         focused,
+        see_through,
         content,
     } = handle;
     let framed = barred && floating;
+    let fill = create_memo(move || match see_through.get() {
+        true => ColorRole::None,
+        false => ColorRole::Background,
+    });
     let outline = create_memo(move || {
         framed.then(|| {
             let color = match focused.get() {
@@ -446,7 +451,7 @@ fn DockChromeFace(handle: DockChromeHandle) -> NodeId {
     };
     view! {
         <Frame
-            fill=ColorRole::Background
+            fill={fill}
             border=outline
             radius={if framed { Radius::Lg } else { Radius::None }}
             padding=border

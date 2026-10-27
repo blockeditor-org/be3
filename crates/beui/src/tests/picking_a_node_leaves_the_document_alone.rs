@@ -17,7 +17,8 @@ fn picking_a_node_leaves_the_document_alone() {
 
     harness.toggle_inspector();
     harness.toggle_picking();
-    harness.click(pos2(4.0, 4.0));
+    harness.settle();
+    harness.click(harness.app_rect().min + vec2(4.0, 4.0));
     harness.frame(Vec::new());
 
     assert_eq!(clicks.get_untracked(), 0);

@@ -1,10 +1,10 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use beui_core::base::Direction;
 use beui_core::geometry::{Pos2, Rect};
 
 use super::{
-    DockState, Entry, FLOATING_SIZE, Group, GroupId, Home, Leaf, LeafId, MIN_FRACTION,
+    DockHome, DockState, Entry, FLOATING_SIZE, Group, GroupId, Home, Leaf, LeafId, MIN_FRACTION,
     MIN_SIDEBAR_WIDTH, Node, Side, Split, SplitId, Surface, SurfaceId, TabId, Tree,
 };
 
@@ -15,6 +15,7 @@ pub struct DockSpec {
     pub main: Option<DockSpecNode>,
     pub windows: Vec<DockSpecWindow>,
     pub focus: Option<TabId>,
+    pub see_through: Vec<TabId>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -45,6 +46,7 @@ pub struct DockSpecPane {
     pub icons_only: bool,
     pub sidebar: f32,
     pub keep: bool,
+    pub locked: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -200,7 +202,7 @@ fn distance(first: &[usize], second: &[usize]) -> usize {
     first.len() + second.len() - 2 * shared
 }
 
-fn visit_leaves(node: &mut Node, visit: &mut impl FnMut(&mut Leaf)) {
+pub(super) fn visit_leaves(node: &mut Node, visit: &mut impl FnMut(&mut Leaf)) {
     match node {
         Node::Leaf(leaf) => visit(leaf),
         Node::Split(split) => {
@@ -248,6 +250,7 @@ impl DockState {
     }
 
     pub fn reconcile(&mut self, spec: &DockSpec) {
+        self.see_through.clone_from(&spec.see_through);
         if !self.seeded {
             self.seed(spec);
             return;
@@ -263,6 +266,7 @@ impl DockState {
         self.sync(spec, &sites);
         self.restore_kept(&sites);
         self.place_missing(&sites);
+        self.settle_areas(&sites);
         self.normalize();
         self.settle_focus();
     }
@@ -293,6 +297,7 @@ impl DockState {
             };
             self.add_window(window.rect, Some(window.key.clone()), root);
         }
+        self.settle_areas(&spec.sites());
         self.seeded = true;
         self.focus = None;
         match spec.focus.filter(|tab| self.contains(*tab)) {
@@ -383,6 +388,7 @@ impl DockState {
         leaf.sidebar = pane.sidebar.max(MIN_SIDEBAR_WIDTH);
         leaf.key = Some(pane.key.clone());
         leaf.keep = pane.keep;
+        leaf.area = pane.locked.then(|| pane.key.clone());
         leaf
     }
 
@@ -407,7 +413,7 @@ impl DockState {
                 self.homes.retain(|home| home.tab != tab);
                 self.homes.push(Home {
                     tab,
-                    group,
+                    place: DockHome::Group(group),
                     pinned: true,
                 });
             }
@@ -678,7 +684,7 @@ impl DockState {
                         {
                             self.homes.push(Home {
                                 tab: *tab,
-                                group,
+                                place: DockHome::Group(group),
                                 pinned: true,
                             });
                         }
@@ -706,6 +712,75 @@ impl DockState {
                     }
                 }
             }
+        }
+    }
+
+    fn settle_areas(&mut self, sites: &[Site<'_>]) {
+        let locked: Vec<&Site<'_>> = sites.iter().filter(|site| site.pane.locked).collect();
+        let areas: HashSet<&str> = locked.iter().map(|site| site.pane.key.as_str()).collect();
+        let mut declared: Vec<(TabId, String)> = Vec::new();
+        for site in &locked {
+            let mut tabs = Vec::new();
+            area_tabs(&site.pane.entries, &mut tabs);
+            declared.extend(tabs.into_iter().map(|tab| (tab, site.pane.key.clone())));
+        }
+        let declared_in: HashMap<TabId, &str> = declared
+            .iter()
+            .map(|(tab, area)| (*tab, area.as_str()))
+            .collect();
+        for root in self.roots_mut() {
+            visit_leaves(root, &mut |leaf| {
+                if leaf
+                    .area
+                    .as_deref()
+                    .is_some_and(|area| !areas.contains(area))
+                {
+                    leaf.area = None;
+                }
+            });
+        }
+        for site in &locked {
+            if let Some(leaf) = self.leaf_by_key(&site.pane.key)
+                && let Some(leaf) = self.leaf_mut(leaf)
+            {
+                leaf.area = Some(site.pane.key.clone());
+            }
+        }
+        self.homes.retain(|home| match &home.place {
+            DockHome::Group(_) => true,
+            DockHome::Area(area) => declared_in.get(&home.tab) == Some(&area.as_str()),
+        });
+        for (tab, area) in &declared {
+            if self.contains(*tab) && self.home(*tab).is_none() {
+                self.homes.push(Home {
+                    tab: *tab,
+                    place: DockHome::Area(area.clone()),
+                    pinned: true,
+                });
+            }
+        }
+        for (tab, area) in declared {
+            if !self.is_tab_pinned(tab)
+                || self.home(tab) != Some(DockHome::Area(area.clone()))
+                || self.at_home(tab)
+            {
+                continue;
+            }
+            let leaf = match self.leaf_by_key(&area) {
+                Some(leaf) => Some(leaf),
+                None => match self.area_leaves(&area).first() {
+                    Some(leaf) => Some(*leaf),
+                    None => locked
+                        .iter()
+                        .find(|site| site.pane.key == area)
+                        .and_then(|site| self.recreate(site)),
+                },
+            };
+            let Some(leaf) = leaf else {
+                continue;
+            };
+            self.take(Entry::Tab(tab));
+            self.insert_entries(leaf, usize::MAX, vec![Entry::Tab(tab)], None);
         }
     }
 
@@ -790,6 +865,31 @@ impl DockState {
             let (leaf, at) = self.locate(Entry::Tab(tab))?;
             self.pinned_group_of(leaf).is_none().then_some((leaf, at))
         })
+    }
+}
+
+fn area_tabs(entries: &[DockSpecEntry], out: &mut Vec<TabId>) {
+    for entry in entries {
+        match entry {
+            DockSpecEntry::Tab(tab) => out.push(*tab),
+            DockSpecEntry::Group {
+                pinned: false,
+                root,
+                ..
+            } => area_node_tabs(root, out),
+            DockSpecEntry::Group { .. } => {}
+        }
+    }
+}
+
+fn area_node_tabs(node: &DockSpecNode, out: &mut Vec<TabId>) {
+    match node {
+        DockSpecNode::Split { first, second, .. } => {
+            area_node_tabs(first, out);
+            area_node_tabs(second, out);
+        }
+        DockSpecNode::Pane(pane) if pane.locked => {}
+        DockSpecNode::Pane(pane) => area_tabs(&pane.entries, out),
     }
 }
 

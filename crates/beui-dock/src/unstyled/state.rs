@@ -134,6 +134,7 @@ struct Leaf {
     sidebar: f32,
     key: Option<String>,
     keep: bool,
+    area: Option<String>,
 }
 
 impl Leaf {
@@ -147,6 +148,7 @@ impl Leaf {
             sidebar: SIDEBAR_WIDTH,
             key: None,
             keep: false,
+            area: None,
         }
     }
 }
@@ -409,10 +411,16 @@ impl DockTree {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub enum DockHome {
+    Group(GroupId),
+    Area(String),
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 struct Home {
     tab: TabId,
-    group: GroupId,
+    place: DockHome,
     pinned: bool,
 }
 
@@ -500,6 +508,8 @@ pub struct DockState {
     lookup: Lookup,
     #[serde(skip)]
     shows: u64,
+    #[serde(skip)]
+    see_through: Vec<TabId>,
 }
 
 impl Default for DockState {
@@ -523,6 +533,7 @@ impl DockState {
             switch: None,
             lookup: Lookup::default(),
             shows: 0,
+            see_through: Vec::new(),
         };
         let leaf = state.new_leaf(tabs.into_iter().map(Entry::Tab).collect());
         let focus = leaf.id;
@@ -1054,7 +1065,8 @@ impl DockState {
         share: f32,
         entries: Vec<Entry>,
     ) -> Option<LeafId> {
-        let added = self.new_leaf(entries);
+        let mut added = self.new_leaf(entries);
+        added.area = self.leaf(leaf).and_then(|leaf| leaf.area.clone());
         let id = self.split_off(leaf, side, share, added, None)?;
         self.focus(id);
         Some(id)
@@ -1325,6 +1337,7 @@ impl DockState {
             if identity {
                 leaf.key.clone_from(&like.key);
                 leaf.keep = like.keep;
+                leaf.area.clone_from(&like.area);
             }
         }
     }
@@ -1581,6 +1594,13 @@ impl DockState {
                         continue;
                     };
                     let first = root.first_leaf().id;
+                    let area = self.leaf(holder).and_then(|leaf| leaf.area.clone());
+                    let mut root = root;
+                    spec::visit_leaves(&mut root, &mut |leaf| {
+                        if leaf.area.is_none() {
+                            leaf.area.clone_from(&area);
+                        }
+                    });
                     self.invalidate();
                     self.groups.retain(|candidate| candidate.id != group);
                     if let Some(parent) = self.root_mut(tree) {
@@ -1604,11 +1624,11 @@ impl DockState {
         self.group(group).is_some_and(|group| group.pinned)
     }
 
-    pub fn home(&self, tab: TabId) -> Option<GroupId> {
+    pub fn home(&self, tab: TabId) -> Option<DockHome> {
         self.homes
             .iter()
             .find(|home| home.tab == tab)
-            .map(|home| home.group)
+            .map(|home| home.place.clone())
     }
 
     pub fn is_tab_pinned(&self, tab: TabId) -> bool {
@@ -1618,7 +1638,14 @@ impl DockState {
     pub fn at_home(&self, tab: TabId) -> bool {
         self.home(tab)
             .zip(self.locate(Entry::Tab(tab)))
-            .is_some_and(|(group, (leaf, _))| self.contains_leaf(Entry::Group(group), leaf))
+            .is_some_and(|(home, (leaf, _))| self.is_home(leaf, &home))
+    }
+
+    fn is_home(&self, leaf: LeafId, home: &DockHome) -> bool {
+        match home {
+            DockHome::Group(group) => self.contains_leaf(Entry::Group(*group), leaf),
+            DockHome::Area(area) => self.area_of(leaf) == Some(area.as_str()),
+        }
     }
 
     pub fn set_tab_pinned(&mut self, tab: TabId, pinned: bool) {
@@ -1628,6 +1655,27 @@ impl DockState {
         if let Some(home) = self.homes.iter_mut().find(|home| home.tab == tab) {
             home.pinned = pinned;
         }
+    }
+
+    pub fn area_of(&self, leaf: LeafId) -> Option<&str> {
+        let mut leaf = leaf;
+        loop {
+            if let Some(area) = self.leaf(leaf)?.area.as_deref() {
+                return Some(area);
+            }
+            match self.tree_of(leaf)? {
+                Tree::Surface(_) => return None,
+                Tree::Group(group) => leaf = self.holder(group)?.0,
+            }
+        }
+    }
+
+    fn area_leaves(&self, area: &str) -> Vec<LeafId> {
+        self.surfaces
+            .iter()
+            .flat_map(|surface| self.leaves(surface.id))
+            .filter(|leaf| self.area_of(*leaf) == Some(area))
+            .collect()
     }
 
     pub fn pinned_group_of(&self, leaf: LeafId) -> Option<GroupId> {
@@ -1642,6 +1690,17 @@ impl DockState {
     }
 
     pub fn admits(&self, entry: Entry, target: DockDrop) -> bool {
+        let away = target
+            .leaf()
+            .is_none_or(|leaf| self.surface_of(leaf) != Some(self.main()));
+        if away
+            && self
+                .entry_tabs(entry)
+                .iter()
+                .any(|tab| self.is_see_through(*tab))
+        {
+            return false;
+        }
         let destination = match target {
             DockDrop::Window { .. } => None,
             DockDrop::Group { leaf, index } => match self.entries(leaf).get(index) {
@@ -1661,7 +1720,14 @@ impl DockState {
             else {
                 return false;
             };
-            entry != Entry::Group(home.group) && !self.lands_in(target, home.group)
+            match &home.place {
+                DockHome::Group(group) => {
+                    entry != Entry::Group(*group) && !self.lands_in(target, *group)
+                }
+                DockHome::Area(_) => !target
+                    .leaf()
+                    .is_some_and(|leaf| self.is_home(leaf, &home.place)),
+            }
         });
         if held {
             return false;
@@ -1673,7 +1739,19 @@ impl DockState {
             return false;
         }
         tabs.into_iter()
-            .all(|tab| self.home(tab) == Some(destination))
+            .all(|tab| self.home(tab) == Some(DockHome::Group(destination)))
+    }
+
+    pub fn is_see_through(&self, tab: TabId) -> bool {
+        self.see_through.contains(&tab)
+    }
+
+    pub fn shows_see_through(&self, leaf: LeafId) -> bool {
+        self.active_entry(leaf).is_some_and(|entry| {
+            self.entry_tabs(entry)
+                .iter()
+                .any(|tab| self.is_see_through(*tab))
+        })
     }
 
     pub fn admits_leaf(&self, leaf: LeafId, target: DockDrop) -> bool {
@@ -1726,7 +1804,8 @@ impl DockState {
             return;
         };
         pinned.pinned = false;
-        self.homes.retain(|home| home.group != group);
+        self.homes
+            .retain(|home| home.place != DockHome::Group(group));
         self.normalize();
         self.settle_focus();
     }
@@ -1798,14 +1877,12 @@ impl DockState {
         {
             let kept = self.homes.clone();
             self.homes.retain(|home| !incoming.contains(&home.tab));
-            self.homes.extend(incoming.iter().map(|tab| {
-                Home {
-                    tab: *tab,
-                    group,
-                    pinned: !kept
-                        .iter()
-                        .any(|home| home.tab == *tab && home.group == group && !home.pinned),
-                }
+            self.homes.extend(incoming.iter().map(|tab| Home {
+                tab: *tab,
+                place: DockHome::Group(group),
+                pinned: !kept.iter().any(|home| {
+                    home.tab == *tab && home.place == DockHome::Group(group) && !home.pinned
+                }),
             }));
         }
         self.normalize();

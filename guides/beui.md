@@ -2118,9 +2118,13 @@ view! {
 
 `DockSplit` takes two children, `fraction` being the first one's share.
 `DockPane` holds `DockTab`s and `DockGroup`s (a tab holding a tree of its own,
-`pinned` to keep its tabs in it), names its starting `active` tab, and can start
-with its tabs in a sidebar (`vertical`, `sidebar_width`). `DockWindow` floats one
-tree at a `rect`. A tab's key is any `Clone + Eq + Hash` type; a key that is a
+`pinned` to keep its tabs in it), names its starting `active` tab, can start
+with its tabs in a sidebar (`vertical`, `sidebar_width`), and can be `locked` to
+keep its tabs in its area (below). `DockWindow` floats one
+tree at a `rect`. A `see_through` tab shows something drawn under the dock, as the inspector's App tab shows the
+app: neither its pane nor a stacked dock fills behind it, so the pane's chrome learns it from
+`DockChromeHandle::see_through`, and it stays on the main surface, where nothing of the dock is
+under it (`DockState::admits` refuses it a window). A tab's key is any `Clone + Eq + Hash` type; a key that is a
 `TabId` or a `u64` names the tab's `TabId` too, which is what the test ids of its
 close button and switcher row carry. Every container has an `id`, saved with the
 layout, so that a layout saved by older code still finds its panes.
@@ -2385,6 +2389,20 @@ be compared, sent elsewhere and rebuilt: `from_tree` makes a state out of one
 and `set_tree` replaces a tree in place, moving in any of its tabs that were
 elsewhere and keeping the focused tab focused. `group_title` names a group in
 its tab.
+
+A `locked` pane makes an area: the pane and every pane split off it, including
+the groups inside them (`area_of(leaf)` names a leaf's area, the locked pane's
+`id`). Every tab declared in the pane, including tabs a `ForEach` adds later, is
+locked to that area, as a pinned group's tabs are to it: it can move, split and
+group anywhere inside the area, which grows with its splits and shrinks back as
+they empty, but a drop outside it is refused and it cannot float. Tabs that are
+not locked go anywhere, into an area too. `DockState::home(tab)` answers a
+`DockHome`: `Group(id)` for a pinned group's tab, `Area(id)` for a locked one.
+The tab menu's pin item reads "Unlock" and "Lock" for such a tab (Lock is
+disabled until the tab is back in its area, and is never done for it), and
+"Pop out into a window" is disabled while a tab is locked or pinned. Seeding,
+reconciling and `restore` move any locked tab found outside its area back into
+it. A stacked dock ignores locks and keeps them for when it tiles again.
 
 A tab's panel is built the first time the tab is shown and belongs to the dock
 rather than to the pane showing it: the pane holds a `Portal` pointed at it, so
@@ -2831,7 +2849,7 @@ chrome around that root's child. A preview, drawn over something of the
 host's, is rooted in a transparent one; a plugin dialog (a creation dialog,
 artifact settings) is rooted in `SurfaceRaised`, the card it fills. Holes are cut from that colour, never left by it: a child editor's `Embed`
 punches its rectangle, and a painting with holes records the colour as its first
-primitive so they cut it. Documents drawn over another one (the inspector's panels, the
+primitive so they cut it. Documents drawn over another one (the inspector, the
 software keyboard) are built with `Document::new`, `enter` and `set_root` and
 have no `Root`, so they leave the window's appearance alone.
 
@@ -3981,13 +3999,23 @@ inspector's Sim tab has a button that opens it over the inspected app.
 ### The inspector
 
 Ctrl+Shift+I in a standalone beui window opens the node, component,
-accessibility, and performance inspector. Its tools (Beui, Comp, A11y, Perf
-and Sim) are tabs of a `dock::styled::Docking` like any other: in its usual narrow panel the
-dock stacks, so the bar names the tool on show and its count square opens the switcher, and a panel
-widened past `NARROW_WIDTH` tiles, so two can be dragged side by side. Each tree tool keeps
+accessibility, and performance inspector. Its document is a `dock::styled::Docking` that fills
+the window, and the inspected app is one of its tabs: an App tab, in a pane split off the left of
+the tools (Beui, Comp, A11y, Perf and Sim) with the tools 340 points wide, whose body is an
+`Embed` the app's document is laid out in. So the tools can be dragged beside the app, under it,
+beside one another or into floating windows, and the splitter sizes the app. A window narrower
+than `NARROW_WIDTH` stacks the dock, so the app and the tools take turns behind the stacked
+bar, picking shows the App tab, and a pick returns to the tool shown last.
+
+The app is drawn under the inspector: `InspectorTools` shows the inspector's document first, so the
+App tab's rectangle is this frame's, sets its painted layers aside (`Context::set_aside`), shows the
+app in that rectangle and the highlights over it, then puts the inspector's layers back on top
+(`Context::put_back`), which keeps its menus and windows over the app. The App tab is therefore
+`see_through` (see Docking and windows), and the pointer is kept from the app while it is over one of
+the inspector's overlays or a press that began on one is held. Each tree tool keeps
 its own rows, and the inspector collects rows only for the tree tools on show. The tree tools pin a
-Pick toggle (`inspector.pick`, an icon pin, checked while picking) to the dock's bar, so the
-header above the dock holds only the title and the close button and never changes size.
+Pick toggle (`inspector.pick`, an icon pin, checked while picking) to the dock's bar, and every tool
+pins Close (`inspector.close`), so the inspector has no header of its own.
 Its Comp tab lists the
 `#[component]`s that built the tree rather than its base nodes: every
 component records its name against the node it returns, so components that
@@ -4022,7 +4050,7 @@ beui's keyboard pass through to it as touches rather than moving the cursor.
 
 The strip takes its room out of the window rather than
 covering it: `Document::show` asks the simulation how tall it is, trims that off
-the bottom, and lays the document and the inspector panel out in what is left,
+the bottom, and lays the inspector out in what is left,
 the way a phone's keyboard pushes a page up, and beui's keyboard opens above
 it. Nothing is drawn over content that is still live, so the bar is opaque.
 
@@ -4032,7 +4060,7 @@ The Sim tab's "Responsive design mode", or Ctrl+Shift+M, lays the document out
 in a screen of a chosen width and height in points, the way a browser's
 responsive design mode does. A toolbar above the app picks a device preset,
 types the width and height, rotates the screen and sets its zoom: Fit shrinks
-it to the room beside the inspector but never grows it, and a percentage draws
+it to the App tab but never grows it, and a percentage draws
 it that many real points per simulated point. The screen sits centred at the
 top of a backdrop, with handles on its right edge, bottom edge and corner that
 resize it; a drag holds the scale it started at, so the handle stays under the

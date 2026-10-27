@@ -58,7 +58,7 @@ use fullscreen::DockAway;
 pub use fullscreen::DockAwayHandle;
 use modifier_drag::{Resized, modifier_resize};
 pub use state::{
-    DockDrop, DockFullscreen, DockLayout, DockSplitter, DockState, DockSwitch, DockTree,
+    DockDrop, DockFullscreen, DockHome, DockLayout, DockSplitter, DockState, DockSwitch, DockTree,
     DockTreeEntry, DockVisit, Entry, GroupId, LeafId, Side, SplitId, SurfaceId, TabId, TabPosition,
     Tree, layout_surface, layout_tree,
 };
@@ -125,6 +125,7 @@ pub struct DockChromeHandle {
     pub floating: bool,
     pub barred: bool,
     pub focused: Memo<bool>,
+    pub see_through: Memo<bool>,
     pub content: Child,
 }
 
@@ -1939,10 +1940,15 @@ fn DockChrome(dock: State, parts: ChromeParts) -> NodeId {
             {body} @sizing=ItemSize::Percent(100.0)
         </List>
     };
+    let state = dock.state;
+    let see_through = create_memo(move || {
+        leaf.is_some_and(|leaf| state.with(|state| state.shows_see_through(leaf)))
+    });
     dock.chrome.call(DockChromeHandle {
         floating,
         barred,
         focused,
+        see_through,
         content,
     })
 }
@@ -2423,6 +2429,10 @@ fn DockTabView(
         }),
         Entry::Group(_) => None,
     });
+    let locks = create_memo(move || match entry {
+        Entry::Tab(tab) => state.with(|state| matches!(state.home(tab), Some(DockHome::Area(_)))),
+        Entry::Group(_) => false,
+    });
     let toggle_held = ClickCallback::new(move || {
         if let Entry::Tab(tab) = entry {
             dock.edit(|state| {
@@ -2437,6 +2447,9 @@ fn DockTabView(
                 .surface_of(leaf)
                 .and_then(|surface| state.window_rect(surface))
                 .is_some()
+    });
+    let anchored = create_memo(move || {
+        state.with(|state| !state.admits(entry, DockDrop::Window { pos: Pos2::ZERO }))
     });
     let closable = create_memo(move || {
         !pinned && tabs.with(|tabs| tabs.iter().all(|tab| dock.closable.call(*tab)))
@@ -2502,9 +2515,11 @@ fn DockTabView(
                 menu
                 grouped
                 floating
+                anchored
                 pinned
                 has_next
                 held
+                locks
                 closable
                 fullscreen
                 close={close}
@@ -2526,9 +2541,11 @@ fn TabMenu(
     menu: MenuStyle,
     grouped: bool,
     floating: bool,
+    anchored: Memo<bool>,
     pinned: bool,
     has_next: Memo<bool>,
     held: Memo<Option<bool>>,
+    locks: Memo<bool>,
     closable: Memo<bool>,
     fullscreen: Memo<Option<bool>>,
     close: ClickCallback,
@@ -2545,11 +2562,13 @@ fn TabMenu(
         Some(true) => "Leave full screen".to_owned(),
         Some(false) | None => "Full screen".to_owned(),
     });
-    let stuck = create_memo(move || floating || held.get() == Some(true));
+    let stuck = create_memo(move || floating || anchored.get() || held.get() == Some(true));
     let homeless = create_memo(move || held.get().is_none());
-    let pin_label = create_memo(move || match held.get() {
-        Some(true) => "Unpin from group".to_owned(),
-        Some(false) | None => "Pin to group".to_owned(),
+    let pin_label = create_memo(move || match (locks.get(), held.get()) {
+        (true, Some(true)) => "Unlock".to_owned(),
+        (true, Some(false) | None) => "Lock".to_owned(),
+        (false, Some(true)) => "Unpin from group".to_owned(),
+        (false, Some(false) | None) => "Pin to group".to_owned(),
     });
     let alone = create_memo(move || !has_next.get());
     let unclosable = create_memo(move || !closable.get());
