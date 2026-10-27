@@ -4,7 +4,9 @@ use std::rc::Rc;
 use beui::dock::styled::{CARD_GAP, CARD_INSET, CARD_MARGIN, CARD_POINTER, DockCard};
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{NodeId, PointerSide, Pointing, Pos2, Rect, Vec2, WindowPlacement, WindowRole};
+use beui::{
+    NodeId, PointerSide, Pointing, Pos2, Rect, Vec2, WindowPlacement, WindowReport, WindowRole,
+};
 use block_editor_plugin::{BlockFilter, BlockParent, BlockPick, Failure, PickedBlock};
 
 use crate::{ChildLayer, ChildMode, ChildState, Editor, Subregion, SubregionContent, node_anchor};
@@ -191,6 +193,10 @@ fn PickerPopover(editor: Editor, picking: Picking) -> NodeId {
             pointing: None,
         },
     });
+    let role = create_memo(move || match sheet || card.get() {
+        true => WindowRole::Normal,
+        false => WindowRole::Popup,
+    });
     let shown = create_memo(move || hung.get().window.size());
     let at = create_memo(move || hung.get().window.min);
     let window = own.map(|handle| handle.id);
@@ -207,8 +213,14 @@ fn PickerPopover(editor: Editor, picking: Picking) -> NodeId {
             size={shown}
             at
             placement
-            role=WindowRole::Popup
-            on_report={|_| {}}
+            role
+            on_report={move |report: WindowReport| {
+                if matches!(report, WindowReport::Closed(_))
+                    && role.get_untracked() == WindowRole::Popup
+                {
+                    editor.finish_pick(serial, Ok(None));
+                }
+            }}
         >|handle: WindowHandle| {
             let node = child();
             let shown_size = create_memo(move || match card.get() {

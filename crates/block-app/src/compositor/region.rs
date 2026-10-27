@@ -8,9 +8,9 @@ use std::{
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{
-    Align, CursorIcon, Forwarded, ForwardedInput, ImeCursor, LayerPolicy, Modifiers, NodeId,
-    OverlayAnchor, Placement, PointerButton, PointerEvent, PointerId, PointerPhase, Pos2, Rect,
-    Region, Vec2, WindowId, WindowPlacement, WindowReport, WindowRole, pos2,
+    Align, CursorIcon, Dismiss, Forwarded, ForwardedInput, ImeCursor, LayerPolicy, Modifiers,
+    NodeId, OverlayAnchor, Placement, PointerButton, PointerEvent, PointerId, PointerPhase, Pos2,
+    Rect, Region, Vec2, WindowId, WindowPlacement, WindowReport, WindowRole, pos2,
 };
 use block_plugin_api::{ChildId, EditorInstanceId, EditorRegion, FrameSpec, PluginManifest};
 use uuid::Uuid;
@@ -189,12 +189,14 @@ pub(crate) fn PluginRegion(
     #[prop(default = 1.0)] opacity: Prop<f32>,
     #[prop(default = None)] pan_drag: Option<PanDrag>,
     #[prop(default = false)] offscreen: bool,
+    #[prop(default = false)] nests_windows: bool,
     on_focus: Callback<()>,
     child_view: ChildView,
 ) -> NodeId {
     let instance = editor.instance;
     let place = super::desktop::place();
-    let windowing = (matches!(region, EditorRegion::Frame | EditorRegion::Tab(_)) && !offscreen)
+    let windowing = ((matches!(region, EditorRegion::Frame | EditorRegion::Tab(_)) && !offscreen)
+        || nests_windows)
         .then(|| editor.clone());
     let plugin_id = editor.plugin_id().to_owned();
     let floated_key = match region {
@@ -552,7 +554,7 @@ pub(crate) fn PluginRegion(
         let origin = place.map_or(beui::Vec2::ZERO, |place| {
             place.display.get_untracked().min.to_vec2()
         });
-        if hosts_windows {
+        if hosts_windows || windowed {
             super::desktop::follow_pointer(&input, origin);
         }
         let input = match stored_key.with(Clone::clone) {
@@ -676,11 +678,14 @@ pub(crate) fn PluginRegion(
                 <OverlaidWindows editor region />
             }
         });
-        view! {
-            <Layers>
+        let panels = (!nests_windows).then(|| {
+            let editor = editor.clone();
+            view! {
                 <PanelWindows editor region rect />
-                {overlaid}
-            </Layers>
+            }
+        });
+        view! {
+            <Layers>{panels}{overlaid}</Layers>
         }
     });
     view! {
@@ -799,7 +804,19 @@ fn OverlaidWindows(editor: RegionEditor, region: EditorRegion) -> NodeId {
                     instance: editor.instance,
                     window,
                 };
-                let asked = super::desktop::rect_of(key);
+                let asked = super::desktop::rect_of(key.clone());
+                let role = super::desktop::role_of(key.clone());
+                let popup = create_memo(move || role.get() == WindowRole::Popup);
+                let policy = create_memo(move || match popup.get() {
+                    true => LayerPolicy::BlocksAll,
+                    false => LayerPolicy::Pass,
+                });
+                let dismissed = store(key);
+                let dismiss = move |reason: Dismiss| {
+                    if matches!(reason, Dismiss::OutsidePress | Dismiss::WithParent) {
+                        dismissed.with(super::desktop::dismiss);
+                    }
+                };
                 let shown = create_memo(move || {
                     asked.get().map_or(Rect::ZERO, |rect| super::desktop::clamped(rect, viewport.get()))
                 });
@@ -816,14 +833,17 @@ fn OverlaidWindows(editor: RegionEditor, region: EditorRegion) -> NodeId {
                     <Overlay
                         anchor
                         placement=Placement::At
-                        policy=LayerPolicy::Pass
+                        policy
                         traps_focus=false
                         open=true
+                        dismissable={popup}
+                        on_dismiss={dismiss}
                     >
                         <Frame width height>
                             <PluginRegion
                                 editor={held.with(Clone::clone)}
                                 region
+                                nests_windows=true
                                 child_view
                                 on_focus={Callback::new(|()| {})}
                             />

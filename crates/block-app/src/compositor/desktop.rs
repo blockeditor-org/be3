@@ -41,6 +41,8 @@ pub(crate) struct Floated {
     pub(crate) rect: Rect,
     pub(crate) panel: Option<Panel>,
     pub(crate) anchor: EditorRegion,
+    pub(crate) role: WindowRole,
+    pub(crate) parent: Option<u64>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -56,7 +58,16 @@ impl Floated {
     fn anchored(&self, region: EditorRegion) -> bool {
         match region {
             EditorRegion::Tab(_) => self.anchor == region,
+            EditorRegion::Window(_) => false,
             _ => !matches!(self.anchor, EditorRegion::Tab(_)),
+        }
+    }
+
+    fn overlaid_in(&self, region: EditorRegion) -> bool {
+        match (region, self.parent) {
+            (EditorRegion::Window(window), parent) => parent == Some(window),
+            (_, Some(_)) => false,
+            (region, None) => self.anchored(region),
         }
     }
 
@@ -282,18 +293,24 @@ pub(crate) fn apply() {
                     }
                     WindowPlacement::AtPointer => POINTER.get() - OPEN_GRAB,
                 };
-                let anchor = match open.opener.region {
+                let opener = match open.opener.region {
                     EditorRegion::Window(opener) => windows
                         .iter()
-                        .find(|held| held.key.plugin == plugin && held.key.window == opener)
-                        .map_or(EditorRegion::Frame, |held| held.anchor),
-                    region => region,
+                        .find(|held| held.key.plugin == plugin && held.key.window == opener),
+                    _ => None,
+                };
+                let anchor = match (open.opener.region, opener) {
+                    (EditorRegion::Window(_), Some(opener)) => opener.anchor,
+                    (EditorRegion::Window(_), None) => EditorRegion::Frame,
+                    (region, _) => region,
                 };
                 let window = Floated {
                     key: key(open.window, open.opener.instance),
                     rect: Rect::from_min_size(origin, size),
                     panel,
                     anchor,
+                    role: open.role,
+                    parent: opener.map(|opener| opener.key.window),
                 };
                 match held {
                     Some(index) => windows[index] = window,
@@ -431,7 +448,7 @@ pub(crate) fn overlaid(
         floated.with(|held| {
             held.iter()
                 .filter(|window| window.key.plugin == plugin && window.key.instance == instance)
-                .filter(|window| window.anchored(region))
+                .filter(|window| window.overlaid_in(region))
                 .filter(|window| window.panel.is_none())
                 .map(|window| window.key.window)
                 .collect()
@@ -511,6 +528,31 @@ pub(crate) fn panel_placed(key: &FloatedKey, placement: String) {
 
 pub(crate) fn panel_closed(key: &FloatedKey) {
     floated_signal().update(|held| held.retain(|window| window.key != *key));
+}
+
+pub(crate) fn role_of(key: FloatedKey) -> Memo<WindowRole> {
+    let floated = floated();
+    create_memo(move || {
+        floated.with(|held| {
+            held.iter()
+                .find(|window| window.key == key)
+                .map_or(WindowRole::Normal, |window| window.role)
+        })
+    })
+}
+
+pub(crate) fn dismiss(key: &FloatedKey) {
+    floated_signal().update(|held| {
+        let mut gone = vec![key.window];
+        while let Some(window) = held.iter().find(|held| {
+            held.key.plugin == key.plugin
+                && !gone.contains(&held.key.window)
+                && held.parent.is_some_and(|parent| gone.contains(&parent))
+        }) {
+            gone.push(window.key.window);
+        }
+        held.retain(|window| window.key.plugin != key.plugin || !gone.contains(&window.key.window));
+    });
 }
 
 pub(crate) fn rect_of(key: FloatedKey) -> Memo<Option<Rect>> {

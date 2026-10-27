@@ -23,6 +23,7 @@ pub(crate) struct Windows {
     asked: Vec<WindowId>,
     wanted: HashMap<WindowId, Vec2>,
     hung: HashMap<WindowId, super::WindowPlacement>,
+    roles: HashMap<WindowId, super::WindowRole>,
     closed_by_host: HashSet<WindowId>,
     requests: Vec<WindowRequest>,
     shown: HashMap<WindowId, Vec2>,
@@ -43,6 +44,7 @@ impl Default for Windows {
             asked: Vec::new(),
             wanted: HashMap::default(),
             hung: HashMap::default(),
+            roles: HashMap::default(),
             closed_by_host: HashSet::default(),
             requests: Vec::new(),
             shown: HashMap::default(),
@@ -402,6 +404,9 @@ impl Document {
             .wanted
             .retain(|window, _| asked.contains(window));
         self.windows.hung.retain(|window, _| asked.contains(window));
+        self.windows
+            .roles
+            .retain(|window, _| asked.contains(window));
         for window in &open {
             let Some((size, placement, role)) = self
                 .window_node(*window)
@@ -419,14 +424,26 @@ impl Document {
                 });
                 self.windows.asked.push(*window);
                 self.windows.wanted.insert(*window, size);
+                self.windows.roles.insert(*window, role);
                 if role == super::WindowRole::Popup {
                     self.windows.hung.insert(*window, placement);
                 }
                 continue;
             }
-            if role == super::WindowRole::Popup && self.windows.hung.get(window) != Some(&placement)
+            let recast = self.windows.roles.get(window) != Some(&role);
+            if recast
+                || (role == super::WindowRole::Popup
+                    && self.windows.hung.get(window) != Some(&placement))
             {
-                self.windows.hung.insert(*window, placement.clone());
+                self.windows.roles.insert(*window, role);
+                match role {
+                    super::WindowRole::Popup => {
+                        self.windows.hung.insert(*window, placement.clone());
+                    }
+                    _ => {
+                        self.windows.hung.remove(window);
+                    }
+                }
                 self.windows.wanted.insert(*window, size);
                 ctx.request_window(WindowRequest::Open {
                     window: *window,

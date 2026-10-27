@@ -51,6 +51,7 @@ pub fn Overlay(
     pointer: Option<NodeRef>,
     open: Prop<bool>,
     #[prop(default = false)] keep_alive: bool,
+    #[prop(default = true)] dismissable: Prop<bool>,
     on_dismiss: Callback<Dismiss>,
     #[prop(children)] content: RenderFn<()>,
 ) -> NodeId {
@@ -58,8 +59,14 @@ pub fn Overlay(
         let overlay = document.create_overlay(anchor.get_untracked(), Placement::BelowStart);
         document.set_overlay_trigger(overlay, trigger);
         document.set_overlay_pointer(overlay, pointer);
-        document.set_overlay_on_dismiss(overlay, on_dismiss);
         overlay
+    });
+    create_binding(move || {
+        let on_dismiss = match dismissable.get() {
+            true => on_dismiss,
+            false => Callback::empty(),
+        };
+        with_document(|document| document.set_overlay_on_dismiss(overlay, on_dismiss))
     });
     create_binding(move || {
         let anchor = anchor.get();

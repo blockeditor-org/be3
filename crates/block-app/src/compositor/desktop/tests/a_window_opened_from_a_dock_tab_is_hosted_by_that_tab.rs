@@ -30,6 +30,7 @@ fn a_window_opened_from_a_dock_tab_is_hosted_by_that_tab() {
     let tab = overlaid(PLUGIN.to_owned(), INSTANCE, TAB);
     let other_tab = overlaid(PLUGIN.to_owned(), INSTANCE, EditorRegion::Tab(4));
     let frame = overlaid(PLUGIN.to_owned(), INSTANCE, EditorRegion::Frame);
+    let within = overlaid(PLUGIN.to_owned(), INSTANCE, EditorRegion::Window(1));
     note_origin(PLUGIN, INSTANCE, TAB, pos2(200.0, 100.0));
     request(
         PLUGIN,
@@ -40,7 +41,12 @@ fn a_window_opened_from_a_dock_tab_is_hosted_by_that_tab() {
         ],
     );
     apply();
-    assert_eq!(tab.get_untracked(), [1, 2]);
+    assert_eq!(tab.get_untracked(), [1]);
+    assert_eq!(
+        within.get_untracked(),
+        [2],
+        "a window opened from the tab's window shows inside that one"
+    );
     assert_eq!(frame.get_untracked(), [3]);
     assert!(other_tab.get_untracked().is_empty());
     let rect = rect_of(FloatedKey {

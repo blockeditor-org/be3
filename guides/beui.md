@@ -3097,7 +3097,11 @@ collects `WindowRequest`s into `FrameOutput::window_requests`: `Open { window,
 placement, size, role }` (a `WindowRole`: `Normal`, `Keyboard` for an
 on-screen keyboard, which the host never focuses and places by the field it
 types into, or `Popup` for a menu of the window it is placed over, which the
-host never focuses either; the `Window` component's `role`), `BeginMove(window)`, `BeginResize { window, edge }`
+host never focuses either and closes, reporting `Closed`, when a press lands
+outside it and outside the popups opened over it, keeping that press from what
+is under it as a `BlocksAll` menu does; block-app does so for every plugin
+window it overlays, anywhere in its own window; the `Window` component's `role`,
+and a hosted window whose role changes is opened again with the new one), `BeginMove(window)`, `BeginResize { window, edge }`
 (the host then moves or resizes it, as an OS does after winit's
 `drag_window`), `Resize { window, size }` (the app wants another size; the
 host answers with the size it gives) and `Close(window)`. A `WindowPlacement` is `AtPointer`,
