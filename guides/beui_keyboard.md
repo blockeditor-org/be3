@@ -25,8 +25,9 @@ The styled controls follow the keyboard conventions in the [W3C Authoring Practi
 | Dialogs | Enter that the focused control does not take runs the dialog's confirm action, unless that is disabled or destructive. A focused button still answers Enter itself. |
 | Keep changes prompt | Opens with the focus on Keep, so Enter keeps; Escape reverts, as running out its countdown does. |
 
-The inspector panel is a document of its own, so Ctrl+Shift+F moves focus into
-it and back, and Escape inside it returns focus to the inspected document.
+The inspector is a document of its own, so Ctrl+Shift+F moves focus into
+it and back, and Escape inside it returns focus to the inspected document, as
+giving its App tab the keyboard does.
 
 ## How a key travels
 
