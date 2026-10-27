@@ -7,7 +7,7 @@ fn the_inspectors_dock_bar_holds_a_pick_toggle_on_its_tree_tools() {
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
 
     harness.toggle_inspector();
-    let tools = harness.inspector_rect("inspector.tools");
+    let tools = harness.inspector_rect("inspector.dock");
     harness.click(harness.inspector_center("dock.pin.inspector.pick"));
     harness.settle();
     assert!(
@@ -37,8 +37,8 @@ fn the_inspectors_dock_bar_holds_a_pick_toggle_on_its_tree_tools() {
         "the performance tool offers no Pick"
     );
     assert_eq!(
-        harness.inspector_rect("inspector.tools"),
+        harness.inspector_rect("inspector.dock"),
         tools,
-        "nothing above the dock moves when the tool changes"
+        "the dock stays put when the tool changes"
     );
 }

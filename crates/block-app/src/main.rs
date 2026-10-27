@@ -9,6 +9,7 @@ mod contacts;
 #[cfg(target_os = "linux")]
 mod dbus;
 mod debug;
+mod desktop_host;
 mod display;
 mod editors;
 mod host;
@@ -39,7 +40,6 @@ mod surfaces;
 #[cfg(target_os = "linux")]
 mod tray;
 mod ui;
-mod wayland;
 #[cfg(target_os = "linux")]
 mod wifi;
 
@@ -152,8 +152,24 @@ fn run_shell(options: beui::RunOptions, shell: Shell, session: bool) -> Result<(
     beui::run_with_renderers(options, vec![renderer], shell)
 }
 
+#[cfg(windows)]
+fn run_shell(
+    options: beui::RunOptions,
+    shell: Shell,
+    _session: bool,
+) -> Result<(), Box<dyn Error>> {
+    let renderer = beui::WindowRenderer::Wgpu {
+        open_device: beui::OpenDevice {
+            extensions: &be_win32_capture::DEVICE_EXTENSIONS,
+            gpu: None,
+        },
+    };
+    beui::run_with_renderers(options, vec![renderer], shell)
+}
+
 #[cfg(all(
     not(target_os = "linux"),
+    not(windows),
     not(target_os = "android"),
     not(target_arch = "wasm32")
 ))]
@@ -296,7 +312,7 @@ impl Shell {
         let mut view = None;
         let mut document = beui::reactive::build(|| {
             compositor::install();
-            wayland::create();
+            desktop_host::create();
             surfaces::create_handles();
             display::create_handle();
             let store = AppViewStore::new(AppView::default());
@@ -324,7 +340,7 @@ impl beui::App for Shell {
     fn setup(&mut self, setup: &beui::Setup) {
         host::install_waker(setup.waker.clone());
         plugin_host::install(setup);
-        wayland::start(setup);
+        desktop_host::start(setup);
         input::start(setup);
         #[cfg(target_os = "linux")]
         if let Some(problems) = setup.get::<beui_platform_drm::Problems>() {
@@ -333,7 +349,7 @@ impl beui::App for Shell {
         #[cfg(target_os = "linux")]
         if self.app.desktop.is_none() && session::owns_a_seat(setup) {
             self.app.desktop = Some(session::DesktopSession::start());
-            session::export_environment(wayland::environment());
+            session::export_environment(desktop_host::environment());
         }
         display::start(setup);
         remap::load_cached(self.app.app_state.remapper().unwrap_or_else(|error| {
@@ -347,7 +363,7 @@ impl beui::App for Shell {
 
     fn renderer_replaced(&mut self, setup: &beui::Setup) {
         plugin_host::replace_gpu(setup);
-        wayland::replace_gpu(setup);
+        desktop_host::replace_gpu(setup);
     }
 
     fn update(&mut self, context: &beui::Context, rect: beui::Rect) {
@@ -365,7 +381,7 @@ impl beui::App for Shell {
             be::retry_now();
             self.app.retry_organizations();
         }
-        wayland::before(context, rect, &mut self.document);
+        desktop_host::before(context, rect, &mut self.document);
         self.app.touched = self
             .document
             .last_pointer
@@ -387,7 +403,9 @@ impl beui::App for Shell {
             self.document.open_inspector();
         }
         let view = self.app.view();
-        wayland::set_owned(view.screen == ui::Screen::Organization && self.app.shell.is_some());
+        desktop_host::set_owned(
+            view.screen == ui::Screen::Organization && self.app.shell.is_some(),
+        );
         let store = self.view;
         compositor::notify();
         beui::reactive::enter(&mut self.document, || {
@@ -406,7 +424,7 @@ impl beui::App for Shell {
         if let Some(lock) = &mut self.app.screen_lock {
             lock.note_drawn(self.document.locked());
         }
-        wayland::after(context, &mut self.document);
+        desktop_host::after(context, &mut self.document);
         let commands = ui::take_commands();
         if !commands.is_empty() {
             for command in commands {
@@ -425,7 +443,7 @@ impl beui::App for Shell {
     }
 
     fn environment(&self) -> Vec<(String, String)> {
-        wayland::environment()
+        desktop_host::environment()
     }
 
     fn drawing(&self) -> bool {
@@ -454,7 +472,7 @@ impl beui::App for Shell {
     }
 
     fn exiting(&mut self) {
-        wayland::exiting();
+        desktop_host::exiting();
         plugin_host::exiting();
         display::stop();
         #[cfg(target_os = "linux")]
@@ -842,7 +860,7 @@ impl BlockApp {
 
     #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
     fn run_as_desktop(&mut self) {
-        self.root_settings = RootSettings::new(be_block::LINUX_DESKTOP_EDITOR);
+        self.root_settings = RootSettings::new(be_block::DESKTOP_EDITOR);
         #[cfg(target_os = "linux")]
         {
             self.screen_lock = Some(session::ScreenLock::start());
@@ -903,14 +921,14 @@ impl BlockApp {
             return;
         };
         lock.frame();
-        if wayland::take_lock_due() {
+        if desktop_host::take_lock_due() {
             lock.lock(session::Trigger::Idle);
         }
         if let Some(desktop) = &mut self.desktop {
             desktop.frame(context, lock);
         }
         let locked = lock.locked();
-        wayland::set_locked(locked);
+        desktop_host::set_locked(locked);
         remap::set_locked(locked);
         plugin_host::publish::<block_plugin_api::ScreenLockedWatch>(&locked);
         if locked {
@@ -2275,16 +2293,18 @@ impl BlockApp {
             );
         }
         let hidden = programs::bound_windows();
-        if Some((wayland::revision(), hidden.clone())) != self.windows_sent {
-            plugin_host::publish::<block_plugin_api::WindowsWatch>(&wayland::listed(&hidden));
-            self.windows_sent = Some((wayland::revision(), hidden));
+        if Some((desktop_host::revision(), hidden.clone())) != self.windows_sent {
+            plugin_host::publish::<block_plugin_api::WindowsWatch>(&desktop_host::listed(&hidden));
+            self.windows_sent = Some((desktop_host::revision(), hidden));
         }
         for action in plugin_host::take_calls(block_plugin_api::requested::window) {
             match action {
-                block_plugin_api::WindowAction::Focus(window) => wayland::focus(window),
-                block_plugin_api::WindowAction::Close(window) => wayland::close(window),
+                block_plugin_api::WindowAction::Focus(window) => desktop_host::focus(window),
+                block_plugin_api::WindowAction::Close(window) => desktop_host::close(window),
+                block_plugin_api::WindowAction::Show(window) => desktop_host::show(window),
+                block_plugin_api::WindowAction::Hide(window) => desktop_host::hide(window),
                 block_plugin_api::WindowAction::Fullscreen { window, fullscreen } => {
-                    wayland::fullscreen(window, fullscreen);
+                    desktop_host::fullscreen(window, fullscreen);
                 }
             }
         }
@@ -2871,6 +2891,8 @@ impl BlockApp {
         self.process_pending_transfers();
         self.process_pending_copies();
         self.show_shell();
+        #[cfg(windows)]
+        desktop_host::frame();
         #[cfg(target_os = "linux")]
         {
             self.take_power_request();

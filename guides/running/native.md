@@ -10,10 +10,10 @@ guide is for what that does not cover.
   open the last organization, or the first one (the server's personal organization, which
   registering joins), on the account's My files workspace. `:dev` passes it.
 - `--desktop` (every native platform): the desktop shell in a window; `--session` (Linux):
-  on the displays themselves (guides/linux_desktop.md).
+  on the displays themselves (guides/desktop/linux.md).
   `./scripts/buck run //crates/block-app:dev -- --desktop` drives the desktop shell headless.
 - `--install-session [PREFIX]` (Linux): install the app as a login session
-  (guides/linux_desktop.md).
+  (guides/desktop/linux.md).
 
 `./scripts/buck run //crates/block-app:native` runs it in a window, with every plugin beside it.
 The bundle’s `build-info.json` selects the app identity: local builds use

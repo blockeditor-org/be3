@@ -2123,7 +2123,7 @@ and kept inside the window. Where an app shows one window per monitor (block-app
 under `--session`, one per display), each window is a monitor, so a dialog opened
 in it stays on it. `use_viewport_size()` is the size of the main window a
 document is shown in (a `Dialog` reads it, or its hosted window's size, to become
-a sheet on a narrow one). `styled::Toasts` takes any anchor this way, so linux-desktop stacks its toasts in the
+a sheet on a narrow one). `styled::Toasts` takes any anchor this way, so the desktop plugin stacks its toasts in the
 corner of a display above its bar. A toast goes after its `duration` unless it is `sticky` or
 `danger`: an error stays until it is dismissed, so it cannot be missed. All of that is
 `unstyled::Toasts`: the overlay at an `edge` that lets input through, the stack, each
@@ -2133,7 +2133,7 @@ spacing and draws each card from a `ToastHandle` (the `Toast`, `dismiss`, `activ
 `act`).
 block-app's keep-changes prompt and lock screen are one card in a `Modal` that
 fills (or centres in) its window; block-app puts one in each display's window.
-linux-desktop's `LevelOsd` is one card in an inert `Fill` overlay, shown in each
+The desktop plugin's `LevelOsd` is one card in an inert `Fill` overlay, shown in each
 display's region.
 
 ### Docking and windows
@@ -2176,7 +2176,10 @@ view! {
 `pinned` to keep its tabs in it), names its starting `active` tab, can start
 with its tabs in a sidebar (`vertical`, `sidebar_width`), and can be `locked` to
 keep its tabs in its area (below). `DockWindow` floats one
-tree at a `rect`. A tab's key is any `Clone + Eq + Hash` type; a key that is a
+tree at a `rect`. A `see_through` tab shows something drawn under the dock, as the inspector's App tab shows the
+app: neither its pane nor a stacked dock fills behind it, so the pane's chrome learns it from
+`DockChromeHandle::see_through`, and it stays on the main surface, where nothing of the dock is
+under it (`DockState::admits` refuses it a window). A tab's key is any `Clone + Eq + Hash` type; a key that is a
 `TabId` or a `u64` names the tab's `TabId` too, which is what the test ids of its
 close button and switcher row carry. Every container has an `id`, saved with the
 layout, so that a layout saved by older code still finds its panes.
@@ -2316,11 +2319,11 @@ wherever the focus is (a program's window included): the overlay holds no focus
 for Escape to find it by, so the dock listens for Escape at the window while it
 is open and asks the overlay to close (`Document::dismiss_overlay`), as a press
 outside or back does. A dock in a plugin only hears a key a program has the
-keyboard for when it intercepts the chord, so linux-desktop also registers
+keyboard for when it intercepts the chord, so the desktop plugin also registers
 Alt+Escape as an intercepting action that cancels. The dock binds no other key: whoever binds it decides the
 keys, usually a chord that begins or steps the switch while a modifier is held,
 and `held_modifiers()` letting go of that modifier to commit,
-as linux-desktop does with Alt+Tab and the demo with Alt+Q.
+as the desktop plugin does with Alt+Tab and the demo with Alt+Q.
 
 Each surface - the main one and one per window - lays its tree out over the
 rectangle it was given, so panes and the bars between them are canvas items at
@@ -2334,8 +2337,8 @@ A dock window is a `Window` (see "Windows and window hosts") sized to its rect
 plus the reach of its resize grips, which lie around it. Where nothing opens
 windows it is that `Window`'s overlay and the dock moves, clamps, springs back
 and resizes it itself. Where a host opens windows each dock window is a real
-window (space's panels, or block-app's windows on the desktop for linux-desktop's
-dock, guides/linux_desktop.md, Displays): a press on its bar calls `begin_move()` and a grip `begin_resize(edge)`
+window (space's panels, or block-app's windows on the desktop for the desktop plugin's
+dock, guides/desktop.md, Displays): a press on its bar calls `begin_move()` and a grip `begin_resize(edge)`
 (as does a secondary drag with `drag_modifier`, from the nearest edge or
 corner), so the host moves and resizes it. A size set from inside, such as
 `DockTabControl::resize_window`, changes the rect and so the `Window`'s `size`,
@@ -2484,7 +2487,7 @@ the pointer, and a primary drag does nothing: it is swallowed rather than handed
 to the content, since a press made with the modifier is never meant for it.
 Each window and each docked pane claims those presses (`claim_modifiers`), so
 neither the tabs nor the content see them. The code is
-`beui-dock/src/unstyled/modifier_drag.rs`; linux-desktop sets Super, and the demo's Docking page
+`beui-dock/src/unstyled/modifier_drag.rs`; the desktop plugin sets Super, and the demo's Docking page
 has a switch for Alt.
 
 A `DockDialog`, declared beside the dock's other children, is a window attached
@@ -2577,6 +2580,11 @@ it left draws Docking's `away` render prop (styled: a note that it is full scree
 full screen button), seen where the fullscreen area does not cover it, such as another screen.
 A tab's content calls `DockTabControl::offer_fullscreen` to add Full screen / Leave full screen
 to the tab's right-click menu; only content that has its own way out should.
+`DockTabControl::show_notice(notice)`, a `Memo<Option<String>>` kept until the content's scope
+ends, is what the content needs said about it right now: while it is `Some`, the tab, the
+dialog's header and the stacked bar show it in place of the title, in the accent colour on an
+accent-soft fill (`DockTabHandle::notice`, `DockDialogHandle::notice`, `DockStackHandle::notice`).
+The demo's Docking page has a sample.
 
 ### Progress
 
@@ -2901,7 +2909,7 @@ chrome around that root's child. A preview, drawn over something of the
 host's, is rooted in a transparent one; a plugin dialog (a creation dialog,
 artifact settings) is rooted in `SurfaceRaised`, the card it fills. Holes are cut from that colour, never left by it: a child editor's `Embed`
 punches its rectangle, and a painting with holes records the colour as its first
-primitive so they cut it. Documents drawn over another one (the inspector's panels, the
+primitive so they cut it. Documents drawn over another one (the inspector, the
 software keyboard) are built with `Document::new`, `enter` and `set_root` and
 have no `Root`, so they leave the window's appearance alone.
 
@@ -3561,7 +3569,8 @@ it, and all its 3D (`glam`) stays in the crate.
   (`beui_renderer_wgpu::present`): `OpenDevice { extensions,
   gpu }` says how a renderer opens its device, the Vulkan device extensions
   it wants where the adapter has them (be-dmabuf's `DEVICE_EXTENSIONS`, which
-  block-app passes, enabled through `open_vulkan_device`) and, when set, the
+  block-app passes on Linux, and be-win32-capture's on Windows, enabled through
+  `open_vulkan_device`) and, when set, the
   `OpenGpu` that makes the instance and may make the adapter and device
   itself (`None` leaves them to wgpu). `Xr` makes
   the VkInstance and VkDevice through `XR_KHR_vulkan_enable2` with the
@@ -3648,39 +3657,14 @@ it, and all its 3D (`glam`) stays in the crate.
   grab offset, and the one turn left about the line to the eye is the one
   that keeps the panel's right perpendicular to the head's up), and then
   keeps facing them, so letting go turns it no further.
-  The carry keeps the panel really in front of what it is carried over
-  when the two are close in depth: `Carry::distance` is the wanted distance
-  (where it was picked up, changed by scroll) and `Carry::at` the one it is
-  drawn at, the largest no farther than the wanted one at which every other
-  close panel is at least `IN_FRONT` (1.5 cm) behind it, solved afresh every
-  frame (`Carry::reach`: a step along the worst ray, then bisection). Rays
-  from the eye go through a 5x5 grid of the carried panel's surface with its
-  chrome, onto each other panel's surface, and through a grid of each other
-  panel onto the carried one, flat or bent (`Panel::intersect`). A ray counts
-  only where the carried panel is less than `CLOSE` (10%) of that panel's
-  distance from the eye behind it (`carry::close`): 10 cm at arm's length,
-  30 cm at 3 m, two scroll lines anywhere, since the eye judges depth, and
-  scroll steps it, relative to distance. So a carried panel overlapping on
-  screen one that is far nearer stays at its distance, behind it, and only
-  one it is about to meet or pass is pushed behind it. A ray that lands
-  outside the other rectangle counts less by `RAMP` (1) times how far
-  outside, so the panel comes forward as its edge nears a close panel and
-  goes back as it leaves: the drawn distance is continuous, with no easing
-  and no jump. So it is in front because it is nearer, drawn and picked by
-  depth like any panel, and letting go changes nothing. Picking a panel up
-  that a close one covers brings it in front of that one at once, as a
-  desktop raises a dragged window. Scroll changes the distance by
-  `STEP_PER_LINE` (0.95) per line, about 5%, from where it is drawn (`at`);
-  a touchpad's pixels move it by their share of a line (`SCROLL_LINE`
-  points), so it glides in proportion. It does not reach the app, which sees
-  no pointer moves meanwhile. A scroll farther that a close panel would stop
-  leaves it held in front until the distance asked for is `IN_FRONT` behind
-  that panel (further scrolls farther go on from the distance asked for,
-  `Carry::pushing`), then it is drawn there, behind that panel, and stays
-  behind it (`Carry::behind`) for the rest of the carry, until a scroll
-  nearer leaves it less than `IN_FRONT` behind; that is the only way to put
-  a carried panel behind a close one. A wheel line usually takes it through
-  at once; a touchpad's small deltas push until it is past.
+  The carry keeps the grabbed point at `Carry::distance` from the eye (where
+  it was picked up, changed by scroll), whatever it passes in front of or
+  behind: panels are drawn and picked by depth alone, so a panel carried
+  across a nearer one goes behind it. Scroll changes the distance by
+  `STEP_PER_LINE` (0.95) per line, about 5%; a touchpad's pixels move it by
+  their share of a line (`SCROLL_LINE` points), so it glides in proportion,
+  between `carry::NEAREST` and `FARTHEST`. It does not reach the app, which
+  sees no pointer moves meanwhile.
   An app's `BeginMove` or `BeginResize` starts a carry or resize only while
   a press it was given is held (any window's, since one app's drag can open
   and carry another window; for a laser, while its trigger holds that
@@ -3692,9 +3676,8 @@ it, and all its 3D (`glam`) stays in the crate.
   `Space::begin_carry` can, the next click) ends it: the app gets that
   release in the window that took the press, where it grabbed when that is
   the carried one, the turn to face the viewer
-  finishes at once (`Carry::finish`) and the panel is placed once more, its
-  distance solved for that facing, so a carry let go mid-turn lands where it
-  would have after the turn, in front of what it is over, and the host reports `WindowReport::Placed` with the panel's placement,
+  finishes at once (`Carry::finish`) and the panel is placed once more,
+  so a carry let go mid-turn lands where it would have after the turn, and the host reports `WindowReport::Placed` with the panel's placement,
   `space X Y Z QX QY QZ QW S B`: its position, rotation, `metres_per_point`
   and `bend` (`Panel::placement`, read back by `Panel::placed`). The app keeps
   it in memory (the dock does) and hands it back when it opens the window
@@ -3839,7 +3822,7 @@ it, and all its 3D (`glam`) stays in the crate.
   with the laser on a panel or its chrome carries the panel along the laser
   (`Carry::along`: the grabbed point stays on the laser's ray at the distance
   it was grabbed, `Carry::follow` each frame), with the mouse carry's turn to
-  face the viewer and its staying in front, until the grip lets go; a carry a
+  face the viewer, until the grip lets go; a carry a
   laser's touch began (a title bar's `BeginMove`) ends with the trigger
   instead, and the app gets the `End` where it grabbed. Squeezing the other
   grip on the panel one hand is carrying holds it with both (`Space::both`,
@@ -3876,12 +3859,17 @@ it, and all its 3D (`glam`) stays in the crate.
 - Chrome: the host draws and handles controls of its own around every panel
   (`chrome.rs`): an L bracket just outside each corner, the window's title
   (its `WindowState` appearance title, which the `Window` component's
-  `title` sets) in a pill centred above the top edge, cut short with an
+  `title` sets) in a pill centred above the top edge, or in its place,
+  accent text on an accent pill, the window's `notice` while it has one (the
+  `Window` component's `notice`, which the dock sets from its tab's
+  `DockTabControl::show_notice`; `chrome::Title`), cut short with an
   ellipsis to fit between the top brackets, and under the bottom edge
   a pill with a move button (`ICON_MOVE`), a rotate button (`ICON_ROTATE_3D`),
   a roll button (`ICON_ROTATE_CW_SQUARE`) and a curvature button
   (`ICON_SPLINE`). They keep one size to the eye wherever the panel is, as
-  the cursor does: their lengths are metres at `REFERENCE` (0.6 m) times
+  the cursor does: their lengths (a bracket's arm `ARM` 22.5 mm and
+  `THICKNESS` 3.5 mm, `GAP` 6 mm out from the window; the pill `BAR` 20 mm
+  tall, `BAR_GAP` 8 mm below, with `BUTTON` 16 mm buttons) are metres at `REFERENCE` (0.6 m) times
   `Fit::scale`, the eye's distance to the panel's centre over `REFERENCE`
   (`chrome::fitted`), which `Space` sets on each panel (`Panel::chrome`)
   every input and frame and changes only once it is off by more than `KEPT`
@@ -4037,7 +4025,9 @@ libinput devices that have an A key; every other platform counts as attached,
 and a layer may override it, as space does while controllers are active),
 it opens whenever the focused field's `ImeArea::keyboard` turns `Shown` or its
 `asks` changes, and closes when the focus leaves for something that types
-nothing. Its close button (`close_keyboard()`) closes it until a field asks
+nothing, except where it is a window of its own (`Context::keyboard_in_a_window`
+where windows open, which only space sets): there the person put it somewhere,
+so it stays open until its close button or a toggle closes it. Its close button (`close_keyboard()`) closes it until a field asks
 again, so tapping a field brings it back. Its keys reach the app as a keyboard
 would: the engine makes `Input::Key`s with evdev codes and real modifier
 presses (`beui_core::input::typing`, which `drive type` and `drive key`
@@ -4051,13 +4041,23 @@ inspector's Sim tab has a button that opens it over the inspected app.
 ### The inspector
 
 Ctrl+Shift+I in a standalone beui window opens the node, component,
-accessibility, and performance inspector. Its tools (Beui, Comp, A11y, Perf
-and Sim) are tabs of a `dock::styled::Docking` like any other: in its usual narrow panel the
-dock stacks, so the bar names the tool on show and its count square opens the switcher, and a panel
-widened past `NARROW_WIDTH` tiles, so two can be dragged side by side. Each tree tool keeps
+accessibility, and performance inspector. Its document is a `dock::styled::Docking` that fills
+the window, and the inspected app is one of its tabs: an App tab, in a pane split off the left of
+the tools (Beui, Comp, A11y, Perf and Sim) with the tools 340 points wide, whose body is an
+`Embed` the app's document is laid out in. So the tools can be dragged beside the app, under it,
+beside one another or into floating windows, and the splitter sizes the app. A window narrower
+than `NARROW_WIDTH` stacks the dock, so the app and the tools take turns behind the stacked
+bar, picking shows the App tab, and a pick returns to the tool shown last.
+
+The app is drawn under the inspector: `InspectorTools` shows the inspector's document first, so the
+App tab's rectangle is this frame's, sets its painted layers aside (`Context::set_aside`), shows the
+app in that rectangle and the highlights over it, then puts the inspector's layers back on top
+(`Context::put_back`), which keeps its menus and windows over the app. The App tab is therefore
+`see_through` (see Docking and windows), and the pointer is kept from the app while it is over one of
+the inspector's overlays or a press that began on one is held. Each tree tool keeps
 its own rows, and the inspector collects rows only for the tree tools on show. The tree tools pin a
-Pick toggle (`inspector.pick`, an icon pin, checked while picking) to the dock's bar, so the
-header above the dock holds only the title and the close button and never changes size.
+Pick toggle (`inspector.pick`, an icon pin, checked while picking) to the dock's bar, and every tool
+pins Close (`inspector.close`), so the inspector has no header of its own.
 Its Comp tab lists the
 `#[component]`s that built the tree rather than its base nodes: every
 component records its name against the node it returns, so components that
@@ -4092,7 +4092,7 @@ beui's keyboard pass through to it as touches rather than moving the cursor.
 
 The strip takes its room out of the window rather than
 covering it: `Document::show` asks the simulation how tall it is, trims that off
-the bottom, and lays the document and the inspector panel out in what is left,
+the bottom, and lays the inspector out in what is left,
 the way a phone's keyboard pushes a page up, and beui's keyboard opens above
 it. Nothing is drawn over content that is still live, so the bar is opaque.
 
@@ -4102,7 +4102,7 @@ The Sim tab's "Responsive design mode", or Ctrl+Shift+M, lays the document out
 in a screen of a chosen width and height in points, the way a browser's
 responsive design mode does. A toolbar above the app picks a device preset,
 types the width and height, rotates the screen and sets its zoom: Fit shrinks
-it to the room beside the inspector but never grows it, and a percentage draws
+it to the App tab but never grows it, and a percentage draws
 it that many real points per simulated point. The screen sits centred at the
 top of a backdrop, with handles on its right edge, bottom edge and corner that
 resize it; a drag holds the scale it started at, so the handle stays under the
@@ -4536,7 +4536,7 @@ signal. Work on another thread takes its `Waker` from `editor.woken()`,
 whose signal ticks once the work has woken the editor, and an effect that
 reads that signal collects the result.
 
-A plugin's frame can open windows (a dock's floating window, linux-desktop's).
+A plugin's frame can open windows (a dock's floating window, the desktop plugin's).
 Outside space and the desktop shell a `Window` is an overlay inside its
 region's window. Where the host shows windows as its own (the screen request's
 `windows`, `Region::windows`; guides/adding_a_plugin_editor.md), each becomes a

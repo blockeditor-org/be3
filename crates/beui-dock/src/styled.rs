@@ -205,12 +205,15 @@ fn DockTabFace(handle: DockTabHandle) -> NodeId {
         dragged,
         closable,
         waiting,
+        notice,
         close,
         vertical,
         icons_only,
         ..
     } = handle;
     let grouped = matches!(entry, Entry::Group(_));
+    let noticed = create_memo(move || notice.with(Option::is_some));
+    let title = create_memo(move || notice.get().unwrap_or_else(|| title.get()));
     view! {
         <List spacing=Space::None>
             <Dynamic value={icons_only}>|icons_only: bool| {
@@ -227,6 +230,7 @@ fn DockTabFace(handle: DockTabHandle) -> NodeId {
                             focused
                             dragged
                             waiting
+                            noticed
                         />
                     },
                     false => view! {
@@ -243,6 +247,7 @@ fn DockTabFace(handle: DockTabHandle) -> NodeId {
                             dragged
                             closable
                             waiting
+                            noticed
                             waiting_test_id={waiting_test_id(entry)}
                             close_test_id={close_test_id(entry)}
                             close={close}
@@ -259,10 +264,12 @@ fn tab_fill(
     hovered: ReadSignal<bool>,
     active: ReadSignal<bool>,
     dragged: Memo<bool>,
+    noticed: Memo<bool>,
 ) -> Memo<ColorRole> {
     create_memo(
         move || match (selected.get(), hovered.get() || active.get(), dragged.get()) {
             (_, _, true) => ColorRole::AccentSoft,
+            _ if noticed.get() => ColorRole::AccentSoft,
             (true, _, false) => ColorRole::SurfaceRaised,
             (false, true, false) => ColorRole::Hover,
             (false, false, false) => ColorRole::Surface,
@@ -282,13 +289,16 @@ fn DockIconTab(
     focused: ReadSignal<bool>,
     dragged: Memo<bool>,
     waiting: Memo<bool>,
+    noticed: Memo<bool>,
 ) -> NodeId {
-    let fill = tab_fill(selected, hovered, active, dragged);
-    let label = create_memo(move || match (waiting.get(), selected.get()) {
-        (true, _) => TextColor::Accent,
-        (false, true) => TextColor::Default,
-        (false, false) => TextColor::Muted,
-    });
+    let fill = tab_fill(selected, hovered, active, dragged, noticed);
+    let label = create_memo(
+        move || match (waiting.get() || noticed.get(), selected.get()) {
+            (true, _) => TextColor::Accent,
+            (false, true) => TextColor::Default,
+            (false, false) => TextColor::Muted,
+        },
+    );
     let shows_picture = create_memo(move || !grouped && picture.with(Option::is_some));
     let glyph = create_memo(move || match grouped {
         true => Some(ICON_APP_WINDOW),
@@ -349,14 +359,16 @@ fn DockTabChrome(
     dragged: Memo<bool>,
     closable: Memo<bool>,
     waiting: Memo<bool>,
+    noticed: Memo<bool>,
     waiting_test_id: String,
     close_test_id: String,
     close: ClickCallback,
 ) -> NodeId {
-    let fill = tab_fill(selected, hovered, active, dragged);
-    let label = create_memo(move || match selected.get() {
-        true => TextColor::Default,
-        false => TextColor::Muted,
+    let fill = tab_fill(selected, hovered, active, dragged, noticed);
+    let label = create_memo(move || match (noticed.get(), selected.get()) {
+        (true, _) => TextColor::Accent,
+        (false, true) => TextColor::Default,
+        (false, false) => TextColor::Muted,
     });
     let shows_picture = create_memo(move || !grouped && picture.with(Option::is_some));
     let pictured = create_memo(move || !grouped && !shows_picture.get() && icon.get().is_some());
@@ -428,9 +440,14 @@ fn DockChromeFace(handle: DockChromeHandle) -> NodeId {
         floating,
         barred,
         focused,
+        see_through,
         content,
     } = handle;
     let framed = barred && floating;
+    let fill = create_memo(move || match see_through.get() {
+        true => ColorRole::None,
+        false => ColorRole::Background,
+    });
     let outline = create_memo(move || {
         framed.then(|| {
             let color = match focused.get() {
@@ -446,7 +463,7 @@ fn DockChromeFace(handle: DockChromeHandle) -> NodeId {
     };
     view! {
         <Frame
-            fill=ColorRole::Background
+            fill={fill}
             border=outline
             radius={if framed { Radius::Lg } else { Radius::None }}
             padding=border
@@ -519,6 +536,7 @@ fn DockWindowFace(handle: DockDialogHandle) -> NodeId {
     let DockDialogHandle {
         tab,
         title,
+        notice,
         icon,
         size,
         focused,
@@ -530,6 +548,15 @@ fn DockWindowFace(handle: DockDialogHandle) -> NodeId {
     } = handle;
     let pictured = create_memo(move || icon.get().is_some());
     let width = create_memo(move || Size::Custom(size.get().x + 2.0 * CHROME_BORDER));
+    let header = create_memo(move || match notice.with(Option::is_some) {
+        true => ColorRole::AccentSoft,
+        false => ColorRole::Surface,
+    });
+    let label = create_memo(move || match notice.with(Option::is_some) {
+        true => TextColor::Accent,
+        false => TextColor::Default,
+    });
+    let title = create_memo(move || notice.get().unwrap_or_else(|| title.get()));
     view! {
         <Frame
             width=width
@@ -540,7 +567,7 @@ fn DockWindowFace(handle: DockDialogHandle) -> NodeId {
         >
             <List spacing=Space::None>
                 <Frame
-                    fill=ColorRole::Surface
+                    fill={header}
                     height=TAB_HEIGHT
                     padding={Padding::horizontal(TAB_PADDING_HORIZONTAL)}
                 >
@@ -550,7 +577,11 @@ fn DockWindowFace(handle: DockDialogHandle) -> NodeId {
                                 <Icon glyph={icon} />
                             </Text>
                         </Show>
-                        <Text overflow=Overflow::Ellipsis @sizing=ItemSize::Percent(100.0)>
+                        <Text
+                            color={label}
+                            overflow=Overflow::Ellipsis
+                            @sizing=ItemSize::Percent(100.0)
+                        >
                             {title}
                         </Text>
                         <Show condition={closable}>

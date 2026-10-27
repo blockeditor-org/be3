@@ -107,7 +107,7 @@ opens to your sheets and a button to make one. Not designed yet.
   back navigation, sheets, long press, text selection and scrolling.
 - **The desktop.** If BE3 is the base of a computer, it has to be able to be the
   computer. With `--session`, block-app is a Wayland compositor whose shell is
-  a plugin (`guides/linux_desktop.md`). On Linux, a foreign file's own program
+  a plugin (`guides/desktop.md`, `guides/desktop/linux.md`). On Linux, a foreign file's own program
   can then open inside a tab; elsewhere it opens in a separate app, and web and
   Android can't open it at all.
 - **The PineNote** (`guides/pinenote.md`) is supported because it is a device we
@@ -306,7 +306,7 @@ An experiment that might grow into a persistent VR world.
 ### Settings and the desktop shell
 
 Settings are blocks too, so they sync and can be shared like any other. The
-linux-desktop shell is the editor that makes block-app a desktop.
+desktop shell is the editor that makes block-app a desktop.
 
 ### Terminal
 

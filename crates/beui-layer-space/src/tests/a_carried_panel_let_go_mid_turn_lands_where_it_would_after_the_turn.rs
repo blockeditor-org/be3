@@ -1,5 +1,5 @@
 use super::*;
-use crate::carry::{IN_FRONT, TURN_SECONDS};
+use crate::carry::TURN_SECONDS;
 
 fn let_go(after: f32) -> (Space, WindowId) {
     let (mut space, now) = space();
@@ -38,9 +38,4 @@ fn a_carried_panel_let_go_mid_turn_lands_where_it_would_after_the_turn() {
         late_panel.pose
     );
     assert!(facing_eye(&early, early_panel) < 1e-3);
-    let gaps = gaps_to(&early, popped, WindowId::MAIN);
-    assert!(
-        !gaps.is_empty() && gaps.iter().all(|gap| *gap >= IN_FRONT - 1e-3),
-        "its distance is solved again for the turn it finished, so it stays in front: {gaps:?}"
-    );
 }

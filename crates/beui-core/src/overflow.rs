@@ -77,6 +77,9 @@ impl Document {
                     found.push(self.overflow(id, OverflowKind::RingCut, outlined.outer, shown));
                 }
             }
+            if self.is_culled(id) {
+                continue;
+            }
             if let Some(ink) = self.arena.get(id).ink() {
                 let ink = ink
                     .scaled(self.rects.scale_of(&id))

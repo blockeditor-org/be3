@@ -1,0 +1,20 @@
+[package]
+name = "be-win32-input"
+description = "Windows input for the desktop shell: injecting pointer, key and text events into Windows windows and monitors"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-win32 = { path = "../be-win32" }
+beui-core = { path = "../beui-core" }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62.2", features = [
+    "Win32_Foundation",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[lints]
+workspace = true
