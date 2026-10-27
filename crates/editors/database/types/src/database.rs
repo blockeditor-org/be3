@@ -432,6 +432,11 @@ impl Database {
         DatabaseRow::PAGE.set(row, &page.map(BlockRef)).into()
     }
 
+    pub fn move_row(row: ObjectId, after: Option<ObjectId>) -> Edit {
+        let anchor = after.map_or(Anchor::Start, Anchor::After);
+        Self::ROWS.move_into(ObjectId::ROOT, anchor, row).into()
+    }
+
     pub fn remove_row(row: ObjectId) -> Edit {
         Change::remove(row).into()
     }

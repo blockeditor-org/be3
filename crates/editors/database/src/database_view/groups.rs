@@ -1,3 +1,4 @@
+use block_editor_beui::be_block::ObjectId;
 use database_types::database::{DatabaseRow, DatabaseValue, RowRef};
 use database_types::database_schema::{DatabaseEnumOption, DatabaseField, DatabaseFieldType};
 use uuid::Uuid;
@@ -18,7 +19,7 @@ pub struct Group {
     pub label: String,
     pub option: Option<DatabaseEnumOption>,
     pub closed: bool,
-    pub rows: Vec<usize>,
+    pub rows: Vec<ObjectId>,
 }
 
 impl Group {
@@ -41,6 +42,7 @@ pub fn groupable(field: &DatabaseField) -> bool {
 
 pub fn group_rows(
     rows: &[DatabaseRow],
+    ids: &[ObjectId],
     shown: &[usize],
     field: Option<&DatabaseField>,
     labels: &BlockLabels,
@@ -52,7 +54,7 @@ pub fn group_rows(
             label: String::new(),
             option: None,
             closed: false,
-            rows: shown.to_vec(),
+            rows: shown.iter().filter_map(|index| ids.get(*index).copied()).collect(),
         }];
     };
     let key_of = |index: usize| match rows.get(index).and_then(|row| row.get(field.id)) {
@@ -109,8 +111,10 @@ pub fn group_rows(
     });
     for index in shown {
         let key = key_of(*index);
-        if let Some(group) = groups.iter_mut().find(|group| group.key == key) {
-            group.rows.push(*index);
+        if let Some(group) = groups.iter_mut().find(|group| group.key == key)
+            && let Some(id) = ids.get(*index)
+        {
+            group.rows.push(*id);
         }
     }
     groups.retain(|group| !group.rows.is_empty() || (show_empty && group.key != GroupKey::Empty));

@@ -171,11 +171,10 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
         GroupKey::Option(option) => option.to_string(),
         _ => "none".to_owned(),
     };
-    let dropped = move |(row, _): (usize, DragPoint)| {
-        let Some(field_id) = data.group_by.get_untracked() else {
-            return;
-        };
-        data.set_cell(row, field_id, value.get_untracked());
+    let dropped = move |(row, _): (ObjectId, DragPoint)| {
+        if keys.with_untracked(|keys| !keys.contains(&row)) {
+            data.move_row(row, key, keys.with_untracked(|keys| keys.last().copied()));
+        }
     };
     view! {
         <DropTarget on_drop={dropped}>|handle: DropHandle| {
@@ -216,7 +215,7 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
                                 keys={keys}
                                 item_size=CARD_HEIGHT
                                 overscan=CARD_HEIGHT
-                            >|row: ReadSignal<usize>|
+                            >|row: ReadSignal<ObjectId>|
                                 <Frame
                                     padding={Padding::new(Space::None, Space::None, Space::None, CARD_SPACING)}
                                 >
@@ -232,17 +231,17 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
 }
 
 #[component]
-fn KanbanCard(data: Data, row: ReadSignal<usize>) -> NodeId {
-    let selected = create_memo(move || {
-        data.selected
-            .get()
-            .is_some_and(|selection| selection.row == row.get())
-    });
-    let pick = move || data.select(row.get_untracked(), None);
+fn KanbanCard(data: Data, row: ReadSignal<ObjectId>) -> NodeId {
+    let selected = create_memo(move || data.selected_row() == Some(row.get()));
+    let pick = move || {
+        if let Some(index) = data.index_of(row.get_untracked()) {
+            data.select(index, None);
+        }
+    };
     let read_only = data.read_only;
     let payload = create_memo(move || (!read_only.get()).then(|| row.get()));
-    let element_test_id = create_memo(move || format!("database-view.card.{}", row.get()));
-    let ghost = move |row: usize| {
+    let element_test_id = create_memo(move || format!("database-view.card.{}", row.get().as_uuid()));
+    let ghost = move |row: ObjectId| {
         view! {
             <Frame width={Size::Custom(COLUMN_WIDTH - 16.0)} @test_id="database-view.card-ghost">
                 <CardFace data={data} row={row} />
@@ -264,7 +263,7 @@ fn KanbanCard(data: Data, row: ReadSignal<usize>) -> NodeId {
 }
 
 #[component]
-fn CardFace(data: Data, row: usize) -> NodeId {
+fn CardFace(data: Data, row: ObjectId) -> NodeId {
     view! {
         <Frame
             fill=ColorRole::SurfaceRaised
@@ -278,15 +277,12 @@ fn CardFace(data: Data, row: usize) -> NodeId {
 }
 
 #[component]
-fn CardLines(data: Data, row: Prop<usize>) -> NodeId {
-    let entry = create_memo(move || data.rows.with(|rows| rows.get(row.get()).cloned()));
-    let code = create_memo(move || {
-        data.row_ids
-            .with(|ids| ids.get(row.get()).copied())
-            .map_or_else(String::new, |id: ObjectId| {
-                short_id(&data.prefix.get(), id.as_uuid())
-            })
+fn CardLines(data: Data, row: Prop<ObjectId>) -> NodeId {
+    let entry = create_memo(move || {
+        let index = data.row_index.with(|indices| indices.get(&row.get()).copied())?;
+        data.rows.with(|rows| rows.get(index).cloned())
     });
+    let code = create_memo(move || short_id(&data.prefix.get(), row.get().as_uuid()));
     let title = create_memo(move || {
         let field = data.title_field.get();
         entry.with(|entry| row_title(entry.as_ref(), field))

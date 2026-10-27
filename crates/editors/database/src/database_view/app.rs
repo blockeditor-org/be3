@@ -17,7 +17,7 @@ pub(crate) mod list;
 pub(crate) mod row;
 pub(crate) mod scatter;
 pub(crate) mod spreadsheet;
-mod ui;
+pub(crate) mod ui;
 
 pub use data::value_block_filter;
 use ui::{DatabaseViewEditor, DatabaseViewPreview};

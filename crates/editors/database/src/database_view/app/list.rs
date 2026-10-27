@@ -46,7 +46,6 @@ pub fn ListView(data: Data) -> NodeId {
     let groups = visible_groups(data);
     let lines = create_memo(move || {
         let toggled = data.toggled.get();
-        let ids = data.row_ids.get();
         groups.with(|groups| {
             let mut lines = Vec::new();
             for group in groups {
@@ -56,12 +55,7 @@ pub fn ListView(data: Data) -> NodeId {
                 if group.closed != toggled.contains(&group.key) {
                     continue;
                 }
-                lines.extend(
-                    group
-                        .rows
-                        .iter()
-                        .filter_map(|index| ids.get(*index).copied().map(Line::Row)),
-                );
+                lines.extend(group.rows.iter().copied().map(Line::Row));
             }
             lines
         })

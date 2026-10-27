@@ -32,6 +32,14 @@ pub fn DatabaseViewEditor(editor: Editor) -> NodeId {
 #[component]
 fn ViewEditor(editor: Editor) -> NodeId {
     let data = ViewData::new(editor);
+    view! {
+        <EditorBody data={data} />
+    }
+}
+
+#[component]
+pub(crate) fn EditorBody(data: Data) -> NodeId {
+    let editor = data.editor();
     create_effect(move || {
         let size = match data.kind.get() {
             DatabaseViewKind::Spreadsheet => Some(spreadsheet_size(data)),

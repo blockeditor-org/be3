@@ -1,7 +1,11 @@
+use std::cell::Cell;
+use std::rc::Rc;
 use std::{cmp::Ordering, collections::HashMap};
 
-use block_editor_beui::be_block::Edit;
+use block_editor_beui::be_block::{Edit, ObjectId};
 use block_editor_beui::beui::Key;
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::Root;
 use block_editor_beui::{
     BeuiApp, Creation, EditorHost, OwnedEditor, block_ui::BlockLabel,
     database::DatabaseBlockPickRequest,
@@ -14,7 +18,10 @@ use database_types::database_schema::{
 use database_types::database_view::{DatabaseView, DatabaseViewContent, DatabaseViewKind};
 use uuid::Uuid;
 
+use crate::database_view::app::data::{Data, ViewData};
+use crate::database_view::app::ui::EditorBody;
 use crate::database_view::app::{DatabaseViewApp, value_block_filter};
+use crate::database_view::groups::GroupKey;
 use crate::database_view::sort::{BlockLabels, compare_database_values};
 
 mod a_blocked_row_lists_its_blockers_and_they_list_it_as_blocking;
@@ -26,6 +33,7 @@ mod a_new_row_takes_each_choices_default;
 mod a_new_view_starts_as_a_spreadsheet;
 mod a_phone_opens_a_row_over_the_list_and_back_returns_to_it;
 mod a_prefix_is_listed_in_the_workspaces_prefixes_and_a_shared_one_says_so;
+mod a_sorted_view_refuses_manual_ordering;
 mod a_relation_cell_shows_the_title_of_the_row_it_links_to;
 mod a_row_scrolled_into_a_reused_line_opens_the_row_it_shows;
 mod adding_a_page_links_a_new_text_block_to_the_row;
@@ -33,6 +41,8 @@ mod arrow_keys_walk_the_spreadsheet_and_enter_steps_down;
 mod block_values_sort_by_resolved_label_then_reference;
 mod cards_sit_in_the_kanban_column_their_status_names;
 mod dragging_a_kanban_card_moves_it_to_the_column_it_lands_in;
+mod moving_a_card_within_and_across_kanban_columns;
+mod moving_a_row_reorders_the_list_view;
 mod new_starts_a_row_and_typing_names_it;
 mod new_type_cells_render_and_a_boolean_cell_toggles;
 mod new_values_sort_by_their_typed_order;
@@ -49,9 +59,26 @@ struct Fixture {
     schema: Uuid,
     database: Uuid,
     fields: Vec<Uuid>,
+    data: Rc<Cell<Option<Data>>>,
 }
 
 impl Fixture {
+    fn data(&self) -> Data {
+        self.data.get().expect("the fixture was opened with `viewed`")
+    }
+
+    fn row(&self, index: usize) -> ObjectId {
+        self.database().rows.get_index(index).unwrap().id
+    }
+
+    fn card(&self, index: usize) -> String {
+        format!("database-view.card.{}", self.row(index).as_uuid())
+    }
+
+    fn order(&self) -> Vec<ObjectId> {
+        self.database().rows.iter().map(|row| row.id).collect()
+    }
+
     fn run(&mut self) {
         self.harness.run();
     }
@@ -89,6 +116,14 @@ impl Fixture {
 }
 
 fn editor(fields: &[(&str, DatabaseFieldType)]) -> Fixture {
+    open(fields, false)
+}
+
+fn viewed(fields: &[(&str, DatabaseFieldType)]) -> Fixture {
+    open(fields, true)
+}
+
+fn open(fields: &[(&str, DatabaseFieldType)], keep_data: bool) -> Fixture {
     let schema = Uuid::from_u128(0xdb_1001);
     let mut schema_content = DatabaseSchemaContent::default();
     let ids: Vec<Uuid> = fields
@@ -103,8 +138,24 @@ fn editor(fields: &[(&str, DatabaseFieldType)]) -> Fixture {
     let view = Uuid::from_u128(0xdb_1003);
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = OwnedEditor::new(host.clone(), view);
-    let mut harness = BeuiTest::new(editor);
+    let owner = OwnedEditor::new(host.clone(), view);
+    let data = Rc::new(Cell::new(None::<Data>));
+    let mut harness = match keep_data {
+        false => BeuiTest::new(owner),
+        true => {
+            let editor = *owner;
+            let keep = Rc::clone(&data);
+            BeuiTest::with_view(owner, move || {
+                let data = ViewData::new(editor);
+                keep.set(Some(data));
+                view! {
+                    <Root>
+                        <EditorBody data={data} />
+                    </Root>
+                }
+            })
+        }
+    };
     harness.hold(None, DatabaseViewContent::new(&DatabaseView::of(database)));
     harness.hold(
         Some(database),
@@ -117,6 +168,7 @@ fn editor(fields: &[(&str, DatabaseFieldType)]) -> Fixture {
         schema,
         database,
         fields: ids,
+        data,
     }
 }
 
