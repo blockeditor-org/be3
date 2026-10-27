@@ -83,7 +83,14 @@ pub fn Picture(
             let placed = fit.place(rect, cropped(shown.size, source));
             let uv = source.unwrap_or(Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)));
             let (placed, uv) = visible_part(placed, uv, rect);
-            painter.image(placed, uv, &shown.image, painter.resolve_color(tint), radius, shown.smooth);
+            painter.image(
+                placed,
+                uv,
+                &shown.image,
+                painter.resolve_color(tint),
+                radius,
+                shown.smooth,
+            );
         })
     });
     view! {

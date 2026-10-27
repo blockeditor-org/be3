@@ -17,6 +17,12 @@ struct Registry {
 thread_local! {
     static NEXT: Cell<u64> = const { Cell::new(0) };
     static CURRENT: Cell<Option<Registry>> = const { Cell::new(None) };
+    static CHOSEN: Signal<u64> = {
+        let owned = ::reactive::OwnedSignal::new(0);
+        let handle = owned.handle();
+        std::mem::forget(owned);
+        handle
+    };
 }
 
 fn registry() -> Registry {
@@ -39,11 +45,19 @@ fn registry() -> Registry {
             scheme,
         }
     });
-    CURRENT.with(|current| current.set(Some(registry)));
+    let changed = CURRENT.with(|current| {
+        current
+            .replace(Some(registry))
+            .is_none_or(|held| !held.defined.ptr_eq(&registry.defined))
+    });
+    if changed {
+        CHOSEN.with(|chosen| chosen.update(|chosen| *chosen += 1));
+    }
     registry
 }
 
 fn current() -> Option<Registry> {
+    CHOSEN.with(|chosen| chosen.get());
     CURRENT
         .with(Cell::get)
         .filter(|registry| registry.defined.is_alive() && registry.scheme.is_alive())
