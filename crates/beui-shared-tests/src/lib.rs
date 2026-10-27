@@ -368,11 +368,7 @@ fn CanvasFixture() -> NodeId {
         <List spacing=12.0>
             {held}
             <Text color={INK}>{report}</Text>
-            <Button
-                id="canvas.pan"
-                label="Pan"
-                on_click={move || pan.set(Vec2::new(50.0, 0.0))}
-            />
+            <Button id="canvas.pan" label="Pan" on_click={move || pan.set(Vec2::new(50.0, 0.0))} />
             <Button id="canvas.zoom" label="Zoom" on_click={move || scale.set(2.0)} />
         </List>
     }
@@ -385,7 +381,12 @@ fn OverlayFixture() -> NodeId {
     let anchor = NodeRef::new();
     let report = create_memo(move || format!("Dismissed {}", dismissed.get()));
     let trigger = view! {
-        <Interactive @test_id="overlay.open" @node_ref=&anchor focusable=true on_click={move || open.set(true)}>
+        <Interactive
+            @test_id="overlay.open"
+            @node_ref=&anchor
+            focusable=true
+            on_click={move || open.set(true)}
+        >
             <Frame fill={AMBER} padding={Sides::symmetric(12.0, 6.0)}>
                 <Text color={INK}>"Open"</Text>
             </Frame>
@@ -442,7 +443,11 @@ fn PortalFixture() -> NodeId {
     let in_first = create_signal(true);
     let clicks = create_signal(0_u32);
     let lent = view! {
-        <Interactive @test_id="portal.lent" focusable=true on_click={move || clicks.set(clicks.get_untracked() + 1)}>
+        <Interactive
+            @test_id="portal.lent"
+            focusable=true
+            on_click={move || clicks.set(clicks.get_untracked() + 1)}
+        >
             <Frame width=100.0 height=30.0 fill={GREEN} />
         </Interactive>
     };
@@ -462,9 +467,7 @@ fn PortalFixture() -> NodeId {
     let first_rect = measure(first_box);
     let second_rect = measure(second_box);
     let report = create_memo(move || {
-        let inside = |outer: Option<Rect>| {
-            matches!((lent_rect.get(), outer), (Some(lent), Some(outer)) if outer.contains_rect(lent))
-        };
+        let inside = |outer: Option<Rect>| matches!((lent_rect.get(), outer), (Some(lent), Some(outer)) if outer.contains_rect(lent));
         let place = match (inside(first_rect.get()), inside(second_rect.get())) {
             (true, _) => "first",
             (_, true) => "second",
