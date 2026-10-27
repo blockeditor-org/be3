@@ -2,7 +2,7 @@ use super::*;
 use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::Scroll;
-use beui_core::interact::autoscroll::AUTOSCROLL_DEAD_ZONE;
+use crate::unstyled::gestures::AUTOSCROLL_DEAD_ZONE;
 
 #[test]
 fn autoscrolling_slowly_away_from_the_end_of_a_following_scroll_leaves_it() {
