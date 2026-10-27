@@ -24,8 +24,8 @@ fn a_nested_docks_layout_shows_reads_and_restores_its_tabs_through_the_outer_doc
     );
     assert_eq!(
         nested.outer.focused(),
-        None,
-        "whose own keys do not name it"
+        Some(2),
+        "where it counts as the tab hosting the inner dock"
     );
     let shown = nested.outer.state().get_untracked().focused_tab();
     assert!(shown.is_some());

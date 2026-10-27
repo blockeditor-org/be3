@@ -21,8 +21,8 @@ use serde::{Deserialize, Serialize};
 
 use super::dialog::{DialogParts, DockDialogHandle, DockDialogPresentation, DockSheetHandle};
 use super::state::{
-    DockFullscreen, DockMapping, DockSpec, DockSpecEntry, DockSpecNode, DockSpecPane, DockSpecWindow,
-    joined_host, joined_key, joined_prefix,
+    DockFullscreen, DockMapping, DockSpec, DockSpecEntry, DockSpecNode, DockSpecPane,
+    DockSpecWindow, joined_host, joined_key, joined_prefix,
 };
 use super::{
     Dock, DockApi, DockAwayHandle, DockBarHandle, DockChromeHandle, DockConfig, DockGripHandle,
@@ -34,8 +34,8 @@ use beui_components_unstyled::menu_popup::MenuStyle;
 const MAX_JOINED_DEPTH: usize = 16;
 
 use host::{
-    DockBodies, Foreign, DockDeclaration, DockDeclaredTab, DockHostEvent, DockHostLink, DockHosted,
-    DockRequest, Joined, Registry,
+    DockBodies, DockDeclaration, DockDeclaredTab, DockHostEvent, DockHostLink, DockHosted,
+    DockRequest, Foreign, Joined, Registry,
 };
 pub(crate) use host::{DockJoin, use_dock_join};
 
@@ -821,7 +821,12 @@ impl<K: DockKey> DockingLayout<K> {
         }
     }
 
-    fn unpark(&self, next: &mut DockState, spec: &DockSpec, live: &HashSet<TabId>) -> HashSet<TabId> {
+    fn unpark(
+        &self,
+        next: &mut DockState,
+        spec: &DockSpec,
+        live: &HashSet<TabId>,
+    ) -> HashSet<TabId> {
         let inner = self.inner();
         let mut saved = inner.saved.borrow_mut();
         if saved.parked.is_empty() && saved.groups.is_empty() {
@@ -862,7 +867,11 @@ impl<K: DockKey> DockingLayout<K> {
                 );
             }
         }
-        let parked: Vec<(TabId, TabId)> = saved.parked.iter().map(|(tab, host)| (*tab, *host)).collect();
+        let parked: Vec<(TabId, TabId)> = saved
+            .parked
+            .iter()
+            .map(|(tab, host)| (*tab, *host))
+            .collect();
         for (tab, host) in parked {
             let group = joined
                 .iter()

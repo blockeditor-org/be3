@@ -2421,8 +2421,15 @@ not `contains`), and `restore`/`reset` rebuild the group. A tab joins when its
 body is first built, so a hosting tab not yet shown is an ordinary tab until
 then. When the inner `Docking` goes (its tab closes, or its body stops
 building it) the group turns back into the tab and every inner tab closes,
-those moved out too. The outer `snapshot` saves the hosting tab, not the
-group: each dock saves its own layout. The seam is `docking/host.rs`'s
+those moved out too. On the outer layout, a focused or shown inner tab counts
+as its hosting tab (`focused`, `shown`), `show` of the hosting tab shows its
+group, and `contains` holds it while the group stands. The outer `snapshot`
+saves the hosting tab in the group's place, the group's subtree beside it, and
+every inner tab, in the group or moved out, by a key path (the hosting tab's id,
+then each level's declared tab key), never by an inner id. `restore` puts the
+moved-out tabs back where they were, titled but empty, and once the hosting
+tab's inner `Docking` declares again it grafts the group back and gives the
+moved-out tabs their bodies; a saved tab it no longer declares closes. The seam is `docking/host.rs`'s
 `DockHostLink`, plain data both ways, which a host over the plugin protocol
 can implement too.
 
