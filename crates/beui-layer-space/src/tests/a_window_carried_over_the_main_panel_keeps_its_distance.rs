@@ -7,16 +7,26 @@ use super::*;
 use crate::carry::TURN_SECONDS;
 
 #[test]
-fn a_window_carried_over_the_main_panel_and_let_go_is_drawn_in_front() {
+fn a_window_carried_over_the_main_panel_keeps_its_distance() {
     let (mut space, now) = space();
     let context = Context::new(FreetypeFonts::default());
     let mut setup = Setup::new(Waker::new(|| {}));
     setup.provide(context.clone());
     space.setup(&setup);
     let popped = carry_popped_out(&mut space, now);
+    let distance = |space: &Space| {
+        let carry = space.mouse.carry.as_ref().expect("it is carried");
+        carry.grabbed_at(&space.head).distance(space.head.position)
+    };
+    let picked_up = distance(&space);
     let now = later(now, TURN_SECONDS);
     let to = centre() + vec2(120.0, 60.0);
     send(&mut space, now, [Input::PointerMoved(to)]);
+    let over = distance(&space);
+    assert!(
+        (over - picked_up).abs() < 1e-4,
+        "carried over the main panel it keeps the distance it was picked up at: {picked_up} {over}"
+    );
     send(&mut space, now, [button(to, false)]);
     assert_eq!(space.mouse.carry, None);
 
@@ -29,8 +39,8 @@ fn a_window_carried_over_the_main_panel_and_let_go_is_drawn_in_front() {
         .expect("the scene paints");
     let snapshot = paint_snapshot::Snapshot::of_painting(painting).expect("the painting encodes");
     paint_snapshot::assert_accepted(
-        "a_window_carried_over_the_main_panel_and_let_go_is_drawn_in_front",
+        "a_window_carried_over_the_main_panel_keeps_its_distance",
         &snapshot,
-        "./scripts/test a_window_carried_over_the_main_panel_and_let_go_is_drawn_in_front --update",
+        "./scripts/test a_window_carried_over_the_main_panel_keeps_its_distance --update",
     );
 }

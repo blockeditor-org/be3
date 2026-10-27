@@ -3602,39 +3602,14 @@ it, and all its 3D (`glam`) stays in the crate.
   grab offset, and the one turn left about the line to the eye is the one
   that keeps the panel's right perpendicular to the head's up), and then
   keeps facing them, so letting go turns it no further.
-  The carry keeps the panel really in front of what it is carried over
-  when the two are close in depth: `Carry::distance` is the wanted distance
-  (where it was picked up, changed by scroll) and `Carry::at` the one it is
-  drawn at, the largest no farther than the wanted one at which every other
-  close panel is at least `IN_FRONT` (1.5 cm) behind it, solved afresh every
-  frame (`Carry::reach`: a step along the worst ray, then bisection). Rays
-  from the eye go through a 5x5 grid of the carried panel's surface with its
-  chrome, onto each other panel's surface, and through a grid of each other
-  panel onto the carried one, flat or bent (`Panel::intersect`). A ray counts
-  only where the carried panel is less than `CLOSE` (10%) of that panel's
-  distance from the eye behind it (`carry::close`): 10 cm at arm's length,
-  30 cm at 3 m, two scroll lines anywhere, since the eye judges depth, and
-  scroll steps it, relative to distance. So a carried panel overlapping on
-  screen one that is far nearer stays at its distance, behind it, and only
-  one it is about to meet or pass is pushed behind it. A ray that lands
-  outside the other rectangle counts less by `RAMP` (1) times how far
-  outside, so the panel comes forward as its edge nears a close panel and
-  goes back as it leaves: the drawn distance is continuous, with no easing
-  and no jump. So it is in front because it is nearer, drawn and picked by
-  depth like any panel, and letting go changes nothing. Picking a panel up
-  that a close one covers brings it in front of that one at once, as a
-  desktop raises a dragged window. Scroll changes the distance by
-  `STEP_PER_LINE` (0.95) per line, about 5%, from where it is drawn (`at`);
-  a touchpad's pixels move it by their share of a line (`SCROLL_LINE`
-  points), so it glides in proportion. It does not reach the app, which sees
-  no pointer moves meanwhile. A scroll farther that a close panel would stop
-  leaves it held in front until the distance asked for is `IN_FRONT` behind
-  that panel (further scrolls farther go on from the distance asked for,
-  `Carry::pushing`), then it is drawn there, behind that panel, and stays
-  behind it (`Carry::behind`) for the rest of the carry, until a scroll
-  nearer leaves it less than `IN_FRONT` behind; that is the only way to put
-  a carried panel behind a close one. A wheel line usually takes it through
-  at once; a touchpad's small deltas push until it is past.
+  The carry keeps the grabbed point at `Carry::distance` from the eye (where
+  it was picked up, changed by scroll), whatever it passes in front of or
+  behind: panels are drawn and picked by depth alone, so a panel carried
+  across a nearer one goes behind it. Scroll changes the distance by
+  `STEP_PER_LINE` (0.95) per line, about 5%; a touchpad's pixels move it by
+  their share of a line (`SCROLL_LINE` points), so it glides in proportion,
+  between `carry::NEAREST` and `FARTHEST`. It does not reach the app, which
+  sees no pointer moves meanwhile.
   An app's `BeginMove` or `BeginResize` starts a carry or resize only while
   a press it was given is held (any window's, since one app's drag can open
   and carry another window; for a laser, while its trigger holds that
@@ -3646,9 +3621,8 @@ it, and all its 3D (`glam`) stays in the crate.
   `Space::begin_carry` can, the next click) ends it: the app gets that
   release in the window that took the press, where it grabbed when that is
   the carried one, the turn to face the viewer
-  finishes at once (`Carry::finish`) and the panel is placed once more, its
-  distance solved for that facing, so a carry let go mid-turn lands where it
-  would have after the turn, in front of what it is over, and the host reports `WindowReport::Placed` with the panel's placement,
+  finishes at once (`Carry::finish`) and the panel is placed once more,
+  so a carry let go mid-turn lands where it would have after the turn, and the host reports `WindowReport::Placed` with the panel's placement,
   `space X Y Z QX QY QZ QW S B`: its position, rotation, `metres_per_point`
   and `bend` (`Panel::placement`, read back by `Panel::placed`). The app keeps
   it in memory (the dock does) and hands it back when it opens the window
@@ -3793,7 +3767,7 @@ it, and all its 3D (`glam`) stays in the crate.
   with the laser on a panel or its chrome carries the panel along the laser
   (`Carry::along`: the grabbed point stays on the laser's ray at the distance
   it was grabbed, `Carry::follow` each frame), with the mouse carry's turn to
-  face the viewer and its staying in front, until the grip lets go; a carry a
+  face the viewer, until the grip lets go; a carry a
   laser's touch began (a title bar's `BeginMove`) ends with the trigger
   instead, and the app gets the `End` where it grabbed. Squeezing the other
   grip on the panel one hand is carrying holds it with both (`Space::both`,
@@ -3835,7 +3809,9 @@ it, and all its 3D (`glam`) stays in the crate.
   a pill with a move button (`ICON_MOVE`), a rotate button (`ICON_ROTATE_3D`),
   a roll button (`ICON_ROTATE_CW_SQUARE`) and a curvature button
   (`ICON_SPLINE`). They keep one size to the eye wherever the panel is, as
-  the cursor does: their lengths are metres at `REFERENCE` (0.6 m) times
+  the cursor does: their lengths (a bracket's arm `ARM` 22.5 mm and
+  `THICKNESS` 3.5 mm, `GAP` 6 mm out from the window; the pill `BAR` 20 mm
+  tall, `BAR_GAP` 8 mm below, with `BUTTON` 16 mm buttons) are metres at `REFERENCE` (0.6 m) times
   `Fit::scale`, the eye's distance to the panel's centre over `REFERENCE`
   (`chrome::fitted`), which `Space` sets on each panel (`Panel::chrome`)
   every input and frame and changes only once it is off by more than `KEPT`
@@ -3991,7 +3967,9 @@ libinput devices that have an A key; every other platform counts as attached,
 and a layer may override it, as space does while controllers are active),
 it opens whenever the focused field's `ImeArea::keyboard` turns `Shown` or its
 `asks` changes, and closes when the focus leaves for something that types
-nothing. Its close button (`close_keyboard()`) closes it until a field asks
+nothing, except where it is a window of its own (`Context::keyboard_in_a_window`
+where windows open, which only space sets): there the person put it somewhere,
+so it stays open until its close button or a toggle closes it. Its close button (`close_keyboard()`) closes it until a field asks
 again, so tapping a field brings it back. Its keys reach the app as a keyboard
 would: the engine makes `Input::Key`s with evdev codes and real modifier
 presses (`beui_core::input::typing`, which `drive type` and `drive key`

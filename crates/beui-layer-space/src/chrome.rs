@@ -16,23 +16,23 @@ use glam::{Quat, Vec3};
 use crate::head::Ray;
 use crate::panel::{Hit, MOST_BEND, POINTS_PER_METRE, Panel};
 
-pub const GAP: f32 = 0.012;
-pub const ARM: f32 = 0.045;
-pub const THICKNESS: f32 = 0.007;
-pub const SLOP: f32 = 0.005;
-pub const BAR_GAP: f32 = 0.016;
-pub const BAR: f32 = 0.04;
-pub const BUTTON: f32 = 0.032;
-pub const TRACK: f32 = 0.14;
-pub const KNOB: f32 = 0.018;
-pub const ICON: f32 = 0.018;
+pub const GAP: f32 = 0.006;
+pub const ARM: f32 = 0.0225;
+pub const THICKNESS: f32 = 0.0035;
+pub const SLOP: f32 = 0.0025;
+pub const BAR_GAP: f32 = 0.008;
+pub const BAR: f32 = 0.02;
+pub const BUTTON: f32 = 0.016;
+pub const TRACK: f32 = 0.07;
+pub const KNOB: f32 = 0.009;
+pub const ICON: f32 = 0.009;
 pub const FAINT: f32 = 0.35;
 pub const TURN_GAIN: f32 = 2.0;
 pub const SMALLEST_SCALE: f32 = 0.2;
 pub const LARGEST_SCALE: f32 = 8.0;
 pub const LIFT: f32 = 0.001;
-pub const TITLE: f32 = 0.016;
-pub const TITLE_PADDING: f32 = 0.012;
+pub const TITLE: f32 = 0.008;
+pub const TITLE_PADDING: f32 = 0.006;
 pub const REFERENCE: f32 = 0.6;
 pub const KEPT: f32 = 1.05;
 const NEAREST: f32 = 0.05;
@@ -44,7 +44,7 @@ const BUTTON_HOT: Color32 = Color32::from_rgb(60, 68, 86);
 const BUTTON_ON: Color32 = Color32::from_rgb(52, 84, 156);
 const GLYPH: Color32 = Color32::from_rgb(226, 231, 240);
 const GROOVE: Color32 = Color32::from_rgb(78, 86, 104);
-const GROOVE_HEIGHT: f32 = 0.004;
+const GROOVE_HEIGHT: f32 = 0.002;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Corner {
@@ -441,7 +441,7 @@ pub fn title_width(context: &Context, title: &str) -> f32 {
 }
 
 fn inset(track: Rect) -> f32 {
-    (KNOB / 2.0 + 0.004) * track.height() / BAR
+    (KNOB / 2.0 + 0.002) * track.height() / BAR
 }
 
 pub fn fraction(track: Rect, x: f32) -> f32 {

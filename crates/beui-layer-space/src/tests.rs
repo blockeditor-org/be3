@@ -20,9 +20,6 @@ use crate::{Pointer, Space};
 mod a_bracket_in_front_of_another_panel_takes_the_click;
 mod a_carried_panel_follows_the_cursor_and_the_head;
 mod a_carried_panel_let_go_mid_turn_lands_where_it_would_after_the_turn;
-mod a_carried_panel_moved_off_what_it_is_over_returns_smoothly_to_its_distance;
-mod a_carried_panel_stays_in_front_of_a_curved_panel;
-mod a_carried_panel_stays_in_front_of_the_panel_it_is_carried_over_and_after_release;
 mod a_carried_panel_swings_about_the_view_s_up_with_the_head_rolled;
 mod a_carried_panel_turns_smoothly_to_face_the_viewer_while_carried;
 mod a_click_on_the_panel_reaches_the_app_where_the_ray_hits;
@@ -39,8 +36,6 @@ mod a_nearer_panel_is_drawn_at_more_pixels_per_point;
 mod a_new_pixels_per_point_waits_for_the_panel_to_settle_and_not_while_it_is_resized;
 mod a_panel_carried_above_eye_level_tilts_to_face_the_eye;
 mod a_panel_carried_by_its_grip;
-mod a_panel_carried_close_behind_another_comes_in_front_of_it;
-mod a_panel_carried_far_behind_another_stays_behind_it;
 mod a_panel_carried_to_each_corner_with_the_head_rolled_and_pitched_stays_upright_to_the_view;
 mod a_panel_carried_under_the_floor_stays_visible_and_can_be_picked;
 mod a_panel_carried_with_the_head_rolled_rolls_to_match;
@@ -53,11 +48,10 @@ mod a_ray_hits_the_nearest_panel_where_it_points;
 mod a_released_panel_turns_to_face_the_viewer;
 mod a_resized_panel_keeps_its_renderer_and_draws_at_the_new_size;
 mod a_scrolled_panel_copies_what_it_showed_and_paints_what_a_full_repaint_would;
-mod a_touchpad_scroll_pushes_a_carried_panel_through_another_only_once_past_it;
 mod a_wheel_line_moves_a_carried_panel_a_step_and_pixels_in_proportion;
 mod a_window_asked_to_resize_keeps_its_top_left_corner_and_reports_the_size;
 mod a_window_carried_from_a_press_in_another_gives_that_one_its_release;
-mod a_window_carried_over_the_main_panel_and_let_go_is_drawn_in_front;
+mod a_window_carried_over_the_main_panel_keeps_its_distance;
 mod a_window_moved_by_a_laser_touch_is_carried_along_that_laser;
 mod a_window_opened_at_a_host_placement_lands_on_that_pose;
 mod a_window_opened_at_the_pointer_lands_on_the_cursor_ray_facing_the_viewer;
@@ -90,7 +84,6 @@ mod panels_get_layers_only_where_their_order_to_the_eye_is_plain;
 mod panels_through_each_other_are_painted_nearest_first_at_every_pixel;
 mod q_and_e_roll_the_head_while_steering;
 mod resizing_a_window_drags_its_edge_and_reports_the_new_size;
-mod scrolling_a_carried_panel_farther_than_the_one_behind_puts_it_behind;
 mod scrolling_while_carrying_moves_the_panel_nearer_or_farther;
 mod squeezing_a_panel_carries_it_along_the_laser;
 mod squeezing_a_panel_with_both_hands_scales_and_turns_it;
@@ -404,24 +397,6 @@ fn carry_popped_out(space: &mut Space, now: Instant) -> WindowId {
     space.request(&WindowRequest::BeginMove(window));
     send(space, now, []);
     window
-}
-
-fn gaps_to(space: &Space, window: WindowId, behind: WindowId) -> Vec<f32> {
-    let (carried, other) = (space.panel(window).unwrap(), space.panel(behind).unwrap());
-    let eye = space.head.position;
-    [0.0, 0.5, 1.0]
-        .into_iter()
-        .flat_map(|x| [0.0, 0.5, 1.0].map(|y| pos2(x * carried.size.x, y * carried.size.y)))
-        .filter_map(|pos| {
-            let point = carried.world(pos);
-            let ray = crate::head::Ray {
-                origin: eye,
-                direction: (point - eye).normalize(),
-            };
-            let hit = other.hit(ray)?;
-            Some(hit.distance - point.distance(eye))
-        })
-        .collect()
 }
 
 fn drive(

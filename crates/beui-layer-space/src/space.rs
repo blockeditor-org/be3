@@ -699,11 +699,8 @@ impl Space {
             } => self.press(input, button, pressed, out),
             Input::Scroll(delta) if self.mouse.carry.is_some() => {
                 let lines = scrolled(delta, self.pixels_per_point).y / SCROLL_LINE;
-                let (head, now, others) = (self.head, self.clock, self.panels.clone());
-                if let Some(carry) = &mut self.mouse.carry
-                    && let Some(panel) = others.iter().find(|panel| panel.window == carry.window)
-                {
-                    carry.scroll(lines, &head, panel, &others, now);
+                if let Some(carry) = &mut self.mouse.carry {
+                    carry.scroll(lines);
                 }
             }
             Input::ScrollStarted | Input::ScrollEnded if self.mouse.carry.is_some() => {}
@@ -1434,12 +1431,12 @@ impl Space {
                 self.chrome.hovered = self.on_chrome();
             }
         }
-        let (head, now, others) = (self.head, self.clock, self.panels.clone());
+        let (head, now) = (self.head, self.clock);
         let Some(panel) = self.panel_mut(carry.window) else {
             return;
         };
         carry.finish();
-        carry.place(&head, panel, &others, now);
+        carry.place(&head, panel, now);
         out.push(Incoming::Window(WindowReport::Placed {
             window: carry.window,
             placement: panel.placement(),
@@ -1449,7 +1446,7 @@ impl Space {
     fn place_carried(&mut self) {
         for pointer in self.pointers() {
             let ray = self.ray(pointer);
-            let (head, now, others) = (self.head, self.clock, self.panels.clone());
+            let (head, now) = (self.head, self.clock);
             let Some(mut carry) = self.held_mut(pointer).and_then(|held| held.carry.take()) else {
                 continue;
             };
@@ -1457,7 +1454,7 @@ impl Space {
                 carry.follow(ray);
             }
             if let Some(panel) = self.panel_mut(carry.window) {
-                carry.place(&head, panel, &others, now);
+                carry.place(&head, panel, now);
                 if pointer == Pointer::Mouse {
                     let grabbed = carry.grabbed_at(&head);
                     self.cursor =
