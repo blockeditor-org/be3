@@ -454,6 +454,7 @@ pub struct EditorHost {
     watches: Rc<RefCell<Watches>>,
     picker: Rc<RefCell<Option<PickerRequest>>>,
     picked: Rc<RefCell<Option<BlockPick>>>,
+    card: Rc<Cell<bool>>,
     dialog_requests: Rc<RefCell<Vec<(Uuid, ShellDialog)>>>,
     child_commits: Rc<RefCell<Vec<ChildCommit>>>,
     pushed: Rc<[Cell<u64>; Pushed::ALL.len()]>,
@@ -639,6 +640,16 @@ impl EditorHost {
         }
         drop(picked);
         self.changed();
+    }
+
+    pub fn show_card(&self, card: bool) {
+        if self.card.replace(card) != card {
+            self.changed();
+        }
+    }
+
+    pub(crate) fn card(&self) -> bool {
+        self.card.get()
     }
 
     pub(crate) fn take_picked(&self) -> Option<BlockPick> {

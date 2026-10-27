@@ -118,6 +118,7 @@ struct Instance {
     audio: Option<AudioPlayer>,
     reported_size: Option<Vec2>,
     picked: Option<BlockPick>,
+    card: bool,
     child_commits: Vec<ChildCommit>,
     view: Option<EditorView>,
     reported_view: Option<EditorView>,
@@ -266,6 +267,7 @@ impl Instance {
             audio: None,
             reported_size: None,
             picked: None,
+            card: false,
             child_commits: Vec::new(),
             view: None,
             reported_view: None,
@@ -2202,6 +2204,7 @@ impl Instances {
                 preview: status.preview,
                 dialog: status.dialog,
                 picked: status.picked.clone(),
+                card: status.card,
             };
             if screen.reported_statuses.get(&status.child) == Some(&status) {
                 continue;
@@ -2225,6 +2228,10 @@ impl Instances {
 
     pub(super) fn picked(&self, instance: EditorInstanceId) -> Option<BlockPick> {
         self.entries.get(&instance)?.picked.clone()
+    }
+
+    pub(super) fn card(&self, instance: EditorInstanceId) -> bool {
+        self.entries.get(&instance).is_some_and(|entry| entry.card)
     }
 
     pub(super) fn take_child_dismissals(&mut self, instance: EditorInstanceId) -> Vec<ChildId> {
@@ -2760,6 +2767,12 @@ impl Instances {
                 entry.dialog.answer = Some(answer);
             }
             ShellCall::DismissChild { child, .. } => entry.child_dismissals.push(child),
+            ShellCall::ShowCard { card, .. } => {
+                if entry.card == card {
+                    return false;
+                }
+                entry.card = card;
+            }
             ShellCall::Picked { pick, .. } => {
                 if entry.picked.is_some() {
                     return false;

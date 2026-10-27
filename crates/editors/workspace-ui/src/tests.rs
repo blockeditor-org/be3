@@ -52,12 +52,14 @@ mod closing_a_window_tab_asks_its_program_to_close;
 mod closing_the_only_tab_leaves_the_blank_workspace;
 mod creating_from_a_dialog_commits_the_creation_at_once;
 mod crossing_the_phone_width_keeps_the_block_on_show;
+mod escape_closes_the_add_menu_and_only_its_cards_ask_to_be_framed;
 mod importing_a_block_file_in_the_picker_answers_the_pick;
 mod linking_a_block_in_the_picker_answers_the_pick;
 mod on_a_desktop_a_touch_opens_the_add_menu_as_a_sheet_and_a_mouse_as_a_dropdown;
 mod on_a_phone_more_blocks_takes_over_the_menu_sheet_in_place;
 mod on_a_phone_tapping_a_files_name_opens_its_rename_sheet;
 mod on_a_phone_the_menu_and_its_location_page_rise_as_a_sheet;
+mod on_a_phone_the_more_sheet_keeps_its_cancel_below_the_list;
 mod on_a_wide_phone_the_more_sheet_fills_the_screen_width;
 mod renaming_a_block_the_host_asks_about_saves_its_name;
 mod revision_history_follows_the_active_file_and_previews_it;
@@ -515,6 +517,7 @@ fn report_creation_dialog<A: block_editor_beui::BeuiApp>(
             preview: Default::default(),
             dialog,
             picked: None,
+            card: false,
         });
     fixture.settle();
 }

@@ -46,6 +46,7 @@ fn on_a_phone_tapping_a_files_name_opens_its_rename_sheet() {
         preview: Default::default(),
         dialog: Default::default(),
         picked: None,
+        card: false,
     });
     fixture.settle();
     fixture.test.settle();

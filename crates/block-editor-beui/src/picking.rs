@@ -1,9 +1,10 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use beui::dock::styled::{CARD_GAP, CARD_INSET, CARD_MARGIN, CARD_POINTER, DockCard};
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{NodeId, Pos2, Rect, Vec2, WindowPlacement, WindowRole};
+use beui::{NodeId, PointerSide, Pointing, Pos2, Rect, Vec2, WindowPlacement, WindowRole};
 use block_editor_plugin::{BlockFilter, BlockParent, BlockPick, Failure, PickedBlock};
 
 use crate::{ChildLayer, ChildMode, ChildState, Editor, Subregion, SubregionContent, node_anchor};
@@ -142,6 +143,7 @@ fn PickerPopover(editor: Editor, picking: Picking) -> NodeId {
         touch: sheet,
     };
     let size = create_signal(None::<Vec2>);
+    let card = create_signal(false);
     let child = move || {
         let content = content.clone();
         view! {
@@ -157,6 +159,10 @@ fn PickerPopover(editor: Editor, picking: Picking) -> NodeId {
                     if size.get_untracked() != wanted {
                         size.set(wanted);
                     }
+                    let carded = state.card && !sheet;
+                    if card.get_untracked() != carded {
+                        card.set(carded);
+                    }
                     if let Some(error) = state.error.clone() {
                         return editor.finish_pick(serial, Err(Failure::Failed(error)));
                     }
@@ -169,19 +175,24 @@ fn PickerPopover(editor: Editor, picking: Picking) -> NodeId {
     };
     let anchor = picking.0.anchor.rect();
     let own = use_window();
-    let fallback = use_viewport_size();
-    let viewport = create_memo(move || match own {
-        Some(own) => own.size.get(),
-        None => fallback.get(),
+    let viewport = use_viewport_size();
+    let content_size = create_memo(move || size.get().unwrap_or(UNSIZED));
+    let hung = create_memo(move || match (sheet, card.get()) {
+        (true, _) => Hung {
+            window: Rect::from_min_size(Pos2::ZERO, viewport.get()),
+            pointing: None,
+        },
+        (false, true) => card_hung(anchor, content_size.get(), viewport.get()),
+        (false, false) => Hung {
+            window: Rect::from_min_size(
+                hang(anchor, content_size.get(), viewport.get()),
+                content_size.get(),
+            ),
+            pointing: None,
+        },
     });
-    let shown = create_memo(move || match sheet {
-        true => viewport.get(),
-        false => size.get().unwrap_or(UNSIZED),
-    });
-    let at = create_memo(move || match sheet {
-        true => Pos2::ZERO,
-        false => hang(anchor, shown.get(), viewport.get()),
-    });
+    let shown = create_memo(move || hung.get().window.size());
+    let at = create_memo(move || hung.get().window.min);
     let window = own.map(|handle| handle.id);
     let placement = create_memo(move || match window {
         Some(window) => WindowPlacement::Over {
@@ -200,8 +211,19 @@ fn PickerPopover(editor: Editor, picking: Picking) -> NodeId {
             on_report={|_| {}}
         >|handle: WindowHandle| {
             let node = child();
-            let width = create_memo(move || Size::Custom(handle.size.get().x));
-            let height = create_memo(move || Size::Custom(handle.size.get().y));
+            let shown_size = create_memo(move || match card.get() {
+                true => content_size.get(),
+                false => handle.size.get(),
+            });
+            let card_width = create_memo(move || Size::Custom(shown_size.get().x));
+            let card_height = create_memo(move || Size::Custom(shown_size.get().y));
+            let carded = create_memo(move || card.get());
+            let inset = create_memo(move || match card.get() {
+                true => Padding::all(Space::Custom(CARD_INSET)),
+                false => Padding::ZERO,
+            });
+            let pointing = create_memo(move || hung.get().pointing);
+            let pointer = NodeRef::new();
             let outside = move |_: Pos2| {
                 if !sheet {
                     editor.finish_pick(serial, Ok(None));
@@ -210,12 +232,55 @@ fn PickerPopover(editor: Editor, picking: Picking) -> NodeId {
             view! {
                 <Root clear_color=ColorRole::None>
                     <Interactive on_press_outside={outside}>
-                        <Frame width height>{node}</Frame>
+                        <Layers>
+                            <Show condition={carded}>
+                                <DockCard pointing pointer>
+                                    <Frame width=card_width height=card_height />
+                                </DockCard>
+                            </Show>
+                            <Frame padding={inset}>
+                                <Frame width=card_width height=card_height>{node}</Frame>
+                            </Frame>
+                        </Layers>
                     </Interactive>
                 </Root>
             }
             .child()
         }</Window>
+    }
+}
+
+#[derive(Clone, Copy, PartialEq)]
+struct Hung {
+    window: Rect,
+    pointing: Option<Pointing>,
+}
+
+fn card_hung(anchor: Option<Rect>, content: Vec2, viewport: Vec2) -> Hung {
+    let margin = f32::from(CARD_MARGIN);
+    let face = content + Vec2::splat(2.0 * CARD_INSET);
+    let Some(anchor) = anchor else {
+        return Hung {
+            window: Rect::from_min_size(hang(None, face, viewport), face),
+            pointing: None,
+        };
+    };
+    let reach = f32::from(CARD_GAP) - CARD_POINTER;
+    let x = (anchor.center().x - face.x / 2.0)
+        .min(viewport.x - face.x - margin)
+        .max(margin.min(viewport.x - face.x).max(0.0));
+    let below = anchor.max.y + reach + face.y <= viewport.y - margin;
+    let above = anchor.min.y - reach - face.y >= margin;
+    let (y, side) = match (below, above) {
+        (false, true) => (anchor.min.y - reach - face.y, PointerSide::Bottom),
+        _ => (anchor.max.y + reach, PointerSide::Top),
+    };
+    Hung {
+        window: Rect::from_min_size(Pos2::new(x, y), face),
+        pointing: Some(Pointing {
+            side,
+            at: anchor.center().x - x - CARD_POINTER,
+        }),
     }
 }
 

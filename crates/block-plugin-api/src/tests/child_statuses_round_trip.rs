@@ -41,6 +41,7 @@ fn child_statuses_round_trip() {
                 linked: true,
                 placed: false,
             }))),
+            card: true,
         },
         ChildStatus {
             instance: EditorInstanceId(4),
@@ -59,6 +60,7 @@ fn child_statuses_round_trip() {
             preview: Default::default(),
             dialog: DialogStatus::default(),
             picked: None,
+            card: false,
         },
     ];
     assert_eq!(

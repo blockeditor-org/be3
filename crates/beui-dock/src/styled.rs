@@ -73,9 +73,9 @@ const AWAY_PADDING: Space = Space::Xl3;
 const PREVIEW_OPACITY: f32 = 0.92;
 const WAITING_DOT: Size = Size::Custom(6.0);
 const CARD_POINTER_ROOM: Sides = Sides::all(POINTER_REACH);
-const CARD_MARGIN: u16 =
+pub const CARD_MARGIN: u16 =
     (beui_components_styled::dialog::MARGIN.px() - CARD_POINTER_ROOM.top) as u16;
-const CARD_GAP: u16 = (POINTER_REACH + 2.0) as u16;
+pub const CARD_GAP: u16 = (POINTER_REACH + 2.0) as u16;
 
 #[component]
 pub fn Docking<K>(
@@ -482,7 +482,7 @@ fn DockDialogSheet(handle: DockSheetHandle) -> NodeId {
     }
 }
 
-fn dialog_outline(focused: Memo<bool>, attention: ReadSignal<bool>) -> Memo<Option<Border>> {
+fn dialog_outline(focused: Memo<bool>, attention: Memo<bool>) -> Memo<Option<Border>> {
     create_memo(move || {
         let color = match (attention.get(), focused.get()) {
             (true, _) => ColorRole::Danger,
@@ -503,11 +503,35 @@ fn DockCardFace(handle: DockDialogHandle) -> NodeId {
         ..
     } = handle;
     view! {
+        <DockCard focused attention={create_memo(move || attention.get())} pointer>{body}</DockCard>
+    }
+}
+
+pub const CARD_INSET: f32 = POINTER_REACH + CHROME_PADDING.px();
+pub const CARD_POINTER: f32 = POINTER_REACH;
+
+#[component]
+pub fn DockCard(
+    #[prop(default = true)] focused: Prop<bool>,
+    #[prop(default = false)] attention: Prop<bool>,
+    #[prop(default = None)] pointing: Prop<Option<beui_core::base::frame::Pointing>>,
+    pointer: NodeRef,
+    children: Option<Child>,
+) -> NodeId {
+    let focused = create_memo(move || focused.get());
+    let attention = create_memo(move || attention.get());
+    let border = dialog_outline(focused, attention);
+    let body = children.unwrap_or_else(|| {
+        view! {
+            <Frame />
+        }
+    });
+    let card = view! {
         <Frame padding={Padding::custom(CARD_POINTER_ROOM)}>
             <Frame
                 @node_ref=&pointer
                 fill=ColorRole::SurfaceRaised
-                border={dialog_outline(focused, attention)}
+                border
                 radius=Radius::Lg
                 pointer=true
                 padding=CHROME_PADDING
@@ -515,7 +539,17 @@ fn DockCardFace(handle: DockDialogHandle) -> NodeId {
                 {body}
             </Frame>
         </Frame>
+    };
+    if !matches!(pointing, Prop::Static(None)) {
+        create_binding(move || {
+            let pointing = pointing.get();
+            let Some(node) = pointer.try_get() else {
+                return;
+            };
+            point_frame(node, pointing);
+        });
     }
+    card
 }
 
 #[component]
@@ -538,7 +572,7 @@ fn DockWindowFace(handle: DockDialogHandle) -> NodeId {
         <Frame
             width=width
             fill=ColorRole::Background
-            border={dialog_outline(focused, attention)}
+            border={dialog_outline(focused, create_memo(move || attention.get()))}
             radius=Radius::Lg
             padding=CHROME_PADDING
         >

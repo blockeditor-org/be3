@@ -41,6 +41,7 @@ pub struct EditorSession {
     aspect_ratio: Option<f32>,
     artifact: Option<ArtifactState>,
     sent_menu: Vec<MenuEntry>,
+    sent_card: bool,
     audio_watched: bool,
     docks_watched: bool,
     web_views: HashMap<WebViewId, Rc<shell::WebView>>,
@@ -142,6 +143,7 @@ impl EditorSession {
             aspect_ratio: None,
             artifact: None,
             sent_menu: Vec::new(),
+            sent_card: false,
             audio_watched: false,
             docks_watched: false,
             web_views: HashMap::new(),
@@ -431,6 +433,11 @@ impl EditorSession {
         }
         if self.host.take_paste_request() {
             shell::paste(instance);
+        }
+        let card = self.host.card();
+        if self.sent_card != card {
+            shell::show_card(instance, card);
+            self.sent_card = card;
         }
         if let Some(pick) = self.host.take_picked() {
             shell::picked(instance, pick);

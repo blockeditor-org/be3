@@ -421,11 +421,11 @@ impl Editors {
     fn picker_status(
         &self,
         key: &CreationKey,
-    ) -> Option<(Option<block_plugin_api::BlockPick>, Option<Vec2>)> {
+    ) -> Option<(Option<block_plugin_api::BlockPick>, Option<Vec2>, bool)> {
         let state = self.0.value();
         let pickers = state.pickers.borrow();
         let picker = pickers.get(key)?;
-        Some((picker.picked(), picker.intrinsic()))
+        Some((picker.picked(), picker.intrinsic(), picker.card()))
     }
 
     pub(crate) fn step_creations(&self) {
@@ -1806,8 +1806,9 @@ fn HostedChild(
             if kind.get() == Kind::NoPicker {
                 status.error = Some(NO_PICKER.to_owned());
             }
-            if let Some((picked, intrinsic)) = editors.picker_status(&creation_key) {
+            if let Some((picked, intrinsic, card)) = editors.picker_status(&creation_key) {
                 status.picked = picked;
+                status.card = card;
                 status.intrinsic = intrinsic;
             }
             if let Kind::ArtifactSettings(block) = kind.get()
@@ -2091,6 +2092,7 @@ fn status_of(editors: &Editors, child: &HostChild, available: bool) -> HostChild
         preview: ChildPreview::Hosted,
         dialog: DialogStatus::default(),
         picked: None,
+        card: false,
         menu: match available && child.frame_owner {
             true => frame_menu(editors, block),
             false => Vec::new(),

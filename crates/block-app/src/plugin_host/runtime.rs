@@ -1192,6 +1192,10 @@ pub(crate) fn picked(plugin_id: &str, instance: EditorInstanceId) -> Option<Bloc
     with(plugin_id, |runtime| runtime.instances.picked(instance)).flatten()
 }
 
+pub(crate) fn card(plugin_id: &str, instance: EditorInstanceId) -> bool {
+    with(plugin_id, |runtime| runtime.instances.card(instance)).unwrap_or(false)
+}
+
 pub(crate) fn take_child_dismissals(
     plugin_id: &str,
     instance: EditorInstanceId,

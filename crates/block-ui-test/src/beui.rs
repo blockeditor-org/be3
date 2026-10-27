@@ -891,6 +891,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             preview: Default::default(),
             dialog: Default::default(),
             picked: None,
+            card: false,
         });
     }
 
@@ -1373,8 +1374,50 @@ impl<A: BeuiApp> BeuiTest<A> {
             preview: Default::default(),
             dialog: Default::default(),
             picked: (placement.child == picker).then(|| pick.clone()),
+            card: false,
         });
         self.run();
+    }
+
+    pub fn show_picker(&mut self, intrinsic: Vec2, card: bool) {
+        let region = self.region();
+        let picker = self
+            .placed_picker()
+            .expect("the editor placed a picker to show")
+            .child;
+        self.report_children(|placement| {
+            let shown = placement.child == picker;
+            ChildStatus {
+                instance: INSTANCE,
+                region,
+                child: placement.child,
+                available: true,
+                intrinsic: shown.then_some(block_plugin_api::Size {
+                    width: intrinsic.x,
+                    height: intrinsic.y,
+                }),
+                aspect_ratio: None,
+                active: false,
+                interaction: block_editor_beui::InteractionMode::Live,
+                capabilities: block_editor_beui::EditorCapabilities::default(),
+                resize: block_editor_beui::ResizeMode::None,
+                error: None,
+                menu: Vec::new(),
+                creation: None,
+                preview: Default::default(),
+                dialog: Default::default(),
+                picked: None,
+                card: shown && card,
+            }
+        });
+        self.run();
+    }
+
+    pub fn take_cards(&mut self) -> Vec<bool> {
+        self.take_calls(|call| match call {
+            ShellCall::ShowCard { card, .. } => Some(*card),
+            _ => None,
+        })
     }
 
     pub fn take_picked(&mut self) -> Vec<block_editor_beui::BlockPick> {

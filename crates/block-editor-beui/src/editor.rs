@@ -239,6 +239,7 @@ pub struct ChildState {
     pub preview: ChildPreview,
     pub dialog: DialogStatus,
     pub picked: Option<BlockPick>,
+    pub card: bool,
 }
 
 impl ChildState {
@@ -268,6 +269,7 @@ impl ChildState {
             preview: status.preview,
             dialog: status.dialog,
             picked: status.picked,
+            card: status.card,
         }
     }
 }

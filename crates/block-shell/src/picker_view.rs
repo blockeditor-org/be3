@@ -46,12 +46,13 @@ pub fn PickerView(picker: Picker) -> NodeId {
         .is_some_and(|held| held.place.is_some());
     let menu = NodeRef::new();
     let failure = NodeRef::new();
-    if !picker.sheet {
-        fit(picker, held, menu, failure);
-        close_when_left(picker, held);
-    }
     let surface =
         create_memo(move || held.with(|held| held.as_ref().is_some_and(Pick::surface_open)));
+    if !picker.sheet {
+        fit(picker, held, menu, failure);
+        let host = picker.host();
+        create_effect(move || host.show_card(surface.get()));
+    }
     view! {
         <BackHandler enabled={surface} on_back={move || close_surface(picker)}>
             <List spacing=Space::None>
@@ -99,18 +100,6 @@ fn card_height(held: &Pick) -> f32 {
         true => SURFACE_SIZE.y,
         false => creation_height(Some(held)) + 2.0 * CREATION_INSET.px(),
     }
-}
-
-fn close_when_left(picker: Picker, held: Memo<Option<Pick>>) {
-    let focused = with_document(|document| document.watch_focused());
-    let had = std::cell::Cell::new(false);
-    create_effect(move || {
-        let now = focused.get().is_some();
-        let left = had.replace(now) && !now;
-        if left && untrack(|| held.with(|held| held.as_ref().is_some_and(Pick::menu_open))) {
-            untrack(|| picker.act(PickAction::Close));
-        }
-    });
 }
 
 fn act_on(picker: Picker) -> Act {
@@ -181,7 +170,7 @@ fn PickerCard(picker: Picker, held: Memo<Option<Pick>>) -> NodeId {
                 }
             }}
         >
-            <Frame fill=ColorRole::SurfaceRaised border={Border::DEFAULT} radius=Radius::Lg>
+            <Frame>
                 <PickerSurface picker />
             </Frame>
         </Overlay>
@@ -514,9 +503,12 @@ fn CentredSurface(picker: Picker, held: Memo<Option<Pick>>) -> NodeId {
         >|| {
             let layout = use_context::<DialogLayout>();
             let creating = create_memo(move || held.with(|held| held.as_ref().is_some_and(|held| held.creating.is_some())));
-            let height = create_memo(move || match layout.is_some_and(|layout| layout.sheet.get()) || creating.get() {
-                true => Length::INTRINSIC,
-                false => Length::Size(DIALOG_HEIGHT),
+            let viewport = use_viewport_size();
+            let sheet = create_memo(move || layout.is_some_and(|layout| layout.sheet.get()));
+            let height = create_memo(move || match (creating.get(), sheet.get()) {
+                (true, _) => Length::INTRINSIC,
+                (false, true) => Length::Size(Size::Custom(modal_sheet_room(viewport.get().y))),
+                (false, false) => Length::Size(DIALOG_HEIGHT),
             });
             view! {
                 <Frame height>

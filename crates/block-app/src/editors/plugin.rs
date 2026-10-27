@@ -130,6 +130,10 @@ impl PluginPicker {
     pub(crate) fn intrinsic(&self) -> Option<Vec2> {
         crate::plugin_host::intrinsic_size(&self.plugin.identity.id, self.instance)
     }
+
+    pub(crate) fn card(&self) -> bool {
+        crate::plugin_host::card(&self.plugin.identity.id, self.instance)
+    }
 }
 
 impl Drop for PluginPicker {

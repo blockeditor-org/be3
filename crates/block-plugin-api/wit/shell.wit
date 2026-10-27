@@ -155,6 +155,8 @@ interface shell-types {
         dialog: dialog-status,
         /// What a picker child answered, once it has.
         picked: option<block-pick>,
+        /// Whether a picker child shows a card its placer frames.
+        card: bool,
     }
 
     record child-operations {
@@ -397,6 +399,11 @@ interface shell {
     /// The editor, opened as a picker, answers its pick: the block chosen, or
     /// none when the user cancelled.
     picked: func(instance: editor-instance-id, pick: block-pick);
+
+    /// The editor, opened as a picker, says whether it shows a card, which the
+    /// editor that placed it frames, rather than a menu that draws its own
+    /// surface. It arrives as the child's `child-status.card`.
+    show-card: func(instance: editor-instance-id, card: bool);
 
     /// What the artifact settings the editor was opened on say.
     artifact-described: func(instance: editor-instance-id, description: artifact-description);
