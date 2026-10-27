@@ -14,7 +14,13 @@ fn a_pane_with_an_empty_view_stays_when_its_last_tab_leaves() {
     };
     state.reconcile(&layout(&[2]));
     let left = state.find(TabId::new(1)).expect("tab 1 is open").leaf;
-    state.drop_tab(TabId::new(2), DockDrop::Tab { leaf: left, index: 1 });
+    state.drop_tab(
+        TabId::new(2),
+        DockDrop::Tab {
+            leaf: left,
+            index: 1,
+        },
+    );
     state.reconcile(&layout(&[2]));
 
     let leaves = state.leaves(state.main());

@@ -996,9 +996,7 @@ impl State {
                     continue;
                 }
                 let split = state.window_rect(surface).is_none();
-                if let Some(found) =
-                    self.resolve_in(&state, Tree::Surface(surface), pos, split)
-                {
+                if let Some(found) = self.resolve_in(&state, Tree::Surface(surface), pos, split) {
                     return found;
                 }
             }

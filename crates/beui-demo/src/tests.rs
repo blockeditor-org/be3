@@ -6,7 +6,6 @@ use super::*;
 use crate::{DemoApp, PAGES, Page};
 
 mod a_banner_says_what_failed_until_it_is_dismissed;
-mod a_page_dropped_on_the_middle_of_a_pane_is_grouped_with_the_page_it_shows;
 mod a_card_floats_from_its_tab_and_waits_while_another_tab_is_shown;
 mod a_card_keeps_inside_a_small_window;
 mod a_card_opened_from_a_button_flips_above_it_near_the_bottom;
@@ -27,6 +26,7 @@ mod a_menu_page_opens_in_place_of_the_menu_and_its_tree_follows_the_arrow_keys;
 mod a_menu_page_opens_in_place_of_the_menu_in_a_sheet;
 mod a_menu_widens_to_show_a_long_label_and_its_shortcut;
 mod a_modal_dialog_blocks_its_tab_and_stacks_a_nested_one;
+mod a_page_dropped_on_the_middle_of_a_pane_is_grouped_with_the_page_it_shows;
 mod a_pane_shows_its_tabs_as_icons_across_the_top_or_in_a_narrow_sidebar;
 mod a_read_only_text_area_keeps_its_text_when_typed_into;
 mod a_sample_carries_the_source_it_was_written_with;

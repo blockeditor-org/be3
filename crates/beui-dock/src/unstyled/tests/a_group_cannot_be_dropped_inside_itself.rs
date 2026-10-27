@@ -11,8 +11,20 @@ fn a_group_cannot_be_dropped_inside_itself() {
     let inner = state.tree_leaves(Tree::Group(group))[0];
     let before = state.clone();
 
-    state.drop_entry(Entry::Group(group), DockDrop::Tab { leaf: inner, index: 0 });
-    state.drop_entry(Entry::Group(group), DockDrop::Group { leaf: inner, index: 0 });
+    state.drop_entry(
+        Entry::Group(group),
+        DockDrop::Tab {
+            leaf: inner,
+            index: 0,
+        },
+    );
+    state.drop_entry(
+        Entry::Group(group),
+        DockDrop::Group {
+            leaf: inner,
+            index: 0,
+        },
+    );
     state.drop_entry(
         Entry::Group(group),
         DockDrop::Split {

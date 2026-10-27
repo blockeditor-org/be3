@@ -45,10 +45,13 @@ fn a_pinned_tab_stays_in_its_group_until_it_is_unpinned() {
     );
 
     let inner = state.tree_leaves(Tree::Group(group))[0];
-    state.drop_tab(TabId::new(10), DockDrop::Tab {
+    state.drop_tab(
+        TabId::new(10),
+        DockDrop::Tab {
             leaf: inner,
             index: 1,
-        });
+        },
+    );
     state.set_tab_pinned(TabId::new(10), true);
 
     assert!(state.is_tab_pinned(TabId::new(10)));
