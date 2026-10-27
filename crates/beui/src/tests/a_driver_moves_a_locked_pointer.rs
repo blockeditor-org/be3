@@ -18,7 +18,7 @@ fn a_driver_moves_a_locked_pointer() {
             </PointerLock>
         }
     });
-    let mut driven = stepped(crate::testing::Showing(document));
+    let mut driven = stepped(crate::native::testing::Showing(document));
 
     driven.click(pos2(50.0, 50.0));
     driven.motion(vec2(6.0, -4.0));

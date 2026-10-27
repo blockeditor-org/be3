@@ -37,7 +37,10 @@ fn a_text_of_spans_takes_its_alignment_and_line_height() {
         line.height, LINE,
         "the line is as tall as the text's line height"
     );
-    let geometry = harness.document().text_geometry(text);
+    let geometry = harness
+        .document()
+        .text_geometry(text)
+        .expect("the text is laid out");
     let start = geometry.caret_rect(0, 0.0).expect("the start has a caret");
     let end = geometry
         .caret_rect(harness.document().text(text).len(), 0.0)

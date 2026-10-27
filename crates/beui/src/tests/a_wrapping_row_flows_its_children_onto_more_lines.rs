@@ -1,4 +1,5 @@
 use super::*;
+use crate::native::with_document;
 use crate::primitives::*;
 use crate::reactive::*;
 

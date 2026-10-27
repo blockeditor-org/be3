@@ -2,6 +2,7 @@ use std::rc::Rc;
 
 use beui_core::color::Color32;
 use beui_core::context::WindowOutput;
+use beui_core::current::enter;
 use beui_core::display::Layer;
 use beui_core::document::Document;
 use beui_core::geometry::Rotation;
@@ -9,7 +10,6 @@ use beui_core::input::{ImeArea, Keyboard};
 use beui_core::painter::{Corners, Shape};
 use beui_keyboard::styled::SoftwareKeyboard;
 use beui_macros::view;
-use beui_view::reactive::enter;
 
 use super::the_chrome_around_a_curved_panel::window;
 use super::*;

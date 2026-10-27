@@ -10,7 +10,7 @@ fn a_driver_composes_with_an_input_method_and_holds_a_key() {
             <TextInput @test_id={"field"} value={text} />
         }
     });
-    let mut driven = stepped(crate::testing::Showing(document));
+    let mut driven = stepped(crate::native::testing::Showing(document));
     driven
         .ask(&["click", "#field"])
         .expect("the field is focused");

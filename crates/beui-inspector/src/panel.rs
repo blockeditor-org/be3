@@ -6,7 +6,8 @@ use crate::screen_reader::Command;
 use beui_components_styled::*;
 use beui_components_unstyled::{ChoiceOption, SliderScale, TreeItem};
 use beui_core::base::TextAlign;
-use beui_core::context::RendererChoices;
+use beui_core::base::embed::EmbedSlot;
+use beui_core::current::{enter, with_document};
 use beui_core::document::Document;
 use beui_core::filter::{ColorVision, MAX_BLUR};
 use beui_core::icons::{ICON_MOUSE_POINTER_2, ICON_X};
@@ -21,6 +22,7 @@ use beui_view::reactive::*;
 
 use super::tree::{Entry, Key};
 use super::{DEFAULT_WIDTH, InspectorTab, State, entry_label};
+use beui_view::types::{Align, Direction, ItemSize};
 
 const HEADER_SPACING: Space = Space::Md;
 const BODY_PADDING: Space = Space::Md;
@@ -199,7 +201,6 @@ pub struct Panel {
     pub summary: Signal<Summary>,
     pub performance: Signal<PerformanceSummary>,
     pub renderer: Signal<RendererRows>,
-    pub renderers: Signal<RendererChoices>,
     pub app: EmbedSlot,
     pub width: Signal<f32>,
 }
@@ -211,14 +212,13 @@ pub fn build(state: Stored<State>, width: f32) -> Panel {
     let summary = create_signal(Summary::default());
     let performance = create_signal(PerformanceSummary::default());
     let renderer = create_signal(RendererRows::new());
-    let renderers = create_signal(RendererChoices::default());
     let width = create_signal(width);
     let fraction = create_memo(move || app_share(width.get()));
     let app = EmbedSlot::new();
 
     let mut document = Document::new();
     let root = enter(&mut document, || {
-        provide_context(ThemeStore::new(Theme::DARK));
+        provide_context(ThemeStore::new(ThemeTokens::literal(&Theme::DARK)));
         let [beui, components, accesskit] = trees;
         view! {
             <Frame @test_id={"inspector.dock"}>
@@ -256,7 +256,6 @@ pub fn build(state: Stored<State>, width: f32) -> Panel {
                                 <PerformanceTool
                                     performance={performance.read_only()}
                                     renderer={renderer.read_only()}
-                                    renderers={renderers.read_only()}
                                     state
                                 />
                             </DockTab>
@@ -282,7 +281,6 @@ pub fn build(state: Stored<State>, width: f32) -> Panel {
         summary,
         performance,
         renderer,
-        renderers,
         app,
         width,
     }
@@ -304,9 +302,9 @@ fn AppTool(app: EmbedSlot, state: Stored<State>) -> NodeId {
             }
         });
     }
-    view! {
-        <Embed slot=app punch=false @test_id={"inspector.app"} />
-    }
+    let embed = with_document(|document| document.create_embed(app.0.value())).id();
+    app.0.with(|held| held.node.set(Some(embed)));
+    test_id(embed, "inspector.app")
 }
 
 fn close_action(state: Stored<State>) -> Action {
@@ -409,7 +407,6 @@ fn TreePanel(
 fn PerformanceTool(
     performance: ReadSignal<PerformanceSummary>,
     renderer: ReadSignal<RendererRows>,
-    renderers: ReadSignal<RendererChoices>,
     state: Stored<State>,
 ) -> NodeId {
     let samples = create_memo(move || performance.with(|performance| performance.samples.clone()));
@@ -422,7 +419,6 @@ fn PerformanceTool(
                 @test_id={"inspector.performance"}
                 performance
                 renderer
-                renderers
                 state
             />
             <Separator />
@@ -793,7 +789,6 @@ pub fn total_label(total: usize, noun: &str) -> String {
 fn PerformancePanel(
     performance: ReadSignal<PerformanceSummary>,
     renderer: ReadSignal<RendererRows>,
-    renderers: ReadSignal<RendererChoices>,
     state: Stored<State>,
 ) -> NodeId {
     let latest_work = performance_text(performance, |summary| &summary.latest_work);
@@ -851,12 +846,7 @@ fn PerformancePanel(
                         />
                     </List>
                     <Separator />
-                    <RendererSection
-                        @test_id={"inspector.performance.renderer"}
-                        rows={renderer}
-                        renderers
-                        state={state}
-                    />
+                    <RendererSection @test_id={"inspector.performance.renderer"} rows={renderer} />
                 </List>
             </Frame>
         </Scroll>
@@ -864,33 +854,11 @@ fn PerformancePanel(
 }
 
 #[component]
-fn RendererSection(
-    rows: ReadSignal<RendererRows>,
-    renderers: ReadSignal<RendererChoices>,
-    state: Stored<State>,
-) -> NodeId {
+fn RendererSection(rows: ReadSignal<RendererRows>) -> NodeId {
     let missing = create_memo(move || rows.with(Vec::is_empty));
-    let names = create_memo(move || renderers.with(|renderers| renderers.names.clone()));
-    let choosable = create_memo(move || names.with(|names| names.len() > 1));
-    let active = create_memo(move || Some(renderers.with(|renderers| renderers.active)));
     view! {
         <List spacing=TIMING_SPACING>
             <Text style=TextStyle::HEADING>"Renderer"</Text>
-            <Show condition={choosable}>
-                <RadioGroup
-                    @test_id={"inspector.performance.renderer.choice"}
-                    options={view! {
-                        <ForEach keys={names}>|label: &'static str|
-                            <ChoiceOption label />
-                        </ForEach>
-                    }}
-                    selected={Binding::new(active, move |index: Option<usize>| {
-                        if let Some(index) = index {
-                            state.value().choose_renderer(index);
-                        }
-                    })}
-                />
-            </Show>
             <Show condition={missing}>
                 <Text style=TextStyle::CAPTION>"Not reported by this host"</Text>
             </Show>

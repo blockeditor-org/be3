@@ -1,0 +1,9 @@
+# The long modal sheet opens over the Overlays page with its surface behind its
+# rows, and a row picked from it closes it. Wheeling the page scrolls only the
+# page's Scroll: the document never moves.
+click '#demo.catalog.Overlays'
+wheel '#demo.code.Popover' 10
+click '"Pick a row"'
+wait '"Row 3"'
+click '"Row 3"'
+wait '"Picked row 3"'

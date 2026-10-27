@@ -79,13 +79,15 @@ mod two_fingers_on_a_window_reach_it_as_two_touch_points;
 mod with_middle_click_paste_off_a_selection_is_cancelled_and_offered_to_no_one;
 mod with_middle_click_paste_on_a_selection_is_offered_until_it_is_switched_off;
 
-use beui::WindowSize;
+use beui::native::WindowSize;
+use beui::native::testing::Stepped;
 use beui::styled::*;
-use beui::testing::Stepped;
-use beui::{FrameOutput, Input, Key, Keystroke, NodeId, pos2};
+use beui::{Input, Key, Keystroke, NodeId, native::FrameOutput, pos2};
 
 use crate::test_client::{TestClient, TestWindow};
 use crate::view::WindowView;
+use beui::native::build;
+use beui::{LayerLevel, Placement};
 
 const SCREEN: Vec2 = Vec2::new(1000.0, 700.0);
 const SHOWN: Vec2 = Vec2::new(400.0, 300.0);
@@ -96,7 +98,7 @@ struct Shell {
     copy: Option<String>,
 }
 
-impl beui::App for Shell {
+impl beui::native::App for Shell {
     fn update(&mut self, context: &Context, rect: Rect) {
         self.compositor.before(context, rect);
         self.document.show(context, rect);
@@ -126,7 +128,7 @@ fn Shown(windows: Windows) -> NodeId {
                 .iter()
                 .any(|info| info.id == id && info.fullscreen.is_some());
             windows.request_fullscreen(id, !fullscreen);
-            beui::reactive::try_with_document(|document| {
+            beui::native::try_with_document(|document| {
                 document.request_repaint_after(std::time::Duration::ZERO);
             });
         })
@@ -149,7 +151,7 @@ fn Shown(windows: Windows) -> NodeId {
         let ids = create_memo(clone_list(&windows));
         view! {
             <Interactive
-                claim_modifiers={Some(beui::Modifiers::LOGO)}
+                claims={vec![beui::Claim::holding(beui::Modifiers::LOGO, true)]}
                 claims_touch=false
                 on_press={|press: beui::PointerPress| {
                     if press.modifiers.logo {
@@ -228,7 +230,7 @@ impl Harness {
     ) -> Self {
         let (shell, client) = Self::shell(gpu, view);
         Self {
-            stepped: Stepped::new(beui::context(), shell, Self::screen(), None),
+            stepped: Stepped::new(beui::native::context(), shell, Self::screen(), None),
             client,
             output: None,
         }
@@ -237,10 +239,10 @@ impl Harness {
     fn in_space(view: impl FnOnce(Windows) -> NodeId) -> Self {
         let (device, queue) = crate::test_client::vulkan_device();
         let (shell, client) = Self::shell(Some((device.clone(), queue.clone())), view);
-        let context = beui::context();
-        let mut setup = beui::Setup::new(Waker::new(|| {}));
+        let context = beui::native::context();
+        let mut setup = beui::native::Setup::new(Waker::new(|| {}));
         setup.provide(context.clone());
-        setup.provide(beui::GpuSetup {
+        setup.provide(beui::native::GpuSetup {
             device,
             queue,
             format: wgpu::TextureFormat::Bgra8Unorm,
@@ -309,7 +311,7 @@ impl Harness {
     }
 
     fn frame_at(&mut self, at: std::time::Instant) {
-        let next = self.context().now() + beui::testing::FRAME_INTERVAL;
+        let next = self.context().now() + beui::native::testing::FRAME_INTERVAL;
         self.context().advance_clock(at - next);
         self.frame(Vec::new());
     }
@@ -428,7 +430,7 @@ impl Harness {
 struct Painter {
     device: wgpu::Device,
     queue: wgpu::Queue,
-    renderer: beui::Renderer,
+    renderer: beui::native::Renderer,
     view: wgpu::TextureView,
 }
 
@@ -452,13 +454,13 @@ impl Painter {
         Self {
             device: device.clone(),
             queue: queue.clone(),
-            renderer: beui::Renderer::new(device, format),
+            renderer: beui::native::Renderer::new(device, format),
             view: target.create_view(&wgpu::TextureViewDescriptor::default()),
         }
     }
 
     fn paint(&mut self, harness: &Harness) {
-        use beui::Repainting as _;
+        use beui::native::Repainting as _;
         let output = harness.output.as_ref().expect("a frame ran");
         let repaint = output.main().repaint(beui::Color32::BLACK);
         self.renderer.prepare(

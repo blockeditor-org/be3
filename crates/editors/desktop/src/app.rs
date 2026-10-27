@@ -30,6 +30,7 @@ use block_shell::{
 use uuid::Uuid;
 
 use bar::DesktopBar;
+use beui::ItemSize;
 use launcher::{ProgramLauncher, ProgramLauncherOverlay};
 use media::MediaKeys;
 use notifications::{DesktopNotifications, DesktopToasts};

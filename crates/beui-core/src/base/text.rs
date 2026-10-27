@@ -5,65 +5,32 @@ use std::ops::Range;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use crate::color::{Color32, format_hex};
+use crate::color::Color;
 use crate::font::{FontFamily, FontId, Galley, TextLayout};
 use crate::font::{Overflow, TextAlign, WrapAt};
-use crate::geometry::{Pos2, Rect, Vec2, pos2};
+use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use crate::painter::Painter;
 
-use crate::base::child_list::{ChildHost, ChildItem, ChildList, NodeChildren};
+use crate::child_list::{ChildHost, ChildItem, ChildList, NodeChildren};
 use crate::document::Document;
 use crate::node::{Element, NodeId, NodeOf, Rects, SpaceTransform};
 use crate::rich::{
     CaretHandle, OBJECT, Piece, RichLayout, RichOptions, Shaper, SpanBackground, SpanStyle,
     TextCaret, TextGlyph, TextMark, handle_shape,
 };
+pub use beui_types::text::LineBox;
 
-pub const DEFAULT_FONT_SIZE: f32 = 14.0;
+pub use beui_types::text::DEFAULT_FONT_SIZE;
 pub const CARET_BLINK: Duration = Duration::from_millis(530);
 const CARET_FLAG: Vec2 = Vec2::new(6.0, 4.0);
 
-#[derive(Clone, Copy, PartialEq, Debug, Default)]
-pub struct FontPatch {
-    pub size: Option<f32>,
-    pub family: Option<FontFamily>,
-    pub bold: Option<bool>,
-    pub italic: Option<bool>,
-}
-
-impl FontPatch {
-    pub fn apply(self, base: FontId) -> FontId {
-        FontId {
-            size: self.size.unwrap_or(base.size),
-            family: self.family.unwrap_or(base.family),
-            bold: self.bold.unwrap_or(base.bold),
-            italic: self.italic.unwrap_or(base.italic),
-        }
-    }
-}
-
-impl From<FontId> for FontPatch {
-    fn from(font: FontId) -> Self {
-        Self {
-            size: Some(font.size),
-            family: Some(font.family),
-            bold: Some(font.bold),
-            italic: Some(font.italic),
-        }
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub struct IconSpan {
-    pub scale: f32,
-    pub spacing_em: f32,
-}
+pub use beui_types::text::{FontPatch, IconSpan};
 
 #[derive(Clone, PartialEq, Debug, Default)]
 pub struct SpanContent {
     pub text: String,
     pub font: FontPatch,
-    pub color: Option<Color32>,
+    pub color: Option<Color>,
     pub underline: Option<bool>,
     pub strikethrough: Option<bool>,
     pub background: Option<SpanBackground>,
@@ -283,7 +250,7 @@ pub struct TextItemNode {
 pub struct TextStyle {
     pub font: FontId,
     pub line_height: Option<f32>,
-    pub color: Color32,
+    pub color: Color,
     pub horizontal: TextAlign,
     pub vertical: TextAlign,
     pub overflow: Overflow,
@@ -298,7 +265,7 @@ pub struct TextNode {
     content: String,
     font: FontId,
     line_height: Option<f32>,
-    color: Color32,
+    color: Color,
     horizontal: TextAlign,
     vertical: TextAlign,
     overflow: Overflow,
@@ -309,8 +276,8 @@ pub struct TextNode {
     glyphs: Vec<TextGlyph>,
     carets: Vec<TextCaret>,
     since: Cell<Instant>,
-    selection: Option<(Range<usize>, Color32)>,
-    handles: Vec<(usize, CaretHandle, Color32)>,
+    selection: Option<(Range<usize>, Color)>,
+    handles: Vec<(usize, CaretHandle, Color)>,
     placed: Rc<RefCell<Option<Placed>>>,
     shaped: RefCell<Option<Shaped>>,
     galleys: RefCell<Galleys>,
@@ -339,7 +306,7 @@ enum Flow<'a> {
 
 impl TextNode {
     pub fn accessible_text(&self) -> Option<&str> {
-        let seen = |color: Color32| color.alpha() > 0;
+        let seen = |color: Color| !color.is_clear();
         let shown = (!self.string.content().text.is_empty() && seen(self.color))
             || self.parts.iter().any(|part| match part {
                 TextPart::Span(span) => {
@@ -370,7 +337,7 @@ impl TextNode {
     fn style(&self) -> SpanStyle {
         SpanStyle {
             font: self.font,
-            color: Color32::TRANSPARENT,
+            color: Color::TRANSPARENT,
             underline: false,
             strikethrough: false,
         }
@@ -701,19 +668,19 @@ impl TextNode {
             Some(span) => {
                 let content = span.content();
                 (
-                    content.color.unwrap_or(self.color),
+                    doc.resolve_color(content.color.unwrap_or(self.color)),
                     content.underline.unwrap_or(self.underline),
                     content.strikethrough.unwrap_or(false),
                 )
             }
-            None => (self.color, self.underline, false),
+            None => (doc.resolve_color(self.color), self.underline, false),
         };
         let fill = |range: Range<usize>, background: SpanBackground| {
             for area in layout.selection_rects(range) {
                 painter.rect_filled(
                     area.expand2(background.outset).translate(origin),
                     background.radius,
-                    background.color,
+                    doc.resolve_color(background.color),
                 );
             }
         };
@@ -738,7 +705,7 @@ impl TextNode {
         if let Some((held, background)) = run {
             fill(held, background);
         }
-        let plain = |color: Color32| SpanBackground {
+        let plain = |color: Color| SpanBackground {
             color,
             radius: 0.0,
             outset: Vec2::ZERO,
@@ -757,7 +724,7 @@ impl TextNode {
                     area.center().x - shaped.size().x / 2.0,
                     baseline - shaped.baseline(),
                 );
-                painter.galley(at + origin, shaped.clone(), glyph.color);
+                painter.galley(at + origin, shaped.clone(), doc.resolve_color(glyph.color));
             }
         }
         for item in self.parts.nodes() {
@@ -789,17 +756,19 @@ impl TextNode {
             let area = layout.caret_rect(caret.at, caret.width).translate(origin);
             if let Some(handle) = caret.handle {
                 let (shape, corners, angle) = handle_shape(area, handle);
-                painter
-                    .rotated(shape.center(), angle)
-                    .rect_filled(shape, corners, caret.color);
+                painter.rotated(shape.center(), angle).rect_filled(
+                    shape,
+                    corners,
+                    doc.resolve_color(caret.color),
+                );
                 continue;
             }
-            painter.rect_filled(area, 0.0, caret.color);
+            painter.rect_filled(area, 0.0, doc.resolve_color(caret.color));
             if caret.flag {
                 painter.rect_filled(
                     Rect::from_min_size(pos2(area.min.x, area.min.y - CARET_FLAG.y), CARET_FLAG),
                     0.0,
-                    caret.color,
+                    doc.resolve_color(caret.color),
                 );
             }
         }
@@ -807,9 +776,11 @@ impl TextNode {
             for (index, handle, color) in &self.handles {
                 let caret = layout.caret_rect(*index, 0.0).translate(origin);
                 let (shape, corners, angle) = handle_shape(caret, *handle);
-                painter
-                    .rotated(shape.center(), angle)
-                    .rect_filled(shape, corners, *color);
+                painter.rotated(shape.center(), angle).rect_filled(
+                    shape,
+                    corners,
+                    doc.resolve_color(*color),
+                );
             }
         }
     }
@@ -863,7 +834,7 @@ impl Element for TextNode {
     }
 
     fn remove_child(&mut self, child: NodeId) {
-        crate::base::child_list::remove_hosted(self, child);
+        crate::child_list::remove_hosted(self, child);
     }
 
     fn kind(&self) -> &'static str {
@@ -931,7 +902,7 @@ impl Element for TextNode {
                 self.line_height
                     .map_or_else(|| "auto".to_owned(), |height| height.to_string()),
             ),
-            ("color", format_hex(self.color, true)),
+            ("color", self.color.describe()),
             (
                 "align",
                 format!("{:?} {:?}", self.horizontal, self.vertical),
@@ -964,8 +935,9 @@ impl Document {
         &mut self,
         content: impl Into<String>,
         font_size: f32,
-        color: Color32,
+        color: impl Into<Color>,
     ) -> NodeOf<TextNode> {
+        let color = color.into();
         let content = content.into();
         let since = Cell::new(self.now());
         self.arena.insert(TextNode {
@@ -1103,7 +1075,8 @@ impl Document {
         }
     }
 
-    pub fn set_text_color(&mut self, text: NodeOf<TextNode>, color: Color32) {
+    pub fn set_text_color(&mut self, text: NodeOf<TextNode>, color: impl Into<Color>) {
+        let color = color.into();
         if self.arena.get_as::<TextNode>(text).color != color {
             self.arena.paint_mut_as::<TextNode>(text).color = color;
         }
@@ -1112,7 +1085,7 @@ impl Document {
     pub fn set_text_selection_handles(
         &mut self,
         text: NodeOf<TextNode>,
-        handles: Vec<(usize, CaretHandle, Color32)>,
+        handles: Vec<(usize, CaretHandle, Color)>,
     ) {
         if self.arena.get_as::<TextNode>(text).handles != handles {
             self.arena.paint_mut_as::<TextNode>(text).handles = handles;
@@ -1122,7 +1095,7 @@ impl Document {
     pub fn set_text_selection(
         &mut self,
         text: NodeOf<TextNode>,
-        selection: Option<(Range<usize>, Color32)>,
+        selection: Option<(Range<usize>, Color)>,
     ) {
         if self.arena.get_as::<TextNode>(text).selection != selection {
             self.arena.paint_mut_as::<TextNode>(text).selection = selection;
@@ -1262,12 +1235,21 @@ impl Document {
         &self.arena.get_as::<TextNode>(text).carets
     }
 
-    pub fn text_geometry(&self, text: NodeOf<TextNode>) -> TextGeometry {
-        TextGeometry {
-            node: text.id(),
-            placed: Rc::clone(&self.arena.get_as::<TextNode>(text).placed),
-            rects: Rc::clone(&self.rects),
-        }
+    pub fn text_geometry(&self, text: NodeOf<TextNode>) -> Option<TextGeometry> {
+        let laid = self.rects.placed(&text.id())?;
+        let node = self.arena.get_as::<TextNode>(text);
+        let placed = node.placed.borrow();
+        let placed = placed.as_ref()?;
+        let shift = laid.rect.min - placed.rect.min + placed.origin.to_vec2();
+        let space = self.rects.transform(laid.space);
+        Some(TextGeometry {
+            transform: SpaceTransform {
+                offset: space.offset + shift * space.scale,
+                scale: space.scale,
+            },
+            layout: Rc::clone(&placed.layout),
+            len: node.content.len(),
+        })
     }
 
     pub fn text_caret_rect(
@@ -1276,20 +1258,16 @@ impl Document {
         index: usize,
         width: f32,
     ) -> Option<Rect> {
-        self.text_geometry(text).caret_rect(index, width)
+        self.text_geometry(text)?.caret_rect(index, width)
     }
 
     pub fn text_index_at(&self, text: NodeOf<TextNode>, pos: Pos2) -> Option<usize> {
-        let index = self.text_geometry(text).index_at(pos)?;
+        let index = self.text_geometry(text)?.index_at(pos)?;
         Some(index.min(self.text(text).len()))
     }
 
-    pub fn text_inline_at(&self, text: NodeOf<TextNode>, pos: Pos2) -> Option<usize> {
-        self.text_geometry(text).inline_at(pos)
-    }
-
     pub fn text_layout(&self, text: NodeOf<TextNode>) -> Option<Rc<RichLayout>> {
-        Some(self.text_geometry(text).placement()?.1)
+        Some(Rc::clone(self.text_geometry(text)?.layout()))
     }
 
     pub fn create_text_item(&mut self) -> NodeOf<TextItemNode> {
@@ -1321,50 +1299,119 @@ impl Document {
 
 #[derive(Clone)]
 pub struct TextGeometry {
-    node: NodeId,
-    placed: Rc<RefCell<Option<Placed>>>,
-    rects: Rc<Rects>,
+    transform: SpaceTransform,
+    layout: Rc<RichLayout>,
+    len: usize,
+}
+
+impl PartialEq for TextGeometry {
+    fn eq(&self, other: &Self) -> bool {
+        self.transform == other.transform
+            && self.len == other.len
+            && Rc::ptr_eq(&self.layout, &other.layout)
+    }
+}
+
+impl std::fmt::Debug for TextGeometry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TextGeometry")
+            .field("bounds", &self.bounds())
+            .field("len", &self.len)
+            .finish()
+    }
 }
 
 impl TextGeometry {
-    fn placement(&self) -> Option<(SpaceTransform, Rc<RichLayout>)> {
-        let laid = self.rects.placed(&self.node)?;
-        let placed = self.placed.borrow();
-        let placed = placed.as_ref()?;
-        let shift = laid.rect.min - placed.rect.min + placed.origin.to_vec2();
-        let space = self.rects.transform(laid.space);
-        let transform = SpaceTransform {
-            offset: space.offset + shift * space.scale,
-            scale: space.scale,
-        };
-        Some((transform, Rc::clone(&placed.layout)))
-    }
-
-    pub fn rect(&self) -> Option<Rect> {
-        self.rects.get(&self.node)
+    pub fn bounds(&self) -> Rect {
+        self.transform
+            .rect(Rect::from_min_size(Pos2::ZERO, self.layout.size))
     }
 
     pub fn scale(&self) -> f32 {
-        self.rects.scale_of(&self.node)
-    }
-
-    pub fn bounds(&self) -> Option<Rect> {
-        let (transform, layout) = self.placement()?;
-        Some(transform.rect(Rect::from_min_size(Pos2::ZERO, layout.size)))
+        self.transform.scale
     }
 
     pub fn caret_rect(&self, index: usize, width: f32) -> Option<Rect> {
-        let (transform, layout) = self.placement()?;
-        Some(transform.rect(layout.caret_rect(index, width)))
+        Some(self.transform.rect(self.layout.caret_rect(index, width)))
     }
 
     pub fn index_at(&self, pos: Pos2) -> Option<usize> {
-        let (transform, layout) = self.placement()?;
-        Some(layout.index_at(transform.local_pos(pos)))
+        Some(self.layout.index_at(self.transform.local_pos(pos)))
     }
 
     pub fn inline_at(&self, pos: Pos2) -> Option<usize> {
-        let (transform, layout) = self.placement()?;
-        layout.inline_at(transform.local_pos(pos))
+        self.layout.inline_at(self.transform.local_pos(pos))
+    }
+
+    pub fn lines(&self) -> Vec<LineBox> {
+        self.layout
+            .lines
+            .iter()
+            .map(|line| LineBox {
+                bytes: line.range.clone(),
+                rect: self.transform.rect(Rect::from_min_size(
+                    pos2(line.left, line.top),
+                    vec2(line.width, line.height),
+                )),
+                baseline: self.transform.pos(pos2(0.0, line.top + line.baseline)).y,
+            })
+            .collect()
+    }
+
+    pub fn layout(&self) -> &Rc<RichLayout> {
+        &self.layout
     }
 }
+
+pub(crate) fn handle_under(doc: &Document, rects: &Rects, id: NodeId, pos: Pos2) -> bool {
+    let mut stack = vec![id];
+    while let Some(node) = stack.pop() {
+        if !doc.arena.contains(node) {
+            continue;
+        }
+        doc.arena
+            .get(node)
+            .for_each_child(&mut |child| stack.push(child));
+        let Some(text) = doc.arena.kind_of::<TextNode>(node) else {
+            continue;
+        };
+        let Some(visible) = rects.visible(&node) else {
+            continue;
+        };
+        let state = doc.arena.get_as::<TextNode>(text);
+        let handles = state
+            .carets
+            .iter()
+            .filter_map(|caret| Some((caret.at, caret.width, caret.handle?)))
+            .chain(
+                state
+                    .handles
+                    .iter()
+                    .map(|(at, handle, _)| (*at, 0.0, *handle)),
+            );
+        let Some(geometry) = doc.text_geometry(text) else {
+            continue;
+        };
+        let scale = geometry.scale();
+        for (at, width, handle) in handles {
+            let Some(caret) = geometry.caret_rect(at, width) else {
+                continue;
+            };
+            let shown = caret.max.y > visible.min.y
+                && caret.min.y < visible.max.y
+                && (visible.min.x - HANDLE_SLACK..=visible.max.x + HANDLE_SLACK)
+                    .contains(&caret.min.x);
+            if !shown || pos.y < caret.max.y {
+                continue;
+            }
+            let center = crate::rich::handle_center(caret, handle, scale);
+            if (pos.to_vec2() - center).length() <= HANDLE_HIT_RADIUS {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+const HANDLE_HIT_RADIUS: f32 = 24.0;
+const HANDLE_SLACK: f32 = 0.5;

@@ -1,0 +1,21 @@
+[package]
+name = "beui-demo-html"
+description = "beui's demo pages on beui's HTML core, in the browser"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+beui = { path = "../beui", default-features = false }
+beui-demo = { path = "../beui-demo" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasi-threads = { path = "../wasi-threads" }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+
+[lints]
+workspace = true

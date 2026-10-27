@@ -12,29 +12,30 @@ use crate::context_menu::menu_style;
 use crate::frame::ColorRole;
 use crate::scroll::scrollbar_style;
 use crate::text::{Text, TextColor, TextSize};
-use crate::theme::{Theme, use_theme};
+use crate::theme::{ThemeTokens, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     BlockGeometry, ChipGeometry, Completer, MarkerColumn, MarkerKind, Prose, QuoteBar,
     RemoteTextCursor, SyntaxColors, TableFill, TableLines, TextAreaColors, TextAreaGeometry,
     TextAreaLook, TextAreaState, TextLeaf, TextLine, TextMarker, TextWidget, WidgetGeometry,
 };
-use beui_core::base::{Align, Direction, ItemSize};
-use beui_core::color::Color32;
-use beui_core::file_picker::PickedFile;
-use beui_core::geometry::{Rect, Vec2};
-use beui_core::icons::ICON_COPY;
-use beui_core::node::NodeId;
 use beui_view::primitives::{self, Layers, Span};
+use beui_view::reactive::NodeId;
+use beui_view::types::Color;
+use beui_view::types::PickedFile;
+use beui_view::types::icons::ICON_COPY;
+use beui_view::types::{Align, Direction, ItemSize};
+use beui_view::types::{Rect, Vec2};
 
 use crate::list::List;
 use crate::tokens::{CornerSet, Padding, Size, Space, Stroke, resolved};
 use beui_view::reactive::*;
 use emoji::emoji_menu;
 
+use beui_view::types::{Align2, Sides, SpanBackground};
 use find::FindBar;
 
-pub fn text_area_colors(theme: &Theme) -> TextAreaColors {
+pub fn text_area_colors(theme: &ThemeTokens) -> TextAreaColors {
     TextAreaColors {
         gutter_border: theme.border,
         gutter_text: theme.text_muted,
@@ -122,7 +123,7 @@ pub fn TextArea(
     #[prop(default = true)] line_numbers: bool,
     #[prop(default = true)] find: bool,
     #[prop(default = false)] show_runs: Prop<bool>,
-    #[prop(default = Vec::new())] client_colors: Prop<Vec<(u64, Color32)>>,
+    #[prop(default = Vec::new())] client_colors: Prop<Vec<(u64, Color)>>,
     block: Option<RenderFn<usize>>,
     selected_widget: Option<RenderFn<usize>>,
     leaf: Option<RenderFn<TextLeaf, Span>>,

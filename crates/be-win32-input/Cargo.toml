@@ -7,7 +7,7 @@ license.workspace = true
 
 [dependencies]
 be-win32 = { path = "../be-win32" }
-beui-core = { path = "../beui-core" }
+beui-types = { path = "../beui-types" }
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.62.2", features = [

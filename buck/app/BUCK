@@ -17,12 +17,31 @@ export_file(
     visibility = ["PUBLIC"],
 )
 
-export_file(
-    name = "web-drive.mjs",
+# The browser's side of drive: web-drive.mjs for web-dev.sh, web-test.mjs for
+# web_drive_test (drive.bzl), and the command parsing they share.
+filegroup(
+    name = "drive-browser",
+    srcs = [
+        "drive-words.mjs",
+        "web-drive.mjs",
+        "web-test.mjs",
+    ],
     visibility = ["PUBLIC"],
 )
 
 export_file(
     name = "bundle.sh",
+    visibility = ["PUBLIC"],
+)
+
+# A web bundle served as it is, with Caddy: beui-web-demo's and
+# beui-html-spike's :web.
+export_file(
+    name = "serve-bundle.sh",
+    visibility = ["PUBLIC"],
+)
+
+export_file(
+    name = "bundle.Caddyfile",
     visibility = ["PUBLIC"],
 )

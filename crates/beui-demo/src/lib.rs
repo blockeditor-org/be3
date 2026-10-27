@@ -1,6 +1,7 @@
 use base_pages::{
     ControlFlowPage, FramesPage, InteractionPage, LayeringPage, ListsPage, PathsPage, TextNodesPage,
 };
+use beui::Align;
 use beui::KeyAt;
 use beui::Overflow;
 use beui::datetime::{Date, DateTime, HourCycle, Time};
@@ -29,8 +30,8 @@ use beui::unstyled::{
     SyntaxColors, narrower_than,
 };
 use beui::{
-    Color32, Context, Direction, Document, FontId, Image, ImageFit, ItemSize, Key, Modifiers,
-    NodeId, PreferenceLayer, PreferenceSource, Rect, ScrollGesture, TextAlign, unstyled,
+    Color32, Direction, FontId, Image, ImageFit, ItemSize, Key, Modifiers, NodeId, PreferenceLayer,
+    PreferenceSource, Rect, ScrollGesture, TextAlign, unstyled,
 };
 use beui_macros::{component, sample};
 use collaboration::CollaborationPage;
@@ -38,10 +39,11 @@ use rich_text::RichTextPage;
 use sample::{Sample, ScrollPage};
 use std::rc::Rc;
 use std::sync::Arc;
+use styled_pages::{AttachedCard, AttachedDialog};
 use styled_pages::{
-    AttachedCard, AttachedDialog, ButtonsPage, CanvasPage, ChoicesPage, ColorsPage, DockingPage,
-    EditorPage, InputsPage, LabelledSwitch, LayoutPage, MenusPage, OverlaysPage, PickersPage,
-    RowsPage, TextPage, ThemesPage, TreePage,
+    ButtonsPage, CanvasPage, ChoicesPage, ColorsPage, DockingPage, EditorPage, InputsPage,
+    LabelledSwitch, LayoutPage, MenusPage, OverlaysPage, PickersPage, RowsPage, TextPage,
+    ThemesPage, TreePage,
 };
 use text_editor_core::{
     EditorCommand, Highlighter, Language, MarkdownCommand, TextBuffer, TextLanguage,
@@ -73,7 +75,7 @@ const PAGE_SPACING: Space = Space::Xl3;
 const SECTION_SPACING: Space = Space::Lg;
 const ROW_SPACING: Space = Space::Lg;
 const CODE_PADDING: Space = Space::Lg;
-const DARK_BACKGROUND: u32 = 384;
+const STAND_IN: Color32 = Color32::from_rgb(255, 105, 180);
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 enum Page {
@@ -288,10 +290,6 @@ impl Page {
     }
 }
 
-pub struct DemoApp {
-    pub document: Document,
-}
-
 #[derive(Clone, Copy)]
 struct Today(Date);
 
@@ -323,29 +321,14 @@ impl DemoWindow {
     }
 }
 
-impl Default for DemoApp {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl DemoApp {
-    pub fn new() -> Self {
-        Self::on(Date::today())
-    }
-
-    pub fn on(today: Date) -> Self {
-        Self {
-            document: build(move || {
-                provide_context(Today(today));
-                let window = DemoWindow::provide();
-                view! {
-                    <Root title={window.title} clear_color={window.clear_color()}>
-                        <Demo />
-                    </Root>
-                }
-            }),
-        }
+#[component]
+pub fn DemoRoot(today: Date) -> Root {
+    provide_context(Today(today));
+    let window = DemoWindow::provide();
+    view! {
+        <Root title={window.title} clear_color={window.clear_color()}>
+            <Demo />
+        </Root>
     }
 }
 
@@ -363,21 +346,16 @@ pub fn Demo() -> NodeId {
 }
 
 #[cfg(test)]
-impl DemoApp {
-    fn alone(today: Date, page: Page) -> Self {
-        Self {
-            document: build(move || {
-                provide_context(Today(today));
-                let window = DemoWindow::provide();
-                view! {
-                    <Root title={window.title} clear_color={window.clear_color()}>
-                        <Container>|_|
-                            <LonePage page />
-                        </Container>
-                    </Root>
-                }
-            }),
-        }
+#[component]
+fn LoneRoot(today: Date, page: Page) -> Root {
+    provide_context(Today(today));
+    let window = DemoWindow::provide();
+    view! {
+        <Root title={window.title} clear_color={window.clear_color()}>
+            <Container>|_|
+                <LonePage page />
+            </Container>
+        </Root>
     }
 }
 
@@ -386,12 +364,6 @@ impl DemoApp {
 fn LonePage(page: Page) -> NodeId {
     view! {
         <PageView page />
-    }
-}
-
-impl beui::App for DemoApp {
-    fn update(&mut self, context: &Context, rect: Rect) {
-        self.document.show(context, rect);
     }
 }
 
@@ -797,9 +769,9 @@ fn PageView(page: Page) -> NodeId {
 
 #[component]
 fn DemoToolbar(pages: Pages) -> NodeId {
-    let layers = with_document(|document| document.watch_preference_layers());
+    let app_layer = use_preference_layer(PreferenceSource::App);
     let selected_theme = create_memo(move || {
-        let theme = layers.get().layer(PreferenceSource::App).theme;
+        let theme = app_layer.get().theme;
         Some(
             theme
                 .and_then(|theme| ThemeKind::ALL.iter().position(|kind| *kind == theme))
@@ -808,6 +780,7 @@ fn DemoToolbar(pages: Pages) -> NodeId {
     });
     let narrow = narrower_than(NARROW_WIDTH);
     let wide = create_memo(move || !narrow.get());
+    let inspector_missing = create_signal(false);
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=TOOLBAR_SPACING>
             <Text style=TextStyle::TITLE>"beui"</Text>
@@ -827,12 +800,7 @@ fn DemoToolbar(pages: Pages) -> NodeId {
                     let theme = index
                         .and_then(|index| index.checked_sub(1))
                         .and_then(|index| ThemeKind::ALL.get(index).copied());
-                    with_document(|document| {
-                        if let Some(context) = document.context() {
-                            let app = context.preference_layer(PreferenceSource::App);
-                            context.set_preference_layer(PreferenceSource::App, PreferenceLayer { theme, ..app });
-                        }
-                    });
+                    app_layer.set(PreferenceLayer { theme, ..app_layer.get_untracked() });
                 })}
             />
             <Button
@@ -841,13 +809,43 @@ fn DemoToolbar(pages: Pages) -> NodeId {
                 glyph=ICON_BUG
                 label="Open the inspector"
                 variant=ButtonVariant::Ghost
-                on_click={|| with_document(Document::open_inspector)}
+                on_click={move || {
+                    if !beui::open_inspector() {
+                        inspector_missing.set(true);
+                    }
+                }}
             />
             <Button
                 label="Reset layout"
                 variant=ButtonVariant::Secondary
                 on_click={move || pages.reset()}
             />
+            <Show condition={inspector_missing}>
+                <Dialog
+                    open=true
+                    title="Inspector"
+                    id="demo.inspector.missing"
+                    on_dismiss={move || inspector_missing.set(false)}
+                >
+                    <InspectorStandIn />
+                </Dialog>
+            </Show>
+        </List>
+    }
+}
+
+#[component]
+fn InspectorStandIn() -> NodeId {
+    view! {
+        <List spacing=SECTION_SPACING>
+            <Frame
+                @test_id="demo.inspector.stand_in"
+                fill={ColorRole::Custom(STAND_IN.into())}
+                height=Size::Custom(120.0)
+            />
+            <Text style=TextStyle::CAPTION>
+                "The inspector reads beui's native document, which this core does not have: the browser's developer tools show this page's elements instead."
+            </Text>
         </List>
     }
 }

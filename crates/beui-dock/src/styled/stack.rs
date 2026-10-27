@@ -1,6 +1,6 @@
 use beui_components_styled::frame::{Border, ColorRole, Frame, Radius, focus_border};
-use beui_core::font::Overflow;
 use beui_macros::{component, view};
+use beui_view::types::Overflow;
 
 use crate::styled::{BarRoom, DockMenu};
 use crate::unstyled::{DockStackHandle, DockSwitcherCardHandle, DockSwitcherHandle, TabId};
@@ -17,11 +17,14 @@ use beui_components_styled::tokens::{Padding, Size, Space, Stroke};
 use beui_components_styled::{Grid, List};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::title_action;
-use beui_core::base::frame::Align2;
-use beui_core::base::{Align, Direction, ItemSize, TextAlign};
-use beui_core::icons::{Glyph, ICON_ARROW_LEFT, ICON_CHEVRON_DOWN, ICON_ELLIPSIS_VERTICAL, ICON_X};
-use beui_core::node::NodeId;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::Align2;
+use beui_view::types::Track;
+use beui_view::types::icons::{
+    Glyph, ICON_ARROW_LEFT, ICON_CHEVRON_DOWN, ICON_ELLIPSIS_VERTICAL, ICON_X,
+};
+use beui_view::types::{Align, Direction, ItemSize, TextAlign};
 
 const BAR_PADDING: Space = Space::Xs;
 const BAR_SPACING: Space = Space::Xs2;

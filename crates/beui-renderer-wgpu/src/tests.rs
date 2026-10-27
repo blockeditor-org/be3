@@ -1,4 +1,6 @@
 use super::*;
+#[allow(unused_imports)]
+use beui_view::native_api::{build, draw_gpu};
 
 mod a_blur_repaints_the_light_it_spreads_outside_the_damaged_region;
 mod a_blur_thinner_than_a_pixel_spreads_less_light_than_a_whole_one;

@@ -1,15 +1,17 @@
 use block_editor_beui::beui::icons::Glyph;
+use block_editor_beui::beui::native::{core_painter, wrap_painter};
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
 use block_editor_beui::be_block::BlockContent;
-use block_editor_beui::beui::painting::{Punches, painting, rasterize};
+use block_editor_beui::beui::native::painting::{Punches, painting, rasterize};
+use block_editor_beui::beui::native::rich::{RichLayout, SpanKind, SpanStyle};
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::beui::rich::{RichLayout, SpanKind, SpanStyle};
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{
-    Color32, Context, FontFamily, FontId, FreetypeFonts, Galley, Image, LineCap, LineJoin, NodeId,
-    Painter, Path, PathElement, Pos2, Rect, Stroke, TextAlign, Vec2, line_height, pos2,
+    Color32, FontFamily, FontId, Image, LineCap, LineJoin, NodeId, Path, PathElement, Pos2, Rect,
+    Stroke, TextAlign, TextLayout, Vec2, native::Context, native::FreetypeFonts,
+    native::line_height, pos2, reactive::Painter,
 };
 use block_editor_beui::{FileSave, SavedFile};
 use infinite_canvas_types::{CanvasEntity, CanvasPoint, CanvasShape, CanvasTextWeight};
@@ -23,6 +25,7 @@ use super::state::CanvasState;
 use super::text::{
     font_px, prose, rich_state, text_box, text_region, text_style, text_turn, writes,
 };
+use beui::{Align, Direction, ItemSize};
 use image_block_types::ImageContent;
 
 pub(crate) const PADDING: f32 = 16.0;
@@ -368,7 +371,7 @@ pub(crate) fn png(
     context.set_pixels_per_point(scale);
     let output = context.run(|context| {
         let whole = Rect::from_min_size(Pos2::ZERO, size);
-        let painter = context.painter();
+        let painter = wrap_painter(&context.painter());
         let painter = match scene.clipped {
             true => painter.with_clip_rect(whole),
             false => painter,
@@ -473,9 +476,9 @@ fn paint_written(painter: &Painter, entity: &CanvasEntity, ink: Color32, camera:
         for rect in missing {
             painter.rect_filled(rect, 0.0, MISSING);
         }
-        layout.paint_runs(painter, origin, |run| {
+        layout.paint_runs(core_painter(painter), origin, |run| {
             (
-                run.style.color,
+                run.style.color.resolve(|_| None),
                 run.style.underline,
                 run.style.strikethrough,
             )
@@ -511,8 +514,8 @@ fn written(painter: &Painter, entity: &CanvasEntity, ink: Color32, camera: Camer
         ))
         .shrink(TEXT_INSET * camera.scale);
     let colors = TextAreaColors {
-        syntax: SyntaxColors::uniform(ink),
-        ..text_area_colors(&Theme::DARK)
+        syntax: SyntaxColors::uniform(ink.into()),
+        ..text_area_colors(&ThemeTokens::literal(&Theme::DARK))
     };
     let square = line_height(px);
     let Some(lines) = rich_state(entity).lay_out_prose(
@@ -523,7 +526,7 @@ fn written(painter: &Painter, entity: &CanvasEntity, ink: Color32, camera: Camer
         &colors,
         text_area_geometry(),
         square,
-        |pieces, options| Some(painter.rich_layout(pieces, options)),
+        |pieces, options| Some(core_painter(painter).rich_layout(pieces, options)),
     ) else {
         return Vec::new();
     };
@@ -589,7 +592,7 @@ pub(crate) fn svg(scene: &Scene, options: ExportOptions, images: &Images) -> Str
     }
     let context = Context::new(FreetypeFonts::new(block_editor_beui::fonts::fonts()));
     context.run(|context| {
-        let painter = context.painter();
+        let painter = wrap_painter(&context.painter());
         for entity in &scene.entities {
             svg_entity(&mut out, &painter, scene, entity, images);
         }
@@ -652,13 +655,17 @@ fn svg_entity(
                     .and_then(|block| scene.embeds.get(&block))
                     .map(|embed| embed.title.clone())
                     .unwrap_or_default();
-                let galley = painter.layout(title, FontId::proportional(18.0), rect.width());
-                let size = galley.size();
+                let title = painter.lay_out_text(
+                    &title,
+                    FontId::proportional(18.0),
+                    TextLayout::wrapped(rect.width()),
+                );
+                let size = title.size();
                 let at = pos2(
                     rect.center().x - size.x / 2.0,
                     rect.center().y - size.y / 2.0,
                 );
-                svg_text(out, at, &galley, ink, &turn);
+                svg_text(out, at, &title, ink, &turn);
             }
         }
         return;
@@ -780,8 +787,8 @@ fn span_attributes(style: SpanStyle, body: FontId, ink: Color32) -> String {
     if !decorations.is_empty() {
         attributes.push_str(&format!(" text-decoration=\"{}\"", decorations.join(" ")));
     }
-    if style.color != ink {
-        attributes.push_str(&paint("fill", style.color));
+    if style.color != ink.into() {
+        attributes.push_str(&paint("fill", style.color.resolve(|_| None)));
     }
     attributes
 }
@@ -809,28 +816,27 @@ fn turn_by(entity: &CanvasEntity, rotation: f32) -> String {
     }
 }
 
-fn svg_text(out: &mut String, at: Pos2, galley: &Galley, color: Color32, turn: &str) {
-    let text = galley.text();
-    let font = galley.font();
+fn svg_text(out: &mut String, at: Pos2, block: &TextBlock, color: Color32, turn: &str) {
+    let text = block.text();
+    let font = block.font();
     out.push_str(&format!(
         "<text font-family=\"sans-serif\" font-size=\"{}\"{}{}{turn}>",
         number(font.size),
         weight_of(font.bold),
         paint("fill", color)
     ));
-    for line in galley.lines() {
+    for line in block.lines() {
         let shown = text
-            .get(line.range.clone())
+            .get(line.bytes.clone())
             .unwrap_or_default()
             .trim_end_matches(['\n', '\r']);
         if shown.is_empty() {
             continue;
         }
-        let x = line.cursors.first().map_or(0.0, |cursor| cursor.1);
         out.push_str(&format!(
             "<tspan x=\"{}\" y=\"{}\">{}</tspan>",
-            number(at.x + x),
-            number(at.y + line.top + galley.baseline()),
+            number(at.x + line.rect.min.x),
+            number(at.y + line.baseline),
             escape(shown)
         ));
     }

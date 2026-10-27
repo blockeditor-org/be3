@@ -10,7 +10,7 @@ fn a_driver_lists_components_and_their_internals() {
             </styled::Frame>
         }
     });
-    let mut driven = stepped(crate::testing::Showing(document));
+    let mut driven = stepped(crate::native::testing::Showing(document));
     let public = driven
         .ask(&["comps"])
         .expect("the component tree is answered through a frame");

@@ -15,10 +15,8 @@ fn each_tile_is_drawn_turned_from_the_rotation_shown_now() {
         settings.run();
         let document = settings.editor.document();
         for rotation in Rotation::ALL {
-            let node = document
-                .find_test_id(&tile(rotation))
-                .expect("every rotation has a tile");
-            let turns = turns_within(&document, node).expect("each tile turns its screen");
+            let turns =
+                turns_within(&document, &tile(rotation)).expect("each tile turns its screen");
             let on_the_panel = (current.degrees() / 90 + u32::from(turns)) % 4;
             assert_eq!(
                 on_the_panel,

@@ -1,5 +1,6 @@
 use std::time::{Duration, Instant};
 
+use beui::{Align, Align2, Direction, Sides};
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -128,22 +129,21 @@ fn OsdCard(
         <Frame
             padding={create_memo(move || Padding::custom(Sides::all(MARGIN).bottom(below.get())))}
         >
-            <Fade opacity={opacity}>
-                <Frame
-                    fill=ColorRole::SurfaceRaised
-                    border={Border::DEFAULT}
-                    radius=Radius::Lg
-                    padding={Padding::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
-                    @test_id={id}
-                >
-                    <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                        <Text size=TextSize::Xl color={glyph_ink} align=TextAlign::Center>
-                            <Icon glyph={glyph} />
-                        </Text>
-                        <Progress value label width=BAR_WIDTH fill />
-                    </List>
-                </Frame>
-            </Fade>
+            <Frame
+                opacity={opacity}
+                fill=ColorRole::SurfaceRaised
+                border={Border::DEFAULT}
+                radius=Radius::Lg
+                padding={Padding::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
+                @test_id={id}
+            >
+                <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                    <Text size=TextSize::Xl color={glyph_ink} align=TextAlign::Center>
+                        <Icon glyph={glyph} />
+                    </Text>
+                    <Progress value label width=BAR_WIDTH fill />
+                </List>
+            </Frame>
         </Frame>
     }
 }

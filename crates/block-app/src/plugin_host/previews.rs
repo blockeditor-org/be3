@@ -4,7 +4,7 @@ use std::{
     rc::Rc,
 };
 
-use beui::painting::Painting;
+use beui::native::painting::Painting;
 use block_plugin_api::{EditorInstanceId, PreviewImage, ScreenId};
 
 use super::backend::Picture;

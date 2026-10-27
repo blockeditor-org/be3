@@ -13,6 +13,7 @@ pub(crate) mod canvas;
 pub(crate) mod panels;
 pub(crate) mod state;
 
+use beui::{Direction, ItemSize};
 use canvas::Artwork;
 use panels::{PropertiesPanel, ToolsPanel};
 use state::RayState;

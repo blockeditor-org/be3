@@ -4,7 +4,7 @@ load("@root//buck/platforms:profile.bzl", "released")
 load("@root//buck/wasm:defs.bzl", "wasi_app_flags", "wasi_app_module")
 
 # The paintings a pull request changed (crates/paint-review) in a browser,
-# drawn with DOM elements or with wgpu like beui's web demo. The page lives at
+# drawn with wgpu like beui's web demo. The page lives at
 # ROOT/site/HASH/index.html and reads ROOT/CHANGES.json, where CHANGES is its
 # `changes` query parameter, and each image as ROOT/IMAGE.png.
 # `./scripts/buck run //crates/paint-review-web:web` serves the bundle with
@@ -25,7 +25,6 @@ app(
     bindgen = [":web-module"],
     files = [
         "//crates/local-tools:paint-review-index",
-        "//crates/beui-font-freetype:icons.ttf",
         "//crates/block-app:wasi.js",
         "//crates/block-app:threads.js",
         "//crates/block-app:thread.js",

@@ -1,5 +1,4 @@
 use super::*;
-use crate::primitives::*;
 use crate::reactive::*;
 
 #[test]

@@ -3,9 +3,9 @@ use std::ops::Range;
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{
-    Color32, CursorIcon, FontId, Key, KeyPress, NodeId, Page, PageShape, PointerPress, Pos2, Rect,
-    TextLayout, Vec2,
+    Color32, CursorIcon, FontId, Key, KeyPress, NodeId, PointerPress, Pos2, Rect, TextLayout, Vec2,
 };
+use std::rc::Rc;
 use text_editor_core::{CursorLeftRightStop, EditorCommand, LRDirection};
 
 use crate::app::state::State;
@@ -281,13 +281,12 @@ fn page(state: State, theme: &Theme, geometry: &HexGeometry, size: Vec2) -> Page
     let font = FontId::monospace(TEXT_SIZE);
     let mut shapes = vec![PageShape::Rect {
         rect: Rect::from_min_size(Pos2::ZERO, size),
-        corner_radius: 0.0,
         color: theme.background,
     }];
     let push_text = |origin: Pos2, string: &str, color: Color32| {
-        layout_text(string, font, TextLayout::DEFAULT).map(|galley| PageShape::Text {
+        lay_out_text(string, font, TextLayout::DEFAULT).map(|block| PageShape::Text {
             origin,
-            galley,
+            block,
             color,
         })
     };
@@ -310,7 +309,6 @@ fn page(state: State, theme: &Theme, geometry: &HexGeometry, size: Vec2) -> Page
                         hex_pos,
                         Vec2::new(geometry.char_width * 2.0, ROW_HEIGHT),
                     ),
-                    corner_radius: 0.0,
                     color: theme.accent_soft,
                 });
                 shapes.push(PageShape::Rect {
@@ -318,7 +316,6 @@ fn page(state: State, theme: &Theme, geometry: &HexGeometry, size: Vec2) -> Page
                         ascii_pos,
                         Vec2::new(geometry.char_width, ROW_HEIGHT),
                     ),
-                    corner_radius: 0.0,
                     color: theme.accent_soft,
                 });
             }
@@ -344,77 +341,147 @@ fn page(state: State, theme: &Theme, geometry: &HexGeometry, size: Vec2) -> Page
                 ),
                 Vec2::new(2.0, ROW_HEIGHT),
             ),
-            corner_radius: 0.0,
             color: theme.accent,
         });
     }
     Page::new(shapes)
 }
 
+#[derive(Clone)]
+enum PageShape {
+    Rect {
+        rect: Rect,
+        color: Color32,
+    },
+    Text {
+        origin: Pos2,
+        block: TextBlock,
+        color: Color32,
+    },
+}
+
+impl PageShape {
+    fn bounds(&self) -> Rect {
+        match self {
+            Self::Rect { rect, .. } => *rect,
+            Self::Text { origin, block, .. } => Rect::from_min_size(*origin, block.size()),
+        }
+    }
+
+    fn paint(&self, painter: &Painter, offset: Vec2) {
+        match self {
+            Self::Rect { rect, color } => painter.rect_filled(rect.translate(offset), 0.0, *color),
+            Self::Text {
+                origin,
+                block,
+                color,
+            } => painter.draw_text(*origin + offset, block, *color),
+        }
+    }
+}
+
+#[derive(Clone)]
+struct Page(Rc<Vec<PageShape>>);
+
+impl Page {
+    fn new(shapes: Vec<PageShape>) -> Self {
+        Self(Rc::new(shapes))
+    }
+
+    fn draw(&self) -> Draw {
+        let page = self.clone();
+        Rc::new(move |painter: &Painter, rect: Rect| {
+            let offset = rect.min.to_vec2();
+            let clip = painter.clip_rect();
+            for shape in page.0.iter() {
+                if shape.bounds().translate(offset).intersects(clip) {
+                    shape.paint(painter, offset);
+                }
+            }
+        })
+    }
+}
+
+impl PartialEq for Page {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.0, &other.0)
+    }
+}
+
 #[component]
 pub(crate) fn HexView(state: State) -> NodeId {
-    view! {
-        <LayoutBuilder>|size: ReadSignal<Vec2>| {
-            let scale = pixels_per_point();
-            let theme = use_theme();
-            let geometry = create_memo(move || {
-                scale.get();
-                let char_width = layout_text("0", FontId::monospace(TEXT_SIZE), TextLayout::DEFAULT)
-                    .map_or(TEXT_SIZE * 0.6, |galley| galley.size().x)
-                    .max(1.0);
-                HexGeometry::new(char_width)
-            });
-            let content = state.text.content();
-            let rows = create_memo(move || {
-                content.get();
-                state.text.bytes().len().div_ceil(BYTES_PER_ROW).max(1)
-            });
-            let content_size = create_memo(move || {
-                let available = size.get();
-                Vec2::new(
-                    (geometry.get().total_width + PADDING.x * 2.0).max(available.x),
-                    (rows.get() as f32 * ROW_HEIGHT + PADDING.y * 2.0).max(available.y),
-                )
-            });
-            let width = create_memo(move || Size::Custom(content_size.get().x));
-            let height = create_memo(move || Size::Custom(content_size.get().y));
-            let drawn = create_memo(move || {
-                content.get();
-                state.text.cursors().get();
-                page(state, &theme.get(), &geometry.get(), content_size.get())
-            });
-            let draw: Prop<Draw> = Prop::dynamic(move || drawn.get().draw());
+    let size_held = create_signal(Vec2::ZERO);
+    let size = size_held.read_only();
+    let scale = pixels_per_point();
+    let theme = use_theme();
+    let geometry = create_memo(move || {
+        scale.get();
+        let char_width = lay_out_text("0", FontId::monospace(TEXT_SIZE), TextLayout::DEFAULT)
+            .map_or(TEXT_SIZE * 0.6, |block| block.size().x)
+            .max(1.0);
+        HexGeometry::new(char_width)
+    });
+    let content = state.text.content();
+    let rows = create_memo(move || {
+        content.get();
+        state.text.bytes().len().div_ceil(BYTES_PER_ROW).max(1)
+    });
+    let content_size = create_memo(move || {
+        let available = size.get();
+        Vec2::new(
+            (geometry.get().total_width + PADDING.x * 2.0).max(available.x),
+            (rows.get() as f32 * ROW_HEIGHT + PADDING.y * 2.0).max(available.y),
+        )
+    });
+    let width = create_memo(move || Size::Custom(content_size.get().x));
+    let height = create_memo(move || Size::Custom(content_size.get().y));
+    let drawn = create_memo(move || {
+        content.get();
+        state.text.cursors().get();
+        page(
+            state,
+            &theme.get().resolve(),
+            &geometry.get(),
+            content_size.get(),
+        )
+    });
+    let draw: Prop<Draw> = Prop::dynamic(move || drawn.get().draw());
 
-            let cx = HexSurface {
-                state,
-                geometry,
-                rows,
-            };
-            view! {
-                <Frame fill=ColorRole::Surface>
-                    <Scroll>
-                        <Interactive
-                            focusable=true
-                            on_key={move |press: KeyPress| key(state, press)}
-                            on_text={move |typed: String| type_text(state, &typed)}
-                            cursor=CursorIcon::Text
-                            on_press={move |event: PointerPress| hex_press(cx, event)}
-                            on_drag={move |event: PointerPress| hex_drag(cx, event)}
-                            on_active_change={move |active: bool| {
-                                if !active {
-                                    state.inner().hex_selection_anchor.set(None);
-                                }
-                            }}
-                        >
-                            <Frame width=width height=height>
-                                <Drawing draw={draw} />
-                            </Frame>
-                        </Interactive>
-                    </Scroll>
-                </Frame>
-            }
-        }</LayoutBuilder>
-    }
+    let cx = HexSurface {
+        state,
+        geometry,
+        rows,
+    };
+    let built = view! {
+        <Frame fill=ColorRole::Surface>
+            <Scroll>
+                <Interactive
+                    focusable=true
+                    on_key={move |press: KeyPress| key(state, press)}
+                    on_text={move |typed: String| type_text(state, &typed)}
+                    cursor=CursorIcon::Text
+                    on_press={move |event: PointerPress| hex_press(cx, event)}
+                    on_drag={move |event: PointerPress| hex_drag(cx, event)}
+                    on_active_change={move |active: bool| {
+                        if !active {
+                            state.inner().hex_selection_anchor.set(None);
+                        }
+                    }}
+                >
+                    <Frame width=width height=height>
+                        <Drawing draw={draw} />
+                    </Frame>
+                </Interactive>
+            </Scroll>
+        </Frame>
+    };
+    let size_measured = measure(built);
+    create_effect(move || {
+        if let Some(measured) = size_measured.get() {
+            size_held.set(measured.size);
+        }
+    });
+    built
 }
 
 #[derive(Clone, Copy)]

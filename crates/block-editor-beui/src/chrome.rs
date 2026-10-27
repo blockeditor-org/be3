@@ -2,6 +2,7 @@ use beui::icons::ICON_SLIDERS_HORIZONTAL;
 use beui::reactive::*;
 pub use beui::styled::theme::NARROW_WIDTH;
 use beui::styled::*;
+use beui::{Align, Direction, ItemSize};
 use beui::{NodeId, Vec2};
 
 pub const SIDEBAR_WIDTH: Size = Size::Custom(260.0);

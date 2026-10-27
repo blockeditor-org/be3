@@ -19,9 +19,11 @@ fn escape_back_and_a_press_outside_all_reach_a_layers_back_handler() {
                     open=true
                     on_dismiss={move |reason: Dismiss| dismissed.update(|dismissed| dismissed.push(reason))}
                 >
-                    <BackHandler on_back={move || backs.update(|backs| *backs += 1)}>
+                    <BackTo
+                        on_gesture={move |gesture: BackGesture| if gesture == BackGesture::Invoked { backs.update(|backs| *backs += 1) }}
+                    >
                         <Frame width=40.0 height=30.0 />
-                    </BackHandler>
+                    </BackTo>
                 </Overlay>
             </Frame>
         }

@@ -1,7 +1,9 @@
 use workspace_ui_types::{EditorView, EditorViewContent, ViewState};
 use workspace_ui_types::{FolderContent, WorkspaceContent};
 
-use block_editor_beui::beui::{Document, NodeId, Rect, ScrollDelta, Vec2};
+use block_editor_beui::beui::{NodeId, Rect, ScrollDelta, Vec2};
+
+use block_editor_beui::beui::native::Document;
 use block_editor_beui::{
     BlockParent, ChildContent, EditorHost, OwnedEditor, WindowAction, WindowsWatch,
 };

@@ -3,7 +3,7 @@ use std::rc::Rc;
 use block_editor_beui::beui::icons::ICON_GRID_3X3;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::{Color32, Painter, Pos2, Rect, Vec2, pos2};
+use block_editor_beui::beui::{Color32, Pos2, Rect, Vec2, pos2, reactive::Painter};
 use infinite_canvas_types::{CanvasGrid, CanvasGridSpacing};
 
 use super::paint::with_opacity;

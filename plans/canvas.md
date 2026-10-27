@@ -117,7 +117,7 @@ can change freely until step 8.
 ## 1. Foundations in beui
 
 - **A path shape.** Fill and stroke, curves, joins, caps and dashes, in
-  `beui-renderer-wgpu` and `beui-renderer-dom`, with a painting in beui-demo.
+  `beui-renderer-wgpu`, with a painting in beui-demo.
 - **Camera transforms in the renderer.** The `Canvas` node places and scales
   its items by a transform, so a pan or zoom changes only that transform, and
   an entity repaints only when it changes.

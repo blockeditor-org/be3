@@ -1,5 +1,5 @@
 use super::*;
-use crate::primitives::{Window, WindowHandle};
+use crate::{Window, WindowHandle};
 use crate::{WindowId, WindowReport};
 use beui_core::app::SafeArea;
 use beui_core::renderer::{Loaded, Renderer};
@@ -8,10 +8,6 @@ use beui_core::runner::{Launch, RunOptions, Runner};
 struct Screen;
 
 impl Renderer for Screen {
-    fn name(&self) -> &'static str {
-        "screen"
-    }
-
     fn info(&self) -> RendererInfo {
         RendererInfo::default()
     }
@@ -24,7 +20,7 @@ impl Renderer for Screen {
 
     fn prepare(
         &mut self,
-        _output: &crate::WindowOutput,
+        _output: &crate::native::WindowOutput,
         _scale: f32,
         _background: Color32,
     ) -> bool {
@@ -63,15 +59,15 @@ fn the_space_host_opens_an_apps_window_as_a_panel_at_the_pointer_and_clicks_reac
     let mut runner = Runner::new(Launch {
         options: RunOptions::default(),
         context: context.clone(),
-        app: Box::new(crate::testing::Showing(document)),
+        app: Box::new(crate::native::testing::Showing(document)),
         layers: vec![Box::new(beui_layer_space::Space::new())],
     });
     runner
         .start(
-            vec![Loaded {
+            Loaded {
                 renderer: Box::new(Screen),
                 fonts: None,
-            }],
+            },
             Setup::new(Waker::new(|| {})),
         )
         .expect("the renderer loads");

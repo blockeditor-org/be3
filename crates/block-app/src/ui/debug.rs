@@ -5,6 +5,7 @@ use beui::styled::*;
 use block_plugin_api::HostPanel;
 
 use super::{UiCommand, send};
+use beui::{Align, Direction, ItemSize};
 
 #[derive(Clone, Debug)]
 pub(crate) enum DebugCommand {

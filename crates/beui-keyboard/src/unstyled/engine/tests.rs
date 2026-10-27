@@ -1,6 +1,6 @@
 use super::*;
-use beui_core::geometry::vec2;
-use beui_core::input::{Keystroke, TouchId};
+use beui_view::types::input::{Keystroke, TouchId};
+use beui_view::types::vec2;
 
 mod a_circle_on_a_letter_types_it_capital;
 mod a_held_key_repeats_until_it_is_let_go;

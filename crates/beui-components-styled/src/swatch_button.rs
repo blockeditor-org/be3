@@ -1,8 +1,8 @@
 use beui_components_unstyled as unstyled;
-use beui_core::color::Color32;
-use beui_core::node::NodeId;
 use beui_macros::{component, view};
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::Color32;
 
 use crate::frame::{Border, ColorRole, Frame, Radius};
 use crate::tokens::{Size, Space, Stroke};
@@ -46,7 +46,7 @@ fn SwatchButtonFace(
         (selected.get() || keyboard.get() || hovered.get())
             .then(|| Border::new(color).width(Stroke::Focus))
     });
-    let fill = color.map(ColorRole::Custom);
+    let fill = color.map(|color| ColorRole::Custom(color.into()));
     view! {
         <Tooltip label={tooltip}>
             <Frame padding=Space::Xs radius border={ring}>

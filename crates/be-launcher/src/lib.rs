@@ -27,9 +27,11 @@ use beui::styled::*;
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, channel};
 
+use beui::native::Document;
 use beui::reactive::*;
-use beui::{App, Context, Document, Rect, Setup};
+use beui::{Rect, native::App, native::Context, native::Setup};
 
+use beui::native::build;
 use model::Model;
 use pane::{Pane, Session};
 use runs::Runs;
@@ -38,7 +40,7 @@ use view::Launcher;
 
 #[cfg(not(target_os = "android"))]
 pub fn run() -> Result<(), Box<dyn Error>> {
-    beui::run(LauncherApp::new(runs::cache_directory())?)
+    beui::native::run(LauncherApp::new(runs::cache_directory())?)
 }
 
 struct LauncherApp {

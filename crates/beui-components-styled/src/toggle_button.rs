@@ -1,18 +1,19 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
 use accesskit::Role;
-use beui_core::icons::Glyph;
 use beui_macros::{component, view};
+use beui_view::types::icons::Glyph;
 
 use crate::focus_ring::FocusRing;
 use crate::text::{Icon, Text, TextColor};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled::{Toggle, ToggleHandle};
-use beui_core::font::{Overflow, TextAlign};
-use beui_core::node::NodeId;
+use beui_view::reactive::NodeId;
+use beui_view::types::{Overflow, TextAlign};
 
 use crate::list::List;
 use crate::tokens::{Padding, Space, Stroke};
 use beui_view::reactive::*;
+use beui_view::types::{Align, Direction};
 
 #[component]
 pub fn ToggleButton(

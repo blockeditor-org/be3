@@ -54,13 +54,13 @@ fn the_scrollbar_thumb_brightens_under_the_pointer_and_while_it_is_dragged() {
     assert_eq!(painted(&output, theme.scroll_thumb_active), 1);
 }
 
-fn painted(output: &crate::FrameOutput, color: Color32) -> usize {
+fn painted(output: &crate::native::FrameOutput, color: Color32) -> usize {
     output
         .main()
         .shapes()
         .iter()
         .filter(
-            |shape| matches!(shape, crate::Shape::Rect { color: painted, .. } if *painted == color),
+            |shape| matches!(shape, crate::native::Shape::Rect { color: painted, .. } if *painted == color),
         )
         .count()
 }

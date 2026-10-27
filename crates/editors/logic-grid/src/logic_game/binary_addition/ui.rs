@@ -6,6 +6,7 @@ use block_editor_beui::beui::{NodeId, TextAlign};
 use logic_grid_types::QuizRow;
 
 use super::{BinaryAdditionQuiz, next_answer};
+use beui::{Align, Direction, ItemSize};
 
 type Answers = (Vec<Option<bool>>, Vec<Option<bool>>);
 
@@ -177,7 +178,7 @@ fn ProblemGrid(
             />
             <OperandRows operands={operands} />
             <List direction=Direction::Horizontal align=Align::Center spacing=CELL_SPACING>
-                <Spacer @sizing=ItemSize::Fixed(LABEL_WIDTH.px()) />
+                <Frame width=LABEL_WIDTH />
                 <Separator @sizing=ItemSize::Percent(100.0) />
             </List>
             <BitRow

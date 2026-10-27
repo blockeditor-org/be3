@@ -1,72 +1,31 @@
 use std::error::Error;
 
 use beui_core::app::App;
-use beui_core::renderer::{Loaded, any_loaded};
+use beui_core::renderer::Loaded;
 use beui_core::runner::{Launch, Layer, Platform, RunOptions};
 use beui_platform_web::Web;
 
-pub enum WebRenderer {
-    #[cfg(feature = "web")]
-    Wgpu,
-    #[cfg(feature = "dom")]
-    Dom { icons_font: Option<String> },
-}
-
 pub async fn run_web(
     element_id: &str,
-    renderers: Vec<WebRenderer>,
     options: RunOptions,
     layers: Vec<Box<dyn Layer>>,
     app: impl App + 'static,
 ) -> Result<(), Box<dyn Error>> {
     let launch = Launch {
         options,
-        context: crate::context(),
+        context: crate::native::context(),
         app: Box::new(app),
         layers,
     };
-    web_platform(element_id, renderers).run(launch).await
+    web_platform(element_id).run(launch).await
 }
 
-pub fn web_platform(element_id: &str, renderers: Vec<WebRenderer>) -> Box<dyn Platform> {
+pub fn web_platform(element_id: &str) -> Box<dyn Platform> {
     Box::new(Web::new(element_id, async move |element| {
-        let mut results = Vec::new();
-        for renderer in renderers {
-            results.push(load(renderer, &element).await);
-        }
-        any_loaded(results, |error| {
-            web_sys::console::warn_1(&format!("beui: a renderer did not load: {error}").into());
-        })
+        load_wgpu(&element).await
     }))
 }
 
-async fn load(
-    renderer: WebRenderer,
-    element: &web_sys::HtmlElement,
-) -> Result<Loaded, Box<dyn Error>> {
-    match renderer {
-        #[cfg(feature = "web")]
-        WebRenderer::Wgpu => load_wgpu(element).await,
-        #[cfg(feature = "dom")]
-        WebRenderer::Dom { icons_font } => {
-            if element.tag_name().eq_ignore_ascii_case("canvas") {
-                return Err("the DOM renderer cannot draw inside a canvas".into());
-            }
-            beui_font_browser::watch(icons_font.as_deref(), beui_platform_web::request_frame)?;
-            Ok(Loaded {
-                renderer: Box::new(
-                    beui_renderer_dom::DomRenderer::new(beui_renderer_dom::WebDom::new(
-                        element.clone(),
-                    )?)
-                    .ok_or("the DOM renderer could not create its stage")?,
-                ),
-                fonts: Some(Box::new(beui_font_browser::BrowserFonts::default())),
-            })
-        }
-    }
-}
-
-#[cfg(feature = "web")]
 async fn load_wgpu(element: &web_sys::HtmlElement) -> Result<Loaded, Box<dyn Error>> {
     use wasm_bindgen::JsCast;
 

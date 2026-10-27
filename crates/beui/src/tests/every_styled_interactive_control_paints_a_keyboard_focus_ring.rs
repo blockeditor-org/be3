@@ -89,9 +89,9 @@ fn every_styled_interactive_control_paints_a_keyboard_focus_ring() {
         let mut harness = Harness::new(document);
         let initial = harness.frame(vec![]);
         let focused = harness.frame(vec![key_event(Key::Tab, true)]);
-        let rings = |output: &crate::FrameOutput| {
+        let rings = |output: &crate::native::FrameOutput| {
             output.main().shapes().iter().filter(|shape| matches!(shape,
-            crate::Shape::Rect { color, stroke_width, .. } if *color == styled::Theme::DARK.accent && *stroke_width == 2.0
+            crate::native::Shape::Rect { color, stroke_width, .. } if *color == styled::Theme::DARK.accent && *stroke_width == 2.0
         )).count()
         };
         assert!(

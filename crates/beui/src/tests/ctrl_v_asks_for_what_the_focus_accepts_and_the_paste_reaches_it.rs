@@ -1,7 +1,7 @@
 use super::*;
 use crate::primitives::*;
 use crate::reactive::*;
-use crate::{ForwardedInput, PasteKind, PasteRequest, Pasted, PickedFile};
+use crate::{ForwardedInput, PasteKind, Pasted, PickedFile, native::PasteRequest};
 
 #[test]
 fn ctrl_v_asks_for_what_the_focus_accepts_and_the_paste_reaches_it() {

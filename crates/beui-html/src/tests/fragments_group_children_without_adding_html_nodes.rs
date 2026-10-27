@@ -26,10 +26,10 @@ fn fragments_group_children_without_adding_html_nodes() {
     });
     assert_eq!(
         node.to_html(),
-        "<div>Before<span>One</span><span>Two</span>After</div>"
+        "<div>Before<!--[--><span>One</span><span>Two</span><!--]-->After</div>"
     );
     shown.set(false);
-    assert_eq!(node.to_html(), "<div>BeforeAfter</div>");
+    assert_eq!(node.to_html(), "<div>Before<!--[--><!--]-->After</div>");
     assert_eq!(
         render_fragment(|| view! {
             <>

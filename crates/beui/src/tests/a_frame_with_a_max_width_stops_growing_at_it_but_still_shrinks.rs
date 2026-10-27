@@ -31,7 +31,7 @@ fn painted_width(container: f32) -> f32 {
         .shapes()
         .iter()
         .find_map(|shape| match shape {
-            crate::Shape::Rect { rect, color, .. } if *color == FILL => Some(rect.width()),
+            crate::native::Shape::Rect { rect, color, .. } if *color == FILL => Some(rect.width()),
             _ => None,
         })
         .expect("the frame painted its fill")

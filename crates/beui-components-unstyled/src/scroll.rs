@@ -1,5 +1,5 @@
-use beui_core::layer::LayerPolicy;
-use std::cell::{Cell, RefCell};
+use beui_view::types::LayerPolicy;
+use std::cell::Cell;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
@@ -8,19 +8,24 @@ use beui_macros::{component, view};
 
 use super::fling::Fling;
 use super::rubber_band::{MINIMUM_VELOCITY, bounce, rubber_band};
-use beui_core::base::Sides;
-use beui_core::base::overlay::{OverlayAnchor, Placement};
-use beui_core::base::{Direction, ItemSize, Justify, ScrollPosition, Sizing};
-use beui_core::geometry::Pos2;
-use beui_core::input::{
-    AutoscrollGesture, DragGesture, Key, KeyPress, PointerPress, ScrollGesture,
-};
-use beui_core::interact::autoscroll::AUTOSCROLL_DEAD_ZONE;
-use beui_core::keys::{KeyAt, KeyPhase};
-use beui_core::node::NodeId;
+use super::watched::Watched;
+use crate::gestures::{self, AUTOSCROLL_DEAD_ZONE};
 use beui_view::components::overlay::Overlay;
 use beui_view::primitives::*;
+use beui_view::reactive::KeyAt;
+use beui_view::reactive::NodeId;
+use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
+use beui_view::types::Claim;
+use beui_view::types::KeyPhase;
+use beui_view::types::Outline;
+use beui_view::types::Placement;
+use beui_view::types::Pos2;
+use beui_view::types::Sides;
+use beui_view::types::{
+    AutoscrollGesture, CursorIcon, DragGesture, Key, KeyPress, PointerPress, ScrollGesture,
+};
+use beui_view::types::{Direction, ItemSize, Justify, ScrollPosition, Sizing};
 
 const STEP: f32 = 40.0;
 const AUTOSCROLL_GAIN: f32 = 6.0;
@@ -93,7 +98,7 @@ impl Reveal {
     }
 
     fn poke(&self) {
-        self.poked.set(beui_core::timer::now());
+        self.poked.set(beui_view::reactive::now());
         if let Some(animation) = self.animation.get() {
             animation.stop();
         }
@@ -108,7 +113,7 @@ impl Reveal {
             self.show();
             return None;
         }
-        let elapsed = beui_core::timer::now().duration_since(self.poked.get());
+        let elapsed = beui_view::reactive::now().duration_since(self.poked.get());
         if elapsed < SCROLLBAR_LINGER {
             self.show();
             return Some(SCROLLBAR_LINGER - elapsed);
@@ -256,7 +261,7 @@ struct Motion {
     node: Option<NodeId>,
     reported: ReadSignal<Option<ScrollPosition>>,
     direction: Prop<Direction>,
-    momentum: RefCell<Momentum>,
+    momentum: Watched<Momentum>,
     animation: Cell<Option<Animation>>,
     autoscrolling: Cell<Option<Timer>>,
     autoscrolled: Cell<Instant>,
@@ -297,10 +302,6 @@ impl Motion {
             node.drive_offset(position.clamped());
         }
         stray
-    }
-
-    fn coasting(&self) -> bool {
-        self.momentum.borrow().coasting()
     }
 
     fn stop_fling(&self) {
@@ -539,7 +540,7 @@ fn Scrolling(
         node: node.first_offset_within(),
         reported: reported.read_only(),
         direction,
-        momentum: RefCell::new(Momentum::new()),
+        momentum: Watched::new(Momentum::new(), Momentum::coasting),
         animation: Cell::default(),
         autoscrolling: Cell::default(),
         autoscrolled: Cell::new(now()),
@@ -582,7 +583,7 @@ fn Scrolling(
     let reveal = store(Reveal {
         held: create_memo(move || near.get() || engaged.get()),
         visibility: create_signal(0.0),
-        poked: Cell::new(beui_core::timer::now()),
+        poked: Cell::new(beui_view::reactive::now()),
         timer: Cell::default(),
         animation: Cell::default(),
     });
@@ -657,6 +658,36 @@ fn Scrolling(
             .press()
             .is_some_and(|press| navigates(press.key) && motion.value().key(press))
     });
+    let autoscroll = gestures::autoscroll(move |gesture: AutoscrollGesture| {
+        let marking = (!gesture.ended).then_some(gesture.origin);
+        if origin.get_untracked() != marking {
+            origin.set(marking);
+        }
+        motion.value().autoscroll(gesture);
+    });
+    let pointer = gestures::first_of([
+        autoscroll.pointer,
+        gestures::scroll_drag(axis, move |gesture: DragGesture| {
+            motion.value().drag(gesture)
+        }),
+    ]);
+    let wheel = gestures::first_of([
+        autoscroll.wheel,
+        gestures::scroll_wheel(axis, move |gesture: ScrollGesture| {
+            motion.value().wheel(gesture)
+        }),
+    ]);
+    let cursor = create_memo(move || {
+        autoscroll.active.get().then(|| match direction.get() {
+            Direction::Vertical => CursorIcon::ResizeVertical,
+            Direction::Horizontal => CursorIcon::ResizeHorizontal,
+        })
+    });
+    let coasting = motion.with(|motion| motion.momentum.flag());
+    let coasting = create_memo(move || match coasting.get() {
+        true => vec![Claim::always(true)],
+        false => Vec::new(),
+    });
     let outset = create_memo(move || -bleed.get());
     view! {
         <Frame padding={outset}>
@@ -667,11 +698,10 @@ fn Scrolling(
                     yields_tab_stop=true
                     on_focus_change={focused}
                     on_key={move |press: KeyPress| motion.value().key(press)}
-                    scroll_axis={axis}
+                    cursor={cursor}
+                    grabs_pointer={autoscroll.active}
                     @node_ref=&catcher
-                    claim_at={move |(pos, _): (Pos2, beui_core::input::Modifiers)| {
-                        motion.value().coasting() && under(&catcher, pos)
-                    }}
+                    claims={coasting}
                     on_press={move |_: PointerPress| motion.value().stop_fling()}
                     on_hover_move={move |press: PointerPress| {
                         let at_edge = bar_width > 0.0
@@ -686,15 +716,8 @@ fn Scrolling(
                             near.set(false);
                         }
                     }}
-                    on_scroll={move |gesture: ScrollGesture| motion.value().wheel(gesture)}
-                    on_scroll_drag={move |gesture: DragGesture| motion.value().drag(gesture)}
-                    on_autoscroll={move |gesture: AutoscrollGesture| {
-                        let marking = (!gesture.ended).then_some(gesture.origin);
-                        if origin.get_untracked() != marking {
-                            origin.set(marking);
-                        }
-                        motion.value().autoscroll(gesture);
-                    }}
+                    on_pointer={pointer}
+                    on_wheel={wheel}
                 >
                     <Frame outline={ring_when(focused, focus_ring)}>
                         <List direction={marker_axis} spacing=0.0>
@@ -757,7 +780,7 @@ pub fn Scroll(
             marker
             on_change={on_change}
         >|report: Callback<ScrollPosition>|
-            <Fade edges>
+            <Frame fade_edges={edges}>
                 <Offset
                     offset
                     direction={direction}
@@ -772,7 +795,7 @@ pub fn Scroll(
                         <List @node_ref=&rows direction={direction} spacing=0.0>{children}</List>
                     </Frame>
                 </Offset>
-            </Fade>
+            </Frame>
         </Scrolling>
     };
     create_effect(move || {
@@ -852,14 +875,6 @@ fn across(direction: &Prop<Direction>) -> Memo<Direction> {
     create_memo(move || match direction.get() {
         Direction::Horizontal => Direction::Vertical,
         Direction::Vertical => Direction::Horizontal,
-    })
-}
-
-pub(crate) fn under(node: &NodeRef, pos: Pos2) -> bool {
-    node.try_get().is_some_and(|node| {
-        placements()
-            .rect(node)
-            .is_some_and(|rect| rect.contains(pos))
     })
 }
 

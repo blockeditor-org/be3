@@ -1,14 +1,15 @@
-use beui_core::base::overlay::{OverlayAnchor, Placement};
-use beui_core::geometry::Pos2;
-use beui_core::icons::Glyph;
-use beui_core::input::Key;
-use beui_core::keys::KeyEvent;
-use beui_core::layer::{Dismiss, LayerPolicy};
-use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;
 use beui_view::primitives::*;
+use beui_view::reactive::KeyEvent;
+use beui_view::reactive::NodeId;
+use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
+use beui_view::types::Key;
+use beui_view::types::Placement;
+use beui_view::types::Pos2;
+use beui_view::types::icons::Glyph;
+use beui_view::types::{Dismiss, LayerPolicy};
 
 use super::{DockState, State, TabId};
 

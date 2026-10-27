@@ -1,5 +1,5 @@
 use super::*;
-use crate::primitives::{Window, WindowHandle};
+use crate::{Window, WindowHandle};
 
 #[test]
 fn a_window_shows_as_an_overlay_where_nothing_opens_windows() {

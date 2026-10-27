@@ -1,0 +1,19 @@
+# A time list opens scrolled to the morning, picks a clicked time, moves its
+# focus with the arrow keys and Home and End, and picks the focused time with
+# Enter.
+clock stop
+wait 'value="Chose nothing"'
+wait 'ListBoxOption "09:00"'
+click 'ListBoxOption "09:00"'
+wait 'value="Chose 09:00"'
+wait 'ListBoxOption "09:00" selected focused'
+key down
+wait 'ListBoxOption "09:30" focused'
+key enter
+wait 'value="Chose 09:30"'
+key end
+wait 'ListBoxOption "23:30" focused'
+key enter
+wait 'value="Chose 23:30"'
+key home
+wait 'ListBoxOption "00:00" focused'

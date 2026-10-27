@@ -22,7 +22,7 @@ fn the_simulated_cursor_stays_a_mouse_pointer_while_touch_is_emulated() {
     assert_eq!(output.main().window.requests.cursor, CursorIcon::Touch);
     let ring = output.main().shapes().iter().any(|shape| {
         matches!(shape, Shape::Rect { rect, stroke_width, .. }
-            if *stroke_width == crate::touch_cursor::STROKE
+            if *stroke_width == crate::native::touch_cursor::STROKE
                 && (rect.center() - cursor).length() < 0.01)
     });
     assert!(!ring, "the simulated cursor is the touch circle");

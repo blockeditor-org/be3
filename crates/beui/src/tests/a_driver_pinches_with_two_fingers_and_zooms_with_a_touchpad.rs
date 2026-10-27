@@ -8,16 +8,17 @@ fn a_driver_pinches_with_two_fingers_and_zooms_with_a_touchpad() {
     let _root = crate::reactive::RootScope::new();
     let zoom = create_signal(1.0_f32);
     let document = build_node(move || {
+        let zoomed =
+            crate::unstyled::gestures::pan_zoom(Callback::empty(), move |gesture: ZoomGesture| {
+                zoom.set(zoom.get_untracked() * gesture.factor)
+            });
         view! {
-            <Interactive
-                @test_id={"surface"}
-                on_zoom={move |gesture: ZoomGesture| zoom.set(zoom.get_untracked() * gesture.factor)}
-            >
+            <Interactive @test_id={"surface"} on_pointer={zoomed.pointer} on_wheel={zoomed.wheel}>
                 <Frame width=300.0 height=300.0 />
             </Interactive>
         }
     });
-    let mut driven = stepped(crate::testing::Showing(document));
+    let mut driven = stepped(crate::native::testing::Showing(document));
 
     driven
         .ask(&["pinch", "#surface", "2"])

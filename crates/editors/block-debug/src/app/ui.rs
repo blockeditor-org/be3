@@ -6,6 +6,7 @@ use block_editor_beui::beui::styled::*;
 use block_editor_beui::{BlockQuery, Editor};
 
 use super::entries::{self, Row};
+use beui::ItemSize;
 
 const PADDING: Space = Space::Md;
 const ROW_SPACING: Space = Space::Xs2;

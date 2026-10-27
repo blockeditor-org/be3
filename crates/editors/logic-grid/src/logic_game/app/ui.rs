@@ -12,6 +12,7 @@ use logicgame::challenges::{ChallengeId, generate_challenge};
 use crate::logic_game::binary_addition::ui::BinaryAddition;
 
 use super::game::{Game, Level, Solution};
+use beui::{Align, Direction, ItemSize};
 use block_editor_beui::beui::TextAlign;
 
 const PADDING: Space = Space::Xl;

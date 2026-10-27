@@ -30,3 +30,21 @@ constraint_value(
     constraint_setting = ":profile",
     visibility = ["PUBLIC"],
 )
+
+# Which core beui's view layer builds on (plans/html_core.md): the native one,
+# which lays out and paints itself, without this value, and the HTML one, which
+# hands both to the browser, with it. A constraint rather than a cargo feature,
+# since the wasi plan merges features across apps: wasi_html and
+# linux_x86_64_html are the wasi and host platforms with it, the plans cargo is
+# asked for under them are run with --cfg beui_html, and buck/cargo/defs.bzl
+# passes that flag to every first-party crate built for them.
+constraint_setting(
+    name = "beui_core",
+    visibility = ["PUBLIC"],
+)
+
+constraint_value(
+    name = "html",
+    constraint_setting = ":beui_core",
+    visibility = ["PUBLIC"],
+)

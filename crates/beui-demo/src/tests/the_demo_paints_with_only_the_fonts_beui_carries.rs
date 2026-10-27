@@ -1,5 +1,5 @@
 use super::*;
-use beui::FontSources;
+use beui::native::FontSources;
 
 #[test]
 fn the_demo_paints_with_only_the_fonts_beui_carries() {

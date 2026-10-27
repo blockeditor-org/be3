@@ -12,6 +12,7 @@ use crate::database_view::app::controls::MARK;
 use crate::database_view::app::data::Data;
 use crate::database_view::app::list::{Parts, group_test_key, row_parts, row_title};
 use crate::database_view::groups::{Group, GroupKey};
+use beui::{Align, Direction, ItemSize};
 
 const COLUMN_WIDTH: f32 = 272.0;
 const FOLDED_WIDTH: Size = Size::Xl2;

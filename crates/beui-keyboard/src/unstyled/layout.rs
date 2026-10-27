@@ -1,5 +1,4 @@
-use beui_core::geometry::{Rect, pos2, vec2};
-use beui_core::input::Key;
+use beui_view::types::{Key, Rect, pos2, vec2};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Modifier {

@@ -9,6 +9,7 @@ use beui::icons::{
     ICON_UNDO_2, ICON_WIFI, ICON_X, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
 use beui::keyboard::styled::SoftwareKeyboard;
+use beui::{Align, CanvasView, Extent};
 
 const COLUMN_SPACING: Space = Space::Xl2;
 const COLUMNS_BREAKPOINT: f32 = 460.0;
@@ -224,7 +225,7 @@ fn AttachedDialogs() -> NodeId {
                     variant=ButtonVariant::Secondary
                     on_click={move || {
                         open_card(pointing.try_get().and_then(|button| {
-                            with_document(|document| document.node_rect(button))
+                            Some(measure(button).get_untracked()?.rect)
                         }))
                     }}
                 />
@@ -3463,6 +3464,9 @@ pub(crate) fn LayoutPage() -> NodeId {
             <Sample title="Frame tokens" code={vec![FrameTokens::SOURCE]}>
                 <FrameTokens />
             </Sample>
+            <Sample title="Spacers" code={vec![SpacedMarks::SOURCE]}>
+                <SpacedMarks />
+            </Sample>
             <Sample title="Pictures" code={vec![Pictures::SOURCE, sunset::SOURCE]}>
                 <Pictures />
             </Sample>
@@ -3507,6 +3511,34 @@ fn Pictures() -> NodeId {
                     </List>
                 }
             }</ForEach>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn SpacedMarks() -> NodeId {
+    view! {
+        <List @test_id="demo.layout.spacers" spacing=Space::Xs>
+            <ForEach keys={(0..Space::ALL.len()).collect::<Vec<_>>()}>|index: usize|
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
+                    <Frame
+                        width=Size::Xs
+                        height=Size::Xs
+                        fill=ColorRole::Accent
+                        radius=Radius::Sm
+                    />
+                    <Spacer width={Space::ALL[index]} />
+                    <Frame
+                        width=Size::Xs
+                        height=Size::Xs
+                        fill=ColorRole::Accent
+                        radius=Radius::Sm
+                    />
+                    <Spacer @sizing=ItemSize::Percent(100.0) />
+                    <Text style=TextStyle::CAPTION>{Space::ALL[index].name()}</Text>
+                </List>
+            </ForEach>
         </List>
     }
 }

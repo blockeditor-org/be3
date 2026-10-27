@@ -5,12 +5,14 @@ use std::{
     sync::Arc,
 };
 
+use beui::native::try_with_document;
+use beui::native::{Embed, EmbedPlacement, EmbedSlot};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{
     Align, CursorIcon, Forwarded, ForwardedInput, ImeCursor, Modifiers, NodeId, PointerButton,
-    PointerEvent, PointerId, PointerPhase, Pos2, Rect, Region, Vec2, WindowId, WindowPlacement,
-    WindowReport, WindowRole, pos2,
+    PointerEvent, PointerId, PointerPhase, Pos2, Rect, Vec2, WindowId, WindowPlacement,
+    WindowReport, WindowRole, native::Region, pos2,
 };
 use block_plugin_api::{ChildId, EditorInstanceId, EditorRegion, FrameSpec, PluginManifest};
 use uuid::Uuid;
@@ -21,6 +23,8 @@ use crate::plugin_host::{
     RegionView,
 };
 use crate::surfaces::{CrashNotice, HostItemFace};
+use beui::native::draw_gpu;
+use beui::reactive::toggle_keyboard;
 
 #[derive(Clone, Debug, PartialEq)]
 struct Failure {
@@ -397,7 +401,7 @@ pub(crate) fn PluginRegion(
                 placed.get(),
             )
         });
-        let held: Rc<RefCell<Option<(DrawingKey, beui::Drawing, u64)>>> =
+        let held: Rc<RefCell<Option<(DrawingKey, beui::native::Drawing, u64)>>> =
             Rc::new(RefCell::new(None));
         let drawn = create_memo(move || {
             let (_, rotation, opacity, pieces, _, placed) = shown.get();
@@ -518,16 +522,12 @@ pub(crate) fn PluginRegion(
             })
         })
     });
-    let ime_keyboard = create_memo(move || {
-        state.with(|view| view.ime.as_ref().is_none_or(|area| area.keyboard.shown()))
-    });
-    let keyboard_asks = create_memo(move || {
-        Some(
-            state.with(|view| match view.ime.as_ref().map(|area| area.keyboard) {
-                Some(beui::Keyboard::Shown { asks }) => asks,
-                _ => 0,
-            }),
-        )
+    let keyboard = create_memo(move || {
+        state.with(|view| match view.ime.as_ref().map(|area| area.keyboard) {
+            Some(beui::Keyboard::Held) => beui::SoftKeyboard::Held,
+            Some(beui::Keyboard::Shown { asks }) => beui::SoftKeyboard::Shown { asks },
+            None => beui::SoftKeyboard::Shown { asks: 0 },
+        })
     });
     let ime_text = create_memo(move || {
         state.with(|view| view.ime.as_ref().and_then(|area| area.text.clone()))
@@ -662,50 +662,112 @@ pub(crate) fn PluginRegion(
     let pressed_outside = move |_: Pos2| {
         plugin_host::pressed_outside_region(&plugin_id.value(), instance, region);
     };
-    let claims = move |(position, held): (Pos2, beui::Modifiers)| {
-        !passive.get_untracked() && state.with_untracked(|view| view.claims(position, held))
-    };
-    let pen_surface = move |position: Pos2| {
-        !passive.get_untracked() && state.with_untracked(|view| view.draws(position))
-    };
+    let hit_area = create_memo(move || {
+        if passive.get() {
+            return beui::Area::Nowhere;
+        }
+        revision.get();
+        let content = frame.get().and_then(|frame| frame.content);
+        let beyond = match (region == EditorRegion::Frame, content) {
+            (true, Some(placed)) => plugin_host::frame_rects(&plugin_id.value(), instance)
+                .map_or_else(beui::HitRegion::new, |frame| {
+                    frame.floating.iter().fold(
+                        beui::HitRegion::rect(frame.content).without(placed),
+                        |beyond, floating| beyond.without(*floating),
+                    )
+                }),
+            _ => beui::HitRegion::new(),
+        };
+        let occluders = occluded.map(|occluded| occluded.get()).unwrap_or_default();
+        state.with(|view| {
+            let origin = view.rect.min.to_vec2();
+            let mut takes = beui::HitRegion::rect(Rect::EVERYTHING);
+            for (hole, covers) in &view.holes {
+                let open = covers
+                    .iter()
+                    .fold(beui::HitRegion::rect(*hole), |open, cover| {
+                        open.without(*cover)
+                    });
+                for piece in open.rects() {
+                    takes = takes.without(piece.translate(-origin));
+                }
+            }
+            for piece in beyond.rects() {
+                takes = takes.without(*piece);
+            }
+            for occluder in &occluders {
+                takes = takes.without(occluder.translate(-origin));
+            }
+            beui::Area::Within(takes)
+        })
+    });
+    let claims = create_memo(move || {
+        if passive.get() {
+            return Vec::new();
+        }
+        state.with(|view| {
+            let origin = view.rect.min.to_vec2();
+            view.claims
+                .iter()
+                .filter(|(held, _)| held.any())
+                .map(|(held, rect)| {
+                    beui::Claim::holding(*held, beui::HitRegion::rect(rect.translate(-origin)))
+                })
+                .collect::<Vec<_>>()
+        })
+    });
+    let pen_surface = create_memo(move || {
+        if passive.get() {
+            return beui::Area::Nowhere;
+        }
+        state.with(|view| {
+            let origin = view.rect.min.to_vec2();
+            let drawn = view
+                .drawing
+                .iter()
+                .fold(beui::HitRegion::new(), |drawn, rect| {
+                    drawn.with(rect.translate(-origin))
+                });
+            beui::Area::Within(view.floating_rects.iter().fold(drawn, |drawn, floating| {
+                drawn.without(floating.translate(-origin))
+            }))
+        })
+    });
     let windows = windowing.map(|editor| {
         view! {
             <PanelWindows editor rect />
         }
     });
-    view! {
+    let built = view! {
         <DropTarget on_over={over} on_drop={dropped}>|_: DropHandle|
             <Layers>
                 <RegionChildren state={state} rect={rect} child_view below=true />
-                <BackHandler enabled={handles_back} on_gesture={back}>
-                    <Interactive
-                        @node_ref={&catcher}
-                        focusable=true
-                        press_focus={create_memo(move || !presented.get())}
-                        cursor={cursor}
-                        ime={ime}
-                        ime_keyboard={ime_keyboard}
-                        keyboard_asks={keyboard_asks}
-                        ime_cursor={ime_cursor}
-                        ime_text={ime_text}
-                        pastes={pastes}
-                        clipboard_keys={clipboard_keys}
-                        on_forward={forward}
-                        hit_at={takes}
-                        claim_at={claims}
-                        drawing_at={pen_surface}
-                        on_press_outside={pressed_outside}
-                        on_focus_change={move |focused: bool| {
-                            if focused {
-                                on_focus.call(());
-                            }
-                        }}
-                    >
-                        <Embed slot={slot} punch=false @node_ref={&anchor}>
-                            <Drawing draw={base} />
-                        </Embed>
-                    </Interactive>
-                </BackHandler>
+                <Interactive
+                    @node_ref={&catcher}
+                    focusable=true
+                    press_focus={create_memo(move || !presented.get())}
+                    cursor={cursor}
+                    ime={ime}
+                    keyboard={keyboard}
+                    ime_cursor={ime_cursor}
+                    ime_text={ime_text}
+                    pastes={pastes}
+                    clipboard_keys={clipboard_keys}
+                    on_forward={forward}
+                    hit_area={hit_area}
+                    claims={claims}
+                    drawing={pen_surface}
+                    on_press_outside={pressed_outside}
+                    on_focus_change={move |focused: bool| {
+                        if focused {
+                            on_focus.call(());
+                        }
+                    }}
+                >
+                    <Embed slot={slot} punch=false @node_ref={&anchor}>
+                        <Drawing draw={base} />
+                    </Embed>
+                </Interactive>
                 <Notices loading failure id={crash_id.clone()} />
                 <Show condition={shows_desktop}>||
                     <DesktopWindows editor={desktop_editor.with(Clone::clone)} state rect />
@@ -715,7 +777,9 @@ pub(crate) fn PluginRegion(
                 {windows}
             </Layers>
         </DropTarget>
-    }
+    };
+    on_back(handles_back, back);
+    built
 }
 
 #[component]

@@ -10,7 +10,7 @@ fn a_driver_acts_on_a_slider_the_way_a_screen_reader_does() {
             <Slider value={value} label="Volume" />
         }
     });
-    let mut driven = stepped(crate::testing::Showing(document));
+    let mut driven = stepped(crate::native::testing::Showing(document));
 
     let offered = driven
         .ask(&["a11y", "Slider \"Volume\""])

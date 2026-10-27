@@ -42,10 +42,10 @@ fn frames_while_minimised(paces: bool) -> Vec<Vec2> {
             framed: framed.clone(),
         })],
     });
-    let loaded = vec![Loaded {
-        renderer: Box::new(crate::testing::Screen(vec2(200.0, 100.0))),
+    let loaded = Loaded {
+        renderer: Box::new(crate::native::testing::Screen(vec2(200.0, 100.0))),
         fonts: None,
-    }];
+    };
     runner
         .start(loaded, Setup::new(Waker::new(|| {})))
         .expect("the renderer loads");

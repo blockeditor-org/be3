@@ -11,122 +11,12 @@ use crate::color::Color32;
 use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use crate::rich::{Piece, RichLayout, RichOptions, Shaper, SpanStyle};
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub enum TextAlign {
-    Start,
-    Center,
-    End,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default)]
-pub enum WrapAt {
-    #[default]
-    Words,
-    Anywhere,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub enum Overflow {
-    Wrap { at: WrapAt, max_lines: Option<u32> },
-    Ellipsis,
-    Visible,
-}
-
-impl Overflow {
-    pub fn wraps(self) -> bool {
-        matches!(self, Overflow::Wrap { .. })
-    }
-}
-
-impl Default for Overflow {
-    fn default() -> Self {
-        Overflow::Wrap {
-            at: WrapAt::Words,
-            max_lines: None,
-        }
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub enum FontFamily {
-    Proportional,
-    Monospace,
-    Icons,
-}
-
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub struct FontId {
-    pub size: f32,
-    pub family: FontFamily,
-    pub bold: bool,
-    pub italic: bool,
-}
-
-impl FontId {
-    pub fn new(size: f32, family: FontFamily) -> Self {
-        Self {
-            size,
-            family,
-            bold: false,
-            italic: false,
-        }
-    }
-
-    pub fn proportional(size: f32) -> Self {
-        Self::new(size, FontFamily::Proportional)
-    }
-
-    pub fn monospace(size: f32) -> Self {
-        Self::new(size, FontFamily::Monospace)
-    }
-
-    pub fn icons(size: f32) -> Self {
-        Self::new(size, FontFamily::Icons)
-    }
-
-    pub fn bold(self, bold: bool) -> Self {
-        Self { bold, ..self }
-    }
-
-    pub fn italic(self, italic: bool) -> Self {
-        Self { italic, ..self }
-    }
-}
+pub use beui_types::text::{FontFamily, FontId, LineBox, Overflow, TextAlign, TextLayout, WrapAt};
 
 const LINE_HEIGHT_RATIO: f32 = 1.15;
 
 pub fn line_height(font_size: f32) -> f32 {
     (font_size * LINE_HEIGHT_RATIO).max(1.0)
-}
-
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub struct TextLayout {
-    pub wrap_width: f32,
-    pub align: TextAlign,
-    pub line_spacing: f32,
-    pub line_height: Option<f32>,
-}
-
-impl TextLayout {
-    pub const DEFAULT: Self = Self {
-        wrap_width: f32::INFINITY,
-        align: TextAlign::Start,
-        line_spacing: 1.0,
-        line_height: None,
-    };
-
-    pub fn wrapped(wrap_width: f32) -> Self {
-        Self {
-            wrap_width,
-            ..Self::DEFAULT
-        }
-    }
-}
-
-impl Default for TextLayout {
-    fn default() -> Self {
-        Self::DEFAULT
-    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -502,6 +392,31 @@ impl Galley {
             })
             .filter(|rect| rect.width() > 0.0)
             .collect()
+    }
+
+    pub fn line_boxes(&self) -> Vec<LineBox> {
+        self.inner
+            .lines
+            .iter()
+            .map(|line| {
+                let left = line.x(line.range.start);
+                LineBox {
+                    bytes: line.range.clone(),
+                    rect: Rect::from_min_max(
+                        pos2(left, line.top),
+                        pos2(
+                            line.x(line.range.end).max(left),
+                            line.top + self.inner.line_height,
+                        ),
+                    ),
+                    baseline: line.top + self.inner.baseline,
+                }
+            })
+            .collect()
+    }
+
+    pub fn has_every_glyph(&self) -> bool {
+        self.inner.glyphs.iter().all(|glyph| glyph.id.glyph != 0)
     }
 
     pub fn cursor_pos(&self, origin: Pos2, index: usize) -> Pos2 {

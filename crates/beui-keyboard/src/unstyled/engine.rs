@@ -1,8 +1,7 @@
 use std::time::{Duration, Instant};
 
-use beui_core::geometry::{Pos2, Rect, Vec2};
-use beui_core::input::typing;
-use beui_core::input::{Input, Key, Modifiers, PointerId};
+use beui_view::types::input::{Input, Key, Modifiers, PointerId, typing};
+use beui_view::types::{Pos2, Rect, Vec2};
 
 use super::compose::{Composed, compose};
 use super::layout::{Action, KeyAt, KeyDef, Layer, Layout, Modifier, Slider, Slot, Value, layout};

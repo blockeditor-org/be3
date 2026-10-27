@@ -11,6 +11,7 @@ use block_editor_beui::beui::styled::*;
 use block_editor_beui::block_ui::Press;
 
 use super::rows::{Row, RowKey, Tree as FileTree};
+use beui::{Align, Direction, ItemSize};
 
 const PADDING: Space = Space::Md;
 const ZOOMED: &str = "zoomed";

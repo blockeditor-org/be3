@@ -38,14 +38,16 @@ impl Element for DrawingNode {
 
     fn layout(&mut self, _doc: &mut Document, _painter: &Painter, _rect: Rect, _out: &Rects) {}
 
-    fn paint(&self, _doc: &Document, painter: &Painter, _rects: &Rects, rect: Rect) {
+    fn paint(&self, doc: &Document, painter: &Painter, _rects: &Rects, rect: Rect) {
         let Some(draw) = self.draw.as_ref() else {
             return;
         };
-        match self.size {
-            Some(_) => draw(&painter.with_clip_rect(rect), rect),
-            None => draw(painter, rect),
-        }
+        crate::painter::with_colors(doc.color_definitions(), doc.color_scheme(), || {
+            match self.size {
+                Some(_) => draw(&painter.with_clip_rect(rect), rect),
+                None => draw(painter, rect),
+            }
+        });
     }
 
     fn children(&self) -> Vec<NodeId> {

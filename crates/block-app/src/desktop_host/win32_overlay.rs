@@ -1,6 +1,6 @@
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{NodeId, Rect, TextAlign};
+use beui::{Align, Align2, Extent, NodeId, Rect, TextAlign};
 
 use super::win32_map::{OFF_SCREEN, SECURE_DESKTOP};
 use crate::host::HostItem;

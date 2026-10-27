@@ -8,24 +8,7 @@ use crate::pixel_grid::PixelGrid;
 
 use crate::document::Document;
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub struct NodeId {
-    index: u32,
-    generation: u32,
-}
-
-impl NodeId {
-    pub(crate) fn key(self) -> u64 {
-        (u64::from(self.generation) << 32) | u64::from(self.index)
-    }
-
-    pub(crate) fn from_key(key: u64) -> Self {
-        Self {
-            index: key as u32,
-            generation: (key >> 32) as u32,
-        }
-    }
-}
+pub use beui_types::node::NodeId;
 
 #[derive(Default)]
 struct Removals(RefCell<Vec<NodeId>>);
@@ -85,16 +68,6 @@ impl<T> std::fmt::Debug for NodeOf<T> {
 impl<T> From<NodeOf<T>> for NodeId {
     fn from(node: NodeOf<T>) -> Self {
         node.id
-    }
-}
-
-impl NodeId {
-    pub fn index(self) -> u32 {
-        self.index
-    }
-
-    pub fn generation(self) -> u32 {
-        self.generation
     }
 }
 
@@ -233,15 +206,15 @@ impl<T> Default for NodeMap<T> {
 
 impl<T> NodeMap<T> {
     pub fn get(&self, id: &NodeId) -> Option<&T> {
-        match self.entries.get(id.index as usize)? {
-            Some((generation, value)) if *generation == id.generation => Some(value),
+        match self.entries.get(id.index() as usize)? {
+            Some((generation, value)) if *generation == id.generation() => Some(value),
             _ => None,
         }
     }
 
     pub fn get_mut(&mut self, id: &NodeId) -> Option<&mut T> {
-        match self.entries.get_mut(id.index as usize)? {
-            Some((generation, value)) if *generation == id.generation => Some(value),
+        match self.entries.get_mut(id.index() as usize)? {
+            Some((generation, value)) if *generation == id.generation() => Some(value),
             _ => None,
         }
     }
@@ -253,10 +226,10 @@ impl<T> NodeMap<T> {
     pub fn insert(&mut self, id: NodeId, value: T) -> Option<T> {
         let slot = self.slot(id);
         match slot {
-            Some((generation, _)) if *generation > id.generation => None,
+            Some((generation, _)) if *generation > id.generation() => None,
             _ => slot
-                .replace((id.generation, value))
-                .filter(|(generation, _)| *generation == id.generation)
+                .replace((id.generation(), value))
+                .filter(|(generation, _)| *generation == id.generation())
                 .map(|(_, value)| value),
         }
     }
@@ -266,9 +239,9 @@ impl<T> NodeMap<T> {
     }
 
     pub fn remove(&mut self, id: &NodeId) -> Option<T> {
-        let slot = self.entries.get_mut(id.index as usize)?;
+        let slot = self.entries.get_mut(id.index() as usize)?;
         match slot {
-            Some((generation, _)) if *generation == id.generation => {
+            Some((generation, _)) if *generation == id.generation() => {
                 slot.take().map(|(_, value)| value)
             }
             _ => None,
@@ -280,20 +253,14 @@ impl<T> NodeMap<T> {
             .iter()
             .enumerate()
             .filter_map(|(index, entry)| {
-                entry.as_ref().map(|(generation, value)| {
-                    (
-                        NodeId {
-                            index: index as u32,
-                            generation: *generation,
-                        },
-                        value,
-                    )
-                })
+                entry
+                    .as_ref()
+                    .map(|(generation, value)| (NodeId::new(index as u32, *generation), value))
             })
     }
 
     fn slot(&mut self, id: NodeId) -> &mut Option<(u32, T)> {
-        let index = id.index as usize;
+        let index = id.index() as usize;
         if index >= self.entries.len() {
             self.entries.resize_with(index + 1, || None);
         }
@@ -306,9 +273,9 @@ impl<T: Default> NodeMap<T> {
         let slot = self.slot(id);
         if slot
             .as_ref()
-            .is_none_or(|(generation, _)| *generation != id.generation)
+            .is_none_or(|(generation, _)| *generation != id.generation())
         {
-            *slot = Some((id.generation, T::default()));
+            *slot = Some((id.generation(), T::default()));
         }
         &mut slot.as_mut().expect("the entry was just filled").1
     }
@@ -697,10 +664,7 @@ impl Arena {
                 self.marks[slot] = 0;
                 self.adoption.get_mut()[slot] = Adoption::Settled;
                 self.adopted.get_mut()[slot] = None;
-                NodeId {
-                    index,
-                    generation: self.generations[slot],
-                }
+                NodeId::new(index, self.generations[slot])
             }
             None => {
                 let index = self.nodes.len() as u32;
@@ -715,10 +679,7 @@ impl Arena {
                 self.marks.push(0);
                 self.adoption.get_mut().push(Adoption::Settled);
                 self.adopted.get_mut().push(None);
-                NodeId {
-                    index,
-                    generation: 0,
-                }
+                NodeId::new(index, 0)
             }
         };
         self.live += 1;
@@ -735,7 +696,7 @@ impl Arena {
             return;
         };
         ::reactive::on_release(self.removals.clone(), id.key());
-        self.owners[id.index as usize] = Some(owner);
+        self.owners[id.index() as usize] = Some(owner);
     }
 
     pub(crate) fn take_removals(&self) -> Vec<NodeId> {
@@ -767,8 +728,8 @@ impl Arena {
     }
 
     fn slot(&self, id: NodeId) -> Option<usize> {
-        let index = id.index as usize;
-        (self.generations.get(index) == Some(&id.generation)).then_some(index)
+        let index = id.index() as usize;
+        (self.generations.get(index) == Some(&id.generation())).then_some(index)
     }
 
     pub fn current(&self, id: NodeId) -> bool {
@@ -777,7 +738,7 @@ impl Arena {
 
     pub fn id_at(&self, index: u32) -> Option<NodeId> {
         let generation = *self.generations.get(index as usize)?;
-        Some(NodeId { index, generation })
+        Some(NodeId::new(index, generation))
     }
 
     pub fn contains(&self, id: impl Into<NodeId>) -> bool {
@@ -988,7 +949,7 @@ impl Arena {
 
     pub fn take_boundaries(&mut self) -> Vec<NodeId> {
         let mut boundaries = std::mem::take(&mut self.boundaries);
-        boundaries.sort_unstable_by_key(|id| (id.index, id.generation));
+        boundaries.sort_unstable_by_key(|id| (id.index(), id.generation()));
         boundaries.dedup();
         boundaries.sort_by_cached_key(|id| self.depth(*id));
         boundaries
@@ -1089,7 +1050,7 @@ impl Arena {
 
     pub fn watch(&mut self, path: Vec<NodeId>) {
         for id in std::mem::take(&mut self.watched) {
-            if let Some(watched) = self.watched_slots.get_mut(id.index as usize) {
+            if let Some(watched) = self.watched_slots.get_mut(id.index() as usize) {
                 *watched = false;
             }
         }
@@ -1128,7 +1089,7 @@ impl Arena {
     pub fn take_changed(&mut self) -> Vec<NodeId> {
         self.relaid.clear();
         let mut changed = std::mem::take(&mut self.changed);
-        changed.sort_unstable_by_key(|id| (id.index, id.generation));
+        changed.sort_unstable_by_key(|id| (id.index(), id.generation()));
         changed.dedup();
         changed
     }
@@ -1144,7 +1105,7 @@ impl Arena {
         let element = self.nodes[slot].take()?;
         self.removed[slot] = true;
         self.live -= 1;
-        self.released.push(id.index);
+        self.released.push(id.index());
         Some(element)
     }
 

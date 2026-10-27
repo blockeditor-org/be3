@@ -1,7 +1,7 @@
 use super::*;
 use crate::WindowId;
-use crate::primitives::{Window, WindowHandle};
 use crate::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
+use crate::{Window, WindowHandle};
 
 #[test]
 fn a_press_in_one_window_dragged_into_another_drops_on_a_target_there() {

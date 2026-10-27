@@ -9,7 +9,7 @@ use std::time::Instant;
 use accesskit::Node;
 
 use crate::accessibility::{self, AccessibilityTree};
-use crate::base::child_list::{ChildHost, NodeChildren, SlotId};
+use crate::child_list::{ChildHost, NodeChildren, SlotId};
 use crate::context::{Context, Moved};
 use crate::damage::{Damage, Region};
 use crate::file_picker::{FileFilter, FilePick, FilePickId};
@@ -79,11 +79,11 @@ pub struct Document {
     placement: Option<(Rect, Option<Placement>)>,
     pub portal_holders: foldhash::HashMap<NodeId, NodeOf<crate::base::portal::PortalNode>>,
     pub(crate) layer_state: crate::layer::OpenLayers,
-    pub(crate) focus_scopes: crate::base::focus_scope::FocusScopes,
+    pub(crate) focus_scopes: crate::focus_scope::FocusScopes,
     pub(crate) focus_dirty: bool,
     pub(crate) focus_wanted: Option<NodeId>,
     pub(crate) focus_into: Option<(NodeId, u64)>,
-    pub back_handlers: Vec<NodeOf<crate::base::back::BackNode>>,
+    pub(crate) back_handlers: crate::back::BackHandlers,
     pub(crate) back_gesture: Option<crate::layer::DismissTarget>,
     timers: Rc<RefCell<crate::timer::Timers>>,
     scale: ::reactive::OwnedSignal<f32>,
@@ -103,7 +103,6 @@ pub struct Document {
     input_frames: u64,
     modifiers: ::reactive::OwnedSignal<Modifiers>,
     intercepted_keys: ::reactive::OwnedSignal<Vec<KeyChord>>,
-    pub autoscroll: Option<crate::interact::autoscroll::Autoscroll>,
     pub(crate) press_claimants: HashSet<NodeId>,
     pub(crate) drawing_surfaces: HashSet<NodeId>,
     pub(crate) every_sample_surfaces: HashSet<NodeId>,
@@ -136,6 +135,7 @@ pub struct Document {
     pub placed_pass: NodeMap<u64>,
     pub reached_pass: NodeMap<u64>,
     layout_pass: u64,
+    layout_frame: u64,
     focus_line: FocusLine,
     anchor_shift: f32,
     pinned_to_end: Option<crate::base::list::Direction>,
@@ -156,9 +156,9 @@ pub struct Document {
     zone: u64,
     extensions: HashMap<std::any::TypeId, Box<dyn Any>>,
     node_refs: HashMap<NodeId, Vec<Weak<Cell<Option<NodeId>>>>>,
-    placements: NodeMap<::reactive::OwnedSignal<Rect>>,
-    placed: NodeMap<::reactive::OwnedSignal<bool>>,
-    text_bounds: NodeMap<::reactive::OwnedSignal<Rect>>,
+    measured: NodeMap<::reactive::OwnedSignal<Option<beui_types::Measured>>>,
+    measured_text: NodeMap<::reactive::OwnedSignal<Option<crate::base::text::TextGeometry>>>,
+    measure_pending: bool,
     component_states: HashMap<NodeId, Vec<Box<dyn Any>>>,
     component_names: HashMap<NodeId, ComponentNames>,
     pub accessibility_id: u32,
@@ -172,6 +172,7 @@ pub struct Document {
     painters: NodeMap<Placing>,
     motion: ::reactive::OwnedSignal<crate::animation::Motion>,
     theme: ::reactive::OwnedSignal<crate::preferences::ThemeKind>,
+    colors: std::rc::Rc<crate::color::ColorDefinitions>,
     canvas_touch: ::reactive::OwnedSignal<crate::preferences::CanvasTouch>,
     preference_layers: ::reactive::OwnedSignal<crate::preferences::PreferenceLayers>,
     out_of_bounds: Option<Vec<(WindowId, String)>>,
@@ -281,6 +282,7 @@ static NEXT_ZONE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::n
 
 impl Document {
     pub fn new() -> Self {
+        crate::tree::install_hooks();
         let rects = Rc::new(Rects::default());
         let zone = NEXT_ZONE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         Self {
@@ -311,7 +313,7 @@ impl Document {
             focus_dirty: false,
             focus_wanted: None,
             focus_into: None,
-            back_handlers: Vec::new(),
+            back_handlers: crate::back::BackHandlers::default(),
             back_gesture: None,
             timers: Rc::default(),
             scale: ::reactive::OwnedSignal::new(1.0),
@@ -331,7 +333,6 @@ impl Document {
             input_frames: 0,
             modifiers: ::reactive::OwnedSignal::new(Modifiers::NONE),
             intercepted_keys: ::reactive::OwnedSignal::new(Vec::new()),
-            autoscroll: None,
             press_claimants: HashSet::default(),
             drawing_surfaces: HashSet::default(),
             every_sample_surfaces: HashSet::default(),
@@ -363,6 +364,7 @@ impl Document {
             placed_pass: NodeMap::default(),
             reached_pass: NodeMap::default(),
             layout_pass: 0,
+            layout_frame: 0,
             focus_line: FocusLine::default(),
             anchor_shift: 0.0,
             pinned_to_end: None,
@@ -383,9 +385,9 @@ impl Document {
             zone,
             extensions: HashMap::default(),
             node_refs: HashMap::default(),
-            placements: NodeMap::default(),
-            placed: NodeMap::default(),
-            text_bounds: NodeMap::default(),
+            measured: NodeMap::default(),
+            measured_text: NodeMap::default(),
+            measure_pending: false,
             component_states: HashMap::default(),
             component_names: HashMap::default(),
             accessibility_id: accessibility::next_document_id(),
@@ -399,6 +401,7 @@ impl Document {
             painters: NodeMap::default(),
             motion: ::reactive::OwnedSignal::new(crate::animation::Motion::default()),
             theme: ::reactive::OwnedSignal::new(crate::preferences::ThemeKind::default()),
+            colors: std::rc::Rc::default(),
             canvas_touch: ::reactive::OwnedSignal::new(Default::default()),
             preference_layers: ::reactive::OwnedSignal::new(Default::default()),
             out_of_bounds: None,
@@ -470,14 +473,9 @@ impl Document {
             .cloned()
     }
 
-    pub fn extension_or_insert_with<T: Clone + 'static>(&mut self, make: impl FnOnce() -> T) -> T {
-        if let Some(held) = self.extension::<T>() {
-            return held;
-        }
-        let made = self.reactive_scope.context().run(make);
+    pub fn insert_extension<T: Clone + 'static>(&mut self, value: T) {
         self.extensions
-            .insert(std::any::TypeId::of::<T>(), Box::new(made.clone()));
-        made
+            .insert(std::any::TypeId::of::<T>(), Box::new(value));
     }
 
     pub fn open_inspector(&mut self) {
@@ -851,7 +849,7 @@ impl Document {
         self.motion.get_untracked()
     }
 
-    pub(crate) fn animations(&self) -> Rc<Cell<usize>> {
+    pub fn animations(&self) -> Rc<Cell<usize>> {
         Rc::clone(&self.animations)
     }
 
@@ -869,6 +867,32 @@ impl Document {
 
     pub fn watch_canvas_touch(&self) -> ::reactive::ReadSignal<crate::preferences::CanvasTouch> {
         self.canvas_touch.read_only()
+    }
+
+    pub fn color_scheme(&self) -> crate::color::ColorScheme {
+        self.theme.get_untracked().into()
+    }
+
+    pub fn resolve_color(&self, color: crate::color::Color) -> crate::color::Color32 {
+        color.resolve_in(&self.colors, self.color_scheme())
+    }
+
+    pub fn color_definitions(&self) -> std::rc::Rc<crate::color::ColorDefinitions> {
+        self.colors.clone()
+    }
+
+    pub fn set_color_definitions(&mut self, colors: crate::color::ColorDefinitions) {
+        if *self.colors == colors {
+            return;
+        }
+        let repaints = self
+            .colors
+            .iter()
+            .any(|(var, held)| colors.get(var) != Some(held));
+        self.colors = std::rc::Rc::new(colors);
+        if repaints {
+            self.arena.invalidate();
+        }
     }
 
     pub fn watch_theme(&self) -> ::reactive::ReadSignal<crate::preferences::ThemeKind> {
@@ -893,6 +917,11 @@ impl Document {
                 document.motion.set(preferences.motion);
             }
             if document.theme.get_untracked() != preferences.theme {
+                if crate::color::ColorScheme::from(document.theme.get_untracked())
+                    != crate::color::ColorScheme::from(preferences.theme)
+                {
+                    document.arena.invalidate();
+                }
                 document.theme.set(preferences.theme);
             }
             if document.canvas_touch.get_untracked() != preferences.canvas_touch {
@@ -1109,11 +1138,9 @@ impl Document {
         self.forget_layer(id);
         self.forget_focus_scope(id);
         self.forget_back_gesture(id);
-        self.back_handlers.retain(|handler| handler.id() != id);
         self.paint_cache.borrow_mut().forget(id);
-        self.placements.remove(&id);
-        self.placed.remove(&id);
-        self.text_bounds.remove(&id);
+        self.measured.remove(&id);
+        self.measured_text.remove(&id);
         self.measurements.remove(&id);
         self.baselines.remove(&id);
         self.min_widths.remove(&id);
@@ -1560,9 +1587,10 @@ impl Document {
             }
             let scrim = self.overlay_scrim(overlay);
             let content = self.overlay_content(overlay);
+            let beak = self.overlay_beak(overlay);
             let painter = ctx.window_painter(layer.window);
             self.paint_cache.get_mut().paint_into(layer.window);
-            for root in [Some(scrim), content].into_iter().flatten() {
+            for root in [Some(scrim), content, beak].into_iter().flatten() {
                 if self.rects.contains_key(&root) {
                     paint::paint(self, &painter, &self.rects, root);
                     roots.push((layer.window, root));
@@ -1784,24 +1812,6 @@ impl Document {
                 },
             );
         }
-    }
-
-    pub fn watch_placement(&mut self, id: NodeId) -> ::reactive::ReadSignal<Rect> {
-        if let Some(watched) = self.placements.get(&id) {
-            return watched.read_only();
-        }
-        let watched = ::reactive::OwnedSignal::new(self.rects.get(&id).unwrap_or(Rect::ZERO));
-        let read = watched.read_only();
-        self.placements.insert(id, watched);
-        read
-    }
-
-    pub(crate) fn watch_placement_with(
-        &mut self,
-        id: NodeId,
-        watched: ::reactive::OwnedSignal<Rect>,
-    ) {
-        self.placements.insert(id, watched);
     }
 
     pub fn name_component(&mut self, id: NodeId, name: beui_tree::component::ComponentRecord) {
@@ -2114,28 +2124,103 @@ impl Document {
         self.reached_pass.insert(id, self.layout_pass);
     }
 
-    pub fn watch_text_bounds(
+    pub fn watch_measure(
         &mut self,
-        text: NodeOf<crate::base::text::TextNode>,
-    ) -> ::reactive::ReadSignal<Rect> {
-        if let Some(watched) = self.text_bounds.get(&text.id()) {
+        id: NodeId,
+    ) -> ::reactive::ReadSignal<Option<beui_types::Measured>> {
+        if let Some(watched) = self.measured.get(&id) {
             return watched.read_only();
         }
-        let bounds = self.text_geometry(text).bounds().unwrap_or(Rect::ZERO);
-        let watched = ::reactive::OwnedSignal::new(bounds);
+        let initial = match delaying_measurement() {
+            true => {
+                self.measure_pending = true;
+                None
+            }
+            false => self.measure_now(id),
+        };
+        let watched = ::reactive::OwnedSignal::new(initial);
         let read = watched.read_only();
-        self.text_bounds.insert(text.id(), watched);
+        self.measured.insert(id, watched);
         read
     }
 
-    pub fn watch_placed(&mut self, id: NodeId) -> ::reactive::ReadSignal<bool> {
-        if let Some(watched) = self.placed.get(&id) {
+    pub fn watch_measure_text(
+        &mut self,
+        id: NodeId,
+    ) -> ::reactive::ReadSignal<Option<crate::base::text::TextGeometry>> {
+        if let Some(watched) = self.measured_text.get(&id) {
             return watched.read_only();
         }
-        let watched = ::reactive::OwnedSignal::new(self.rects.contains_key(&id));
+        let initial = match delaying_measurement() {
+            true => {
+                self.measure_pending = true;
+                None
+            }
+            false => self.measure_text_now(id),
+        };
+        let watched = ::reactive::OwnedSignal::new(initial);
         let read = watched.read_only();
-        self.placed.insert(id, watched);
+        self.measured_text.insert(id, watched);
         read
+    }
+
+    fn measure_now(&self, id: NodeId) -> Option<beui_types::Measured> {
+        let placed = self.rects.placed(&id)?;
+        Some(beui_types::Measured {
+            rect: self.rects.transform(placed.space).rect(placed.rect),
+            size: placed.rect.size(),
+        })
+    }
+
+    fn measure_text_now(&self, id: NodeId) -> Option<crate::base::text::TextGeometry> {
+        let text = self.arena.kind_of::<crate::base::text::TextNode>(id)?;
+        self.text_geometry(text)
+    }
+
+    fn publish_measurements(&mut self) -> bool {
+        type Boxes = Vec<(
+            ::reactive::Signal<Option<beui_types::Measured>>,
+            Option<beui_types::Measured>,
+        )>;
+        let moved: Boxes = self
+            .measured
+            .iter()
+            .map(|(id, watched)| (self.measure_now(id), watched))
+            .filter(|(rect, watched)| watched.get_untracked() != *rect)
+            .map(|(rect, watched)| (watched.handle(), rect))
+            .collect();
+        type Texts = Vec<(
+            ::reactive::Signal<Option<crate::base::text::TextGeometry>>,
+            Option<crate::base::text::TextGeometry>,
+        )>;
+        let texts: Texts = self
+            .measured_text
+            .iter()
+            .map(|(id, watched)| (self.measure_text_now(id), watched))
+            .filter(|(geometry, watched)| watched.with_untracked(|held| held != geometry))
+            .map(|(geometry, watched)| (watched.handle(), geometry))
+            .collect();
+        if moved.is_empty() && texts.is_empty() {
+            return false;
+        }
+        crate::current::enter(self, || {
+            for (write, rect) in moved {
+                write.set(rect);
+            }
+            for (write, geometry) in texts {
+                write.set(geometry);
+            }
+        });
+        true
+    }
+
+    fn measurements_differ(&self) -> bool {
+        self.measured
+            .iter()
+            .any(|(id, watched)| watched.get_untracked() != self.measure_now(id))
+            || self.measured_text.iter().any(|(id, watched)| {
+                watched.with_untracked(|held| *held != self.measure_text_now(id))
+            })
     }
 
     pub fn reuse_placement(
@@ -2367,43 +2452,15 @@ impl Document {
         }
         self.relay_moved_overlays();
         let reports = std::mem::take(&mut self.reports);
-        let rects = Rc::clone(&self.rects);
-        let moved: Vec<(::reactive::Signal<Rect>, Rect)> = self
-            .placements
-            .iter()
-            .filter_map(|(id, watched)| Some((rects.get(&id)?, watched)))
-            .filter(|(rect, watched)| watched.get_untracked() != *rect)
-            .map(|(rect, watched)| (watched.handle(), rect))
-            .collect();
-        let placed: Vec<(::reactive::Signal<bool>, bool)> = self
-            .placed
-            .iter()
-            .map(|(id, watched)| (rects.contains_key(&id), watched))
-            .filter(|(placed, watched)| watched.get_untracked() != *placed)
-            .map(|(placed, watched)| (watched.handle(), placed))
-            .collect();
-        let bounded: Vec<(::reactive::Signal<Rect>, Rect)> = self
-            .text_bounds
-            .iter()
-            .filter_map(|(id, watched)| {
-                let bounds = self.text_geometry(NodeOf::assumed(id)).bounds()?;
-                (watched.get_untracked() != bounds).then(|| (watched.handle(), bounds))
-            })
-            .collect();
-        if reports.is_empty() && moved.is_empty() && placed.is_empty() && bounded.is_empty() {
+        match delaying_measurement() {
+            true => self.measure_pending |= self.measurements_differ(),
+            false => {
+                self.publish_measurements();
+            }
+        }
+        if reports.is_empty() {
             return;
         }
-        crate::current::enter(self, || {
-            for (write, rect) in moved {
-                write.set(rect);
-            }
-            for (write, shown) in placed {
-                write.set(shown);
-            }
-            for (write, bounds) in bounded {
-                write.set(bounds);
-            }
-        });
         crate::current::enter(self, || {
             for report in reports {
                 report();
@@ -2499,7 +2556,23 @@ impl Document {
             || self.root.is_some_and(|root| self.arena.unplaced(root))
     }
 
+    pub(crate) fn layout_frame(&self) -> u64 {
+        self.layout_frame
+    }
+
     fn update_layout(&mut self, ctx: &Context, rect: Rect) -> usize {
+        self.layout_frame = self.layout_frame.wrapping_add(1);
+        if std::mem::take(&mut self.measure_pending) {
+            self.publish_measurements();
+        }
+        let passes = self.lay_out_until_settled(ctx, rect);
+        if self.measure_pending {
+            ctx.request_repaint();
+        }
+        passes
+    }
+
+    fn lay_out_until_settled(&mut self, ctx: &Context, rect: Rect) -> usize {
         let mut passes = 0;
         if self.needs_layout() {
             self.lay_out_tree(ctx, rect);
@@ -2590,11 +2663,24 @@ pub fn fail_unsettled_layout(enabled: bool) {
     FAIL_UNSETTLED_LAYOUT.store(enabled, std::sync::atomic::Ordering::Relaxed);
 }
 
+thread_local! {
+    static DELAY_MEASUREMENT: Cell<bool> =
+        Cell::new(std::env::var_os("BEUI_DELAY_MEASUREMENT").is_some_and(|value| value == "1"));
+}
+
+pub fn delay_measurement(enabled: bool) {
+    DELAY_MEASUREMENT.set(enabled);
+}
+
+fn delaying_measurement() -> bool {
+    DELAY_MEASUREMENT.get()
+}
+
 fn failing_unsettled_layout() -> bool {
     cfg!(test) || FAIL_UNSETTLED_LAYOUT.load(std::sync::atomic::Ordering::Relaxed)
 }
 
-const LAYOUTS_PER_FRAME: usize = 4;
+const LAYOUTS_PER_FRAME: usize = 8;
 
 impl Document {
     fn lay_out_boundaries(&mut self, ctx: &Context, rects: &Rects) {
@@ -2641,6 +2727,12 @@ pub fn trim_bottom(rect: Rect, height: f32) -> (Rect, Rect) {
 impl Default for Document {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl crate::app::App for Document {
+    fn update(&mut self, context: &Context, rect: Rect) {
+        self.show(context, rect);
     }
 }
 

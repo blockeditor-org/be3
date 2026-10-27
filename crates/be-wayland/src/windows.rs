@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use beui::reactive::*;
-use beui::{CursorIcon, Drawing, ForwardedInput, Image, NodeId, Rect, Vec2};
+use beui::{CursorIcon, ForwardedInput, Image, NodeId, Rect, Vec2, native::Drawing};
 
 use crate::state::WindowId;
 

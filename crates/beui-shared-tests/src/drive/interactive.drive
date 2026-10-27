@@ -1,0 +1,13 @@
+# Clicks, keys and typed text reach the Interactive that should have them.
+clock stop
+wait 'value="Clicked 0"'
+click '#interactive.count'
+wait 'value="Clicked 1"'
+click '#interactive.count'
+wait 'value="Clicked 2"'
+click '#interactive.keys'
+key Enter
+wait 'value="Pressed Enter"'
+click '#interactive.typing'
+type 'abc'
+wait 'value="Typed abc"'

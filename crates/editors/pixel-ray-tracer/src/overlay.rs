@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::beui::{Color32, Painter, Pos2, Rect, Vec2, pos2};
+use block_editor_beui::beui::{Color32, Pos2, Rect, Vec2, pos2, reactive::Painter};
 use pixel_ray_tracer_types::{PIXEL_RAY_TRACER_PALETTE, PIXEL_RAY_TRACER_SIZE, Point, RayEntity};
 
 const SURFACE_WIDTH: f32 = 1.5;

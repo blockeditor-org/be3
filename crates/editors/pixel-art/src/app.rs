@@ -20,6 +20,7 @@ pub(crate) mod canvas;
 pub(crate) mod pane;
 pub(crate) mod state;
 
+use beui::{Direction, ItemSize};
 use canvas::{ArtworkCanvas, HoverLabel};
 use image_block_types::ImageContent;
 use pane::Pane;

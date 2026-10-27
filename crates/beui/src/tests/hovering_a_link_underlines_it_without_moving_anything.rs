@@ -22,13 +22,13 @@ fn hovering_a_link_underlines_it_without_moving_anything() {
     assert_eq!(underlines(&hovered), 1);
 }
 
-fn underlines(output: &crate::FrameOutput) -> usize {
+fn underlines(output: &crate::native::FrameOutput) -> usize {
     output
         .main()
         .shapes()
         .iter()
         .filter(|shape| {
-            matches!(shape, crate::Shape::Rect { stroke_width, color, .. }
+            matches!(shape, crate::native::Shape::Rect { stroke_width, color, .. }
                 if *color == styled::Theme::DARK.accent_hover && *stroke_width == 0.0)
         })
         .count()

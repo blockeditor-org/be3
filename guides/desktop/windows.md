@@ -55,7 +55,7 @@ the mapping to `be3:desktop`'s types in `desktop_host/win32_map.rs` (tested on L
 block-app's one window), stay unsupported, so the shell hides what they back.
 
 - The watcher starts when the desktop shell is first shown (`set_owned(true)`), with block-app's
-  window (`beui::NativeWindow`) as the host window and `Hotkey::DEFAULT` (Ctrl+Alt+Space)
+  window (`beui::native::NativeWindow`) as the host window and `Hotkey::DEFAULT` (Ctrl+Alt+Space)
   registered; a hotkey that cannot be registered is a toast. The host prints one line to stderr
   for each rare event (the watcher's first listing, the hotkey, the capture device's adapter,
   each capture started, lost or stopped, focus mode starting and ending) and for every failure,

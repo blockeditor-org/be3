@@ -25,7 +25,7 @@ use sleep::{Inhibit, SleepGuard};
 const SHOWN_FRAMES: u32 = 2;
 const SECOND: Duration = Duration::from_secs(1);
 
-pub(crate) fn owns_a_seat(setup: &beui::Setup) -> bool {
+pub(crate) fn owns_a_seat(setup: &beui::native::Setup) -> bool {
     setup.get::<beui_platform_drm::DisplayControl>().is_some()
 }
 
@@ -194,7 +194,7 @@ impl DesktopSession {
         self.power.availability()
     }
 
-    pub(crate) fn frame(&mut self, context: &beui::Context, lock: &mut ScreenLock) {
+    pub(crate) fn frame(&mut self, context: &beui::native::Context, lock: &mut ScreenLock) {
         let now = crate::host::now();
         let mut control = Live {
             logind: &self.logind,
@@ -251,7 +251,7 @@ impl Inhibit for Inhibitor<'_> {
 
 struct Live<'a> {
     logind: &'a Logind,
-    context: &'a beui::Context,
+    context: &'a beui::native::Context,
 }
 
 impl SessionControl for Live<'_> {

@@ -7,6 +7,7 @@ use super::dialogs::OpenDialog;
 use super::panel::Info;
 use super::tab::TabItem;
 use super::workspace::Workspace;
+use beui::{Align, Direction, ItemSize};
 use block_editor_beui::beui::TextAlign;
 
 const PADDING_HORIZONTAL: Space = Space::Md;

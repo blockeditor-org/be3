@@ -8,10 +8,6 @@ use beui_core::window::{WindowHosting, WindowId, WindowReport, WindowState};
 struct Screen(Rc<RefCell<Vec<Color32>>>);
 
 impl Renderer for Screen {
-    fn name(&self) -> &'static str {
-        "screen"
-    }
-
     fn info(&self) -> RendererInfo {
         RendererInfo::default()
     }
@@ -22,7 +18,12 @@ impl Renderer for Screen {
         Some(vec2(400.0, 300.0))
     }
 
-    fn prepare(&mut self, _output: &crate::WindowOutput, _scale: f32, background: Color32) -> bool {
+    fn prepare(
+        &mut self,
+        _output: &crate::native::WindowOutput,
+        _scale: f32,
+        background: Color32,
+    ) -> bool {
         self.0.borrow_mut().push(background);
         false
     }
@@ -65,7 +66,7 @@ impl Layer for Host {
         self.seen.borrow_mut().push((main.size, view.platform));
         let mut window = WindowState::default();
         window.appearance.clear_color = Color32::WHITE;
-        shown.windows = vec![crate::WindowOutput {
+        shown.windows = vec![crate::native::WindowOutput {
             id: WindowId::MAIN,
             size: view.platform / view.pixels_per_point,
             layers: Rc::new(Vec::new()),
@@ -103,10 +104,10 @@ fn a_window_hosting_layer_sizes_the_main_window_and_shows_what_it_composes() {
     );
     runner
         .start(
-            vec![Loaded {
+            Loaded {
                 renderer: Box::new(Screen(Rc::clone(&backgrounds))),
                 fonts: None,
-            }],
+            },
             Setup::new(Waker::new(|| {})),
         )
         .expect("the renderer loads");

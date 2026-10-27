@@ -1,6 +1,6 @@
 use super::*;
 
-fn paint(context: &beui::Context, squares: &[Rect]) -> beui::WindowOutput {
+fn paint(context: &beui::native::Context, squares: &[Rect]) -> beui::native::WindowOutput {
     context
         .run(|context| {
             let painter = context.painter();
@@ -21,7 +21,7 @@ fn paint(context: &beui::Context, squares: &[Rect]) -> beui::WindowOutput {
 fn settling_tells_the_display_everything_drawn_while_hurried() {
     let (device, queue) = vulkan_device();
     let gpu = Gpu::new(device, queue, FORMAT);
-    let context = beui::context();
+    let context = beui::native::context();
     let mut screen = Screen::new(&gpu, (WIDTH, HEIGHT), Rotation::Normal);
     screen.rect = Rect::from_min_size(pos2(0.0, 0.0), vec2(32.0, 24.0));
     let target = target(&gpu);

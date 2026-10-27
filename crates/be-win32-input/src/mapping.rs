@@ -1,4 +1,4 @@
-use beui_core::geometry::{Pos2, Vec2};
+use beui_types::{Pos2, Vec2};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
 pub struct PixelPoint {

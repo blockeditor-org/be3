@@ -16,7 +16,7 @@ import { bindMemory } from "./wasi.js";
                 bindMemory(wasm.memory);
                 bindThreads(module, wasm.memory);
                 status.hidden = true;
-                await run_demo("demo", "./icons.ttf");
+                await run_demo("demo");
             } catch (error) {
                 console.error(error);
                 status.hidden = false;

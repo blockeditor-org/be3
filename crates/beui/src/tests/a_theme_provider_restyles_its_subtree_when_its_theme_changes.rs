@@ -14,13 +14,13 @@ fn a_theme_provider_restyles_its_subtree_when_its_theme_changes() {
         }]
     });
     let mut harness = Harness::new(document);
-    let fills = |output: &crate::FrameOutput, fill: Color32| {
+    let fills = |output: &crate::native::FrameOutput, fill: Color32| {
         output
             .main()
             .shapes()
             .iter()
             .filter(|shape| {
-                matches!(shape, crate::Shape::Rect { color, stroke_width, .. }
+                matches!(shape, crate::native::Shape::Rect { color, stroke_width, .. }
                     if *color == fill && *stroke_width == 0.0)
             })
             .count()

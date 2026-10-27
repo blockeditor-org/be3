@@ -1,7 +1,7 @@
 use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
-use beui_core::font::Overflow;
-use beui_core::icons::Glyph;
 use beui_macros::{component, view};
+use beui_view::types::Overflow;
+use beui_view::types::icons::Glyph;
 
 use crate::button::ButtonVariant;
 use crate::context_menu::menu_style;
@@ -9,14 +9,14 @@ use crate::text::{Icon, Text};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ButtonHandle, MenuItem, PopupTriggerHandle};
-use beui_core::base::TextAlign;
-use beui_core::icons::ICON_CHEVRON_DOWN;
-use beui_core::node::NodeId;
-use beui_view::primitives::Fade;
+use beui_view::reactive::NodeId;
+use beui_view::types::TextAlign;
+use beui_view::types::icons::ICON_CHEVRON_DOWN;
 
 use crate::list::List;
 use crate::tokens::{CornerSet, Padding, Size, Space, Stroke};
 use beui_view::reactive::*;
+use beui_view::types::{Align, Direction};
 
 const INSET: Space = Space::Xs2;
 const GLYPH_SPACING: Space = Space::Sm;
@@ -123,9 +123,11 @@ fn ArrowFace(handle: PopupTriggerHandle, variant: ButtonVariant) -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=Space::None>
             <Frame padding={Padding::vertical(DIVIDER_INSET)}>
-                <Fade opacity={divider_opacity}>
-                    <Frame width={Size::Custom(Stroke::Hairline.px())} fill={divider_fill} />
-                </Fade>
+                <Frame
+                    width={Size::Custom(Stroke::Hairline.px())}
+                    fill={divider_fill}
+                    opacity={divider_opacity}
+                />
             </Frame>
             <Tooltip label={tooltip}>
                 <HalfFace fill focused side=Side::Trailing padding=ARROW_PADDING_HORIZONTAL>

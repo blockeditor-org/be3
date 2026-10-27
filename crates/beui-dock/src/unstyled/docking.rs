@@ -1,4 +1,4 @@
-use beui_core::icons::Glyph;
+use beui_view::types::icons::Glyph;
 mod switch;
 
 use std::any::Any;
@@ -7,15 +7,15 @@ use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::rc::Rc;
 
-use beui_core::base::Direction;
-use beui_core::color::Color32;
-use beui_core::geometry::{Rect, Vec2};
-use beui_core::image::Image;
-use beui_core::input::Modifiers;
-use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::primitives::*;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::Color;
+use beui_view::types::Direction;
+use beui_view::types::Image;
+use beui_view::types::Modifiers;
+use beui_view::types::{Rect, Vec2};
 use serde::{Deserialize, Serialize};
 
 use super::dialog::{DialogParts, DockDialogHandle, DockDialogPresentation, DockSheetHandle};
@@ -742,7 +742,7 @@ pub fn Docking<K>(
     #[prop(default = 0.0)] group_inset: f32,
     tab_spacing: f32,
     drop_marker_width: f32,
-    back_shade: Prop<Color32>,
+    back_shade: Prop<Color>,
     icon_sidebar_width: f32,
     #[prop(default = 0.0)] inset: Prop<f32>,
     tab: RenderFn<DockTabHandle>,
@@ -760,9 +760,10 @@ pub fn Docking<K>(
     switch: Option<RenderFn<DockSwitchHandle>>,
     dialog_chrome: Option<RenderFn<DockDialogHandle>>,
     dialog_sheet: Option<RenderFn<DockSheetHandle>>,
-    dialog_scrim: Prop<Color32>,
+    dialog_scrim: Prop<Color>,
     #[prop(default = 0)] dialog_margin: u16,
     #[prop(default = 0)] dialog_gap: u16,
+    #[prop(default = 0.0)] dialog_beak: f32,
     #[prop(default = Vec2::ZERO)] dialog_outset: Vec2,
     children: Children<DockNode<K>>,
 ) -> NodeId
@@ -887,6 +888,7 @@ where
                 dialog_scrim: create_memo(move || dialog_scrim.get()),
                 dialog_margin,
                 dialog_gap,
+                dialog_beak,
                 dialog_outset,
             }}
         />

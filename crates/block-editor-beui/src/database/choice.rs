@@ -1,3 +1,4 @@
+use beui::Align;
 use beui::TextAlign;
 use beui::icons::Glyph;
 use beui::icons::{
@@ -8,7 +9,7 @@ use beui::icons::{
 use beui::reactive::*;
 use beui::styled::theme::ThemeKind;
 use beui::styled::*;
-use beui::{Color32, NodeId};
+use beui::{Color, Color32, ColorDefinitions, ColorVar, NodeId, SchemeColors};
 use database_types::database_schema::{ChoiceColor, ChoiceIcon, DatabaseEnumOption};
 
 pub fn choice_glyph(icon: ChoiceIcon) -> Option<Glyph> {
@@ -61,7 +62,49 @@ pub fn choice_color_label(color: ChoiceColor) -> &'static str {
     }
 }
 
-pub fn choice_color(color: ChoiceColor, kind: ThemeKind) -> Color32 {
+beui::color_var!(GRAY, BLUE, TEAL, GREEN, YELLOW, ORANGE, RED, PINK, PURPLE);
+
+fn choice_var(color: ChoiceColor) -> ColorVar {
+    match color {
+        ChoiceColor::Gray => GRAY,
+        ChoiceColor::Blue => BLUE,
+        ChoiceColor::Teal => TEAL,
+        ChoiceColor::Green => GREEN,
+        ChoiceColor::Yellow => YELLOW,
+        ChoiceColor::Orange => ORANGE,
+        ChoiceColor::Red => RED,
+        ChoiceColor::Pink => PINK,
+        ChoiceColor::Purple => PURPLE,
+    }
+}
+
+fn choice_definitions(light: ThemeKind, dark: ThemeKind) -> ColorDefinitions {
+    ChoiceColor::ALL
+        .into_iter()
+        .map(|color| {
+            let colors =
+                SchemeColors::new(choice_literal(color, light), choice_literal(color, dark));
+            (choice_var(color), colors)
+        })
+        .collect()
+}
+
+#[derive(Clone, Copy)]
+pub struct ChoiceColors(ThemeStore);
+
+pub fn use_choice_colors() -> ChoiceColors {
+    define_themed_colors(choice_definitions);
+    ChoiceColors(use_theme())
+}
+
+impl ChoiceColors {
+    pub fn get(self, color: ChoiceColor) -> Color {
+        self.0
+            .themed(choice_var(color), |kind| choice_literal(color, kind))
+    }
+}
+
+fn choice_literal(color: ChoiceColor, kind: ThemeKind) -> Color32 {
     let (dark, light) = match color {
         ChoiceColor::Gray => ((141, 153, 174), (96, 106, 124)),
         ChoiceColor::Blue => ((108, 140, 255), (37, 99, 235)),
@@ -86,19 +129,17 @@ pub fn ChoiceMark(
     option: Prop<Option<DatabaseEnumOption>>,
     #[prop(default = TextSize::Base)] size: TextSize,
 ) -> NodeId {
-    let theme = use_theme();
+    let colors = use_choice_colors();
     let option = create_memo(move || option.get());
     let dot_color = create_memo(move || {
-        let kind = theme.kind.get();
         option.with(|option| match option {
-            Some(option) => ColorRole::Custom(choice_color(option.color, kind)),
+            Some(option) => ColorRole::Custom(colors.get(option.color)),
             None => ColorRole::TextMuted,
         })
     });
     let color = create_memo(move || {
-        let kind = theme.kind.get();
         option.with(|option| match option {
-            Some(option) => TextColor::Custom(choice_color(option.color, kind)),
+            Some(option) => TextColor::Custom(colors.get(option.color)),
             None => TextColor::Muted,
         })
     });

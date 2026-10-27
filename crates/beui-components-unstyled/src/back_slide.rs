@@ -1,13 +1,13 @@
 use std::cell::{Cell, RefCell};
 use std::time::Duration;
 
-use beui_core::color::Color32;
-use beui_core::geometry::{Vec2, vec2};
-use beui_core::input::{BackEdge, BackGesture};
-use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::primitives::*;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::Color;
+use beui_view::types::{BackEdge, BackGesture};
+use beui_view::types::{Vec2, vec2};
 
 pub const BACK_DRAG_SHARE: f32 = 0.3;
 const RETURN_SECONDS: f32 = 0.25;
@@ -53,7 +53,7 @@ impl Slide {
             state.position = position;
             state.direction
         };
-        let width = viewport_rect().width();
+        let width = use_viewport_size().get_untracked().x;
         self.shift.set(vec2(direction * position * width, 0.0));
         let behind = -direction * BEHIND_SHARE * (1.0 - position.clamp(0.0, 1.0)) * width;
         self.behind_shift.set(vec2(behind, 0.0));
@@ -230,7 +230,7 @@ pub fn BackSlide(
     #[prop(default = ClickCallback::default())] on_gone: ClickCallback,
     #[prop(default = Callback::default())] on_presence: Callback<f32>,
     #[prop(default = None)] behind: Option<RenderFn<()>>,
-    #[prop(default = Color32::TRANSPARENT)] shade: Prop<Color32>,
+    #[prop(default = Color::TRANSPARENT)] shade: Prop<Color>,
     children: Child,
 ) -> NodeId {
     let shift = create_signal(Vec2::ZERO);
@@ -292,13 +292,9 @@ pub fn BackSlide(
         });
     }
     let page = view! {
-        <BackHandler
-            enabled={enabled}
-            on_gesture={move |gesture: BackGesture| slide.value().gesture(gesture)}
-        >
-            <Shift by={shift}>{children}</Shift>
-        </BackHandler>
+        <Frame translate={shift}>{children}</Frame>
     };
+    beui_view::reactive::on_back(enabled, move |gesture| slide.value().gesture(gesture));
     let Some(behind) = behind else {
         return page;
     };
@@ -307,12 +303,12 @@ pub fn BackSlide(
             <Show condition={revealing}>|| {
                 let page = behind.call(());
                 view! {
-                    <Shift by={behind_shift}>
+                    <Frame translate={behind_shift}>
                         <Layers>
                             {page}
                             <Frame fill=shade />
                         </Layers>
-                    </Shift>
+                    </Frame>
                 }
             }</Show>
             {page}
