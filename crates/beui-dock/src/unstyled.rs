@@ -1,4 +1,4 @@
-use beui_core::icons::Glyph;
+use beui_view::types::icons::Glyph;
 mod dialog;
 mod docking;
 mod documents;
@@ -10,7 +10,7 @@ mod switch;
 #[cfg(test)]
 mod tests;
 
-use beui_core::layer::LayerPolicy;
+use beui_view::types::LayerPolicy;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -33,14 +33,15 @@ use beui_components_unstyled::context_menu::ContextMenu;
 use beui_components_unstyled::menu::{MenuItem, MenuNodes};
 use beui_components_unstyled::menu_popup::MenuStyle;
 use beui_components_unstyled::rubber_band::{Band, WINDOW_SPRING};
-use beui_core::base::overlay::{OverlayAnchor, Placement};
-use beui_core::base::{Direction, ItemSize};
-use beui_core::color::Color;
-use beui_core::geometry::{Pos2, Rect, Vec2, pos2, vec2};
-use beui_core::image::Image;
-use beui_core::input::{CursorIcon, Key, KeyPress, Modifiers, PointerPress};
-use beui_core::node::NodeId;
-use beui_core::window::{WindowEdge, WindowId, WindowPlacement, WindowReport};
+use beui_view::reactive::OverlayAnchor;
+use beui_view::types::Placement;
+use beui_view::types::{Direction, ItemSize};
+use beui_view::types::Color;
+use beui_view::types::{Pos2, Rect, Vec2, pos2, vec2};
+use beui_view::types::Image;
+use beui_view::types::{CursorIcon, Key, KeyPress, Modifiers, PointerPress};
+use beui_view::reactive::NodeId;
+use beui_view::types::window::{WindowEdge, WindowId, WindowPlacement, WindowReport};
 use beui_view::components::overlay::Overlay;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -3167,7 +3168,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                     let banding = motion().animates();
                                                     let band = band.value();
                                                     let mut band = band.borrow_mut();
-                                                    band.stretch(origin, placed.min - origin, bounds, banding, beui_core::timer::now());
+                                                    band.stretch(origin, placed.min - origin, bounds, banding, beui_view::reactive::now());
                                                     overshoot.set(band.offset);
                                                     dock.edit(|state| {
                                                         state.set_window_rect(
@@ -3180,7 +3181,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                     if active || handle.is_window() {
                                                         return;
                                                     }
-                                                    band.value().borrow_mut().release(beui_core::timer::now());
+                                                    band.value().borrow_mut().release(beui_view::reactive::now());
                                                     bounce.start();
                                                 }}
                                             >

@@ -1,7 +1,7 @@
 use std::cell::Cell;
 use std::collections::HashMap;
 
-use beui_core::node::NodeId;
+use beui_view::reactive::NodeId;
 use beui_macros::{component, view};
 use beui_view::primitives::*;
 use beui_view::reactive::*;

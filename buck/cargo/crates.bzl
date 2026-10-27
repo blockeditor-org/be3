@@ -5833,7 +5833,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-win32:be-win32",
-                    "//crates/beui-core:beui-core",
+                    "//crates/beui-types:beui-types",
                 ],
                 "examples": {},
                 "features": [],
@@ -5844,7 +5844,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-win32:be-win32",
-                    "//crates/beui-core:beui-core",
+                    "//crates/beui-types:beui-types",
                 ],
                 "examples": {},
                 "features": [],
@@ -5855,7 +5855,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-win32:be-win32",
-                    "//crates/beui-core:beui-core",
+                    "//crates/beui-types:beui-types",
                 ],
                 "examples": {},
                 "features": [],
@@ -5866,7 +5866,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-win32:be-win32",
-                    "//crates/beui-core:beui-core",
+                    "//crates/beui-types:beui-types",
                 ],
                 "examples": {},
                 "features": [],
@@ -5877,7 +5877,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-win32:be-win32",
-                    "//crates/beui-core:beui-core",
+                    "//crates/beui-types:beui-types",
                 ],
                 "examples": {},
                 "features": [],
@@ -5888,7 +5888,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-win32:be-win32",
-                    "//crates/beui-core:beui-core",
+                    "//crates/beui-types:beui-types",
                     "//third-party/rust:windows-0.62.2",
                 ],
                 "examples": {},
@@ -5900,7 +5900,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-win32:be-win32",
-                    "//crates/beui-core:beui-core",
+                    "//crates/beui-types:beui-types",
                     "//third-party/rust:windows-0.62.2",
                 ],
                 "examples": {},
@@ -8337,7 +8337,6 @@ crates = {
                 "deps": [
                     "//crates/beui-components-styled:beui-components-styled",
                     "//crates/beui-components-unstyled:beui-components-unstyled",
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
@@ -8354,7 +8353,6 @@ crates = {
                 "deps": [
                     "//crates/beui-components-styled:beui-components-styled",
                     "//crates/beui-components-unstyled:beui-components-unstyled",
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
@@ -8371,7 +8369,6 @@ crates = {
                 "deps": [
                     "//crates/beui-components-styled:beui-components-styled",
                     "//crates/beui-components-unstyled:beui-components-unstyled",
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
@@ -8388,7 +8385,6 @@ crates = {
                 "deps": [
                     "//crates/beui-components-styled:beui-components-styled",
                     "//crates/beui-components-unstyled:beui-components-unstyled",
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
@@ -8405,7 +8401,6 @@ crates = {
                 "deps": [
                     "//crates/beui-components-styled:beui-components-styled",
                     "//crates/beui-components-unstyled:beui-components-unstyled",
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
@@ -8422,7 +8417,6 @@ crates = {
                 "deps": [
                     "//crates/beui-components-styled:beui-components-styled",
                     "//crates/beui-components-unstyled:beui-components-unstyled",
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
@@ -8439,7 +8433,6 @@ crates = {
                 "deps": [
                     "//crates/beui-components-styled:beui-components-styled",
                     "//crates/beui-components-unstyled:beui-components-unstyled",
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
@@ -8456,7 +8449,6 @@ crates = {
                 "deps": [
                     "//crates/beui-components-styled:beui-components-styled",
                     "//crates/beui-components-unstyled:beui-components-unstyled",
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
@@ -8473,7 +8465,6 @@ crates = {
                 "deps": [
                     "//crates/beui-components-styled:beui-components-styled",
                     "//crates/beui-components-unstyled:beui-components-unstyled",
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
@@ -9362,6 +9353,7 @@ crates = {
                     "//crates/beui-core:beui-core",
                     "//crates/beui-font-freetype:beui-font-freetype",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                    "//crates/beui-types:beui-types",
                     "//third-party/rust:bytemuck-1.25.0",
                     "//third-party/rust:glam-0.30.10",
                     "//third-party/rust:wgpu-29.0.3",
@@ -9384,6 +9376,7 @@ crates = {
                     "//crates/beui-core:beui-core",
                     "//crates/beui-font-freetype:beui-font-freetype",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                    "//crates/beui-types:beui-types",
                     "//third-party/rust:bytemuck-1.25.0",
                     "//third-party/rust:glam-0.30.10",
                     "//third-party/rust:wgpu-29.0.3",
@@ -9406,6 +9399,7 @@ crates = {
                     "//crates/beui-core:beui-core",
                     "//crates/beui-font-freetype:beui-font-freetype",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                    "//crates/beui-types:beui-types",
                     "//third-party/rust:bytemuck-1.25.0",
                     "//third-party/rust:glam-0.30.10",
                     "//third-party/rust:wgpu-29.0.3",
@@ -9428,6 +9422,7 @@ crates = {
                     "//crates/beui-core:beui-core",
                     "//crates/beui-font-freetype:beui-font-freetype",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                    "//crates/beui-types:beui-types",
                     "//third-party/rust:bytemuck-1.25.0",
                     "//third-party/rust:glam-0.30.10",
                     "//third-party/rust:wgpu-29.0.3",
@@ -9450,6 +9445,7 @@ crates = {
                     "//crates/beui-core:beui-core",
                     "//crates/beui-font-freetype:beui-font-freetype",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                    "//crates/beui-types:beui-types",
                     "//third-party/rust:bytemuck-1.25.0",
                     "//third-party/rust:glam-0.30.10",
                     "//third-party/rust:wgpu-29.0.3",
@@ -9472,6 +9468,7 @@ crates = {
                     "//crates/beui-core:beui-core",
                     "//crates/beui-font-freetype:beui-font-freetype",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                    "//crates/beui-types:beui-types",
                     "//third-party/rust:bytemuck-1.25.0",
                     "//third-party/rust:glam-0.30.10",
                     "//third-party/rust:wgpu-29.0.3",
@@ -9494,6 +9491,7 @@ crates = {
                     "//crates/beui-core:beui-core",
                     "//crates/beui-font-freetype:beui-font-freetype",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                    "//crates/beui-types:beui-types",
                     "//third-party/rust:bytemuck-1.25.0",
                     "//third-party/rust:glam-0.30.10",
                     "//third-party/rust:wgpu-29.0.3",

@@ -1,14 +1,15 @@
 use beui_components_unstyled::DialogLayout;
-use beui_core::icons::Glyph;
+use beui_view::types::icons::Glyph;
 use std::time::Duration;
 
-use beui_core::base::overlay::{OverlayAnchor, Placement};
-use beui_core::color::Color;
-use beui_core::geometry::{Rect, Vec2};
-use beui_core::input::PointerPress;
-use beui_core::layer::{Dismiss, LayerPolicy};
-use beui_core::node::NodeId;
-use beui_core::window::{WindowPlacement, WindowReport};
+use beui_view::reactive::OverlayAnchor;
+use beui_view::types::Placement;
+use beui_view::types::Color;
+use beui_view::types::{Rect, Vec2};
+use beui_view::types::PointerPress;
+use beui_view::types::{Dismiss, LayerPolicy};
+use beui_view::reactive::NodeId;
+use beui_view::types::window::{WindowPlacement, WindowReport};
 use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;
 use beui_view::primitives::*;

@@ -1156,7 +1156,7 @@ name = "be-win32-input"
 version = "0.1.0"
 dependencies = [
  "be-win32",
- "beui-core",
+ "beui-types",
  "windows 0.62.2",
 ]
 
@@ -1286,7 +1286,6 @@ dependencies = [
  "accesskit",
  "beui-components-styled",
  "beui-components-unstyled",
- "beui-core",
  "beui-view",
  "beui_macros",
  "reactive",
@@ -1393,6 +1392,7 @@ dependencies = [
  "beui-font-freetype",
  "beui-keyboard",
  "beui-renderer-wgpu",
+ "beui-types",
  "beui-view",
  "beui_macros",
  "bytemuck",

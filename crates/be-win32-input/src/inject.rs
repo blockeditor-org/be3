@@ -1,7 +1,7 @@
 use std::mem::size_of;
 
 use be_win32::{Entry, Handle, Snapshot};
-use beui_core::geometry::Vec2;
+use beui_types::Vec2;
 use windows::Win32::Foundation::{GetLastError, HWND};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE, KEYBD_EVENT_FLAGS, KEYBDINPUT, MOUSE_EVENT_FLAGS,

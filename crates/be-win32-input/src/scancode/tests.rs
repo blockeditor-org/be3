@@ -1,5 +1,5 @@
 use super::*;
-use beui_core::input::Key;
+use beui_types::input::Key;
 
 mod a_plain_scan_code_is_the_evdev_code_of_its_place;
 mod an_extended_scan_code_names_the_key_beside_its_plain_twin;

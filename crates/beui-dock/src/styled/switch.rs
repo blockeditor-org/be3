@@ -1,5 +1,5 @@
 use beui_components_styled::frame::{Border, ColorRole, Frame, Radius};
-use beui_core::font::Overflow;
+use beui_view::types::Overflow;
 use beui_macros::{component, view};
 
 use crate::unstyled::{DockSwitchHandle, DockSwitchRowHandle, TabId};
@@ -7,9 +7,9 @@ use beui_components_styled::List;
 use beui_components_styled::list_row::ListRow;
 use beui_components_styled::text::{Icon, Text, TextColor};
 use beui_components_styled::tokens::{Padding, Size, Space};
-use beui_core::base::{Align, Direction};
-use beui_core::font::TextAlign;
-use beui_core::node::NodeId;
+use beui_view::types::{Align, Direction};
+use beui_view::types::TextAlign;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
 const PANEL_WIDTH: Size = Size::Dialog;

@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use std::fmt;
 use std::rc::Rc;
 
-use beui_core::base::Direction;
-use beui_core::geometry::{Pos2, Rect, Vec2};
+use beui_view::types::Direction;
+use beui_view::types::{Pos2, Rect, Vec2};
 use serde::{Deserialize, Serialize};
 
 mod history;
@@ -2133,7 +2133,7 @@ pub fn fraction_moved(
 }
 
 mod direction {
-    use beui_core::base::Direction;
+    use beui_view::types::Direction;
     use serde::{Deserialize, Deserializer, Serializer};
 
     pub(super) fn serialize<S: Serializer>(
@@ -2154,7 +2154,7 @@ mod direction {
 }
 
 mod window {
-    use beui_core::geometry::{Pos2, Rect};
+    use beui_view::types::{Pos2, Rect};
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
     pub(super) fn serialize<S: Serializer>(
