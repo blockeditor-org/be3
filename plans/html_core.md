@@ -41,7 +41,8 @@ end lists.
   both cores (one way to paint an image or a thumb): an SVG `<image>` and
   `<rect>` on HTML. The colour wheel's gpu face is computed on the CPU into
   an image there.
-- **Text editing stays in unstyled.** `TextArea` and `TextInput`, with
+- **Text editing stays in unstyled** (except plain single-line fields,
+  below). `TextArea` and `TextInput`, with
   `text_editor_core`, rows, `VirtualList`, completion and handles, are shared
   by both cores. They rely on base `Text`'s declarative props, which the HTML
   core implements: `marks` as the CSS Custom Highlight API (`::highlight()`),
@@ -63,10 +64,17 @@ end lists.
   (`beui-view`'s `selection.rs`), so on the HTML core display text is
   selected and copied by the browser. Inside editors `TextArea` owns
   selection on both cores.
-- **No `<input type=password>` in the first version.** `TextInput`'s
-  `password` mode stays beui's own. A real password input, for
-  password-manager autofill, is a follow-up switch in unstyled, like
-  `Scroll`'s.
+- **Plain single-line fields are `<input>`s.** Reversing the first
+  version: a `TextInput` that is single-line, has no `prose` and does not
+  `select_on_focus` is a real `<input>` on the HTML core (its `kind` the
+  `type`: text, password, email, search, url, tel), switched in unstyled on
+  `CORE`, with `name` and `autocomplete` for forms and password managers.
+  `Form` is a native `<form method=post>` there, `Button submit` a
+  `<button type=submit>` and `Button href` an `<a href>`, so a server-rendered
+  page posts and navigates before wasm loads. They reach the DOM through one
+  generic base primitive, `Element` (a tag, attributes, styles and events;
+  natively a plain box around its child), which only unstyled uses, behind
+  the `CORE` switch. Multi-line and rich text stay beui's own.
 - **The browser scrolls `Scroll` on HTML.** The first version kept owning
   scrolling: `Scroll` stays in unstyled, built on `Offset` and
   `Interactive`, and the HTML core implements `Offset` as an
@@ -738,9 +746,12 @@ have landed; its tasks run in parallel unless marked.
 
 ## Left
 
-- Browser-native text editing: EditContext (or `contenteditable`) for
-  `TextArea` and `TextInput` on the HTML core, and `TextInput`'s `password`
-  mode as `<input type=password>`, each a switch in unstyled.
+- Browser-native text editing for `TextArea` and the `TextInput`s that are
+  not plain (EditContext or `contenteditable`), a switch in unstyled.
+- A plain `TextInput` on HTML ignores `keyboard_on_focus`, and its
+  `TextInputApi` knows no caret, selection or handles (the browser's).
+- `Form` cannot post a beui-own field: only plain `TextInput`s carry a
+  `name` into the post.
 - A `Drawing` with no `size` draws nothing in a server-rendered page, since
   the HTML core measures nothing there; so the scrollbar thumb and the colour
   picker's areas and sliders appear only once the page runs.
