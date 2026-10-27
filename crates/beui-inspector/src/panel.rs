@@ -6,7 +6,8 @@ use crate::screen_reader::Command;
 use beui_components_styled::*;
 use beui_components_unstyled::{ChoiceOption, SliderScale, TreeItem};
 use beui_core::base::TextAlign;
-use beui_core::current::enter;
+use beui_core::base::embed::EmbedSlot;
+use beui_core::current::{enter, with_document};
 use beui_core::document::Document;
 use beui_core::filter::{ColorVision, MAX_BLUR};
 use beui_core::icons::{ICON_MOUSE_POINTER_2, ICON_X};
@@ -16,14 +17,13 @@ use beui_core::performance::PerformanceSnapshot;
 use beui_core::performance::PerformanceTimings;
 use beui_core::preferences::{Motion, PreferenceLayer, ThemeKind};
 use beui_dock::styled::Docking;
-use beui_dock::unstyled::{DockPane, DockTab, DockingLayout, dock_menu};
+use beui_dock::unstyled::{DockPane, DockSplit, DockTab, DockingLayout, dock_menu, use_dock_tab};
 use beui_view::reactive::*;
 
 use super::tree::{Entry, Key};
-use super::{InspectorTab, State, entry_label};
+use super::{DEFAULT_WIDTH, InspectorTab, State, entry_label};
 use beui_view::types::{Align, Direction, ItemSize};
 
-const HEADER_PADDING: Space = Space::Lg;
 const HEADER_SPACING: Space = Space::Md;
 const BODY_PADDING: Space = Space::Md;
 const FOOTER_PADDING: Space = Space::Md;
@@ -35,7 +35,7 @@ const BLUR_MIDPOINT: f32 = 12.0;
 const RENDERER_LABEL_WIDTH: f32 = 104.0;
 const PROPERTIES_SHARE: f32 = 45.0;
 pub const PICK: &str = "inspector.pick";
-const BAR_PADDING: Padding = Padding::symmetric(Space::Md, Space::Sm);
+pub const CLOSE: &str = "inspector.close";
 const PIXEL_RATIOS: [(&str, Option<f32>); 5] = [
     ("Native", None),
     ("1x", Some(1.0)),
@@ -201,85 +201,74 @@ pub struct Panel {
     pub summary: Signal<Summary>,
     pub performance: Signal<PerformanceSummary>,
     pub renderer: Signal<RendererRows>,
-    pub compact: Signal<bool>,
+    pub app: EmbedSlot,
+    pub width: Signal<f32>,
 }
 
-pub fn build(state: Stored<State>) -> Panel {
+pub fn build(state: Stored<State>, width: f32) -> Panel {
     let owner = RootScope::new();
     let trees = [TreeView::new(), TreeView::new(), TreeView::new()];
     let tools = DockingLayout::new();
     let summary = create_signal(Summary::default());
     let performance = create_signal(PerformanceSummary::default());
     let renderer = create_signal(RendererRows::new());
-    let compact = create_signal(false);
+    let width = create_signal(width);
+    let fraction = create_memo(move || app_share(width.get()));
+    let app = EmbedSlot::new();
 
     let mut document = Document::new();
     let root = enter(&mut document, || {
         provide_context(ThemeStore::new(Theme::DARK));
         let [beui, components, accesskit] = trees;
         view! {
-            <List direction=Direction::Horizontal spacing=Space::None>
-                <Separator direction=Direction::Vertical />
-                <Frame @sizing=ItemSize::Percent(100.0) fill=ColorRole::Surface>
-                    <List spacing=Space::None>
-                        <Frame padding=HEADER_PADDING>
-                            <List
-                                direction=Direction::Horizontal
-                                align=Align::Center
-                                spacing=HEADER_SPACING
+            <Frame @test_id={"inspector.dock"}>
+                <Docking layout=tools focus={Some(InspectorTab::Beui)}>
+                    <DockSplit id="inspector" direction=Direction::Horizontal fraction={fraction}>
+                        <DockPane id="app">
+                            <DockTab
+                                id=InspectorTab::App
+                                title={InspectorTab::App.title()}
+                                see_through=true
                             >
-                                <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0)>
-                                    "Inspector"
-                                </Text>
-                                <Show condition={create_memo(move || !compact.get())}>
-                                    <CloseButton @test_id={"inspector.close"} state={state} />
-                                </Show>
-                            </List>
-                        </Frame>
-                        <Separator />
-                        <Frame @sizing=ItemSize::Percent(100.0) @test_id={"inspector.tools"}>
-                            <Docking layout=tools>
-                                <DockPane id="tools">
-                                    <DockTab
-                                        id=InspectorTab::Beui
-                                        title={InspectorTab::Beui.title()}
-                                    >
-                                        <TreePanel view=beui noun="node" state summary />
-                                    </DockTab>
-                                    <DockTab
-                                        id=InspectorTab::Components
-                                        title={InspectorTab::Components.title()}
-                                    >
-                                        <TreePanel view=components noun="component" state summary />
-                                    </DockTab>
-                                    <DockTab
-                                        id=InspectorTab::AccessKit
-                                        title={InspectorTab::AccessKit.title()}
-                                    >
-                                        <TreePanel view=accesskit noun="node" state summary />
-                                    </DockTab>
-                                    <DockTab
-                                        id=InspectorTab::Performance
-                                        title={InspectorTab::Performance.title()}
-                                    >
-                                        <PerformanceTool
-                                            performance={performance.read_only()}
-                                            renderer={renderer.read_only()}
-                                            state
-                                        />
-                                    </DockTab>
-                                    <DockTab
-                                        id=InspectorTab::Simulation
-                                        title={InspectorTab::Simulation.title()}
-                                    >
-                                        <SimulationTool state summary />
-                                    </DockTab>
-                                </DockPane>
-                            </Docking>
-                        </Frame>
-                    </List>
-                </Frame>
-            </List>
+                                <AppTool app state />
+                            </DockTab>
+                        </DockPane>
+                        <DockPane id="tools">
+                            <DockTab id=InspectorTab::Beui title={InspectorTab::Beui.title()}>
+                                <TreePanel view=beui noun="node" state summary />
+                            </DockTab>
+                            <DockTab
+                                id=InspectorTab::Components
+                                title={InspectorTab::Components.title()}
+                            >
+                                <TreePanel view=components noun="component" state summary />
+                            </DockTab>
+                            <DockTab
+                                id=InspectorTab::AccessKit
+                                title={InspectorTab::AccessKit.title()}
+                            >
+                                <TreePanel view=accesskit noun="node" state summary />
+                            </DockTab>
+                            <DockTab
+                                id=InspectorTab::Performance
+                                title={InspectorTab::Performance.title()}
+                            >
+                                <PerformanceTool
+                                    performance={performance.read_only()}
+                                    renderer={renderer.read_only()}
+                                    state
+                                />
+                            </DockTab>
+                            <DockTab
+                                id=InspectorTab::Simulation
+                                title={InspectorTab::Simulation.title()}
+                            >
+                                <SimulationTool state summary />
+                            </DockTab>
+                        </DockPane>
+                    </DockSplit>
+                </Docking>
+            </Frame>
         }
     });
     document.set_root(root);
@@ -292,8 +281,37 @@ pub fn build(state: Stored<State>) -> Panel {
         summary,
         performance,
         renderer,
-        compact,
+        app,
+        width,
     }
+}
+
+fn app_share(width: f32) -> f32 {
+    match width > DEFAULT_WIDTH {
+        true => 1.0 - DEFAULT_WIDTH / width,
+        false => 0.5,
+    }
+}
+
+#[component]
+fn AppTool(app: EmbedSlot, state: Stored<State>) -> NodeId {
+    if let Some(tab) = use_dock_tab() {
+        create_effect(move || {
+            if tab.keyboard().is_some() {
+                untrack(|| state.value().release_keyboard());
+            }
+        });
+    }
+    let embed = with_document(|document| document.create_embed(app.0.value())).id();
+    app.0.with(|held| held.node.set(Some(embed)));
+    test_id(embed, "inspector.app")
+}
+
+fn close_action(state: Stored<State>) -> Action {
+    Action::new(CLOSE, "Close inspector", move || state.value().close())
+        .glyph(ICON_X)
+        .pin(Pin::Icon)
+        .detached()
 }
 
 #[component]
@@ -322,7 +340,10 @@ fn TreePanel(
         .checked(picking)
         .pin(Pin::Icon)
         .detached();
-    dock_menu(create_memo(move || vec![MenuNode::action(&pick)]));
+    let close = close_action(state);
+    dock_menu(create_memo(move || {
+        vec![MenuNode::action(&pick), MenuNode::action(&close)]
+    }));
     view! {
         <List spacing=Space::None>
             <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
@@ -389,6 +410,8 @@ fn PerformanceTool(
     state: Stored<State>,
 ) -> NodeId {
     let samples = create_memo(move || performance.with(|performance| performance.samples.clone()));
+    let close = close_action(state);
+    dock_menu(create_memo(move || vec![MenuNode::action(&close)]));
     view! {
         <List spacing=Space::None>
             <PerformancePanel
@@ -425,6 +448,8 @@ fn SimulationTool(state: Stored<State>, summary: Signal<Summary>) -> NodeId {
         create_memo(move || summary.with(|summary| summary.native_pixel_ratio.clone()));
     let responsive = create_memo(move || summary.with(|summary| summary.responsive));
     let handles_back = create_memo(move || summary.with(|summary| summary.handles_back));
+    let close = close_action(state);
+    dock_menu(create_memo(move || vec![MenuNode::action(&close)]));
     view! {
         <List spacing=Space::None>
             <SimulationPanel @sizing=ItemSize::Percent(100.0) state responsive handles_back />
@@ -433,55 +458,6 @@ fn SimulationTool(state: Stored<State>, summary: Signal<Summary>) -> NodeId {
                 <Text style=TextStyle::CODE color=TextColor::Muted>{native_pixel_ratio_text}</Text>
             </Frame>
         </List>
-    }
-}
-
-pub struct Bar {
-    pub document: Document,
-    _scope: Scope,
-    pub selected: Signal<usize>,
-}
-
-pub fn build_bar(state: Stored<State>) -> Bar {
-    let owner = RootScope::new();
-    let selected = create_signal(1);
-    let mut document = Document::new();
-    let root = enter(&mut document, || {
-        provide_context(ThemeStore::new(Theme::DARK));
-        view! {
-            <Frame fill=ColorRole::Surface>
-                <List spacing=Space::None>
-                    <Frame @sizing=ItemSize::Percent(100.0) padding=BAR_PADDING>
-                        <List
-                            direction=Direction::Horizontal
-                            align=Align::Center
-                            spacing=HEADER_SPACING
-                        >
-                            <Tabs
-                                @test_id={"inspector.bar"}
-                                @sizing=ItemSize::Percent(100.0)
-                                options={view! {
-                                    <ChoiceOption label="App" />
-                                    <ChoiceOption label="Inspector" />
-                                }}
-                                selected={Binding::new(selected, move |index| {
-                                    selected.set(index);
-                                    state.value().show_app(index == 0);
-                                })}
-                            />
-                            <CloseButton @test_id={"inspector.bar.close"} state={state} />
-                        </List>
-                    </Frame>
-                    <Separator />
-                </List>
-            </Frame>
-        }
-    });
-    document.set_root(root);
-    Bar {
-        document,
-        _scope: owner.into_scope(),
-        selected,
     }
 }
 
@@ -1001,20 +977,6 @@ fn format_duration(duration: Duration) -> String {
 
 fn percentage(count: usize, total: usize) -> usize {
     count.saturating_mul(100) / total.max(1)
-}
-
-#[component]
-fn CloseButton(state: Stored<State>) -> NodeId {
-    view! {
-        <Button
-            icon_only=true
-            glyph=ICON_X
-            label="Close inspector"
-            variant=ButtonVariant::Ghost
-            size=ButtonSize::Small
-            on_click={move || state.value().close()}
-        />
-    }
 }
 
 fn entry_field<T: Clone + Default + PartialEq + 'static>(

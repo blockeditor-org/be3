@@ -47,7 +47,6 @@ mod a_clearable_text_input_empties_from_its_clear_button;
 mod a_click_below_a_rich_text_areas_last_line_opens_a_plain_line_under_a_code_block;
 mod a_click_catcher_that_takes_touch_drags_keeps_a_vertical_finger_drag;
 mod a_click_handler_can_mutate_the_tree_in_the_current_frame;
-mod a_click_on_the_inspector_grip_does_not_leave_it_grabbed;
 mod a_click_outside_an_open_color_input_closes_it_and_lands_on_what_was_clicked;
 mod a_clicked_number_input_selects_its_text_until_enter;
 mod a_closed_overlay_leaves_its_content_out_of_the_tree;
@@ -258,8 +257,7 @@ mod a_modifier_drag_on_a_docked_pane_moves_nothing_and_reaches_nothing;
 mod a_mouse_away_from_a_held_finger_still_moves_the_pointer;
 mod a_multi_root_view_fills_a_children_prop_in_order;
 mod a_narrow_inspector_covering_the_app_unplaces_its_embeds;
-mod a_narrow_inspector_puts_its_close_button_beside_its_tabs;
-mod a_narrow_window_shows_the_inspector_below_a_tab_bar;
+mod a_narrow_window_stacks_the_app_and_the_inspector;
 mod a_nested_container_reports_its_own_width_not_the_windows;
 mod a_nested_overlay_closes_with_its_parent_whatever_the_parents_policy;
 mod a_new_line_typed_into_an_empty_text_area_paints_one_caret;
@@ -319,7 +317,6 @@ mod a_reactive_tree_can_nest_builder_calls_without_threading_the_document;
 mod a_read_only_text_area_selects_and_refuses_edits_and_reads_as_read_only;
 mod a_rebuilt_panel_that_paints_the_same_is_reported_as_an_over_repaint;
 mod a_redrawn_drawing_damages_only_the_part_it_names;
-mod a_release_that_moves_the_inspectors_edge_resizes_the_panel_to_it;
 mod a_release_that_moves_the_simulated_screens_edge_resizes_it_to_it;
 mod a_released_sheet_springs_to_its_stop_or_closed;
 mod a_removed_nodes_slot_is_reused_under_a_new_id;
@@ -465,7 +462,6 @@ mod a_window_slides_into_a_shrinking_dock_and_back_out_when_it_grows;
 mod a_window_the_host_focuses_on_opening_gives_the_keyboard_to_its_first_focusable;
 mod a_window_the_host_unfocuses_lets_go_of_the_keyboard_and_gets_it_back_when_refocused;
 mod a_window_with_tabs_in_a_sidebar_has_no_title_bar;
-mod a_window_without_room_for_the_app_beside_the_inspector_uses_the_tab_bar;
 mod a_wrapper_provides_a_container_to_every_child_written_between_its_tags;
 mod a_wrapping_caption_grows_taller_than_the_single_line_it_would_be;
 mod a_wrapping_label_in_a_row_keeps_its_longest_word_whole;
@@ -627,7 +623,7 @@ mod dragging_the_bar_between_two_panes_moves_the_boundary;
 mod dragging_the_edge_of_a_windows_sidebar_resizes_it_without_moving_the_window;
 mod dragging_the_edge_of_the_responsive_screen_resizes_it;
 mod dragging_the_end_handle_of_a_double_tapped_word_extends_the_selection;
-mod dragging_the_inspector_edge_resizes_the_panel;
+mod dragging_the_inspectors_splitter_resizes_the_app;
 mod dragging_the_scrollbar_thumb_scrolls_the_content_beside_it;
 mod dropping_a_dock_tab_onto_the_middle_of_another_groups_them;
 mod editing_one_row_of_a_keyed_list_leaves_every_node_in_place;
@@ -771,7 +767,6 @@ mod resizing_rows_preserves_the_scroll_anchor;
 mod resizing_scaling_and_replacing_the_root_invalidate_the_cache;
 mod resizing_the_main_panel_in_space_lays_the_main_window_out_at_its_new_size;
 mod responsive_design_mode_lays_the_app_out_at_the_chosen_device_size;
-mod returning_to_the_inspector_tab_repaints_the_whole_panel;
 mod right_arrow_opens_a_submenu_and_left_arrow_closes_it_and_refocuses_the_parent_item;
 mod right_click_opens_a_context_menu_at_the_cursor_position;
 mod right_clicking_a_dock_tab_pops_it_out_into_a_window;
@@ -804,6 +799,7 @@ mod shift_tab_moves_focus_to_the_previous_button;
 mod show_builds_its_child_each_time_it_is_shown_and_disposes_it_when_hidden;
 mod show_keep_alive_builds_its_child_once_and_keeps_it_while_hidden;
 mod showing_a_child_at_the_end_of_a_list_damages_only_that_child;
+mod showing_the_app_again_in_a_stacked_inspector_keeps_its_accessibility_tree_attached;
 mod simulating_a_device_pixel_ratio_in_the_inspector_changes_the_pixels_per_point;
 mod sizing_attributes_on_the_roots_of_a_multi_root_view_are_honoured;
 mod slider_home_end_and_page_keys_clamp_at_the_bounds;
@@ -832,6 +828,7 @@ mod tapping_the_caret_handle_of_a_text_area_shows_a_toolbar_that_pastes;
 mod tapping_the_caret_handle_shows_a_toolbar_that_asks_the_host_to_paste;
 mod tapping_the_focused_text_input_again_asks_for_the_keyboard_again;
 mod tapping_then_dragging_on_the_simulated_trackpad_drags_from_where_the_tap_landed;
+mod text_culled_out_of_sight_is_not_an_overflow_after_the_window_narrows;
 mod text_geometry_counts_utf8_bytes_and_only_the_bytes_inline_children_stand_for;
 mod text_in_a_zoomed_canvas_wraps_where_it_did_at_every_zoom;
 mod text_in_a_zooming_canvas_scales_with_it_before_its_glyphs_are_rasterised_again;
@@ -840,7 +837,7 @@ mod text_that_does_not_fit_ends_in_an_ellipsis;
 mod text_widgets_sit_in_the_text_and_blocks_below_their_line;
 mod text_with_spans_wraps_places_inline_items_and_answers_where_indices_are;
 mod the_app_and_the_inspector_paint_displays_a_renderer_can_tell_apart;
-mod the_app_tab_shows_the_document_below_the_tab_bar;
+mod the_app_tab_shows_the_document_below_the_stacked_bar;
 mod the_caret_of_a_focused_text_area_blinks_on_a_deadline;
 mod the_caret_of_a_text_input_paints_two_points_wide;
 mod the_caret_steps_evenly_across_a_markdown_checkbox;
@@ -1401,24 +1398,13 @@ impl Harness {
     }
 
     pub(crate) fn close_button_center(&self) -> Pos2 {
-        self.inspector_center("inspector.close")
+        self.inspector_center("dock.pin.inspector.close")
     }
 
-    pub(crate) fn bar_close_rect(&self) -> Rect {
+    pub(crate) fn app_rect(&self) -> Rect {
         self.inspector()
-            .bar_rect("inspector.bar.close")
-            .expect("the inspector's tab bar has no close button")
-            .scaled(crate::inspector::scale(self.context()))
-    }
-
-    pub(crate) fn bar_option_center(&self, index: usize) -> Pos2 {
-        self.bar_option_rect(index).center()
-    }
-
-    pub(crate) fn bar_option_rect(&self, index: usize) -> Rect {
-        self.inspector()
-            .bar_option_rect(index)
-            .expect("the inspector has no tab bar")
+            .app_rect()
+            .expect("the inspector shows the app")
             .scaled(crate::inspector::scale(self.context()))
     }
 

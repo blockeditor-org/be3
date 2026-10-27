@@ -163,6 +163,7 @@ impl AccessibilityDump {
 
     pub fn update(&mut self, update: TreeUpdate) {
         let mut tree = self.held.tree.borrow_mut();
+        tree.check_attached(&update);
         let root = update.tree.map(|tree| tree.root).or(tree.root);
         let mut changed = root != tree.root || tree.focus != Some(update.focus);
         tree.root = root;
@@ -195,6 +196,30 @@ impl AccessibilityDump {
 }
 
 impl Nodes {
+    fn check_attached(&self, update: &TreeUpdate) {
+        let mut reached = HashSet::default();
+        if let Some(root) = self.root {
+            self.reach(root, &mut reached);
+        }
+        let claimed: HashSet<NodeId> = update
+            .nodes
+            .iter()
+            .flat_map(|(_, node)| node.children().iter().copied())
+            .collect();
+        let root = update.tree.as_ref().map(|tree| tree.root);
+        let detached: Vec<NodeId> = update
+            .nodes
+            .iter()
+            .map(|(id, _)| *id)
+            .filter(|id| Some(*id) != root && !reached.contains(id) && !claimed.contains(id))
+            .collect();
+        assert!(
+            detached.is_empty(),
+            "the update includes {} nodes which are neither in the current tree nor a child of another node from the update, which accesskit rejects: {detached:?}",
+            detached.len()
+        );
+    }
+
     fn reach(&self, id: NodeId, reached: &mut HashSet<NodeId>) {
         let mut pending = vec![id];
         while let Some(id) = pending.pop() {

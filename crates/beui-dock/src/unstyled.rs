@@ -127,6 +127,7 @@ pub struct DockChromeHandle {
     pub floating: bool,
     pub barred: bool,
     pub focused: Memo<bool>,
+    pub see_through: Memo<bool>,
     pub content: Child,
 }
 
@@ -1979,10 +1980,15 @@ fn DockChrome(dock: State, parts: ChromeParts) -> NodeId {
             {body} @sizing=ItemSize::Percent(100.0)
         </List>
     };
+    let state = dock.state;
+    let see_through = create_memo(move || {
+        leaf.is_some_and(|leaf| state.with(|state| state.shows_see_through(leaf)))
+    });
     dock.chrome.call(DockChromeHandle {
         floating,
         barred,
         focused,
+        see_through,
         content,
     })
 }
@@ -2498,6 +2504,9 @@ fn DockTabView(
                 .and_then(|surface| state.window_rect(surface))
                 .is_some()
     });
+    let anchored = create_memo(move || {
+        state.with(|state| !state.admits(entry, DockDrop::Window { pos: Pos2::ZERO }))
+    });
     let closable = create_memo(move || {
         !pinned && tabs.with(|tabs| tabs.iter().all(|tab| dock.closable.call(*tab)))
     });
@@ -2562,6 +2571,7 @@ fn DockTabView(
                 menu
                 grouped
                 floating
+                anchored
                 pinned
                 has_next
                 held
@@ -2587,6 +2597,7 @@ fn TabMenu(
     menu: MenuStyle,
     grouped: bool,
     floating: bool,
+    anchored: Memo<bool>,
     pinned: bool,
     has_next: Memo<bool>,
     held: Memo<Option<bool>>,
@@ -2607,7 +2618,7 @@ fn TabMenu(
         Some(true) => "Leave full screen".to_owned(),
         Some(false) | None => "Full screen".to_owned(),
     });
-    let stuck = create_memo(move || floating || held.get() == Some(true));
+    let stuck = create_memo(move || floating || anchored.get() || held.get() == Some(true));
     let homeless = create_memo(move || held.get().is_none());
     let pin_label = create_memo(move || match (locks.get(), held.get()) {
         (true, Some(true)) => "Unlock".to_owned(),
