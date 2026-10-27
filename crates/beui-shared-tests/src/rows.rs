@@ -82,9 +82,8 @@ fn reach(at: ScrollPosition) -> &'static str {
 pub fn ScrollChainFixture() -> NodeId {
     let outer = create_signal("unknown");
     let inner = create_signal("unknown");
-    let report = create_memo(move || {
-        format!("Outer at the {}, inner at the {}", outer.get(), inner.get())
-    });
+    let report =
+        create_memo(move || format!("Outer at the {}, inner at the {}", outer.get(), inner.get()));
     view! {
         <List spacing=Space::Md>
             <Frame width=Size::Custom(240.0) height=Size::Custom(200.0)>

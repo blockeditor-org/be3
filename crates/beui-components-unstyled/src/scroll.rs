@@ -23,8 +23,8 @@ use beui_view::types::Placement;
 use beui_view::types::Pos2;
 use beui_view::types::Sides;
 use beui_view::types::{
-    AutoscrollGesture, CursorIcon, DragGesture, Key, KeyPress, PointerPress, ScrollGesture,
-    Vec2, WHEEL_LATCH_TIMEOUT, WheelInput,
+    AutoscrollGesture, CursorIcon, DragGesture, Key, KeyPress, PointerPress, ScrollGesture, Vec2,
+    WHEEL_LATCH_TIMEOUT, WheelInput,
 };
 use beui_view::types::{Direction, ItemSize, Justify, PlatformScroll, ScrollPosition, Sizing};
 use beui_view::{CORE, Core};
@@ -251,7 +251,10 @@ impl Momentum {
     }
 }
 
-fn chaining(motion: Stored<Motion>, wheel: Callback<WheelInput, bool>) -> Callback<WheelInput, bool> {
+fn chaining(
+    motion: Stored<Motion>,
+    wheel: Callback<WheelInput, bool>,
+) -> Callback<WheelInput, bool> {
     Callback::new(move |input: WheelInput| {
         if let WheelInput::Scroll(gesture) = &input
             && motion.value().wheel_chains(gesture)
@@ -714,7 +717,11 @@ fn Scrolling(
         autoscroll.pointer,
         gestures::chaining_scroll_drag(
             axis,
-            move |movement: Vec2| motion.value().chains(direction.get_untracked().main(movement)),
+            move |movement: Vec2| {
+                motion
+                    .value()
+                    .chains(direction.get_untracked().main(movement))
+            },
             move |gesture: DragGesture| motion.value().drag(gesture),
         ),
     ]);
