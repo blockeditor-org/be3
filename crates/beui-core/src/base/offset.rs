@@ -11,6 +11,7 @@ use crate::node::{Element, NodeId, NodeOf, Rects, SpaceId};
 
 pub use beui_types::layout::ScrollPosition;
 
+#[derive(Clone)]
 struct OffsetAnchor {
     id: NodeId,
     start: f32,
@@ -23,6 +24,8 @@ pub struct OffsetNode {
     pub fits: bool,
     pub position: Option<ScrollPosition>,
     anchored: bool,
+    kept: Option<(u64, Option<OffsetAnchor>)>,
+    applied: f32,
     pub on_change: Callback<ScrollPosition>,
     pub on_steer: Callback<()>,
     pub reported: Option<ScrollPosition>,
@@ -42,6 +45,8 @@ impl OffsetNode {
             fits: false,
             position: None,
             anchored: false,
+            kept: None,
+            applied: 0.0,
             on_change: Callback::empty(),
             on_steer: Callback::empty(),
             reported: None,
@@ -81,7 +86,7 @@ impl OffsetNode {
 
     fn moved_to(&mut self, value: f32) {
         self.offset = value;
-        self.anchored = false;
+        self.unanchor();
         self.to_end = false;
         self.pinned = self
             .position
@@ -127,8 +132,35 @@ impl OffsetNode {
         Some(self.direction.main(space.local_pos(rect.min).to_vec2()))
     }
 
+    fn unanchor(&mut self) {
+        self.anchored = false;
+        self.kept = None;
+    }
+
+    fn frame_anchor(
+        &mut self,
+        doc: &Document,
+        out: &Rects,
+        host: NodeId,
+        snapping: bool,
+    ) -> Option<OffsetAnchor> {
+        let frame = doc.layout_frame();
+        if let Some((kept, anchor)) = &self.kept
+            && *kept == frame
+        {
+            return anchor.clone();
+        }
+        let anchor = match snapping {
+            true => None,
+            false => self.anchor(doc, out, host),
+        };
+        self.kept = Some((frame, anchor.clone()));
+        self.applied = 0.0;
+        anchor
+    }
+
     fn drift(
-        &self,
+        &mut self,
         doc: &Document,
         out: &Rects,
         host: NodeId,
@@ -137,8 +169,11 @@ impl OffsetNode {
         let Some(anchor) = anchor.filter(|anchor| doc.contains(anchor.id)) else {
             return 0.0;
         };
-        self.content_start(out, host, anchor.id)
-            .map_or(0.0, |start| start - anchor.start)
+        let Some(start) = self.content_start(out, host, anchor.id) else {
+            return 0.0;
+        };
+        let drift = start - anchor.start;
+        drift - std::mem::replace(&mut self.applied, drift)
     }
 
     fn revealed(&mut self, doc: &mut Document, out: &Rects, host: NodeId, main: f32) -> f32 {
@@ -239,10 +274,7 @@ impl Element for OffsetNode {
         let host = doc.laying_out().expect("an offset is laid out as itself");
         let (main, cross) = self.direction.main_and_cross(rect.size());
         let snapping = self.snaps_to_end();
-        let anchor = match snapping {
-            true => None,
-            false => self.anchor(doc, out, host),
-        };
+        let anchor = self.frame_anchor(doc, out, host, snapping);
         self.anchored = true;
         let content = self.content_length(doc, painter, cross);
         if snapping {
@@ -364,7 +396,7 @@ impl Document {
         }
         let node = self.arena.get_mut_as::<OffsetNode>(offset);
         node.direction = direction;
-        node.anchored = false;
+        node.unanchor();
     }
 
     pub fn set_offset_fits(&mut self, offset: NodeOf<OffsetNode>, fits: bool) {
@@ -419,7 +451,7 @@ impl Document {
         let node = self.arena.relayout_alone_mut_as::<OffsetNode>(offset);
         node.pinned = true;
         node.to_end = true;
-        node.anchored = false;
+        node.unanchor();
     }
 
     pub fn set_offset_on_steer(

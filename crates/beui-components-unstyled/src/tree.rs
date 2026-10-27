@@ -578,8 +578,8 @@ where
             .get(&key)
             .and_then(NodeRef::try_get)?;
         stray_edge(
-            measure(row).get()?,
-            measure(scroll).get()?,
+            measure(row).get()?.rect,
+            measure(scroll).get()?.rect,
             buried.get().is_some(),
         )
     });

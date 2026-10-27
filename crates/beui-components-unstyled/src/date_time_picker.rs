@@ -220,8 +220,8 @@ pub fn DateTimePicker(
     };
     let placed = measure(anchor.get());
     create_effect(move || {
-        if let Some(rect) = placed.get() {
-            measured.set(rect.width());
+        if let Some(placed) = placed.get() {
+            measured.set(placed.size.x);
         }
     });
     built

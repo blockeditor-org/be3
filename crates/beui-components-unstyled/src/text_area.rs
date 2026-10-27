@@ -106,7 +106,7 @@ impl RowEntry {
 
 struct Held {
     rows: RefCell<BTreeMap<usize, RowEntry>>,
-    measured: RefCell<HashMap<NodeId, ReadSignal<Option<Rect>>>>,
+    measured: RefCell<HashMap<NodeId, ReadSignal<Option<Measured>>>>,
     texts: RefCell<HashMap<NodeId, ReadSignal<Option<TextGeometry>>>>,
     rows_measured: Signal<u64>,
     registered: Cell<u64>,
@@ -122,7 +122,7 @@ impl Held {
             self.measured.borrow_mut().insert(node, measured);
             measured
         });
-        measured.get_untracked()
+        Some(measured.get_untracked()?.rect)
     }
 
     fn text_of(&self, node: NodeId) -> Option<TextGeometry> {
@@ -1160,8 +1160,8 @@ pub fn TextArea(
     let focus_request = focused;
     let search = completer.search.clone();
     let trigger = completer.trigger;
-    let area_held = create_signal(Rect::ZERO);
-    let area = area_held.read_only();
+    let area_held = create_signal(None::<Measured>);
+    let area = create_memo(move || area_held.get().map_or(Rect::ZERO, |held| held.rect));
     let held = store(Held {
         rows: RefCell::new(BTreeMap::new()),
         measured: RefCell::default(),
@@ -1171,7 +1171,7 @@ pub fn TextArea(
         reveal_attempts: Cell::new(0),
         row_cache: RefCell::default(),
     });
-    let size = create_memo(move || area.get().size() / lines::tracked_scale(held));
+    let size = create_memo(move || area_held.get().map_or(Vec2::ZERO, |held| held.size));
     let field_placed = create_signal(None::<ReadSignal<Rect>>);
     let placed = create_memo(move || match single_line {
         true => field_placed.get().map_or(Rect::ZERO, |placed| placed.get()),
@@ -1505,8 +1505,8 @@ pub fn TextArea(
     };
     let area_measured = measure(built);
     create_effect(move || {
-        if let Some(rect) = area_measured.get() {
-            area_held.set(rect);
+        if let Some(measured) = area_measured.get() {
+            area_held.set(Some(measured));
         }
     });
     built
@@ -1638,8 +1638,8 @@ fn FieldFrame(report: Signal<Option<ReadSignal<Rect>>>, children: Child) -> Node
     };
     let placed_measured = measure(built);
     create_effect(move || {
-        if let Some(rect) = placed_measured.get() {
-            placed_held.set(rect);
+        if let Some(measured) = placed_measured.get() {
+            placed_held.set(measured.rect);
         }
     });
     built

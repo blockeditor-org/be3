@@ -1597,8 +1597,8 @@ fn BlockFrameView(
     };
     let rect_measured = measure(built);
     create_effect(move || {
-        if let Some(rect) = rect_measured.get() {
-            rect_held.set(rect);
+        if let Some(measured) = rect_measured.get() {
+            rect_held.set(measured.rect);
         }
     });
     built

@@ -198,8 +198,8 @@ pub(crate) fn ArtworkCanvas(
     };
     let placed_measured = measure(built);
     create_effect(move || {
-        if let Some(rect) = placed_measured.get() {
-            placed_held.set(rect);
+        if let Some(measured) = placed_measured.get() {
+            placed_held.set(measured.rect);
         }
     });
     built

@@ -27,7 +27,7 @@ pub use input::{
 };
 pub use layer::{Dismiss, LayerLevel, LayerPolicy, Placement};
 pub use layout::{
-    Align, Align2, CanvasView, Corners, Direction, Extent, ItemSize, Justify, Outline,
+    Align, Align2, CanvasView, Corners, Direction, Extent, ItemSize, Justify, Measured, Outline,
     ScrollPosition, Sides, Sizing, Track,
 };
 pub use region::{Area, Claim, HitRegion};

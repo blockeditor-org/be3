@@ -56,7 +56,7 @@ fn Row(watched: bool, seen: Signal<Rect>) -> NodeId {
         if let Some(placed) = measured.get()
             && watched
         {
-            seen.set(placed);
+            seen.set(placed.rect);
         }
     });
     row

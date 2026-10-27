@@ -14,8 +14,8 @@ pub fn Container(#[prop(children)] content: Render<ReadSignal<Vec2>>) -> NodeId 
     let node = content.call(size.read_only());
     let measured = measure(node);
     create_effect(move || {
-        if let Some(rect) = measured.get() {
-            size.set(rect.size());
+        if let Some(measured) = measured.get() {
+            size.set(measured.size);
         }
     });
     node

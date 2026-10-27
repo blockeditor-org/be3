@@ -135,6 +135,7 @@ pub struct Document {
     pub placed_pass: NodeMap<u64>,
     pub reached_pass: NodeMap<u64>,
     layout_pass: u64,
+    layout_frame: u64,
     focus_line: FocusLine,
     anchor_shift: f32,
     pinned_to_end: Option<crate::base::list::Direction>,
@@ -155,7 +156,7 @@ pub struct Document {
     zone: u64,
     extensions: HashMap<std::any::TypeId, Box<dyn Any>>,
     node_refs: HashMap<NodeId, Vec<Weak<Cell<Option<NodeId>>>>>,
-    measured: NodeMap<::reactive::OwnedSignal<Option<Rect>>>,
+    measured: NodeMap<::reactive::OwnedSignal<Option<beui_types::Measured>>>,
     measured_text: NodeMap<::reactive::OwnedSignal<Option<crate::base::text::TextGeometry>>>,
     measure_pending: bool,
     component_states: HashMap<NodeId, Vec<Box<dyn Any>>>,
@@ -361,6 +362,7 @@ impl Document {
             placed_pass: NodeMap::default(),
             reached_pass: NodeMap::default(),
             layout_pass: 0,
+            layout_frame: 0,
             focus_line: FocusLine::default(),
             anchor_shift: 0.0,
             pinned_to_end: None,
@@ -2093,7 +2095,10 @@ impl Document {
         self.reached_pass.insert(id, self.layout_pass);
     }
 
-    pub fn watch_measure(&mut self, id: NodeId) -> ::reactive::ReadSignal<Option<Rect>> {
+    pub fn watch_measure(
+        &mut self,
+        id: NodeId,
+    ) -> ::reactive::ReadSignal<Option<beui_types::Measured>> {
         if let Some(watched) = self.measured.get(&id) {
             return watched.read_only();
         }
@@ -2102,7 +2107,7 @@ impl Document {
                 self.measure_pending = true;
                 None
             }
-            false => self.rects.get(&id),
+            false => self.measure_now(id),
         };
         let watched = ::reactive::OwnedSignal::new(initial);
         let read = watched.read_only();
@@ -2130,17 +2135,28 @@ impl Document {
         read
     }
 
+    fn measure_now(&self, id: NodeId) -> Option<beui_types::Measured> {
+        let placed = self.rects.placed(&id)?;
+        Some(beui_types::Measured {
+            rect: self.rects.transform(placed.space).rect(placed.rect),
+            size: placed.rect.size(),
+        })
+    }
+
     fn measure_text_now(&self, id: NodeId) -> Option<crate::base::text::TextGeometry> {
         let text = self.arena.kind_of::<crate::base::text::TextNode>(id)?;
         self.text_geometry(text)
     }
 
     fn publish_measurements(&mut self) -> bool {
-        let rects = Rc::clone(&self.rects);
-        let moved: Vec<(::reactive::Signal<Option<Rect>>, Option<Rect>)> = self
+        type Boxes = Vec<(
+            ::reactive::Signal<Option<beui_types::Measured>>,
+            Option<beui_types::Measured>,
+        )>;
+        let moved: Boxes = self
             .measured
             .iter()
-            .map(|(id, watched)| (rects.get(&id), watched))
+            .map(|(id, watched)| (self.measure_now(id), watched))
             .filter(|(rect, watched)| watched.get_untracked() != *rect)
             .map(|(rect, watched)| (watched.handle(), rect))
             .collect();
@@ -2172,7 +2188,7 @@ impl Document {
     fn measurements_differ(&self) -> bool {
         self.measured
             .iter()
-            .any(|(id, watched)| watched.get_untracked() != self.rects.get(&id))
+            .any(|(id, watched)| watched.get_untracked() != self.measure_now(id))
             || self.measured_text.iter().any(|(id, watched)| {
                 watched.with_untracked(|held| *held != self.measure_text_now(id))
             })
@@ -2511,7 +2527,12 @@ impl Document {
             || self.root.is_some_and(|root| self.arena.unplaced(root))
     }
 
+    pub(crate) fn layout_frame(&self) -> u64 {
+        self.layout_frame
+    }
+
     fn update_layout(&mut self, ctx: &Context, rect: Rect) -> usize {
+        self.layout_frame = self.layout_frame.wrapping_add(1);
         if std::mem::take(&mut self.measure_pending) {
             self.publish_measurements();
         }

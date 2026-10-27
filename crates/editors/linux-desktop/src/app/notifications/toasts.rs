@@ -27,7 +27,10 @@ pub(crate) fn DesktopToasts(
 ) -> NodeId {
     let bar = bar.try_get().map(measure);
     let anchor = create_memo(move || {
-        let bar = bar.as_ref().and_then(|bar| bar.get()).unwrap_or(Rect::ZERO);
+        let bar = bar
+            .as_ref()
+            .and_then(|bar| bar.get())
+            .map_or(Rect::ZERO, |bar| bar.rect);
         OverlayAnchor::Rect(above_bar(area.get(), bar))
     });
     let toasts = notifications.toasts();

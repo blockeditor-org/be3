@@ -586,3 +586,10 @@ impl CanvasView {
         Rect::from_min_max(self.to_canvas(rect.min), self.to_canvas(rect.max))
     }
 }
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct Measured {
+    pub rect: Rect,
+    pub size: Vec2,
+}
+

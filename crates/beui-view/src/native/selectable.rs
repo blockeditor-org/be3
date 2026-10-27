@@ -202,7 +202,7 @@ impl SelectableState {
             .into_iter()
             .filter_map(|candidate| {
                 Some((
-                    distance(measure(candidate.text).get_untracked()?, pos),
+                    distance(measure(candidate.text).get_untracked()?.rect, pos),
                     candidate,
                 ))
             })
@@ -669,7 +669,11 @@ impl SelectableState {
                     }
                     join(
                         &mut copied,
-                        Some(measure(*text).get_untracked().unwrap_or(Rect::NOTHING)),
+                        Some(
+                            measure(*text)
+                                .get_untracked()
+                                .map_or(Rect::NOTHING, |measured| measured.rect),
+                        ),
                     );
                     copied.push_str(slice(&text.text(), range.start, range.end));
                 }

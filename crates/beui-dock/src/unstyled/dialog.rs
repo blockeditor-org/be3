@@ -427,7 +427,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         let node = anchor.get().try_get();
         untrack(|| {
             let node = node?;
-            let rect = measure(node).get_untracked()?;
+            let rect = measure(node).get_untracked()?.rect;
             Some(WindowPlacement::Over {
                 window: window_of(node),
                 at: rect.center() - size / 2.0,

@@ -151,8 +151,8 @@ fn Grid(
     };
     let size_measured = measure(built);
     create_effect(move || {
-        if let Some(rect) = size_measured.get() {
-            size_held.set(rect.size());
+        if let Some(measured) = size_measured.get() {
+            size_held.set(measured.size);
         }
     });
     built

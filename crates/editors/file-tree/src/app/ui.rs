@@ -917,7 +917,7 @@ fn arrival(
 }
 
 fn row_rect(tree: TreeApi<RowKey>, key: &RowKey) -> Option<Rect> {
-    measure(tree.row_node(key)?).get_untracked()
+    Some(measure(tree.row_node(key)?).get_untracked()?.rect)
 }
 
 #[derive(Clone, Copy)]

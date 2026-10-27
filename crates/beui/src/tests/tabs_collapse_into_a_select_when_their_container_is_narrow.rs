@@ -25,10 +25,15 @@ fn tabs_collapse_into_a_select_when_their_container_is_narrow() {
     harness.frame(Vec::new());
 
     let shown = |harness: &Harness| {
-        let [portal] = harness.document().children(tabs)[..] else {
-            panic!("tabs show one of the tab list and the select they collapse into");
-        };
-        harness.document().children(portal)[0]
+        let document = harness.document();
+        let mut node = *document
+            .children(tabs)
+            .last()
+            .expect("tabs show one of the tab list and the select they collapse into");
+        while document.node_kind(node) != "portal" {
+            node = document.children(node)[0];
+        }
+        document.children(node)[0]
     };
     let wide = shown(&harness);
     assert_eq!(

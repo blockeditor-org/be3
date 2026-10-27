@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use beui_types::text::FontId;
 use beui_types::text::LineBox;
-use beui_types::{Pos2, Rect, Vec2};
+use beui_types::{Measured, Pos2, Rect, Vec2};
 use reactive::{Get, ReadSignal, Set, Signal, create_signal};
 
 use crate::node::NodeId;
@@ -40,7 +40,7 @@ impl TextGeometry {
 }
 
 thread_local! {
-    static RECTS: RefCell<HashMap<NodeId, Signal<Option<Rect>>>> = RefCell::default();
+    static RECTS: RefCell<HashMap<NodeId, Signal<Option<Measured>>>> = RefCell::default();
     static TEXTS: RefCell<HashMap<NodeId, Signal<Option<TextGeometry>>>> = RefCell::default();
 }
 
@@ -64,7 +64,7 @@ fn watch<T: 'static>(
     signal.read_only()
 }
 
-pub fn measure(node: NodeId) -> ReadSignal<Option<Rect>> {
+pub fn measure(node: NodeId) -> ReadSignal<Option<Measured>> {
     watch(&RECTS, node)
 }
 
@@ -107,11 +107,29 @@ fn publish<T: Clone + PartialEq + 'static>(
 }
 
 pub(crate) fn pass() -> bool {
-    let rects = publish(&RECTS, rect);
+    let rects = publish(&RECTS, measured);
     let texts = publish(&TEXTS, |node| {
         rect(node).map(|bounds| TextGeometry { bounds })
     });
     rects | texts
+}
+
+#[cfg(target_arch = "wasm32")]
+fn measured(node: NodeId) -> Option<Measured> {
+    use wasm_bindgen::JsCast;
+
+    let rect = rect(node)?;
+    let size = crate::dom::dom(node)
+        .and_then(|dom| dom.dyn_into::<web_sys::HtmlElement>().ok())
+        .map_or(rect.size(), |element| {
+            beui_types::vec2(element.offset_width() as f32, element.offset_height() as f32)
+        });
+    Some(Measured { rect, size })
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn measured(_node: NodeId) -> Option<Measured> {
+    None
 }
 
 #[cfg(target_arch = "wasm32")]

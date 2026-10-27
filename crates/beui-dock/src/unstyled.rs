@@ -543,7 +543,7 @@ impl State {
 
     fn pane_rect(&self, tree: Tree) -> Option<Rect> {
         let node = self.panes.value().borrow().get(&tree)?.try_get()?;
-        measure(node).get_untracked()
+        Some(measure(node).get_untracked()?.rect)
     }
 
     fn raise_window(&self, window: NodeRef) {
@@ -602,7 +602,7 @@ impl State {
             .get(&surface)
             .and_then(NodeRef::try_get);
         match window {
-            Some(window) => measure(window).get_untracked(),
+            Some(window) => Some(measure(window).get_untracked()?.rect),
             None => self.pane_rect(Tree::Surface(surface)),
         }
     }
@@ -650,7 +650,7 @@ impl State {
         };
         node.children()
             .into_iter()
-            .filter_map(|child| measure(child).get_untracked())
+            .filter_map(|child| Some(measure(child).get_untracked()?.rect))
             .collect()
     }
 
@@ -670,7 +670,7 @@ impl State {
 
     fn bar_rect(&self, leaf: LeafId) -> Option<Rect> {
         let node = self.bars.value().borrow().get(&leaf)?.strip.try_get()?;
-        measure(node).get_untracked()
+        Some(measure(node).get_untracked()?.rect)
     }
 
     fn toggle_vertical(&self, leaf: LeafId) {
@@ -1601,8 +1601,8 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
     };
     let dock_rect_measured = measure(built);
     create_effect(move || {
-        if let Some(rect) = dock_rect_measured.get() {
-            dock_rect_held.set(rect);
+        if let Some(measured) = dock_rect_measured.get() {
+            dock_rect_held.set(measured.rect);
         }
     });
     built
@@ -2012,32 +2012,34 @@ fn DockTreeView(
             }
         });
     });
-    let placement_held = create_signal(Rect::ZERO);
-    let placement = placement_held.read_only();
-    let size = create_memo(move || placement.get().size());
+    let placement_held = create_signal(None::<Measured>);
+    let placed = create_memo(move || placement_held.get().is_some());
+    let size = create_memo(move || placement_held.get().map_or(Vec2::ZERO, |held| held.size));
     let thickness = dock.thickness;
     let state = dock.state;
     let layout = create_memo(move || {
         let area = Rect::from_min_size(Pos2::ZERO, size.get());
         state.with(|state| layout_tree(state, tree, area, thickness))
     });
-    let leaves = create_memo(move || {
-        layout.with(|layout| {
+    let leaves = create_memo(move || match placed.get() {
+        true => layout.with(|layout| {
             layout
                 .leaves
                 .iter()
                 .map(|(leaf, _)| *leaf)
                 .collect::<Vec<_>>()
-        })
+        }),
+        false => Vec::new(),
     });
-    let splits = create_memo(move || {
-        layout.with(|layout| {
+    let splits = create_memo(move || match placed.get() {
+        true => layout.with(|layout| {
             layout
                 .splitters
                 .iter()
                 .map(|splitter| splitter.id)
                 .collect::<Vec<_>>()
-        })
+        }),
+        false => Vec::new(),
     });
     let hoisted = hoisted.get_untracked();
     let marked_surface = match tree {
@@ -2046,7 +2048,8 @@ fn DockTreeView(
             .then_some(surface),
         Tree::Group(_) => None,
     };
-    let pane_origin = create_memo(move || placement.get().min);
+    let pane_origin =
+        create_memo(move || placement_held.get().map_or(Pos2::ZERO, |held| held.rect.min));
     let built = view! {
         <Canvas @node_ref=&canvas>
             <ForEach keys={leaves}>|leaf: LeafId| {
@@ -2100,8 +2103,8 @@ fn DockTreeView(
     };
     let placement_measured = measure(built);
     create_effect(move || {
-        if let Some(rect) = placement_measured.get() {
-            placement_held.set(rect);
+        if let Some(measured) = placement_measured.get() {
+            placement_held.set(Some(measured));
         }
     });
     built
@@ -3281,7 +3284,7 @@ fn grip_reach(frame: &NodeRef, grip: &NodeRef) -> f32 {
         return 0.0;
     };
     let reach =
-        || Some(measure(grip).get_untracked()?.bottom() - measure(frame).get_untracked()?.top());
+        || Some(measure(grip).get_untracked()?.rect.bottom() - measure(frame).get_untracked()?.rect.top());
     reach().unwrap_or(0.0)
 }
 

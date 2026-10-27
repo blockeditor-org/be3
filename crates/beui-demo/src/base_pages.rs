@@ -361,8 +361,8 @@ fn ColumnsForWidth() -> NodeId {
     };
     let measured = measure(columns);
     create_effect(move || {
-        if let Some(rect) = measured.get() {
-            width.set(rect.width());
+        if let Some(measured) = measured.get() {
+            width.set(measured.size.x);
         }
     });
     columns

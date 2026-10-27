@@ -170,8 +170,8 @@ impl Motion {
     fn laid_out(&self) -> (Option<Rect>, Option<Rect>, ScrollPosition) {
         let node = self.node();
         let slot = self.slot.try_get();
-        let sheet = slot.and_then(|slot| measure(slot).get_untracked());
-        let body = node.and_then(|node| measure(node).get_untracked());
+        let sheet = slot.and_then(|slot| Some(measure(slot).get_untracked()?.rect));
+        let body = node.and_then(|node| Some(measure(node).get_untracked()?.rect));
         let position = node
             .and_then(|node| node.scroll_position())
             .unwrap_or_default();
@@ -1351,8 +1351,8 @@ fn ModalSheetBody(
     };
     let measured = measure(built);
     create_effect(move || {
-        if let Some(rect) = measured.get() {
-            extent.set(rect.height());
+        if let Some(measured) = measured.get() {
+            extent.set(measured.size.y);
         }
     });
     built
