@@ -21,6 +21,8 @@ fn a_demo_tab_unlocked_from_the_workspace_dock_moves_beside_the_files_with_its_p
         "the unlocked tab moved below the files, to {tab:?}"
     );
     app.wait("Tab \"Components\"");
-    app.snapshot("a_demo_tab_unlocked_from_the_workspace_dock_moves_beside_the_files_with_its_page");
+    app.snapshot(
+        "a_demo_tab_unlocked_from_the_workspace_dock_moves_beside_the_files_with_its_page",
+    );
     app.close();
 }
