@@ -41,6 +41,7 @@ const HANDLE: Color32 = Color32::from_rgba_unmultiplied(214, 220, 232, 220);
 const ACCENT: Color32 = Color32::from_rgb(132, 170, 255);
 const PILL: Color32 = Color32::from_rgba_unmultiplied(30, 34, 43, 230);
 const BUTTON_HOT: Color32 = Color32::from_rgb(60, 68, 86);
+const NOTICE: Color32 = Color32::from_rgba_unmultiplied(36, 52, 92, 235);
 const BUTTON_ON: Color32 = Color32::from_rgb(52, 84, 156);
 const GLYPH: Color32 = Color32::from_rgb(226, 231, 240);
 const GROOVE: Color32 = Color32::from_rgb(78, 86, 104);
@@ -234,11 +235,17 @@ pub struct Chrome {
     pub slider: Option<WindowId>,
 }
 
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct Title {
+    pub text: String,
+    pub notice: bool,
+}
+
 #[derive(Clone, PartialEq, Debug)]
 pub struct Look {
     pub metres: Vec2,
     pub fit: Fit,
-    pub title: Option<String>,
+    pub title: Option<Title>,
     pub hovered: Option<Part>,
     pub held: Option<Part>,
     pub slider: bool,
@@ -585,13 +592,13 @@ pub fn look(
     chrome: &Chrome,
     held: Option<Part>,
     pixels_per_point: f32,
-    title: Option<&str>,
+    title: Option<&Title>,
 ) -> Look {
     let mine = |window: WindowId| window == panel.window;
     Look {
         metres: metres_of(panel),
         fit: panel.chrome,
-        title: title.map(str::to_owned),
+        title: title.cloned(),
         hovered: chrome
             .hovered
             .filter(|(window, _)| mine(*window))
@@ -644,9 +651,13 @@ pub fn output(window: WindowId, look: &Look, context: Option<&Context>) -> Windo
         }
     }
     fill(layout.pill, BAR / 2.0, PILL);
-    let title = layout.title.zip(look.title.as_deref());
-    if let Some((label, _)) = title {
-        let color = if hot(Part::Title) { BUTTON_HOT } else { PILL };
+    let title = layout.title.zip(look.title.as_ref());
+    if let Some((label, title)) = title {
+        let color = match (title.notice, hot(Part::Title)) {
+            (true, _) => NOTICE,
+            (false, true) => BUTTON_HOT,
+            (false, false) => PILL,
+        };
         fill(label, BAR / 2.0, color);
     }
     let mut icons = Vec::new();
@@ -685,7 +696,7 @@ pub fn output(window: WindowId, look: &Look, context: Option<&Context>) -> Windo
     }
     if let Some(context) = context {
         let raster = look.pixels_per_point / context.pixels_per_point();
-        let mut text = |text: &str, font: FontId, centre: Pos2, clip: Rect| {
+        let mut text = |text: &str, font: FontId, centre: Pos2, clip: Rect, color: Color32| {
             let galley = context.layout(text, font, TextLayout::DEFAULT);
             let galley = context.rastered(&galley, raster);
             let centre = point(centre);
@@ -693,21 +704,22 @@ pub fn output(window: WindowId, look: &Look, context: Option<&Context>) -> Windo
                 origin: centre - galley.size() / 2.0,
                 galley,
                 scale: 1.0,
-                color: GLYPH,
+                color,
                 rotation: Rotation::NONE,
                 clip,
             }));
         };
         for (glyph, centre) in icons {
             let font = FontId::icons(ICON * scale * POINTS_PER_METRE);
-            text(glyph.as_str(), font, centre, Rect::EVERYTHING);
+            text(glyph.as_str(), font, centre, Rect::EVERYTHING, GLYPH);
         }
         if let Some((label, title)) = title {
             let font = FontId::proportional(TITLE * scale * POINTS_PER_METRE);
             let clip = points(label);
             let room = clip.width() - TITLE_PADDING * scale * POINTS_PER_METRE;
-            let title = elided(context, title, font, room);
-            text(&title, font, label.center(), clip);
+            let color = if title.notice { ACCENT } else { GLYPH };
+            let shown = elided(context, &title.text, font, room);
+            text(&shown, font, label.center(), clip, color);
         }
     }
     let mut state = WindowState::default();

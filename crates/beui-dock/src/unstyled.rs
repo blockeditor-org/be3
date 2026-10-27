@@ -2991,6 +2991,16 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
             .unwrap_or_default()
     });
     let window_title = create_memo(move || Some(title.get()));
+    let window_notice = create_memo(move || {
+        state
+            .with(|state| {
+                state
+                    .leaves(surface)
+                    .first()
+                    .and_then(|leaf| state.active_tab(*leaf))
+            })
+            .and_then(|tab| dock.notice(tab))
+    });
     let parent = dock.home();
     let placement = create_memo(move || dock.placement(surface, parent));
     let contents = create_memo(move || state.with(|state| state.surface_tabs(surface)));
@@ -3024,6 +3034,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
             at={at}
             placement={placement}
             title={window_title}
+            notice={window_notice}
             on_report={move |report: WindowReport| dock.window_reported(surface, report)}
         >|handle: WindowHandle| {
             let grabbed = StoredCell::new(None::<(Rect, Pos2)>);

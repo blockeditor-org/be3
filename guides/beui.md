@@ -3804,7 +3804,10 @@ it, and all its 3D (`glam`) stays in the crate.
 - Chrome: the host draws and handles controls of its own around every panel
   (`chrome.rs`): an L bracket just outside each corner, the window's title
   (its `WindowState` appearance title, which the `Window` component's
-  `title` sets) in a pill centred above the top edge, cut short with an
+  `title` sets) in a pill centred above the top edge, or in its place,
+  accent text on an accent pill, the window's `notice` while it has one (the
+  `Window` component's `notice`, which the dock sets from its tab's
+  `DockTabControl::show_notice`; `chrome::Title`), cut short with an
   ellipsis to fit between the top brackets, and under the bottom edge
   a pill with a move button (`ICON_MOVE`), a rotate button (`ICON_ROTATE_3D`),
   a roll button (`ICON_ROTATE_CW_SQUARE`) and a curvature button

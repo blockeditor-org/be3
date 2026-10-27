@@ -13,7 +13,10 @@ fn the_space_host_keeps_the_keyboard_open_until_its_close_button_is_pressed() {
         let name = create_signal(String::new());
         view! {
             <List spacing=Space::None>
-                <TextInput @test_id="field" value={Binding::new(name, move |next: String| name.set(next))} />
+                <TextInput
+                    @test_id="field"
+                    value={Binding::new(name, move |next: String| name.set(next))}
+                />
             </List>
         }
     });
@@ -29,9 +32,17 @@ fn the_space_host_keeps_the_keyboard_open_until_its_close_button_is_pressed() {
     space.aim(Hand::Right, crate::WindowId::MAIN, field.center());
     space.tap(Hand::Right);
     let opened = keyboards(&space);
-    assert_eq!(opened.len(), 1, "a laser tapping the field opens the keyboard");
+    assert_eq!(
+        opened.len(),
+        1,
+        "a laser tapping the field opens the keyboard"
+    );
 
-    space.aim(Hand::Right, crate::WindowId::MAIN, pos2(-2000.0, field.center().y));
+    space.aim(
+        Hand::Right,
+        crate::WindowId::MAIN,
+        pos2(-2000.0, field.center().y),
+    );
     space.tap(Hand::Right);
     assert_eq!(
         space.space.borrow().focused(),

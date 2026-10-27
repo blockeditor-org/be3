@@ -438,6 +438,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         .unwrap_or(WindowPlacement::AtPointer)
     });
     let window_title = create_memo(move || Some(title.get()));
+    let window_notice = create_memo(move || dock.notice(tab));
     let view = view! {
         <List spacing=0.0>
             <Overlay
@@ -466,6 +467,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
                 size={window_size}
                 placement={window_placement}
                 title={window_title}
+                notice={window_notice}
                 open={windowed_open}
                 keep_alive=true
                 on_report={move |report: WindowReport| match report {

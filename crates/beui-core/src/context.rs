@@ -51,6 +51,7 @@ struct ShownWindow {
     damage: Region,
     moved: Option<Moved>,
     title: Option<String>,
+    notice: Option<String>,
     appearance: Option<Appearance>,
 }
 
@@ -1164,6 +1165,7 @@ impl Context {
         damage: Region,
         moved: Option<Moved>,
         title: Option<String>,
+        notice: Option<String>,
         appearance: Option<&Appearance>,
     ) {
         let layers = painting
@@ -1177,6 +1179,7 @@ impl Context {
             damage,
             moved,
             title,
+            notice,
             appearance: appearance.cloned(),
         });
     }
@@ -1195,6 +1198,7 @@ impl Context {
             state.appearance.clear_color = own.clear_color;
             state.appearance.system_bars = own.system_bars;
             state.appearance.title.clone_from(&window.title);
+            state.appearance.notice.clone_from(&window.notice);
             if pointer == window.id {
                 state.requests.cursor = main.requests.cursor;
                 state.requests.pointer_locked = main.requests.pointer_locked;
