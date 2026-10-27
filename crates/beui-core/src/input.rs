@@ -31,9 +31,9 @@ const WHEEL_VELOCITY_WINDOW: Duration = Duration::from_millis(100);
 const SYNTHESIZED_SLOP: f32 = 2.0;
 
 pub use beui_types::input::{
-    AutoscrollGesture, ClickCounter, DragGesture, MAX_TOUCH_VELOCITY, PointerId, PointerInput, PointerPress,
-    PointerSample, PointerStage, ScrollGesture, SecondaryDrag, SoftKeyboard, TOUCH_DRAG_THRESHOLD,
-    TOUCH_VELOCITY_WINDOW, TouchDrags, WheelInput, ZoomGesture,
+    AutoscrollGesture, ClickCounter, DragGesture, MAX_TOUCH_VELOCITY, PointerId, PointerInput,
+    PointerPress, PointerSample, PointerStage, ScrollGesture, SecondaryDrag, SoftKeyboard,
+    TOUCH_DRAG_THRESHOLD, TOUCH_VELOCITY_WINDOW, TouchDrags, WheelInput, ZoomGesture,
 };
 
 #[derive(Clone, PartialEq, Debug)]

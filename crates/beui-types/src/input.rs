@@ -18,9 +18,6 @@ const MULTI_CLICK_DELAY: f32 = 0.3;
 const MULTI_CLICK_DISTANCE: f32 = 6.0;
 const MULTI_CLICK_LIMIT: u32 = 4;
 
-/// Counts presses that follow each other closely in time and place, as both
-/// cores do for `PointerPress::clicks`: 1, 2 (a word), 3 (a line), 4 (all),
-/// then 1 again.
 #[derive(Clone, Copy, Default, Debug)]
 pub struct ClickCounter {
     clicks: u32,
