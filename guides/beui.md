@@ -684,7 +684,7 @@ What each primitive is on the HTML core (the bodies are in
 | `List`, `Spacer` | flexbox and a flex child; `@sizing` becomes flex grow, shrink and basis |
 | `Grid`, `Layers` | CSS grid; `Layers` stacks every child in one cell |
 | `Text` and its spans | a `div` of `span`s and text nodes with `white-space: pre-wrap`; `marks` are CSS Custom Highlights, `carets` positioned boxes, `glyphs` `::before` content, `Break` an `::after` newline no browser copies; a `TextItem` with `at` an absolutely placed box that a layout pass moves onto that index's caret |
-| `Offset` | an `overflow: hidden` element moved through `scrollTop`/`scrollLeft`, never a transform; with `platform_scroll` an `overflow: auto` one along its direction, which the browser scrolls too (`Bare` hides its scrollbar with `scrollbar-width: none`) |
+| `Offset` | an `overflow: hidden` element moved through `scrollTop`/`scrollLeft`, never a transform |
 | `VirtualList` | rows in flow between two spacer elements, measured by `ResizeObserver` |
 | `Canvas` | an inner element translated to the view, `--beui-scale` scaling items |
 | `Overlay` | a `<dialog>` (`showModal()` for one that blocks everything, else a manual popover) placed with CSS anchor positioning, a one-cell grid like `Frame` while open; `window` and `shown_in` are ignored |
@@ -692,7 +692,6 @@ What each primitive is on the HTML core (the bodies are in
 | `Interactive` | an element with `tabindex` and listeners; `on_forward` hears the pointer (captured from its down); `pastes`, `key_active`, `claims_touch` and the other forwarding props do nothing yet |
 | `Selectable` | the browser's own selection; the root is `user-select: none`, so nothing outside a `Selectable` (or a native text field) selects |
 | `Drawing` | a `div` holding an inline `<svg>` the `Draw` callback paints, sized as natively (see below) |
-| `Element` | the element its `tag` names, with its `attributes`, `styles` (`CssValue`s) and `events`; natively a plain box around its child, everything else ignored (see [Forms and text fields](#forms-and-text-fields)) |
 
 `Drawing` is the escape hatch for what is not an arrangement of nodes, and
 `Embed` (native only) the one for what is not beui's. On HTML a `Drawing` runs
@@ -794,7 +793,7 @@ need:
 - **Tempted to add a base component?** Almost always, add an unstyled one
   instead. The base layer is small on purpose — `Frame`, `List`, `Spacer`, `Layers`,
   `Grid`, `Text`, `Offset`, `VirtualList`, `Canvas`, `Drawing`, `Overlay`, `Interactive`,
-  `Portal`, `Root` and `Element` — and it stays small because most things are
+  `Portal` and `Root` — and it stays small because most things are
   compositions of those. `unstyled::Picture` is one: a `Drawing` with a size, and
   `Window` (`beui_view::window`, re-exported as `beui::Window`) is another: an
   `Overlay` given a `window` spec. Back is a hook, `on_back`, not a node, and
@@ -1661,18 +1660,21 @@ content shifted under a viewport and nothing more, and for a `Scroll` whenever
 something needs to scroll.
 
 On the HTML core `unstyled::Scroll` leaves all of that to the browser
-(`if CORE == Core::Html` in scroll.rs): it sets the offset's
-`platform_scroll` (`PlatformScroll::Bar` when its `ScrollbarStyle` has a bar,
-`Bare` when not), so the element is a real `overflow: auto` scroller, scrolled
-on the compositor by the wheel, touch, the keys (from the scroller or anything
-focused in it) and the browser's own scrollbar, with no momentum, rubber band,
-autoscroll or drawn scrollbar of beui's. The focusable `Interactive` sits on
-the scroller itself, so it takes focus and keys as the browser expects. The
-offset adopts each browser scroll as its position and reports it, so
-`on_change`, `offset`, `follow_end`, `reveal`, anchoring, `fade_edges` and
-`ScrollApi::scroll_to_end` work as natively (`ScrollApi::animating` is always
-false there). `platform_scroll` changes nothing natively, where the platform has
-no scroller of its own. The sheet's offset is still beui's on both cores.
+(`if CORE == Core::Html` in scroll.rs, `BrowserScroll`): it builds a real
+`overflow: auto` `<div>` through the [platform escape](#the-platform-escape),
+with the scroll's content slotted inside and `scrollbar-width: none` when its
+`ScrollbarStyle` has no bar. The browser scrolls it on the compositor with the
+wheel, touch, the keys (from the scroller or anything focused in it) and its
+own scrollbar, with no momentum, rubber band, autoscroll or drawn scrollbar of
+beui's. Its `scroll` listener and the measured sizes of the scroller and its
+content feed `on_change`; `offset` and `ScrollApi::scroll_to_end` set its
+`scrollTop` (or `scrollLeft`); `follow_end` keeps it at the end while it was
+there; `reveal` scrolls a row into view; the focusable `Interactive` sits on
+the scroller itself, which rings only when it has the focus itself
+(`ScrollApi::animating` is always false there). Revealing a node with no
+beui `Offset` around it scrolls it into view the browser's way, and a
+`VirtualList` is clipped by any ancestor that clips, so both work inside such
+a scroller. The sheet's offset is still beui's on both cores.
 
 A `Scroll`'s momentum is one motion across the edge, not a fling with a band
 laid over it. It keeps how far its content has gone past an end unbanded (the
@@ -2916,7 +2918,8 @@ A host that runs beui itself does the same with the requests in `file_picks`.
 On the HTML core a plain single-line `TextInput` is a real `<input>`, so the
 browser edits it: IME, selection, its own context menu, autofill and password
 managers. Unstyled `TextInput` switches on `CORE` and builds `<input>` (through
-base `Element`, wrapped in an `Interactive` for focus, `focused` and hover)
+the [platform escape](#the-platform-escape), wrapped in an `Interactive` for
+focus, `focused` and hover)
 when it is not `multiline`, its style has no `prose` and it does not
 `select_on_focus`; everything else, every `TextArea`, and anything rich (marks,
 syntax colouring, glyphs, completion) stays beui's own on both cores, and so
@@ -2968,11 +2971,31 @@ view! {
 
 `render_to_string` writes each `<input>` with its `type`, `name`,
 `autocomplete`, `placeholder` and escaped `value`, and `hydrate` claims them
-in place, keeping whatever was typed before wasm loaded. Base `Element` is the
-one way to put an element beui has no primitive for into the tree: unstyled
-reaches for it only behind a `CORE` switch, and natively it is a plain box
-around its child. `ElementEvent` reads `value`, `key`, `holds(modifier)` and
-`composing`, and can `prevent_default` and `stop_propagation`.
+in place, keeping whatever was typed before wasm loaded.
+
+### The platform escape
+
+`beui::escape::html_escape(build)` is the one way to put an element of the
+platform's own into the tree: `build` gets an `&Escape` and returns a
+`beui_html::Node` made with beui-html's `view!` and `html::*` elements
+(`beui::escape::beui_html`), with their attributes and events; the result is a
+beui `NodeId` like any other. It renders into server-rendered pages and
+hydrates as beui-html does. `escape.embed(child)` slots a beui `Child` into
+those nodes; `escape.style(property, value)` sets the root's inline CSS (the
+core owns the root's `style`, since a parent's layout writes to it too, so the
+root takes no `style` attribute of its own); `Escape::color` and
+`Escape::font` spell a beui `Color` or `FontId` in CSS. The root is placed and
+measured like a beui node, and an `Interactive` around it decorates it.
+`beui_html::Node::number`, `set_number` and `call` read and write a live
+element's properties (`scrollTop`) and call its methods (`focus`).
+
+It exists only on the HTML core: calling it natively panics, so call it only
+under `if CORE == Core::Html`, in unstyled or styled, for a component whose
+HTML form is the browser's own element (a field, a form, a link, a scroller),
+with the beui version in the other branch keeping the same public API. A
+switch on `CORE` is for exactly that; it never works around a primitive one
+core lacks, and the cores themselves gain no knowledge of fields, forms,
+links or scrolling for it.
 
 ### Hold the pointer
 
@@ -5324,9 +5347,8 @@ primitive and turns props into inline CSS. Hooks follow the same pattern:
 `reactive` module. On the HTML core a container's own behaviour lives in a
 `beui-core-html` module its body hands the elements to: `scroll` (`Offset`:
 an `overflow: hidden` element moved through `scrollTop`/`scrollLeft`, never a
-transform, or `overflow: auto` with `platform_scroll`, so the browser's own
-scrolls - find in page, `scrollIntoView`, focus, and with `platform_scroll`
-the user's - are adopted as the offset; it anchors on the first element under the
+transform, so the browser's own scrolls - find in page, `scrollIntoView`,
+focus - are adopted as the offset; it anchors on the first element under the
 offset and corrects by its drift, snaps to the end, and reveals), `rows`
 (`VirtualList`'s window and row measurement; rows are flow between two
 `data-beui-spacer` elements that anchoring skips), `canvas` (an inner element

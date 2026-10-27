@@ -71,10 +71,10 @@ end lists.
   `CORE`, with `name` and `autocomplete` for forms and password managers.
   `Form` is a native `<form method=post>` there, `Button submit` a
   `<button type=submit>` and `Button href` an `<a href>`, so a server-rendered
-  page posts and navigates before wasm loads. They reach the DOM through one
-  generic base primitive, `Element` (a tag, attributes, styles and events;
-  natively a plain box around its child), which only unstyled uses, behind
-  the `CORE` switch. Multi-line and rich text stay beui's own.
+  page posts and navigates before wasm loads. They reach the DOM through the one
+  platform escape, `beui::escape::html_escape`: beui-html nodes built by
+  unstyled behind the `CORE` switch, with beui children slotted inside
+  (it panics natively). Multi-line and rich text stay beui's own.
 - **The browser scrolls `Scroll` on HTML.** The first version kept owning
   scrolling: `Scroll` stays in unstyled, built on `Offset` and
   `Interactive`, and the HTML core implements `Offset` as an
@@ -83,11 +83,11 @@ end lists.
   `position: sticky` still work. The follow-up switched unstyled's `Scroll`
   (so styled's, which wraps it) to a real `overflow: auto` scroller on the
   HTML core: compositor-thread scrolling, the browser's wheel, touch, keys and
-  scrollbar, none of beui's momentum, band, autoscroll or drawn bar. That
-  changed who drives the scrolling, not the core's scroller: it needed one
-  base prop, `Offset`'s `platform_scroll` (`PlatformScroll::Off`, `Bare`,
-  `Bar`), since only the core sets an element's CSS; the core's scroller
-  already adopted outside scrolls as the offset. Natively it changes nothing.
+  scrollbar, none of beui's momentum, band, autoscroll or drawn bar. It is
+  unstyled's `BrowserScroll`, an `overflow: auto` `<div>` built through the
+  platform escape, whose `scroll` listener and measured sizes feed the
+  scroll's position; `Offset` stays beui's own on both cores. Natively
+  nothing changes.
 - **Out of scope.** Plugin editors stay on canvas/wgpu on the web for now
   (they run in workers). Later, web plugins become iframes, which could run
   beui on the HTML core.
@@ -295,7 +295,7 @@ children.
 - **Scrolling is composed in unstyled.** `unstyled::Scroll` (904 lines) builds
   wheel, fling, overscroll and steering from `Offset` and `Interactive`. It has
   55 users. On HTML it now hands all of that to the browser's scroller
-  (compositor-thread scrolling) through `Offset`'s `platform_scroll`;
+  (compositor-thread scrolling) through the platform escape;
   `Sheet` still drives its own offset there.
 - **No image primitive.** `Picture` (18 users) paints images through
   `Drawing`, and `ScrollbarThumb` paints a rounded rect through one. On HTML
@@ -470,7 +470,7 @@ stylesheet are a later size optimisation.
 | `List`, `Spacer` | `div`, `display: flex` (or `flex-wrap`), `gap`, `align-items` incl. `baseline`, `justify-content`; a child's `@sizing` becomes `flex` on that child's element. `Spacer` is an empty `div` |
 | `Grid` / `GridCell` | `display: grid`, `grid-template-columns` from `Track`s (px, `max-content`, `fr`), `grid-column: span n` |
 | `Layers` / `Layer` | `display: grid`, each child at `grid-area: 1 / 1` |
-| `Offset` | `overflow: hidden; overflow-anchor: none`, moved by `scrollTop`/`scrollLeft` (with `platform_scroll`, `overflow: auto` along its direction, scrolled by the browser too); anchoring, `follow_end` and `reveal` are beui's, computed from the measurement API as native does |
+| `Offset` | `overflow: hidden; overflow-anchor: none`, moved by `scrollTop`/`scrollLeft`; anchoring, `follow_end` and `reveal` are beui's, computed from the measurement API as native does |
 | `VirtualList` | flow layout between two spacer `div`s; builds the rows that the parent `Offset`'s position reaches plus overscan; row sizes from `measure`, remembered per key; anchoring corrects the `Offset` in the same frame |
 | `Canvas` / `CanvasItem` | `position: relative; overflow: hidden`, an inner `div` with `transform: translate() scale()`, items `position: absolute`; `raster` is ignored, `on_reveal` is late |
 | `Text` | `div` with `white-space: pre-wrap`, `overflow-wrap: anywhere`, `line-clamp`/`text-overflow` from `Overflow`, `line-height`, `tab-size`; `hang` as negative `text-indent` with `padding-left`; `marks` as CSS Custom Highlights (one `Highlight` per mark colour, `::highlight(beN)` rules); `glyphs` as `span`s replacing their range; `carets` as absolutely placed `div`s at a `Range`'s rect |
