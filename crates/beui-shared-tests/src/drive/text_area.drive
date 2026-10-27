@@ -1,0 +1,11 @@
+# A multiline field takes Enter as a new line, and Backspace joins the lines
+# again.
+clock stop
+wait 'value="Note \"\""'
+click '#text_area.note'
+type 'one'
+key Enter
+type 'two'
+wait 'value="Note \"one\\ntwo\""'
+key Home Backspace
+wait 'value="Note \"onetwo\""'

@@ -122,6 +122,9 @@ pub fn Fixture(name: String) -> Root {
         "drag" => view! {
             <rows::DragFixture />
         },
+        "text_area" => view! {
+            <controls::TextAreaFixture />
+        },
         other => {
             let message = format!("No fixture is named {other}");
             view! {

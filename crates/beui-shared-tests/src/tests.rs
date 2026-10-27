@@ -119,3 +119,4 @@ mod toasts;
 mod toggles;
 mod tree;
 mod virtual_list;
+mod text_area;

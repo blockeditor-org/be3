@@ -217,3 +217,22 @@ pub fn FieldsFixture() -> NodeId {
         </List>
     }
 }
+
+#[component]
+pub fn TextAreaFixture() -> NodeId {
+    let note = create_signal(String::new());
+    let report = create_memo(move || format!("Note {:?}", note.get()));
+    view! {
+        <List spacing=Space::Md>
+            <Frame width=Size::Custom(240.0)>
+                <TextInput
+                    value={note}
+                    placeholder="A note, over several lines"
+                    multiline=true
+                    @test_id="text_area.note"
+                />
+            </Frame>
+            <Text>{report}</Text>
+        </List>
+    }
+}
