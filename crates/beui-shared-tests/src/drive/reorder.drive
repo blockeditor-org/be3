@@ -4,3 +4,28 @@ clock stop
 wait 'value="Order: apple banana cherry date"'
 drag '#reorder.apple' '#reorder.cherry+0,4' 6
 wait 'value="Order: banana cherry apple date"'
+pause 1000
+pause 16
+# An item no other list takes stays in its list however far it is dragged,
+# and lands in the slot it is shown in.
+down '#reorder.banana'
+move '#reorder.report+0,240'
+wait '#reorder.banana'
+up
+wait 'value="Order: cherry apple date banana"'
+pause 1000
+pause 16
+# Carried towards a list that takes it, an item leaves its own list, and the
+# gap it leaves closes over time rather than at once.
+down '#shelf.kale+10,2'
+move '#shelf.1+60,120'
+gone '#shelf.kale'
+wait 'value="Shelf full"'
+pause 40
+wait 'value="Shelf closing"'
+pause 1000
+pause 16
+wait 'value="Shelf closed"'
+move '#shelf.corn+10,25'
+up
+wait 'value="Shelves: leek okra | corn kale"'

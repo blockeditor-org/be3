@@ -79,6 +79,7 @@ pub struct Target {
     pub over: Over,
     pub dropped: Dropped,
     pub hides_preview: std::rc::Rc<dyn Fn() -> bool>,
+    pub holds: Accepts,
 }
 
 pub struct DragSource {
@@ -129,4 +130,12 @@ impl EdgeScroller {
             _ => None,
         }
     }
+}
+
+pub fn holder(targets: &[Target], payload: &dyn std::any::Any) -> Option<u64> {
+    let holder = targets.iter().find(|target| (target.holds)(payload))?;
+    let elsewhere = targets
+        .iter()
+        .any(|target| target.id != holder.id && (target.accepts)(payload));
+    (!elsewhere).then_some(holder.id)
 }

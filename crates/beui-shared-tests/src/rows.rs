@@ -1,3 +1,4 @@
+use crate::measured_rect;
 use beui::reactive::*;
 use beui::styled::*;
 use beui::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
@@ -108,6 +109,31 @@ pub fn DragFixture() -> NodeId {
 pub fn ReorderFixture() -> NodeId {
     let fruits = create_signal(vec!["apple", "banana", "cherry", "date"]);
     let report = create_memo(move || format!("Order: {}", fruits.get().join(" ")));
+    let shelves = create_signal(vec![vec!["leek", "kale", "okra"], vec!["corn"]]);
+    let shelved = create_memo(move || {
+        shelves.with(|shelves| {
+            format!(
+                "Shelves: {} | {}",
+                shelves[0].join(" "),
+                shelves[1].join(" ")
+            )
+        })
+    });
+    let first = view! {
+        <Shelf shelf=0 shelves />
+    };
+    let height = measured_rect(first);
+    let closing = create_memo(move || {
+        let length = height.get().map_or(0.0, |rect| rect.height());
+        let spacing = SHELF_GAP.px();
+        let full = 3.0 * SHELF_ROW + 2.0 * spacing;
+        let closed = 2.0 * SHELF_ROW + spacing;
+        match length {
+            length if length >= full - 0.5 => "Shelf full".to_owned(),
+            length if length <= closed + 0.5 => "Shelf closed".to_owned(),
+            _ => "Shelf closing".to_owned(),
+        }
+    });
     view! {
         <List spacing=Space::Xl>
             <Frame width=Size::Custom(240.0)>
@@ -115,15 +141,13 @@ pub fn ReorderFixture() -> NodeId {
                     keys={fruits}
                     payload={Func::new(|fruit: &'static str| Some(fruit))}
                     text={|fruit: &'static str| fruit.to_owned()}
+                    preview={|fruit: &'static str| view! {
+                        <Card>
+                            <Text>{fruit}</Text>
+                        </Card>
+                    }}
                     on_move={move |moved: ReorderMove<&'static str, &'static str>| {
-                        fruits.update(|fruits| {
-                            fruits.retain(|fruit| *fruit != moved.payload);
-                            let at = moved
-                                .after
-                                .and_then(|after| fruits.iter().position(|fruit| *fruit == after))
-                                .map_or(0, |at| at + 1);
-                            fruits.insert(at, moved.payload);
-                        });
+                        fruits.update(|fruits| moved_to(fruits, moved.payload, moved.after));
                     }}
                 >|reorder: ReorderHandle<&'static str, &'static str>|
                     <List spacing=Space::Xs>
@@ -137,7 +161,80 @@ pub fn ReorderFixture() -> NodeId {
                     </List>
                 </Reorder>
             </Frame>
-            <Text>{report}</Text>
+            <Text @test_id="reorder.report">{report}</Text>
+            <List direction=Direction::Horizontal spacing=Space::Xl align=Align::Start>
+                {first}
+                <Shelf shelf=1 shelves />
+            </List>
+            <Text>{shelved}</Text>
+            <Text>{closing}</Text>
         </List>
+    }
+}
+
+const SHELF_ROW: f32 = 30.0;
+const SHELF_GAP: Space = Space::Xs;
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+struct Vegetable(&'static str);
+
+fn moved_to<K: PartialEq>(keys: &mut Vec<K>, moved: K, after: Option<K>) {
+    keys.retain(|key| *key != moved);
+    let at = after
+        .and_then(|after| keys.iter().position(|key| *key == after))
+        .map_or(0, |at| at + 1);
+    keys.insert(at, moved);
+}
+
+#[component]
+fn Shelf(shelf: usize, shelves: Signal<Vec<Vec<&'static str>>>) -> NodeId {
+    let keys = create_memo(move || {
+        shelves.with(|shelves| {
+            shelves[shelf]
+                .iter()
+                .copied()
+                .map(Vegetable)
+                .collect::<Vec<_>>()
+        })
+    });
+    view! {
+        <Frame width=Size::Custom(120.0) @test_id={format!("shelf.{shelf}")}>
+            <Reorder
+                keys={keys}
+                payload={Func::new(|vegetable: Vegetable| Some(vegetable))}
+                accepts={Func::new(|_: Vegetable| true)}
+                preview={|vegetable: Vegetable| view! {
+                    <Frame
+                        width=Size::Custom(120.0)
+                        height=Size::Custom(SHELF_ROW)
+                        fill=ColorRole::Accent
+                    >
+                        <Text>{vegetable.0}</Text>
+                    </Frame>
+                }}
+                on_move={move |moved: ReorderMove<Vegetable, Vegetable>| shelves.update(|shelves| {
+                    for list in shelves.iter_mut() {
+                        list.retain(|vegetable| *vegetable != moved.payload.0);
+                    }
+                    let mut list: Vec<Vegetable> = shelves[shelf].iter().copied().map(Vegetable).collect();
+                    moved_to(&mut list, moved.payload, moved.after);
+                    shelves[shelf] = list.into_iter().map(|vegetable| vegetable.0).collect();
+                })}
+            >|reorder: ReorderHandle<Vegetable, Vegetable>|
+                <List spacing=SHELF_GAP>
+                    <ForEach keys={reorder.order}>|vegetable: Vegetable|
+                        <ReorderItem reorder item=vegetable>|_: ReorderItemHandle|
+                            <Frame
+                                height=Size::Custom(SHELF_ROW)
+                                fill=ColorRole::Surface
+                                @test_id={format!("shelf.{}", vegetable.0)}
+                            >
+                                <Text>{vegetable.0}</Text>
+                            </Frame>
+                        </ReorderItem>
+                    </ForEach>
+                </List>
+            </Reorder>
+        </Frame>
     }
 }

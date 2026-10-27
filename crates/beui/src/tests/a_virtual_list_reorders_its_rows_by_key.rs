@@ -14,6 +14,9 @@ fn a_virtual_list_reorders_its_rows_by_key() {
                     <Reorder
                         keys={keys}
                         payload={Func::new(|key: u32| Some(key))}
+                        preview={|_: u32| view! {
+                            <Frame height=REORDER_ROW />
+                        }}
                         on_move={move |moved: ReorderMove<u32, u32>| keys.update(|keys| {
                             keys.retain(|key| *key != moved.payload);
                             keys.insert(moved.index, moved.payload);

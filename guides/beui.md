@@ -2867,7 +2867,9 @@ that nest - a card inside the pile that holds it - set `capture_presses`, so a
 press reaches the innermost one and not the one around it, the way
 `unstyled::Button` wins a press; of overlapping ones only the topmost hears it.
 
-While a drag is under way the `preview` is shown beside the pointer in an
+`preview` is required: every drag shows something under the pointer, even one
+whose targets draw the item themselves, since the pointer may be over none of
+them. While a drag is under way the `preview` is shown beside the pointer in an
 inert overlay at `LayerLevel::Top`, so it paints above every window and takes
 no input. Where windows open (`Context::opens_windows`), it is shown in the
 window the pointer is over (the overlay's `shown_in`, the board's `DragPoint::window`),
@@ -2944,6 +2946,13 @@ coordinates even when the pointer is still; on HTML it tracks pointer moves,
 through window listeners it holds while it carries something (so a drag goes
 on, and ends on release, when the source's element is gone).
 
+A target that `holds` a payload (a `Func<P, bool>`) keeps a drag of it that no
+other target could take: while no other registered target accepts the payload,
+the board treats the pointer as over that target wherever it is, even outside
+the window, so the drag never floats off into nothing and a release anywhere
+drops there. Escape and a cancelled pointer still drop nothing. It is how a
+`Reorder` keeps its own item (below).
+
 A target that would refuse a drop at a point declines it with `takes` rather
 than taking it and doing nothing: the drag then falls through, and a source
 such as a `Reorder` item hears it cancelled and glides home. The dock's target
@@ -2971,6 +2980,7 @@ view! {
         keys={tasks}
         payload={Func::new(|task: TaskId| Some(task))}
         text={move |task: TaskId| title(task)}
+        preview={move |task: TaskId| view! { <TaskRow task lifted=true /> }}
         on_move={move |moved: ReorderMove<TaskId, TaskId>| move_task(moved.payload, moved.after)}
     >|reorder: ReorderHandle<TaskId, TaskId>|
         <List spacing=Space::Xs>
@@ -2988,7 +2998,11 @@ In a `Choice`, whose list items are the buttons it makes, the `item` prop
 wraps each button in the `ReorderItem` (`ChoiceItem` hands it the button and its
 reactive `index`); `Choice` keeps a button per option across reorders.
 Keys are stable identities (a row id, never an index). `payload` is what the drag
-board carries for a key, `None` for one that cannot move; `disabled` turns dragging
+board carries for a key, `None` for one that cannot move. Other lists see it too, so
+it must name the item wherever it is dropped, never a position in its list: give
+each kind of item its own type (a `TaskId`, not a `usize`), since a list's `accepts`
+sees every payload of its type and a bare index from another list reads as one of
+its own. A list takes no item but its own unless `accepts` says so. `disabled` turns dragging
 off for the whole list (a read-only view, a sorted one). Nothing is committed while
 an item is carried: `reorder.order` is the keys with the carried one moved to where
 it would land, and the drop calls `on_move` once with a `ReorderMove` - the
@@ -3003,14 +3017,25 @@ moves past a neighbour once it covers half of it: its leading edge (the one faci
 the way it moves) crosses the neighbour's middle, measured against where the
 neighbours rest. That is the same pointer position going either way, whatever the
 widths, so the item cannot flicker between two slots (a list's spacing adds that
-much hysteresis). A carried item from another list opens its gap by the same rule:
+much hysteresis). The held item stays within the list's length: it stops at the
+first and last items however far the pointer goes. A carried item from another list opens its gap by the same rule:
 it lands after every item whose middle its leading (top or left) edge is past, so
 the gap opens under it, and moving within the gap behaves like a lifted item. Neighbours glide aside (the list's `Glide`s share one arm). The list is the
-item's own drop target with `hides_preview`, so pulled out across the list it turns
-into the floating `preview` and the gap behind it closes; any `Reorder` whose
-`accepts` takes the payload opens a gap the size of the carried item
-(`DragPoint::item`) where it would land, and a drop there settles the new item from
-the pointer. `takes` (as on `DropTarget`) lets a list decline a drop at some
+item's own drop target with `hides_preview` and `holds`: an item only leaves its
+list when something else could take it, another target that accepts the payload
+or the list's own `on_drop_outside`. Until then it stays lifted in its list
+wherever the pointer goes, and a release anywhere drops it in the slot it shows.
+Once something else could take it, pulled out across the list it turns into the
+floating `preview` under the pointer (required: the item's own face is still in
+the list) and the gap behind it closes; from then on it is carried like any other
+list's item, its own list included. Any `Reorder` whose `accepts` takes the payload
+opens a gap the size of the carried item (`DragPoint::item`) and the list's spacing
+where it would land, and a drop there settles the new item from the pointer. The gap
+is animated: it opens and closes along a spring (`GLIDE_SPRING`) by the frame clock,
+at once under `Motion::Instant`, so the list's length and the items after it follow
+it rather than jump; it moves from one slot to another by gliding the neighbours. A
+drop into it, or a release of a detached item over nothing (its slot then opens
+again before it settles home from the pointer), takes its place with no jump. `takes` (as on `DropTarget`) lets a list decline a drop at some
 points, as a dock bar does while Alt is held; its own item then floats off it. Let go over nothing, or press Escape, and it glides home. Alt with the
 arrow keys along the list moves the focused item through the same `on_move`
 (`ReorderHandle::step` does the same for a "Move up" command), and a polite live

@@ -21,6 +21,7 @@ mod a_button_that_leaves_focus_alone_keeps_the_keyboard_on_the_text;
 mod a_calendar_jumps_to_a_month_from_its_months_view;
 mod a_calendar_keeps_its_focus_between_its_limits;
 mod a_calendar_reaches_a_distant_year_from_its_years_view;
+mod a_cancelled_pointer_puts_a_held_row_back_where_it_was;
 mod a_cancelled_scrolled_sheet_dismissal_returns_before_a_later_drag_closes_it;
 mod a_cancelled_touch_outside_a_dialog_leaves_it_open;
 mod a_canvas_finds_items_added_and_removed_between_its_others;
@@ -246,6 +247,7 @@ mod a_keyed_view_rebuilds_only_when_its_key_changes;
 mod a_layer_sees_the_time_of_the_frame_it_is_in;
 mod a_layout_put_back_from_its_snapshot_keeps_the_tabs_where_they_were;
 mod a_list_in_a_scroll_lays_out_only_the_rows_near_the_view;
+mod a_list_refuses_another_lists_rows_it_does_not_accept_and_nothing_in_it_moves;
 mod a_list_sizes_plain_nodes_handed_to_it_intrinsically;
 mod a_locked_dock_tab_over_a_pane_outside_its_area_draws_no_drop_marker;
 mod a_locking_overlay_stays_on_top_and_shuts_out_global_keys;
@@ -343,7 +345,9 @@ mod a_reused_or_resumed_rich_layout_breaks_lines_as_a_fresh_one_would;
 mod a_row_added_to_a_for_each_keeps_the_sizes_the_rows_beside_it_chose;
 mod a_row_carried_into_another_list_opens_a_gap_and_drops_into_it;
 mod a_row_flicked_out_of_its_list_leaves_at_once_and_drops_where_it_is_let_go;
-mod a_row_let_go_away_from_every_list_glides_home;
+mod a_row_let_go_away_from_every_list_glides_home_without_the_list_jumping;
+mod a_row_no_other_list_takes_stays_in_its_list_and_settles_in_its_slot;
+mod a_row_pulled_out_of_its_list_shows_its_preview_under_the_pointer;
 mod a_row_pushed_down_by_the_row_above_it_is_neither_laid_out_nor_painted_again;
 mod a_runner_whose_app_panics_lets_the_app_exit_and_reports_why;
 mod a_scope_disposed_with_no_document_installed_still_removes_its_nodes;
@@ -890,6 +894,7 @@ mod the_emoji_menu_opens_below_the_caret_on_a_line_it_opened_on_before;
 mod the_find_bar_counts_matches_as_the_query_is_typed_and_steps_between_them;
 mod the_focus_ring_of_a_select_hugs_its_trigger_not_the_row_beside_it;
 mod the_frame_output_reports_the_region_whose_shapes_changed;
+mod the_gap_a_row_leaves_closes_over_frames;
 mod the_innermost_drop_target_that_accepts_the_payload_takes_the_drop;
 mod the_inspector_follows_nodes_added_to_the_document;
 mod the_inspector_keeps_its_native_size_while_a_pixel_ratio_is_simulated;
@@ -3103,6 +3108,9 @@ pub(crate) fn tab_strip(keys: crate::reactive::Signal<Vec<usize>>) -> Document {
                 keys={keys}
                 direction=Direction::Horizontal
                 payload={Func::new(|key: usize| Some(key))}
+                preview={|key: usize| view! {
+                    <Frame width={TAB_WIDTHS[key]} height=24.0 />
+                }}
                 on_move={move |moved: ReorderMove<usize, usize>| keys.update(|keys| {
                     keys.retain(|key| *key != moved.payload);
                     keys.insert(moved.index, moved.payload);
@@ -3143,6 +3151,7 @@ pub(crate) struct ReorderLists {
     pub(crate) moves: crate::reactive::Signal<Vec<(usize, unstyled::ReorderMove<u32, u32>)>>,
     pub(crate) disabled: crate::reactive::Signal<bool>,
     pub(crate) long_press: bool,
+    pub(crate) refuses: Option<usize>,
 }
 
 impl ReorderLists {
@@ -3153,6 +3162,7 @@ impl ReorderLists {
             moves: create_signal(Vec::new()),
             disabled: create_signal(false),
             long_press: false,
+            refuses: None,
         }
     }
 
@@ -3172,6 +3182,7 @@ pub(crate) fn reorder_lists(state: ReorderLists) -> Document {
         moves,
         disabled,
         long_press,
+        refuses,
     } = state;
     build_node(move || {
         let column = move |column: usize| {
@@ -3181,10 +3192,18 @@ pub(crate) fn reorder_lists(state: ReorderLists) -> Document {
                     <Reorder
                         keys={keys}
                         payload={Func::new(|key: u32| Some(key))}
-                        accepts={Func::new(|_: u32| true)}
+                        accepts={Func::new(move |_: u32| refuses != Some(column))}
                         disabled={disabled}
                         long_press
                         text={|key: u32| format!("Row {key}")}
+                        preview={|key: u32| view! {
+                            <Frame
+                                @test_id={format!("preview.{key}")}
+                                width=REORDER_COLUMN
+                                height=REORDER_ROW
+                                fill={Color32::from_rgb((key * 40 % 256) as u8, 90, 160)}
+                            />
+                        }}
                         on_move={move |moved: ReorderMove<u32, u32>| {
                             lists.update(|lists| {
                                 for list in lists.iter_mut() {

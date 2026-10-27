@@ -9,6 +9,7 @@ use beui_view::drag::{Board, DragPoint, DragSource, Pending, drag_board};
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 use beui_view::reactive::{KeyAt, NodeId, OverlayAnchor};
+use beui_view::types::layout::GLIDE_SPRING;
 use beui_view::types::{
     CursorIcon, Direction, GlideHold, Key, KeyPhase, LayerLevel, LayerPolicy, Placement,
     PointerPress, Pos2, Rect, Sides, TOUCH_DRAG_THRESHOLD, TouchDrags,
@@ -44,6 +45,7 @@ struct Lifted<K, P> {
     item: Rect,
     home: bool,
     slot: usize,
+    size: f32,
 }
 
 #[derive(Clone)]
@@ -71,9 +73,11 @@ struct State<K: 'static, P: 'static> {
     on_move: Callback<ReorderMove<K, P>>,
     on_drag_change: Callback<Option<K>>,
     on_drop_outside: Callback<(K, DragPoint)>,
-    preview: Option<RenderFn<P>>,
     lifted: Signal<Option<Lifted<K, P>>>,
     gap: Signal<Option<ReorderGap<K>>>,
+    aim: Cell<f32>,
+    speed: Cell<f32>,
+    frames: Cell<Option<Animation>>,
     visited: Signal<bool>,
     arm: Signal<u64>,
     raised: Signal<Option<K>>,
@@ -85,6 +89,8 @@ struct State<K: 'static, P: 'static> {
     glides: RefCell<Vec<(K, NodeId, NodeId)>>,
     board: Board,
     gone: Cell<bool>,
+    returning: Cell<bool>,
+    area: Cell<Option<NodeId>>,
 }
 
 pub struct ReorderHandle<K: 'static, P: 'static> {
@@ -119,6 +125,13 @@ where
 
     pub(crate) fn part(&self, gap: Option<ReorderGap<K>>) {
         open_gap(self.state, gap.is_some(), gap);
+    }
+
+    pub(crate) fn shut(&self) {
+        self.state.with(|state| {
+            state.visited.set(false);
+            shut(state);
+        });
     }
 
     pub fn drop_at(&self, payload: P, point: DragPoint) {
@@ -173,13 +186,104 @@ fn hold<K: Clone + PartialEq, P: Clone>(state: &State<K, P>, held: bool) {
         return;
     };
     let point = *state.point.borrow();
+    let direction = state.direction.get_untracked();
     let hold = point
         .filter(|_| held && lifted.home)
         .map(|point| GlideHold {
-            at: point.pos + lifted.item.min.to_vec2(),
-            along: Some(state.direction.get_untracked()),
+            at: clamped(state, point.pos + lifted.item.min.to_vec2(), lifted.item),
+            along: Some(direction),
         });
     hold_glide(glide, hold);
+}
+
+fn spans<K, P>(state: &State<K, P>, except: Option<&K>) -> Vec<(f32, f32)>
+where
+    K: PartialEq,
+{
+    let direction = state.direction.get_untracked();
+    let mut spans: Vec<(f32, f32)> = state
+        .glides
+        .borrow()
+        .iter()
+        .filter(|(key, ..)| except != Some(key))
+        .filter_map(|(_, outer, _)| {
+            measure(*outer)
+                .get_untracked()
+                .map(|measured| measured.rect)
+        })
+        .map(|rect| (along(direction, rect.min), along(direction, rect.max)))
+        .collect();
+    spans.sort_by(|left, right| left.0.total_cmp(&right.0));
+    spans
+}
+
+fn clamped<K, P>(state: &State<K, P>, at: Pos2, item: Rect) -> Pos2 {
+    let Some(area) = state
+        .area
+        .get()
+        .and_then(|area| measure(area).get_untracked())
+        .map(|measured| measured.rect)
+    else {
+        return at;
+    };
+    let direction = state.direction.get_untracked();
+    let low = along(direction, area.min);
+    let high = (along(direction, area.max) - direction.main(item.size())).max(low);
+    match direction {
+        Direction::Horizontal => Pos2::new(at.x.clamp(low, high), at.y),
+        Direction::Vertical => Pos2::new(at.x, at.y.clamp(low, high)),
+    }
+}
+
+fn spacing<K: PartialEq, P>(state: &State<K, P>) -> f32 {
+    spans(state, None)
+        .windows(2)
+        .map(|pair| pair[1].0 - pair[0].1)
+        .filter(|between| *between >= 0.0)
+        .reduce(f32::min)
+        .unwrap_or(0.0)
+}
+
+fn slot_size<K: PartialEq, P>(state: &State<K, P>, key: &K) -> f32 {
+    let direction = state.direction.get_untracked();
+    let Some((start, end)) = state
+        .glides
+        .borrow()
+        .iter()
+        .find(|(shown, ..)| shown == key)
+        .and_then(|(_, outer, _)| {
+            measure(*outer)
+                .get_untracked()
+                .map(|measured| measured.rect)
+        })
+        .map(|rect| (along(direction, rect.min), along(direction, rect.max)))
+    else {
+        return 0.0;
+    };
+    let others = spans(state, Some(key));
+    match others.iter().find(|span| span.0 >= end) {
+        Some(next) => next.0 - start,
+        None => {
+            let previous = others
+                .iter()
+                .filter(|span| span.1 <= start)
+                .map(|span| span.1)
+                .reduce(f32::max);
+            end - previous.unwrap_or(start)
+        }
+    }
+}
+
+fn carried_size<K: PartialEq, P>(state: &State<K, P>, point: DragPoint) -> f32 {
+    state.direction.get_untracked().main(point.item.size()) + spacing(state)
+}
+
+fn shown_keys<K: Clone + PartialEq, P: Clone>(state: &State<K, P>) -> Vec<K> {
+    let keys = state.keys.get_untracked();
+    match state.lifted.get_untracked() {
+        Some(lifted) => rest_of(&keys, &lifted.key),
+        None => keys,
+    }
 }
 
 fn shown_at<K: Clone + PartialEq, P: Clone>(state: &State<K, P>) -> Option<Pos2> {
@@ -203,11 +307,13 @@ fn slot_at<K: Clone + PartialEq, P>(
     own: Option<&K>,
     span: (f32, f32),
     fallback: usize,
+    full: f32,
 ) -> usize {
     let direction = state.direction.get_untracked();
     let glides = state.glides.borrow();
     let mut mounted: Vec<(f32, usize)> = Vec::new();
     let mut split = f32::INFINITY;
+    let mut opened = 0.0;
     for (key, outer, inner) in glides.iter() {
         let Some(rect) = resting(*outer, *inner) else {
             continue;
@@ -220,9 +326,13 @@ fn slot_at<K: Clone + PartialEq, P>(
             continue;
         };
         let start = along(direction, rect.min);
-        let lead = resting(*outer, *outer).map_or(start, |row| along(direction, row.min));
+        let lead = measure(*outer)
+            .get_untracked()
+            .map(|measured| measured.rect)
+            .map_or(start, |row| along(direction, row.min));
         if lead < start {
             split = split.min(lead);
+            opened = start - lead;
         }
         mounted.push((along(direction, rect.center()), index));
     }
@@ -231,7 +341,7 @@ fn slot_at<K: Clone + PartialEq, P>(
     let (low, high) = span;
     let passed = |(middle, _): &(f32, usize)| match *middle < split {
         true => low >= *middle,
-        false => high >= *middle,
+        false => high >= *middle - opened + full,
     };
     if let Some((_, index)) = mounted.iter().find(|entry| !passed(entry)) {
         return *index;
@@ -269,22 +379,19 @@ where
 {
     stored.with(|state| {
         *state.point.borrow_mut() = Some(point);
-        if state.fixed.get_untracked() {
-            return;
-        }
-        let Some(mut lifted) = state.lifted.get_untracked() else {
+        let Some(mut lifted) = state.lifted.get_untracked().filter(|lifted| lifted.home) else {
             return;
         };
-        let rest = rest_of(&state.keys.get_untracked(), &lifted.key);
-        let direction = state.direction.get_untracked();
-        let own = lifted.home.then_some(&lifted.key);
-        let slot = slot_at(state, &rest, own, span_of(direction, point), lifted.slot);
-        if !lifted.home || lifted.slot != slot {
-            lifted.home = true;
-            lifted.slot = slot;
-            bump(state);
-            state.floating_at.set(None);
-            state.lifted.set(Some(lifted));
+        if !state.fixed.get_untracked() {
+            let rest = rest_of(&state.keys.get_untracked(), &lifted.key);
+            let direction = state.direction.get_untracked();
+            let span = span_of(direction, point);
+            let slot = slot_at(state, &rest, Some(&lifted.key), span, lifted.slot, 0.0);
+            if lifted.slot != slot {
+                lifted.slot = slot;
+                bump(state);
+                state.lifted.set(Some(lifted));
+            }
         }
         hold(state, true);
     });
@@ -295,17 +402,22 @@ where
     K: Clone + Eq + Hash + 'static,
     P: Clone + PartialEq + 'static,
 {
-    let gap = stored.with(|state| {
-        let point = point.filter(|_| !state.fixed.get_untracked())?;
-        let keys = state.keys.get_untracked();
-        let direction = state.direction.get_untracked();
-        let index = slot_at(state, &keys, None, span_of(direction, point), keys.len());
-        Some(ReorderGap {
-            before: keys.get(index).cloned(),
-            size: direction.main(point.item.size()),
-        })
+    let (own, gap) = stored.with(|state| {
+        let own = state.lifted.with_untracked(Option::is_some);
+        let gap = point.filter(|_| !state.fixed.get_untracked()).map(|point| {
+            let keys = shown_keys(state);
+            let direction = state.direction.get_untracked();
+            let size = carried_size(state, point);
+            let span = span_of(direction, point);
+            let index = slot_at(state, &keys, None, span, keys.len(), size);
+            ReorderGap {
+                before: keys.get(index).cloned(),
+                size,
+            }
+        });
+        (own, gap)
     });
-    open_gap(stored, point.is_some(), gap);
+    open_gap(stored, point.is_some() && !own, gap);
 }
 
 fn open_gap<K, P>(stored: Stored<State<K, P>>, visited: bool, gap: Option<ReorderGap<K>>)
@@ -313,16 +425,157 @@ where
     K: Clone + Eq + Hash + 'static,
     P: Clone + PartialEq + 'static,
 {
-    stored.with(|state| {
+    let frames = stored.with(|state| {
         if state.visited.get_untracked() != visited {
             state.visited.set(visited);
         }
         let gap = gap.filter(|_| !state.fixed.get_untracked());
-        if state.gap.with_untracked(|shown| *shown != gap) {
-            bump(state);
-            state.gap.set(gap);
+        let aim = gap.as_ref().map_or(0.0, |gap| gap.size);
+        match (gap, state.gap.get_untracked()) {
+            (Some(gap), Some(shown)) if gap.before != shown.before => {
+                bump(state);
+                state.gap.set(Some(ReorderGap {
+                    before: gap.before,
+                    size: shown.size,
+                }));
+            }
+            (Some(gap), None) => state.gap.set(Some(ReorderGap {
+                before: gap.before,
+                size: 0.0,
+            })),
+            _ => {}
         }
+        state.aim.set(aim);
+        let shown = state
+            .gap
+            .with_untracked(|shown| shown.as_ref().map_or(0.0, |shown| shown.size));
+        (shown != aim).then(|| state.frames.get()).flatten()
     });
+    if let Some(frames) = frames {
+        frames.start();
+    }
+}
+
+fn shut<K: Clone + PartialEq, P>(state: &State<K, P>) {
+    state.aim.set(0.0);
+    state.speed.set(0.0);
+    if state.gap.with_untracked(Option::is_some) {
+        state.gap.set(None);
+    }
+}
+
+fn step_gap<K, P>(stored: Stored<State<K, P>>, seconds: f32) -> bool
+where
+    K: Clone + PartialEq + 'static,
+    P: 'static,
+{
+    stored
+        .try_with(|state| {
+            let Some(mut shown) = state.gap.get_untracked() else {
+                return false;
+            };
+            let aim = state.aim.get();
+            let mut offset = shown.size - aim;
+            let mut speed = state.speed.get();
+            GLIDE_SPRING.advance(&mut offset, &mut speed, seconds);
+            state.speed.set(speed);
+            shown.size = (aim + offset).max(0.0);
+            let moving = offset != 0.0 || speed != 0.0;
+            state.gap.set((moving || aim > 0.0).then_some(shown));
+            moving
+        })
+        .unwrap_or(false)
+}
+
+fn settle_gap<K, P>(stored: Stored<State<K, P>>)
+where
+    K: Clone + Eq + Hash + 'static,
+    P: Clone + PartialEq + 'static,
+{
+    let back = stored.try_with(|state| {
+        state.speed.set(0.0);
+        let aim = state.aim.get();
+        if let Some(mut shown) = state.gap.get_untracked()
+            && shown.size != aim
+        {
+            shown.size = aim;
+            state.gap.set((aim > 0.0).then_some(shown));
+        }
+        state.returning.replace(false)
+    });
+    if back == Some(true) {
+        come_back(stored);
+    }
+}
+
+fn come_back<K, P>(stored: Stored<State<K, P>>)
+where
+    K: Clone + Eq + Hash + 'static,
+    P: Clone + PartialEq + 'static,
+{
+    stored.with(|state| shut(state));
+    finish(stored);
+}
+
+fn cancel<K, P>(stored: Stored<State<K, P>>)
+where
+    K: Clone + Eq + Hash + 'static,
+    P: Clone + PartialEq + 'static,
+{
+    let home = stored.with(|state| {
+        state.pressed.borrow_mut().take();
+        state.board.release();
+        let lifted = state
+            .lifted
+            .get_untracked()
+            .filter(|lifted| !lifted.home && lifted.size > 0.0 && !state.fixed.get_untracked())?;
+        let keys = state.keys.get_untracked();
+        let at = keys.iter().position(|key| *key == lifted.key)?;
+        let rest = rest_of(&keys, &lifted.key);
+        state.returning.set(true);
+        Some(ReorderGap {
+            before: rest.get(at).cloned(),
+            size: lifted.size,
+        })
+    });
+    let Some(home) = home else {
+        come_back(stored);
+        return;
+    };
+    open_gap(stored, false, Some(home));
+    let waiting = stored.with(|state| {
+        state.returning.get() && state.frames.get().is_some_and(|frames| frames.running())
+    });
+    if !waiting && stored.with(|state| state.returning.replace(false)) {
+        come_back(stored);
+    }
+}
+
+fn detach<K, P>(stored: Stored<State<K, P>>)
+where
+    K: Clone + Eq + Hash + 'static,
+    P: Clone + PartialEq + 'static,
+{
+    let frames = stored.with(|state| {
+        let mut lifted = state.lifted.get_untracked().filter(|lifted| lifted.home)?;
+        let rest = rest_of(&state.keys.get_untracked(), &lifted.key);
+        let size = slot_size(state, &lifted.key);
+        hold(state, false);
+        lifted.home = false;
+        lifted.size = size;
+        state.floating_at.set(*state.point.borrow());
+        let before = rest.get(lifted.slot).cloned();
+        state.lifted.set(Some(lifted));
+        state.aim.set(0.0);
+        state.speed.set(0.0);
+        state
+            .gap
+            .set((size > 0.0).then_some(ReorderGap { before, size }));
+        state.frames.get()
+    });
+    if let Some(frames) = frames {
+        frames.start();
+    }
 }
 
 fn finish<K, P>(stored: Stored<State<K, P>>)
@@ -384,24 +637,44 @@ where
 {
     let commit = stored.with(|state| {
         let keys = state.keys.get_untracked();
+        let own = state.lifted.get_untracked().map(|lifted| lifted.key);
+        let rest = match &own {
+            Some(own) => rest_of(&keys, own),
+            None => keys.clone(),
+        };
+        let from = own
+            .as_ref()
+            .and_then(|own| keys.iter().position(|key| key == own));
         let direction = state.direction.get_untracked();
         let index = match state.fixed.get_untracked() {
-            true => 0,
-            false => slot_at(state, &keys, None, span_of(direction, point), keys.len()),
+            true => from.unwrap_or(0),
+            false => {
+                let size = carried_size(state, point);
+                let span = span_of(direction, point);
+                slot_at(state, &rest, None, span, rest.len(), size)
+            }
         };
         let at = point.pos + point.item.min.to_vec2();
-        *state.arrival.borrow_mut() = Some(Arrival::New(keys.clone(), at));
-        state.gap.set(None);
+        *state.arrival.borrow_mut() = Some(match &own {
+            Some(own) => Arrival::Back(own.clone(), at),
+            None => Arrival::New(keys.clone(), at),
+        });
+        shut(state);
         state.visited.set(false);
         bump(state);
-        ReorderMove {
-            payload,
-            key: None,
-            after: index.checked_sub(1).and_then(|at| keys.get(at).cloned()),
-            index,
+        if let Some(own) = &own {
+            announce(state, own, index, keys.len());
         }
+        (from != Some(index)).then(|| ReorderMove {
+            payload,
+            key: own,
+            after: index.checked_sub(1).and_then(|at| rest.get(at).cloned()),
+            index,
+        })
     });
-    stored.with(|state| state.on_move.call(commit));
+    if let Some(commit) = commit {
+        stored.with(|state| state.on_move.call(commit));
+    }
 }
 
 fn step<K, P>(stored: Stored<State<K, P>>, key: K, by: isize) -> bool
@@ -445,6 +718,9 @@ where
     K: Clone + Eq + Hash + 'static,
     P: Clone + PartialEq + 'static,
 {
+    if stored.with(|state| state.returning.replace(false)) {
+        come_back(stored);
+    }
     let Some((payload, board)) = stored.with(|state| {
         if !can_drag(state, &press.key) || state.board.carrying() {
             return None;
@@ -462,6 +738,7 @@ where
             item: press.item,
             home: !fixed,
             slot,
+            size: 0.0,
         }));
         if fixed {
             state.floating_at.set(Some(point));
@@ -486,22 +763,9 @@ where
                 });
             }),
             floating: Rc::new(move |floating: bool| {
-                if !floating {
-                    return;
+                if floating {
+                    detach(stored);
                 }
-                stored.with(|state| {
-                    let Some(mut lifted) = state.lifted.get_untracked() else {
-                        return;
-                    };
-                    if !lifted.home {
-                        return;
-                    }
-                    hold(state, false);
-                    lifted.home = false;
-                    bump(state);
-                    state.floating_at.set(*state.point.borrow());
-                    state.lifted.set(Some(lifted));
-                });
             }),
             outside: Rc::new(move |point: DragPoint| {
                 let key =
@@ -515,11 +779,7 @@ where
                 if stored.try_with(|state| state.gone.get()) != Some(false) {
                     return;
                 }
-                stored.with(|state| {
-                    state.pressed.borrow_mut().take();
-                    state.board.release();
-                });
-                finish(stored);
+                cancel(stored);
             }),
             dropped: Rc::new(move || {
                 if stored.try_with(|state| state.gone.get()) == Some(false) {
@@ -581,6 +841,24 @@ where
     }
 }
 
+fn pointer_cancelled<K, P>(stored: Stored<State<K, P>>)
+where
+    K: Clone + Eq + Hash + 'static,
+    P: Clone + PartialEq + 'static,
+{
+    let board = stored.with(|state| {
+        state.pressed.borrow_mut().take();
+        state.board.release();
+        state
+            .lifted
+            .with_untracked(Option::is_some)
+            .then(|| state.board.clone())
+    });
+    if let Some(board) = board {
+        board.cancel();
+    }
+}
+
 #[component]
 pub fn Reorder<K, P>(
     keys: Prop<Vec<K>>,
@@ -595,7 +873,7 @@ pub fn Reorder<K, P>(
     on_move: Callback<ReorderMove<K, P>>,
     on_drag_change: Callback<Option<K>>,
     on_drop_outside: Callback<(K, DragPoint)>,
-    preview: Option<RenderFn<P>>,
+    preview: RenderFn<P>,
     #[prop(children)] content: Render<ReorderHandle<K, P>>,
 ) -> NodeId
 where
@@ -620,9 +898,11 @@ where
         on_move,
         on_drag_change,
         on_drop_outside,
-        preview,
         lifted,
         gap,
+        aim: Cell::new(0.0),
+        speed: Cell::new(0.0),
+        frames: Cell::new(None),
         visited,
         arm: create_signal(0),
         raised: create_signal(None),
@@ -634,6 +914,8 @@ where
         glides: RefCell::new(Vec::new()),
         board: drag_board(),
         gone: Cell::new(false),
+        returning: Cell::new(false),
+        area: Cell::new(None),
     });
     let placed = create_memo(move || {
         lifted.with(|lifted| {
@@ -656,6 +938,11 @@ where
         }
     });
     let dragging = create_memo(move || placed.get().map(|(key, ..)| key));
+    let frames = create_animation(
+        move |frame| step_gap(state, frame.delta.as_secs_f32()),
+        move || settle_gap(state),
+    );
+    state.with(|state| state.frames.set(Some(frames)));
     let handle = ReorderHandle {
         state,
         order,
@@ -694,13 +981,6 @@ where
     let carried = create_memo(move || {
         lifted.with(|lifted| lifted.as_ref().map(|lifted| lifted.payload.clone()))
     });
-    let preview = state.with(|state| state.preview).unwrap_or_else(|| {
-        RenderFn::new(|_: P| {
-            view! {
-                <Frame />
-            }
-        })
-    });
     let accepting = Func::new(move |payload: P| {
         state.with(|state| {
             state.lifted.with_untracked(Option::is_some)
@@ -709,22 +989,28 @@ where
         })
     });
     let taking = Func::new(move |point: DragPoint| takes.is_none_or(|takes| takes.call(point)));
-    let hides = create_memo(move || lifted.with(Option::is_some) && !fixed.get());
-    view! {
+    let home =
+        move || lifted.with_untracked(|lifted| lifted.as_ref().is_some_and(|lifted| lifted.home));
+    let hides = create_memo(move || {
+        lifted.with(|lifted| lifted.as_ref().is_some_and(|lifted| lifted.home))
+    });
+    let holding =
+        Func::new(move |_: P| home() && state.with(|state| state.on_drop_outside.is_empty()));
+    let area = view! {
         <DropTarget
             accepts={accepting}
             takes={taking}
             hides_preview={hides}
+            holds={holding}
             on_over={move |over: Option<(P, DragPoint)>| {
-                let own = state.with(|state| state.lifted.with_untracked(Option::is_some));
-                match (over, own) {
+                match (over, home()) {
                     (Some((_, point)), true) => place(state, point),
                     (over, false) => visit(state, over.map(|(_, point)| point)),
                     (None, true) => {}
                 }
             }}
             on_drop={move |(payload, point): (P, DragPoint)| {
-                match state.with(|state| state.lifted.with_untracked(Option::is_some)) {
+                match home() {
                     true => dropped_home(state, point),
                     false => dropped_in(state, payload, point),
                 }
@@ -755,7 +1041,10 @@ where
                 </Overlay>
             </Layers>
         </DropTarget>
-    }
+    };
+    measure(area);
+    state.with(|state| state.area.set(Some(area)));
+    area
 }
 
 #[component]
@@ -916,6 +1205,7 @@ where
                 on_drag={move |press: PointerPress| moved(state, DragPoint::of(press))}
                 on_long_press_drag={on_long_press}
                 on_click_at={clicked}
+                on_cancel={move || pointer_cancelled(state)}
                 on_active_change={move |active: bool| if !active { released(state) }}
             >
                 {face}

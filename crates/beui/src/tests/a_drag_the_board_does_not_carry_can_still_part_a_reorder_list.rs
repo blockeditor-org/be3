@@ -18,6 +18,9 @@ fn a_drag_the_board_does_not_carry_can_still_part_a_reorder_list() {
             <Reorder
                 keys={keys}
                 payload={Func::new(|key: u32| Some(key))}
+                preview={|_: u32| view! {
+                    <Frame height=REORDER_ROW />
+                }}
                 on_move={move |moved: ReorderMove<u32, u32>| moves.update(|moves| moves.push(moved))}
             >|reorder: ReorderHandle<u32, u32>| {
                 holding.set(Some(reorder));

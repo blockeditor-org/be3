@@ -46,7 +46,7 @@ pub fn Draggable<P>(
     on_drag_change: Callback<bool>,
     on_drop_outside: Callback<DragPoint>,
     on_cancel: Callback<()>,
-    preview: Option<RenderFn<P>>,
+    preview: RenderFn<P>,
     #[prop(children)] content: Render<DragHandle>,
 ) -> NodeId
 where
@@ -159,13 +159,6 @@ where
     .into_prop()
     .map(OverlayAnchor::Point);
     let shown_in = create_memo(move || pointer.get().map(|point| point.window));
-    let preview = preview.unwrap_or_else(|| {
-        RenderFn::new(|_: P| {
-            view! {
-                <Frame />
-            }
-        })
-    });
     view! {
         <Interactive
             cursor
@@ -208,6 +201,7 @@ pub fn DropTarget<P>(
     #[prop(default = None)] accepts: Option<Func<P, bool>>,
     #[prop(default = None)] takes: Option<Func<DragPoint, bool>>,
     #[prop(default = false)] hides_preview: Prop<bool>,
+    #[prop(default = None)] holds: Option<Func<P, bool>>,
     on_over: Callback<Option<(P, DragPoint)>>,
     on_drop: Callback<(P, DragPoint)>,
     #[prop(children)] content: Render<DropHandle>,
@@ -244,6 +238,13 @@ where
             }
         }),
         hides_preview: Rc::new(move || hides_preview.get_untracked()),
+        holds: Rc::new(move |payload: &dyn Any| {
+            holds.is_some_and(|holds| {
+                payload
+                    .downcast_ref::<P>()
+                    .is_some_and(|payload| holds.call(payload.clone()))
+            })
+        }),
     });
     on_cleanup(move || board.unregister(id));
     let carrying = create_memo(move || carrying.get());

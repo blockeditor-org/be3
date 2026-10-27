@@ -12,7 +12,13 @@ fn holding_a_drag_at_the_edge_of_a_scroll_scrolls_it() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Draggable payload={7_u32} @node_ref=&source>|_: DragHandle|
+                <Draggable
+                    payload={7_u32}
+                    preview={|_: u32| view! {
+                        <Frame width=40.0 height=40.0 />
+                    }}
+                    @node_ref=&source
+                >|_: DragHandle|
                     <Frame width=40.0 height=40.0 />
                 </Draggable>
                 <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>

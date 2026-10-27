@@ -294,6 +294,11 @@ fn Clip(
             <Draggable
                 payload={id}
                 cursor=CursorIcon::Grab
+                preview={move |_: Uuid| view! {
+                    <Frame fill=ColorRole::Pressed radius=CLIP_RADIUS padding=THUMBNAIL_MARGIN>
+                        <Text>{name}</Text>
+                    </Frame>
+                }}
                 @test_id={element_test_id}
                 on_click={move || state.select(Some(id))}
                 on_drag_change={move |dragging: bool| {

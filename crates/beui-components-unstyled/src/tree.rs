@@ -255,7 +255,7 @@ where
         if state.settling.value().replace(false)
             && let Some(parted) = state.parting.value().get()
         {
-            parted.hover(None);
+            parted.shut();
         }
     });
 
@@ -305,6 +305,9 @@ where
         <Reorder
             keys={group}
             payload={Func::new(|_: K| None::<()>)}
+            preview={|_: ()| view! {
+                <Frame />
+            }}
         >|parted: ReorderHandle<K, ()>| {
             state.parting.value().set(Some(parted));
             rows(Some(parted))

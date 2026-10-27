@@ -157,7 +157,7 @@ impl Board {
             }
             return;
         }
-        if self.outside.get() {
+        if self.outside.get() && !self.held() {
             if let Some(carried) = self.carried.borrow_mut().as_mut() {
                 carried.last = Some(point);
             }
@@ -193,7 +193,7 @@ impl Board {
             .borrow()
             .as_ref()
             .and_then(|carried| carried.last);
-        if !self.outside.get() {
+        if !self.outside.get() || self.held() {
             self.end(last);
             return;
         }
@@ -210,13 +210,22 @@ impl Board {
         }
     }
 
+    pub fn held(&self) -> bool {
+        let carried = self.carried.borrow();
+        carried.as_ref().is_some_and(|carried| {
+            beui_types::drag::holder(&self.targets.borrow(), carried.source.payload.as_ref())
+                .is_some()
+        })
+    }
+
     pub fn under(&self, point: DragPoint) -> Option<(u64, (Rect, f32), Over, bool)> {
         let carried = self.carried.borrow();
         let payload = carried.as_ref()?.source.payload.as_ref();
         if point.window != WindowId::MAIN {
             return None;
         }
-        self.targets
+        let found = self
+            .targets
             .borrow()
             .iter()
             .filter_map(|target| Some((self.rect_of(target)?, target)))
@@ -232,7 +241,22 @@ impl Board {
                     Rc::clone(&target.over),
                     (target.hides_preview)(),
                 )
-            })
+            });
+        if found.is_some() {
+            return found;
+        }
+        let targets = self.targets.borrow();
+        let holder = beui_types::drag::holder(&targets, payload)?;
+        let target = targets.iter().find(|target| target.id == holder)?;
+        let rect = self.rect_of(target)?;
+        (target.takes)(point.within(rect)).then(|| {
+            (
+                target.id,
+                rect,
+                Rc::clone(&target.over),
+                (target.hides_preview)(),
+            )
+        })
     }
 
     pub fn over(&self, id: u64) -> Option<Over> {

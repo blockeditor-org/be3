@@ -8,7 +8,12 @@ fn a_drop_target_hears_the_size_of_the_item_dragged_over_it() {
     let (document, [source, target]) = toolbar_of(move || {
         [
             view! {
-                <Draggable payload={7_u32}>|_: DragHandle|
+                <Draggable
+                    payload={7_u32}
+                    preview={|_: u32| view! {
+                        <Frame width=40.0 height=40.0 />
+                    }}
+                >|_: DragHandle|
                     <Frame width=40.0 height=30.0 />
                 </Draggable>
             },
