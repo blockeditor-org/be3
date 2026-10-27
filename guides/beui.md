@@ -1785,6 +1785,13 @@ applies its terminal state exactly once. The step receives `AnimationFrame` (`no
 frame is needed. Returning false finishes it. A callback may start another animation;
 disposing the scope cancels without completing it. Publish values through signals.
 
+Motion that never ends, such as an indeterminate progress bar, is not an animation. An
+animation asks for the very next frame, and a driven app settles only once no frame asks
+for another (guides/running/drive.md), so one that never finishes would keep `drive settle`
+waiting for as long as the clock runs. Tick it from a timer that asks for its next step a
+frame's time later (`Some(Duration::from_millis(16))`), as a caret's blink waits out its
+interval: a frame asked for later does not keep an app from settling.
+
 Use `tween(elapsed_seconds, duration_seconds, Easing)` for duration-based progress and
 `Spring::advance` for a displacement and velocity relative to a target. Tweens catch up
 to the frame clock after stalls; springs solve damped motion analytically rather than

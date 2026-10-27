@@ -1,3 +1,7 @@
+use std::cell::Cell;
+use std::rc::Rc;
+use std::time::Duration;
+
 use accesskit::{Node, Role};
 use beui_macros::component;
 
@@ -5,6 +9,7 @@ use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
 const PERIOD: f32 = 1.2;
+const TICK: Duration = Duration::from_millis(16);
 const RESTING_PHASE: f32 = 0.5;
 
 pub struct ProgressHandle {
@@ -38,21 +43,24 @@ pub fn Progress(
         node
     }));
     let placed = component_placed();
-    let ticking = create_animation(
-        move |frame| {
-            if !placed.get_untracked() {
-                return false;
-            }
-            phase.set((frame.elapsed.as_secs_f32() / PERIOD).fract());
-            true
-        },
-        move || phase.set(RESTING_PHASE),
-    );
+    let started = Rc::new(Cell::new(now()));
+    let restarted = Rc::clone(&started);
+    let ticking = create_timer(move || {
+        if !placed.get_untracked() {
+            return None;
+        }
+        let elapsed = now().saturating_duration_since(started.get());
+        phase.set((elapsed.as_secs_f32() / PERIOD).fract());
+        Some(TICK)
+    });
     let preferences = use_preferences();
     let animates = create_memo(move || preferences.get().motion.animates());
     create_effect(move || {
         if indeterminate.get() && placed.get() && animates.get() {
-            ticking.start();
+            if !ticking.running() {
+                restarted.set(now());
+                ticking.start(Duration::ZERO);
+            }
         } else {
             ticking.stop();
             phase.set(RESTING_PHASE);
