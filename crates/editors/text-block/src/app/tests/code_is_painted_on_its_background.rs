@@ -1,4 +1,5 @@
 use super::editor;
+use block_ui_test::prelude::*;
 
 #[test]
 fn code_is_painted_on_its_background() {

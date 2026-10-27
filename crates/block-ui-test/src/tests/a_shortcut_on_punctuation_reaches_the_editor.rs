@@ -33,7 +33,6 @@ fn a_shortcut_on_punctuation_reaches_the_editor() {
     let mut test = BeuiTest::<ShortcutApp>::new(OwnedEditor::new(host, Uuid::new_v4()));
 
     test.key(Key::Slash, Modifiers::CTRL);
-    test.run();
 
     assert_eq!(test.label("shortcut.pressed"), "Slash");
 }

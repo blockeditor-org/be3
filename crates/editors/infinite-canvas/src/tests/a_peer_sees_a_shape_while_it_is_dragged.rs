@@ -7,7 +7,6 @@ fn a_peer_sees_a_shape_while_it_is_dragged() {
     let mut watcher = editor(&[]);
 
     drawer.click("infinite-canvas.dock.tool.Ellipse");
-    drawer.run();
     let from = drawer.rect_of("infinite-canvas.canvas").center() - Vec2::new(120.0, 80.0);
     drawer.pen(PenPhase::Down(PointerButton::Primary), from, 0.5);
     drawer.next_frame();

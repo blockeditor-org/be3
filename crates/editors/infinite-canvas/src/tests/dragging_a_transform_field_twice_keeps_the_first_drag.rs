@@ -17,13 +17,10 @@ fn dragging_a_transform_field_twice_keeps_the_first_drag() {
     let mut editor = vector_editor(std::slice::from_ref(&rectangle));
 
     editor.click(format!("infinite-canvas.entity.{}", rectangle.id));
-    editor.run();
     let field = editor.point_of("infinite-canvas.transform.x");
     editor.drag(field, field + Vec2::new(20.0, 0.0));
-    editor.run();
     let field = editor.point_of("infinite-canvas.transform.x");
     editor.drag(field, field + Vec2::new(10.0, 0.0));
-    editor.run();
 
     assert_eq!(entities(&editor)[0].transform.center.x, 30.0);
 }

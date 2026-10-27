@@ -1,4 +1,5 @@
 use beui::Vec2;
+use block_ui_test::prelude::*;
 
 use super::editor;
 

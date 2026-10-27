@@ -15,10 +15,10 @@ fn a_long_menu_page_scrolls_to_the_row_the_keyboard_is_on() {
         "End scrolls the last row into the menu"
     );
     assert!(
-        !test.shows("demo.new.more.back") || test.rect_of("demo.new.more.back").top() < back.top(),
+        !test.shown("demo.new.more.back") || test.rect_of("demo.new.more.back").top() < back.top(),
         "the rows above scrolled up out of the way"
     );
     test.snapshot("a_long_menu_page_scrolls_to_its_last_row");
     press_key(&mut test, Key::ArrowLeft);
-    assert!(test.shows("demo.new.more"), "Left goes back to the menu");
+    assert!(test.shown("demo.new.more"), "Left goes back to the menu");
 }

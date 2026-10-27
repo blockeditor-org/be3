@@ -5099,12 +5099,14 @@ Every test that runs a document or an app runs it through `beui::testing::Steppe
 a platform does: through the real `Runner` under one drive layer, on the headless window's `Simulation`
 (`Stepped::new`) or on a `PlatformServices` the test supplies (`Stepped::on`), with a gpu-free
 `testing::Screen`, the clock stopped, and one frame interval per frame.
-`testing::Showing(document)` is a `Document` as an app. Its gestures are `drive`'s commands,
-run by the same drive layer (crates/beui-platform-headless/src/testing.rs): `click(Target::id("wheel").at(offset))`, `drag`, `down`,
-`up`, `hover`, `scroll`, `zoom`, `pinch`, `fingers`, `type_text`, `key`, `key_down`, `wait`
-and `settle` are typed forms of them, a `Pos2` is a target too, and `ask(&["back", "0.5"])` sends
-any other. Each settles as `drive` does, unless the test turned that off
-with `settle_after_gestures(false)`, when it answers after the frame that took the input.
+`testing::Showing(document)` is a `Document` as an app. A `Stepped<Showing>` is driven and read
+through the `testing::Gui` trait, which block-ui-test's harnesses share (guides/testing_a_gui.md):
+`click(Target::id("wheel").at(offset))`, `drag`, `down`, `up`, `hover`, `scroll`, `zoom`, `pinch`,
+`fingers`, `type_text`, `key`, `key_down`, `settle`, `shown`, `rect_of`, `label` and the rest build
+`drive`'s gestures (`beui::drive::gestures`) and paint them frame by frame; a `Pos2` is a target
+too. `drive(&["back", "0.5"])` (or `ask`, which hands back the error) sends any other command
+through the drive layer. A gesture settles afterwards unless the test turned that off with
+`settle_after_gestures(false)`, when it answers after the frame that took the input.
 `frame(inputs)` pushes the `Input`s it is handed in points (`Incoming::points`) and paints one
 frame, for a test of what a single frame does, and hands back its output. Like every input,
 they go through the runner's intake, so a test sends what a platform would: an
@@ -5124,8 +5126,8 @@ Tests of the `Runner` itself take `testing::Screen` rather than a renderer of th
 
 For a beui block editor, use `block_ui_test::BeuiTest`, built from an `Editor`
 (or a `Creation`, for a dialog) so the test holds the same handle the component
-was handed. Give every interacted node an `@test_id`, call `run` after queued
-gestures, assert the resulting block state, and snapshot only when the painting is meaningful. `BeuiTest` also
+was handed. Give every interacted node an `@test_id`, drive it through the same `Gui`
+trait, assert the resulting block state, and snapshot only when the painting is meaningful. `BeuiTest` also
 supports key presses, text, hover, pointer clicks, and touch gestures. See the
 [GUI testing guide](testing_a_gui.md) and the counter editor tests for examples.
 

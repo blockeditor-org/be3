@@ -22,11 +22,8 @@ fn the_export_scale_setting_writes_the_artifact_draft() {
     );
 
     settings.click("pixel-art.export-scale");
-    settings.run();
     settings.type_text("3");
-    settings.run();
     settings.key(Key::Enter, Modifiers::NONE);
-    settings.run();
 
     assert_eq!(
         artifact::describe(settings.draft()).unwrap(),

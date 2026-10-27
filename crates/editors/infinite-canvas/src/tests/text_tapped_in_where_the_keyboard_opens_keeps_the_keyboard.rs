@@ -6,13 +6,10 @@ fn text_tapped_in_where_the_keyboard_opens_keeps_the_keyboard() {
     let mut editor = phone(&[]);
     editor.reveal("infinite-canvas.dock.tool.Text");
     editor.click("infinite-canvas.dock.tool.Text");
-    editor.run();
     let canvas = editor.rect_of("infinite-canvas.canvas");
     let at = block_editor_beui::beui::pos2(canvas.center().x, canvas.bottom() - 160.0);
     editor.fingers(TouchPhase::Start, &[(1, at)]);
-    editor.run();
     editor.fingers(TouchPhase::End, &[(1, at)]);
-    editor.run();
     let keyboard =
         |editor: &BeuiTest<CanvasApp>| editor.window().ime.as_ref().map(|area| area.keyboard);
     let asked = keyboard(&editor);

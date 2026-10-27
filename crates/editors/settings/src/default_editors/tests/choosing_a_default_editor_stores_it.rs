@@ -1,4 +1,5 @@
 use block_editor_beui::{BlockTypeDescriptor, Catalog, ChildOperations, EditorDescriptor};
+use block_ui_test::prelude::*;
 use settings_types::EditorSettingsContent;
 
 use block_editor_beui::beui::{Key, Modifiers};
@@ -48,15 +49,11 @@ fn choosing_a_default_editor_stores_it() {
     let picker = format!("default-editors.{block_type}");
     let choose = |editor: &mut BeuiTest<DefaultEditorsApp>, index: usize| {
         editor.click(&picker);
-        editor.run();
         editor.key(Key::Home, Modifiers::NONE);
-        editor.run();
         for _ in 0..index {
             editor.key(Key::ArrowDown, Modifiers::NONE);
-            editor.run();
         }
         editor.key(Key::Enter, Modifiers::NONE);
-        editor.run();
     };
     let stored = |editor: &BeuiTest<DefaultEditorsApp>| {
         editor

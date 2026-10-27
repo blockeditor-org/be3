@@ -1,4 +1,5 @@
 use super::*;
+use beui::testing::Gui;
 mod a_child_asking_for_another_editor_reopens_in_it;
 mod a_conflicted_block_offers_both_versions;
 mod a_followed_fit_gives_way_to_a_move_by_hand;

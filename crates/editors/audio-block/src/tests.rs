@@ -1,5 +1,6 @@
 use block_editor_beui::{AudioStatus, Editor, EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
+use block_ui_test::prelude::*;
 use uuid::Uuid;
 
 use crate::app::{AudioApp, guess_media_type};

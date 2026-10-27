@@ -18,15 +18,11 @@ fn a_typed_transform_value_is_one_edit() {
 
     let drawn = format!("infinite-canvas.entity.{}", rectangle.id);
     editor.click(&drawn);
-    editor.run();
     editor.click("infinite-canvas.transform.x");
-    editor.run();
     for digit in ["1", "2", "5"] {
         editor.type_text(digit);
-        editor.run();
     }
     editor.key(Key::Enter, Modifiers::NONE);
-    editor.run();
 
     assert_eq!(entities(&editor)[0].transform.center.x, 125.0);
     undo(&mut editor);
@@ -36,16 +32,12 @@ fn a_typed_transform_value_is_one_edit() {
         "every digit is written as it is typed, and one undo takes the value back"
     );
     editor.click("infinite-canvas.transform.x");
-    editor.run();
     editor.type_text("125");
-    editor.run();
     editor.key(Key::Enter, Modifiers::NONE);
-    editor.run();
 
     let resting = editor.rect_of(&drawn);
     let field = editor.point_of("infinite-canvas.transform.y");
     editor.drag(field, field + Vec2::new(20.0, 0.0));
-    editor.run();
 
     assert_eq!(
         editor.rect_of(&drawn).center().y - resting.center().y,

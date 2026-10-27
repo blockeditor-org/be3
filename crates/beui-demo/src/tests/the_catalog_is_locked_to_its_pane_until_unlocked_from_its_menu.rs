@@ -28,7 +28,7 @@ fn the_catalog_is_locked_to_its_pane_until_unlocked_from_its_menu() {
     );
     test.snapshot("docking_locked_catalog_menu");
 
-    test.click(Target::text("Unlock"));
+    test.drive(&["--no-settle", "click", "Unlock"]);
     test.frame(Vec::new());
     open_tab_menu(&mut test);
     assert!(

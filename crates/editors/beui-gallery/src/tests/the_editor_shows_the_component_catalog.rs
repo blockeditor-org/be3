@@ -8,7 +8,6 @@ fn the_editor_shows_the_component_catalog() {
     test.run();
 
     test.click("demo.catalog.Buttons");
-    test.run();
 
     assert!(
         test.document()

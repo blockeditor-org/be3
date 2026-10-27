@@ -1,6 +1,7 @@
 use block_editor_beui::beui::Vec2;
 use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
+use block_ui_test::prelude::*;
 use pixel_ray_tracer_types::PixelRayTracerContent;
 use pixel_ray_tracer_types::{
     PIXEL_RAY_TRACER_BACKGROUND, PixelRayTracerOperation, PixelUpdate, Scene,

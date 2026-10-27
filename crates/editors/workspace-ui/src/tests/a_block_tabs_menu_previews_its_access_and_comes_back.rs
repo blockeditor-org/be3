@@ -11,7 +11,6 @@ fn choose(fixture: &mut Fixture, words: &str) {
         .center();
     drop(document);
     fixture.test.click(at);
-    fixture.settle();
 }
 
 fn shows_text(fixture: &Fixture, words: &str) -> bool {
@@ -26,7 +25,6 @@ fn a_block_tabs_menu_previews_its_access_and_comes_back() {
     show(&mut fixture, opened, None);
 
     fixture.test.click("dock.menu");
-    fixture.settle();
     choose(&mut fixture, "Access: Managing");
     choose(&mut fixture, "No access");
     assert!(
@@ -38,7 +36,6 @@ fn a_block_tabs_menu_previews_its_access_and_comes_back() {
     );
 
     fixture.test.click("dock.menu");
-    fixture.settle();
     choose(&mut fixture, "Access: No access");
     choose(&mut fixture, "Managing");
     assert!(

@@ -13,7 +13,6 @@ fn pasting_puts_the_objects_under_the_pointer() {
     let payload = serde_json::json!({ "entities": [first, second] });
 
     editor.click(pointer);
-    editor.run();
     let applied = editor.applied(None);
     editor.step(vec![Input::Paste(Pasted::Text(format!(
         "be3-infinite-canvas:{payload}"

@@ -5,11 +5,9 @@ fn dragging_with_the_wire_tool_draws_a_wire() {
     let mut editor = editor();
 
     editor.click("logic-grid.slot.0");
-    editor.run();
     let from = canvas_point(&editor, Vec2::new(-60.0, 10.0));
     let to = canvas_point(&editor, Vec2::new(60.0, 10.0));
     editor.drag(from, to);
-    editor.run();
 
     let grid = grid(&editor);
     assert_eq!(grid.wires().len(), 1, "the drag drew one wire");

@@ -1,3 +1,4 @@
+use block_ui_test::prelude::*;
 use std::collections::{BTreeMap, HashSet};
 
 use block_editor_beui::be_block::presence::PresenceKind;

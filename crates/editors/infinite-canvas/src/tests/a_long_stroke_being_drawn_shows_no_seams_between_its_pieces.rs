@@ -5,7 +5,6 @@ use block_editor_beui::beui::{PenPhase, PointerButton};
 fn a_long_stroke_being_drawn_shows_no_seams_between_its_pieces() {
     let mut editor = editor(&[]);
     editor.click("infinite-canvas.dock.tool.Pen");
-    editor.run();
     let from = editor.rect_of("infinite-canvas.canvas").center() - Vec2::new(250.0, 0.0);
     let at = |along: f32| {
         from + Vec2::new(

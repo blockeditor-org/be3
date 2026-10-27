@@ -38,7 +38,6 @@ fn dragging_the_eraser_dims_what_it_crosses_and_erases_it_on_release() {
     let outside = Pos2::new(bounds.left() - 30.0, first.y);
 
     editor.key(Key::E, Modifiers::NONE);
-    editor.run();
     editor.down(outside, PointerButton::Primary);
     walk(&mut editor, outside, locked);
     assert_eq!(
@@ -64,7 +63,6 @@ fn dragging_the_eraser_dims_what_it_crosses_and_erases_it_on_release() {
     );
     editor.hold_modifiers(Modifiers::NONE);
     editor.up(last - Vec2::new(50.0, 0.0), PointerButton::Primary);
-    editor.run();
 
     assert_eq!(
         entities(&editor),
@@ -79,9 +77,7 @@ fn dragging_the_eraser_dims_what_it_crosses_and_erases_it_on_release() {
         last - Vec2::new(0.0, 50.0),
     );
     editor.key(Key::Escape, Modifiers::NONE);
-    editor.run();
     editor.up(last - Vec2::new(0.0, 50.0), PointerButton::Primary);
-    editor.run();
     assert_eq!(
         entities(&editor),
         vec![around.clone(), middle.clone(), right.clone()],

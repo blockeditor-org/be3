@@ -53,7 +53,6 @@ fn on_a_phone_tapping_a_files_name_opens_its_rename_sheet() {
         .snapshot("a_phones_bar_offers_its_files_name_to_rename");
 
     fixture.test.click("dock.title");
-    fixture.settle();
     assert_eq!(
         fixture.test.take_child_menu_picks(),
         [(child, "editor.rename".to_owned())],

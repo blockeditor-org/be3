@@ -26,16 +26,13 @@ fn the_letters_and_numbers_pick_every_tool() {
     for (index, (key, shape)) in tools.into_iter().enumerate() {
         let from = origin + Vec2::new((index % 5) as f32 * 120.0, (index / 5) as f32 * 120.0);
         editor.key(Key::Escape, Modifiers::NONE);
-        editor.run();
         let before: HashSet<Uuid> = entities(&editor).iter().map(|entity| entity.id).collect();
         editor.key(key, Modifiers::NONE);
-        editor.run();
         editor.drag_along(&[
             from,
             from + Vec2::new(30.0, 20.0),
             from + Vec2::new(60.0, 40.0),
         ]);
-        editor.run();
         let drawn: Vec<CanvasEntity> = entities(&editor)
             .into_iter()
             .filter(|entity| !before.contains(&entity.id))
@@ -56,10 +53,8 @@ fn the_letters_and_numbers_pick_every_tool() {
     for key in [Key::V, Key::One] {
         editor.key(Key::R, Modifiers::NONE);
         editor.key(key, Modifiers::NONE);
-        editor.run();
         let from = origin + Vec2::new(620.0, 0.0);
         editor.drag(from, from + Vec2::new(60.0, 40.0));
-        editor.run();
         assert_eq!(entities(&editor).len(), count, "{key:?} selects");
     }
     editor.key(Key::R, Modifiers::NONE);
@@ -73,7 +68,6 @@ fn the_letters_and_numbers_pick_every_tool() {
     editor.run();
     let from = origin + Vec2::new(620.0, 120.0);
     editor.drag(from, from + Vec2::new(60.0, 40.0));
-    editor.run();
     assert_eq!(
         entities(&editor).len(),
         count,

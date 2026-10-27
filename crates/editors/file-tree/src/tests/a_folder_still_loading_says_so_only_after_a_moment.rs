@@ -29,6 +29,7 @@ fn a_folder_still_loading_says_so_only_after_a_moment() {
     );
 
     fixture.test.advance(Duration::from_millis(300));
+    fixture.test.run();
     assert!(
         fixture.says("Loading…"),
         "a folder still unanswered after a moment says it is loading"

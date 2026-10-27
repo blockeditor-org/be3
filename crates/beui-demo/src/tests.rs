@@ -1,6 +1,7 @@
 use beui::datetime::Date;
 use beui::{Document, Input, NodeId, Pos2, Vec2, pos2};
 use block_ui_test::DocumentTest;
+use block_ui_test::prelude::*;
 
 use super::*;
 use crate::{DemoApp, PAGES, Page};
@@ -132,12 +133,12 @@ fn alone(size: Vec2, page: Page) -> DocumentTest {
 
 fn open(test: &mut DocumentTest, page: Page) {
     let row = format!("demo.catalog.{}", page.title());
-    if !test.shows(&row) && test.document().find_test_id("dock.back").is_some() {
+    if !test.shown(&row) && test.document().find_test_id("dock.back").is_some() {
         test.click("dock.back");
     }
     for _ in 0..REVEAL_TICKS {
         let bottom = test.size().y;
-        let shown = test.shows(&row) && test.rect_of(&row).bottom() <= bottom;
+        let shown = test.shown(&row) && test.rect_of(&row).bottom() <= bottom;
         if shown {
             test.click(&row);
             test.frame(Vec::new());
@@ -157,7 +158,7 @@ fn open_beside(test: &mut DocumentTest, page: Page) {
 fn reveal(test: &mut DocumentTest, test_id: &str) {
     let page = pos2(test.size().x * 0.75, test.size().y / 2.0);
     for _ in 0..REVEAL_TICKS {
-        if test.shows(test_id) && test.rect_of(test_id).bottom() <= test.size().y {
+        if test.shown(test_id) && test.rect_of(test_id).bottom() <= test.size().y {
             return;
         }
         test.scroll(page, Vec2::new(0.0, REVEAL_STEP));

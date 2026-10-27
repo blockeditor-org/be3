@@ -9,12 +9,10 @@ fn a_drawing_tool_returns_to_select_unless_the_tool_is_locked() {
         |column: f32, row: f32| canvas.min + Vec2::new(40.0 + column * 140.0, 40.0 + row * 140.0);
     let draw = |editor: &mut BeuiTest<CanvasApp>, from| {
         editor.drag(from, from + Vec2::new(100.0, 60.0));
-        editor.run();
         entities(editor).len()
     };
 
     editor.click("infinite-canvas.dock.tool.Rectangle");
-    editor.run();
     assert_eq!(draw(&mut editor, at(0.0, 0.0)), 1);
     assert_eq!(
         draw(&mut editor, at(1.0, 0.0)),
@@ -24,7 +22,6 @@ fn a_drawing_tool_returns_to_select_unless_the_tool_is_locked() {
 
     editor.click("infinite-canvas.dock.tool-lock");
     editor.click("infinite-canvas.dock.tool.Ellipse");
-    editor.run();
     assert_eq!(draw(&mut editor, at(0.0, 1.0)), 2);
     assert_eq!(
         draw(&mut editor, at(1.0, 1.0)),
@@ -34,7 +31,6 @@ fn a_drawing_tool_returns_to_select_unless_the_tool_is_locked() {
     editor.snapshot("a_drawing_tool_returns_to_select_unless_the_tool_is_locked");
 
     editor.key(Key::Q, Modifiers::NONE);
-    editor.run();
     assert_eq!(draw(&mut editor, at(2.0, 1.0)), 4);
     assert_eq!(
         draw(&mut editor, at(3.0, 1.0)),

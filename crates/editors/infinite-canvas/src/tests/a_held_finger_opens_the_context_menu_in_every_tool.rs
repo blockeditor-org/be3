@@ -18,16 +18,14 @@ fn a_held_finger_opens_the_context_menu_in_every_tool() {
         let rectangle = card();
         let mut editor = vector_phone(std::slice::from_ref(&rectangle));
         editor.tap(format!("infinite-canvas.dock.tool.{tool}"));
-        editor.run();
         let center = editor
             .rect_of(&format!("infinite-canvas.entity.{}", rectangle.id))
             .center();
 
         editor.fingers(TouchPhase::Start, &[(1, center)]);
-        editor.run();
         editor.advance(std::time::Duration::from_secs(1));
-        editor.fingers(TouchPhase::End, &[(1, center)]);
         editor.run();
+        editor.fingers(TouchPhase::End, &[(1, center)]);
         assert!(
             editor.shown("infinite-canvas.menu.canvas.delete"),
             "holding a finger opens the menu with the {tool} tool"
@@ -41,7 +39,6 @@ fn a_held_finger_opens_the_context_menu_in_every_tool() {
             editor.snapshot("a_held_finger_opens_the_context_menu");
         }
         editor.tap("infinite-canvas.menu.canvas.delete");
-        editor.run();
         assert!(
             entities(&editor).is_empty(),
             "the menu acts on what was held with the {tool} tool"

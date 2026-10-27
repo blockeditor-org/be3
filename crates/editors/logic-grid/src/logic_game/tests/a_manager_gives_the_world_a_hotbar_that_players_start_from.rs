@@ -17,7 +17,6 @@ fn a_manager_gives_the_world_a_hotbar_that_players_start_from() {
     editor.snapshot("a_manager_gives_the_world_a_hotbar_that_players_start_from");
 
     editor.click("logic-game.world-hotbar");
-    editor.run();
     let store = editor.store();
     let created = store.created();
     let settings = created

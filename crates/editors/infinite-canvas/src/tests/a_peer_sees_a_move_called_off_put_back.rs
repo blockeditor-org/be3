@@ -18,7 +18,6 @@ fn a_peer_sees_a_move_called_off_put_back() {
     assert_ne!(watcher.rect_of(&item), resting);
 
     mover.key(block_editor_beui::beui::Key::Escape, Modifiers::NONE);
-    mover.run();
     sync(&mut mover, &mut watcher);
     assert_eq!(watcher.rect_of(&item), resting);
     assert_eq!(mover.rect_of(&item).center(), from);

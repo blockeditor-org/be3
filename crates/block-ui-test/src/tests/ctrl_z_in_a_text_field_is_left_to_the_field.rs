@@ -27,10 +27,8 @@ fn ctrl_z_in_a_text_field_is_left_to_the_field() {
     )]);
     test.run();
     test.click("field");
-    test.run();
 
     test.key(Key::Z, Modifiers::CTRL);
-    test.run();
 
     assert!(
         test.take_block_commands().is_empty(),

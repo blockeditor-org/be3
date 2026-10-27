@@ -20,7 +20,6 @@ fn dragging_a_kanban_card_moves_it_to_the_column_it_lands_in() {
     let waiting = fixture.harness.rect_of("database-view.card.0");
     let finished = fixture.harness.rect_of("database-view.card.1");
     fixture.harness.drag(waiting.center(), finished.center());
-    fixture.settle();
 
     assert_eq!(
         fixture.database().rows[0].value(status),

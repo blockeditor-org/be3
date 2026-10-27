@@ -18,15 +18,12 @@ fn the_link_card_keeps_its_search_and_choice_across_tab_switches() {
     );
     fixture.settle();
     fixture.test.click("picker.link-existing");
-    fixture.settle();
     fixture
         .test
         .click(format!("picker.link.{}.chevron", places.work));
-    fixture.settle();
     fixture
         .test
         .click(format!("picker.link.{}.row", places.minutes));
-    fixture.settle();
     fixture
         .test
         .snapshot("the_link_card_shows_where_the_chosen_block_lives");
@@ -38,7 +35,6 @@ fn the_link_card_keeps_its_search_and_choice_across_tab_switches() {
     );
     show(&mut fixture, notes, None);
     fixture.test.click("picker.confirm");
-    fixture.settle();
 
     assert_eq!(
         fixture.test.take_pick_answers(),

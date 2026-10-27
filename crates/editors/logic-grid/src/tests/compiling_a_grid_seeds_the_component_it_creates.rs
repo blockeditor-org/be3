@@ -7,15 +7,11 @@ use logic_grid_types::CompiledLogicContent;
 fn compiling_a_grid_seeds_the_component_it_creates() {
     let mut editor = editor();
     editor.key(Key::Four, Modifiers::NONE);
-    editor.run();
     editor.key(Key::One, Modifiers::NONE);
-    editor.run();
     let point = canvas_point(&editor, Vec2::new(30.0, 30.0));
     editor.click(point);
-    editor.run();
 
     editor.click("logic-grid.compile");
-    editor.run();
 
     let seeded = editor.seeded();
     let component = seeded

@@ -50,7 +50,6 @@ fn revision_history_follows_the_active_file_and_previews_it() {
     fixture
         .test
         .click(format!("workspace.revision.{}", "01".repeat(32)));
-    fixture.settle();
     let request = fixture
         .test
         .take_requests()
@@ -83,9 +82,7 @@ fn revision_history_follows_the_active_file_and_previews_it() {
         .test
         .snapshot("a_revision_is_previewed_with_restore_and_back_controls");
     fixture.test.click("workspace.revision.restore");
-    fixture.settle();
     fixture.test.click("workspace.revision.confirm");
-    fixture.settle();
     let request = fixture
         .test
         .take_requests()
@@ -111,7 +108,6 @@ fn revision_history_follows_the_active_file_and_previews_it() {
         "failure preserves the preview"
     );
     fixture.test.click("workspace.revision.current");
-    fixture.settle();
     assert!(fixture.shown().contains(&opened));
     let second = Uuid::new_v4();
     show(&mut fixture, second, None);

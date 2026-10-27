@@ -58,11 +58,8 @@ editor here either, and a call the plugin refuses fails the test.
     test.run();
 
     test.click("checklist.draft");
-    test.run();
-    test.text("buy milk");
-    test.run();
+    test.type_text("buy milk");
     test.click("checklist.add");
-    test.run();
 
     let items = test.content::<ChecklistContent>(None);
     assert_eq!(items.root().items[0].text, "buy milk");
@@ -90,27 +87,44 @@ set_peers, report_children, resize and presence_visible each queue the call the 
 would make. Setting the same state on the EditorHost directly skips the protocol, and the
 session overwrites what it owns - the chrome, the view, a drag - on the next frame.
 
-A gesture only queues events: click() returns before the editor has seen the click, so
-nothing it does (a handler's effect, a row added, a dialog opened) shows in shown(), label()
-or the model until the next run(). Call run() after every gesture — the view only sees an
-event on the frame it is delivered in — and click a text field before typing into it. click() first scrolls a target that is out of view into it
-(`reveal`, every enclosing scroll, as a person would) and runs a frame, in BeuiTest and
-DocumentTest alike, so a test need not know how much fits on its screen. It panics when no
-node has that test id, which is usually a node that was never given one, or one a virtualized
-list has not built; shown() and label() ask about one without clicking it.
+Both harnesses, BeuiTest here and DocumentTest (below), are driven and read through one
+trait, `beui::testing::Gui`, and paint through `block_ui_test::Snapshots`; a test imports
+both with `use block_ui_test::prelude::*;` (a beui or block-app test that runs a bare
+`Stepped` imports `beui::testing::Gui`). What a harness supplies is only what differs between
+them: its document, its latest frame, and how a frame of input reaches the app; everything
+below is written once on the trait.
 
-run() hands the editor what was queued since the last one, frame by frame. Its gestures are
-drive's, built by the same `beui::drive::gestures::Gestures` (guides/running/drive.md),
-so an editor test presses, types and touches as drive and the app tests do: the pointer spends
-a frame arriving where a click, a press or a drag starts before it presses, a click or a key
-then arrives in one frame, a key carries the text it types and a chord presses its modifiers
-as keys of their own, text() types key by key, and drag(from, to) is the press, a move halfway
-and the last move with the release. drag_along(points) spends a frame on each point and lets
+A gesture paints the frames it takes before it returns, and in BeuiTest it also lets the
+host take what they sent (run(), below), so what it does (a handler's effect, a row added, a
+dialog opened) shows in shown(), label() and the model as soon as it returns. Click a text
+field before typing into it. click() first scrolls a target that is out of view into it
+(`reveal`, every enclosing scroll, as a person would) and paints a frame, so a test need not
+know how much fits on its screen. It panics when no node has that test id, which is usually a
+node that was never given one, or one a virtualized list has not built. Reading by test id
+asks the latest frame: shown(), rect_of(), rects_of(), point_of(), test_ids(), and label()
+(the text under the node) and accessible_label() from the document; a harness has to have
+painted once before any of them, and before a gesture aims at a test id.
+
+The gestures are drive's, built by the same `beui::drive::gestures::Gestures`
+(guides/running/drive.md), so a test presses, types and touches as drive and the app tests
+do: the pointer spends a frame arriving where a click, a press or a drag starts before it
+presses, a click or a key then arrives in one frame, a key carries the text it types and a
+chord presses its modifiers as keys of their own, type_text() types key by key, and
+drag(from, to) is the press, a move halfway and the last move with the release. The pointer
+stays where a gesture left it, as a person's does, so a painting shows the hover there;
+leave() takes it out of the window. drag_along(points) spends a frame on each point and lets
 go in a frame of its own, for a gesture whose path matters, like a lasso, or one that should
 come to rest where it ends, like a sheet dragged by its handle. tap(test_id) is a finger's
 click: a test that touches keeps touching, since a mouse arriving after a finger can change
-what a phone layout shows. next_frame() ends the frame being queued, and step(events) paints
-one frame with exactly the events it is handed.
+what a phone layout shows. A target is a test id or a `Pos2`, and `Target::id(id).at(offset)`
+a point from a node's corner. A failure prints the steps so far as drive commands.
+
+run() paints a frame with nothing new and, in BeuiTest, delivers what was queued: the raw
+samples pen(), eraser() and predict() add to the frame being built (next_frame() ends it,
+for samples a test wants coalesced into one frame or spread over several), the keys
+app_key() hands an editor that intercepted them, and the host's own calls. step(events)
+paints one frame with exactly the events it is handed (Stepped's frame(inputs) does the same
+and hands back the frame's output).
 
 An editor that hands work to another thread paints a spinner until the work lands, so which
 of the two a test captures is down to whether the thread beat it to the frame: a snapshot
@@ -125,21 +139,23 @@ Time in the editor is the harness's own clock, not the wall clock: every frame t
 paints is one frame interval later, and the host hands the plugin that time with each frame,
 which is what its frame clock (`timer::now()`) reads. An animation therefore lands on the same
 frame on any machine, a frame captured part way through one paints the same everywhere, and
-waiting for a delay the editor asked for costs no real time. advance(by) moves the clock on and
-paints a frame, for a timer that is longer than an animation:
+waiting for a delay the editor asked for costs no real time. advance(by) moves the clock on
+without painting, for a timer that is longer than an animation, and the next run() paints the
+frame that sees it:
 
     editor.advance(Duration::from_secs(60));
+    editor.run();
 
     editor.settle_until("the lighting to land", |editor| editor.shown("scene.lit"));
 
-wait(by) moves the clock on without painting and hands the plugin what the host has queued
-(a set_watched, say), the way a call reaches an idle editor between frames; the next
-run() paints the frame that takes it. Whatever the editor's effects do with it at the top of
-that frame reads that frame's time from `timer::now()`, not the last frame painted.
+In BeuiTest advance(by) also hands the plugin what the host has queued (a set_watched, say),
+the way a call reaches an idle editor between frames. Whatever the editor's effects do with it
+at the top of the next frame reads that frame's time from `timer::now()`, not the last frame
+painted.
 
 settle() is the same wait for the editor's own animations, such as a sheet sliding in:
-it paints until a frame stops asking to be painted again at once. Call it before a
-snapshot or record() of something that animates in.
+it paints until a frame stops asking to be painted again at once, as drive's settle does.
+Call it before a snapshot or record() of something that animates in.
 
 Wait for the work rather than for a number of frames: a few more run() calls is the same
 race with a wider margin, which is how one of these hid.
@@ -249,14 +265,11 @@ A beui document that is not an editor - beui's demo, say - is painted the same w
 block_ui_test::DocumentTest, with only the fonts beui carries, never the system's. Its tests
 are compiled to wasm with plugin_tests like an editor's; crates/beui-demo paints every page of
 the demo that way. A DocumentTest is beui's `testing::Stepped` (guides/beui.md, Test and
-verify changes) with snapshots added: the document runs through the real `Runner`, frame(inputs)
-pushes raw `Input`s in points through the runner's intake as a platform would, and its
-gestures are drive's - `click`, `drag`, `scroll`, `key`, `type_text`, `fingers` - each
-answering after the frame that took it. `click` and `scroll` reveal a test id that is out of
-view first and move the pointer out of the window afterwards, so a painting shows hover only
-where the test hovers. Its clock is a frame clock too: every frame is one frame interval
-later, and advance(by) moves it on without painting. settle() waits as drive does, which a
-page that animates forever, such as one showing a spinner, never finishes.
+verify changes), which it derefs to, set up with those fonts and with snapshots added: the
+document runs through the real `Runner`, frame(inputs) pushes raw `Input`s in points through
+the runner's intake as a platform would, and its gestures, reading, settle() and record() /
+snapshot() are the ones above. Its clock is a frame clock too. settle() never finishes on a
+page that animates forever, such as one showing a spinner.
 
 DocumentTest paints through the DOM renderer too: render_dom() starts feeding every frame
 to a `DomRenderer` over an in-memory DOM, and snapshot_dom(name) saves what it built as the

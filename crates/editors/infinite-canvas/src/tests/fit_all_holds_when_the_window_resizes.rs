@@ -8,7 +8,6 @@ fn fit_all_holds_when_the_window_resizes() {
     let entity = format!("infinite-canvas.entity.{}", far.id);
 
     editor.click("infinite-canvas.pill.fit");
-    editor.run();
     let zoom = editor.label("infinite-canvas.pill.zoom");
     editor.set_size(Vec2::new(1300.0, 860.0));
 

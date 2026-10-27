@@ -25,7 +25,6 @@ fn carets(editor: &BeuiTest<TextApp>) -> Vec<Option<beui::Rect>> {
 fn selecting_text_does_not_move_it() {
     let mut editor = editor(SHOWN);
     editor.click("text.surface");
-    editor.run();
     let before = carets(&editor);
     assert!(before.iter().all(Option::is_some), "every byte has a caret");
 

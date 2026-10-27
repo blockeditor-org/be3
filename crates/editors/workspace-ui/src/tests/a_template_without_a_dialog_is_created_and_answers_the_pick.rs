@@ -16,7 +16,6 @@ fn a_template_without_a_dialog_is_created_and_answers_the_pick() {
         .test
         .click(format!("picker.menu.{TEMPLATE_EDITOR}/main"));
     fixture.settle();
-    fixture.settle();
 
     let child = fixture
         .test

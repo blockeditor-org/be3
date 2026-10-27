@@ -9,7 +9,6 @@ fn scrubbing_a_number_is_one_undo_step() {
     rectangle.style.fill = CanvasFill::Solid;
     let mut editor = vector_editor(std::slice::from_ref(&rectangle));
     editor.click(format!("infinite-canvas.entity.{}", rectangle.id));
-    editor.run();
 
     let field = editor.point_of("infinite-canvas.transform.x");
     let path: Vec<_> = (0..=6)
@@ -17,12 +16,10 @@ fn scrubbing_a_number_is_one_undo_step() {
         .collect();
     editor.down(path[0], PointerButton::Primary);
     for &at in &path[1..] {
-        editor.wait(std::time::Duration::from_secs(1));
+        editor.advance(std::time::Duration::from_secs(1));
         editor.hover(at);
-        editor.run();
     }
     editor.up(path[6], PointerButton::Primary);
-    editor.run();
     assert_eq!(entities(&editor)[0].transform.center.x, 60.0);
 
     undo(&mut editor);

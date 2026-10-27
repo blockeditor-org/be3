@@ -8,6 +8,7 @@ use block_editor_beui::{
 use uuid::Uuid;
 
 use crate::BeuiTest;
+use crate::prelude::*;
 
 mod a_child_block_hears_what_its_childs_bar_asked_for;
 mod a_child_block_reports_its_placement_and_follows_its_status;

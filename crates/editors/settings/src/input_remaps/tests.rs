@@ -2,6 +2,7 @@ use block_editor_beui::be_block::{InputRemapper, InputRemapperContent};
 use block_editor_beui::beui::{Vec2, pos2};
 use block_editor_beui::{EditorHost, OwnedEditor, RemapState, RemapsWatch};
 use block_ui_test::BeuiTest;
+use block_ui_test::prelude::*;
 use uuid::Uuid;
 
 use crate::input_remaps::InputRemapsApp;
@@ -45,15 +46,11 @@ fn stored(editor: &BeuiTest<InputRemapsApp>) -> String {
 fn show_toml(editor: &mut BeuiTest<InputRemapsApp>) {
     let tabs = editor.rect_of("input-remaps.tabs");
     editor.click(pos2(tabs.min.x + tabs.width() * 0.75, tabs.center().y));
-    editor.run();
 }
 
 fn apply(editor: &mut BeuiTest<InputRemapsApp>, text: &str) {
     show_toml(editor);
     editor.click("input-remaps.text");
-    editor.run();
     editor.type_text(text);
-    editor.run();
     editor.click("input-remaps.apply");
-    editor.run();
 }

@@ -6,10 +6,8 @@ fn clearing_the_artwork_needs_the_dialog() {
 
     assert!(!editor.shown("pixel-art.clear.apply"));
     editor.click("pixel-art.clear");
-    editor.run();
 
     assert!(editor.shown("pixel-art.clear.apply"));
     editor.click("pixel-art.clear.cancel");
-    editor.run();
     assert!(!editor.shown("pixel-art.clear.apply"));
 }

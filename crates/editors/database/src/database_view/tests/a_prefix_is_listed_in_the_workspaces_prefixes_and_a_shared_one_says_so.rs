@@ -38,11 +38,9 @@ fn a_prefix_is_listed_in_the_workspaces_prefixes_and_a_shared_one_says_so() {
     fixture.settle();
 
     fixture.harness.click("database-view.display");
-    fixture.settle();
     fixture.harness.click("database-view.prefix");
     fixture.run();
     fixture.harness.type_text("be");
-    fixture.settle();
 
     let registered = fixture
         .harness

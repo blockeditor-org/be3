@@ -32,7 +32,6 @@ fn pen(editor: &mut BeuiTest<CanvasApp>, phase: PenPhase, pos: Pos2) -> (usize, 
 fn moved(count: usize) -> (usize, usize) {
     let mut editor = editor(&grid(count));
     editor.click("infinite-canvas.dock.tool.Pen");
-    editor.run();
     editor.settle();
     let from = editor.rect_of("infinite-canvas.canvas").center() - Vec2::new(100.0, 60.0);
     pen(&mut editor, PenPhase::Move, from);

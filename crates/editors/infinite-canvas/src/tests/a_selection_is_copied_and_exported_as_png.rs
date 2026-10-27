@@ -14,7 +14,6 @@ fn a_selection_is_copied_and_exported_as_png() {
     let card = card();
     let mut editor = editor(std::slice::from_ref(&card));
     editor.click(format!("infinite-canvas.entity.{}", card.id));
-    editor.run();
 
     palette_runs(&mut editor, "copy as png");
     let copied = editor.take_copied_images();
@@ -45,10 +44,8 @@ fn a_selection_is_copied_and_exported_as_png() {
 
     palette_runs(&mut editor, "export as png");
     editor.click("infinite-canvas.export.background");
-    editor.run();
     editor.snapshot("a_selection_is_copied_and_exported_as_png");
     editor.click("infinite-canvas.export.confirm");
-    editor.run();
     let saved: Vec<SavedFile> = editor
         .take_requests()
         .into_iter()

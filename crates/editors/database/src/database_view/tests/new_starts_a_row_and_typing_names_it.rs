@@ -12,11 +12,9 @@ fn new_starts_a_row_and_typing_names_it() {
     fixture.settle();
 
     fixture.harness.click("database-view.new");
-    fixture.settle();
     fixture.harness.type_text("Fix the login");
     fixture.run();
     fixture.harness.key(Key::Enter, Modifiers::NONE);
-    fixture.settle();
 
     let database = fixture.database();
     assert_eq!(database.rows.len(), 1);

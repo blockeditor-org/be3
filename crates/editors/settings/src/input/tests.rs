@@ -3,6 +3,7 @@ use block_editor_beui::be_block::input_settings::{InputDevice, PointerSettings, 
 use block_editor_beui::beui::{Key, Modifiers};
 use block_editor_beui::{EditorHost, HostInputDevice, InputDevicesWatch, OwnedEditor};
 use block_ui_test::BeuiTest;
+use block_ui_test::prelude::*;
 use uuid::Uuid;
 
 use crate::input::InputSettingsApp;
@@ -37,22 +38,16 @@ fn content(editor: &BeuiTest<InputSettingsApp>) -> InputSettingsContent {
 
 fn reset(editor: &mut BeuiTest<InputSettingsApp>, row: &str) {
     editor.click(format!("{row}.menu"));
-    editor.run();
     editor.click(format!("{row}.reset"));
-    editor.run();
 }
 
 fn choose_pointer(editor: &mut BeuiTest<InputSettingsApp>, index: usize) {
     editor.click("input.pointer");
-    editor.run();
     editor.key(Key::Home, Modifiers::NONE);
-    editor.run();
     for _ in 0..index {
         editor.key(Key::ArrowDown, Modifiers::NONE);
-        editor.run();
     }
     editor.key(Key::Enter, Modifiers::NONE);
-    editor.run();
 }
 
 fn mouse() -> HostInputDevice {

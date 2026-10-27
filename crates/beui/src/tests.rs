@@ -1,5 +1,6 @@
 use super::*;
 use crate::FontId;
+use crate::testing::Gui;
 
 mod a_back_gesture_lowers_a_sheet_and_it_slides_away_from_there;
 mod a_back_gesture_slides_a_dialog_away_once_its_owner_closes_it;
@@ -1147,7 +1148,8 @@ impl Harness {
                 from + (to - from) * (step as f32 / steps as f32),
             );
         }
-        self.pause(HOLD);
+        self.advance(HOLD);
+        self.run();
         self.touch(TouchPhase::End, to);
     }
 
@@ -1190,7 +1192,7 @@ impl Harness {
         pos: Pos2,
     ) -> crate::FrameOutput {
         self.fingers(phase, &[(finger, pos)]);
-        self.take_output()
+        self.output().clone()
     }
 
     pub(crate) fn toggle_inspector(&mut self) {

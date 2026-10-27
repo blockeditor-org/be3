@@ -10,7 +10,6 @@ fn a_phone_opens_a_row_over_the_list_and_back_returns_to_it() {
     tracker.fixture.harness.record();
 
     tracker.fixture.harness.click(&line);
-    tracker.fixture.settle();
     assert!(tracker.fixture.harness.shown("database-view.detail.back"));
     assert!(
         !tracker.fixture.harness.shown(&line),
@@ -23,7 +22,6 @@ fn a_phone_opens_a_row_over_the_list_and_back_returns_to_it() {
     tracker.fixture.harness.record();
 
     tracker.fixture.harness.click("database-view.detail.back");
-    tracker.fixture.settle();
     assert!(tracker.fixture.harness.shown(&line));
     tracker
         .fixture

@@ -17,12 +17,10 @@ fn rotating_with_the_handle_is_drawn() {
     let drawn = format!("infinite-canvas.entity.{}", rectangle.id);
     let mut editor = editor(std::slice::from_ref(&rectangle));
     editor.click(&drawn);
-    editor.run();
     let resting = editor.rect_of(&drawn);
     let handle = block_editor_beui::beui::pos2(resting.center().x, resting.top() - 28.0);
 
     editor.drag(handle, handle + Vec2::new(120.0, 60.0));
-    editor.run();
 
     assert_ne!(
         entities(&editor)[0].transform.rotation,

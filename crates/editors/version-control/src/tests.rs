@@ -8,6 +8,7 @@ use block_editor_beui::{
     VersionChangeKind, VersionCommand, VersionCommit, VersionOperation, VersionStatus, short_id,
 };
 use block_ui_test::BeuiTest;
+use block_ui_test::prelude::*;
 use uuid::Uuid;
 
 use crate::checkout::CheckoutApp;

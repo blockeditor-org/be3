@@ -5,6 +5,7 @@ use block_editor_beui::be_block::{
 };
 use block_editor_beui::beui::{Key, Modifiers, Vec2};
 use block_editor_beui::{BlockInfo, BlockParent};
+use block_ui_test::prelude::*;
 
 use block_editor_beui::be_block::SettingsContent;
 use block_editor_beui::{EditorHost, OwnedEditor};
@@ -146,14 +147,10 @@ impl SetUp {
             .position(|known| *known == class)
             .expect("every class is offered");
         self.editor.click("setup.kind");
-        self.editor.run();
         self.editor.key(Key::Home, Modifiers::NONE);
-        self.editor.run();
         for _ in 0..index {
             self.editor.key(Key::ArrowDown, Modifiers::NONE);
-            self.editor.run();
         }
         self.editor.key(Key::Enter, Modifiers::NONE);
-        self.editor.run();
     }
 }

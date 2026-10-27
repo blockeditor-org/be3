@@ -4,6 +4,7 @@ use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::pin;
 use std::rc::Rc;
+use std::sync::Arc;
 use std::task::{Context as TaskContext, Poll, Waker as TaskWaker};
 use std::time::Duration;
 
@@ -13,8 +14,7 @@ use beui_core::context::RendererInfo;
 use beui_core::context::{Context, FrameOutput, WindowOutput};
 use beui_core::document::Document;
 use beui_core::geometry::{Pos2, Rect, Vec2};
-use beui_core::input::typing;
-use beui_core::input::{Input, Key, Modifiers, PointerButton, TouchPhase};
+use beui_core::input::{Input, PointerButton};
 use beui_core::renderer::{Loaded, Renderer};
 use beui_core::runner::{
     Incoming, Launch, Layer, LayerFrame, PlatformServices, RunOptions, Runner, Shown,
@@ -22,9 +22,14 @@ use beui_core::runner::{
 use beui_core::window::{
     HostPlacement, Resize, WindowId, WindowPlacement, WindowReport, WindowRequest, WindowSize,
 };
+use beui_layer_drive::gestures::Frames;
 use beui_layer_drive::{Drive, Inbox, Reply, ask};
 
 use crate::Simulation;
+
+mod gui;
+
+pub use gui::{Driving, Gui, Wakes};
 
 pub const FRAME_INTERVAL: Duration = Duration::from_micros(16_667);
 const ANSWER_FRAMES: usize = 600;
@@ -80,7 +85,6 @@ enum Window {
 pub enum Target {
     Id(String, Option<Vec2>),
     Point(Pos2),
-    Text(String),
 }
 
 impl Target {
@@ -90,10 +94,6 @@ impl Target {
 
     pub fn point(at: Pos2) -> Self {
         Self::Point(at)
-    }
-
-    pub fn text(text: impl Into<String>) -> Self {
-        Self::Text(text.into())
     }
 
     pub fn at(self, offset: Vec2) -> Self {
@@ -111,7 +111,6 @@ impl Target {
                 format!("#{id}+{},{}", pixels(offset.x), pixels(offset.y))
             }
             Self::Point(at) => format!("{},{}", pixels(at.x), pixels(at.y)),
-            Self::Text(text) => text.clone(),
         }
     }
 }
@@ -266,7 +265,9 @@ pub struct Stepped<A: App = Showing> {
     settling: bool,
     observers: Vec<Observer>,
     inbox: Inbox,
-    steps: Vec<String>,
+    driving: Driving,
+    wakes: Arc<Wakes>,
+    latest: Option<FrameOutput>,
     closed: bool,
 }
 
@@ -331,14 +332,27 @@ impl<A: App + 'static> Stepped<A> {
         window: impl FnOnce(&Runner) -> Window,
     ) -> Self {
         let inbox = Inbox::default();
+        let wakes = Arc::new(Wakes::default());
+        let woken = Arc::clone(&wakes);
+        let waker = move |chained: Option<Waker>| {
+            Waker::new(move || {
+                if let Some(chained) = &chained {
+                    chained.wake();
+                }
+                woken.wake();
+            })
+        };
         let (windows, host, setup) = match hosting {
-            Hosting::Alone => (None, None, Setup::new(Waker::new(|| {}))),
+            Hosting::Alone => (None, None, Setup::new(waker(None))),
             Hosting::Tested(windows) => (
                 Some(windows.clone()),
                 Some(Box::new(TestHost(windows)) as Box<dyn Layer>),
-                Setup::new(Waker::new(|| {})),
+                Setup::new(waker(None)),
             ),
-            Hosting::By(host, setup) => (None, Some(host), setup),
+            Hosting::By(host, mut setup) => {
+                setup.waker = waker(Some(setup.waker.clone()));
+                (None, Some(host), setup)
+            }
         };
         let layers = std::iter::once(Box::new(Drive::new(inbox.clone())) as Box<dyn Layer>)
             .chain(host)
@@ -370,7 +384,9 @@ impl<A: App + 'static> Stepped<A> {
             settling: true,
             observers: Vec::new(),
             inbox,
-            steps: Vec::new(),
+            driving: Driving::default(),
+            wakes,
+            latest: None,
             closed: false,
         }
     }
@@ -400,26 +416,13 @@ impl<A: App + 'static> Stepped<A> {
         }
     }
 
-    pub fn output(&self) -> Option<&FrameOutput> {
-        self.runner.output()
-    }
-
     pub fn closed(&self) -> bool {
         self.closed
     }
 
-    pub fn steps(&self) -> &[String] {
-        &self.steps
-    }
-
     pub fn frame(&mut self, inputs: Vec<Input>) -> FrameOutput {
-        for input in inputs {
-            self.runner.push(Incoming::points(input));
-        }
-        self.paint();
-        self.runner
-            .take_output()
-            .expect("a started runner that has not exited draws every frame")
+        self.paint_with(inputs);
+        self.latest()
     }
 
     pub fn frame_in(&mut self, window: WindowId, inputs: Vec<Input>) -> FrameOutput {
@@ -427,8 +430,19 @@ impl<A: App + 'static> Stepped<A> {
             self.runner.push(Incoming::points(input).in_window(window));
         }
         self.paint();
-        self.runner
-            .take_output()
+        self.latest()
+    }
+
+    fn paint_with(&mut self, inputs: Vec<Input>) {
+        for input in inputs {
+            self.runner.push(Incoming::points(input));
+        }
+        self.paint();
+    }
+
+    fn latest(&self) -> FrameOutput {
+        self.latest
+            .clone()
             .expect("a started runner that has not exited draws every frame")
     }
 
@@ -493,12 +507,6 @@ impl<A: App + 'static> Stepped<A> {
         }
     }
 
-    pub fn take_output(&mut self) -> FrameOutput {
-        self.runner
-            .take_output()
-            .expect("a frame was painted since the output was last taken")
-    }
-
     pub fn resize(&mut self, size: Vec2) {
         let scale = self.scale();
         self.resize_window(WindowSize { size, scale });
@@ -532,14 +540,15 @@ impl<A: App + 'static> Stepped<A> {
             Window::Other(platform) => &mut **platform,
         };
         self.runner.frame(platform, SafeArea::default());
-        if let Some(output) = self.runner.output() {
+        if let Some(output) = self.runner.take_output() {
             for observer in &mut self.observers {
-                observer(output);
+                observer(&output);
             }
+            self.latest = Some(output);
         }
         self.closed |= self.runner.exited();
         if let Some(failure) = self.runner.failure() {
-            panic!("the app panicked: {failure}\n{}", self.replay());
+            panic!("the app panicked: {failure}\n{}", self.driving.replay());
         }
     }
 
@@ -558,17 +567,11 @@ impl<A: App + 'static> Stepped<A> {
             Reply::Error(error) => Err(error),
             Reply::Text(_) | Reply::Image { .. } => Err("the answer is not a painting".to_owned()),
         };
-        painted.unwrap_or_else(|error| panic!("{error}\n{}", self.replay()))
+        painted.unwrap_or_else(|error| panic!("{error}\n{}", self.driving.replay()))
     }
 
     fn reply(&mut self, words: &[&str]) -> Reply {
-        self.steps.push(
-            std::iter::once("drive")
-                .chain(words.iter().copied())
-                .map(quoted)
-                .collect::<Vec<_>>()
-                .join(" "),
-        );
+        self.driving.note(words);
         if !self.painted {
             self.paint();
         }
@@ -583,200 +586,82 @@ impl<A: App + 'static> Stepped<A> {
         }
         panic!(
             "the app never answered {words:?} in {ANSWER_FRAMES} frames\n{}",
-            self.replay()
+            self.driving.replay()
         );
+    }
+
+    pub fn drive(&mut self, words: &[&str]) -> String {
+        self.ask(words)
+            .unwrap_or_else(|error| panic!("{error}\n{}", self.driving.replay()))
     }
 
     pub fn settle_after_gestures(&mut self, settling: bool) {
         self.settling = settling;
     }
-
-    pub fn run(&mut self, words: &[&str]) -> String {
-        self.ask(words)
-            .unwrap_or_else(|error| panic!("{error}\n{}", self.replay()))
-    }
-
-    pub fn click(&mut self, target: impl Into<Target>) -> String {
-        self.gesture(&["click"], &[target.into()], &[])
-    }
-
-    pub fn click_with(&mut self, target: impl Into<Target>, button: PointerButton) -> String {
-        let button = match button {
-            PointerButton::Primary => None,
-            PointerButton::Secondary => Some("right"),
-            PointerButton::Middle => Some("middle"),
-            other => panic!("drive clicks the primary, right and middle buttons, not {other:?}"),
-        };
-        self.gesture(&["click"], &[target.into()], button.as_slice())
-    }
-
-    pub fn double_click(&mut self, target: impl Into<Target>) -> String {
-        self.gesture(&["click"], &[target.into()], &["double"])
-    }
-
-    pub fn hover(&mut self, target: impl Into<Target>) -> String {
-        self.gesture(&["move"], &[target.into()], &[])
-    }
-
-    pub fn leave(&mut self) -> String {
-        self.gesture(&["leave"], &[], &[])
-    }
-
-    pub fn down(&mut self, target: impl Into<Target>, button: PointerButton) -> String {
-        let button = button_name(button);
-        self.gesture(&["down"], &[target.into()], &[&button])
-    }
-
-    pub fn up(&mut self, target: impl Into<Target>, button: PointerButton) -> String {
-        let button = button_name(button);
-        self.gesture(&["up"], &[target.into()], &[&button])
-    }
-
-    pub fn drag(&mut self, from: impl Into<Target>, to: impl Into<Target>) -> String {
-        self.gesture(&["drag"], &[from.into(), to.into()], &[])
-    }
-
-    pub fn drag_in(
-        &mut self,
-        from: impl Into<Target>,
-        to: impl Into<Target>,
-        steps: usize,
-    ) -> String {
-        let steps = steps.to_string();
-        self.gesture(&["drag"], &[from.into(), to.into()], &[&steps])
-    }
-
-    pub fn scroll(&mut self, target: impl Into<Target>, by: Vec2) -> String {
-        let scale = self.runner.context().pixels_per_point();
-        let (down, right) = ((by.y * scale).to_string(), (by.x * scale).to_string());
-        self.gesture(&["scroll"], &[target.into()], &[&down, &right])
-    }
-
-    pub fn motion(&mut self, by: Vec2) -> String {
-        let scale = self.runner.context().pixels_per_point();
-        let (right, down) = ((by.x * scale).to_string(), (by.y * scale).to_string());
-        self.gesture(&["motion"], &[], &[&right, &down])
-    }
-
-    pub fn wheel(&mut self, target: impl Into<Target>, down: i32, right: i32) -> String {
-        let (down, right) = (down.to_string(), right.to_string());
-        self.gesture(&["wheel"], &[target.into()], &[&down, &right])
-    }
-
-    pub fn zoom(&mut self, target: impl Into<Target>, factor: f32) -> String {
-        let factor = factor.to_string();
-        self.gesture(&["zoom"], &[target.into()], &[&factor])
-    }
-
-    pub fn pinch(&mut self, target: impl Into<Target>, factor: f32) -> String {
-        let factor = factor.to_string();
-        self.gesture(&["pinch"], &[target.into()], &[&factor])
-    }
-
-    pub fn tap(&mut self, target: impl Into<Target>) -> String {
-        self.gesture(&["tap"], &[target.into()], &[])
-    }
-
-    pub fn swipe(&mut self, from: impl Into<Target>, to: impl Into<Target>) -> String {
-        self.gesture(&["swipe"], &[from.into(), to.into()], &[])
-    }
-
-    pub fn fingers<T: Into<Target> + Clone>(
-        &mut self,
-        phase: TouchPhase,
-        fingers: &[(u64, T)],
-    ) -> String {
-        let phase = match phase {
-            TouchPhase::Start => "down",
-            TouchPhase::Move => "move",
-            TouchPhase::End => "up",
-            TouchPhase::Cancel => "cancel",
-        };
-        let fingers: Vec<String> = fingers
-            .iter()
-            .map(|(finger, target)| format!("{finger}={}", self.word(target.clone().into())))
-            .collect();
-        let fingers: Vec<&str> = fingers.iter().map(String::as_str).collect();
-        self.gesture(&["touch", phase], &[], &fingers)
-    }
-
-    pub fn type_text(&mut self, text: &str) -> String {
-        self.gesture(&["type"], &[], &[text])
-    }
-
-    pub fn key(&mut self, key: Key, modifiers: Modifiers) -> String {
-        let chord = typing::chord_name(key, modifiers)
-            .unwrap_or_else(|| panic!("drive has no name for {key:?}"));
-        self.gesture(&["key"], &[], &[&chord])
-    }
-
-    pub fn key_down(&mut self, key: Key) -> String {
-        let name = key
-            .name()
-            .unwrap_or_else(|| panic!("drive has no name for {key:?}"));
-        self.gesture(&["keydown"], &[], &[&name])
-    }
-
-    pub fn key_up(&mut self, key: Key) -> String {
-        let name = key
-            .name()
-            .unwrap_or_else(|| panic!("drive has no name for {key:?}"));
-        self.gesture(&["keyup"], &[], &[&name])
-    }
-
-    pub fn wait(&mut self, target: impl Into<Target>) -> String {
-        self.gesture(&["wait"], &[target.into()], &[])
-    }
-
-    pub fn gone(&mut self, target: impl Into<Target>) -> String {
-        self.gesture(&["gone"], &[target.into()], &[])
-    }
-
-    pub fn pause(&mut self, by: Duration) -> String {
-        self.run(&["pause", &by.as_millis().to_string()])
-    }
-
-    pub fn settle(&mut self) -> String {
-        self.run(&["settle"])
-    }
-
-    fn gesture(&mut self, command: &[&str], targets: &[Target], rest: &[&str]) -> String {
-        let targets: Vec<String> = targets
-            .iter()
-            .map(|target| self.word(target.clone()))
-            .collect();
-        let mut words = match self.settling {
-            true => Vec::new(),
-            false => vec!["--no-settle"],
-        };
-        words.extend(command);
-        words.extend(targets.iter().map(String::as_str));
-        words.extend(rest);
-        self.run(&words)
-    }
-
-    fn word(&self, target: Target) -> String {
-        target.word(self.runner.context().pixels_per_point())
-    }
-
-    fn replay(&self) -> String {
-        let mut replay = String::from("the steps so far, as drive commands:\n");
-        for step in &self.steps {
-            replay.push_str("  ");
-            replay.push_str(step);
-            replay.push('\n');
-        }
-        replay
-    }
 }
 
-impl Stepped<Showing> {
-    pub fn document(&self) -> &Document {
+impl Gui for Stepped<Showing> {
+    type DocumentRef<'a> = &'a Document;
+    type DocumentMut<'a> = &'a mut Document;
+
+    fn document(&self) -> &Document {
         &self.app().0
     }
 
-    pub fn document_mut(&mut self) -> &mut Document {
+    fn document_mut(&mut self) -> &mut Document {
         &mut self.app_mut().0
+    }
+
+    fn output(&self) -> &FrameOutput {
+        self.latest
+            .as_ref()
+            .expect("the app has not drawn a frame yet")
+    }
+
+    fn window_output(&self) -> &WindowOutput {
+        self.output().main()
+    }
+
+    fn size(&self) -> Vec2 {
+        Stepped::size(self)
+    }
+
+    fn pixels_per_point(&self) -> f32 {
+        self.runner.context().pixels_per_point()
+    }
+
+    fn perform(&mut self, frames: Frames) {
+        for inputs in frames {
+            self.paint_with(inputs);
+        }
+        if self.settling {
+            self.settle();
+        }
+    }
+
+    fn run(&mut self) {
+        self.paint_with(Vec::new());
+    }
+
+    fn settled(&self) -> bool {
+        let output = self.output();
+        !output.repaint && output.repaint_after > Duration::ZERO
+    }
+
+    fn advance(&mut self, by: Duration) {
+        Stepped::advance(self, by);
+    }
+
+    fn wakes(&self) -> &Wakes {
+        &self.wakes
+    }
+
+    fn driving(&self) -> &Driving {
+        &self.driving
+    }
+
+    fn driving_mut(&mut self) -> &mut Driving {
+        &mut self.driving
     }
 }
 

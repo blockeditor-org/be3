@@ -22,7 +22,6 @@ fn dragging_any_transform_field_moves_the_entity() {
         Some(Vec2::new(800.0, 900.0)),
     );
     editor.click(&drawn);
-    editor.run();
 
     for field in ["x", "y", "width", "height", "rotation"] {
         let before = editor.rect_of(&drawn);
@@ -31,7 +30,6 @@ fn dragging_any_transform_field_moves_the_entity() {
             .rect_of(&format!("infinite-canvas.transform.{field}"))
             .center();
         editor.drag(at, at + Vec2::new(20.0, 0.0));
-        editor.run();
 
         assert_ne!(
             entities(&editor)[0].transform,

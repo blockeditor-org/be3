@@ -23,9 +23,7 @@ fn run_from_palette(editor: &mut BeuiTest<CanvasApp>, typed: &str) {
     );
     editor.run();
     editor.type_text(typed);
-    editor.run();
     editor.key(Key::Enter, Modifiers::NONE);
-    editor.run();
 }
 
 #[test]
@@ -44,6 +42,7 @@ fn the_grid_is_a_setting_of_the_canvas_drawn_behind_it() {
 
     editor.set_view(Rect::from_center_size(view.center(), size * 0.3), 0.3);
     editor.advance(std::time::Duration::from_millis(500));
+    editor.run();
     editor.snapshot("a_zoomed_out_grid_keeps_its_dots_apart");
 
     editor.set_view(view, 1.0);

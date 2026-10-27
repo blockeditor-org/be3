@@ -1,6 +1,7 @@
 use block_editor_beui::beui::Vec2;
 use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
+use block_ui_test::prelude::*;
 use logic_grid_types::LogicGame;
 use logic_grid_types::LogicGameContent;
 use logicgame::challenges::ChallengeId;

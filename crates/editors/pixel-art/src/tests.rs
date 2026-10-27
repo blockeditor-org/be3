@@ -1,4 +1,5 @@
 use block_editor_beui::be_block::BlockContent;
+use block_ui_test::prelude::*;
 use image_block_types::ImageContent;
 
 use block_editor_beui::beui::styled::*;

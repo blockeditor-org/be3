@@ -2,6 +2,7 @@ use beui::Vec2;
 use block_editor_beui::beui::TouchPhase;
 use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
+use block_ui_test::prelude::*;
 use uuid::Uuid;
 
 use super::text;
@@ -24,13 +25,11 @@ fn a_phone_formats_from_a_bar_above_the_keyboard() {
     let surface = editor.point_of("text.surface");
     editor.fingers(TouchPhase::Start, &[(1, surface)]);
     editor.fingers(TouchPhase::End, &[(1, surface)]);
-    editor.run();
     assert!(editor.shown("text.format.done"));
     assert!(editor.shown("text.format.bold"));
     editor.snapshot("a_phone_formats_from_a_bar_above_the_keyboard");
 
     editor.click("text.format.bold");
-    editor.run();
     assert!(text(&editor).contains("**"), "{:?}", text(&editor));
     assert!(
         editor.shown("text.format.bold"),
@@ -38,7 +37,6 @@ fn a_phone_formats_from_a_bar_above_the_keyboard() {
     );
 
     editor.click("text.format.done");
-    editor.run();
     assert!(!editor.shown("text.format.bold"));
 
     assert_eq!(

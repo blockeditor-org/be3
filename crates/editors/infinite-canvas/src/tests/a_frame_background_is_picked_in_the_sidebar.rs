@@ -20,7 +20,6 @@ fn a_frame_background_is_picked_in_the_sidebar() {
     };
 
     editor.click(format!("infinite-canvas.layer.{id}"));
-    editor.run();
     assert_eq!(
         fill(&editor),
         None,
@@ -28,7 +27,6 @@ fn a_frame_background_is_picked_in_the_sidebar() {
     );
 
     editor.click("infinite-canvas.background.White");
-    editor.run();
     assert_eq!(
         fill(&editor),
         Some(CanvasColor::Rgba {
@@ -41,7 +39,6 @@ fn a_frame_background_is_picked_in_the_sidebar() {
     editor.snapshot("a_frame_background_is_picked_in_the_sidebar");
 
     editor.click("infinite-canvas.background.theme");
-    editor.run();
     assert_eq!(
         fill(&editor),
         None,

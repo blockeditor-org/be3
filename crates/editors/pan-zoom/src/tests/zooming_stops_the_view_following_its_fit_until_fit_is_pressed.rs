@@ -8,7 +8,6 @@ fn zooming_stops_the_view_following_its_fit_until_fit_is_pressed() {
     assert_eq!(shown(&mut test, "pan_zoom.zoom"), "\"Zoom 66%\"");
 
     test.click("pan_zoom.zoom_in");
-    test.run();
     assert_eq!(shown(&mut test, "pan_zoom.zoom"), "\"Zoom 82%\"");
 
     test.set_size(Vec2::new(1400.0, 900.0));
@@ -19,7 +18,6 @@ fn zooming_stops_the_view_following_its_fit_until_fit_is_pressed() {
     );
 
     test.click("pan_zoom.fit");
-    test.run();
     assert_eq!(shown(&mut test, "pan_zoom.zoom"), "\"Zoom 100%\"");
     let stage = test.content_rect().expect("the editor reports its stage");
     let origin = test.rect_of("pan_zoom.card.0").min;

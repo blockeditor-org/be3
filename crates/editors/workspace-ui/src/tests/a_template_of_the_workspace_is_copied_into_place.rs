@@ -48,12 +48,10 @@ fn a_template_of_the_workspace_is_copied_into_place() {
     fixture.settle();
     fixture.test.take_requests();
     fixture.test.click("picker.templates");
-    fixture.settle();
     fixture
         .test
         .snapshot("a_template_of_the_workspace_is_copied_into_place");
     fixture.test.click(format!("picker.template.{template}"));
-    fixture.settle();
 
     let copies: Vec<_> = fixture
         .test

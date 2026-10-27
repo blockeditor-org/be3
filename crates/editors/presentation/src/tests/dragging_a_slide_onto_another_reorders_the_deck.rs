@@ -13,7 +13,6 @@ fn dragging_a_slide_onto_another_reorders_the_deck() {
         .rect_of(&format!("presentation.slide.{}", ids[2]))
         .center();
     test.drag(from, onto);
-    test.run();
 
     assert_eq!(slide_ids(&test), [ids[1], ids[2], ids[0]]);
 }

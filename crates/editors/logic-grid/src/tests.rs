@@ -1,4 +1,5 @@
 use block_editor_beui::be_block::BlockContent;
+use block_ui_test::prelude::*;
 use logic_grid_types::CompiledLogicContent;
 
 use block_editor_beui::beui::{Key, Pos2, Vec2};

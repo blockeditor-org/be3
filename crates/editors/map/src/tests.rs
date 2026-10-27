@@ -1,4 +1,5 @@
 use block_editor_beui::{EditorHost, OwnedEditor};
+use block_ui_test::prelude::*;
 use block_ui_test::{BeuiTest, HostCall, Reply};
 use map_types::MapRegion;
 use map_types::{Map, MapContent};

@@ -31,19 +31,19 @@ fn it_stays_locked_until_its_password_is_typed() {
         }
     });
     let mut test = DocumentTest::new(document, WIDE);
-    assert!(test.shows("lock"), "the lock screen covers the window");
+    assert!(test.shown("lock"), "the lock screen covers the window");
 
     type_password(&mut test, "hunter2");
-    assert!(test.shows("lock.error"), "a wrong password says so");
+    assert!(test.shown("lock.error"), "a wrong password says so");
 
     press(&mut test, Key::Escape);
     test.click(pos2(4.0, 4.0));
     test.frame(Vec::new());
     assert!(
-        test.shows("lock"),
+        test.shown("lock"),
         "neither Escape nor a click outside the card unlocks"
     );
 
     type_password(&mut test, "beui");
-    assert!(!test.shows("lock"), "the right password unlocks");
+    assert!(!test.shown("lock"), "the right password unlocks");
 }

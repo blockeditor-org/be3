@@ -8,7 +8,6 @@ fn a_piece_is_dragged_from_square_to_square() {
     let from = editor.rect_of("game.tile.4.6").center();
     let to = editor.rect_of("game.tile.4.4").center();
     editor.drag(from, to);
-    editor.run();
 
     let played = moves(&editor);
     assert_eq!(played.len(), 1);

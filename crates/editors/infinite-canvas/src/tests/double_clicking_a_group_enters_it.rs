@@ -25,7 +25,6 @@ fn double_clicking_a_group_enters_it() {
     let at = |x: f32, y: f32| -> Pos2 { anchor.center() + Vec2::new(x + 80.0, y) * scale };
 
     editor.click(at(80.0, 0.0));
-    editor.run();
     assert_eq!(
         editor.label("infinite-canvas.selection"),
         "Group · 2 objects",
@@ -33,7 +32,6 @@ fn double_clicking_a_group_enters_it() {
     );
 
     editor.double_click(at(80.0, 0.0));
-    editor.run();
     assert_eq!(
         editor.label("infinite-canvas.selection"),
         "Rectangle selected",
@@ -42,15 +40,14 @@ fn double_clicking_a_group_enters_it() {
     editor.snapshot("double_clicking_a_group_enters_it");
 
     editor.click(at(-80.0, 0.0));
-    editor.run();
     assert_eq!(
         editor.label("infinite-canvas.selection"),
         "Rectangle selected",
         "inside the group, a click selects another member alone"
     );
     editor.advance(std::time::Duration::from_secs(1));
-    editor.drag(at(-80.0, 0.0), at(-80.0, -40.0));
     editor.run();
+    editor.drag(at(-80.0, 0.0), at(-80.0, -40.0));
     let held = entities(&editor);
     let moved = |id: Uuid| {
         held.iter()
@@ -65,7 +62,6 @@ fn double_clicking_a_group_enters_it() {
     );
 
     editor.key(Key::Escape, Modifiers::NONE);
-    editor.run();
     assert_eq!(
         editor.label("infinite-canvas.selection"),
         "Group · 2 objects",
@@ -73,11 +69,8 @@ fn double_clicking_a_group_enters_it() {
     );
 
     editor.double_click(at(80.0, 0.0));
-    editor.run();
     editor.click(at(0.0, 140.0));
-    editor.run();
     editor.click(at(80.0, 0.0));
-    editor.run();
     assert_eq!(
         editor.label("infinite-canvas.selection"),
         "Group · 2 objects",

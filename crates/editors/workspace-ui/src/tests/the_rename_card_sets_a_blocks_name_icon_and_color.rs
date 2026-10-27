@@ -38,9 +38,7 @@ fn the_rename_card_sets_a_blocks_name_icon_and_color() {
 
     fixture.test.type_text("Journal");
     fixture.test.click("rename.search");
-    fixture.settle();
     fixture.test.type_text("duplicate");
-    fixture.settle();
     assert!(
         fixture.test.shown("rename.icon.copy-plus"),
         "a search finds icons by their tags"
@@ -51,14 +49,12 @@ fn the_rename_card_sets_a_blocks_name_icon_and_color() {
     );
     fixture.test.snapshot("the_rename_card_finds_icons_by_tag");
     fixture.test.click("rename.icon.copy-plus");
-    fixture.settle();
     assert_eq!(
         saved(&mut fixture, notes).get(&ICON).as_deref(),
         Some("copy-plus")
     );
 
     fixture.test.click("rename.color.pink");
-    fixture.settle();
     assert_eq!(
         saved(&mut fixture, notes).get(&ICON_COLOR),
         Some([203, 91, 125])
@@ -69,13 +65,11 @@ fn the_rename_card_sets_a_blocks_name_icon_and_color() {
     );
 
     fixture.test.click("rename.color.default");
-    fixture.settle();
     let metadata = saved(&mut fixture, notes);
     assert!(!metadata.contains(&ICON_COLOR), "the type's color is back");
     assert_eq!(metadata.get(&ICON).as_deref(), Some("copy-plus"));
 
     fixture.test.key(Key::Escape, Modifiers::NONE);
-    fixture.settle();
     assert!(
         !fixture.test.shown("rename.search"),
         "Escape closes the card"

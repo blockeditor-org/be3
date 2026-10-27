@@ -24,7 +24,6 @@ fn the_picker_never_offers_a_deleted_block_to_link() {
         .request_pick(7, filter(), BlockLocation::Root, None);
     fixture.settle();
     fixture.test.click("picker.link-existing");
-    fixture.settle();
 
     assert!(fixture.test.shown(&format!("picker.link.{kept}.row")));
     assert!(

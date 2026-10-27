@@ -1,3 +1,4 @@
+use block_ui_test::prelude::*;
 use std::time::{Duration, Instant};
 
 use block_editor_beui::beui::{
@@ -242,7 +243,6 @@ fn ink(count: usize) -> Ink {
     );
     test.run();
     test.click("infinite-canvas.dock.tool.Pen");
-    test.run();
     test.settle();
     let canvas = test.rect_of("infinite-canvas.canvas");
     let mut ink = Ink {
@@ -303,7 +303,6 @@ fn long_ink(count: usize) -> (Vec<Frame>, Vec<Frame>) {
     );
     test.run();
     test.click("infinite-canvas.dock.tool.Pen");
-    test.run();
     test.settle();
     let canvas = test.rect_of("infinite-canvas.canvas");
     let from = canvas.center() - Vec2::new(200.0, 0.0);

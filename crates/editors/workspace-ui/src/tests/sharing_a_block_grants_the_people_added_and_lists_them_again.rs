@@ -66,12 +66,9 @@ fn sharing_a_block_grants_the_people_added_and_lists_them_again() {
     );
 
     fixture.test.click("share.query");
-    fixture.settle();
     fixture.test.type_text("fri");
     fixture.test.key(Key::Enter, Modifiers::NONE);
-    fixture.settle();
     fixture.test.click("share.add");
-    fixture.settle();
 
     assert_eq!(
         fixture.test.take_access_changes(),

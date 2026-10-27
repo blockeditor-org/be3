@@ -13,6 +13,7 @@ use block_editor_beui::{
     PowerAvailability, PowerWatch, ProgramAction, ProgramsWatch, WifiLink, WifiNetwork,
     WifiRequest, WifiSecurity, WifiStatus, WifiWatch, WindowAction, WindowOrigin, WindowsWatch,
 };
+use block_ui_test::prelude::*;
 
 use block_shell::{KeptWindow, saved_windows};
 use block_ui_test::BeuiTest;

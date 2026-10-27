@@ -27,7 +27,6 @@ fn a_list_shows_each_row_by_its_short_id_and_opens_it_beside_the_list() {
     assert!(!fixture.harness.shown("database-view.detail.title"));
 
     fixture.harness.click(&line);
-    fixture.settle();
 
     assert_eq!(
         fixture.harness.label("database-view.detail.id"),

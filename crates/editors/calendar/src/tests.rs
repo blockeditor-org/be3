@@ -1,5 +1,6 @@
 use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
+use block_ui_test::prelude::*;
 use calendar_types::CalendarContent;
 use uuid::Uuid;
 

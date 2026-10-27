@@ -4,7 +4,6 @@ use std::f32::consts::PI;
 
 fn draw_strokes(editor: &mut BeuiTest<CanvasApp>) {
     editor.click("infinite-canvas.dock.tool.Pen");
-    editor.run();
     let center = editor.rect_of("infinite-canvas.canvas").center();
 
     let slow: Vec<Pos2> = (0..=120)
@@ -14,7 +13,6 @@ fn draw_strokes(editor: &mut BeuiTest<CanvasApp>) {
         })
         .collect();
     editor.drag_along(&slow);
-    editor.run();
 
     let fast: Vec<Pos2> = (0..=24)
         .map(|step| {
@@ -23,10 +21,8 @@ fn draw_strokes(editor: &mut BeuiTest<CanvasApp>) {
         })
         .collect();
     editor.drag_along(&fast);
-    editor.run();
 
     editor.click("infinite-canvas.dock.tool.Pen");
-    editor.run();
     let pressed =
         |t: f32| center + Vec2::new(-180.0 + 360.0 * t, 130.0 + 30.0 * (t * 3.0 * PI).sin());
     editor.pen(PenPhase::Move, pressed(0.0), 0.0);
@@ -41,7 +37,6 @@ fn draw_strokes(editor: &mut BeuiTest<CanvasApp>) {
     editor.pen(PenPhase::Up(PointerButton::Primary), pressed(1.0), 0.0);
     editor.run();
     editor.key(Key::Escape, Modifiers::NONE);
-    editor.run();
 }
 
 #[test]
@@ -51,7 +46,7 @@ fn pen_strokes_are_smooth_curves_at_any_zoom() {
     editor.snapshot("pen_strokes_are_smooth_curves_at_any_zoom_100");
 
     let corner = editor.rect_of("infinite-canvas.canvas").right_bottom() - Vec2::splat(10.0);
-    editor.pinch(corner, 4.0);
+    editor.zoom_view(corner, 4.0);
     editor.run();
     editor.settle();
     draw_strokes(&mut editor);

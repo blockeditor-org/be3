@@ -11,7 +11,6 @@ fn an_open_menu_is_withheld_from_the_block_under_it() {
     );
 
     fixture.test.click("dock.menu");
-    fixture.settle();
 
     let occluder = fixture
         .test

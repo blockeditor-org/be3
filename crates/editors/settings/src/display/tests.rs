@@ -9,6 +9,7 @@ use block_editor_beui::{
     PowerWatch,
 };
 use block_ui_test::BeuiTest;
+use block_ui_test::prelude::*;
 use uuid::Uuid;
 
 use crate::display::DisplaySettingsApp;

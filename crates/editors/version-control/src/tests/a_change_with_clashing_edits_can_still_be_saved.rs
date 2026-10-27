@@ -35,9 +35,7 @@ fn a_change_with_clashing_edits_can_still_be_saved() {
 
     editor.click("checkout.description");
     editor.type_text("Brought in the other edits");
-    editor.run();
     editor.click("checkout.save");
-    editor.run();
 
     assert_eq!(
         editor.take_version_commands(),

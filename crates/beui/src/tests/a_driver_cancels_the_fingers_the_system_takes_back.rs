@@ -20,15 +20,15 @@ fn a_driver_cancels_the_fingers_the_system_takes_back() {
     });
     let mut driven = stepped(crate::testing::Showing(document));
 
-    driven.run(&["touch", "down", "0=\"Press\""]);
-    driven.run(&["touch", "cancel"]);
+    driven.drive(&["touch", "down", "0=\"Press\""]);
+    driven.drive(&["touch", "cancel"]);
     assert_eq!(
         clicks.get_untracked(),
         0,
         "a finger the system takes back does not click"
     );
-    driven.run(&["touch", "down", "0=\"Press\""]);
-    driven.run(&["touch", "up"]);
+    driven.drive(&["touch", "down", "0=\"Press\""]);
+    driven.drive(&["touch", "up"]);
     assert_eq!(
         clicks.get_untracked(),
         1,

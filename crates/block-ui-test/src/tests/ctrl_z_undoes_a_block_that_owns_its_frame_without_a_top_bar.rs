@@ -20,7 +20,6 @@ fn ctrl_z_undoes_a_block_that_owns_its_frame_without_a_top_bar() {
     test.run();
 
     test.key(Key::Z, Modifiers::CTRL);
-    test.run();
 
     assert_eq!(test.take_block_commands(), [(block, BlockCommand::Undo)]);
 }

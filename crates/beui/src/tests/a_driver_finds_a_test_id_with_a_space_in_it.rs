@@ -21,7 +21,7 @@ fn a_driver_finds_a_test_id_with_a_space_in_it() {
     });
     let mut driven = stepped(crate::testing::Showing(document));
 
-    driven.run(&["click", "#save it"]);
+    driven.drive(&["click", "#save it"]);
 
     assert_eq!(
         clicks.get_untracked(),

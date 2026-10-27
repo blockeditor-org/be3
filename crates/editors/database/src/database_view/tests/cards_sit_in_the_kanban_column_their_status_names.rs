@@ -31,7 +31,6 @@ fn cards_sit_in_the_kanban_column_their_status_names() {
     );
 
     fixture.harness.click("database-view.card.1");
-    fixture.settle();
 
     assert!(fixture.harness.shown("database-view.detail.close"));
     fixture

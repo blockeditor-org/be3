@@ -1,3 +1,4 @@
+use block_ui_test::prelude::*;
 use std::sync::mpsc::channel;
 
 use beui::dock::styled::TabId;
@@ -73,7 +74,7 @@ fn pull_requests_open_in_place_of_the_one_shown_unless_ctrl_is_held() {
     ));
     let mut test = DocumentTest::new(document, WIDE);
     let is_open = |test: &DocumentTest, number: u64| {
-        tab(model, number).is_some_and(|tab| test.shows(&format!("dock.tab.{}.close", tab.value())))
+        tab(model, number).is_some_and(|tab| test.shown(&format!("dock.tab.{}.close", tab.value())))
     };
 
     click(&mut test, 1, Modifiers::NONE);
