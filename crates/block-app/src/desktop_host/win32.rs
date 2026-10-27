@@ -676,7 +676,12 @@ fn clicked(press: &RefCell<ContentPress>, input: &ForwardedInput) -> Vec<Pos2> {
     clicks
 }
 
-fn forwarded(id: EntryId, pressed: &Cell<bool>, press: &RefCell<ContentPress>, input: ForwardedInput) {
+fn forwarded(
+    id: EntryId,
+    pressed: &Cell<bool>,
+    press: &RefCell<ContentPress>,
+    input: ForwardedInput,
+) {
     let size = input.rect.size();
     for local in clicked(press, &input) {
         let snapshot = snapshot();
@@ -799,7 +804,11 @@ pub(crate) fn WindowSurface(window: HostWindowId) -> NodeId {
     let hovered = create_signal(false);
     let hotkey = signals.hotkey;
     let kind = create_memo(move || {
-        snapshot.with(|snapshot| snapshot.entry(id).map_or(EntryKind::Window, |entry| entry.kind))
+        snapshot.with(|snapshot| {
+            snapshot
+                .entry(id)
+                .map_or(EntryKind::Window, |entry| entry.kind)
+        })
     });
     let hint = create_memo(move || {
         let kind = kind.get();

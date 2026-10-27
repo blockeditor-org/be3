@@ -84,7 +84,10 @@ fn subtract(rect: Rect, cut: Rect) -> Vec<Rect> {
 }
 
 pub(crate) fn off_screen(frame: Rect, monitors: &[Rect]) -> Vec<Rect> {
-    let mut parts = vec![frame].into_iter().filter(|rect| !rect.is_empty()).collect::<Vec<_>>();
+    let mut parts = vec![frame]
+        .into_iter()
+        .filter(|rect| !rect.is_empty())
+        .collect::<Vec<_>>();
     for monitor in monitors {
         parts = parts
             .into_iter()
@@ -99,7 +102,11 @@ pub(crate) fn off_screen_parts(snapshot: &Snapshot, entry: &Entry) -> Vec<block_
     if entry.kind != EntryKind::Window || entry.minimized || entry.frame.is_empty() {
         return Vec::new();
     }
-    let monitors: Vec<Rect> = snapshot.monitors.iter().map(|monitor| monitor.rect).collect();
+    let monitors: Vec<Rect> = snapshot
+        .monitors
+        .iter()
+        .map(|monitor| monitor.rect)
+        .collect();
     if monitors.is_empty() {
         return Vec::new();
     }

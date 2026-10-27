@@ -26,7 +26,11 @@ fn a_lost_clip_is_put_back_except_while_the_window_is_dragged() {
         &[Event::MoveSizeStarted(Handle(30))],
     );
     assert_eq!(mode.reclip(everywhere), None);
-    let moved = desk(vec![entry(3, EntryKind::Window, Rect::new(200, 100, 1000, 700))]);
+    let moved = desk(vec![entry(
+        3,
+        EntryKind::Window,
+        Rect::new(200, 100, 1000, 700),
+    )]);
     let out = mode.step(
         &moved,
         Foreground::Entry(EntryId(3)),
@@ -38,5 +42,8 @@ fn a_lost_clip_is_put_back_except_while_the_window_is_dragged() {
         Foreground::Entry(EntryId(3)),
         &[Event::MoveSizeEnded(Handle(30))],
     );
-    assert_eq!(out.commands, [Command::Clip(Rect::new(200, 100, 1000, 700))]);
+    assert_eq!(
+        out.commands,
+        [Command::Clip(Rect::new(200, 100, 1000, 700))]
+    );
 }

@@ -9,8 +9,14 @@ fn coming_back_to_block_always_ends_focus_and_cancels_a_queued_one() {
 
     let since = mode.returns();
     mode.start(&snapshot, EntryId(3), None, since).unwrap();
-    assert_eq!(mode.step(&snapshot, Foreground::Own, &[]), Output::default());
-    assert_eq!(mode.step(&snapshot, Foreground::Other, &[]), Output::default());
+    assert_eq!(
+        mode.step(&snapshot, Foreground::Own, &[]),
+        Output::default()
+    );
+    assert_eq!(
+        mode.step(&snapshot, Foreground::Other, &[]),
+        Output::default()
+    );
     let out = mode.step(&snapshot, Foreground::Own, &[]);
     assert_eq!(
         out.events,

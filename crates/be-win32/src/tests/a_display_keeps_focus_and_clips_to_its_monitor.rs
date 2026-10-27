@@ -12,7 +12,10 @@ fn a_display_keeps_focus_and_clips_to_its_monitor() {
     mode.set_hotkey(true);
     mode.start(&snapshot, EntryId(2), Some(Point::new(10, 20)), 0)
         .unwrap();
-    assert_eq!(mode.step(&snapshot, Foreground::Own, &[]), Output::default());
+    assert_eq!(
+        mode.step(&snapshot, Foreground::Own, &[]),
+        Output::default()
+    );
     let out = mode.step(&snapshot, Foreground::Other, &[]);
     assert_eq!(
         out.commands,

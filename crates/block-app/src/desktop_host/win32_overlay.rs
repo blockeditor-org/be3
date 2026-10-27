@@ -47,7 +47,11 @@ fn OffScreenPart(part: Memo<Rect>, labelled: bool) -> NodeId {
     };
     view! {
         <Frame align=Align2::START>
-            <Frame width={outer_width} height={outer_height} align={Align2::new(Align::End, Align::End)}>
+            <Frame
+                width={outer_width}
+                height={outer_height}
+                align={Align2::new(Align::End, Align::End)}
+            >
                 <Frame
                     @test_id="win32.off-screen"
                     width
@@ -77,8 +81,12 @@ pub(crate) fn EntryOverlay(
     });
     let keys = create_memo(move || (0..off_screen.with(Vec::len)).collect::<Vec<usize>>());
     let hinted = create_memo(move || hint.with(Option::is_some));
-    let text = create_memo(move || hint.with(|hint| hint.as_ref().map(|hint| hint.text.clone())).unwrap_or_default());
-    let focused = create_memo(move || hint.with(|hint| hint.as_ref().is_some_and(|hint| hint.focused)));
+    let text = create_memo(move || {
+        hint.with(|hint| hint.as_ref().map(|hint| hint.text.clone()))
+            .unwrap_or_default()
+    });
+    let focused =
+        create_memo(move || hint.with(|hint| hint.as_ref().is_some_and(|hint| hint.focused)));
     let edge = create_memo(move || match focused.get() {
         true => Align2::new(Align::Stretch, Align::Start),
         false => Align2::new(Align::Stretch, Align::End),
@@ -104,7 +112,11 @@ pub(crate) fn EntryOverlay(
                         let content = create_memo(move || notice_item(&notice));
                         view! {
                             <Frame align=Align::Center padding={Padding::all(Space::Md)}>
-                                <Frame fill=ColorRole::SurfaceRaised border={Border::DEFAULT} radius=Radius::Md>
+                                <Frame
+                                    fill=ColorRole::SurfaceRaised
+                                    border={Border::DEFAULT}
+                                    radius=Radius::Md
+                                >
                                     <HostItemFace content />
                                 </Frame>
                             </Frame>

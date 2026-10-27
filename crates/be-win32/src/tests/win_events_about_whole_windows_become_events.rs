@@ -33,7 +33,12 @@ fn win_events_about_whole_windows_become_events() {
         Some(Event::Cloaked(window))
     );
     assert_eq!(
-        Event::from_win_event(EVENT_SYSTEM_CAPTURESTART, Handle(7), OBJID_WINDOW, CHILDID_SELF),
+        Event::from_win_event(
+            EVENT_SYSTEM_CAPTURESTART,
+            Handle(7),
+            OBJID_WINDOW,
+            CHILDID_SELF
+        ),
         Some(Event::CaptureChanged)
     );
     assert_eq!(

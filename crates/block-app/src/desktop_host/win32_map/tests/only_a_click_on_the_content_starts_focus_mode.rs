@@ -12,20 +12,35 @@ fn only_a_click_on_the_content_starts_focus_mode() {
         press.up(PointerId::Mouse, Pos2::new(104.0, 102.0), panel),
         Some(Pos2::new(104.0, 102.0))
     );
-    assert_eq!(press.up(PointerId::Mouse, Pos2::new(104.0, 102.0), panel), None);
+    assert_eq!(
+        press.up(PointerId::Mouse, Pos2::new(104.0, 102.0), panel),
+        None
+    );
 
     press.down(PointerId::Mouse, Pos2::new(100.0, 100.0));
     press.moved(PointerId::Mouse, Pos2::new(160.0, 100.0));
     press.moved(PointerId::Mouse, Pos2::new(100.0, 100.0));
-    assert_eq!(press.up(PointerId::Mouse, Pos2::new(100.0, 100.0), panel), None);
+    assert_eq!(
+        press.up(PointerId::Mouse, Pos2::new(100.0, 100.0), panel),
+        None
+    );
 
     press.down(PointerId::Mouse, Pos2::new(398.0, 100.0));
-    assert_eq!(press.up(PointerId::Mouse, Pos2::new(402.0, 100.0), panel), None);
+    assert_eq!(
+        press.up(PointerId::Mouse, Pos2::new(402.0, 100.0), panel),
+        None
+    );
 
     press.down(PointerId::Mouse, Pos2::new(100.0, 100.0));
-    assert_eq!(press.up(PointerId::Pen, Pos2::new(100.0, 100.0), panel), None);
+    assert_eq!(
+        press.up(PointerId::Pen, Pos2::new(100.0, 100.0), panel),
+        None
+    );
     press.cancel();
-    assert_eq!(press.up(PointerId::Mouse, Pos2::new(100.0, 100.0), panel), None);
+    assert_eq!(
+        press.up(PointerId::Mouse, Pos2::new(100.0, 100.0), panel),
+        None
+    );
 
     let snapshot = snapshot(vec![window(2, Rect::new(100, 100, 900, 700))]);
     let mut mode = be_win32::FocusMode::new();
