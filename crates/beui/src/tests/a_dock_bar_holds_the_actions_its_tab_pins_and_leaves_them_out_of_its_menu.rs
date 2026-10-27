@@ -60,7 +60,10 @@ fn a_dock_bar_holds_the_actions_its_tab_pins_and_leaves_them_out_of_its_menu() {
     harness.settle();
     assert!(text_within(harness.document(), root, "Rename").is_some());
     assert!(
-        harness.document().find_test_id("dock.tabs.menu.share").is_none(),
+        harness
+            .document()
+            .find_test_id("dock.tabs.menu.share")
+            .is_none(),
         "the menu leaves out what the bar already holds"
     );
     harness.key(Key::Escape, Modifiers::NONE);

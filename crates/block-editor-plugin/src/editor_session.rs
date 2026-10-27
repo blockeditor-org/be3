@@ -848,9 +848,9 @@ impl EditorSession {
             let reports = matches!(
                 region,
                 EditorRegion::Frame
-                            | EditorRegion::Display(_)
-                            | EditorRegion::Window(_)
-                            | EditorRegion::Tab(_)
+                    | EditorRegion::Display(_)
+                    | EditorRegion::Window(_)
+                    | EditorRegion::Tab(_)
             );
             match frame.description.as_mut() {
                 Some(description) => {

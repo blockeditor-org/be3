@@ -735,7 +735,11 @@ fn DockSideBar(
                                     align=Align::Center
                                     spacing=BAR_SPACING
                                 >
-                                    <DockMenu menu room=BarRoom::Narrow test_prefix={test_prefix.clone()} />
+                                    <DockMenu
+                                        menu
+                                        room=BarRoom::Narrow
+                                        test_prefix={test_prefix.clone()}
+                                    />
                                     <DockClose closable close={close} test_prefix />
                                 </List>
                             }
@@ -750,7 +754,11 @@ fn DockSideBar(
                     <Show condition={icons_only}>|| {
                         let test_prefix = column.clone(); view! {
                             <List align=Align::Center spacing=BAR_SPACING>
-                                <DockMenu menu room=BarRoom::Column test_prefix={test_prefix.clone()} />
+                                <DockMenu
+                                    menu
+                                    room=BarRoom::Column
+                                    test_prefix={test_prefix.clone()}
+                                />
                                 <DockClose closable close={close} test_prefix />
                             </List>
                         }
@@ -785,14 +793,7 @@ pub(crate) fn DockMenu(menu: Memo<Vec<MenuNode>>, room: BarRoom, test_prefix: St
         BarRoom::Phone => ButtonSize::Regular,
     };
     view! {
-        <ActionBar
-            menu
-            labels
-            title={room == BarRoom::Phone}
-            direction
-            size
-            test_prefix
-        />
+        <ActionBar menu labels title={room == BarRoom::Phone} direction size test_prefix />
     }
 }
 
