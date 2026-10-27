@@ -172,6 +172,7 @@ pub struct Document {
     painters: NodeMap<Placing>,
     motion: ::reactive::OwnedSignal<crate::animation::Motion>,
     theme: ::reactive::OwnedSignal<crate::preferences::ThemeKind>,
+    colors: crate::color::ColorDefinitions,
     canvas_touch: ::reactive::OwnedSignal<crate::preferences::CanvasTouch>,
     preference_layers: ::reactive::OwnedSignal<crate::preferences::PreferenceLayers>,
     out_of_bounds: Option<Vec<(WindowId, String)>>,
@@ -399,6 +400,7 @@ impl Document {
             painters: NodeMap::default(),
             motion: ::reactive::OwnedSignal::new(crate::animation::Motion::default()),
             theme: ::reactive::OwnedSignal::new(crate::preferences::ThemeKind::default()),
+            colors: crate::color::ColorDefinitions::default(),
             canvas_touch: ::reactive::OwnedSignal::new(Default::default()),
             preference_layers: ::reactive::OwnedSignal::new(Default::default()),
             out_of_bounds: None,
@@ -871,6 +873,21 @@ impl Document {
         self.canvas_touch.read_only()
     }
 
+    pub fn color_scheme(&self) -> crate::color::ColorScheme {
+        self.theme.get_untracked().into()
+    }
+
+    pub fn resolve_color(&self, color: crate::color::Color) -> crate::color::Color32 {
+        color.resolve_in(&self.colors, self.color_scheme())
+    }
+
+    pub fn set_color_definitions(&mut self, colors: crate::color::ColorDefinitions) {
+        if self.colors != colors {
+            self.colors = colors;
+            self.arena.invalidate();
+        }
+    }
+
     pub fn watch_theme(&self) -> ::reactive::ReadSignal<crate::preferences::ThemeKind> {
         self.theme.read_only()
     }
@@ -893,6 +910,11 @@ impl Document {
                 document.motion.set(preferences.motion);
             }
             if document.theme.get_untracked() != preferences.theme {
+                if crate::color::ColorScheme::from(document.theme.get_untracked())
+                    != crate::color::ColorScheme::from(preferences.theme)
+                {
+                    document.arena.invalidate();
+                }
                 document.theme.set(preferences.theme);
             }
             if document.canvas_touch.get_untracked() != preferences.canvas_touch {

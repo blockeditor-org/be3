@@ -8,7 +8,7 @@ use std::hash::Hash;
 use std::rc::Rc;
 
 use beui_core::base::Direction;
-use beui_core::color::Color32;
+use beui_core::color::Color;
 use beui_core::geometry::{Rect, Vec2};
 use beui_core::image::Image;
 use beui_core::input::Modifiers;
@@ -742,7 +742,7 @@ pub fn Docking<K>(
     #[prop(default = 0.0)] group_inset: f32,
     tab_spacing: f32,
     drop_marker_width: f32,
-    back_shade: Prop<Color32>,
+    back_shade: Prop<Color>,
     icon_sidebar_width: f32,
     #[prop(default = 0.0)] inset: Prop<f32>,
     tab: RenderFn<DockTabHandle>,
@@ -760,7 +760,7 @@ pub fn Docking<K>(
     switch: Option<RenderFn<DockSwitchHandle>>,
     dialog_chrome: Option<RenderFn<DockDialogHandle>>,
     dialog_sheet: Option<RenderFn<DockSheetHandle>>,
-    dialog_scrim: Prop<Color32>,
+    dialog_scrim: Prop<Color>,
     #[prop(default = 0)] dialog_margin: u16,
     #[prop(default = 0)] dialog_gap: u16,
     #[prop(default = 0.0)] dialog_beak: f32,

@@ -38,13 +38,13 @@ pub(crate) fn Player(state: VideoState) -> NodeId {
     });
 
     view! {
-        <Frame fill={ColorRole::Custom(STAGE)} padding=Space::Md>
+        <Frame fill={ColorRole::Custom(STAGE.into())} padding=Space::Md>
             <List spacing=Space::None>
                 <Show condition={empty}>
                     <Text style=TextStyle::CAPTION>"No clip at the playhead"</Text>
                 </Show>
                 <Show condition={any}>
-                    <Frame aspect_ratio={ratio} fill={ColorRole::Custom(Color32::BLACK)}>
+                    <Frame aspect_ratio={ratio} fill={ColorRole::Custom(Color32::BLACK.into())}>
                         <List spacing=Space::None>
                             <ForEach keys={visible}>|id: Uuid|
                                 <Layer state id />

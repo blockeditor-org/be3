@@ -76,7 +76,6 @@ const PAGE_SPACING: Space = Space::Xl3;
 const SECTION_SPACING: Space = Space::Lg;
 const ROW_SPACING: Space = Space::Lg;
 const CODE_PADDING: Space = Space::Lg;
-const DARK_BACKGROUND: u32 = 384;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 enum Page {

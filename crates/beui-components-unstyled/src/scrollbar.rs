@@ -8,7 +8,7 @@ use beui_view::reactive::Draw;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::Painter;
 use beui_view::reactive::*;
-use beui_view::types::Color32;
+use beui_view::types::Color;
 use beui_view::types::PointerPress;
 use beui_view::types::{Direction, ScrollPosition};
 use beui_view::types::{Rect, pos2};
@@ -60,11 +60,12 @@ pub fn thumb_rect(rect: Rect, direction: Direction, position: ScrollPosition) ->
 pub fn ScrollbarThumb(
     position: Memo<ScrollPosition>,
     direction: Prop<Direction>,
-    color: Prop<Color32>,
+    color: Prop<Color>,
     #[prop(default = 0.0)] radius: f32,
 ) -> NodeId {
     let draw = Prop::dynamic(move || {
-        let (position, direction, color) = (position.get(), direction.get(), color.get());
+        let (position, direction) = (position.get(), direction.get());
+        let color = resolve_color(color.get());
         Rc::new(move |painter: &Painter, rect: Rect| {
             if color.alpha() == 0 {
                 return;
@@ -75,9 +76,9 @@ pub fn ScrollbarThumb(
             painter.rect_filled(thumb, radius, color);
         }) as Draw
     });
-    let opacity = create_memo(move || match color.get().alpha() {
-        0 => 0.0,
-        _ => 1.0,
+    let opacity = create_memo(move || match color.get().is_clear() {
+        true => 0.0,
+        false => 1.0,
     });
     view! {
         <Frame opacity>

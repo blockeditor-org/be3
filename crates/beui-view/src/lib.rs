@@ -2,6 +2,7 @@ extern crate self as beui;
 
 pub mod actions;
 pub mod animation;
+pub mod colors;
 pub mod component_ref;
 pub mod components;
 pub mod drag;

@@ -47,7 +47,7 @@ pub(crate) fn TagsMenu(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
                 });
                 let color = create_memo(move || {
                     let held = info.get().and_then(|info| info.metadata.get(&TAG_COLOR)).unwrap_or_default();
-                    Some(tag_color(held, theme.kind.get()))
+                    Some(block_editor_beui::beui::Color::from(tag_color(held, theme.kind.get())))
                 });
                 let on = create_memo(move || {
                     block.is_some_and(|block| {

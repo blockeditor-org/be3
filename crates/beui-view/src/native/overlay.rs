@@ -20,7 +20,7 @@ use crate::reactive::with_document;
 use beui_core::base::overlay::OverlayAnchor;
 use beui_core::base::overlay::Placement;
 use beui_core::base::overlay::WindowSpec;
-use beui_core::color::Color32;
+use beui_core::color::Color;
 use beui_core::layer::Dismiss;
 use beui_core::layer::LayerLevel;
 use beui_core::layer::LayerPolicy;
@@ -56,7 +56,7 @@ struct Mounted {
 pub fn overlay(
     anchor: Prop<OverlayAnchor>,
     placement: Prop<Placement>,
-    scrim: Prop<Color32>,
+    scrim: Prop<Color>,
     policy: Prop<LayerPolicy>,
     level: Prop<LayerLevel>,
     traps_focus: Prop<bool>,

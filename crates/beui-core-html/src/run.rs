@@ -2,7 +2,7 @@ use std::cell::Cell;
 
 use beui_html::Node;
 
-use beui_types::{Color32, ThemeKind};
+use beui_types::{Color, ColorScheme};
 use reactive::{Get, Set, Signal, create_binding};
 
 use crate::document::{append, create, element, set_attribute, set_style};
@@ -11,6 +11,8 @@ use crate::node::NodeId;
 pub const PINK: &str = "#ff69b4";
 
 pub const BASE_STYLES: &str = "\
+.beui-root[data-scheme=light] { color-scheme: light; }
+.beui-root[data-scheme=dark] { color-scheme: dark; }
 .beui-root { color-scheme: light dark; display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); width: 100%; height: 100%; }
 .beui-root, .beui-root * { box-sizing: border-box; margin: 0; }
 .beui-break::after { content: \"\\A\"; white-space: pre; }
@@ -39,12 +41,12 @@ pub fn stylesheet() -> String {
 
 thread_local! {
     static ROOT: Cell<Option<NodeId>> = const { Cell::new(None) };
-    static BACKGROUND: Signal<Option<Color32>> = crate::global_signal(None);
+    static BACKGROUND: Signal<Option<Color>> = crate::global_signal(None);
 }
 
-pub fn set_background(color: Color32) {
+pub fn set_background(color: Color) {
     BACKGROUND.with(|background| background.set(Some(color)));
-    crate::page::set_background(color);
+    crate::page::set_background(crate::colors::resolve(color));
 }
 
 pub fn root() -> Option<NodeId> {
@@ -57,9 +59,25 @@ fn root_element(build: impl FnOnce() -> NodeId) -> Node {
     let root = create("Root", "div");
     set_attribute(root, "class", Some("beui-root".to_owned()));
     append(root, child);
+    let colors = create("Colors", "style");
+    append(root, colors);
+    let css = Node::text(String::new());
+    if let Some(colors) = element(colors) {
+        beui_tree::reactive::IntoSlotHost::<Node>::into_slot_host(&colors).append(css.clone());
+    }
+    let definitions = crate::colors::definitions();
+    create_binding(move || css.set_text(definitions.with(crate::colors::stylesheet)));
+    let chosen = crate::page::chosen_theme();
+    create_binding(move || {
+        let scheme = chosen.get().map(|theme| match ColorScheme::from(theme) {
+            ColorScheme::Light => "light".to_owned(),
+            ColorScheme::Dark => "dark".to_owned(),
+        });
+        set_attribute(root, "data-scheme", scheme);
+    });
     let background = BACKGROUND.with(|background| *background);
     create_binding(move || {
-        let color = background.get().filter(|color| color.alpha() > 0);
+        let color = background.get().filter(|color| !color.is_clear());
         set_style(root, "background-color", color.map(crate::css::color));
     });
     ROOT.with(|held| held.set(Some(root)));
@@ -67,16 +85,7 @@ fn root_element(build: impl FnOnce() -> NodeId) -> Node {
 }
 
 pub fn render_to_string(build: impl FnOnce() -> NodeId) -> String {
-    beui_html::render_fragment(|| {
-        crate::page::set_theme(ThemeKind::Dark);
-        let root = root_element(build);
-        reactive::flush();
-        let dark = crate::document::styles();
-        crate::page::set_theme(ThemeKind::Light);
-        reactive::flush();
-        crate::document::write_both_schemes(dark);
-        root
-    })
+    beui_html::render_fragment(|| root_element(build))
 }
 
 #[cfg(target_arch = "wasm32")]

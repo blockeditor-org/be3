@@ -1,5 +1,6 @@
 pub mod automate;
 pub mod canvas;
+pub mod colors;
 pub mod css;
 pub mod document;
 pub mod dom;

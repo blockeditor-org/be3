@@ -4,7 +4,7 @@ use std::ops::Range;
 use beui_core::base::offset::{OffsetNode, ScrollPosition};
 use beui_core::base::overlay::OverlayNode;
 use beui_core::base::text::TextNode;
-use beui_core::color::Color32;
+use beui_core::color::Color;
 use beui_core::document::Document;
 use beui_core::geometry::{Pos2, Rect};
 use beui_core::layer::{Dismiss, LayerPolicy};
@@ -149,7 +149,7 @@ pub fn text(node: NodeId) -> String {
     })
 }
 
-pub fn set_text_selection(node: NodeId, selection: Option<(Range<usize>, Color32)>) {
+pub fn set_text_selection(node: NodeId, selection: Option<(Range<usize>, Color)>) {
     with_document(|document| {
         if let Some(text) = text_node(document, node) {
             document.set_text_selection(text, selection);
@@ -157,7 +157,7 @@ pub fn set_text_selection(node: NodeId, selection: Option<(Range<usize>, Color32
     });
 }
 
-pub fn set_text_selection_handles(node: NodeId, handles: Vec<(usize, CaretHandle, Color32)>) {
+pub fn set_text_selection_handles(node: NodeId, handles: Vec<(usize, CaretHandle, Color)>) {
     with_document(|document| {
         if let Some(text) = text_node(document, node) {
             document.set_text_selection_handles(text, handles);

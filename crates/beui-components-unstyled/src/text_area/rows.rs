@@ -6,7 +6,7 @@ use text_editor_core::{
 };
 
 use beui_view::reactive::*;
-use beui_view::types::Color32;
+use beui_view::types::Color;
 use beui_view::types::SpanStyle;
 use beui_view::types::Vec2;
 use beui_view::types::{DEFAULT_FONT_SIZE, Piece};
@@ -321,7 +321,7 @@ impl Row {
 pub struct RowInputs<'a> {
     pub snapshot: &'a Snapshot,
     pub widgets: &'a [TextWidget],
-    pub client_colors: &'a [(u64, Color32)],
+    pub client_colors: &'a [(u64, Color)],
     pub composition: Option<&'a Composition>,
     pub colors: &'a TextAreaColors,
     pub options: RowOptions,
@@ -538,7 +538,7 @@ impl Builder<'_> {
         });
     }
 
-    fn client_color(&self, client: u64) -> Option<Color32> {
+    fn client_color(&self, client: u64) -> Option<Color> {
         self.inputs
             .client_colors
             .iter()
@@ -546,7 +546,7 @@ impl Builder<'_> {
             .map(|(_, color)| *color)
     }
 
-    fn author_color(&self, index: usize) -> Option<Color32> {
+    fn author_color(&self, index: usize) -> Option<Color> {
         if self.inputs.client_colors.is_empty() {
             return None;
         }
@@ -937,7 +937,7 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
     builder.row.space = line_space(&look, line, &options);
     if newline && invisibles {
         let style = SpanStyle {
-            color: Color32::TRANSPARENT,
+            color: Color::TRANSPARENT,
             underline: false,
             strikethrough: false,
             ..builder.span_style(style_at(end))

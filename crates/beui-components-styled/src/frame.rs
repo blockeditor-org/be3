@@ -3,7 +3,7 @@ use beui_view::primitives;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::{Child, Get, IntoProp, Memo, Prop, create_memo, focus_ring};
 use beui_view::types::{Align2, Corners, Outline};
-use beui_view::types::{Color32, Sides, Vec2};
+use beui_view::types::{Color, Sides, Vec2};
 
 use crate::theme::{ThemeStore, use_theme};
 use crate::tokens::{CornerSet, Length, Padding, Stroke, resolved};
@@ -44,7 +44,7 @@ pub enum ColorRole {
     Scrim,
     ScrimSoft,
     ScrimStrong,
-    Custom(Color32),
+    Custom(Color),
 }
 
 impl ColorRole {
@@ -84,9 +84,9 @@ impl ColorRole {
         ColorRole::ScrimStrong,
     ];
 
-    pub fn resolve(self, theme: &ThemeStore) -> Color32 {
+    pub fn resolve(self, theme: &ThemeStore) -> Color {
         match self {
-            ColorRole::None => Color32::TRANSPARENT,
+            ColorRole::None => Color::TRANSPARENT,
             ColorRole::Background => theme.background.get(),
             ColorRole::Surface => theme.surface.get(),
             ColorRole::SurfaceRaised => theme.surface_raised.get(),
@@ -115,9 +115,9 @@ impl ColorRole {
             ColorRole::Track => theme.track.get(),
             ColorRole::Knob => theme.knob.get(),
             ColorRole::ControlOutline => {
-                theme.control_outline.get().unwrap_or(Color32::TRANSPARENT)
+                theme.control_outline.get().unwrap_or(Color::TRANSPARENT)
             }
-            ColorRole::KnobOutline => theme.knob_outline.get().unwrap_or(Color32::TRANSPARENT),
+            ColorRole::KnobOutline => theme.knob_outline.get().unwrap_or(Color::TRANSPARENT),
             ColorRole::Dim => theme.dim.get(),
             ColorRole::Scrim => theme.scrim.get(),
             ColorRole::ScrimSoft => theme.scrim_soft.get(),
@@ -166,7 +166,7 @@ impl ColorRole {
         }
     }
 
-    pub fn custom(color: impl IntoProp<Color32>) -> Prop<ColorRole> {
+    pub fn custom(color: impl IntoProp<Color>) -> Prop<ColorRole> {
         color.into_prop().map(ColorRole::Custom)
     }
 
@@ -281,7 +281,7 @@ pub fn focus_border(focused: impl IntoProp<bool>, border: Border) -> Memo<Option
     create_memo(move || ring.get().then_some(border))
 }
 
-fn fill_color(fill: Prop<ColorRole>, theme: ThemeStore) -> Prop<Color32> {
+fn fill_color(fill: Prop<ColorRole>, theme: ThemeStore) -> Prop<Color> {
     match fill {
         Prop::Static(role) if !role.themed() => Prop::Static(role.resolve(&theme)),
         fill => Prop::dynamic(move || fill.get().resolve(&theme)),

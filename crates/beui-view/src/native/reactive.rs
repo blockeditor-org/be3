@@ -116,7 +116,7 @@ pub fn holds_focus(node: NodeRef) -> Memo<bool> {
 
 pub fn focus_outline(
     focused: impl IntoProp<bool>,
-    color: impl IntoProp<beui_core::color::Color32>,
+    color: impl IntoProp<beui_core::color::Color>,
     width: f32,
     offset: f32,
 ) -> Memo<Option<Outline>> {

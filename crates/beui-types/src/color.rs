@@ -379,5 +379,8 @@ pub fn parse_hex(text: &str) -> Option<Color32> {
     }
 }
 
+mod reference;
+pub use reference::{Color, ColorDefinitions, ColorScheme, ColorSource, ColorVar, SchemeColors};
+
 #[cfg(test)]
 mod tests;

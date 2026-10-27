@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use beui_tree::reactive::*;
 
-use crate::types::{Color32, KeyPhase, Outline};
+use crate::types::{Color, KeyPhase, Outline};
 use beui_core_html::keys::KeyHandler;
 
 pub use beui_core_html::drawing::Draw;
@@ -31,7 +31,7 @@ pub fn holds_focus(node: NodeRef) -> Memo<bool> {
 
 pub fn focus_outline(
     focused: impl IntoProp<bool>,
-    color: impl IntoProp<Color32>,
+    color: impl IntoProp<Color>,
     width: f32,
     offset: f32,
 ) -> Memo<Option<Outline>> {

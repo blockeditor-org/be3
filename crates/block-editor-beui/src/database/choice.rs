@@ -92,14 +92,14 @@ pub fn ChoiceMark(
     let dot_color = create_memo(move || {
         let kind = theme.kind.get();
         option.with(|option| match option {
-            Some(option) => ColorRole::Custom(choice_color(option.color, kind)),
+            Some(option) => ColorRole::Custom(choice_color(option.color, kind).into()),
             None => ColorRole::TextMuted,
         })
     });
     let color = create_memo(move || {
         let kind = theme.kind.get();
         option.with(|option| match option {
-            Some(option) => TextColor::Custom(choice_color(option.color, kind)),
+            Some(option) => TextColor::Custom(choice_color(option.color, kind).into()),
             None => TextColor::Muted,
         })
     });

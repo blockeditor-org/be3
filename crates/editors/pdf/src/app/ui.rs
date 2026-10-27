@@ -166,7 +166,7 @@ fn PageCanvas(
         <List spacing=Space::None>
             <Canvas @sizing=ItemSize::Percent(100.0) view={view}>
                 <CanvasItem x=0.0 y=0.0 width={width} height={height}>
-                    <Frame fill={ColorRole::Custom(PAGE_FILL)} />
+                    <Frame fill={ColorRole::Custom(PAGE_FILL.into())} />
                 </CanvasItem>
                 <ForEach keys={keys}>|index: usize| {
                     let tile = create_memo(move || {

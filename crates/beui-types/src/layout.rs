@@ -1,7 +1,7 @@
 use beui_tree::reactive::{Get, IntoProp, Memo, Prop, ReadSignal, Signal};
 use geometry::{Pos2, Rect, Vec2, pos2, vec2};
 
-use crate::color::Color32;
+use crate::color::Color;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Direction {
@@ -179,15 +179,15 @@ impl IntoProp<Sizing> for Memo<ItemSize> {
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Outline {
-    pub color: Color32,
+    pub color: Color,
     pub width: f32,
     pub offset: f32,
 }
 
 impl Outline {
-    pub const fn new(color: Color32, width: f32) -> Self {
+    pub fn new(color: impl Into<Color>, width: f32) -> Self {
         Self {
-            color,
+            color: color.into(),
             width,
             offset: 0.0,
         }

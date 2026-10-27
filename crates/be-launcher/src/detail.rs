@@ -168,10 +168,10 @@ fn StateBadge(state: Memo<State>) -> NodeId {
     let fill = create_memo(move || match state.get() {
         State::Open => theme.success.get(),
         State::Draft => theme.surface_raised.get(),
-        State::Merged => MERGED,
+        State::Merged => MERGED.into(),
         State::Closed => theme.danger.get(),
     });
-    let ink = create_memo(move || TextColor::Custom(readable_on(fill.get())));
+    let ink = create_memo(move || TextColor::Custom(readable_on(resolve_color(fill.get())).into()));
     let glyph = create_memo(move || state_glyph(state.get()).to_owned());
     let label = create_memo(move || {
         match state.get() {
@@ -245,7 +245,7 @@ fn CommentCard(
         <Frame padding={Padding::vertical(Space::Sm)}>
             <Frame
                 fill=ColorRole::Surface
-                border={create_memo(move || Some(Border::new(ColorRole::Custom(outline.get())).width(Stroke::Hairline)))}
+                border={create_memo(move || Some(Border::new(ColorRole::Custom(outline.get().into())).width(Stroke::Hairline)))}
                 radius=Radius::Lg
             >
                 <List spacing=Space::None>

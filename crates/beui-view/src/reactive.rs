@@ -8,6 +8,7 @@ pub use crate::actions::{
 pub use crate::animation::{
     Animation, AnimationFrame, Easing, Fling, Motion, Spring, create_animation, motion, tween,
 };
+pub use crate::colors::{color_definitions, color_scheme, define_colors, resolve_color};
 pub use crate::component_ref::ComponentRef;
 #[cfg(not(beui_html))]
 pub use crate::core::reactive::*;

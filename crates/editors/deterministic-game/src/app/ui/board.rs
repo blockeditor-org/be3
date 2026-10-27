@@ -400,7 +400,7 @@ fn TableItem(
             _ => Mark::None,
         };
         let hidden = hidden.with(|hidden| hidden.contains(&id));
-        let theme = theme.get();
+        let theme = theme.get().resolve();
         Rc::new(move |painter: &Painter, rect: Rect| {
             if let Some((placed, unit)) = &placed
                 && !hidden
@@ -436,7 +436,7 @@ fn SpotItem(spot: Spot, layout: Memo<Layout>, play: Play) -> CanvasItem {
     let draw: Prop<Draw> = Prop::dynamic(move || {
         let place = place.get();
         let mark = play.mark(spot);
-        let theme = theme.get();
+        let theme = theme.get().resolve();
         Rc::new(move |painter: &Painter, rect: Rect| {
             if let Some((place, unit)) = &place {
                 let zoom = rect.width() / place.rect.width().max(1.0) * unit;

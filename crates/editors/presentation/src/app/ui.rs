@@ -36,7 +36,7 @@ pub fn PresentationView(editor: Editor) -> NodeId {
 
     let editing = create_memo(move || !presenting.get());
     let background = create_memo(move || match presenting.get() {
-        true => ColorRole::Custom(PRESENTING),
+        true => ColorRole::Custom(PRESENTING.into()),
         false => ColorRole::Background,
     });
     let keys = move |press: KeyPress| presenting.get_untracked() && navigate(slides, press);
@@ -236,7 +236,7 @@ fn Playback(editor: Editor, slides: Slides) -> NodeId {
                 <Layers>
                     <Show condition={over}>
                         <Frame
-                            fill={ColorRole::Custom(PLAYBACK_SHADE)}
+                            fill={ColorRole::Custom(PLAYBACK_SHADE.into())}
                             padding={Padding::horizontal(Space::Lg)}
                         >
                             <List
@@ -253,7 +253,7 @@ fn Playback(editor: Editor, slides: Slides) -> NodeId {
                                     @test_id={"presentation.previous"}
                                 />
                                 <Text
-                                    color={TextColor::Custom(Color32::WHITE)}
+                                    color={TextColor::Custom(Color32::WHITE.into())}
                                     @test_id={"presentation.playback.position"}
                                 >
                                     {position}

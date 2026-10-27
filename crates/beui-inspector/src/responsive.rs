@@ -66,7 +66,7 @@ pub fn build(state: Stored<State>) -> Toolbar {
     let (device, zoom) = (NodeRef::new(), NodeRef::new());
     let mut document = Document::new();
     let root = enter(&mut document, move || {
-        provide_context(ThemeStore::new(Theme::DARK));
+        provide_context(ThemeStore::new(ThemeTokens::literal(&Theme::DARK)));
         view! {
             <ResponsiveToolbar state screen={screen.read_only()} device zoom />
         }

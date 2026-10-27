@@ -28,7 +28,7 @@ use beui_core::base::text::SpanHandle;
 use beui_core::base::text::TextNode;
 use beui_core::base::text::TextPart;
 use beui_core::base::text::TextStyle;
-use beui_core::color::Color32;
+use beui_core::color::Color;
 use beui_core::font::FontFamily;
 use beui_core::font::FontId;
 use beui_core::font::Overflow;
@@ -45,7 +45,7 @@ use std::rc::Rc;
 pub fn text(
     font: Prop<FontId>,
     line_height: Prop<Option<f32>>,
-    color: Prop<Color32>,
+    color: Prop<Color>,
     align: Prop<Option<TextAlign>>,
     vertical_align: Prop<Option<TextAlign>>,
     overflow: Prop<Overflow>,
@@ -70,7 +70,7 @@ pub fn text(
         string => (String::new(), Some(string)),
     };
     let node =
-        with_document(|document| document.create_text(initial, DEFAULT_FONT_SIZE, Color32::WHITE));
+        with_document(|document| document.create_text(initial, DEFAULT_FONT_SIZE, Color::WHITE));
     create_binding(move || {
         let horizontal = align.get();
         let style = TextStyle {
@@ -245,7 +245,7 @@ crate::value_child_type!(SpanText);
 pub struct Span {
     text: Prop<String>,
     font: Prop<FontPatch>,
-    color: Prop<Option<Color32>>,
+    color: Prop<Option<Color>>,
     underline: Prop<Option<bool>>,
     strikethrough: Prop<Option<bool>>,
     background: Prop<Option<SpanBackground>>,
@@ -359,7 +359,7 @@ pub fn span(
     family: Prop<Option<FontFamily>>,
     bold: Prop<Option<bool>>,
     italic: Prop<Option<bool>>,
-    color: Prop<Option<Color32>>,
+    color: Prop<Option<Color>>,
     underline: Prop<Option<bool>>,
     strikethrough: Prop<Option<bool>>,
     background: Prop<Option<SpanBackground>>,
@@ -408,7 +408,7 @@ pub fn icon(
     size: Prop<Option<f32>>,
     scale: f32,
     spacing_em: f32,
-    color: Prop<Option<Color32>>,
+    color: Prop<Option<Color>>,
 ) -> Span {
     Span {
         font: size.map(|size| FontPatch {

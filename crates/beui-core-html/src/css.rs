@@ -1,5 +1,5 @@
 use beui_types::{
-    Align, Color32, Corners, Direction, Extent, FontFamily, FontId, Justify, Outline, Sides, Track,
+    Align, Color, Color32, ColorSource, Corners, Direction, Extent, FontFamily, FontId, Justify, Outline, Sides, Track,
 };
 
 pub fn number(value: f32) -> String {
@@ -15,7 +15,32 @@ pub fn px(value: f32) -> String {
     format!("{}px", number(value))
 }
 
-pub fn color(color: Color32) -> String {
+pub fn color(color: Color) -> String {
+    if let Some(literal) = color.as_literal() {
+        return literal_color(literal);
+    }
+    let source = |source: ColorSource| match source {
+        ColorSource::Literal(color) => literal_color(color),
+        ColorSource::Var(var) => format!("var(--{})", var.name()),
+    };
+    let mut out = source(color.source());
+    if let Some((other, share)) = color.mixed() {
+        out = format!(
+            "color-mix(in srgb, {out}, {} {}%)",
+            source(other),
+            number(share * 100.0)
+        );
+    }
+    match color.alpha_factor() {
+        1.0 => out,
+        alpha => format!(
+            "color-mix(in srgb, {out} {}%, transparent)",
+            number(alpha * 100.0)
+        ),
+    }
+}
+
+pub fn literal_color(color: Color32) -> String {
     let [red, green, blue, alpha] = color.to_array();
     match alpha {
         255 => format!("#{red:02x}{green:02x}{blue:02x}"),
@@ -155,70 +180,3 @@ pub fn fade(fade: Sides) -> Option<String> {
     (!layers.is_empty()).then(|| layers.join(", "))
 }
 
-fn color_at(value: &str) -> Option<usize> {
-    if let Some(rest) = value.strip_prefix('#') {
-        let digits = rest.bytes().take_while(u8::is_ascii_hexdigit).count();
-        return matches!(digits, 6 | 8).then_some(1 + digits);
-    }
-    if value.starts_with("transparent") {
-        return Some("transparent".len());
-    }
-    if value.starts_with("rgba(") {
-        return value.find(')').map(|end| end + 1);
-    }
-    None
-}
-
-fn split_colors(value: &str) -> (Vec<&str>, Vec<&str>) {
-    let mut rest = Vec::new();
-    let mut colors = Vec::new();
-    let mut start = 0;
-    let mut at = 0;
-    while at < value.len() {
-        match value.is_char_boundary(at).then(|| color_at(&value[at..])).flatten() {
-            Some(length) => {
-                rest.push(&value[start..at]);
-                colors.push(&value[at..at + length]);
-                at += length;
-                start = at;
-            }
-            None => at += 1,
-        }
-    }
-    rest.push(&value[start..]);
-    (rest, colors)
-}
-
-pub fn transparent(value: &str) -> String {
-    let (rest, colors) = split_colors(value);
-    let mut out = String::new();
-    for (index, part) in rest.iter().enumerate() {
-        out.push_str(part);
-        if index < colors.len() {
-            out.push_str("transparent");
-        }
-    }
-    out
-}
-
-pub fn light_dark(light: &str, dark: &str) -> Option<String> {
-    if light == dark {
-        return Some(light.to_owned());
-    }
-    let (rest, light_colors) = split_colors(light);
-    let (dark_rest, dark_colors) = split_colors(dark);
-    if rest != dark_rest || light_colors.len() != dark_colors.len() {
-        return None;
-    }
-    let mut out = String::new();
-    for (index, part) in rest.iter().enumerate() {
-        out.push_str(part);
-        if let (Some(light), Some(dark)) = (light_colors.get(index), dark_colors.get(index)) {
-            match light == dark {
-                true => out.push_str(light),
-                false => out.push_str(&format!("light-dark({light}, {dark})")),
-            }
-        }
-    }
-    Some(out)
-}

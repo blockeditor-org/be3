@@ -302,7 +302,7 @@ pub(crate) fn StateIcon(state: Memo<State>) -> NodeId {
     let color = create_memo(move || match state.get() {
         State::Open => TextColor::Success,
         State::Draft => TextColor::Muted,
-        State::Merged => TextColor::Custom(MERGED),
+        State::Merged => TextColor::Custom(MERGED.into()),
         State::Closed => TextColor::Danger,
     });
     view! {
@@ -328,7 +328,7 @@ pub(crate) fn Labels(labels: Memo<Vec<Label>>, checked_out: Memo<bool>) -> NodeI
     view! {
         <List direction=Direction::Horizontal spacing=Space::Sm>
             <Show condition={checked_out}>
-                <Chip text=CURRENT color={theme.accent} />
+                <Chip text=CURRENT color={create_memo(move || resolve_color(theme.accent.get()))} />
             </Show>
             <ForEach keys>|index: usize| {
                 let label = create_memo(move || labels.get().get(index).cloned());
@@ -345,7 +345,7 @@ pub(crate) fn Labels(labels: Memo<Vec<Label>>, checked_out: Memo<bool>) -> NodeI
 
 #[component]
 fn Chip(text: Prop<String>, color: Prop<Color32>) -> NodeId {
-    let ink = create_memo(move || TextColor::Custom(readable_on(color.get())));
+    let ink = create_memo(move || TextColor::Custom((readable_on(color.get())).into()));
     view! {
         <Frame
             fill={ColorRole::custom(color)}

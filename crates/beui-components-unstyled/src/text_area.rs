@@ -30,7 +30,7 @@ use beui_view::reactive::ImeCursor;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::CaretHandle;
-use beui_view::types::Color32;
+use beui_view::types::Color;
 use beui_view::types::Dismiss;
 use beui_view::types::FontId;
 use beui_view::types::PickedFile;
@@ -72,7 +72,7 @@ const HANDLE_SLACK: f32 = 0.5;
 pub struct RemoteTextCursor {
     pub selection: Range<usize>,
     pub caret: usize,
-    pub color: Color32,
+    pub color: Color,
 }
 
 type GeometryCell = Rc<Cell<Option<NodeId>>>;
@@ -160,7 +160,7 @@ struct Surface {
     starts: Memo<Rc<Vec<usize>>>,
     visible: Memo<Vec<usize>>,
     widgets: Memo<Vec<TextWidget>>,
-    client_colors: Memo<Vec<(u64, Color32)>>,
+    client_colors: Memo<Vec<(u64, Color)>>,
     colors: Memo<TextAreaColors>,
     geometry: Memo<TextAreaGeometry>,
     composition: Memo<Option<Composition>>,
@@ -1140,7 +1140,7 @@ pub fn TextArea(
     padding: Prop<Sides>,
     #[prop(default = None)] prose: Prop<Option<Prose>>,
     #[prop(default = false)] show_runs: Prop<bool>,
-    #[prop(default = Vec::new())] client_colors: Prop<Vec<(u64, Color32)>>,
+    #[prop(default = Vec::new())] client_colors: Prop<Vec<(u64, Color)>>,
     #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
     accessibility: Option<Prop<Node>>,
     frame: Option<Render<Child>>,

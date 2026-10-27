@@ -161,7 +161,7 @@ pub(crate) fn ArtworkCanvas(
             return;
         }
         let (pixels, color) = pending(tools, hovered.get(), width, height);
-        let dark = is_dark(background.get());
+        let dark = is_dark(resolve_color(background.get()));
         pane.refresh(&tools.block(), dark, &pixels, color);
     });
 
@@ -367,7 +367,7 @@ fn Artwork(
             </CanvasItem>
             <CanvasItem x={left} y={top} width={width} height={height}>
                 <Frame
-                    border={create_memo(move || Some(Border::new(ColorRole::Custom(Color32::from_rgba_unmultiplied(0, 0, 0, BORDER_ALPHA))).width(Stroke::Custom(thin.get()))))}
+                    border={create_memo(move || Some(Border::new(ColorRole::Custom(Color32::from_rgba_unmultiplied(0, 0, 0, BORDER_ALPHA).into())).width(Stroke::Custom(thin.get()))))}
                 />
             </CanvasItem>
             <Show condition={has_preview}>
@@ -402,7 +402,7 @@ fn Artwork(
                 view! {
                     <CanvasItem x={x} y={y} width={line_width} height={line_height}>
                         <Frame
-                            fill={ColorRole::Custom(Color32::from_rgba_unmultiplied(0, 0, 0, GRID_ALPHA))}
+                            fill={ColorRole::Custom(Color32::from_rgba_unmultiplied(0, 0, 0, GRID_ALPHA).into())}
                         />
                     </CanvasItem>
                 }
@@ -410,7 +410,7 @@ fn Artwork(
             <Show condition={over}>
                 <CanvasItem x={hover_x} y={hover_y} width={hover_size} height={hover_size}>
                     <Frame
-                        border={Border::new(ColorRole::Custom(Color32::WHITE)).width(Stroke::Hairline)}
+                        border={Border::new(ColorRole::Custom(Color32::WHITE.into())).width(Stroke::Hairline)}
                     />
                 </CanvasItem>
             </Show>

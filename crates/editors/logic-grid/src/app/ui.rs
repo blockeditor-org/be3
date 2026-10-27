@@ -290,7 +290,7 @@ fn GridLabel(label: Memo<Option<ComponentLabel>>, zoom: Memo<f32>) -> CanvasItem
         )
     });
     let color = create_memo(move || {
-        TextColor::Custom(label.get().map_or(LABEL_COLOR, |label| label.kind.color()))
+        TextColor::Custom((label.get().map_or(LABEL_COLOR, |label| label.kind.color())).into())
     });
     let align = create_memo(move || label.get().map_or(TextAlign::Center, |label| label.align));
     let vertical_align = create_memo(move || {

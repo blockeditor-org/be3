@@ -353,7 +353,7 @@ fn SwatchFace(handle: SwatchHandle) -> NodeId {
                 width=SWATCH_SIZE
                 height=SWATCH_SIZE
                 fill={ColorRole::custom(color)}
-                border={Border::new(ColorRole::Custom(OUTLINE_DARK))}
+                border={Border::new(ColorRole::Custom(OUTLINE_DARK.into()))}
                 radius=Radius::Sm
             />
         </Frame>

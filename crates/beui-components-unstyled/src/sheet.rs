@@ -15,7 +15,7 @@ use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::Claim;
-use beui_view::types::Color32;
+use beui_view::types::Color;
 use beui_view::types::Direction;
 use beui_view::types::ItemSize;
 use beui_view::types::ScrollPosition;
@@ -1255,7 +1255,7 @@ pub fn ModalSheet(
     stops: Vec<f32>,
     #[prop(default = false)] fit: bool,
     #[prop(default = 0.0)] fade: f32,
-    scrim: Prop<Color32>,
+    scrim: Prop<Color>,
     grip: Render<SheetGripHandle>,
     panel: Render<Child>,
     on_close: ClickCallback,

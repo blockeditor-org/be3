@@ -5,7 +5,7 @@ use accesskit::{Node, Role, Toggled};
 use beui_macros::{component, view};
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
-use beui_view::types::Color32;
+use beui_view::types::Color;
 use beui_view::types::Image;
 use beui_view::types::icons::Glyph;
 
@@ -109,7 +109,7 @@ pub fn CommandPalette(
     #[prop(default = "Command palette".to_owned())] label: Prop<String>,
     list_height: Prop<f32>,
     spacing: f32,
-    scrim: Prop<Color32>,
+    scrim: Prop<Color>,
     search_placeholder: Prop<String>,
     search_content: RenderFn<TextInputHandle>,
     search_style: TextInputStyle,

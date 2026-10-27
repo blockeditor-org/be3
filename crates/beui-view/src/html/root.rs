@@ -6,7 +6,7 @@ use crate::reactive::NodeId;
 use crate::reactive::Prop;
 use crate::reactive::ScopeContext;
 use crate::reactive::create_effect;
-use crate::types::Color32;
+use crate::types::Color;
 use crate::types::SystemBars;
 
 pub struct Root {
@@ -32,7 +32,7 @@ impl Root {
 }
 
 pub fn root(
-    clear_color: Prop<Color32>,
+    clear_color: Prop<Color>,
     title: Option<Prop<String>>,
     system_bars: Prop<SystemBars>,
     children: Child,

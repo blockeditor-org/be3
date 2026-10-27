@@ -9,7 +9,7 @@ use beui_core::base::frame::FrameNode;
 use beui_core::base::frame::FrameStyle;
 use beui_core::base::frame::Outline;
 use beui_core::base::frame::Sides;
-use beui_core::color::Color32;
+use beui_core::color::Color;
 use beui_core::document::Document;
 use beui_core::geometry::Vec2;
 use beui_core::node::NodeId;
@@ -36,7 +36,7 @@ pub fn frame(
     aspect_ratio: Prop<Option<f32>>,
     padding: Prop<Sides>,
     align: Prop<Align2>,
-    fill: Prop<Color32>,
+    fill: Prop<Color>,
     radius: Prop<Corners>,
     outline: Prop<Option<Outline>>,
     translate: Prop<Vec2>,

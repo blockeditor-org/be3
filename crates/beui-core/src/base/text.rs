@@ -5,7 +5,7 @@ use std::ops::Range;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use crate::color::{Color32, format_hex};
+use crate::color::Color;
 use crate::font::{FontFamily, FontId, Galley, TextLayout};
 use crate::font::{Overflow, TextAlign, WrapAt};
 use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
@@ -64,7 +64,7 @@ pub struct IconSpan {
 pub struct SpanContent {
     pub text: String,
     pub font: FontPatch,
-    pub color: Option<Color32>,
+    pub color: Option<Color>,
     pub underline: Option<bool>,
     pub strikethrough: Option<bool>,
     pub background: Option<SpanBackground>,
@@ -284,7 +284,7 @@ pub struct TextItemNode {
 pub struct TextStyle {
     pub font: FontId,
     pub line_height: Option<f32>,
-    pub color: Color32,
+    pub color: Color,
     pub horizontal: TextAlign,
     pub vertical: TextAlign,
     pub overflow: Overflow,
@@ -299,7 +299,7 @@ pub struct TextNode {
     content: String,
     font: FontId,
     line_height: Option<f32>,
-    color: Color32,
+    color: Color,
     horizontal: TextAlign,
     vertical: TextAlign,
     overflow: Overflow,
@@ -310,8 +310,8 @@ pub struct TextNode {
     glyphs: Vec<TextGlyph>,
     carets: Vec<TextCaret>,
     since: Cell<Instant>,
-    selection: Option<(Range<usize>, Color32)>,
-    handles: Vec<(usize, CaretHandle, Color32)>,
+    selection: Option<(Range<usize>, Color)>,
+    handles: Vec<(usize, CaretHandle, Color)>,
     placed: Rc<RefCell<Option<Placed>>>,
     shaped: RefCell<Option<Shaped>>,
     galleys: RefCell<Galleys>,
@@ -340,7 +340,7 @@ enum Flow<'a> {
 
 impl TextNode {
     pub fn accessible_text(&self) -> Option<&str> {
-        let seen = |color: Color32| color.alpha() > 0;
+        let seen = |color: Color| !color.is_clear();
         let shown = (!self.string.content().text.is_empty() && seen(self.color))
             || self.parts.iter().any(|part| match part {
                 TextPart::Span(span) => {
@@ -371,7 +371,7 @@ impl TextNode {
     fn style(&self) -> SpanStyle {
         SpanStyle {
             font: self.font,
-            color: Color32::TRANSPARENT,
+            color: Color::TRANSPARENT,
             underline: false,
             strikethrough: false,
         }
@@ -702,19 +702,19 @@ impl TextNode {
             Some(span) => {
                 let content = span.content();
                 (
-                    content.color.unwrap_or(self.color),
+                    doc.resolve_color(content.color.unwrap_or(self.color)),
                     content.underline.unwrap_or(self.underline),
                     content.strikethrough.unwrap_or(false),
                 )
             }
-            None => (self.color, self.underline, false),
+            None => (doc.resolve_color(self.color), self.underline, false),
         };
         let fill = |range: Range<usize>, background: SpanBackground| {
             for area in layout.selection_rects(range) {
                 painter.rect_filled(
                     area.expand2(background.outset).translate(origin),
                     background.radius,
-                    background.color,
+                    doc.resolve_color(background.color),
                 );
             }
         };
@@ -739,7 +739,7 @@ impl TextNode {
         if let Some((held, background)) = run {
             fill(held, background);
         }
-        let plain = |color: Color32| SpanBackground {
+        let plain = |color: Color| SpanBackground {
             color,
             radius: 0.0,
             outset: Vec2::ZERO,
@@ -758,7 +758,7 @@ impl TextNode {
                     area.center().x - shaped.size().x / 2.0,
                     baseline - shaped.baseline(),
                 );
-                painter.galley(at + origin, shaped.clone(), glyph.color);
+                painter.galley(at + origin, shaped.clone(), doc.resolve_color(glyph.color));
             }
         }
         for item in self.parts.nodes() {
@@ -792,15 +792,15 @@ impl TextNode {
                 let (shape, corners, angle) = handle_shape(area, handle);
                 painter
                     .rotated(shape.center(), angle)
-                    .rect_filled(shape, corners, caret.color);
+                    .rect_filled(shape, corners, doc.resolve_color(caret.color));
                 continue;
             }
-            painter.rect_filled(area, 0.0, caret.color);
+            painter.rect_filled(area, 0.0, doc.resolve_color(caret.color));
             if caret.flag {
                 painter.rect_filled(
                     Rect::from_min_size(pos2(area.min.x, area.min.y - CARET_FLAG.y), CARET_FLAG),
                     0.0,
-                    caret.color,
+                    doc.resolve_color(caret.color),
                 );
             }
         }
@@ -810,7 +810,7 @@ impl TextNode {
                 let (shape, corners, angle) = handle_shape(caret, *handle);
                 painter
                     .rotated(shape.center(), angle)
-                    .rect_filled(shape, corners, *color);
+                    .rect_filled(shape, corners, doc.resolve_color(*color));
             }
         }
     }
@@ -932,7 +932,7 @@ impl Element for TextNode {
                 self.line_height
                     .map_or_else(|| "auto".to_owned(), |height| height.to_string()),
             ),
-            ("color", format_hex(self.color, true)),
+            ("color", self.color.describe()),
             (
                 "align",
                 format!("{:?} {:?}", self.horizontal, self.vertical),
@@ -965,8 +965,9 @@ impl Document {
         &mut self,
         content: impl Into<String>,
         font_size: f32,
-        color: Color32,
+        color: impl Into<Color>,
     ) -> NodeOf<TextNode> {
+        let color = color.into();
         let content = content.into();
         let since = Cell::new(self.now());
         self.arena.insert(TextNode {
@@ -1104,7 +1105,8 @@ impl Document {
         }
     }
 
-    pub fn set_text_color(&mut self, text: NodeOf<TextNode>, color: Color32) {
+    pub fn set_text_color(&mut self, text: NodeOf<TextNode>, color: impl Into<Color>) {
+        let color = color.into();
         if self.arena.get_as::<TextNode>(text).color != color {
             self.arena.paint_mut_as::<TextNode>(text).color = color;
         }
@@ -1113,7 +1115,7 @@ impl Document {
     pub fn set_text_selection_handles(
         &mut self,
         text: NodeOf<TextNode>,
-        handles: Vec<(usize, CaretHandle, Color32)>,
+        handles: Vec<(usize, CaretHandle, Color)>,
     ) {
         if self.arena.get_as::<TextNode>(text).handles != handles {
             self.arena.paint_mut_as::<TextNode>(text).handles = handles;
@@ -1123,7 +1125,7 @@ impl Document {
     pub fn set_text_selection(
         &mut self,
         text: NodeOf<TextNode>,
-        selection: Option<(Range<usize>, Color32)>,
+        selection: Option<(Range<usize>, Color)>,
     ) {
         if self.arena.get_as::<TextNode>(text).selection != selection {
             self.arena.paint_mut_as::<TextNode>(text).selection = selection;

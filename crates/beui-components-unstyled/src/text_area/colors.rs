@@ -1,33 +1,33 @@
 use text_editor_core::SynHlColorScope;
 
-use beui_view::types::Color32;
+use beui_view::types::Color;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct SyntaxColors {
-    pub invalid: Color32,
-    pub keyword: Color32,
-    pub keyword_storage: Color32,
-    pub keyword_primitive_type: Color32,
-    pub literal: Color32,
-    pub literal_string: Color32,
-    pub comment: Color32,
-    pub punctuation: Color32,
-    pub punctuation_important: Color32,
-    pub variable: Color32,
-    pub variable_constant: Color32,
-    pub variable_function: Color32,
-    pub variable_mutable: Color32,
-    pub variable_parameter: Color32,
-    pub markdown_plain_text: Color32,
-    pub markdown_symbol: Color32,
-    pub markdown_link: Color32,
-    pub markdown_code: Color32,
-    pub unstyled: Color32,
-    pub invisible: Color32,
+    pub invalid: Color,
+    pub keyword: Color,
+    pub keyword_storage: Color,
+    pub keyword_primitive_type: Color,
+    pub literal: Color,
+    pub literal_string: Color,
+    pub comment: Color,
+    pub punctuation: Color,
+    pub punctuation_important: Color,
+    pub variable: Color,
+    pub variable_constant: Color,
+    pub variable_function: Color,
+    pub variable_mutable: Color,
+    pub variable_parameter: Color,
+    pub markdown_plain_text: Color,
+    pub markdown_symbol: Color,
+    pub markdown_link: Color,
+    pub markdown_code: Color,
+    pub unstyled: Color,
+    pub invisible: Color,
 }
 
 impl SyntaxColors {
-    pub const fn uniform(color: Color32) -> Self {
+    pub const fn uniform(color: Color) -> Self {
         Self {
             invalid: color,
             keyword: color,
@@ -52,7 +52,7 @@ impl SyntaxColors {
         }
     }
 
-    pub fn scope(&self, scope: SynHlColorScope) -> Color32 {
+    pub fn scope(&self, scope: SynHlColorScope) -> Color {
         match scope {
             SynHlColorScope::Invalid => self.invalid,
             SynHlColorScope::Keyword => self.keyword,
@@ -80,15 +80,15 @@ impl SyntaxColors {
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct TextAreaColors {
-    pub gutter_border: Color32,
-    pub gutter_text: Color32,
-    pub gutter_arrow: Color32,
-    pub code_background: Color32,
-    pub widget: Color32,
-    pub broken_widget: Color32,
-    pub selection: Color32,
-    pub caret: Color32,
-    pub placeholder: Color32,
+    pub gutter_border: Color,
+    pub gutter_text: Color,
+    pub gutter_arrow: Color,
+    pub code_background: Color,
+    pub widget: Color,
+    pub broken_widget: Color,
+    pub selection: Color,
+    pub caret: Color,
+    pub placeholder: Color,
     pub remote_selection_alpha: u8,
     pub syntax: SyntaxColors,
 }

@@ -218,7 +218,7 @@ pub fn build(state: Stored<State>, width: f32) -> Panel {
 
     let mut document = Document::new();
     let root = enter(&mut document, || {
-        provide_context(ThemeStore::new(Theme::DARK));
+        provide_context(ThemeStore::new(ThemeTokens::literal(&Theme::DARK)));
         let [beui, components, accesskit] = trees;
         view! {
             <Frame @test_id={"inspector.dock"}>

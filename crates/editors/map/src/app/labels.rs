@@ -196,11 +196,11 @@ pub(crate) fn MapLabel(
     let size =
         create_memo(move || TextSize::Custom(label.get().map_or(10.0, |label| label.font_size)));
     let color = create_memo(move || {
-        TextColor::Custom(
+        TextColor::Custom((
             label
                 .get()
-                .map_or(Color32::TRANSPARENT, |label| label.color),
-        )
+                .map_or(Color32::TRANSPARENT, |label| label.color)
+        ).into())
     });
     let x = create_memo(move || rect.get().left());
     let y = create_memo(move || rect.get().top());
@@ -209,7 +209,7 @@ pub(crate) fn MapLabel(
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>
             <Frame
-                fill={ColorRole::Custom(HALO)}
+                fill={ColorRole::Custom(HALO.into())}
                 radius=Radius::Xs
                 padding={Padding::horizontal(HALO_PADDING)}
                 @test_id={element_test_id}

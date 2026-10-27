@@ -3,7 +3,7 @@ use std::ops::Range;
 
 use crate::core::nodes as core;
 use crate::reactive::NodeId;
-use crate::types::{CaretHandle, Color32, Dismiss, Rect, ScrollPosition};
+use crate::types::{CaretHandle, Color, Dismiss, Rect, ScrollPosition};
 
 pub trait Inspect {
     fn api<A: Clone + 'static>(&self, node: NodeId) -> A;
@@ -35,8 +35,8 @@ pub trait TreeNode {
     fn row_offset<K: Clone + Hash + Eq + 'static>(&self, key: &K) -> Option<f32>;
     fn texts_within(&self) -> Vec<NodeId>;
     fn text(&self) -> String;
-    fn set_text_selection(&self, selection: Option<(Range<usize>, Color32)>);
-    fn set_text_selection_handles(&self, handles: Vec<(usize, CaretHandle, Color32)>);
+    fn set_text_selection(&self, selection: Option<(Range<usize>, Color)>);
+    fn set_text_selection_handles(&self, handles: Vec<(usize, CaretHandle, Color)>);
 }
 
 impl TreeNode for NodeId {
@@ -124,11 +124,11 @@ impl TreeNode for NodeId {
         core::text(*self)
     }
 
-    fn set_text_selection(&self, selection: Option<(Range<usize>, Color32)>) {
+    fn set_text_selection(&self, selection: Option<(Range<usize>, Color)>) {
         core::set_text_selection(*self, selection);
     }
 
-    fn set_text_selection_handles(&self, handles: Vec<(usize, CaretHandle, Color32)>) {
+    fn set_text_selection_handles(&self, handles: Vec<(usize, CaretHandle, Color)>) {
         core::set_text_selection_handles(*self, handles);
     }
 }

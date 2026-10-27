@@ -1,5 +1,6 @@
 use super::*;
 use beui::Align;
+use beui::{Color, ColorScheme};
 
 #[component]
 pub(crate) fn ScrollPage(children: Children<ListChild>) -> NodeId {
@@ -42,7 +43,7 @@ fn CodeBlock(source: String) -> NodeId {
         let source = source.clone();
         move || {
             let theme = theme.get();
-            code_tokens(&source, theme.background, theme.text)
+            code_tokens(&source, theme.kind, theme.syntax, theme.text)
         }
     });
     view! {
@@ -54,7 +55,7 @@ fn CodeBlock(source: String) -> NodeId {
         >
             <SelectableText @test_id="demo.code" child_size=ItemSize::Percent(100.0)>
                 <Text size=TextSize::Sm family=Family::Mono>
-                    <ForEach keys={tokens}>|(start, end, color): (usize, usize, Color32)| {
+                    <ForEach keys={tokens}>|(start, end, color): (usize, usize, Color)| {
                         let piece = source[start..end].to_owned(); view! {
                             <Span color={TextColor::Custom(color)}>{piece}</Span>
                         }
@@ -67,18 +68,17 @@ fn CodeBlock(source: String) -> NodeId {
 
 pub(crate) fn code_tokens(
     source: &str,
-    background: Color32,
-    text: Color32,
-) -> Vec<(usize, usize, Color32)> {
-    let [red, green, blue, _] = background.to_array();
-    let dark = u32::from(red) + u32::from(green) + u32::from(blue) < DARK_BACKGROUND;
-    let colors = match dark {
-        true => Theme::DARK.syntax,
-        false => SyntaxColors::uniform(text),
+    kind: ThemeKind,
+    syntax: SyntaxColors,
+    text: Color,
+) -> Vec<(usize, usize, Color)> {
+    let colors = match ColorScheme::from(kind) {
+        ColorScheme::Dark => syntax,
+        ColorScheme::Light => SyntaxColors::uniform(text),
     };
     let document = Arc::new(TextBuffer::new(source)) as Arc<dyn text_editor_core::Document>;
     let highlight = Highlighter::new(document, Language::Rust).highlight();
-    let mut tokens: Vec<(usize, usize, Color32)> = Vec::new();
+    let mut tokens: Vec<(usize, usize, Color)> = Vec::new();
     for (start, character) in source.char_indices() {
         let color = colors.scope(highlight.advance_and_read(start));
         let end = start + character.len_utf8();

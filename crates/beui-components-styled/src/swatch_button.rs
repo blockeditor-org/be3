@@ -46,7 +46,7 @@ fn SwatchButtonFace(
         (selected.get() || keyboard.get() || hovered.get())
             .then(|| Border::new(color).width(Stroke::Focus))
     });
-    let fill = color.map(ColorRole::Custom);
+    let fill = color.map(|color| ColorRole::Custom(color.into()));
     view! {
         <Tooltip label={tooltip}>
             <Frame padding=Space::Xs radius border={ring}>

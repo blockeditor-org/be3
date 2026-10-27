@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use beui_view::types::Color32;
+use beui_view::types::Color;
 use beui_view::types::FontId;
 use beui_view::types::SpanStyle;
 use text_editor_core::{SynHlColorScope, SynHlStyle, TableLine, TableRow};
@@ -206,7 +206,7 @@ pub fn table_columns(inputs: &RowInputs, start: usize) -> TableColumns {
 }
 
 impl Builder<'_> {
-    fn table_text(&mut self, range: Range<usize>, row: TableRow, color: Option<Color32>) -> f32 {
+    fn table_text(&mut self, range: Range<usize>, row: TableRow, color: Option<Color>) -> f32 {
         let inputs = self.inputs;
         let bytes = &inputs.snapshot.bytes;
         let mut width = 0.0;
@@ -253,7 +253,7 @@ impl Builder<'_> {
             edge += padding * 2.0 + columns.widths.get(index).copied().unwrap_or(0.0);
         }
         edges.push(edge);
-        let hidden = Some(Color32::TRANSPARENT);
+        let hidden = Some(Color::TRANSPARENT);
         let mut x = 0.0;
         for (index, cell) in parsed.cells.iter().enumerate() {
             let at = edges[index] - pipe / 2.0;

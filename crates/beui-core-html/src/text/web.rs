@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use beui_html::Node;
 use beui_types::text::{FontId, LineBox, handle_shape};
-use beui_types::{Color32, Rect, Vec2, pos2, vec2};
+use beui_types::{Color, Rect, Vec2, pos2, vec2};
 use js_sys::{Array, Function, Reflect};
 use reactive::{Get, untrack};
 use wasm_bindgen::{JsCast, JsValue};
@@ -481,12 +481,15 @@ fn method(target: &JsValue, name: &str, argument: &JsValue) {
     }
 }
 
-fn mark_name(color: Color32) -> String {
-    let [red, green, blue, alpha] = color.to_array();
-    format!("beui-mark-{red:02x}{green:02x}{blue:02x}{alpha:02x}")
+fn mark_name(color: Color) -> String {
+    use std::hash::{Hash, Hasher};
+
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    color.hash(&mut hasher);
+    format!("beui-mark-{:016x}", hasher.finish())
 }
 
-fn highlight(name: &str, color: Color32) -> Option<JsValue> {
+fn highlight(name: &str, color: Color) -> Option<JsValue> {
     if let Some(held) = HIGHLIGHTS.with(|held| held.borrow().get(name).cloned()) {
         return Some(held);
     }

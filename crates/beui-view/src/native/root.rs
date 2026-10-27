@@ -6,7 +6,7 @@ use crate::reactive::Prop;
 use crate::reactive::ScopeContext;
 use crate::reactive::create_effect;
 use crate::reactive::with_document;
-use beui_core::color::Color32;
+use beui_core::color::Color;
 use beui_core::node::NodeId;
 use beui_core::window::SystemBars;
 
@@ -33,7 +33,7 @@ impl Root {
 }
 
 pub fn root(
-    clear_color: Prop<Color32>,
+    clear_color: Prop<Color>,
     title: Option<Prop<String>>,
     system_bars: Prop<SystemBars>,
     children: Child,
@@ -45,7 +45,7 @@ pub fn root(
             .map(|handle| handle.id)
     };
     create_effect(move || {
-        let color = clear_color.get();
+        let color = crate::colors::resolve_color(clear_color.get());
         let window = window();
         with_document(|document| {
             document.update_appearance(window, |appearance| appearance.clear_color = color)

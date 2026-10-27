@@ -35,7 +35,7 @@ use beui_components_unstyled::menu_popup::MenuStyle;
 use beui_components_unstyled::rubber_band::{Band, WINDOW_SPRING};
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::base::{Direction, ItemSize};
-use beui_core::color::Color32;
+use beui_core::color::Color;
 use beui_core::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use beui_core::image::Image;
 use beui_core::input::{CursorIcon, Key, KeyPress, Modifiers, PointerPress};
@@ -398,7 +398,7 @@ struct State {
     group_inset: f32,
     tab_spacing: f32,
     marker_width: f32,
-    back_shade: Memo<Color32>,
+    back_shade: Memo<Color>,
     icon_sidebar_width: f32,
     rect: ReadSignal<Rect>,
     opens: ReadSignal<bool>,
@@ -429,7 +429,7 @@ struct State {
     dialog: Func<TabId, Option<DialogParts>>,
     dialog_chrome: RenderFn<DockDialogHandle>,
     dialog_sheet: Option<RenderFn<DockSheetHandle>>,
-    dialog_scrim: Memo<Color32>,
+    dialog_scrim: Memo<Color>,
     dialog_margin: u16,
     dialog_gap: u16,
     dialog_beak: f32,
@@ -1401,7 +1401,7 @@ pub(crate) struct DockConfig {
     pub(crate) group_inset: f32,
     pub(crate) tab_spacing: f32,
     pub(crate) marker_width: f32,
-    pub(crate) back_shade: Memo<Color32>,
+    pub(crate) back_shade: Memo<Color>,
     pub(crate) icon_sidebar_width: f32,
     pub(crate) inset: Prop<f32>,
     pub(crate) tab: RenderFn<DockTabHandle>,
@@ -1422,7 +1422,7 @@ pub(crate) struct DockConfig {
     pub(crate) dialog: Func<TabId, Option<DialogParts>>,
     pub(crate) dialog_chrome: Option<RenderFn<DockDialogHandle>>,
     pub(crate) dialog_sheet: Option<RenderFn<DockSheetHandle>>,
-    pub(crate) dialog_scrim: Memo<Color32>,
+    pub(crate) dialog_scrim: Memo<Color>,
     pub(crate) dialog_margin: u16,
     pub(crate) dialog_gap: u16,
     pub(crate) dialog_beak: f32,

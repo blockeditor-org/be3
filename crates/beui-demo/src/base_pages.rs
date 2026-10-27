@@ -1003,11 +1003,11 @@ type PaintTile = fn(&Painter, Pos2, PathColors);
 fn PathTiles(tiles: Vec<PaintTile>) -> NodeId {
     let theme = use_theme();
     let colors = create_memo(move || PathColors {
-        accent: theme.accent.get(),
-        success: theme.success.get(),
-        warning: theme.warning.get(),
-        danger: theme.danger.get(),
-        text: theme.text.get(),
+        accent: resolve_color(theme.accent.get()),
+        success: resolve_color(theme.success.get()),
+        warning: resolve_color(theme.warning.get()),
+        danger: resolve_color(theme.danger.get()),
+        text: resolve_color(theme.text.get()),
     });
     let count = tiles.len();
     let keys = create_memo(move || (0..count).collect::<Vec<usize>>());

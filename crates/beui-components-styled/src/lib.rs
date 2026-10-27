@@ -134,7 +134,7 @@ pub use text_area::{
 };
 pub use text_input::TextInput;
 pub use theme::{
-    Density, Theme, ThemeKind, ThemeProvider, ThemeStore, provide_density, use_density, use_theme,
+    Density, Theme, ThemeKind, ThemeProvider, ThemeStore, ThemeTokens, provide_density, use_density, use_theme,
 };
 pub use tile_button::TileButton;
 pub use toast::Toasts;

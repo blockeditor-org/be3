@@ -23,12 +23,12 @@ fn text_wraps_cuts_and_styles_its_spans() {
                         "Plain, "
                         <Span bold={Some(true)}>"bold"</Span>
                         ", "
-                        <Span italic={Some(true)} color={Some(BLUE)}>"blue italic"</Span>
+                        <Span italic={Some(true)} color={BLUE}>"blue italic"</Span>
                         ", "
                         <Span underline={Some(true)}>"underlined"</Span>
                         <Gap width={24.0} />
                         <Span
-                            background={Some(SpanBackground { color: AMBER, radius: 3.0, outset: Vec2::ZERO })}
+                            background={Some(SpanBackground { color: AMBER.into(), radius: 3.0, outset: Vec2::ZERO })}
                         >
                             "marked"
                         </Span>

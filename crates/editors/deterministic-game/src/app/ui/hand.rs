@@ -110,7 +110,7 @@ fn HandItem(
         let held = held.get();
         let mark = play.mark(spot);
         let hidden = hidden.with(|hidden| hidden.contains(&id));
-        let theme = theme.get();
+        let theme = theme.get().resolve();
         Rc::new(move |painter: &Painter, rect: Rect| {
             let Some((_, _, held)) = &held else {
                 return;

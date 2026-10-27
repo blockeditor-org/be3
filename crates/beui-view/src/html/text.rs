@@ -18,7 +18,7 @@ use crate::reactive::SlotChild;
 use crate::reactive::SlotHost;
 use crate::reactive::SlotId;
 use crate::reactive::create_binding;
-use crate::types::Color32;
+use crate::types::Color;
 use crate::types::FontFamily;
 use crate::types::FontId;
 use crate::types::Overflow;
@@ -58,7 +58,7 @@ fn decorated<T: PartialEq + Default>(prop: &Prop<T>) -> bool {
 pub fn text(
     font: Prop<FontId>,
     line_height: Prop<Option<f32>>,
-    color: Prop<Color32>,
+    color: Prop<Color>,
     align: Prop<Option<TextAlign>>,
     vertical_align: Prop<Option<TextAlign>>,
     overflow: Prop<Overflow>,
@@ -348,7 +348,7 @@ struct IconSpan {
 pub struct Span {
     text: Prop<String>,
     font: Prop<FontPatch>,
-    color: Prop<Option<Color32>>,
+    color: Prop<Option<Color>>,
     underline: Prop<Option<bool>>,
     strikethrough: Prop<Option<bool>>,
     background: Prop<Option<SpanBackground>>,
@@ -516,7 +516,7 @@ pub fn span(
     family: Prop<Option<FontFamily>>,
     bold: Prop<Option<bool>>,
     italic: Prop<Option<bool>>,
-    color: Prop<Option<Color32>>,
+    color: Prop<Option<Color>>,
     underline: Prop<Option<bool>>,
     strikethrough: Prop<Option<bool>>,
     background: Prop<Option<SpanBackground>>,
@@ -565,7 +565,7 @@ pub fn icon(
     size: Prop<Option<f32>>,
     scale: f32,
     spacing_em: f32,
-    color: Prop<Option<Color32>>,
+    color: Prop<Option<Color>>,
 ) -> Span {
     Span {
         font: size.map(|size| FontPatch {

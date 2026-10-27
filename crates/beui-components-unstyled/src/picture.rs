@@ -5,7 +5,7 @@ use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::Painter;
 use beui_view::reactive::*;
-use beui_view::types::Color32;
+use beui_view::types::Color;
 use beui_view::types::{Image, ImageFit, Thumbhash};
 use beui_view::types::{Pos2, Rect, Vec2, pos2};
 
@@ -46,7 +46,7 @@ pub fn Picture(
     #[prop(default = None)] thumbhash: Prop<Option<Thumbhash>>,
     #[prop(default = None)] source: Prop<Option<Rect>>,
     #[prop(default = ImageFit::Contain)] fit: Prop<ImageFit>,
-    #[prop(default = Color32::WHITE)] tint: Prop<Color32>,
+    #[prop(default = Color::WHITE)] tint: Prop<Color>,
     #[prop(default = 0.0)] radius: Prop<f32>,
     #[prop(default = true)] smooth: Prop<bool>,
 ) -> NodeId {
@@ -75,7 +75,7 @@ pub fn Picture(
     let draw = Prop::dynamic(move || -> Draw {
         let shown = shown.get();
         let source = source.get();
-        let (fit, tint, radius) = (fit.get(), tint.get(), radius.get());
+        let (fit, tint, radius) = (fit.get(), resolve_color(tint.get()), radius.get());
         Rc::new(move |painter: &Painter, rect: Rect| {
             let Some(shown) = shown.as_ref() else {
                 return;

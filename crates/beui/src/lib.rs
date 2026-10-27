@@ -23,7 +23,10 @@ pub use beui_core::base::{
 #[cfg(not(beui_html))]
 pub use beui_core::clipboard::{PasteAnswer, PasteKind, PasteRequest, Pasted};
 #[cfg(not(beui_html))]
-pub use beui_core::color::{Color32, Hsva, Oklch, format_hex, parse_hex};
+pub use beui_core::color::{
+    Color, Color32, ColorDefinitions, ColorScheme, ColorSource, ColorVar, Hsva, Oklch,
+    SchemeColors, format_hex, parse_hex,
+};
 #[cfg(not(beui_html))]
 pub use beui_core::context::{
     ActionGroup, ActionInfo, Context, FrameOutput, InputSimulation, Moved, RendererInfo,
@@ -265,7 +268,9 @@ pub mod reactive {
 
 #[cfg(beui_html)]
 pub mod html {
-    pub use beui_view::running::{BASE_STYLES, STYLES_ID, render_to_string, stylesheet};
+    pub use beui_view::running::{
+        BASE_STYLES, STYLES_ID, choose_theme, render_to_string, stylesheet,
+    };
     #[cfg(target_arch = "wasm32")]
     pub use beui_view::running::{automate, hydrate, run};
 }

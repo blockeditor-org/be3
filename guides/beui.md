@@ -4934,20 +4934,55 @@ inside a `Text` takes what it does not set from that `Text` instead.
 Raw pixel sizes and `Color32`s belong to base `Text`, for text that is drawn
 rather than designed: labels on a zoomable canvas, a terminal, a game board.
 
-### Themes
+### Colours
 
-`styled::Theme` holds the color tokens. The built-in themes are `Theme::DARK`,
+A colour prop on a primitive (`Frame` `fill`, `Text` and `Span` `color`, `Outline`,
+`SpanStyle`, `TextMark`, `TextGlyph`, `SpanBackground`, `TextCaret`, `Overlay`
+`scrim`, `Root` `clear_color`) is a `beui::Color` (beui-types), not a `Color32`. A
+`Color` is a literal `Color32`, or a reference to a `ColorVar` (a name the caller
+picks), plus a small algebra the cores can both carry: `scale_alpha(f)` and
+`mix(other, share)` (two unmixed colours). A `Color32` converts into a `Color`,
+and a `Color32`, `Memo<Color32>` or `Signal<Color32>` passes for a `Prop<Color>`,
+so code with literal colours is unchanged.
+
+Whoever references a variable defines it, with a value per `ColorScheme`
+(`Light`, `Dark`): `define_colors(definitions)` (`beui::reactive`) takes a
+`Prop<ColorDefinitions>` (a map from `ColorVar` to `SchemeColors { light, dark }`)
+for as long as the calling scope lives; later definitions of a name win. The core
+and unstyled know no colour names. Native resolves a reference when it paints, for
+the scheme of the document's theme preference (`ColorScheme::from(ThemeKind)`:
+`Light` and `EPaper` are light), and repaints everything when a definition or the
+scheme changes. The HTML core writes `var(--NAME)` (and `color-mix()` for the
+algebra) and puts the definitions in a `<style>` inside `.beui-root`: the light
+values on `.beui-root`, the dark ones under `@media (prefers-color-scheme: dark)`,
+and both again under `.beui-root[data-scheme=light|dark]`, which the core sets
+when the app chose a theme (`beui::html::choose_theme`). So a page prerendered by
+`render_to_string` already shows the browser's scheme before any script runs, and
+hydration computes the same references and changes no colour. Code that needs the
+`Color32` itself (a `Drawing`'s painter, image tints) calls
+`resolve_color(color)`, which tracks the definitions and the scheme;
+`color_scheme()` reads the scheme.
+
+`styled` is the one place theme colours live. `styled::Theme` holds the colour
+tokens as `Color`s. The built-in themes are `Theme::DARK`,
 `Theme::OLED` (dark on pure black, so OLED screens leave most pixels off),
-`Theme::LIGHT`, and `Theme::EPAPER`, one for each `ThemeKind`; `Theme::of(kind)` picks one,
-and a theme's `kind` says which it is, for code that must tell them apart without comparing
-colors. What dims the app under an overlay is a theme colour too: `scrim` under a dialog,
-sheet or dock dialog, `scrim_soft` under the command palette and launcher, which leave
-the app readable, and `scrim_strong` under `Fullscreen`. Styled components that no provider covers use the document's theme, the one its
-preferences choose (Preferences, above); `Theme::of(document.preferences().theme)` reads
-it, for example to pick an app's clear color.
+`Theme::LIGHT`, and `Theme::EPAPER`, one for each `ThemeKind`, with literal colours;
+`Theme::of(kind)` picks one, and a theme's `kind` says which it is, for code that
+must tell them apart without comparing colors. Styled components that no provider
+covers use the document's theme, whose tokens are references: `--color-NAME` for
+each token and `--syntax-NAME` for the syntax colours, defined with the light
+values of `Theme::LIGHT` (`EPAPER` when that theme is chosen) and the dark values of
+`Theme::DARK` (`OLED` when chosen), so the scheme picks between them on either
+core. `Theme::referenced` and `Theme::definitions` build those. What dims the app
+under an overlay is a theme colour too: `scrim` under a dialog, sheet or dock
+dialog, `scrim_soft` under the command palette and launcher, which leave the app
+readable, and `scrim_strong` under `Fullscreen`.
+`Theme::of(document.preferences().theme)` reads the literal theme, for example to
+pick an app's clear color.
 
 `ThemeProvider` overrides the theme for the subtree written between its tags and
-follows the `Prop<Theme>` it is given:
+follows the `Prop<Theme>` it is given; a built-in theme given this way is
+literal, so it looks the same in either scheme:
 
 ```rust
 view! {
@@ -5006,16 +5041,10 @@ paintings are browser paintings rendered with `render_to_string` on
 `linux_x86_64_html`: `./scripts/test //crates/beui-view:html-test`, and styled
 components' `./scripts/test //crates/beui:html-test`.
 
-`render_to_string` renders the page in both colour schemes: it builds with the
-page's theme preference at `Dark`, notes every element's style, switches it to
-`Light`, and writes each colour that differs as `light-dark(LIGHT, DARK)`
-(`css::light_dark`). `.beui-root` has `color-scheme: light dark`, so the
-prerendered page shows the browser's scheme before any script runs; a page that
-pins a scheme sets `color-scheme` on `.beui-root`. `run` and `hydrate` read the
-browser's preferences before they build, so hydration computes the colours the
-page already shows and rewrites none. A theme given by `ThemeProvider` renders
-the same in both passes and stays concrete. Browser paintings render in
-Chromium's light scheme unless they pin one.
+`run` and `hydrate` read the browser's preferences before they build, so
+hydration starts from the scheme the prerendered page shows (Colours, above).
+Browser paintings render in Chromium's light scheme unless the page chose a
+theme.
 
 Base nodes are the only layer that should normally mutate a `Document` directly.
 Put the node in `crates/beui-core/src/base/<name>.rs` and register the module in

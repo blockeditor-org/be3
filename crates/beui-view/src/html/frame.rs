@@ -4,7 +4,7 @@ use crate::reactive::NodeId;
 use crate::reactive::Prop;
 use crate::reactive::create_binding;
 use crate::types::Align2;
-use crate::types::Color32;
+use crate::types::Color;
 use crate::types::Corners;
 use crate::types::Extent;
 use crate::types::Outline;
@@ -30,7 +30,7 @@ pub fn frame(
     aspect_ratio: Prop<Option<f32>>,
     padding: Prop<Sides>,
     align: Prop<Align2>,
-    fill: Prop<Color32>,
+    fill: Prop<Color>,
     radius: Prop<Corners>,
     outline: Prop<Option<Outline>>,
     translate: Prop<Vec2>,
@@ -77,7 +77,7 @@ pub fn frame(
         set_style(
             frame,
             "background-color",
-            (fill.alpha() > 0).then(|| css::color(fill)),
+            (!fill.is_clear()).then(|| css::color(fill)),
         );
     });
     bind(radius, move |radius| {

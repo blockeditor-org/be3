@@ -476,7 +476,7 @@ fn paint_written(painter: &Painter, entity: &CanvasEntity, ink: Color32, camera:
         }
         layout.paint_runs(painter, origin, |run| {
             (
-                run.style.color,
+                run.style.color.resolve(|_| None),
                 run.style.underline,
                 run.style.strikethrough,
             )
@@ -512,8 +512,8 @@ fn written(painter: &Painter, entity: &CanvasEntity, ink: Color32, camera: Camer
         ))
         .shrink(TEXT_INSET * camera.scale);
     let colors = TextAreaColors {
-        syntax: SyntaxColors::uniform(ink),
-        ..text_area_colors(&Theme::DARK)
+        syntax: SyntaxColors::uniform(ink.into()),
+        ..text_area_colors(&ThemeTokens::literal(&Theme::DARK))
     };
     let square = line_height(px);
     let Some(lines) = rich_state(entity).lay_out_prose(
@@ -781,8 +781,8 @@ fn span_attributes(style: SpanStyle, body: FontId, ink: Color32) -> String {
     if !decorations.is_empty() {
         attributes.push_str(&format!(" text-decoration=\"{}\"", decorations.join(" ")));
     }
-    if style.color != ink {
-        attributes.push_str(&paint("fill", style.color));
+    if style.color != ink.into() {
+        attributes.push_str(&paint("fill", style.color.resolve(|_| None)));
     }
     attributes
 }

@@ -1,7 +1,7 @@
 use crate::actions::Chord;
 use crate::components::selectable::{COPY_KEY, SELECT_ALL_KEY};
 use crate::reactive::*;
-use crate::types::{Color32, KeyPhase, Rect};
+use crate::types::{Color, KeyPhase, Rect};
 use beui_macros::component;
 
 #[derive(Clone, Copy)]
@@ -44,8 +44,8 @@ pub fn Selectable(
     #[prop(default = ComponentRef::new())] api: ComponentRef<SelectableState>,
     children: Child,
     #[prop(default = SelectableState::default())] state: SelectableState,
-    color: Prop<Color32>,
-    handle_color: Prop<Color32>,
+    color: Prop<Color>,
+    handle_color: Prop<Color>,
     caret_width: Prop<f32>,
     #[prop(default = Some(COPY_KEY))] copy_key: Prop<Option<Chord>>,
     #[prop(default = Some(SELECT_ALL_KEY))] select_all_key: Prop<Option<Chord>>,

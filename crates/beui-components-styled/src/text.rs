@@ -3,7 +3,7 @@ use beui_view::primitives;
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
-use beui_view::types::Color32;
+use beui_view::types::Color;
 use beui_view::types::{FontFamily, FontId, Overflow, TextAlign};
 use beui_view::types::{TextCaret, TextMark};
 
@@ -121,7 +121,7 @@ pub enum TextColor {
     Danger,
     Warning,
     Success,
-    Custom(Color32),
+    Custom(Color),
 }
 
 impl TextColor {
@@ -139,9 +139,9 @@ impl TextColor {
         TextColor::Success,
     ];
 
-    pub fn resolve(self, theme: &ThemeStore) -> Color32 {
+    pub fn resolve(self, theme: &ThemeStore) -> Color {
         match self {
-            TextColor::None => Color32::TRANSPARENT,
+            TextColor::None => Color::TRANSPARENT,
             TextColor::Default => theme.text.get(),
             TextColor::Muted => theme.text_muted.get(),
             TextColor::Faint => theme.border.get(),
@@ -176,8 +176,8 @@ impl TextColor {
     }
 }
 
-impl From<Color32> for TextColor {
-    fn from(color: Color32) -> Self {
+impl From<Color> for TextColor {
+    fn from(color: Color) -> Self {
         TextColor::Custom(color)
     }
 }
@@ -344,7 +344,7 @@ pub fn Text(
     }
 }
 
-fn color_part(color: Option<Prop<TextColor>>, theme: ThemeStore) -> Prop<Option<Color32>> {
+fn color_part(color: Option<Prop<TextColor>>, theme: ThemeStore) -> Prop<Option<Color>> {
     match color {
         None => Prop::Static(None),
         Some(color) => Prop::dynamic(move || Some(color.get().resolve(&theme))),

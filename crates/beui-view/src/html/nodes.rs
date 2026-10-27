@@ -4,7 +4,7 @@ use std::ops::Range;
 use beui_core_html::{overlay, scroll};
 
 use crate::reactive::{Get, NodeId};
-use crate::types::{CaretHandle, Color32, Dismiss, Rect, ScrollPosition};
+use crate::types::{CaretHandle, Color, Dismiss, Rect, ScrollPosition};
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Page;
@@ -120,6 +120,6 @@ pub fn text(node: NodeId) -> String {
     beui_core_html::nodes::text(node)
 }
 
-pub fn set_text_selection(_node: NodeId, _selection: Option<(Range<usize>, Color32)>) {}
+pub fn set_text_selection(_node: NodeId, _selection: Option<(Range<usize>, Color)>) {}
 
-pub fn set_text_selection_handles(_node: NodeId, _handles: Vec<(usize, CaretHandle, Color32)>) {}
+pub fn set_text_selection_handles(_node: NodeId, _handles: Vec<(usize, CaretHandle, Color)>) {}

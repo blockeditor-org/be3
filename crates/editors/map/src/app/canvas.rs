@@ -140,7 +140,7 @@ fn RegionOutline(shown: Memo<bool>, rect: Memo<Rect>) -> DynamicSegment<CanvasIt
     view! {
         <Show condition={shown}>
             <CanvasItem x={x} y={y} width={width} height={height}>
-                <Frame border={Border::new(ColorRole::Custom(REGION_COLOR)).width(Stroke::Focus)} />
+                <Frame border={Border::new(ColorRole::Custom(REGION_COLOR.into())).width(Stroke::Focus)} />
             </CanvasItem>
         </Show>
     }
@@ -182,7 +182,7 @@ fn Attribution() -> NodeId {
     view! {
         <Frame
             height=ATTRIBUTION_HEIGHT
-            fill={ColorRole::Custom(HALO)}
+            fill={ColorRole::Custom(HALO.into())}
             padding={Padding::horizontal(Space::Sm)}
         >
             <Text style=TextStyle::CAPTION align=TextAlign::End>{ATTRIBUTION}</Text>

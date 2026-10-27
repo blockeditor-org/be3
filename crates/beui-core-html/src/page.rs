@@ -5,6 +5,7 @@ use reactive::{Get, Memo, ReadSignal, Signal, create_memo};
 #[derive(Clone, Copy)]
 struct PageSignals {
     theme: Signal<Option<ThemeKind>>,
+    chosen_theme: Signal<Option<ThemeKind>>,
     motion: Signal<Option<Motion>>,
     viewport: Signal<Vec2>,
     pixels_per_point: Signal<f32>,
@@ -14,6 +15,7 @@ struct PageSignals {
 thread_local! {
     static SIGNALS: PageSignals = PageSignals {
         theme: crate::global_signal(None),
+        chosen_theme: crate::global_signal(None),
         motion: crate::global_signal(None),
         viewport: crate::global_signal(Vec2::ZERO),
         pixels_per_point: crate::global_signal(1.0),
@@ -37,17 +39,30 @@ fn signals() -> PageSignals {
     SIGNALS.with(|signals| *signals)
 }
 
-pub(crate) fn set_theme(theme: ThemeKind) {
+pub fn choose_theme(theme: Option<ThemeKind>) {
     use reactive::Set;
 
-    signals().theme.set(Some(theme));
+    let chosen = signals().chosen_theme;
+    if chosen.get_untracked() != theme {
+        chosen.set(theme);
+    }
+}
+
+pub fn chosen_theme() -> ReadSignal<Option<ThemeKind>> {
+    signals().chosen_theme.read_only()
+}
+
+pub fn color_scheme() -> beui_types::ColorScheme {
+    let signals = signals();
+    let theme = signals.chosen_theme.get().or(signals.theme.get());
+    theme.unwrap_or_default().into()
 }
 
 pub fn use_preferences() -> Memo<Preferences> {
     let signals = signals();
     create_memo(move || {
         PreferenceLayer {
-            theme: signals.theme.get(),
+            theme: signals.chosen_theme.get().or(signals.theme.get()),
             motion: signals.motion.get(),
             canvas_touch: None,
         }
@@ -192,7 +207,7 @@ pub fn set_title(title: &str) {
 pub fn set_background(color: beui_types::Color32) {
     #[cfg(target_arch = "wasm32")]
     if let Some(document) = crate::dom::document() {
-        let css = crate::css::color(color);
+        let css = crate::css::literal_color(color);
         if let Some(body) = document.body() {
             let _ = body.style().set_property("background-color", &css);
         }

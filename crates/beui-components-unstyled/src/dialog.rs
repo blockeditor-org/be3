@@ -7,7 +7,7 @@ use beui_view::primitives::*;
 use beui_view::reactive::KeyAt;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
-use beui_view::types::Color32;
+use beui_view::types::Color;
 use beui_view::types::Key;
 use beui_view::types::KeyPhase;
 use beui_view::window::use_window;
@@ -338,7 +338,7 @@ pub struct DialogSheetHandle {
 pub fn Dialog(
     open: Prop<bool>,
     kind: DialogKind,
-    scrim: Prop<Color32>,
+    scrim: Prop<Color>,
     sheet_below: f32,
     #[prop(default = false)] narrow: Prop<bool>,
     on_dismiss: ClickCallback,

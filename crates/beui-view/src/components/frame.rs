@@ -2,7 +2,7 @@ use crate::reactive::Child;
 use crate::reactive::NodeId;
 use crate::reactive::Prop;
 use crate::types::Align2;
-use crate::types::Color32;
+use crate::types::Color;
 use crate::types::Corners;
 use crate::types::Extent;
 use crate::types::Outline;
@@ -17,7 +17,7 @@ pub fn Frame(
     #[prop(default = None)] aspect_ratio: Prop<Option<f32>>,
     #[prop(default = Sides::ZERO)] padding: Prop<Sides>,
     #[prop(default = Align2::STRETCH)] align: Prop<Align2>,
-    #[prop(default = Color32::TRANSPARENT)] fill: Prop<Color32>,
+    #[prop(default = Color::TRANSPARENT)] fill: Prop<Color>,
     #[prop(default = Corners::ZERO)] radius: Prop<Corners>,
     #[prop(default = None)] outline: Prop<Option<Outline>>,
     #[prop(default = Vec2::ZERO)] translate: Prop<Vec2>,

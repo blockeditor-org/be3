@@ -490,7 +490,7 @@ fn TreeRow(
         row.get()
             .and_then(|row| row.icon_color)
             .map_or(TextColor::Muted, |[r, g, b]| {
-                TextColor::Custom(Color32::from_rgb(r, g, b))
+                TextColor::Custom(Color32::from_rgb(r, g, b).into())
             })
     });
     let generated_color = TextColor::Muted;

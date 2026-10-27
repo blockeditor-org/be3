@@ -176,8 +176,8 @@ fn FrameBackground(
     let fill = create_memo(move || frame.get().and_then(|entity| entity.style.filled()));
     let theme = use_theme();
     let custom = create_memo(move || match fill.get().unwrap_or_default() {
-        CanvasColor::Auto => theme.background.get(),
-        color => resolve_color(color, theme.text.get()),
+        CanvasColor::Auto => beui::reactive::resolve_color(theme.background.get()),
+        color => resolve_color(color, beui::reactive::resolve_color(theme.text.get())),
     });
     let following = create_memo(move || fill.get().is_none());
     let value = create_memo(move || match fill.get() {
@@ -703,7 +703,7 @@ fn ForegroundRow(state: CanvasState) -> NodeId {
     let shown = create_memo(move || !value.get().absent());
     let theme = use_theme();
     let custom =
-        create_memo(move || resolve_color(value.get().or(CanvasColor::Auto), theme.text.get()));
+        create_memo(move || resolve_color(value.get().or(CanvasColor::Auto), beui::reactive::resolve_color(theme.text.get())));
     let typed = move |color: Color32| {
         let [red, green, blue, alpha] = color.to_array();
         let color = CanvasColor::Rgba {
@@ -906,7 +906,7 @@ fn RectangleOptions(state: CanvasState) -> NodeId {
     let custom = create_memo(move || {
         resolve_color(
             fill.get().or(None).unwrap_or(CanvasColor::Auto),
-            theme.text.get(),
+            beui::reactive::resolve_color(theme.text.get()),
         )
     });
     let typed = move |color: Color32| {

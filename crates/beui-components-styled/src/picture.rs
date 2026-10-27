@@ -1,7 +1,7 @@
 use beui_macros::{component, view};
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
-use beui_view::types::Color32;
+use beui_view::types::Color;
 use beui_view::types::Rect;
 use beui_view::types::{Image, ImageFit, Thumbhash};
 
@@ -14,7 +14,7 @@ pub fn Picture(
     #[prop(default = None)] thumbhash: Prop<Option<Thumbhash>>,
     #[prop(default = None)] source: Prop<Option<Rect>>,
     #[prop(default = ImageFit::Contain)] fit: Prop<ImageFit>,
-    #[prop(default = Color32::WHITE)] tint: Prop<Color32>,
+    #[prop(default = Color::WHITE)] tint: Prop<Color>,
     #[prop(default = Radius::None)] radius: Prop<Radius>,
     #[prop(default = true)] smooth: Prop<bool>,
 ) -> NodeId {

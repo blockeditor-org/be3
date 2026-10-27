@@ -3,7 +3,7 @@ use std::ops::Range;
 
 use geometry::{Rect, Vec2, pos2, vec2};
 
-use crate::color::Color32;
+use crate::color::Color;
 use crate::layout::Corners;
 
 pub const DEFAULT_FONT_SIZE: f32 = 14.0;
@@ -93,16 +93,16 @@ impl FontId {
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct SpanStyle {
     pub font: FontId,
-    pub color: Color32,
+    pub color: Color,
     pub underline: bool,
     pub strikethrough: bool,
 }
 
 impl SpanStyle {
-    pub fn new(font: FontId, color: Color32) -> Self {
+    pub fn new(font: FontId, color: impl Into<Color>) -> Self {
         Self {
             font,
-            color,
+            color: color.into(),
             underline: false,
             strikethrough: false,
         }
@@ -112,12 +112,15 @@ impl SpanStyle {
 #[derive(Clone, PartialEq, Debug)]
 pub struct TextMark {
     pub range: Range<usize>,
-    pub color: Color32,
+    pub color: Color,
 }
 
 impl TextMark {
-    pub fn new(range: Range<usize>, color: Color32) -> Self {
-        Self { range, color }
+    pub fn new(range: Range<usize>, color: impl Into<Color>) -> Self {
+        Self {
+            range,
+            color: color.into(),
+        }
     }
 }
 
@@ -126,7 +129,7 @@ pub struct TextGlyph {
     pub range: Range<usize>,
     pub glyph: String,
     pub font: FontId,
-    pub color: Color32,
+    pub color: Color,
 }
 
 impl TextGlyph {
@@ -134,20 +137,20 @@ impl TextGlyph {
         range: Range<usize>,
         glyph: impl Into<String>,
         font: FontId,
-        color: Color32,
+        color: impl Into<Color>,
     ) -> Self {
         Self {
             range,
             glyph: glyph.into(),
             font,
-            color,
+            color: color.into(),
         }
     }
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct SpanBackground {
-    pub color: Color32,
+    pub color: Color,
     pub radius: f32,
     pub outset: Vec2,
 }
@@ -162,7 +165,7 @@ pub enum CaretHandle {
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct TextCaret {
     pub at: usize,
-    pub color: Color32,
+    pub color: Color,
     pub width: f32,
     pub blink: bool,
     pub flag: bool,
@@ -170,10 +173,10 @@ pub struct TextCaret {
 }
 
 impl TextCaret {
-    pub fn new(at: usize, color: Color32, width: f32) -> Self {
+    pub fn new(at: usize, color: impl Into<Color>, width: f32) -> Self {
         Self {
             at,
-            color,
+            color: color.into(),
             width,
             blink: false,
             flag: false,

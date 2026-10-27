@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
 use beui_tree::reactive::{Callback, IntoProp, Prop};
-use beui_types::{Color32, Dismiss, LayerLevel, LayerPolicy, Placement, Pos2, Rect};
+use beui_types::{Color, Dismiss, LayerLevel, LayerPolicy, Placement, Pos2, Rect};
 
 use crate::css::px;
 use crate::document::{set_attribute, set_style, style_value};
@@ -166,11 +166,11 @@ impl Layer {
         self.place();
     }
 
-    pub fn set_scrim(&self, scrim: Color32) {
+    pub fn set_scrim(&self, scrim: Color) {
         set_style(
             self.parts.dialog,
             "--beui-scrim",
-            (scrim.alpha() > 0).then(|| crate::css::color(scrim)),
+            (!scrim.is_clear()).then(|| crate::css::color(scrim)),
         );
     }
 

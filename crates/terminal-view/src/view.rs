@@ -255,7 +255,7 @@ fn TerminalRow(key: ReadSignal<ObjectId>, table: Table) -> NodeId {
         at.map(|at| vec![TextCaret::new(at, foreground.get(), caret_width)])
             .unwrap_or_default()
     });
-    let text_color = create_memo(move || TextColor::Custom(foreground.get()));
+    let text_color = create_memo(move || TextColor::Custom(foreground.get().into()));
     view! {
         <Text style=TEXT color={text_color} overflow carets>
             <ForEach keys={pieces}>|(_, piece): (usize, Piece)|
@@ -290,10 +290,10 @@ fn TerminalPiece(piece: Piece) -> TextChild {
                     <Span
                         weight
                         italic
-                        color={TextColor::Custom(color)}
+                        color={TextColor::Custom(color.into())}
                         underline={Some(underline)}
                         strikethrough={Some(strikethrough)}
-                        background={ColorRole::Custom(fill)}
+                        background={ColorRole::Custom(fill.into())}
                     >
                         {text}
                     </Span>
@@ -302,7 +302,7 @@ fn TerminalPiece(piece: Piece) -> TextChild {
                     <Span
                         weight
                         italic
-                        color={TextColor::Custom(color)}
+                        color={TextColor::Custom(color.into())}
                         underline={Some(underline)}
                         strikethrough={Some(strikethrough)}
                     >

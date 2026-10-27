@@ -6,7 +6,7 @@ use std::rc::Rc;
 use beui_html::Node;
 use beui_tree::reactive::Prop;
 use beui_tree::reactive::{ChildList, IntoSlotHost, SlotHost, SlotId};
-use beui_types::Color32;
+use beui_types::Color;
 use beui_types::text::{FontId, TextCaret, TextGlyph, TextMark};
 use reactive::{Get, Set, Signal, create_signal, on_cleanup};
 
@@ -53,7 +53,7 @@ pub enum Segment {
         range: Range<usize>,
         glyph: String,
         font: FontId,
-        color: Color32,
+        color: Color,
     },
 }
 

@@ -147,7 +147,7 @@ fn grid_of(
     let theme = use_theme();
     let look = create_memo(move || {
         let spacing = grid.get().shown().filter(|_| live)?;
-        GridLook::new(spacing, camera.get().scale, theme.border.get())
+        GridLook::new(spacing, camera.get().scale, beui::reactive::resolve_color(theme.border.get()))
     });
     let tiles = create_memo(move || match look.get() {
         Some(look) => look.tiles(camera.get().rect_to_canvas(stage.get())),
@@ -212,7 +212,7 @@ fn CanvasHint(
         let empty = state.entities.ids().with(Vec::is_empty);
         let busy = state.gesture.with(Option::is_some);
         (empty && !busy).then(|| Hint {
-            color: theme.text_muted.get(),
+            color: beui::reactive::resolve_color(theme.text_muted.get()),
         })
     });
     let shown = create_memo(move || hint.with(Option::is_some));
@@ -387,11 +387,11 @@ fn FrameBackdropItem(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> 
         Some(FrameBackdrop {
             name: entity.text.to_str_lossy().into_owned(),
             fill: match entity.style.filled().unwrap_or_default() {
-                CanvasColor::Auto => theme.background.get(),
-                color => resolve_color(color, theme.text.get()),
+                CanvasColor::Auto => beui::reactive::resolve_color(theme.background.get()),
+                color => resolve_color(color, beui::reactive::resolve_color(theme.text.get())),
             },
-            label: theme.text_muted.get(),
-            outline: theme.border.get(),
+            label: beui::reactive::resolve_color(theme.text_muted.get()),
+            outline: beui::reactive::resolve_color(theme.border.get()),
             chrome,
         })
     });
@@ -650,10 +650,10 @@ fn entity_of(state: CanvasState, id: Uuid) -> Memo<Option<CanvasEntity>> {
 
 pub(crate) fn palette(theme: &block_editor_beui::beui::styled::ThemeStore) -> Palette {
     Palette {
-        auto: theme.text.get(),
-        surface: theme.surface_raised.get(),
-        border: theme.border.get(),
-        muted: theme.text_muted.get(),
+        auto: beui::reactive::resolve_color(theme.text.get()),
+        surface: beui::reactive::resolve_color(theme.surface_raised.get()),
+        border: beui::reactive::resolve_color(theme.border.get()),
+        muted: beui::reactive::resolve_color(theme.text_muted.get()),
     }
 }
 

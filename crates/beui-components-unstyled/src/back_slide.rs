@@ -5,7 +5,7 @@ use beui_macros::{component, view};
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
-use beui_view::types::Color32;
+use beui_view::types::Color;
 use beui_view::types::{BackEdge, BackGesture};
 use beui_view::types::{Vec2, vec2};
 
@@ -230,7 +230,7 @@ pub fn BackSlide(
     #[prop(default = ClickCallback::default())] on_gone: ClickCallback,
     #[prop(default = Callback::default())] on_presence: Callback<f32>,
     #[prop(default = None)] behind: Option<RenderFn<()>>,
-    #[prop(default = Color32::TRANSPARENT)] shade: Prop<Color32>,
+    #[prop(default = Color::TRANSPARENT)] shade: Prop<Color>,
     children: Child,
 ) -> NodeId {
     let shift = create_signal(Vec2::ZERO);

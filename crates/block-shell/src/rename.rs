@@ -178,7 +178,7 @@ fn RenameBody(
         let look = look.get();
         look.icon.and_then(named).or(look.type_icon)
     });
-    let tinted = create_memo(move || shown.get().map_or(TextColor::Muted, TextColor::Custom));
+    let tinted = create_memo(move || shown.get().map_or(TextColor::Muted, |color| TextColor::Custom(color.into())));
     let tile = use_size(TILE);
     let gap = use_space(TILE_SPACING);
     let row_size = create_memo(move || tile.get() + gap.get());
@@ -288,7 +288,7 @@ fn IconTile(
         Tile::Default => look.get().icon.is_none(),
         Tile::Icon(name) => look.get().icon == Some(name),
     });
-    let color = create_memo(move || shown.get().map_or(TextColor::Muted, TextColor::Custom));
+    let color = create_memo(move || shown.get().map_or(TextColor::Muted, |color| TextColor::Custom(color.into())));
     view! {
         <TileButton
             @test_id={format!("rename.icon.{id}")}

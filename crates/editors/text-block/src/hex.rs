@@ -381,7 +381,7 @@ pub(crate) fn HexView(state: State) -> NodeId {
     let drawn = create_memo(move || {
         content.get();
         state.text.cursors().get();
-        page(state, &theme.get(), &geometry.get(), content_size.get())
+        page(state, &theme.get().resolve(), &geometry.get(), content_size.get())
     });
     let draw: Prop<Draw> = Prop::dynamic(move || drawn.get().draw());
 

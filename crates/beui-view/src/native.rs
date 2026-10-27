@@ -1,6 +1,7 @@
 pub mod actions;
 pub mod animation;
 pub mod canvas;
+pub mod colors;
 pub mod drag;
 pub mod drawing;
 pub mod files;

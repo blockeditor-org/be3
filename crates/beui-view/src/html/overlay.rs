@@ -19,7 +19,7 @@ use crate::reactive::provide_context;
 use crate::reactive::store;
 use crate::reactive::untrack;
 use crate::reactive::use_context;
-use crate::types::Color32;
+use crate::types::Color;
 use crate::types::Dismiss;
 use crate::types::LayerLevel;
 use crate::types::LayerPolicy;
@@ -58,7 +58,7 @@ struct Mounted {
 pub fn overlay(
     anchor: Prop<OverlayAnchor>,
     placement: Prop<Placement>,
-    scrim: Prop<Color32>,
+    scrim: Prop<Color>,
     policy: Prop<LayerPolicy>,
     level: Prop<LayerLevel>,
     traps_focus: Prop<bool>,

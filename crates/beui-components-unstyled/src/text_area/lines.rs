@@ -8,7 +8,7 @@ use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
-use beui_view::types::Color32;
+use beui_view::types::Color;
 use beui_view::types::Placement;
 use beui_view::types::icons::{ICON_CHEVRON_DOWN, ICON_CHEVRON_RIGHT};
 use beui_view::types::{Align, ItemSize};
@@ -401,7 +401,7 @@ struct RowEnv {
     colors: TextAreaColors,
     metrics: (f32, u64),
     options: RowOptions,
-    client_colors: Vec<(u64, Color32)>,
+    client_colors: Vec<(u64, Color)>,
 }
 
 const ROW_CACHE_LIMIT: usize = 1024;
@@ -585,13 +585,9 @@ fn RowText(
         for remote in cx.remote_cursors.get() {
             let range = remote.selection;
             if range.start < range.end && range.start <= row.end && range.end > row.start {
-                let [red, green, blue, _] = remote.color.to_array();
-                let fill = Color32::from_rgba_unmultiplied(
-                    red,
-                    green,
-                    blue,
-                    colors.remote_selection_alpha,
-                );
+                let fill = remote
+                    .color
+                    .scale_alpha(f32::from(colors.remote_selection_alpha) / 255.0);
                 marks.push(TextMark::new(row.display_range(&range), fill));
             }
         }
@@ -737,7 +733,7 @@ enum PieceKey {
     Text {
         text: String,
         font: (u32, FontFamily, bool, bool),
-        color: Color32,
+        color: Color,
         underline: bool,
         strikethrough: bool,
         leaf: Option<SynHlStyle>,
@@ -879,7 +875,7 @@ fn marker(cx: Context, model: Memo<Rc<Row>>, item: Memo<Option<InlineItem>>) -> 
         item.get().map_or(
             SpanStyle::new(
                 FontId::proportional(cx.font_size.get()),
-                Color32::TRANSPARENT,
+                Color::TRANSPARENT,
             ),
             |item| item.style,
         )
@@ -908,7 +904,7 @@ fn RunChip(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
     let label = create_memo(move || item.get().map(|item| item.label).unwrap_or_default());
     let color = create_memo(move || {
         item.get()
-            .map_or(Color32::TRANSPARENT, |item| item.style.color)
+            .map_or(Color::TRANSPARENT, |item| item.style.color)
     });
     let chip = create_memo(move || cx.geometry.get().run_chip);
     let height = create_memo(move || Extent::px(chip.get().height));
@@ -946,7 +942,7 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
     let label = create_memo(move || item.get().map(|item| item.label).unwrap_or_default());
     let color = create_memo(move || {
         item.get()
-            .map_or(Color32::TRANSPARENT, |item| item.style.color)
+            .map_or(Color::TRANSPARENT, |item| item.style.color)
     });
     let font = create_memo(move || {
         item.get()

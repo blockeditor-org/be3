@@ -3,7 +3,7 @@ use beui_core::icons::Glyph;
 use std::time::Duration;
 
 use beui_core::base::overlay::{OverlayAnchor, Placement};
-use beui_core::color::Color32;
+use beui_core::color::Color;
 use beui_core::geometry::{Rect, Vec2};
 use beui_core::input::PointerPress;
 use beui_core::layer::{Dismiss, LayerPolicy};
@@ -393,7 +393,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
             (true, Some(rect)) => (
                 OverlayAnchor::Pinned { node: anchor, rect },
                 Placement::Popover { gap, margin },
-                Color32::TRANSPARENT,
+                Color::TRANSPARENT,
             ),
             (true, None) => (
                 OverlayAnchor::Node(anchor),
@@ -403,7 +403,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
             (false, _) => (
                 OverlayAnchor::Node(anchor),
                 Placement::CenterOn,
-                Color32::TRANSPARENT,
+                Color::TRANSPARENT,
             ),
         }
     });

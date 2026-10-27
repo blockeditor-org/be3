@@ -511,7 +511,7 @@ fn Chip(part: Memo<Option<Part>>, text: Memo<String>) -> NodeId {
     });
     let dotted = create_memo(move || choice.with(Option::is_some));
     let dot = create_memo(move || match choice.get() {
-        Some(option) => ColorRole::Custom(choice_color(option.color, theme.kind.get())),
+        Some(option) => ColorRole::Custom((choice_color(option.color, theme.kind.get())).into()),
         None => ColorRole::TextMuted,
     });
     let linked = create_memo(move || part.with(|part| matches!(part, Some(Part::Links(..)))));

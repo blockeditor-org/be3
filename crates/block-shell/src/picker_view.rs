@@ -8,7 +8,7 @@ use block_editor_beui::beui::icons::{
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 
-use block_editor_beui::beui::{Color32, NodeId, OverlayAnchor, Placement, Pos2, TextAlign, Vec2};
+use block_editor_beui::beui::{Color, Color32, NodeId, OverlayAnchor, Placement, Pos2, TextAlign, Vec2};
 use block_editor_beui::block_ui::TemplateEntry;
 use block_editor_beui::{
     BlockParent, ChildMode, ChildState, Subregion, SubregionContent, label_glyph,
@@ -309,7 +309,7 @@ fn TypeItem(
         entry
             .get()
             .and_then(|entry| entry.color)
-            .map(|[r, g, b]| Color32::from_rgb(r, g, b))
+            .map(|[r, g, b]| Color::from(Color32::from_rgb(r, g, b)))
     });
     let label = create_memo(move || entry.get().map(|entry| entry.name).unwrap_or_default());
     let glyph = create_memo(move || entry.get().and_then(|entry| entry.icon));
@@ -701,7 +701,7 @@ fn TypeRow(act: Act, key: String, entry: Memo<Option<TemplateEntry>>) -> NodeId 
     let glyph_color = create_memo(move || {
         let color = entry.get().and_then(|entry| entry.color);
         Some(color.map_or(TextColor::Muted, |[r, g, b]| {
-            TextColor::Custom(Color32::from_rgb(r, g, b))
+            TextColor::Custom(Color32::from_rgb(r, g, b).into())
         }))
     });
     let label = create_memo(move || entry.get().map(|entry| entry.name).unwrap_or_default());

@@ -316,7 +316,7 @@ fn PointRow(state: MapState, id: Uuid) -> NodeId {
 
 #[component]
 fn Swatch(color: Memo<Color32>) -> NodeId {
-    let color = create_memo(move || TextColor::Custom(color.get()));
+    let color = create_memo(move || TextColor::Custom(color.get().into()));
     view! {
         <Text size=TextSize::Xs color={color} align=TextAlign::Center>
             <Icon glyph=ICON_CIRCLE />

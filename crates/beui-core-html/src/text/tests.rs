@@ -1,5 +1,6 @@
 use super::*;
 use beui_types::text::FontId;
+use beui_types::Color32;
 
 fn glyph(range: Range<usize>, glyph: &str) -> TextGlyph {
     TextGlyph::new(
@@ -19,7 +20,7 @@ fn shown(range: Range<usize>, glyph: &str) -> Segment {
         range,
         glyph: glyph.to_owned(),
         font: FontId::monospace(12.0),
-        color: Color32::from_rgb(200, 0, 0),
+        color: Color32::from_rgb(200, 0, 0).into(),
     }
 }
 

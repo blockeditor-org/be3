@@ -1,7 +1,7 @@
 use std::any::Any;
 use std::rc::Rc;
 
-use crate::color::Color32;
+use crate::color::Color;
 use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use crate::painter::{Corners, Painter};
 
@@ -128,7 +128,7 @@ impl Element for BeakNode {
 
     fn layout(&mut self, _doc: &mut Document, _painter: &Painter, _rect: Rect, _out: &Rects) {}
 
-    fn paint(&self, _doc: &Document, painter: &Painter, _rects: &Rects, rect: Rect) {
+    fn paint(&self, doc: &Document, painter: &Painter, _rects: &Rects, rect: Rect) {
         let Some(pointing) = self.pointing.filter(|_| self.reach > 0.0) else {
             return;
         };
@@ -157,9 +157,9 @@ impl Element for BeakNode {
         let turned = painter
             .with_clip_rect(clip)
             .rotated(centre, std::f32::consts::FRAC_PI_4);
-        turned.rect_filled(square, tip, self.style.fill);
+        turned.rect_filled(square, tip, doc.resolve_color(self.style.fill));
         if let Some(outline) = self.style.outline {
-            turned.rect_stroke(square, tip, outline.width, outline.color);
+            turned.rect_stroke(square, tip, outline.width, doc.resolve_color(outline.color));
         }
     }
 
@@ -651,9 +651,10 @@ impl Document {
             .map(NodeOf::id)
     }
 
-    pub fn set_overlay_scrim(&mut self, overlay: NodeOf<OverlayNode>, color: Color32) {
+    pub fn set_overlay_scrim(&mut self, overlay: NodeOf<OverlayNode>, color: impl Into<Color>) {
+        let color = color.into();
         let node = self.arena.get_as::<OverlayNode>(overlay);
-        let (scrim, dims) = (node.scrim, color.alpha() > 0);
+        let (scrim, dims) = (node.scrim, !color.is_clear());
         if node.dims != dims {
             self.arena.get_mut_as::<OverlayNode>(overlay).dims = dims;
             self.layers_changed();

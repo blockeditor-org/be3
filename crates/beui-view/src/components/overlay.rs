@@ -5,7 +5,7 @@ use crate::reactive::NodeRef;
 use crate::reactive::OverlayAnchor;
 use crate::reactive::Prop;
 use crate::reactive::RenderFn;
-use crate::types::Color32;
+use crate::types::Color;
 use crate::types::Dismiss;
 use crate::types::LayerLevel;
 use crate::types::LayerPolicy;
@@ -18,7 +18,7 @@ use beui_macros::component;
 pub fn Overlay(
     anchor: Prop<OverlayAnchor>,
     #[prop(default = Placement::BelowStart)] placement: Prop<Placement>,
-    #[prop(default = Color32::TRANSPARENT)] scrim: Prop<Color32>,
+    #[prop(default = Color::TRANSPARENT)] scrim: Prop<Color>,
     #[prop(default = LayerPolicy::BlocksAll)] policy: Prop<LayerPolicy>,
     #[prop(default = LayerLevel::Normal)] level: Prop<LayerLevel>,
     #[prop(default = true)] traps_focus: Prop<bool>,

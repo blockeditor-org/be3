@@ -3,14 +3,14 @@ use beui_macros::component;
 use beui_components_unstyled::SyntaxColors;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
-use beui_view::types::Color32;
+use beui_view::types::{Color, Color32, ColorDefinitions, ColorVar, SchemeColors};
 
 use crate::frame::{Border, ColorRole};
 use crate::tokens::{Size, Space};
 
 pub use beui_view::types::ThemeKind;
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Store)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Theme {
     pub kind: ThemeKind,
     pub background: Color32,
@@ -212,8 +212,8 @@ impl Theme {
     };
 }
 
-const fn rgb(hex: u32) -> Color32 {
-    Color32::from_rgb((hex >> 16) as u8, (hex >> 8) as u8, hex as u8)
+const fn rgb(hex: u32) -> Color {
+    Color::literal(Color32::from_rgb((hex >> 16) as u8, (hex >> 8) as u8, hex as u8))
 }
 
 const DARK_SYNTAX: SyntaxColors = SyntaxColors {
@@ -263,12 +263,96 @@ const LIGHT_SYNTAX: SyntaxColors = SyntaxColors {
 };
 
 const EPAPER_SYNTAX: SyntaxColors = SyntaxColors {
-    comment: Color32::from_gray(80),
-    punctuation: Color32::from_gray(80),
-    markdown_symbol: Color32::from_gray(80),
-    invisible: Color32::from_gray(180),
-    ..SyntaxColors::uniform(Color32::BLACK)
+    comment: Color::literal(Color32::from_gray(80)),
+    punctuation: Color::literal(Color32::from_gray(80)),
+    markdown_symbol: Color::literal(Color32::from_gray(80)),
+    invisible: Color::literal(Color32::from_gray(180)),
+    ..SyntaxColors::uniform(Color::BLACK)
 };
+
+macro_rules! color_roles {
+    (roles: [$($role:ident),* $(,)?], outlines: [$($outline:ident),* $(,)?], syntax: [$($syntax:ident),* $(,)?] $(,)?) => {
+        #[derive(Clone, Copy, PartialEq, Eq, Debug, Store)]
+        pub struct ThemeTokens {
+            pub kind: ThemeKind,
+            $(pub $role: Color,)*
+            $(pub $outline: Option<Color>,)*
+            pub syntax: SyntaxColors,
+        }
+
+        impl ThemeTokens {
+            pub fn literal(theme: &Theme) -> Self {
+                Self {
+                    kind: theme.kind,
+                    $($role: theme.$role.into(),)*
+                    $($outline: theme.$outline.map(Color::from),)*
+                    syntax: theme.syntax,
+                }
+            }
+
+            pub fn resolve(&self) -> Theme {
+                Theme {
+                    kind: self.kind,
+                    $($role: resolve_color(self.$role),)*
+                    $($outline: self.$outline.map(resolve_color),)*
+                    syntax: self.syntax,
+                }
+            }
+
+            pub fn referenced(kind: ThemeKind, light: &Theme, dark: &Theme) -> Self {
+                Self {
+                    kind,
+                    $($role: ColorVar::new(concat!("color-", stringify!($role))).color(),)*
+                    $($outline: (light.$outline.is_some() || dark.$outline.is_some())
+                        .then(|| ColorVar::new(concat!("color-", stringify!($outline))).color()),)*
+                    syntax: SyntaxColors {
+                        $($syntax: ColorVar::new(concat!("syntax-", stringify!($syntax))).color(),)*
+                    },
+                }
+            }
+        }
+
+        impl Theme {
+            pub fn definitions(light: &Theme, dark: &Theme) -> ColorDefinitions {
+                let syntax = |color: Color| color.as_literal().unwrap_or(Color32::TRANSPARENT);
+                let outline = |color: Option<Color32>| color.unwrap_or(Color32::TRANSPARENT);
+                ColorDefinitions::from([
+                    $((
+                        ColorVar::new(concat!("color-", stringify!($role))),
+                        SchemeColors::new(light.$role, dark.$role),
+                    ),)*
+                    $((
+                        ColorVar::new(concat!("color-", stringify!($outline))),
+                        SchemeColors::new(outline(light.$outline), outline(dark.$outline)),
+                    ),)*
+                    $((
+                        ColorVar::new(concat!("syntax-", stringify!($syntax))),
+                        SchemeColors::new(syntax(light.syntax.$syntax), syntax(dark.syntax.$syntax)),
+                    ),)*
+                ])
+            }
+        }
+    };
+}
+
+pub type ThemeStore = ThemeTokensStore;
+
+color_roles! {
+    roles: [
+        background, surface, surface_raised, hover, pressed, border, text, text_muted, accent,
+        accent_hover, accent_active, accent_soft, accent_soft_hover, on_accent, danger, danger_fill,
+        danger_fill_hover, danger_fill_active, danger_soft, on_danger, warning, success,
+        scroll_thumb, scroll_thumb_hover, scroll_thumb_active, track, knob, dim, scrim, scrim_soft,
+        scrim_strong,
+    ],
+    outlines: [control_outline, knob_outline],
+    syntax: [
+        invalid, keyword, keyword_storage, keyword_primitive_type, literal, literal_string, comment,
+        punctuation, punctuation_important, variable, variable_constant, variable_function,
+        variable_mutable, variable_parameter, markdown_plain_text, markdown_symbol, markdown_link,
+        markdown_code, unstyled, invisible,
+    ],
+}
 
 impl Default for Theme {
     fn default() -> Self {
@@ -278,8 +362,8 @@ impl Default for Theme {
 
 #[component]
 pub fn ThemeProvider(theme: Prop<Theme>, #[prop(children)] content: Render) -> NodeId {
-    let store = ThemeStore::new(theme.get_untracked());
-    create_effect(move || store.set(theme.get()));
+    let store = ThemeStore::new(ThemeTokens::literal(&theme.get_untracked()));
+    create_effect(move || store.set(ThemeTokens::literal(&theme.get())));
     provide_context(store);
     content.call(())
 }
@@ -313,12 +397,33 @@ pub fn use_theme() -> ThemeStore {
     use_context::<ThemeStore>().unwrap_or_else(tree_theme_store)
 }
 
+fn scheme_themes(kind: ThemeKind) -> (Theme, Theme) {
+    let light = match kind {
+        ThemeKind::EPaper => Theme::EPAPER,
+        _ => Theme::LIGHT,
+    };
+    let dark = match kind {
+        ThemeKind::OledDark => Theme::OLED,
+        _ => Theme::DARK,
+    };
+    (light, dark)
+}
+
 fn tree_theme_store() -> ThemeStore {
     let preferences = use_preferences();
     let kind = create_memo(move || preferences.get().theme);
     tree_local(|| {
-        let store = ThemeStore::new(Theme::of(kind.get_untracked()));
-        create_effect(move || store.set(Theme::of(kind.get())));
+        let themes = create_memo(move || scheme_themes(kind.get()));
+        define_colors(create_memo(move || {
+            let (light, dark) = themes.get();
+            Theme::definitions(&light, &dark)
+        }));
+        let referenced = move || {
+            let (light, dark) = themes.get();
+            ThemeTokens::referenced(kind.get(), &light, &dark)
+        };
+        let store = ThemeStore::new(untrack(referenced));
+        create_effect(move || store.set(referenced()));
         store
     })
 }

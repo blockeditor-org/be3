@@ -95,7 +95,7 @@ fn remote(state: &TextAreaState, caret: Option<Caret>, color: Color32) -> Vec<Re
                     selection: core
                         .selection_range(&CursorPosition::range(caret.anchor, caret.focus))?,
                     caret: core.position_index(caret.focus)?,
-                    color,
+                    color: color.into(),
                 })
             })
             .into_iter()
@@ -390,8 +390,8 @@ fn EditorPane(
                 remote_cursors={remote}
                 show_runs={runs}
                 client_colors={vec![
-                    (Side::Left.client(), LEFT_COLOR),
-                    (Side::Right.client(), RIGHT_COLOR),
+                    (Side::Left.client(), LEFT_COLOR.into()),
+                    (Side::Right.client(), RIGHT_COLOR.into()),
                 ]}
                 marker={render_marker()}
             />

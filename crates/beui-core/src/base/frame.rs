@@ -1,7 +1,7 @@
 use std::any::Any;
 
 use crate::base::list::Align;
-use crate::color::{Color32, format_hex};
+use crate::color::Color;
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2, vec2};
 use crate::node::{Element, NodeId, NodeOf, Outlined, Rects, SpaceId};
@@ -12,7 +12,7 @@ pub use beui_types::layout::{Align2, Extent, Outline, Sides};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct FrameStyle {
-    pub fill: Color32,
+    pub fill: Color,
     pub radius: Corners,
     pub outline: Option<Outline>,
 }
@@ -20,7 +20,7 @@ pub struct FrameStyle {
 impl Default for FrameStyle {
     fn default() -> Self {
         Self {
-            fill: Color32::TRANSPARENT,
+            fill: Color::TRANSPARENT,
             radius: Corners::all(0.0),
             outline: None,
         }
@@ -62,8 +62,8 @@ impl FrameNode {
     }
 
     fn paint_box(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect) {
-        if self.style.fill.to_array()[3] > 0 {
-            painter.rect_filled(rect, self.style.radius, self.style.fill);
+        if !self.style.fill.is_clear() {
+            painter.rect_filled(rect, self.style.radius, doc.resolve_color(self.style.fill));
         }
         if let Some(child) = self.child {
             crate::paint::paint(doc, painter, rects, child);
@@ -73,7 +73,7 @@ impl FrameNode {
                 rect.expand(outline.offset),
                 self.style.radius,
                 outline.width,
-                outline.color,
+                doc.resolve_color(outline.color),
             );
         }
     }
@@ -322,7 +322,7 @@ impl Element for FrameNode {
 
     fn outline(&self, grid: PixelGrid, rect: Rect) -> Option<Outlined> {
         let outline = self.style.outline.filter(|outline| {
-            outline.offset > 0.0 && outline.width > 0.0 && outline.color.alpha() > 0
+            outline.offset > 0.0 && outline.width > 0.0 && !outline.color.is_clear()
         })?;
         let inner = self.box_rect(grid, rect).translate(self.moved(grid));
         Some(Outlined {
@@ -332,10 +332,13 @@ impl Element for FrameNode {
     }
 
     fn detail(&self) -> Option<String> {
-        let [red, green, blue, alpha] = self.style.fill.to_array();
-        if alpha == 0 {
+        if self.style.fill.is_clear() {
             return None;
         }
+        let Some(fill) = self.style.fill.as_literal() else {
+            return Some(self.style.fill.describe());
+        };
+        let [red, green, blue, _] = fill.to_array();
         Some(format!("#{red:02x}{green:02x}{blue:02x}"))
     }
 
@@ -361,7 +364,7 @@ impl Element for FrameNode {
                 "align",
                 format!("{:?} {:?}", self.align.horizontal, self.align.vertical),
             ),
-            ("fill", format_hex(self.style.fill, true)),
+            ("fill", self.style.fill.describe()),
             (
                 "outline",
                 self.style.outline.map_or_else(
@@ -370,7 +373,7 @@ impl Element for FrameNode {
                         format!(
                             "{} {} offset {}",
                             outline.width,
-                            format_hex(outline.color, true),
+                            outline.color.describe(),
                             outline.offset
                         )
                     },
@@ -513,7 +516,8 @@ impl Document {
         }
     }
 
-    pub fn set_frame_color(&mut self, frame: NodeOf<FrameNode>, color: Color32) {
+    pub fn set_frame_color(&mut self, frame: NodeOf<FrameNode>, color: impl Into<Color>) {
+        let color = color.into();
         if self.arena.get_as::<FrameNode>(frame).style.fill != color {
             self.arena.paint_mut_as::<FrameNode>(frame).style.fill = color;
         }

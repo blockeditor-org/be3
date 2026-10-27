@@ -6,7 +6,7 @@ use beui_view::components::overlay::{Overlay, use_overlay_presence};
 use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
-use beui_view::types::Color32;
+use beui_view::types::Color;
 use beui_view::types::Placement;
 use beui_view::types::Pos2;
 
@@ -31,7 +31,7 @@ pub struct ModalHandle {
 #[component]
 pub fn Modal(
     open: Prop<bool>,
-    scrim: Prop<Color32>,
+    scrim: Prop<Color>,
     #[prop(default = ModalPlacement::Center)] placement: ModalPlacement,
     #[prop(default = LayerLevel::Normal)] level: Prop<LayerLevel>,
     #[prop(default = ModalMotion::Slides)] motion: ModalMotion,

@@ -14,7 +14,7 @@ use crate::selection::{
     texts_under,
 };
 use crate::types::CaretHandle;
-use crate::types::Color32;
+use crate::types::Color;
 use crate::types::KeyPhase;
 use crate::types::{Area, Claim};
 use crate::types::{KeyPress, PointerPress};
@@ -105,8 +105,8 @@ struct Inner {
     region: NodeRef,
     anchor: RefCell<Option<Caret>>,
     focus: RefCell<Option<Caret>>,
-    color: Cell<Color32>,
-    handle_color: Cell<Color32>,
+    color: Cell<Color>,
+    handle_color: Cell<Color>,
     caret_width: Cell<f32>,
     touch: Cell<bool>,
     grab: RefCell<Option<Grab>>,
@@ -940,8 +940,8 @@ pub fn Selectable(
     #[prop(default = ComponentRef::new())] api: ComponentRef<SelectableState>,
     children: Child,
     #[prop(default = SelectableState::default())] state: SelectableState,
-    color: Prop<Color32>,
-    handle_color: Prop<Color32>,
+    color: Prop<Color>,
+    handle_color: Prop<Color>,
     caret_width: Prop<f32>,
     #[prop(default = Some(COPY_KEY))] copy_key: Prop<Option<Chord>>,
     #[prop(default = Some(SELECT_ALL_KEY))] select_all_key: Prop<Option<Chord>>,
