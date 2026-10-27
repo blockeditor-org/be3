@@ -125,6 +125,10 @@ pub trait Element: Any {
         0.0
     }
 
+    fn sizes_itself(&self, _doc: &Document, _axis: crate::base::list::Direction) -> bool {
+        false
+    }
+
     fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect);
 
     fn unplaced(&mut self, _doc: &mut Document) {}

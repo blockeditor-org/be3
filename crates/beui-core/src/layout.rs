@@ -1,4 +1,5 @@
-use crate::geometry::{Pos2, Rect, Vec2};
+use crate::base::list::Direction;
+use crate::geometry::{Pos2, Rect, Vec2, vec2};
 use crate::painter::Painter;
 
 use crate::document::Document;
@@ -91,4 +92,37 @@ pub fn layout(doc: &mut Document, painter: &Painter, id: NodeId, rect: Rect, out
     doc.note_space_reads(id, reads, frame.base());
     doc.leave_layout(id, frame, out);
     doc.arena.put_back(id, element);
+}
+
+pub fn sizes_itself(doc: &Document, id: NodeId, axis: Direction) -> bool {
+    doc.arena
+        .try_get(id)
+        .is_some_and(|element| element.sizes_itself(doc, axis))
+}
+
+pub fn stretched(
+    doc: &mut Document,
+    painter: &Painter,
+    id: NodeId,
+    rect: Rect,
+    horizontal: bool,
+    vertical: bool,
+) -> Rect {
+    let horizontal = horizontal && sizes_itself(doc, id, Direction::Horizontal);
+    let vertical = vertical && sizes_itself(doc, id, Direction::Vertical);
+    if !horizontal && !vertical {
+        return rect;
+    }
+    let measured = measure(doc, painter, id, rect.size());
+    let size = vec2(
+        match horizontal {
+            true => measured.x.min(rect.width()),
+            false => rect.width(),
+        },
+        match vertical {
+            true => measured.y.min(rect.height()),
+            false => rect.height(),
+        },
+    );
+    Rect::from_min_size(rect.min, size)
 }

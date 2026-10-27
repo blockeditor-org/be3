@@ -15,6 +15,11 @@ impl Element for ShiftNode {
         false
     }
 
+    fn sizes_itself(&self, doc: &Document, axis: crate::base::list::Direction) -> bool {
+        self.child
+            .is_some_and(|child| crate::layout::sizes_itself(doc, child, axis))
+    }
+
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         self.child.map_or(Vec2::ZERO, |child| {
             crate::layout::measure(doc, painter, child, available)

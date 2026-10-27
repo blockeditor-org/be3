@@ -442,6 +442,17 @@ impl ListNode {
                 pos2(rect.left() + offset.x, rect.top() + offset.y),
                 self.axes(item.main, length),
             );
+            let child_rect = match item.align {
+                Align::Stretch => crate::layout::stretched(
+                    doc,
+                    painter,
+                    item.child,
+                    child_rect,
+                    self.direction == Direction::Vertical,
+                    self.direction == Direction::Horizontal,
+                ),
+                _ => child_rect,
+            };
             crate::layout::layout(doc, painter, item.child, child_rect, out);
         }
     }

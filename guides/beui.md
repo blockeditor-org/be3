@@ -783,7 +783,19 @@ combination is what `Row`, `Column` and `CenteredRow` were, and reading the
 props beats remembering which names exist. `justify` places whatever main-axis
 space the children leave (`Start`, `Center`, `End`, `SpaceBetween`,
 `SpaceAround`, `SpaceEvenly`), so pushing the last item of a toolbar to the
-far end needs no spacer. `Align::Baseline` lines a row's children up on the
+far end needs no spacer. `Align::Stretch`, the default, stretches only a child with no size of its
+own on the cross axis, as CSS does: a child whose `Element::sizes_itself`
+says it has one there (a `Frame` with a fraction width in a column) is
+measured and placed at that size at the start, so a
+`width={Extent::fraction(0.33)}` bar in a column is a third wide without an
+`align` of its own. `Frame`, `Grid`, `Layers`, `Offset` and `VirtualList` follow
+the same rule wherever they stretch a child, through `layout::stretched`, and
+wrappers that lay their child out in their own rect (`Interactive`, `Fade`,
+`Shift` and the like) answer `sizes_itself` for their child. A frame's exact
+or at-most width needs no hook: it draws its box at that width at the start of
+whatever rect it is given, though the rect, and so where it takes input, is
+the stretched one.
+`Align::Baseline` lines a row's children up on the
 first baseline of their text, which a node reports through
 `Element::baseline`; a column treats it as `Start`. `wrap=true` flows
 children onto more lines: a child too wide for a line by itself is measured
@@ -4247,6 +4259,8 @@ Use `Frame`'s `width` and `height` props to constrain a component's own size,
 `@sizing` to describe how it participates among siblings in a `List`. Say a
 width once: a `Frame` nested inside one that carries the width
 is laid out within it, so the outer box is the only place the number belongs.
+A width a frame does carry is kept wherever its parent stretches it (see
+`List`'s `align`), so it needs no `align` on the parent to take effect.
 `Container`, `narrower_than` and `shorter_than` provide container-responsive
 state; `unstyled::Stack` and `styled::Stack` switch between a row and a column
 without rebuilding their children.
