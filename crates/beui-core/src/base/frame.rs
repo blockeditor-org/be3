@@ -135,20 +135,26 @@ impl FrameNode {
     ) -> Rect {
         let grid = doc.pixel_grid();
         if self.align == Align2::STRETCH {
-            return inner;
+            return crate::layout::stretched(doc, painter, child, inner, true, true);
         }
+        // One measure at the whole inner size serves both axes: a stretched axis whose
+        // child sizes itself takes its measured length, as `layout::stretched` would,
+        // without measuring again at a shrunk rect the cache has never seen.
         let measured = crate::layout::measure(doc, painter, child, inner.size());
-        let place = |align: Align, room: f32, length: f32| -> (f32, f32) {
+        let own_width = crate::layout::sizes_itself(doc, child, Direction::Horizontal);
+        let own_height = crate::layout::sizes_itself(doc, child, Direction::Vertical);
+        let place = |align: Align, room: f32, length: f32, own: bool| -> (f32, f32) {
             let length = length.min(room);
             match align {
+                Align::Stretch if own => (0.0, length),
                 Align::Stretch => (0.0, room),
                 Align::Start | Align::Baseline => (0.0, length),
                 Align::Center => (grid.snap((room - length) / 2.0), length),
                 Align::End => (room - length, length),
             }
         };
-        let (x, width) = place(self.align.horizontal, inner.width(), measured.x);
-        let (y, height) = place(self.align.vertical, inner.height(), measured.y);
+        let (x, width) = place(self.align.horizontal, inner.width(), measured.x, own_width);
+        let (y, height) = place(self.align.vertical, inner.height(), measured.y, own_height);
         Rect::from_min_size(inner.min + vec2(x, y), vec2(width, height))
     }
 }
@@ -295,6 +301,14 @@ impl Element for FrameNode {
 
     fn relayout_boundary(&self) -> bool {
         self.width.exact.is_some() && self.height.exact.is_some()
+    }
+
+    fn sizes_itself(&self, _doc: &Document, axis: Direction) -> bool {
+        let extent = match axis {
+            Direction::Horizontal => self.width,
+            Direction::Vertical => self.height,
+        };
+        extent.exact.is_none() && extent.fraction.is_some()
     }
 
     fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect) {
