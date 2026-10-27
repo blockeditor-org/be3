@@ -56,7 +56,6 @@ const CHROME_PADDING: Space = Space::Xs2;
 const RULE: f32 = 1.0;
 const SPLITTER_LINE: f32 = 1.0;
 const TAB_STRIP_SPACING: Space = Space::Sm;
-const DROP_MARKER: Stroke = Stroke::Focus;
 const SPLITTER_REACH: f32 = 3.0;
 const SPLITTER_HELD: f32 = 3.0;
 const GROUP_GLYPH: Size = Size::Xs;
@@ -104,7 +103,6 @@ where
             splitter_reach=SPLITTER_REACH
             icon_sidebar_width=ICON_SIDEBAR
             tab_spacing={TAB_STRIP_SPACING.px()}
-            drop_marker_width={DROP_MARKER.px()}
             back_shade={back_shade}
             menu={menu_style()}
             children

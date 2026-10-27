@@ -312,6 +312,9 @@ where
             *state.arrival.borrow_mut() = Some(Arrival::Back(lifted.key.clone(), at));
         }
         bump(state);
+        if state.pressed.borrow_mut().take().is_some() {
+            state.board.release();
+        }
         state.floating_at.set(None);
         state.lifted.set(None);
         state.on_drag_change.call(None);
@@ -479,7 +482,7 @@ where
                 }
             }),
             cancelled: Rc::new(move || {
-                if stored.with(|state| state.gone.get()) {
+                if stored.try_with(|state| state.gone.get()) != Some(false) {
                     return;
                 }
                 stored.with(|state| {
@@ -488,7 +491,11 @@ where
                 });
                 finish(stored);
             }),
-            dropped: Rc::new(move || finish(stored)),
+            dropped: Rc::new(move || {
+                if stored.try_with(|state| state.gone.get()) == Some(false) {
+                    finish(stored);
+                }
+            }),
             ..DragSource::new(Rc::new(payload))
         },
         point,
@@ -629,6 +636,9 @@ where
     on_cleanup(move || {
         let carried = state.try_with(|state| {
             state.gone.set(true);
+            if state.pressed.borrow_mut().take().is_some() {
+                state.board.release();
+            }
             state
                 .lifted
                 .with_untracked(Option::is_some)

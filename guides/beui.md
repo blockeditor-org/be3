@@ -2349,16 +2349,26 @@ target is looked for in the window whose layer is on top at the pointer, never
 in one covered there by a layer that is not the dock's (a menu, a dialog, the
 fullscreen tab).
 
-Dragging a tab picks a drop target from what is under the pointer: a tab bar
-inserts it between the tabs there (the only way to join a pane), an edge of a
-pane splits it, and the middle of a pane groups the tab with the entry that pane
+Each tab bar is a `Reorder` (see "Reorderable lists") whose items are the
+bar's entries, carrying `DockDragged::Entry`: past the threshold a tab lifts and
+follows the pointer along its bar, its neighbours glide aside, and nothing
+changes in the `DockState` until the drop, which calls `drop_entry` with a
+`DockDrop::Tab` (the only way to join a pane). Pulled out across the bar it
+becomes the floating preview and the gap behind it closes; over another bar
+that admits it (`DockState::admits`, so a pinned tab parts only bars inside its
+group) a gap of its size opens where it would land. A pane's grip carries
+`DockDragged::Pane`, which bars accept too. The rest of a bar's row - its grip,
+the padding around the tabs, a window's title bar - belongs to the dock's own
+drop target, which hands the bar under the pointer to that bar's `Reorder`
+(`ReorderHandle::hover`, `drop_at`), so the gap opens there as well. Off every
+bar, an edge of a pane splits it, and the middle of a pane groups the tab with the entry that pane
 shows (`DockDrop::Group` at the pane's active index; dropping the shown entry on
 its own pane is refused). When the tidying below would fold that group straight
 back into the pane (a pane left holding only the group), the drop only joins
 it. The highlight then says which: `DockHighlightHandle::group_with` holds the
 title of the entry a drop would group with, which the styled dock shows as a
 "Group with ..." label, and nothing for a plain join. Holding Alt while dropping floats the tab into a window
-instead, which is also what "Pop out into a window" on a tab's own menu does. Every pane
+instead (except over a bar, which keeps reordering), which is also what "Pop out into a window" on a tab's own menu does. Every pane
 and every window wears the same bar: a grip, the tabs, and a button that closes
 them all, shown only when every tab in it can close. A middle click on a tab closes it. A finger picks a tab up by
 dragging it out of its bar, across the way the bar scrolls; sliding along the
@@ -2398,7 +2408,10 @@ panel. The bar between two panes is a tab
 stop with a `Splitter` role: the arrow keys move it, and the tab bar is a
 `Choice` inside a `Scroll` running the way the bar does, so the arrows, Home and End walk it like
 any other tab list and scroll the tab they reach into view when a pane has more
-tabs than it has room for.
+tabs than it has room for. Alt with an arrow along the bar moves the focused tab
+one place (`Reorder`'s keyboard move); the bar's `Choice` wraps each option's
+button in a `ReorderItem` through its `item` prop, and keeps its buttons by
+option rather than by index, so a moved tab keeps its node and its focus.
 
 A place in a tab bar holds an `Entry`: either a `Tab` or a `Group`. A group is a
 tab that holds a dock tree of its own, so choosing it shows that tree in the
@@ -2428,8 +2441,8 @@ inside the group, and the group can be moved with all of them, but a pinned
 tab cannot be dragged, popped or carried out of it with its pane. "Unpin from
 group" on a tab's menu (`set_tab_pinned`) lets it go, it may come back later,
 and "Pin to group" pins it again once it is back. A drag that the state would
-refuse (`admits`, `admits_leaf`) shows no drop marker, and letting go there
-does nothing. `unpin` makes the whole group an ordinary group again. `tree` reads a surface's or a group's layout
+refuse (`admits`, `admits_leaf`) opens no gap and shows no highlight, and
+letting go there glides the tab home. `unpin` makes the whole group an ordinary group again. `tree` reads a surface's or a group's layout
 out as a `DockTree`, which names tabs but no leaf, split or group ids, so it can
 be compared, sent elsewhere and rebuilt: `from_tree` makes a state out of one
 and `set_tree` replaces a tree in place, moving in any of its tabs that were
@@ -2706,6 +2719,9 @@ view! {
 }
 ```
 
+In a `Choice`, whose list items are the buttons it makes, the `item` prop
+wraps each button in the `ReorderItem` (`ChoiceItem` hands it the button and its
+reactive `index`); `Choice` keeps a button per option across reorders.
 Keys are stable identities (a row id, never an index). `payload` is what the drag
 board carries for a key, `None` for one that cannot move; `disabled` turns dragging
 off for the whole list (a read-only view, a sorted one). Nothing is committed while

@@ -66,7 +66,7 @@ pub use banner::Banner;
 pub use beui_core::drag_board::{DragPoint, DragSource};
 pub use button::{Button, ButtonApi, ButtonHandle};
 pub use calendar::{Calendar, CalendarApi, CalendarCellHandle, CalendarHeaderHandle, CalendarMode};
-pub use choice::{Choice, ChoiceApi, ChoiceKind, ChoiceOption, ChoiceOptionHandle};
+pub use choice::{Choice, ChoiceApi, ChoiceItem, ChoiceKind, ChoiceOption, ChoiceOptionHandle};
 pub use color_area::{ColorArea, ColorAreaApi, ColorAreaHandle};
 pub use color_input::{
     ColorInput, ColorInputFieldHandle, ColorInputHandle, ColorInputPickerHandle,

@@ -35,6 +35,7 @@ fn a_windows_tab_dragged_onto_a_window_on_another_display_joins_it() {
     fixture.test.desk_move(onto);
     fixture.test.desk_release(onto);
     fixture.settle();
+    fixture.test.settle();
 
     let document = fixture.test.document();
     let dock = document
