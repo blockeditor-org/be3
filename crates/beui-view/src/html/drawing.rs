@@ -14,12 +14,20 @@ pub fn drawing(draw: Prop<Draw>, size: Prop<Option<Vec2>>) -> NodeId {
     set_attribute(drawing, "title", Some("TODO: Drawing".to_owned()));
     set_style(drawing, "background-color", Some(PINK.to_owned()));
     bind(size, move |size| {
-        let (width, height) = match size {
-            Some(size) => (css::px(size.x), css::px(size.y)),
-            None => ("100%".to_owned(), "100%".to_owned()),
+        let (width, height, ratio, max_width) = match size {
+            Some(size) if size.x > 0.0 && size.y > 0.0 => (
+                css::px(size.x),
+                "auto".to_owned(),
+                Some(format!("{} / {}", css::number(size.x), css::number(size.y))),
+                Some("100%".to_owned()),
+            ),
+            Some(size) => (css::px(size.x), css::px(size.y), None, None),
+            None => ("100%".to_owned(), "100%".to_owned(), None, None),
         };
         set_style(drawing, "width", Some(width));
         set_style(drawing, "height", Some(height));
+        set_style(drawing, "aspect-ratio", ratio);
+        set_style(drawing, "max-width", max_width);
     });
     drawing
 }
