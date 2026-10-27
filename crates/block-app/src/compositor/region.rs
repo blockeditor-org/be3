@@ -770,12 +770,10 @@ fn DesktopWindows(editor: RegionEditor, state: Memo<RegionView>, rect: Memo<Rect
                 let width = create_memo(move || local.get().width());
                 let height = create_memo(move || local.get().height());
                 let region = EditorRegion::Window(window);
-                let child_view: ChildView = match block {
-                    Some(block) => super::editors::child_view(block, region),
-                    None => store(Box::new(|_, _, _| view! {
-                        <Frame />
-                    })),
-                };
+                let child_view = super::editors::child_view(
+                    block.unwrap_or_else(|| super::editors::hosted_parent(editor.instance)),
+                    region,
+                );
                 view! {
                     <CanvasItem x={x} y={y} width={width} height={height}>
                         <PluginRegion editor region child_view on_focus={Callback::new(|()| {})} />
@@ -809,12 +807,10 @@ fn OverlaidWindows(editor: RegionEditor, region: EditorRegion) -> NodeId {
                 let width = create_memo(move || Size::Custom(shown.get().width()));
                 let height = create_memo(move || Size::Custom(shown.get().height()));
                 let region = EditorRegion::Window(window);
-                let child_view: ChildView = match block {
-                    Some(block) => super::editors::child_view(block, region),
-                    None => store(Box::new(|_, _, _| view! {
-                        <Frame />
-                    })),
-                };
+                let child_view = super::editors::child_view(
+                    block.unwrap_or_else(|| super::editors::hosted_parent(editor.instance)),
+                    region,
+                );
                 let held = store(editor);
                 view! {
                     <Overlay
@@ -901,12 +897,10 @@ fn PanelWindows(editor: RegionEditor, region: EditorRegion, rect: Memo<Rect>) ->
                     _ => {}
                 };
                 let region = EditorRegion::Window(window);
-                let child_view: ChildView = match block {
-                    Some(block) => super::editors::child_view(block, region),
-                    None => store(Box::new(|_, _, _| view! {
-                        <Frame />
-                    })),
-                };
+                let child_view = super::editors::child_view(
+                    block.unwrap_or_else(|| super::editors::hosted_parent(instance)),
+                    region,
+                );
                 view! {
                     <Window
                         id={Some(id)}

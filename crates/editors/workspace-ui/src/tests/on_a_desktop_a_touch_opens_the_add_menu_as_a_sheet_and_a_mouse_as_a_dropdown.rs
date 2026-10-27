@@ -5,12 +5,10 @@ use super::*;
 
 #[test]
 fn on_a_desktop_a_touch_opens_the_add_menu_as_a_sheet_and_a_mouse_as_a_dropdown() {
-    let (mut fixture, _) = editor();
-    fixture.test.catalog(catalog());
+    let (mut workspace, _) = editor();
+    workspace.test.catalog(catalog());
 
-    fixture
-        .test
-        .request_pick(5, filter(), BlockLocation::Root, None);
+    let mut fixture = picking(&workspace, filter(), BlockLocation::Root);
     fixture.test.settle();
     assert!(fixture.test.shown("picker.more"));
     assert!(
@@ -20,10 +18,13 @@ fn on_a_desktop_a_touch_opens_the_add_menu_as_a_sheet_and_a_mouse_as_a_dropdown(
     fixture.test.key(Key::Escape, Modifiers::NONE);
     fixture.test.settle();
     assert!(!fixture.test.shown("picker.more"));
+    assert_eq!(
+        fixture.test.take_picked(),
+        vec![Ok(None)],
+        "escaping the menu cancels the pick"
+    );
 
-    fixture
-        .test
-        .request_touch_pick(6, filter(), BlockLocation::Root, None);
+    let mut fixture = picking_with(&workspace, filter(), BlockLocation::Root, true);
     fixture.test.settle();
     assert!(
         fixture.test.shown("sheet.handle") && fixture.test.shown("picker.more"),

@@ -12,6 +12,7 @@ use block_editor_plugin::{Artifact, EditorHost, EditorInstanceId, EditorRegion, 
 use uuid::Uuid;
 
 use crate::beui_frame::{self, BeuiFrame, FrameBar, FrameChrome};
+use crate::picking::Pickers;
 use crate::dialog::{DialogControl, PluginDialog, SettingsDialog};
 use crate::editor::BeuiScale;
 use crate::module::{Module, Shown};
@@ -93,8 +94,12 @@ impl<A: BeuiApp> Parts<A> {
                     <beui::styled::Root clear_color=beui::styled::ColorRole::SurfaceRaised>
                         <PluginDialog host control>|| {
                             let creation = creation.clone();
+                            let children = creation.children();
                             beui::reactive::view! {
-                                <A::Creation creation />
+                                <beui::styled::Layers>
+                                    <A::Creation creation />
+                                    <Pickers editor=children />
+                                </beui::styled::Layers>
                             }
                         }</PluginDialog>
                     </beui::styled::Root>
@@ -204,6 +209,7 @@ impl<A: BeuiApp> Parts<A> {
     fn frame_report(
         &self,
         view: &View,
+        context: &beui::Context,
         document: &mut Document,
         window: WindowId,
     ) -> (Report, bool) {
@@ -211,6 +217,7 @@ impl<A: BeuiApp> Parts<A> {
         let editor = views.editor.as_deref().copied();
         if let Some(editor) = &editor {
             editor.end_frame(document, window);
+            editor.fit_intrinsic(document, context);
         }
         let rect = beui::Rect::from_min_size(beui::Pos2::ZERO, view.size);
         let report = Report {
@@ -354,6 +361,9 @@ impl<A: BeuiApp> Shown for Parts<A> {
         let creating = self.views.borrow().creating;
         match view.id.region {
             EditorRegion::Frame if creating => {
+                if let Some(creation) = &self.views.borrow().creation {
+                    creation.children().end_frame(document, window);
+                }
                 if self.dialog_control.get().is_some() {
                     context.want_keyboard();
                 }
@@ -363,7 +373,7 @@ impl<A: BeuiApp> Shown for Parts<A> {
                 }
             }
             EditorRegion::Frame => {
-                let (report, exit) = self.frame_report(view, document, window);
+                let (report, exit) = self.frame_report(view, context, document, window);
                 if exit {
                     self.host.leave_frame();
                 }

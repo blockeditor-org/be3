@@ -1,3 +1,5 @@
+use block_editor_beui::PickAnchor;
+
 use super::*;
 
 #[test]
@@ -8,7 +10,7 @@ fn value_picker_filter_is_exact_and_never_includes_templates() {
         DatabaseBlockPickRequest {
             field_id: Uuid::new_v4(),
             block_type: Some(block_type),
-            anchor: None,
+            anchor: PickAnchor::Centre,
         },
     );
     assert_eq!(filtered.name, "Related");
@@ -20,7 +22,7 @@ fn value_picker_filter_is_exact_and_never_includes_templates() {
         DatabaseBlockPickRequest {
             field_id: Uuid::new_v4(),
             block_type: None,
-            anchor: None,
+            anchor: PickAnchor::Centre,
         },
     );
     assert!(unrestricted.block_types.is_empty());

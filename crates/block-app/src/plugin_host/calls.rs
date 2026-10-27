@@ -1,10 +1,10 @@
 use block_plugin_api::{
-    AudioStatus, BarAction, BlockIdRole, BlockLocation, BlockPick, Catalog, ChildId, ChildStatus,
+    AudioStatus, BarAction, BlockIdRole, BlockLocation, Catalog, ChildId, ChildStatus,
     EditorInstanceId, EditorRegion, Failure, Fonts, FrameCommit, Hello, InputBatch, Opening,
     PickedBlock, Preferences, Rect, ScreenId, ScreenLayout, ScreenRequest, Size, WebViewEvent,
     WebViewId,
     embed::{debug::debug::Call as DebugCall, shell::Call as ShellCall},
-    shell_types::{DragOver, FileDrop, Focus, PickRequest},
+    shell_types::{DragOver, FileDrop, Focus},
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -68,7 +68,6 @@ pub(super) enum EditorCall {
     FileDrop(FileDrop),
     FileDropLeft,
     ChildStatuses(Vec<ChildStatus>),
-    Pick(PickRequest),
     Watched {
         open: block_plugin_api::ops::MethodId,
         value: std::sync::Arc<Vec<u8>>,
@@ -78,7 +77,6 @@ pub(super) enum EditorCall {
         web_view: WebViewId,
         event: WebViewEvent,
     },
-    WithdrawPick(u64),
     ArtifactSettings(Vec<u8>),
     CommitCreation,
     RegenerateArtifact(Vec<u8>),
@@ -99,7 +97,6 @@ pub(super) enum EditorAnswer {
     Created(Result<[u8; 16], Failure>),
     Regenerated(Result<(), Failure>),
     Replaced { request_id: u64, replaced: bool },
-    Picked { pick: u64, answer: BlockPick },
 }
 
 impl From<PluginCall> for Outbound {
@@ -165,6 +162,7 @@ pub(super) fn instance_of(call: &ShellCall) -> Option<EditorInstanceId> {
         | ShellCall::CloseDialog { instance, .. }
         | ShellCall::DismissChild { instance, .. }
         | ShellCall::CommitChild { instance, .. }
+        | ShellCall::Picked { instance, .. }
         | ShellCall::ArtifactDescribed { instance, .. }
         | ShellCall::ArtifactEdited { instance, .. }
         | ShellCall::ChildStatusesWatchNew { instance, .. }
@@ -213,17 +211,6 @@ impl BlockIds for Outbound {
             Self::Editor(instance, EditorCall::DragOver(drag)) => {
                 visit(*instance, BlockIdRole::Existing, &mut drag.block_id);
             }
-            Self::Editor(instance, EditorCall::Pick(request)) => {
-                let mut existing = |id: &mut [u8; 16]| visit(*instance, BlockIdRole::Existing, id);
-                request.filter.excluded.iter_mut().for_each(&mut existing);
-                if let Some(BlockLocation::Block(place)) = &mut request.filter.place {
-                    existing(place);
-                }
-                if let BlockLocation::Block(parent) = &mut request.parent {
-                    existing(parent);
-                }
-                request.within.iter_mut().for_each(existing);
-            }
             Self::Editor(instance, EditorCall::ReplaceChild { old, new, .. }) => {
                 visit(*instance, BlockIdRole::Existing, old);
                 visit(*instance, BlockIdRole::Existing, new);
@@ -255,6 +242,10 @@ impl BlockIds for ShellCall {
             Self::CommitChild {
                 parent: BlockLocation::Block(block_id),
                 ..
+            }
+            | Self::Picked {
+                pick: Ok(Some(PickedBlock { block_id, .. })),
+                ..
             } => visit(instance, BlockIdRole::Existing, block_id),
             _ => {}
         }
@@ -264,14 +255,9 @@ impl BlockIds for ShellCall {
 impl BlockIds for (EditorInstanceId, EditorAnswer) {
     fn visit_block_ids(&mut self, visit: &mut Visit<'_>) {
         match self {
-            (instance, EditorAnswer::Created(Ok(block_id)))
-            | (
-                instance,
-                EditorAnswer::Picked {
-                    answer: Ok(Some(PickedBlock { block_id, .. })),
-                    ..
-                },
-            ) => visit(*instance, BlockIdRole::Existing, block_id),
+            (instance, EditorAnswer::Created(Ok(block_id))) => {
+                visit(*instance, BlockIdRole::Existing, block_id)
+            }
             _ => {}
         }
     }

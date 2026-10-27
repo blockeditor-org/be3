@@ -129,12 +129,9 @@ pub(crate) struct ChildCommit {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct PickRequest {
-    pub pick: u64,
+pub struct PickerRequest {
     pub filter: BlockFilter,
     pub parent: BlockParent,
-    pub within: Option<Uuid>,
-    pub anchor: Option<Rect>,
     pub touch: bool,
 }
 
@@ -301,6 +298,7 @@ enum Identity {
     Creation([u8; 16], String),
     ArtifactSettings([u8; 16]),
     DockTab(block_plugin_api::DockTabPath),
+    Picker(BlockFilter),
 }
 
 impl Identity {
@@ -315,6 +313,7 @@ impl Identity {
             }
             ChildContent::ArtifactSettings { block_id } => Self::ArtifactSettings(*block_id),
             ChildContent::DockTab(tab) => Self::DockTab(tab.clone()),
+            ChildContent::Picker { filter, .. } => Self::Picker(filter.clone()),
         }
     }
 }
@@ -422,10 +421,9 @@ pub struct EditorHost {
     waker: Waker,
     shown_panels: Rc<RefCell<Vec<HostPanel>>>,
     watches: Rc<RefCell<Watches>>,
-    pick_requests: Rc<RefCell<Vec<PickRequest>>>,
-    withdrawn_picks: Rc<RefCell<Vec<u64>>>,
+    picker: Rc<RefCell<Option<PickerRequest>>>,
+    picked: Rc<RefCell<Option<BlockPick>>>,
     dialog_requests: Rc<RefCell<Vec<(Uuid, ShellDialog)>>>,
-    pick_answers: Rc<RefCell<Vec<(u64, BlockPick)>>>,
     child_commits: Rc<RefCell<Vec<ChildCommit>>>,
     pushed: Rc<[Cell<u64>; Pushed::ALL.len()]>,
     changes: Rc<Cell<u64>>,
@@ -593,34 +591,26 @@ impl EditorHost {
         self.push(Pushed::Shows);
     }
 
-    pub fn take_withdrawn_picks(&self) -> Vec<u64> {
-        std::mem::take(&mut self.withdrawn_picks.borrow_mut())
+    pub fn picker(&self) -> Option<PickerRequest> {
+        self.picker.borrow().clone()
     }
 
-    pub(crate) fn withdraw_pick(&self, pick: u64) {
-        self.pick_requests
-            .borrow_mut()
-            .retain(|request| request.pick != pick);
-        self.withdrawn_picks.borrow_mut().push(pick);
+    pub(crate) fn set_picker(&self, picker: PickerRequest) {
+        *self.picker.borrow_mut() = Some(picker);
         self.push(Pushed::Shows);
     }
 
-    pub fn take_pick_requests(&self) -> Vec<PickRequest> {
-        std::mem::take(&mut self.pick_requests.borrow_mut())
-    }
-
-    pub fn request_pick(&self, request: PickRequest) {
-        self.pick_requests.borrow_mut().push(request);
-        self.push(Pushed::Shows);
-    }
-
-    pub fn answer_pick(&self, pick: u64, answer: BlockPick) {
-        self.pick_answers.borrow_mut().push((pick, answer));
+    pub fn answer_pick(&self, answer: BlockPick) {
+        let mut picked = self.picked.borrow_mut();
+        if picked.is_none() {
+            *picked = Some(answer);
+        }
+        drop(picked);
         self.changed();
     }
 
-    pub(crate) fn take_pick_answers(&self) -> Vec<(u64, BlockPick)> {
-        std::mem::take(&mut self.pick_answers.borrow_mut())
+    pub(crate) fn take_picked(&self) -> Option<BlockPick> {
+        self.picked.borrow_mut().take()
     }
 
     pub fn commit_child(&self, child: ChildId, parent: BlockParent, name: Option<String>) {
@@ -1561,10 +1551,6 @@ impl EditorHost {
                     })
                 })
             })
-    }
-
-    pub fn pick_block(&self, filter: BlockFilter) -> Asked<BlockPick> {
-        Asked::of(self.ask(|| host_services::pick_block(filter)))
     }
 
     pub fn list_access(&self, block_id: Uuid) -> Asked<Result<AccessListing, Failure>> {

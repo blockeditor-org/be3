@@ -3,10 +3,10 @@ package be3:plugin@0.1.0;
 /// What the shell around an editor and the editor share: its menus, the
 /// actions of its bar and the children it places.
 interface shell-types {
-    use types.{child-id, editor-id, editor-instance-id, editor-region, size, web-view-id};
+    use types.{
+        block-pick, child-id, editor-id, editor-instance-id, editor-region, size, web-view-id,
+    };
     use be3:shared/ids@0.1.0.{block-id, block-type-id, image-id};
-    use blocks.{block-location};
-    use host-services.{block-filter};
     use be3:ui/types@0.1.0.{key-chord, pos2, rect, vec2};
 
     /// An action of the bar the host draws above a frame or a child.
@@ -196,6 +196,8 @@ interface shell-types {
         creation: option<creation-progress>,
         preview: child-preview,
         dialog: dialog-status,
+        /// What a picker child answered, once it has.
+        picked: option<block-pick>,
     }
 
     record child-operations {
@@ -264,18 +266,6 @@ interface shell-types {
         editors: list<editor-descriptor>,
     }
 
-    /// A pick the host forwards to an editor, numbered by the host.
-    type pick-id = u64;
-
-    /// A pick the host forwards to the editor that shows its picker.
-    record pick-request {
-        pick: pick-id,
-        filter: block-filter,
-        parent: block-location,
-        within: option<block-id>,
-        touch: bool,
-    }
-
     record audio-source {
         media-type: string,
         bytes: list<u8>,
@@ -335,9 +325,8 @@ interface shell-types {
 
 /// What an editor tells the shell around it.
 interface shell {
-    use types.{child-id, editor-instance-id, editor-region, size, web-view-id};
+    use types.{block-location, block-pick, child-id, editor-instance-id, editor-region, size, web-view-id};
     use be3:shared/ids@0.1.0.{block-id, block-type-id};
-    use blocks.{block-location};
     use shell-types.{
         artifact-description, audio-command, audio-status, bar-action, catalog,
         child-status, dialog-answer, focus, menu-item, shell-command, stopped, view-change,
@@ -447,6 +436,10 @@ interface shell {
         parent: block-location,
         name: option<string>,
     );
+
+    /// The editor, opened as a picker, answers its pick: the block chosen, or
+    /// none when the user cancelled.
+    picked: func(instance: editor-instance-id, pick: block-pick);
 
     /// What the artifact settings the editor was opened on say.
     artifact-described: func(instance: editor-instance-id, description: artifact-description);

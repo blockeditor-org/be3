@@ -10,9 +10,7 @@ fn a_folder_chosen_on_the_location_page_holds_the_block_made_there() {
     let mut placing = filter();
     placing.place = Some(BlockLocation::Block(places.work.into_bytes()));
     let asked = Uuid::new_v4();
-    fixture
-        .test
-        .request_pick(4, placing, BlockLocation::Block(asked.into_bytes()), None);
+    let mut fixture = picking(&fixture, placing, BlockLocation::Block(asked.into_bytes()));
     fixture.settle();
     assert!(
         fixture.says("Work"),
@@ -49,16 +47,13 @@ fn a_folder_chosen_on_the_location_page_holds_the_block_made_there() {
         CreationProgress::Created(created.into_bytes()),
     );
     assert_eq!(
-        fixture.test.take_pick_answers(),
-        vec![(
-            4,
-            Ok(Some(PickedBlock {
+        fixture.test.take_picked(),
+        vec![Ok(Some(PickedBlock {
                 block_id: created.into_bytes(),
                 block_type: TEMPLATE_TYPE.into_bytes(),
                 linked: false,
                 placed: true,
-            }))
-        )]
+            }))]
     );
     assert!(
         fixture

@@ -197,11 +197,8 @@ pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
             }),
         }
     }));
-    let top = NodeRef::new();
-    workspace.register_tab_node(tab, top);
-    on_cleanup(move || workspace.forget_tab_node(tab, top));
     view! {
-        <Frame @node_ref={&top}>
+        <Frame>
             <List spacing=Space::None>
                 <Show condition={!session}>
                     <ArtifactBar workspace={workspace} info={info.read_only()} />

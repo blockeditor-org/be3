@@ -1,8 +1,7 @@
 use std::{collections::HashMap, marker::PhantomData};
 
 use block_plugin_api::{
-    AccessListing, BlockIdRole, BlockPick, EditorInstanceId, Failure, FileSave, ImportedBlock,
-    PickedBlock, SavedFile,
+    AccessListing, BlockIdRole, EditorInstanceId, Failure, FileSave, ImportedBlock, SavedFile,
     embed::host_services::Call,
     ops::{OpError, OpId, Outcome, Reply},
 };
@@ -15,7 +14,7 @@ use crate::{
     editors::plugin::discovery,
     host,
     platform::http::{self, AbortFlag, Aborted},
-    plugin_host::{BlockPickRequest, wire::Service},
+    plugin_host::wire::Service,
 };
 
 type Visit<'a> = dyn FnMut(&mut [u8; 16]) + 'a;
@@ -367,13 +366,6 @@ impl Instances {
                     }));
                 });
             }
-            Call::PickBlock { reply, filter } => {
-                let op = reply.op();
-                self.work(instance, op);
-                if let Some(entry) = self.entries.get_mut(&instance) {
-                    entry.block_picks.push(BlockPickRequest { op, filter });
-                }
-            }
             Call::ListAccess { reply, block } => {
                 let answering = self.answering(instance, reply);
                 crate::be::list_access(Uuid::from_bytes(block), move |listed| {
@@ -435,14 +427,6 @@ impl Instances {
             return;
         };
         work.aborted.abort();
-        let waiting = self.entries.get_mut(&work.instance).is_some_and(|entry| {
-            let waiting = entry.block_picks.len();
-            entry.block_picks.retain(|pick| pick.op != op);
-            entry.block_picks.len() < waiting
-        });
-        if !waiting {
-            self.withdrawn_picks.push((work.instance, op));
-        }
     }
 
     pub(super) fn withdraw_all(&mut self, instance: EditorInstanceId) {
@@ -463,30 +447,6 @@ impl Instances {
             work.aborted.abort();
         }
         self.services.answers.clear();
-    }
-
-    pub(in crate::plugin_host) fn block_picked(
-        &mut self,
-        instance: EditorInstanceId,
-        op: OpId,
-        pick: BlockPick,
-    ) {
-        let served = self
-            .services
-            .serving
-            .get(&op)
-            .is_some_and(|work| work.instance == instance);
-        if !served {
-            return;
-        }
-        self.services.serving.remove(&op);
-        let answer: BlockPick = pick.map(|picked| {
-            picked.map(|picked| PickedBlock {
-                block_id: self.local(instance, picked.block_id),
-                ..picked
-            })
-        });
-        self.services.answers.push((op, Outcome::returned(&answer)));
     }
 
     pub(super) fn deliver_answers(&mut self) {

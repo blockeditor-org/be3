@@ -23,7 +23,7 @@ use block_editor_beui::{Editor, Loaded};
 use block_editor_beui::{HostPanel, HostWindowId};
 use block_editor_beui::{MediaWatch, PowerWatch};
 use block_shell::{
-    AttachedWindow, BlockTab, Failure, FloatingWindow, PanelWindow, PickerDialog, Pickers,
+    AttachedWindow, BlockTab, Failure, FloatingWindow, PanelWindow,
     RenameDialog, Workspace, WorkspaceDialogs,
 };
 use uuid::Uuid;
@@ -170,7 +170,6 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
         }
     });
     let dialog_windows = workspace.dialogs();
-    let picker_dialogs = workspace.picker_dialogs();
     let rename_dialogs = workspace.rename_dialogs();
     let panels = workspace.panels();
     let editor = workspace.editor();
@@ -210,9 +209,6 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                     <ForEach keys={dialog_windows}>|(window, parent): (HostWindowId, HostWindowId)|
                         <AttachedWindow workspace window parent />
                     </ForEach>
-                    <ForEach keys={picker_dialogs}>|(pick, tab): (u64, TabId)|
-                        <PickerDialog workspace pick tab />
-                    </ForEach>
                     <ForEach keys={rename_dialogs}>|(block, tab): (Uuid, TabId)|
                         <RenameDialog workspace block tab />
                     </ForEach>
@@ -228,7 +224,6 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                     placeholders
                     display=0
                 />
-                <Pickers workspace />
                 <WorkspaceDialogs workspace />
                 <Show condition={keyed}>
                     <MediaKeys editor osd />

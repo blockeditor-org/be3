@@ -22,6 +22,7 @@ pub(crate) struct Windows {
     placed: ::reactive::OwnedSignal<bool>,
     asked: Vec<WindowId>,
     wanted: HashMap<WindowId, Vec2>,
+    hung: HashMap<WindowId, super::WindowPlacement>,
     closed_by_host: HashSet<WindowId>,
     requests: Vec<WindowRequest>,
     shown: HashMap<WindowId, Vec2>,
@@ -41,6 +42,7 @@ impl Default for Windows {
             placed: ::reactive::OwnedSignal::new(false),
             asked: Vec::new(),
             wanted: HashMap::default(),
+            hung: HashMap::default(),
             closed_by_host: HashSet::default(),
             requests: Vec::new(),
             shown: HashMap::default(),
@@ -399,23 +401,40 @@ impl Document {
         self.windows
             .wanted
             .retain(|window, _| asked.contains(window));
+        self.windows
+            .hung
+            .retain(|window, _| asked.contains(window));
         for window in &open {
-            let Some(spec) = self
+            let Some((size, placement, role)) = self
                 .window_node(*window)
                 .and_then(|node| self.overlay_window(node))
+                .map(|spec| (spec.size, spec.placement.clone(), spec.role))
             else {
                 continue;
             };
-            let size = spec.size;
             if !self.windows.asked.contains(window) {
                 ctx.request_window(WindowRequest::Open {
                     window: *window,
-                    placement: spec.placement.clone(),
+                    placement: placement.clone(),
                     size,
-                    role: spec.role,
+                    role,
                 });
                 self.windows.asked.push(*window);
                 self.windows.wanted.insert(*window, size);
+                if role == super::WindowRole::Popup {
+                    self.windows.hung.insert(*window, placement);
+                }
+                continue;
+            }
+            if role == super::WindowRole::Popup && self.windows.hung.get(window) != Some(&placement) {
+                self.windows.hung.insert(*window, placement.clone());
+                self.windows.wanted.insert(*window, size);
+                ctx.request_window(WindowRequest::Open {
+                    window: *window,
+                    placement,
+                    size,
+                    role,
+                });
                 continue;
             }
             let wanted = self.windows.wanted.insert(*window, size);

@@ -19,7 +19,7 @@ use uuid::Uuid;
 use crate::host;
 
 use super::{
-    ArtifactSlot, ArtifactState, BlockPickRequest, CreationSlot, CreationState, HostChild,
+    ArtifactSlot, ArtifactState, CreationSlot, CreationState, HostChild,
     HostChildStatus, InstanceRole, RuntimeStatus, SurfaceStatus,
     backend::{Availability, Backend, Deadline, Frame, ShownFrame},
     calls::{EditorAnswer, EditorCall, Heard, Outbound, PluginCall},
@@ -1188,24 +1188,8 @@ pub(crate) fn report_children(
     });
 }
 
-pub(crate) fn take_block_pick(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-) -> Option<BlockPickRequest> {
-    with(plugin_id, |runtime| {
-        runtime.instances.take_block_pick(instance)
-    })
-    .flatten()
-}
-
-pub(crate) fn take_pick_answers(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-) -> Vec<(u64, BlockPick)> {
-    with(plugin_id, |runtime| {
-        runtime.instances.take_pick_answers(instance)
-    })
-    .unwrap_or_default()
+pub(crate) fn picked(plugin_id: &str, instance: EditorInstanceId) -> Option<BlockPick> {
+    with(plugin_id, |runtime| runtime.instances.picked(instance)).flatten()
 }
 
 pub(crate) fn take_child_dismissals(
@@ -1226,37 +1210,6 @@ pub(crate) fn take_child_commits(
         runtime.instances.take_child_commits(instance)
     })
     .unwrap_or_default()
-}
-
-pub(crate) struct Pick {
-    pub(crate) pick: u64,
-    pub(crate) filter: block_plugin_api::BlockFilter,
-    pub(crate) parent: block_plugin_api::BlockLocation,
-    pub(crate) within: Option<Uuid>,
-    pub(crate) touch: bool,
-}
-
-pub(crate) fn take_withdrawn_picks(
-    plugin_id: &str,
-) -> Vec<(EditorInstanceId, block_plugin_api::ops::OpId)> {
-    with(plugin_id, |runtime| {
-        runtime.instances.take_withdrawn_picks()
-    })
-    .unwrap_or_default()
-}
-
-pub(crate) fn withdraw_pick(plugin_id: &str, instance: EditorInstanceId, pick: u64) {
-    with(plugin_id, |runtime| {
-        let messages = runtime.instances.withdraw_pick(instance, pick);
-        runtime.send(messages);
-    });
-}
-
-pub(crate) fn request_pick(plugin_id: &str, instance: EditorInstanceId, pick: Pick) {
-    with(plugin_id, |runtime| {
-        let messages = runtime.instances.request_pick(instance, pick);
-        runtime.send(messages);
-    });
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -1299,18 +1252,6 @@ pub(crate) fn reanchor(anchor: Rect, from: FramePlacement, to: FramePlacement) -
         .iter()
         .all(|value| value.is_finite())
         .then_some(moved)
-}
-
-pub(crate) fn block_picked(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-    request_id: u64,
-    pick: BlockPick,
-) {
-    with(plugin_id, |runtime| {
-        runtime.instances.block_picked(instance, request_id, pick);
-        runtime.serve();
-    });
 }
 
 fn scale_rect(rect: Rect, size: Vec2) -> Rect {
@@ -2032,7 +1973,7 @@ pub(crate) fn mount_region(slot: RegionSlot<'_>) {
                 &plugin.identity.id,
                 match role {
                     InstanceRole::Editor(_, block) => Some(block.id),
-                    InstanceRole::Creation(..) | InstanceRole::Artifact(..) => None,
+                    InstanceRole::Creation(..) | InstanceRole::Artifact(..) | InstanceRole::Picker(_) => None,
                 },
             );
             runtime

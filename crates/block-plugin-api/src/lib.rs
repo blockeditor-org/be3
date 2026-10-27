@@ -43,29 +43,26 @@ be_ops_bindgen::generate!({
         "finish-command", "branch-command", "create-branch-command", "resolve-command",
         "undo-operation-command", "performance-duration", "performance-count", "view-zoom",
         "rename-dialog",
-        "block-child", "creation-child", "artifact-settings-child",
+        "block-child", "creation-child", "artifact-settings-child", "picker-child",
         "window-fullscreen", "wifi-connect", "notification-closed", "notification-action-invoked",
         "program-list", "program-launch", "program-exec", "tray-scroll", "tray-menu-chosen",
     ],
     lenient: ["editor-capabilities", "child-operations"],
-    ordered: ["child-content", "dock-tab-path"],
+    ordered: ["child-content", "dock-tab-path", "block-filter"],
     own_debug: ["font-face"],
 });
 
 pub use accessibility::DescribedAction;
 pub use be_ops as ops;
 pub use blocks::{
-    ArtifactAction, ArtifactState, BlockCommand, BlockInfo, BlockLocation, BlockMetadata,
+    ArtifactAction, ArtifactState, BlockCommand, BlockInfo, BlockMetadata,
     BlockQuery, ConflictSide, StoredHead, VersionBranch, VersionChange, VersionChangeKind,
     VersionCommand, VersionCommit, VersionOperation, VersionStatus,
 };
 pub use debug::debug::{DebugTemplate, PerformanceMeasurement};
 pub use dock::{DockChildRequest, DockClosedTab, DockDeclaredChild, DockHostedRegion, DockUpdate};
 pub use guest::dock::DockWatch;
-pub use host_services::{
-    AccessGrant, AccessListing, BlockFilter, BlockPick, ImportedBlock, PickedBlock, Revision,
-    ShellDialog,
-};
+pub use host_services::{AccessGrant, AccessListing, ImportedBlock, Revision, ShellDialog};
 pub use shared::access::AccessLevel;
 pub use shell_types::{
     ArtifactDescription, AudioCommand, AudioSource, AudioStatus, BarAction, Catalog, ChildPreview,
@@ -76,6 +73,9 @@ pub use shell_types::{
 pub use shell_types::{
     BlockTypeDescriptor, ChildOperations, ChildStatus, EditorCapabilities, Edits, InteractionMode,
     PanMode, Press, ResizeMode, TemplateCategory,
+};
+pub use types::{
+    BlockFilter, BlockLocation, BlockPick, OpenPicker, PickedBlock,
 };
 pub use types::{
     ChildContent, ChildLayer, ChildMode, ChildPlacement, ChildPlacements, DialogFrame,
@@ -381,7 +381,8 @@ impl ChildContent {
             | Self::Window(_)
             | Self::Creation { .. }
             | Self::ArtifactSettings { .. }
-            | Self::DockTab(_) => None,
+            | Self::DockTab(_)
+            | Self::Picker { .. } => None,
         }
     }
 }

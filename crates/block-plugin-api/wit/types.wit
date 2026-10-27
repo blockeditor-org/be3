@@ -267,6 +267,46 @@ interface types {
         block-id: block-id,
     }
 
+    /// Where a block is listed: at the root, detached from every parent, or
+    /// inside a block.
+    variant block-location {
+        root,
+        detached,
+        block(block-id),
+    }
+
+    /// Which blocks a pick offers: of these types (any when empty), never the
+    /// excluded ones, with templates to make new ones from or not, and placed
+    /// in `place` once chosen.
+    record block-filter {
+        name: string,
+        block-types: list<block-type-id>,
+        excluded: list<block-id>,
+        templates: bool,
+        place: option<block-location>,
+    }
+
+    /// A block chosen in a pick, and whether it was linked or placed.
+    record picked-block {
+        block-id: block-id,
+        block-type: block-type-id,
+        linked: bool,
+        placed: bool,
+    }
+
+    /// What a pick answers: the block chosen, or none when the user cancelled.
+    type block-pick = result<option<picked-block>, failure>;
+
+    /// A picker for a block: the host runs it in the editor whose manifest
+    /// accepts `pick`, which makes new blocks in `parent` unless the filter
+    /// places them, and lays it out for touch when `touch` is set. Its answer
+    /// arrives as the child's `child-status.picked`.
+    record picker-child {
+        filter: block-filter,
+        parent: block-location,
+        touch: bool,
+    }
+
     /// What a child an editor placed shows.
     variant child-content {
         block(block-child),
@@ -279,6 +319,7 @@ interface types {
         /// the instance that owns it; `via` names at least one child. Only
         /// the root of a dock places one.
         dock-tab(dock-tab-path),
+        picker(picker-child),
     }
 
     record child-placement {
@@ -464,12 +505,26 @@ interface types {
         data: list<u8>,
     }
 
-    /// How an editor instance opens: on a block, as a creation dialog, or on
-    /// an artifact's settings.
+    /// A picker another editor placed as a child, which answers with
+    /// `shell.picked`.
+    record open-picker {
+        instance: editor-instance-id,
+        editor: editor-id,
+        filter: block-filter,
+        parent: block-location,
+        touch: bool,
+        account-id: account-id,
+        organization-id: organization-id,
+        client-id: installation-id,
+    }
+
+    /// How an editor instance opens: on a block, as a creation dialog, on an
+    /// artifact's settings, or as a picker.
     variant opening {
         block(open-block),
         creation(open-creation),
         artifact(open-artifact),
+        picker(open-picker),
     }
 
     // Docking across plugins. A docked region declares its own tree; the

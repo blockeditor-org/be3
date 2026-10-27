@@ -47,6 +47,7 @@ fn a_dropped_slide_takes_its_own_size_rather_than_the_cards() {
             creation: None,
             preview: Default::default(),
             dialog: Default::default(),
+            picked: None,
         });
         editor.run();
     };

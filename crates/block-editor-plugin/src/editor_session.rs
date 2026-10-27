@@ -41,7 +41,6 @@ pub struct EditorSession {
     aspect_ratio: Option<f32>,
     artifact: Option<ArtifactState>,
     sent_menu: Vec<MenuEntry>,
-    picks: HashMap<u64, Sender<block_plugin_api::BlockPick>>,
     audio_watched: bool,
     web_views: HashMap<WebViewId, Rc<shell::WebView>>,
     link: crate::link::Link,
@@ -141,7 +140,6 @@ impl EditorSession {
             aspect_ratio: None,
             artifact: None,
             sent_menu: Vec::new(),
-            picks: HashMap::new(),
             audio_watched: false,
             web_views: HashMap::new(),
             link: crate::link::Link::default(),
@@ -213,38 +211,6 @@ impl EditorSession {
         self.host.show_dialog(block_id, dialog);
     }
 
-    pub(crate) fn pick_requested(
-        &mut self,
-        request: block_plugin_api::shell_types::PickRequest,
-        answer: Sender<block_plugin_api::BlockPick>,
-    ) {
-        let block_plugin_api::shell_types::PickRequest {
-            pick,
-            filter,
-            parent,
-            within,
-            touch,
-        } = request;
-        let parent = crate::graph::BlockParent::decode(parent);
-        let within = within.map(Uuid::from_bytes);
-        self.picks.insert(pick, answer);
-        let anchor = filter.anchor;
-        self.host.request_pick(crate::host::PickRequest {
-            pick,
-            filter,
-            parent,
-            within,
-            anchor,
-            touch,
-        });
-    }
-
-    pub(crate) fn withdraw_pick(&mut self, pick: u64) {
-        if self.picks.remove(&pick).is_some() {
-            self.host.withdraw_pick(pick);
-        }
-    }
-
     pub(crate) fn set_view(&self, view: Rect, scale: f32) {
         self.host.set_view(view, scale);
     }
@@ -295,6 +261,12 @@ impl EditorSession {
         self.own_block = Some(block_id);
         self.link.connect(block_id, block_type);
         self.app.connect(block_id);
+    }
+
+    pub(crate) fn connect_picker(&mut self, picker: crate::host::PickerRequest) {
+        self.host.set_editable(true);
+        self.host.set_picker(picker);
+        self.app.connect(Uuid::nil());
     }
 
     pub(crate) fn connect_creation(&mut self, template: String) {
@@ -452,10 +424,8 @@ impl EditorSession {
         if self.host.take_paste_request() {
             shell::paste(instance);
         }
-        for (pick, answer) in self.host.take_pick_answers() {
-            if let Some(asked) = self.picks.remove(&pick) {
-                asked.send(answer);
-            }
+        if let Some(pick) = self.host.take_picked() {
+            shell::picked(instance, pick);
         }
         for call in self.host.take_acts() {
             crate::asked::asking(Some(instance), call);

@@ -20,6 +20,7 @@ mod layered_settings;
 pub mod live_text;
 mod loading;
 mod module;
+mod picking;
 mod preview;
 mod related_content;
 mod rotation;
@@ -48,6 +49,7 @@ pub use layered_settings::{
     ChangesToast, LayeredSettings, LayeredSettingsRow, SettingHandle, SettingsChanges,
 };
 pub use loading::{FailedPane, Loaded, LoadingPane};
+pub use picking::PickAnchor;
 pub use related_content::RelatedContent;
 pub use rotation::RotationPicker;
 pub use shared_caret::{SharedCaret, remote_carets};

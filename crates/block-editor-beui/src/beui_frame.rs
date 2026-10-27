@@ -11,6 +11,7 @@ use beui::{Key, KeyAt, KeyPhase, Pos2, Rect, Vec2, pos2};
 use block_plugin_api::{BarAction, MenuCheck, MenuCommand, MenuEntry, MenuPin, MenuSubmenu};
 
 use crate::chrome::ChromeRoot;
+use crate::picking::Pickers;
 use crate::{BlockInfo, BlockList, BlockQuery, Editor};
 
 const PALETTE: Chord = Chord::ctrl(Key::P).shift();
@@ -127,6 +128,7 @@ pub(crate) fn FrameChrome(
                     content
                 }</ChromeRoot>
             </List>
+            <Pickers editor />
         </Layers>
     };
     root.take()

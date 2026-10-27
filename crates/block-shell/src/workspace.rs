@@ -19,7 +19,7 @@ use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, Rect, Vec2};
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel, BlockTypes};
 use block_editor_beui::{
-    AccessLevel, BlockFilter, ChildState, ContactsWatch, DialogAnswer, Editor, EditorHost, Failure,
+    AccessLevel, BlockFilter, ChildState, PickAnchor, ContactsWatch, Editor, EditorHost, Failure,
     FocusedBlock, HostPanel, HostWindow, HostWindowId, PickedBlock, Pushed, ShellDialog,
     WindowAction, WindowsWatch,
 };
@@ -30,8 +30,7 @@ use super::dialogs::OpenDialog;
 use super::host_panel::{HostPanelView, panel_icon, panel_tab, panel_window, tab_panel};
 use super::kept::{self, Kept, KeptWindow};
 use super::panel::BlockPanel;
-use super::picker::{Graph, Pick, PickAction, PickAnchor, PickOutcome, PickTree, Tree, TreeRow};
-use super::rename::Renaming;
+use super::rename::{RenameAnchor, Renaming};
 use super::saved::{self, LAYOUT, TITLES};
 use super::share::{Share, ShareAction};
 use super::tab::TabItem;
@@ -65,9 +64,6 @@ struct State {
     next_tab: Cell<u64>,
     active: Cell<Option<Uuid>>,
     roots: RefCell<Option<(BlockList, BlockList)>>,
-    trees: RefCell<HashMap<PickTree, HashMap<BlockQuery, BlockList>>>,
-    own_pick_tab: Cell<Option<TabId>>,
-    tab_nodes: RefCell<HashMap<TabId, NodeRef>>,
     saved_titles: RefCell<HashMap<TabId, String>>,
     next_ask: Cell<u64>,
     share_asks: RefCell<Vec<block_editor_beui::Task>>,
@@ -88,7 +84,6 @@ pub struct Workspace {
     routes: Signal<u64>,
     pub(crate) phone: Signal<bool>,
     pub(crate) sheet: Signal<PhoneSheet>,
-    pub(crate) picks: Signal<Vec<Pick>>,
     pub(crate) dialog: Signal<Option<OpenDialog>>,
     renaming: Signal<Option<Renaming>>,
     pub(crate) share: Signal<Option<Share>>,
@@ -113,7 +108,6 @@ impl Workspace {
         let routes = create_signal(0);
         let phone = create_signal(false);
         let sheet = create_signal(PhoneSheet::Closed);
-        let picks = create_signal(Vec::new());
         let dialog = create_signal(None);
         let renaming = create_signal(None);
         let share = create_signal(None);
@@ -136,9 +130,6 @@ impl Workspace {
                 next_tab: Cell::new(FIRST_BLOCK_TAB),
                 active: Cell::new(None),
                 roots: RefCell::new(None),
-                trees: RefCell::new(HashMap::new()),
-                own_pick_tab: Cell::new(None),
-                tab_nodes: RefCell::new(HashMap::new()),
                 saved_titles: RefCell::new(HashMap::new()),
                 next_ask: Cell::new(0),
                 share_asks: RefCell::new(Vec::new()),
@@ -154,7 +145,6 @@ impl Workspace {
             routes,
             phone,
             sheet,
-            picks,
             default_editors,
             dialog,
             renaming,
@@ -408,31 +398,6 @@ impl Workspace {
     }
 
     fn show_requested(&self) {
-        let inner = self.state.value();
-        let own = self.editor.block_id();
-        let requested: Vec<Pick> = self
-            .host()
-            .take_pick_requests()
-            .into_iter()
-            .map(|request| {
-                let tab = match request.within {
-                    Some(block) if block == own => inner.own_pick_tab.take(),
-                    within => within.and_then(|block| self.tab_of_block(block)),
-                };
-                Pick::new(request, tab)
-            })
-            .collect();
-        if !requested.is_empty() {
-            self.picks.update(|picks| picks.extend(requested));
-        }
-        let withdrawn = self.host().take_withdrawn_picks();
-        if !withdrawn.is_empty() {
-            self.picks
-                .update(|picks| picks.retain(|held| !withdrawn.contains(&held.pick)));
-            if self.picks.with_untracked(Vec::is_empty) {
-                self.forget_trees();
-            }
-        }
         for (block, dialog) in self.host().take_dialog_requests() {
             match dialog {
                 ShellDialog::Rename { anchor, within } => {
@@ -452,15 +417,6 @@ impl Workspace {
                 request.via,
             );
         }
-    }
-
-    pub(crate) fn templates_for(&self, parent: BlockParent) -> Vec<Uuid> {
-        let Some(block) = parent.block().or_else(|| self.my_files()) else {
-            return Vec::new();
-        };
-        self.editor
-            .resolved_settings::<Home>(block)
-            .with(|home| home.value().templates())
     }
 
     fn open_landing(&self) {
@@ -496,7 +452,7 @@ impl Workspace {
             .or_else(|| self.state.value().layout.focused());
         self.renaming.set(Some(Renaming {
             block,
-            anchor: PickAnchor { rect, tab },
+            anchor: RenameAnchor { rect, tab },
         }));
     }
 
@@ -511,7 +467,7 @@ impl Workspace {
         })
     }
 
-    pub fn rename_anchor(&self) -> Option<PickAnchor> {
+    pub fn rename_anchor(&self) -> Option<RenameAnchor> {
         self.renaming
             .with_untracked(|shown| shown.map(|shown| shown.anchor))
     }
@@ -644,213 +600,6 @@ impl Workspace {
             roots.read().unwrap_or_default(),
             shared.read().unwrap_or_default(),
         )
-    }
-
-    fn graph(&self, tree: PickTree) -> Graph {
-        let (roots, shared) = self.top();
-        let inner = self.state.value();
-        let trees = inner.trees.borrow();
-        let lists = trees.get(&tree);
-        let mut blocks: HashMap<Uuid, BlockInfo> = HashMap::new();
-        for block in lists
-            .into_iter()
-            .flat_map(HashMap::values)
-            .flat_map(|list| list.read().unwrap_or_default())
-            .chain(roots.iter().cloned())
-            .chain(shared.iter().cloned())
-        {
-            blocks.insert(block.id, block);
-        }
-        let listed = lists
-            .into_iter()
-            .flat_map(HashMap::iter)
-            .filter_map(|(query, list)| match query {
-                BlockQuery::Children(id) if list.read().is_ok() => Some(*id),
-                _ => None,
-            })
-            .collect();
-        Graph {
-            organization: self.host().organization_id(),
-            account: self.host().account_id(),
-            roots,
-            shared,
-            blocks,
-            listed,
-        }
-    }
-
-    fn hold(&self, tree: PickTree, wants: &[BlockQuery]) -> bool {
-        let inner = self.state.value();
-        let mut trees = inner.trees.borrow_mut();
-        let lists = trees.entry(tree).or_default();
-        let before = lists.len();
-        lists.retain(|query, _| wants.contains(query));
-        let mut changed = lists.len() != before;
-        for query in wants {
-            if !lists.contains_key(query) {
-                lists.insert(*query, self.blocks().watch(*query));
-                changed = true;
-            }
-        }
-        changed
-    }
-
-    pub(crate) fn tree(&self, tree: PickTree, rows: impl Fn(&Graph) -> Tree) -> Vec<TreeRow> {
-        let mut built = rows(&self.graph(tree));
-        for _ in 0..8 {
-            if !self.hold(tree, &built.wants) {
-                break;
-            }
-            built = rows(&self.graph(tree));
-        }
-        built.rows
-    }
-
-    fn forget_trees(&self) {
-        self.state.value().trees.borrow_mut().clear();
-    }
-
-    pub(crate) fn register_tab_node(&self, tab: TabId, node: NodeRef) {
-        let inner = self.state.value();
-        inner.tab_nodes.borrow_mut().insert(tab, node);
-    }
-
-    pub(crate) fn forget_tab_node(&self, tab: TabId, node: NodeRef) {
-        self.state.try_with(|inner| {
-            let mut nodes = inner.tab_nodes.borrow_mut();
-            if nodes.get(&tab) == Some(&node) {
-                nodes.remove(&tab);
-            }
-        });
-    }
-
-    pub(crate) fn tab_node(&self, tab: TabId) -> Option<NodeRef> {
-        let inner = self.state.value();
-        inner.tab_nodes.borrow().get(&tab).copied()
-    }
-
-    pub fn picker_dialogs(&self) -> Memo<Vec<(u64, TabId)>> {
-        let picks = self.picks;
-        create_memo(move || {
-            picks.with(|picks| {
-                picks
-                    .iter()
-                    .filter(|held| held.surface_open())
-                    .filter_map(|held| Some((held.pick, held.anchor.tab?)))
-                    .collect::<Vec<_>>()
-            })
-        })
-    }
-
-    pub fn pick_anchor(&self, pick: u64) -> Option<PickAnchor> {
-        self.picks.with_untracked(|picks| {
-            picks
-                .iter()
-                .find(|held| held.pick == pick)
-                .map(|held| held.anchor)
-        })
-    }
-
-    pub(crate) fn pick(&self, pick: u64) -> Option<Pick> {
-        self.picks
-            .with(|picks| picks.iter().find(|held| held.pick == pick).cloned())
-    }
-
-    pub(crate) fn pick_action(&self, pick: u64, action: PickAction) {
-        let Some(mut held) = self.pick(pick) else {
-            return;
-        };
-        if let PickAction::Import | PickAction::CopyTemplate(_) = action {
-            if held.importing.is_none() {
-                let ask = self.ask_number();
-                let workspace = *self;
-                let parent = held.import_parent();
-                let asked = match action {
-                    PickAction::CopyTemplate(template) => self.host().copy_blocks(template, parent),
-                    _ => self.host().import_blocks(parent),
-                };
-                self.editor.then(asked, move |imported| {
-                    if let Some(held) = workspace.pick(pick)
-                        && held.importing == Some(ask)
-                    {
-                        workspace.resolve(held.imported(imported));
-                    }
-                });
-                held.importing = Some(ask);
-                self.resolve(PickOutcome::Open(Box::new(held)));
-            }
-            return;
-        }
-        match held.act(action) {
-            PickOutcome::Open(mut held) => {
-                self.send_commit(&mut held);
-                self.resolve(PickOutcome::Open(held));
-            }
-            answered => self.resolve(answered),
-        }
-    }
-
-    fn send_commit(&self, held: &mut Pick) {
-        let parent = held.created_parent();
-        if let Some(creating) = &mut held.creating
-            && let Some(child) = creating.child
-            && creating.committed
-            && !creating.sent
-        {
-            creating.sent = true;
-            self.host().commit_child(child, parent, None);
-        }
-    }
-
-    pub(crate) fn creation_state(&self, pick: u64, state: &ChildState) {
-        let Some(mut held) = self.pick(pick) else {
-            return;
-        };
-        if let Some(creating) = &mut held.creating {
-            creating.child = state.child;
-            creating.height = state.intrinsic_size.map(|size| size.y.max(1.0));
-        }
-        let held = match state.dialog.answer {
-            Some(DialogAnswer::Dismissed) => {
-                return self.pick_action(pick, PickAction::CancelCreation);
-            }
-            Some(DialogAnswer::Accepted) => match held.act(PickAction::Create) {
-                PickOutcome::Open(held) => *held,
-                answered => return self.resolve(answered),
-            },
-            None => held,
-        };
-        let mut held = held;
-        self.send_commit(&mut held);
-        match &state.creation {
-            Some(progress) => self.resolve(held.progressed(progress)),
-            None => self.resolve(PickOutcome::Open(Box::new(held))),
-        }
-    }
-
-    fn resolve(&self, outcome: PickOutcome) {
-        match outcome {
-            PickOutcome::Open(held) => {
-                if self.pick(held.pick).as_ref() != Some(&*held) {
-                    self.picks.update(|picks| {
-                        if let Some(slot) = picks.iter_mut().find(|slot| slot.pick == held.pick) {
-                            *slot = *held;
-                        }
-                    });
-                }
-            }
-            PickOutcome::Answered(pick, answer, into) => {
-                self.picks
-                    .update(|picks| picks.retain(|held| held.pick != pick));
-                if self.picks.with_untracked(Vec::is_empty) {
-                    self.forget_trees();
-                }
-                if let (Ok(Some(_)), Some((block, block_type, container))) = (&answer, into) {
-                    self.host().place_block(block, block_type, container, false);
-                }
-                self.host().answer_pick(pick, answer);
-            }
-        }
     }
 
     fn show_panel(&self, panel: HostPanel) {
@@ -1368,8 +1117,6 @@ impl Workspace {
         let parent = BlockParent::Block(container);
         let excluded = vec![container.into_bytes()];
         let workspace = *self;
-        let inner = self.state.value();
-        inner.own_pick_tab.set(inner.layout.shown());
         self.editor.pick_block(
             BlockFilter {
                 name: "Block".to_owned(),
@@ -1377,8 +1124,8 @@ impl Workspace {
                 excluded,
                 templates: false,
                 place: Some(parent.encode()),
-                anchor: None,
             },
+            PickAnchor::Centre,
             move |picked: Result<PickedBlock, Failure>| {
                 if !workspace.state.is_alive() {
                     return;
@@ -1407,8 +1154,6 @@ impl Workspace {
     pub(crate) fn open_picker(&self, parent: Uuid, anchor: Option<Rect>) {
         self.error.set(None);
         let workspace = *self;
-        let inner = self.state.value();
-        inner.own_pick_tab.set(inner.layout.focused());
         self.editor.pick_block(
             BlockFilter {
                 name: "Block".to_owned(),
@@ -1416,8 +1161,8 @@ impl Workspace {
                 excluded: vec![parent.into_bytes()],
                 templates: false,
                 place: None,
-                anchor,
             },
+            anchor,
             move |picked: Result<PickedBlock, Failure>| {
                 if !workspace.state.is_alive() {
                     return;

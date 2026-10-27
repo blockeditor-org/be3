@@ -6,6 +6,7 @@ impl Opening {
             Self::Block(open) => open.instance,
             Self::Creation(open) => open.instance,
             Self::Artifact(open) => open.instance,
+            Self::Picker(open) => open.instance,
         }
     }
 }

@@ -15,7 +15,7 @@ Rust on both sides is generated from it into this crate. The world imports:
 - `shell` (`shell.wit`, with its shapes in `shell-types`): what an editor tells
   the shell around it, its menus, children, audio, web views and creations;
 - `host-services` (`host-services.wit`): what an editor asks of the host and
-  waits for, files, picks, revisions, access, fetches and staged data;
+  waits for, files, revisions, access, fetches and staged data;
 - `account` and `contacts` (`account.wit`): whether the account administers its
   company, the base of block links, where preferences come from, and the
   account's contacts, which the host answers only to the shell;
@@ -37,7 +37,7 @@ Ids and access levels come from `be3:shared` (crates/be-ops/wit), which the
 type-module world and `be3:gpu` use too, so an id has one shape everywhere: a
 uuid is its 16 bytes and a hash its 32, each under the alias of what it names
 (`block-id`, `block-type-id`, `commit-id`, ...), and a number one side hands
-out is an alias named `<thing>-id` (`screen-id`, `child-id`, `pick-id`).
+out is an alias named `<thing>-id` (`screen-id`, `child-id`, `web-view-id`).
 
 It exports `plugin` (`plugin.wit`): `resource editor`, one open editor instance,
 whose methods are what the host says to that instance and whose drop closes it;
@@ -66,7 +66,7 @@ failure into one of its own kind just before it and keep at most 256.
 The host handles the calls a plugin makes in the order it made them, whatever
 interface each belongs to: one heard while the host draws a frame waits for the
 next frame together with every call after it, so a `create-block` is done before
-a `read-plain-file` or `pick-block` the plugin made after it. Only what a frame
+a `read-plain-file` or `fetch` the plugin made after it. Only what a frame
 itself carries (its layout, `frame-needed`, paintings) is taken at once.
 
 The accepted handshake carries the theme the host is drawn in, which is what
@@ -430,6 +430,9 @@ keyboard or a popup; then `begin-move` and `begin-resize`, which hand the pointe
 the press is let go, `resize` and `close`), and the host shows it as a
 `window(w)` screen of that instance, whose size, scale and `placement` are the
 host's answer, whose focus arrives as input, and whose going away closes it.
+block-app says `windows` for every frame it shows and, where it opens no windows
+of its own, draws each one over its own window at the point asked for, moved
+back inside it, or shrunk to the room below that point when there is enough.
 Without `windows` the plugin draws its windows inside the screen. A frame is the whole rectangle an editor is
 edited in, and an instance has at most one; the plugin lays its own toolbar
 row, sidebars and content out inside it, in one pass of one context. The host
@@ -610,7 +613,7 @@ A block pick may name a place for what it makes: the top level or a block. The
 picker then asks for a name and lets the user choose the place as well, and
 the block is created there under that name; the answer says so, and the plugin
 only opens what it was given. A block chosen from the ones that already exist
-is never placed by the host, and the plugin places it as it would without a
+is never placed by the picker, and the plugin places it as it would without a
 place.
 
 The host answers with a status per child: whether the block could be opened
@@ -651,33 +654,35 @@ the child. A live child is the instance's own content rather than something
 the user promoted - the whole of what the region shows - so it is given input
 from the moment it is placed and the host never takes that away.
 
-An editor instance may ask the host to choose a block for it, which is what
-lets an instance acquire a child without waiting for one to be dragged in. The
-request carries the name of what is being chosen, the block types that may be
-chosen, empty for any, whether the picker should open on the templates the
-host offers, and optionally an anchor: the rectangle of the control or place
-that asked, in the asking region's own coordinates, where the picker should
-open. It is answered exactly once, with the block the user chose or
-created and whether it was an existing block rather than a new one, the picker
-the user closed, or why the block could not be made.
-Requests are identified per instance and may be outstanding together. A
-creation dialog asks the same way, which is how an editor whose block cannot be
-made until it references another one gets that block before its own exists; the
-host opens the picker over the dialog it is already showing.
+An editor instance chooses a block by placing a picker as a child
+(`child-content::picker`), which is what lets an instance acquire a child
+without waiting for one to be dragged in. The child carries the filter - the
+name of what is being chosen, the block types that may be chosen, empty for
+any, the blocks never to offer, whether the picker opens on the templates the
+host offers, and where to place what it makes - the location new blocks are
+made in when the filter places none, and whether to lay the picker out for
+touch, as sheets filling the child's rectangle, rather than as a menu and a
+card sized to their content. The instance sizes and places the child itself,
+in its own coordinates, as a popover from the control that asked, usually in
+a window of its own so it can reach past its frame. The host runs the child in
+the editor whose manifest accepts `pick` (the workspace's `picker`), opened as
+`opening::picker`; that editor reads the block graph for itself, so the
+instance that asked never sees what the picker browses. The picker reports the
+size its content wants as its intrinsic size and answers once with
+`shell.picked`: the block chosen or created and whether it was an existing
+block linked rather than a new one, none when the user cancelled, or why the
+block could not be made. The answer reaches the instance that placed the child
+as that child's `child-status.picked`, and the instance then removes the
+child, which closes the picker. A creation dialog places a picker the same
+way, which is how an editor whose block cannot be made until it references
+another one gets that block before its own exists.
 
-The host does not draw the picker itself. It forwards each pick to the
-instance that draws the window, which is told the pick, its filter, the
-block that asked and which of its own children that block is or is inside
-(none for a creation dialog), and answers it once. The host rewrites the
-filter's anchor into the coordinates of the region it forwards the pick to,
-through where both regions are placed on screen, and drops it when either is
-not placed; the host passes that answer back to the
-instance that asked. That instance makes new blocks by placing a child that
-shows a template being made, named by its editor and template from the
-catalog the host sends with the block types. The child's status reports the
-creation's progress - its options, whether they are ready, then the block it
-made or why it failed - and the instance asks the host to make it, under a
-parent and with a name, by committing the child.
+The picker makes new blocks by placing a child of its own that shows a
+template being made, named by its editor and template from the catalog the
+host sends with the block types. The child's status reports the creation's
+progress - its options, whether they are ready, then the block it made or why
+it failed - and the picker asks the host to make it, under a parent and with a
+name, by committing the child.
 
 An editor instance may ask the host to present it: to give it the whole window
 and show nothing else of the app, which is what a slideshow or a video played

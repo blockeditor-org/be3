@@ -5,7 +5,9 @@ use std::rc::Rc;
 
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{NodeId, Vec2};
-use block_editor_beui::{BlockFilter, BlockList, BlockParent, BlockQuery, Creation, Editor};
+use block_editor_beui::{
+    BlockFilter, BlockList, BlockParent, BlockQuery, Creation, Editor, PickAnchor,
+};
 use block_editor_beui::{ContentProjection, Failure};
 use deterministic_game_types::{
     DeterministicGame, DeterministicGameContent, GameModuleContent, GameModuleFile,
@@ -260,7 +262,6 @@ enum Chosen {
 struct GameCreation {
     this: Cell<Option<Stored<GameCreation>>>,
     creation: Creation,
-    picking: Cell<bool>,
     listing: Cell<bool>,
     staged: RefCell<Vec<StagedGame>>,
     listing_error: RefCell<Option<String>>,
@@ -275,7 +276,6 @@ impl GameCreation {
         Self {
             this: Cell::new(None),
             changed: create_signal(0),
-            picking: Cell::new(false),
             listing: Cell::new(true),
             staged: RefCell::new(Vec::new()),
             listing_error: RefCell::new(None),
@@ -350,7 +350,6 @@ impl GameCreation {
 
     fn snapshot(&self) -> CreationSnapshot {
         self.changed.get();
-        let picking = self.picking.get();
         let chosen = self.chosen.get();
         let module = match chosen {
             Some(Chosen::Module(module)) => {
@@ -392,7 +391,6 @@ impl GameCreation {
             games,
             listing: self.listing.get(),
             module,
-            picking,
             error: self
                 .error
                 .borrow()
@@ -458,17 +456,13 @@ impl GameCreationModel for GameCreation {
 
     fn choose_module(&self) {
         let this = self.this.get();
-        let host = self.creation.host().clone();
-        self.picking.set(true);
         self.creation
-            .then(host.pick_block(module_filter()), move |picked| {
+            .pick_block(module_filter(), PickAnchor::Centre, move |picked| {
                 let Some(creation) = this.and_then(|this| this.try_value()) else {
                     return;
                 };
-                creation.picking.set(false);
                 match picked {
-                    Ok(Some(module)) => creation.choose(Chosen::Module(module.id())),
-                    Ok(None) => {}
+                    Ok(module) => creation.choose(Chosen::Module(module.id())),
                     Err(error) => *creation.error.borrow_mut() = Some(error.to_string()),
                 }
                 creation.changed();
@@ -576,6 +570,5 @@ pub(crate) fn module_filter() -> BlockFilter {
         excluded: Vec::new(),
         templates: false,
         place: None,
-        anchor: None,
     }
 }

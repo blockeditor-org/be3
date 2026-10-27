@@ -4,7 +4,7 @@ use super::*;
 
 #[test]
 fn linking_a_block_in_the_picker_answers_the_pick() {
-    let (mut fixture, _) = editor();
+    let (fixture, _) = editor();
     let linked = Uuid::new_v4();
     let space = Uuid::new_v4();
     let mut workspace = BlockInfo::new(space, Uuid::new_v4(), BlockParent::Root);
@@ -15,9 +15,7 @@ fn linking_a_block_in_the_picker_answers_the_pick() {
     info.set_intrinsic_name("Notes".to_owned());
     fixture.test.store().add_block(info);
 
-    fixture
-        .test
-        .request_pick(7, filter(), BlockLocation::Root, None);
+    let mut fixture = picking(&fixture, filter(), BlockLocation::Root);
     fixture.settle();
     assert!(
         fixture.test.shown("picker.link-existing"),
@@ -32,16 +30,13 @@ fn linking_a_block_in_the_picker_answers_the_pick() {
     fixture.settle();
 
     assert_eq!(
-        fixture.test.take_pick_answers(),
-        vec![(
-            7,
-            Ok(Some(PickedBlock {
+        fixture.test.take_picked(),
+        vec![Ok(Some(PickedBlock {
                 block_id: linked.into_bytes(),
                 block_type: SHOWN_TYPE.into_bytes(),
                 linked: true,
                 placed: false,
-            }))
-        )]
+            }))]
     );
     assert!(
         !fixture.test.shown("picker.confirm"),

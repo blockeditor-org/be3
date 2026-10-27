@@ -1999,11 +1999,7 @@ impl CanvasState {
 
     fn pick_block_from(self, center: Option<CanvasPoint>, anchor: Rect) {
         let state = self;
-        let filter = BlockFilter {
-            anchor: Some(anchor),
-            ..BlockFilter::default()
-        };
-        self.editor.pick_block(filter, move |picked| {
+        self.editor.pick_block(BlockFilter::default(), anchor, move |picked| {
             if let Ok(picked) = picked
                 && state.is_alive()
             {
@@ -2045,8 +2041,8 @@ impl CanvasState {
                 excluded: Vec::new(),
                 templates: false,
                 place: None,
-                anchor,
             },
+            anchor,
             move |picked| {
                 if let Ok(picked) = picked
                     && state.is_alive()
@@ -2074,15 +2070,11 @@ impl CanvasState {
                 excluded: Vec::new(),
                 templates: false,
                 place: None,
-                anchor: request.anchor,
             },
-            None => BlockFilter {
-                anchor: request.anchor,
-                ..BlockFilter::default()
-            },
+            None => BlockFilter::default(),
         };
         let state = self;
-        self.editor.pick_block(filter, move |picked| {
+        self.editor.pick_block(filter, request.anchor, move |picked| {
             if let Ok(picked) = picked
                 && state.is_alive()
             {

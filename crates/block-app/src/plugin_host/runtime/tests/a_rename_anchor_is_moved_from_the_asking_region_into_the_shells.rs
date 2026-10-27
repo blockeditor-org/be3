@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn a_pick_anchor_is_moved_from_the_asking_region_into_the_pickers() {
+fn a_rename_anchor_is_moved_from_the_asking_region_into_the_shells() {
     let window = FramePlacement {
         rect: Rect::from_min_size(pos2(0.0, 0.0), vec2(1200.0, 800.0)),
         zoom: 1.0,

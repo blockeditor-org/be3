@@ -7,7 +7,8 @@ use be_block::presence::{ChannelKind, PresenceKind};
 use beui::reactive::*;
 use beui::{Document, Pos2, Rect, Vec2};
 use block_plugin_api::{
-    BarAction, ChildContent, ChildId, ChildLayer, ChildMode, ChildPreview, CreationProgress,
+    BarAction, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPreview,
+    CreationProgress,
     DialogFrame, DialogStatus, EditorCapabilities, HostPanel, HostWindowId, InteractionMode,
     MenuEntry, ResizeMode, TopBar, Watched, WebViewId,
 };
@@ -170,6 +171,11 @@ pub enum SubregionContent {
     Window(HostWindowId),
     Creation { editor: Uuid, template: String },
     ArtifactSettings { block: Uuid },
+    Picker {
+        filter: BlockFilter,
+        parent: BlockParent,
+        touch: bool,
+    },
 }
 
 impl From<ChildTarget> for SubregionContent {
@@ -197,6 +203,15 @@ impl SubregionContent {
             Self::ArtifactSettings { block } => ChildContent::ArtifactSettings {
                 block_id: block.into_bytes(),
             },
+            Self::Picker {
+                filter,
+                parent,
+                touch,
+            } => ChildContent::Picker {
+                filter: filter.clone(),
+                parent: parent.encode(),
+                touch: *touch,
+            },
         }
     }
 }
@@ -217,6 +232,7 @@ pub struct ChildState {
     pub creation: Option<CreationProgress>,
     pub preview: ChildPreview,
     pub dialog: DialogStatus,
+    pub picked: Option<BlockPick>,
 }
 
 impl ChildState {
@@ -245,6 +261,7 @@ impl ChildState {
             creation: status.creation,
             preview: status.preview,
             dialog: status.dialog,
+            picked: status.picked,
         }
     }
 }
@@ -387,6 +404,7 @@ impl OwnedEditor {
         let revealed = create_signal(None::<u64>);
         let files = create_signal(None::<FileDrop>);
         let placed = create_signal(Rect::ZERO);
+        let picking = create_signal(None::<crate::picking::Picking>);
         let pushed = Mirror::new(&host);
         let state = OwnedStored::new(EditorState {
             _scope: owner.into_scope(),
@@ -417,7 +435,9 @@ impl OwnedEditor {
             intrinsic: Cell::new(None),
             children: RefCell::new(Vec::new()),
             next_child: Cell::new(0),
-            pick: RefCell::new(None),
+            picking,
+            next_pick: Cell::new(0),
+            fitted: Cell::new(None),
             seen: Cell::new(None),
             shown_rect: Cell::new(None),
             children_moved: Cell::new(false),
@@ -479,7 +499,9 @@ struct EditorState {
     intrinsic: Cell<Option<Vec2>>,
     children: RefCell<Vec<(u64, Rc<ChildRecord>)>>,
     next_child: Cell<u64>,
-    pick: RefCell<Option<Task>>,
+    picking: Signal<Option<crate::picking::Picking>>,
+    next_pick: Cell<u64>,
+    fitted: Cell<Option<NodeRef>>,
     seen: Cell<Option<(u64, f32)>>,
     shown_rect: Cell<Option<Rect>>,
     children_moved: Cell<bool>,
@@ -864,6 +886,23 @@ impl Editor {
         known
     }
 
+    pub fn fit_to(&self, node: Option<NodeRef>) {
+        self.state().fitted.set(node);
+    }
+
+    pub(crate) fn fit_intrinsic(&self, document: &mut Document, context: &beui::Context) {
+        let Some(node) = self.state().fitted.get().and_then(|node| node.try_get()) else {
+            return;
+        };
+        let node = document.content_of_overlay(node).unwrap_or(node);
+        let measured = document
+            .measure_node(context, node, Vec2::splat(f32::INFINITY))
+            .filter(|size| size.x.is_finite() && size.y.is_finite() && size.x > 0.0 && size.y > 0.0);
+        if measured.is_some() && self.intrinsic_size() != measured {
+            self.set_intrinsic_size(measured);
+        }
+    }
+
     pub fn set_intrinsic_size(&self, size: Option<Vec2>) {
         self.state().intrinsic.set(size);
     }
@@ -875,17 +914,49 @@ impl Editor {
     pub fn pick_block(
         &self,
         filter: BlockFilter,
+        anchor: impl Into<crate::PickAnchor>,
         picked: impl FnOnce(Result<PickedBlock, block_editor_plugin::Failure>) + 'static,
     ) {
-        let asked = self.state().host.pick_block(filter);
-        let task = self.then(asked, move |answer| match answer {
-            Ok(Some(block)) => picked(Ok(block)),
-            Ok(None) => {}
-            Err(error) => picked(Err(error)),
-        });
-        if let Some(earlier) = self.state().pick.replace(Some(task)) {
-            earlier.cancel();
-        }
+        let state = self.state();
+        let serial = state.next_pick.get() + 1;
+        state.next_pick.set(serial);
+        let mut filter = filter;
+        let parent = match self.block_id() {
+            own if own.is_nil() => BlockParent::Root,
+            own => {
+                if !filter.excluded.contains(&own.into_bytes()) {
+                    filter.excluded.push(own.into_bytes());
+                }
+                BlockParent::Block(own)
+            }
+        };
+        let touch = beui::reactive::try_with_document(|document| document.touched())
+            .unwrap_or(false);
+        state.picking.set(Some(crate::picking::Picking::new(
+            serial,
+            filter,
+            parent,
+            anchor.into(),
+            touch,
+            Box::new(picked),
+        )));
+    }
+
+    pub(crate) fn picking(&self) -> ReadSignal<Option<crate::picking::Picking>> {
+        self.state().picking.read_only()
+    }
+
+    pub(crate) fn finish_pick(&self, serial: u64, answer: BlockPick) {
+        let state = self.state();
+        let Some(picking) = state
+            .picking
+            .get_untracked()
+            .filter(|picking| picking.serial() == serial)
+        else {
+            return;
+        };
+        state.picking.set(None);
+        picking.answer(answer);
     }
 
     pub(crate) fn register_child(
@@ -1340,6 +1411,7 @@ pub struct Creation(Rc<CreationState>);
 
 struct CreationState {
     host: EditorHost,
+    children: OwnedEditor,
     template: String,
     maker: RefCell<Option<Maker>>,
     pushed: Mirror,
@@ -1357,6 +1429,7 @@ impl Creation {
         defer_graph_changes(&host);
         Self(Rc::new(CreationState {
             pushed: Mirror::new(&host),
+            children: OwnedEditor::new(host.clone(), Uuid::nil()),
             host,
             template: template.into(),
             maker: RefCell::new(None),
@@ -1421,6 +1494,20 @@ impl Creation {
         if self.0.seen.replace(changes) != changes {
             self.0.pushed.sync(&self.0.host);
         }
+        self.0.children.begin_frame();
+    }
+
+    pub fn pick_block(
+        &self,
+        filter: BlockFilter,
+        anchor: impl Into<crate::PickAnchor>,
+        picked: impl FnOnce(Result<PickedBlock, block_editor_plugin::Failure>) + 'static,
+    ) {
+        self.0.children.pick_block(filter, anchor, picked);
+    }
+
+    pub(crate) fn children(&self) -> Editor {
+        *self.0.children
     }
 }
 

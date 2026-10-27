@@ -20,7 +20,7 @@ use uuid::Uuid;
 use crate::wayland::WindowSurface;
 
 use super::region::{ChildView, PanDrag, PluginRegion, RegionEditor};
-use crate::editors::plugin::PickSource;
+use crate::editors::plugin::{InstanceSource, PluginPicker};
 use crate::editors::{
     Chrome, EditorRegistry, PendingCreation, PluginEditor, editor_access_ceiling,
 };
@@ -34,6 +34,7 @@ use crate::ui::HostPanelSurface;
 const MIN_ZOOM: f32 = 1.0 / 64.0;
 const MAX_ZOOM: f32 = 32.0;
 const CHILD_UNAVAILABLE: &str = "the block is already open above this editor";
+const NO_PICKER: &str = "No editor can pick blocks here.";
 
 pub(crate) struct State {
     registry: RefCell<Rc<EditorRegistry>>,
@@ -42,6 +43,7 @@ pub(crate) struct State {
     parents: RefCell<HashMap<Uuid, Uuid>>,
     simulated: RefCell<HashMap<Uuid, Access>>,
     creations: RefCell<HashMap<CreationKey, CreationChild>>,
+    pickers: RefCell<HashMap<CreationKey, PluginPicker>>,
     commits: RefCell<HashMap<(Uuid, ChildId), ChildCommit>>,
     settings_children: RefCell<HashMap<(Uuid, ChildId), Uuid>>,
     settings_shown: RefCell<HashMap<CreationKey, Uuid>>,
@@ -107,6 +109,7 @@ impl OwnedEditors {
             parents: RefCell::new(HashMap::new()),
             simulated: RefCell::new(HashMap::new()),
             creations: RefCell::new(HashMap::new()),
+            pickers: RefCell::new(HashMap::new()),
             commits: RefCell::new(HashMap::new()),
             settings_children: RefCell::new(HashMap::new()),
             settings_shown: RefCell::new(HashMap::new()),
@@ -379,14 +382,50 @@ impl Editors {
             .map(|(_, height, dialog)| (*height, *dialog))
     }
 
-    pub(crate) fn creation_pick_sources(&self) -> Vec<PickSource> {
+    pub(crate) fn hosted_sources(&self) -> Vec<(Uuid, InstanceSource)> {
         let state = self.0.value();
-        state
-            .creations
-            .borrow()
+        let creations = state.creations.borrow();
+        let pickers = state.pickers.borrow();
+        creations
             .values()
-            .map(|child| child.creation.pick_source())
+            .map(|child| child.creation.source())
+            .chain(pickers.values().map(PluginPicker::source))
+            .map(|source| (hosted_parent(source.instance), source))
             .collect()
+    }
+
+    fn ensure_picker(&self, key: CreationKey, request: crate::plugin_host::PickerRequest) -> bool {
+        let state = self.0.value();
+        if state.pickers.borrow().contains_key(&key) {
+            return true;
+        }
+        let Some(picker) = self.registry().picker(request) else {
+            return false;
+        };
+        state.pickers.borrow_mut().insert(key, picker);
+        true
+    }
+
+    fn forget_picker(&self, key: &CreationKey) {
+        let forgotten = self.0.value().pickers.borrow_mut().remove(key);
+        drop(forgotten);
+    }
+
+    fn picker_region(&self, key: &CreationKey) -> Option<HostedRegion> {
+        let state = self.0.value();
+        let registry = self.registry();
+        let pickers = state.pickers.borrow();
+        Some(pickers.get(key)?.region(&registry, self.client_id()))
+    }
+
+    fn picker_status(
+        &self,
+        key: &CreationKey,
+    ) -> Option<(Option<block_plugin_api::BlockPick>, Option<Vec2>)> {
+        let state = self.0.value();
+        let pickers = state.pickers.borrow();
+        let picker = pickers.get(key)?;
+        Some((picker.picked(), picker.intrinsic()))
     }
 
     pub(crate) fn step_creations(&self) {
@@ -1616,6 +1655,12 @@ enum Kind {
     Creation,
     ArtifactSettings(Uuid),
     DockTab(Uuid, u64),
+    Picker,
+    NoPicker,
+}
+
+pub(crate) fn hosted_parent(instance: EditorInstanceId) -> Uuid {
+    Uuid::from_u64_pair(0x686f_7374_6564_0000, instance.0)
 }
 
 #[component]
@@ -1648,6 +1693,7 @@ fn HostedChild(
     let creation_key: CreationKey = (parent, region, key);
     on_cleanup(move || {
         editors.forget_creation(&creation_key);
+        editors.forget_picker(&creation_key);
         editors.hide_settings(&creation_key);
     });
     let kind = create_memo(move || {
@@ -1680,6 +1726,21 @@ fn HostedChild(
                 return match editors.ensure_creation(creation_key, editor, &template) {
                     true => Kind::Creation,
                     false => Kind::Unavailable,
+                };
+            }
+            Some(HostContent::Picker {
+                filter,
+                parent,
+                touch,
+            }) => {
+                let request = crate::plugin_host::PickerRequest {
+                    filter,
+                    parent,
+                    touch,
+                };
+                return match editors.ensure_picker(creation_key, request) {
+                    true => Kind::Picker,
+                    false => Kind::NoPicker,
                 };
             }
             Some(HostContent::Block {
@@ -1729,7 +1790,7 @@ fn HostedChild(
         let status = create_memo(move || {
             any.get();
             let child = child.get()?;
-            let available = !matches!(kind.get(), Kind::Unavailable | Kind::Missing);
+            let available = !matches!(kind.get(), Kind::Unavailable | Kind::Missing | Kind::NoPicker);
             let mut status = status_of(&editors, &child, available);
             if let (Kind::Preview, Some(block)) = (kind.get(), child.block_id()) {
                 status.preview = preview_of(&editors, block);
@@ -1738,6 +1799,13 @@ fn HostedChild(
                 status.creation = progress;
                 status.intrinsic = height.map(|height| vec2(0.0, height));
                 status.dialog = dialog;
+            }
+            if kind.get() == Kind::NoPicker {
+                status.error = Some(NO_PICKER.to_owned());
+            }
+            if let Some((picked, intrinsic)) = editors.picker_status(&creation_key) {
+                status.picked = picked;
+                status.intrinsic = intrinsic;
             }
             if let Kind::ArtifactSettings(block) = kind.get()
                 && let Some((height, dialog)) = editors.settings_status(block)
@@ -1796,8 +1864,19 @@ fn HostedChild(
                     <ForEach keys={keys}>|(id, kind, _): (Uuid, Kind, Option<Uuid>)| {
                         let reporter = reporter_for(parent, region, key, within);
                         match kind {
-                            Kind::Missing | Kind::Unavailable => view! {
+                            Kind::Missing | Kind::Unavailable | Kind::NoPicker => view! {
                                 <Frame />
+                            },
+                            Kind::Picker => match editors.picker_region(&creation_key) {
+                                Some(hosted) => {
+                                    let dialog = create_memo(move || child.get().and_then(|child| child.dialog));
+                                    view! {
+                                        <CreationSurface hosted dialog />
+                                    }
+                                }
+                                None => view! {
+                                    <Frame />
+                                },
                             },
                             Kind::Panel(panel) => view! {
                                 <HostPanelSurface panel={panel} />
@@ -1926,11 +2005,7 @@ fn DockTabSurface(block: Uuid, tab: u64, reporter: ChildReporter) -> NodeId {
 
 #[component]
 fn CreationSurface(hosted: HostedRegion, dialog: Memo<Option<DialogFrame>>) -> NodeId {
-    let child_view: ChildView = store(Box::new(|_, _, _| {
-        view! {
-            <Frame />
-        }
-    }));
+    let child_view = child_view(hosted_parent(hosted.editor.instance), hosted.region);
     let frame = hosted.frame;
     view! {
         <PluginRegion
@@ -2012,6 +2087,7 @@ fn status_of(editors: &Editors, child: &HostChild, available: bool) -> HostChild
         creation: None,
         preview: ChildPreview::Hosted,
         dialog: DialogStatus::default(),
+        picked: None,
         menu: match available && child.frame_owner {
             true => frame_menu(editors, block),
             false => Vec::new(),

@@ -7,9 +7,7 @@ use super::*;
 fn searching_the_link_tree_keeps_matches_and_the_folders_above_them() {
     let (mut fixture, _) = editor();
     let places = places(&mut fixture);
-    fixture
-        .test
-        .request_pick(9, filter(), BlockLocation::Root, None);
+    let mut fixture = picking(&fixture, filter(), BlockLocation::Root);
     fixture.settle();
     fixture.test.click("picker.link-existing");
     fixture.settle();

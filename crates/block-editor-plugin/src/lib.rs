@@ -68,7 +68,7 @@ pub use graph::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, GraphComm
 pub use host::{
     Artifact, ArtifactState, BlockDrag, BlockHistory, EditorHost, FileDrop, FileFilter,
     FocusedBlock, HeadRead, HostContent, OpenRequest, PeerMessage, PeerPresence,
-    PerformanceMeasurementGuard, PerformanceReporter, PickRequest, PickedFile, Pushed, SavedFile,
+    PerformanceMeasurementGuard, PerformanceReporter, PickedFile, PickerRequest, Pushed, SavedFile,
     SeededContent, SentToPeers, ShowRequest, ShownPresence, StoredHead, Waker,
 };
 pub use module::Module;

@@ -7,19 +7,14 @@ use super::*;
 
 #[test]
 fn an_import_keeps_the_location_it_started_with() {
-    let (mut fixture, _) = editor();
+    let (fixture, _) = editor();
     let folder = Uuid::new_v4();
     let mut info = BlockInfo::new(folder, FolderContent::CONTENT_TYPE, BlockParent::Root);
     info.set_name("Trips".to_owned());
     fixture.test.store().add_block(info);
     let mut placing = filter();
     placing.place = Some(BlockLocation::Root);
-    fixture.test.request_pick(
-        5,
-        placing,
-        BlockLocation::Block(Uuid::new_v4().into_bytes()),
-        None,
-    );
+    let mut fixture = picking(&fixture, placing, BlockLocation::Block(Uuid::new_v4().into_bytes()));
     fixture.settle();
     fixture.test.take_requests();
 
@@ -56,16 +51,13 @@ fn an_import_keeps_the_location_it_started_with() {
     fixture.settle();
 
     assert_eq!(
-        fixture.test.take_pick_answers(),
-        vec![(
-            5,
-            Ok(Some(PickedBlock {
+        fixture.test.take_picked(),
+        vec![Ok(Some(PickedBlock {
                 block_id: imported.into_bytes(),
                 block_type: SHOWN_TYPE.into_bytes(),
                 linked: false,
                 placed: true,
-            }))
-        )]
+            }))]
     );
     assert!(
         !fixture

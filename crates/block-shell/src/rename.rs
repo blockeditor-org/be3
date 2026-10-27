@@ -8,7 +8,6 @@ use block_editor_beui::beui::{Color32, NodeId, TextAlign, Vec2};
 use block_editor_beui::block_ui::BlockTypes;
 use uuid::Uuid;
 
-use super::picker::PickAnchor;
 use super::workspace::Workspace;
 
 pub(crate) const RENAME: TabId = TabId::new((1 << 39) + 2);
@@ -32,9 +31,15 @@ pub(crate) const COLORS: [(&str, [u8; 3]); 8] = [
 ];
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RenameAnchor {
+    pub rect: Option<block_editor_beui::beui::Rect>,
+    pub tab: Option<TabId>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct Renaming {
     pub(crate) block: Uuid,
-    pub(crate) anchor: PickAnchor,
+    pub(crate) anchor: RenameAnchor,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

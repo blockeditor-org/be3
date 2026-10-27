@@ -4,14 +4,13 @@ use block_plugin_api::{
     AccessLevel, ArtifactDescription, AudioCommand, BlockCommand, BlockPick, ChildContent, ChildId,
     ChildMode, ChildPlacement, ChildPlacements, ChildStatus, DialogStatus, EditorInstanceId,
     EditorRegion, FrameReport, FrameSpec, MenuEntry, Occluder, OpenArtifact, OpenBlock,
-    OpenCreation, Opening, PerformanceMeasurement, RegionSize, ScreenId, ScreenLayout,
+    OpenCreation, OpenPicker, Opening, PerformanceMeasurement, RegionSize, ScreenId, ScreenLayout,
     ScreenRequest, ScreenWindow, ShellCommand, Size, Stopped, ViewChange, ViewportMetrics,
     WebViewEvent, WebViewId,
 };
 use block_plugin_api::{
     DescribedAction, WindowRequests,
     embed::{debug::debug::Call as DebugCall, shell::Call as ShellCall},
-    ops::OpId,
 };
 use block_type_guest::editor::{FromEditor, Gesture};
 use std::{
@@ -21,7 +20,7 @@ use std::{
 use uuid::Uuid;
 
 use super::{
-    BlockPickRequest, ChildCommit, EditorBlock, HostChild, HostChildStatus, InstanceRole,
+    ChildCommit, EditorBlock, HostChild, HostChildStatus, InstanceRole,
     MAX_LIVE_CHILDREN,
     audio::AudioPlayer,
     calls::{self, BlockIds, EditorAnswer, EditorCall, Outbound, PluginCall},
@@ -70,7 +69,6 @@ pub(super) struct Instances {
     published: Published,
     shell: Option<EditorInstanceId>,
     waiting: HashMap<EditorInstanceId, Vec<Outbound>>,
-    withdrawn_picks: Vec<(EditorInstanceId, OpId)>,
     gone: HashSet<EditorInstanceId>,
     serial: u64,
     owners: HashMap<block_plugin_api::ops::OpId, EditorInstanceId>,
@@ -120,8 +118,7 @@ struct Instance {
     aspect_ratio: Option<f32>,
     audio: Option<AudioPlayer>,
     reported_size: Option<Vec2>,
-    block_picks: Vec<BlockPickRequest>,
-    pick_answers: Vec<(u64, BlockPick)>,
+    picked: Option<BlockPick>,
     child_commits: Vec<ChildCommit>,
     view: Option<EditorView>,
     reported_view: Option<EditorView>,
@@ -269,8 +266,7 @@ impl Instance {
             aspect_ratio: None,
             audio: None,
             reported_size: None,
-            block_picks: Vec::new(),
-            pick_answers: Vec::new(),
+            picked: None,
             child_commits: Vec::new(),
             view: None,
             reported_view: None,
@@ -298,7 +294,9 @@ impl Instance {
             stale: true,
             content: match role {
                 InstanceRole::Editor(_, block) => own_content_type(block).map(ContentLink::new),
-                InstanceRole::Creation(..) | InstanceRole::Artifact(..) => None,
+                InstanceRole::Creation(..)
+                | InstanceRole::Artifact(..)
+                | InstanceRole::Picker(..) => None,
             },
         }
     }
@@ -1528,6 +1526,19 @@ impl Instances {
                             editable
                         },
                     }),
+                    InstanceRole::Picker(editor) => {
+                        let picker = super::picker_request(instance).unwrap_or_default();
+                        Opening::Picker(OpenPicker {
+                            instance,
+                            editor: editor.into_bytes(),
+                            filter: picker.filter,
+                            parent: picker.parent,
+                            touch: picker.touch,
+                            account_id,
+                            organization_id,
+                            client_id,
+                        })
+                    }
                     InstanceRole::Creation(editor, template) => Opening::Creation(OpenCreation {
                         instance,
                         editor: editor.into_bytes(),
@@ -2013,6 +2024,15 @@ impl Instances {
                     }
                     _ => continue,
                 },
+                ChildContent::Picker {
+                    filter,
+                    parent,
+                    touch,
+                } => super::HostContent::Picker {
+                    filter: filter.clone(),
+                    parent: *parent,
+                    touch: *touch,
+                },
                 ChildContent::WebView(_) => continue,
             };
             if !child.rect.is_positive() {
@@ -2182,6 +2202,7 @@ impl Instances {
                 creation: status.creation,
                 preview: status.preview,
                 dialog: status.dialog,
+                picked: status.picked.clone(),
             };
             if screen.reported_statuses.get(&status.child) == Some(&status) {
                 continue;
@@ -2203,25 +2224,8 @@ impl Instances {
         }
     }
 
-    pub(super) fn take_block_pick(
-        &mut self,
-        instance: EditorInstanceId,
-    ) -> Option<BlockPickRequest> {
-        let entry = self.entries.get_mut(&instance)?;
-        match entry.block_picks.is_empty() {
-            true => None,
-            false => Some(entry.block_picks.remove(0)),
-        }
-    }
-
-    pub(super) fn take_pick_answers(
-        &mut self,
-        instance: EditorInstanceId,
-    ) -> Vec<(u64, BlockPick)> {
-        self.entries
-            .get_mut(&instance)
-            .map(|entry| std::mem::take(&mut entry.pick_answers))
-            .unwrap_or_default()
+    pub(super) fn picked(&self, instance: EditorInstanceId) -> Option<BlockPick> {
+        self.entries.get(&instance)?.picked.clone()
     }
 
     pub(super) fn take_child_dismissals(&mut self, instance: EditorInstanceId) -> Vec<ChildId> {
@@ -2236,37 +2240,6 @@ impl Instances {
             .get_mut(&instance)
             .map(|entry| std::mem::take(&mut entry.child_commits))
             .unwrap_or_default()
-    }
-
-    pub(super) fn request_pick(
-        &self,
-        instance: EditorInstanceId,
-        pick: super::runtime::Pick,
-    ) -> Vec<Outbound> {
-        if !self.entries.contains_key(&instance) {
-            return Vec::new();
-        }
-        vec![Outbound::Editor(
-            instance,
-            EditorCall::Pick(block_plugin_api::shell_types::PickRequest {
-                pick: pick.pick,
-                filter: pick.filter,
-                parent: pick.parent,
-                within: pick.within.map(Uuid::into_bytes),
-                touch: pick.touch,
-            }),
-        )]
-    }
-
-    pub(super) fn withdraw_pick(&self, instance: EditorInstanceId, pick: u64) -> Vec<Outbound> {
-        if !self.entries.contains_key(&instance) {
-            return Vec::new();
-        }
-        vec![Outbound::Editor(instance, EditorCall::WithdrawPick(pick))]
-    }
-
-    pub(super) fn take_withdrawn_picks(&mut self) -> Vec<(EditorInstanceId, OpId)> {
-        std::mem::take(&mut self.withdrawn_picks)
     }
 
     pub(super) fn statuses(&self, layout: &ScreenLayout, pass: u64) -> Vec<super::InstanceStatus> {
@@ -2308,6 +2281,7 @@ impl Instances {
                     role: match entry.role {
                         InstanceRole::Editor(..) => "editor",
                         InstanceRole::Creation(..) => "creation",
+                        InstanceRole::Picker(..) => "picker",
                         InstanceRole::Artifact(..) => "artifact",
                     },
                     opened: entry.opened,
@@ -2787,6 +2761,12 @@ impl Instances {
                 entry.dialog.answer = Some(answer);
             }
             ShellCall::DismissChild { child, .. } => entry.child_dismissals.push(child),
+            ShellCall::Picked { pick, .. } => {
+                if entry.picked.is_some() {
+                    return false;
+                }
+                entry.picked = Some(pick);
+            }
             ShellCall::CommitChild {
                 child,
                 parent,
@@ -2849,7 +2829,6 @@ impl Instances {
             EditorAnswer::Regenerated(outcome) => {
                 entry.artifact.outcome = Some(outcome.map_err(|failure| failure.to_string()))
             }
-            EditorAnswer::Picked { pick, answer } => entry.pick_answers.push((pick, answer)),
             EditorAnswer::Replaced {
                 request_id,
                 replaced,

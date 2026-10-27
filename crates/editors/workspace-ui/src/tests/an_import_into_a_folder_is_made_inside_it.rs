@@ -7,16 +7,14 @@ use super::*;
 
 #[test]
 fn an_import_into_a_folder_is_made_inside_it() {
-    let (mut fixture, _) = editor();
+    let (fixture, _) = editor();
     let folder = Uuid::new_v4();
     let mut info = BlockInfo::new(folder, FolderContent::CONTENT_TYPE, BlockParent::Root);
     info.set_name("Trips".to_owned());
     fixture.test.store().add_block(info);
     let mut placing = filter();
     placing.place = Some(BlockLocation::Block(folder.into_bytes()));
-    fixture
-        .test
-        .request_pick(5, placing, BlockLocation::Detached, None);
+    let mut fixture = picking(&fixture, placing, BlockLocation::Detached);
     fixture.settle();
     fixture.test.take_requests();
 

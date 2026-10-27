@@ -1,7 +1,8 @@
 use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::beui::Key;
-use block_editor_beui::{AccessLevel, BlockCommand, BlockInfo, BlockParent, BlockQuery};
-use block_ui_test::{HostCall, PickedBlock};
+use block_editor_beui::{
+    AccessLevel, BlockCommand, BlockInfo, BlockParent, BlockQuery, ChildContent, PickedBlock,
+};
 use workspace_ui_types::WorkspaceContent;
 
 use super::*;
@@ -48,17 +49,12 @@ fn a_workspace_header_adds_into_that_workspace() {
 
     fixture.test.click(&add);
     fixture.settle();
-    let asked = fixture.test.take_requests();
-    let [
-        HostCall::PickBlock {
-            reply: pick,
-            filter,
-        },
-    ]: [_; 1] = asked.try_into().unwrap_or_else(|asked: Vec<_>| {
-        panic!("the header's add asked for {asked:?} rather than a block")
-    })
-    else {
-        panic!("the header's add asked for something other than a block");
+    let picker = fixture
+        .test
+        .placed_picker()
+        .expect("the header's add opens a picker");
+    let ChildContent::Picker { filter, .. } = picker.content else {
+        unreachable!("placed_picker finds a picker")
     };
     assert!(
         filter.excluded.contains(&files.into_bytes()),
@@ -69,18 +65,25 @@ fn a_workspace_header_adds_into_that_workspace() {
         Some(BlockParent::Block(files).encode()),
         "the picker makes what it creates or imports in the workspace itself"
     );
+    let row = fixture.test.rect_of(&format!("file-tree.{files}.row"));
+    assert!(
+        picker.rect.min.y >= row.max.y - 1.0 && picker.rect.min.x <= row.min.x + 1.0,
+        "the picker hangs under the row whose add asked: {:?} under {row:?}",
+        picker.rect
+    );
     let picked = Uuid::from_u128(11);
     let text_type = Uuid::from_u128(7);
-    fixture.test.answer(
-        pick,
-        Ok(Some(PickedBlock {
-            block_id: picked.into_bytes(),
-            block_type: text_type.into_bytes(),
-            linked: false,
-            placed: false,
-        })),
-    );
+    fixture.test.answer_picker(Ok(Some(PickedBlock {
+        block_id: picked.into_bytes(),
+        block_type: text_type.into_bytes(),
+        linked: false,
+        placed: false,
+    })));
     fixture.settle();
+    assert!(
+        fixture.test.placed_picker().is_none(),
+        "the answered picker closes"
+    );
     let placed = fixture.test.take_block_commands();
     assert!(
         placed.iter().any(|(id, command)| *id == picked
@@ -96,9 +99,8 @@ fn a_workspace_header_adds_into_that_workspace() {
     fixture.settle();
     fixture.test.key(Key::Enter, Modifiers::NONE);
     fixture.settle();
-    let asked = fixture.test.take_requests();
     assert!(
-        matches!(asked.as_slice(), [HostCall::PickBlock { .. }]),
-        "Tab from a workspace's header reaches its add, and Enter presses it: {asked:?}"
+        fixture.test.placed_picker().is_some(),
+        "Tab from a workspace's header reaches its add, and Enter presses it"
     );
 }

@@ -129,8 +129,8 @@ impl Slides {
                 excluded: Vec::new(),
                 templates: true,
                 place: None,
-                anchor,
             },
+            anchor,
             move |picked| {
                 let Ok(picked) = picked else {
                     return;

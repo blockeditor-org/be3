@@ -7,9 +7,7 @@ fn a_template_without_a_dialog_is_created_and_answers_the_pick() {
     let (mut fixture, _) = editor();
     fixture.test.catalog(catalog());
     let parent = Uuid::new_v4();
-    fixture
-        .test
-        .request_pick(3, filter(), BlockLocation::Block(parent.into_bytes()), None);
+    let mut fixture = picking(&fixture, filter(), BlockLocation::Block(parent.into_bytes()));
     fixture.settle();
 
     fixture
@@ -44,15 +42,12 @@ fn a_template_without_a_dialog_is_created_and_answers_the_pick() {
     );
 
     assert_eq!(
-        fixture.test.take_pick_answers(),
-        vec![(
-            3,
-            Ok(Some(PickedBlock {
+        fixture.test.take_picked(),
+        vec![Ok(Some(PickedBlock {
                 block_id: created.into_bytes(),
                 block_type: TEMPLATE_TYPE.into_bytes(),
                 linked: false,
                 placed: false,
-            }))
-        )]
+            }))]
     );
 }

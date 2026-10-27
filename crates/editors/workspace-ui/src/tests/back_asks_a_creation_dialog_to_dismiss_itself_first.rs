@@ -8,9 +8,7 @@ fn back_asks_a_creation_dialog_to_dismiss_itself_first() {
     let mut dialog = catalog();
     dialog.templates[0].dialog = true;
     fixture.test.catalog(dialog);
-    fixture
-        .test
-        .request_pick(5, filter(), BlockLocation::Root, None);
+    let mut fixture = picking(&fixture, filter(), BlockLocation::Root);
     fixture.settle();
     fixture
         .test
@@ -31,7 +29,7 @@ fn back_asks_a_creation_dialog_to_dismiss_itself_first() {
         "back goes to the creation dialog rather than closing it"
     );
     assert!(fixture.test.shown("picker.creation"));
-    assert!(fixture.test.take_pick_answers().is_empty());
+    assert!(fixture.test.take_picked().is_empty());
 
     report_creation_dialog(
         &mut fixture,
@@ -42,8 +40,8 @@ fn back_asks_a_creation_dialog_to_dismiss_itself_first() {
         },
     );
     assert_eq!(
-        fixture.test.take_pick_answers(),
-        vec![(5, Ok(None))],
+        fixture.test.take_picked(),
+        vec![Ok(None)],
         "the dialog dismissing itself cancels the pick"
     );
     assert!(!fixture.test.shown("picker.creation"));

@@ -6,7 +6,7 @@ use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::{
     BlockFilter, BlockLink, ChildTarget, Editor, VersionCommand, VersionHistory, VersionSteps,
-    node_anchor, short_id,
+    short_id,
 };
 
 const PADDING: Space = Space::Xl3;
@@ -55,9 +55,9 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
         editor.pick_block(
             BlockFilter {
                 name: "Choose what to version".into(),
-                anchor: node_anchor(&adopt),
                 ..BlockFilter::default()
             },
+            &adopt,
             move |picked| {
                 if let Ok(picked) = picked {
                     editor.version(VersionCommand::Adopt {

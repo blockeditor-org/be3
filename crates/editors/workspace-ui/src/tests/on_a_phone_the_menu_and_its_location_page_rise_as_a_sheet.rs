@@ -9,9 +9,7 @@ fn on_a_phone_the_menu_and_its_location_page_rise_as_a_sheet() {
     let places = places(&mut fixture);
     let mut placing = filter();
     placing.place = Some(BlockLocation::Block(places.work.into_bytes()));
-    fixture
-        .test
-        .request_pick(5, placing, BlockLocation::Detached, None);
+    let mut fixture = picking_with(&fixture, placing, BlockLocation::Detached, true);
     fixture.test.settle();
     fixture.test.record();
 

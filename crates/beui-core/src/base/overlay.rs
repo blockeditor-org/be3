@@ -704,6 +704,11 @@ impl Document {
         }
     }
 
+    pub fn content_of_overlay(&self, node: NodeId) -> Option<NodeId> {
+        let overlay = self.arena.kind_of::<OverlayNode>(node)?;
+        self.overlay_content(overlay)
+    }
+
     pub fn overlay_window(&self, overlay: NodeOf<OverlayNode>) -> Option<&WindowSpec> {
         self.arena.get_as::<OverlayNode>(overlay).window.as_ref()
     }

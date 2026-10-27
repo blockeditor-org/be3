@@ -41,6 +41,15 @@ impl ChildPlacements {
                 ChildContent::ArtifactSettings { block_id } => {
                     visit(self.instance, BlockIdRole::Existing, block_id);
                 }
+                ChildContent::Picker { filter, parent, .. } => {
+                    let instance = self.instance;
+                    let mut existing = |id: &mut [u8; 16]| visit(instance, BlockIdRole::Existing, id);
+                    filter.excluded.iter_mut().for_each(&mut existing);
+                    if let Some(place) = &mut filter.place {
+                        location(place, &mut existing);
+                    }
+                    location(parent, &mut existing);
+                }
             }
         }
     }
@@ -58,6 +67,13 @@ impl Opening {
             Self::Artifact(open) => {
                 existing(&mut open.block_id);
                 existing(&mut open.source);
+            }
+            Self::Picker(open) => {
+                open.filter.excluded.iter_mut().for_each(&mut existing);
+                if let Some(place) = &mut open.filter.place {
+                    location(place, &mut existing);
+                }
+                location(&mut open.parent, &mut existing);
             }
             Self::Creation(_) => {}
         }
@@ -86,12 +102,6 @@ impl crate::embed::host_services::Call {
             Self::CopyBlocks { source, parent, .. } => {
                 visit(source);
                 location(parent, visit);
-            }
-            Self::PickBlock { filter, .. } => {
-                filter.excluded.iter_mut().for_each(&mut *visit);
-                if let Some(place) = &mut filter.place {
-                    location(place, visit);
-                }
             }
             Self::PickFile { .. }
             | Self::SaveFile { .. }

@@ -3,7 +3,7 @@ pub(crate) mod plugin;
 use std::{collections::HashMap, sync::Arc};
 
 use be_graph::Access;
-use block_plugin_api::{EditorManifest, Edits, PluginManifest, TemplateCategory};
+use block_plugin_api::{EditorManifest, Edits, PluginManifest, ShellRequest, TemplateCategory};
 use uuid::Uuid;
 
 use crate::surfaces::HostedRegion;
@@ -114,7 +114,7 @@ pub(super) enum ArtifactStatus {
 
 pub(crate) trait PendingCreation {
     fn region(&self, registry: &EditorRegistry, client_id: Uuid) -> Option<HostedRegion>;
-    fn pick_source(&self) -> plugin::PickSource;
+    fn source(&self) -> plugin::InstanceSource;
     fn step(&mut self, registry: &EditorRegistry, client_id: Uuid);
     fn dialog(&self) -> block_plugin_api::DialogStatus;
     fn dismiss(&mut self);
@@ -315,6 +315,23 @@ impl EditorRegistry {
                 self.display_name(source_type).unwrap_or("These")
             )),
         }
+    }
+
+    pub(crate) fn picker(
+        &self,
+        request: crate::plugin_host::PickerRequest,
+    ) -> Option<plugin::PluginPicker> {
+        let editor = self.editors.iter().find(|editor| {
+            editor
+                .manifest
+                .editor(editor.id.into_bytes())
+                .is_some_and(|manifest| manifest.accepts.contains(&ShellRequest::Pick))
+        })?;
+        Some(plugin::PluginPicker::new(
+            Arc::clone(&editor.manifest),
+            editor.id,
+            request,
+        ))
     }
 
     pub(crate) fn create(

@@ -4,7 +4,7 @@ use super::calls::{EditorAnswer, EditorCall, Heard, PluginCall};
 use block_plugin_api::{Encoded, Watch};
 
 use block_plugin_api::{
-    AudioStatus, BlockPick, Catalog, ChildStatus, DebugTemplate, DockUpdate, EditorInstanceId,
+    AudioStatus, Catalog, ChildStatus, DebugTemplate, DockUpdate, EditorInstanceId,
     Failure, Fonts, HelloAccepted, InputBatch, Opening, Preferences, WebViewEvent, WebViewId,
     embed::{
         blocks,
@@ -45,7 +45,6 @@ pub(super) struct Wire {
     editors: HashMap<EditorInstanceId, Editor>,
     draws: BTreeMap<OpId, Awaited>,
     answering: BTreeMap<OpId, (EditorInstanceId, Answering)>,
-    picks: HashMap<(EditorInstanceId, u64), OpId>,
     painting: HashMap<OpId, Ticket<Vec<u8>>>,
     audio: HashMap<EditorInstanceId, Watch<AudioStatus>>,
     published: HashMap<OpId, PublishedWatch>,
@@ -71,7 +70,6 @@ enum Answering {
     Created(Ticket<Result<[u8; 16], Failure>>),
     Regenerated(Ticket<Result<(), Failure>>),
     Replaced(u64, Ticket<bool>),
-    Picked(u64, Ticket<BlockPick>),
 }
 
 impl Answering {
@@ -86,10 +84,6 @@ impl Answering {
             Self::Regenerated(ticket) => {
                 EditorAnswer::Regenerated(ticket.decode(outcome).unwrap_or_else(failed))
             }
-            Self::Picked(pick, ticket) => EditorAnswer::Picked {
-                pick,
-                answer: ticket.decode(outcome).unwrap_or(Ok(None)),
-            },
             Self::Replaced(request_id, ticket) => EditorAnswer::Replaced {
                 request_id,
                 replaced: ticket.decode(outcome).unwrap_or(false),
@@ -111,7 +105,6 @@ impl Default for Wire {
             editors: HashMap::new(),
             draws: BTreeMap::new(),
             answering: BTreeMap::new(),
-            picks: HashMap::new(),
             painting: HashMap::new(),
             audio: HashMap::new(),
             published: HashMap::new(),
@@ -295,18 +288,6 @@ impl Wire {
                 let ticket = editor.regenerate_artifact(connection, data);
                 self.answering
                     .insert(ticket.op(), (instance, Answering::Regenerated(ticket)));
-            }
-            EditorCall::Pick(request) => {
-                let pick = request.pick;
-                let ticket = editor.pick(connection, request);
-                self.picks.insert((instance, pick), ticket.op());
-                self.answering
-                    .insert(ticket.op(), (instance, Answering::Picked(pick, ticket)));
-            }
-            EditorCall::WithdrawPick(pick) => {
-                if let Some(op) = self.picks.remove(&(instance, pick)) {
-                    connection.cancel(op);
-                }
             }
             EditorCall::ReplaceChild {
                 request_id,
@@ -744,7 +725,6 @@ impl Wire {
                     return Ok(());
                 }
                 if let Some((instance, answering)) = self.answering.remove(&op) {
-                    self.picks.retain(|_, pick| *pick != op);
                     heard.push(Heard::Answer(instance, answering.answer(outcome)));
                     return Ok(());
                 }

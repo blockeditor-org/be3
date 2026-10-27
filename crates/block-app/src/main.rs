@@ -65,7 +65,7 @@ use block_plugin_api::{
 };
 use editors::{
     ArtifactSession, ArtifactStatus, BlockOpen, EditorAction, EditorRegistry, PluginEditor,
-    SidebarDragSource, plugin::PickSource,
+    SidebarDragSource, plugin::InstanceSource,
 };
 use invite_link::InviteLink;
 use local_settings::SettingsSync;
@@ -366,10 +366,6 @@ impl beui::App for Shell {
             self.app.retry_organizations();
         }
         wayland::before(context, rect, &mut self.document);
-        self.app.touched = self
-            .document
-            .last_pointer
-            .is_some_and(|pointer| pointer.touch);
         self.app.frame(context);
         self.app.sync_ui_settings();
         if let Some(preferences) = self.app.preferences.take() {
@@ -515,15 +511,12 @@ struct BlockApp {
     every_session_type: bool,
     shell: Option<Uuid>,
     windows_sent: Option<(u64, Vec<block_plugin_api::HostWindowId>)>,
-    forwarded_picks: HashMap<u64, (PickSource, block_plugin_api::ops::OpId, PickSource)>,
-    next_pick: u64,
     focus_reports: HashMap<Uuid, editors::FocusReport>,
     artifact_watches: HashMap<Uuid, Vec<Uuid>>,
     ui_settings: Option<(beui::PreferenceLayer, u32, u32)>,
     preferences: Option<beui::PreferenceLayer>,
     scale: Option<f32>,
     keyboard_share: Option<f32>,
-    touched: bool,
     input: SettingsSync<InputSettings>,
     display: SettingsSync<DisplaySettings>,
     display_round: Option<u64>,
@@ -782,15 +775,12 @@ impl BlockApp {
             every_session_type: false,
             shell: None,
             windows_sent: None,
-            forwarded_picks: HashMap::new(),
             focus_reports: HashMap::new(),
             artifact_watches: HashMap::new(),
-            next_pick: 0,
             ui_settings: None,
             preferences: None,
             scale: None,
             keyboard_share: None,
-            touched: false,
             input: SettingsSync::default(),
             display: SettingsSync::default(),
             display_round: None,
@@ -1590,7 +1580,6 @@ impl BlockApp {
 
     fn open_organization(&mut self, organization: Organization) {
         self.resumed = false;
-        self.cancel_forwarded_picks();
         self.focus_reports.clear();
         self.artifact_watches.clear();
         be::stop();
@@ -1692,7 +1681,6 @@ impl BlockApp {
             ServerLocation::Local => self.local_server_url.clone(),
             ServerLocation::Remote(url) => url.clone(),
         };
-        self.cancel_forwarded_picks();
         self.focus_reports.clear();
         self.artifact_watches.clear();
         be::stop();
@@ -2166,8 +2154,8 @@ impl BlockApp {
         let Some(handler) = self.handler_for(from, ShellRequest::Dialog) else {
             return;
         };
-        let source = from.and_then(|from| self.with_editor(from, |editor| editor.pick_source()));
-        let target = self.with_editor(handler, |editor| editor.pick_source());
+        let source = from.and_then(|from| self.with_editor(from, |editor| editor.source()));
+        let target = self.with_editor(handler, |editor| editor.source());
         let anchor = (|| {
             let (source, target) = (source.flatten()?, target.flatten()?);
             crate::plugin_host::reanchor(
@@ -2318,7 +2306,7 @@ impl BlockApp {
         if rewatched {
             self.watch_artifacts(self.watched());
         }
-        self.forward_block_picks(shell);
+        self.forward_child_commits();
         self.editors.step_creations();
         for (from, action) in compositor::take_actions() {
             self.handle_editor_action(from, action);
@@ -2348,66 +2336,14 @@ impl BlockApp {
         watched
     }
 
-    fn cancel_forwarded_picks(&mut self) {
-        for (_, (source, request_id, _)) in self.forwarded_picks.drain() {
-            source.answer(request_id, Ok(None));
-        }
-    }
-
-    fn forward_block_picks(&mut self, shell: Uuid) {
-        let editors: Vec<(Uuid, PickSource, bool)> = self.editors.with(|open| {
+    fn forward_child_commits(&mut self) {
+        let editors: Vec<(Uuid, InstanceSource)> = self.editors.with(|open| {
             open.values()
-                .filter_map(|editor| {
-                    Some((
-                        editor.id(),
-                        editor.pick_source()?,
-                        editor.accepts(ShellRequest::Pick),
-                    ))
-                })
+                .filter_map(|editor| Some((editor.id(), editor.source()?)))
                 .collect()
         });
-        for (_, picker, _) in editors.iter().filter(|(_, _, accepts)| *accepts) {
-            for (pick, answer) in
-                crate::plugin_host::take_pick_answers(&picker.plugin_id, picker.instance)
-            {
-                if let Some((source, request_id, _)) = self.forwarded_picks.remove(&pick) {
-                    source.answer(request_id, answer);
-                }
-            }
-        }
-        let sources: std::collections::HashSet<String> = self
-            .forwarded_picks
-            .values()
-            .map(|(source, _, _)| source.plugin_id.clone())
-            .collect();
-        for plugin_id in sources {
-            for (instance, op) in crate::plugin_host::take_withdrawn_picks(&plugin_id) {
-                self.forwarded_picks
-                    .retain(|pick, (source, asked, picker)| {
-                        let withdrawn = source.plugin_id == plugin_id
-                            && source.instance == instance
-                            && *asked == op;
-                        if withdrawn {
-                            crate::plugin_host::withdraw_pick(
-                                &picker.plugin_id,
-                                picker.instance,
-                                *pick,
-                            );
-                        }
-                        !withdrawn
-                    });
-            }
-        }
-        let pickers: HashMap<Uuid, PickSource> = editors
-            .iter()
-            .filter(|(_, _, accepts)| *accepts)
-            .map(|(id, picker, _)| (*id, picker.clone()))
-            .collect();
-        let editors: Vec<(Uuid, PickSource)> = editors
-            .into_iter()
-            .map(|(id, source, _)| (id, source))
-            .collect();
-        for (id, source) in &editors {
+        let hosted = self.editors.hosted_sources();
+        for (id, source) in editors.iter().chain(&hosted) {
             let (settings, commits): (Vec<_>, Vec<_>) =
                 crate::plugin_host::take_child_commits(&source.plugin_id, source.instance)
                     .into_iter()
@@ -2438,52 +2374,6 @@ impl BlockApp {
             }
         }
         self.editors.forget_hidden_settings();
-        let creations = self.editors.creation_pick_sources();
-        let requesters = editors
-            .into_iter()
-            .map(|(id, source)| (Some(id), source))
-            .chain(creations.into_iter().map(|source| (None, source)));
-        for (block, source) in requesters {
-            while let Some(request) = source.take() {
-                let mut filter = request.filter;
-                filter.excluded.extend(block.map(Uuid::into_bytes));
-                let parent = match block {
-                    Some(block) => block_plugin_api::BlockLocation::Block(block.into_bytes()),
-                    None => block_plugin_api::BlockLocation::Root,
-                };
-                self.next_pick += 1;
-                let pick = self.next_pick;
-                let handler = self.handler_for(block, ShellRequest::Pick).unwrap_or(shell);
-                let Some((picker_id, picker)) = [handler, shell]
-                    .into_iter()
-                    .find_map(|id| Some((id, pickers.get(&id)?)))
-                else {
-                    source.answer(request.op, Ok(None));
-                    continue;
-                };
-                filter.anchor = filter.anchor.and_then(|anchor| {
-                    crate::plugin_host::reanchor(
-                        anchor,
-                        crate::plugin_host::frame_placement(&source.plugin_id, source.instance)?,
-                        crate::plugin_host::frame_placement(&picker.plugin_id, picker.instance)?,
-                    )
-                });
-                let within = block.and_then(|block| self.child_within(picker_id, block));
-                self.forwarded_picks
-                    .insert(pick, (source.clone(), request.op, picker.clone()));
-                crate::plugin_host::request_pick(
-                    &picker.plugin_id,
-                    picker.instance,
-                    crate::plugin_host::Pick {
-                        pick,
-                        filter,
-                        parent,
-                        within,
-                        touch: self.touched,
-                    },
-                );
-            }
-        }
     }
 
     fn poll_artifacts(&mut self) {

@@ -13,9 +13,7 @@ fn block_type_colors_are_shown_in_the_add_menu_and_full_list() {
         .unwrap()
         .color = Some([203, 91, 125]);
     fixture.test.catalog(types);
-    fixture
-        .test
-        .request_pick(5, filter(), BlockLocation::Root, None);
+    let mut fixture = picking(&fixture, filter(), BlockLocation::Root);
     fixture.test.settle();
     fixture.test.snapshot("block_type_colors_in_the_add_menu");
     fixture.test.click("picker.more");

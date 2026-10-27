@@ -25,9 +25,7 @@ pub fn window_tab(window: HostWindowId) -> TabId {
 }
 
 pub(crate) fn tab_window(tab: TabId) -> Option<HostWindowId> {
-    (!crate::picker_view::is_picker_tab(tab))
-        .then(|| tab.value().checked_sub(WINDOW_TABS).map(HostWindowId))
-        .flatten()
+    tab.value().checked_sub(WINDOW_TABS).map(HostWindowId)
 }
 
 pub(crate) fn floating_window(window: &HostWindow) -> Rect {
