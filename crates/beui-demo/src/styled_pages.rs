@@ -4106,3 +4106,180 @@ fn ThemeSample(name: &'static str) -> NodeId {
         </Frame>
     }
 }
+
+const REORDER_TABS: [&str; 5] = ["Inbox", "A much longer tab", "Notes", "Q3", "Drafts"];
+const REORDER_TASKS: [&str; 5] = [
+    "Write the release notes",
+    "Review the layout change",
+    "Answer the support thread",
+    "Plan the next sprint",
+    "Tidy the issue tracker",
+];
+const REORDER_COLUMN_WIDTH: Size = Size::Custom(200.0);
+const REORDER_LIST_WIDTH: Size = Size::Custom(320.0);
+const REORDER_COLUMN_HEIGHT: Size = Size::Custom(180.0);
+
+#[component]
+pub(crate) fn ReorderingPage() -> NodeId {
+    view! {
+        <ScrollPage>
+            <Sample title="A strip of tabs" code={vec![ReorderTabs::SOURCE, ReorderChip::SOURCE]}>
+                <ReorderTabs />
+            </Sample>
+            <Sample title="A list" code={vec![ReorderTasks::SOURCE, ReorderChip::SOURCE]}>
+                <ReorderTasks />
+            </Sample>
+            <Sample
+                title="Two lists to drag between"
+                code={vec![ReorderColumns::SOURCE, ReorderColumn::SOURCE, ReorderChip::SOURCE]}
+            >
+                <ReorderColumns />
+            </Sample>
+        </ScrollPage>
+    }
+}
+
+fn reordered<K: Clone + PartialEq>(keys: &mut Vec<K>, moved: K, after: Option<K>) {
+    keys.retain(|key| *key != moved);
+    let at = after
+        .and_then(|after| keys.iter().position(|key| *key == after))
+        .map_or(0, |at| at + 1);
+    keys.insert(at, moved);
+}
+
+#[sample]
+#[component]
+fn ReorderTabs() -> NodeId {
+    let tabs = create_signal((0..REORDER_TABS.len()).collect::<Vec<usize>>());
+    view! {
+        <List spacing=SECTION_SPACING>
+            <Text style=TextStyle::CAPTION>
+                "Drag a tab along the strip, or focus one and press Alt with an arrow key."
+            </Text>
+            <Reorder
+                keys={tabs}
+                direction=Direction::Horizontal
+                payload={Func::new(|tab: usize| Some(tab))}
+                text={|tab: usize| REORDER_TABS[tab].to_owned()}
+                preview={|tab: usize| view! {
+                    <ReorderChip label={REORDER_TABS[tab].to_owned()} />
+                }}
+                on_move={move |moved: ReorderMove<usize, usize>| {
+                    tabs.update(|tabs| reordered(tabs, moved.payload, moved.after))
+                }}
+            >|reorder: ReorderHandle<usize, usize>|
+                <List direction=Direction::Horizontal spacing=Space::Xs>
+                    <ForEach keys={reorder.order}>|tab: usize|
+                        <ReorderItem reorder item=tab>|_: ReorderItemHandle|
+                            <Interactive
+                                @test_id={format!("demo.reorder.tab.{tab}")}
+                                focusable=true
+                            >
+                                <ReorderChip label={REORDER_TABS[tab].to_owned()} />
+                            </Interactive>
+                        </ReorderItem>
+                    </ForEach>
+                </List>
+            </Reorder>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn ReorderTasks() -> NodeId {
+    let tasks = create_signal((0..REORDER_TASKS.len()).collect::<Vec<usize>>());
+    view! {
+        <Frame width=REORDER_LIST_WIDTH>
+            <Reorder
+                keys={tasks}
+                payload={Func::new(|task: usize| Some(task))}
+                text={|task: usize| REORDER_TASKS[task].to_owned()}
+                on_move={move |moved: ReorderMove<usize, usize>| {
+                    tasks.update(|tasks| reordered(tasks, moved.payload, moved.after))
+                }}
+            >|reorder: ReorderHandle<usize, usize>|
+                <List spacing=Space::Xs>
+                    <ForEach keys={reorder.order}>|task: usize|
+                        <ReorderItem reorder item=task>|_: ReorderItemHandle|
+                            <Interactive
+                                @test_id={format!("demo.reorder.task.{task}")}
+                                focusable=true
+                            >
+                                <ReorderChip label={REORDER_TASKS[task].to_owned()} />
+                            </Interactive>
+                        </ReorderItem>
+                    </ForEach>
+                </List>
+            </Reorder>
+        </Frame>
+    }
+}
+
+#[sample]
+#[component]
+fn ReorderColumns() -> NodeId {
+    let columns = create_signal(vec![vec![0_usize, 1, 2], vec![3, 4]]);
+    view! {
+        <List direction=Direction::Horizontal wrap=true spacing=ROW_SPACING>
+            <ReorderColumn column=0 columns />
+            <ReorderColumn column=1 columns />
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn ReorderColumn(column: usize, columns: Signal<Vec<Vec<usize>>>) -> NodeId {
+    let keys = create_memo(move || columns.with(|columns| columns[column].clone()));
+    view! {
+        <Frame
+            width=REORDER_COLUMN_WIDTH
+            height=REORDER_COLUMN_HEIGHT
+            border={Border::DEFAULT}
+            radius=Radius::Lg
+            padding=Space::Sm
+        >
+            <Reorder
+                keys={keys}
+                payload={Func::new(|task: usize| Some(task))}
+                accepts={Func::new(|_: usize| true)}
+                text={|task: usize| REORDER_TASKS[task].to_owned()}
+                preview={|task: usize| view! {
+                    <ReorderChip label={REORDER_TASKS[task].to_owned()} />
+                }}
+                on_move={move |moved: ReorderMove<usize, usize>| columns.update(|columns| {
+                    for list in columns.iter_mut() {
+                        list.retain(|task| *task != moved.payload);
+                    }
+                    reordered(&mut columns[column], moved.payload, moved.after);
+                })}
+            >|reorder: ReorderHandle<usize, usize>|
+                <List spacing=Space::Xs>
+                    <ForEach keys={reorder.order}>|task: usize|
+                        <ReorderItem reorder item=task>|_: ReorderItemHandle|
+                            <Frame @test_id={format!("demo.reorder.card.{task}")}>
+                                <ReorderChip label={REORDER_TASKS[task].to_owned()} />
+                            </Frame>
+                        </ReorderItem>
+                    </ForEach>
+                </List>
+            </Reorder>
+        </Frame>
+    }
+}
+
+#[sample]
+#[component]
+fn ReorderChip(label: String) -> NodeId {
+    view! {
+        <Frame
+            fill=ColorRole::Surface
+            border={Border::DEFAULT}
+            radius=Radius::Md
+            padding={Padding::symmetric(Space::Md, Space::Sm)}
+        >
+            <Text>{label}</Text>
+        </Frame>
+    }
+}

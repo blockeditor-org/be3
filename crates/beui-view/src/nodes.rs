@@ -328,3 +328,27 @@ pub fn use_preference_layer(source: PreferenceSource) -> Binding<PreferenceLayer
 pub fn use_font_revision() -> ReadSignal<u64> {
     with_document(|document| document.watch_context())
 }
+
+pub fn hold_glide(glide: NodeId, hold: Option<beui_core::base::glide::GlideHold>) {
+    with_document(|document| {
+        if let Some(glide) = document
+            .arena
+            .kind_of::<beui_core::base::glide::GlideNode>(glide)
+        {
+            document.hold_glide(glide, hold);
+        }
+    });
+}
+
+pub fn glide_displacement(glide: NodeId) -> Option<beui_core::geometry::Vec2> {
+    with_document(|document| {
+        document
+            .arena
+            .kind_of::<beui_core::base::glide::GlideNode>(glide)
+            .map(|glide| document.glide_displacement(glide))
+    })
+}
+
+pub fn set_raised(node: NodeId, raised: bool) {
+    with_document(|document| document.set_raised(node, raised));
+}

@@ -84,6 +84,7 @@ mod a_dialogs_scrim_dims_what_comes_after_it_in_the_tree;
 mod a_disabled_action_ignores_its_shortcut_and_disables_its_button;
 mod a_disabled_button_prop_tracks_a_signal_and_blocks_clicks_while_true;
 mod a_disabled_checkbox_ignores_clicks_and_keeps_its_state;
+mod a_disabled_reorder_list_lifts_nothing;
 mod a_disabled_select_does_not_open_when_its_trigger_is_clicked;
 mod a_disabled_text_input_ignores_typing_and_reads_as_dimmed;
 mod a_disposed_animation_cancels_without_completion;
@@ -113,6 +114,7 @@ mod a_drag_in_a_text_area_selects_and_reaches_nothing_around_it;
 mod a_drag_on_the_board_drops_nothing_when_its_touch_is_cancelled;
 mod a_drag_preview_follows_the_pointer_until_the_drop;
 mod a_drag_put_on_the_board_drops_where_the_button_is_let_go;
+mod a_drag_the_board_does_not_carry_can_still_part_a_reorder_list;
 mod a_drag_whose_moves_share_a_frame_with_its_press_and_release_keeps_both_ends;
 mod a_drawing_given_less_room_than_its_size_keeps_to_that_room;
 mod a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given;
@@ -156,6 +158,7 @@ mod a_file_picker_hands_the_chosen_file_to_its_callback_without_waiting_for_it;
 mod a_finger_beside_the_bar_between_two_panes_drags_it;
 mod a_finger_drag_from_a_capturing_button_scrolls_the_list_around_it;
 mod a_finger_dragged_across_a_color_area_picks_rather_than_scrolls;
+mod a_finger_dragged_across_a_list_lifts_its_row;
 mod a_finger_dragging_a_tab_out_of_its_bar_moves_it_where_it_is_dropped;
 mod a_finger_drags_a_draggable_down_where_nothing_scrolls;
 mod a_finger_moves_a_window_up_and_down_by_its_bar;
@@ -241,6 +244,7 @@ mod a_lone_child_fills_a_children_prop_as_a_run_of_one;
 mod a_long_change_is_cut_short_unless_asked_for_in_full;
 mod a_long_press_in_a_text_area_selects_the_word_and_its_toolbar_steps_aside_while_a_handle_moves;
 mod a_long_press_in_a_zoomed_text_area_selects_the_word_and_its_handles_and_toolbar_follow_the_zoom;
+mod a_long_press_lifts_a_row_a_finger_then_moves;
 mod a_long_press_on_selectable_text_selects_the_word_and_its_toolbar_copies_it;
 mod a_long_text_area_only_builds_the_lines_in_view;
 mod a_menu_item_shows_its_icon_and_detail_and_runs_its_click_in_a_dropdown_and_a_sheet;
@@ -325,6 +329,8 @@ mod a_released_sheet_springs_to_its_stop_or_closed;
 mod a_removed_nodes_slot_is_reused_under_a_new_id;
 mod a_reused_or_resumed_rich_layout_breaks_lines_as_a_fresh_one_would;
 mod a_row_added_to_a_for_each_keeps_the_sizes_the_rows_beside_it_chose;
+mod a_row_carried_into_another_list_opens_a_gap_and_drops_into_it;
+mod a_row_let_go_away_from_every_list_glides_home;
 mod a_row_pushed_down_by_the_row_above_it_is_neither_laid_out_nor_painted_again;
 mod a_runner_whose_app_panics_lets_the_app_exit_and_reports_why;
 mod a_scope_disposed_with_no_document_installed_still_removes_its_nodes;
@@ -446,6 +452,7 @@ mod a_virtual_list_estimates_unmeasured_rows_from_the_ones_it_measured;
 mod a_virtual_list_in_a_box_taller_than_its_rows_builds_every_row;
 mod a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view;
 mod a_virtual_list_reaches_the_end_when_rows_outgrow_their_estimate;
+mod a_virtual_list_reorders_its_rows_by_key;
 mod a_virtual_list_scrolled_out_of_view_releases_its_rows;
 mod a_virtual_list_scrolled_to_rows_of_unestimated_heights_fills_its_window_in_one_walk;
 mod a_virtual_list_shows_new_keys_in_the_rows_that_left;
@@ -453,6 +460,7 @@ mod a_virtual_scroll_only_builds_the_items_in_view;
 mod a_virtual_scroll_row_can_build_reactive_content_during_dispatch;
 mod a_wheel_over_the_software_keyboard_scrolls_what_holds_it;
 mod a_wheel_turned_before_the_pointer_moves_on_scrolls_what_it_was_over;
+mod a_wide_tab_trades_places_with_a_narrow_one_once_it_passes_its_middle;
 mod a_window_dragged_far_away_keeps_its_grip_in_the_dock;
 mod a_window_drawn_at_a_new_raster_keeps_its_layout_and_lays_out_nothing;
 mod a_window_hosting_layer_sizes_the_main_window_and_shows_what_it_composes;
@@ -475,6 +483,7 @@ mod accessibility_reports_and_steps_a_slider;
 mod accessibility_updates_leave_the_tree_a_fresh_build_would_make;
 mod accordion_headers_are_keyboard_operable_and_skip_collapsed_content;
 mod activation_requires_a_matching_release_and_escape_cancels_it;
+mod alt_and_an_arrow_move_the_focused_row_and_say_where_it_went;
 mod alt_arrows_walk_the_simulated_screen_reader_through_the_document;
 mod alt_dragging_a_tab_floats_it_in_a_window_over_the_pane_it_left;
 mod an_action_bar_keeps_the_pins_it_has_room_for_and_offers_the_rest;
@@ -603,6 +612,7 @@ mod dragging_a_hosted_dock_windows_bar_asks_its_host_to_move_it;
 mod dragging_a_number_input_sideways_changes_its_value;
 mod dragging_a_pan_zoom_with_the_middle_button_pans_it;
 mod dragging_a_panes_grip_moves_every_tab_of_the_pane;
+mod dragging_a_row_past_the_middle_of_the_next_reorders_the_list;
 mod dragging_a_sheet_handle_resizes_it_to_a_stop_or_closes_it;
 mod dragging_a_slider_moves_its_value;
 mod dragging_a_tab_between_two_tabs_marks_the_middle_of_the_gap;
@@ -645,6 +655,7 @@ mod escape_closes_an_open_select_popup_and_returns_focus_to_the_trigger;
 mod escape_closes_an_overlay_before_a_window_listener_hears_it;
 mod escape_closes_the_emoji_menu_until_the_colon_is_typed_again;
 mod escape_discards_what_was_typed_into_a_number_input;
+mod escape_glides_a_lifted_row_back_and_moves_nothing;
 mod escape_then_tab_moves_the_focus_out_of_a_text_area_that_takes_tab;
 mod escaping_a_pick_clears_its_highlight;
 mod every_coalesced_sample_drags_and_the_last_carries_its_prediction;
@@ -3022,4 +3033,97 @@ pub(crate) fn gliding_rows(
 
 pub(crate) fn top_of(harness: &Harness, test_id: &str) -> f32 {
     harness.rect(harness.find(test_id)).top()
+}
+
+pub(crate) const REORDER_ROW: f32 = 20.0;
+pub(crate) const REORDER_COLUMN: f32 = 100.0;
+
+#[derive(Clone, Copy)]
+pub(crate) struct ReorderLists {
+    pub(crate) lists: crate::reactive::Signal<Vec<Vec<u32>>>,
+    pub(crate) moves: crate::reactive::Signal<Vec<(usize, unstyled::ReorderMove<u32, u32>)>>,
+    pub(crate) disabled: crate::reactive::Signal<bool>,
+    pub(crate) long_press: bool,
+}
+
+impl ReorderLists {
+    pub(crate) fn new(lists: Vec<Vec<u32>>) -> Self {
+        use crate::reactive::*;
+        Self {
+            lists: create_signal(lists),
+            moves: create_signal(Vec::new()),
+            disabled: create_signal(false),
+            long_press: false,
+        }
+    }
+
+    pub(crate) fn list(&self, index: usize) -> Vec<u32> {
+        use crate::reactive::*;
+        self.lists.with_untracked(|lists| lists[index].clone())
+    }
+}
+
+pub(crate) fn reorder_lists(state: ReorderLists) -> Document {
+    use crate::primitives::*;
+    use crate::reactive::*;
+    use crate::unstyled::{Reorder, ReorderHandle, ReorderItem, ReorderItemHandle, ReorderMove};
+    let count = state.lists.with_untracked(Vec::len);
+    let ReorderLists {
+        lists,
+        moves,
+        disabled,
+        long_press,
+    } = state;
+    build_node(move || {
+        let column = move |column: usize| {
+            let keys = create_memo(move || lists.with(|lists| lists[column].clone()));
+            view! {
+                <Frame @test_id={format!("list.{column}")} width=REORDER_COLUMN>
+                    <Reorder
+                        keys={keys}
+                        payload={Func::new(|key: u32| Some(key))}
+                        accepts={Func::new(|_: u32| true)}
+                        disabled={disabled}
+                        long_press
+                        text={|key: u32| format!("Row {key}")}
+                        on_move={move |moved: ReorderMove<u32, u32>| {
+                            lists.update(|lists| {
+                                for list in lists.iter_mut() {
+                                    list.retain(|key| *key != moved.payload);
+                                }
+                                let list = &mut lists[column];
+                                let at = moved
+                                    .after
+                                    .and_then(|after| list.iter().position(|key| *key == after))
+                                    .map_or(0, |at| at + 1);
+                                list.insert(at, moved.payload);
+                            });
+                            moves.update(|moves| moves.push((column, moved)));
+                        }}
+                    >|reorder: ReorderHandle<u32, u32>|
+                        <List spacing=0.0>
+                            <ForEach keys={reorder.order}>|key: u32|
+                                <ReorderItem reorder item=key>|_: ReorderItemHandle|
+                                    <Interactive focusable=true>
+                                        <Frame
+                                            @test_id={format!("row.{key}")}
+                                            height=REORDER_ROW
+                                            fill={Color32::from_rgb((key * 40 % 256) as u8, 90, 160)}
+                                        />
+                                    </Interactive>
+                                </ReorderItem>
+                            </ForEach>
+                        </List>
+                    </Reorder>
+                </Frame>
+            }
+        };
+        view! {
+            <List direction=Direction::Horizontal spacing=20.0>
+                <ForEach keys={(0..count).collect::<Vec<usize>>()}>|index: usize| {
+                    column(index)
+                }</ForEach>
+            </List>
+        }
+    })
 }

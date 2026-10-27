@@ -94,6 +94,7 @@ pub struct DragSource {
     pub floating: Rc<dyn Fn(bool)>,
     pub outside: Outside,
     pub cancelled: Rc<dyn Fn()>,
+    pub dropped: Rc<dyn Fn()>,
 }
 
 impl DragSource {
@@ -105,6 +106,7 @@ impl DragSource {
             floating: Rc::new(|_| {}),
             outside: Rc::new(|_| {}),
             cancelled: Rc::new(|| {}),
+            dropped: Rc::new(|| {}),
         }
     }
 }
@@ -267,7 +269,6 @@ impl Board {
         if !self.carrying() {
             return false;
         }
-        self.leave();
         self.end(None);
         true
     }
@@ -468,6 +469,7 @@ impl Board {
         if let (Some((dropped, rect)), Some(point)) = (drop, point) {
             let point = rect.map_or(point, |rect| point.within(rect));
             dropped(carried.source.payload.as_ref(), point);
+            (carried.source.dropped)();
             return true;
         }
         if tell {

@@ -63,6 +63,7 @@ pub fn Interactive(
     on_middle_click: ClickCallback,
     on_press: Callback<PointerPress>,
     on_secondary_press: Callback<PointerPress>,
+    on_long_press_drag: Callback<PointerPress>,
     on_secondary_drag: Callback<SecondaryDrag>,
     on_drag: Callback<PointerPress>,
     on_pan_drag: Callback<Vec2>,
@@ -141,6 +142,7 @@ pub fn Interactive(
         node.on_middle_click = on_middle_click;
         node.on_press = on_press;
         node.on_secondary_press = on_secondary_press;
+        node.on_long_press_drag = on_long_press_drag;
         node.on_secondary_drag = on_secondary_drag;
         node.on_drag = on_drag;
         node.on_pan_drag = on_pan_drag;

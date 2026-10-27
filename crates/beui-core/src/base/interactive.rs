@@ -44,6 +44,7 @@ pub struct InteractiveNode {
     pub on_middle_click: ClickCallback,
     pub on_press: Callback<PointerPress>,
     pub on_secondary_press: Callback<PointerPress>,
+    pub on_long_press_drag: Callback<PointerPress>,
     pub on_secondary_drag: Callback<SecondaryDrag>,
     pub on_drag: Callback<PointerPress>,
     pub on_pan_drag: Callback<Vec2>,
@@ -102,6 +103,7 @@ impl InteractiveNode {
             on_middle_click: ClickCallback::empty(),
             on_press: Callback::empty(),
             on_secondary_press: Callback::empty(),
+            on_long_press_drag: Callback::empty(),
             on_secondary_drag: Callback::empty(),
             on_drag: Callback::empty(),
             on_pan_drag: Callback::empty(),
@@ -168,6 +170,7 @@ impl InteractiveNode {
     pub fn holds_presses(&self) -> bool {
         self.takes_presses()
             || !self.on_drag.is_empty()
+            || !self.on_long_press_drag.is_empty()
             || !self.on_cancel.is_empty()
             || !self.on_active_change.is_empty()
             || !self.capture_at.is_empty()
@@ -355,6 +358,7 @@ impl Element for InteractiveNode {
             (self.on_hover_move.is_empty(), "hover move"),
             (self.on_active_change.is_empty(), "active"),
             (self.on_drag.is_empty(), "drag"),
+            (self.on_long_press_drag.is_empty(), "long press drag"),
             (self.on_pan_drag.is_empty(), "pan"),
             (self.on_scroll.is_empty(), "scroll"),
             (self.on_scroll_drag.is_empty(), "scroll drag"),

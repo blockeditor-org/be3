@@ -1,6 +1,7 @@
 use std::any::Any;
 
 use crate::animation::Spring;
+use crate::base::list::Direction;
 use crate::callback::Callback;
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2};
@@ -11,6 +12,12 @@ pub const GLIDE_SPRING: Spring = Spring {
     stiffness: 500.0,
     damping: 42.0,
 };
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct GlideHold {
+    pub at: Pos2,
+    pub along: Option<Direction>,
+}
 
 #[derive(Clone, Copy)]
 struct Origin {
@@ -23,10 +30,27 @@ pub struct GlideNode {
     displacement: Vec2,
     velocity: Vec2,
     origin: Option<Origin>,
+    hold: Option<GlideHold>,
     on_start: Callback<()>,
 }
 
 impl GlideNode {
+    fn take_hold(&mut self, doc: &Document, out: &Rects) {
+        let Some(hold) = self.hold else {
+            return;
+        };
+        let Some(placed) = doc.laying_out().and_then(|id| out.placed(&id)) else {
+            return;
+        };
+        let moved = out.transform(placed.space).local_pos(hold.at) - placed.rect.min;
+        self.displacement = match hold.along {
+            Some(Direction::Horizontal) => Vec2::new(moved.x, 0.0),
+            Some(Direction::Vertical) => Vec2::new(0.0, moved.y),
+            None => moved,
+        };
+        self.velocity = Vec2::ZERO;
+    }
+
     fn take_origin(&mut self, doc: &mut Document, out: &Rects) {
         let Some(origin) = self.origin.take() else {
             return;
@@ -77,6 +101,7 @@ impl Element for GlideNode {
 
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         self.take_origin(doc, out);
+        self.take_hold(doc, out);
         let rect = rect.translate(doc.pixel_grid().snap_vec(self.displacement));
         if let Some(child) = self.child {
             crate::layout::layout(doc, painter, child, rect, out);
@@ -132,6 +157,7 @@ impl Document {
             displacement: Vec2::ZERO,
             velocity: Vec2::ZERO,
             origin: None,
+            hold: None,
             on_start: Callback::empty(),
         })
     }
@@ -162,6 +188,38 @@ impl Document {
         });
     }
 
+    pub fn hold_glide(&mut self, glide: NodeOf<GlideNode>, hold: Option<GlideHold>) {
+        if !self.arena.contains(glide.id()) {
+            return;
+        }
+        let node = self.arena.get_as::<GlideNode>(glide);
+        if hold.is_none() && node.hold.is_none() {
+            return;
+        }
+        let animates = self.motion().animates();
+        let node = self.arena.relayout_alone_mut_as::<GlideNode>(glide);
+        let released = node.hold.is_some() && hold.is_none();
+        node.hold = hold;
+        if !released {
+            return;
+        }
+        if !animates {
+            node.displacement = Vec2::ZERO;
+            return;
+        }
+        let on_start = node.on_start;
+        if node.displacement != Vec2::ZERO && !on_start.is_empty() {
+            match self.laying_out() {
+                Some(_) => self.report_after_layout(move || on_start.call(())),
+                None => crate::current::enter(self, || on_start.call(())),
+            }
+        }
+    }
+
+    pub fn glide_held(&self, glide: NodeOf<GlideNode>) -> bool {
+        self.arena.contains(glide.id()) && self.arena.get_as::<GlideNode>(glide).hold.is_some()
+    }
+
     pub fn glide_displacement(&self, glide: NodeOf<GlideNode>) -> Vec2 {
         self.arena.get_as::<GlideNode>(glide).displacement
     }
@@ -171,6 +229,9 @@ impl Document {
             return false;
         }
         let node = self.arena.get_as::<GlideNode>(glide);
+        if node.hold.is_some() {
+            return false;
+        }
         let (mut displacement, mut velocity) = (node.displacement, node.velocity);
         GLIDE_SPRING.advance(&mut displacement.x, &mut velocity.x, seconds);
         GLIDE_SPRING.advance(&mut displacement.y, &mut velocity.y, seconds);

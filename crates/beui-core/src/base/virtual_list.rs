@@ -563,11 +563,12 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
     }
 
     fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, _rect: Rect) {
-        for row in self.shown() {
-            if rects.contains_key(&row.node) {
-                crate::paint::paint(doc, painter, rects, row.node);
-            }
-        }
+        let shown = || {
+            self.shown()
+                .map(|row| row.node)
+                .filter(|node| rects.contains_key(node))
+        };
+        crate::paint::paint_raised_last(doc, painter, rects, shown);
     }
 
     fn children(&self) -> Vec<NodeId> {

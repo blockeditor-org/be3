@@ -36,6 +36,7 @@ pub mod popover;
 pub mod popup_trigger;
 pub mod pressable;
 pub mod progress;
+pub mod reorder;
 pub mod rubber_band;
 pub mod scroll;
 pub mod scrollbar;
@@ -117,6 +118,9 @@ pub use popover::{Popover, PopoverApi, PopoverHandle, PopoverPlacement};
 pub use popup_trigger::{PopupTrigger, PopupTriggerHandle};
 pub use pressable::Pressable;
 pub use progress::{Progress, ProgressHandle};
+pub use reorder::{
+    Reorder, ReorderGap, ReorderHandle, ReorderItem, ReorderItemHandle, ReorderMove,
+};
 pub use scroll::{
     SCROLLBAR_FADE_OUT, SCROLLBAR_LINGER, Scroll, ScrollApi, ScrollHandle, ScrollbarStyle,
 };

@@ -923,7 +923,13 @@ again mid-flight, it adds the new difference and keeps its velocity. `from`, a p
 window coordinates, hands it a place to start from instead, for a new item or a dropped
 one that should settle from where the pointer left it. The glide's own rect
 (`node_rect` of the node `Glide` returns) is where it rests; its child's rect is where it is
-painted. `Turn`
+painted. Placements are parent-local, so the glide must be the list's own child: wrapped
+in a frame, it never sees itself move. `Document::hold_glide` pins the child's corner to a
+window point (along one axis, or both) at every layout, whatever slot the glide rests in,
+which is how a reorderable list's lifted item follows the pointer; letting go keeps the
+held displacement and springs it home. `Document::set_raised` makes a child of a `List`
+or `VirtualList` paint after its siblings, so a lifted item passes over its neighbours
+rather than under the later ones. `Turn`
 paints its child turned clockwise by `quarter_turns` about the middle of its box, which
 takes the child's size with width and height swapped for an odd number of turns, and
 further by `angle` radians, which leaves the box as it is; clips inside it grow to the
@@ -1146,7 +1152,10 @@ gesture in progress is dropped rather than committed. A finger dragged across a
 `touch_drags`, which a canvas that draws or moves things under the finger does,
 or `touch_drag_axis`, which keeps finger drags along one direction only and
 leaves the other to the scroll around it, as a dock tab in a scrolling tab bar
-does.
+does. A catcher that sets `on_long_press_drag` takes the long press instead:
+the press is not cancelled and no context menu opens, the callback hears where the
+finger rests, and the catcher keeps the finger's later moves as its drag, which is how a
+reorderable list in a list that scrolls along its axis lets a finger lift a row.
 A pen is `Event::Pen`: a `PenPhase` (`Move` in range, whether or not the tip is down, `Down`
 and `Up` of the tip, which is `Primary`, and of its barrel buttons, and `Gone` when it leaves
 range) and a `Pen` with its pressure from 0 to 1, its tilt in degrees and whether it is the
@@ -2610,11 +2619,13 @@ the target, `Rect::ZERO` for a drag no `Draggable` began); `Board::item`
 answers the same. That is how a list the item is carried into opens a gap of
 the right size where it would land.
 
-A drag ends one of three ways for its source. A target takes it, it is let go
+A drag ends one of three ways for its source. A target takes it (a source that
+began the drag with `Board::begin` hears `DragSource::dropped`), it is let go
 outside every window (`on_drop_outside`), or nothing takes it: Escape (a
 built-in capture key handler, ahead of overlays' own Escape, calls
 `Board::cancel`), a cancelled pointer, or a release over no target that
-accepts it. In that last case the targets see the drag leave, nothing drops,
+accepts it. In that last case the targets see the drag leave (Escape does not first turn
+the item back into a floating preview), nothing drops,
 and the source hears `on_cancel` before `on_drag_change(false)`, so it can
 animate the item back; after Escape the press that is still held does not lift
 it again.
@@ -2645,6 +2656,67 @@ a block puts it there with `Board::begin`, each plugin region is a `DropTarget`
 for it, and the board drops whatever it carries when the primary button or the
 finger is let go, wherever the press was, so a drag that no `Draggable` began
 still ends; a cancelled touch ends it without a drop.
+
+### Reorderable lists
+
+`unstyled::Reorder` makes a list whose items are dragged into a new order, within
+it or into another list. It does not lay the list out: it wraps whatever does - a
+`List` over a `ForEach`, a `VirtualList`, a `Choice` - and hands it the order to
+show, and each item is a `ReorderItem` around its face:
+
+```rust
+view! {
+    <Reorder
+        keys={tasks}
+        payload={Func::new(|task: TaskId| Some(task))}
+        text={move |task: TaskId| title(task)}
+        on_move={move |moved: ReorderMove<TaskId, TaskId>| move_task(moved.payload, moved.after)}
+    >|reorder: ReorderHandle<TaskId, TaskId>|
+        <List spacing=Space::Xs>
+            <ForEach keys={reorder.order}>|task: TaskId|
+                <ReorderItem reorder item=task>|item: ReorderItemHandle|
+                    <TaskRow task lifted={item.lifted} />
+                </ReorderItem>
+            </ForEach>
+        </List>
+    </Reorder>
+}
+```
+
+Keys are stable identities (a row id, never an index). `payload` is what the drag
+board carries for a key, `None` for one that cannot move; `disabled` turns dragging
+off for the whole list (a read-only view, a sorted one). Nothing is committed while
+an item is carried: `reorder.order` is the keys with the carried one moved to where
+it would land, and the drop calls `on_move` once with a `ReorderMove` - the
+`payload`, its `key` here (`None` when it came from another list), `after`, the key
+it now follows (`None` for first, the shape of be-model's `Anchor`), and its `index`.
+Apply it in the same update (the keys then already match the order shown); a list
+that ignores it glides the item back.
+
+Past the threshold the item lifts in place: it follows the pointer along the list
+and nothing else (`hold_glide`), paints over its neighbours (`set_raised`), and
+moves past a neighbour when its middle crosses the neighbour's, measured against
+where the neighbours rest, so widths that differ cannot make it flicker back and
+forth. Neighbours glide aside (the list's `Glide`s share one arm). The list is the
+item's own drop target with `hides_preview`, so pulled out across the list it turns
+into the floating `preview` and the gap behind it closes; any `Reorder` whose
+`accepts` takes the payload opens a gap the size of the carried item
+(`DragPoint::item`) where it would land, and a drop there settles the new item from
+the pointer. Let go over nothing, or press Escape, and it glides home. Alt with the
+arrow keys along the list moves the focused item through the same `on_move`
+(`ReorderHandle::step` does the same for a "Move up" command), and a polite live
+status says where it went, naming the item with `text`. A finger dragged across
+the list lifts an item; `long_press` lets a held finger lift it too, for lists that
+scroll along their axis. Edge autoscroll comes from the drag board.
+
+The list owns the drag, not the item, so a `VirtualList` may drop and reuse the
+lifted row's node. `on_drag_change` reports which key is being dragged and
+`on_drop_outside` a drop outside every window. A drag the board does not carry -
+the host's block drag that a plugin only hears as positions - can still part the
+list: `ReorderHandle::hover(Some(point))` opens the gap for a window point and the
+carried item's rect, and `drop_at(payload, point)` drops as a foreign item would.
+Styled code uses `styled::ReorderItem`, which adds the lifted look (a raised fill,
+a hairline and a shadow `LIFT_DROP` below it) from theme tokens.
 
 ### Pan and zoom
 
