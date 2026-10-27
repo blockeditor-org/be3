@@ -124,8 +124,13 @@ fn ListFixture() -> NodeId {
         </List>
     };
     let measured = measure(list);
-    let report =
-        create_memo(move || format!("Rows {} in {}", rows.with(Vec::len), size(measured.get().map(|measured| measured.rect))));
+    let report = create_memo(move || {
+        format!(
+            "Rows {} in {}",
+            rows.with(Vec::len),
+            size(measured.get().map(|measured| measured.rect))
+        )
+    });
     view! {
         <List spacing=12.0>
             {list}
