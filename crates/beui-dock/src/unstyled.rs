@@ -58,7 +58,7 @@ use fullscreen::DockAway;
 pub use fullscreen::DockAwayHandle;
 use modifier_drag::{Resized, modifier_resize};
 pub use state::{
-    DockDrop, DockFullscreen, DockLayout, DockSplitter, DockState, DockSwitch, DockTree,
+    DockDrop, DockFullscreen, DockHome, DockLayout, DockSplitter, DockState, DockSwitch, DockTree,
     DockTreeEntry, DockVisit, Entry, GroupId, LeafId, Side, SplitId, SurfaceId, TabId, TabPosition,
     Tree, layout_surface, layout_tree,
 };
@@ -2429,6 +2429,10 @@ fn DockTabView(
         }),
         Entry::Group(_) => None,
     });
+    let locks = create_memo(move || match entry {
+        Entry::Tab(tab) => state.with(|state| matches!(state.home(tab), Some(DockHome::Area(_)))),
+        Entry::Group(_) => false,
+    });
     let toggle_held = ClickCallback::new(move || {
         if let Entry::Tab(tab) = entry {
             dock.edit(|state| {
@@ -2515,6 +2519,7 @@ fn DockTabView(
                 pinned
                 has_next
                 held
+                locks
                 closable
                 fullscreen
                 close={close}
@@ -2540,6 +2545,7 @@ fn TabMenu(
     pinned: bool,
     has_next: Memo<bool>,
     held: Memo<Option<bool>>,
+    locks: Memo<bool>,
     closable: Memo<bool>,
     fullscreen: Memo<Option<bool>>,
     close: ClickCallback,
@@ -2558,9 +2564,11 @@ fn TabMenu(
     });
     let stuck = create_memo(move || floating || anchored.get() || held.get() == Some(true));
     let homeless = create_memo(move || held.get().is_none());
-    let pin_label = create_memo(move || match held.get() {
-        Some(true) => "Unpin from group".to_owned(),
-        Some(false) | None => "Pin to group".to_owned(),
+    let pin_label = create_memo(move || match (locks.get(), held.get()) {
+        (true, Some(true)) => "Unlock".to_owned(),
+        (true, Some(false) | None) => "Lock".to_owned(),
+        (false, Some(true)) => "Unpin from group".to_owned(),
+        (false, Some(false) | None) => "Pin to group".to_owned(),
     });
     let alone = create_memo(move || !has_next.get());
     let unclosable = create_memo(move || !closable.get());

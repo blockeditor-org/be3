@@ -35,8 +35,9 @@ attribute is what makes the function usable as a tag, gives it `@test_id`,
 `@node_ref` and `@sizing`, makes `ComponentRef::fill`, `component_accessibility`
 and `component_placed` available inside it (they panic anywhere else), and
 gives it a scope of its own, so the contexts it provides reach only what it
-builds rather than its siblings. Nothing checks for the attribute; a plain
-function that writes a `view!` builds into its caller's scope.
+builds rather than its siblings. `./scripts/verify`'s fix-rust-source
+rejects a function that writes a `view!` without it (see below), since such a
+function would build into its caller's scope.
 
 Nodes and effects live and die together whether or not a function is a
 component: a node belongs to the reactive scope it was created in, and
@@ -2117,8 +2118,9 @@ view! {
 
 `DockSplit` takes two children, `fraction` being the first one's share.
 `DockPane` holds `DockTab`s and `DockGroup`s (a tab holding a tree of its own,
-`pinned` to keep its tabs in it), names its starting `active` tab, and can start
-with its tabs in a sidebar (`vertical`, `sidebar_width`). `DockWindow` floats one
+`pinned` to keep its tabs in it), names its starting `active` tab, can start
+with its tabs in a sidebar (`vertical`, `sidebar_width`), and can be `locked` to
+keep its tabs in its area (below). `DockWindow` floats one
 tree at a `rect`. A `see_through` tab shows something drawn under the dock, as the inspector's App tab shows the
 app: neither its pane nor a stacked dock fills behind it, so the pane's chrome learns it from
 `DockChromeHandle::see_through`, and it stays on the main surface, where nothing of the dock is
@@ -2387,6 +2389,20 @@ be compared, sent elsewhere and rebuilt: `from_tree` makes a state out of one
 and `set_tree` replaces a tree in place, moving in any of its tabs that were
 elsewhere and keeping the focused tab focused. `group_title` names a group in
 its tab.
+
+A `locked` pane makes an area: the pane and every pane split off it, including
+the groups inside them (`area_of(leaf)` names a leaf's area, the locked pane's
+`id`). Every tab declared in the pane, including tabs a `ForEach` adds later, is
+locked to that area, as a pinned group's tabs are to it: it can move, split and
+group anywhere inside the area, which grows with its splits and shrinks back as
+they empty, but a drop outside it is refused and it cannot float. Tabs that are
+not locked go anywhere, into an area too. `DockState::home(tab)` answers a
+`DockHome`: `Group(id)` for a pinned group's tab, `Area(id)` for a locked one.
+The tab menu's pin item reads "Unlock" and "Lock" for such a tab (Lock is
+disabled until the tab is back in its area, and is never done for it), and
+"Pop out into a window" is disabled while a tab is locked or pinned. Seeding,
+reconciling and `restore` move any locked tab found outside its area back into
+it. A stacked dock ignores locks and keeps them for when it tiles again.
 
 A tab's panel is built the first time the tab is shown and belongs to the dock
 rather than to the pane showing it: the pane holds a `Portal` pointed at it, so

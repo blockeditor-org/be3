@@ -13,9 +13,11 @@ use beui_core::runner::environment;
 use crate::{Unanswered, request};
 
 const USAGE: &str = "usage: be-drive launch --program=PATH [--name=NAME] [--data] [--libraries=DIR]
-       [--size=WIDTHxHEIGHT[@SCALE]] [--screen=WIDTHxHEIGHT] [--fresh] [--stop] [PROGRAM ARGUMENTS...]
+       [--size=WIDTHxHEIGHT[@SCALE]] [--screen=WIDTHxHEIGHT] [--latency=MS] [--fresh] [--stop]
+       [PROGRAM ARGUMENTS...]
 Starts a beui program headless with a drive socket, waits until it settles, and writes
-an env file that puts `drive` on PATH pointed at it. Arguments it does not know go to the program.";
+an env file that puts `drive` on PATH pointed at it. --latency adds MS milliseconds to every
+round trip between the program and its server. Arguments it does not know go to the program.";
 const STARTUP: Duration = Duration::from_secs(120);
 const SOCKET_PATH: usize = 107;
 const SCREEN: &str = "1440x900";
@@ -28,6 +30,7 @@ struct Launch {
     libraries: Option<String>,
     size: Option<String>,
     screen: Option<String>,
+    latency: Option<String>,
     fresh: bool,
     stop: bool,
     space: bool,
@@ -36,7 +39,7 @@ struct Launch {
 
 const RUN_USAGE: &str =
     "usage: be-drive run --program=PATH [--name=NAME] [--data] [--libraries=DIR]
-       [--size=WIDTHxHEIGHT[@SCALE]] [--screen=WIDTHxHEIGHT] [PROGRAM ARGUMENTS...] < COMMANDS
+       [--size=WIDTHxHEIGHT[@SCALE]] [--screen=WIDTHxHEIGHT] [--latency=MS] [PROGRAM ARGUMENTS...] < COMMANDS
 Starts a beui program headless as launch does, with fresh data and its output on this one's,
 runs COMMANDS against it one a line as `drive -` does, then waits for it to exit. It fails
 unless every command succeeded and the program exited cleanly, so COMMANDS end with close.";
@@ -62,6 +65,8 @@ fn parse(arguments: &[String], usage: &str) -> Result<Launch, String> {
                     launch.size = Some(size);
                 } else if let Some(screen) = value("--screen=") {
                     launch.screen = Some(screen);
+                } else if let Some(latency) = value("--latency=") {
+                    launch.latency = Some(latency);
                 } else {
                     launch.arguments.push(argument.clone());
                 }
@@ -148,6 +153,9 @@ impl Launch {
             command
                 .stdout(file.try_clone().map_err(|error| error.to_string())?)
                 .stderr(file);
+        }
+        if let Some(latency) = &self.latency {
+            command.env("BE_LATENCY", latency);
         }
         if let Some(libraries) = &self.libraries {
             command.env("LD_LIBRARY_PATH", libraries);

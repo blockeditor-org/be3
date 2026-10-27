@@ -6,7 +6,6 @@ use std::process::{Child, Command, Stdio};
 use be_server::store::ServerStore;
 
 use crate::cores::Cores;
-use crate::{ONE_WAY, latency};
 
 pub const EMAIL: &str = "ada@example.com";
 pub const PASSWORD: &str = "correct horse battery";
@@ -36,10 +35,7 @@ impl Server {
         let mut line = String::new();
         let _ = stdout.read_line(&mut line);
         std::thread::spawn(move || std::io::copy(&mut stdout, &mut std::io::stderr()));
-        let Some((address, proxy)) = line
-            .split_once(' ')
-            .and_then(|(address, proxy)| Some((address.parse().ok()?, proxy.trim())))
-        else {
+        let Ok(address) = line.trim().parse::<SocketAddr>() else {
             drop(child.stdin.take());
             let status = child.wait().map_err(|error| error.to_string())?;
             return Err(format!(
@@ -48,7 +44,7 @@ impl Server {
         };
         Ok(Self {
             address,
-            url: format!("http://{proxy}"),
+            url: format!("http://{address}"),
             child: Some(child),
         })
     }
@@ -100,10 +96,8 @@ pub fn serve(build_info: &Path, data: &Path) -> Result<(), String> {
                 .map_err(|error| error.to_string())
         })?;
     let address = listener.local_addr().map_err(|error| error.to_string())?;
-    let proxy = latency::start(address, ONE_WAY)
-        .map_err(|error| format!("could not start the latency proxy: {error}"))?;
     let mut stdout = std::io::stdout();
-    writeln!(stdout, "{address} {proxy}")
+    writeln!(stdout, "{address}")
         .and_then(|()| stdout.flush())
         .map_err(|error| error.to_string())?;
     let (shutdown, stopped) = tokio::sync::oneshot::channel();

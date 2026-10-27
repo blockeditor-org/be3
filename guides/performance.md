@@ -15,8 +15,8 @@ suite's `programs` (crates/bench/BUCK). Each can also run alone, with
 
 - `//crates/app-bench:bin` (the suite's `app-canvas-and-text`) runs block-app headless,
   driven as `drive` drives it (crates/be-drive's `Driven`, guides/running/drive.md), against
-  a be-server in its own process behind a proxy that delays each direction 15 ms, so every
-  round trip takes 30 ms more, with `BEUI_RENDERER=none`, so it measures the app's own work and
+  a be-server in its own process, with `BE_LATENCY=30` (guides/running/drive.md), so every
+  round trip takes 30 ms more, and `BEUI_RENDERER=none`, so it measures the app's own work and
   not a software GPU drawing it (guides/running/drive.md). It signs a first device in through the portal, as a person's
   browser would, makes a folder and zooms the files into it, then with `hurry off` adds a
   canvas and a text block from the files' New menu, draws a rectangle and a pen line of
@@ -97,7 +97,7 @@ suite's `programs` (crates/bench/BUCK). Each can also run alone, with
   metric's fastest and median from both.
 - The suite's `app-canvas-and-text` (crates/app-bench) drives block-app headless with no GPU
   (`BEUI_RENDERER=none`) against a be-server in a process of its own, 15 ms away each way
-  behind a proxy; the server and the proxy are pinned to one core and the app to the others.
+  through `BE_LATENCY`; the server is pinned to one core and the app to the others.
   It times what a person waits for: signing in, making, saving, closing, exporting and
   reopening blocks, and a second device recovering the account. Every wait is one the app
   answers (`drive wait`, `gone`, `settle`), never a poll, and every command passes
@@ -105,7 +105,7 @@ suite's `programs` (crates/bench/BUCK). Each can also run alone, with
   frame, as a stylus does, and the 9,200 between at 1,000 a frame to get there; each of the
   two stretches reports its longest frame and how long the ink takes to reach the pen after
   its last sample (`-catch-up`). It does not measure drawing on a GPU, frame pacing,
-  connection and TLS set-up, bandwidth (the proxy delays but does not throttle), a large
+  connection and TLS set-up, bandwidth (`BE_LATENCY` delays but does not throttle), a large
   organization, a relaunch on warm caches, or two devices editing at once.
 
 The target for opening a page is under 2 ms warm. The canvas bench measured, in October

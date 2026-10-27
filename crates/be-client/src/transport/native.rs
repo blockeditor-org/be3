@@ -1,5 +1,7 @@
+use std::collections::VecDeque;
 use std::future::Future;
 use std::sync::Arc;
+use std::time::Duration;
 
 use be_protocol::MAX_FRAME_BYTES;
 use futures_util::{
@@ -9,6 +11,7 @@ use futures_util::{
 use rustls::pki_types::{CertificateDer, pem::PemObject};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
+use tokio::time::Instant;
 use tokio_tungstenite::{
     Connector, MaybeTlsStream, WebSocketStream, client_async_tls_with_config,
     connect_async_with_config,
@@ -23,12 +26,12 @@ type Stream = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
 pub(crate) enum Writer {
     Socket(SplitSink<Stream, Message>),
-    Http(tokio::sync::mpsc::UnboundedSender<Vec<u8>>),
+    Channel(tokio::sync::mpsc::UnboundedSender<Vec<u8>>),
 }
 
 pub(crate) enum Reader {
     Socket(SplitStream<Stream>),
-    Http(tokio::sync::mpsc::UnboundedReceiver<Frame>),
+    Channel(tokio::sync::mpsc::UnboundedReceiver<Frame>),
 }
 
 pub(crate) fn spawn(future: impl Future<Output = ()> + Send + 'static) {
@@ -36,9 +39,78 @@ pub(crate) fn spawn(future: impl Future<Output = ()> + Send + 'static) {
 }
 
 pub(crate) async fn connect(url: &str) -> Result<(Writer, Reader), String> {
+    let (writer, reader) = open(url).await?;
+    Ok(match latency()? {
+        Some(latency) => delayed(writer, reader, latency / 2),
+        None => (writer, reader),
+    })
+}
+
+fn latency() -> Result<Option<Duration>, String> {
+    let Ok(value) = std::env::var("BE_LATENCY") else {
+        return Ok(None);
+    };
+    let milliseconds: u64 = value.trim().parse().map_err(|_| {
+        format!("BE_LATENCY is {value:?}, and should be a round trip in milliseconds")
+    })?;
+    Ok((milliseconds > 0).then(|| Duration::from_millis(milliseconds)))
+}
+
+fn delayed(mut writer: Writer, mut reader: Reader, delay: Duration) -> (Writer, Reader) {
+    let (sending, mut outbound) = tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
+    let (inbound, frames) = tokio::sync::mpsc::unbounded_channel();
+    tokio::spawn(async move {
+        let mut sent: VecDeque<(Instant, Vec<u8>)> = VecDeque::new();
+        let mut heard: VecDeque<(Instant, Frame)> = VecDeque::new();
+        let mut reading = true;
+        let mut writing = true;
+        while writing || !sent.is_empty() {
+            let due = [
+                sent.front().map(|(at, _)| *at),
+                heard.front().map(|(at, _)| *at),
+            ]
+            .into_iter()
+            .flatten()
+            .min();
+            tokio::select! {
+                bytes = outbound.recv(), if writing => match bytes {
+                    Some(bytes) => sent.push_back((Instant::now() + delay, bytes)),
+                    None => writing = false,
+                },
+                frame = reader.next(), if reading => match frame {
+                    Some(Frame::Ping(payload)) => {
+                        if writer.pong(payload).await.is_err() {
+                            return;
+                        }
+                    }
+                    frame => {
+                        let frame = frame.unwrap_or(Frame::Closed);
+                        reading = matches!(frame, Frame::Binary(_));
+                        heard.push_back((Instant::now() + delay, frame));
+                    }
+                },
+                () = tokio::time::sleep_until(due.unwrap_or_else(Instant::now)), if due.is_some() => {
+                    let now = Instant::now();
+                    while let Some((_, bytes)) = sent.pop_front_if(|(at, _)| *at <= now) {
+                        if writer.send(bytes).await.is_err() {
+                            let _ = inbound.send(Frame::Closed);
+                            return;
+                        }
+                    }
+                    while let Some((_, frame)) = heard.pop_front_if(|(at, _)| *at <= now) {
+                        let _ = inbound.send(frame);
+                    }
+                }
+            }
+        }
+    });
+    (Writer::Channel(sending), Reader::Channel(frames))
+}
+
+async fn open(url: &str) -> Result<(Writer, Reader), String> {
     if url.starts_with("http://") || url.starts_with("https://") {
         let (writer, reader) = http::connect(url).await?;
-        return Ok((Writer::Http(writer), Reader::Http(reader)));
+        return Ok((Writer::Channel(writer), Reader::Channel(reader)));
     }
     let config = WebSocketConfig {
         max_frame_size: Some(MAX_FRAME_BYTES),
@@ -183,7 +255,7 @@ impl Writer {
     async fn send_message(&mut self, message: Message) -> Result<(), String> {
         match self {
             Self::Socket(sink) => sink.send(message).await.map_err(|error| error.to_string()),
-            Self::Http(posts) => match message {
+            Self::Channel(posts) => match message {
                 Message::Binary(bytes) => posts
                     .send(bytes)
                     .map_err(|_| "the connection closed".to_owned()),
@@ -197,7 +269,7 @@ impl Reader {
     pub(crate) async fn next(&mut self) -> Option<Frame> {
         let source = match self {
             Self::Socket(source) => source,
-            Self::Http(frames) => return frames.recv().await,
+            Self::Channel(frames) => return frames.recv().await,
         };
         loop {
             return match source.next().await? {
