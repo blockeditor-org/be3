@@ -230,7 +230,7 @@ impl<A: BeuiApp> Parts<A> {
     fn frame_report(
         &self,
         view: &View,
-        context: &beui::Context,
+        context: &beui::native::Context,
         document: &mut Document,
         window: WindowId,
     ) -> (Report, bool) {

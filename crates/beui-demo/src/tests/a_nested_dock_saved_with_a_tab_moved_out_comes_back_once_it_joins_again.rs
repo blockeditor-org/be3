@@ -1,7 +1,8 @@
 use super::*;
 use beui::PointerButton;
 use beui::dock::unstyled::DockingSnapshot;
-use beui::testing::Target;
+use beui::native::testing::Target;
+use beui::native::with_reactive_scope;
 use std::cell::Cell;
 
 thread_local! {

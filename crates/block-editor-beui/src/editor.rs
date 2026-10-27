@@ -903,7 +903,7 @@ impl Editor {
         self.state().fitted.set(node);
     }
 
-    pub(crate) fn fit_intrinsic(&self, document: &mut Document, context: &beui::Context) {
+    pub(crate) fn fit_intrinsic(&self, document: &mut Document, context: &beui::native::Context) {
         let Some(node) = self.state().fitted.get().and_then(|node| node.try_get()) else {
             return;
         };
@@ -946,7 +946,7 @@ impl Editor {
             }
         };
         let touch =
-            beui::reactive::try_with_document(|document| document.touched()).unwrap_or(false);
+            beui::native::try_with_document(|document| document.touched()).unwrap_or(false);
         state.picking.set(Some(crate::picking::Picking::new(
             serial,
             filter,
