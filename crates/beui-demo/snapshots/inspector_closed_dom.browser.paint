@@ -102,6 +102,8 @@ BE3BROWSER 1
     "<div>",
     "<div class=\"beui-frame\" style=\"left:0px;top:0px;\">",
     "<div>",
+    "<div style=\"left:0px;top:0px;width:32px;height:32px;border-radius:6px;background:rgba(31,37,48,1);\">",
+    "</div>",
     "<div class=\"beui-frame\" style=\"left:8px;top:8px;\">",
     "<div>",
     "<div class=\"beui-frame\" style=\"left:0px;top:0px;\">",
