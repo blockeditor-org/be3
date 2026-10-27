@@ -1,5 +1,6 @@
 # The demo's shell is a dock on the HTML core too: a dialog hangs from the page's
-# tab, the page pops out into a window and its dialog follows it, it docks back
+# tab, the page pops out into a window and its dialog follows it there and as
+# the window is dragged by its title bar and its grip, it docks back
 # into its emptied pane, the splitter resizes the panes, and the inspector button
 # shows the inspector's stand-in.
 clock stop
@@ -11,6 +12,12 @@ click '#dock.tab.2' right
 click 'MenuItem "Pop out into a window"'
 wait 'Nothing open'
 wait '#dock.dialog.1099511627776' over 274,250
+drag '#dock.tab.2+150,0' '#dock.tab.2+270,90' 6
+wait '#dock.tab.2' over 267,211
+wait '#dock.dialog.1099511627776' over 394,340
+drag '#dock.tab.2+-12,15' '#dock.tab.2+48,75' 6
+wait '#dock.tab.2' over 327,271
+wait '#dock.dialog.1099511627776' over 454,400
 click '#demo.dialog.1099511627776.close'
 gone '#dock.dialog.1099511627776'
 drag '#dock.tab.2' '#dock.grip.pages+413,349' 6

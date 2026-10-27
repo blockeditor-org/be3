@@ -67,9 +67,9 @@ fn report(state: &DockState) -> String {
         .filter_map(|surface| {
             let tree = state.tree(Tree::Surface(surface))?;
             let described = describe(state, &tree);
-            Some(match windows.contains(&surface) {
-                true => format!("window {described}"),
-                false => described,
+            Some(match state.window_rect(surface).filter(|_| windows.contains(&surface)) {
+                Some(rect) => format!("window at {:.0},{:.0} {described}", rect.min.x, rect.min.y),
+                None => described,
             })
         })
         .collect::<Vec<_>>()

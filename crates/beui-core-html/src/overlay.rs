@@ -724,8 +724,14 @@ mod web {
 
     fn raise_above(layer: &Layer) {
         let level = layer.level.get();
+        let mut after = false;
         for other in open_layers() {
-            if std::ptr::eq(Rc::as_ptr(&other), layer) || other.level.get() <= level {
+            if std::ptr::eq(Rc::as_ptr(&other), layer) {
+                after = true;
+                continue;
+            }
+            let other_level = other.level.get();
+            if other_level < level || (other_level == level && !after) {
                 continue;
             }
             other.web.borrow_mut().shown = None;

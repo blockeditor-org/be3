@@ -100,6 +100,13 @@ mod web {
         last_press: RefCell<Option<PointerPress>>,
         activating: Cell<bool>,
         repeating: Cell<Option<crate::frame::Timer>>,
+        release: RefCell<Vec<Listener>>,
+    }
+
+    const CAPTURED: &str = "beuiCaptured";
+
+    fn captured(event: &web_sys::PointerEvent) -> bool {
+        js_sys::Reflect::get(event, &CAPTURED.into()).is_ok_and(|held| held.is_truthy())
     }
 
     const REPEAT: std::time::Duration = std::time::Duration::from_millis(16);
@@ -383,7 +390,7 @@ mod web {
             Some(REPEAT)
         }
 
-        fn down(&self, element: &web_sys::Element, event: &web_sys::PointerEvent) -> bool {
+        fn down(self: &Rc<Self>, element: &web_sys::Element, event: &web_sys::PointerEvent) -> bool {
             if !self.switches.press_focus.get() {
                 event.prevent_default();
             }
@@ -392,9 +399,12 @@ mod web {
                 self.pressed.set(Some(event.pointer_id()));
                 let at = press(element, event);
                 *self.last_press.borrow_mut() = Some(at.clone());
-                if !self.handlers.on_drag.is_empty() || self.switches.grabs_pointer.get() {
+                let drags = !self.handlers.on_drag.is_empty() || self.switches.grabs_pointer.get();
+                if drags && !captured(event) {
                     let _ = element.set_pointer_capture(event.pointer_id());
+                    let _ = js_sys::Reflect::set(event, &CAPTURED.into(), &true.into());
                 }
+                self.watch_release(element, event.pointer_id());
                 if self.switches.pointer_locked.get() {
                     element.request_pointer_lock();
                 }
@@ -404,10 +414,7 @@ mod web {
                     crate::ime::show_keyboard(true);
                 }
                 self.handlers.on_active_change.call(true);
-                if !self.handlers.on_press.is_empty() {
-                    self.handlers.on_press.call(at.clone());
-                    done = true;
-                }
+                self.handlers.on_press.call(at.clone());
                 if self.switches.repeat_drag.get()
                     && let Some(timer) = self.repeating.get()
                 {
@@ -418,6 +425,50 @@ mod web {
                 }
             }
             done
+        }
+
+        fn watch_release(self: &Rc<Self>, element: &web_sys::Element, pointer: i32) {
+            let Some(window) = crate::dom::window() else {
+                return;
+            };
+            let mut release = self.release.borrow_mut();
+            release.clear();
+            for (name, stage) in [
+                ("pointerup", PointerStage::Up),
+                ("pointercancel", PointerStage::Cancel),
+            ] {
+                let held = Rc::downgrade(self);
+                let element = element.clone();
+                release.push(crate::dom::listen(
+                    window.as_ref(),
+                    name,
+                    true,
+                    move |event: web_sys::PointerEvent| {
+                        let Some(held) = held.upgrade() else {
+                            return;
+                        };
+                        let reaches = event
+                            .target()
+                            .and_then(|target| target.dyn_into::<web_sys::Node>().ok())
+                            .is_some_and(|target| element.contains(Some(&target)));
+                        if event.pointer_id() == pointer && !reaches {
+                            held.released(pointer, stage);
+                        }
+                    },
+                ));
+            }
+        }
+
+        fn released(&self, pointer: i32, stage: PointerStage) {
+            drop(std::mem::take(&mut *self.release.borrow_mut()));
+            if self.pressed.get() != Some(pointer) {
+                return;
+            }
+            self.pressed.set(None);
+            self.handlers.on_active_change.call(false);
+            if stage == PointerStage::Cancel {
+                self.handlers.on_cancel.call();
+            }
         }
 
         fn claims(&self, element: &web_sys::Element, event: &web_sys::PointerEvent) -> bool {
@@ -752,13 +803,7 @@ mod web {
                         return;
                     };
                     let done = held.pointer(event, stage);
-                    if held.pressed.get() == Some(event.pointer_id()) {
-                        held.pressed.set(None);
-                        held.handlers.on_active_change.call(false);
-                        if stage == PointerStage::Cancel {
-                            held.handlers.on_cancel.call();
-                        }
-                    }
+                    held.released(event.pointer_id(), stage);
                     handled(event, done);
                 }),
             ));
@@ -902,6 +947,7 @@ mod web {
             last_press: RefCell::default(),
             activating: Cell::new(false),
             repeating: Cell::new(None),
+            release: RefCell::default(),
         });
         let held = state.clone();
         state
