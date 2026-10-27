@@ -6,15 +6,6 @@ use crate::reactive::{KeyAt, KeyEvent, NodeId};
 use crate::types::input::KeyChord;
 use crate::types::{KeyPhase, WindowId};
 
-pub fn document_registry<R: Clone + 'static>(make: impl FnOnce() -> R) -> (R, bool) {
-    let mut fresh = false;
-    let registry = beui_core_html::document::extension_or_insert_with(|| {
-        fresh = true;
-        make()
-    });
-    (registry, fresh)
-}
-
 pub fn focus_ancestry() -> Vec<NodeId> {
     beui_core_html::focus::focus_ancestry()
 }

@@ -736,7 +736,11 @@ fn run_matching<'a>(actions: impl Iterator<Item = &'a Action>, event: KeyEvent) 
 }
 
 fn registry() -> Registry {
-    let (registry, fresh) = crate::core::actions::document_registry(Registry::new);
+    let mut fresh = false;
+    let registry = crate::reactive::tree_local(|| {
+        fresh = true;
+        Registry::new()
+    });
     if fresh {
         install(&registry);
     }

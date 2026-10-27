@@ -44,7 +44,12 @@ impl reactive::Release for Removals {
 }
 
 thread_local! {
-    static SCOPE: reactive::Scope = reactive::Scope::root();
+    static SCOPE: ScopeContext = {
+        let scope = reactive::Scope::root();
+        let context = scope.context();
+        std::mem::forget(scope);
+        context
+    };
     static ARENA: RefCell<Arena> = RefCell::default();
     static REMOVALS: Rc<Removals> = Rc::default();
 }
@@ -335,7 +340,7 @@ pub fn set_accessibility(node: NodeId, accessibility: accesskit::Node) {
 }
 
 pub fn in_document_scope<T>(run: impl FnOnce() -> T) -> T {
-    let scope = SCOPE.with(reactive::Scope::context);
+    let scope = SCOPE.with(ScopeContext::clone);
     scope.run(run)
 }
 
@@ -349,13 +354,17 @@ pub fn extension_or_insert_with<T: Clone + 'static>(make: impl FnOnce() -> T) ->
             .clone();
     }
     let made = in_document_scope(make);
-    ARENA.with(|arena| {
+    let held = ARENA.with(|arena| {
         arena
             .borrow_mut()
             .extensions
-            .insert(id, Rc::new(made.clone()))
+            .entry(id)
+            .or_insert_with(|| Rc::new(made))
+            .clone()
     });
-    made
+    held.downcast_ref::<T>()
+        .expect("extensions are keyed by their type")
+        .clone()
 }
 
 pub struct About {

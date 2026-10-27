@@ -472,14 +472,9 @@ impl Document {
             .cloned()
     }
 
-    pub fn extension_or_insert_with<T: Clone + 'static>(&mut self, make: impl FnOnce() -> T) -> T {
-        if let Some(held) = self.extension::<T>() {
-            return held;
-        }
-        let made = self.reactive_scope.context().run(make);
+    pub fn insert_extension<T: Clone + 'static>(&mut self, value: T) {
         self.extensions
-            .insert(std::any::TypeId::of::<T>(), Box::new(made.clone()));
-        made
+            .insert(std::any::TypeId::of::<T>(), Box::new(value));
     }
 
     pub fn open_inspector(&mut self) {

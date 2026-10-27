@@ -469,9 +469,9 @@ impl ThemeTokensStore {
 }
 
 fn tree_theme_store() -> ThemeStore {
-    let preferences = use_preferences();
-    let kind = create_memo(move || preferences.get().theme);
     tree_local(|| {
+        let preferences = use_preferences();
+        let kind = create_memo(move || preferences.get().theme);
         let themes = create_memo(move || scheme_themes(kind.get()));
         define_colors(create_memo(move || {
             let (light, dark) = themes.get();

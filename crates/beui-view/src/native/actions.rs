@@ -9,13 +9,6 @@ use crate::reactive::{KeyAt, KeyEvent, NodeId, Set, with_document};
 use crate::types::input::KeyChord;
 use crate::types::{KeyPhase, WindowId};
 
-pub fn document_registry<R: Clone + 'static>(make: impl FnOnce() -> R) -> (R, bool) {
-    with_document(|document| match document.extension::<R>() {
-        Some(registry) => (registry, false),
-        None => (document.extension_or_insert_with(make), true),
-    })
-}
-
 pub fn focus_ancestry() -> Vec<NodeId> {
     with_document(|document| document.focus_ancestry())
 }

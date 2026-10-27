@@ -208,7 +208,18 @@ pub fn stacked_at(nodes: &[NodeId], window: WindowId, pos: Pos2) -> Vec<NodeId> 
 }
 
 pub fn tree_local<T: Clone + 'static>(make: impl FnOnce() -> T) -> T {
-    with_document(|document| document.extension_or_insert_with(make))
+    if let Some(held) = with_document(|document| document.extension::<T>()) {
+        return held;
+    }
+    let scope = with_document(|document| document.reactive_scope().context());
+    let made = scope.run(make);
+    with_document(|document| match document.extension::<T>() {
+        Some(held) => held,
+        None => {
+            document.insert_extension(made.clone());
+            made
+        }
+    })
 }
 
 pub fn use_preferences() -> Memo<Preferences> {
