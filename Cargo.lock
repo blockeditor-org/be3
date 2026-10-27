@@ -1252,6 +1252,7 @@ name = "beui-core-html"
 version = "0.1.0"
 dependencies = [
  "accesskit",
+ "beui-fonts",
  "beui-html",
  "beui-tree",
  "beui-types",
@@ -1318,12 +1319,17 @@ name = "beui-font-freetype"
 version = "0.1.0"
 dependencies = [
  "beui-core",
+ "beui-fonts",
  "foldhash 0.2.0",
  "freetype",
  "harfbuzz_rs",
  "libloading 0.8.9",
  "unicode-script",
 ]
+
+[[package]]
+name = "beui-fonts"
+version = "0.1.0"
 
 [[package]]
 name = "beui-gallery-types"
@@ -2112,7 +2118,9 @@ dependencies = [
 name = "browser-rasterizer"
 version = "0.1.0"
 dependencies = [
+ "beui-fonts",
  "paint-snapshot",
+ "serde_json",
 ]
 
 [[package]]

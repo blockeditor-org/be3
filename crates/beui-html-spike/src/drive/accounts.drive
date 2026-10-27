@@ -3,7 +3,6 @@
 # card) and Log out (the card goes).
 clock stop
 wait 'Choose an account to continue.'
-wait 'Nothing chosen yet'
 click '#account.open.Ada'
 wait 'Opened Ada'
 wait 'focused #account.open.Ada'

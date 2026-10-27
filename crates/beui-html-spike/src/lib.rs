@@ -21,8 +21,7 @@ fn fixture_accounts() -> Vec<AccountRow> {
             key: "home".into(),
             name: "Ada at home".into(),
             email: "ada@home.example".into(),
-            server: "Local server".into(),
-            local: true,
+            server: "https://api.example.com".into(),
             ..Default::default()
         },
     ]
@@ -41,7 +40,7 @@ fn added(number: usize) -> AccountRow {
 #[component]
 pub fn Spike() -> primitives::Root {
     let accounts = create_signal(fixture_accounts());
-    let status = create_signal("Nothing chosen yet".to_owned());
+    let status = create_signal(String::new());
     let listed = create_memo(move || accounts.get());
     let error = create_memo(|| None);
     let name_of = move |key: &str| {

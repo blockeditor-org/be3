@@ -7584,6 +7584,7 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-html:beui-html",
                     "//crates/beui-tree:beui-tree",
                     "//crates/beui-types:beui-types",
@@ -7598,6 +7599,7 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-html:beui-html",
                     "//crates/beui-tree:beui-tree",
                     "//crates/beui-types:beui-types",
@@ -7612,6 +7614,7 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-html:beui-html",
                     "//crates/beui-tree:beui-tree",
                     "//crates/beui-types:beui-types",
@@ -7626,6 +7629,7 @@ crates = {
             "linux-x86_64-html": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-html:beui-html",
                     "//crates/beui-tree:beui-tree",
                     "//crates/beui-types:beui-types",
@@ -7640,6 +7644,7 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-html:beui-html",
                     "//crates/beui-tree:beui-tree",
                     "//crates/beui-types:beui-types",
@@ -7654,6 +7659,7 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-html:beui-html",
                     "//crates/beui-tree:beui-tree",
                     "//crates/beui-types:beui-types",
@@ -7668,6 +7674,7 @@ crates = {
             "wasi-html": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-html:beui-html",
                     "//crates/beui-tree:beui-tree",
                     "//crates/beui-types:beui-types",
@@ -7687,6 +7694,7 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-html:beui-html",
                     "//crates/beui-tree:beui-tree",
                     "//crates/beui-types:beui-types",
@@ -7701,6 +7709,7 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-html:beui-html",
                     "//crates/beui-tree:beui-tree",
                     "//crates/beui-types:beui-types",
@@ -8744,6 +8753,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-fonts:beui-fonts",
                     "//third-party/rust:foldhash-0.2.0",
                     "//third-party/rust:freetype-0.7.2",
                     "//third-party/rust:harfbuzz_rs-2.0.1",
@@ -8759,6 +8769,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-fonts:beui-fonts",
                     "//third-party/rust:foldhash-0.2.0",
                     "//third-party/rust:freetype-0.7.2",
                     "//third-party/rust:harfbuzz_rs-2.0.1",
@@ -8774,6 +8785,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-fonts:beui-fonts",
                     "//third-party/rust:foldhash-0.2.0",
                     "//third-party/rust:freetype-0.7.2",
                     "//third-party/rust:harfbuzz_rs-2.0.1",
@@ -8789,6 +8801,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-fonts:beui-fonts",
                     "//third-party/rust:foldhash-0.2.0",
                     "//third-party/rust:freetype-0.7.2",
                     "//third-party/rust:harfbuzz_rs-2.0.1",
@@ -8804,6 +8817,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-fonts:beui-fonts",
                     "//third-party/rust:foldhash-0.2.0",
                     "//third-party/rust:freetype-0.7.2",
                     "//third-party/rust:harfbuzz_rs-2.0.1",
@@ -8819,6 +8833,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-fonts:beui-fonts",
                     "//third-party/rust:foldhash-0.2.0",
                     "//third-party/rust:freetype-0.7.2",
                     "//third-party/rust:harfbuzz_rs-2.0.1",
@@ -8833,6 +8848,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-fonts:beui-fonts",
                     "//third-party/rust:foldhash-0.2.0",
                     "//third-party/rust:freetype-0.7.2",
                     "//third-party/rust:harfbuzz_rs-2.0.1",
@@ -8847,6 +8863,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-fonts:beui-fonts",
                     "//third-party/rust:foldhash-0.2.0",
                     "//third-party/rust:freetype-0.7.2",
                     "//third-party/rust:harfbuzz_rs-2.0.1",
@@ -8862,12 +8879,116 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-fonts:beui-fonts",
                     "//third-party/rust:foldhash-0.2.0",
                     "//third-party/rust:freetype-0.7.2",
                     "//third-party/rust:harfbuzz_rs-2.0.1",
                     "//third-party/rust:libloading-0.8.9",
                     "//third-party/rust:unicode-script-0.5.8",
                 ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/beui-fonts": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "beui_fonts",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "beui-fonts",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64-html": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-html": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -15664,7 +15785,9 @@ crates = {
             "android-arm64": {
                 "binaries": {
                     "browser-rasterizer": [
+                        "//crates/beui-fonts:beui-fonts",
                         "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:serde_json-1.0.150",
                     ],
                 },
                 "deps": [],
@@ -15676,7 +15799,9 @@ crates = {
             "linux-arm64": {
                 "binaries": {
                     "browser-rasterizer": [
+                        "//crates/beui-fonts:beui-fonts",
                         "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:serde_json-1.0.150",
                     ],
                 },
                 "deps": [],
@@ -15688,7 +15813,9 @@ crates = {
             "linux-x86_64": {
                 "binaries": {
                     "browser-rasterizer": [
+                        "//crates/beui-fonts:beui-fonts",
                         "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:serde_json-1.0.150",
                     ],
                 },
                 "deps": [],
@@ -15700,7 +15827,9 @@ crates = {
             "macos-arm64": {
                 "binaries": {
                     "browser-rasterizer": [
+                        "//crates/beui-fonts:beui-fonts",
                         "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:serde_json-1.0.150",
                     ],
                 },
                 "deps": [],
@@ -15712,7 +15841,9 @@ crates = {
             "macos-x86_64": {
                 "binaries": {
                     "browser-rasterizer": [
+                        "//crates/beui-fonts:beui-fonts",
                         "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:serde_json-1.0.150",
                     ],
                 },
                 "deps": [],
@@ -15724,7 +15855,9 @@ crates = {
             "windows-arm64": {
                 "binaries": {
                     "browser-rasterizer": [
+                        "//crates/beui-fonts:beui-fonts",
                         "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:serde_json-1.0.150",
                     ],
                 },
                 "deps": [],
@@ -15736,7 +15869,9 @@ crates = {
             "windows-x86_64": {
                 "binaries": {
                     "browser-rasterizer": [
+                        "//crates/beui-fonts:beui-fonts",
                         "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:serde_json-1.0.150",
                     ],
                 },
                 "deps": [],

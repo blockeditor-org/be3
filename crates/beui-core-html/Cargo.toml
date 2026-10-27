@@ -7,6 +7,7 @@ license.workspace = true
 
 [dependencies]
 accesskit = "0.24.1"
+beui-fonts = { path = "../beui-fonts" }
 beui-html = { path = "../beui-html" }
 beui-tree = { path = "../beui-tree" }
 beui-types = { path = "../beui-types" }

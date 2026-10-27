@@ -47,9 +47,10 @@ app(
     files = [
         ":index",
         "web/start.js",
-        "//crates/beui-font-freetype:Inter-Regular.ttf",
-        "//crates/beui-font-freetype:Hack-Regular.ttf",
-        "//crates/beui-font-freetype:lucide.ttf",
+        "//crates/beui-fonts:Inter-Regular.ttf",
+        "//crates/beui-fonts:Hack-Regular.ttf",
+        "//crates/beui-fonts:NotoEmoji-Regular.ttf",
+        "//crates/beui-fonts:lucide.ttf",
         "//crates/block-app:wasi.js",
         "//crates/block-app:threads.js",
         "//crates/block-app:thread.js",

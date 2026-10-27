@@ -47,6 +47,7 @@ members = [
     "crates/beui-dock",
     "crates/beui-font-browser",
     "crates/beui-font-freetype",
+    "crates/beui-fonts",
     "crates/beui-inspector",
     "crates/beui-keyboard",
     "crates/beui-macros",

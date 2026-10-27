@@ -79,9 +79,9 @@ pub struct FontSources {
 impl FontSources {
     pub fn bundled() -> Self {
         Self {
-            proportional: vec![FontData::from_static(INTER_REGULAR)],
-            monospace: vec![FontData::from_static(HACK_REGULAR)],
-            fallback: vec![FontData::from_static(NOTO_EMOJI_REGULAR)],
+            proportional: vec![FontData::from_static(beui_fonts::INTER_REGULAR)],
+            monospace: vec![FontData::from_static(beui_fonts::HACK_REGULAR)],
+            fallback: vec![FontData::from_static(beui_fonts::NOTO_EMOJI_REGULAR)],
             icons: vec![FontData::from_static(ICONS_FONT)],
         }
     }
@@ -205,7 +205,4 @@ impl Default for FontLibrary {
     }
 }
 
-pub const ICONS_FONT: &[u8] = include_bytes!("assets/icons/lucide.ttf");
-const INTER_REGULAR: &[u8] = include_bytes!("assets/fonts/Inter-Regular.ttf");
-const HACK_REGULAR: &[u8] = include_bytes!("assets/fonts/Hack-Regular.ttf");
-const NOTO_EMOJI_REGULAR: &[u8] = include_bytes!("assets/fonts/NotoEmoji-Regular.ttf");
+pub const ICONS_FONT: &[u8] = beui_fonts::ICONS;
