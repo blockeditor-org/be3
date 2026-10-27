@@ -452,7 +452,8 @@ where
     if !greet(&mut sink, &mut source).await? {
         return Ok(());
     }
-    let mut pings = tokio::time::interval(PING_INTERVAL);
+    let mut pings =
+        tokio::time::interval_at(tokio::time::Instant::now() + PING_INTERVAL, PING_INTERVAL);
     let mut client = Client::open(services).await;
     let mut session_changes = services.store.session_changes.subscribe();
     client.connection.header_token = bearer(authorization.as_deref());
