@@ -4,7 +4,8 @@ use std::rc::{Rc, Weak};
 
 use beui::NodeId;
 use beui::dock::unstyled::{
-    DockBodies, DockDeclaration, DockDeclaredTab, DockHostEvent, DockHostLink, DockHosted,
+    DockBodies, DockDeclaration, DockDeclaredTab, DockHostEvent, DockHostLink, DockHostSlot,
+    DockHosted,
     DockMapping, DockMode, DockPlain, DockPlainEntry, DockPlainHome, DockPlainNode, DockPlainPlace,
     DockPlainWindow, DockRequest, DockSpec, DockSpecEntry, DockSpecNode, DockSpecPane,
     DockSpecWindow, DockState, TabId,
@@ -37,6 +38,8 @@ impl DockedTab {
 pub(crate) struct DockedTabs {
     link: RefCell<Option<Rc<ProtocolLink>>>,
     revision: OwnedSignal<u64>,
+    slot: RefCell<Option<DockHostSlot>>,
+    built: Cell<Option<bool>>,
 }
 
 impl Default for DockedTabs {
@@ -44,11 +47,28 @@ impl Default for DockedTabs {
         Self {
             link: RefCell::default(),
             revision: OwnedSignal::new(0),
+            slot: RefCell::default(),
+            built: Cell::new(None),
         }
     }
 }
 
 impl DockedTabs {
+    pub(crate) fn provide_slot(&self, link: Option<Rc<dyn DockHostLink>>, docked: bool) {
+        let slot = DockHostSlot::new(link);
+        *self.slot.borrow_mut() = Some(slot.clone());
+        self.built.set(Some(docked));
+        provide_context(slot);
+    }
+
+    pub(crate) fn key(&self, docked: bool) -> bool {
+        let asked = self.slot.borrow().as_ref().is_some_and(DockHostSlot::asked);
+        match (asked, self.built.get()) {
+            (false, Some(built)) => built,
+            _ => docked,
+        }
+    }
+
     fn bump(&self) {
         self.revision.handle().update(|revision| *revision += 1);
     }

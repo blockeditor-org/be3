@@ -13,6 +13,8 @@ pub(crate) trait Shown {
 
     fn generation(&self) -> u64;
 
+    fn docked_key(&self, docked: bool) -> bool;
+
     fn content(&self, region: EditorRegion, docked: bool) -> RenderFn<WindowHandle>;
 
     fn before(&self, view: &View, context: &beui::Context, document: &mut Document);
@@ -199,21 +201,21 @@ fn ModuleWindows(
             requested
                 .iter()
                 .map(|view| {
-                    let generation = generations
-                        .shown(view.id.instance)
-                        .map_or(0, |shown| shown.generation());
-                    (view.id, generation, view.docked)
+                    let shown = generations.shown(view.id.instance);
+                    let generation = shown.as_ref().map_or(0, |shown| shown.generation());
+                    let docked = view.id.region == EditorRegion::Frame
+                        && shown.is_some_and(|shown| shown.docked_key(view.docked));
+                    (view.id, generation, docked)
                 })
                 .collect::<Vec<_>>()
         })
     });
     view! {
         <List spacing=Space::None>
-            <ForEach keys>|(id, _generation, docked): (RegionId, u64, bool)|
+            <ForEach keys>|(id, _generation, _docked): (RegionId, u64, bool)|
                 <RegionWindow
                     registry={Rc::clone(&registry)}
                     id
-                    docked
                     requested
                     views={views.clone()}
                 />
@@ -226,7 +228,6 @@ fn ModuleWindows(
 fn RegionWindow(
     registry: Rc<Registry>,
     id: RegionId,
-    docked: bool,
     requested: ReadSignal<Vec<View>>,
     views: Views,
 ) -> beui::NodeId {
@@ -252,6 +253,11 @@ fn RegionWindow(
                 .find(|view| view.id == id)
                 .map_or(initial, |view| view.size)
         })
+    });
+    let docked = requested.with_untracked(|requested| {
+        requested
+            .iter()
+            .any(|view| view.id == id && view.docked)
     });
     let content = match registry.shown(id.instance) {
         Some(shown) => shown.content(id.region, docked),

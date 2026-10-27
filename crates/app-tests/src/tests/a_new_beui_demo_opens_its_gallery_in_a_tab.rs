@@ -7,7 +7,6 @@ fn a_new_beui_demo_opens_its_gallery_in_a_tab() {
     choose_type(&mut app, "beui demo");
     app.wait("Pane \"beui demo\"");
     app.wait("Components");
-    app.crop("#workspace.block");
     app.snapshot("a_new_beui_demo_opens_its_gallery_in_a_tab");
     app.close();
 }

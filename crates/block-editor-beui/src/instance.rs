@@ -119,10 +119,8 @@ impl<A: BeuiApp> Parts<A> {
         let tabs = Rc::clone(&self.docked);
         let host = self.host.clone();
         RenderFn::new(move |_: WindowHandle| {
-            if docked {
-                let link = tabs.link(host.clone(), editor);
-                beui::reactive::provide_context(beui::dock::unstyled::DockHostSlot::new(link));
-            }
+            let link = docked.then(|| tabs.link(host.clone(), editor));
+            tabs.provide_slot(link, docked);
             let custom = Rc::clone(&custom);
             let view: Rc<dyn Fn() -> beui::styled::Root> =
                 Rc::new(move || match custom.borrow_mut().take() {
@@ -300,6 +298,10 @@ impl<A: BeuiApp> Shown for Parts<A> {
 
     fn generation(&self) -> u64 {
         self.generation.get()
+    }
+
+    fn docked_key(&self, docked: bool) -> bool {
+        self.docked.key(docked)
     }
 
     fn content(&self, region: EditorRegion, docked: bool) -> RenderFn<WindowHandle> {

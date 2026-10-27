@@ -65,25 +65,33 @@ pub struct DockBodies {
 
 #[derive(Clone)]
 pub struct DockHostSlot {
-    link: Rc<dyn DockHostLink>,
+    link: Option<Rc<dyn DockHostLink>>,
     claimed: Rc<Cell<bool>>,
+    asked: Rc<Cell<bool>>,
 }
 
 impl DockHostSlot {
-    pub fn new(link: Rc<dyn DockHostLink>) -> Self {
+    pub fn new(link: Option<Rc<dyn DockHostLink>>) -> Self {
         Self {
             link,
             claimed: Rc::default(),
+            asked: Rc::default(),
         }
     }
 
+    pub fn asked(&self) -> bool {
+        self.asked.get()
+    }
+
     pub fn claim(&self) -> Option<Rc<dyn DockHostLink>> {
+        self.asked.set(true);
+        let link = self.link.as_ref()?;
         if self.claimed.replace(true) {
             return None;
         }
         let claimed = Rc::clone(&self.claimed);
         on_cleanup(move || claimed.set(false));
-        Some(Rc::clone(&self.link))
+        Some(Rc::clone(link))
     }
 }
 
