@@ -1027,6 +1027,7 @@ fn is_focusable_control(role: Role) -> bool {
     matches!(
         role,
         Role::TreeItem
+            | Role::GridCell
             | Role::ListBoxOption
             | Role::MenuItem
             | Role::CheckBox
