@@ -57,7 +57,8 @@ pub fn ToastsFixture() -> NodeId {
     let toasts = create_signal(Vec::<Toast>::new());
     let next = create_signal(1_u64);
     let chosen = create_signal(String::from("nothing"));
-    let report = create_memo(move || format!("Toasts {} chose {}", toasts.with(Vec::len), chosen.get()));
+    let report =
+        create_memo(move || format!("Toasts {} chose {}", toasts.with(Vec::len), chosen.get()));
     view! {
         <Frame @node_ref=&area height=Size::Custom(300.0)>
             <List spacing=Space::Md>
