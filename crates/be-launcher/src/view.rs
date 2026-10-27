@@ -136,20 +136,9 @@ fn Sidebar(model: Model) -> NodeId {
         _ => String::new(),
     });
     let failed = create_memo(move || !error.get().is_empty());
-    let visible = create_memo(move || {
-        let query = model.query.get().to_lowercase();
-        let pull_requests = model.pull_requests;
-        pull_requests
-            .keys()
-            .get()
-            .into_iter()
-            .filter(|number| {
-                query.is_empty()
-                    || pull_requests
-                        .try_get(number)
-                        .is_some_and(|pull_request| matches(&pull_request.get(), &query))
-            })
-            .collect::<Vec<u64>>()
+    let query = create_memo(move || model.query.get().to_lowercase());
+    let visible = model.pull_requests.filter(move |pull_request| {
+        query.with(|query| query.is_empty() || matches(pull_request, query))
     });
     let empty = create_memo(move || visible.get().is_empty() && !loading.get() && !failed.get());
     let empty_text =
