@@ -1,7 +1,7 @@
 use std::hash::Hash;
 use std::ops::Range;
 
-use beui_core_html::scroll;
+use beui_core_html::{overlay, scroll};
 
 use crate::reactive::{Get, NodeId};
 use crate::types::{CaretHandle, Color32, Dismiss, Rect, ScrollPosition};
@@ -52,14 +52,26 @@ pub fn focusables_within(node: NodeId) -> Vec<NodeId> {
     beui_core_html::nodes::focusables_within(node)
 }
 
-pub fn raise_overlay(_node: NodeId) {}
+pub fn raise_overlay(node: NodeId) {
+    if let Some(layer) = overlay::find(node) {
+        layer.raise();
+    }
+}
 
-pub fn dismiss_overlay(_node: NodeId, _reason: Dismiss) {}
+pub fn dismiss_overlay(node: NodeId, reason: Dismiss) {
+    if let Some(layer) = overlay::find(node) {
+        layer.dismiss(reason);
+    }
+}
 
-pub fn close_overlay(_node: NodeId) {}
+pub fn close_overlay(node: NodeId) {
+    if let Some(layer) = overlay::find(node) {
+        layer.close();
+    }
+}
 
 pub fn is_overlay_open(node: NodeId) -> bool {
-    beui_core_html::dom::connected(node)
+    overlay::find(node).is_some_and(|layer| layer.is_open())
 }
 
 pub fn reveal(node: NodeId) {
