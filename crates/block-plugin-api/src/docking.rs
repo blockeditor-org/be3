@@ -1,9 +1,9 @@
 use std::collections::HashSet;
 
 use crate::{
-    ChildId, DecodeError, DockDeclaration, DockGroup, DockHome, DockHosted, DockItem,
-    DockItemKind, DockLayout, DockMessage, DockPane, DockPlace, DockRequest, DockSplit, DockTab,
-    DockTabPath, DockTree, DockUpdate, DockWindow, Rect, collection, nesting, string,
+    ChildId, DecodeError, DockDeclaration, DockGroup, DockHome, DockHosted, DockItem, DockItemKind,
+    DockLayout, DockMessage, DockPane, DockPlace, DockRequest, DockSplit, DockTab, DockTabPath,
+    DockTree, DockUpdate, DockWindow, Rect, collection, nesting, string,
 };
 
 pub const MAX_DOCK_DEPTH: usize = 32;
@@ -25,7 +25,10 @@ pub enum DockNode {
 #[derive(Clone, Debug, PartialEq)]
 pub enum DockEntry {
     Tab(DockTabPath),
-    Group { group: DockGroup, root: Box<DockNode> },
+    Group {
+        group: DockGroup,
+        root: Box<DockNode>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -181,9 +184,11 @@ impl DockNodes {
     }
 
     fn roots(&self) -> impl Iterator<Item = &DockNode> {
-        self.main
-            .iter()
-            .chain(self.windows.iter().filter_map(|window| window.root.as_ref()))
+        self.main.iter().chain(
+            self.windows
+                .iter()
+                .filter_map(|window| window.root.as_ref()),
+        )
     }
 
     fn keys(&self) -> Vec<(&'static str, &str)> {
@@ -254,8 +259,8 @@ fn built(kind: DockItemKind, children: Vec<Built>) -> Result<Built, DecodeError>
             if !(split.fraction.is_finite() && (0.0..=1.0).contains(&split.fraction)) {
                 return Err(DecodeError::MalformedPayload);
             }
-            let [Built::Node(first), Built::Node(second)] = <[Built; 2]>::try_from(children)
-                .map_err(|_| DecodeError::MalformedPayload)?
+            let [Built::Node(first), Built::Node(second)] =
+                <[Built; 2]>::try_from(children).map_err(|_| DecodeError::MalformedPayload)?
             else {
                 return Err(DecodeError::MalformedPayload);
             };

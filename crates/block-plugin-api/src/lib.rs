@@ -60,6 +60,8 @@ pub use blocks::{
     VersionCommand, VersionCommit, VersionOperation, VersionStatus,
 };
 pub use debug::debug::{DebugTemplate, PerformanceMeasurement};
+pub use dock::{DockChildRequest, DockClosedTab, DockDeclaredChild, DockHostedRegion, DockUpdate};
+pub use guest::dock::DockWatch;
 pub use host_services::{
     AccessGrant, AccessListing, BlockFilter, BlockPick, ImportedBlock, PickedBlock, Revision,
     ShellDialog,
@@ -83,10 +85,6 @@ pub use types::{
     ScreenLayout, ScreenPlacement, ScreenRequest, ScreenWindow, Size, SurfaceFormat, SurfaceRect,
     SurfaceSpec, SurfaceSupport, TimedInput, TopBar, ViewportMetrics,
 };
-pub use dock::{
-    DockChildRequest, DockClosedTab, DockDeclaredChild, DockHostedRegion, DockUpdate,
-};
-pub use guest::dock::DockWatch;
 pub use types::{
     DockChild, DockChildClose, DockChildHosted, DockDeclaration, DockDeclare, DockDirection,
     DockFullscreen, DockGroup, DockHome, DockHosted, DockItem, DockItemKind, DockLayout,
