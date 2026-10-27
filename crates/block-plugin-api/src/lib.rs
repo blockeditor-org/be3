@@ -463,13 +463,7 @@ pub enum ShellRequest {
 }
 
 impl ShellRequest {
-    pub const ALL: [Self; 5] = [
-        Self::ShowBlock,
-        Self::Pick,
-        Self::Dialog,
-        Self::Panel,
-        Self::Window,
-    ];
+    pub const ROUTED: [Self; 4] = [Self::ShowBlock, Self::Dialog, Self::Panel, Self::Window];
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

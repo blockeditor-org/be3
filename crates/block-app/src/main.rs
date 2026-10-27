@@ -2073,7 +2073,7 @@ impl BlockApp {
                 view_block: Some(id),
             };
             let editor = self.registry.open_with(opened, Some(shell_editor));
-            if let Some(missing) = ShellRequest::ALL
+            if let Some(missing) = ShellRequest::ROUTED
                 .into_iter()
                 .find(|request| !editor.accepts(*request))
             {
