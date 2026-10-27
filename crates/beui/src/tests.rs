@@ -1358,7 +1358,11 @@ impl Harness {
     }
 
     pub(crate) fn close_button_center(&self) -> Pos2 {
-        self.inspector_center("dock.pin.inspector.close")
+        let tiled = "dock.tools.pin.inspector.close";
+        match self.inspector().document.find_test_id(tiled) {
+            Some(_) => self.inspector_center(tiled),
+            None => self.inspector_center("dock.pin.inspector.close"),
+        }
     }
 
     pub(crate) fn app_rect(&self) -> Rect {
