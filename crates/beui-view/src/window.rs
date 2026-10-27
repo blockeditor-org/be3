@@ -63,6 +63,7 @@ pub fn Window(
     #[prop(default = WindowPlacement::AtPointer)] placement: Prop<WindowPlacement>,
     #[prop(default = Pos2::ZERO)] at: Prop<Pos2>,
     #[prop(default = None)] title: Prop<Option<String>>,
+    #[prop(default = None)] notice: Prop<Option<String>>,
     #[prop(default = WindowRole::Normal)] role: Prop<WindowRole>,
     #[prop(default = true)] open: Prop<bool>,
     #[prop(default = LayerLevel::Normal)] level: Prop<LayerLevel>,
@@ -108,6 +109,7 @@ pub fn Window(
             size: size.get(),
             placement: placement.get(),
             title: title.get(),
+            notice: notice.get(),
             role: role.get(),
             on_report: heard,
         })

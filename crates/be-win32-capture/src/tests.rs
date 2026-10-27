@@ -1,0 +1,11 @@
+use super::*;
+
+mod a_held_slot_is_never_written;
+mod a_released_slot_is_written_once_vulkan_has_signalled;
+mod a_slot_released_again_before_its_signal_ran_owes_one_signal;
+mod copies_are_clipped_to_the_frame_surface;
+mod luids_match_dxgi_adapters_by_their_bytes;
+mod memory_types_prefer_device_local;
+mod the_latest_frame_is_never_written;
+mod the_pool_is_recreated_when_the_content_changes_size;
+mod writing_prefers_a_slot_of_the_frame_size;

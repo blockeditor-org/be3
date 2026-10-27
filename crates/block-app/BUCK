@@ -225,7 +225,7 @@ export_file(
 
 # The app with its plugins installed under /usr/local (or the prefix given after
 # `--`), with a wayland-sessions entry that runs it with --session, for a
-# display manager to offer on its login screen: guides/linux_desktop.md.
+# display manager to offer on its login screen: guides/desktop/linux.md.
 command_alias(
     name = "install-session",
     args = [

@@ -378,7 +378,7 @@ impl Wire {
         if !self.extensions.iter().any(|granted| granted == extension) {
             return Some(OpError::Denied);
         }
-        (!super::published::offered(extension)).then_some(OpError::Unsupported)
+        (!super::published::offered(interface)).then_some(OpError::Unsupported)
     }
 
     fn published_call(&mut self, called: Called, heard: &mut Vec<Heard>) {

@@ -1,0 +1,8 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
+
+# The Win32 calls sit behind cfg(windows); the logic over them builds and is
+# tested everywhere.
+
+cargo_library()
+
+cargo_test()

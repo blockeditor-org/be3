@@ -85,6 +85,18 @@ impl FrameTimes {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct NativeWindow(pub raw_window_handle::RawWindowHandle);
+
+impl NativeWindow {
+    pub fn win32(&self) -> Option<isize> {
+        match self.0 {
+            raw_window_handle::RawWindowHandle::Win32(handle) => Some(handle.hwnd.get()),
+            _ => None,
+        }
+    }
+}
+
 pub struct Setup {
     pub waker: Waker,
     resources: Vec<Box<dyn Any>>,

@@ -97,7 +97,7 @@ operations ("ops") of the be-ops kernel, which can be awaited and canceled.
   which is how an extension package travels with the world that imports it. An
   interface of a package other than the world's is generated under a module named after
   its package, in the types, `guest` and `embed` alike (`shared::ids`,
-  `linux_desktop::power`, `guest::linux_desktop::power`), so two packages may name an
+  `desktop::power`, `guest::desktop::power`), so two packages may name an
   interface alike. Ids and
   access levels have one shape in every package: `be3:shared` (crates/be-ops/wit, its
   buck `foreign_resources` `//crates/be-ops:wit`) holds `uuid` (16 bytes), `hash` (32)

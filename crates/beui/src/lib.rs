@@ -13,7 +13,7 @@ pub use beui_core::accessibility;
 #[cfg(not(beui_html))]
 pub use beui_core::app::accessibility_dump;
 #[cfg(not(beui_html))]
-pub use beui_core::app::{App, FrameTimes, Lifecycle, Setup, Waker};
+pub use beui_core::app::{App, FrameTimes, Lifecycle, NativeWindow, Setup, Waker};
 #[cfg(not(beui_html))]
 pub use beui_core::base::overlay::{OverlayAnchor, Placement};
 #[cfg(not(beui_html))]

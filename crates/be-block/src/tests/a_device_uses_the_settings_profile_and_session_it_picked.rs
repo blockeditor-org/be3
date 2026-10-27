@@ -1,6 +1,6 @@
 use super::*;
 use crate::settings::{Settings, SettingsContent};
-use crate::{ChildChange, LINUX_DESKTOP_EDITOR, Root, WORKSPACE_EDITOR};
+use crate::{ChildChange, DESKTOP_EDITOR, Root, WORKSPACE_EDITOR};
 
 #[test]
 fn a_device_uses_the_settings_profile_and_session_it_picked() {
@@ -20,7 +20,7 @@ fn a_device_uses_the_settings_profile_and_session_it_picked() {
     assert_eq!(settings.root().profile(Uuid::new_v4()), None);
     assert_eq!(settings.root().session(WORKSPACE_EDITOR, laptop), Some(app));
     assert_eq!(
-        settings.root().session(LINUX_DESKTOP_EDITOR, laptop),
+        settings.root().session(DESKTOP_EDITOR, laptop),
         None,
         "a device started as the desktop does not take the session the app uses"
     );
@@ -29,13 +29,13 @@ fn a_device_uses_the_settings_profile_and_session_it_picked() {
     let settings = edited(
         &settings,
         [
-            Settings::add_session(LINUX_DESKTOP_EDITOR, laptop, desktop),
+            Settings::add_session(DESKTOP_EDITOR, laptop, desktop),
             Settings::use_profile(phone, desk),
         ],
     );
     assert_eq!(settings.root().session(WORKSPACE_EDITOR, laptop), Some(app));
     assert_eq!(
-        settings.root().session(LINUX_DESKTOP_EDITOR, laptop),
+        settings.root().session(DESKTOP_EDITOR, laptop),
         Some(desktop)
     );
     assert_eq!(settings.root().profile(phone), Some(desk));

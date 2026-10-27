@@ -1359,7 +1359,7 @@ per point); a
 `ScreenSettings` per screen (a mode and a rotation, keyed by the monitor's EDID
 make, model and serial, or by its connector when it has no EDID), whose modes and
 rotations go to the seat's outputs through `beui_platform_drm::DisplayControl`,
-which switches both live (guides/linux_desktop.md says how a screen is turned),
+which switches both live (guides/desktop/linux.md says how a screen is turned),
 and which reports each monitor's applied rotation with its modes; whether the
 bar shows a rotate button; and when the screens turn off and lock. Every setting is an `Option`, and an unset one means the default:
 libinput's own for a pointer setting, which the seat reports per device and an
@@ -1491,7 +1491,7 @@ rotation: four tiles, each a little screen drawn turned by that rotation less th
 one the host reports now, so the tile that looks upright to the person holding the
 device is the one to pick, named Landscape, Portrait and their flipped turns from
 whether the panel is wider than tall; `block_editor_beui::RotationPicker`, shared
-with linux-desktop's bar), a Screens section with the switch for the bar's rotate
+with the desktop plugin's bar), a Screens section with the switch for the bar's rotate
 button (`display.rotate-in-bar`) once the host offers `Displays`, and Power and lock only
 once it offers `Power`, which only a `--session` publishes. Its Input page
 (`input`) shows its sections only once the host offers `InputDevices`, which
@@ -1623,7 +1623,7 @@ device when there is none yet (`RootSetting::ensure`).
 
 A session is what a person has open, and is separate from the settings, so
 starting a new one keeps them. It is a view block (below) of a shell editor:
-workspace-ui (`WORKSPACE_EDITOR`), or linux-desktop (`LINUX_DESKTOP_EDITOR`) for
+workspace-ui (`WORKSPACE_EDITOR`), or the desktop plugin (`DESKTOP_EDITOR`) for
 a client run as the desktop with `block-app --session`. `Settings::sessions`
 lists every session, and `Settings::session(shell, client)` is the one this
 client uses for that shell, so the desktop and the app each keep their own while
@@ -1646,7 +1646,7 @@ whose defined metadata names the editor that draws it in `VIEW_EDITOR` (the `id`
 its manifest gives it, never a block type): whoever makes one sets it with
 `BlockMetadata::view(editor, name)`, and that key, a host concept, is all
 anyone reads to know which editor opens the view (the host's
-`RootSettings::session_editor`, block-shell's `editor_of`, linux-desktop's
+`RootSettings::session_editor`, block-shell's `editor_of`, the desktop plugin's
 session list) or that a block is a view at all (the host skips `DELETED_FROM` for
 one, and a block's places leave out the views that show it). A view made before
 the key, which names no editor, opens as a session in the shell asking and as a
@@ -1661,7 +1661,7 @@ index into `refs`.
 
 Both shells are built from `crates/block-shell`, which holds the tabs, their
 views, the saved layout, picks, dialogs, host panels and program windows;
-workspace-ui lays them out as Files beside a pane of tabs, and linux-desktop
+workspace-ui lays them out as Files beside a pane of tabs, and the desktop plugin
 floats every block in a window of its own over an empty main pane, with a bar
 along the bottom for the app menu, the sessions to open and the time.
 

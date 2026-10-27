@@ -44,6 +44,14 @@ pub fn key_center(keyboard: Rect, layer: Layer, value: Value) -> Option<beui_cor
     Some(layout.key_rect(keys_area(keyboard), at)?.center())
 }
 
+pub fn close_center(keyboard: Rect) -> beui_core::geometry::Pos2 {
+    let inner = keyboard.shrink(PADDING.px());
+    beui_core::geometry::pos2(
+        inner.right() - Size::Toolbar.px() / 2.0,
+        inner.top() + Stroke::Hairline.px() + BAR_HEIGHT / 2.0,
+    )
+}
+
 #[component]
 pub fn SoftwareKeyboard() -> NodeId {
     view! {

@@ -67,7 +67,7 @@ into a new unstyled component, then rebuild the styled one on top of it.
   screens from beui (`use_screens()` is gone; an overlay stays in its window).
   `EveryScreen` and `ModalPlacement::AllScreens` were then deleted: block-app
   shows its keep-changes prompt and lock screen once per display window, and
-  linux-desktop's `LevelOsd` lays out one card per display rect from the host.
+  The desktop plugin's `LevelOsd` lays out one card per display rect from the host.
 - **Done.** **Low priority:** an unstyled `Table` for the Table, Row, ColumnHeader,
   RowHeader and Cell accessibility nodes that `styled::Table` builds. An
   unstyled `ColorInput` for the preview state and the popover plus hex-field
@@ -116,18 +116,18 @@ into a new unstyled component, then rebuild the styled one on top of it.
   nothing else ever would. Build it in block-app from styled pieces and §1's
   `Modal` (one per display window).
 - **Done.** **`LevelOsd`.** Its bar becomes `Progress` (§4.4). What's left is an OSD card
-  used only by linux-desktop (`app/media.rs`), so move it there. It is in
-  `app/osd.rs` now, with its tests in linux-desktop's, and lays out one card
+  used only by the desktop plugin (`app/media.rs`), so move it there. It is in
+  `app/osd.rs` now, with its tests in the desktop plugin's, and lays out one card
   per display rect.
 - **Done.** **`Launcher`.** Its core joins the command palette (§4.2): a styled
   searchable palette with pluggable ranking and rows that show a picture or
   icon and a detail line. Also move `launcher_score` there as one of the
-  ranking functions. Move everything else Launcher has into linux-desktop,
-  next to `ProgramLauncher` (`editors/linux-desktop/src/app/launcher.rs`),
+  ranking functions. Move everything else Launcher has into the desktop plugin,
+  next to `ProgramLauncher` (`editors/desktop/src/app/launcher.rs`),
   the only product user: the program items, the "Run 'query'" row and the
   icons. be-launcher's `Launcher` is its own pull request list and doesn't
   use `styled::Launcher`. Move the launcher tests in `beui/src/tests`
-  that test linux-desktop behaviour along with it; tests of the palette and
+  that test the desktop plugin behaviour along with it; tests of the palette and
   ranking stay in beui.
   `plans/command_palette.md` also builds on `styled::CommandPalette`, so keep
   the two plans in step.
@@ -136,9 +136,9 @@ into a new unstyled component, then rebuild the styled one on top of it.
   detail, terms, glyph, image, shortcut, checked and disabled), a `score`
   function (`PaletteItem::substring_score` by default, or
   `PaletteItem::fuzzy_score`, which is `launcher_score`), an optional
-  `query` signal, and `on_choose` with the chosen key. linux-desktop builds
+  `query` signal, and `on_choose` with the chosen key. The desktop plugin builds
   its program items and the Run row (key `run`, scored below every program)
-  itself. The beui run-as-command test was a copy of linux-desktop's
+  itself. The beui run-as-command test was a copy of the desktop plugin's
   `a_query_no_program_matches_runs_as_a_command`, so it went; the reopening
   tests and the filter test now drive the palette. The palette's rows are
   `RowFace`s (`RowSize::Large`), which gained a `shortcut` slot for them.
@@ -210,7 +210,7 @@ the shown keys (from a `rank: Func<String, Vec<K>>` the caller passes),
 the highlight, which skips disabled rows, Up/Down/Page Up/Page Down/Home/End,
 scroll-to-row, Enter, clicks and hover. `rank`, `substring_score` and
 `fuzzy_score` are the ranking helpers. `Select` and `CommandPalette` (and
-through it linux-desktop's launcher) are built on it; their trigger,
+through it the desktop plugin's launcher) are built on it; their trigger,
 popup, panel, search field and rows stay theirs. Home and End move the
 highlight in every search field, as they did in Select's (not the caret). Filtered-out rows
 are no longer built, so `SelectApi::option_button` returns an `Option`.
@@ -277,7 +277,7 @@ user that has no scroll, no disabled rows and no Page keys.
 ### 4.4 One Progress
 
 **Done.** Merge `Spinner` into `Progress`: `value: Option<f32>`, where `None` is
-indeterminate. Use §1's indeterminate progress for it. linux-desktop's OSD
+indeterminate. Use §1's indeterminate progress for it. The desktop plugin's OSD
 card (§3) uses `Progress` for its bar, not a hand-drawn track and fill.
 `Progress` takes `fill` and `track` colour roles, which the OSD uses to fade
 and to grey the bar when muted, and a `width` that defaults to filling;
@@ -405,7 +405,7 @@ canvas's text, the last one, moved onto `styled::TextArea` in §10) or
 `primitives::` (the source lint holds that).
 
 About 29 crates import `unstyled::` directly. The biggest are block-shell (13
-files), linux-desktop (12), settings (10), block-editor-beui (7),
+files), the desktop plugin (12), settings (10), block-editor-beui (7),
 infinite-canvas (6), database (6) and be-launcher (6). Audit each import: it
 is either a styled component that doesn't exist yet, or a custom face that
 should become a styled component. This is the largest item. Do it after §1-4,
@@ -413,7 +413,7 @@ which remove some of those imports on their own.
 
 Outcomes, by crate group (each also migrated onto §7's tokens):
 
-- **Done.** workspace-ui, linux-desktop, file-tree, settings, workspace-index,
+- **Done.** workspace-ui, the desktop plugin, file-tree, settings, workspace-index,
   version-control, browser-tab, terminal and terminal-view import nothing from
   `unstyled` or `primitives`. Styled re-exports the behaviour-only pieces they
   needed (`BackSlide`, `ChoiceOption`, `Container`, `container_size`,
@@ -424,7 +424,7 @@ Outcomes, by crate group (each also migrated onto §7's tokens):
   `tab_stop`, `on_focus_change` and `revealed` (keeps its place and
   accessibility but paints nothing: file-tree's hover-revealed add button, which
   was a custom face), `TextColor::None`, and `Tree`'s `outline` returns a
-  `ColorRole`. linux-desktop's level OSD fades a card drawn in colour roles
+  `ColorRole`. The desktop plugin's level OSD fades a card drawn in colour roles
   with the base `Fade`'s `opacity` (see "Polish" below). Bar popups now share the
   popover width (`Size::Popover`) instead of each picking pixels.
 - **Done.** database, logic-grid, deterministic-game, pixel-art, map,
@@ -500,7 +500,7 @@ Outcomes, by crate group (each also migrated onto §7's tokens):
   `unstyled::Button` stay, as samples of building a face on the unstyled
   layer. Dock-like bars under comfortable density: block-editor-beui's
   `Toolbar` scrolls when chrome is narrow and text-block's format bar
-  scrolls, so neither can overflow a phone; linux-desktop's bar and
+  scrolls, so neither can overflow a phone; the desktop plugin's bar and
   be-launcher never resolve comfortable (only `BeuiFrame` on a phone
   provides it, and the desktop is a root editor without a phone top bar).
 
@@ -1093,7 +1093,7 @@ Changes:
    them (`KeepChanges`, `LockScreen`). Also the moves that are independent:
    `CrashNotice`, `StaleNotice`, `ThemeSelect`, `MotionSelect`,
    `PreferencesSection`, `Bordered`.
-2. §4.4 (`Progress`), then the linux-desktop OSD card.
+2. §4.4 (`Progress`), then the desktop plugin's OSD card.
 3. §4.5 and §4.6 (buttons and rows), together with §2's tooltip change.
 4. §4.2 (the search list), then the launcher move in §3.
 5. §4.1 (the anchored surface), which `Select` from step 4 then sits on.

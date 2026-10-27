@@ -128,7 +128,7 @@ whether `Event::Modifiers` comes before or after the key's own event, and winit
 on X11 can report a modifier state that reverts before the key arrives), and
 offers it on the release to the host and window capture listeners as a
 `KeyInput::Tap`. The release still goes
-on to whatever it would have reached. linux-desktop's program launcher opens
+on to whatever it would have reached. The desktop plugin's program launcher opens
 that way. An intercepting tap action (see below) is named among the document's
 intercepted keys as a `KeyChord` with `tap` set, and a host that hears that tap
 while the focus is elsewhere hands it over as an `Event::InterceptedTap`.
@@ -222,7 +222,7 @@ it, such an action leaves an app's keys alone.
 focused app: the action is offered the press before anything on the tree and
 before the app, and a press it takes never reaches the app, nor does its
 release. Reserve it for shortcuts that must work over anything, such as
-linux-desktop's Super+F and media keys. Inside an app only chords with Ctrl,
+The desktop plugin's Super+F and media keys. Inside an app only chords with Ctrl,
 Alt or Super, and media keys, are offered, since the app counts as a text
 field. A Wayland program's window is an app in the same way as a plugin's
 region (see One input path below), so it gets this offer and no other;
@@ -237,7 +237,7 @@ still answer, and only the host's own are ever offered an inhibited key:
 block-app's intercept handler is a window listener, so it hands a plugin
 nothing while it is set. The host is kept small and fixed: block-app's Super+L
 lock and be-wayland's Super+Escape, which takes the shortcuts back from the
-window (see guides/linux_desktop.md).
+window (see guides/desktop/linux.md).
 
 A document that runs inside a host - a plugin's - intercepts the same way. The
 chords of its enabled capturing host and window actions (never one that types) are
@@ -248,7 +248,7 @@ app, and hands each press it takes, its repeats and its release back as an
 `Event::InterceptedKey`, which the document offers to its host and window
 capture listeners as a key bound for an app and which reaches nothing else. The host goes on sending the held
 modifiers until those of the chord are let go, so `held_modifiers()` sees Alt
-released while a Wayland program has the keyboard; that is how linux-desktop's
+released while a Wayland program has the keyboard; that is how the desktop plugin's
 Alt+Tab works over any window. block-app takes intercepted keys only from the
 shell's frame, and only chords with Ctrl, Alt or Super, or media keys. A tap
 chord goes the same way as `Input::InterceptedTap`, but only while the
@@ -273,7 +273,7 @@ opens it with Ctrl+Shift+P and from a row of its menu. Handed `items={PaletteIte
 searches those `PaletteItem`s (each with a key, title, detail line, glyph or
 picture, shortcut, checked and disabled) and calls `on_choose` with the chosen
 key; `score` picks the ranking (`PaletteItem::substring_score` by default,
-`PaletteItem::fuzzy_score` for names, keywords and comments, as linux-desktop's
+`PaletteItem::fuzzy_score` for names, keywords and comments, as the desktop plugin's
 program launcher uses). Its overlay is an `unstyled::Modal`. It and `Select` are stylings of `unstyled::SearchList`,
 which owns the query, the highlight, the arrow, Page, Home and End keys, scrolling to the
 highlighted row, Enter and hover.
@@ -316,7 +316,7 @@ What one event goes through, in order:
 
 1. The runner. `beui-platform-drm` drops the input that wakes blanked screens,
    the rest of it for a grace period, and every release of a press it dropped
-   (`wake.rs`, see guides/linux_desktop.md). That has to happen there: it is
+   (`wake.rs`, see guides/desktop/linux.md). That has to happen there: it is
    decided on libinput's own clock before the keymap sees the key, and nothing
    about it is the document's to judge. The keymap's own actions (switching
    terminals, Ctrl+Alt+Backspace) are the platform's too. A key is one

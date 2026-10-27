@@ -18,7 +18,7 @@ use uuid::Uuid;
 
 use crate::app_state::{SavedAccount, ServerLocation};
 use crate::compositor::ShellDisplay;
-use crate::wayland::WindowActions;
+use crate::desktop_host::WindowActions;
 
 pub(crate) use debug::{
     DebugCommand, DebugView, HostPanelSurface, Line, LineStyle, PerformanceRow, PluginsView,
