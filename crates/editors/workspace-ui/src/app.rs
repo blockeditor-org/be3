@@ -15,9 +15,8 @@ use block_editor_beui::{
     TopBar,
 };
 use block_shell::{
-    AttachedWindow, BlockTab, FILES, Failure, FloatingWindow, PanelStatus, PanelWindow,
-    REVISIONS, RenameDialog, RevisionHistoryPanel, SETTINGS, WindowTab,
-    Workspace, WorkspaceDialogs,
+    AttachedWindow, BlockTab, FILES, Failure, FloatingWindow, PanelStatus, PanelWindow, REVISIONS,
+    RenameDialog, RevisionHistoryPanel, SETTINGS, WindowTab, Workspace, WorkspaceDialogs,
 };
 use uuid::Uuid;
 

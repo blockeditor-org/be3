@@ -14,7 +14,11 @@ fn an_import_keeps_the_location_it_started_with() {
     fixture.test.store().add_block(info);
     let mut placing = filter();
     placing.place = Some(BlockLocation::Root);
-    let mut fixture = picking(&fixture, placing, BlockLocation::Block(Uuid::new_v4().into_bytes()));
+    let mut fixture = picking(
+        &fixture,
+        placing,
+        BlockLocation::Block(Uuid::new_v4().into_bytes()),
+    );
     fixture.settle();
     fixture.test.take_requests();
 
@@ -53,11 +57,11 @@ fn an_import_keeps_the_location_it_started_with() {
     assert_eq!(
         fixture.test.take_picked(),
         vec![Ok(Some(PickedBlock {
-                block_id: imported.into_bytes(),
-                block_type: SHOWN_TYPE.into_bytes(),
-                linked: false,
-                placed: true,
-            }))]
+            block_id: imported.into_bytes(),
+            block_type: SHOWN_TYPE.into_bytes(),
+            linked: false,
+            placed: true,
+        }))]
     );
     assert!(
         !fixture

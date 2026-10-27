@@ -8,9 +8,8 @@ use beui::reactive::*;
 use beui::{Document, Pos2, Rect, Vec2};
 use block_plugin_api::{
     BarAction, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPreview,
-    CreationProgress,
-    DialogFrame, DialogStatus, EditorCapabilities, HostPanel, HostWindowId, InteractionMode,
-    MenuEntry, ResizeMode, TopBar, Watched, WebViewId,
+    CreationProgress, DialogFrame, DialogStatus, EditorCapabilities, HostPanel, HostWindowId,
+    InteractionMode, MenuEntry, ResizeMode, TopBar, Watched, WebViewId,
 };
 use block_ui::BlockCatalog;
 use uuid::Uuid;
@@ -169,8 +168,13 @@ pub enum SubregionContent {
     WebView(WebViewId),
     Host(HostPanel),
     Window(HostWindowId),
-    Creation { editor: Uuid, template: String },
-    ArtifactSettings { block: Uuid },
+    Creation {
+        editor: Uuid,
+        template: String,
+    },
+    ArtifactSettings {
+        block: Uuid,
+    },
     Picker {
         filter: BlockFilter,
         parent: BlockParent,
@@ -897,7 +901,9 @@ impl Editor {
         let node = document.content_of_overlay(node).unwrap_or(node);
         let measured = document
             .measure_node(context, node, Vec2::splat(f32::INFINITY))
-            .filter(|size| size.x.is_finite() && size.y.is_finite() && size.x > 0.0 && size.y > 0.0);
+            .filter(|size| {
+                size.x.is_finite() && size.y.is_finite() && size.x > 0.0 && size.y > 0.0
+            });
         if measured.is_some() && self.intrinsic_size() != measured {
             self.set_intrinsic_size(measured);
         }
@@ -930,8 +936,8 @@ impl Editor {
                 BlockParent::Block(own)
             }
         };
-        let touch = beui::reactive::try_with_document(|document| document.touched())
-            .unwrap_or(false);
+        let touch =
+            beui::reactive::try_with_document(|document| document.touched()).unwrap_or(false);
         state.picking.set(Some(crate::picking::Picking::new(
             serial,
             filter,

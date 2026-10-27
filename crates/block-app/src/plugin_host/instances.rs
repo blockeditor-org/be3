@@ -20,8 +20,7 @@ use std::{
 use uuid::Uuid;
 
 use super::{
-    ChildCommit, EditorBlock, HostChild, HostChildStatus, InstanceRole,
-    MAX_LIVE_CHILDREN,
+    ChildCommit, EditorBlock, HostChild, HostChildStatus, InstanceRole, MAX_LIVE_CHILDREN,
     audio::AudioPlayer,
     calls::{self, BlockIds, EditorAnswer, EditorCall, Outbound, PluginCall},
     heads::{HeadReads, Heads},

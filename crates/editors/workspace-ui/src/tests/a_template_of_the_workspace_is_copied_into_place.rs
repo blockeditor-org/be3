@@ -39,7 +39,11 @@ fn a_template_of_the_workspace_is_copied_into_place() {
     fixture.test.hold(Some(home), kept);
     fixture.settle();
 
-    let mut fixture = picking(&fixture, filter(), BlockLocation::Block(workspace.into_bytes()));
+    let mut fixture = picking(
+        &fixture,
+        filter(),
+        BlockLocation::Block(workspace.into_bytes()),
+    );
     fixture.settle();
     fixture.test.take_requests();
     fixture.test.click("picker.templates");
@@ -80,11 +84,11 @@ fn a_template_of_the_workspace_is_copied_into_place() {
     assert_eq!(
         fixture.test.take_picked(),
         vec![Ok(Some(PickedBlock {
-                block_id: copy.into_bytes(),
-                block_type: SHOWN_TYPE.into_bytes(),
-                linked: false,
-                placed: false,
-            }))],
+            block_id: copy.into_bytes(),
+            block_type: SHOWN_TYPE.into_bytes(),
+            linked: false,
+            placed: false,
+        }))],
         "the copy answers the pick"
     );
 }

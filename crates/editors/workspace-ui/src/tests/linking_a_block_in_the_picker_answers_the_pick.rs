@@ -32,11 +32,11 @@ fn linking_a_block_in_the_picker_answers_the_pick() {
     assert_eq!(
         fixture.test.take_picked(),
         vec![Ok(Some(PickedBlock {
-                block_id: linked.into_bytes(),
-                block_type: SHOWN_TYPE.into_bytes(),
-                linked: true,
-                placed: false,
-            }))]
+            block_id: linked.into_bytes(),
+            block_type: SHOWN_TYPE.into_bytes(),
+            linked: true,
+            placed: false,
+        }))]
     );
     assert!(
         !fixture.test.shown("picker.confirm"),

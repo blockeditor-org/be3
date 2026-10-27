@@ -55,9 +55,9 @@ be_ops_bindgen::generate!({
 pub use accessibility::DescribedAction;
 pub use be_ops as ops;
 pub use blocks::{
-    ArtifactAction, ArtifactState, BlockCommand, BlockInfo, BlockMetadata,
-    BlockQuery, ConflictSide, StoredHead, VersionBranch, VersionChange, VersionChangeKind,
-    VersionCommand, VersionCommit, VersionOperation, VersionStatus,
+    ArtifactAction, ArtifactState, BlockCommand, BlockInfo, BlockMetadata, BlockQuery,
+    ConflictSide, StoredHead, VersionBranch, VersionChange, VersionChangeKind, VersionCommand,
+    VersionCommit, VersionOperation, VersionStatus,
 };
 pub use debug::debug::{DebugTemplate, PerformanceMeasurement};
 pub use dock::{DockChildRequest, DockClosedTab, DockDeclaredChild, DockHostedRegion, DockUpdate};
@@ -74,9 +74,7 @@ pub use shell_types::{
     BlockTypeDescriptor, ChildOperations, ChildStatus, EditorCapabilities, Edits, InteractionMode,
     PanMode, Press, ResizeMode, TemplateCategory,
 };
-pub use types::{
-    BlockFilter, BlockLocation, BlockPick, OpenPicker, PickedBlock,
-};
+pub use types::{BlockFilter, BlockLocation, BlockPick, OpenPicker, PickedBlock};
 pub use types::{
     ChildContent, ChildLayer, ChildMode, ChildPlacement, ChildPlacements, DialogFrame,
     EditorRegion, Failure, FontFace, FontRole, Fonts, FrameChrome, FrameCommit, FrameReport,

@@ -50,7 +50,8 @@ pub fn PickerView(picker: Picker) -> NodeId {
         fit(picker, held, menu, failure);
         close_when_left(picker, held);
     }
-    let surface = create_memo(move || held.with(|held| held.as_ref().is_some_and(Pick::surface_open)));
+    let surface =
+        create_memo(move || held.with(|held| held.as_ref().is_some_and(Pick::surface_open)));
     view! {
         <BackHandler enabled={surface} on_back={move || close_surface(picker)}>
             <List spacing=Space::None>
@@ -67,10 +68,9 @@ fn fit(picker: Picker, held: Memo<Option<Pick>>, menu: NodeRef, failure: NodeRef
     let shown = create_memo(move || {
         held.with(|held| match held {
             Some(held) if held.error.is_some() => Fit::Node(failure),
-            Some(held) if held.surface_open() => Fit::Size(Vec2::new(
-                SURFACE_SIZE.x,
-                card_height(held),
-            )),
+            Some(held) if held.surface_open() => {
+                Fit::Size(Vec2::new(SURFACE_SIZE.x, card_height(held)))
+            }
             Some(held) if held.menu_open() => Fit::Node(menu),
             Some(_) | None => Fit::Size(Vec2::new(1.0, 1.0)),
         })
@@ -431,9 +431,7 @@ fn LocationItem(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> MenuItem 
         let types = picker.types();
         held.with(|held| {
             held.as_ref()
-                .map(|held| {
-                    picker.tree(PickTree::Place, |graph| place_rows(&types, held, graph))
-                })
+                .map(|held| picker.tree(PickTree::Place, |graph| place_rows(&types, held, graph)))
                 .unwrap_or_default()
         })
     });

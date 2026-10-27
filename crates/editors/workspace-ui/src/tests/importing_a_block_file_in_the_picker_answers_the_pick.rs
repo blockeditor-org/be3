@@ -7,7 +7,11 @@ use super::*;
 fn importing_a_block_file_in_the_picker_answers_the_pick() {
     let (fixture, _) = editor();
     let parent = Uuid::new_v4();
-    let mut fixture = picking(&fixture, filter(), BlockLocation::Block(parent.into_bytes()));
+    let mut fixture = picking(
+        &fixture,
+        filter(),
+        BlockLocation::Block(parent.into_bytes()),
+    );
     fixture.settle();
     fixture.test.take_requests();
 
@@ -65,11 +69,11 @@ fn importing_a_block_file_in_the_picker_answers_the_pick() {
     assert_eq!(
         fixture.test.take_picked(),
         vec![Ok(Some(PickedBlock {
-                block_id: imported.into_bytes(),
-                block_type: SHOWN_TYPE.into_bytes(),
-                linked: false,
-                placed: false,
-            }))]
+            block_id: imported.into_bytes(),
+            block_type: SHOWN_TYPE.into_bytes(),
+            linked: false,
+            placed: false,
+        }))]
     );
     assert!(
         !fixture.test.shown("picker.import"),

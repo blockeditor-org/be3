@@ -381,7 +381,6 @@ impl GuestEditor for OpenEditor {
         }
     }
 
-
     fn replace_child(&self, old: [u8; 16], new: [u8; 16]) -> impl Future<Output = bool> + 'static {
         let (sender, replaced) = oneshot();
         self.wire.call(self.instance, move |session| {

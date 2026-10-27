@@ -317,8 +317,8 @@ fn picking_with(
         parent: BlockParent::decode(parent),
         touch,
     };
-    let test = BeuiTest::picker_beside(&beside.test, host.clone(), request)
-        .with_size(beside.test.size());
+    let test =
+        BeuiTest::picker_beside(&beside.test, host.clone(), request).with_size(beside.test.size());
     let mut fixture = Fixture { test, host };
     fixture.settle();
     fixture

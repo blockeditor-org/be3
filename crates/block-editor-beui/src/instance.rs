@@ -12,10 +12,10 @@ use block_editor_plugin::{Artifact, EditorHost, EditorInstanceId, EditorRegion, 
 use uuid::Uuid;
 
 use crate::beui_frame::{self, BeuiFrame, FrameBar, FrameChrome};
-use crate::picking::Pickers;
 use crate::dialog::{DialogControl, PluginDialog, SettingsDialog};
 use crate::editor::BeuiScale;
 use crate::module::{Module, Shown};
+use crate::picking::Pickers;
 use crate::{Artifacts, BeuiApp, Creation, Editor, OwnedEditor};
 
 pub struct BeuiPlugin<A: BeuiApp>(PhantomData<A>);

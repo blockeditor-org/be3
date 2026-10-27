@@ -64,10 +64,10 @@ fn a_presentation_offers_its_slide_templates_first() {
     assert_eq!(
         fixture.test.take_picked(),
         vec![Ok(Some(PickedBlock {
-                block_id: created.into_bytes(),
-                block_type: TEMPLATE_TYPE.into_bytes(),
-                linked: false,
-                placed: false,
-            }))]
+            block_id: created.into_bytes(),
+            block_type: TEMPLATE_TYPE.into_bytes(),
+            linked: false,
+            placed: false,
+        }))]
     );
 }

@@ -19,8 +19,8 @@ use uuid::Uuid;
 use crate::host;
 
 use super::{
-    ArtifactSlot, ArtifactState, CreationSlot, CreationState, HostChild,
-    HostChildStatus, InstanceRole, RuntimeStatus, SurfaceStatus,
+    ArtifactSlot, ArtifactState, CreationSlot, CreationState, HostChild, HostChildStatus,
+    InstanceRole, RuntimeStatus, SurfaceStatus,
     backend::{Availability, Backend, Deadline, Frame, ShownFrame},
     calls::{EditorAnswer, EditorCall, Heard, Outbound, PluginCall},
     input::{BlockDrag, BlockDragEvent},
@@ -1973,7 +1973,9 @@ pub(crate) fn mount_region(slot: RegionSlot<'_>) {
                 &plugin.identity.id,
                 match role {
                     InstanceRole::Editor(_, block) => Some(block.id),
-                    InstanceRole::Creation(..) | InstanceRole::Artifact(..) | InstanceRole::Picker(_) => None,
+                    InstanceRole::Creation(..)
+                    | InstanceRole::Artifact(..)
+                    | InstanceRole::Picker(_) => None,
                 },
             );
             runtime

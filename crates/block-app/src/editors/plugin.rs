@@ -1,7 +1,7 @@
 use beui::{Vec2, vec2};
 use block_plugin_api::{
-    DialogAnswer, DialogStatus, EditorCapabilities, EditorInstanceId, EditorManifest,
-    EditorRegion, FrameSpec, HostPanel, InteractionMode, PluginManifest, ResizeMode,
+    DialogAnswer, DialogStatus, EditorCapabilities, EditorInstanceId, EditorManifest, EditorRegion,
+    FrameSpec, HostPanel, InteractionMode, PluginManifest, ResizeMode,
 };
 use std::sync::{
     Arc,

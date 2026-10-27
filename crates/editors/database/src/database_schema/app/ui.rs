@@ -19,9 +19,7 @@ use block_editor_beui::beui::icons::{
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{NodeId, Vec2};
-use block_editor_beui::{
-    BlockFilter, ChildTarget, ContentProjection, Editor, watch_block_label,
-};
+use block_editor_beui::{BlockFilter, ChildTarget, ContentProjection, Editor, watch_block_label};
 use uuid::Uuid;
 
 use super::field_line_count;

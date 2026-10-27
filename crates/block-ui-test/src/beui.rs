@@ -1341,7 +1341,12 @@ impl<A: BeuiApp> BeuiTest<A> {
     pub fn placed_picker(&self) -> Option<ChildPlacement> {
         self.children
             .iter()
-            .find(|placement| matches!(placement.content, block_plugin_api::ChildContent::Picker { .. }))
+            .find(|placement| {
+                matches!(
+                    placement.content,
+                    block_plugin_api::ChildContent::Picker { .. }
+                )
+            })
             .cloned()
     }
 

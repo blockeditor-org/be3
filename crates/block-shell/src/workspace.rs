@@ -19,8 +19,8 @@ use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, Rect, Vec2};
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel, BlockTypes};
 use block_editor_beui::{
-    AccessLevel, BlockFilter, ChildState, PickAnchor, ContactsWatch, Editor, EditorHost, Failure,
-    FocusedBlock, HostPanel, HostWindow, HostWindowId, PickedBlock, Pushed, ShellDialog,
+    AccessLevel, BlockFilter, ChildState, ContactsWatch, Editor, EditorHost, Failure, FocusedBlock,
+    HostPanel, HostWindow, HostWindowId, PickAnchor, PickedBlock, Pushed, ShellDialog,
     WindowAction, WindowsWatch,
 };
 use block_editor_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};

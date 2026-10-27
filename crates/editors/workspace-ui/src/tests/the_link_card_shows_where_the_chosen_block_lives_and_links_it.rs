@@ -32,11 +32,11 @@ fn the_link_card_shows_where_the_chosen_block_lives_and_links_it() {
     assert_eq!(
         fixture.test.take_picked(),
         vec![Ok(Some(PickedBlock {
-                block_id: places.minutes.into_bytes(),
-                block_type: SHOWN_TYPE.into_bytes(),
-                linked: true,
-                placed: false,
-            }))],
+            block_id: places.minutes.into_bytes(),
+            block_type: SHOWN_TYPE.into_bytes(),
+            linked: true,
+            placed: false,
+        }))],
         "the block chosen is the one linked"
     );
 }

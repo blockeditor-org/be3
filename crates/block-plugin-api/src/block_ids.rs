@@ -43,7 +43,8 @@ impl ChildPlacements {
                 }
                 ChildContent::Picker { filter, parent, .. } => {
                     let instance = self.instance;
-                    let mut existing = |id: &mut [u8; 16]| visit(instance, BlockIdRole::Existing, id);
+                    let mut existing =
+                        |id: &mut [u8; 16]| visit(instance, BlockIdRole::Existing, id);
                     filter.excluded.iter_mut().for_each(&mut existing);
                     if let Some(place) = &mut filter.place {
                         location(place, &mut existing);

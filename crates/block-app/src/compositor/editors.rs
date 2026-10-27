@@ -1790,7 +1790,10 @@ fn HostedChild(
         let status = create_memo(move || {
             any.get();
             let child = child.get()?;
-            let available = !matches!(kind.get(), Kind::Unavailable | Kind::Missing | Kind::NoPicker);
+            let available = !matches!(
+                kind.get(),
+                Kind::Unavailable | Kind::Missing | Kind::NoPicker
+            );
             let mut status = status_of(&editors, &child, available);
             if let (Kind::Preview, Some(block)) = (kind.get(), child.block_id()) {
                 status.preview = preview_of(&editors, block);

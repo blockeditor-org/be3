@@ -23,8 +23,8 @@ use block_editor_beui::{Editor, Loaded};
 use block_editor_beui::{HostPanel, HostWindowId};
 use block_editor_beui::{MediaWatch, PowerWatch};
 use block_shell::{
-    AttachedWindow, BlockTab, Failure, FloatingWindow, PanelWindow,
-    RenameDialog, Workspace, WorkspaceDialogs,
+    AttachedWindow, BlockTab, Failure, FloatingWindow, PanelWindow, RenameDialog, Workspace,
+    WorkspaceDialogs,
 };
 use uuid::Uuid;
 

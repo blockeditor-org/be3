@@ -49,11 +49,11 @@ fn a_folder_chosen_on_the_location_page_holds_the_block_made_there() {
     assert_eq!(
         fixture.test.take_picked(),
         vec![Ok(Some(PickedBlock {
-                block_id: created.into_bytes(),
-                block_type: TEMPLATE_TYPE.into_bytes(),
-                linked: false,
-                placed: true,
-            }))]
+            block_id: created.into_bytes(),
+            block_type: TEMPLATE_TYPE.into_bytes(),
+            linked: false,
+            placed: true,
+        }))]
     );
     assert!(
         fixture

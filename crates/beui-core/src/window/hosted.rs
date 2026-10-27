@@ -401,9 +401,7 @@ impl Document {
         self.windows
             .wanted
             .retain(|window, _| asked.contains(window));
-        self.windows
-            .hung
-            .retain(|window, _| asked.contains(window));
+        self.windows.hung.retain(|window, _| asked.contains(window));
         for window in &open {
             let Some((size, placement, role)) = self
                 .window_node(*window)
@@ -426,7 +424,8 @@ impl Document {
                 }
                 continue;
             }
-            if role == super::WindowRole::Popup && self.windows.hung.get(window) != Some(&placement) {
+            if role == super::WindowRole::Popup && self.windows.hung.get(window) != Some(&placement)
+            {
                 self.windows.hung.insert(*window, placement.clone());
                 self.windows.wanted.insert(*window, size);
                 ctx.request_window(WindowRequest::Open {
