@@ -1,0 +1,7 @@
+{
+  "private": true,
+  "description": "Playwright for the browser tests (web_drive_test in buck/app/drive.bzl), pinned so CI installs it from a lockfile",
+  "dependencies": {
+    "playwright": "1.63.0"
+  }
+}

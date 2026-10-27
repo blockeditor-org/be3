@@ -456,7 +456,8 @@ from its top left, as in `drag '#fields.seats+10,10' '#fields.seats+16,10'`. Sto
   `checks()`, the live DOM backend's checks in src/web/live.rs (mounting, hydration, listeners),
   failing on any line that is not `ok`. It runs on this machine, not a worker, which have no
   browser: `BE3_CHROME` when set, else Playwright's Chromium, through Node's `playwright`
-  package (`npm install -g playwright`); without them it fails rather than skipping.
+  package (installed globally, or from buck/app/browser-tests' lockfile with `npm ci` and
+  `NODE_PATH` pointing at its node_modules, as CI does); without them it fails rather than skipping.
   ./scripts/verify runs it too, as `:web-test-run`.
 - To see a screen: `./scripts/buck run //crates/beui-shared-tests:dev -- NAME` and `drive`
   natively; in a browser, serve the `:web` bundle with any server that sends
