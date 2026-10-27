@@ -41,5 +41,6 @@ mod an_interactive_decorates_the_element_of_what_it_holds;
 mod an_offset_clips_its_child_to_its_box;
 mod an_overlay_anchors_its_content_to_a_node_and_points_at_it;
 mod layers_stack_their_children_over_one_box;
+mod text_in_a_drawing_lands_where_a_text_node_puts_it;
 mod text_shows_glyphs_over_the_bytes_they_cover;
 mod text_wraps_cuts_and_styles_its_spans;

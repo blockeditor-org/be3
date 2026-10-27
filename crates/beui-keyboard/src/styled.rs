@@ -300,10 +300,12 @@ fn EmojiPanel(keyboard: KeyboardHandle) -> NodeId {
 }
 
 fn drawn(text: &str) -> bool {
-    draws(
+    lay_out_text(
         text,
         beui_view::types::FontId::proportional(TextSize::Xl.px()),
+        beui_view::types::TextLayout::DEFAULT,
     )
+    .is_none_or(|block| block.has_every_glyph())
 }
 
 #[component]

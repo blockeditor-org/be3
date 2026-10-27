@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use crate::types::path::{FillRule, Path, Stroke};
 use crate::types::pixel_grid::PixelGrid;
-use crate::types::{Color, Color32, Corners, FontId, Image, Pos2, Rect, Vec2};
+use crate::types::{Color, Color32, Corners, FontId, Image, LineBox, Pos2, Rect, TextLayout, Vec2};
 
 pub type Draw = Rc<dyn Fn(&Painter, Rect)>;
 
@@ -86,13 +86,44 @@ impl Painter {
         self.0.stroke_path(path, stroke, color.into());
     }
 
-    pub fn text(
-        &self,
-        origin: Pos2,
-        text: impl Into<String>,
-        font: FontId,
-        color: impl Into<Color>,
-    ) {
-        self.0.text(origin, text, font, color.into());
+    pub fn lay_out_text(&self, text: &str, font: FontId, layout: TextLayout) -> TextBlock {
+        TextBlock(crate::core::painter::lay_out(&self.0, text, font, layout))
+    }
+
+    pub fn draw_text(&self, origin: Pos2, text: &TextBlock, color: impl Into<Color>) {
+        crate::core::painter::draw_text(&self.0, origin, &text.0, color.into());
+    }
+}
+
+#[derive(Clone)]
+pub struct TextBlock(pub(crate) crate::core::painter::TextBlock);
+
+impl TextBlock {
+    pub fn text(&self) -> &str {
+        self.0.text()
+    }
+
+    pub fn font(&self) -> FontId {
+        self.0.font()
+    }
+
+    pub fn size(&self) -> Vec2 {
+        self.0.size()
+    }
+
+    pub fn line_height(&self) -> f32 {
+        self.0.line_height()
+    }
+
+    pub fn baseline(&self) -> f32 {
+        self.0.baseline()
+    }
+
+    pub fn lines(&self) -> Vec<LineBox> {
+        self.0.line_boxes()
+    }
+
+    pub fn has_every_glyph(&self) -> bool {
+        self.0.has_every_glyph()
     }
 }

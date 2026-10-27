@@ -1261,6 +1261,7 @@ dependencies = [
  "js-sys",
  "png",
  "reactive",
+ "ttf-parser",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",

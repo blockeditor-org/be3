@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::{Color32, FontId, Pos2, Rect, TextAlign, Vec2, native::TextLayout};
+use block_editor_beui::beui::{Color32, FontId, Pos2, Rect, TextAlign, TextLayout, Vec2};
 
 use crate::geo::MapView;
 use crate::raster::TILE_PIXELS;
@@ -13,7 +13,6 @@ use crate::tiles::TileId;
 
 use super::state::TileState;
 use super::tiles;
-use beui::native::layout_text;
 
 const HALO: Color32 = Color32::from_rgba_unmultiplied(255, 255, 255, 200);
 const HALO_PADDING: Space = Space::Xs2;
@@ -68,8 +67,8 @@ impl Measures {
         if let Some(size) = self.0.borrow().get(&key) {
             return *size;
         }
-        let measured = layout_text(text, FontId::proportional(font_size), TextLayout::DEFAULT)
-            .map(|galley| galley.size());
+        let measured = lay_out_text(text, FontId::proportional(font_size), TextLayout::DEFAULT)
+            .map(|block| block.size());
         let size = measured.unwrap_or_else(|| {
             Vec2::new(
                 text.chars().count() as f32 * font_size * 0.55,

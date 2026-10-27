@@ -1,7 +1,8 @@
-use block_editor_beui::beui::native::core_painter;
 use std::f32::consts::FRAC_PI_4;
 
-use block_editor_beui::beui::{Color32, FontId, Pos2, Rect, Vec2, pos2, reactive::Painter, vec2};
+use block_editor_beui::beui::{
+    Color32, FontId, Pos2, Rect, TextLayout, Vec2, pos2, reactive::Painter, vec2,
+};
 use game_api::board::{Piece, Shade, Sprite, Tint};
 use game_api::cards::{Card, Rank, Suit};
 
@@ -218,9 +219,9 @@ fn paint_piece(painter: &Painter, rect: Rect, piece: &Piece) {
 }
 
 fn centered(painter: &Painter, rect: Rect, text: &str, size: f32, color: Color32) {
-    let galley = core_painter(painter).layout(text, FontId::proportional(size), f32::INFINITY);
-    let origin = rect.center() - galley.size() / 2.0;
-    core_painter(painter).galley(origin, galley, color);
+    let label = painter.lay_out_text(text, FontId::proportional(size), TextLayout::DEFAULT);
+    let origin = rect.center() - label.size() / 2.0;
+    painter.draw_text(origin, &label, color);
 }
 
 fn paint_card(painter: &Painter, rect: Rect, card: Card) {
@@ -229,17 +230,17 @@ fn paint_card(painter: &Painter, rect: Rect, card: Card) {
     painter.rect_filled(rect, radius, CARD_FACE);
     painter.rect_stroke(rect, radius, 1.0, CARD_EDGE);
     let color = suit_color(card.suit);
-    let galley = core_painter(painter).layout(
+    let rank = painter.lay_out_text(
         rank_name(card.rank),
         FontId {
             bold: true,
             ..FontId::proportional(unit * 0.26)
         },
-        f32::INFINITY,
+        TextLayout::DEFAULT,
     );
     let corner = rect.min + vec2(unit * 0.08, unit * 0.05);
-    let under = corner.y + galley.size().y;
-    core_painter(painter).galley(corner, galley, color);
+    let under = corner.y + rank.size().y;
+    painter.draw_text(corner, &rank, color);
     let small = unit * 0.2;
     paint_suit(
         painter,

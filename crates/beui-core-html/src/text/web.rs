@@ -396,7 +396,7 @@ thread_local! {
     static CANVAS: RefCell<Option<web_sys::CanvasRenderingContext2d>> = const { RefCell::new(None) };
 }
 
-fn canvas<R>(read: impl FnOnce(&web_sys::CanvasRenderingContext2d) -> R) -> Option<R> {
+pub(crate) fn canvas<R>(read: impl FnOnce(&web_sys::CanvasRenderingContext2d) -> R) -> Option<R> {
     CANVAS.with(|held| {
         let mut held = held.borrow_mut();
         if held.is_none() {
@@ -420,17 +420,6 @@ fn ascent(font: FontId) -> Option<f64> {
             .map(|metrics| metrics.font_bounding_box_ascent())
     })
     .flatten()
-}
-
-pub(crate) fn measure_line(text: &str, font: FontId) -> Option<Vec2> {
-    let width = canvas(|context| {
-        context.set_font(&css::font(font));
-        context
-            .measure_text(text)
-            .ok()
-            .map(|metrics| metrics.width())
-    })??;
-    Some(vec2(width as f32, super::line_height(font.size)))
 }
 
 fn boundary(stops: &Stops, index: usize, start: bool) -> Option<(web_sys::Node, u32)> {

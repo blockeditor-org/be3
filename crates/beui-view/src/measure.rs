@@ -1,5 +1,6 @@
+use crate::painter::TextBlock;
 use crate::reactive::{NodeId, ReadSignal};
-use crate::types::{FontId, Pos2, Rect, Vec2};
+use crate::types::{FontId, Pos2, Rect, TextLayout};
 use beui_tree::reactive::Get;
 
 pub use beui_types::layout::Measured;
@@ -52,10 +53,6 @@ pub fn measure_text(node: NodeId) -> TextGeometrySignal {
     TextGeometrySignal(crate::core::measure::measure_text(node))
 }
 
-pub fn measure_line(text: &str, font: FontId) -> Option<Vec2> {
-    crate::core::measure::measure_line(text, font)
-}
-
-pub fn draws(text: &str, font: FontId) -> bool {
-    crate::core::measure::draws(text, font)
+pub fn lay_out_text(text: &str, font: FontId, layout: TextLayout) -> Option<TextBlock> {
+    crate::core::painter::lay_out_text(text, font, layout).map(TextBlock)
 }

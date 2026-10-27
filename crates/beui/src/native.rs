@@ -10,7 +10,7 @@ pub use beui_core::context::{
     Context, FrameOutput, InputSimulation, Moved, RendererInfo, WindowOutput,
 };
 pub use beui_core::current::{
-    enter, last_pointer, layout_text, try_with_document, with_document, with_reactive_scope,
+    enter, last_pointer, try_with_document, with_document, with_reactive_scope,
 };
 pub use beui_core::damage::Region;
 pub use beui_core::document::Document;
@@ -26,14 +26,12 @@ pub use beui_core::file_saver::{FileSaveAnswer, FileSaveId, FileSaveRequest};
 pub use beui_core::filter::{ColorVision, Filter, MAX_BLUR};
 pub use beui_core::focus::focus_within;
 pub use beui_core::font::{
-    FontBackend, Galley, GalleyLine, Glyph, GlyphId, GlyphImage, Shaping, TextLayout, Wraps,
-    line_height,
+    FontBackend, Galley, GalleyLine, Glyph, GlyphId, GlyphImage, Shaping, Wraps, line_height,
 };
 pub use beui_core::input::InputState;
 pub use beui_core::node::{ClickHandler, Handler, NodeOf};
 pub use beui_core::overflow;
-pub use beui_core::page::{Page, PageShape};
-pub use beui_core::painter::{Painter, Shape};
+pub use beui_core::painter::{Painter as NativePainter, Shape};
 pub use beui_core::painting;
 pub use beui_core::path::PathPaint;
 pub use beui_core::performance::{

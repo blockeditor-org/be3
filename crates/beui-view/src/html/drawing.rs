@@ -39,7 +39,9 @@ pub(crate) fn drawing(draw: Prop<Draw>, size: Prop<Option<Vec2>>) -> NodeId {
     });
     let ids = format!("beui-drawing{}-{}-", drawing.index(), drawing.generation());
     let images = Rc::new(RefCell::new(Images::default()));
+    let fonts = beui_core_html::page::use_font_revision();
     create_binding(move || {
+        fonts.get();
         let markup = area.get().map(|(room, clipped)| {
             let draw = draw.get();
             let draw: beui_core_html::drawing::Draw =

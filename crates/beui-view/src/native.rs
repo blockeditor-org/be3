@@ -14,9 +14,7 @@ pub(crate) mod measure;
 pub(crate) mod nodes;
 pub(crate) mod offset;
 pub(crate) mod overlay;
-pub(crate) mod painter {
-    pub(crate) use beui_core::painter::Painter;
-}
+pub(crate) mod painter;
 pub(crate) mod portal;
 pub(crate) mod reactive;
 pub(crate) mod root;

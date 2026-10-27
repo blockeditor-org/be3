@@ -11,42 +11,12 @@ use crate::color::Color32;
 use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use crate::rich::{Piece, RichLayout, RichOptions, Shaper, SpanStyle};
 
-pub use beui_types::text::{FontFamily, FontId, Overflow, TextAlign, WrapAt};
+pub use beui_types::text::{FontFamily, FontId, LineBox, Overflow, TextAlign, TextLayout, WrapAt};
 
 const LINE_HEIGHT_RATIO: f32 = 1.15;
 
 pub fn line_height(font_size: f32) -> f32 {
     (font_size * LINE_HEIGHT_RATIO).max(1.0)
-}
-
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub struct TextLayout {
-    pub wrap_width: f32,
-    pub align: TextAlign,
-    pub line_spacing: f32,
-    pub line_height: Option<f32>,
-}
-
-impl TextLayout {
-    pub const DEFAULT: Self = Self {
-        wrap_width: f32::INFINITY,
-        align: TextAlign::Start,
-        line_spacing: 1.0,
-        line_height: None,
-    };
-
-    pub fn wrapped(wrap_width: f32) -> Self {
-        Self {
-            wrap_width,
-            ..Self::DEFAULT
-        }
-    }
-}
-
-impl Default for TextLayout {
-    fn default() -> Self {
-        Self::DEFAULT
-    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -422,6 +392,31 @@ impl Galley {
             })
             .filter(|rect| rect.width() > 0.0)
             .collect()
+    }
+
+    pub fn line_boxes(&self) -> Vec<LineBox> {
+        self.inner
+            .lines
+            .iter()
+            .map(|line| {
+                let left = line.x(line.range.start);
+                LineBox {
+                    bytes: line.range.clone(),
+                    rect: Rect::from_min_max(
+                        pos2(left, line.top),
+                        pos2(
+                            line.x(line.range.end).max(left),
+                            line.top + self.inner.line_height,
+                        ),
+                    ),
+                    baseline: line.top + self.inner.baseline,
+                }
+            })
+            .collect()
+    }
+
+    pub fn has_every_glyph(&self) -> bool {
+        self.inner.glyphs.iter().all(|glyph| glyph.id.glyph != 0)
     }
 
     pub fn cursor_pos(&self, origin: Pos2, index: usize) -> Pos2 {

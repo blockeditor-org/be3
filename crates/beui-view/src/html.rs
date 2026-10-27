@@ -11,15 +11,33 @@ pub(crate) mod interactive;
 pub(crate) mod layers;
 pub(crate) mod list;
 pub(crate) mod measure {
-    pub(crate) use beui_core_html::measure::{
-        TextGeometry, draws, measure, measure_line, measure_text,
-    };
+    pub(crate) use beui_core_html::measure::{TextGeometry, measure, measure_text};
 }
 pub(crate) mod nodes;
 pub(crate) mod offset;
 pub(crate) mod overlay;
 pub(crate) mod painter {
     pub(crate) use beui_core_html::drawing::Painter;
+    pub(crate) use beui_core_html::text_block::{TextBlock, lay_out_text};
+
+    pub(crate) fn lay_out(
+        _painter: &Painter,
+        text: &str,
+        font: beui_types::FontId,
+        layout: beui_types::TextLayout,
+    ) -> TextBlock {
+        beui_core_html::text_block::lay_out_text(text, font, layout)
+            .unwrap_or_else(|| TextBlock::empty(text, font, layout))
+    }
+
+    pub(crate) fn draw_text(
+        painter: &Painter,
+        origin: beui_types::Pos2,
+        block: &TextBlock,
+        color: beui_types::Color,
+    ) {
+        painter.draw_text(origin, block, color);
+    }
 }
 pub(crate) mod portal;
 pub(crate) mod reactive;

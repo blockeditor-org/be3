@@ -23,6 +23,7 @@ pub mod rows;
 pub mod run;
 pub mod scroll;
 pub mod text;
+pub mod text_block;
 pub mod tree;
 pub mod typing;
 

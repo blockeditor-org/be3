@@ -12,7 +12,7 @@ use beui_view::types::Color;
 use beui_view::types::Placement;
 use beui_view::types::icons::{ICON_CHEVRON_DOWN, ICON_CHEVRON_RIGHT};
 use beui_view::types::{Align, ItemSize};
-use beui_view::types::{FontFamily, FontId, TextAlign};
+use beui_view::types::{FontFamily, FontId, TextAlign, TextLayout};
 use beui_view::types::{Rect, Vec2};
 use beui_view::types::{SpanStyle, TextCaret, TextGlyph, TextMark};
 use text_editor_core::{SynHlColorScope, SynHlStyle, TextLanguage};
@@ -138,8 +138,12 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
         let scale = tracked_scale(cx.held);
         let laid = bounds.get().size() / scale;
         cx.metrics.get();
-        let body =
-            measure_line("", FontId::proportional(cx.font_size.get())).map_or(0.0, |line| line.y);
+        let body = lay_out_text(
+            "",
+            FontId::proportional(cx.font_size.get()),
+            TextLayout::DEFAULT,
+        )
+        .map_or(0.0, |line| line.line_height());
         Vec2::new(laid.x, laid.y.max(body))
     });
     create_effect(move || cx.text_extent.set(text.get()));

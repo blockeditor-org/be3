@@ -14,7 +14,7 @@ use beui::unstyled::FirstFit;
 use beui::{Align, Align2, Corners, Dismiss, Extent, Justify, Outline, Placement, Track};
 use beui::{Color, Pos2, vec2};
 use beui::{FillRule, LineCap, LineJoin, Path, Stroke};
-use beui::{Overflow, WrapAt};
+use beui::{Overflow, TextLayout, WrapAt};
 use beui::{Window, WindowHandle};
 
 const SWATCH: f32 = 72.0;
@@ -154,6 +154,9 @@ pub(crate) fn TextNodesPage() -> NodeId {
             <Sample title="Icons" code={vec![TextIcons::SOURCE]}>
                 <TextIcons />
             </Sample>
+            <Sample title="Text in a drawing" code={vec![TextInADrawing::SOURCE]}>
+                <TextInADrawing />
+            </Sample>
         </ScrollPage>
     }
 }
@@ -194,6 +197,57 @@ fn TextIcons() -> NodeId {
                 <Icon glyph=ICON_STAR scale=1.25 spacing_em=0.25 />
                 "scaled, and its room from both sides"
             </Text>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn TextInADrawing() -> NodeId {
+    let theme = use_theme();
+    let font = FontId::proportional(16.0);
+    let draw = Prop::dynamic(move || -> Draw {
+        let (fill, ink, accent) = (
+            theme.surface_raised.get(),
+            theme.text.get(),
+            theme.accent.get(),
+        );
+        Rc::new(move |painter: &Painter, rect: Rect| {
+            let label = painter.lay_out_text("Placed at its corner", font, TextLayout::DEFAULT);
+            painter.rect_filled(Rect::from_min_size(rect.min, label.size()), 0.0, fill);
+            painter.draw_text(rect.min, &label, ink);
+            let wrapped = painter.lay_out_text(
+                "Measured, wrapped and centred as it is drawn",
+                font,
+                TextLayout {
+                    align: TextAlign::Center,
+                    ..TextLayout::wrapped(140.0)
+                },
+            );
+            let at = rect.min + vec2(0.0, label.size().y + 12.0);
+            painter.rect_filled(Rect::from_min_size(at, wrapped.size()), 0.0, fill);
+            for line in wrapped.lines() {
+                painter.line(
+                    at + vec2(line.rect.left(), line.baseline),
+                    at + vec2(line.rect.right(), line.baseline),
+                    1.0,
+                    accent,
+                );
+            }
+            painter.draw_text(at, &wrapped, ink);
+        })
+    });
+    view! {
+        <List
+            @test_id="demo.text.drawn"
+            direction=Direction::Horizontal
+            align=Align::Start
+            spacing={SECTION_SPACING.px()}
+        >
+            <Frame fill={theme.surface_raised}>
+                <Text color={theme.text} font>"Placed at its corner"</Text>
+            </Frame>
+            <Drawing draw size={Some(vec2(200.0, 100.0))} />
         </List>
     }
 }

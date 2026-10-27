@@ -4,11 +4,12 @@ use std::fmt::Write as _;
 use std::rc::Rc;
 
 use beui_types::{
-    Color, Color32, Corners, FillRule, FontId, Image, ImageId, LineCap, LineJoin, Path,
-    PathElement, PixelGrid, Pos2, Rect, Stroke, Vec2, pos2,
+    Color, Color32, Corners, FillRule, Image, ImageId, LineCap, LineJoin, Path, PathElement,
+    PixelGrid, Pos2, Rect, Stroke, Vec2, pos2,
 };
 
 use crate::css::{self, number};
+use crate::text_block::TextBlock;
 
 pub type Draw = Rc<dyn Fn(&Painter, Rect)>;
 
@@ -349,29 +350,29 @@ impl Painter {
         ));
     }
 
-    pub fn text(
-        &self,
-        origin: Pos2,
-        text: impl Into<String>,
-        font: FontId,
-        color: impl Into<Color>,
-    ) {
-        let (text, color) = (text.into(), color.into());
-        if color.is_clear() || text.trim().is_empty() {
+    pub fn draw_text(&self, origin: Pos2, block: &TextBlock, color: impl Into<Color>) {
+        let color = color.into();
+        if color.is_clear() {
             return;
         }
-        let style = format!(
-            "font: {}; fill: {}; dominant-baseline: central; white-space: pre;",
-            css::font(font),
+        let style = escaped(&format!(
+            "font: {}; fill: {}; white-space: pre;",
+            css::font(block.font()),
             css::color(color)
-        );
-        self.emit(&format!(
-            "<text x=\"{}\" y=\"{}\" style=\"{}\">{}</text>",
-            number(origin.x),
-            number(origin.y + crate::text::line_height(font.size) / 2.0),
-            escaped(&style),
-            escaped(&text)
         ));
+        for line in block.lines() {
+            let shown = &block.text()[line.shown.clone()];
+            if shown.trim().is_empty() {
+                continue;
+            }
+            self.emit(&format!(
+                "<text x=\"{}\" y=\"{}\" textLength=\"{}\" lengthAdjust=\"spacing\" style=\"{style}\">{}</text>",
+                number(origin.x + line.left),
+                number(origin.y + line.top + block.baseline()),
+                number(line.width),
+                escaped(shown)
+            ));
+        }
     }
 
     fn layered(&self, attributes: String, clip: Rect) -> Self {

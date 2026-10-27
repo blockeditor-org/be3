@@ -1,9 +1,8 @@
 use block_editor_beui::ResizeMode;
 use block_editor_beui::beui::icons::Glyph;
-use block_editor_beui::beui::native::core_painter;
 use block_editor_beui::beui::{
-    Color32, FillRule, FontId, LineCap, LineJoin, Path, Pos2, Rect, Stroke, TextAlign, Vec2,
-    native::TextLayout, pos2, reactive::Painter,
+    Color32, FillRule, FontId, LineCap, LineJoin, Path, Pos2, Rect, Stroke, TextAlign, TextLayout,
+    Vec2, pos2, reactive::Painter,
 };
 use infinite_canvas_types::{CanvasPoint, CanvasStyle};
 
@@ -51,18 +50,18 @@ impl FrameBackdrop {
             return;
         }
         painter.rect_stroke(rect, 0.0, FRAME_OUTLINE, self.outline);
-        let galley = core_painter(painter).layout(
+        let label = painter.lay_out_text(
             &self.name,
             FontId::proportional(FRAME_LABEL_SIZE),
-            f32::INFINITY,
+            TextLayout::DEFAULT,
         );
-        let height = galley.size().y;
-        core_painter(painter).galley(
+        let height = label.size().y;
+        painter.draw_text(
             pos2(
                 rect.left(),
                 rect.top() - height - (FRAME_LABEL_HEIGHT - height) / 2.0,
             ),
-            galley,
+            &label,
             self.label,
         );
     }
@@ -75,7 +74,7 @@ pub(crate) struct Hint {
 
 impl Hint {
     pub(crate) fn draw(&self, painter: &Painter, stage: Rect) {
-        let galley = core_painter(painter).layout_text(
+        let hint = painter.lay_out_text(
             HINT,
             FontId::proportional(16.0),
             TextLayout {
@@ -83,13 +82,13 @@ impl Hint {
                 ..TextLayout::wrapped((stage.width() - HINT_MARGIN * 2.0).max(1.0))
             },
         );
-        let size = galley.size();
-        core_painter(painter).galley(
+        let size = hint.size();
+        painter.draw_text(
             pos2(
                 stage.center().x - size.x / 2.0,
                 stage.center().y - size.y / 2.0,
             ),
-            galley,
+            &hint,
             self.color,
         );
     }
@@ -107,12 +106,15 @@ impl Badge {
         let badge = Rect::from_center_size(center, Vec2::splat(BADGE_SIDE));
         painter.rect_filled(badge, 5.0, palette.surface);
         painter.rect_stroke(badge, 5.0, 1.0, palette.border);
-        let icon =
-            core_painter(painter).layout(self.glyph.as_str(), FontId::icons(16.0), f32::INFINITY);
+        let icon = painter.lay_out_text(
+            self.glyph.as_str(),
+            FontId::icons(16.0),
+            TextLayout::DEFAULT,
+        );
         let size = icon.size();
-        core_painter(painter).galley(
+        painter.draw_text(
             pos2(center.x - size.x / 2.0, center.y - size.y / 2.0),
-            icon,
+            &icon,
             palette.auto,
         );
     }

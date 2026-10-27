@@ -17,7 +17,7 @@ use crate::node::NodeId;
 mod web;
 
 #[cfg(target_arch = "wasm32")]
-pub(crate) use web::{bounds, caret_rect, decorated, index_at, inline_at, lines, measure_line};
+pub(crate) use web::{bounds, canvas, caret_rect, decorated, index_at, inline_at, lines};
 
 pub const OBJECT_BYTES: usize = '\u{FFFC}'.len_utf8();
 

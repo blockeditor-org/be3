@@ -21,10 +21,10 @@ pub use crate::component_ref::ComponentRef;
 pub use crate::file_picker::{FileFilter, FilePick, FilePicker, create_file_picker, pick_file};
 pub use crate::file_saver::{FileSave, SavedFile, save_file};
 pub use crate::measure::{
-    LineBox, Measured, TextGeometry, TextGeometrySignal, draws, measure, measure_line, measure_text,
+    LineBox, Measured, TextGeometry, TextGeometrySignal, lay_out_text, measure, measure_text,
 };
 pub use crate::nodes::{Inspect, TreeNode};
-pub use crate::painter::{Draw, Painter};
+pub use crate::painter::{Draw, Painter, TextBlock};
 pub use crate::types::keys::{KeyAt, KeyEvent, KeyInput};
 pub use crate::types::layer::OverlayAnchor;
 pub use crate::types::node::{BuildsNode, ImeCursor, NodeId, NodeRef};

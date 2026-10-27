@@ -7,14 +7,13 @@ use beui::native::rich::TextCaret;
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{
-    Key, KeyPress, NodeId, Overflow, PasteKind, Pasted, PointerPress, Pos2, ScrollGesture, Vec2,
-    native::TextLayout,
+    Key, KeyPress, NodeId, Overflow, PasteKind, Pasted, PointerPress, ScrollGesture, TextLayout,
+    Vec2,
 };
 use terminal_types::{TerminalColors, TerminalCursor, TerminalLine, TerminalWheel};
 
 use crate::keys::{TerminalInput, key_event, text_event};
 use crate::lines::{Lines, Look, Piece, Shown, color, screen};
-use beui::native::layout_text;
 
 const TEXT: TextStyle = TextStyle::CODE;
 const PADDING: Space = Space::Sm;
@@ -62,8 +61,8 @@ impl Table {
 }
 
 fn cell() -> Option<Vec2> {
-    let galley = layout_text("M", TEXT.font(), TextLayout::DEFAULT)?;
-    let cell = Vec2::new(galley.cursor_pos(Pos2::ZERO, 1).x, galley.size().y);
+    let block = lay_out_text("M", TEXT.font(), TextLayout::DEFAULT)?;
+    let cell = Vec2::new(block.lines().first()?.rect.max.x, block.size().y);
     (cell.x > 0.0 && cell.y > 0.0).then_some(cell)
 }
 

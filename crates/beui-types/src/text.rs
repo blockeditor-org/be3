@@ -185,6 +185,36 @@ impl TextCaret {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct TextLayout {
+    pub wrap_width: f32,
+    pub align: TextAlign,
+    pub line_spacing: f32,
+    pub line_height: Option<f32>,
+}
+
+impl TextLayout {
+    pub const DEFAULT: Self = Self {
+        wrap_width: f32::INFINITY,
+        align: TextAlign::Start,
+        line_spacing: 1.0,
+        line_height: None,
+    };
+
+    pub fn wrapped(wrap_width: f32) -> Self {
+        Self {
+            wrap_width,
+            ..Self::DEFAULT
+        }
+    }
+}
+
+impl Default for TextLayout {
+    fn default() -> Self {
+        Self::DEFAULT
+    }
+}
+
 #[derive(Clone, PartialEq, Debug)]
 pub struct LineBox {
     pub bytes: Range<usize>,

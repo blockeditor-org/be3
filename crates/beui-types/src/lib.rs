@@ -61,8 +61,8 @@ pub use preferences::{PreferenceLayers, PreferenceSource};
 pub use region::{Area, Claim, HitRegion};
 pub use text::{
     CaretHandle, DEFAULT_FONT_SIZE, FontFamily, FontId, HANDLE_RADIUS, LineBox, Overflow, Piece,
-    RichOptions, SpanBackground, SpanStyle, TextAlign, TextCaret, TextGlyph, TextMark, WrapAt,
-    handle_center, toolbar_anchor,
+    RichOptions, SpanBackground, SpanStyle, TextAlign, TextCaret, TextGlyph, TextLayout, TextMark,
+    WrapAt, handle_center, toolbar_anchor,
 };
 pub use window::{
     HostPlacement, ImeArea, SystemBars, WindowEdge, WindowId, WindowPlacement, WindowReport,

@@ -10,7 +10,7 @@ use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{
     Color32, FontFamily, FontId, Image, LineCap, LineJoin, NodeId, Path, PathElement, Pos2, Rect,
-    Stroke, TextAlign, Vec2, native::Context, native::FreetypeFonts, native::Galley,
+    Stroke, TextAlign, TextLayout, Vec2, native::Context, native::FreetypeFonts,
     native::line_height, pos2, reactive::Painter,
 };
 use block_editor_beui::{FileSave, SavedFile};
@@ -655,14 +655,17 @@ fn svg_entity(
                     .and_then(|block| scene.embeds.get(&block))
                     .map(|embed| embed.title.clone())
                     .unwrap_or_default();
-                let galley =
-                    core_painter(painter).layout(title, FontId::proportional(18.0), rect.width());
-                let size = galley.size();
+                let title = painter.lay_out_text(
+                    &title,
+                    FontId::proportional(18.0),
+                    TextLayout::wrapped(rect.width()),
+                );
+                let size = title.size();
                 let at = pos2(
                     rect.center().x - size.x / 2.0,
                     rect.center().y - size.y / 2.0,
                 );
-                svg_text(out, at, &galley, ink, &turn);
+                svg_text(out, at, &title, ink, &turn);
             }
         }
         return;
@@ -813,28 +816,27 @@ fn turn_by(entity: &CanvasEntity, rotation: f32) -> String {
     }
 }
 
-fn svg_text(out: &mut String, at: Pos2, galley: &Galley, color: Color32, turn: &str) {
-    let text = galley.text();
-    let font = galley.font();
+fn svg_text(out: &mut String, at: Pos2, block: &TextBlock, color: Color32, turn: &str) {
+    let text = block.text();
+    let font = block.font();
     out.push_str(&format!(
         "<text font-family=\"sans-serif\" font-size=\"{}\"{}{}{turn}>",
         number(font.size),
         weight_of(font.bold),
         paint("fill", color)
     ));
-    for line in galley.lines() {
+    for line in block.lines() {
         let shown = text
-            .get(line.range.clone())
+            .get(line.bytes.clone())
             .unwrap_or_default()
             .trim_end_matches(['\n', '\r']);
         if shown.is_empty() {
             continue;
         }
-        let x = line.cursors.first().map_or(0.0, |cursor| cursor.1);
         out.push_str(&format!(
             "<tspan x=\"{}\" y=\"{}\">{}</tspan>",
-            number(at.x + x),
-            number(at.y + line.top + galley.baseline()),
+            number(at.x + line.rect.min.x),
+            number(at.y + line.baseline),
             escape(shown)
         ));
     }

@@ -3,9 +3,10 @@ use std::ops::Range;
 use beui_view::types::Color;
 use beui_view::types::FontId;
 use beui_view::types::SpanStyle;
+use beui_view::types::TextLayout;
 use text_editor_core::{SynHlColorScope, SynHlStyle, TableLine, TableRow};
 
-use beui_view::measure::measure_line;
+use beui_view::measure::lay_out_text;
 
 use super::{Builder, RowInputs, SpanKind, next_character, style_font};
 
@@ -106,8 +107,8 @@ fn trimmed(bytes: &[u8], range: &Range<usize>) -> Range<usize> {
 
 fn text_width(text: &str, font: FontId) -> f32 {
     let probe = format!("{text}|");
-    let with = measure_line(&probe, font).map_or(0.0, |line| line.x);
-    let bar = measure_line("|", font).map_or(0.0, |line| line.x);
+    let with = lay_out_text(&probe, font, TextLayout::DEFAULT).map_or(0.0, |line| line.size().x);
+    let bar = lay_out_text("|", font, TextLayout::DEFAULT).map_or(0.0, |line| line.size().x);
     (with - bar).max(0.0)
 }
 
@@ -117,7 +118,8 @@ fn delimiter_font(inputs: &RowInputs) -> FontId {
 }
 
 pub(super) fn delimiter_height(inputs: &RowInputs) -> f32 {
-    measure_line("", delimiter_font(inputs)).map_or(0.0, |line| line.y)
+    lay_out_text("", delimiter_font(inputs), TextLayout::DEFAULT)
+        .map_or(0.0, |line| line.line_height())
 }
 
 fn font_of(inputs: &RowInputs, row: TableRow, style: SynHlStyle) -> FontId {

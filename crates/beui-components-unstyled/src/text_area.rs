@@ -34,6 +34,7 @@ use beui_view::types::Color;
 use beui_view::types::Dismiss;
 use beui_view::types::FontId;
 use beui_view::types::PickedFile;
+use beui_view::types::TextLayout;
 use beui_view::types::{Area, Claim, SoftKeyboard};
 use beui_view::types::{CursorIcon, ImeEvent, ImeText, Key, KeyPress, PointerPress};
 use beui_view::types::{HANDLE_RADIUS, handle_center, toolbar_anchor};
@@ -254,8 +255,12 @@ impl Surface {
     }
 
     fn row_estimate(&self) -> f32 {
-        let body = measure_line("", FontId::proportional(self.font_size.get_untracked()))
-            .map_or(BODY_SIZE * 1.15, |line| line.y);
+        let body = lay_out_text(
+            "",
+            FontId::proportional(self.font_size.get_untracked()),
+            TextLayout::DEFAULT,
+        )
+        .map_or(BODY_SIZE * 1.15, |line| line.line_height());
         let padding = match (self.single_line, self.prose.get_untracked()) {
             (true, _) => (0.0, 0.0),
             (false, Some(prose)) => prose.line_padding,
@@ -1086,8 +1091,8 @@ fn field_key(cx: &Context, press: KeyPress) -> bool {
 }
 
 fn gutter_width(line_count: usize, font_size: f32, geometry: &TextAreaGeometry) -> f32 {
-    let digit =
-        measure_line("0", FontId::monospace(font_size)).map_or(font_size * 0.6, |line| line.x);
+    let digit = lay_out_text("0", FontId::monospace(font_size), TextLayout::DEFAULT)
+        .map_or(font_size * 0.6, |line| line.size().x);
     let mut digits = 1;
     let mut value = line_count.max(1);
     while value >= 10 {

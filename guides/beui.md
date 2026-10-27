@@ -640,7 +640,8 @@ beui on one core type-checks on the other; only the bodies differ. So:
   listed with its reason in `ONE_CORE_MODULES` in
   crates/fix-rust-source/src/core_api.rs: `beui::native` (apps, platforms,
   runners, `Document`, renderers, fonts, GPU `Drawing`s and `draw_gpu`, and
-  `core_painter` for the native painter behind a `Painter`), `beui::html`
+  `core_painter` for the native painter behind a `Painter`, named
+  `NativePainter` there), `beui::html`
   (`run`, `hydrate`, `render_to_string`, ...) and the beui-view modules they
   re-export (`native_api`, `running`). fix-rust-source rejects a `pub` item in
   `src/native/` or `src/html/`, and a `pub` item under a `cfg(beui_html)`
@@ -667,8 +668,8 @@ The contract both keep:
 
 Measurement is `measure(node) -> ReadSignal<Option<Measured>>` (`rect` in
 window space, `size` in the node's own units), `measure_text(node)` for a
-`Text`'s `TextGeometry`, and `measure_line(text, font)` for text not in the
-tree, all described under [Measurement](#measurement). Colours are `Color`s
+`Text`'s `TextGeometry`, and `lay_out_text(text, font, layout)` for text not in
+the tree, all described under [Measurement](#measurement). Colours are `Color`s
 that may reference declared variables, so both cores and a server-rendered page
 agree on them ([Colours](#colours)).
 
@@ -705,14 +706,15 @@ places it) draws nothing in a server-rendered page. `Painter` (beui-view's
 can draw: rectangles (rounded per corner, filled or
 stroked inside like native), `line`, `fill_path` and `stroke_path` (fill rule,
 joins, caps, miter limit, dashes), `image` (a PNG data URL, cropped, rounded,
-tinted, pixelated when not `smooth`), `text`, `transformed`, `rotated`,
+tinted, pixelated when not `smooth`), `lay_out_text` and `draw_text`
+(below), `transformed`, `rotated`,
 `with_clip_rect`, `clip_rect`, `pixel_grid` and `resolve_color`; rotations
 stack on both cores, each turning what is already turned. Colours a
 `Painter` takes are `Color`s, so references become `var(--…)` and
 `color-mix()` there and follow the scheme without a redraw. A gpu `Drawing`
 (`beui::native::Drawing`, drawn by `beui::native::draw_gpu`) is native only,
-as is the rest of the native painter (galleys, paths prepared for the GPU,
-fades), which native code reaches with `beui::native::core_painter(painter)`; the colour wheel
+as is the rest of the native painter (paths prepared for the GPU, rich text
+runs, fades), which native code reaches with `beui::native::core_painter(painter)`; the colour wheel
 paints its faces as an image on the CPU instead (`color_wheel/cpu.rs`, used
 without the `gpu` feature). Text editing is not an escape hatch:
 `TextArea` and `TextInput` are the same unstyled code on both cores, built on
@@ -796,7 +798,7 @@ need:
   browser's selection on HTML) rather than a composition; text editing is not
   one of those: `TextArea` and `TextInput` are unstyled compositions of `Text`
   (`marks`, `glyphs`, `carets`, `hang`), `Interactive`, `measure_text` and
-  `measure_line`, the same on every core.
+  `lay_out_text`, the same on every core.
   Add a base component only when the retained tree genuinely lacks a primitive:
   a new way to lay out, paint, or receive input that cannot be expressed by
   arranging the existing nodes. `Portal` is one: it shows a subtree it does not
@@ -902,12 +904,22 @@ it was given).
 it, and list markers, voids, embedded widgets and the caret's anchor as
 `TextItem`s.
 
-The galleys a `Drawing` paints come from `layout_text(text, font, layout)`,
-which lays text out with the shown document's fonts and answers `None` until
-the document has been shown once; the galleys it returns are cached, so asking
-for the same word twice costs a hash lookup. A `Galley` is the native core's,
-so unstyled and styled never name one: they measure through `measure_text`
-and `measure_line` (see "Measurement" below). A `FontId` carries `bold` and `italic` alongside its size
+Text a `Drawing` paints is laid out and drawn through its `Painter`:
+`painter.lay_out_text(text, font, layout)` returns a `TextBlock` (its `size`,
+`line_height`, `baseline` from its top, and `lines()`, a `LineBox` per line
+with its bytes, its rectangle and its baseline, all from the block's top-left
+corner), and `painter.draw_text(origin, &block, color)` draws that block with
+its top-left corner at `origin`, so what is measured is what is drawn. The
+`TextLayout` (beui-types) gives the wrap width, alignment, line spacing and
+line height. Natively a `TextBlock` is a FreeType galley, cached, so asking for
+the same word twice costs a hash lookup; on HTML it is broken into lines by the
+core (after spaces and hyphens, between letters when a word is too wide)
+measured with canvas `measureText` and the font's `fontBoundingBoxAscent` and
+`Descent` in a browser, or with the bundled fonts' advances (`ttf-parser`)
+when rendering on a server, and drawn as one SVG `<text>` per line at its
+baseline, with `textLength` holding it to the measured width. The same
+`TextBlock` comes from `lay_out_text` outside a drawing (see "Measurement"
+below), and `has_every_glyph()` says whether the fonts cover it. A `FontId` carries `bold` and `italic` alongside its size
 and family; both are synthesised by FreeType rather than loaded as separate
 faces.
 
@@ -4545,10 +4557,11 @@ text area's list marker covers the `- ` it draws, and a `TextItem` given `at`
 holds none. The test `text_geometry_counts_utf8_bytes_and_only_the_bytes_inline_children_stand_for`
 pins this down. `measure_text` stays `None` for a node that is not a `Text`.
 
-Text that is not in the tree is measured with `measure_line(text, font)`: the
-width of `text` set on one line in `font` (rounded up to a pixel, as a `Text`
-measures it) and the font's line height, as a `Vec2`, or `None` before the
-document has fonts. It answers at once on both cores (the HTML core from the
+Text that is not in the tree is measured with `lay_out_text(text, font,
+layout)` (`beui::reactive`): the `TextBlock` a `Painter` would lay out, whose
+`size().x` is the width of the text on one line with `TextLayout::DEFAULT`
+(rounded up to a pixel, as a `Text` measures it) and whose `line_height()` is
+the font's, or `None` before the document has fonts. It answers at once on both cores (the HTML core from the
 browser's font metrics), so a component can size what it builds from text it
 has not built yet: a text area's line heights, its gutter's digit width, how
 far a quote's `> ` hangs into the margin and the shared widths of a markdown
