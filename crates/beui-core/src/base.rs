@@ -8,6 +8,7 @@ pub mod first_fit;
 pub mod focus;
 pub mod focus_scope;
 pub mod frame;
+pub mod glide;
 pub mod grid;
 pub mod interactive;
 pub mod layers;

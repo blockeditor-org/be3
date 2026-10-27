@@ -198,6 +198,10 @@ mod a_fullscreen_overlay_fills_the_window_and_escape_dismisses_it;
 mod a_fuzzy_command_palette_filters_as_it_is_typed_and_chooses_with_enter;
 mod a_gap_before_one_child_replaces_the_rows_spacing;
 mod a_gap_in_rich_text_takes_room_but_no_bytes;
+mod a_glide_armed_by_a_reorder_paints_where_it_was_and_springs_to_its_new_place;
+mod a_glide_handed_a_starting_point_settles_from_it;
+mod a_glide_moved_again_mid_flight_carries_on_from_where_it_is;
+mod a_glide_snaps_when_unarmed_or_when_animations_are_off;
 mod a_global_action_runs_from_a_text_field_inside_an_open_palette;
 mod a_global_key_whose_release_was_lost_does_not_swallow_the_next_press;
 mod a_grid_in_a_scroll_lays_out_only_the_cells_near_the_view;
@@ -622,6 +626,7 @@ mod dragging_the_end_handle_of_a_double_tapped_word_extends_the_selection;
 mod dragging_the_inspector_edge_resizes_the_panel;
 mod dragging_the_scrollbar_thumb_scrolls_the_content_beside_it;
 mod dropping_a_dock_tab_onto_the_middle_of_another_groups_them;
+mod each_frame_of_a_glide_lays_out_and_paints_only_the_rows_that_glide;
 mod editing_one_row_of_a_keyed_list_leaves_every_node_in_place;
 mod empty_choices_and_invalid_selection_do_not_break_tab_navigation;
 mod enabling_touch_emulation_in_the_inspector_does_not_paint_a_pointer;
@@ -2984,4 +2989,33 @@ impl InSpace {
         self.frame([button(to, false)]);
         self.settle();
     }
+}
+
+pub(crate) const GLIDE_ROW: f32 = 20.0;
+
+pub(crate) fn gliding_rows(
+    order: crate::reactive::Signal<Vec<u64>>,
+    arm: crate::reactive::Signal<u64>,
+) -> Document {
+    use crate::primitives::*;
+    use crate::reactive::*;
+    build_node(move || {
+        view! {
+            <List spacing=0.0>
+                <ForEach keys={order}>|key: u64|
+                    <Glide @test_id={format!("slot.{key}")} arm={arm}>
+                        <Frame
+                            @test_id={format!("row.{key}")}
+                            height=GLIDE_ROW
+                            fill={Color32::from_rgb((key * 40 % 256) as u8, 90, 160)}
+                        />
+                    </Glide>
+                </ForEach>
+            </List>
+        }
+    })
+}
+
+pub(crate) fn top_of(harness: &Harness, test_id: &str) -> f32 {
+    harness.rect(harness.find(test_id)).top()
 }

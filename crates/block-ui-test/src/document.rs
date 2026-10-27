@@ -19,6 +19,7 @@ pub struct DocumentTest {
     fonts: FontLibrary,
     latest: Option<FrameOutput>,
     dom: Option<Rc<RefCell<DomPainting>>>,
+    recorded: Option<snapshot::Snapshot>,
 }
 
 impl Deref for DocumentTest {
@@ -59,6 +60,7 @@ impl DocumentTest {
             fonts,
             latest: None,
             dom: None,
+            recorded: None,
         };
         test.frame(Vec::new());
         test
@@ -130,7 +132,7 @@ impl DocumentTest {
         self.frame(Vec::new());
     }
 
-    pub fn snapshot(&mut self, name: &str) {
+    pub fn record(&mut self) {
         let size = self.size();
         self.refresh();
         let output = self
@@ -144,7 +146,16 @@ impl DocumentTest {
             background(output),
         )
         .expect("the painting could not be rendered");
-        snapshot::assert_snapshot(name, &painting);
+        match &mut self.recorded {
+            Some(recorded) => recorded.append(painting),
+            None => self.recorded = Some(painting),
+        }
+    }
+
+    pub fn snapshot(&mut self, name: &str) {
+        self.record();
+        let recorded = self.recorded.take().expect("a frame was just recorded");
+        snapshot::assert_snapshot(name, &recorded);
         overflow::assert_fits(name, overflow::overflows(self.stepped.document()));
     }
 

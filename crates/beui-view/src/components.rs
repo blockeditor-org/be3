@@ -5,6 +5,7 @@ pub mod embed;
 pub mod fade;
 pub mod first_fit;
 pub mod frame;
+pub mod glide;
 pub mod grid;
 pub mod interactive;
 pub mod layers;

@@ -6,6 +6,7 @@ use beui::primitives::Drawing;
 use beui::primitives::FirstFit;
 use beui::primitives::Frame;
 use beui::primitives::Gap;
+use beui::primitives::Glide;
 use beui::primitives::Icon;
 use beui::primitives::Span;
 use beui::primitives::Text;
@@ -592,6 +593,9 @@ pub(crate) fn LayeringPage() -> NodeId {
             <Sample title="Shift" code={vec![NudgedTile::SOURCE]}>
                 <NudgedTile />
             </Sample>
+            <Sample title="Glide" code={vec![GlidingPlanets::SOURCE, Tile::SOURCE]}>
+                <GlidingPlanets />
+            </Sample>
             <Sample title="Turn" code={vec![TurnedLabel::SOURCE]}>
                 <TurnedLabel />
             </Sample>
@@ -660,6 +664,42 @@ fn NudgedTile() -> NodeId {
             <Shift by={by}>
                 <Frame width=SWATCH height=SWATCH fill={theme.accent} radius=12.0 />
             </Shift>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn GlidingPlanets() -> NodeId {
+    let order = create_signal((0..5).collect::<Vec<usize>>());
+    let moved = create_signal(0_u64);
+    let reorder = move |change: fn(&mut Vec<usize>)| {
+        order.update(change);
+        moved.update(|moved| *moved += 1);
+    };
+    view! {
+        <List @test_id="demo.layering.glide" spacing=12.0>
+            <List direction=Direction::Horizontal spacing=8.0>
+                <Button
+                    @test_id="demo.glide.rotate"
+                    label="Rotate"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || reorder(|order| order.rotate_left(1))}
+                />
+                <Button
+                    @test_id="demo.glide.reverse"
+                    label="Reverse"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || reorder(|order| order.reverse())}
+                />
+            </List>
+            <List direction=Direction::Horizontal spacing=8.0>
+                <ForEach keys={order}>|planet: usize|
+                    <Glide arm={moved}>
+                        <Tile label={PLANETS[planet].to_owned()} />
+                    </Glide>
+                </ForEach>
+            </List>
         </List>
     }
 }

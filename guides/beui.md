@@ -618,7 +618,7 @@ need:
 - **Tempted to add a base component?** Almost always, add an unstyled one
   instead. The base layer is small on purpose — `Frame`, `List`, `Layers`, `FirstFit`, `Grid`, `Text`,
   `Offset`, `VirtualList`, `Canvas`, `Drawing`, `Overlay`, `Interactive`, `Embed`,
-  `Portal`, `BackHandler`, `Shift`, `Turn`, `Fade` — and it stays small because most things are
+  `Portal`, `BackHandler`, `Shift`, `Glide`, `Turn`, `Fade` — and it stays small because most things are
   compositions of those. `unstyled::Picture` is one: a `Drawing` with a size.
   Add a base component only when the retained tree genuinely lacks a primitive:
   a new way to lay out, paint, or receive input that cannot be expressed by
@@ -910,7 +910,20 @@ without each colour being faded by hand. The opacity multiplies every shape's
 coverage in the renderer (a mask, like the edges), so shapes inside it that
 overlap show through one another; a change damages the fade's rectangle. `Shift`
 lays its child out moved `by` a vector without moving the space it takes, and
-paints nothing while the child is off the screen, which is how a sheet slides in. `Turn`
+paints nothing while the child is off the screen, which is how a sheet slides in. `Glide`
+is a `Shift` that animates a move: wrap each item of a list in one and bump its `arm`
+(a `u64` generation) in the same update that reorders the keys. An armed glide notes where
+it was placed relative to its parent, and the layout pass that moves it adds old minus new
+to the displacement its child is shifted by, so that frame still paints the child where it
+was; a spring (`GLIDE_SPRING`) then takes the displacement to zero, stepping through the
+frame clock and laying out only the glide each frame (its child keeps its layout and only
+moves). A move it was not armed for (a window resized, a list scrolled, which moves no
+parent-local rect anyway) lands at once, as does every move under `Motion::Instant`. Moved
+again mid-flight, it adds the new difference and keeps its velocity. `from`, a point in
+window coordinates, hands it a place to start from instead, for a new item or a dropped
+one that should settle from where the pointer left it. The glide's own rect
+(`node_rect` of the node `Glide` returns) is where it rests; its child's rect is where it is
+painted. `Turn`
 paints its child turned clockwise by `quarter_turns` about the middle of its box, which
 takes the child's size with width and height swapped for an odd number of turns, and
 further by `angle` radians, which leaves the box as it is; clips inside it grow to the
