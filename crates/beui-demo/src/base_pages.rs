@@ -850,7 +850,10 @@ fn PopupWindow() -> NodeId {
     let ink = theme.text;
     let own = use_window().map(|window| window.id);
     let placement = create_memo(move || match own {
-        Some(window) => WindowPlacement::Over { window, at: at.get() },
+        Some(window) => WindowPlacement::Over {
+            window,
+            at: at.get(),
+        },
         None => WindowPlacement::AtPointer,
     });
     view! {

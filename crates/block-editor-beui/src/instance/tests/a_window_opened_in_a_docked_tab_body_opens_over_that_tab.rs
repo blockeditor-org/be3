@@ -23,7 +23,11 @@ fn OverOwnWindow() -> beui::NodeId {
     });
     view! {
         <beui::styled::List spacing=beui::styled::Space::None>
-            <Window size={beui::vec2(80.0, 40.0)} placement role=beui::WindowRole::Popup>|_: WindowHandle|
+            <Window
+                size={beui::vec2(80.0, 40.0)}
+                placement
+                role=beui::WindowRole::Popup
+            >|_: WindowHandle|
                 <Frame />
             </Window>
         </beui::styled::List>
@@ -56,7 +60,10 @@ impl crate::BeuiApp for WindowedApp {
     }
 }
 
-fn show_windowed(session: &mut EditorSession, screens: &[(EditorRegion, u64)]) -> Vec<WindowRequest> {
+fn show_windowed(
+    session: &mut EditorSession,
+    screens: &[(EditorRegion, u64)],
+) -> Vec<WindowRequest> {
     let (placements, requests): (Vec<_>, Vec<_>) = screens
         .iter()
         .map(|(region, screen)| {

@@ -403,9 +403,8 @@ impl Space {
 
     fn focus(&mut self, window: Option<WindowId>) {
         if self.focused == window
-            || window.is_some_and(|window| {
-                self.keyboards.contains(&window) || self.is_popup(window)
-            })
+            || window
+                .is_some_and(|window| self.keyboards.contains(&window) || self.is_popup(window))
         {
             return;
         }

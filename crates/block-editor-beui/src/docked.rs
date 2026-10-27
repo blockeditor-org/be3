@@ -11,8 +11,8 @@ use beui::dock::unstyled::{
 };
 use beui::dock::unstyled::{DockMenus, DockTabControl, DockTabMenu, dock_menu};
 use beui::icons::Glyph;
-use beui::styled::WindowHandle;
 use beui::reactive::*;
+use beui::styled::WindowHandle;
 use block_editor_plugin::{EditorHost, EditorRegion, Pushed, RegionId};
 use block_plugin_api as api;
 use block_plugin_api::{ChildId, DockTabPath};
@@ -313,9 +313,7 @@ impl ProtocolLink {
             if let Some(window) = window {
                 let current = create_signal(Some(window));
                 shown = Some(current);
-                provide_context(WindowHandle::following(window.id, move || {
-                    current.get()
-                }));
+                provide_context(WindowHandle::following(window.id, move || current.get()));
             }
             if let Some(key) = empty {
                 return bodies.empty.call(key);
@@ -346,7 +344,11 @@ impl ProtocolLink {
     }
 
     fn leave(&self, tab: TabId, window: WindowHandle) {
-        let shown = self.panels.borrow().get(&tab).and_then(|panel| panel.window);
+        let shown = self
+            .panels
+            .borrow()
+            .get(&tab)
+            .and_then(|panel| panel.window);
         if let Some(shown) = shown
             && shown.get_untracked() == Some(window)
         {
