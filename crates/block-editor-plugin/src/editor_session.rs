@@ -42,6 +42,7 @@ pub struct EditorSession {
     artifact: Option<ArtifactState>,
     sent_menu: Vec<MenuEntry>,
     audio_watched: bool,
+    docks_watched: bool,
     web_views: HashMap<WebViewId, Rc<shell::WebView>>,
     link: crate::link::Link,
     asks: Vec<block_plugin_api::WindowRequest>,
@@ -95,6 +96,7 @@ struct RegionState {
     reported_children: Option<ReportedChildren>,
     age: u32,
     windows: bool,
+    docked: bool,
     placement_value: Option<String>,
 }
 
@@ -141,6 +143,7 @@ impl EditorSession {
             artifact: None,
             sent_menu: Vec::new(),
             audio_watched: false,
+            docks_watched: false,
             web_views: HashMap::new(),
             link: crate::link::Link::default(),
             asks: Vec::new(),
@@ -325,6 +328,7 @@ impl EditorSession {
             state.metrics = Some(request.metrics.clone());
             state.frame = request.frame;
             state.windows = request.windows;
+            state.docked = request.docked;
             state.placement_value.clone_from(&request.placement);
         }
     }
@@ -335,12 +339,16 @@ impl EditorSession {
         commit.windows.extend(self.windows());
         commit.children.extend(self.children());
         commit.window_requests.append(&mut self.asks);
+        commit
+            .docks
+            .extend(self.host.take_dock_messages(self.instance));
         self.retain_child_statuses();
     }
 
     pub fn outbound(&mut self) {
         let instance = self.instance;
         self.link.exchange(instance, &self.host);
+        self.watch_docks();
         crate::asked::asking(Some(instance), || {
             for (group, measurements) in self.host.take_performance() {
                 debug::performance(group, measurements);
@@ -491,6 +499,23 @@ impl EditorSession {
         spawn(async move {
             while let Ok(status) = watch.next().await {
                 host.set_audio(status);
+            }
+        });
+    }
+
+    fn watch_docks(&mut self) {
+        if self.docks_watched || !self.host.uses_docks() {
+            return;
+        }
+        self.docks_watched = true;
+        let instance = self.instance;
+        let watch = crate::asked::asking(Some(instance), || {
+            block_plugin_api::DockWatch::new(instance)
+        });
+        let host = self.host.clone();
+        spawn(async move {
+            while let Ok(updates) = watch.next().await {
+                host.receive_dock_updates(updates);
             }
         });
     }
@@ -704,6 +729,7 @@ impl EditorSession {
                 .map(|state| state.epoch),
             seen: crate::screens::seen(),
             windows: state.is_some_and(|state| state.windows),
+            docked: state.is_some_and(|state| state.docked),
             placement: state.and_then(|state| state.placement_value.clone()),
         }
     }

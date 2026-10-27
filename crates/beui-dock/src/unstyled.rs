@@ -48,8 +48,10 @@ use beui_view::reactive::*;
 use dialog::{DialogParts, DockDialogs};
 pub use dialog::{DockDialogHandle, DockDialogPresentation, DockSheetHandle};
 pub use docking::{
-    DockDialog, DockEntry, DockGroup, DockKey, DockNode, DockPane, DockSplit, DockTab, DockWindow,
-    Docking, DockingLayout, DockingSnapshot, OwnedDockingLayout,
+    DockBodies, DockDeclaration, DockDeclaredTab, DockDialog, DockEntry, DockGroup, DockHostEvent,
+    DockHostLink, DockHostSlot, DockHosted, DockJoin, DockKey, DockNode, DockPane, DockRequest,
+    DockSplit, DockTab, DockWindow, Docking, DockingLayout, DockingSnapshot, OwnedDockingLayout,
+    use_dock_join,
 };
 pub use documents::{
     DockDocument, DockDocumentBody, DockDocumentTabs, DockDocuments, DockOpened, DockSlot,
@@ -58,7 +60,9 @@ use fullscreen::DockAway;
 pub use fullscreen::DockAwayHandle;
 use modifier_drag::{Resized, modifier_resize};
 pub use state::{
-    DockDrop, DockFullscreen, DockHome, DockLayout, DockSplitter, DockState, DockSwitch, DockTree,
+    DockDrop, DockFullscreen, DockHome, DockLayout, DockMapping, DockPlain, DockPlainEntry,
+    DockPlainHome, DockPlainNode, DockPlainPlace, DockPlainWindow, DockSpec, DockSpecEntry,
+    DockSpecNode, DockSpecPane, DockSpecWindow, DockSplitter, DockState, DockSwitch, DockTree,
     DockTreeEntry, DockVisit, Entry, GroupId, LeafId, Side, SplitId, SurfaceId, TabId, TabPosition,
     Tree, layout_surface, layout_tree,
 };

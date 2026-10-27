@@ -13,7 +13,7 @@ pub(crate) trait Shown {
 
     fn generation(&self) -> u64;
 
-    fn content(&self, region: EditorRegion) -> RenderFn<WindowHandle>;
+    fn content(&self, region: EditorRegion, docked: bool) -> RenderFn<WindowHandle>;
 
     fn before(&self, view: &View, context: &beui::Context, document: &mut Document);
 
@@ -202,15 +202,21 @@ fn ModuleWindows(
                     let generation = generations
                         .shown(view.id.instance)
                         .map_or(0, |shown| shown.generation());
-                    (view.id, generation)
+                    (view.id, generation, view.docked)
                 })
                 .collect::<Vec<_>>()
         })
     });
     view! {
         <List spacing=Space::None>
-            <ForEach keys>|(id, _generation): (RegionId, u64)|
-                <RegionWindow registry={Rc::clone(&registry)} id requested views={views.clone()} />
+            <ForEach keys>|(id, _generation, docked): (RegionId, u64, bool)|
+                <RegionWindow
+                    registry={Rc::clone(&registry)}
+                    id
+                    docked
+                    requested
+                    views={views.clone()}
+                />
             </ForEach>
         </List>
     }
@@ -220,6 +226,7 @@ fn ModuleWindows(
 fn RegionWindow(
     registry: Rc<Registry>,
     id: RegionId,
+    docked: bool,
     requested: ReadSignal<Vec<View>>,
     views: Views,
 ) -> beui::NodeId {
@@ -247,7 +254,7 @@ fn RegionWindow(
         })
     });
     let content = match registry.shown(id.instance) {
-        Some(shown) => shown.content(id.region),
+        Some(shown) => shown.content(id.region, docked),
         None => RenderFn::new(|_: WindowHandle| {
             view! {
                 <Frame />

@@ -33,15 +33,39 @@ use super::{
 use beui_components_unstyled::menu_popup::MenuStyle;
 const MAX_JOINED_DEPTH: usize = 16;
 
-use host::{
-    DockBodies, DockDeclaration, DockDeclaredTab, DockHostEvent, DockHostLink, DockHosted,
-    DockRequest, Foreign, Joined, Registry,
+pub use host::{
+    DockBodies, DockDeclaration, DockDeclaredTab, DockHostEvent, DockHostLink, DockHostSlot,
+    DockHosted, DockJoin, DockRequest, use_dock_join,
 };
-pub(crate) use host::{DockJoin, use_dock_join};
+use host::{Foreign, Joined, Registry};
 
-pub trait DockKey: Clone + Eq + Hash + 'static {}
+pub trait DockKey: Clone + Eq + Hash + 'static {
+    fn key(&self) -> String;
+}
 
-impl<T: Clone + Eq + Hash + 'static> DockKey for T {}
+impl DockKey for TabId {
+    fn key(&self) -> String {
+        self.value().to_string()
+    }
+}
+
+impl DockKey for u64 {
+    fn key(&self) -> String {
+        self.to_string()
+    }
+}
+
+impl DockKey for String {
+    fn key(&self) -> String {
+        self.clone()
+    }
+}
+
+impl DockKey for &'static str {
+    fn key(&self) -> String {
+        (*self).to_owned()
+    }
+}
 
 pub struct DockNode<K: 'static> {
     kind: NodeKind<K>,
@@ -1185,19 +1209,20 @@ impl<K: 'static> PartialEq for Found<K> {
     }
 }
 
-impl<K: 'static> Found<K> {
+impl<K: DockKey> Found<K> {
     fn declared_tabs(&self) -> Vec<DockDeclaredTab> {
         self.tabs
             .iter()
             .filter_map(|(tab, entry)| match &entry.kind {
                 EntryKind::Tab {
+                    id,
                     title,
                     icon,
                     on_close,
                     ..
                 } => Some(DockDeclaredTab {
                     tab: *tab,
-                    key: tab.value().to_string(),
+                    key: id.key(),
                     title: title.get(),
                     icon: icon.get(),
                     closable: on_close.is_some(),
@@ -1320,7 +1345,10 @@ where
             None => body,
         }
     });
-    if let Some(link) = use_dock_join().and_then(|join| join.claim()) {
+    let link = use_dock_join()
+        .and_then(|join| join.claim())
+        .or_else(|| use_context::<DockHostSlot>().and_then(|slot| slot.claim()));
+    if let Some(link) = link {
         let on_close = Callback::new(on_close);
         return view! {
             <JoinedDock layout link nodes found body on_close />

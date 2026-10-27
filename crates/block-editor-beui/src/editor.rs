@@ -180,6 +180,7 @@ pub enum SubregionContent {
         parent: BlockParent,
         touch: bool,
     },
+    DockTab(block_plugin_api::DockTabPath),
 }
 
 impl From<ChildTarget> for SubregionContent {
@@ -216,6 +217,7 @@ impl SubregionContent {
                 parent: parent.encode(),
                 touch: *touch,
             },
+            Self::DockTab(tab) => ChildContent::DockTab(tab.clone()),
         }
     }
 }
@@ -287,6 +289,8 @@ struct ChildRecord {
     focus: Callback<()>,
     child: Cell<Option<ChildId>>,
     zone: u64,
+    dock_tab: Option<u64>,
+    docks: bool,
 }
 
 type Revision = OwnedSignal<u64>;
@@ -980,6 +984,8 @@ impl Editor {
         report: Callback<ChildState>,
         bar: Callback<BarAction>,
         focus: Callback<()>,
+        dock_tab: Option<u64>,
+        docks: bool,
     ) -> ReadSignal<ChildState> {
         let editor_state = self.state();
         let state = create_signal(ChildState::default());
@@ -1004,6 +1010,8 @@ impl Editor {
                 focus,
                 child: Cell::new(None),
                 zone: document_zone(),
+                dock_tab,
+                docks,
             }),
         ));
         let editor = self.0;
@@ -1406,6 +1414,8 @@ impl Editor {
                 bottom_inset: dialog.bottom_inset.max(rect.max.y - shown.max.y) * unscale,
                 ..dialog
             }),
+            record.dock_tab,
+            record.docks,
         ))
     }
 }

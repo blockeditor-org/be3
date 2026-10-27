@@ -10,6 +10,7 @@ mod chrome;
 pub mod database;
 mod dialog;
 mod dock;
+mod docked;
 mod editor;
 mod file_chooser;
 mod fitting;

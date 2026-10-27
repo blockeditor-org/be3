@@ -37,6 +37,7 @@ pub fn ChildBlock(
 ) -> NodeId {
     let placed = create_memo(move || block.get().map(SubregionContent::Block));
     let placing = Placing {
+        claims: true,
         mode,
         layer,
         own_frame,
@@ -85,6 +86,7 @@ pub fn Subregion(
         false => Prop::Static(None),
     };
     let placing = Placing {
+        claims: false,
         mode,
         layer,
         own_frame,
@@ -105,6 +107,7 @@ pub fn Subregion(
 }
 
 struct Placing {
+    claims: bool,
     mode: Prop<ChildMode>,
     layer: Prop<ChildLayer>,
     own_frame: Prop<bool>,
@@ -127,6 +130,7 @@ fn SubregionView(
     placing: Placing,
 ) -> NodeId {
     let Placing {
+        claims,
         mode,
         layer,
         own_frame,
@@ -148,6 +152,24 @@ fn SubregionView(
     let mode = create_memo(move || mode.get());
     let turn = create_memo(move || rotation.get());
     let fade = create_memo(move || opacity.get());
+    let docked = use_context::<crate::docked::DockedTab>();
+    let join = match docked {
+        Some(_) => None,
+        None => beui::dock::unstyled::use_dock_join(),
+    };
+    let dock_tab = docked
+        .as_ref()
+        .map(|docked| docked.tab)
+        .or_else(|| join.as_ref().map(|join| join.host().value()));
+    let (docks, link) = match (claims, &docked, &join) {
+        (false, _, _) => (false, None),
+        (true, Some(docked), _) => (docked.claim(), None),
+        (true, None, Some(join)) => match join.claim() {
+            Some(link) => (true, Some(link)),
+            None => (false, None),
+        },
+        (true, None, None) => (false, None),
+    };
     let state = editor.register_child(
         slot,
         placed.into_prop(),
@@ -162,7 +184,12 @@ fn SubregionView(
         on_state,
         on_bar,
         on_focus,
+        dock_tab,
+        docks,
     );
+    if let Some(link) = link {
+        crate::docked::bridge_child_dock(editor, link, state);
+    }
     let preview = create_memo(move || state.with(|state| state.preview));
     let pictured = create_memo(move || {
         mode.get() == ChildMode::Preview || preview.get() != ChildPreview::Hosted

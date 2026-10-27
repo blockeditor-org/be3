@@ -13,6 +13,7 @@ use uuid::Uuid;
 
 use crate::beui_frame::{self, BeuiFrame, FrameBar, FrameChrome};
 use crate::dialog::{DialogControl, PluginDialog, SettingsDialog};
+use crate::docked::{DockedTabBody, DockedTabs};
 use crate::editor::BeuiScale;
 use crate::module::{Module, Shown};
 use crate::picking::Pickers;
@@ -42,6 +43,7 @@ struct Parts<A: BeuiApp> {
     scale: Rc<Cell<BeuiScale>>,
     views: RefCell<Views<A>>,
     generation: beui::reactive::OwnedSignal<u64>,
+    docked: Rc<DockedTabs>,
 }
 
 struct Views<A: BeuiApp> {
@@ -77,7 +79,7 @@ impl<A: BeuiApp> Parts<A> {
             .update(|generation| *generation += 1);
     }
 
-    fn frame_content(&self) -> RenderFn<WindowHandle> {
+    fn frame_content(&self, docked: bool) -> RenderFn<WindowHandle> {
         let mut views = self.views.borrow_mut();
         if views.creating {
             let Some(creation) = views.creation.clone() else {
@@ -114,7 +116,13 @@ impl<A: BeuiApp> Parts<A> {
         };
         let custom = Rc::new(RefCell::new(views.view.take()));
         let chrome = Rc::clone(&views.chrome);
+        let tabs = Rc::clone(&self.docked);
+        let host = self.host.clone();
         RenderFn::new(move |_: WindowHandle| {
+            if docked {
+                let link = tabs.link(host.clone(), editor);
+                beui::reactive::provide_context(beui::dock::unstyled::DockHostSlot::new(link));
+            }
             let custom = Rc::clone(&custom);
             let view: Rc<dyn Fn() -> beui::styled::Root> =
                 Rc::new(move || match custom.borrow_mut().take() {
@@ -138,6 +146,19 @@ impl<A: BeuiApp> Parts<A> {
             beui::reactive::view! {
                 <beui::styled::Root clear_color=beui::styled::ColorRole::None>
                     <A::Preview editor />
+                </beui::styled::Root>
+            }
+            .child()
+        })
+    }
+
+    fn tab_content(&self, tab: u64) -> RenderFn<WindowHandle> {
+        let tabs = Rc::clone(&self.docked);
+        RenderFn::new(move |_: WindowHandle| {
+            let tabs = Rc::clone(&tabs);
+            beui::reactive::view! {
+                <beui::styled::Root clear_color=beui::styled::ColorRole::None>
+                    <DockedTabBody tabs tab />
                 </beui::styled::Root>
             }
             .child()
@@ -281,13 +302,14 @@ impl<A: BeuiApp> Shown for Parts<A> {
         self.generation.get()
     }
 
-    fn content(&self, region: EditorRegion) -> RenderFn<WindowHandle> {
+    fn content(&self, region: EditorRegion, docked: bool) -> RenderFn<WindowHandle> {
         match region {
-            EditorRegion::Frame => self.frame_content(),
+            EditorRegion::Frame => self.frame_content(docked),
             EditorRegion::Preview => self.preview_content(),
             EditorRegion::ArtifactSettings => self.settings_content(),
             EditorRegion::Display(display) => self.display_content(display),
-            EditorRegion::Window(_) | EditorRegion::Tab(_) => empty(),
+            EditorRegion::Tab(tab) => self.tab_content(tab),
+            EditorRegion::Window(_) => empty(),
         }
     }
 
@@ -337,7 +359,12 @@ impl<A: BeuiApp> Shown for Parts<A> {
                     editor.begin_frame();
                 }
             }
-            EditorRegion::Display(_) | EditorRegion::Window(_) | EditorRegion::Tab(_) => {}
+            EditorRegion::Tab(_) => {
+                if let Some(editor) = views.editor.as_deref() {
+                    editor.begin_frame();
+                }
+            }
+            EditorRegion::Display(_) | EditorRegion::Window(_) => {}
             EditorRegion::ArtifactSettings => {
                 if let (Some(artifacts), Some(settings)) =
                     (views.artifacts.as_ref(), self.host.settings_draft())
@@ -444,6 +471,7 @@ impl<A: BeuiApp> BeuiInstance<A> {
                 scale: Rc::default(),
                 views: RefCell::new(Views::empty()),
                 generation: beui::reactive::OwnedSignal::new(0),
+                docked: Rc::default(),
             }),
             host,
             keeps_accessibility: false,

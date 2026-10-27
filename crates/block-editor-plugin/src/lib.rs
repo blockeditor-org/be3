@@ -7,6 +7,7 @@ mod clock;
 mod content;
 #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 mod cooldown;
+mod docks;
 pub mod editor_session;
 pub mod fonts;
 mod graph;

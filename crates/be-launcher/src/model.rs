@@ -18,6 +18,16 @@ pub(crate) enum Tab {
     Log,
 }
 
+#[cfg(not(target_os = "android"))]
+impl beui::dock::unstyled::DockKey for Tab {
+    fn key(&self) -> String {
+        match self {
+            Tab::PullRequest(slot) => format!("pull-request/{}", slot.value()),
+            Tab::Log => "log".to_owned(),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Loaded<T> {
     Loading,

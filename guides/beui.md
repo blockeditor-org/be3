@@ -2091,7 +2091,10 @@ owns the tree, the dragging and the keyboard, and paints nothing; the demo in
 
 The children describe the layout the dock starts with and the tabs that exist;
 a `DockingLayout<K>` holds where everything is now, and is what the caller saves
-and restores:
+and restores. `K` is a `DockKey`: a tab's key, whose `key()` names it as a
+string for good (implemented for `TabId`, `u64`, `String` and `&'static str`;
+a type of your own implements it), which a dock declared to a host across
+plugins sends as the tab's key:
 
 ```rust
 let layout = DockingLayout::new();
@@ -2430,8 +2433,15 @@ then each level's declared tab key), never by an inner id. `restore` puts the
 moved-out tabs back where they were, titled but empty, and once the hosting
 tab's inner `Docking` declares again it grafts the group back and gives the
 moved-out tabs their bodies; a saved tab it no longer declares closes. The seam is `docking/host.rs`'s
-`DockHostLink`, plain data both ways, which a host over the plugin protocol
-can implement too.
+`DockHostLink`, plain data both ways (`DockDeclaration`, `DockHosted`,
+`DockRequest`, `DockHostEvent`, `DockBodies`; `DockState::plain` and
+`from_plain` read and build a state as plain `DockPlain` data), and a platform
+implements it too: a `Docking` that finds no outer dock claims the
+`DockHostSlot` context if one is provided above it, and joins that host the same
+way. block-editor-beui provides one in the frame of an editor whose dock joins
+another plugin's (guides/adding_a_plugin_editor.md), and its `ChildBlock` in a
+tab body claims that tab's `DockJoin` (`use_dock_join()`, `DockJoin::host`,
+`claim`) for the child editor's dock.
 
 A tab's panel is built the first time the tab is shown and belongs to the dock
 rather than to the pane showing it: the pane holds a `Portal` pointed at it, so

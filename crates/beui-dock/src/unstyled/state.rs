@@ -9,11 +9,15 @@ use serde::{Deserialize, Serialize};
 
 mod history;
 mod joined;
+mod plain;
 mod spec;
 mod switch;
 
 pub use history::DockVisit;
 pub use joined::{DockMapping, joined_host, joined_key, joined_prefix};
+pub use plain::{
+    DockPlain, DockPlainEntry, DockPlainHome, DockPlainNode, DockPlainPlace, DockPlainWindow,
+};
 pub use spec::{DockSpec, DockSpecEntry, DockSpecNode, DockSpecPane, DockSpecWindow};
 pub use switch::DockSwitch;
 

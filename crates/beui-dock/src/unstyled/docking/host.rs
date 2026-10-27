@@ -13,57 +13,81 @@ use super::super::state::{
 };
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct DockDeclaration {
-    pub(crate) spec: DockSpec,
-    pub(crate) tabs: Vec<DockDeclaredTab>,
+pub struct DockDeclaration {
+    pub spec: DockSpec,
+    pub tabs: Vec<DockDeclaredTab>,
 }
 
 impl DockDeclaration {
-    pub(crate) fn tab(&self, tab: TabId) -> Option<&DockDeclaredTab> {
+    pub fn tab(&self, tab: TabId) -> Option<&DockDeclaredTab> {
         self.tabs.iter().find(|declared| declared.tab == tab)
     }
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct DockDeclaredTab {
-    pub(crate) tab: TabId,
-    pub(crate) key: String,
-    pub(crate) title: String,
-    pub(crate) icon: Option<Glyph>,
-    pub(crate) closable: bool,
+pub struct DockDeclaredTab {
+    pub tab: TabId,
+    pub key: String,
+    pub title: String,
+    pub icon: Option<Glyph>,
+    pub closable: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct DockHosted {
-    pub(crate) state: DockState,
-    pub(crate) tabs: Vec<TabId>,
-    pub(crate) focused: Option<TabId>,
-    pub(crate) shown: Option<TabId>,
-    pub(crate) visible: Vec<TabId>,
-    pub(crate) fullscreen: Option<TabId>,
-    pub(crate) mode: DockMode,
+pub struct DockHosted {
+    pub state: DockState,
+    pub tabs: Vec<TabId>,
+    pub focused: Option<TabId>,
+    pub shown: Option<TabId>,
+    pub visible: Vec<TabId>,
+    pub fullscreen: Option<TabId>,
+    pub mode: DockMode,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) enum DockRequest {
+pub enum DockRequest {
     Show(TabId),
     Restore(DockState),
     Fullscreen(Option<(TabId, Option<Rect>)>),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum DockHostEvent {
+pub enum DockHostEvent {
     Close(TabId),
 }
 
 #[derive(Clone)]
-pub(crate) struct DockBodies {
-    pub(crate) scope: ScopeContext,
-    pub(crate) body: RenderFn<TabId, NodeId>,
-    pub(crate) empty: RenderFn<String, Option<NodeId>>,
+pub struct DockBodies {
+    pub scope: ScopeContext,
+    pub body: RenderFn<TabId, NodeId>,
+    pub empty: RenderFn<String, Option<NodeId>>,
 }
 
-pub(crate) trait DockHostLink {
+#[derive(Clone)]
+pub struct DockHostSlot {
+    link: Rc<dyn DockHostLink>,
+    claimed: Rc<Cell<bool>>,
+}
+
+impl DockHostSlot {
+    pub fn new(link: Rc<dyn DockHostLink>) -> Self {
+        Self {
+            link,
+            claimed: Rc::default(),
+        }
+    }
+
+    pub fn claim(&self) -> Option<Rc<dyn DockHostLink>> {
+        if self.claimed.replace(true) {
+            return None;
+        }
+        let claimed = Rc::clone(&self.claimed);
+        on_cleanup(move || claimed.set(false));
+        Some(Rc::clone(&self.link))
+    }
+}
+
+pub trait DockHostLink {
     fn declare(&self, declaration: DockDeclaration);
     fn hosted(&self) -> Memo<Option<DockHosted>>;
     fn request(&self, request: DockRequest);
@@ -201,14 +225,18 @@ impl Registry {
 }
 
 #[derive(Clone)]
-pub(crate) struct DockJoin {
+pub struct DockJoin {
     pub(crate) host: TabId,
     pub(crate) registry: Rc<Registry>,
     pub(crate) claimed: Rc<Cell<bool>>,
 }
 
 impl DockJoin {
-    pub(crate) fn claim(&self) -> Option<Rc<dyn DockHostLink>> {
+    pub fn host(&self) -> TabId {
+        self.host
+    }
+
+    pub fn claim(&self) -> Option<Rc<dyn DockHostLink>> {
         if self.claimed.replace(true) {
             return None;
         }
@@ -219,7 +247,7 @@ impl DockJoin {
     }
 }
 
-pub(crate) fn use_dock_join() -> Option<DockJoin> {
+pub fn use_dock_join() -> Option<DockJoin> {
     use_context::<DockJoin>()
 }
 

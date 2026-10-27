@@ -318,13 +318,19 @@ impl Identity {
     }
 }
 
-type ChildKey = (EditorRegion, Identity, u32);
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+enum ChildScope {
+    Region(EditorRegion),
+    DockTab(u64),
+}
+
+type ChildKey = (ChildScope, Identity, u32);
 
 #[derive(Default)]
 struct Placing {
     placements: Vec<ChildPlacement>,
     occluders: Vec<Occluder>,
-    ordinals: HashMap<Identity, u32>,
+    ordinals: HashMap<(ChildScope, Identity), u32>,
     used: Vec<ChildKey>,
 }
 
@@ -332,26 +338,35 @@ struct Placing {
 struct Children {
     placing: HashMap<EditorRegion, Placing>,
     identities: HashMap<ChildKey, ChildId>,
+    tab_regions: HashMap<u64, EditorRegion>,
     next: u64,
 }
 
-#[derive(Default)]
-struct RegionDrops {
-    drag: Option<BlockDrag>,
-    files: Option<FileDrop>,
-    content: Option<Rect>,
-}
-
 impl Children {
-    fn identify(&mut self, region: EditorRegion, identity: Identity) -> ChildId {
+    fn identify(
+        &mut self,
+        region: EditorRegion,
+        dock_tab: Option<u64>,
+        identity: Identity,
+    ) -> ChildId {
+        let scope = match dock_tab {
+            Some(tab) => {
+                self.tab_regions.insert(tab, region);
+                ChildScope::DockTab(tab)
+            }
+            None => ChildScope::Region(region),
+        };
         let placing = self.placing.entry(region).or_default();
         let ordinal = {
-            let ordinal = placing.ordinals.entry(identity.clone()).or_default();
+            let ordinal = placing
+                .ordinals
+                .entry((scope, identity.clone()))
+                .or_default();
             let current = *ordinal;
             *ordinal += 1;
             current
         };
-        let key = (region, identity, ordinal);
+        let key = (scope, identity, ordinal);
         let child = match self.identities.get(&key) {
             Some(child) => *child,
             None => {
@@ -364,6 +379,20 @@ impl Children {
         self.placing.entry(region).or_default().used.push(key);
         child
     }
+
+    fn placed_in(&self, scope: ChildScope, region: EditorRegion) -> bool {
+        match scope {
+            ChildScope::Region(held) => held == region,
+            ChildScope::DockTab(tab) => self.tab_regions.get(&tab) == Some(&region),
+        }
+    }
+}
+
+#[derive(Default)]
+struct RegionDrops {
+    drag: Option<BlockDrag>,
+    files: Option<FileDrop>,
+    content: Option<Rect>,
 }
 
 #[derive(Clone, Copy)]
@@ -386,10 +415,11 @@ pub enum Pushed {
     Watches,
     PeerMessages,
     Heads,
+    Docks,
 }
 
 impl Pushed {
-    pub const ALL: [Self; 12] = [
+    pub const ALL: [Self; 13] = [
         Self::Peers,
         Self::Histories,
         Self::Artifacts,
@@ -402,6 +432,7 @@ impl Pushed {
         Self::Watches,
         Self::PeerMessages,
         Self::Heads,
+        Self::Docks,
     ];
 }
 
@@ -505,6 +536,7 @@ pub struct EditorHost {
     organization: Rc<Cell<Uuid>>,
     module: Rc<RefCell<std::rc::Weak<crate::module::ModuleState>>>,
     settings_draft: Rc<RefCell<Option<crate::SettingsDraft>>>,
+    pub(crate) docks: Rc<RefCell<crate::docks::Docks>>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -531,7 +563,7 @@ impl EditorHost {
         self.pushed[pushed as usize].get()
     }
 
-    fn push(&self, pushed: Pushed) {
+    pub(crate) fn push(&self, pushed: Pushed) {
         let revision = &self.pushed[pushed as usize];
         revision.set(revision.get() + 1);
         self.changed();
@@ -1836,13 +1868,19 @@ impl EditorHost {
         intrinsic: Option<Vec2>,
         follows_view: bool,
         dialog: Option<DialogFrame>,
+        dock_tab: Option<u64>,
+        docks: bool,
     ) -> ChildId {
         let region = self.region.get().unwrap_or(EditorRegion::Frame);
         let placed = rect;
         let clip =
             clip.intersect(geometry::Rotation::new(placed.center(), rotation).bounds(placed));
+        let docks = dock_tab.filter(|_| docks && matches!(content, ChildContent::Block { .. }));
+        if docks.is_some() {
+            self.mark_docks_used();
+        }
         let mut children = self.children.borrow_mut();
-        let child = children.identify(region, Identity::of(&content));
+        let child = children.identify(region, dock_tab, Identity::of(&content));
         children
             .placing
             .entry(region)
@@ -1866,7 +1904,7 @@ impl EditorHost {
                 opacity: opacity.clamp(0.0, 1.0),
                 follows_view,
                 dialog,
-                docks: None,
+                docks,
             });
         child
     }
@@ -2020,9 +2058,15 @@ impl EditorHost {
     pub(crate) fn end_region(&self, region: EditorRegion) -> (Vec<ChildPlacement>, Vec<Occluder>) {
         let mut children = self.children.borrow_mut();
         let placing = children.placing.remove(&region).unwrap_or_default();
-        children
+        let gone: Vec<ChildKey> = children
             .identities
-            .retain(|key, _| key.0 != region || placing.used.contains(key));
+            .keys()
+            .filter(|key| children.placed_in(key.0, region) && !placing.used.contains(key))
+            .cloned()
+            .collect();
+        for key in gone {
+            children.identities.remove(&key);
+        }
         (placing.placements, placing.occluders)
     }
 
