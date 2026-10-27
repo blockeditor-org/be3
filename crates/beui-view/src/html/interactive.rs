@@ -20,8 +20,8 @@ use crate::types::input::PointerInput;
 use crate::types::input::PointerPress;
 use crate::types::input::WheelInput;
 use crate::types::region::{Area, Claim};
-use beui_core_html::document::{create, set_attribute, set_style, wrap};
-use beui_core_html::interactive::{ForwardedInput, Handlers, Switches};
+use beui_core_html::document::{create, set_style, wrap};
+use beui_core_html::interactive::{ForwardedInput, Handlers, Switches, TabStop};
 use std::rc::Rc;
 
 use super::bind;
@@ -79,41 +79,21 @@ pub fn interactive(
     children: Option<Child>,
 ) -> NodeId {
     let _ = (
-        yields_tab_stop,
-        keyboard,
-        on_activate_change,
-        on_step,
         pastes,
-        on_motion,
-        pointer_locked,
         key_active,
-        capture_presses,
-        repeat_drag,
-        touch_drags,
         claims_touch,
-        drawing,
-        every_sample,
-        grabs_pointer,
-        gesture_area,
         on_forward,
         inhibits_shortcuts,
         clipboard_keys,
         forwards_wheel,
-        claims,
-        on_press_outside,
     );
     let node = match children {
         Some(child) => wrap("Interactive", child),
         None => create("Interactive", "div"),
     };
     if focusable {
-        bind(tab_stop, move |stop| {
-            set_attribute(
-                node,
-                "tabindex",
-                Some(if stop { "0" } else { "-1" }.to_owned()),
-            );
-        });
+        let stop = TabStop::new(node, yields_tab_stop);
+        bind(tab_stop, move |tab_stop| stop.set(tab_stop));
         bind(focused, move |focused| {
             if focused {
                 beui_core_html::focus::set_focus(Some(node));
@@ -136,6 +116,32 @@ pub fn interactive(
     bind(ime, move |ime| held.ime.set(ime));
     let held = switches.clone();
     bind(hit_area, move |area| *held.hit_area.borrow_mut() = area);
+    let held = switches.clone();
+    bind(capture_presses, move |area| {
+        *held.capture_presses.borrow_mut() = area
+    });
+    let held = switches.clone();
+    bind(claims, move |claims| *held.claims.borrow_mut() = claims);
+    let held = switches.clone();
+    bind(every_sample, move |every| held.every_sample.set(every));
+    let held = switches.clone();
+    bind(grabs_pointer, move |grabs| held.grabs_pointer.set(grabs));
+    let held = switches.clone();
+    bind(repeat_drag, move |repeat| held.repeat_drag.set(repeat));
+    let held = switches.clone();
+    bind(pointer_locked, move |locked| {
+        held.pointer_locked.set(locked);
+        beui_core_html::interactive::lock_pointer(node, locked);
+    });
+    let held = switches.clone();
+    bind(keyboard, move |keyboard| {
+        held.keyboard.set(keyboard);
+        beui_core_html::ime::keyboard(node, keyboard);
+    });
+    create_binding(move || {
+        let action = touch_action(touch_drags.get(), &gesture_area.get(), &drawing.get());
+        set_style(node, "touch-action", action.map(str::to_owned));
+    });
     create_binding(move || beui_core_html::ime::sync(ime_text.get().as_ref()));
     create_binding(move || {
         beui_core_html::ime::place(ime_cursor.get().and_then(|cursor| cursor.rect));
@@ -161,8 +167,24 @@ pub fn interactive(
             on_drag,
             on_pointer,
             on_wheel,
+            on_activate_change,
+            on_step,
+            on_motion,
+            on_press_outside,
         },
         switches,
     );
     node
+}
+
+fn touch_action(drags: TouchDrags, gestures: &Area, drawing: &Area) -> Option<&'static str> {
+    if *gestures != Area::Nowhere || *drawing != Area::Nowhere {
+        return Some("none");
+    }
+    match drags {
+        TouchDrags::None => None,
+        TouchDrags::All => Some("none"),
+        TouchDrags::Along(crate::types::Direction::Horizontal) => Some("pan-y"),
+        TouchDrags::Along(crate::types::Direction::Vertical) => Some("pan-x"),
+    }
 }

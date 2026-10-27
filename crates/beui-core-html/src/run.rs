@@ -15,6 +15,11 @@ pub const BASE_STYLES: &str = "\
 .beui-root, .beui-root * { box-sizing: border-box; margin: 0; }
 .beui-break::after { content: \"\\A\"; white-space: pre; }
 .beui-stand-in { outline: 2px dashed #ff69b4; outline-offset: -2px; }
+.beui-overlay { position: fixed; inset: auto; margin: 0; padding: 0; border: 0; background: transparent; color: inherit; max-width: none; max-height: none; overflow: visible; }
+.beui-overlay::backdrop { background: var(--beui-scrim, transparent); }
+.beui-beak { position: absolute; z-index: -1; width: var(--beui-beak); height: var(--beui-beak); top: calc(var(--beui-beak) / -2); left: calc(50% - var(--beui-beak) / 2); transform: rotate(45deg); }
+.beui-beak[hidden] { display: none; }
+@container anchored(fallback: flip-block) { .beui-beak { top: auto; bottom: calc(var(--beui-beak) / -2); } }
 ";
 
 pub const STYLES_ID: &str = "beui-styles";

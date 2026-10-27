@@ -222,7 +222,7 @@ fn place(
         if cursor.as_ref() == Some(&dom) {
             cursor = dom.next_sibling();
         } else {
-            let _ = parent.insert_before(&dom, cursor.as_ref());
+            insert(parent, &dom, cursor.as_ref());
         }
     }
     while let Some(stale) = cursor {
@@ -232,6 +232,20 @@ fn place(
         cursor = stale.next_sibling();
         let _ = parent.remove_child(&stale);
     }
+}
+
+fn insert(parent: &web_sys::Node, dom: &web_sys::Node, before: Option<&web_sys::Node>) {
+    let moves = dom.is_connected() && parent.is_connected();
+    if moves
+        && let Ok(move_before) = js_sys::Reflect::get(parent, &"moveBefore".into())
+        && let Ok(move_before) = move_before.dyn_into::<js_sys::Function>()
+    {
+        let before = before.map_or(wasm_bindgen::JsValue::NULL, |before| before.into());
+        if move_before.call2(parent, dom, &before).is_ok() {
+            return;
+        }
+    }
+    let _ = parent.insert_before(dom, before);
 }
 
 fn mismatch(what: &str) {

@@ -1,0 +1,46 @@
+BE3BROWSER 1
+{
+  "size": [
+    240,
+    160
+  ],
+  "document": [
+    "<!doctype html>",
+    "<html>",
+    "<head>",
+    "<meta charset=\"utf-8\">",
+    "<style>",
+    ".beui-root { display: grid; grid-template-columns: minmax(0, 1fr); width: 100%; min-height: 100%; }\n.beui-root, .beui-root * { box-sizing: border-box; margin: 0; }\n.beui-break::after { content: \"\\A\"; white-space: pre; }\n.beui-stand-in { outline: 2px dashed #ff69b4; outline-offset: -2px; }\n.beui-overlay { position: fixed; inset: auto; margin: 0; padding: 0; border: 0; background: transparent; color: inherit; max-width: none; max-height: none; overflow: visible; }\n.beui-overlay::backdrop { background: var(--beui-scrim, transparent); }\n.beui-beak { position: absolute; z-index: -1; width: var(--beui-beak); height: var(--beui-beak); top: calc(var(--beui-beak) / -2); left: calc(50% - var(--beui-beak) / 2); transform: rotate(45deg); }\n.beui-beak[hidden] { display: none; }\n@container anchored(fallback: flip-block) { .beui-beak { top: auto; bottom: calc(var(--beui-beak) / -2); } }\nbody { margin: 0; height: 100vh; font: 14px sans-serif; }</style>",
+    "</head>",
+    "<body>",
+    "<div class=\"beui-root\" style=\"background-color: #fafaf7;\">",
+    "<div style=\"display: grid; grid-template-columns: minmax(0, 1fr); justify-items: start; align-items: start;\">",
+    "<div style=\"display: grid; grid-template-columns: minmax(0, 1fr); width: 240px; height: 160px; justify-items: stretch; align-items: stretch; outline: 1px solid #1e1e28; outline-offset: 0px;\">",
+    "<div style=\"position: relative; overflow: hidden;\">",
+    "<div style=\"position: absolute; left: 0; top: 0; width: 0; height: 0; transform-origin: 0 0; transform: translate(20px, 10px); --beui-scale: 2;\">",
+    "<div style=\"position: absolute; display: grid; grid-template-columns: minmax(0, 1fr); left: calc(0px * var(--beui-scale, 1)); top: calc(0px * var(--beui-scale, 1)); width: 40px; height: 20px; transform: scale(var(--beui-scale, 1)); transform-origin: 0 0;\">",
+    "<div style=\"display: grid; grid-template-columns: minmax(0, 1fr); justify-items: stretch; align-items: stretch; background-color: #466edc;\">",
+    "<div style=\"font: 14px Inter, system-ui, sans-serif; color: #fafaf7; white-space: pre-wrap; overflow-wrap: break-word;\">",
+    "Scaled</div>",
+    "</div>",
+    "</div>",
+    "<div style=\"position: absolute; display: grid; grid-template-columns: minmax(0, 1fr); left: calc(50px * var(--beui-scale, 1)); top: calc(0px * var(--beui-scale, 1)); width: calc(30px * var(--beui-scale, 1)); height: calc(20px * var(--beui-scale, 1));\">",
+    "<div style=\"display: grid; grid-template-columns: minmax(0, 1fr); justify-items: stretch; align-items: stretch; background-color: #3caa6e;\">",
+    "<div style=\"font: 14px Inter, system-ui, sans-serif; color: #fafaf7; white-space: pre-wrap; overflow-wrap: break-word;\">",
+    "Kept</div>",
+    "</div>",
+    "</div>",
+    "<div style=\"position: absolute; display: grid; grid-template-columns: minmax(0, 1fr); left: calc(100px * var(--beui-scale, 1)); top: calc(60px * var(--beui-scale, 1)); width: calc(40px * var(--beui-scale, 1)); height: calc(40px * var(--beui-scale, 1));\">",
+    "<div style=\"display: grid; grid-template-columns: minmax(0, 1fr); width: 80px; height: 80px; justify-items: stretch; align-items: stretch; background-color: #ebaa32;\">",
+    "</div>",
+    "</div>",
+    "</div>",
+    "</div>",
+    "</div>",
+    "</div>",
+    "</div>",
+    "</body>",
+    "</html>"
+  ],
+  "files": {}
+}

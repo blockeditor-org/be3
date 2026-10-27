@@ -50,13 +50,6 @@ fn bind<T: Clone + 'static>(prop: Prop<T>, apply: impl Fn(T) + 'static) {
     }
 }
 
-fn stand_in(kind: &'static str) -> crate::reactive::NodeId {
-    let node = beui_core_html::document::create(kind, "div");
-    beui_core_html::document::set_attribute(node, "class", Some("beui-stand-in".to_owned()));
-    beui_core_html::document::set_attribute(node, "title", Some(format!("TODO: {kind}")));
-    node
-}
-
 pub mod running {
     #[cfg(target_arch = "wasm32")]
     pub use beui_core_html::automate::automate;

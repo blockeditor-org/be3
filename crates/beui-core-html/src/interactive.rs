@@ -2,9 +2,9 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use beui_tree::reactive::{Callback, ClickCallback};
-use beui_types::Pasted;
 use beui_types::input::{ImeEvent, KeyPress, PointerInput, PointerPress, WheelInput};
-use beui_types::region::Area;
+use beui_types::region::{Area, Claim};
+use beui_types::{Pasted, Pos2, SoftKeyboard, Vec2};
 
 use crate::node::NodeId;
 
@@ -32,6 +32,10 @@ pub struct Handlers {
     pub on_drag: Callback<PointerPress>,
     pub on_pointer: Callback<PointerInput, bool>,
     pub on_wheel: Callback<WheelInput, bool>,
+    pub on_activate_change: Callback<bool>,
+    pub on_step: Callback<f32>,
+    pub on_motion: Callback<Vec2>,
+    pub on_press_outside: Callback<Pos2>,
 }
 
 #[derive(Default)]
@@ -39,6 +43,28 @@ pub struct Switches {
     pub press_focus: Cell<bool>,
     pub ime: Cell<bool>,
     pub hit_area: RefCell<Area>,
+    pub capture_presses: RefCell<Area>,
+    pub claims: RefCell<Vec<Claim>>,
+    pub pointer_locked: Cell<bool>,
+    pub every_sample: Cell<bool>,
+    pub grabs_pointer: Cell<bool>,
+    pub repeat_drag: Cell<bool>,
+    pub keyboard: Cell<SoftKeyboard>,
+}
+
+pub fn covers(area: &Area, local: Pos2) -> bool {
+    match area {
+        Area::Whole => true,
+        Area::Within(region) => region.contains(local),
+        Area::Nowhere | Area::CaretHandles => false,
+    }
+}
+
+pub fn lock_pointer(node: NodeId, locked: bool) {
+    #[cfg(target_arch = "wasm32")]
+    web::lock_pointer(node, locked);
+    #[cfg(not(target_arch = "wasm32"))]
+    let _ = (node, locked);
 }
 
 pub fn decorate(node: NodeId, handlers: Handlers, switches: Rc<Switches>) {
@@ -71,6 +97,24 @@ mod web {
         pressed: Cell<Option<i32>>,
         pinch: RefCell<beui_web_input::wheel::Pinch>,
         composed: RefCell<String>,
+        last_press: RefCell<Option<PointerPress>>,
+        activating: Cell<bool>,
+        repeating: Cell<Option<crate::frame::Timer>>,
+    }
+
+    const REPEAT: std::time::Duration = std::time::Duration::from_millis(16);
+
+    pub(super) fn lock_pointer(node: NodeId, locked: bool) {
+        let (Some(element), Some(document)) = (crate::dom::element(node), crate::dom::document())
+        else {
+            return;
+        };
+        let holds = document.pointer_lock_element().as_ref() == Some(&element);
+        match (locked, holds) {
+            (true, false) => element.request_pointer_lock(),
+            (false, true) => document.exit_pointer_lock(),
+            _ => {}
+        }
     }
 
     fn origin() -> Pos2 {
@@ -239,6 +283,68 @@ mod web {
             }
         }
 
+        fn repeat(&self) -> Option<std::time::Duration> {
+            if self.pressed.get().is_none() || !self.switches.repeat_drag.get() {
+                return None;
+            }
+            let press = self.last_press.borrow().clone()?;
+            self.handlers.on_drag.call(PointerPress {
+                time: crate::frame::now(),
+                ..press
+            });
+            reactive::flush();
+            Some(REPEAT)
+        }
+
+        fn down(&self, element: &web_sys::Element, event: &web_sys::PointerEvent) -> bool {
+            if !self.switches.press_focus.get() {
+                event.prevent_default();
+            }
+            let mut done = self.pointer(event, PointerStage::Down);
+            if event.button() == 0 {
+                self.pressed.set(Some(event.pointer_id()));
+                let at = press(element, event);
+                *self.last_press.borrow_mut() = Some(at.clone());
+                if !self.handlers.on_drag.is_empty() || self.switches.grabs_pointer.get() {
+                    let _ = element.set_pointer_capture(event.pointer_id());
+                }
+                if self.switches.pointer_locked.get() {
+                    element.request_pointer_lock();
+                }
+                if self.switches.keyboard.get() == beui_types::SoftKeyboard::OnPress
+                    && self.takes_text()
+                {
+                    crate::ime::show_keyboard(true);
+                }
+                self.handlers.on_active_change.call(true);
+                if !self.handlers.on_press.is_empty() {
+                    self.handlers.on_press.call(at.clone());
+                    done = true;
+                }
+                if self.switches.repeat_drag.get()
+                    && let Some(timer) = self.repeating.get()
+                {
+                    timer.restart(REPEAT);
+                }
+                if super::covers(&self.switches.capture_presses.borrow(), at.local) {
+                    done = true;
+                }
+            }
+            done
+        }
+
+        fn claims(&self, element: &web_sys::Element, event: &web_sys::PointerEvent) -> bool {
+            let claims = self.switches.claims.borrow();
+            if claims.is_empty() {
+                return false;
+            }
+            let at = placed(element, event.client_x().into(), event.client_y().into());
+            let held = modifiers(event);
+            claims
+                .iter()
+                .any(|claim| held.holds(claim.modifiers) && super::covers(&claim.area, at.local))
+        }
+
         fn takes_text(&self) -> bool {
             self.switches.ime.get() || !self.handlers.on_text.is_empty()
         }
@@ -278,6 +384,7 @@ mod web {
                 if held.takes_text() {
                     let sink = held.clone();
                     crate::ime::begin(held.node, Rc::new(move |events| sink.ime_events(events)));
+                    crate::ime::keyboard(held.node, held.switches.keyboard.get());
                 }
                 reactive::flush();
             }),
@@ -327,8 +434,24 @@ mod web {
                     modifiers,
                 });
                 let activates = matches!(event.key().as_str(), "Enter" | " ");
-                if !done && activates && !held.handlers.on_activate.is_empty() {
-                    held.handlers.on_activate.call();
+                let activating =
+                    !held.handlers.on_activate.is_empty() || !held.handlers.on_activate_change.is_empty();
+                if !done && activates && activating {
+                    if !event.repeat() && !held.activating.replace(true) {
+                        held.handlers.on_activate_change.call(true);
+                    }
+                    done = true;
+                }
+                let step = match event.key().as_str() {
+                    "ArrowRight" | "ArrowUp" => Some(1.0),
+                    "ArrowLeft" | "ArrowDown" => Some(-1.0),
+                    _ => None,
+                };
+                if !done
+                    && let Some(step) = step
+                    && !held.handlers.on_step.is_empty()
+                {
+                    held.handlers.on_step.call(step);
                     done = true;
                 }
                 handled(event, done);
@@ -350,12 +473,17 @@ mod web {
                     event.meta_key(),
                     event.shift_key(),
                 );
-                let done = held.handlers.on_key.call(KeyPress {
+                let mut done = held.handlers.on_key.call(KeyPress {
                     key,
                     pressed: false,
                     repeat: false,
                     modifiers,
                 });
+                if matches!(event.key().as_str(), "Enter" | " ") && held.activating.replace(false) {
+                    held.handlers.on_activate_change.call(false);
+                    held.handlers.on_activate.call();
+                    done = true;
+                }
                 handled(event, done);
             }),
         ));
@@ -371,27 +499,60 @@ mod web {
                 if !held.hits(&element, event) {
                     return;
                 }
-                if !held.switches.press_focus.get() {
-                    event.prevent_default();
-                }
-                let mut done = held.pointer(event, PointerStage::Down);
-                if event.button() == 0 {
-                    held.pressed.set(Some(event.pointer_id()));
-                    if !held.handlers.on_drag.is_empty() {
-                        let _ = element.set_pointer_capture(event.pointer_id());
-                    }
-                    held.handlers.on_active_change.call(true);
-                    if !held.handlers.on_press.is_empty() {
-                        held.handlers.on_press.call(press(&element, event));
-                        done = true;
-                    }
-                }
-                if done {
+                if held.down(&element, event) {
                     event.stop_propagation();
                 }
                 reactive::flush();
             }),
         ));
+        let held = state.clone();
+        listeners.push(crate::dom::listen(
+            target,
+            "pointerdown",
+            true,
+            move |event: web_sys::Event| {
+                let (Some(pointer), Some(element)) =
+                    (event.dyn_ref::<web_sys::PointerEvent>(), held.element())
+                else {
+                    return;
+                };
+                if !held.claims(&element, pointer) {
+                    return;
+                }
+                held.down(&element, pointer);
+                event.stop_propagation();
+                reactive::flush();
+            },
+        ));
+        if !state.handlers.on_press_outside.is_empty()
+            && let Some(document) = crate::dom::document()
+        {
+            let held = state.clone();
+            listeners.push(crate::dom::listen(
+                document.as_ref(),
+                "pointerdown",
+                true,
+                move |event: web_sys::Event| {
+                    let (Some(pointer), Some(element)) =
+                        (event.dyn_ref::<web_sys::PointerEvent>(), held.element())
+                    else {
+                        return;
+                    };
+                    if pointer.button() != 0 {
+                        return;
+                    }
+                    let inside = event
+                        .target()
+                        .and_then(|target| target.dyn_into::<web_sys::Node>().ok())
+                        .is_some_and(|target| element.contains(Some(&target)));
+                    if !inside {
+                        let at = placed(&element, pointer.client_x().into(), pointer.client_y().into());
+                        held.handlers.on_press_outside.call(at.pos);
+                        reactive::flush();
+                    }
+                },
+            ));
+        }
         let held = state.clone();
         listeners.push(on(
             "pointermove",
@@ -401,12 +562,38 @@ mod web {
                 else {
                     return;
                 };
-                let done = held.pointer(event, PointerStage::Move);
-                match held.pressed.get() {
-                    Some(pointer) if pointer == event.pointer_id() => {
-                        held.handlers.on_drag.call(press(&element, event));
+                let locked = crate::dom::document()
+                    .and_then(|document| document.pointer_lock_element())
+                    .is_some_and(|locked| locked == element);
+                if locked && !held.handlers.on_motion.is_empty() {
+                    held.handlers.on_motion.call(vec2(
+                        event.movement_x() as f32,
+                        event.movement_y() as f32,
+                    ));
+                }
+                let samples: Vec<web_sys::PointerEvent> = match held.switches.every_sample.get() {
+                    true => crate::dom::call(event.as_ref(), "getCoalescedEvents", &[])
+                        .map(|samples| {
+                            js_sys::Array::from(&samples)
+                                .iter()
+                                .filter_map(|sample| sample.dyn_into().ok())
+                                .collect()
+                        })
+                        .filter(|samples: &Vec<web_sys::PointerEvent>| !samples.is_empty())
+                        .unwrap_or_else(|| vec![event.clone()]),
+                    false => vec![event.clone()],
+                };
+                let mut done = false;
+                for sample in &samples {
+                    done |= held.pointer(sample, PointerStage::Move);
+                    let at = press(&element, sample);
+                    match held.pressed.get() {
+                        Some(pointer) if pointer == event.pointer_id() => {
+                            *held.last_press.borrow_mut() = Some(at.clone());
+                            held.handlers.on_drag.call(at);
+                        }
+                        _ => held.handlers.on_hover_move.call(at),
                     }
-                    _ => held.handlers.on_hover_move.call(press(&element, event)),
                 }
                 handled(event, done);
             }),
@@ -569,7 +756,14 @@ mod web {
             pressed: Cell::new(None),
             pinch: RefCell::default(),
             composed: RefCell::default(),
+            last_press: RefCell::default(),
+            activating: Cell::new(false),
+            repeating: Cell::new(None),
         });
+        let held = state.clone();
+        state
+            .repeating
+            .set(Some(crate::frame::create_timer(move || held.repeat())));
         let attached: RefCell<Option<(web_sys::Element, Vec<Listener>)>> = RefCell::default();
         crate::frame::on_layout(Rc::new(move || {
             let Some(element) = state.element() else {
@@ -583,5 +777,64 @@ mod web {
             *attached = Some((element, listeners));
             false
         }));
+    }
+}
+
+pub struct TabStop {
+    node: NodeId,
+    stop: Cell<bool>,
+    yields: bool,
+}
+
+impl TabStop {
+    pub fn new(node: NodeId, yields: bool) -> Rc<Self> {
+        let stop = Rc::new(Self {
+            node,
+            stop: Cell::new(true),
+            yields,
+        });
+        #[cfg(target_arch = "wasm32")]
+        if yields {
+            let pass = Rc::clone(&stop);
+            crate::frame::on_layout(Rc::new(move || {
+                pass.apply();
+                false
+            }));
+        }
+        stop
+    }
+
+    pub fn set(&self, stop: bool) {
+        self.stop.set(stop);
+        self.apply();
+    }
+
+    fn apply(&self) {
+        let inner = self.yields && self.holds_tab_stops();
+        let stop = self.stop.get() && !inner;
+        crate::document::set_attribute(
+            self.node,
+            "tabindex",
+            Some(if stop { "0" } else { "-1" }.to_owned()),
+        );
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn holds_tab_stops(&self) -> bool {
+        crate::dom::element(self.node)
+            .and_then(|element| {
+                element
+                    .query_selector(
+                        ":is([tabindex], a[href], button, input, select, textarea):not([tabindex=\"-1\"])",
+                    )
+                    .ok()
+                    .flatten()
+            })
+            .is_some()
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn holds_tab_stops(&self) -> bool {
+        false
     }
 }

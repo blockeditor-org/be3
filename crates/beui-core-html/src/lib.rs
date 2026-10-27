@@ -1,4 +1,5 @@
 pub mod automate;
+pub mod canvas;
 pub mod css;
 pub mod document;
 pub mod dom;
@@ -13,6 +14,8 @@ pub mod measure;
 pub mod node;
 pub mod overlay;
 pub mod page;
+pub mod portal;
+pub mod rows;
 pub mod run;
 pub mod scroll;
 pub mod tree;

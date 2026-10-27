@@ -4,6 +4,7 @@ pub mod input;
 pub mod layer;
 pub mod layout;
 pub mod region;
+pub mod rows;
 pub mod text;
 pub mod window;
 

@@ -394,3 +394,16 @@ pub fn about_elements() -> Vec<About> {
 pub(crate) fn nodes() -> Vec<(NodeId, Node)> {
     outermost(|_| true)
 }
+
+pub fn style_value(node: NodeId, property: &str) -> Option<String> {
+    with_entry(node, |entry| {
+        let shared = entry.shared.borrow();
+        shared
+            .placed
+            .iter()
+            .chain(&shared.style)
+            .find(|(name, _)| *name == property)
+            .map(|(_, value)| value.clone())
+    })
+    .flatten()
+}
