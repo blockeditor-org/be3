@@ -541,6 +541,13 @@ mod web {
         if within(&dialog, target.as_ref()) {
             return;
         }
+        let wanted = crate::focus::wanted()
+            .and_then(crate::dom::dom)
+            .is_some_and(|wanted| dialog.contains(Some(&wanted)));
+        if wanted {
+            crate::focus::apply_wanted();
+            return;
+        }
         let first = dialog
             .query_selector("[tabindex], a[href], button, input, select, textarea")
             .ok()
@@ -634,6 +641,7 @@ mod web {
     fn show(dialog: &web_sys::Element, modal: bool) {
         hide(dialog);
         let value = JsValue::from(dialog);
+        let _ = dialog.set_attribute("inert", "");
         match modal {
             true => {
                 let _ = dialog.remove_attribute("popover");
@@ -644,6 +652,8 @@ mod web {
                 crate::dom::call(&value, "showPopover", &[]);
             }
         }
+        let _ = dialog.remove_attribute("inert");
+        crate::focus::apply_wanted();
     }
 
     fn anchor_rect(layer: &Layer) -> Option<Rect> {

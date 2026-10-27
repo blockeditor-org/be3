@@ -1,0 +1,15 @@
+# Toasts stack in their area, close from their dismiss button and run an
+# action.
+clock stop
+wait 'value="Toasts 0 chose nothing"'
+click 'Button "Toast"'
+wait '#toast.1'
+click 'Button "Message"'
+wait '#toast.2'
+wait 'value="Toasts 2 chose nothing"'
+click '#toast.1.dismiss'
+gone '#toast.1'
+wait 'value="Toasts 1 chose nothing"'
+click '#toast.2.action.reply'
+gone '#toast.2'
+wait 'value="Toasts 0 chose reply 2"'

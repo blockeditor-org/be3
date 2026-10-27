@@ -54,6 +54,10 @@ pub fn set_focus(node: Option<NodeId>) {
     crate::frame::request_frame();
 }
 
+pub(crate) fn wanted() -> Option<NodeId> {
+    WANTED.with(Cell::get)
+}
+
 pub(crate) fn apply_wanted() {
     #[cfg(target_arch = "wasm32")]
     {

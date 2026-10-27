@@ -6,7 +6,9 @@ use beui::{
     TextMark, Vec2,
 };
 
+mod collections;
 mod controls;
+mod layers;
 #[cfg(not(target_arch = "wasm32"))]
 mod native;
 #[cfg(test)]
@@ -91,6 +93,24 @@ pub fn Fixture(name: String) -> Root {
         },
         "fields" => view! {
             <controls::FieldsFixture />
+        },
+        "dialogs" => view! {
+            <layers::DialogsFixture />
+        },
+        "toasts" => view! {
+            <layers::ToastsFixture />
+        },
+        "palette" => view! {
+            <layers::PaletteFixture />
+        },
+        "tree" => view! {
+            <collections::TreeFixture />
+        },
+        "table" => view! {
+            <collections::TableFixture />
+        },
+        "dates" => view! {
+            <collections::DatesFixture />
         },
         other => {
             let message = format!("No fixture is named {other}");
