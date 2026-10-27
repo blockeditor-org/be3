@@ -730,7 +730,10 @@ impl EditorSession {
                 .filter(|_| {
                     matches!(
                         region,
-                        EditorRegion::Frame | EditorRegion::Display(_) | EditorRegion::Window(_)
+                        EditorRegion::Frame
+                            | EditorRegion::Display(_)
+                            | EditorRegion::Window(_)
+                            | EditorRegion::Tab(_)
                     ) && crate::screens::describing()
                 })
                 .map(|state| state.epoch),
@@ -844,7 +847,10 @@ impl EditorSession {
             state.window = frame.window.clone();
             let reports = matches!(
                 region,
-                EditorRegion::Frame | EditorRegion::Display(_) | EditorRegion::Window(_)
+                EditorRegion::Frame
+                            | EditorRegion::Display(_)
+                            | EditorRegion::Window(_)
+                            | EditorRegion::Tab(_)
             );
             match frame.description.as_mut() {
                 Some(description) => {

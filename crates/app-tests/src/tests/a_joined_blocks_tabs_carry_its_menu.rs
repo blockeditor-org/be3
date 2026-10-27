@@ -1,12 +1,12 @@
 use super::*;
 
-const DOCKING_MORE: &str = "1049,60";
+const DOCKING_MORE: &str = "#dock.joined:2/pages.menu";
 
 #[test]
 fn a_joined_blocks_tabs_carry_its_menu() {
     let mut app = AppTest::start();
     open_beui_demo(&mut app);
-    app.run(&["click", DOCKING_MORE]);
+    app.click(DOCKING_MORE);
     app.wait("MenuItem \"File details\"");
     app.wait("MenuItem \"Referenced by (2)\"");
     app.snapshot("a_joined_blocks_tabs_carry_its_menu");

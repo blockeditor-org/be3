@@ -2127,8 +2127,15 @@ with its tabs in a sidebar (`vertical`, `sidebar_width`), and can be `locked` to
 keep its tabs in its area (below). `DockWindow` floats one
 tree at a `rect`. A tab's key is any `Clone + Eq + Hash` type; a key that is a
 `TabId` or a `u64` names the tab's `TabId` too, which is what the test ids of its
-close button and switcher row carry. Every container has an `id`, saved with the
-layout, so that a layout saved by older code still finds its panes.
+close button and switcher row carry (`dock.tab.<tab>.close`; a group's close button
+carries its hosting tab's). Every container has an `id`, saved with the
+layout, so that a layout saved by older code still finds its panes. A pane's
+bar names its controls after the pane's `id`: `dock.grip.<id>`, and under the
+prefix `dock.<id>` its More button (`dock.<id>.menu`, its items
+`dock.<id>.menu.<item>`), pinned actions (`dock.<id>.pin.<action>`) and close
+button (`dock.<id>.close`), so two panes showing the same actions stay apart. A
+pane the user made has no `id` and the bare prefix `dock`, as has the one bar of
+a stacked dock (`dock.menu`, `dock.pin.<action>`).
 
 The children are the full set of tabs: a tab the code no longer declares is
 closed, and a tab it starts declaring is placed. Closing is a request -

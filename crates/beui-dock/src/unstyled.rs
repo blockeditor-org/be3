@@ -145,6 +145,7 @@ pub struct DockBarHandle {
     pub closable: Memo<bool>,
     pub menu: Memo<Vec<MenuNode>>,
     pub close: ClickCallback,
+    pub test_prefix: String,
 }
 
 pub struct DockSplitterHandle {
@@ -2226,6 +2227,7 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
                         closable,
                         menu,
                         close,
+                        test_prefix: dock.pane_test_id("dock", leaf),
                     });
                     let parts = ChromeParts {
                         floating,
@@ -3215,6 +3217,10 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                                 closable,
                                                                 menu,
                                                                 close,
+                                                                test_prefix: hoisted.map_or_else(
+                                                                    || "dock".to_owned(),
+                                                                    |leaf| dock.pane_test_id("dock", leaf),
+                                                                ),
                                                             }),
                                                             leaf: hoisted,
                                                             body: pane,

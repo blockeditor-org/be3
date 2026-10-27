@@ -623,15 +623,16 @@ fn DockBarFace(handle: DockBarHandle) -> NodeId {
         closable,
         menu,
         close,
+        test_prefix,
         ..
     } = handle;
     let close = move || close.call();
     match vertical {
         true => view! {
-            <DockSideBar grip tabs title vacant menu closable icons_only close />
+            <DockSideBar grip tabs title vacant menu closable icons_only close test_prefix />
         },
         false => view! {
-            <DockTitleBar grip tabs title vacant menu closable close />
+            <DockTitleBar grip tabs title vacant menu closable close test_prefix />
         },
     }
 }
@@ -645,6 +646,7 @@ fn DockTitleBar(
     menu: Memo<Vec<MenuNode>>,
     closable: Memo<bool>,
     close: ClickCallback,
+    test_prefix: String,
 ) -> NodeId {
     let titled = tabs.is_none();
     let fill = bar_fill(vacant);
@@ -662,6 +664,7 @@ fn DockTitleBar(
                         true => BarRoom::Narrow,
                         false => BarRoom::Wide,
                     });
+                    let menu_prefix = test_prefix.clone();
                     view! {
                         <List
                             direction=Direction::Horizontal
@@ -681,9 +684,9 @@ fn DockTitleBar(
                                 }
                             }</Show>
                             <Dynamic value={room}>|room: BarRoom|
-                                <DockMenu menu room />
+                                <DockMenu menu room test_prefix={menu_prefix.clone()} />
                             </Dynamic>
-                            <DockClose closable close={close} />
+                            <DockClose closable close={close} test_prefix={test_prefix.clone()} />
                         </List>
                     }
                 }</Container>
@@ -703,6 +706,7 @@ fn DockSideBar(
     closable: Memo<bool>,
     icons_only: Memo<bool>,
     close: ClickCallback,
+    test_prefix: String,
 ) -> NodeId {
     let titled = tabs.is_none();
     let fill = bar_fill(vacant);
@@ -711,6 +715,8 @@ fn DockSideBar(
         true => Justify::Center,
         false => Justify::SpaceBetween,
     });
+    let narrow = test_prefix.clone();
+    let column = test_prefix;
     view! {
         <List direction=Direction::Horizontal spacing=Space::None>
             <Frame fill={fill} padding=BAR_PADDING @sizing=ItemSize::Percent(100.0)>
@@ -722,16 +728,18 @@ fn DockSideBar(
                         spacing=BAR_SPACING
                     >
                         {grip}
-                        <Show condition={titles}>
-                            <List
-                                direction=Direction::Horizontal
-                                align=Align::Center
-                                spacing=BAR_SPACING
-                            >
-                                <DockMenu menu room=BarRoom::Narrow />
-                                <DockClose closable close={close} />
-                            </List>
-                        </Show>
+                        <Show condition={titles}>|| {
+                            let test_prefix = narrow.clone(); view! {
+                                <List
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    spacing=BAR_SPACING
+                                >
+                                    <DockMenu menu room=BarRoom::Narrow test_prefix={test_prefix.clone()} />
+                                    <DockClose closable close={close} test_prefix />
+                                </List>
+                            }
+                        }</Show>
                     </List>
                     {tabs} @sizing=ItemSize::Percent(100.0)
                     <Show condition={titled}>|| {
@@ -739,12 +747,14 @@ fn DockSideBar(
                             <Text overflow=Overflow::Ellipsis>{title}</Text>
                         }
                     }</Show>
-                    <Show condition={icons_only}>
-                        <List align=Align::Center spacing=BAR_SPACING>
-                            <DockMenu menu room=BarRoom::Column />
-                            <DockClose closable close={close} />
-                        </List>
-                    </Show>
+                    <Show condition={icons_only}>|| {
+                        let test_prefix = column.clone(); view! {
+                            <List align=Align::Center spacing=BAR_SPACING>
+                                <DockMenu menu room=BarRoom::Column test_prefix={test_prefix.clone()} />
+                                <DockClose closable close={close} test_prefix />
+                            </List>
+                        }
+                    }</Show>
                 </List>
             </Frame>
         </List>
@@ -760,7 +770,7 @@ pub(crate) enum BarRoom {
 }
 
 #[component]
-pub(crate) fn DockMenu(menu: Memo<Vec<MenuNode>>, room: BarRoom) -> NodeId {
+pub(crate) fn DockMenu(menu: Memo<Vec<MenuNode>>, room: BarRoom, test_prefix: String) -> NodeId {
     let labels = match room {
         BarRoom::Wide => ActionLabels::Shown,
         BarRoom::Narrow | BarRoom::Column => ActionLabels::Icons,
@@ -781,17 +791,22 @@ pub(crate) fn DockMenu(menu: Memo<Vec<MenuNode>>, room: BarRoom) -> NodeId {
             title={room == BarRoom::Phone}
             direction
             size
-            test_prefix={"dock".to_owned()}
+            test_prefix
         />
     }
 }
 
 #[component]
-fn DockClose(closable: Memo<bool>, close: ClickCallback) -> DynamicSegment<ListChild> {
+fn DockClose(
+    closable: Memo<bool>,
+    close: ClickCallback,
+    test_prefix: String,
+) -> DynamicSegment<ListChild> {
     view! {
         <Show condition={closable}>
             <Button
                 icon_only=true
+                @test_id={format!("{test_prefix}.close")}
                 glyph=ICON_X
                 label="Close pane"
                 size=ButtonSize::Toolbar

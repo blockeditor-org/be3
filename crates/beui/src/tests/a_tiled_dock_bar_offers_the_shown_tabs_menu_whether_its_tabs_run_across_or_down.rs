@@ -11,7 +11,7 @@ fn laid_out(harness: &Harness, test_id: &str) -> bool {
 }
 
 fn choose(harness: &mut Harness, label: &str) {
-    let at = harness.center(harness.find("dock.menu"));
+    let at = harness.center(harness.find("dock.tabs.menu"));
     harness.click(at);
     harness.settle();
     let root = harness.document().root().expect("the document has a root");
@@ -57,10 +57,10 @@ fn a_tiled_dock_bar_offers_the_shown_tabs_menu_whether_its_tabs_run_across_or_do
     let dock = dock.get();
 
     assert!(
-        laid_out(&harness, "dock.menu"),
+        laid_out(&harness, "dock.tabs.menu"),
         "the bar offers the shown tab's menu"
     );
-    let menu = harness.rect(harness.find("dock.menu"));
+    let menu = harness.rect(harness.find("dock.tabs.menu"));
     let tab = harness.rect(dock_tab(harness.document(), dock, "Tab 2"));
     assert!(
         menu.left() > tab.right(),
@@ -93,7 +93,7 @@ fn a_tiled_dock_bar_offers_the_shown_tabs_menu_whether_its_tabs_run_across_or_do
         "the pane shows its tabs in a sidebar"
     );
     assert!(
-        laid_out(&harness, "dock.menu"),
+        laid_out(&harness, "dock.tabs.menu"),
         "a pane with its tabs in a sidebar still offers the menu"
     );
     choose(&mut harness, "Tidy up");
@@ -104,7 +104,7 @@ fn a_tiled_dock_bar_offers_the_shown_tabs_menu_whether_its_tabs_run_across_or_do
     harness.settle();
     assert!(laid_out(&harness, "content.1"));
     assert!(
-        !laid_out(&harness, "dock.menu"),
+        !laid_out(&harness, "dock.tabs.menu"),
         "a tab that hands over no menu shows no menu button"
     );
 }

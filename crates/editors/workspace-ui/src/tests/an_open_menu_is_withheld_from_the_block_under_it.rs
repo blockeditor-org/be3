@@ -10,7 +10,7 @@ fn an_open_menu_is_withheld_from_the_block_under_it() {
         "a workspace with no menu open withholds nothing from the block it shows"
     );
 
-    fixture.test.click("dock.menu");
+    fixture.test.click("dock.editors.menu");
     fixture.settle();
 
     let occluder = fixture

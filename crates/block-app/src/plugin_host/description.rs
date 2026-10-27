@@ -43,7 +43,10 @@ pub(crate) fn describe(context: &beui::Context) {
             .filter(|((_, region), _)| {
                 matches!(
                     region,
-                    EditorRegion::Frame | EditorRegion::Display(_) | EditorRegion::Window(_)
+                    EditorRegion::Frame
+                            | EditorRegion::Display(_)
+                            | EditorRegion::Window(_)
+                            | EditorRegion::Tab(_)
                 )
             })
             .map(|((instance, region), placed)| {

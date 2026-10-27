@@ -11,6 +11,7 @@ mod a_deleted_joined_block_says_so_on_each_of_its_tabs;
 mod a_demo_tab_unlocked_from_the_workspace_dock_moves_beside_the_files_with_its_page;
 mod a_drag_across_an_empty_map_pans_it;
 mod a_joined_blocks_tabs_carry_its_menu;
+mod a_joined_demos_tab_bodies_are_in_the_accessibility_tree;
 mod a_local_account_needs_only_a_display_name;
 mod a_new_folder_opens_its_editor;
 mod a_new_image_asks_for_its_file_in_the_image_editors_own_dialog;
@@ -88,6 +89,19 @@ fn choose_type(app: &mut AppTest, label: &str) {
     app.type_text(label);
     app.click(&format!("Button \"{label}\""));
     app.gone("#picker.search");
+}
+
+fn row_menu(app: &mut AppTest, title: &str) -> String {
+    let tree = app.tree();
+    let row = format!("TreeItem \"{title}\"");
+    tree.lines()
+        .skip_while(|line| !line.contains(&row))
+        .skip(1)
+        .take_while(|line| !line.contains("TreeItem "))
+        .flat_map(str::split_whitespace)
+        .find(|word| word.starts_with("#file-tree.") && word.ends_with(".more"))
+        .unwrap_or_else(|| panic!("the file row {title:?} has no menu button in\n{tree}"))
+        .to_owned()
 }
 
 fn open_beui_demo(app: &mut AppTest) {
