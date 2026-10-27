@@ -7,6 +7,8 @@ use beui_view::types::{CursorIcon, KeyPress, PointerPress};
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::escape::beui_html::{Node as HtmlNode, elements as html};
+use beui_view::escape::html_escape;
 use beui_view::{CORE, Core};
 
 #[derive(Clone, Copy)]
@@ -131,31 +133,27 @@ pub fn Button(
     }));
 
     let linked = untrack(|| href.get().is_some());
-    let element = match (CORE, linked, submit) {
-        (Core::Html, true, _) => Some((
-            "a",
-            vec![(
-                "href",
-                Prop::dynamic(move || href.get().filter(|_| !disabled.get())),
-            )],
-        )),
-        (Core::Html, false, true) => Some((
-            "button",
-            vec![
-                ("type", Prop::Static(Some("submit".to_owned()))),
-                (
-                    "disabled",
-                    Prop::dynamic(move || disabled.get().then(String::new)),
-                ),
-            ],
-        )),
+    let platform = match (CORE, linked, submit) {
+        (Core::Html, true, _) => Some(true),
+        (Core::Html, false, true) => Some(false),
         _ => None,
     };
-    let browser_activates = element.is_some();
-    let content_node = match element {
-        Some((tag, attributes)) => Some(view! {
-            <Element tag attributes styles={crate::form::cell_styles()} children={content_node} />
-        }),
+    let browser_activates = platform.is_some();
+    let content_node = match platform {
+        Some(link) => Some(html_escape(move |escape| {
+            crate::form::fill_cell(escape);
+            let inner: Children<HtmlNode> = content_node.map(|child| escape.embed(child)).into_iter().collect();
+            match link {
+                true => view! {
+                    <html::A href={Prop::dynamic(move || href.get().filter(|_| !disabled.get()))}>
+                        {inner}
+                    </html::A>
+                },
+                false => view! {
+                    <html::Button r#type="submit" disabled={disabled}>{inner}</html::Button>
+                },
+            }
+        })),
         None => content_node,
     };
     let (key_active_change, key_click): (Callback<bool>, ClickCallback) = match browser_activates {

@@ -4,7 +4,7 @@ pub(crate) mod canvas;
 pub(crate) mod colors;
 pub(crate) mod drag;
 pub(crate) mod drawing;
-pub(crate) mod element;
+pub(crate) mod escape;
 pub(crate) mod files;
 pub(crate) mod frame;
 pub(crate) mod grid;

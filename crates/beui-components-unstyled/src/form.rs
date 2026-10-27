@@ -1,7 +1,8 @@
 use beui_macros::{component, view};
-use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::escape::beui_html::{Event, Node, elements as html};
+use beui_view::escape::{Escape, html_escape};
 use beui_view::{CORE, Core};
 
 #[derive(Clone, Copy)]
@@ -13,14 +14,9 @@ pub(crate) fn form_submit() -> Option<ClickCallback> {
     use_context::<FormContext>().map(|form| form.submit)
 }
 
-pub(crate) fn cell_styles() -> Vec<(&'static str, Prop<Option<CssValue>>)> {
-    vec![
-        ("display", Prop::Static(Some(CssValue::Keyword("grid")))),
-        (
-            "grid-template",
-            Prop::Static(Some(CssValue::Keyword("minmax(0, 1fr) / minmax(0, 1fr)"))),
-        ),
-    ]
+pub(crate) fn fill_cell(escape: &Escape) {
+    escape.style("display", "grid".to_owned());
+    escape.style("grid-template", "minmax(0, 1fr) / minmax(0, 1fr)".to_owned());
 }
 
 #[component]
@@ -38,45 +34,33 @@ pub fn Form(
     if CORE != Core::Html {
         return content;
     }
-    let fields: Vec<NodeId> = hidden
-        .into_iter()
-        .map(|(name, value)| {
-            view! {
-                <Element
-                    tag="input"
-                    attributes={vec![
-                        ("type", Prop::Static(Some("hidden".to_owned()))),
-                        ("name", Prop::Static(Some(name.to_owned()))),
-                        ("value", Prop::Static(Some(value))),
-                    ]}
-                />
-            }
-        })
-        .collect();
-    let body = view! {
-        <List spacing=0.0>{Children::<ListChild>::from_iter(fields)}{content}</List>
-    };
     let action = Prop::dynamic(move || Some(action.get()).filter(|action| !action.is_empty()));
-    view! {
-        <Element
-            tag="form"
-            attributes={vec![
-                ("method", Prop::Static(Some("post".to_owned()))),
-                ("action", action),
-                ("novalidate", Prop::Static(Some(String::new()))),
-            ]}
-            styles={cell_styles()}
-            events={vec![(
-                "submit",
-                Callback::new(move |event: ElementEvent| {
+    html_escape(move |escape| {
+        fill_cell(escape);
+        let content = escape.embed(content);
+        let fields: Children<Node> = hidden
+            .into_iter()
+            .map(|(name, value)| {
+                view! {
+                    <html::Input r#type="hidden" name={name.to_owned()} value={value} />
+                }
+            })
+            .collect();
+        view! {
+            <html::Form
+                method="post"
+                action={action}
+                novalidate=true
+                on_submit={move |event: Event| {
                     if !on_submit.is_empty() {
                         event.prevent_default();
                         on_submit.call();
                     }
-                }),
-            )]}
-        >
-            {body}
-        </Element>
-    }
+                }}
+            >
+                {fields}
+                {content}
+            </html::Form>
+        }
+    })
 }

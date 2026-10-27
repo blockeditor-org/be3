@@ -5,6 +5,7 @@ pub use beui_components_styled as styled;
 pub use beui_components_unstyled as unstyled;
 pub use beui_components_unstyled::datetime;
 pub use beui_view::animation;
+pub use beui_view::escape;
 pub use beui_view::components::selectable;
 pub use beui_view::primitives;
 pub use beui_view::types::*;

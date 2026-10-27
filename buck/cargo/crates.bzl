@@ -9392,6 +9392,19 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-tree:beui-tree",
+                    "//third-party/rust:js-sys-0.3.99",
+                    "//third-party/rust:wasm-bindgen-0.2.122",
+                    "//third-party/rust:web-sys-0.3.99",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "wasi-html": {
                 "binaries": {},
                 "deps": [
@@ -11800,6 +11813,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-html:beui-html",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-tree:beui-tree",
                     "//crates/beui-types:beui-types",
@@ -11817,6 +11831,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-html:beui-html",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-tree:beui-tree",
                     "//crates/beui-types:beui-types",
@@ -11834,6 +11849,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-html:beui-html",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-tree:beui-tree",
                     "//crates/beui-types:beui-types",
@@ -11851,6 +11867,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core-html:beui-core-html",
+                    "//crates/beui-html:beui-html",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-tree:beui-tree",
                     "//crates/beui-types:beui-types",
@@ -11868,6 +11885,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-html:beui-html",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-tree:beui-tree",
                     "//crates/beui-types:beui-types",
@@ -11885,6 +11903,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-html:beui-html",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-tree:beui-tree",
                     "//crates/beui-types:beui-types",
@@ -11902,6 +11921,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-html:beui-html",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-tree:beui-tree",
                     "//crates/beui-types:beui-types",
@@ -11917,6 +11937,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-html:beui-html",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-tree:beui-tree",
                     "//crates/beui-types:beui-types",
@@ -11932,6 +11953,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core-html:beui-core-html",
+                    "//crates/beui-html:beui-html",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-tree:beui-tree",
                     "//crates/beui-types:beui-types",
@@ -11947,6 +11969,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-html:beui-html",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-tree:beui-tree",
                     "//crates/beui-types:beui-types",
@@ -11964,6 +11987,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-html:beui-html",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-tree:beui-tree",
                     "//crates/beui-types:beui-types",
@@ -50275,7 +50299,9 @@ third_party = {
                     ":wasm-bindgen-0.2.122",
                 ],
                 "features": [
+                    "default",
                     "std",
+                    "unsafe-eval",
                 ],
             },
             "wasi-html": {
@@ -77443,6 +77469,7 @@ third_party = {
                     ":wasm-bindgen-shared-0.2.122",
                 ],
                 "features": [
+                    "default",
                     "std",
                 ],
             },
@@ -81908,7 +81935,11 @@ third_party = {
                     ":wasm-bindgen-0.2.122",
                 ],
                 "features": [
+                    "CharacterData",
+                    "Comment",
+                    "Document",
                     "Element",
+                    "Event",
                     "EventTarget",
                     "HtmlCanvasElement",
                     "HtmlElement",
@@ -81917,9 +81948,15 @@ third_party = {
                     "HtmlVideoElement",
                     "ImageBitmap",
                     "ImageData",
+                    "KeyboardEvent",
                     "Node",
                     "OffscreenCanvas",
+                    "Text",
+                    "UiEvent",
                     "VideoFrame",
+                    "Window",
+                    "console",
+                    "default",
                     "std",
                 ],
             },

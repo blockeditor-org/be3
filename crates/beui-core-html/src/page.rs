@@ -219,6 +219,12 @@ pub(crate) fn watch(window: &web_sys::Window) -> Vec<crate::dom::Listener> {
         false,
         move |_: web_sys::Event| resized(),
     ));
+    listeners.push(crate::dom::listen(
+        window.as_ref(),
+        "scroll",
+        true,
+        |_: web_sys::Event| crate::frame::request_frame(),
+    ));
     if let Some(fonts) = window.document().map(|document| document.fonts()) {
         listeners.push(crate::dom::listen(
             fonts.as_ref(),

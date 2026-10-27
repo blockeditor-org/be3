@@ -119,6 +119,30 @@ impl Node {
         dom::live_node(self)
     }
 
+    pub fn number(&self, property: &str) -> Option<f64> {
+        #[cfg(target_arch = "wasm32")]
+        return dom::number(self, property);
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let _ = property;
+            None
+        }
+    }
+
+    pub fn set_number(&self, property: &str, value: f64) {
+        #[cfg(target_arch = "wasm32")]
+        dom::set_number(self, property, value);
+        #[cfg(not(target_arch = "wasm32"))]
+        let _ = (property, value);
+    }
+
+    pub fn call(&self, method: &str) {
+        #[cfg(target_arch = "wasm32")]
+        dom::call(self, method);
+        #[cfg(not(target_arch = "wasm32"))]
+        let _ = method;
+    }
+
     pub fn is(&self, other: &Node) -> bool {
         Rc::ptr_eq(&self.0, &other.0)
     }

@@ -3,7 +3,6 @@ use crate::reactive::Child;
 use crate::reactive::Get;
 use crate::reactive::Prop;
 use crate::reactive::create_effect;
-use crate::types::PlatformScroll;
 use beui_core::base::list::Direction;
 use beui_core::base::offset::ScrollPosition;
 use beui_core::current::with_document;
@@ -14,11 +13,9 @@ pub(crate) fn offset(
     direction: Prop<Direction>,
     fit: bool,
     follow_end: Prop<bool>,
-    platform_scroll: PlatformScroll,
     on_change: Callback<ScrollPosition>,
     children: Child,
 ) -> NodeId {
-    let _ = platform_scroll;
     let node = with_document(|document| {
         let node = document.create_offset(children);
         document.set_offset_fits(node, fit);

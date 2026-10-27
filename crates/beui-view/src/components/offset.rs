@@ -3,7 +3,6 @@ use crate::reactive::Child;
 use crate::reactive::NodeId;
 use crate::reactive::Prop;
 use crate::types::Direction;
-use crate::types::PlatformScroll;
 use crate::types::ScrollPosition;
 use beui_macros::component;
 
@@ -13,17 +12,8 @@ pub fn Offset(
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     #[prop(default = false)] fit: bool,
     #[prop(default = false)] follow_end: Prop<bool>,
-    #[prop(default = PlatformScroll::Off)] platform_scroll: PlatformScroll,
     on_change: Callback<ScrollPosition>,
     children: Child,
 ) -> NodeId {
-    crate::core::offset(
-        offset,
-        direction,
-        fit,
-        follow_end,
-        platform_scroll,
-        on_change,
-        children,
-    )
+    crate::core::offset(offset, direction, fit, follow_end, on_change, children)
 }

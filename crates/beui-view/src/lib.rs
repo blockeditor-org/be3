@@ -6,6 +6,7 @@ pub mod colors;
 pub mod component_ref;
 pub mod components;
 pub mod drag;
+pub mod escape;
 pub mod file_picker;
 pub mod file_saver;
 #[cfg(beui_html)]

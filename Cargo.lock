@@ -1597,6 +1597,7 @@ dependencies = [
  "accesskit",
  "beui-core",
  "beui-core-html",
+ "beui-html",
  "beui-tree",
  "beui-types",
  "beui_macros",

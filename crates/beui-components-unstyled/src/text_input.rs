@@ -28,6 +28,8 @@ use beui_view::reactive::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 use beui_view::types::Sides;
+use beui_view::escape::beui_html::{Event, attr, elements as html};
+use beui_view::escape::{Escape, html_escape};
 use beui_view::{CORE, Core};
 
 pub struct TextInputHandle {
@@ -373,103 +375,72 @@ fn BrowserField(
         node
     }));
     let present = |text: String| Some(text).filter(|text| !text.is_empty());
-    let attributes = vec![
-        (
-            "type",
-            Prop::dynamic(move || Some(kind.get().html_type().to_owned())),
-        ),
-        ("value", Prop::dynamic(move || Some(value.get()))),
-        ("name", Prop::dynamic(move || present(name.get()))),
-        (
-            "autocomplete",
-            Prop::dynamic(move || present(autocomplete.get())),
-        ),
-        (
-            "placeholder",
-            Prop::dynamic(move || present(placeholder.get())),
-        ),
-        (
-            "disabled",
-            Prop::dynamic(move || disabled.get().then(String::new)),
-        ),
-        ("spellcheck", Prop::Static(Some("false".to_owned()))),
-    ];
-    let styles = vec![
-        (
-            "align-self",
-            Prop::Static(Some(CssValue::Keyword("stretch"))),
-        ),
-        ("width", Prop::Static(Some(CssValue::Keyword("100%")))),
-        (
+    let field = html_escape(move |escape| {
+        escape.style("align-self", "stretch".to_owned());
+        escape.style("width", "100%".to_owned());
+        escape.style(
             "font",
-            Prop::dynamic(move || Some(CssValue::Font(FontId::proportional(font_size.get())))),
-        ),
-        (
-            "color",
-            Prop::dynamic(move || Some(CssValue::Color(color.get()))),
-        ),
-        (
+            Prop::dynamic(move || Some(Escape::font(FontId::proportional(font_size.get())))),
+        );
+        escape.style("color", Prop::dynamic(move || Some(Escape::color(color.get()))));
+        escape.style(
             "caret-color",
-            Prop::dynamic(move || Some(CssValue::Color(caret_color.get()))),
-        ),
-        (
+            Prop::dynamic(move || Some(Escape::color(caret_color.get()))),
+        );
+        escape.style(
             "--beui-placeholder",
-            Prop::dynamic(move || Some(CssValue::Color(placeholder_color.get()))),
-        ),
-        (
+            Prop::dynamic(move || Some(Escape::color(placeholder_color.get()))),
+        );
+        escape.style(
             "--beui-selection",
-            Prop::dynamic(move || Some(CssValue::Color(selection_color.get()))),
-        ),
-        (
+            Prop::dynamic(move || Some(Escape::color(selection_color.get()))),
+        );
+        escape.style(
             "padding",
             Prop::dynamic(move || {
-                Some(CssValue::Sides(Sides::symmetric(
-                    padding_horizontal.get(),
+                Some(format!(
+                    "{}px {}px",
                     padding_vertical.get(),
-                )))
+                    padding_horizontal.get()
+                ))
             }),
-        ),
-    ];
-    let events = vec![
-        (
-            "input",
-            Callback::new(move |event: ElementEvent| {
-                if let Some(text) = event.value() {
-                    value.set(text);
-                }
-            }),
-        ),
-        (
-            "change",
-            Callback::new(move |event: ElementEvent| {
-                if let Some(text) = event.value() {
-                    value.set(text);
-                }
-            }),
-        ),
-        (
-            "keydown",
-            Callback::new(move |event: ElementEvent| {
-                if event.composing() {
-                    return;
-                }
-                let key = event.key().unwrap_or_default();
-                if key == "Enter" {
-                    if let Some(text) = event.value() {
-                        value.set(text);
+        );
+        let take = move |event: &Event| {
+            if let Some(text) = event.target_value() {
+                value.set(text);
+            }
+        };
+        view! {
+            <html::Input
+                r#type={Prop::dynamic(move || Some(kind.get().html_type().to_owned()))}
+                value={Prop::dynamic(move || Some(value.get()))}
+                name={Prop::dynamic(move || present(name.get()))}
+                autocomplete={Prop::dynamic(move || present(autocomplete.get()))}
+                placeholder={Prop::dynamic(move || present(placeholder.get()))}
+                disabled={disabled}
+                @attr={("spellcheck", "false".to_owned())}
+                on_input={move |event: Event| take(&event)}
+                on_change={move |event: Event| take(&event)}
+                on_keydown={move |event: Event| {
+                    if event.composing() {
+                        return;
                     }
-                    if !on_submit.is_empty() {
-                        on_submit.call(value.get_untracked());
+                    let key = event.key().unwrap_or_default();
+                    if key == "Enter" {
+                        take(&event);
+                        if !on_submit.is_empty() {
+                            on_submit.call(value.get_untracked());
+                            event.stop_propagation();
+                        }
+                        return;
+                    }
+                    if edits(&key, event.holds("Control") || event.holds("Meta")) {
                         event.stop_propagation();
                     }
-                    return;
-                }
-                if edits(&key, event.holds("Control") || event.holds("Meta")) {
-                    event.stop_propagation();
-                }
-            }),
-        ),
-    ];
+                }}
+            />
+        }
+    });
     view! {
         <Interactive
             focusable=true
@@ -478,7 +449,7 @@ fn BrowserField(
             on_hover_change={on_hover_change}
             cursor={create_memo(move || (!disabled.get()).then_some(CursorIcon::Text))}
         >
-            <Element tag="input" attributes styles events />
+            {field}
         </Interactive>
     }
 }
