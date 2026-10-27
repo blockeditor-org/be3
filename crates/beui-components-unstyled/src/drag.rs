@@ -205,6 +205,7 @@ where
 #[component]
 pub fn DropTarget<P>(
     #[prop(default = None)] accepts: Option<Func<P, bool>>,
+    #[prop(default = None)] takes: Option<Func<DragPoint, bool>>,
     #[prop(default = false)] hides_preview: Prop<bool>,
     on_over: Callback<Option<(P, DragPoint)>>,
     on_drop: Callback<(P, DragPoint)>,
@@ -225,6 +226,7 @@ where
                 .downcast_ref::<P>()
                 .is_some_and(|payload| accepts.call(payload.clone()))
         }),
+        takes: Rc::new(move |point| takes.is_none_or(|takes| takes.call(point))),
         carrying: Rc::new(move |next| carrying.set(next)),
         over: Rc::new(move |over: Option<(&dyn Any, DragPoint)>| {
             let over = over.and_then(|(payload, point)| {

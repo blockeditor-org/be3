@@ -997,6 +997,14 @@ fn end(doc: &mut Document, frame: &Frame, mut session: Session, cancelled: bool)
         Role::Press => {
             let focused = doc.focused_node();
             let owners = std::mem::take(&mut session.owners);
+            if doc.dragging() && !cancelled {
+                let board = doc.drag_board();
+                let modifiers = frame.ctx.input(|input| input.modifiers);
+                board.order(doc);
+                board.track(
+                    crate::drag_board::DragPoint::at(pos, modifiers).in_window(session.window),
+                );
+            }
             if !cancelled {
                 for owner in owners.iter().rev() {
                     let Some(rect) = rect_of(doc, frame.rects, *owner) else {

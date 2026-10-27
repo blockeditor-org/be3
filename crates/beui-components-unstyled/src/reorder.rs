@@ -557,6 +557,7 @@ pub fn Reorder<K, P>(
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     payload: Func<K, Option<P>>,
     #[prop(default = None)] accepts: Option<Func<P, bool>>,
+    #[prop(default = None)] takes: Option<Func<DragPoint, bool>>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] fixed: Prop<bool>,
     #[prop(default = false)] long_press: Prop<bool>,
@@ -677,10 +678,12 @@ where
                     && state.accepts.is_some_and(|accepts| accepts.call(payload)))
         })
     });
+    let taking = Func::new(move |point: DragPoint| takes.is_none_or(|takes| takes.call(point)));
     let hides = create_memo(move || lifted.with(Option::is_some) && !fixed.get());
     view! {
         <DropTarget
             accepts={accepting}
+            takes={taking}
             hides_preview={hides}
             on_over={move |over: Option<(P, DragPoint)>| {
                 let own = state.with(|state| state.lifted.with_untracked(Option::is_some));

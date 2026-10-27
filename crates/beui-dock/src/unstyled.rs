@@ -2371,6 +2371,7 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
             direction
             payload={Func::new(|entry: Entry| Some(DockDragged::Entry(entry)))}
             accepts={move |dragged: DockDragged| dock.bar_admits(leaf, dragged)}
+            takes={|point: DragPoint| !point.modifiers.alt}
             text={move |entry: Entry| dock.entry_title(entry)}
             on_move={move |moved: ReorderMove<Entry, DockDragged>| dock.move_into_bar(leaf, moved)}
             on_drag_change={move |entry: Option<Entry>| match entry {

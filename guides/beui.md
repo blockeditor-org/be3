@@ -2368,7 +2368,7 @@ back into the pane (a pane left holding only the group), the drop only joins
 it. The highlight then says which: `DockHighlightHandle::group_with` holds the
 title of the entry a drop would group with, which the styled dock shows as a
 "Group with ..." label, and nothing for a plain join. Holding Alt while dropping floats the tab into a window
-instead (except over a bar, which keeps reordering), which is also what "Pop out into a window" on a tab's own menu does. Every pane
+instead, over a bar too (the bar's `Reorder` declines through `takes`), which is also what "Pop out into a window" on a tab's own menu does. Every pane
 and every window wears the same bar: a grip, the tabs, and a button that closes
 them all, shown only when every tab in it can close. A middle click on a tab closes it. A finger picks a tab up by
 dragging it out of its bar, across the way the bar scrolls; sliding along the
@@ -2634,8 +2634,9 @@ its preview sits above the finger instead of under it.
 
 A `DropTarget` is registered by the rectangle its content was laid out at. The
 target under the pointer that accepts the payload takes the drop - `accepts`
-filters by value, and a target of another payload type never sees the drag at
-all - and of the targets under the pointer the one painted last wins: the
+filters by value, `takes` by the point (where in the target, which modifiers are
+held; a target that declines lets the drop fall to the one beneath it), and a
+target of another payload type never sees the drag at all - and of the targets under the pointer the one painted last wins: the
 innermost in the document tree, or the one in the higher layer, whatever order
 they were built in, so a slot inside a column inside a sidebar can each take a
 drop of its own. Only the part of a target that is on screen counts. Its `DropHandle` carries
@@ -2671,7 +2672,10 @@ pointer is over it the floating preview is hidden, and the source's
 `DragHandle::floating` is false (`dragging` stays true), so a reorderable list
 can show the item lifted in its own slot and leave the overlay preview to the
 moment it is pulled out of the list. `floating` is `dragging` and not over
-such a target.
+such a target. The board tells the source which it is on the first point it
+tracks, so an item whose first move past the threshold is already off its list
+(a flick) floats at once. The drop lands where the button is let go, even when
+the source's node is gone by then.
 
 Holding a carried drag within `EDGE_BAND` (40 points, at most a quarter of
 the viewport) of the edge of a `Scroll` under the pointer, in that scroll's
@@ -2741,7 +2745,8 @@ item's own drop target with `hides_preview`, so pulled out across the list it tu
 into the floating `preview` and the gap behind it closes; any `Reorder` whose
 `accepts` takes the payload opens a gap the size of the carried item
 (`DragPoint::item`) where it would land, and a drop there settles the new item from
-the pointer. Let go over nothing, or press Escape, and it glides home. Alt with the
+the pointer. `takes` (as on `DropTarget`) lets a list decline a drop at some
+points, as a dock bar does while Alt is held; its own item then floats off it. Let go over nothing, or press Escape, and it glides home. Alt with the
 arrow keys along the list moves the focused item through the same `on_move`
 (`ReorderHandle::step` does the same for a "Move up" command), and a polite live
 status says where it went, naming the item with `text`. A finger dragged across

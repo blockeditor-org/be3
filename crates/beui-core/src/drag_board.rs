@@ -81,6 +81,7 @@ pub struct Target {
     pub id: u64,
     pub node: NodeRef,
     pub accepts: Accepts,
+    pub takes: Rc<dyn Fn(DragPoint) -> bool>,
     pub carrying: Rc<dyn Fn(bool)>,
     pub over: Over,
     pub dropped: Dropped,
@@ -115,7 +116,7 @@ struct Carried {
     source: DragSource,
     over: Option<u64>,
     last: Option<DragPoint>,
-    floating: bool,
+    floating: Option<bool>,
 }
 
 #[derive(Clone, Copy)]
@@ -210,7 +211,7 @@ impl Board {
             source,
             over: None,
             last: None,
-            floating: true,
+            floating: None,
         });
         for mark in marks {
             mark(true);
@@ -248,8 +249,8 @@ impl Board {
 
     fn float(&self, floating: bool) {
         let changed = self.carried.borrow_mut().as_mut().and_then(|carried| {
-            (carried.floating != floating).then(|| {
-                carried.floating = floating;
+            (carried.floating != Some(floating)).then(|| {
+                carried.floating = Some(floating);
                 Rc::clone(&carried.source.floating)
             })
         });
@@ -351,7 +352,7 @@ impl Board {
         }
     }
 
-    pub fn under(&self, window: WindowId, pos: Pos2) -> Option<(u64, (Rect, f32), Over, bool)> {
+    pub fn under(&self, point: DragPoint) -> Option<(u64, (Rect, f32), Over, bool)> {
         let carried = self.carried.borrow();
         let payload = carried.as_ref()?.source.payload.as_ref();
         let windows = self.windows.borrow();
@@ -360,16 +361,18 @@ impl Board {
             .iter()
             .filter_map(|target| Some((self.rect_of(target)?, target)))
             .filter(|(_, target)| {
-                windows.get(&target.id).copied().unwrap_or(WindowId::MAIN) == window
+                windows.get(&target.id).copied().unwrap_or(WindowId::MAIN) == point.window
             })
             .filter(|(_, target)| {
                 target
                     .node
                     .try_get()
                     .and_then(|node| self.rects.visible(&node))
-                    .is_some_and(|visible| visible.contains_half_open(pos))
+                    .is_some_and(|visible| visible.contains_half_open(point.pos))
             })
-            .filter(|(_, target)| (target.accepts)(payload))
+            .filter(|(rect, target)| {
+                (target.accepts)(payload) && (target.takes)(point.within(*rect))
+            })
             .max_by(|(_, target), (_, other)| {
                 let painted = self.painted.borrow();
                 painted.get(&target.id).cmp(&painted.get(&other.id))
@@ -405,7 +408,7 @@ impl Board {
             return;
         }
         let point = self.stamp(point);
-        let under = self.under(point.window, point.pos);
+        let under = self.under(point);
         let id = under.as_ref().map(|(id, ..)| *id);
         let previous = self
             .carried
