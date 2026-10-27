@@ -64,6 +64,7 @@ disposed later in the same flush; one still alive that reads it panics.
 | "Is this row the selected one?" across N rows | `create_selector`: wakes only the two rows whose answer flips |
 | A struct whose fields change separately | `#[derive(Store)]`: a signal per field |
 | A list whose rows bind to their own item | `KeyedStore`: a signal per item, one for the order, `reconcile` writes what differs |
+| A sum, extreme, sort or filter of a `KeyedStore`'s items | its views (below), never a memo reading every item |
 | Shared non-reactive state | `store`, or `StoredCell` for a `Copy` value |
 | Keep a signal, memo or closure to read later | `Reader`, converted from any of them |
 
@@ -82,6 +83,30 @@ subscribes without reading, for a computation woken by a value it does not use.
 Dependencies are rediscovered on every run, so a branch not taken unsubscribes.
 A memo that builds on what it computed before takes it as an annotated argument,
 `create_memo(move |previous: Option<&T>| ...)`, `None` on the first run.
+
+### Keyed stores
+
+`KeyedStore` writes one item at a time with `set(key, value)` (a new key goes
+last), `remove(&key)` and `update(&key, |item| ..)`, which edits in place and
+wakes the item's readers only if it changed; `reconcile` writes a whole list.
+A memo that reads `get(&key)` for every key reruns over all of them when one
+changes, so the store keeps derived views itself, told of every insert, update,
+removal and reorder. Each is a `ReadSignal` that wakes only when its result
+changes:
+
+- `sum_by(|item| ..)` applies each change's difference. Over floats the
+  rounding error builds up until the view rebuilds.
+- `max_by` and `min_by` are `None` for an empty store and cost O(log n) a
+  write.
+- `sorted_by_key` keeps the keys ordered by the closure's value, ties in the
+  store's order; `filter` keeps the keys that pass, in the store's order. Both
+  find where the changed key goes in O(log n), but moving it within the key
+  list is an O(n) memmove, and a write that leaves its result alone wakes
+  nothing. A reorder re-sorts from the results they hold.
+
+Each closure is called with the changed item only. A signal it reads is
+tracked, and a change to one rebuilds the view from every item once, at the
+next flush. A view belongs to the scope that made it, like a memo.
 
 ## When things run
 
