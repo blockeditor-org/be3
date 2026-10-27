@@ -134,18 +134,21 @@ impl OffsetNode {
         let entered = doc.enter_space(host, 1, painter, self.translation, rect, out);
         let start = self.direction.main(rect.min.to_vec2());
         if let Some(child) = self.child {
-            crate::layout::layout(
+            let placed = item_rect(
+                self.direction,
+                rect,
+                start,
+                position.content.max(position.viewport),
+            );
+            let placed = crate::layout::stretched(
                 doc,
                 &entered,
                 child,
-                item_rect(
-                    self.direction,
-                    rect,
-                    start,
-                    position.content.max(position.viewport),
-                ),
-                out,
+                placed,
+                self.direction == Direction::Vertical,
+                self.direction == Direction::Horizontal,
             );
+            crate::layout::layout(doc, &entered, child, placed, out);
         }
     }
 

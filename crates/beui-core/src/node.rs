@@ -115,6 +115,13 @@ pub trait Element: Any {
         0.0
     }
 
+    /// Whether the node has a length of its own along `axis` that a stretching parent
+    /// keeps (a `Frame` with a fraction width), so the parent places it at its measured
+    /// length through `layout::stretched` instead of stretching it.
+    fn sizes_itself(&self, _doc: &Document, _axis: Direction) -> bool {
+        false
+    }
+
     /// How short the node can be along `direction` without overflowing, for content
     /// longer than its scroll (like a flex box in `overflow: auto`). `None` counts
     /// its natural length. Unlike `min_width` it never undercounts. Walk the subtree
