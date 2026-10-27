@@ -12,6 +12,7 @@ mod layers;
 #[cfg(not(target_arch = "wasm32"))]
 mod native;
 mod rows;
+mod surfaces;
 #[cfg(test)]
 mod tests;
 #[cfg(target_arch = "wasm32")]
@@ -124,6 +125,36 @@ pub fn Fixture(name: String) -> Root {
         },
         "text_area" => view! {
             <controls::TextAreaFixture />
+        },
+        "pan_zoom" => view! {
+            <surfaces::PanZoomFixture />
+        },
+        "time_list" => view! {
+            <surfaces::TimeListFixture />
+        },
+        "back_slide" => view! {
+            <surfaces::BackSlideFixture />
+        },
+        "floating" => view! {
+            <surfaces::FloatingFixture />
+        },
+        "stack" => view! {
+            <surfaces::StackFixture />
+        },
+        "pointer_lock" => view! {
+            <surfaces::PointerLockFixture />
+        },
+        "action_bar" => view! {
+            <surfaces::ActionBarFixture />
+        },
+        "progress" => view! {
+            <surfaces::ProgressFixture />
+        },
+        "sheet" => view! {
+            <surfaces::SheetFixture />
+        },
+        "picture" => view! {
+            <surfaces::PictureFixture />
         },
         other => {
             let message = format!("No fixture is named {other}");

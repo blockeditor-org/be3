@@ -1,0 +1,11 @@
+# A back slide that is closed slides its page away and says so once it's
+# gone, and comes back when it opens again.
+clock stop
+wait 'value="Open true gone 0"'
+wait '#back_slide.page'
+click 'Button "Close"'
+pause 400
+wait 'value="Open false gone 1"'
+click 'Button "Reopen"'
+wait 'value="Open true gone 1"'
+wait '#back_slide.page'

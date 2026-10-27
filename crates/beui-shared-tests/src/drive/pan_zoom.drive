@@ -1,0 +1,18 @@
+# A pan and zoom surface pans with the arrow keys and the wheel, zooms about
+# its middle with plus and minus, and 0 sets the scale back to 1.
+clock stop
+wait 'value="Center 0,0 scale 1.00"'
+click '#pan_zoom.stage'
+wait 'Stage focused'
+key right
+wait 'value="Center 40,0 scale 1.00"'
+key down down
+wait 'value="Center 40,80 scale 1.00"'
+key equal
+wait 'value="Center 40,80 scale 1.25"'
+key minus minus
+wait 'value="Center 40,80 scale 0.80"'
+key 0
+wait 'value="Center 40,80 scale 1.00"'
+wheel '#pan_zoom.stage' 2
+wait 'value="Center 40,160 scale 1.00"'

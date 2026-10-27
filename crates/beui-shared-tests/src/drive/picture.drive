@@ -1,0 +1,4 @@
+# A picture larger than its frame shrinks to fit it, keeping its shape, rather
+# than spilling over what's beside it.
+clock stop
+wait 'value="Picture 20x20"'

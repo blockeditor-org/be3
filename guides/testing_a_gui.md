@@ -436,10 +436,12 @@ holds what must behave the same on both: screens, each a `#[component]` in src/l
 `Fixture` picks by name, built from primitives the HTML core has, and a script per screen,
 src/drive/NAME.drive, `drive -` input that drives the screen of its file name. A script uses
 only the commands both cores answer: `settle`, `pause`, `clock stop|run`, `tree`, `ids`,
-`find`, `wait`, `gone`, `click`, `move`, `drag`, `type` and `key`. It asserts with `wait` and `gone`, and names
+`find`, `wait`, `gone`, `click`, `move`, `drag`, `wheel`, `type` and `key`. It asserts with `wait` and `gone`, and names
 what it waits for by test id or by text the screen writes itself, never by coordinates, since
 text metrics differ: to check a layout, `measure` the nodes and print the sizes and offsets in a
-`Text` (`wait 'Inner 50x20 at 140,50'`).
+`Text` (`wait 'Inner 50x20 at 140,50'`). A point a fixed distance into a node is `#TEST_ID+X,Y`,
+from its top left, as in `drag '#fields.seats+10,10' '#fields.seats+16,10'`. Stop the clock
+(`clock stop`) and move it with `pause` to cross a timeout, such as a toast's expiry.
 
 - Natively, `./scripts/test //crates/beui-shared-tests:test` runs each script against the
   crate's `:bin` under `be_drive::Driven` with no GPU, once as it is and once with every

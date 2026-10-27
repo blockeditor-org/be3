@@ -208,7 +208,7 @@ pub fn FieldsFixture() -> NodeId {
                 <TextInput value={name} placeholder="Type a name" @test_id="fields.name" />
             </Frame>
             <Frame width=Size::Custom(240.0)>
-                <NumberInput value={seats} min=1.0 max=12.0 label="Seats" />
+                <NumberInput value={seats} min=1.0 max=12.0 label="Seats" @test_id="fields.seats" />
             </Frame>
             <Frame width=Size::Custom(240.0)>
                 <Slider value={load} label="Load" />
