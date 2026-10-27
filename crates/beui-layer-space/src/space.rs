@@ -1305,7 +1305,7 @@ impl Space {
                 }
                 WindowPlacement::Host(placement) => panel.placed(placement),
                 WindowPlacement::Over { window: other, at } => self
-                    .over(*other, *at, size)
+                    .over(None, *other, *at, size)
                     .map(|(pose, metres_per_point)| {
                         panel.pose = pose;
                         panel.metres_per_point = metres_per_point;
@@ -1317,6 +1317,8 @@ impl Space {
                 panel.pose = self.at_pointer(size);
             }
             self.panels.push(panel);
+        } else {
+            self.reopen(window, placement, size);
         }
         let Some(panel) = self.panel(window) else {
             return;
@@ -1334,6 +1336,33 @@ impl Space {
         self.reports.extend(reports.map(Incoming::Window));
         if opening {
             self.focus(Some(window));
+        }
+    }
+
+    fn reopen(&mut self, window: WindowId, placement: &WindowPlacement, size: Vec2) {
+        if self.holders().any(|held| {
+            held.resize.is_some_and(|resize| resize.window == window)
+                || held.carry.as_ref().is_some_and(|carry| carry.window == window)
+        }) {
+            return;
+        }
+        let over = match placement {
+            WindowPlacement::Over { window: other, at } if *other != window => {
+                self.over(Some(window), *other, *at, size)
+            }
+            _ => None,
+        };
+        let Some(panel) = self.panel_mut(window) else {
+            return;
+        };
+        let corner = panel.frame_at(Pos2::ZERO);
+        panel.size = size;
+        match over {
+            Some((pose, metres_per_point)) => {
+                panel.pose = pose;
+                panel.metres_per_point = metres_per_point;
+            }
+            None => panel.anchor(Pos2::ZERO, corner),
         }
     }
 
@@ -1397,10 +1426,10 @@ impl Space {
                 )
             }
         };
-        self.over(window, at, size)
+        self.over(None, window, at, size)
     }
 
-    fn over(&self, other: WindowId, at: Pos2, size: Vec2) -> Option<(Pose, f32)> {
+    fn over(&self, own: Option<WindowId>, other: WindowId, at: Pos2, size: Vec2) -> Option<(Pose, f32)> {
         let other = self.panel(other)?;
         let mut panel = Panel::new(WindowId::MAIN, other.pose, size);
         panel.metres_per_point = other.metres_per_point;
@@ -1412,7 +1441,7 @@ impl Space {
         let centre = corner + Vec3::new(half.x, -half.y, 0.0);
         let mut depth = OVER_NEARER;
         for _ in 0..self.panels.len() {
-            let stacked = self.panels.iter().any(|placed| {
+            let stacked = self.panels.iter().filter(|placed| Some(placed.window) != own).any(|placed| {
                 let at = local(placed);
                 let reach = placed.metres() / 2.0 + half;
                 (at.z - depth).abs() < OVER_NEARER / 2.0

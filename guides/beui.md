@@ -3454,7 +3454,8 @@ it, and all its 3D (`glam`) stays in the crate.
   keyboard). A mouse press or trigger pull that lands anywhere but on a popup
   or a popup placed `Over` it (chrome included) closes it, reporting `Closed`,
   and goes no further, its release neither (`Space::dismiss_popups`). A window
-  opened again with another role takes it. `Resize` sets the panel's size,
+  opened again takes its new role and size, and moves where an `Over`
+  placement puts it (keeping its top-left corner otherwise). `Resize` sets the panel's size,
   keeping its top-left corner, and reports `Resized` the next frame. `Close`
   removes the panel and its texture; the main window's panel never closes.
 - Grab: while its window has focus the host holds the pointer
