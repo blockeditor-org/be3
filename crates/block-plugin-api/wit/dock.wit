@@ -24,17 +24,21 @@ interface dock {
         declaration: option<dock-declaration>,
     }
 
+    /// `owner` leads from the child to the instance that asked, whose
+    /// spliced group a `restore` replaces; the request's paths and keys are
+    /// the child's.
     record dock-child-request {
         child: child-id,
+        owner: list<child-id>,
         request: dock-request,
     }
 
-    /// For a docked region of the instance: what its holder shows of its
-    /// dock (`none` until the holder hosts it, and again once it lets go),
-    /// and the user closing one of its tabs, which the instance closes or,
-    /// for a tab through a child, passes on. For a docked child the instance
-    /// placed: the child's latest declaration (`none` once it withdrew it or
-    /// closed), and what the child asks of the dock that holds it.
+    /// For a docked region of the instance: what the root shows of its own
+    /// tabs (`none` until the root hosts it, and again once it lets go), and
+    /// the user closing one of them. For the root, of each docked child it
+    /// placed: the child's latest declaration with its descendants' spliced
+    /// in (`none` once it withdrew it or closed), and what the child or a
+    /// descendant asks of the dock.
     variant dock-update {
         hosted(dock-hosted-region),
         close(dock-closed-tab),

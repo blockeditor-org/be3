@@ -26,6 +26,22 @@ fn a_dock_declaration_round_trips_and_nests() {
         Some(DockTabPath::own(4))
     );
 
+    let mut spliced = declaration.clone();
+    spliced
+        .splice(3, ChildId(9), "nested/09", &child_declaration())
+        .unwrap();
+    let foreign = FrameCommit {
+        docks: vec![DockMessage::Declare(DockDeclare {
+            region: RegionRef {
+                instance: EditorInstanceId(1),
+                region: EditorRegion::Frame,
+            },
+            declaration: Some(spliced),
+        })],
+        ..frame(1)
+    };
+    assert_eq!(foreign.validate(), Err(DecodeError::MalformedPayload));
+
     let mut undescribed = declaration.clone();
     undescribed.tabs.pop();
     assert_eq!(undescribed.validate(), Err(DecodeError::MalformedPayload));

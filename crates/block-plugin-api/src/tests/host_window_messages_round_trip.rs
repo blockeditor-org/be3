@@ -54,7 +54,7 @@ fn host_window_messages_round_trip() {
                 opacity: 1.0,
                 follows_view: false,
                 dialog: None,
-                docks: false,
+                docks: None,
             }],
             occluders: Vec::new(),
         });

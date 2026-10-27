@@ -6,6 +6,10 @@ use crate::{
     DockTree, DockUpdate, DockWindow, Rect, collection, nesting, string,
 };
 
+mod splice;
+
+pub use splice::dock_prefix;
+
 pub const MAX_DOCK_DEPTH: usize = 32;
 pub const MAX_DOCK_NESTING: usize = 16;
 
@@ -124,6 +128,23 @@ impl DockNode {
         }
     }
 
+    fn groups<'a>(&'a self, out: &mut Vec<&'a DockGroup>) {
+        match self {
+            Self::Split { first, second, .. } => {
+                first.groups(out);
+                second.groups(out);
+            }
+            Self::Pane { entries, .. } => {
+                for entry in entries {
+                    if let DockEntry::Group { group, root } = entry {
+                        out.push(group);
+                        root.groups(out);
+                    }
+                }
+            }
+        }
+    }
+
     fn panes<'a>(&'a self, out: &mut Vec<&'a DockPane>) {
         match self {
             Self::Split { first, second, .. } => {
@@ -208,6 +229,14 @@ impl DockNodes {
             root.panes(&mut panes);
         }
         panes
+    }
+
+    fn spliced(&self) -> bool {
+        let mut keys = Vec::new();
+        for root in self.roots() {
+            root.groups(&mut keys);
+        }
+        keys.iter().any(|group| group.child.is_some())
     }
 }
 
@@ -343,7 +372,10 @@ impl DockDeclaration {
         let keys = nodes.keys();
         if keys.iter().any(|(_, key)| key.is_empty())
             || keys.iter().collect::<HashSet<_>>().len() != keys.len()
-            || nodes.panes().iter().any(|pane| pane.area.is_some())
+            || nodes
+                .panes()
+                .iter()
+                .any(|pane| pane.area.as_ref().is_some_and(|area| *area != pane.key))
         {
             return Err(DecodeError::MalformedPayload);
         }
@@ -369,6 +401,15 @@ impl DockDeclaration {
 
     pub fn validate(&self) -> Result<(), DecodeError> {
         self.nest().map(|_| ())
+    }
+
+    pub fn validate_own(&self) -> Result<(), DecodeError> {
+        let nodes = self.nest()?;
+        if nodes.tabs().iter().all(|tab| tab.is_own()) && !nodes.spliced() {
+            Ok(())
+        } else {
+            Err(DecodeError::MalformedPayload)
+        }
     }
 }
 
@@ -423,7 +464,7 @@ impl DockMessage {
             Self::Declare(declare) => declare
                 .declaration
                 .as_ref()
-                .map_or(Ok(()), DockDeclaration::validate),
+                .map_or(Ok(()), DockDeclaration::validate_own),
             Self::Request(request) => request.request.validate(),
             Self::Host(host) => host.hosted.as_ref().map_or(Ok(()), DockHosted::validate),
             Self::Close(close) => close.tab.validate(),
@@ -440,7 +481,12 @@ impl DockUpdate {
                 .declaration
                 .as_ref()
                 .map_or(Ok(()), DockDeclaration::validate),
-            Self::ChildRequest(request) => request.request.validate(),
+            Self::ChildRequest(request) => {
+                if request.owner.len() > MAX_DOCK_NESTING {
+                    return Err(DecodeError::LimitExceeded("dock nesting"));
+                }
+                request.request.validate()
+            }
         }
     }
 }

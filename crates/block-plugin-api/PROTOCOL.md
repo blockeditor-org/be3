@@ -442,29 +442,30 @@ content band, which is what a tab of its own means.
 
 Docks cross plugins the way windows do: one root dock, the outermost, holds
 the only dock state and draws every tab bar, splitter and drag; a dock nested
-in it only declares its tree and draws its tab bodies (`dock-message`,
+in it only declares its own tree and draws its tab bodies (`dock-message`,
 `dock-update` in `dock.wit`, records at the end of `types.wit`). An instance
-places a child with `child-placement.docks` when it places it in a body of a
-dock it holds or declares; the host then requests the child's frame with
+that places a child in the body of one of its dock's tabs names that tab
+(`child-placement.docks`); the host then requests the child's frame with
 `screen-request.docked`, and the child's dock declares itself
 (`dock-message.declare`, a `dock-declaration`: a `dock-tree` flattened as
 `dock-item`s with depths, as menus are, and each tab's `dock-tab`, with a key
-that names it for good) and draws no chrome. Every dock message crosses one
-placement: the host hands a declaration to the instance that placed the
-declaring child (`dock-update.child`), which splices it in place of the tab
-the child sits in, as a pinned group whose tabs it names through the child
-(`dock-tab-path.via`, keys prefixed with that tab's key and the child's block
-id), into its own declaration if it is itself docked, or else into its own
-dock. It hands the child back what it holds of that group, in the child's own
-paths (`dock-message.host`, reaching the child as `dock-update.hosted`), and
-passes a closed tab on (`close`); the child's requests (show, restore,
-fullscreen) come up the same way (`request`, then `child-request`). Only the
-bodies skip the chain: the root places a descendant's tab as a child showing
-`child-content.dock-tab` with the full path, and the host shows the owner's
-`tab(t)` region there, only for tabs the owner's `dock-hosted.visible` lists.
-The host keeps a docked child open while its placer places it or hosts it
-(its last `host` for it carries a state), requesting its frame at its last
-size without drawing it; a tab closes when its owner stops declaring it.
+that names it for good) and draws no chrome. The host splices each
+declaration into its placer's in place of that tab, as a pinned group
+(`dock-group.child`) whose tabs it names through the child
+(`dock-tab-path.via`) and whose keys it prefixes with the tab's key and the
+child's block id (`dock_prefix`, `DockDeclaration::splice`), up to the root,
+the instance whose own frame is not docked: only the root hears its docked
+children's declarations (`dock-update.child`) and requests
+(`child-request`), and hosts them (`dock-message.host`, `close`). The host
+splits what the root hosts back down (`DockHosted::own`, `DockHosted::child`),
+so each docked instance hears only its own tabs (`dock-update.hosted`, a
+spliced child's group again the tab it was placed in) and its own closes. The
+root places a descendant's tab body as a child showing `child-content.dock-tab`
+with the full path, and the host shows the owner's `tab(t)` region there,
+only for tabs the owner's `dock-hosted.visible` lists. The host keeps a docked
+child open while its placer places it or still declares the tab it was placed
+in, requesting its frame at its last size without drawing it; a tab closes
+when its owner stops declaring it.
 
 A frame surface is transparent wherever its owner does not paint, so whatever
 the host draws beneath shows through there. The plugin publishes, with every

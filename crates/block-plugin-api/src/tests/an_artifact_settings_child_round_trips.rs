@@ -20,7 +20,7 @@ fn an_artifact_settings_child_round_trips() {
             opacity: 1.0,
             follows_view: false,
             dialog: None,
-            docks: false,
+            docks: None,
         }],
         occluders: Vec::new(),
     });

@@ -142,7 +142,9 @@ mod opening;
 pub mod requested;
 mod watch;
 pub use block_ids::BlockIdRole;
-pub use docking::{DockEntry, DockFloating, DockNode, DockNodes, MAX_DOCK_DEPTH, MAX_DOCK_NESTING};
+pub use docking::{
+    DockEntry, DockFloating, DockNode, DockNodes, MAX_DOCK_DEPTH, MAX_DOCK_NESTING, dock_prefix,
+};
 pub use manifest::{
     EditorDocument, InOrder, ManifestDocument, TemplateDocument, manifest_from_json,
 };

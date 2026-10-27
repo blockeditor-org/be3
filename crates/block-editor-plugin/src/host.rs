@@ -1880,7 +1880,7 @@ impl EditorHost {
                 opacity: opacity.clamp(0.0, 1.0),
                 follows_view,
                 dialog,
-                docks: false,
+                docks: None,
             });
         child
     }
