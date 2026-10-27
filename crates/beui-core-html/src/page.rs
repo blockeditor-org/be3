@@ -1,11 +1,13 @@
 use beui_types::Vec2;
-use beui_types::{Motion, PreferenceLayer, Preferences, ThemeKind};
+use beui_types::{
+    Motion, PreferenceLayer, PreferenceLayers, PreferenceSource, Preferences, ThemeKind,
+};
 use reactive::{Get, Memo, ReadSignal, Signal, create_memo};
 
 #[derive(Clone, Copy)]
 struct PageSignals {
     theme: Signal<Option<ThemeKind>>,
-    chosen_theme: Signal<Option<ThemeKind>>,
+    layers: Signal<PreferenceLayers>,
     motion: Signal<Option<Motion>>,
     viewport: Signal<Vec2>,
     pixels_per_point: Signal<f32>,
@@ -15,7 +17,7 @@ struct PageSignals {
 thread_local! {
     static SIGNALS: PageSignals = PageSignals {
         theme: crate::global_signal(None),
-        chosen_theme: crate::global_signal(None),
+        layers: crate::global_signal(PreferenceLayers::default()),
         motion: crate::global_signal(None),
         viewport: crate::global_signal(Vec2::ZERO),
         pixels_per_point: crate::global_signal(1.0),
@@ -40,43 +42,79 @@ fn signals() -> PageSignals {
 }
 
 pub fn choose_theme(theme: Option<ThemeKind>) {
+    let layers = signals().layers.get_untracked();
+    set_preference_layer(
+        PreferenceSource::App,
+        PreferenceLayer {
+            theme,
+            ..layers.layer(PreferenceSource::App)
+        },
+    );
+}
+
+pub fn set_preference_layer(source: PreferenceSource, layer: PreferenceLayer) {
     use reactive::Set;
 
-    let chosen = signals().chosen_theme;
-    if chosen.get_untracked() != theme {
-        chosen.set(theme);
+    let layers = signals().layers;
+    let mut changed = layers.get_untracked();
+    *changed.layer_mut(source) = layer;
+    if changed != layers.get_untracked() {
+        layers.set(changed);
     }
 }
 
-pub fn chosen_theme() -> ReadSignal<Option<ThemeKind>> {
-    signals().chosen_theme.read_only()
-}
-
-pub fn color_scheme() -> beui_types::ColorScheme {
-    let signals = signals();
-    let theme = signals.chosen_theme.get().or(signals.theme.get());
-    theme.unwrap_or_default().into()
-}
-
-pub fn use_preferences() -> Memo<Preferences> {
-    let signals = signals();
+pub fn chosen_theme() -> Memo<Option<ThemeKind>> {
+    let layers = signals().layers;
     create_memo(move || {
-        PreferenceLayer {
-            theme: signals.chosen_theme.get().or(signals.theme.get()),
-            motion: signals.motion.get(),
-            canvas_touch: None,
-        }
-        .resolve()
+        let layers = layers.get();
+        layers
+            .layer(PreferenceSource::Developer)
+            .over(layers.layer(PreferenceSource::App))
+            .theme
     })
 }
 
-pub fn motion() -> Motion {
-    let layer = PreferenceLayer {
-        theme: None,
-        motion: signals().motion.get_untracked(),
+fn browser_layer(signals: PageSignals) -> PreferenceLayer {
+    PreferenceLayer {
+        theme: signals.theme.get(),
+        motion: signals.motion.get(),
         canvas_touch: None,
-    };
-    layer.resolve().motion
+    }
+}
+
+pub fn use_preference_layers() -> Memo<PreferenceLayers> {
+    let signals = signals();
+    create_memo(move || {
+        let mut layers = signals.layers.get();
+        let system = layers
+            .layer(PreferenceSource::System)
+            .over(browser_layer(signals));
+        *layers.layer_mut(PreferenceSource::System) = system;
+        layers
+    })
+}
+
+fn resolved() -> Preferences {
+    let signals = signals();
+    let mut layers = signals.layers.get();
+    let system = layers
+        .layer(PreferenceSource::System)
+        .over(browser_layer(signals));
+    *layers.layer_mut(PreferenceSource::System) = system;
+    layers.resolve()
+}
+
+pub fn color_scheme() -> beui_types::ColorScheme {
+    resolved().theme.into()
+}
+
+pub fn use_preferences() -> Memo<Preferences> {
+    let layers = use_preference_layers();
+    create_memo(move || layers.get().resolve())
+}
+
+pub fn motion() -> Motion {
+    reactive::untrack(resolved).motion
 }
 
 pub fn watch_motion() -> Memo<Motion> {

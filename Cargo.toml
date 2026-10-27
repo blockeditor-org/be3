@@ -43,6 +43,7 @@ members = [
     "crates/beui-core",
     "crates/beui-core-html",
     "crates/beui-demo",
+    "crates/beui-demo-html",
     "crates/beui-dock",
     "crates/beui-font-browser",
     "crates/beui-font-freetype",

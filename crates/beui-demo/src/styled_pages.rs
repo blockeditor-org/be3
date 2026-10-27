@@ -8,6 +8,7 @@ use beui::icons::{
     ICON_SQUARE, ICON_STAR, ICON_TABLE, ICON_TEXT_ALIGN_START, ICON_TRIANGLE, ICON_TRIANGLE_ALERT,
     ICON_UNDO_2, ICON_WIFI, ICON_X, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
+#[cfg(feature = "native")]
 use beui::keyboard::styled::SoftwareKeyboard;
 use beui::{Align, CanvasView, Extent};
 
@@ -105,6 +106,15 @@ pub(crate) fn LabelledSwitch(label: &'static str, on: Binding<bool>) -> NodeId {
     }
 }
 
+#[cfg(not(feature = "native"))]
+#[component]
+pub(crate) fn DockingPage() -> NodeId {
+    view! {
+        <NativeOnly />
+    }
+}
+
+#[cfg(feature = "native")]
 #[component]
 pub(crate) fn DockingPage() -> NodeId {
     view! {
@@ -178,6 +188,7 @@ pub(crate) fn DockingPage() -> NodeId {
     }
 }
 
+#[cfg(feature = "native")]
 #[sample]
 #[component]
 fn AttachedDialogs() -> NodeId {
@@ -253,6 +264,7 @@ fn AttachedDialogs() -> NodeId {
     }
 }
 
+#[cfg(feature = "native")]
 #[sample]
 #[component]
 pub(crate) fn AttachedDialog(modal: bool) -> NodeId {
@@ -295,6 +307,7 @@ pub(crate) fn AttachedDialog(modal: bool) -> NodeId {
     }
 }
 
+#[cfg(feature = "native")]
 #[sample]
 #[component]
 pub(crate) fn AttachedCard() -> NodeId {
@@ -349,6 +362,7 @@ pub(crate) fn AttachedCard() -> NodeId {
     }
 }
 
+#[cfg(feature = "native")]
 #[sample]
 #[component]
 fn ContentDrag() -> NodeId {
@@ -384,6 +398,7 @@ fn ContentDrag() -> NodeId {
     }
 }
 
+#[cfg(feature = "native")]
 #[sample]
 #[component]
 fn EditCounter() -> NodeId {
@@ -413,6 +428,7 @@ fn EditCounter() -> NodeId {
     }
 }
 
+#[cfg(feature = "native")]
 #[sample]
 #[component]
 fn FullscreenTab() -> NodeId {
@@ -459,6 +475,7 @@ fn FullscreenTab() -> NodeId {
     }
 }
 
+#[cfg(feature = "native")]
 #[sample]
 #[component]
 fn NoticeTab() -> NodeId {
@@ -1001,6 +1018,16 @@ fn NameInput() -> NodeId {
     }
 }
 
+#[cfg(not(feature = "native"))]
+#[sample]
+#[component]
+fn KeyboardInput() -> NodeId {
+    view! {
+        <NativeOnly />
+    }
+}
+
+#[cfg(feature = "native")]
 #[sample]
 #[component]
 fn KeyboardInput() -> NodeId {

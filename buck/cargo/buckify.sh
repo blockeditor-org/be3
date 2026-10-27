@@ -80,7 +80,7 @@ plan() {
     RUSTC="$nightly/bin/rustc" "$nightly/bin/cargo" "$@" --unit-graph -Z unstable-options --locked
 }
 RUSTC="$nightly/bin/rustc" "$nightly/bin/cargo" metadata --all-features --format-version 1 --locked > "$scratch/metadata.json"
-host_packages="--workspace $excluded --exclude block-editor-plugin --exclude block-editor-beui --exclude block-gpu-shim --exclude beui-web-demo --exclude beui-html-spike --exclude paint-review-web"
+host_packages="--workspace $excluded --exclude block-editor-plugin --exclude block-editor-beui --exclude block-gpu-shim --exclude beui-web-demo --exclude beui-html-spike --exclude beui-demo-html --exclude paint-review-web"
 plan test --target x86_64-unknown-linux-gnu $host_packages > "$scratch/host.json"
 plan build --target wasm32-wasip1-threads -p block-app -p beui-web-demo -p paint-review-web -p beui-html --lib > "$scratch/wasi.json"
 plan test --target wasm32-wasip1-threads $plugins -p block-editor-plugin -p block-editor-beui -p beui-demo -p paint-review > "$scratch/wasi-guest.json"
@@ -90,9 +90,10 @@ plan build --target wasm32-unknown-unknown $games $types -p block-gpu-shim -p be
 # [target.'cfg(beui_html)'.dependencies] against RUSTFLAGS, so each core's
 # dependencies drop out of the other's plans.
 # The browser's plan adds the crates whose native side runs only on the
-# native core, such as the shared tests' fixtures program.
+# native core, such as the shared tests' fixtures program, and beui's demo
+# pages without the shell only the native core runs (beui-demo-html).
 html_packages="-p beui -p beui-view -p beui-html -p beui-core-html -p beui-components-unstyled -p beui-components-styled -p block-accounts-ui -p beui-html-spike"
-browser_packages="$html_packages -p beui-shared-tests"
+browser_packages="$html_packages -p beui-shared-tests -p beui-demo-html"
 RUSTFLAGS="--cfg beui_html" plan build --target wasm32-wasip1-threads $browser_packages --lib > "$scratch/wasi-html.json"
 RUSTFLAGS="--cfg beui_html" plan test --target x86_64-unknown-linux-gnu $html_packages > "$scratch/linux-x86_64-html.json"
 cross=""

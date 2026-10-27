@@ -1280,6 +1280,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "beui-demo-html"
+version = "0.1.0"
+dependencies = [
+ "beui",
+ "beui-demo",
+ "wasi-threads",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+]
+
+[[package]]
 name = "beui-dock"
 version = "0.1.0"
 dependencies = [

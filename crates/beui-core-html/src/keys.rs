@@ -5,6 +5,51 @@ use beui_types::input::{Key, KeyPress};
 
 use crate::node::{NodeId, NodeRef};
 
+thread_local! {
+    static HELD: reactive::Signal<beui_types::Modifiers> = crate::global_signal(beui_types::Modifiers::default());
+}
+
+pub fn held_modifiers() -> reactive::ReadSignal<beui_types::Modifiers> {
+    HELD.with(|held| held.read_only())
+}
+
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn watch_modifiers(document: &web_sys::Document) -> Vec<crate::dom::Listener> {
+    use reactive::{Get, Set};
+
+    let update = |event: &web_sys::KeyboardEvent| {
+        let held = beui_web_input::keys::modifiers(
+            event.alt_key(),
+            event.ctrl_key(),
+            event.meta_key(),
+            event.shift_key(),
+        );
+        let signal = HELD.with(|held| *held);
+        if signal.get_untracked() != held {
+            signal.set(held);
+            reactive::flush();
+        }
+    };
+    let mut listeners: Vec<crate::dom::Listener> = ["keydown", "keyup"]
+        .into_iter()
+        .map(|name| {
+            crate::dom::listen(document.as_ref(), name, true, move |event: web_sys::KeyboardEvent| {
+                update(&event)
+            })
+        })
+        .collect();
+    if let Some(window) = crate::dom::window() {
+        listeners.push(crate::dom::listen(window.as_ref(), "blur", false, |_: web_sys::Event| {
+            let signal = HELD.with(|held| *held);
+            if signal.get_untracked() != beui_types::Modifiers::default() {
+                signal.set(beui_types::Modifiers::default());
+                reactive::flush();
+            }
+        }));
+    }
+    listeners
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum KeyInput {
     Press(KeyPress),

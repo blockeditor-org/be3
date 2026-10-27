@@ -7,6 +7,7 @@ pub mod input;
 pub mod layer;
 pub mod layout;
 pub mod pixel_grid;
+pub mod preferences;
 pub mod region;
 pub mod rows;
 pub mod text;
@@ -38,6 +39,7 @@ pub use input::{
     TouchDrags, WheelInput, ZoomGesture,
 };
 pub use layer::{Dismiss, LayerLevel, LayerPolicy, Placement};
+pub use preferences::{PreferenceLayers, PreferenceSource};
 pub use layout::{
     Align, Align2, CanvasView, Corners, Direction, Extent, ItemSize, Justify, Measured, Outline,
     ScrollPosition, Sides, Sizing, Track,

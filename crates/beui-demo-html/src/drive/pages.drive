@@ -1,0 +1,63 @@
+# Every page of the demo opens from the catalog on the HTML core, each the next
+# tab stop after the one before.
+clock stop
+click '#demo.catalog.Docking'
+key Tab Enter
+wait 'focused #demo.catalog.Text'
+key Tab Enter
+wait 'focused #demo.catalog.Buttons'
+key Tab Enter
+wait 'focused #demo.catalog.Inputs'
+key Tab Enter
+wait 'focused #demo.catalog.Choices'
+key Tab Enter
+wait 'focused #demo.catalog.Pickers'
+key Tab Enter
+wait 'focused #demo.catalog.Colors'
+key Tab Enter
+wait 'focused #demo.catalog.Menus'
+key Tab Enter
+wait 'focused #demo.catalog.Overlays'
+key Tab Enter
+wait 'focused #demo.catalog.Rows'
+key Tab Enter
+wait 'focused #demo.catalog.Tree'
+key Tab Enter
+wait 'focused #demo.catalog.Layout'
+key Tab Enter
+wait 'focused #demo.catalog.Editor'
+key Tab Enter
+wait 'focused #demo.catalog.Rich text'
+key Tab Enter
+wait 'focused #demo.catalog.Collaboration'
+key Tab Enter
+wait 'focused #demo.catalog.Canvas'
+key Tab Enter
+wait 'focused #demo.catalog.Themes'
+key Tab Enter
+wait 'focused #demo.catalog.Pressing'
+key Tab Enter
+wait 'focused #demo.catalog.Values'
+key Tab Enter
+wait 'focused #demo.catalog.Selecting'
+key Tab Enter
+wait 'focused #demo.catalog.Popups'
+key Tab Enter
+wait 'focused #demo.catalog.Dragging'
+key Tab Enter
+wait 'focused #demo.catalog.Scrolling'
+key Tab Enter
+wait 'focused #demo.catalog.Frames'
+key Tab Enter
+wait 'focused #demo.catalog.Paths'
+key Tab Enter
+wait 'focused #demo.catalog.Text nodes'
+key Tab Enter
+wait 'focused #demo.catalog.Lists and grids'
+key Tab Enter
+wait 'focused #demo.catalog.Control flow'
+key Tab Enter
+wait 'focused #demo.catalog.Interaction'
+key Tab Enter
+wait 'focused #demo.catalog.Layering'
+wait 'value="Translate"'

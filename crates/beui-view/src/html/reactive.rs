@@ -11,10 +11,24 @@ pub use beui_core_html::focus::{ImeCursor, focus_ancestry, focused_node, set_foc
 pub use beui_core_html::frame::{Timer, create_timer, now, pin_wall_clock, wall_clock};
 pub use beui_core_html::keys::{KeyAt, KeyEvent};
 pub use beui_core_html::overlay::OverlayAnchor;
+pub use beui_core_html::keys::held_modifiers;
 pub use beui_core_html::page::{
-    pixels_per_point, use_font_revision, use_preferences, use_viewport_size,
+    pixels_per_point, use_font_revision, use_preference_layers, use_preferences,
+    use_viewport_size,
 };
 pub use beui_core_html::{NodeId, NodeRef};
+
+pub fn use_preference_layer(
+    source: crate::types::PreferenceSource,
+) -> Binding<crate::types::PreferenceLayer> {
+    let layers = use_preference_layers();
+    Binding::new(
+        create_memo(move || layers.get().layer(source)),
+        Callback::new(move |layer: crate::types::PreferenceLayer| {
+            beui_core_html::page::set_preference_layer(source, layer);
+        }),
+    )
+}
 
 pub fn copy_text(text: impl Into<String>) {
     beui_core_html::page::copy_text(text.into());

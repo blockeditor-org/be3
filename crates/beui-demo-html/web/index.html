@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>beui demo</title>
+<style>
+html, body { margin: 0; height: 100%; }
+#app { height: 100%; }
+</style>
+<script type="importmap">
+{ "imports": { "wasi_snapshot_preview1": "./wasi.js", "wasi": "./threads.js" } }
+</script>
+</head>
+<body>
+<div id="app"></div>
+<script type="module">
+// beui's demo on the HTML core. ?automation answers drive's reading commands
+// through automate(words), as the shared tests' page does.
+import { bindMemory } from "./wasi.js";
+import { bindThreads } from "./threads.js";
+import init, * as demo from "./beui_demo_html.js";
+
+globalThis.beuiStarted = (async () => {
+    const module = await WebAssembly.compileStreaming(fetch("./beui_demo_html_bg.wasm"));
+    const wasm = await init({ module_or_path: module });
+    bindMemory(wasm.memory);
+    bindThreads(module, wasm.memory);
+    demo.start();
+    return demo;
+})();
+</script>
+</body>
+</html>

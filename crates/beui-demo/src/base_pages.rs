@@ -11,8 +11,11 @@ use beui::primitives::Text;
 use beui::primitives::{Grid, List};
 use beui::unstyled::FirstFit;
 use beui::{Align, Align2, Corners, Dismiss, Extent, Justify, Outline, Placement, Track};
-use beui::{Color32, FillRule, LineCap, LineJoin, Painter, Path, Pos2, Stroke, vec2};
+use beui::{Color32, Pos2, vec2};
+#[cfg(feature = "native")]
+use beui::{FillRule, LineCap, LineJoin, Painter, Path, Stroke};
 use beui::{Overflow, WrapAt};
+#[cfg(feature = "native")]
 use beui::{Window, WindowHandle};
 
 const SWATCH: f32 = 72.0;
@@ -839,6 +842,16 @@ fn AnchoredOverlay() -> NodeId {
     }
 }
 
+#[cfg(not(feature = "native"))]
+#[sample]
+#[component]
+fn FloatingWindow() -> NodeId {
+    view! {
+        <NativeOnly />
+    }
+}
+
+#[cfg(feature = "native")]
 #[sample]
 #[component]
 fn FloatingWindow() -> NodeId {
@@ -968,8 +981,18 @@ fn AnimationSample() -> NodeId {
     }
 }
 
+#[cfg(feature = "native")]
 const PATH_TILE: f32 = 100.0;
 
+#[cfg(not(feature = "native"))]
+#[component]
+pub(crate) fn PathsPage() -> NodeId {
+    view! {
+        <NativeOnly />
+    }
+}
+
+#[cfg(feature = "native")]
 #[component]
 pub(crate) fn PathsPage() -> NodeId {
     view! {
@@ -987,6 +1010,7 @@ pub(crate) fn PathsPage() -> NodeId {
     }
 }
 
+#[cfg(feature = "native")]
 #[derive(Clone, Copy, PartialEq)]
 struct PathColors {
     accent: Color32,
@@ -996,8 +1020,10 @@ struct PathColors {
     text: Color32,
 }
 
+#[cfg(feature = "native")]
 type PaintTile = fn(&Painter, Pos2, PathColors);
 
+#[cfg(feature = "native")]
 #[sample]
 #[component]
 fn PathTiles(tiles: Vec<PaintTile>) -> NodeId {
@@ -1036,6 +1062,7 @@ fn PathTiles(tiles: Vec<PaintTile>) -> NodeId {
     }
 }
 
+#[cfg(feature = "native")]
 fn star(center: Pos2, points: usize, outer: f32, inner: f32) -> Path {
     Path::polygon((0..points * 2).map(|point| {
         let reach = if point % 2 == 0 { outer } else { inner };
@@ -1044,6 +1071,7 @@ fn star(center: Pos2, points: usize, outer: f32, inner: f32) -> Path {
     }))
 }
 
+#[cfg(feature = "native")]
 fn pentagram(center: Pos2, reach: f32) -> Path {
     Path::polygon((0..5).map(|point| {
         let angle = std::f32::consts::PI * (point as f32 * 0.8 - 0.5);
@@ -1051,6 +1079,7 @@ fn pentagram(center: Pos2, reach: f32) -> Path {
     }))
 }
 
+#[cfg(feature = "native")]
 #[sample]
 #[component]
 fn PathFills() -> NodeId {
@@ -1093,6 +1122,7 @@ fn PathFills() -> NodeId {
     }
 }
 
+#[cfg(feature = "native")]
 #[sample]
 #[component]
 fn PathJoins() -> NodeId {
@@ -1131,6 +1161,7 @@ fn PathJoins() -> NodeId {
     }
 }
 
+#[cfg(feature = "native")]
 #[sample]
 #[component]
 fn PathDashes() -> NodeId {

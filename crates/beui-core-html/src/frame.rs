@@ -16,6 +16,7 @@ thread_local! {
     static STARTED: Cell<bool> = const { Cell::new(false) };
     static PENDING: Cell<bool> = const { Cell::new(false) };
     static IN_FRAME: Cell<bool> = const { Cell::new(false) };
+    static FIRING: Cell<bool> = const { Cell::new(false) };
     static TIMERS: RefCell<Vec<Weak<TimerState>>> = RefCell::default();
     static LAYOUT: RefCell<Vec<Weak<dyn Fn() -> bool>>> = RefCell::default();
     static PLACED: RefCell<HashMap<NodeId, Signal<bool>>> = RefCell::default();
@@ -157,9 +158,11 @@ fn run_timers(now: Instant) {
             .filter(|timer| timer.due.get().is_some_and(|due| due <= now))
             .collect()
     });
+    FIRING.with(|firing| firing.set(true));
     for timer in due {
         timer.fire(now);
     }
+    FIRING.with(|firing| firing.set(false));
 }
 
 pub fn on_layout(pass: Rc<dyn Fn() -> bool>) {
@@ -203,7 +206,7 @@ fn layout_pass() -> bool {
             .collect()
     });
     for (node, signal) in placed {
-        if !crate::document::contains(node) {
+        if !crate::document::contains(node) || !signal.is_alive() {
             PLACED.with(|placed| placed.borrow_mut().remove(&node));
             continue;
         }
@@ -282,6 +285,10 @@ pub fn request_frame() {
 
 fn schedule_after(delay: Duration) {
     if !started() {
+        return;
+    }
+    let rearmed_while_frozen = frozen() && FIRING.with(Cell::get);
+    if delay.is_zero() && rearmed_while_frozen {
         return;
     }
     if delay.is_zero() {

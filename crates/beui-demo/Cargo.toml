@@ -8,6 +8,12 @@ license.workspace = true
 name = "demo"
 path = "src/main.rs"
 
+[features]
+default = ["native"]
+# The demo's shell and the pages that only the native core can show: docking,
+# the on-screen keyboard and the inspector. beui-demo-html builds without it.
+native = []
+
 [dependencies]
 beui = { path = "../beui", default-features = false }
 beui_macros = { path = "../beui-macros" }

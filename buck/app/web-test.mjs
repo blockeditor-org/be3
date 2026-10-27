@@ -121,7 +121,7 @@ async function open(query, colorScheme = "light") {
     // A panic in wasm unwinds through a dozen frames of std before the code
     // that panicked, past the default limit of ten.
     await page.addInitScript(() => {
-        Error.stackTraceLimit = 60;
+        Error.stackTraceLimit = 200;
     });
     const log = [];
     const errors = [];

@@ -7772,7 +7772,10 @@ crates = {
                             "//crates/text-editor-core:text-editor-core",
                             "//third-party/rust:pollster-0.4.0",
                         ],
-                        "features": [],
+                        "features": [
+                            "default",
+                            "native",
+                        ],
                     },
                     "space-cursor-bench": {
                         "deps": [
@@ -7787,7 +7790,10 @@ crates = {
                             "//crates/text-editor-core:text-editor-core",
                             "//third-party/rust:pollster-0.4.0",
                         ],
-                        "features": [],
+                        "features": [
+                            "default",
+                            "native",
+                        ],
                     },
                     "space-resize-bench": {
                         "deps": [
@@ -7802,10 +7808,16 @@ crates = {
                             "//crates/text-editor-core:text-editor-core",
                             "//third-party/rust:pollster-0.4.0",
                         ],
-                        "features": [],
+                        "features": [
+                            "default",
+                            "native",
+                        ],
                     },
                 },
-                "features": [],
+                "features": [
+                    "default",
+                    "native",
+                ],
                 "test_deps": [
                     "//crates/bench:bench",
                     "//crates/beui-core:beui-core",
@@ -7815,7 +7827,10 @@ crates = {
                     "//crates/block-ui-test:block-ui-test",
                     "//third-party/rust:pollster-0.4.0",
                 ],
-                "test_features": [],
+                "test_features": [
+                    "default",
+                    "native",
+                ],
             },
             "linux-arm64": {
                 "binaries": {
@@ -7844,7 +7859,10 @@ crates = {
                             "//crates/text-editor-core:text-editor-core",
                             "//third-party/rust:pollster-0.4.0",
                         ],
-                        "features": [],
+                        "features": [
+                            "default",
+                            "native",
+                        ],
                     },
                     "space-cursor-bench": {
                         "deps": [
@@ -7859,7 +7877,10 @@ crates = {
                             "//crates/text-editor-core:text-editor-core",
                             "//third-party/rust:pollster-0.4.0",
                         ],
-                        "features": [],
+                        "features": [
+                            "default",
+                            "native",
+                        ],
                     },
                     "space-resize-bench": {
                         "deps": [
@@ -7874,10 +7895,16 @@ crates = {
                             "//crates/text-editor-core:text-editor-core",
                             "//third-party/rust:pollster-0.4.0",
                         ],
-                        "features": [],
+                        "features": [
+                            "default",
+                            "native",
+                        ],
                     },
                 },
-                "features": [],
+                "features": [
+                    "default",
+                    "native",
+                ],
                 "test_deps": [
                     "//crates/bench:bench",
                     "//crates/beui-core:beui-core",
@@ -7887,7 +7914,10 @@ crates = {
                     "//crates/block-ui-test:block-ui-test",
                     "//third-party/rust:pollster-0.4.0",
                 ],
-                "test_features": [],
+                "test_features": [
+                    "default",
+                    "native",
+                ],
             },
             "linux-x86_64": {
                 "binaries": {
@@ -7916,7 +7946,10 @@ crates = {
                             "//crates/text-editor-core:text-editor-core",
                             "//third-party/rust:pollster-0.4.0",
                         ],
-                        "features": [],
+                        "features": [
+                            "default",
+                            "native",
+                        ],
                     },
                     "space-cursor-bench": {
                         "deps": [
@@ -7931,7 +7964,10 @@ crates = {
                             "//crates/text-editor-core:text-editor-core",
                             "//third-party/rust:pollster-0.4.0",
                         ],
-                        "features": [],
+                        "features": [
+                            "default",
+                            "native",
+                        ],
                     },
                     "space-resize-bench": {
                         "deps": [
@@ -7946,10 +7982,16 @@ crates = {
                             "//crates/text-editor-core:text-editor-core",
                             "//third-party/rust:pollster-0.4.0",
                         ],
-                        "features": [],
+                        "features": [
+                            "default",
+                            "native",
+                        ],
                     },
                 },
-                "features": [],
+                "features": [
+                    "default",
+                    "native",
+                ],
                 "test_deps": [
                     "//crates/bench:bench",
                     "//crates/beui-core:beui-core",
@@ -7959,7 +8001,10 @@ crates = {
                     "//crates/block-ui-test:block-ui-test",
                     "//third-party/rust:pollster-0.4.0",
                 ],
-                "test_features": [],
+                "test_features": [
+                    "default",
+                    "native",
+                ],
             },
             "macos-arm64": {
                 "binaries": {
@@ -7988,7 +8033,10 @@ crates = {
                             "//crates/text-editor-core:text-editor-core",
                             "//third-party/rust:pollster-0.4.0",
                         ],
-                        "features": [],
+                        "features": [
+                            "default",
+                            "native",
+                        ],
                     },
                     "space-cursor-bench": {
                         "deps": [
@@ -8003,7 +8051,10 @@ crates = {
                             "//crates/text-editor-core:text-editor-core",
                             "//third-party/rust:pollster-0.4.0",
                         ],
-                        "features": [],
+                        "features": [
+                            "default",
+                            "native",
+                        ],
                     },
                     "space-resize-bench": {
                         "deps": [
@@ -8018,10 +8069,16 @@ crates = {
                             "//crates/text-editor-core:text-editor-core",
                             "//third-party/rust:pollster-0.4.0",
                         ],
-                        "features": [],
+                        "features": [
+                            "default",
+                            "native",
+                        ],
                     },
                 },
-                "features": [],
+                "features": [
+                    "default",
+                    "native",
+                ],
                 "test_deps": [
                     "//crates/bench:bench",
                     "//crates/beui-core:beui-core",
@@ -8031,7 +8088,10 @@ crates = {
                     "//crates/block-ui-test:block-ui-test",
                     "//third-party/rust:pollster-0.4.0",
                 ],
-                "test_features": [],
+                "test_features": [
+                    "default",
+                    "native",
+                ],
             },
             "macos-x86_64": {
                 "binaries": {
@@ -8060,7 +8120,10 @@ crates = {
                             "//crates/text-editor-core:text-editor-core",
                             "//third-party/rust:pollster-0.4.0",
                         ],
-                        "features": [],
+                        "features": [
+                            "default",
+                            "native",
+                        ],
                     },
                     "space-cursor-bench": {
                         "deps": [
@@ -8075,7 +8138,10 @@ crates = {
                             "//crates/text-editor-core:text-editor-core",
                             "//third-party/rust:pollster-0.4.0",
                         ],
-                        "features": [],
+                        "features": [
+                            "default",
+                            "native",
+                        ],
                     },
                     "space-resize-bench": {
                         "deps": [
@@ -8090,10 +8156,16 @@ crates = {
                             "//crates/text-editor-core:text-editor-core",
                             "//third-party/rust:pollster-0.4.0",
                         ],
-                        "features": [],
+                        "features": [
+                            "default",
+                            "native",
+                        ],
                     },
                 },
-                "features": [],
+                "features": [
+                    "default",
+                    "native",
+                ],
                 "test_deps": [
                     "//crates/bench:bench",
                     "//crates/beui-core:beui-core",
@@ -8103,7 +8175,10 @@ crates = {
                     "//crates/block-ui-test:block-ui-test",
                     "//third-party/rust:pollster-0.4.0",
                 ],
-                "test_features": [],
+                "test_features": [
+                    "default",
+                    "native",
+                ],
             },
             "wasi": {
                 "binaries": {},
@@ -8113,7 +8188,10 @@ crates = {
                     "//crates/text-editor-core:text-editor-core",
                 ],
                 "examples": {},
-                "features": [],
+                "features": [
+                    "default",
+                    "native",
+                ],
                 "test_deps": [],
                 "test_features": [],
             },
@@ -8140,7 +8218,10 @@ crates = {
                             "//crates/block-ui-test:block-ui-test",
                             "//crates/text-editor-core:text-editor-core",
                         ],
-                        "features": [],
+                        "features": [
+                            "default",
+                            "native",
+                        ],
                     },
                     "space-cursor-bench": {
                         "deps": [
@@ -8151,7 +8232,10 @@ crates = {
                             "//crates/block-ui-test:block-ui-test",
                             "//crates/text-editor-core:text-editor-core",
                         ],
-                        "features": [],
+                        "features": [
+                            "default",
+                            "native",
+                        ],
                     },
                     "space-resize-bench": {
                         "deps": [
@@ -8162,15 +8246,36 @@ crates = {
                             "//crates/block-ui-test:block-ui-test",
                             "//crates/text-editor-core:text-editor-core",
                         ],
-                        "features": [],
+                        "features": [
+                            "default",
+                            "native",
+                        ],
                     },
                 },
-                "features": [],
+                "features": [
+                    "default",
+                    "native",
+                ],
                 "test_deps": [
                     "//crates/bench:bench",
                     "//crates/beui-inspector:beui-inspector",
                     "//crates/block-ui-test:block-ui-test",
                 ],
+                "test_features": [
+                    "default",
+                    "native",
+                ],
+            },
+            "wasi-html": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-macros:beui_macros",
+                    "//crates/beui:beui",
+                    "//crates/text-editor-core:text-editor-core",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
                 "test_features": [],
             },
             "windows-arm64": {
@@ -8200,7 +8305,10 @@ crates = {
                             "//crates/text-editor-core:text-editor-core",
                             "//third-party/rust:pollster-0.4.0",
                         ],
-                        "features": [],
+                        "features": [
+                            "default",
+                            "native",
+                        ],
                     },
                     "space-cursor-bench": {
                         "deps": [
@@ -8215,7 +8323,10 @@ crates = {
                             "//crates/text-editor-core:text-editor-core",
                             "//third-party/rust:pollster-0.4.0",
                         ],
-                        "features": [],
+                        "features": [
+                            "default",
+                            "native",
+                        ],
                     },
                     "space-resize-bench": {
                         "deps": [
@@ -8230,10 +8341,16 @@ crates = {
                             "//crates/text-editor-core:text-editor-core",
                             "//third-party/rust:pollster-0.4.0",
                         ],
-                        "features": [],
+                        "features": [
+                            "default",
+                            "native",
+                        ],
                     },
                 },
-                "features": [],
+                "features": [
+                    "default",
+                    "native",
+                ],
                 "test_deps": [
                     "//crates/bench:bench",
                     "//crates/beui-core:beui-core",
@@ -8243,7 +8360,10 @@ crates = {
                     "//crates/block-ui-test:block-ui-test",
                     "//third-party/rust:pollster-0.4.0",
                 ],
-                "test_features": [],
+                "test_features": [
+                    "default",
+                    "native",
+                ],
             },
             "windows-x86_64": {
                 "binaries": {
@@ -8272,7 +8392,10 @@ crates = {
                             "//crates/text-editor-core:text-editor-core",
                             "//third-party/rust:pollster-0.4.0",
                         ],
-                        "features": [],
+                        "features": [
+                            "default",
+                            "native",
+                        ],
                     },
                     "space-cursor-bench": {
                         "deps": [
@@ -8287,7 +8410,10 @@ crates = {
                             "//crates/text-editor-core:text-editor-core",
                             "//third-party/rust:pollster-0.4.0",
                         ],
-                        "features": [],
+                        "features": [
+                            "default",
+                            "native",
+                        ],
                     },
                     "space-resize-bench": {
                         "deps": [
@@ -8302,10 +8428,16 @@ crates = {
                             "//crates/text-editor-core:text-editor-core",
                             "//third-party/rust:pollster-0.4.0",
                         ],
-                        "features": [],
+                        "features": [
+                            "default",
+                            "native",
+                        ],
                     },
                 },
-                "features": [],
+                "features": [
+                    "default",
+                    "native",
+                ],
                 "test_deps": [
                     "//crates/bench:bench",
                     "//crates/beui-core:beui-core",
@@ -8315,6 +8447,38 @@ crates = {
                     "//crates/block-ui-test:block-ui-test",
                     "//third-party/rust:pollster-0.4.0",
                 ],
+                "test_features": [
+                    "default",
+                    "native",
+                ],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/beui-demo-html": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "beui_demo_html",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "beui-demo-html",
+        "platforms": {
+            "wasi-html": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-demo:beui-demo",
+                    "//crates/beui:beui",
+                    "//crates/wasi-threads:wasi-threads",
+                    "//third-party/rust:wasm-bindgen-0.2.122",
+                    "//third-party/rust:wasm-bindgen-futures-0.4.72",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
                 "test_features": [],
             },
         },
