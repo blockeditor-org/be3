@@ -36,7 +36,11 @@ pub fn stylesheet(definitions: &ColorDefinitions) -> String {
     let block = |selector: &str, scheme: ColorScheme| {
         let mut out = format!("{selector} {{");
         for (var, colors) in &sorted {
-            out.push_str(&format!(" --{}: {};", var.name(), literal_color(colors.get(scheme))));
+            out.push_str(&format!(
+                " --{}: {};",
+                var.name(),
+                literal_color(colors.get(scheme))
+            ));
         }
         out.push_str(" }");
         out

@@ -147,7 +147,11 @@ fn grid_of(
     let theme = use_theme();
     let look = create_memo(move || {
         let spacing = grid.get().shown().filter(|_| live)?;
-        GridLook::new(spacing, camera.get().scale, beui::reactive::resolve_color(theme.border.get()))
+        GridLook::new(
+            spacing,
+            camera.get().scale,
+            beui::reactive::resolve_color(theme.border.get()),
+        )
     });
     let tiles = create_memo(move || match look.get() {
         Some(look) => look.tiles(camera.get().rect_to_canvas(stage.get())),

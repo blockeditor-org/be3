@@ -257,6 +257,9 @@ impl Element for FrameNode {
     }
 
     fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect) {
+        if self.opacity <= 0.0 {
+            return;
+        }
         let grid = doc.pixel_grid();
         let moved = self.moved(grid);
         let rect = self.box_rect(grid, rect).translate(moved);

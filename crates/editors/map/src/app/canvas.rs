@@ -140,7 +140,9 @@ fn RegionOutline(shown: Memo<bool>, rect: Memo<Rect>) -> DynamicSegment<CanvasIt
     view! {
         <Show condition={shown}>
             <CanvasItem x={x} y={y} width={width} height={height}>
-                <Frame border={Border::new(ColorRole::Custom(REGION_COLOR.into())).width(Stroke::Focus)} />
+                <Frame
+                    border={Border::new(ColorRole::Custom(REGION_COLOR.into())).width(Stroke::Focus)}
+                />
             </CanvasItem>
         </Show>
     }

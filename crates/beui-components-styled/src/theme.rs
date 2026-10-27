@@ -213,7 +213,11 @@ impl Theme {
 }
 
 const fn rgb(hex: u32) -> Color {
-    Color::literal(Color32::from_rgb((hex >> 16) as u8, (hex >> 8) as u8, hex as u8))
+    Color::literal(Color32::from_rgb(
+        (hex >> 16) as u8,
+        (hex >> 8) as u8,
+        hex as u8,
+    ))
 }
 
 const DARK_SYNTAX: SyntaxColors = SyntaxColors {

@@ -172,7 +172,7 @@ pub struct Document {
     painters: NodeMap<Placing>,
     motion: ::reactive::OwnedSignal<crate::animation::Motion>,
     theme: ::reactive::OwnedSignal<crate::preferences::ThemeKind>,
-    colors: crate::color::ColorDefinitions,
+    colors: std::rc::Rc<crate::color::ColorDefinitions>,
     canvas_touch: ::reactive::OwnedSignal<crate::preferences::CanvasTouch>,
     preference_layers: ::reactive::OwnedSignal<crate::preferences::PreferenceLayers>,
     out_of_bounds: Option<Vec<(WindowId, String)>>,
@@ -400,7 +400,7 @@ impl Document {
             painters: NodeMap::default(),
             motion: ::reactive::OwnedSignal::new(crate::animation::Motion::default()),
             theme: ::reactive::OwnedSignal::new(crate::preferences::ThemeKind::default()),
-            colors: crate::color::ColorDefinitions::default(),
+            colors: std::rc::Rc::default(),
             canvas_touch: ::reactive::OwnedSignal::new(Default::default()),
             preference_layers: ::reactive::OwnedSignal::new(Default::default()),
             out_of_bounds: None,
@@ -881,9 +881,20 @@ impl Document {
         color.resolve_in(&self.colors, self.color_scheme())
     }
 
+    pub fn color_definitions(&self) -> std::rc::Rc<crate::color::ColorDefinitions> {
+        self.colors.clone()
+    }
+
     pub fn set_color_definitions(&mut self, colors: crate::color::ColorDefinitions) {
-        if self.colors != colors {
-            self.colors = colors;
+        if *self.colors == colors {
+            return;
+        }
+        let repaints = self
+            .colors
+            .iter()
+            .any(|(var, held)| colors.get(var) != Some(held));
+        self.colors = std::rc::Rc::new(colors);
+        if repaints {
             self.arena.invalidate();
         }
     }

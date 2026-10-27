@@ -1,5 +1,6 @@
 use beui_types::{
-    Align, Color, Color32, ColorSource, Corners, Direction, Extent, FontFamily, FontId, Justify, Outline, Sides, Track,
+    Align, Color, Color32, ColorSource, Corners, Direction, Extent, FontFamily, FontId, Justify,
+    Outline, Sides, Track,
 };
 
 pub fn number(value: f32) -> String {
@@ -179,4 +180,3 @@ pub fn fade(fade: Sides) -> Option<String> {
     .collect();
     (!layers.is_empty()).then(|| layers.join(", "))
 }
-

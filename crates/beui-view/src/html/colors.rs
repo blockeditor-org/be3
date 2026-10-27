@@ -1,10 +1,7 @@
-use crate::reactive::{Get, Memo, create_effect};
-use crate::types::ColorDefinitions;
+use crate::reactive::{Get, Memo, Set, Signal, create_effect};
+use crate::types::{ColorDefinitions, ColorScheme};
 
-pub fn apply(definitions: Memo<ColorDefinitions>) {
+pub fn apply(definitions: Memo<ColorDefinitions>, scheme: Signal<ColorScheme>) {
     create_effect(move || beui_core_html::colors::set_definitions(definitions.get()));
-}
-
-pub fn scheme() -> crate::types::ColorScheme {
-    beui_core_html::page::color_scheme()
+    create_effect(move || scheme.set(beui_core_html::page::color_scheme()));
 }

@@ -8,7 +8,9 @@ use block_editor_beui::beui::icons::{
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 
-use block_editor_beui::beui::{Color, Color32, NodeId, OverlayAnchor, Placement, Pos2, TextAlign, Vec2};
+use block_editor_beui::beui::{
+    Color, Color32, NodeId, OverlayAnchor, Placement, Pos2, TextAlign, Vec2,
+};
 use block_editor_beui::block_ui::TemplateEntry;
 use block_editor_beui::{
     BlockParent, ChildMode, ChildState, Subregion, SubregionContent, label_glyph,

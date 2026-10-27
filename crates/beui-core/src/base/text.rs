@@ -790,9 +790,11 @@ impl TextNode {
             let area = layout.caret_rect(caret.at, caret.width).translate(origin);
             if let Some(handle) = caret.handle {
                 let (shape, corners, angle) = handle_shape(area, handle);
-                painter
-                    .rotated(shape.center(), angle)
-                    .rect_filled(shape, corners, doc.resolve_color(caret.color));
+                painter.rotated(shape.center(), angle).rect_filled(
+                    shape,
+                    corners,
+                    doc.resolve_color(caret.color),
+                );
                 continue;
             }
             painter.rect_filled(area, 0.0, doc.resolve_color(caret.color));
@@ -808,9 +810,11 @@ impl TextNode {
             for (index, handle, color) in &self.handles {
                 let caret = layout.caret_rect(*index, 0.0).translate(origin);
                 let (shape, corners, angle) = handle_shape(caret, *handle);
-                painter
-                    .rotated(shape.center(), angle)
-                    .rect_filled(shape, corners, doc.resolve_color(*color));
+                painter.rotated(shape.center(), angle).rect_filled(
+                    shape,
+                    corners,
+                    doc.resolve_color(*color),
+                );
             }
         }
     }

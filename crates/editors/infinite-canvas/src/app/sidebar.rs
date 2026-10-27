@@ -702,8 +702,12 @@ fn ForegroundRow(state: CanvasState) -> NodeId {
     });
     let shown = create_memo(move || !value.get().absent());
     let theme = use_theme();
-    let custom =
-        create_memo(move || resolve_color(value.get().or(CanvasColor::Auto), beui::reactive::resolve_color(theme.text.get())));
+    let custom = create_memo(move || {
+        resolve_color(
+            value.get().or(CanvasColor::Auto),
+            beui::reactive::resolve_color(theme.text.get()),
+        )
+    });
     let typed = move |color: Color32| {
         let [red, green, blue, alpha] = color.to_array();
         let color = CanvasColor::Rgba {

@@ -123,7 +123,8 @@ pub(crate) fn Swatch(
     on_pick: Callback<CanvasColor>,
 ) -> NodeId {
     let theme = use_theme();
-    let fill = create_memo(move || resolve_color(color, beui::reactive::resolve_color(theme.text.get())));
+    let fill =
+        create_memo(move || resolve_color(color, beui::reactive::resolve_color(theme.text.get())));
     let chosen = create_memo(move || value.get() == CommonValue::Uniform(color));
     view! {
         <SwatchButton

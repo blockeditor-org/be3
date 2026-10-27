@@ -1,5 +1,4 @@
 use super::*;
-use crate::format_hex;
 use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::Text;
@@ -39,16 +38,16 @@ fn a_style_provider_sizes_and_colours_the_text_inside_it() {
     assert_eq!(property(inherited, "font size"), "12");
     assert_eq!(
         property(inherited, "color"),
-        format_hex(Theme::DARK.text_muted, true)
+        "--color-text_muted"
     );
     assert_eq!(property(overridden, "font size"), "12");
     assert_eq!(
         property(overridden, "color"),
-        format_hex(Theme::DARK.danger, true)
+        "--color-danger"
     );
     assert_eq!(property(outside, "font size"), "14");
     assert_eq!(
         property(outside, "color"),
-        format_hex(Theme::DARK.text, true)
+        "--color-text"
     );
 }

@@ -154,7 +154,10 @@ pub(crate) fn EntityText(
             placeholder: entity.placeholder.clone(),
             text_style: text_style(&entity),
             color: with_opacity(
-                resolve_color(entity.style.stroke_color, beui::reactive::resolve_color(theme.text.get())),
+                resolve_color(
+                    entity.style.stroke_color,
+                    beui::reactive::resolve_color(theme.text.get()),
+                ),
                 entity.style.opacity,
             ),
             locked: entity.locked,
@@ -169,11 +172,12 @@ pub(crate) fn EntityText(
             .unwrap_or_default()
     });
     let color = create_memo(move || {
-        TextColor::Custom((
-            shown
+        TextColor::Custom(
+            (shown
                 .get()
-                .map_or(Color32::TRANSPARENT, |shown| shown.color)
-        ).into())
+                .map_or(Color32::TRANSPARENT, |shown| shown.color))
+            .into(),
+        )
     });
     let font_size = create_memo(move || shown.get().map_or(20.0, |shown| shown.size));
     let size = create_memo(move || TextSize::Custom(font_size.get()));

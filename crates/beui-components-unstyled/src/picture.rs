@@ -75,7 +75,7 @@ pub fn Picture(
     let draw = Prop::dynamic(move || -> Draw {
         let shown = shown.get();
         let source = source.get();
-        let (fit, tint, radius) = (fit.get(), resolve_color(tint.get()), radius.get());
+        let (fit, tint, radius) = (fit.get(), tint.get(), radius.get());
         Rc::new(move |painter: &Painter, rect: Rect| {
             let Some(shown) = shown.as_ref() else {
                 return;
@@ -83,7 +83,7 @@ pub fn Picture(
             let placed = fit.place(rect, cropped(shown.size, source));
             let uv = source.unwrap_or(Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)));
             let (placed, uv) = visible_part(placed, uv, rect);
-            painter.image(placed, uv, &shown.image, tint, radius, shown.smooth);
+            painter.image(placed, uv, &shown.image, painter.resolve_color(tint), radius, shown.smooth);
         })
     });
     view! {

@@ -234,6 +234,22 @@ impl PainterState {
     }
 }
 
+thread_local! {
+    static COLORS: std::cell::RefCell<Option<(Rc<crate::color::ColorDefinitions>, crate::color::ColorScheme)>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+pub(crate) fn with_colors<R>(
+    definitions: Rc<crate::color::ColorDefinitions>,
+    scheme: crate::color::ColorScheme,
+    run: impl FnOnce() -> R,
+) -> R {
+    let held = COLORS.with(|colors| colors.replace(Some((definitions, scheme))));
+    let result = run();
+    COLORS.with(|colors| *colors.borrow_mut() = held);
+    result
+}
+
 pub struct Painter {
     context: Context,
     state: PainterState,
@@ -241,6 +257,16 @@ pub struct Painter {
 }
 
 impl Painter {
+    pub fn resolve_color(&self, color: crate::color::Color) -> Color32 {
+        if let Some(color) = color.as_literal() {
+            return color;
+        }
+        COLORS.with(|colors| match &*colors.borrow() {
+            Some((definitions, scheme)) => color.resolve_in(definitions, *scheme),
+            None => color.resolve(|_| None),
+        })
+    }
+
     pub fn new(context: Context, clip: Rect) -> Self {
         Self {
             context,

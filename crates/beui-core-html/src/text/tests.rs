@@ -1,6 +1,6 @@
 use super::*;
-use beui_types::text::FontId;
 use beui_types::Color32;
+use beui_types::text::FontId;
 
 fn glyph(range: Range<usize>, glyph: &str) -> TextGlyph {
     TextGlyph::new(

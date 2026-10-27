@@ -64,9 +64,9 @@ pub fn ScrollbarThumb(
     #[prop(default = 0.0)] radius: f32,
 ) -> NodeId {
     let draw = Prop::dynamic(move || {
-        let (position, direction) = (position.get(), direction.get());
-        let color = resolve_color(color.get());
+        let (position, direction, color) = (position.get(), direction.get(), color.get());
         Rc::new(move |painter: &Painter, rect: Rect| {
+            let color = painter.resolve_color(color);
             if color.alpha() == 0 {
                 return;
             }

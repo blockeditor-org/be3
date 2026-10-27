@@ -1,8 +1,9 @@
 use std::cell::Cell;
+use std::rc::Rc;
 
 use crate::reactive::{
     Get, IntoProp, Memo, Set, Signal, create_effect, create_memo, create_signal, on_cleanup,
-    tree_local,
+    tree_local, untrack,
 };
 use crate::types::{Color, Color32, ColorDefinitions, ColorScheme};
 
@@ -10,14 +11,16 @@ use crate::types::{Color, Color32, ColorDefinitions, ColorScheme};
 struct Registry {
     defined: Signal<Vec<(u64, ColorDefinitions)>>,
     merged: Memo<ColorDefinitions>,
+    scheme: Signal<ColorScheme>,
 }
 
 thread_local! {
     static NEXT: Cell<u64> = const { Cell::new(0) };
+    static CURRENT: Cell<Option<Registry>> = const { Cell::new(None) };
 }
 
 fn registry() -> Registry {
-    tree_local(|| {
+    let registry = tree_local(|| {
         let defined = create_signal(Vec::<(u64, ColorDefinitions)>::new());
         let merged = create_memo(move || {
             defined.with(|defined| {
@@ -28,17 +31,39 @@ fn registry() -> Registry {
                 merged
             })
         });
-        crate::core::colors::apply(merged);
-        Registry { defined, merged }
-    })
+        let scheme = create_signal(ColorScheme::default());
+        crate::core::colors::apply(merged, scheme);
+        Registry {
+            defined,
+            merged,
+            scheme,
+        }
+    });
+    CURRENT.with(|current| current.set(Some(registry)));
+    registry
+}
+
+fn current() -> Option<Registry> {
+    CURRENT
+        .with(Cell::get)
+        .filter(|registry| registry.defined.is_alive() && registry.scheme.is_alive())
 }
 
 pub fn define_colors(definitions: impl IntoProp<ColorDefinitions>) {
     let definitions = definitions.into_prop();
-    let registry = registry();
     let key = NEXT.with(|next| next.replace(next.get() + 1));
+    let held = Rc::new(Cell::new(None::<Registry>));
+    let defined = held.clone();
     create_effect(move || {
         let definitions = definitions.get();
+        let registry = match defined.get() {
+            Some(registry) => registry,
+            None => {
+                let registry = untrack(registry);
+                defined.set(Some(registry));
+                registry
+            }
+        };
         registry.defined.update(|defined| {
             match defined.iter_mut().find(|(held, _)| *held == key) {
                 Some((_, held)) => *held = definitions,
@@ -47,7 +72,9 @@ pub fn define_colors(definitions: impl IntoProp<ColorDefinitions>) {
         });
     });
     on_cleanup(move || {
-        if registry.defined.is_alive() {
+        if let Some(registry) = held.get()
+            && registry.defined.is_alive()
+        {
             registry
                 .defined
                 .update(|defined| defined.retain(|(held, _)| *held != key));
@@ -55,20 +82,19 @@ pub fn define_colors(definitions: impl IntoProp<ColorDefinitions>) {
     });
 }
 
-pub fn color_definitions() -> Memo<ColorDefinitions> {
-    registry().merged
-}
-
 pub fn color_scheme() -> ColorScheme {
-    crate::core::colors::scheme()
+    current().map_or_else(ColorScheme::default, |registry| registry.scheme.get())
 }
 
 pub fn resolve_color(color: Color) -> Color32 {
     if let Some(color) = color.as_literal() {
         return color;
     }
-    let scheme = color_scheme();
-    registry()
+    let Some(registry) = current() else {
+        return color.resolve(|_| None);
+    };
+    let scheme = registry.scheme.get();
+    registry
         .merged
         .with(|definitions| color.resolve_in(definitions, scheme))
 }

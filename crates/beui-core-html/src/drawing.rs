@@ -10,6 +10,10 @@ impl Painter {
         PixelGrid::default()
     }
 
+    pub fn resolve_color(&self, color: beui_types::Color) -> Color32 {
+        crate::colors::resolve(color)
+    }
+
     pub fn rect_filled(&self, _rect: Rect, _corner_radius: impl Into<Corners>, _color: Color32) {}
 
     pub fn rect_stroke(

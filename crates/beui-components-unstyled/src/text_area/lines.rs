@@ -873,10 +873,7 @@ fn marker(cx: Context, model: Memo<Rc<Row>>, item: Memo<Option<InlineItem>>) -> 
     });
     let style = create_memo(move || {
         item.get().map_or(
-            SpanStyle::new(
-                FontId::proportional(cx.font_size.get()),
-                Color::TRANSPARENT,
-            ),
+            SpanStyle::new(FontId::proportional(cx.font_size.get()), Color::TRANSPARENT),
             |item| item.style,
         )
     });

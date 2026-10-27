@@ -165,7 +165,11 @@ impl Color {
         };
         let mut out = source(self.base);
         if let Some((other, share)) = self.mixed {
-            out = format!("{out} mixed {}% with {}", u32::from(share) * 100 / 255, source(other));
+            out = format!(
+                "{out} mixed {}% with {}",
+                u32::from(share) * 100 / 255,
+                source(other)
+            );
         }
         if self.alpha != 255 {
             out = format!("{out} at {}%", u32::from(self.alpha) * 100 / 255);

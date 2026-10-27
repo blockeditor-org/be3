@@ -4951,8 +4951,8 @@ Whoever references a variable defines it, with a value per `ColorScheme`
 for as long as the calling scope lives; later definitions of a name win. The core
 and unstyled know no colour names. Native resolves a reference when it paints, for
 the scheme of the document's theme preference (`ColorScheme::from(ThemeKind)`:
-`Light` and `EPaper` are light), and repaints everything when a definition or the
-scheme changes. The HTML core writes `var(--NAME)` (and `color-mix()` for the
+`Light` and `EPaper` are light), and repaints everything when the scheme or a value it
+already held changes. The HTML core writes `var(--NAME)` (and `color-mix()` for the
 algebra) and puts the definitions in a `<style>` inside `.beui-root`: the light
 values on `.beui-root`, the dark ones under `@media (prefers-color-scheme: dark)`,
 and both again under `.beui-root[data-scheme=light|dark]`, which the core sets

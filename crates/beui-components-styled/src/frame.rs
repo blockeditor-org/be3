@@ -114,9 +114,7 @@ impl ColorRole {
             ColorRole::ScrollThumbActive => theme.scroll_thumb_active.get(),
             ColorRole::Track => theme.track.get(),
             ColorRole::Knob => theme.knob.get(),
-            ColorRole::ControlOutline => {
-                theme.control_outline.get().unwrap_or(Color::TRANSPARENT)
-            }
+            ColorRole::ControlOutline => theme.control_outline.get().unwrap_or(Color::TRANSPARENT),
             ColorRole::KnobOutline => theme.knob_outline.get().unwrap_or(Color::TRANSPARENT),
             ColorRole::Dim => theme.dim.get(),
             ColorRole::Scrim => theme.scrim.get(),

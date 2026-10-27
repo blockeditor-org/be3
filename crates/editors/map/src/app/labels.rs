@@ -196,11 +196,12 @@ pub(crate) fn MapLabel(
     let size =
         create_memo(move || TextSize::Custom(label.get().map_or(10.0, |label| label.font_size)));
     let color = create_memo(move || {
-        TextColor::Custom((
-            label
+        TextColor::Custom(
+            (label
                 .get()
-                .map_or(Color32::TRANSPARENT, |label| label.color)
-        ).into())
+                .map_or(Color32::TRANSPARENT, |label| label.color))
+            .into(),
+        )
     });
     let x = create_memo(move || rect.get().left());
     let y = create_memo(move || rect.get().top());
