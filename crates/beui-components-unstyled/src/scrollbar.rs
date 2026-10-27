@@ -75,8 +75,14 @@ pub fn ScrollbarThumb(
             painter.rect_filled(thumb, radius, color);
         }) as Draw
     });
+    let opacity = create_memo(move || match color.get().alpha() {
+        0 => 0.0,
+        _ => 1.0,
+    });
     view! {
-        <Drawing draw />
+        <Frame opacity>
+            <Drawing draw />
+        </Frame>
     }
 }
 

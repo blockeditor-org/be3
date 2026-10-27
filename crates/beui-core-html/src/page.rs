@@ -37,6 +37,12 @@ fn signals() -> PageSignals {
     SIGNALS.with(|signals| *signals)
 }
 
+pub(crate) fn set_theme(theme: ThemeKind) {
+    use reactive::Set;
+
+    signals().theme.set(Some(theme));
+}
+
 pub fn use_preferences() -> Memo<Preferences> {
     let signals = signals();
     create_memo(move || {

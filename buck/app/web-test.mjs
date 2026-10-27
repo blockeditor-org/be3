@@ -9,8 +9,8 @@
 // automate(words) (beui-core-html's automate: tree, ids, find, wait, gone,
 // settle, pause, clock); click, type and key are real Playwright input, at the
 // place `find` answers, so the browser's own focus, key and text paths run.
-// --checks also opens ?checks and fails on any line of the page's checks()
-// that is not "ok". NAME runs only the scripts and checks whose names contain
+// --checks also opens ?checks, once in each colour scheme, and fails on any
+// line of the page's checks() that is not "ok". NAME runs only the scripts and checks whose names contain
 // it. The browser is BE3_CHROME when set, else Playwright's Chromium; with
 // neither, it fails rather than skipping.
 
@@ -115,8 +115,8 @@ const browser = await chromium.launch({
     env: { ...process.env, TMPDIR: temporary },
 });
 
-async function open(query) {
-    const context = await browser.newContext({ viewport: SIZE });
+async function open(query, colorScheme = "light") {
+    const context = await browser.newContext({ viewport: SIZE, colorScheme });
     const page = await context.newPage();
     const log = [];
     const errors = [];
@@ -246,11 +246,12 @@ async function runScript(script) {
     }
 }
 
-async function runChecks() {
-    console.log("\nchecks");
-    const opened = await open("?checks");
+async function runChecks(colorScheme) {
+    console.log(`\nchecks (${colorScheme})`);
+    const opened = await open("?checks", colorScheme);
     try {
         if (opened.errors.length) throw new Failure(opened.errors[0]);
+        await answer(opened.page, ["settle"]);
         const lines = await opened.page.evaluate(async () => (await globalThis.beuiStarted).checks());
         const chosen = lines
             .trim()
@@ -279,8 +280,10 @@ for (const script of scripts) {
     passed = (await runScript(script)) && passed;
 }
 if (checks) {
-    ran += 1;
-    passed = (await runChecks()) && passed;
+    for (const colorScheme of ["light", "dark"]) {
+        ran += 1;
+        passed = (await runChecks(colorScheme)) && passed;
+    }
 }
 await browser.close();
 server.close();

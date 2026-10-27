@@ -2,7 +2,7 @@ use std::cell::Cell;
 
 use beui_html::Node;
 
-use beui_types::Color32;
+use beui_types::{Color32, ThemeKind};
 use reactive::{Get, Set, Signal, create_binding};
 
 use crate::document::{append, create, element, set_attribute, set_style};
@@ -11,7 +11,7 @@ use crate::node::NodeId;
 pub const PINK: &str = "#ff69b4";
 
 pub const BASE_STYLES: &str = "\
-.beui-root { display: grid; grid-template-columns: minmax(0, 1fr); width: 100%; min-height: 100%; }
+.beui-root { color-scheme: light dark; display: grid; grid-template-columns: minmax(0, 1fr); width: 100%; min-height: 100%; }
 .beui-root, .beui-root * { box-sizing: border-box; margin: 0; }
 .beui-break::after { content: \"\\A\"; white-space: pre; }
 .beui-glyph { position: relative; }
@@ -67,7 +67,16 @@ fn root_element(build: impl FnOnce() -> NodeId) -> Node {
 }
 
 pub fn render_to_string(build: impl FnOnce() -> NodeId) -> String {
-    beui_html::render_fragment(|| root_element(build))
+    beui_html::render_fragment(|| {
+        crate::page::set_theme(ThemeKind::Dark);
+        let root = root_element(build);
+        reactive::flush();
+        let dark = crate::document::styles();
+        crate::page::set_theme(ThemeKind::Light);
+        reactive::flush();
+        crate::document::write_both_schemes(dark);
+        root
+    })
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -129,14 +138,12 @@ mod web {
     fn start(
         document: &web_sys::Document,
         container: &web_sys::Node,
-        mounted: beui_html::dom::Mounted,
+        mount: impl FnOnce() -> beui_html::dom::Mounted,
     ) {
-        let mut held: Vec<Box<dyn Any>> = vec![Box::new(mounted)];
+        let page = crate::dom::window().map(|window| crate::page::watch(&window));
+        let mut held: Vec<Box<dyn Any>> = vec![Box::new(mount()), Box::new(page)];
         held.push(Box::new(watch_changes(container)));
         held.push(Box::new(crate::focus::watch_document(document)));
-        if let Some(window) = crate::dom::window() {
-            held.push(Box::new(crate::page::watch(&window)));
-        }
         RUNNING.with(|running| running.borrow_mut().extend(held));
         crate::frame::start();
     }
@@ -145,8 +152,9 @@ mod web {
         let (document, container) = container(element_id)?;
         add_styles(&document);
         let container: web_sys::Node = container.unchecked_into();
-        let mounted = beui_html::dom::mount(&container, || root_element(build));
-        start(&document, &container, mounted);
+        start(&document, &container, || {
+            beui_html::dom::mount(&container, || root_element(build))
+        });
         Ok(())
     }
 
@@ -154,8 +162,9 @@ mod web {
         let (document, container) = container(element_id)?;
         add_styles(&document);
         let container: web_sys::Node = container.unchecked_into();
-        let mounted = beui_html::dom::hydrate(&container, || root_element(build));
-        start(&document, &container, mounted);
+        start(&document, &container, || {
+            beui_html::dom::hydrate(&container, || root_element(build))
+        });
         Ok(())
     }
 }
