@@ -1252,12 +1252,14 @@ name = "beui-core-html"
 version = "0.1.0"
 dependencies = [
  "accesskit",
+ "base64",
  "beui-fonts",
  "beui-html",
  "beui-tree",
  "beui-types",
  "beui-web-input",
  "js-sys",
+ "png",
  "reactive",
  "wasm-bindgen",
  "wasm-bindgen-futures",

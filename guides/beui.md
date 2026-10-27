@@ -343,8 +343,8 @@ hooks the higher crates fill in:
   (`Document::extension`, which components reach as `tree_local`). Both cores
   make a tree-local value in the document's own scope, so it outlives the
   component that first asked for it.
-- A `Drawing` holds whatever its renderer draws; `beui::drawing` makes one for
-  the wgpu renderer.
+- A gpu `Drawing` holds whatever its renderer draws; `beui::drawing` makes one
+  for the wgpu renderer. It is native only.
 - Each platform is a `beui_core::runner::Platform`, a trait object the facade
   picks (`beui::native_platform`, `beui::web_platform`) and runs with a `Launch`
   (`RunOptions`, `Context`, the `App`). The platform owns the event loop and
@@ -649,7 +649,7 @@ What each primitive is on the HTML core (the bodies are in
 
 | Primitive | On HTML |
 | --- | --- |
-| `Root` | `div.beui-root`, fixed to the viewport and clipping what overflows it, so the document never scrolls (only `Scroll`s do; the page needs no sizing styles of its own); it holds the colour definitions, and every overlay's element stays inside it, so they see the same variables |
+| `Root` | `div.beui-root`, which fills the page and holds the colour definitions |
 | `Frame` | a one-cell CSS grid; `translate` and `rotate` are a transform, `opacity` CSS opacity, `fade_edges` a mask image |
 | `List`, `Spacer` | flexbox and a flex child; `@sizing` becomes flex grow, shrink and basis |
 | `Grid`, `Layers` | CSS grid; `Layers` stacks every child in one cell |
@@ -657,16 +657,31 @@ What each primitive is on the HTML core (the bodies are in
 | `Offset` | an `overflow: hidden` element moved through `scrollTop`/`scrollLeft`, never a transform |
 | `VirtualList` | rows in flow between two spacer elements, measured by `ResizeObserver` |
 | `Canvas` | an inner element translated to the view, `--beui-scale` scaling items |
-| `Overlay` | a `<dialog>` (`showModal()` for one that blocks everything, else a manual popover) placed with CSS anchor positioning, a one-cell grid like `Frame` while open; `window` and `shown_in` are ignored |
+| `Overlay` | a `<dialog>` (`showModal()` for one that blocks everything, else a manual popover) placed with CSS anchor positioning; `window` and `shown_in` are ignored |
 | `Portal` | moves the shown subtree's element (`moveBefore` where the browser has it) |
 | `Interactive` | an element with `tabindex` and listeners; `pastes`, `key_active`, `claims_touch` and the forwarding props do nothing yet |
-| `Selectable` | the browser's own selection; the root is `user-select: none`, so nothing outside a `Selectable` (or a native text field) selects |
-| `Drawing` | an escape hatch: a pink box of its size, narrowed to the width it is offered and keeping its shape as natively, so `Picture` and the scrollbar thumb are pink too |
+| `Selectable` | the browser's own selection |
+| `Drawing` | a `div` holding an inline `<svg>` the `Draw` callback paints, sized as natively (see below) |
 
 `Drawing` is the escape hatch for what is not an arrangement of nodes, and
-`Embed` (native only) the one for what is not beui's. On HTML a `Drawing` draws
-a pink TODO rectangle of the right size in this version; whether it becomes an
-SVG or a `<canvas>` is undecided. Text editing is not an escape hatch:
+`Embed` (native only) the one for what is not beui's. On HTML a `Drawing` runs
+its callback into an SVG `Painter` (`beui-core-html`'s `drawing.rs`) and sets
+the result as its element's markup (`beui_html::Node::set_markup`), rebuilding
+only that SVG when the callback, its measured size or a colour it resolved
+changes. SVG rather than `<canvas>` because a server-rendered page shows it
+before wasm loads. The callback is handed the drawing's measured size, or its
+`size` before it is measured, so a drawing with neither (one that fills what
+places it) draws nothing in a server-rendered page. The HTML `Painter` has the
+methods with an SVG equivalent: rectangles (rounded per corner, filled or
+stroked inside like native), `line`, `fill_path` and `stroke_path` (fill rule,
+joins, caps, miter limit, dashes), `image` (a PNG data URL, cropped, rounded,
+tinted, pixelated when not `smooth`), `text`, `transformed`, `rotated`,
+`with_clip_rect`, `clip_rect`, `pixel_grid` and `resolve_color`. Colours a
+`Painter` takes are `Color`s, so references become `var(--…)` and
+`color-mix()` there and follow the scheme without a redraw. A gpu `Drawing`
+(`beui_view::drawing`, `Painter::drawing`) is native only; the colour wheel
+paints its faces as an image on the CPU instead (`color_wheel/cpu.rs`, used
+without the `gpu` feature). Text editing is not an escape hatch:
 `TextArea` and `TextInput` are the same unstyled code on both cores, built on
 `Text`'s `marks`, `glyphs`, `carets` and `hang` and on `measure_text`, typing
 through a hidden textarea on HTML.
@@ -1723,7 +1738,8 @@ and reported clamped to the most colorful color at its lightness and hue
 saturation and value) and leaves the color model to its caller, and
 `ColorPickerState` is generic over the model (`Hsva` or `Oklch`). The faces are
 a `Drawing` that a shader paints on the wgpu renderer, behind
-beui-components-styled's `gpu` feature.
+beui-components-styled's `gpu` feature; without it (the HTML core) the same
+faces are computed on the CPU into an `Image`.
 
 `unstyled::Popover` is what both open: a trigger and an overlay, built the
 first time it opens, that traps Tab, closes on Escape, a press outside or its

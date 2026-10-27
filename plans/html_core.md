@@ -34,11 +34,13 @@ end lists.
   blank space on fast flings, which overscan mitigates. CSS anchor positioning
   covers anchored popovers. A test-only option that delays measurement in
   headless keeps the late path exercised on native.
-- **Escape hatches are pink in the first version.** `Drawing`, and what
-  paints through it (`Picture`, the scrollbar thumb), draw a pink TODO
-  rectangle of the right size on the HTML core. Follow-ups give each a real
-  implementation: an `<img>` or an image primitive for pictures, a `Frame`
-  for the thumb, and `<canvas>` or SVG for drawings (open question 6).
+- **`Drawing` is inline SVG on the HTML core.** The first version drew pink
+  TODO rectangles; now the `Draw` callback paints into an SVG `Painter`, so
+  a server-rendered page shows drawings before wasm loads, which a
+  `<canvas>` could not. `Picture` and the scrollbar thumb stay `Drawing`s on
+  both cores (one way to paint an image or a thumb): an SVG `<image>` and
+  `<rect>` on HTML. The colour wheel's gpu face is computed on the CPU into
+  an image there.
 - **Text editing stays in unstyled.** `TextArea` and `TextInput`, with
   `text_editor_core`, rows, `VirtualList`, completion and handles, are shared
   by both cores. They rely on base `Text`'s declarative props, which the HTML
@@ -359,8 +361,7 @@ Moves up or out:
    selection serializes block-level boxes with newlines. If neither holds
    in every engine, a `copy` handler writes the clipboard text from the
    model. A Playwright test across Chromium, Firefox and WebKit decides.
-5. **`Drawing` as SVG or `<canvas>`** is not decided yet; the first version
-   draws pink TODO rectangles.
+5. **`Drawing` as SVG or `<canvas>`**: decided, SVG (see The decision).
 6. **The overlay beak moves out of `Frame` into the overlay.** The overlay
    chooses the side it opens on, so it draws the beak there. On the HTML
    core the browser chooses that side through CSS anchor positioning, so the
@@ -464,7 +465,7 @@ stylesheet are a later size optimisation.
 | `Overlay` | `popover="manual"` (`<dialog>` with `showModal()` for `BlocksAll` and traps), anchored by CSS anchor positioning (`anchor-name` on the anchor, `position-area` from `Placement`, `position-try-fallbacks`), a point or rect anchor as an invisible absolutely placed `div`; scrim on `::backdrop`; the beak follows the side the browser chose, read back from `measure` |
 | `Portal` | moves its target's element with `moveBefore`, else `insertBefore` |
 | `Root` | the mount element; body background, `document.title`, `<meta name="theme-color">`, `color-scheme` |
-| `Drawing` | a `div` of its size with a pink background and `title="TODO: Drawing"`; `Draw` callbacks are never called. HTML's `Painter` has the four methods shared code calls (`rect_filled`, `rect_stroke`, `image`, `drawing`) as no-ops until open question 5 is settled |
+| `Drawing` | a `div` of its size holding an inline `<svg>` that the `Draw` callback paints through the HTML `Painter`, redrawn when the callback or the measured size changes (guides/beui.md, Cores) |
 
 Until a primitive's task lands, its HTML body renders its children in a plain
 `div` with a pink dashed outline (a leaf: a pink box), so a screen built from
@@ -734,8 +735,9 @@ have landed; its tasks run in parallel unless marked.
 - Browser-native text editing: EditContext (or `contenteditable`) for
   `TextArea` and `TextInput` on the HTML core, and `TextInput`'s `password`
   mode as `<input type=password>`, each a switch in unstyled.
-- Real escape hatches: `Drawing` as SVG or `<canvas>` (undecided), `Picture`
-  as `<img>`, the scrollbar thumb as a `Frame`. All are pink boxes now.
+- A `Drawing` with no `size` draws nothing in a server-rendered page, since
+  the HTML core measures nothing there; so the scrollbar thumb and the colour
+  picker's areas and sliders appear only once the page runs.
 - `Scroll` switching to a real `overflow: auto` scroller on the HTML core.
 - `TreeNode`'s `row_offset`, `texts_within`, `set_text_selection` and
   `set_text_selection_handles` do nothing on HTML.
