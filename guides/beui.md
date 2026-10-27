@@ -1020,8 +1020,12 @@ measured and placed at that size at the start, so a
 `width={Extent::fraction(0.33)}` bar in a column is a third wide without an
 `align` of its own. `Frame`, `Grid`, `Layers`, `Offset` and `VirtualList` follow
 the same rule wherever they stretch a child, through `layout::stretched`, and
-wrappers that lay their child out in their own rect (`Interactive`, `Fade`,
-`Shift` and the like) answer `sizes_itself` for their child. A frame's exact
+wrappers that lay their child out in their own rect (`Interactive`, `Portal`,
+`Embed`) answer `sizes_itself` for their child. A `Frame` answers for its own
+width and height, so one that only moves, turns or fades what it holds
+stretches like any frame without a size. The HTML core needs no hook: CSS's
+`align-items: stretch` already leaves an item with a width of its own alone,
+and beui-shared-tests' `stretch` script holds both cores to it. A frame's exact
 or at-most width needs no hook: it draws its box at that width at the start of
 whatever rect it is given, though the rect, and so where it takes input, is
 the stretched one.
