@@ -7370,6 +7370,7 @@ crates = {
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:js-sys-0.3.99",
                     "//third-party/rust:wasm-bindgen-0.2.122",
+                    "//third-party/rust:wasm-bindgen-futures-0.4.72",
                     "//third-party/rust:web-sys-0.3.99",
                 ],
                 "examples": {},
@@ -10344,6 +10345,160 @@ crates = {
                     "//crates/beui-font-freetype:beui-font-freetype",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
+                ],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/beui-shared-tests": {
+        "binaries": [
+            {
+                "crate_root": "src/main.rs",
+                "name": "beui-shared-tests",
+            },
+        ],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "beui_shared_tests",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "beui-shared-tests",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {
+                    "beui-shared-tests": [
+                        "//crates/beui:beui",
+                    ],
+                },
+                "deps": [
+                    "//crates/beui:beui",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/be-drive:be-drive",
+                    "//crates/beui-layer-drive:beui-layer-drive",
+                ],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {
+                    "beui-shared-tests": [
+                        "//crates/beui:beui",
+                    ],
+                },
+                "deps": [
+                    "//crates/beui:beui",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/be-drive:be-drive",
+                    "//crates/beui-layer-drive:beui-layer-drive",
+                ],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {
+                    "beui-shared-tests": [
+                        "//crates/beui:beui",
+                    ],
+                },
+                "deps": [
+                    "//crates/beui:beui",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/be-drive:be-drive",
+                    "//crates/beui-layer-drive:beui-layer-drive",
+                ],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {
+                    "beui-shared-tests": [
+                        "//crates/beui:beui",
+                    ],
+                },
+                "deps": [
+                    "//crates/beui:beui",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/be-drive:be-drive",
+                    "//crates/beui-layer-drive:beui-layer-drive",
+                ],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {
+                    "beui-shared-tests": [
+                        "//crates/beui:beui",
+                    ],
+                },
+                "deps": [
+                    "//crates/beui:beui",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/be-drive:be-drive",
+                    "//crates/beui-layer-drive:beui-layer-drive",
+                ],
+                "test_features": [],
+            },
+            "wasi-html": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-html:beui-html",
+                    "//crates/beui:beui",
+                    "//crates/wasi-threads:wasi-threads",
+                    "//third-party/rust:wasm-bindgen-0.2.122",
+                    "//third-party/rust:wasm-bindgen-futures-0.4.72",
+                    "//third-party/rust:web-sys-0.3.99",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {
+                    "beui-shared-tests": [
+                        "//crates/beui:beui",
+                    ],
+                },
+                "deps": [
+                    "//crates/beui:beui",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/be-drive:be-drive",
+                    "//crates/beui-layer-drive:beui-layer-drive",
+                ],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {
+                    "beui-shared-tests": [
+                        "//crates/beui:beui",
+                    ],
+                },
+                "deps": [
+                    "//crates/beui:beui",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/be-drive:be-drive",
+                    "//crates/beui-layer-drive:beui-layer-drive",
                 ],
                 "test_features": [],
             },
@@ -25446,6 +25601,14 @@ crates = {
                 "test_features": [],
             },
             "wasi-guest": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-html": {
                 "binaries": {},
                 "deps": [],
                 "examples": {},
@@ -74623,6 +74786,16 @@ third_party = {
                     "std",
                 ],
             },
+            "wasi-html": {
+                "deps": [
+                    ":js-sys-0.3.99",
+                    ":wasm-bindgen-0.2.122",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
             "wasm32": {
                 "deps": [
                     ":js-sys-0.3.99",
@@ -79061,6 +79234,7 @@ third_party = {
                     "MutationObserverInit",
                     "Navigator",
                     "Node",
+                    "NodeList",
                     "Performance",
                     "PointerEvent",
                     "ResizeObserver",

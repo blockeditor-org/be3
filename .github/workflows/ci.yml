@@ -129,6 +129,22 @@ jobs:
             "$RUNNER_TEMP/browser-rasterizer/bin/python" -m playwright install --with-deps chromium
           fi
 
+      # What the browser tests (web_drive_test in buck/app/drive.bzl) drive
+      # Chrome with, on this runner since the workers have no browser:
+      # Playwright's Node package, with the Google Chrome the runner image
+      # already has, as the previews use it. An image without Chrome falls back
+      # to Playwright's own Chromium. A pull request older than the browser
+      # tests has no buck/app/web-test.mjs and skips this.
+      - name: Install the browser tests' runtime
+        if: ${{ !cancelled() && hashFiles('buck/app/web-test.mjs') != '' }}
+        run: |
+          npm install --global --no-audit --no-fund playwright@1.63.0
+          if chrome="$(command -v google-chrome)"; then
+            echo "BE3_CHROME=$chrome" >> "$GITHUB_ENV"
+          else
+            npx --yes playwright@1.63.0 install --with-deps chromium
+          fi
+
       - name: Run ./scripts/ci
         if: ${{ !cancelled() }}
         env:

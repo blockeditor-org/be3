@@ -262,6 +262,13 @@ It also passes `run_apart = True`, which makes a `:test-run-<file>` for each fil
 then loses only its own paintings, not every one the crate accepts.
 crates/be-server captures its SSR portal as text browser paintings without a browser.
 
+**Browser tests** (`web_drive_test` in `buck/app/drive.bzl`) are the one kind that runs on this
+machine rather than a worker, since the workers have no browser: their `:<name>-run` is a
+local-only action in ./scripts/verify, and ./scripts/test runs a test labelled `local` here
+(buck/dev/test.bxl). They need Node, its `playwright` package and a Chrome or Chromium
+(guides/testing_a_gui.md, 7). A crate on the HTML core builds its browser module with
+`wasi_html_module` (buck/wasm/defs.bzl), as `wasi_app_module` builds block-app's.
+
 Each compile-fail suite keeps a `Cargo.toml` listing its dependencies. The rule
 maps it into the compiler sandbox for automatic macro support-crate discovery.
 

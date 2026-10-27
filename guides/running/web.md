@@ -52,6 +52,16 @@ platform here. Its own commands take their place (`drive` with no command lists 
 The tree's coordinates are the page's CSS pixels when the device pixel ratio is 1, as it is in
 the launcher's browser.
 
+## beui's HTML core in a browser
+
+A crate built on beui's HTML core (plans/html_core.md) runs its pages as DOM elements rather
+than drawing them. Its bundle answers the reading commands of `drive` through
+`beui::html::automate(words)` (beui-core-html's `automate`): `tree` and `ids` in the native
+app's line format, `find`, `wait`, `gone`, `settle`, `pause` and `clock stop|run`. Input does
+not go through it: the browser gives it, from Playwright. crates/beui-shared-tests' `:web-test`
+does that for its scripts (guides/testing_a_gui.md, 7), with buck/app/web-test.mjs, which
+shares its command parsing with web-drive.mjs (buck/app/drive-words.mjs).
+
 ## Files and offline
 
 The web build keeps the same files as the native app, under `/block` in the

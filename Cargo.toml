@@ -50,6 +50,7 @@ members = [
     "crates/beui-tree",
     "crates/beui-types",
     "crates/beui-html",
+    "crates/beui-shared-tests",
     "crates/beui-view",
     "crates/beui-web-input",
     "crates/beui-web-demo",

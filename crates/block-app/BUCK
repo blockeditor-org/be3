@@ -96,7 +96,7 @@ web_files = glob(["web/*.js"]) + ["//crates/local-tools:block-index"] + ["//buck
     export_file(
         name = shim,
         src = "web/" + shim,
-        visibility = ["//crates/beui-web-demo:", "//crates/paint-review-web:"],
+        visibility = ["//crates/beui-shared-tests:", "//crates/beui-web-demo:", "//crates/paint-review-web:"],
     )
     for shim in ["wasi.js", "threads.js", "thread.js", "dylink.js", "env.js"]
 ]
@@ -146,7 +146,7 @@ command_alias(
         "$(location :Caddyfile)",
         "$(location :web)",
         "$(location //crates/be-server:bin)",
-        "$(location //buck/app:web-drive.mjs)",
+        "$(location //buck/app:drive-browser)/web-drive.mjs",
     ],
 )
 

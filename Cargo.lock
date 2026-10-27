@@ -1235,6 +1235,7 @@ dependencies = [
  "js-sys",
  "reactive",
  "wasm-bindgen",
+ "wasm-bindgen-futures",
  "web-sys",
 ]
 
@@ -1479,6 +1480,20 @@ dependencies = [
  "pollster",
  "web-sys",
  "wgpu",
+]
+
+[[package]]
+name = "beui-shared-tests"
+version = "0.1.0"
+dependencies = [
+ "be-drive",
+ "beui",
+ "beui-html",
+ "beui-layer-drive",
+ "wasi-threads",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]

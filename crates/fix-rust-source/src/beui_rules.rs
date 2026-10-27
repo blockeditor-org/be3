@@ -3,7 +3,7 @@ use ra_ap_syntax::{SourceFile, SyntaxNode};
 
 const SIGNAL_WRITES: [&str; 3] = ["set", "update", "set_unconditionally"];
 
-const PRIMITIVE_USERS: [&str; 18] = [
+const PRIMITIVE_USERS: [&str; 20] = [
     "crates/beui/",
     "crates/beui-view/",
     "crates/beui-components-styled/",
@@ -13,6 +13,7 @@ const PRIMITIVE_USERS: [&str; 18] = [
     "crates/beui-keyboard/",
     "crates/beui-renderer-wgpu/",
     "crates/beui-demo/src/base_pages.rs",
+    "crates/beui-shared-tests/",
     "crates\\beui\\",
     "crates\\beui-view\\",
     "crates\\beui-components-styled\\",
@@ -22,6 +23,7 @@ const PRIMITIVE_USERS: [&str; 18] = [
     "crates\\beui-keyboard\\",
     "crates\\beui-renderer-wgpu\\",
     "crates\\beui-demo\\src\\base_pages.rs",
+    "crates\\beui-shared-tests\\",
 ];
 
 const COMPONENT_CRATES: [&str; 8] = [
@@ -214,6 +216,9 @@ fn component_uses(tree: &SourceFile, source: &str, relative: &str) -> Vec<String
                             || calls(&renderer, "render_fragment")
                             || calls(&renderer, "build")
                             || calls(&renderer, "enter")
+                            || calls(&renderer, "run")
+                            || calls(&renderer, "hydrate")
+                            || calls(&renderer, "mount")
                             || deferred_renderer(&renderer)
                             || (deferred && calls(&renderer, "store")))
                     {

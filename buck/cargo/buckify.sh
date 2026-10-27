@@ -89,8 +89,11 @@ plan build --target wasm32-unknown-unknown $games $types -p block-gpu-shim -p be
 # the browser and for the host, under the cfg that picks it. cargo evaluates
 # [target.'cfg(beui_html)'.dependencies] against RUSTFLAGS, so each core's
 # dependencies drop out of the other's plans.
+# The browser's plan adds the crates whose native side runs only on the
+# native core, such as the shared tests' fixtures program.
 html_packages="-p beui -p beui-view -p beui-html -p beui-core-html"
-RUSTFLAGS="--cfg beui_html" plan build --target wasm32-wasip1-threads $html_packages --lib > "$scratch/wasi-html.json"
+browser_packages="$html_packages -p beui-shared-tests"
+RUSTFLAGS="--cfg beui_html" plan build --target wasm32-wasip1-threads $browser_packages --lib > "$scratch/wasi-html.json"
 RUSTFLAGS="--cfg beui_html" plan test --target x86_64-unknown-linux-gnu $html_packages > "$scratch/linux-x86_64-html.json"
 cross=""
 for platform in "$@"; do

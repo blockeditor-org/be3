@@ -1,0 +1,11 @@
+# A press focuses what it presses, and Tab and Shift+Tab move focus in order.
+clock stop
+wait 'value="Focused none"'
+click '#focus.first'
+wait 'value="Focused first"'
+wait 'focused #focus.first'
+key Tab
+wait 'value="Focused second"'
+wait 'focused #focus.second'
+key shift+Tab
+wait 'value="Focused first"'

@@ -70,6 +70,7 @@ mod web {
         switches: Rc<Switches>,
         pressed: Cell<Option<i32>>,
         pinch: RefCell<beui_web_input::wheel::Pinch>,
+        composed: RefCell<String>,
     }
 
     fn origin() -> Pos2 {
@@ -214,10 +215,26 @@ mod web {
                 let Input::Ime(event) = event else {
                     continue;
                 };
-                if self.switches.ime.get() {
+                if !self.handlers.on_ime.is_empty() {
                     self.handlers.on_ime.call(event);
-                } else if let ImeEvent::CommitText(text) = event {
-                    self.handlers.on_text.call(text);
+                    continue;
+                }
+                let typed = match event {
+                    ImeEvent::SetComposingText(text) => {
+                        *self.composed.borrow_mut() = text;
+                        continue;
+                    }
+                    ImeEvent::CommitText(text) => {
+                        self.composed.borrow_mut().clear();
+                        text
+                    }
+                    ImeEvent::FinishComposing | ImeEvent::Disabled => {
+                        std::mem::take(&mut *self.composed.borrow_mut())
+                    }
+                    _ => continue,
+                };
+                if !typed.is_empty() {
+                    self.handlers.on_text.call(typed);
                 }
             }
         }
@@ -551,6 +568,7 @@ mod web {
             switches,
             pressed: Cell::new(None),
             pinch: RefCell::default(),
+            composed: RefCell::default(),
         });
         let attached: RefCell<Option<(web_sys::Element, Vec<Listener>)>> = RefCell::default();
         crate::frame::on_layout(Rc::new(move || {

@@ -1,0 +1,40 @@
+[package]
+name = "beui-shared-tests"
+description = "Screens built for both of beui's cores and the drive scripts both answer the same way"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "beui-shared-tests"
+path = "src/main.rs"
+
+[dependencies]
+beui = { path = "../beui", default-features = false }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+beui = { path = "../beui" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+beui-html = { path = "../beui-html" }
+wasi-threads = { path = "../wasi-threads" }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = [
+    "Document",
+    "Element",
+    "HtmlElement",
+    "Node",
+    "NodeList",
+    "Window",
+] }
+
+[dev-dependencies]
+be-drive = { path = "../be-drive" }
+beui-layer-drive = { path = "../beui-layer-drive" }
+
+[lints]
+workspace = true
