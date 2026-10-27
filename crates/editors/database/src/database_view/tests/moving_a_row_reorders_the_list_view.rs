@@ -48,5 +48,9 @@ fn moving_a_row_reorders_the_list_view() {
             .top()
     };
     assert!(top(c) < top(a) && top(a) < top(d));
-    assert!(!fixture.harness.shown(&format!("database-view.list.row.{}", b.as_uuid())));
+    assert!(
+        !fixture
+            .harness
+            .shown(&format!("database-view.list.row.{}", b.as_uuid()))
+    );
 }

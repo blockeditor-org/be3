@@ -33,9 +33,9 @@ mod a_new_row_takes_each_choices_default;
 mod a_new_view_starts_as_a_spreadsheet;
 mod a_phone_opens_a_row_over_the_list_and_back_returns_to_it;
 mod a_prefix_is_listed_in_the_workspaces_prefixes_and_a_shared_one_says_so;
-mod a_sorted_view_refuses_manual_ordering;
 mod a_relation_cell_shows_the_title_of_the_row_it_links_to;
 mod a_row_scrolled_into_a_reused_line_opens_the_row_it_shows;
+mod a_sorted_view_refuses_manual_ordering;
 mod adding_a_page_links_a_new_text_block_to_the_row;
 mod arrow_keys_walk_the_spreadsheet_and_enter_steps_down;
 mod block_values_sort_by_resolved_label_then_reference;
@@ -64,7 +64,9 @@ struct Fixture {
 
 impl Fixture {
     fn data(&self) -> Data {
-        self.data.get().expect("the fixture was opened with `viewed`")
+        self.data
+            .get()
+            .expect("the fixture was opened with `viewed`")
     }
 
     fn row(&self, index: usize) -> ObjectId {

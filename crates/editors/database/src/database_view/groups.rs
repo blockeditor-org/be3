@@ -54,7 +54,10 @@ pub fn group_rows(
             label: String::new(),
             option: None,
             closed: false,
-            rows: shown.iter().filter_map(|index| ids.get(*index).copied()).collect(),
+            rows: shown
+                .iter()
+                .filter_map(|index| ids.get(*index).copied())
+                .collect(),
         }];
     };
     let key_of = |index: usize| match rows.get(index).and_then(|row| row.get(field.id)) {

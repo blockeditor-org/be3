@@ -448,7 +448,10 @@ impl ViewData {
             .get_untracked()
             .then(|| self.place(row, after, first))
             .flatten();
-        let field = self.group_by.get_untracked().filter(|_| group != GroupKey::All);
+        let field = self
+            .group_by
+            .get_untracked()
+            .filter(|_| group != GroupKey::All);
         let mut edit = Edit::default();
         if let Some(field) = field {
             let current = self.row_index.with_untracked(|indices| {
@@ -458,7 +461,9 @@ impl ViewData {
             if current != value {
                 match self.is_inverse(field) {
                     true => self.set_value(row, field, value),
-                    false => edit.0.extend(self.value_edit(row, field, value).unwrap_or_default().0),
+                    false => edit
+                        .0
+                        .extend(self.value_edit(row, field, value).unwrap_or_default().0),
                 }
             }
         }

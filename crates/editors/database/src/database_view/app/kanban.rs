@@ -240,7 +240,8 @@ fn KanbanCard(data: Data, row: ReadSignal<ObjectId>) -> NodeId {
     };
     let read_only = data.read_only;
     let payload = create_memo(move || (!read_only.get()).then(|| row.get()));
-    let element_test_id = create_memo(move || format!("database-view.card.{}", row.get().as_uuid()));
+    let element_test_id =
+        create_memo(move || format!("database-view.card.{}", row.get().as_uuid()));
     let ghost = move |row: ObjectId| {
         view! {
             <Frame width={Size::Custom(COLUMN_WIDTH - 16.0)} @test_id="database-view.card-ghost">
@@ -279,7 +280,9 @@ fn CardFace(data: Data, row: ObjectId) -> NodeId {
 #[component]
 fn CardLines(data: Data, row: Prop<ObjectId>) -> NodeId {
     let entry = create_memo(move || {
-        let index = data.row_index.with(|indices| indices.get(&row.get()).copied())?;
+        let index = data
+            .row_index
+            .with(|indices| indices.get(&row.get()).copied())?;
         data.rows.with(|rows| rows.get(index).cloned())
     });
     let code = create_memo(move || short_id(&data.prefix.get(), row.get().as_uuid()));
