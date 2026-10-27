@@ -1,13 +1,12 @@
 use std::cell::RefCell;
 
 use crate::escape::Escape;
-use crate::reactive::{Child, NodeId, Prop};
+use crate::reactive::{Child, Get, NodeId, Prop, create_binding};
 use crate::types::{Color, FontId};
 use beui_core_html::beui_html::Node;
 use beui_core_html::css;
 use beui_core_html::document::{adopt, element, set_style};
 
-use super::bind;
 
 #[derive(Default)]
 pub(crate) struct Inner {
@@ -35,7 +34,7 @@ pub(crate) fn html_escape(build: impl FnOnce(&Escape) -> Node) -> NodeId {
     let root = build(&escape);
     let node = adopt("Escape", root);
     for (property, value) in escape.0.styles.take() {
-        bind(value, move |value| set_style(node, property, value));
+        create_binding(move || set_style(node, property, value.get()));
     }
     node
 }

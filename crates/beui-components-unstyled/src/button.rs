@@ -4,11 +4,11 @@ use beui_view::types::icons::Glyph;
 
 use beui_view::types::{CursorIcon, KeyPress, PointerPress};
 
+use beui_view::escape::beui_html::{Node as HtmlNode, elements as html};
+use beui_view::escape::html_escape;
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
-use beui_view::escape::beui_html::{Node as HtmlNode, elements as html};
-use beui_view::escape::html_escape;
 use beui_view::{CORE, Core};
 
 #[derive(Clone, Copy)]
@@ -142,13 +142,21 @@ pub fn Button(
     let content_node = match platform {
         Some(link) => Some(html_escape(move |escape| {
             crate::form::fill_cell(escape);
-            let inner: Children<HtmlNode> = content_node.map(|child| escape.embed(child)).into_iter().collect();
+            let inner: Children<HtmlNode> = content_node
+                .map(|child| escape.embed(child))
+                .into_iter()
+                .collect();
             match link {
-                true => view! {
-                    <html::A href={Prop::dynamic(move || href.get().filter(|_| !disabled.get()))}>
-                        {inner}
-                    </html::A>
-                },
+                true => {
+                    let link = view! {
+                        <html::A>{inner}</html::A>
+                    };
+                    let held = link.clone();
+                    create_binding(move || {
+                        held.set_attribute("href", href.get().filter(|_| !disabled.get()));
+                    });
+                    link
+                }
                 false => view! {
                     <html::Button r#type="submit" disabled={disabled}>{inner}</html::Button>
                 },

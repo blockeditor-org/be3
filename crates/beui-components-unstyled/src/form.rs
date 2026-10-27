@@ -1,8 +1,8 @@
 use beui_macros::{component, view};
+use beui_view::escape::beui_html::{Event, Node, attr, elements as html, flag};
+use beui_view::escape::{Escape, html_escape};
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
-use beui_view::escape::beui_html::{Event, Node, elements as html};
-use beui_view::escape::{Escape, html_escape};
 use beui_view::{CORE, Core};
 
 #[derive(Clone, Copy)]
@@ -16,7 +16,10 @@ pub(crate) fn form_submit() -> Option<ClickCallback> {
 
 pub(crate) fn fill_cell(escape: &Escape) {
     escape.style("display", "grid".to_owned());
-    escape.style("grid-template", "minmax(0, 1fr) / minmax(0, 1fr)".to_owned());
+    escape.style(
+        "grid-template",
+        "minmax(0, 1fr) / minmax(0, 1fr)".to_owned(),
+    );
 }
 
 #[component]
@@ -34,7 +37,10 @@ pub fn Form(
     if CORE != Core::Html {
         return content;
     }
-    let action = Prop::dynamic(move || Some(action.get()).filter(|action| !action.is_empty()));
+    let action = match action {
+        Prop::Static(action) => Prop::Static(Some(action).filter(|action| !action.is_empty())),
+        action => Prop::dynamic(move || Some(action.get()).filter(|action| !action.is_empty())),
+    };
     html_escape(move |escape| {
         fill_cell(escape);
         let content = escape.embed(content);
@@ -48,9 +54,9 @@ pub fn Form(
             .collect();
         view! {
             <html::Form
-                method="post"
-                action={action}
-                novalidate=true
+                @attr={("method", "post".to_owned())}
+                @attr={("action", action)}
+                @flag={("novalidate", true)}
                 on_submit={move |event: Event| {
                     if !on_submit.is_empty() {
                         event.prevent_default();

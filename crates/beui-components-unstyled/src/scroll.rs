@@ -11,6 +11,8 @@ use super::rubber_band::{MINIMUM_VELOCITY, bounce, rubber_band};
 use super::watched::Watched;
 use crate::gestures::{self, AUTOSCROLL_DEAD_ZONE};
 use beui_view::components::overlay::Overlay;
+use beui_view::escape::beui_html::{Event as HtmlEvent, Node as HtmlNode, elements as html, on};
+use beui_view::escape::html_escape;
 use beui_view::primitives::*;
 use beui_view::reactive::KeyAt;
 use beui_view::reactive::NodeId;
@@ -27,8 +29,6 @@ use beui_view::types::{
     WHEEL_LATCH_TIMEOUT, WheelInput,
 };
 use beui_view::types::{Direction, ItemSize, Justify, ScrollPosition, Sizing};
-use beui_view::escape::beui_html::{Event as HtmlEvent, Node as HtmlNode, elements as html, on};
-use beui_view::escape::html_escape;
 use beui_view::{CORE, Core};
 
 const STEP: f32 = 40.0;
@@ -981,11 +981,13 @@ fn BrowserScroll(
             escape.style(
                 property,
                 Prop::dynamic(move || {
-                    Some(match direction.get() {
-                        Direction::Vertical => vertical,
-                        Direction::Horizontal => sideways,
-                    }
-                    .to_owned())
+                    Some(
+                        match direction.get() {
+                            Direction::Vertical => vertical,
+                            Direction::Horizontal => sideways,
+                        }
+                        .to_owned(),
+                    )
                 }),
             );
         }
@@ -1057,11 +1059,7 @@ fn BrowserScroll(
             <Frame outline={ring_when(focused, focus_ring)}>
                 <List direction={direction} spacing=0.0>
                     <Frame fade_edges={edges} @sizing={content_sizing(fit)}>
-                        <Interactive
-                            focusable=true
-                            tab_stop={overflows}
-                            yields_tab_stop=true
-                        >
+                        <Interactive focusable=true tab_stop={overflows} yields_tab_stop=true>
                             {node}
                         </Interactive>
                     </Frame>

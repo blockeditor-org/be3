@@ -25,11 +25,11 @@ use crate::text_menu::TextContextMenu;
 use beui_macros::{component, view};
 use beui_view::reactive::NodeId;
 
+use beui_view::escape::beui_html::{Event, attr, elements as html};
+use beui_view::escape::{Escape, html_escape};
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 use beui_view::types::Sides;
-use beui_view::escape::beui_html::{Event, attr, elements as html};
-use beui_view::escape::{Escape, html_escape};
 use beui_view::{CORE, Core};
 
 pub struct TextInputHandle {
@@ -382,7 +382,10 @@ fn BrowserField(
             "font",
             Prop::dynamic(move || Some(Escape::font(FontId::proportional(font_size.get())))),
         );
-        escape.style("color", Prop::dynamic(move || Some(Escape::color(color.get()))));
+        escape.style(
+            "color",
+            Prop::dynamic(move || Some(Escape::color(color.get()))),
+        );
         escape.style(
             "caret-color",
             Prop::dynamic(move || Some(Escape::color(caret_color.get()))),
