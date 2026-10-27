@@ -957,6 +957,7 @@ fn BrowserScroll(
         }
     };
     let bare = scrollbar.bar.is_none();
+    let focused = create_signal(false);
     let node = html_escape(move |escape| {
         escape.style("outline", "none".to_owned());
         escape.style("overflow-anchor", "auto".to_owned());
@@ -990,7 +991,13 @@ fn BrowserScroll(
         }
         let content = escape.embed(content);
         let element = view! {
-            <html::Div @on={("scroll", move |_: HtmlEvent| scrolled())}>{content}</html::Div>
+            <html::Div
+                on_focus={move |_: HtmlEvent| focused.set(true)}
+                on_blur={move |_: HtmlEvent| focused.set(false)}
+                @on={("scroll", move |_: HtmlEvent| scrolled())}
+            >
+                {content}
+            </html::Div>
         };
         scroller.with(|held| *held.borrow_mut() = Some(element.clone()));
         element
@@ -1044,7 +1051,6 @@ fn BrowserScroll(
             .get()
             .is_some_and(|position| position.max_offset() > 0.0)
     });
-    let focused = create_signal(false);
     let outset = create_memo(move || -bleed.get());
     view! {
         <Frame padding={outset}>
@@ -1055,7 +1061,6 @@ fn BrowserScroll(
                             focusable=true
                             tab_stop={overflows}
                             yields_tab_stop=true
-                            on_focus_change={focused}
                         >
                             {node}
                         </Interactive>
