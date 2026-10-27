@@ -515,8 +515,7 @@ mod web {
             .into_iter()
             .rev()
             .find(|layer| layer.policy.get() != LayerPolicy::Inert);
-        let Some(layer) = top.filter(|layer| !layer.modal() && !layer.on_dismiss.is_empty())
-        else {
+        let Some(layer) = top.filter(|layer| !layer.modal() && !layer.on_dismiss.is_empty()) else {
             return;
         };
         event.prevent_default();
@@ -594,17 +593,13 @@ mod web {
                 reactive::flush();
             },
         );
-        let close = crate::dom::listen(
-            dialog.as_ref(),
-            "close",
-            false,
-            move |_: web_sys::Event| {
+        let close =
+            crate::dom::listen(dialog.as_ref(), "close", false, move |_: web_sys::Event| {
                 if let Some(layer) = super::find(host) {
                     layer.web.borrow_mut().shown = None;
                 }
                 crate::frame::request_frame();
-            },
-        );
+            });
         held.listeners = vec![cancel, close];
         held.dialog = Some(dialog.clone());
         held.shown = None;

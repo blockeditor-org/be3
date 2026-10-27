@@ -156,7 +156,11 @@ pub fn element(node: NodeId) -> Option<web_sys::Element> {
     dom(node)?.dyn_into().ok()
 }
 
-pub fn call(target: &wasm_bindgen::JsValue, method: &str, args: &[wasm_bindgen::JsValue]) -> Option<wasm_bindgen::JsValue> {
+pub fn call(
+    target: &wasm_bindgen::JsValue,
+    method: &str,
+    args: &[wasm_bindgen::JsValue],
+) -> Option<wasm_bindgen::JsValue> {
     let function = js_sys::Reflect::get(target, &method.into())
         .ok()?
         .dyn_into::<js_sys::Function>()

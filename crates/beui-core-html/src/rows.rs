@@ -29,7 +29,8 @@ pub fn visible_span(list: NodeId, direction: Direction) -> Option<(f32, f32)> {
 pub fn main_length(node: NodeId, direction: Direction) -> Option<f32> {
     #[cfg(target_arch = "wasm32")]
     {
-        let element = crate::dom::element(node).filter(|element: &web_sys::Element| element.is_connected())?;
+        let element = crate::dom::element(node)
+            .filter(|element: &web_sys::Element| element.is_connected())?;
         let rect = crate::dom::client_rect(&element);
         let scale = crate::dom::scale_of(&element, rect);
         Some(direction.main(rect.size()) / scale)
@@ -78,8 +79,12 @@ impl Watch {
 mod web {
     use beui_types::{Direction, Rect};
 
-    pub(super) fn visible_span(list: crate::node::NodeId, direction: Direction) -> Option<(f32, f32)> {
-        let element = crate::dom::element(list).filter(|element: &web_sys::Element| element.is_connected())?;
+    pub(super) fn visible_span(
+        list: crate::node::NodeId,
+        direction: Direction,
+    ) -> Option<(f32, f32)> {
+        let element = crate::dom::element(list)
+            .filter(|element: &web_sys::Element| element.is_connected())?;
         let rect = crate::dom::client_rect(&element);
         let mut clip = crate::dom::viewport();
         for viewer in crate::dom::nodes_above(element.parent_node()) {

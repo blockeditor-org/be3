@@ -96,7 +96,9 @@ pub fn canvas_item(
         );
         set_style(item, "transform-origin", scales.then(|| "0 0".to_owned()));
     });
-    bind(clip, move |clip| beui_core_html::canvas::set_item_clip(item, clip));
+    bind(clip, move |clip| {
+        beui_core_html::canvas::set_item_clip(item, clip)
+    });
     bind(pointer, move |pointer| {
         set_style(
             item,

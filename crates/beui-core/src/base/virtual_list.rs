@@ -10,8 +10,8 @@ use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
 use crate::node::{Element, FocusChild, NodeId, NodeOf, Rects};
 use crate::painter::Painter;
-use beui_types::rows::RowMetrics;
 use ::reactive::{KeyedItems, ScopeContext, numbered, owner_scope};
+use beui_types::rows::RowMetrics;
 
 const ROW_LIMIT: usize = 4096;
 const ANCHOR_SLACK: f32 = 4.0;

@@ -15,7 +15,6 @@ use crate::reactive::SlotHost;
 use crate::reactive::SlotId;
 use crate::reactive::create_binding;
 use crate::reactive::create_signal;
-use reactive::numbered;
 use crate::reactive::on_cleanup;
 use crate::reactive::owner_scope;
 use crate::reactive::untrack;
@@ -24,6 +23,7 @@ use crate::types::rows::RowMetrics;
 use beui_core_html::css;
 use beui_core_html::document::{create, set_style};
 use beui_core_html::rows::{Watch, main_length, spacer, visible_span};
+use reactive::numbered;
 
 const ROW_LIMIT: usize = 4096;
 const FIRST_REACH: f32 = 1024.0;
@@ -157,8 +157,7 @@ impl<K: Clone + Hash + Eq + 'static> Rows<K> {
         let mut changed = false;
         for (at, node) in self.nodes.borrow().iter().enumerate() {
             let index = start + at;
-            let (Some(key), Some(length)) = (keys.get(index), main_length(*node, direction))
-            else {
+            let (Some(key), Some(length)) = (keys.get(index), main_length(*node, direction)) else {
                 continue;
             };
             if metrics.record(index, length) {

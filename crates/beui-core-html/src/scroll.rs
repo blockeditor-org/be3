@@ -432,4 +432,3 @@ mod web {
         scroller.settle(position) || moved
     }
 }
-

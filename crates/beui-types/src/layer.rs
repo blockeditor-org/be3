@@ -213,4 +213,3 @@ pub fn resolve_rect(
     origin.y = origin.y.max(viewport.top());
     Rect::from_min_size(origin, content_size)
 }
-

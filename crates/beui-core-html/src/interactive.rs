@@ -434,8 +434,8 @@ mod web {
                     modifiers,
                 });
                 let activates = matches!(event.key().as_str(), "Enter" | " ");
-                let activating =
-                    !held.handlers.on_activate.is_empty() || !held.handlers.on_activate_change.is_empty();
+                let activating = !held.handlers.on_activate.is_empty()
+                    || !held.handlers.on_activate_change.is_empty();
                 if !done && activates && activating {
                     if !event.repeat() && !held.activating.replace(true) {
                         held.handlers.on_activate_change.call(true);
@@ -546,7 +546,11 @@ mod web {
                         .and_then(|target| target.dyn_into::<web_sys::Node>().ok())
                         .is_some_and(|target| element.contains(Some(&target)));
                     if !inside {
-                        let at = placed(&element, pointer.client_x().into(), pointer.client_y().into());
+                        let at = placed(
+                            &element,
+                            pointer.client_x().into(),
+                            pointer.client_y().into(),
+                        );
                         held.handlers.on_press_outside.call(at.pos);
                         reactive::flush();
                     }
@@ -566,10 +570,9 @@ mod web {
                     .and_then(|document| document.pointer_lock_element())
                     .is_some_and(|locked| locked == element);
                 if locked && !held.handlers.on_motion.is_empty() {
-                    held.handlers.on_motion.call(vec2(
-                        event.movement_x() as f32,
-                        event.movement_y() as f32,
-                    ));
+                    held.handlers
+                        .on_motion
+                        .call(vec2(event.movement_x() as f32, event.movement_y() as f32));
                 }
                 let samples: Vec<web_sys::PointerEvent> = match held.switches.every_sample.get() {
                     true => crate::dom::call(event.as_ref(), "getCoalescedEvents", &[])
