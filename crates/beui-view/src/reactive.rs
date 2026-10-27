@@ -17,8 +17,9 @@ pub use crate::core::reactive::{
     after_input, arrow_focus, bind, bind_test_id, copy_text, create_timer, focus_ancestry,
     focus_outline, focus_ring, focused_node, held_modifiers, holds_focus, now, on_back,
     on_global_key, on_key, on_scroll_key, on_shortcut, pin_wall_clock, pixels_per_point,
-    request_paste, set_focus, touched_by_finger, tree_local, use_font_revision, use_keyboard,
+    request_paste, set_focus, stacked_at, touched_by_finger, tree_local, use_font_revision, use_keyboard,
     use_preference_layer, use_preference_layers, use_preferences, use_viewport_size, wall_clock,
+    window_of,
 };
 pub use crate::core::tree::{
     BareChild, BuildsNode, FromPlaced, ListChild, ParentKind, Placed, WithSizing,

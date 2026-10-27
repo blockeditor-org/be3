@@ -132,3 +132,41 @@ fn every_below(
         next = child.next_sibling();
     }
 }
+
+pub fn stacked_at(nodes: &[NodeId], pos: beui_types::Pos2) -> Vec<NodeId> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let layers = crate::overlay::stacked_layers();
+        let within = |layer: NodeId, node: NodeId| {
+            let (Some(layer), Some(node)) = (crate::dom::dom(layer), crate::dom::dom(node)) else {
+                return false;
+            };
+            layer.contains(Some(&node))
+        };
+        let rank = |node: NodeId| {
+            layers
+                .iter()
+                .rposition(|(layer, _)| within(*layer, node))
+                .map_or(0, |index| index + 1)
+        };
+        let mut placed: Vec<(usize, NodeId)> = nodes
+            .iter()
+            .filter(|node| crate::measure::rect(**node).is_some())
+            .map(|node| (rank(*node), *node))
+            .collect();
+        placed.sort_by_key(|(rank, _)| std::cmp::Reverse(*rank));
+        let foreign = (0..layers.len()).rev().find(|index| {
+            layers[*index].1.contains(pos) && !placed.iter().any(|(rank, _)| *rank == index + 1)
+        });
+        placed
+            .into_iter()
+            .filter(|(rank, _)| foreign.is_none_or(|foreign| *rank > foreign + 1))
+            .map(|(_, node)| node)
+            .collect()
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let _ = (nodes, pos);
+        Vec::new()
+    }
+}

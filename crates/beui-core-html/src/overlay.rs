@@ -93,7 +93,7 @@ pub fn layer(
     set_style(parts.host, "display", Some("contents".to_owned()));
     for (property, value) in [
         ("position", "fixed"),
-        ("visibility", "hidden"),
+        ("opacity", "0"),
         ("pointer-events", "none"),
     ] {
         set_style(parts.proxy, property, Some(value.to_owned()));
@@ -137,6 +137,26 @@ fn open_layers() -> Vec<Rc<Layer>> {
         open.retain(|layer| layer.upgrade().is_some_and(|layer| layer.wanted.get()));
         open.iter().filter_map(Weak::upgrade).collect()
     })
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn stacked_layers() -> Vec<(NodeId, Rect)> {
+    let mut open = open_layers();
+    open.sort_by_key(|layer| layer.level.get());
+    open.iter()
+        .filter(|layer| layer.policy.get() != LayerPolicy::Inert)
+        .filter_map(|layer| {
+            Some((
+                layer.parts.dialog,
+                crate::measure::rect(layer.parts.dialog)?,
+            ))
+        })
+        .collect()
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn stacked_layers() -> Vec<(NodeId, Rect)> {
+    Vec::new()
 }
 
 fn anchor_name(node: NodeId) -> String {

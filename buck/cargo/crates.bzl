@@ -6353,6 +6353,7 @@ crates = {
                 "deps": [
                     "//crates/beui-components-styled:beui-components-styled",
                     "//crates/beui-components-unstyled:beui-components-unstyled",
+                    "//crates/beui-dock:beui-dock",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
@@ -6363,6 +6364,7 @@ crates = {
                         "deps": [
                             "//crates/beui-components-styled:beui-components-styled",
                             "//crates/beui-components-unstyled:beui-components-unstyled",
+                            "//crates/beui-dock:beui-dock",
                             "//crates/beui-macros:beui_macros",
                             "//crates/beui-view:beui-view",
                             "//crates/paint-snapshot:paint-snapshot",
@@ -6379,6 +6381,7 @@ crates = {
                         "deps": [
                             "//crates/beui-components-styled:beui-components-styled",
                             "//crates/beui-components-unstyled:beui-components-unstyled",
+                            "//crates/beui-dock:beui-dock",
                             "//crates/beui-macros:beui_macros",
                             "//crates/beui-view:beui-view",
                             "//crates/paint-snapshot:paint-snapshot",
@@ -6677,6 +6680,7 @@ crates = {
                 "deps": [
                     "//crates/beui-components-styled:beui-components-styled",
                     "//crates/beui-components-unstyled:beui-components-unstyled",
+                    "//crates/beui-dock:beui-dock",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
@@ -8571,6 +8575,22 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "linux-x86_64-html": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-components-styled:beui-components-styled",
+                    "//crates/beui-components-unstyled:beui-components-unstyled",
+                    "//crates/beui-macros:beui_macros",
+                    "//crates/beui-view:beui-view",
+                    "//crates/reactive:reactive",
+                    "//third-party/rust:accesskit-0.24.1",
+                    "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
@@ -8620,6 +8640,22 @@ crates = {
                 "test_features": [],
             },
             "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-components-styled:beui-components-styled",
+                    "//crates/beui-components-unstyled:beui-components-unstyled",
+                    "//crates/beui-macros:beui_macros",
+                    "//crates/beui-view:beui-view",
+                    "//crates/reactive:reactive",
+                    "//third-party/rust:accesskit-0.24.1",
+                    "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-html": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-components-styled:beui-components-styled",

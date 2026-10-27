@@ -392,6 +392,32 @@ mod web {
         }
     }
 
+    const POINTING: [&str; 7] = [
+        "pointerdown",
+        "pointermove",
+        "pointerup",
+        "pointercancel",
+        "click",
+        "auxclick",
+        "contextmenu",
+    ];
+
+    fn from_overlay_within(element: &web_sys::Element, event: &web_sys::Event) -> bool {
+        let mut at = event
+            .target()
+            .and_then(|target| target.dyn_into::<web_sys::Element>().ok());
+        while let Some(current) = at {
+            if current == *element {
+                return false;
+            }
+            if current.matches(".beui-overlay").unwrap_or(false) {
+                return true;
+            }
+            at = current.parent_element();
+        }
+        false
+    }
+
     fn handled(event: &web_sys::Event, handled: bool) {
         if handled {
             event.prevent_default();
@@ -405,10 +431,16 @@ mod web {
         let mut listeners = Vec::new();
         let node = state.node;
         let on = |name: &str, handler: Box<dyn Fn(web_sys::Event)>| {
+            let pointing = POINTING.contains(&name);
+            let element = element.clone();
             crate::dom::listen(target, name, false, move |event: web_sys::Event| {
-                if crate::document::contains(node) {
-                    handler(event);
+                if !crate::document::contains(node) {
+                    return;
                 }
+                if pointing && from_overlay_within(&element, &event) {
+                    return;
+                }
+                handler(event);
             })
         };
         let held = state.clone();

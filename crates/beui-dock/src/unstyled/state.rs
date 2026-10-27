@@ -1975,6 +1975,12 @@ impl DockState {
             .map(|split| split.direction)
     }
 
+    pub fn split_key(&self, split: SplitId) -> Option<&str> {
+        self.roots()
+            .find_map(|root| root.split(split))
+            .and_then(|split| split.key.as_deref())
+    }
+
     pub fn split_fraction(&self, split: SplitId) -> f32 {
         self.roots()
             .find_map(|root| root.split(split))

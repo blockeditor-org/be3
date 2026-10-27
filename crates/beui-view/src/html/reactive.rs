@@ -171,3 +171,18 @@ pub fn arrow_focus(row: NodeRef, direction: crate::types::Direction) {
         true
     });
 }
+
+pub fn window_of(_node: NodeId) -> crate::types::WindowId {
+    crate::types::WindowId::MAIN
+}
+
+pub fn stacked_at(
+    nodes: &[NodeId],
+    window: crate::types::WindowId,
+    pos: crate::types::Pos2,
+) -> Vec<NodeId> {
+    if window != crate::types::WindowId::MAIN {
+        return Vec::new();
+    }
+    beui_core_html::nodes::stacked_at(nodes, pos)
+}

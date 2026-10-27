@@ -721,6 +721,16 @@ impl State {
         }
     }
 
+    fn splitter_test_id(&self, split: SplitId) -> String {
+        match self
+            .state
+            .with_untracked(|state| state.split_key(split).map(str::to_owned))
+        {
+            Some(key) => format!("dock.splitter.{key}"),
+            None => "dock.splitter".to_owned(),
+        }
+    }
+
     fn toggle_icons_only(&self, leaf: LeafId) {
         self.edit(|state| {
             let icons_only = state.is_icons_only(leaf);
@@ -2596,8 +2606,13 @@ fn DockTabView(
         true => Direction::Horizontal,
         false => Direction::Vertical,
     };
+    let tab_test_id = match entry {
+        Entry::Tab(tab) => format!("dock.tab.{}", tab.value()),
+        Entry::Group(_) => String::new(),
+    };
     view! {
         <Draggable
+            @test_id={tab_test_id}
             payload={DockDragged::Entry(entry)}
             touch_drags={TouchDrags::Along(across)}
             preview={move |dragged: DockDragged| preview.call(DockPreviewHandle {
@@ -2810,6 +2825,7 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
     let start = shown.clone();
     view! {
         <Interactive
+            @test_id={dock.splitter_test_id(split)}
             capture_presses=true
             focusable=true
             on_focus_change={focused}

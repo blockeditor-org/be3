@@ -27,6 +27,7 @@ web = [
 [dependencies]
 accesskit = "0.24.1"
 beui-components-unstyled = { path = "../beui-components-unstyled" }
+beui-dock = { path = "../beui-dock" }
 beui-view = { path = "../beui-view" }
 beui_macros = { path = "../beui-macros" }
 reactive = { path = "../reactive" }
@@ -37,7 +38,6 @@ beui-components-styled = { path = "../beui-components-styled" }
 [target.'cfg(not(beui_html))'.dependencies]
 beui-components-styled = { path = "../beui-components-styled", features = ["gpu"] }
 beui-core = { path = "../beui-core" }
-beui-dock = { path = "../beui-dock" }
 beui-font-freetype = { path = "../beui-font-freetype" }
 beui-inspector = { path = "../beui-inspector" }
 beui-keyboard = { path = "../beui-keyboard" }

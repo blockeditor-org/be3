@@ -1,0 +1,22 @@
+# A dock's tabs switch, move between panes, split a pane from its edge,
+# resize by the splitter, float out into a window and close.
+clock stop
+wait 'value="([Alpha* Beta] |0.5 [Gamma*])"'
+click '#dock.tab.2'
+wait 'value="([Alpha Beta*] |0.5 [Gamma*])"'
+drag '#dock.tab.2' '#docking.gamma' 6
+wait 'value="([Alpha*] |0.5 [Gamma Beta*])"'
+drag '#dock.splitter.root' '#dock.splitter.root+-180,200' 6
+wait 'value="([Alpha*] |0.3 [Gamma Beta*])"'
+drag '#dock.tab.3' '#docking.beta+100,440' 6
+wait 'value="([Alpha*] |0.3 ([Beta*] /0.5 [Gamma*]))"'
+click '#dock.tab.1.close'
+gone '#docking.alpha'
+wait 'value="([Beta*] /0.5 [Gamma*])"'
+click '#dock.tab.3' right
+wait 'MenuItem "Pop out into a window"'
+click 'MenuItem "Pop out into a window"'
+wait 'value="[Beta*] + window [Gamma*]"'
+wait '#docking.gamma'
+drag '#dock.tab.3' '#docking.beta+700,350' 6
+wait 'value="[Beta Gamma*]"'

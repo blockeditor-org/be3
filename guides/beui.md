@@ -613,9 +613,11 @@ constant `beui::CORE` (`Core::Native` or `Core::Html`) and switches with
 `if CORE == Core::Html`; `#[cfg(beui_html)]` belongs only in beui-view, beui and
 beui-core-html. Such a switch is a deliberate choice for one component, never a
 way around a primitive one core lacks. What only the native document can do is
-in `beui::native` (`Document`, `with_document`, `Embed`, ...); the dock, the
-inspector, the on-screen keyboard and plugin hosting are native only, and on
-HTML a `Window` shows as its overlay. The HTML facade adds `beui::html`
+in `beui::native` (`Document`, `with_document`, `Embed`, ...); the
+inspector, the on-screen keyboard and plugin hosting are native only. The dock
+runs on both: on HTML a `Window` (so a `DockWindow`) shows as its overlay,
+`window_of` is always the main window, and `stacked_at` orders nodes by the
+open overlays that hold them. The HTML facade adds `beui::html`
 (below).
 
 The contract both keep:

@@ -54,6 +54,7 @@ mod canvas;
 mod choices;
 mod dates;
 mod dialogs;
+mod docking;
 mod drag;
 mod editing;
 mod fields;

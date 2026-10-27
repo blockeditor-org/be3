@@ -107,7 +107,6 @@ pub use beui_core::rich;
 pub use beui_core::runner::environment;
 #[cfg(not(beui_html))]
 pub use beui_core::touch_cursor;
-#[cfg(not(beui_html))]
 pub use beui_dock as dock;
 #[cfg(not(beui_html))]
 #[cfg(not(target_arch = "wasm32"))]

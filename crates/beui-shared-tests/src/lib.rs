@@ -8,6 +8,7 @@ use beui::{
 
 mod collections;
 mod controls;
+mod docking;
 mod layers;
 #[cfg(not(target_arch = "wasm32"))]
 mod native;
@@ -155,6 +156,9 @@ pub fn Fixture(name: String) -> Root {
         },
         "picture" => view! {
             <surfaces::PictureFixture />
+        },
+        "docking" => view! {
+            <docking::DockingFixture />
         },
         other => {
             let message = format!("No fixture is named {other}");
