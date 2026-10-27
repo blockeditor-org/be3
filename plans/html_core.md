@@ -742,8 +742,9 @@ have landed; its tasks run in parallel unless marked.
 - `TreeNode`'s `row_offset`, `texts_within`, `set_text_selection` and
   `set_text_selection_handles` do nothing on HTML.
 - Props the HTML core ignores: `Interactive`'s `pastes`, `key_active`,
-  `claims_touch` and the forwarding group (`on_forward`, `inhibits_shortcuts`,
-  `clipboard_keys`, `forwards_wheel`); `Overlay`'s `window` and `shown_in`;
+  `claims_touch` and most of the forwarding group (`inhibits_shortcuts`,
+  `clipboard_keys`, `forwards_wheel`; `on_forward` hears only the pointer, no
+  keys, focus or hover); `Overlay`'s `window` and `shown_in`;
   `Root`'s `system_bars`; `Canvas`'s `scrolls_across`; `VirtualList`'s `text`;
   `Selectable`'s colours, handles and toolbar. A `TextItem` with `at` is a
   stand-in, `on_back` never fires and `use_keyboard()` is always true.
@@ -756,6 +757,11 @@ have landed; its tasks run in parallel unless marked.
   `ColorVar::__declared_at`, which it expands to, is public (doc-hidden), so
   any code can name one by string.
 - `beui-font-browser` is still unused.
+- The inspector: it reads the native `Document`, so beui-demo's inspector
+  button shows a stand-in on HTML (`beui::open_inspector()` answers false).
+- The on-screen keyboard on HTML shows only where a view places it; no keyboard
+  host opens it for a focused field, and Paste as plain text reads the
+  clipboard through `navigator.clipboard`, which asks for permission.
 - HTML text uses the browser's font metrics, which round a font's ascent and
   descent to the nearest pixel where FreeType rounds them outward, so a line
   can sit a pixel off native (a 20px title, icons).

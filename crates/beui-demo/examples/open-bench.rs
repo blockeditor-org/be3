@@ -44,7 +44,10 @@ mod bench {
     use std::rc::Rc;
     use std::time::{Duration, Instant};
 
+    use beui::datetime::Date;
+    use beui::native::Document;
     use beui::native::testing::Screen;
+    use beui::reactive::view;
     use beui::{
         Color32, Input, PointerButton, Pos2, Rect, ScrollDelta, Vec2, native::Context,
         native::Incoming, native::Launch, native::PlatformServices, native::RunOptions,
@@ -54,7 +57,7 @@ mod bench {
     use beui_core::context::RendererInfo;
     use beui_core::renderer::{Loaded, Renderer};
     use beui_core::runner::Runner;
-    use beui_demo::DemoApp;
+    use beui_demo::DemoRoot;
     use beui_renderer_wgpu::offscreen::OffscreenSurface;
 
     const VIEWPORT: Vec2 = Vec2::new(1440.0, 900.0);
@@ -156,7 +159,11 @@ mod bench {
                     ..RunOptions::default()
                 },
                 context,
-                app: Box::new(DemoApp::new()),
+                app: Box::new(beui::native::build(|| {
+                    view! {
+                        <DemoRoot today={Date::today()} />
+                    }
+                })),
                 layers: Vec::new(),
             });
             let timing = Timing {
@@ -180,7 +187,7 @@ mod bench {
             }
         }
 
-        fn app(&self) -> &DemoApp {
+        fn app(&self) -> &Document {
             let app: &dyn Any = self.runner.app();
             app.downcast_ref().expect("the bench runs the demo")
         }
@@ -215,7 +222,7 @@ mod bench {
                 prepare,
                 present,
                 repaint,
-                perf: self.app().document.performance(),
+                perf: self.app().performance(),
             }
         }
 
@@ -233,7 +240,7 @@ mod bench {
         }
 
         fn row(&self, title: &str) -> Rect {
-            let document = &self.app().document;
+            let document = self.app();
             let node = document
                 .find_test_id(&format!("demo.catalog.{title}"))
                 .unwrap_or_else(|| panic!("no catalog row for {title}"));
@@ -282,7 +289,7 @@ mod bench {
             frames.extend(self.settle());
             let allocations = crate::counting::allocations() - allocations;
             if std::env::var_os("UNPLACED").is_some() {
-                let document = &self.app().document;
+                let document = self.app();
                 let mut stack: Vec<_> = document.root().into_iter().collect();
                 let mut found = std::collections::HashMap::<String, (usize, usize)>::new();
                 fn size(document: &beui_core::document::Document, node: beui::NodeId) -> usize {

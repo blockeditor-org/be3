@@ -28,7 +28,7 @@ use super::volume::VolumeButton;
 use super::wifi::WifiButton;
 use super::windows::WindowPicker;
 use beui::{Align, Direction, ItemSize};
-use block_editor_beui::beui::native::toggle_keyboard;
+use block_editor_beui::beui::reactive::toggle_keyboard;
 
 const BAR_PADDING: Space = Space::Sm;
 const BAR_SPACING: Space = Space::Md;

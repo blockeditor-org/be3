@@ -1,5 +1,6 @@
+use beui::datetime::Date;
 use beui::reactive::view;
-use beui_demo::HtmlDemo;
+use beui_demo::DemoRoot;
 use wasm_bindgen::JsValue;
 use wasm_bindgen::prelude::wasm_bindgen;
 
@@ -8,7 +9,7 @@ pub fn start() -> Result<(), JsValue> {
     wasi_threads::initialize_main_thread();
     beui::html::run("app", || {
         view! {
-            <HtmlDemo />
+            <DemoRoot today={Date::today()} />
         }
     })
     .map_err(|error| JsValue::from_str(&error))

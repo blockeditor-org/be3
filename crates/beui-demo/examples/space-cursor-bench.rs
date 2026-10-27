@@ -5,7 +5,10 @@ mod bench {
     use std::rc::Rc;
     use std::time::{Duration, Instant};
 
+    use beui::datetime::Date;
+    use beui::native::Document;
     use beui::native::testing::Screen;
+    use beui::reactive::view;
     use beui::{
         CursorIcon, Input, Pos2, Vec2, native::Context, native::Incoming, native::Launch,
         native::PlatformServices, native::RunOptions, native::Setup, native::Waker,
@@ -13,7 +16,7 @@ mod bench {
     use beui_core::app::SafeArea;
     use beui_core::renderer::{Loaded, Renderer};
     use beui_core::runner::Runner;
-    use beui_demo::DemoApp;
+    use beui_demo::DemoRoot;
     use beui_layer_space::Space;
     use beui_renderer_wgpu::offscreen::OffscreenSurface;
 
@@ -52,7 +55,11 @@ mod bench {
                     ..RunOptions::default()
                 },
                 context,
-                app: Box::new(DemoApp::new()),
+                app: Box::new(beui::native::build(|| {
+                    view! {
+                        <DemoRoot today={Date::today()} />
+                    }
+                })),
                 layers: vec![Box::new(Rc::clone(&space))],
             });
             let renderer: Box<dyn Renderer> = match gpu {
@@ -78,7 +85,7 @@ mod bench {
             Self { runner, space }
         }
 
-        fn app(&self) -> &DemoApp {
+        fn app(&self) -> &Document {
             let app: &dyn Any = self.runner.app();
             app.downcast_ref().expect("the bench runs the demo")
         }
@@ -104,7 +111,7 @@ mod bench {
                     .filter(|window| window.changed)
                     .count()
             });
-            let latest = self.app().document.performance().latest;
+            let latest = self.app().performance().latest;
             Timed {
                 frame,
                 present,

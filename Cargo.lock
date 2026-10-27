@@ -1387,7 +1387,6 @@ dependencies = [
  "accesskit",
  "beui-components-styled",
  "beui-components-unstyled",
- "beui-core",
  "beui-view",
  "beui_macros",
  "emojis",

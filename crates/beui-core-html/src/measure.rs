@@ -203,3 +203,7 @@ pub fn rect(node: NodeId) -> Option<Rect> {
 pub fn rect(_node: NodeId) -> Option<Rect> {
     None
 }
+
+pub fn draws(_text: &str, _font: FontId) -> bool {
+    true
+}

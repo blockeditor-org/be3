@@ -168,3 +168,7 @@ pub(crate) fn arrow_focus(row: NodeRef, direction: crate::types::Direction) {
         true
     });
 }
+
+pub(crate) use beui_core_html::typing::{
+    close_keyboard, request_typed_paste, toggle_keyboard, type_events,
+};

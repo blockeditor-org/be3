@@ -1,6 +1,6 @@
 use super::*;
-use crate::native::keyboard::styled::key_center;
-use crate::native::keyboard::unstyled::{Layer, Value};
+use crate::keyboard::styled::key_center;
+use crate::keyboard::unstyled::{Layer, Value};
 use crate::reactive::*;
 use crate::styled::*;
 

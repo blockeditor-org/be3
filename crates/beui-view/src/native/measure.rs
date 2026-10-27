@@ -22,3 +22,9 @@ pub(crate) fn measure_line(text: &str, font: FontId) -> Option<Vec2> {
         .flatten()
         .map(|galley| Vec2::new(galley.size().x, galley.line_height()))
 }
+
+pub(crate) fn draws(text: &str, font: FontId) -> bool {
+    try_with_document(|document| document.layout_text(text, font, TextLayout::DEFAULT))
+        .flatten()
+        .is_none_or(|galley| galley.glyphs().iter().all(|glyph| glyph.id.glyph != 0))
+}

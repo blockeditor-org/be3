@@ -42,6 +42,13 @@ pub fn show_keyboard(shown: bool) {
     let _ = shown;
 }
 
+pub fn commit(text: String) {
+    #[cfg(target_arch = "wasm32")]
+    web::commit(text);
+    #[cfg(not(target_arch = "wasm32"))]
+    let _ = text;
+}
+
 pub fn place(rect: Option<Rect>) {
     #[cfg(target_arch = "wasm32")]
     web::place(rect);
@@ -84,6 +91,10 @@ mod web {
             sink(events);
             reactive::flush();
         }
+    }
+
+    pub(super) fn commit(text: String) {
+        deliver(|_, events| events.push(Input::Ime(ImeEvent::CommitText(text))));
     }
 
     fn selection(agent: &web_sys::HtmlTextAreaElement) -> (u32, u32) {

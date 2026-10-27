@@ -10,8 +10,7 @@ pub use beui_core::context::{
     Context, FrameOutput, InputSimulation, Moved, RendererInfo, WindowOutput,
 };
 pub use beui_core::current::{
-    close_keyboard, enter, last_pointer, layout_text, request_typed_paste, toggle_keyboard,
-    try_with_document, type_events, with_document, with_reactive_scope,
+    enter, last_pointer, layout_text, try_with_document, with_document, with_reactive_scope,
 };
 pub use beui_core::damage::Region;
 pub use beui_core::document::Document;
@@ -54,7 +53,6 @@ pub use beui_font_freetype::{
     FontBytes, FontData, FontLibrary, FontSources, FreetypeFonts, ICONS_FONT,
 };
 pub use beui_inspector::install as install_inspector;
-pub use beui_keyboard as keyboard;
 pub use beui_layer_drive as drive;
 #[cfg(all(feature = "window", target_os = "android"))]
 pub use beui_platform_android::AndroidApp;

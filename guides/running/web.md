@@ -72,11 +72,10 @@ hydration kept every prerendered element and, in both colour schemes, changed no
 `lucide.ttf`) beside its index.html, where the core's `@font-face` rules look for them.
 
 beui's demo pages run on that core too: `./scripts/buck run //crates/beui-demo:web-html` serves
-crates/beui-demo-html on http://127.0.0.1:8075, a catalog beside the page it shows instead of the
-native demo's dock. beui-demo-html builds beui-demo without its `native` feature, which holds
-the dock shell and the samples only the native core can show (docking, the on-screen keyboard,
-windows, paths); those show a line saying so. `./scripts/test //crates/beui-demo-html:web-test`
-opens every page in Chromium.
+crates/beui-demo-html on http://127.0.0.1:8075: the same demo, dock shell and every sample, as the
+native one (the inspector button shows a stand-in, since the inspector reads the native document).
+`./scripts/test //crates/beui-demo-html:web-test` opens every page in Chromium and drives the dock,
+the on-screen keyboard and the floating window there (crates/beui-demo-html/src/drive).
 
 ## Files and offline
 

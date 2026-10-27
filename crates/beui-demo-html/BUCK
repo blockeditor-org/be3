@@ -3,7 +3,7 @@ load("@root//buck/app:drive.bzl", "web_drive_test")
 load("@root//buck/cargo:defs.bzl", "cargo_library")
 load("@root//buck/wasm:defs.bzl", "wasi_app_flags", "wasi_html_module")
 
-# beui's demo pages (crates/beui-demo, without its native shell) on beui's
+# beui's demo (crates/beui-demo) on beui's
 # HTML core: `./scripts/buck run //crates/beui-demo:web-html` serves it with
 # Caddy on http://127.0.0.1:8075, or on the address after `--`.
 cargo_library(

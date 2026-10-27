@@ -1,10 +1,10 @@
 use beui::datetime::Date;
-use beui::native::Document;
+use beui::native::{Document, build};
 use beui::{Input, NodeId, Pos2, Vec2, pos2};
 use block_ui_test::DocumentTest;
 
 use super::*;
-use crate::{DemoApp, PAGES, Page};
+use crate::{DemoRoot, LoneRoot, PAGES, Page};
 
 mod a_banner_says_what_failed_until_it_is_dismissed;
 mod a_card_floats_from_its_tab_and_waits_while_another_tab_is_shown;
@@ -90,6 +90,22 @@ mod typing_a_fahrenheit_temperature_moves_the_celsius_one;
 mod waiting_for_data_shows_progress_until_it_arrives;
 
 const TODAY: (i32, u8, u8) = (2026, 1, 15);
+
+fn demo_document(today: Date) -> Document {
+    build(move || {
+        view! {
+            <DemoRoot today />
+        }
+    })
+}
+
+fn alone_document(today: Date, page: Page) -> Document {
+    build(move || {
+        view! {
+            <LoneRoot today page />
+        }
+    })
+}
 const WIDE: Vec2 = Vec2::new(1100.0, 800.0);
 const REVEAL_TICKS: usize = 40;
 const REVEAL_STEP: f32 = 120.0;
@@ -97,12 +113,12 @@ const CATALOG_X: f32 = 40.0;
 
 fn demo(size: Vec2) -> DocumentTest {
     let (year, month, day) = TODAY;
-    DocumentTest::new(DemoApp::on(Date::new(year, month, day)).document, size)
+    DocumentTest::new(demo_document(Date::new(year, month, day)), size)
 }
 
 fn demo_in(size: Vec2, theme: beui::ThemeKind) -> DocumentTest {
     let (year, month, day) = TODAY;
-    let mut test = DocumentTest::new(DemoApp::on(Date::new(year, month, day)).document, size);
+    let mut test = DocumentTest::new(demo_document(Date::new(year, month, day)), size);
     test.context().set_preference_layer(
         beui::PreferenceSource::App,
         beui::PreferenceLayer {
@@ -125,10 +141,7 @@ fn open_pointing_card(test: &mut DocumentTest) -> (beui::Rect, beui::Rect) {
 
 fn alone(size: Vec2, page: Page) -> DocumentTest {
     let (year, month, day) = TODAY;
-    DocumentTest::new(
-        DemoApp::alone(Date::new(year, month, day), page).document,
-        size,
-    )
+    DocumentTest::new(alone_document(Date::new(year, month, day), page), size)
 }
 
 fn open(test: &mut DocumentTest, page: Page) {

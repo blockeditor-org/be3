@@ -12,6 +12,7 @@ pub use beui_view::window::{Window, WindowHandle, opens_windows, use_window};
 pub use beui_view::{CORE, Core, child_type, value_child_type};
 
 pub use beui_dock as dock;
+pub use beui_keyboard as keyboard;
 
 pub mod reactive {
     pub use beui_view::reactive::*;
@@ -61,3 +62,22 @@ use beui_renderer_wgpu as renderer;
 #[cfg(not(beui_html))]
 #[cfg(test)]
 mod tests;
+
+pub fn open_inspector() -> bool {
+    inspector_opener::open()
+}
+
+#[cfg(not(beui_html))]
+mod inspector_opener {
+    pub(crate) fn open() -> bool {
+        crate::native::with_document(crate::native::Document::open_inspector);
+        true
+    }
+}
+
+#[cfg(beui_html)]
+mod inspector_opener {
+    pub(crate) fn open() -> bool {
+        false
+    }
+}

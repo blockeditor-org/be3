@@ -2730,6 +2730,12 @@ impl Default for Document {
     }
 }
 
+impl crate::app::App for Document {
+    fn update(&mut self, context: &Context, rect: Rect) {
+        self.show(context, rect);
+    }
+}
+
 enum ComponentNames {
     One(beui_tree::component::ComponentRecord),
     Many(Vec<beui_tree::component::ComponentRecord>),

@@ -612,10 +612,12 @@ platform builds the native core. Code reads which one it is built for from the
 constant `beui::CORE` (`Core::Native` or `Core::Html`) and switches with
 `if CORE == Core::Html`; `#[cfg(beui_html)]` belongs only in beui-view, beui and
 beui-core-html. Such a switch is a deliberate choice for one component, never a
-way around a primitive one core lacks. The inspector, the on-screen keyboard
-and plugin hosting are native only. The dock runs on both: on HTML a `Window`
-(so a `DockWindow`) shows as its overlay, `window_of` is always the main
-window, and `stacked_at` orders nodes by the open overlays that hold them.
+way around a primitive one core lacks. The inspector and plugin hosting are
+native only. The dock and the on-screen keyboard run on both: on HTML a
+`Window` (so a `DockWindow`) shows as its overlay, `window_of` is always the
+main window, and `stacked_at` orders nodes by the open overlays that hold them.
+`beui::open_inspector()` answers whether an inspector opened, which on HTML it
+never does.
 
 **The public API is the same on both cores.** Code that type-checks against
 beui on one core type-checks on the other; only the bodies differ. So:
@@ -686,7 +688,7 @@ What each primitive is on the HTML core (the bodies are in
 | `Canvas` | an inner element translated to the view, `--beui-scale` scaling items |
 | `Overlay` | a `<dialog>` (`showModal()` for one that blocks everything, else a manual popover) placed with CSS anchor positioning, a one-cell grid like `Frame` while open; `window` and `shown_in` are ignored |
 | `Portal` | moves the shown subtree's element (`moveBefore` where the browser has it) |
-| `Interactive` | an element with `tabindex` and listeners; `pastes`, `key_active`, `claims_touch` and the forwarding props do nothing yet |
+| `Interactive` | an element with `tabindex` and listeners; `on_forward` hears the pointer (captured from its down); `pastes`, `key_active`, `claims_touch` and the other forwarding props do nothing yet |
 | `Selectable` | the browser's own selection; the root is `user-select: none`, so nothing outside a `Selectable` (or a native text field) selects |
 | `Drawing` | a `div` holding an inline `<svg>` the `Draw` callback paints, sized as natively (see below) |
 
@@ -4148,6 +4150,14 @@ It is three pieces:
   only to the document that holds that window (`Context::take_window_reports`
   takes those a filter keeps), so the keyboard's document hears its own
   window's `Rastered`.
+
+On the HTML core the keyboard shows only where a view places it (the Inputs
+page of beui-demo): no host opens it for a field. Its forwarding `Interactive`
+hears the pointer through `on_forward` there too, `type_events` dispatches each
+key at the focused element as a `KeyboardEvent` and commits what no key handler
+took, and the text it types through the focused field's IME agent;
+`toggle_keyboard` and `close_keyboard` show and hide the browser's own
+(`navigator.virtualKeyboard`).
 
 There is one way to ask for an on-screen keyboard whatever shows it:
 `toggle_keyboard()` (or `Context::toggle_keyboard`) counts up

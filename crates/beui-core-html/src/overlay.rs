@@ -733,12 +733,34 @@ mod web {
         }
     }
 
+    fn anchored_above(layer: &Layer) -> bool {
+        let OverlayAnchor::Node(node) = layer.anchor.borrow().clone() else {
+            return false;
+        };
+        let Some(anchor) = node.try_get().and_then(crate::dom::dom) else {
+            return false;
+        };
+        let open = open_layers();
+        let Some(index) = open
+            .iter()
+            .position(|other| std::ptr::eq(Rc::as_ptr(other), layer))
+        else {
+            return false;
+        };
+        open[index + 1..].iter().any(|other| {
+            crate::dom::dom(other.parts.dialog).is_some_and(|dialog| dialog.contains(Some(&anchor)))
+        })
+    }
+
     pub(super) fn lay_out(layer: &Layer) -> bool {
         let Some(dialog) = crate::dom::element(layer.parts.dialog) else {
             return false;
         };
         if !dialog.is_connected() {
             return false;
+        }
+        if layer.wanted.get() && anchored_above(layer) {
+            layer.raise();
         }
         let mut held = layer.web.borrow_mut();
         attach(layer, &mut held, &dialog);

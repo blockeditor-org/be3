@@ -10,6 +10,8 @@ pub use ui_types::input::{
     Keystroke, Modifiers, Pen, PenPhase, PointerButton, ScrollDelta, TouchId, TouchPhase,
 };
 
+pub mod typing;
+
 pub const TOUCH_DRAG_THRESHOLD: f32 = 8.0;
 pub const TOUCH_VELOCITY_WINDOW: f32 = 0.12;
 pub const MAX_TOUCH_VELOCITY: f32 = 4_000.0;

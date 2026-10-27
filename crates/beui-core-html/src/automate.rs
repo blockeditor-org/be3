@@ -5,7 +5,7 @@ use beui_types::{Rect, Vec2, pos2};
 
 pub const TIMEOUT: Duration = Duration::from_secs(30);
 
-const ANSWERS: &str = "the HTML core answers tree, ids, find TARGET, wait TEXT, gone TEXT, settle, pause MILLISECONDS, clock stop|run and help; input (click, move, drag, type, key) comes from the browser, as a person's does";
+const ANSWERS: &str = "the HTML core answers tree, ids, find TARGET, wait TEXT [over X,Y], gone TEXT [over X,Y], settle, pause MILLISECONDS, clock stop|run and help; input (click, move, drag, type, key) comes from the browser, as a person's does";
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Line {
@@ -572,7 +572,19 @@ mod web {
         let deadline = wall_milliseconds() + timeout.as_secs_f64() * 1000.0;
         loop {
             let lines = lines();
-            let found = lines.iter().find(|line| line.text.contains(text));
+            let (wanted, over) = match text.rsplit_once(" over ") {
+                Some((wanted, point)) => match super::numbers(point).as_deref() {
+                    Some([x, y]) => (wanted, Some(beui_types::pos2(*x, *y))),
+                    _ => (text, None),
+                },
+                None => (text, None),
+            };
+            let found = lines.iter().find(|line| {
+                line.text.contains(wanted)
+                    && over.is_none_or(|point| {
+                        line.visible && line.bounds.is_some_and(|bounds| bounds.contains(point))
+                    })
+            });
             match (found, shown) {
                 (Some(line), true) => return Ok(format!("{}\n", line.text)),
                 (None, false) => return Ok(String::new()),

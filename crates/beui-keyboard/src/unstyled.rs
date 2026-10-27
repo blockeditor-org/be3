@@ -6,15 +6,10 @@ pub mod tables;
 use std::cell::RefCell;
 use std::time::Duration;
 
-use beui_core::current::{close_keyboard, request_typed_paste, type_events};
-use beui_core::geometry::vec2;
-use beui_core::input::{PointerButton, PointerPhase};
-use beui_core::interact::forward::ForwardedInput;
-use beui_core::node::NodeId;
-use beui_core::timer;
 use beui_macros::{component, view};
 use beui_view::primitives::*;
 use beui_view::reactive::*;
+use beui_view::types::{ForwardedInput, PointerButton, PointerPhase, vec2};
 use reactive::{Stored, store};
 
 use beui_view::types::{Direction, ItemSize};
@@ -58,7 +53,7 @@ impl KeyboardHandle {
     }
 
     pub fn tap(&self, value: Value) {
-        let now = timer::now();
+        let now = now();
         self.change(|engine| engine.tap(value, now));
     }
 
@@ -107,7 +102,7 @@ pub fn SoftwareKeyboard(cap: RenderFn<KeyCapHandle>, emoji: RenderFn<KeyboardHan
     let keyboard = KeyboardHandle { engine, revision };
     let layer = keyboard.layer();
     let repeat = create_timer(move || {
-        let now = timer::now();
+        let now = now();
         let next = keyboard.change(|engine| engine.tick(now));
         next.map(|next| {
             next.saturating_duration_since(now)
@@ -115,7 +110,7 @@ pub fn SoftwareKeyboard(cap: RenderFn<KeyCapHandle>, emoji: RenderFn<KeyboardHan
         })
     });
     let forward = move |input: ForwardedInput| {
-        let now = timer::now();
+        let now = now();
         let rect = input.rect;
         keyboard.change(|engine| {
             let layout = engine.layout();
@@ -298,7 +293,7 @@ fn KeyCell(handle: KeyCapHandle, cap: RenderFn<KeyCapHandle>) -> NodeId {
 
 #[derive(Clone, PartialEq, Eq, Debug, Default)]
 pub struct Face {
-    pub glyph: Option<beui_core::icons::Glyph>,
+    pub glyph: Option<beui_view::types::icons::Glyph>,
     pub text: String,
     pub after: String,
 }
@@ -312,7 +307,7 @@ impl Face {
         }
     }
 
-    fn glyph(glyph: beui_core::icons::Glyph) -> Self {
+    fn glyph(glyph: beui_view::types::icons::Glyph) -> Self {
         Self {
             glyph: Some(glyph),
             text: String::new(),
@@ -320,7 +315,7 @@ impl Face {
         }
     }
 
-    fn around(text: &str, glyph: beui_core::icons::Glyph, after: &str) -> Self {
+    fn around(text: &str, glyph: beui_view::types::icons::Glyph, after: &str) -> Self {
         Self {
             glyph: Some(glyph),
             text: text.to_owned(),
@@ -330,8 +325,8 @@ impl Face {
 }
 
 pub fn face(value: Value) -> Face {
-    use beui_core::icons::*;
-    use beui_core::input::Key;
+    use beui_view::types::Key;
+    use beui_view::types::icons::*;
     match value {
         Value::Char(' ') => Face::glyph(ICON_SPACE),
         Value::Char('\t') => Face::text("\\t"),

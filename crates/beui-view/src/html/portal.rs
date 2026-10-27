@@ -10,8 +10,8 @@ pub(crate) fn portal(node: Prop<Option<NodeId>>) -> NodeId {
     set_style(element, "display", Some("grid".to_owned()));
     set_style(
         element,
-        "grid-template-columns",
-        Some("minmax(0, 1fr)".to_owned()),
+        "grid-template",
+        Some("minmax(0, 1fr) / minmax(0, 1fr)".to_owned()),
     );
     let portal = beui_core_html::portal::portal(element);
     let held = portal.clone();

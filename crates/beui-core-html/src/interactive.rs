@@ -29,6 +29,7 @@ pub struct Handlers {
     pub on_secondary_press: Callback<PointerPress>,
     pub on_drag: Callback<PointerPress>,
     pub on_pointer: Callback<PointerInput, bool>,
+    pub on_forward: Callback<ForwardedInput>,
     pub on_wheel: Callback<WheelInput, bool>,
     pub on_activate_change: Callback<bool>,
     pub on_step: Callback<f32>,
@@ -78,10 +79,10 @@ mod web {
     use std::rc::Rc;
 
     use beui_types::input::{
-        ImeEvent, Input, KeyPress, PointerButton, PointerId, PointerInput, PointerPress,
-        PointerStage, ScrollGesture, TouchId, WheelInput, ZoomGesture, scrolled,
+        ImeEvent, Input, KeyPress, PointerButton, PointerId, PointerInput, PointerPhase,
+        PointerPress, PointerStage, ScrollGesture, TouchId, WheelInput, ZoomGesture, scrolled,
     };
-    use beui_types::{Pasted, Pos2, Vec2, WindowId, pos2, vec2};
+    use beui_types::{Pasted, Pos2, Rect, Vec2, WindowId, pos2, vec2};
     use wasm_bindgen::JsCast;
 
     use super::{Handlers, Switches};
@@ -259,7 +260,53 @@ mod web {
             }
         }
 
+        fn forward(&self, event: &web_sys::PointerEvent, stage: PointerStage) -> bool {
+            if self.handlers.on_forward.is_empty() {
+                return false;
+            }
+            let Some(element) = self.element() else {
+                return false;
+            };
+            let input = pointer_input(&element, event, stage);
+            let button = input.button.unwrap_or(PointerButton::Primary);
+            let phase = match stage {
+                PointerStage::Down => {
+                    let _ = element.set_pointer_capture(event.pointer_id());
+                    PointerPhase::Down(button)
+                }
+                PointerStage::Move => PointerPhase::Move,
+                PointerStage::Up => PointerPhase::Up(button),
+                PointerStage::Cancel => PointerPhase::Cancel,
+            };
+            let rect = Rect::from_min_size(input.pos - input.local.to_vec2(), input.size);
+            let event = beui_types::input::PointerEvent {
+                pointer: input.pointer,
+                window: WindowId::MAIN,
+                phase,
+                pos: input.pos,
+                modifiers: input.modifiers,
+                clicks: 1,
+                force: None,
+                pen: None,
+                predicted: None,
+                time: input.time,
+                source: 0,
+            };
+            self.handlers.on_forward.call(super::ForwardedInput {
+                events: vec![beui_types::forward::Forwarded::Pointer { event, over: None }],
+                rect,
+                hovered: input.inside,
+                focused: false,
+                pointer: Some(input.pos),
+                modifiers: input.modifiers,
+            });
+            true
+        }
+
         fn pointer(&self, event: &web_sys::PointerEvent, stage: PointerStage) -> bool {
+            if self.forward(event, stage) {
+                return true;
+            }
             if self.handlers.on_pointer.is_empty() {
                 return false;
             }

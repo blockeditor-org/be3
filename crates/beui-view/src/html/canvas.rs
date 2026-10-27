@@ -70,8 +70,8 @@ pub(crate) fn canvas_item(
     set_style(item, "display", Some("grid".to_owned()));
     set_style(
         item,
-        "grid-template-columns",
-        Some("minmax(0, 1fr)".to_owned()),
+        "grid-template",
+        Some("minmax(0, 1fr) / minmax(0, 1fr)".to_owned()),
     );
     beui_core_html::canvas::item(item);
     if let Some(child) = children {

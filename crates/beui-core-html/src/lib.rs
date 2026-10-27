@@ -24,6 +24,7 @@ pub mod run;
 pub mod scroll;
 pub mod text;
 pub mod tree;
+pub mod typing;
 
 pub use beui_html;
 pub use node::{NodeId, NodeRef};

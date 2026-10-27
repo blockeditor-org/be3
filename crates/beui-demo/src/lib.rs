@@ -1,5 +1,3 @@
-#![cfg_attr(not(feature = "native"), allow(unused_imports, dead_code))]
-
 use base_pages::{
     ControlFlowPage, FramesPage, InteractionPage, LayeringPage, ListsPage, PathsPage, TextNodesPage,
 };
@@ -7,9 +5,7 @@ use beui::Align;
 use beui::KeyAt;
 use beui::Overflow;
 use beui::datetime::{Date, DateTime, HourCycle, Time};
-#[cfg(feature = "native")]
 use beui::dock::styled::Docking;
-#[cfg(feature = "native")]
 use beui::dock::unstyled::{
     DockDialog, DockDialogPresentation, DockDocument, DockDocumentBody, DockDocumentTabs,
     DockDocuments, DockOpened, DockPane, DockSlot, DockSplit, DockTab, DockTabControl,
@@ -26,14 +22,6 @@ use beui::icons::{
     ICON_SPLINE, ICON_SPLIT, ICON_SQUARE, ICON_STAR, ICON_TEXT_ALIGN_START, ICON_TOGGLE_RIGHT,
     ICON_TRASH, ICON_TYPE,
 };
-#[cfg(feature = "native")]
-use beui::native::Context;
-#[cfg(feature = "native")]
-use beui::native::Document;
-#[cfg(feature = "native")]
-use beui::native::build;
-#[cfg(feature = "native")]
-use beui::native::with_document;
 use beui::reactive::*;
 use beui::styled::theme::NARROW_WIDTH;
 use beui::styled::*;
@@ -51,7 +39,6 @@ use rich_text::RichTextPage;
 use sample::{Sample, ScrollPage};
 use std::rc::Rc;
 use std::sync::Arc;
-#[cfg(feature = "native")]
 use styled_pages::{AttachedCard, AttachedDialog};
 use styled_pages::{
     ButtonsPage, CanvasPage, ChoicesPage, ColorsPage, DockingPage, EditorPage, InputsPage,
@@ -72,20 +59,13 @@ mod sample;
 mod styled_pages;
 mod unstyled_pages;
 
-#[cfg(feature = "native")]
 const CATALOG: TabId = TabId::new(1);
-#[cfg(feature = "native")]
 const DIALOG_TABS: u64 = 1 << 40;
-#[cfg(feature = "native")]
 const DIALOG_SIZE: beui::Vec2 = beui::Vec2::new(460.0, 120.0);
-#[cfg(feature = "native")]
 const NESTED_DIALOG_INSET: beui::Vec2 = beui::Vec2::new(56.0, 16.0);
-#[cfg(feature = "native")]
 const CARD_SIZE: beui::Vec2 = beui::Vec2::new(440.0, 300.0);
-#[cfg(feature = "native")]
 const PAGE_SHARE: f32 = 0.76;
 const SHELL_PADDING: Space = Space::Md;
-#[cfg(feature = "native")]
 const TOOLBAR_SPACING: Space = Space::Md;
 const CATALOG_PADDING: Space = Space::Xs;
 const CATALOG_SPACING: Space = Space::Md;
@@ -95,7 +75,7 @@ const PAGE_SPACING: Space = Space::Xl3;
 const SECTION_SPACING: Space = Space::Lg;
 const ROW_SPACING: Space = Space::Lg;
 const CODE_PADDING: Space = Space::Lg;
-const CATALOG_WIDTH: f32 = 300.0;
+const STAND_IN: Color32 = Color32::from_rgb(255, 105, 180);
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 enum Page {
@@ -310,11 +290,6 @@ impl Page {
     }
 }
 
-#[cfg(feature = "native")]
-pub struct DemoApp {
-    pub document: Document,
-}
-
 #[derive(Clone, Copy)]
 struct Today(Date);
 
@@ -346,31 +321,14 @@ impl DemoWindow {
     }
 }
 
-#[cfg(feature = "native")]
-impl Default for DemoApp {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[cfg(feature = "native")]
-impl DemoApp {
-    pub fn new() -> Self {
-        Self::on(Date::today())
-    }
-
-    pub fn on(today: Date) -> Self {
-        Self {
-            document: build(move || {
-                provide_context(Today(today));
-                let window = DemoWindow::provide();
-                view! {
-                    <Root title={window.title} clear_color={window.clear_color()}>
-                        <Demo />
-                    </Root>
-                }
-            }),
-        }
+#[component]
+pub fn DemoRoot(today: Date) -> Root {
+    provide_context(Today(today));
+    let window = DemoWindow::provide();
+    view! {
+        <Root title={window.title} clear_color={window.clear_color()}>
+            <Demo />
+        </Root>
     }
 }
 
@@ -378,7 +336,6 @@ pub fn page_titles() -> impl Iterator<Item = &'static str> {
     PAGES.into_iter().map(Page::title)
 }
 
-#[cfg(feature = "native")]
 #[component]
 pub fn Demo() -> NodeId {
     view! {
@@ -389,21 +346,16 @@ pub fn Demo() -> NodeId {
 }
 
 #[cfg(test)]
-impl DemoApp {
-    fn alone(today: Date, page: Page) -> Self {
-        Self {
-            document: build(move || {
-                provide_context(Today(today));
-                let window = DemoWindow::provide();
-                view! {
-                    <Root title={window.title} clear_color={window.clear_color()}>
-                        <Container>|_|
-                            <LonePage page />
-                        </Container>
-                    </Root>
-                }
-            }),
-        }
+#[component]
+fn LoneRoot(today: Date, page: Page) -> Root {
+    provide_context(Today(today));
+    let window = DemoWindow::provide();
+    view! {
+        <Root title={window.title} clear_color={window.clear_color()}>
+            <Container>|_|
+                <LonePage page />
+            </Container>
+        </Root>
     }
 }
 
@@ -415,20 +367,11 @@ fn LonePage(page: Page) -> NodeId {
     }
 }
 
-#[cfg(feature = "native")]
-impl beui::native::App for DemoApp {
-    fn update(&mut self, context: &Context, rect: Rect) {
-        self.document.show(context, rect);
-    }
-}
-
-#[cfg(feature = "native")]
 #[derive(Clone, Copy)]
 struct DragModifier {
     held: Signal<Option<Modifiers>>,
 }
 
-#[cfg(feature = "native")]
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 struct DemoDialog {
     id: TabId,
@@ -439,7 +382,6 @@ struct DemoDialog {
     depth: u8,
 }
 
-#[cfg(feature = "native")]
 impl DemoDialog {
     fn size(self) -> beui::Vec2 {
         match self.card {
@@ -473,14 +415,12 @@ impl DemoDialog {
     }
 }
 
-#[cfg(feature = "native")]
 #[derive(Clone, Copy)]
 struct DemoDialogs {
     open: Signal<Vec<DemoDialog>>,
     next: Stored<std::cell::Cell<u64>>,
 }
 
-#[cfg(feature = "native")]
 impl DemoDialogs {
     fn new() -> Self {
         let open = create_signal(Vec::new());
@@ -544,7 +484,6 @@ impl DemoDialogs {
     }
 }
 
-#[cfg(feature = "native")]
 #[derive(Clone, Copy)]
 struct Pages {
     layout: DockingLayout<TabId>,
@@ -557,18 +496,6 @@ thread_local! {
     static SHOWN_PAGES: std::cell::Cell<Option<Pages>> = const { std::cell::Cell::new(None) };
 }
 
-trait OpensPages: Copy + 'static {
-    fn open(&self, page: Page, beside: bool);
-}
-
-#[cfg(feature = "native")]
-impl OpensPages for Pages {
-    fn open(&self, page: Page, beside: bool) {
-        Pages::open(self, page, beside);
-    }
-}
-
-#[cfg(feature = "native")]
 impl Pages {
     fn new(dialogs: DemoDialogs) -> Self {
         let layout = DockingLayout::new();
@@ -618,7 +545,6 @@ impl Pages {
     }
 }
 
-#[cfg(feature = "native")]
 #[sample]
 fn switch_tabs_with_alt_q(layout: DockingLayout<TabId>) {
     let modifiers = held_modifiers();
@@ -658,7 +584,6 @@ fn switch_tabs_with_alt_q(layout: DockingLayout<TabId>) {
     });
 }
 
-#[cfg(feature = "native")]
 #[sample]
 #[component]
 fn DemoShell() -> NodeId {
@@ -734,7 +659,6 @@ fn DemoShell() -> NodeId {
     }
 }
 
-#[cfg(feature = "native")]
 #[component]
 fn DemoDialogBody(dialog: DemoDialog) -> NodeId {
     match dialog.card {
@@ -744,54 +668,6 @@ fn DemoDialogBody(dialog: DemoDialog) -> NodeId {
         false => view! {
             <AttachedDialog modal={dialog.modal} />
         },
-    }
-}
-
-#[component]
-fn NativeOnly() -> NodeId {
-    view! {
-        <Text style=TextStyle::CAPTION>"This sample needs beui's native core."</Text>
-    }
-}
-
-#[derive(Clone, Copy)]
-struct ShownPage(Signal<Page>);
-
-impl OpensPages for ShownPage {
-    fn open(&self, page: Page, _beside: bool) {
-        self.0.set(page);
-    }
-}
-
-#[component]
-pub fn HtmlDemo() -> Root {
-    provide_context(Today(Date::today()));
-    let window = DemoWindow::provide();
-    let shown = create_signal(Page::Buttons);
-    let active = create_selector(move || Some(shown.get()));
-    view! {
-        <Root title={window.title} clear_color={window.clear_color()}>
-            <Container>|_|
-                <HtmlShell shown active />
-            </Container>
-        </Root>
-    }
-}
-
-#[component]
-fn HtmlShell(shown: Signal<Page>, active: Selector<Option<Page>>) -> NodeId {
-    view! {
-        <List direction=Direction::Horizontal spacing=Space::None>
-            <Frame width=Size::Custom(CATALOG_WIDTH)>
-                <CatalogPanel pages={ShownPage(shown)} active />
-            </Frame>
-            <Separator />
-            <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
-                <Dynamic value={shown}>|page: Page|
-                    <PageView @sizing=ItemSize::Percent(100.0) page />
-                </Dynamic>
-            </List>
-        </List>
     }
 }
 
@@ -891,7 +767,6 @@ fn PageView(page: Page) -> NodeId {
     }
 }
 
-#[cfg(feature = "native")]
 #[component]
 fn DemoToolbar(pages: Pages) -> NodeId {
     let app_layer = use_preference_layer(PreferenceSource::App);
@@ -905,6 +780,7 @@ fn DemoToolbar(pages: Pages) -> NodeId {
     });
     let narrow = narrower_than(NARROW_WIDTH);
     let wide = create_memo(move || !narrow.get());
+    let inspector_missing = create_signal(false);
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=TOOLBAR_SPACING>
             <Text style=TextStyle::TITLE>"beui"</Text>
@@ -933,19 +809,49 @@ fn DemoToolbar(pages: Pages) -> NodeId {
                 glyph=ICON_BUG
                 label="Open the inspector"
                 variant=ButtonVariant::Ghost
-                on_click={|| with_document(Document::open_inspector)}
+                on_click={move || {
+                    if !beui::open_inspector() {
+                        inspector_missing.set(true);
+                    }
+                }}
             />
             <Button
                 label="Reset layout"
                 variant=ButtonVariant::Secondary
                 on_click={move || pages.reset()}
             />
+            <Show condition={inspector_missing}>
+                <Dialog
+                    open=true
+                    title="Inspector"
+                    id="demo.inspector.missing"
+                    on_dismiss={move || inspector_missing.set(false)}
+                >
+                    <InspectorStandIn />
+                </Dialog>
+            </Show>
         </List>
     }
 }
 
 #[component]
-fn CatalogPanel<P: OpensPages>(pages: P, active: Selector<Option<Page>>) -> NodeId {
+fn InspectorStandIn() -> NodeId {
+    view! {
+        <List spacing=SECTION_SPACING>
+            <Frame
+                @test_id="demo.inspector.stand_in"
+                fill={ColorRole::Custom(STAND_IN.into())}
+                height=Size::Custom(120.0)
+            />
+            <Text style=TextStyle::CAPTION>
+                "The inspector reads beui's native document, which this core does not have: the browser's developer tools show this page's elements instead."
+            </Text>
+        </List>
+    }
+}
+
+#[component]
+fn CatalogPanel(pages: Pages, active: Selector<Option<Page>>) -> NodeId {
     view! {
         <Scroll>
             <Frame padding=CATALOG_PADDING>
@@ -978,11 +884,11 @@ fn CatalogPanel<P: OpensPages>(pages: P, active: Selector<Option<Page>>) -> Node
 }
 
 #[component]
-fn CatalogGroup<P: OpensPages>(
+fn CatalogGroup(
     title: &'static str,
     summary: &'static str,
     listed: Vec<Page>,
-    pages: P,
+    pages: Pages,
     active: Selector<Option<Page>>,
 ) -> NodeId {
     view! {
@@ -1004,7 +910,7 @@ fn CatalogGroup<P: OpensPages>(
 }
 
 #[component]
-fn CatalogRow<P: OpensPages>(page: Page, pages: P, selected: Memo<bool>) -> NodeId {
+fn CatalogRow(page: Page, pages: Pages, selected: Memo<bool>) -> NodeId {
     let modifiers = held_modifiers();
     let open = move || {
         let held = modifiers.get_untracked();
@@ -1027,7 +933,6 @@ fn CatalogRow<P: OpensPages>(page: Page, pages: P, selected: Memo<bool>) -> Node
     }
 }
 
-#[cfg(feature = "native")]
 #[component]
 fn EmptyPanel() -> NodeId {
     view! {

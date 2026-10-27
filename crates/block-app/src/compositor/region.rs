@@ -24,7 +24,7 @@ use crate::plugin_host::{
 };
 use crate::surfaces::{CrashNotice, HostItemFace};
 use beui::native::draw_gpu;
-use beui::native::toggle_keyboard;
+use beui::reactive::toggle_keyboard;
 
 #[derive(Clone, Debug, PartialEq)]
 struct Failure {

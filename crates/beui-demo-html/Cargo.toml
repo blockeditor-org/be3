@@ -10,7 +10,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 beui = { path = "../beui", default-features = false }
-beui-demo = { path = "../beui-demo", default-features = false }
+beui-demo = { path = "../beui-demo" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasi-threads = { path = "../wasi-threads" }

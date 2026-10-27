@@ -21,7 +21,7 @@ pub use crate::component_ref::ComponentRef;
 pub use crate::file_picker::{FileFilter, FilePick, FilePicker, create_file_picker, pick_file};
 pub use crate::file_saver::{FileSave, SavedFile, save_file};
 pub use crate::measure::{
-    LineBox, Measured, TextGeometry, TextGeometrySignal, measure, measure_line, measure_text,
+    LineBox, Measured, TextGeometry, TextGeometrySignal, draws, measure, measure_line, measure_text,
 };
 pub use crate::nodes::{Inspect, TreeNode};
 pub use crate::painter::{Draw, Painter};
@@ -124,6 +124,22 @@ pub fn copy_image(png: Vec<u8>) {
 
 pub fn request_paste() {
     core::request_paste();
+}
+
+pub fn type_events(events: Vec<crate::types::Input>) {
+    core::type_events(events);
+}
+
+pub fn request_typed_paste() {
+    core::request_typed_paste();
+}
+
+pub fn toggle_keyboard() {
+    core::toggle_keyboard();
+}
+
+pub fn close_keyboard() {
+    core::close_keyboard();
 }
 
 pub fn window_of(node: NodeId) -> WindowId {

@@ -10,7 +10,10 @@ use beui_core::input::Key;
 
 pub(crate) use beui_core::timer::{Timer, create_timer, now, pin_wall_clock, wall_clock};
 
-pub(crate) use beui_core::current::{try_with_document, with_document};
+pub(crate) use beui_core::current::{
+    close_keyboard, request_typed_paste, toggle_keyboard, try_with_document, type_events,
+    with_document,
+};
 
 pub(crate) fn copy_text(text: String) {
     with_document(|document| document.copy_text(text));

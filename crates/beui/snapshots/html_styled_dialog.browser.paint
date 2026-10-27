@@ -25,7 +25,7 @@ BE3BROWSER 1
     "<div style=\"display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); justify-items: stretch; align-items: stretch;\">",
     "<div style=\"display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); padding: 12px 12px 12px 12px; justify-items: stretch; align-items: stretch;\">",
     "<div style=\"display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); width: 100%; max-width: 360px; justify-items: stretch; align-items: stretch; background-color: var(--v-c493d5fb); border-radius: 10px 10px 10px 10px; outline: 1px solid var(--v-a9551dd5); outline-offset: -1px;\">",
-    "<div style=\"display: grid; grid-template-columns: minmax(0, 1fr);\">",
+    "<div style=\"display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr);\">",
     "<!--[-->",
     "<div style=\"display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); justify-items: stretch; align-items: stretch;\">",
     "<div style=\"display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); padding: 16px 20px 16px 20px; justify-items: stretch; align-items: stretch;\">",

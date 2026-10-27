@@ -15,7 +15,6 @@ use beui::{Align, Align2, Corners, Dismiss, Extent, Justify, Outline, Placement,
 use beui::{Color, Pos2, vec2};
 use beui::{FillRule, LineCap, LineJoin, Path, Stroke};
 use beui::{Overflow, WrapAt};
-#[cfg(feature = "native")]
 use beui::{Window, WindowHandle};
 
 const SWATCH: f32 = 72.0;
@@ -842,16 +841,6 @@ fn AnchoredOverlay() -> NodeId {
     }
 }
 
-#[cfg(not(feature = "native"))]
-#[sample]
-#[component]
-fn FloatingWindow() -> NodeId {
-    view! {
-        <NativeOnly />
-    }
-}
-
-#[cfg(feature = "native")]
 #[sample]
 #[component]
 fn FloatingWindow() -> NodeId {

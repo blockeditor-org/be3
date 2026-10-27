@@ -55,3 +55,7 @@ pub fn measure_text(node: NodeId) -> TextGeometrySignal {
 pub fn measure_line(text: &str, font: FontId) -> Option<Vec2> {
     crate::core::measure::measure_line(text, font)
 }
+
+pub fn draws(text: &str, font: FontId) -> bool {
+    crate::core::measure::draws(text, font)
+}
