@@ -2608,7 +2608,8 @@ drop of its own. Only the part of a target that is on screen counts. Its `DropHa
 `over`, true for the one that would take it now; `on_over` reports the payload
 and the pointer as it moves, which is how a target that works out where inside
 itself the drop lands - the dock's tab bars and split zones, a timeline's
-insertion point - draws its marker, and how a filmstrip reorders live. The drop
+insertion point - draws its marker. A list that reorders its own items uses
+`Reorder` (below) instead. The drop
 is handed over before the source hears `on_drag_change(false)`, so a source can
 keep whatever it set up for the drag until the drop has used it.
 

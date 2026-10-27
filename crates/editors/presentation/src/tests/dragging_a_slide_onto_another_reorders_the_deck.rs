@@ -1,4 +1,5 @@
 use super::*;
+use block_editor_beui::beui::Vec2;
 
 #[test]
 fn dragging_a_slide_onto_another_reorders_the_deck() {
@@ -12,8 +13,12 @@ fn dragging_a_slide_onto_another_reorders_the_deck() {
     let onto = test
         .rect_of(&format!("presentation.slide.{}", ids[2]))
         .center();
-    test.drag(from, onto);
+    test.drag(from, onto + Vec2::new(0.0, 10.0));
     test.run();
 
-    assert_eq!(slide_ids(&test), [ids[1], ids[2], ids[0]]);
+    assert_eq!(
+        slide_ids(&test),
+        [ids[1], ids[2], ids[0]],
+        "the slide lands past every slide whose middle it was carried over"
+    );
 }

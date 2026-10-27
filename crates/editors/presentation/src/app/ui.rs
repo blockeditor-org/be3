@@ -1,6 +1,4 @@
 use beui::Overflow;
-use std::cell::Cell;
-use std::rc::Rc;
 
 use block_editor_beui::beui::icons::{
     ICON_ARROW_LEFT, ICON_ARROW_RIGHT, ICON_MAXIMIZE, ICON_TRASH, ICON_X,
@@ -23,6 +21,7 @@ const PANEL_PADDING: Space = Space::Md;
 const FILMSTRIP_PADDING: Space = Space::Sm;
 const TILE_INSET: Space = Space::Xs;
 const TILE_SPACING: Space = Space::Md;
+const TILE_GAP: Space = Space::Sm;
 const PRESENTING: Color32 = Color32::BLACK;
 const PLAYBACK_SHADE: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 180);
 
@@ -284,69 +283,14 @@ fn Playback(editor: Editor, slides: Slides) -> NodeId {
 #[component]
 fn Filmstrip(editor: Editor, slides: Slides) -> NodeId {
     let keys = slides.keys();
+    let read_only = editor.read_only();
     let selection = create_selector(move || slides.selected().get());
     let empty = create_memo(move || slides.count() == 0);
-    let tiles = move |id: Uuid| {
-        view! {
-            <SlideTile
-                editor={editor}
-                slides={slides}
-                selected={selection.memo(Some(id))}
-                id={id}
-            />
-        }
-    };
-
-    view! {
-        <Frame width=FILMSTRIP_WIDTH fill=ColorRole::Surface padding=FILMSTRIP_PADDING>
-            <List spacing=TILE_SPACING>
-                <Show condition={empty}>
-                    <Text style=TextStyle::CAPTION>"Add a slide to start this deck."</Text>
-                </Show>
-                <Scroll @sizing=ItemSize::Percent(100.0) @test_id={"presentation.filmstrip"}>
-                    <ForEach keys={keys} view={tiles} />
-                </Scroll>
-            </List>
-        </Frame>
-    }
-}
-
-#[component]
-fn SlideTile(editor: Editor, slides: Slides, selected: Prop<bool>, id: Uuid) -> NodeId {
-    let editable = editor.editable();
-    let read_only = editor.read_only();
-    let ratio = create_signal(DEFAULT_RATIO);
-    let target = create_memo(move || slides.target(Some(id)));
-    let name = create_memo(move || {
-        slides
-            .slide(id)
-            .map_or_else(|| "Loading…".to_owned(), |slide| slide.name)
-    });
-    let number = create_memo(move || {
-        slides
-            .index_of(id)
-            .map_or_else(String::new, |index| (index + 1).to_string())
-    });
-    let selected = create_memo(move || selected.get());
-    let outline = create_memo(move || match selected.get() {
-        true => Border::new(ColorRole::Accent).width(Stroke::Focus),
-        false => Border::DEFAULT,
-    });
-
-    let select = move || slides.select(Some(id));
-    let payload = create_memo(move || editable.get().then_some(id));
-    let entered = Rc::new(Cell::new(false));
-    let over = move |over: Option<(Uuid, DragPoint)>| {
-        let Some((held, _)) = over else {
-            entered.set(false);
-            return;
-        };
-        if entered.replace(true) || held == id {
-            return;
-        }
-        if let Some(index) = slides.index_of(id) {
-            slides.move_to(held, index);
-        }
+    let moved = move |moved: ReorderMove<Uuid, Uuid>| slides.move_to(moved.payload, moved.index);
+    let text = move |id: Uuid| {
+        untrack(|| slides.slide(id))
+            .map(|slide| slide.name)
+            .unwrap_or_default()
     };
     let ghost = move |held: Uuid| {
         let label = create_memo(move || {
@@ -370,10 +314,80 @@ fn SlideTile(editor: Editor, slides: Slides, selected: Prop<bool>, id: Uuid) -> 
             </Frame>
         }
     };
+
+    view! {
+        <Frame width=FILMSTRIP_WIDTH fill=ColorRole::Surface padding=FILMSTRIP_PADDING>
+            <List spacing=TILE_SPACING>
+                <Show condition={empty}>
+                    <Text style=TextStyle::CAPTION>"Add a slide to start this deck."</Text>
+                </Show>
+                <Reorder
+                    @sizing=ItemSize::Percent(100.0)
+                    keys={keys}
+                    payload={Func::new(Some)}
+                    disabled={read_only}
+                    text={text}
+                    preview={ghost}
+                    on_move={moved}
+                >|reorder: ReorderHandle<Uuid, Uuid>|
+                    <Scroll @test_id={"presentation.filmstrip"}>
+                        <Frame padding=TILE_INSET>
+                            <List spacing=TILE_GAP>
+                                <ForEach keys={reorder.order}>|id: Uuid|
+                                    <SlideTile
+                                        editor={editor}
+                                        slides={slides}
+                                        reorder={reorder}
+                                        selected={selection.memo(Some(id))}
+                                        id={id}
+                                    />
+                                </ForEach>
+                            </List>
+                        </Frame>
+                    </Scroll>
+                </Reorder>
+            </List>
+        </Frame>
+    }
+}
+
+#[component]
+fn SlideTile(
+    editor: Editor,
+    slides: Slides,
+    reorder: ReorderHandle<Uuid, Uuid>,
+    selected: Prop<bool>,
+    id: Uuid,
+) -> NodeId {
+    let read_only = editor.read_only();
+    let ratio = create_signal(DEFAULT_RATIO);
+    let target = create_memo(move || slides.target(Some(id)));
+    let name = create_memo(move || {
+        slides
+            .slide(id)
+            .map_or_else(|| "Loading…".to_owned(), |slide| slide.name)
+    });
+    let number = create_memo(move || {
+        slides
+            .index_of(id)
+            .map_or_else(String::new, |index| (index + 1).to_string())
+    });
+    let selected = create_memo(move || selected.get());
+    let outline = create_memo(move || match selected.get() {
+        true => Border::new(ColorRole::Accent).width(Stroke::Focus),
+        false => Border::DEFAULT,
+    });
+
+    let select = move || slides.select(Some(id));
     let remove = move || slides.remove(id);
 
     view! {
-        <Frame padding=TILE_INSET>
+        <ReorderItem
+            reorder
+            item=id
+            cursor=CursorIcon::PointingHand
+            on_click={select}
+        >|_: ReorderItemHandle|
             <Frame
                 fill=ColorRole::SurfaceRaised
                 border={create_memo(move || Some(outline.get()))}
@@ -381,28 +395,22 @@ fn SlideTile(editor: Editor, slides: Slides, selected: Prop<bool>, id: Uuid) -> 
                 padding=Space::Sm
             >
                 <List spacing=Space::Sm>
-                    <DropTarget on_over={over}>|_: DropHandle|
-                        <Draggable
-                            payload={payload}
-                            cursor=CursorIcon::PointingHand
-                            preview={ghost}
-                            on_click={select}
-                            @test_id={format!("presentation.slide.{id}")}
-                        >|_: DragHandle|
-                            <Frame width=THUMBNAIL_WIDTH aspect_ratio={ratio}>
-                                <ChildBlock
-                                    editor={editor}
-                                    block={target}
-                                    mode=ChildMode::Preview
-                                    on_state={move |state: ChildState| {
-                                        ratio.set(state.aspect_ratio.unwrap_or(DEFAULT_RATIO));
-                                    }}
-                                >|handle: ChildBlockHandle|
-                                    <SlideStatus state={handle.state} />
-                                </ChildBlock>
-                            </Frame>
-                        </Draggable>
-                    </DropTarget>
+                    <Frame
+                        width=THUMBNAIL_WIDTH
+                        aspect_ratio={ratio}
+                        @test_id={format!("presentation.slide.{id}")}
+                    >
+                        <ChildBlock
+                            editor={editor}
+                            block={target}
+                            mode=ChildMode::Preview
+                            on_state={move |state: ChildState| {
+                                ratio.set(state.aspect_ratio.unwrap_or(DEFAULT_RATIO));
+                            }}
+                        >|handle: ChildBlockHandle|
+                            <SlideStatus state={handle.state} />
+                        </ChildBlock>
+                    </Frame>
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                         <Text style=TextStyle::CAPTION>{number}</Text>
                         <Text
@@ -417,12 +425,13 @@ fn SlideTile(editor: Editor, slides: Slides, selected: Prop<bool>, id: Uuid) -> 
                             glyph=ICON_TRASH
                             label="Detach slide"
                             disabled={read_only}
+                            capture_presses=true
                             on_click={remove}
                             @test_id={format!("presentation.slide.{id}.remove")}
                         />
                     </List>
                 </List>
             </Frame>
-        </Frame>
+        </ReorderItem>
     }
 }
