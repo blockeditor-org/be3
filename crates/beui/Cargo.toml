@@ -70,6 +70,9 @@ web-sys = { version = "0.3", optional = true, features = [
     "console",
 ] }
 
+[target.'cfg(beui_html)'.dev-dependencies]
+paint-snapshot = { path = "../paint-snapshot" }
+
 [target.'cfg(not(beui_html))'.dev-dependencies]
 bench = { path = "../bench" }
 raw-window-handle = "0.6"

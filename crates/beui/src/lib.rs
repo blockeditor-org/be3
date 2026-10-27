@@ -5,10 +5,7 @@ extern crate self as beui;
 use std::error::Error;
 
 pub use accesskit;
-#[cfg(not(beui_html))]
 pub use beui_components_styled as styled;
-#[cfg(beui_html)]
-pub use beui_components_styled_html as styled;
 pub use beui_components_unstyled as unstyled;
 pub use beui_components_unstyled::datetime;
 #[cfg(not(beui_html))]
@@ -137,7 +134,6 @@ pub use beui_renderer_wgpu::{
     Draw, DrawAt, Renderer, Repaint, Repainting, drawing, painted_drawing, renderer_info,
     wgpu_color,
 };
-#[cfg(not(beui_html))]
 pub use beui_view::components::selectable;
 pub use beui_view::primitives;
 pub use beui_view::types::{
@@ -258,6 +254,10 @@ mod tests;
 pub use beui_view::reactive::{KeyAt, KeyEvent, NodeId, OverlayAnchor};
 #[cfg(beui_html)]
 pub use beui_view::types::*;
+
+#[cfg(beui_html)]
+#[cfg(test)]
+mod html_tests;
 
 #[cfg(beui_html)]
 pub mod reactive {

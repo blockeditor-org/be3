@@ -15,6 +15,7 @@ pub mod overlay;
 pub mod portal;
 pub mod reactive;
 pub mod root;
+pub mod selectable;
 pub mod text;
 pub mod virtual_list;
 pub mod window;

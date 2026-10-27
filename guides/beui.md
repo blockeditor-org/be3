@@ -4971,11 +4971,17 @@ translated to the view's origin, with `--beui-scale` scaling item positions and
 unsupported; scrim on `::backdrop`; Escape, outside presses and focus traps)
 and `portal`. Each registers a pass with `frame::on_layout`, which the frame
 loop runs (up to `LAYOUTS_PER_FRAME`) before paint; `ResizeObserver`s call
-`frame::relayout()` so a resize is corrected in the same frame. A primitive
-the HTML core has no body for yet is either an outlined pink stand-in there or
-absent under `cfg(beui_html)`. The HTML
-bodies' paintings are browser paintings rendered with `render_to_string` on
-`linux_x86_64_html`: `./scripts/test //crates/beui-view:html-test`.
+`frame::relayout()` so a resize is corrected in the same frame. Shared modules
+with a small core-specific part (`actions`, `animation`, `nodes`'s `TreeNode`,
+`file_picker`, `file_saver`, `drag`, `window`) keep their logic in
+`src/<module>.rs` and call `crate::core::<module>::*` for the rest. A primitive
+the HTML core has no body for yet is an outlined pink stand-in there. unstyled
+and styled build on both cores; under HTML, `Selectable` is the browser's
+selection, a window is its overlay, `on_back` never fires and file pick and
+save go through `<input type=file>` and a download link. The HTML bodies'
+paintings are browser paintings rendered with `render_to_string` on
+`linux_x86_64_html`: `./scripts/test //crates/beui-view:html-test`, and styled
+components' `./scripts/test //crates/beui:html-test`.
 
 Base nodes are the only layer that should normally mutate a `Document` directly.
 Put the node in `crates/beui-core/src/base/<name>.rs` and register the module in

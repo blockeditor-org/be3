@@ -6,6 +6,7 @@ pub mod image;
 pub mod input;
 pub mod layer;
 pub mod layout;
+pub mod pixel_grid;
 pub mod region;
 pub mod rows;
 pub mod text;
@@ -33,6 +34,7 @@ pub use input::{
     PointerSample, PointerStage, ScrollGesture, SecondaryDrag, SoftKeyboard, TOUCH_DRAG_THRESHOLD,
     TouchDrags, WheelInput, ZoomGesture,
 };
+pub use pixel_grid::PixelGrid;
 pub use layer::{Dismiss, LayerLevel, LayerPolicy, Placement};
 pub use layout::{
     Align, Align2, CanvasView, Corners, Direction, Extent, ItemSize, Justify, Outline,

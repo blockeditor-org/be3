@@ -62,6 +62,41 @@ pub fn text(node: NodeId) -> String {
     }
 }
 
+pub fn selected_text(node: NodeId) -> String {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let Some(selection) = crate::dom::window().and_then(|window| window.get_selection().ok().flatten())
+        else {
+            return String::new();
+        };
+        let inside = crate::dom::dom(node).is_some_and(|dom| {
+            selection
+                .anchor_node()
+                .is_some_and(|anchor| dom.contains(Some(&anchor)))
+        });
+        match inside {
+            true => selection.to_string().into(),
+            false => String::new(),
+        }
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let _ = node;
+        String::new()
+    }
+}
+
+pub fn select_all(node: NodeId) {
+    #[cfg(target_arch = "wasm32")]
+    if let Some(selection) = crate::dom::window().and_then(|window| window.get_selection().ok().flatten())
+        && let Some(dom) = crate::dom::dom(node)
+    {
+        let _ = selection.select_all_children(&dom);
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    let _ = node;
+}
+
 #[cfg(target_arch = "wasm32")]
 fn nearest_below(
     dom: &web_sys::Node,

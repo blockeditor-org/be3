@@ -14,8 +14,5 @@ memchr = "2"
 reactive = { path = "../reactive" }
 text-editor-core = { path = "../text-editor-core" }
 
-[target.'cfg(not(beui_html))'.dependencies]
-beui-core = { path = "../beui-core" }
-
 [lints]
 workspace = true

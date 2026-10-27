@@ -6117,6 +6117,7 @@ crates = {
                             "//crates/beui-components-unstyled:beui-components-unstyled",
                             "//crates/beui-macros:beui_macros",
                             "//crates/beui-view:beui-view",
+                            "//crates/paint-snapshot:paint-snapshot",
                             "//crates/reactive:reactive",
                             "//third-party/rust:accesskit-0.24.1",
                         ],
@@ -6132,6 +6133,7 @@ crates = {
                             "//crates/beui-components-unstyled:beui-components-unstyled",
                             "//crates/beui-macros:beui_macros",
                             "//crates/beui-view:beui-view",
+                            "//crates/paint-snapshot:paint-snapshot",
                             "//crates/reactive:reactive",
                             "//third-party/rust:accesskit-0.24.1",
                         ],
@@ -6147,7 +6149,9 @@ crates = {
                     "render",
                     "window",
                 ],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/paint-snapshot:paint-snapshot",
+                ],
                 "test_features": [
                     "default",
                     "render",
@@ -6670,7 +6674,6 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-components-unstyled:beui-components-unstyled",
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-view:beui-view",
@@ -6693,7 +6696,6 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-components-unstyled:beui-components-unstyled",
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-view:beui-view",
@@ -6716,7 +6718,6 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-components-unstyled:beui-components-unstyled",
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-view:beui-view",
@@ -6754,7 +6755,6 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-components-unstyled:beui-components-unstyled",
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-view:beui-view",
@@ -6777,7 +6777,6 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-components-unstyled:beui-components-unstyled",
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-view:beui-view",
@@ -6800,7 +6799,6 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-components-unstyled:beui-components-unstyled",
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-view:beui-view",
@@ -6821,7 +6819,6 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-components-unstyled:beui-components-unstyled",
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-view:beui-view",
@@ -6857,7 +6854,6 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-components-unstyled:beui-components-unstyled",
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-view:beui-view",
@@ -6880,7 +6876,6 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-components-unstyled:beui-components-unstyled",
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-view:beui-view",
@@ -6917,7 +6912,6 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
@@ -6935,7 +6929,6 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
@@ -6953,7 +6946,6 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
@@ -6988,7 +6980,6 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
@@ -7006,7 +6997,6 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
@@ -7024,7 +7014,6 @@ crates = {
             "wasi": {
                 "binaries": {},
                 "deps": [
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
@@ -7042,7 +7031,6 @@ crates = {
             "wasi-guest": {
                 "binaries": {},
                 "deps": [
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
@@ -7077,7 +7065,6 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
@@ -7095,7 +7082,6 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
@@ -79791,6 +79777,8 @@ third_party = {
                 ],
                 "features": [
                     "AddEventListenerOptions",
+                    "Blob",
+                    "BlobPropertyBag",
                     "CharacterData",
                     "Clipboard",
                     "ClipboardEvent",
@@ -79803,10 +79791,15 @@ third_party = {
                     "Element",
                     "Event",
                     "EventTarget",
+                    "File",
+                    "FileList",
+                    "FileReader",
                     "FocusEvent",
                     "FontFaceSet",
+                    "HtmlAnchorElement",
                     "HtmlElement",
                     "HtmlHeadElement",
+                    "HtmlInputElement",
                     "HtmlTextAreaElement",
                     "InputEvent",
                     "KeyboardEvent",
@@ -79820,8 +79813,10 @@ third_party = {
                     "Performance",
                     "PointerEvent",
                     "ResizeObserver",
+                    "Selection",
                     "Text",
                     "UiEvent",
+                    "Url",
                     "WheelEvent",
                     "Window",
                     "console",
