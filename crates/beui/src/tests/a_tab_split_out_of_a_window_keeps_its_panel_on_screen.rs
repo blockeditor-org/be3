@@ -20,8 +20,11 @@ fn a_tab_split_out_of_a_window_keeps_its_panel_on_screen() {
     let rect = state.window_rect(window).expect("the window has a rect");
     let origin = harness.rect(dock).min + rect.min.to_vec2();
     let floated = harness.rect(dock_tab(harness.document(), dock, "Tab 2"));
-    let tab = harness.center(dock_tab(harness.document(), dock, "Tab 3"));
-    harness.drag(tab, pos2(floated.right() + 20.0, origin.y + 10.0));
+    let carried = harness.rect(dock_tab(harness.document(), dock, "Tab 3"));
+    harness.drag(
+        pos2(carried.left() + 2.0, carried.center().y),
+        pos2(floated.right() + 20.0, origin.y + 10.0),
+    );
     harness.frame(Vec::new());
     assert_eq!(
         harness

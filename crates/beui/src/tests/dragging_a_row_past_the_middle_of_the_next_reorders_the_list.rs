@@ -25,7 +25,23 @@ fn dragging_a_row_past_the_middle_of_the_next_reorders_the_list() {
     assert_eq!(
         top_of(&harness, "row.2"),
         REORDER_ROW,
-        "and its neighbour stays until the row's middle passes the neighbour's"
+        "and its neighbour stays until the row's lower edge passes the neighbour's middle"
+    );
+
+    harness.frame(vec![Input::PointerMoved(grab + vec2(0.0, 9.0))]);
+    harness.settle();
+    assert_eq!(
+        top_of(&harness, "row.2"),
+        REORDER_ROW,
+        "just short of covering half the neighbour it stays"
+    );
+
+    harness.frame(vec![Input::PointerMoved(grab + vec2(0.0, 11.0))]);
+    harness.frame(Vec::new());
+    let rising = top_of(&harness, "row.2");
+    assert!(
+        rising > 0.0 && rising < REORDER_ROW,
+        "just past half of it, the neighbour glides up into the gap, at {rising}"
     );
 
     harness.frame(vec![Input::PointerMoved(grab + vec2(30.0, 25.0))]);
@@ -34,11 +50,6 @@ fn dragging_a_row_past_the_middle_of_the_next_reorders_the_list() {
         top_of(&harness, "row.1"),
         25.0,
         "it moves only along the list, never across it"
-    );
-    let rising = top_of(&harness, "row.2");
-    assert!(
-        rising > 0.0 && rising < REORDER_ROW,
-        "the neighbour it passed glides up into the gap, at {rising}"
     );
     assert_eq!(
         state.list(0),

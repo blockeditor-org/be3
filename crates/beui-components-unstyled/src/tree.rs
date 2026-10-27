@@ -13,12 +13,11 @@ use crate::menu::MenuItem;
 use crate::menu_button::MenuButton;
 use crate::menu_popup::MenuStyle;
 use crate::popup_trigger::PopupTriggerHandle;
-use crate::reorder::{Reorder, ReorderHandle, ReorderItem, ReorderItemHandle};
+use crate::reorder::{Reorder, ReorderGap, ReorderHandle, ReorderItem, ReorderItemHandle};
 use crate::text_input::{TextInput, TextInputHandle, TextInputStyle};
 use crate::typeahead::Typeahead;
-use beui_core::drag_board::DragPoint;
-use beui_core::geometry::{Pos2, Rect, Vec2};
-use beui_core::input::{CursorIcon, Key, KeyPress, Modifiers, PointerPress};
+use beui_core::geometry::{Pos2, Rect};
+use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
 use beui_core::keys::{KeyAt, KeyPhase};
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
@@ -931,7 +930,7 @@ impl<K: Clone + Eq + Hash + 'static> TreeApi<K> {
                 let fraction = (at.y - rect.top()) / rect.height().max(1.0);
                 let drop = resolve(state, &keys, index, fraction, &allow);
                 let size = rect.height() + state.spacing;
-                part(state, &keys, parted, at, drop.as_ref(), size);
+                part(state, &keys, parted, drop.as_ref(), size);
                 Some(TreeDragOver {
                     row: keys[index].clone(),
                     drop,
@@ -1056,7 +1055,6 @@ fn part<K>(
     state: State<K>,
     keys: &[K],
     parted: ReorderHandle<K, ()>,
-    at: Pos2,
     drop: Option<&TreeDrop<K>>,
     size: f32,
 ) where
@@ -1066,22 +1064,8 @@ fn part<K>(
         parted.hover(None);
         return;
     };
-    let edge = match &before {
-        Some(before) => parted.resting(before).map(|rect| rect.top() - 0.5),
-        None => group
-            .last()
-            .and_then(|last| parted.resting(last))
-            .map(|rect| rect.bottom() + 0.5),
-    };
-    let Some(edge) = edge else {
-        parted.hover(None);
-        return;
-    };
     if state.group.with_untracked(|shown| *shown != group) {
         state.group.set(group);
     }
-    parted.hover(Some(DragPoint {
-        item: Rect::from_center_size(Pos2::ZERO, Vec2::new(0.0, size)),
-        ..DragPoint::at(Pos2::new(at.x, edge), Modifiers::NONE)
-    }));
+    parted.part(Some(ReorderGap { before, size }));
 }

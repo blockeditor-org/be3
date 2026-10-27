@@ -2068,8 +2068,8 @@ a row that `allow` refuses to take something inside splits at its middle instead
 and an edge `allow` refuses falls back to going inside. Below an expanded row means
 first among its children. For `Among`, the siblings glide aside to open a gap of a
 row's height where it would land: the tree is an `unstyled::Reorder` over the
-sibling group, with each row a `ReorderItem`, which `drag_over` drives through
-`ReorderHandle::hover`, so a group whose rows are not next to each other (an
+sibling group, with each row a `ReorderItem`, whose gap `drag_over` opens at
+exactly the place it chose, so a group whose rows are not next to each other (an
 expanded sibling's children between them) still parts in the right place. `Into`
 opens no gap; outline the row instead. `drag_over(None, ..)` closes the gap, and
 `drag_end(settle)` ends the drag: `settle` keeps the gap open until the keys
@@ -2738,9 +2738,13 @@ that ignores it glides the item back.
 
 Past the threshold the item lifts in place: it follows the pointer along the list
 and nothing else (`hold_glide`), paints over its neighbours (`set_raised`), and
-moves past a neighbour when its middle crosses the neighbour's, measured against
-where the neighbours rest, so widths that differ cannot make it flicker back and
-forth. Neighbours glide aside (the list's `Glide`s share one arm). The list is the
+moves past a neighbour once it covers half of it: its leading edge (the one facing
+the way it moves) crosses the neighbour's middle, measured against where the
+neighbours rest. That is the same pointer position going either way, whatever the
+widths, so the item cannot flicker between two slots (a list's spacing adds that
+much hysteresis). A carried item from another list opens its gap by the same rule:
+it lands after every item whose middle its leading (top or left) edge is past, so
+the gap opens under it, and moving within the gap behaves like a lifted item. Neighbours glide aside (the list's `Glide`s share one arm). The list is the
 item's own drop target with `hides_preview`, so pulled out across the list it turns
 into the floating `preview` and the gap behind it closes; any `Reorder` whose
 `accepts` takes the payload opens a gap the size of the carried item

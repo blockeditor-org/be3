@@ -262,6 +262,7 @@ mod a_mouse_away_from_a_held_finger_still_moves_the_pointer;
 mod a_multi_root_view_fills_a_children_prop_in_order;
 mod a_narrow_inspector_covering_the_app_unplaces_its_embeds;
 mod a_narrow_inspector_puts_its_close_button_beside_its_tabs;
+mod a_narrow_tab_trades_places_with_a_wide_one_once_it_covers_half_of_it;
 mod a_narrow_window_shows_the_inspector_below_a_tab_bar;
 mod a_nested_container_reports_its_own_width_not_the_windows;
 mod a_nested_overlay_closes_with_its_parent_whatever_the_parents_policy;
@@ -463,7 +464,7 @@ mod a_virtual_scroll_only_builds_the_items_in_view;
 mod a_virtual_scroll_row_can_build_reactive_content_during_dispatch;
 mod a_wheel_over_the_software_keyboard_scrolls_what_holds_it;
 mod a_wheel_turned_before_the_pointer_moves_on_scrolls_what_it_was_over;
-mod a_wide_tab_trades_places_with_a_narrow_one_once_it_passes_its_middle;
+mod a_wide_tab_trades_places_with_a_narrow_one_once_it_covers_half_of_it;
 mod a_window_dragged_far_away_keeps_its_grip_in_the_dock;
 mod a_window_drawn_at_a_new_raster_keeps_its_layout_and_lays_out_nothing;
 mod a_window_hosting_layer_sizes_the_main_window_and_shows_what_it_composes;
@@ -3038,6 +3039,49 @@ pub(crate) fn gliding_rows(
 
 pub(crate) fn top_of(harness: &Harness, test_id: &str) -> f32 {
     harness.rect(harness.find(test_id)).top()
+}
+
+pub(crate) const TAB_WIDTHS: [f32; 3] = [80.0, 20.0, 40.0];
+
+pub(crate) fn tab_strip(keys: crate::reactive::Signal<Vec<usize>>) -> Document {
+    use crate::primitives::*;
+    use crate::reactive::*;
+    use crate::unstyled::{Reorder, ReorderHandle, ReorderItem, ReorderItemHandle, ReorderMove};
+    build_node(move || {
+        view! {
+            <Reorder
+                keys={keys}
+                direction=Direction::Horizontal
+                payload={Func::new(|key: usize| Some(key))}
+                on_move={move |moved: ReorderMove<usize, usize>| keys.update(|keys| {
+                    keys.retain(|key| *key != moved.payload);
+                    keys.insert(moved.index, moved.payload);
+                })}
+            >|reorder: ReorderHandle<usize, usize>|
+                <List direction=Direction::Horizontal spacing=4.0>
+                    <ForEach keys={reorder.order}>|key: usize|
+                        <ReorderItem reorder item=key>|_: ReorderItemHandle|
+                            <Frame
+                                @test_id={format!("tab.{key}")}
+                                width={TAB_WIDTHS[key]}
+                                height=24.0
+                            />
+                        </ReorderItem>
+                    </ForEach>
+                </List>
+            </Reorder>
+        }
+    })
+}
+
+pub(crate) fn tab_left(harness: &Harness, key: usize) -> f32 {
+    harness.rect(harness.find(&format!("tab.{key}"))).left()
+}
+
+pub(crate) fn drag_tab_to(harness: &mut Harness, grab: Pos2, by: f32) -> f32 {
+    harness.frame(vec![Input::PointerMoved(grab + vec2(by, 0.0))]);
+    harness.settle();
+    tab_left(harness, 1)
 }
 
 pub(crate) const REORDER_ROW: f32 = 20.0;

@@ -1000,7 +1000,6 @@ impl State {
             }),
             Some(Aim::Bar(leaf)) => {
                 if let Some(bar) = self.tab_bar(leaf) {
-                    bar.reorder.hover(None);
                     bar.reorder.drop_at(dragged, point);
                 }
             }

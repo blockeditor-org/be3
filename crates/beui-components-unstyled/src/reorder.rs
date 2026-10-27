@@ -120,6 +120,10 @@ where
         visit(self.state, point);
     }
 
+    pub(crate) fn part(&self, gap: Option<ReorderGap<K>>) {
+        open_gap(self.state, gap.is_some(), gap);
+    }
+
     pub fn drop_at(&self, payload: P, point: DragPoint) {
         dropped_in(self.state, payload, point);
     }
@@ -198,34 +202,52 @@ fn shown_at<K: Clone + PartialEq, P: Clone>(state: &State<K, P>) -> Option<Pos2>
 fn slot_at<K: Clone + PartialEq, P>(
     state: &State<K, P>,
     rest: &[K],
-    centre: f32,
+    own: Option<&K>,
+    span: (f32, f32),
     fallback: usize,
 ) -> usize {
     let direction = state.direction.get_untracked();
-    let mut mounted: Vec<(f32, K)> = state
-        .glides
-        .borrow()
-        .iter()
-        .filter_map(|(key, outer, inner)| {
-            let rect = resting(*outer, *inner)?;
-            Some((along(direction, rect.center()), key.clone()))
-        })
-        .filter(|(_, key)| rest.contains(key))
-        .collect();
+    let glides = state.glides.borrow();
+    let mut mounted: Vec<(f32, usize)> = Vec::new();
+    let mut split = f32::INFINITY;
+    for (key, outer, inner) in glides.iter() {
+        let Some(rect) = resting(*outer, *inner) else {
+            continue;
+        };
+        if own == Some(key) {
+            split = split.min(along(direction, rect.center()));
+            continue;
+        }
+        let Some(index) = rest.iter().position(|shown| shown == key) else {
+            continue;
+        };
+        let start = along(direction, rect.min);
+        let lead = resting(*outer, *outer).map_or(start, |row| along(direction, row.min));
+        if lead < start {
+            split = split.min(lead);
+        }
+        mounted.push((along(direction, rect.center()), index));
+    }
+    drop(glides);
     mounted.sort_by(|left, right| left.0.total_cmp(&right.0));
-    let index_of = |key: &K| rest.iter().position(|shown| shown == key);
-    if let Some((_, key)) = mounted.iter().find(|(middle, _)| *middle >= centre) {
-        return index_of(key).unwrap_or(fallback);
+    let (low, high) = span;
+    let passed = |(middle, _): &(f32, usize)| match *middle < split {
+        true => low >= *middle,
+        false => high >= *middle,
+    };
+    if let Some((_, index)) = mounted.iter().find(|entry| !passed(entry)) {
+        return *index;
     }
     match mounted.last() {
-        Some((_, key)) => index_of(key).map_or(fallback, |index| index + 1),
+        Some((_, index)) => index + 1,
         None if rest.is_empty() => 0,
         None => fallback.min(rest.len()),
     }
 }
 
-fn centre_of(direction: Direction, point: DragPoint) -> f32 {
-    along(direction, point.pos + point.item.center().to_vec2())
+fn span_of(direction: Direction, point: DragPoint) -> (f32, f32) {
+    let rect = point.item.translate(point.pos.to_vec2());
+    (along(direction, rect.min), along(direction, rect.max))
 }
 
 fn rest_of<K: Clone + PartialEq>(keys: &[K], key: &K) -> Vec<K> {
@@ -257,7 +279,8 @@ where
         };
         let rest = rest_of(&state.keys.get_untracked(), &lifted.key);
         let direction = state.direction.get_untracked();
-        let slot = slot_at(state, &rest, centre_of(direction, point), lifted.slot);
+        let own = lifted.home.then_some(&lifted.key);
+        let slot = slot_at(state, &rest, own, span_of(direction, point), lifted.slot);
         if !lifted.home || lifted.slot != slot {
             lifted.home = true;
             lifted.slot = slot;
@@ -274,20 +297,29 @@ where
     K: Clone + Eq + Hash + 'static,
     P: Clone + PartialEq + 'static,
 {
+    let gap = stored.with(|state| {
+        let point = point.filter(|_| !state.fixed.get_untracked())?;
+        let keys = state.keys.get_untracked();
+        let direction = state.direction.get_untracked();
+        let index = slot_at(state, &keys, None, span_of(direction, point), keys.len());
+        Some(ReorderGap {
+            before: keys.get(index).cloned(),
+            size: direction.main(point.item.size()),
+        })
+    });
+    open_gap(stored, point.is_some(), gap);
+}
+
+fn open_gap<K, P>(stored: Stored<State<K, P>>, visited: bool, gap: Option<ReorderGap<K>>)
+where
+    K: Clone + Eq + Hash + 'static,
+    P: Clone + PartialEq + 'static,
+{
     stored.with(|state| {
-        if state.visited.get_untracked() != point.is_some() {
-            state.visited.set(point.is_some());
+        if state.visited.get_untracked() != visited {
+            state.visited.set(visited);
         }
-        let point = point.filter(|_| !state.fixed.get_untracked());
-        let gap = point.map(|point| {
-            let keys = state.keys.get_untracked();
-            let direction = state.direction.get_untracked();
-            let index = slot_at(state, &keys, centre_of(direction, point), keys.len());
-            ReorderGap {
-                before: keys.get(index).cloned(),
-                size: direction.main(point.item.size()),
-            }
-        });
+        let gap = gap.filter(|_| !state.fixed.get_untracked());
         if state.gap.with_untracked(|shown| *shown != gap) {
             bump(state);
             state.gap.set(gap);
@@ -357,7 +389,7 @@ where
         let direction = state.direction.get_untracked();
         let index = match state.fixed.get_untracked() {
             true => 0,
-            false => slot_at(state, &keys, centre_of(direction, point), keys.len()),
+            false => slot_at(state, &keys, None, span_of(direction, point), keys.len()),
         };
         let at = point.pos + point.item.min.to_vec2();
         *state.arrival.borrow_mut() = Some(Arrival::New(keys.clone(), at));
