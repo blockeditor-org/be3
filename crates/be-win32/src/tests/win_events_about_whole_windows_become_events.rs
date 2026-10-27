@@ -33,6 +33,23 @@ fn win_events_about_whole_windows_become_events() {
         Some(Event::Cloaked(window))
     );
     assert_eq!(
+        Event::from_win_event(EVENT_SYSTEM_CAPTURESTART, Handle(7), OBJID_WINDOW, CHILDID_SELF),
+        Some(Event::CaptureChanged)
+    );
+    assert_eq!(
+        Event::from_win_event(EVENT_SYSTEM_CAPTUREEND, Handle(0), 0, 0),
+        Some(Event::CaptureChanged)
+    );
+    assert!(is_any_window_event(EVENT_SYSTEM_CAPTURESTART));
+    assert_eq!(
+        Event::from_win_event(EVENT_SYSTEM_MOVESIZEEND, window, OBJID_WINDOW, CHILDID_SELF),
+        Some(Event::MoveSizeEnded(window))
+    );
+    assert_eq!(
+        Event::from_win_event(EVENT_SYSTEM_MINIMIZEEND, window, OBJID_WINDOW, CHILDID_SELF),
+        Some(Event::Restored(window))
+    );
+    assert_eq!(
         Event::from_win_event(0x8005, window, OBJID_WINDOW, CHILDID_SELF),
         None
     );

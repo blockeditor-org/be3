@@ -18,7 +18,8 @@ mod win32;
 pub use cursor::{Cursor, Over};
 pub use events::Event;
 pub use focus::{
-    Command, EndReason, FocusError, FocusEvent, FocusMode, Focused, Foreground, Output,
+    ARRIVAL_TICKS, Command, EndReason, FocusError, FocusEvent, FocusMode, Focused, Foreground,
+    Output,
 };
 pub use hotkey::{Hotkey, HotkeyError, Modifiers};
 pub use integrity::{Control, InputDesktop, IntegrityLevel};

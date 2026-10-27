@@ -4,7 +4,7 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
     HOT_KEY_MODIFIERS, RegisterHotKey, UnregisterHotKey,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    AllowSetForegroundWindow, CURSOR_SHOWING, CURSORINFO, ClipCursor, GA_ROOT, GW_HWNDNEXT,
+    AllowSetForegroundWindow, CURSOR_SHOWING, CURSORINFO, ClipCursor, GA_ROOT, GetClipCursor, GW_HWNDNEXT,
     GetAncestor, GetCursorInfo, GetForegroundWindow, GetShellWindow, GetTopWindow, GetWindow,
     GetWindowThreadProcessId, HWND_TOP, IsHungAppWindow, IsIconic, SW_RESTORE, SWP_ASYNCWINDOWPOS,
     SWP_NOMOVE, SWP_NOSIZE, SetCursorPos, SetForegroundWindow, SetWindowPos, ShowWindowAsync,
@@ -131,6 +131,13 @@ pub(super) fn apply(command: Command) {
             let _ = unsafe { SetCursorPos(point.x, point.y) };
         }
     }
+}
+
+// unsafe(ffi)
+pub(super) fn current_clip() -> Option<crate::Rect> {
+    let mut rect = RECT::default();
+    unsafe { GetClipCursor(&mut rect) }.ok()?;
+    Some(crate::Rect::new(rect.left, rect.top, rect.right, rect.bottom))
 }
 
 // unsafe(ffi)

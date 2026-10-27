@@ -1,5 +1,6 @@
 use std::cell::{Cell, RefCell};
 use std::io;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
@@ -23,8 +24,8 @@ use super::desktop::Win32Desktop;
 use super::focus::{self, HOTKEY_ID};
 use super::{Com, handle, hwnd};
 use crate::events::{
-    EVENT_OBJECT_CREATE, EVENT_OBJECT_DESTROY, EVENT_OBJECT_UNCLOAKED, EVENT_SYSTEM_DESKTOPSWITCH,
-    EVENT_SYSTEM_FOREGROUND, is_cursor_event,
+    EVENT_OBJECT_CREATE, EVENT_OBJECT_UNCLOAKED, EVENT_SYSTEM_DESKTOPSWITCH,
+    EVENT_SYSTEM_FOREGROUND, is_any_window_event, is_cursor_event,
 };
 use crate::{
     Cursor, EndReason, EntryId, Event, FocusError, FocusEvent, FocusMode, Focused, Handle, Hotkey,
@@ -39,7 +40,7 @@ enum Request {
     Show(EntryId),
     Hide(EntryId),
     Launched(Launch),
-    Focus(EntryId, Option<Point>),
+    Focus(EntryId, Option<Point>, u64),
     Release,
     Host(Option<Handle>),
     Hotkey(Option<Hotkey>),
@@ -51,6 +52,7 @@ struct Shared {
     cursor: Mutex<Option<Cursor>>,
     events: Mutex<Vec<FocusEvent>>,
     requests: Mutex<Vec<Request>>,
+    returns: AtomicU64,
     wake: Box<dyn Fn() + Send + Sync>,
 }
 
@@ -84,6 +86,7 @@ impl Watcher {
             cursor: Mutex::new(None),
             events: Mutex::new(Vec::new()),
             requests: Mutex::new(Vec::new()),
+            returns: AtomicU64::new(0),
             wake: Box::new(wake),
         });
         let (ready, started) = mpsc::channel();
@@ -120,10 +123,11 @@ impl Watcher {
     }
 
     pub fn focus(&self, id: EntryId, at: Option<Point>) -> Result<(), FocusError> {
+        let since = self.shared.returns.load(Ordering::SeqCst);
         let snapshot = self.snapshot();
         let entry = FocusMode::check(&snapshot, id)?;
         focus::raise(&snapshot, entry)?;
-        self.request(Request::Focus(id, at));
+        self.request(Request::Focus(id, at, since));
         Ok(())
     }
 
@@ -242,6 +246,7 @@ fn run(shared: &Shared, ready: &mpsc::Sender<io::Result<u32>>) {
             }
             WM_CURSOR => {
                 CURSOR_POSTED.set(false);
+                state.hold_clip();
                 if state.read_cursor() {
                     (shared.wake)();
                 }
@@ -277,14 +282,11 @@ impl State<'_> {
             Request::Show(id) => self.model.show(id),
             Request::Hide(id) => self.model.hide(id),
             Request::Launched(launch) => self.model.launched(launch),
-            Request::Focus(id, at) => {
+            Request::Focus(id, at, since) => {
                 let snapshot = self.model.snapshot();
-                match self.mode.start(&snapshot, id, at) {
+                match self.mode.start(&snapshot, id, at, since) {
                     Ok(out) => self.output(out),
-                    Err(_) => self.events(vec![FocusEvent::Ended {
-                        entry: id,
-                        reason: EndReason::Closed,
-                    }]),
+                    Err(error) => self.events(vec![FocusEvent::Refused { entry: id, error }]),
                 }
             }
             Request::Release => self.release(EndReason::Released),
@@ -301,6 +303,8 @@ impl State<'_> {
                     }
                     Some((_, Err(error))) => FocusEvent::HotkeyRefused(error),
                 };
+                let out = self.mode.set_hotkey(self.hotkey.is_some());
+                self.output(out);
                 self.events(vec![event]);
             }
         }
@@ -334,10 +338,21 @@ impl State<'_> {
         }
     }
 
+    fn hold_clip(&mut self) {
+        if let Some(current) = focus::current_clip()
+            && let Some(command) = self.mode.reclip(current)
+        {
+            focus::apply(command);
+        }
+    }
+
     fn output(&mut self, out: Output) {
         for command in out.commands {
             focus::apply(command);
         }
+        self.shared
+            .returns
+            .store(self.mode.returns(), Ordering::SeqCst);
         *self.shared.focused.lock().expect("focus lock") = self.mode.focused().cloned();
         if !out.events.is_empty() {
             self.events(out.events);
@@ -391,8 +406,7 @@ unsafe extern "system" fn on_win_event(
         }
         return;
     }
-    let whole = event == EVENT_OBJECT_DESTROY
-        || event == EVENT_SYSTEM_DESKTOPSWITCH
+    let whole = is_any_window_event(event)
         || window.0.is_null()
         || unsafe { GetAncestor(window, GA_ROOT) } == window;
     if !whole {

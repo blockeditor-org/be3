@@ -11,6 +11,8 @@ pub enum Foreground {
     Other,
 }
 
+pub const ARRIVAL_TICKS: u32 = 3;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EndReason {
     Hotkey,
@@ -19,6 +21,7 @@ pub enum EndReason {
     Closed,
     Minimized,
     Returned,
+    NeverArrived,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -27,6 +30,7 @@ pub enum FocusError {
     SecureDesktop,
     OffScreen,
     ForegroundRefused,
+    Returned,
     Failed(String),
 }
 
@@ -42,6 +46,7 @@ impl fmt::Display for FocusError {
             Self::ForegroundRefused => {
                 write!(f, "Windows refused to bring the window to the front")
             }
+            Self::Returned => write!(f, "Block came back before the window did"),
             Self::Failed(message) => write!(f, "{message}"),
         }
     }
@@ -61,6 +66,7 @@ pub enum FocusEvent {
     Started(EntryId),
     Followed { from: EntryId, to: EntryId },
     Ended { entry: EntryId, reason: EndReason },
+    Refused { entry: EntryId, error: FocusError },
     Suspended(EntryId),
     Resumed(EntryId),
     Hotkey,
@@ -82,14 +88,47 @@ pub struct Focused {
     pub handle: Handle,
     pub clip: Option<Rect>,
     pub suspended: bool,
-    arrived: bool,
+    pub arrived: bool,
     restored: bool,
+    moving: bool,
+    waited: u32,
     cursor: Option<Option<Point>>,
 }
 
-#[derive(Clone, Debug, Default)]
+impl Focused {
+    fn new(entry: &Entry, cursor: Option<Option<Point>>, arrived: bool) -> Self {
+        Self {
+            entry: entry.id,
+            kind: entry.kind,
+            handle: entry.handle,
+            clip: None,
+            suspended: false,
+            arrived,
+            restored: arrived,
+            moving: false,
+            waited: 0,
+            cursor,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct FocusMode {
     focused: Option<Focused>,
+    hotkey: bool,
+    returns: u64,
+    last: Foreground,
+}
+
+impl Default for FocusMode {
+    fn default() -> Self {
+        Self {
+            focused: None,
+            hotkey: false,
+            returns: 0,
+            last: Foreground::Own,
+        }
+    }
 }
 
 impl FocusMode {
@@ -99,6 +138,40 @@ impl FocusMode {
 
     pub fn focused(&self) -> Option<&Focused> {
         self.focused.as_ref()
+    }
+
+    pub fn returns(&self) -> u64 {
+        self.returns
+    }
+
+    pub fn clips(&self) -> bool {
+        self.hotkey
+    }
+
+    pub fn held_clip(&self) -> Option<Rect> {
+        let focused = self.focused.as_ref()?;
+        match focused.arrived && !focused.suspended && !focused.moving {
+            true => focused.clip,
+            false => None,
+        }
+    }
+
+    pub fn reclip(&self, current: Rect) -> Option<Command> {
+        self.held_clip()
+            .filter(|held| *held != current)
+            .map(Command::Clip)
+    }
+
+    pub fn set_hotkey(&mut self, registered: bool) -> Output {
+        let mut out = Output::default();
+        self.hotkey = registered;
+        if !registered
+            && let Some(focused) = self.focused.as_mut()
+            && focused.clip.take().is_some()
+        {
+            out.commands.push(Command::Unclip);
+        }
+        out
     }
 
     pub fn check(snapshot: &Snapshot, id: EntryId) -> Result<&Entry, FocusError> {
@@ -117,25 +190,23 @@ impl FocusMode {
         snapshot: &Snapshot,
         id: EntryId,
         at: Option<Point>,
+        since: u64,
     ) -> Result<Output, FocusError> {
+        if since != self.returns {
+            return Err(FocusError::Returned);
+        }
         let entry = Self::check(snapshot, id)?;
         let mut out = Output::default();
         if let Some(old) = self.focused.take() {
+            if old.clip.is_some() {
+                out.commands.push(Command::Unclip);
+            }
             out.events.push(FocusEvent::Ended {
                 entry: old.entry,
                 reason: EndReason::Replaced,
             });
         }
-        self.focused = Some(Focused {
-            entry: id,
-            kind: entry.kind,
-            handle: entry.handle,
-            clip: None,
-            suspended: false,
-            arrived: false,
-            restored: false,
-            cursor: Some(at),
-        });
+        self.focused = Some(Focused::new(entry, Some(at), false));
         out.events.push(FocusEvent::Started(id));
         Ok(out)
     }
@@ -146,13 +217,29 @@ impl FocusMode {
         out
     }
 
+    pub fn observe(&mut self, foreground: Foreground) -> Output {
+        let mut out = Output::default();
+        match foreground {
+            Foreground::None => {}
+            Foreground::Own => {
+                if self.last != Foreground::Own {
+                    self.returns += 1;
+                    self.end(&mut out, EndReason::Returned);
+                }
+                self.last = Foreground::Own;
+            }
+            other => self.last = other,
+        }
+        out
+    }
+
     pub fn step(
         &mut self,
         snapshot: &Snapshot,
         foreground: Foreground,
         events: &[Event],
     ) -> Output {
-        let mut out = Output::default();
+        let mut out = self.observe(foreground);
         let Some(focused) = self.focused.as_mut() else {
             return out;
         };
@@ -183,6 +270,24 @@ impl FocusMode {
             self.end(&mut out, EndReason::Returned);
             return out;
         }
+        if !focused.arrived && events.contains(&Event::Tick) {
+            focused.waited += 1;
+            if focused.waited >= ARRIVAL_TICKS {
+                self.end(&mut out, EndReason::NeverArrived);
+                return out;
+            }
+        }
+        for event in events {
+            match *event {
+                Event::MoveSizeStarted(handle) if handle == focused.handle => {
+                    focused.moving = true;
+                }
+                Event::MoveSizeEnded(handle) if handle == focused.handle => {
+                    focused.moving = false;
+                }
+                _ => {}
+            }
+        }
         let entry = snapshot.entry(focused.entry);
         if focused.kind == EntryKind::Window {
             let follow = match foreground {
@@ -202,16 +307,7 @@ impl FocusMode {
                         from: focused.entry,
                         to: to.id,
                     });
-                    *focused = Focused {
-                        entry: to.id,
-                        kind: to.kind,
-                        handle: to.handle,
-                        clip: None,
-                        suspended: false,
-                        arrived: true,
-                        restored: true,
-                        cursor: None,
-                    };
+                    *focused = Focused::new(to, None, true);
                 }
                 (None, Some(reason)) => {
                     self.end(&mut out, reason);
@@ -224,6 +320,7 @@ impl FocusMode {
             return out;
         }
 
+        let hotkey = self.hotkey;
         let Some(focused) = self.focused.as_mut() else {
             return out;
         };
@@ -231,18 +328,26 @@ impl FocusMode {
             return out;
         };
         reapply |= events.iter().any(|event| match *event {
-            Event::Foreground(_) | Event::DesktopSwitched | Event::DisplaysChanged => true,
-            Event::Moved(handle) | Event::Restored(handle) => handle == focused.handle,
+            Event::Foreground(_)
+            | Event::DesktopSwitched
+            | Event::DisplaysChanged
+            | Event::CaptureChanged => true,
+            Event::Moved(handle) | Event::Restored(handle) | Event::MoveSizeEnded(handle) => {
+                handle == focused.handle
+            }
             _ => false,
         });
         if entry.minimized {
             return out;
         }
         focused.restored = true;
+        if !focused.arrived {
+            return out;
+        }
         let Some(rect) = clip(snapshot, entry) else {
             return out;
         };
-        if reapply || focused.clip != Some(rect) {
+        if hotkey && !focused.moving && (reapply || focused.clip != Some(rect)) {
             out.commands.push(Command::Clip(rect));
             focused.clip = Some(rect);
         }

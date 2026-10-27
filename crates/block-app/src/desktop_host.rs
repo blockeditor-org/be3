@@ -11,6 +11,8 @@ mod win32;
 #[cfg(any(windows, test))]
 mod win32_map;
 #[cfg(any(windows, test))]
+mod win32_overlay;
+#[cfg(any(windows, test))]
 mod win32_shape;
 
 #[cfg(target_os = "linux")]

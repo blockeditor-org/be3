@@ -5,7 +5,8 @@ fn the_secure_desktop_suspends_focus_and_refuses_it() {
     let frame = Rect::new(100, 100, 900, 700);
     let mut snapshot = desk(vec![entry(3, EntryKind::Window, frame)]);
     let mut mode = FocusMode::new();
-    mode.start(&snapshot, EntryId(3), None).unwrap();
+    mode.set_hotkey(true);
+    mode.start(&snapshot, EntryId(3), None, 0).unwrap();
     mode.step(&snapshot, Foreground::Entry(EntryId(3)), &[]);
 
     snapshot.input_desktop = InputDesktop::Other("Winlogon".to_owned());
@@ -17,7 +18,7 @@ fn the_secure_desktop_suspends_focus_and_refuses_it() {
         Output::default()
     );
     assert_eq!(
-        FocusMode::new().start(&snapshot, EntryId(3), None),
+        FocusMode::new().start(&snapshot, EntryId(3), None, 0),
         Err(FocusError::SecureDesktop)
     );
 
@@ -36,7 +37,7 @@ fn the_secure_desktop_suspends_focus_and_refuses_it() {
         Rect::new(-900, -900, -100, -100),
     )]);
     assert_eq!(
-        FocusMode::new().start(&off, EntryId(6), None),
+        FocusMode::new().start(&off, EntryId(6), None, 0),
         Err(FocusError::OffScreen)
     );
 }

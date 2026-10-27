@@ -9,9 +9,11 @@ fn a_display_keeps_focus_and_clips_to_its_monitor() {
         entry(4, EntryKind::Window, Rect::new(100, 100, 900, 700)),
     ]);
     let mut mode = FocusMode::new();
-    mode.start(&snapshot, EntryId(2), Some(Point::new(10, 20)))
+    mode.set_hotkey(true);
+    mode.start(&snapshot, EntryId(2), Some(Point::new(10, 20)), 0)
         .unwrap();
-    let out = mode.step(&snapshot, Foreground::Own, &[]);
+    assert_eq!(mode.step(&snapshot, Foreground::Own, &[]), Output::default());
+    let out = mode.step(&snapshot, Foreground::Other, &[]);
     assert_eq!(
         out.commands,
         [

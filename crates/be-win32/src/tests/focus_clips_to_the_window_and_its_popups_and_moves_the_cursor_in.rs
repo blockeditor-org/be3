@@ -12,10 +12,13 @@ fn focus_clips_to_the_window_and_its_popups_and_moves_the_cursor_in() {
     let other = entry(5, EntryKind::Window, Rect::new(-500, 0, 200, 200));
     let mut snapshot = desk(vec![main, dialog, other]);
     let mut mode = FocusMode::new();
-    let started = mode.start(&snapshot, EntryId(3), None).unwrap();
+    mode.set_hotkey(true);
+    let started = mode.start(&snapshot, EntryId(3), None, 0).unwrap();
     assert_eq!(started.events, [FocusEvent::Started(EntryId(3))]);
 
     let out = mode.step(&snapshot, Foreground::Own, &[]);
+    assert_eq!(out, Output::default());
+    let out = mode.step(&snapshot, Foreground::Entry(EntryId(3)), &[]);
     let clip = Rect::new(100, 100, 1200, 800);
     assert_eq!(
         out.commands,
@@ -48,7 +51,8 @@ fn focus_clips_to_the_window_and_its_popups_and_moves_the_cursor_in() {
     );
 
     let mut mode = FocusMode::new();
-    mode.start(&snapshot, EntryId(5), Some(Point::new(5000, 10)))
+    mode.set_hotkey(true);
+    mode.start(&snapshot, EntryId(5), Some(Point::new(5000, 10)), 0)
         .unwrap();
     let out = mode.step(&snapshot, Foreground::Entry(EntryId(5)), &[]);
     assert_eq!(

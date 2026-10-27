@@ -7,7 +7,8 @@ fn focus_follows_the_foreground_and_ends_when_block_returns() {
         entry(4, EntryKind::Window, Rect::new(1000, 100, 1500, 600)),
     ]);
     let mut mode = FocusMode::new();
-    mode.start(&snapshot, EntryId(3), None).unwrap();
+    mode.set_hotkey(true);
+    mode.start(&snapshot, EntryId(3), None, 0).unwrap();
     mode.step(&snapshot, Foreground::Own, &[]);
     let out = mode.step(&snapshot, Foreground::Entry(EntryId(3)), &[]);
     assert!(out.events.is_empty());
@@ -43,8 +44,9 @@ fn focus_follows_the_foreground_and_ends_when_block_returns() {
         }]
     );
 
-    mode.start(&snapshot, EntryId(3), None).unwrap();
-    let out = mode.start(&snapshot, EntryId(4), None).unwrap();
+    let since = mode.returns();
+    mode.start(&snapshot, EntryId(3), None, since).unwrap();
+    let out = mode.start(&snapshot, EntryId(4), None, since).unwrap();
     assert_eq!(
         out.events,
         [

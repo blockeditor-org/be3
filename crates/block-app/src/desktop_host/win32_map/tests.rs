@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use be_win32::{
-    Entry, EntryId, EntryKind, FocusError, Image, InputDesktop, Monitor, Origin, Point, Program,
+    Entry, EntryId, EntryKind, FocusError, Hotkey, HotkeyError, Image, InputDesktop, Monitor, Origin, Point, Program,
     Rect, Shortcut, Snapshot,
 };
 use block_plugin_api::{HostWindowId, Pos2, Vec2, WindowKind};
@@ -55,3 +55,6 @@ mod entry_ids_are_host_window_ids;
 mod hidden_windows_are_left_out_and_never_parents;
 mod power_maps_both_ways_and_windows_never_ends_the_session_itself;
 mod the_secure_desktop_covers_displays_and_refusals_stay_on_their_entry;
+mod only_a_click_on_the_content_starts_focus_mode;
+mod the_hints_name_the_way_back;
+mod the_parts_of_a_window_off_every_monitor_are_shaded;

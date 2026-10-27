@@ -8,7 +8,8 @@ fn focus_ends_or_follows_when_its_window_closes_or_minimizes() {
     ]);
     snapshot.entries[0].minimized = true;
     let mut mode = FocusMode::new();
-    mode.start(&snapshot, EntryId(3), None).unwrap();
+    mode.set_hotkey(true);
+    mode.start(&snapshot, EntryId(3), None, 0).unwrap();
     let out = mode.step(&snapshot, Foreground::Entry(EntryId(3)), &[]);
     assert_eq!(out, Output::default());
     snapshot.entries[0].minimized = false;
@@ -36,7 +37,7 @@ fn focus_ends_or_follows_when_its_window_closes_or_minimizes() {
     );
 
     snapshot.entries[0].minimized = false;
-    mode.start(&snapshot, EntryId(3), None).unwrap();
+    mode.start(&snapshot, EntryId(3), None, 0).unwrap();
     mode.step(&snapshot, Foreground::Entry(EntryId(3)), &[]);
     let closed = desk(vec![snapshot.entries[1].clone()]);
     let out = mode.step(&closed, Foreground::Entry(EntryId(4)), &[]);
@@ -58,7 +59,7 @@ fn focus_ends_or_follows_when_its_window_closes_or_minimizes() {
         }]
     );
     assert_eq!(
-        mode.start(&desk(vec![]), EntryId(4), None),
+        mode.start(&desk(vec![]), EntryId(4), None, 0),
         Err(FocusError::NoSuchEntry(EntryId(4)))
     );
 }

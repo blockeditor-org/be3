@@ -67,7 +67,8 @@ block-app's one window), stay unsupported, so the shell hides what they back.
   to every surface showing it (`desktop_host/texture_draw.rs` draws it and keeps the `Frame` alive
   while drawn). The frames' format follows the surface (srgb or not). A capture that reports
   `Lost::Failed` is started again once; failing again is a toast (`win32_map::recovery`).
-  `Lost::Closed` just ends it.
+  `Lost::Closed` just ends it. A popup whose capture cannot start (Windows refuses some, such as
+  the system menu) is only logged, never a toast.
 - Popups: be-win32 gives each entry its live popups (menus, tooltips: owned or same-thread
   `WS_POPUP` windows), bottom first, with their frames. `WindowSurface` captures each popup's
   HWND and draws it as a `Window` of role `WindowRole::Popup` placed `Over` the window the panel
@@ -94,15 +95,45 @@ block-app's one window), stay unsupported, so the shell hides what they back.
   the shell maximized while it stays maximized (restoring it by hand ends it) and for any window
   whose frame covers a whole monitor (a game, F11 in a browser); the shell then fills that area
   with its panel.
-- Focus mode is the mouse and keyboard path: a press on an entry's panel, or the `focus` window
-  action (the picker), calls `Watcher::focus(id, point)` at once, which raises the real window,
-  makes it the foreground, moves the cursor in and clips it there, so the physical mouse and
-  keyboard drive it natively, elevated windows included. The focused entry's capture shows the
-  cursor, and its panel says which hotkey comes back; the hotkey, or block-app coming forward,
-  ends focus. A refused focus (`FocusError`) is a notice over the entry until it is focused.
+- Focus mode is the mouse and keyboard path, and only a click on an entry's content starts it: a
+  press and release of the mouse inside the panel that moved less than `win32_map::PRESS_SLOP`
+  (`ContentPress`; a drag starts nothing). On the release block-app no longer holds the mouse
+  capture, and `Watcher::focus(id, point)` raises the real window and makes it the foreground;
+  once Windows reports it in front (`Focused::arrived`), the watcher moves the cursor to the
+  release point and clips it there, so the physical mouse and keyboard drive it natively,
+  elevated windows included. Nothing is clipped before it arrives: winit, while block-app's window
+  is active, resets any clip it did not set (`ClipCursor(NULL)` on every cursor-flag refresh),
+  and a window that never arrives must not trap the cursor. The clip is put back on the events
+  that can drop it (foreground, location, minimize end, move/size end, mouse capture changes,
+  displays, desktop switches) and on each cursor move if `GetClipCursor` differs
+  (`FocusMode::reclip`), except while the window is being dragged by its title bar.
+- The shell's `focus` window action (a press on a panel's title bar, the picker, a tab given the
+  keyboard) does nothing on Windows (`win32_map::shell_focus`): starting focus there trapped the
+  person again whenever Block came back and the shell refocused its panel, and broke dragging
+  panels by their title bars.
+- Ways back, each of which always ends focus, unclips and cancels a focus request still queued
+  (`FocusMode::returns`, compared with the count a request was made at): the hotkey
+  (`Hotkey::DEFAULT`, Ctrl+Alt+Space, `RegisterHotKey` on the watcher thread, `WM_HOTKEY` with no
+  window in its loop), and block-app becoming the foreground by any means (Alt+Tab, a click),
+  whether or not the window had arrived. A window that has not arrived after `ARRIVAL_TICKS` ticks
+  ends focus with `NeverArrived`, shown as a notice over the entry.
+- The cursor is clipped only while the hotkey is registered (`FocusMode::set_hotkey`). Until
+  `RegisterHotKey` answers, or when it is refused (another program holds it), focus mode still
+  foregrounds the window but leaves the mouse free, and the panel says why and that Alt+Tab comes
+  back. That one rule also covers a display entry clipped to the monitor block-app's own window is
+  on: there is always a hotkey, and Alt+Tab or a click on Block ends it.
+- The panel says the way back: while focused, a bar at its top ("Windows has the mouse and
+  keyboard. Press Ctrl+Alt+Space to come back to Block.", or why the mouse is free); while the
+  pointer is over an unfocused panel, a bar at its bottom ("Click to use this window.
+  Ctrl+Alt+Space comes back."). The parts of a window's frame outside every monitor are shaded
+  with "Off screen: drag the window by its title bar to reach this part" (`win32_map::off_screen`);
+  the window is never moved for the person. These are `desktop_host/win32_overlay.rs`
+  (`EntryOverlay`), painted on Linux. A refused focus (`FocusError`, `FocusEvent::Refused`, or
+  `NeverArrived`) is a notice over the entry until it is focused.
 - XR controller presses (`PointerId::is_controller`) are injected instead (press, release and
   drags), since a laser has no physical cursor to clip.
-- Notices are drawn by the host, never left silent: over an elevated window an injected press
+- Every toast (`notices::report`) is also a line on stderr. Notices are drawn by the host, never
+  left silent: over an elevated window an injected press
   could not reach, "run Block as administrator"; over every display entry while the secure
   desktop is up, and as a toast when it comes up, "take off the headset to answer it"; a toast
   when Windows refuses to bring block-app back.

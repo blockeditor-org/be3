@@ -6,6 +6,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 mod a_dialog_is_a_modal_child_of_its_disabled_owner;
+mod a_lost_clip_is_put_back_except_while_the_window_is_dragged;
+mod focus_clips_only_while_the_hotkey_is_registered;
+mod coming_back_to_block_always_ends_focus_and_cancels_a_queued_one;
 mod a_display_brings_its_topmost_window_forward;
 mod a_display_keeps_focus_and_clips_to_its_monitor;
 mod a_launch_gives_its_windows_their_origin;
@@ -23,6 +26,7 @@ mod focus_follows_the_foreground_and_ends_when_block_returns;
 mod hotkeys_parse_print_and_need_a_modifier;
 mod icons_and_processes_are_read_once_until_the_window_shows_again;
 mod monitors_sort_primary_first_and_are_named;
+mod only_visible_uncloaked_windows_with_a_size_are_popups;
 mod popups_belong_to_their_owner_or_to_their_threads_window;
 mod shown_entries_stay_shown_until_hidden_or_gone;
 mod start_menu_programs_are_listed_by_name_with_the_users_first;

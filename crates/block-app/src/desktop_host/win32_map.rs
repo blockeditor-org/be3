@@ -1,5 +1,7 @@
 use super::win32_shape::Shaping;
-use be_win32::{Entry, EntryId, EntryKind, FocusError, Point, Program, Rect, Snapshot};
+use be_win32::{
+    Entry, EntryId, EntryKind, FocusError, Hotkey, HotkeyError, Point, Program, Rect, Snapshot,
+};
 use block_plugin_api::{
     HostImage, HostProgram, HostWindow, HostWindowId, Vec2, WindowKind, WindowOrigin,
 };
@@ -7,6 +9,159 @@ use block_plugin_api::{
 pub(crate) const ELEVATED: &str = "This window runs as administrator, so Block can't control it. Run Block as administrator to use it.";
 pub(crate) const SECURE_DESKTOP: &str =
     "Windows is asking for permission on the secure desktop. Take off the headset to answer it.";
+
+pub(crate) const OFF_SCREEN: &str =
+    "Off screen: drag the window by its title bar to reach this part";
+pub(crate) const PRESS_SLOP: f32 = 6.0;
+const FALLBACK_BACK: &str = "Alt+Tab";
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) enum HotkeyState {
+    #[default]
+    Waiting,
+    Registered(Hotkey),
+    Refused(HotkeyError),
+}
+
+impl HotkeyState {
+    fn back(&self) -> String {
+        match self {
+            Self::Registered(hotkey) => hotkey.to_string(),
+            Self::Waiting | Self::Refused(_) => FALLBACK_BACK.to_owned(),
+        }
+    }
+}
+
+fn this(kind: EntryKind) -> &'static str {
+    match kind {
+        EntryKind::Window => "this window",
+        EntryKind::Display => "this display",
+    }
+}
+
+pub(crate) fn focused_hint(kind: EntryKind, hotkey: &HotkeyState) -> String {
+    let unclipped = |why: String| {
+        format!(
+            "{why}, so the mouse isn't kept in {}. Press {FALLBACK_BACK} to come back to Block.",
+            this(kind)
+        )
+    };
+    match hotkey {
+        HotkeyState::Registered(hotkey) => {
+            format!("Windows has the mouse and keyboard. Press {hotkey} to come back to Block.")
+        }
+        HotkeyState::Waiting => unclipped("The shortcut back to Block isn't ready yet".to_owned()),
+        HotkeyState::Refused(HotkeyError::Taken(hotkey)) => {
+            unclipped(format!("{hotkey} is taken by another program"))
+        }
+        HotkeyState::Refused(error) => unclipped(format!(
+            "The shortcut back to Block could not be set up ({error})"
+        )),
+    }
+}
+
+pub(crate) fn hover_hint(kind: EntryKind, hotkey: &HotkeyState) -> String {
+    let mut hint = format!("Click to use {}. {} comes back.", this(kind), hotkey.back());
+    if let Some(first) = hint.get_mut(..1) {
+        first.make_ascii_uppercase();
+    }
+    hint
+}
+
+fn subtract(rect: Rect, cut: Rect) -> Vec<Rect> {
+    let Some(inside) = rect.intersection(&cut) else {
+        return vec![rect];
+    };
+    [
+        Rect::new(rect.left, rect.top, rect.right, inside.top),
+        Rect::new(rect.left, inside.bottom, rect.right, rect.bottom),
+        Rect::new(rect.left, inside.top, inside.left, inside.bottom),
+        Rect::new(inside.right, inside.top, rect.right, inside.bottom),
+    ]
+    .into_iter()
+    .filter(|piece| !piece.is_empty())
+    .collect()
+}
+
+pub(crate) fn off_screen(frame: Rect, monitors: &[Rect]) -> Vec<Rect> {
+    let mut parts = vec![frame].into_iter().filter(|rect| !rect.is_empty()).collect::<Vec<_>>();
+    for monitor in monitors {
+        parts = parts
+            .into_iter()
+            .flat_map(|part| subtract(part, *monitor))
+            .collect();
+    }
+    parts.sort_by_key(|part| std::cmp::Reverse(i64::from(part.width()) * i64::from(part.height())));
+    parts
+}
+
+pub(crate) fn off_screen_parts(snapshot: &Snapshot, entry: &Entry) -> Vec<block_plugin_api::Rect> {
+    if entry.kind != EntryKind::Window || entry.minimized || entry.frame.is_empty() {
+        return Vec::new();
+    }
+    let monitors: Vec<Rect> = snapshot.monitors.iter().map(|monitor| monitor.rect).collect();
+    if monitors.is_empty() {
+        return Vec::new();
+    }
+    let frame = entry.frame;
+    let (width, height) = (frame.width() as f32, frame.height() as f32);
+    off_screen(frame, &monitors)
+        .into_iter()
+        .map(|part| {
+            block_plugin_api::Rect::from_min_max(
+                block_plugin_api::Pos2::new(
+                    (part.left - frame.left) as f32 / width,
+                    (part.top - frame.top) as f32 / height,
+                ),
+                block_plugin_api::Pos2::new(
+                    (part.right - frame.left) as f32 / width,
+                    (part.bottom - frame.top) as f32 / height,
+                ),
+            )
+        })
+        .collect()
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub(crate) struct ContentPress {
+    down: Option<(beui::PointerId, block_plugin_api::Pos2)>,
+}
+
+impl ContentPress {
+    pub(crate) fn down(&mut self, pointer: beui::PointerId, at: block_plugin_api::Pos2) {
+        self.down = Some((pointer, at));
+    }
+
+    pub(crate) fn moved(&mut self, pointer: beui::PointerId, at: block_plugin_api::Pos2) {
+        if let Some((held, from)) = self.down
+            && held == pointer
+            && (at - from).length() > PRESS_SLOP
+        {
+            self.down = None;
+        }
+    }
+
+    pub(crate) fn up(
+        &mut self,
+        pointer: beui::PointerId,
+        at: block_plugin_api::Pos2,
+        panel: block_plugin_api::Vec2,
+    ) -> Option<block_plugin_api::Pos2> {
+        self.moved(pointer, at);
+        self.down.filter(|(held, _)| *held == pointer)?;
+        self.down = None;
+        let inside = at.x >= 0.0 && at.y >= 0.0 && at.x < panel.x && at.y < panel.y;
+        inside.then_some(at)
+    }
+
+    pub(crate) fn cancel(&mut self) {
+        self.down = None;
+    }
+}
+
+pub(crate) fn shell_focus(_window: HostWindowId) -> Option<EntryId> {
+    None
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum SurfaceNotice {
@@ -30,6 +185,22 @@ fn capitalised(text: &str) -> String {
     match chars.next() {
         Some(first) => first.to_uppercase().chain(chars).collect(),
         None => String::new(),
+    }
+}
+
+pub(crate) fn ended_notice(reason: be_win32::EndReason) -> Option<SurfaceNotice> {
+    match reason {
+        be_win32::EndReason::NeverArrived => {
+            Some(SurfaceNotice::Focus(FocusError::ForegroundRefused))
+        }
+        _ => None,
+    }
+}
+
+pub(crate) fn refused_notice(error: &FocusError) -> Option<SurfaceNotice> {
+    match error {
+        FocusError::Returned => None,
+        error => Some(SurfaceNotice::Focus(error.clone())),
     }
 }
 

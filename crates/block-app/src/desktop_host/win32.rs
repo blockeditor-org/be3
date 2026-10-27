@@ -17,10 +17,9 @@ use beui::{
 use block_plugin_api::{HostImage, HostProgram, HostWindow, HostWindowId};
 
 use super::texture_draw::TextureDraw;
-use super::win32_map::{self, Recovery, SurfaceNotice, entry_id};
+use super::win32_map::{self, ContentPress, HotkeyState, Recovery, SurfaceNotice, entry_id};
+use super::win32_overlay::{EntryOverlay, Hint};
 use super::win32_shape::Shaping;
-use crate::host::HostItem;
-use crate::surfaces::HostItemFace;
 
 const HOST_FOREGROUND_REFUSED: &str =
     "Windows did not let Block come back to the front. Click Block's window to use it again.";
@@ -62,6 +61,7 @@ struct Signals {
     snapshot: Signal<Arc<Snapshot>>,
     focused: Signal<Option<EntryId>>,
     refused: Signal<HashMap<EntryId, SurfaceNotice>>,
+    hotkey: Signal<HotkeyState>,
 }
 
 struct Host {
@@ -105,6 +105,7 @@ pub(crate) fn create() {
         snapshot: create_signal(Arc::new(Snapshot::default())),
         focused: create_signal(None),
         refused: create_signal(HashMap::new()),
+        hotkey: create_signal(HotkeyState::Waiting),
     }));
 }
 
@@ -164,7 +165,10 @@ pub(crate) fn running() -> bool {
 }
 
 fn hotkey_refused(error: &be_win32::HotkeyError) {
-    eprintln!("block-app: the shortcut back to Block was not registered: {error}");
+    eprintln!(
+        "block-app: the shortcut back to Block, {}, was not registered: {error}",
+        Hotkey::DEFAULT
+    );
     crate::notices::report(format!(
         "{} cannot bring Block back from a Windows window: {error}",
         Hotkey::DEFAULT
@@ -190,6 +194,12 @@ fn log_event(snapshot: &Snapshot, event: &FocusEvent) {
         FocusEvent::Ended { entry, reason } => {
             eprintln!(
                 "block-app: focus mode on {} ended: {reason:?}",
+                name(*entry)
+            );
+        }
+        FocusEvent::Refused { entry, error } => {
+            eprintln!(
+                "block-app: focus mode on {} did not start: {error}",
                 name(*entry)
             );
         }
@@ -280,6 +290,7 @@ pub(crate) fn before(_context: &Context, rect: Rect, document: &mut Document) {
         Some(newly)
     });
     if newly_secure == Some(true) {
+        eprintln!("block-app: Windows switched to the secure desktop");
         crate::notices::report(win32_map::SECURE_DESKTOP.to_owned());
     }
     for event in &events {
@@ -359,6 +370,28 @@ pub(crate) fn before(_context: &Context, rect: Rect, document: &mut Document) {
         }
         if signals.focused.get_untracked() != focused {
             signals.focused.set(focused);
+        }
+        for event in &events {
+            match event {
+                FocusEvent::HotkeySet(Some(hotkey)) => {
+                    signals.hotkey.set(HotkeyState::Registered(*hotkey));
+                }
+                FocusEvent::HotkeySet(None) => signals.hotkey.set(HotkeyState::Waiting),
+                FocusEvent::HotkeyRefused(error) => {
+                    signals.hotkey.set(HotkeyState::Refused(error.clone()));
+                }
+                FocusEvent::Refused { entry, error } => {
+                    if let Some(notice) = win32_map::refused_notice(error) {
+                        refuse(*entry, Some(notice));
+                    }
+                }
+                FocusEvent::Ended { entry, reason } => {
+                    if let Some(notice) = win32_map::ended_notice(*reason) {
+                        refuse(*entry, Some(notice));
+                    }
+                }
+                _ => {}
+            }
         }
         let started: Vec<EntryId> = events
             .iter()
@@ -500,7 +533,9 @@ fn focus_entry(id: EntryId, at: Option<be_win32::Point>) {
 }
 
 pub(crate) fn focus(window: HostWindowId) {
-    focus_entry(entry_id(window), None);
+    if let Some(id) = win32_map::shell_focus(window) {
+        focus_entry(id, None);
+    }
 }
 
 fn spawn_launch(work: impl FnOnce() -> std::io::Result<be_win32::Launch> + Send + 'static) {
@@ -586,7 +621,7 @@ fn acquire(source: Source, drawing: Signal<Option<Drawing>>) -> Option<u64> {
                 "block-app: {} cannot be captured: {error}",
                 describe(target, &entry.title)
             );
-            if DEVICE.with_borrow(Option::is_some) {
+            if DEVICE.with_borrow(Option::is_some) && matches!(source, Source::Entry(_)) {
                 crate::notices::report(format!(
                     "{} cannot be drawn: {error}",
                     match entry.title.is_empty() {
@@ -618,35 +653,46 @@ fn release(source: Source, user: u64) {
     drop(capture);
 }
 
-fn notice_item(notice: &SurfaceNotice) -> HostItem {
-    HostItem::Notice {
-        text: notice.text(),
-        busy: false,
-        icon: Some(match notice {
-            SurfaceNotice::Elevated => beui::icons::ICON_SHIELD_USER,
-            SurfaceNotice::SecureDesktop => beui::icons::ICON_SHIELD_ALERT,
-            SurfaceNotice::Focus(_) => beui::icons::ICON_TRIANGLE_ALERT,
-        }),
-    }
-}
-
-fn forwarded(id: EntryId, pressed: &Cell<bool>, input: ForwardedInput) {
+fn clicked(press: &RefCell<ContentPress>, input: &ForwardedInput) -> Vec<Pos2> {
     let size = input.rect.size();
+    let mut clicks = Vec::new();
+    let mut press = press.borrow_mut();
     for event in &input.events {
         let Forwarded::Pointer { event, over } = event else {
             continue;
         };
-        let local = over.map_or(event.pos - input.rect.min.to_vec2(), |over| over.local);
-        if !event.pointer.is_controller() {
-            if let PointerPhase::Down(_) = event.phase {
-                let snapshot = snapshot();
-                let at = snapshot
-                    .entry(id)
-                    .map(|entry| win32_map::frame_point(entry.frame, size, local));
-                focus_entry(id, at);
-            }
+        if event.pointer.is_controller() {
             continue;
         }
+        let local = over.map_or(event.pos - input.rect.min.to_vec2(), |over| over.local);
+        match event.phase {
+            PointerPhase::Down(_) => press.down(event.pointer, local),
+            PointerPhase::Move => press.moved(event.pointer, local),
+            PointerPhase::Up(_) => clicks.extend(press.up(event.pointer, local, size)),
+            PointerPhase::Cancel | PointerPhase::Gone => press.cancel(),
+            _ => {}
+        }
+    }
+    clicks
+}
+
+fn forwarded(id: EntryId, pressed: &Cell<bool>, press: &RefCell<ContentPress>, input: ForwardedInput) {
+    let size = input.rect.size();
+    for local in clicked(press, &input) {
+        let snapshot = snapshot();
+        let at = snapshot
+            .entry(id)
+            .map(|entry| win32_map::frame_point(entry.frame, size, local));
+        focus_entry(id, at);
+    }
+    for event in &input.events {
+        let Forwarded::Pointer { event, over } = event else {
+            continue;
+        };
+        if !event.pointer.is_controller() {
+            continue;
+        }
+        let local = over.map_or(event.pos - input.rect.min.to_vec2(), |over| over.local);
         let action = match event.phase {
             PointerPhase::Down(button) => {
                 pressed.set(true);
@@ -683,16 +729,14 @@ fn forwarded(id: EntryId, pressed: &Cell<bool>, input: ForwardedInput) {
     }
 }
 
-fn popup_forwarded(entry: EntryId, handle: Handle, input: ForwardedInput) {
+fn popup_forwarded(
+    entry: EntryId,
+    handle: Handle,
+    press: &RefCell<ContentPress>,
+    input: ForwardedInput,
+) {
     let size = input.rect.size();
-    for event in &input.events {
-        let Forwarded::Pointer { event, over } = event else {
-            continue;
-        };
-        if event.pointer.is_controller() || !matches!(event.phase, PointerPhase::Down(_)) {
-            continue;
-        }
-        let local = over.map_or(event.pos - input.rect.min.to_vec2(), |over| over.local);
+    for local in clicked(press, &input) {
         let snapshot = snapshot();
         let at = snapshot.entry(entry).and_then(|toplevel| {
             let popup = toplevel
@@ -717,13 +761,14 @@ fn PopupSurface(entry: EntryId, handle: Handle) -> NodeId {
     if let Some(user) = acquire(source, drawing) {
         on_cleanup(move || release(source, user));
     }
+    let press = RefCell::new(ContentPress::default());
     view! {
         <Interactive
             focusable=true
             press_focus=false
             tab_stop=false
             @test_id={format!("win32.popup.{}", handle.0)}
-            on_forward={move |input: ForwardedInput| popup_forwarded(entry, handle, input)}
+            on_forward={move |input: ForwardedInput| popup_forwarded(entry, handle, &press, input)}
         >
             <Drawing draw={Prop::dynamic(move || draw_gpu(drawing.get()))} />
         </Interactive>
@@ -751,11 +796,35 @@ pub(crate) fn WindowSurface(window: HostWindowId) -> NodeId {
     });
     let focused_signal = signals.focused;
     let focused = create_memo(move || focused_signal.get() == Some(id));
-    let dim = create_memo(move || match notice.get().is_some() {
-        true => ColorRole::Dim,
-        false => ColorRole::None,
+    let hovered = create_signal(false);
+    let hotkey = signals.hotkey;
+    let kind = create_memo(move || {
+        snapshot.with(|snapshot| snapshot.entry(id).map_or(EntryKind::Window, |entry| entry.kind))
+    });
+    let hint = create_memo(move || {
+        let kind = kind.get();
+        hotkey.with(|hotkey| match (focused.get(), hovered.get()) {
+            (true, _) => Some(Hint {
+                text: win32_map::focused_hint(kind, hotkey),
+                focused: true,
+            }),
+            (false, true) => Some(Hint {
+                text: win32_map::hover_hint(kind, hotkey),
+                focused: false,
+            }),
+            (false, false) => None,
+        })
+    });
+    let off_screen = create_memo(move || {
+        snapshot.with(|snapshot| {
+            snapshot
+                .entry(id)
+                .map(|entry| win32_map::off_screen_parts(snapshot, entry))
+                .unwrap_or_default()
+        })
     });
     let pressed = Rc::new(Cell::new(false));
+    let press = Rc::new(RefCell::new(ContentPress::default()));
     view! {
         <PlacementBuilder>|rect: ReadSignal<Rect>| {
             create_effect(move || resize(id, rect.get().size()));
@@ -791,53 +860,18 @@ pub(crate) fn WindowSurface(window: HostWindowId) -> NodeId {
             });
             let parent = use_window().map_or(beui::WindowId::MAIN, |window| window.id);
             let pressed = pressed.clone();
+            let press = press.clone();
             view! {
                 <Layers>
                     <Interactive
                         focusable=true
                         @test_id={format!("win32.window.{}", id.0)}
-                        on_forward={move |input: ForwardedInput| forwarded(id, &pressed, input)}
+                        on_hover_change={hovered}
+                        on_forward={move |input: ForwardedInput| forwarded(id, &pressed, &press, input)}
                     >
                         <Layers>
                             <Drawing draw={Prop::dynamic(move || draw_gpu(drawing.get()))} />
-                            <Frame fill={dim} />
-                            <Dynamic value={notice}>|notice: Option<SurfaceNotice>| {
-                                match notice {
-                                    Some(notice) => {
-                                        let content = create_memo(move || notice_item(&notice));
-                                        view! {
-                                            <Frame align=beui::Align::Center>
-                                                <HostItemFace content />
-                                            </Frame>
-                                        }
-                                    }
-                                    None => view! {
-                                        <Frame />
-                                    },
-                                }
-                            }</Dynamic>
-                            <Dynamic value={focused}>|focused: bool| {
-                                match focused {
-                                    true => {
-                                        let content = create_memo(|| HostItem::Notice {
-                                            text: format!(
-                                                "Windows has the mouse and keyboard. Press {} to come back to Block.",
-                                                Hotkey::DEFAULT
-                                            ),
-                                            busy: false,
-                                            icon: Some(beui::icons::ICON_KEYBOARD),
-                                        });
-                                        view! {
-                                            <List spacing=Space::Sm align=Align::Center>
-                                                <HostItemFace content />
-                                            </List>
-                                        }
-                                    }
-                                    false => view! {
-                                        <Frame />
-                                    },
-                                }
-                            }</Dynamic>
+                            <EntryOverlay notice hint off_screen />
                         </Layers>
                     </Interactive>
                     <ForEach keys={keys}>|key: (u64, Option<(u32, u32)>)| {
