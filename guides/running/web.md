@@ -67,7 +67,7 @@ rendered on the host and hydrated in the browser: `./scripts/buck run //crates/b
 serves it on http://127.0.0.1:8060 (or the address after `--`). Its `:ssr` program writes the
 page at build time with `beui::html::render_to_string`; the module calls `beui::html::hydrate`.
 `./scripts/test //crates/beui-html-spike:web-test` drives it in Chromium and checks that
-hydration kept every prerendered element. A bundle on this core stages the bundled fonts
+hydration kept every prerendered element and, in both colour schemes, changed no colour. A bundle on this core stages the bundled fonts
 (`//crates/beui-font-freetype:Inter-Regular.ttf` and the others) beside its index.html, where
 the core's `@font-face` rules look for them.
 

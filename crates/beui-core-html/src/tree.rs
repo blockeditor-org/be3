@@ -326,7 +326,12 @@ impl ParentKind for ListKind {
             ItemSize::Percent(share) => format!("{share} {} 0px", sizing.shrink),
         };
         set_placed_style(child, "flex", Some(flex));
-        set_placed_style(child, min, (sizing.min > 0.0).then(|| px(sizing.min)));
+        let sized_by_content = sizing.size == ItemSize::Intrinsic && sizing.shrink == 0.0;
+        set_placed_style(
+            child,
+            min,
+            (sizing.min > 0.0 || !sized_by_content).then(|| px(sizing.min)),
+        );
         set_placed_style(child, max, sizing.max.is_finite().then(|| px(sizing.max)));
         set_placed_style(
             child,

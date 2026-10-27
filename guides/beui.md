@@ -5006,6 +5006,17 @@ paintings are browser paintings rendered with `render_to_string` on
 `linux_x86_64_html`: `./scripts/test //crates/beui-view:html-test`, and styled
 components' `./scripts/test //crates/beui:html-test`.
 
+`render_to_string` renders the page in both colour schemes: it builds with the
+page's theme preference at `Dark`, notes every element's style, switches it to
+`Light`, and writes each colour that differs as `light-dark(LIGHT, DARK)`
+(`css::light_dark`). `.beui-root` has `color-scheme: light dark`, so the
+prerendered page shows the browser's scheme before any script runs; a page that
+pins a scheme sets `color-scheme` on `.beui-root`. `run` and `hydrate` read the
+browser's preferences before they build, so hydration computes the colours the
+page already shows and rewrites none. A theme given by `ThemeProvider` renders
+the same in both passes and stays concrete. Browser paintings render in
+Chromium's light scheme unless they pin one.
+
 Base nodes are the only layer that should normally mutate a `Document` directly.
 Put the node in `crates/beui-core/src/base/<name>.rs` and register the module in
 `base.rs`, and its component in `crates/beui-view/src/components/<name>.rs`. A
