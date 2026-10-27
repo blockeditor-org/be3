@@ -49,6 +49,14 @@ impl<T> Clone for Memo<T> {
 
 impl<T> Copy for Memo<T> {}
 
+impl<T> PartialEq for Memo<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.key == other.key
+    }
+}
+
+impl<T> Eq for Memo<T> {}
+
 impl<T: 'static> Get<T> for Memo<T> {
     fn with<R>(&self, f: impl FnOnce(&T) -> R) -> R {
         check_tracked_read::<Self>();

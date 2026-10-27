@@ -14,7 +14,7 @@ use crate::reactive::{
     create_signal, provide_context, use_context, with_document,
 };
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct WindowHandle {
     pub id: WindowId,
     pub size: Memo<Vec2>,
@@ -29,6 +29,35 @@ impl WindowHandle {
 
     pub fn real_window(self) -> Option<WindowId> {
         self.real.get_untracked()
+    }
+
+    pub fn following(
+        id: WindowId,
+        current: impl Fn() -> Option<WindowHandle> + Clone + 'static,
+    ) -> Self {
+        let live = move || {
+            current().filter(|handle| {
+                handle.size.is_alive() && handle.hosted.is_alive() && handle.real.is_alive()
+            })
+        };
+        let last = std::rc::Rc::new(std::cell::Cell::new((Vec2::ZERO, false, None)));
+        let follow = move || {
+            if let Some(handle) = live() {
+                last.set((handle.size.get(), handle.hosted.get(), handle.real.get()));
+            }
+            last.get()
+        };
+        let sized = follow.clone();
+        let size = create_memo(move || sized().0);
+        let hosting = follow.clone();
+        let hosted = create_memo(move || hosting().1);
+        let real = create_memo(move || follow().2);
+        Self {
+            id,
+            size,
+            hosted,
+            real,
+        }
     }
 
     pub fn begin_move(self) -> bool {

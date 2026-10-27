@@ -17,6 +17,8 @@ pub(crate) trait Shown {
 
     fn content(&self, region: EditorRegion, docked: bool) -> RenderFn<WindowHandle>;
 
+    fn window_id(&self, region: EditorRegion) -> Option<WindowId>;
+
     fn before(&self, view: &View, context: &beui::Context, document: &mut Document);
 
     fn after(
@@ -202,7 +204,10 @@ fn ModuleWindows(
                 .iter()
                 .map(|view| {
                     let shown = generations.shown(view.id.instance);
-                    let generation = shown.as_ref().map_or(0, |shown| shown.generation());
+                    let generation = match view.id.region {
+                        EditorRegion::Tab(_) => 0,
+                        _ => shown.as_ref().map_or(0, |shown| shown.generation()),
+                    };
                     let docked = view.id.region == EditorRegion::Frame
                         && shown.is_some_and(|shown| shown.docked_key(view.docked));
                     (view.id, generation, docked)
@@ -226,7 +231,10 @@ fn RegionWindow(
     requested: ReadSignal<Vec<View>>,
     views: Views,
 ) -> beui::NodeId {
-    let window = WindowId::next();
+    let window = registry
+        .shown(id.instance)
+        .and_then(|shown| shown.window_id(id.region))
+        .unwrap_or_else(WindowId::next);
     registry.windows.borrow_mut().insert(id, window);
     let held = Rc::clone(&registry);
     on_cleanup(move || {

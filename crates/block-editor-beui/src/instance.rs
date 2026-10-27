@@ -316,6 +316,13 @@ impl<A: BeuiApp> Shown for Parts<A> {
         }
     }
 
+    fn window_id(&self, region: EditorRegion) -> Option<WindowId> {
+        match region {
+            EditorRegion::Tab(tab) => Some(self.docked.window_id(tab)),
+            _ => None,
+        }
+    }
+
     fn floated(&self, document: &mut Document, window: WindowId, size: beui::Vec2) -> Report {
         if let Some(editor) = self.views.borrow().editor.as_deref() {
             editor.end_frame(document, window);

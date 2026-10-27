@@ -11,6 +11,7 @@ use beui::dock::unstyled::{
 };
 use beui::dock::unstyled::{DockMenus, DockTabControl, DockTabMenu, dock_menu};
 use beui::icons::Glyph;
+use beui::styled::WindowHandle;
 use beui::reactive::*;
 use block_editor_plugin::{EditorHost, EditorRegion, Pushed, RegionId};
 use block_plugin_api as api;
@@ -28,6 +29,7 @@ pub(crate) struct DockedTabs {
     slot: RefCell<Option<DockHostSlot>>,
     built: Cell<Option<bool>>,
     asking: OwnedSignal<Option<TabId>>,
+    windows: RefCell<HashMap<u64, beui::WindowId>>,
 }
 
 impl Default for DockedTabs {
@@ -38,6 +40,7 @@ impl Default for DockedTabs {
             slot: RefCell::default(),
             built: Cell::new(None),
             asking: OwnedSignal::new(None),
+            windows: RefCell::default(),
         }
     }
 }
@@ -130,9 +133,23 @@ impl DockedTabs {
         link
     }
 
-    fn panel(&self, tab: TabId) -> Option<NodeId> {
+    fn panel(&self, tab: TabId, window: Option<WindowHandle>) -> Option<NodeId> {
         let link = self.link.borrow().clone()?;
-        link.panel(tab)
+        link.panel(tab, window)
+    }
+
+    fn leave(&self, tab: TabId, window: WindowHandle) {
+        if let Some(link) = self.link.borrow().clone() {
+            link.leave(tab, window);
+        }
+    }
+
+    pub(crate) fn window_id(&self, tab: u64) -> beui::WindowId {
+        *self
+            .windows
+            .borrow_mut()
+            .entry(tab)
+            .or_insert_with(beui::WindowId::next)
     }
 
     pub(crate) fn presenting(&self, host: &EditorHost) -> Option<beui::WindowId> {
@@ -160,16 +177,29 @@ impl DockedTabs {
 pub(crate) fn DockedTabBody(tabs: Rc<DockedTabs>, tab: u64) -> NodeId {
     let revised = tabs.revision.read_only();
     let node = create_signal(None);
+    let window = beui::styled::use_window();
+    let left = Rc::clone(&tabs);
     create_effect(move || {
         revised.get();
-        let panel = untrack(|| tabs.panel(TabId::new(tab)));
+        let panel = untrack(|| tabs.panel(TabId::new(tab), window));
         node.set(panel);
+    });
+    on_cleanup(move || {
+        if let Some(window) = window {
+            left.leave(TabId::new(tab), window);
+        }
     });
     view! {
         <beui::styled::List spacing=beui::styled::Space::None>
             <beui::styled::Portal @sizing=beui::ItemSize::Percent(100.0) node={node} />
         </beui::styled::List>
     }
+}
+
+struct Panel {
+    node: NodeId,
+    window: Option<Signal<Option<WindowHandle>>>,
+    _scope: Scope,
 }
 
 struct ProtocolLink {
@@ -179,7 +209,7 @@ struct ProtocolLink {
     pushed: ReadSignal<u64>,
     tabs: Weak<DockedTabs>,
     bodies: RefCell<Option<DockBodies>>,
-    panels: RefCell<HashMap<TabId, (NodeId, Scope)>>,
+    panels: RefCell<HashMap<TabId, Panel>>,
     menus: OwnedSignal<DockMenus>,
     frame: ReadSignal<Vec<MenuNode>>,
     declared: RefCell<Option<DockDeclaration>>,
@@ -262,9 +292,12 @@ impl ProtocolLink {
         }
     }
 
-    fn panel(&self, tab: TabId) -> Option<NodeId> {
-        if let Some((panel, _)) = self.panels.borrow().get(&tab) {
-            return Some(*panel);
+    fn panel(&self, tab: TabId, window: Option<WindowHandle>) -> Option<NodeId> {
+        if let Some(panel) = self.panels.borrow().get(&tab) {
+            if let (Some(shown), Some(window)) = (panel.window, window) {
+                shown.set(Some(window));
+            }
+            return Some(panel.node);
         }
         let bodies = self.bodies.borrow().clone()?;
         let scope = bodies.scope.child()?;
@@ -275,7 +308,15 @@ impl ProtocolLink {
         let this = Weak::clone(&self.this);
         let watched = self.watched.get();
         let empty = self.empty_key(tab);
+        let mut shown = None;
         let panel = scope.context().run(|| {
+            if let Some(window) = window {
+                let current = create_signal(Some(window));
+                shown = Some(current);
+                provide_context(WindowHandle::following(window.id, move || {
+                    current.get()
+                }));
+            }
             if let Some(key) = empty {
                 return bodies.empty.call(key);
             }
@@ -293,8 +334,24 @@ impl ProtocolLink {
             }
             Some(bodies.body.call(tab))
         })?;
-        self.panels.borrow_mut().insert(tab, (panel, scope));
+        self.panels.borrow_mut().insert(
+            tab,
+            Panel {
+                node: panel,
+                window: shown,
+                _scope: scope,
+            },
+        );
         Some(panel)
+    }
+
+    fn leave(&self, tab: TabId, window: WindowHandle) {
+        let shown = self.panels.borrow().get(&tab).and_then(|panel| panel.window);
+        if let Some(shown) = shown
+            && shown.get_untracked() == Some(window)
+        {
+            shown.set(None);
+        }
     }
 
     fn keep(&self, tabs: &[TabId]) {
@@ -306,7 +363,7 @@ impl ProtocolLink {
             tabs.extend(declaration.dialogs.iter().map(|dialog| dialog.tab));
         }
         tabs.extend(self.empties.borrow().values().copied().map(TabId::new));
-        let dropped: Vec<(NodeId, Scope)> = {
+        let dropped: Vec<Panel> = {
             let mut panels = self.panels.borrow_mut();
             let gone: Vec<TabId> = panels
                 .keys()

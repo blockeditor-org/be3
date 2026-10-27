@@ -848,6 +848,11 @@ fn PopupWindow() -> NodeId {
     };
     let face = theme.surface_raised;
     let ink = theme.text;
+    let own = use_window().map(|window| window.id);
+    let placement = create_memo(move || match own {
+        Some(window) => WindowPlacement::Over { window, at: at.get() },
+        None => WindowPlacement::AtPointer,
+    });
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Interactive
@@ -865,6 +870,7 @@ fn PopupWindow() -> NodeId {
             <Window
                 size={vec2(PANEL_WIDTH, WINDOW_HEIGHT)}
                 at={at}
+                placement
                 role=WindowRole::Popup
                 open={open}
                 on_report={closed(open)}
