@@ -5,8 +5,7 @@ use block_plugin_api::{Encoded, Watch};
 
 use block_plugin_api::{
     AudioStatus, BlockPick, Catalog, ChildStatus, DebugTemplate, DockUpdate, EditorInstanceId,
-    Failure, Fonts,
-    HelloAccepted, InputBatch, Opening, Preferences, WebViewEvent, WebViewId,
+    Failure, Fonts, HelloAccepted, InputBatch, Opening, Preferences, WebViewEvent, WebViewId,
     embed::{
         blocks,
         debug::debug::Call as DebugCall,
@@ -673,7 +672,10 @@ impl Wire {
                 match DockCall::accept(connection, started) {
                     Some(DockCall::DockWatchNew { resource, instance }) => {
                         if self.editors.contains_key(&instance) {
-                            self.docks.entry(instance).or_default().opened(resource.op());
+                            self.docks
+                                .entry(instance)
+                                .or_default()
+                                .opened(resource.op());
                         }
                     }
                     Some(DockCall::DockWatchNext { this, reply }) => {

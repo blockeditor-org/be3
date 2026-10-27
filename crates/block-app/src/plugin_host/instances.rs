@@ -5,8 +5,8 @@ use block_plugin_api::{
     ChildMode, ChildPlacement, ChildPlacements, ChildStatus, DialogStatus, EditorInstanceId,
     EditorRegion, FrameReport, FrameSpec, MenuEntry, Occluder, OpenArtifact, OpenBlock,
     OpenCreation, Opening, PerformanceMeasurement, RegionSize, ScreenId, ScreenLayout,
-    ScreenRequest, ScreenWindow, ShellCommand, Size, Stopped, ViewChange, ViewportMetrics, WebViewEvent,
-    WebViewId,
+    ScreenRequest, ScreenWindow, ShellCommand, Size, Stopped, ViewChange, ViewportMetrics,
+    WebViewEvent, WebViewId,
 };
 use block_plugin_api::{
     DescribedAction, WindowRequests,
@@ -920,7 +920,9 @@ impl Instances {
         })
     }
 
-    pub(super) fn docked_children(&self) -> Vec<(EditorInstanceId, Vec<super::docks::DockedChild>)> {
+    pub(super) fn docked_children(
+        &self,
+    ) -> Vec<(EditorInstanceId, Vec<super::docks::DockedChild>)> {
         self.entries
             .iter()
             .map(|(instance, entry)| {

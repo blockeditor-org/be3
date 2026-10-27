@@ -49,7 +49,12 @@ pub(super) struct Docks {
 }
 
 impl Docks {
-    pub(super) fn register(&mut self, instance: EditorInstanceId, plugin: &str, block: Option<Uuid>) {
+    pub(super) fn register(
+        &mut self,
+        instance: EditorInstanceId,
+        plugin: &str,
+        block: Option<Uuid>,
+    ) {
         self.plugins.insert(instance, plugin.to_owned());
         if let Some(block) = block
             && self.blocks.insert(block, instance) != Some(instance)
@@ -134,8 +139,7 @@ impl Docks {
                 }
                 DockMessage::Request(request) => {
                     let instance = request.region.instance;
-                    if request.region.region == EditorRegion::Frame && self.owns(plugin, instance)
-                    {
+                    if request.region.region == EditorRegion::Frame && self.owns(plugin, instance) {
                         self.request(instance, request.request);
                     }
                 }
@@ -193,7 +197,9 @@ impl Docks {
     }
 
     fn owns(&self, plugin: &str, instance: EditorInstanceId) -> bool {
-        self.plugins.get(&instance).is_some_and(|held| held == plugin)
+        self.plugins
+            .get(&instance)
+            .is_some_and(|held| held == plugin)
     }
 
     fn instance_of(&self, placer: EditorInstanceId, record: &Placed) -> Option<EditorInstanceId> {
@@ -236,15 +242,20 @@ impl Docks {
             .collect()
     }
 
-    fn alive(&self, docked: &HashSet<EditorInstanceId>, placer: EditorInstanceId, child: ChildId, record: &Placed) -> bool {
+    fn alive(
+        &self,
+        docked: &HashSet<EditorInstanceId>,
+        placer: EditorInstanceId,
+        child: ChildId,
+        record: &Placed,
+    ) -> bool {
         if record.placed {
             return true;
         }
         match docked.contains(&placer) {
-            true => self
-                .declared
-                .get(&placer)
-                .is_some_and(|declaration| declaration.tab(&DockTabPath::own(record.tab)).is_some()),
+            true => self.declared.get(&placer).is_some_and(|declaration| {
+                declaration.tab(&DockTabPath::own(record.tab)).is_some()
+            }),
             false => self.hosting.contains_key(&(placer, child)),
         }
     }
@@ -338,7 +349,9 @@ impl Docks {
                 continue;
             }
             self.delivered.insert((root, child), declaration.clone());
-            self.hosting.entry((root, child)).or_insert(Hosting::Awaited);
+            self.hosting
+                .entry((root, child))
+                .or_insert(Hosting::Awaited);
             self.send(
                 root,
                 DockUpdate::Child(DockDeclaredChild {
@@ -438,7 +451,12 @@ impl Docks {
         let children: Vec<(ChildId, Placed)> = self
             .children
             .get(&instance)
-            .map(|children| children.iter().map(|(child, record)| (*child, *record)).collect())
+            .map(|children| {
+                children
+                    .iter()
+                    .map(|(child, record)| (*child, *record))
+                    .collect()
+            })
             .unwrap_or_default();
         let hosts: Vec<(ChildId, u64)> = children
             .iter()
@@ -481,7 +499,10 @@ impl Docks {
         let mut placer = root;
         let mut path = tab.through(child);
         while let Some(first) = path.via.first().copied() {
-            let Some(record) = self.children.get(&placer).and_then(|children| children.get(&first))
+            let Some(record) = self
+                .children
+                .get(&placer)
+                .and_then(|children| children.get(&first))
             else {
                 return;
             };
