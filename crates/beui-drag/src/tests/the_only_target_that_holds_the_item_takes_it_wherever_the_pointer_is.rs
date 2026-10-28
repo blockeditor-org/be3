@@ -20,7 +20,9 @@ fn the_only_target_that_holds_the_item_takes_it_wherever_the_pointer_is() {
         .target("home", rect(0.0, 0.0, 10.0, 10.0), 1)
         .holds()
         .register();
-    shared.target("other", rect(20.0, 0.0, 10.0, 10.0), 1).register();
+    shared
+        .target("other", rect(20.0, 0.0, 10.0, 10.0), 1)
+        .register();
     shared.begin(pos2(500.0, 400.0));
     assert!(!shared.log.take().iter().any(|line| line.contains("over")));
 }

@@ -27,7 +27,10 @@ impl Surface for Flat {
     }
 
     fn target_order(&self, node: NodeId) -> u32 {
-        self.rects.borrow().get(&node).map_or(0, |(_, order)| *order)
+        self.rects
+            .borrow()
+            .get(&node)
+            .map_or(0, |(_, order)| *order)
     }
 
     fn scroller_order(&self, node: NodeId, _visible: Rect) -> u32 {
@@ -204,8 +207,8 @@ mod a_carried_item_drops_on_the_topmost_target_under_the_pointer;
 mod a_release_over_no_target_cancels_the_drag;
 mod a_target_that_declines_the_drop_lets_the_one_beneath_take_it;
 mod edge_scrolling_runs_the_topmost_scroller_whose_band_holds_the_pointer;
-mod every_target_hears_the_drag_end_before_the_drop;
 mod escape_cancels_a_drag_over_a_target_without_dropping_it;
+mod every_target_hears_the_drag_end_before_the_drop;
 mod released_outside_the_window_the_item_goes_to_the_sources_outside;
 mod the_first_point_floats_the_item_unless_its_target_hides_the_preview;
 mod the_only_target_that_holds_the_item_takes_it_wherever_the_pointer_is;

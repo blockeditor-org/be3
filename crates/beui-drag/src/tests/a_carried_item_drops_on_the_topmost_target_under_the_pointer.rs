@@ -3,9 +3,15 @@ use super::*;
 #[test]
 fn a_carried_item_drops_on_the_topmost_target_under_the_pointer() {
     let fixture = Fixture::new();
-    fixture.target("pane", rect(0.0, 0.0, 100.0, 100.0), 2).register();
-    fixture.target("bar", rect(10.0, 0.0, 90.0, 20.0), 3).register();
-    fixture.target("hidden", rect(0.0, 0.0, 100.0, 20.0), 1).register();
+    fixture
+        .target("pane", rect(0.0, 0.0, 100.0, 100.0), 2)
+        .register();
+    fixture
+        .target("bar", rect(10.0, 0.0, 90.0, 20.0), 3)
+        .register();
+    fixture
+        .target("hidden", rect(0.0, 0.0, 100.0, 20.0), 1)
+        .register();
     fixture.begin(pos2(50.0, 50.0));
     assert_eq!(
         fixture.log.take(),

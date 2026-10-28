@@ -3,7 +3,9 @@ use super::*;
 #[test]
 fn released_outside_the_window_the_item_goes_to_the_sources_outside() {
     let fixture = Fixture::new();
-    fixture.target("list", rect(0.0, 0.0, 100.0, 100.0), 1).register();
+    fixture
+        .target("list", rect(0.0, 0.0, 100.0, 100.0), 1)
+        .register();
     fixture.begin(pos2(50.0, 50.0));
     fixture.log.take();
     fixture.board.set_outside(true);

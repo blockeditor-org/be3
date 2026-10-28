@@ -3,7 +3,9 @@ use super::*;
 #[test]
 fn a_target_that_declines_the_drop_lets_the_one_beneath_take_it() {
     let fixture = Fixture::new();
-    fixture.target("pane", rect(0.0, 0.0, 100.0, 100.0), 1).register();
+    fixture
+        .target("pane", rect(0.0, 0.0, 100.0, 100.0), 1)
+        .register();
     fixture
         .target("bar", rect(0.0, 0.0, 100.0, 20.0), 2)
         .declines()
