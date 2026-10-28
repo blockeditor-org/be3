@@ -14,10 +14,22 @@
       ],
       "accepts": [
         "show_block",
-        "pick",
         "dialog",
         "panel",
         "window"
+      ]
+    },
+    "picker": {
+      "id": "79bae633-de84-4b71-8a8c-31014aa99485",
+      "display_name": "Add block",
+      "icon": "\ue0ff",
+      "interaction": "Live",
+      "resize": "None",
+      "regions": [
+        "Frame"
+      ],
+      "accepts": [
+        "pick"
       ]
     }
   },

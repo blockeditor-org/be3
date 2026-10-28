@@ -7,9 +7,7 @@ fn on_a_wide_phone_the_more_sheet_fills_the_screen_width() {
     let width = 600.0;
     let (mut fixture, _) = editor_sized(Some(Vec2::new(width, 900.0)));
     fixture.test.catalog(catalog());
-    fixture
-        .test
-        .request_pick(5, filter(), BlockLocation::Root, None);
+    let mut fixture = picking_with(&fixture, filter(), BlockLocation::Root, true);
     fixture.test.settle();
     fixture.test.click("picker.more");
     fixture.test.settle();

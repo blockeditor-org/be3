@@ -129,12 +129,9 @@ pub(crate) struct ChildCommit {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct PickRequest {
-    pub pick: u64,
+pub struct PickerRequest {
     pub filter: BlockFilter,
     pub parent: BlockParent,
-    pub within: Option<Uuid>,
-    pub anchor: Option<Rect>,
     pub touch: bool,
 }
 
@@ -300,6 +297,8 @@ enum Identity {
     Window(HostWindowId),
     Creation([u8; 16], String),
     ArtifactSettings([u8; 16]),
+    DockTab(block_plugin_api::DockTabPath),
+    Picker(BlockFilter),
 }
 
 impl Identity {
@@ -313,17 +312,25 @@ impl Identity {
                 Self::Creation(*editor, template.clone())
             }
             ChildContent::ArtifactSettings { block_id } => Self::ArtifactSettings(*block_id),
+            ChildContent::DockTab(tab) => Self::DockTab(tab.clone()),
+            ChildContent::Picker { filter, .. } => Self::Picker(filter.clone()),
         }
     }
 }
 
-type ChildKey = (EditorRegion, Identity, u32);
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+enum ChildScope {
+    Region(EditorRegion),
+    DockTab(u64),
+}
+
+type ChildKey = (ChildScope, Identity, u32);
 
 #[derive(Default)]
 struct Placing {
     placements: Vec<ChildPlacement>,
     occluders: Vec<Occluder>,
-    ordinals: HashMap<Identity, u32>,
+    ordinals: HashMap<(ChildScope, Identity), u32>,
     used: Vec<ChildKey>,
 }
 
@@ -331,26 +338,35 @@ struct Placing {
 struct Children {
     placing: HashMap<EditorRegion, Placing>,
     identities: HashMap<ChildKey, ChildId>,
+    tab_regions: HashMap<u64, EditorRegion>,
     next: u64,
 }
 
-#[derive(Default)]
-struct RegionDrops {
-    drag: Option<BlockDrag>,
-    files: Option<FileDrop>,
-    content: Option<Rect>,
-}
-
 impl Children {
-    fn identify(&mut self, region: EditorRegion, identity: Identity) -> ChildId {
+    fn identify(
+        &mut self,
+        region: EditorRegion,
+        dock_tab: Option<u64>,
+        identity: Identity,
+    ) -> ChildId {
+        let scope = match dock_tab {
+            Some(tab) => {
+                self.tab_regions.insert(tab, region);
+                ChildScope::DockTab(tab)
+            }
+            None => ChildScope::Region(region),
+        };
         let placing = self.placing.entry(region).or_default();
         let ordinal = {
-            let ordinal = placing.ordinals.entry(identity.clone()).or_default();
+            let ordinal = placing
+                .ordinals
+                .entry((scope, identity.clone()))
+                .or_default();
             let current = *ordinal;
             *ordinal += 1;
             current
         };
-        let key = (region, identity, ordinal);
+        let key = (scope, identity, ordinal);
         let child = match self.identities.get(&key) {
             Some(child) => *child,
             None => {
@@ -363,6 +379,20 @@ impl Children {
         self.placing.entry(region).or_default().used.push(key);
         child
     }
+
+    fn placed_in(&self, scope: ChildScope, region: EditorRegion) -> bool {
+        match scope {
+            ChildScope::Region(held) => held == region,
+            ChildScope::DockTab(tab) => self.tab_regions.get(&tab) == Some(&region),
+        }
+    }
+}
+
+#[derive(Default)]
+struct RegionDrops {
+    drag: Option<BlockDrag>,
+    files: Option<FileDrop>,
+    content: Option<Rect>,
 }
 
 #[derive(Clone, Copy)]
@@ -385,10 +415,11 @@ pub enum Pushed {
     Watches,
     PeerMessages,
     Heads,
+    Docks,
 }
 
 impl Pushed {
-    pub const ALL: [Self; 12] = [
+    pub const ALL: [Self; 13] = [
         Self::Peers,
         Self::Histories,
         Self::Artifacts,
@@ -401,6 +432,7 @@ impl Pushed {
         Self::Watches,
         Self::PeerMessages,
         Self::Heads,
+        Self::Docks,
     ];
 }
 
@@ -420,10 +452,10 @@ pub struct EditorHost {
     waker: Waker,
     shown_panels: Rc<RefCell<Vec<HostPanel>>>,
     watches: Rc<RefCell<Watches>>,
-    pick_requests: Rc<RefCell<Vec<PickRequest>>>,
-    withdrawn_picks: Rc<RefCell<Vec<u64>>>,
+    picker: Rc<RefCell<Option<PickerRequest>>>,
+    picked: Rc<RefCell<Option<BlockPick>>>,
+    card: Rc<Cell<bool>>,
     dialog_requests: Rc<RefCell<Vec<(Uuid, ShellDialog)>>>,
-    pick_answers: Rc<RefCell<Vec<(u64, BlockPick)>>>,
     child_commits: Rc<RefCell<Vec<ChildCommit>>>,
     pushed: Rc<[Cell<u64>; Pushed::ALL.len()]>,
     changes: Rc<Cell<u64>>,
@@ -505,6 +537,7 @@ pub struct EditorHost {
     organization: Rc<Cell<Uuid>>,
     module: Rc<RefCell<std::rc::Weak<crate::module::ModuleState>>>,
     settings_draft: Rc<RefCell<Option<crate::SettingsDraft>>>,
+    pub(crate) docks: Rc<RefCell<crate::docks::Docks>>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -531,7 +564,7 @@ impl EditorHost {
         self.pushed[pushed as usize].get()
     }
 
-    fn push(&self, pushed: Pushed) {
+    pub(crate) fn push(&self, pushed: Pushed) {
         let revision = &self.pushed[pushed as usize];
         revision.set(revision.get() + 1);
         self.changed();
@@ -591,34 +624,36 @@ impl EditorHost {
         self.push(Pushed::Shows);
     }
 
-    pub fn take_withdrawn_picks(&self) -> Vec<u64> {
-        std::mem::take(&mut self.withdrawn_picks.borrow_mut())
+    pub fn picker(&self) -> Option<PickerRequest> {
+        self.picker.borrow().clone()
     }
 
-    pub(crate) fn withdraw_pick(&self, pick: u64) {
-        self.pick_requests
-            .borrow_mut()
-            .retain(|request| request.pick != pick);
-        self.withdrawn_picks.borrow_mut().push(pick);
+    pub(crate) fn set_picker(&self, picker: PickerRequest) {
+        *self.picker.borrow_mut() = Some(picker);
         self.push(Pushed::Shows);
     }
 
-    pub fn take_pick_requests(&self) -> Vec<PickRequest> {
-        std::mem::take(&mut self.pick_requests.borrow_mut())
-    }
-
-    pub fn request_pick(&self, request: PickRequest) {
-        self.pick_requests.borrow_mut().push(request);
-        self.push(Pushed::Shows);
-    }
-
-    pub fn answer_pick(&self, pick: u64, answer: BlockPick) {
-        self.pick_answers.borrow_mut().push((pick, answer));
+    pub fn answer_pick(&self, answer: BlockPick) {
+        let mut picked = self.picked.borrow_mut();
+        if picked.is_none() {
+            *picked = Some(answer);
+        }
+        drop(picked);
         self.changed();
     }
 
-    pub(crate) fn take_pick_answers(&self) -> Vec<(u64, BlockPick)> {
-        std::mem::take(&mut self.pick_answers.borrow_mut())
+    pub fn show_card(&self, card: bool) {
+        if self.card.replace(card) != card {
+            self.changed();
+        }
+    }
+
+    pub(crate) fn card(&self) -> bool {
+        self.card.get()
+    }
+
+    pub(crate) fn take_picked(&self) -> Option<BlockPick> {
+        self.picked.borrow_mut().take()
     }
 
     pub fn commit_child(&self, child: ChildId, parent: BlockParent, name: Option<String>) {
@@ -1561,10 +1596,6 @@ impl EditorHost {
             })
     }
 
-    pub fn pick_block(&self, filter: BlockFilter) -> Asked<BlockPick> {
-        Asked::of(self.ask(|| host_services::pick_block(filter)))
-    }
-
     pub fn list_access(&self, block_id: Uuid) -> Asked<Result<AccessListing, Failure>> {
         Asked::of(self.ask(|| host_services::list_access(block_id.into_bytes())))
     }
@@ -1848,13 +1879,19 @@ impl EditorHost {
         intrinsic: Option<Vec2>,
         follows_view: bool,
         dialog: Option<DialogFrame>,
+        dock_tab: Option<u64>,
+        docks: bool,
     ) -> ChildId {
         let region = self.region.get().unwrap_or(EditorRegion::Frame);
         let placed = rect;
         let clip =
             clip.intersect(geometry::Rotation::new(placed.center(), rotation).bounds(placed));
+        let docks = dock_tab.filter(|_| docks && matches!(content, ChildContent::Block { .. }));
+        if docks.is_some() {
+            self.mark_docks_used();
+        }
         let mut children = self.children.borrow_mut();
-        let child = children.identify(region, Identity::of(&content));
+        let child = children.identify(region, dock_tab, Identity::of(&content));
         children
             .placing
             .entry(region)
@@ -1878,6 +1915,7 @@ impl EditorHost {
                 opacity: opacity.clamp(0.0, 1.0),
                 follows_view,
                 dialog,
+                docks,
             });
         child
     }
@@ -2031,9 +2069,15 @@ impl EditorHost {
     pub(crate) fn end_region(&self, region: EditorRegion) -> (Vec<ChildPlacement>, Vec<Occluder>) {
         let mut children = self.children.borrow_mut();
         let placing = children.placing.remove(&region).unwrap_or_default();
-        children
+        let gone: Vec<ChildKey> = children
             .identities
-            .retain(|key, _| key.0 != region || placing.used.contains(key));
+            .keys()
+            .filter(|key| children.placed_in(key.0, region) && !placing.used.contains(key))
+            .cloned()
+            .collect();
+        for key in gone {
+            children.identities.remove(&key);
+        }
         (placing.placements, placing.occluders)
     }
 

@@ -10,9 +10,9 @@ use beui::native::{Embed, EmbedPlacement, EmbedSlot};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{
-    Align, CursorIcon, Forwarded, ForwardedInput, ImeCursor, Modifiers, NodeId, PointerButton,
-    PointerEvent, PointerId, PointerPhase, Pos2, Rect, Vec2, WindowId, WindowPlacement,
-    WindowReport, WindowRole, native::Region, pos2,
+    Align, CursorIcon, Dismiss, Forwarded, ForwardedInput, ImeCursor, LayerPolicy, Modifiers,
+    NodeId, OverlayAnchor, Placement, PointerButton, PointerEvent, PointerId, PointerPhase, Pos2,
+    Rect, Vec2, WindowId, WindowPlacement, WindowReport, WindowRole, native::Region, pos2,
 };
 use block_plugin_api::{ChildId, EditorInstanceId, EditorRegion, FrameSpec, PluginManifest};
 use uuid::Uuid;
@@ -193,12 +193,15 @@ pub(crate) fn PluginRegion(
     #[prop(default = 1.0)] opacity: Prop<f32>,
     #[prop(default = None)] pan_drag: Option<PanDrag>,
     #[prop(default = false)] offscreen: bool,
+    #[prop(default = false)] nests_windows: bool,
     on_focus: Callback<()>,
     child_view: ChildView,
 ) -> NodeId {
     let instance = editor.instance;
     let place = super::desktop::place();
-    let windowing = (region == EditorRegion::Frame && !offscreen).then(|| editor.clone());
+    let windowing = ((matches!(region, EditorRegion::Frame | EditorRegion::Tab(_)) && !offscreen)
+        || nests_windows)
+        .then(|| editor.clone());
     let plugin_id = editor.plugin_id().to_owned();
     let floated_key = match region {
         EditorRegion::Window(window) => Some(super::desktop::FloatedKey {
@@ -262,6 +265,7 @@ pub(crate) fn PluginRegion(
     let revision = super::listen(&plugin_id.value());
     let placed = store(Cell::new(None::<EmbedPlacement>));
     let stored_key = store(floated_key.clone());
+    let windowed = windowing.is_some();
     let placer = Callback::new(move |placement: Option<EmbedPlacement>| match placement {
         Some(placement) => plugin_host::place_region(
             &plugin_id.value(),
@@ -273,8 +277,7 @@ pub(crate) fn PluginRegion(
                 clip: placement.clip,
                 zoom: zoom.get_untracked(),
                 raster: placement.raster,
-                windows: hosts_windows
-                    || (region == EditorRegion::Frame && crate::host::opens_windows()),
+                windows: hosts_windows || windowed,
                 placement: stored_key
                     .with(|key| key.as_ref().and_then(super::desktop::placement_of)),
             },
@@ -551,7 +554,7 @@ pub(crate) fn PluginRegion(
         let origin = place.map_or(beui::Vec2::ZERO, |place| {
             place.display.get_untracked().min.to_vec2()
         });
-        if hosts_windows {
+        if hosts_windows || windowed {
             super::desktop::follow_pointer(&input, origin);
         }
         let input = match stored_key.with(Clone::clone) {
@@ -734,8 +737,20 @@ pub(crate) fn PluginRegion(
         })
     });
     let windows = windowing.map(|editor| {
+        let overlaid = (!shows_desktop).then(|| {
+            let editor = editor.clone();
+            view! {
+                <OverlaidWindows editor region />
+            }
+        });
+        let panels = (!nests_windows).then(|| {
+            let editor = editor.clone();
+            view! {
+                <PanelWindows editor region rect />
+            }
+        });
         view! {
-            <PanelWindows editor rect />
+            <Layers>{panels}{overlaid}</Layers>
         }
     });
     let built = view! {
@@ -824,12 +839,10 @@ fn DesktopWindows(editor: RegionEditor, state: Memo<RegionView>, rect: Memo<Rect
                 let width = create_memo(move || local.get().width());
                 let height = create_memo(move || local.get().height());
                 let region = EditorRegion::Window(window);
-                let child_view: ChildView = match block {
-                    Some(block) => super::editors::child_view(block, region),
-                    None => store(Box::new(|_, _, _| view! {
-                        <Frame />
-                    })),
-                };
+                let child_view = super::editors::child_view(
+                    block.unwrap_or_else(|| super::editors::hosted_parent(editor.instance)),
+                    region,
+                );
                 view! {
                     <CanvasItem x={x} y={y} width={width} height={height}>
                         <PluginRegion editor region child_view on_focus={Callback::new(|()| {})} />
@@ -841,11 +854,77 @@ fn DesktopWindows(editor: RegionEditor, state: Memo<RegionView>, rect: Memo<Rect
 }
 
 #[component]
-fn PanelWindows(editor: RegionEditor, rect: Memo<Rect>) -> NodeId {
+fn OverlaidWindows(editor: RegionEditor, region: EditorRegion) -> NodeId {
+    let block = editor.role.block().map(|block| block.id);
+    let keys = super::desktop::overlaid(editor.plugin_id().to_owned(), editor.instance, region);
+    let viewport = use_viewport_size();
+    let editor = store(editor);
+    view! {
+        <Layers>
+            <ForEach keys={keys}>|window: u64| {
+                let editor = editor.with(Clone::clone);
+                let key = super::desktop::FloatedKey {
+                    plugin: editor.plugin_id().to_owned(),
+                    instance: editor.instance,
+                    window,
+                };
+                let asked = super::desktop::rect_of(key.clone());
+                let role = super::desktop::role_of(key.clone());
+                let popup = create_memo(move || role.get() == WindowRole::Popup);
+                let policy = create_memo(move || match popup.get() {
+                    true => LayerPolicy::BlocksAll,
+                    false => LayerPolicy::Pass,
+                });
+                let dismissed = store(key);
+                let dismiss = move |reason: Dismiss| {
+                    if matches!(reason, Dismiss::OutsidePress | Dismiss::WithParent) {
+                        dismissed.with(super::desktop::dismiss);
+                    }
+                };
+                let shown = create_memo(move || {
+                    asked.get().map_or(Rect::ZERO, |rect| super::desktop::clamped(rect, viewport.get()))
+                });
+                let anchor = create_memo(move || OverlayAnchor::Point(shown.get().min));
+                let width = create_memo(move || Size::Custom(shown.get().width()));
+                let height = create_memo(move || Size::Custom(shown.get().height()));
+                let region = EditorRegion::Window(window);
+                let child_view = super::editors::child_view(
+                    block.unwrap_or_else(|| super::editors::hosted_parent(editor.instance)),
+                    region,
+                );
+                let held = store(editor);
+                view! {
+                    <Overlay
+                        anchor
+                        placement=Placement::At
+                        policy
+                        traps_focus=false
+                        open=true
+                        dismissable={popup}
+                        on_dismiss={dismiss}
+                    >
+                        <Frame width height>
+                            <PluginRegion
+                                editor={held.with(Clone::clone)}
+                                region
+                                nests_windows=true
+                                child_view
+                                on_focus={Callback::new(|()| {})}
+                            />
+                        </Frame>
+                    </Overlay>
+                }
+            }</ForEach>
+        </Layers>
+    }
+}
+
+#[component]
+fn PanelWindows(editor: RegionEditor, region: EditorRegion, rect: Memo<Rect>) -> NodeId {
     let instance = editor.instance;
     let plugin = editor.plugin_id().to_owned();
     let block = editor.role.block().map(|block| block.id);
-    let keys = super::desktop::panels(plugin.clone(), instance);
+    let keys = super::desktop::panels(plugin.clone(), instance, region);
     let plugin = store(plugin);
     let editor = store(editor);
     let hosted: Stored<RefCell<HashMap<u64, WindowId>>> = store(RefCell::default());
@@ -865,10 +944,12 @@ fn PanelWindows(editor: RegionEditor, rect: Memo<Rect>) -> NodeId {
                     None => WindowPlacement::AtPointer,
                 }
             }
-            EditorRegion::Frame if over.region.instance == instance => WindowPlacement::Over {
-                window: within,
-                at: over.at + rect.get_untracked().min.to_vec2(),
-            },
+            opener if opener == region && over.region.instance == instance => {
+                WindowPlacement::Over {
+                    window: within,
+                    at: over.at + rect.get_untracked().min.to_vec2(),
+                }
+            }
             _ => WindowPlacement::AtPointer,
         },
     };
@@ -887,25 +968,27 @@ fn PanelWindows(editor: RegionEditor, rect: Memo<Rect>) -> NodeId {
                 };
                 let panel = super::desktop::panel_of(key.clone());
                 let size = create_memo(move || panel.with(|panel| panel.as_ref().map_or(Vec2::ZERO, |(size, _)| *size)));
-                let (placement, role) = panel.with_untracked(|panel| match panel {
-                    Some((_, panel)) => (placed(panel.opened.clone()), panel.role),
-                    None => (WindowPlacement::AtPointer, WindowRole::Normal),
+                let opened = create_memo(move || {
+                    panel.with(|panel| panel.as_ref().map(|(_, panel)| (panel.opened.clone(), panel.role)))
                 });
+                let placement = create_memo(move || match opened.get() {
+                    Some((opened, _)) => placed(opened),
+                    None => WindowPlacement::AtPointer,
+                });
+                let role = create_memo(move || opened.get().map_or(WindowRole::Normal, |(_, role)| role));
                 let reported = key.clone();
                 let report = move |report: WindowReport| match report {
                     WindowReport::Placed { placement, .. } => {
                         super::desktop::panel_placed(&reported, placement.0);
                     }
-                    WindowReport::Closed(_) => super::desktop::panel_closed(&reported),
+                    WindowReport::Closed(_) => super::desktop::dismiss(&reported),
                     _ => {}
                 };
                 let region = EditorRegion::Window(window);
-                let child_view: ChildView = match block {
-                    Some(block) => super::editors::child_view(block, region),
-                    None => store(Box::new(|_, _, _| view! {
-                        <Frame />
-                    })),
-                };
+                let child_view = super::editors::child_view(
+                    block.unwrap_or_else(|| super::editors::hosted_parent(instance)),
+                    region,
+                );
                 view! {
                     <Window
                         id={Some(id)}

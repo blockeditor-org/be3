@@ -64,6 +64,7 @@ fn screen(region: EditorRegion, screen: u32) -> (ScreenPlacement, ScreenRequest)
         frame: (region == EditorRegion::Frame).then(FrameSpec::default),
         windows: false,
         placement: None,
+        docked: false,
     };
     (placement, request)
 }

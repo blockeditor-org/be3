@@ -1,14 +1,12 @@
 use block_editor_beui::beui::icons::Glyph;
 use std::collections::{HashMap, HashSet};
 
-use block_editor_beui::beui::Rect;
-use block_editor_beui::beui::dock::styled::TabId;
 use block_editor_beui::beui::icons::{ICON_BOXES, ICON_USERS};
 use block_editor_beui::block_ui::{BlockCatalog, BlockTypes, TemplateCategory, TemplateEntry};
 use block_editor_beui::sections::{is_workspace, shared_with_me, workspaces};
 use block_editor_beui::{
     BlockFilter, BlockInfo, BlockParent, BlockPick, BlockQuery, ChildId, CreationProgress, Failure,
-    PickRequest, PickedBlock, label_glyph,
+    PickedBlock, PickerRequest, label_glyph,
 };
 use uuid::Uuid;
 
@@ -30,12 +28,6 @@ pub(crate) struct Creating {
     pub(crate) height: Option<f32>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct PickAnchor {
-    pub rect: Option<Rect>,
-    pub tab: Option<TabId>,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct TreeKey(pub(crate) Vec<Uuid>);
 
@@ -47,11 +39,8 @@ impl TreeKey {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Pick {
-    pub(crate) pick: u64,
     pub(crate) filter: BlockFilter,
     pub(crate) parent: BlockParent,
-    pub(crate) anchor: PickAnchor,
-    pub(crate) touch: bool,
     pub(crate) stage: Stage,
     pub(crate) search: String,
     pub(crate) place: Option<BlockParent>,
@@ -83,11 +72,11 @@ pub(crate) enum PickAction {
 
 pub(crate) enum PickOutcome {
     Open(Box<Pick>),
-    Answered(u64, BlockPick, Option<(Uuid, Uuid, Uuid)>),
+    Answered(BlockPick, Option<(Uuid, Uuid, Uuid)>),
 }
 
 impl Pick {
-    pub(crate) fn new(request: PickRequest, tab: Option<TabId>) -> Self {
+    pub(crate) fn new(request: PickerRequest) -> Self {
         let place = request
             .filter
             .place
@@ -97,15 +86,9 @@ impl Pick {
                 place => Some(place),
             });
         Self {
-            pick: request.pick,
             stage: Stage::Menu,
             filter: request.filter,
             parent: request.parent,
-            anchor: PickAnchor {
-                rect: request.anchor,
-                tab,
-            },
-            touch: request.touch,
             search: String::new(),
             place,
             selected: None,
@@ -196,7 +179,6 @@ impl Pick {
             }
             PickAction::Link(id, block_type) => {
                 return PickOutcome::Answered(
-                    self.pick,
                     Ok(Some(PickedBlock {
                         block_id: id.into_bytes(),
                         block_type: block_type.into_bytes(),
@@ -214,16 +196,16 @@ impl Pick {
             }
             PickAction::CancelCreation => {
                 if self.creating.is_some() {
-                    return PickOutcome::Answered(self.pick, Ok(None), None);
+                    return PickOutcome::Answered(Ok(None), None);
                 }
             }
             PickAction::Close => {
                 if self.choosing() {
-                    return PickOutcome::Answered(self.pick, Ok(None), None);
+                    return PickOutcome::Answered(Ok(None), None);
                 }
             }
             PickAction::DismissError => {
-                return PickOutcome::Answered(self.pick, Ok(None), None);
+                return PickOutcome::Answered(Ok(None), None);
             }
         }
         PickOutcome::Open(Box::new(self))
@@ -276,7 +258,6 @@ impl Pick {
             Some(BlockParent::Root | BlockParent::Detached) | None => None,
         };
         PickOutcome::Answered(
-            self.pick,
             Ok(Some(PickedBlock {
                 block_id: block.into_bytes(),
                 block_type: block_type.into_bytes(),

@@ -12,6 +12,8 @@ use beui::{Key, KeyAt, KeyPhase, Pos2, Rect, Vec2, pos2};
 use block_plugin_api::{BarAction, MenuCheck, MenuCommand, MenuEntry, MenuPin, MenuSubmenu};
 
 use crate::chrome::ChromeRoot;
+use crate::docked::DockedTabs;
+use crate::picking::Pickers;
 use crate::{BlockInfo, BlockList, BlockQuery, Editor};
 use beui::ItemSize;
 
@@ -23,6 +25,7 @@ pub struct FrameBar {
     pub framed: bool,
     pub closable: bool,
     pub on_phone: bool,
+    pub docked: bool,
 }
 
 #[derive(Clone)]
@@ -40,6 +43,7 @@ pub struct BeuiFrame {
     bar: Signal<FrameBar>,
     exit: Rc<Cell<bool>>,
     menu: Rc<RefCell<Vec<MenuNode>>>,
+    listed: OwnedSignal<Vec<MenuNode>>,
     _bar: OwnedSignal<FrameBar>,
 }
 
@@ -51,6 +55,7 @@ impl Default for BeuiFrame {
             bar: owned_bar.handle(),
             exit: Rc::new(Cell::new(false)),
             menu: Rc::default(),
+            listed: OwnedSignal::new(Vec::new()),
             _bar: owned_bar,
         }
     }
@@ -72,17 +77,23 @@ impl BeuiFrame {
     pub fn menu(&self) -> Rc<RefCell<Vec<MenuNode>>> {
         Rc::clone(&self.menu)
     }
+
+    pub(crate) fn listed(&self) -> ReadSignal<Vec<MenuNode>> {
+        self.listed.read_only()
+    }
 }
 
 #[component]
 pub(crate) fn FrameChrome(
     chrome: Rc<BeuiFrame>,
     editor: Editor,
+    docked: Rc<DockedTabs>,
     view: Rc<dyn Fn() -> beui::styled::Root>,
 ) -> beui::styled::Root {
     let bar = chrome.bar;
     let exit_writer = chrome.exit.clone();
     let published = Rc::clone(&chrome.menu);
+    let listed = chrome.listed.handle();
     let content_slot_writer = chrome.content.clone();
     provide_context(PhoneLayout(create_memo(move || bar.get().on_phone)));
     let phone = create_memo(move || bar.get().on_phone);
@@ -97,6 +108,17 @@ pub(crate) fn FrameChrome(
     .glyph(ICON_TERMINAL)
     .shortcut(PALETTE)
     .register();
+    let host = editor.host();
+    let releasing = Rc::clone(&docked);
+    create_effect(move || {
+        if !palette.get() {
+            untrack(|| releasing.release());
+        }
+    });
+    let shown_in = create_memo(move || {
+        palette.get();
+        docked.presenting(&host)
+    });
     let escaping = exit_writer.clone();
     on_key(KeyAt::Window, KeyPhase::Bubble, move |event| {
         let escaped = event
@@ -118,9 +140,10 @@ pub(crate) fn FrameChrome(
                     bar={bar.read_only()}
                     palette={opener}
                     published
+                    listed
                     on_exit={move || exit_writer.set(true)}
                 />
-                <CommandPalette open={palette} />
+                <CommandPalette open={palette} shown_in />
                 <ChromeRoot @sizing=ItemSize::Percent(100.0) phone>|| {
                     let built = view();
                     let content = built.child();
@@ -129,6 +152,7 @@ pub(crate) fn FrameChrome(
                     content
                 }</ChromeRoot>
             </List>
+            <Pickers editor />
         </Layers>
     };
     root.take()
@@ -205,6 +229,13 @@ impl Watched {
                 .watch(BlockQuery::Block(self.editor.block_id()))
         });
         list.read().ok()?.into_iter().next()
+    }
+
+    fn is_session(&self) -> bool {
+        self.info().is_some_and(|info| {
+            info.block_type
+                == <workspace_ui_types::EditorViewContent as be_block::BlockContent>::CONTENT_TYPE
+        })
     }
 
     fn can_edit(&self) -> bool {
@@ -342,20 +373,24 @@ pub(crate) fn FrameMenu(
     bar: ReadSignal<FrameBar>,
     palette: Action,
     published: Rc<RefCell<Vec<MenuNode>>>,
+    listed: Signal<Vec<MenuNode>>,
     on_exit: ClickCallback,
 ) -> NodeId {
     let on_phone = create_memo(move || bar.get().on_phone);
     let shown = create_memo(move || bar.get().shown && !on_phone.get());
     let closable = create_memo(move || bar.get().closable);
-    let live = create_memo(move || shown.get() || on_phone.get());
-    let framed = create_memo(move || bar.get().framed);
-    let answering = create_memo(move || live.get() || framed.get());
-    let state = create_signal(BarState::default());
     let watched = store(Watched {
         editor,
         list: RefCell::new(None),
         watching: Cell::new(false),
     });
+    let docked = create_memo(move || bar.get().docked);
+    let session = create_memo(move || docked.get() && watched.with(Watched::is_session));
+    let live =
+        create_memo(move || !session.get() && (shown.get() || on_phone.get() || docked.get()));
+    let framed = create_memo(move || bar.get().framed);
+    let answering = create_memo(move || live.get() || framed.get());
+    let state = create_signal(BarState::default());
     let actions = frame_actions(
         editor,
         watched,
@@ -381,7 +416,7 @@ pub(crate) fn FrameMenu(
         details,
         close,
     } = actions;
-    let listed = create_memo(move || {
+    let menu = create_memo(move || {
         if !live.get() {
             return Vec::new();
         }
@@ -400,9 +435,10 @@ pub(crate) fn FrameMenu(
     });
     let host = editor.host();
     create_effect(move || {
-        let listed = listed.get();
-        let entries = menu_entries(&listed);
-        *published.borrow_mut() = listed;
+        let menu = menu.get();
+        let entries = menu_entries(&menu);
+        *published.borrow_mut() = menu.clone();
+        untrack(|| listed.set(menu));
         host.set_menu(entries);
     });
     view! {

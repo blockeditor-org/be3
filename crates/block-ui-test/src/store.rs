@@ -571,6 +571,12 @@ impl ContentStore {
         });
     }
 
+    pub(crate) fn forget_answers(&self) {
+        let mut inner = self.0.borrow_mut();
+        inner.answered.clear();
+        inner.heads_sent.clear();
+    }
+
     pub fn add_block(&self, info: BlockInfo) {
         self.0.borrow_mut().graph.insert(info.id, info);
     }

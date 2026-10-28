@@ -1,6 +1,4 @@
 use beui::Overflow;
-use block_editor_beui::beui::dock::styled::CHROME_BORDER;
-use block_editor_beui::beui::dock::styled::{DockDialog, DockDialogPresentation, DockNode, TabId};
 use block_editor_beui::beui::icons::{
     ICON_ARROW_LEFT, ICON_BLOCKS, ICON_CHEVRON_RIGHT, ICON_FILE_UP, ICON_FOLDER,
     ICON_LAYOUT_TEMPLATE, ICON_LINK, ICON_SEARCH,
@@ -9,7 +7,8 @@ use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 
 use block_editor_beui::beui::{
-    Color, Color32, NodeId, OverlayAnchor, Placement, Pos2, TextAlign, Vec2,
+    BackGesture, Color, Color32, Dismiss, LayerPolicy, NodeId, OverlayAnchor, Placement, Pos2,
+    Rect, TextAlign, Vec2,
 };
 use block_editor_beui::block_ui::TemplateEntry;
 use block_editor_beui::{
@@ -21,7 +20,7 @@ use super::picker::{
     Creating, Pick, PickAction, PickTree, Stage, TreeKey, TreeRow, TypeGroup, common, groups,
     link_rows, place_rows, slides, tile_key,
 };
-use super::workspace::Workspace;
+use super::picking::Picker;
 use beui::{Align, Direction, ItemSize};
 
 const MENU_WIDTH: Size = Size::Custom(256.0);
@@ -33,158 +32,124 @@ const ROW_SPACING: Space = Space::Md;
 const GROUP_SPACING: Space = Space::Xs;
 const CREATION_HEIGHT: f32 = 96.0;
 const CREATION_INSET: Space = Space::Sm;
-const PICKER_TABS: u64 = 1 << 42;
 
 type Act = Callback<PickAction>;
 
-pub(crate) fn picker_tab(pick: u64) -> TabId {
-    TabId::new(PICKER_TABS + pick)
-}
-
-pub(crate) fn is_picker_tab(tab: TabId) -> bool {
-    tab.value() >= PICKER_TABS
-}
-
-fn held_memo(workspace: Workspace, pick: u64) -> Memo<Option<Pick>> {
-    create_memo(move || workspace.pick(pick))
-}
-
-fn act_on(workspace: Workspace, pick: u64) -> Act {
-    Callback::new(move |action: PickAction| workspace.pick_action(pick, action))
-}
-
 #[component]
-pub fn Pickers(workspace: Workspace) -> NodeId {
-    let picks = workspace.picks;
-    let ids = create_memo(move || {
-        picks.with(|picks| picks.iter().map(|held| held.pick).collect::<Vec<_>>())
-    });
-    view! {
-        <List spacing=Space::None>
-            <ForEach keys={ids}>|pick: u64|
-                <Picker workspace pick />
-            </ForEach>
-        </List>
-    }
-}
-
-#[component]
-pub fn PickerDialog(workspace: Workspace, pick: u64, tab: TabId) -> DockNode<TabId> {
-    let choosing = create_memo(move || {
-        workspace
-            .pick(pick)
-            .is_some_and(|held| held.creating.is_none())
-    });
-    let anchor = workspace.pick_anchor(pick).and_then(|anchor| anchor.rect);
-    let size = create_memo(move || match choosing.get() {
-        true => SURFACE_SIZE,
-        false => Vec2::new(
-            SURFACE_SIZE.x,
-            creation_height(workspace.pick(pick).as_ref()) + 2.0 * CHROME_BORDER,
-        ),
-    });
-    view! {
-        <DockDialog
-            id={picker_tab(pick)}
-            parent={tab}
-            title="Add block"
-            size={size}
-            presentation=DockDialogPresentation::Card
-            anchor
-            dismiss_on_outside_press={choosing}
-            on_close={move || close_surface(workspace, pick)}
-        >
-            <PickerSurface workspace pick />
-        </DockDialog>
-    }
-}
-
-fn close_surface(workspace: Workspace, pick: u64) {
-    let creating = untrack(|| workspace.pick(pick)).and_then(|held| held.creating);
-    match creating {
-        Some(Creating {
-            child: Some(child), ..
-        }) => workspace.host().dismiss_child(child),
-        Some(_) => workspace.pick_action(pick, PickAction::CancelCreation),
-        None => workspace.pick_action(pick, PickAction::Close),
-    }
-}
-
-#[component]
-fn Picker(workspace: Workspace, pick: u64) -> NodeId {
-    let held = held_memo(workspace, pick);
-    let act = act_on(workspace, pick);
+pub fn PickerView(picker: Picker) -> NodeId {
+    let held = picker.held();
+    let act = act_on(picker);
     let error = create_memo(move || held.get().and_then(|held| held.error));
-    let docked = held
-        .get_untracked()
-        .is_some_and(|held| held.anchor.tab.is_some());
-    let centred = match docked {
-        true => view! {
-            <Frame />
-        },
-        false => view! {
-            <CentredSurface workspace pick held />
-        },
-    };
     let templates = held
         .get_untracked()
         .is_some_and(|held| held.filter.templates);
     let placing = held
         .get_untracked()
         .is_some_and(|held| held.place.is_some());
-    view! {
+    let menu = NodeRef::new();
+    let failure = NodeRef::new();
+    let surface =
+        create_memo(move || held.with(|held| held.as_ref().is_some_and(Pick::surface_open)));
+    if !picker.sheet {
+        fit(picker, held, menu, failure);
+        let host = picker.host();
+        create_effect(move || host.show_card(surface.get()));
+    }
+    let view = view! {
         <List spacing=Space::None>
-            <PickerMenu workspace held act templates placing />
-            {centred}
-            <CreationChild workspace pick held />
-            <PickerError error act />
+            <PickerMenu picker held act templates placing overlay=menu />
+            <PickerCard picker held />
+            <CreationChild picker held />
+            <PickerError picker error act node=failure />
         </List>
+    };
+    on_back(surface, move |gesture| {
+        if gesture == BackGesture::Invoked {
+            close_surface(picker);
+        }
+    });
+    view
+}
+
+fn fit(picker: Picker, held: Memo<Option<Pick>>, menu: NodeRef, failure: NodeRef) {
+    let shown = create_memo(move || {
+        held.with(|held| match held {
+            Some(held) if held.error.is_some() => Fit::Node(failure),
+            Some(held) if held.surface_open() => {
+                Fit::Size(Vec2::new(SURFACE_SIZE.x, card_height(held)))
+            }
+            Some(held) if held.menu_open() => Fit::Node(menu),
+            Some(_) | None => Fit::Size(Vec2::new(1.0, 1.0)),
+        })
+    });
+    let editor = picker.editor();
+    create_effect(move || {
+        let shown = shown.get();
+        untrack(|| match shown {
+            Fit::Node(node) => editor.fit_to(Some(node)),
+            Fit::Size(size) => {
+                editor.fit_to(None);
+                editor.set_intrinsic_size(Some(size));
+            }
+        });
+    });
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum Fit {
+    Node(NodeRef),
+    Size(Vec2),
+}
+
+fn card_height(held: &Pick) -> f32 {
+    match held.creating.is_none() {
+        true => SURFACE_SIZE.y,
+        false => creation_height(Some(held)) + 2.0 * CREATION_INSET.px(),
     }
 }
 
-fn menu_anchor(workspace: Workspace, held: &Pick) -> (OverlayAnchor, Placement) {
-    if let Some(rect) = held.anchor.rect {
-        return (OverlayAnchor::Rect(rect), Placement::BelowStart);
-    }
-    match held.anchor.tab.and_then(|tab| workspace.tab_node(tab)) {
-        Some(node) => (OverlayAnchor::Node(node), Placement::InsideTop),
-        None => (OverlayAnchor::Point(Pos2::ZERO), Placement::Center),
+fn act_on(picker: Picker) -> Act {
+    Callback::new(move |action: PickAction| picker.act(action))
+}
+
+fn close_surface(picker: Picker) {
+    let creating = untrack(|| picker.pick()).and_then(|held| held.creating);
+    match creating {
+        Some(Creating {
+            child: Some(child), ..
+        }) => picker.host().dismiss_child(child),
+        Some(_) => picker.act(PickAction::CancelCreation),
+        None => picker.act(PickAction::Close),
     }
 }
 
 #[component]
 fn PickerMenu(
-    workspace: Workspace,
+    picker: Picker,
     held: Memo<Option<Pick>>,
     act: Act,
     templates: bool,
     placing: bool,
+    overlay: NodeRef,
 ) -> NodeId {
     let open = create_memo(move || held.with(|held| held.as_ref().is_some_and(Pick::menu_open)));
-    let placed = create_memo(move || {
-        held.with(|held| held.as_ref().map(|held| menu_anchor(workspace, held)))
-            .unwrap_or((OverlayAnchor::Point(Pos2::ZERO), Placement::Center))
-    });
-    let anchor = create_memo(move || placed.get().0);
-    let placement = create_memo(move || placed.get().1);
-    let phone = workspace.phone;
-    let touch = held.get_untracked().is_some_and(|held| held.touch);
-    let sheet = create_memo(move || touch || phone.get());
+    let sheet = picker.sheet;
     let items = match templates {
         true => view! {
-            <SlideItems workspace held act />
+            <SlideItems picker held act />
         },
         false => view! {
-            <TypeItems workspace held act placing />
+            <TypeItems picker held act placing />
         },
     };
     view! {
         <MenuPopup
             items
-            anchor
-            placement
+            anchor={OverlayAnchor::Rect(Rect::ZERO)}
+            placement=Placement::BelowStart
             open
             sheet
+            overlay
             min_width=MENU_WIDTH
             on_dismiss={move || act.call(PickAction::Close)}
         />
@@ -192,14 +157,41 @@ fn PickerMenu(
 }
 
 #[component]
+fn PickerCard(picker: Picker, held: Memo<Option<Pick>>) -> NodeId {
+    let open = create_memo(move || held.with(|held| held.as_ref().is_some_and(Pick::surface_open)));
+    if picker.sheet {
+        return view! {
+            <CentredSurface picker held />
+        };
+    }
+    view! {
+        <Overlay
+            anchor={OverlayAnchor::Point(Pos2::ZERO)}
+            placement=Placement::Fill
+            policy=LayerPolicy::BlocksAll
+            open
+            on_dismiss={move |why: Dismiss| {
+                if matches!(why, Dismiss::Escape | Dismiss::Back) {
+                    close_surface(picker);
+                }
+            }}
+        >
+            <Frame>
+                <PickerSurface picker />
+            </Frame>
+        </Overlay>
+    }
+}
+
+#[component]
 fn TypeItems(
-    workspace: Workspace,
+    picker: Picker,
     held: Memo<Option<Pick>>,
     act: Act,
     placing: bool,
 ) -> Children<MenuItem> {
     let common = create_memo(move || {
-        let types = workspace.types();
+        let types = picker.types();
         held.with(|held| {
             held.as_ref()
                 .map(|held| common(&types, held))
@@ -210,7 +202,7 @@ fn TypeItems(
     let templated = create_memo(move || {
         held.with(|held| {
             held.as_ref()
-                .is_some_and(|held| !workspace.templates_for(held.import_parent()).is_empty())
+                .is_some_and(|held| !picker.templates_for(held.import_parent()).is_empty())
         })
     });
     let first = create_memo(move || keys.get().first().cloned());
@@ -234,11 +226,11 @@ fn TypeItems(
     };
     match placing {
         true => view! {
-            <LocationItem workspace held act />
+            <LocationItem picker held act />
             <ForEach keys>|key: String| { row(key) }</ForEach>
             <MoreItem act label="More blocks…" />
             <Show condition={templated}>
-                <TemplatesItem workspace held act />
+                <TemplatesItem picker held act />
             </Show>
             <LinkItem act />
             <ImportItem held act />
@@ -247,7 +239,7 @@ fn TypeItems(
             <ForEach keys>|key: String| { row(key) }</ForEach>
             <MoreItem act label="More blocks…" />
             <Show condition={templated}>
-                <TemplatesItem workspace held act />
+                <TemplatesItem picker held act />
             </Show>
             <LinkItem act />
             <ImportItem held act />
@@ -270,9 +262,9 @@ fn MoreItem(act: Act, label: &'static str) -> MenuItem {
 }
 
 #[component]
-fn SlideItems(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> Children<MenuItem> {
+fn SlideItems(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> Children<MenuItem> {
     let slides = create_memo(move || {
-        let types = workspace.types();
+        let types = picker.types();
         held.with(|held| {
             held.as_ref()
                 .map(|held| slides(&types, held))
@@ -333,11 +325,11 @@ fn TypeItem(
 }
 
 #[component]
-fn TemplatesItem(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> MenuItem {
+fn TemplatesItem(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> MenuItem {
     let templates = create_memo(move || {
         held.with(|held| {
             held.as_ref()
-                .map(|held| workspace.templates_for(held.import_parent()))
+                .map(|held| picker.templates_for(held.import_parent()))
                 .unwrap_or_default()
         })
     });
@@ -348,13 +340,14 @@ fn TemplatesItem(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> Me
         <MenuItem
             label="New from template"
             glyph=ICON_LAYOUT_TEMPLATE
+            page=true
             disabled
             row_test_id="picker.templates"
         >
             <ForEach keys={templates}>|template: Uuid| {
                 let label = create_memo(move || {
-                    let types = workspace.types();
-                    workspace
+                    let types = picker.types();
+                    picker
                         .info(template)
                         .map(|info| info.label(types.as_ref()).name)
                         .unwrap_or_else(|| "Template".to_owned())
@@ -407,12 +400,12 @@ fn ImportItem(held: Memo<Option<Pick>>, act: Act) -> MenuItem {
 }
 
 #[component]
-fn LocationItem(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> MenuItem {
+fn LocationItem(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> MenuItem {
     let place = create_memo(move || held.with(|held| held.as_ref().and_then(|held| held.place)));
     let label = create_memo(move || {
-        let types = workspace.types();
+        let types = picker.types();
         match place.get() {
-            Some(BlockParent::Block(id)) => workspace
+            Some(BlockParent::Block(id)) => picker
                 .info(id)
                 .map(|info| info.label(types.as_ref()).name)
                 .unwrap_or_else(|| "Untitled".to_owned()),
@@ -420,22 +413,20 @@ fn LocationItem(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> Men
         }
     });
     let glyph = create_memo(move || {
-        let types = workspace.types();
+        let types = picker.types();
         place
             .get()
             .and_then(BlockParent::block)
-            .and_then(|id| workspace.info(id))
+            .and_then(|id| picker.info(id))
             .and_then(|info| label_glyph(&info.label(types.as_ref())))
             .unwrap_or(ICON_FOLDER)
             .to_owned()
     });
     let rows = create_memo(move || {
-        let types = workspace.types();
+        let types = picker.types();
         held.with(|held| {
             held.as_ref()
-                .map(|held| {
-                    workspace.tree(PickTree::Place, |graph| place_rows(&types, held, graph))
-                })
+                .map(|held| picker.tree(PickTree::Place, |graph| place_rows(&types, held, graph)))
                 .unwrap_or_default()
         })
     });
@@ -506,25 +497,28 @@ fn PlaceItem(
 }
 
 #[component]
-fn CentredSurface(workspace: Workspace, pick: u64, held: Memo<Option<Pick>>) -> NodeId {
+fn CentredSurface(picker: Picker, held: Memo<Option<Pick>>) -> NodeId {
     let open = create_memo(move || held.with(|held| held.as_ref().is_some_and(Pick::surface_open)));
-    let close = move || close_surface(workspace, pick);
+    let close = move || close_surface(picker);
     view! {
         <DialogFrame
             open={open}
             width={Size::Custom(SURFACE_SIZE.x)}
-            narrow={workspace.phone}
+            narrow=true
             on_dismiss={close}
         >|| {
             let layout = use_context::<DialogLayout>();
             let creating = create_memo(move || held.with(|held| held.as_ref().is_some_and(|held| held.creating.is_some())));
-            let height = create_memo(move || match layout.is_some_and(|layout| layout.sheet.get()) || creating.get() {
-                true => Length::INTRINSIC,
-                false => Length::Size(DIALOG_HEIGHT),
+            let viewport = use_viewport_size();
+            let sheet = create_memo(move || layout.is_some_and(|layout| layout.sheet.get()));
+            let height = create_memo(move || match (creating.get(), sheet.get()) {
+                (true, _) => Length::INTRINSIC,
+                (false, true) => Length::Size(Size::Custom(modal_sheet_room(viewport.get().y))),
+                (false, false) => Length::Size(DIALOG_HEIGHT),
             });
             view! {
                 <Frame height>
-                    <PickerSurface workspace pick />
+                    <PickerSurface picker />
                 </Frame>
             }
         }</DialogFrame>
@@ -532,9 +526,9 @@ fn CentredSurface(workspace: Workspace, pick: u64, held: Memo<Option<Pick>>) -> 
 }
 
 #[component]
-fn PickerSurface(workspace: Workspace, pick: u64) -> NodeId {
-    let held = held_memo(workspace, pick);
-    let act = act_on(workspace, pick);
+fn PickerSurface(picker: Picker) -> NodeId {
+    let held = picker.held();
+    let act = act_on(picker);
     let shown = create_memo(move || {
         held.with(|held| match held.as_ref() {
             Some(held)
@@ -554,13 +548,13 @@ fn PickerSurface(workspace: Workspace, pick: u64) -> NodeId {
             <Dynamic value={shown}>|shown: Option<Option<Stage>>| {
                 match shown {
                     Some(None) => view! {
-                        <CreateBody @sizing=ItemSize::Intrinsic workspace pick held />
+                        <CreateBody @sizing=ItemSize::Intrinsic picker held />
                     },
                     Some(Some(Stage::Link)) => view! {
-                        <LinkBody @sizing=ItemSize::Percent(100.0) workspace held act />
+                        <LinkBody @sizing=ItemSize::Percent(100.0) picker held act />
                     },
                     Some(Some(Stage::More | Stage::Menu)) | None => view! {
-                        <MoreBody @sizing=ItemSize::Percent(100.0) workspace held act />
+                        <MoreBody @sizing=ItemSize::Percent(100.0) picker held act />
                     },
                 }
             }</Dynamic>
@@ -568,13 +562,13 @@ fn PickerSurface(workspace: Workspace, pick: u64) -> NodeId {
     }
 }
 
-fn target_name(workspace: Workspace, held: &Pick) -> Option<String> {
+fn target_name(picker: Picker, held: &Pick) -> Option<String> {
     let block = held
         .place
         .and_then(BlockParent::block)
         .or_else(|| held.parent.block())?;
-    let types = workspace.types();
-    workspace
+    let types = picker.types();
+    picker
         .info(block)
         .map(|info| info.label(types.as_ref()).name)
 }
@@ -627,16 +621,16 @@ fn search_of(held: Memo<Option<Pick>>) -> Memo<String> {
 }
 
 #[component]
-fn MoreBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> NodeId {
+fn MoreBody(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> NodeId {
     let title = create_memo(move || {
-        held.with(|held| held.as_ref().and_then(|held| target_name(workspace, held)))
+        held.with(|held| held.as_ref().and_then(|held| target_name(picker, held)))
             .map_or_else(
                 || "Add a block".to_owned(),
                 |name| format!("Add a block to {name}"),
             )
     });
     let groups = create_memo(move || {
-        let types = workspace.types();
+        let types = picker.types();
         held.with(|held| {
             held.as_ref()
                 .map(|held| groups(&types, held))
@@ -725,19 +719,19 @@ fn TypeRow(act: Act, key: String, entry: Memo<Option<TemplateEntry>>) -> NodeId 
 }
 
 #[component]
-fn LinkBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> NodeId {
+fn LinkBody(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> NodeId {
     let title = create_memo(move || {
-        held.with(|held| held.as_ref().and_then(|held| target_name(workspace, held)))
+        held.with(|held| held.as_ref().and_then(|held| target_name(picker, held)))
             .map_or_else(
                 || "Link a block".to_owned(),
                 |name| format!("Link a block into {name}"),
             )
     });
     let rows = create_memo(move || {
-        let types = workspace.types();
+        let types = picker.types();
         held.with(|held| {
             held.as_ref()
-                .map(|held| workspace.tree(PickTree::Link, |graph| link_rows(&types, held, graph)))
+                .map(|held| picker.tree(PickTree::Link, |graph| link_rows(&types, held, graph)))
                 .unwrap_or_default()
         })
     });
@@ -887,7 +881,7 @@ fn LinkRowFace(row: Memo<Option<TreeRow>>) -> NodeId {
 }
 
 #[component]
-fn CreationChild(workspace: Workspace, pick: u64, held: Memo<Option<Pick>>) -> NodeId {
+fn CreationChild(picker: Picker, held: Memo<Option<Pick>>) -> NodeId {
     let placed = create_memo(move || {
         held.with(|held| {
             held.as_ref()
@@ -896,7 +890,7 @@ fn CreationChild(workspace: Workspace, pick: u64, held: Memo<Option<Pick>>) -> N
                 .map(creation_content)
         })
     });
-    let editor = workspace.editor();
+    let editor = picker.editor();
     view! {
         <Frame width=Size::Custom(0.0) height=Size::Custom(0.0)>
             <Frame width=Size::Custom(1.0) height=Size::Custom(1.0)>
@@ -905,7 +899,7 @@ fn CreationChild(workspace: Workspace, pick: u64, held: Memo<Option<Pick>>) -> N
                     placed={placed}
                     mode=ChildMode::Live
                     punch=false
-                    on_state={move |state: ChildState| workspace.creation_state(pick, &state)}
+                    on_state={move |state: ChildState| picker.creation_state(&state)}
                 />
             </Frame>
         </Frame>
@@ -920,7 +914,7 @@ fn creation_content(creating: &Creating) -> SubregionContent {
 }
 
 #[component]
-fn CreateBody(workspace: Workspace, pick: u64, held: Memo<Option<Pick>>) -> NodeId {
+fn CreateBody(picker: Picker, held: Memo<Option<Pick>>) -> NodeId {
     let creating =
         create_memo(move || held.with(|held| held.as_ref().and_then(|held| held.creating.clone())));
     let height =
@@ -933,7 +927,7 @@ fn CreateBody(workspace: Workspace, pick: u64, held: Memo<Option<Pick>>) -> Node
                 .map(creation_content)
         })
     });
-    let editor = workspace.editor();
+    let editor = picker.editor();
     view! {
         <Frame padding=CREATION_INSET>
             <Frame height=height>
@@ -943,7 +937,7 @@ fn CreateBody(workspace: Workspace, pick: u64, held: Memo<Option<Pick>>) -> Node
                     mode=ChildMode::Live
                     dialog=true
                     @test_id={"picker.creation"}
-                    on_state={move |next: ChildState| workspace.creation_state(pick, &next)}
+                    on_state={move |next: ChildState| picker.creation_state(&next)}
                 />
             </Frame>
         </Frame>
@@ -957,19 +951,51 @@ fn creation_height(held: Option<&Pick>) -> f32 {
 }
 
 #[component]
-fn PickerError(error: Memo<Option<String>>, act: Act) -> NodeId {
+fn PickerError(picker: Picker, error: Memo<Option<String>>, act: Act, node: NodeRef) -> NodeId {
     let open = create_memo(move || error.get().is_some());
     let text = create_memo(move || error.get().unwrap_or_default());
+    if picker.sheet {
+        return view! {
+            <Dialog
+                open={open}
+                title="Block picker error"
+                width=Size::Popover
+                kind=DialogKind::Alert
+                actions={vec![DialogAction::cancel("Dismiss")]}
+                on_dismiss={move || act.call(PickAction::DismissError)}
+            >
+                <Text style=TextStyle::CAPTION color=TextColor::Danger>{text}</Text>
+            </Dialog>
+        };
+    }
     view! {
-        <Dialog
-            open={open}
-            title="Block picker error"
-            width=Size::Popover
-            kind=DialogKind::Alert
-            actions={vec![DialogAction::cancel("Dismiss")]}
-            on_dismiss={move || act.call(PickAction::DismissError)}
+        <Overlay
+            anchor={OverlayAnchor::Point(Pos2::ZERO)}
+            placement=Placement::At
+            policy=LayerPolicy::BlocksAll
+            open
+            on_dismiss={move |why: Dismiss| {
+                if matches!(why, Dismiss::Escape | Dismiss::Back) {
+                    act.call(PickAction::DismissError);
+                }
+            }}
         >
-            <Text style=TextStyle::CAPTION color=TextColor::Danger>{text}</Text>
-        </Dialog>
+            <Frame
+                @node_ref={&node}
+                width={Size::Popover}
+                fill=ColorRole::SurfaceRaised
+                border={Border::DEFAULT}
+                radius=Radius::Lg
+            >
+                <DialogBody
+                    kind=DialogKind::Alert
+                    title="Block picker error"
+                    actions={vec![DialogAction::cancel("Dismiss")]}
+                    on_dismiss={move || act.call(PickAction::DismissError)}
+                >
+                    <Text style=TextStyle::CAPTION color=TextColor::Danger>{text}</Text>
+                </DialogBody>
+            </Frame>
+        </Overlay>
     }
 }

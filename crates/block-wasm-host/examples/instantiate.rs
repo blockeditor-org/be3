@@ -190,6 +190,7 @@ fn screens() -> Vec<ScreenRequest> {
             metrics: metrics(),
             windows: false,
             placement: None,
+            docked: false,
         },
         ScreenRequest {
             screen: ScreenId(2),
@@ -199,6 +200,7 @@ fn screens() -> Vec<ScreenRequest> {
             metrics: metrics(),
             windows: false,
             placement: None,
+            docked: false,
         },
     ]
 }

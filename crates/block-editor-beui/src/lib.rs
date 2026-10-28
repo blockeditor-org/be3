@@ -10,6 +10,7 @@ mod chrome;
 pub mod database;
 mod dialog;
 mod dock;
+mod docked;
 mod editor;
 mod file_chooser;
 mod fitting;
@@ -20,6 +21,7 @@ mod layered_settings;
 pub mod live_text;
 mod loading;
 mod module;
+mod picking;
 mod preview;
 mod related_content;
 mod rotation;
@@ -32,7 +34,7 @@ use be_block::presence::PresenceColor;
 
 pub use beui_frame::phone_layout;
 pub use block_link::{BlockDisplay, BlockLink, label_glyph, watch_block_label};
-pub use child::{ChildBlock, ChildHandle as ChildBlockHandle, Subregion};
+pub use child::{ChildBlock, ChildDockTab, ChildHandle as ChildBlockHandle, Subregion};
 pub use chrome::{
     NARROW_WIDTH, SIDEBAR_WIDTH, Side, Sidebar, Toolbar, narrow_chrome, sheet_control, sheet_open,
 };
@@ -48,6 +50,7 @@ pub use layered_settings::{
     ChangesToast, LayeredSettings, LayeredSettingsRow, SettingHandle, SettingsChanges,
 };
 pub use loading::{FailedPane, Loaded, LoadingPane};
+pub use picking::PickAnchor;
 pub use related_content::RelatedContent;
 pub use rotation::RotationPicker;
 pub use shared_caret::{SharedCaret, remote_carets};

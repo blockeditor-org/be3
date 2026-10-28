@@ -14,7 +14,11 @@ pub(crate) trait Shown {
 
     fn generation(&self) -> u64;
 
-    fn content(&self, region: EditorRegion) -> RenderFn<WindowHandle>;
+    fn docked_key(&self, docked: bool) -> bool;
+
+    fn content(&self, region: EditorRegion, docked: bool) -> RenderFn<WindowHandle>;
+
+    fn window_id(&self, region: EditorRegion) -> Option<WindowId>;
 
     fn before(&self, view: &View, context: &beui::native::Context, document: &mut Document);
 
@@ -200,17 +204,21 @@ fn ModuleWindows(
             requested
                 .iter()
                 .map(|view| {
-                    let generation = generations
-                        .shown(view.id.instance)
-                        .map_or(0, |shown| shown.generation());
-                    (view.id, generation)
+                    let shown = generations.shown(view.id.instance);
+                    let generation = match view.id.region {
+                        EditorRegion::Tab(_) => 0,
+                        _ => shown.as_ref().map_or(0, |shown| shown.generation()),
+                    };
+                    let docked = view.id.region == EditorRegion::Frame
+                        && shown.is_some_and(|shown| shown.docked_key(view.docked));
+                    (view.id, generation, docked)
                 })
                 .collect::<Vec<_>>()
         })
     });
     view! {
         <List spacing=Space::None>
-            <ForEach keys>|(id, _generation): (RegionId, u64)|
+            <ForEach keys>|(id, _generation, _docked): (RegionId, u64, bool)|
                 <RegionWindow registry={Rc::clone(&registry)} id requested views={views.clone()} />
             </ForEach>
         </List>
@@ -224,7 +232,10 @@ fn RegionWindow(
     requested: ReadSignal<Vec<View>>,
     views: Views,
 ) -> beui::NodeId {
-    let window = WindowId::next();
+    let window = registry
+        .shown(id.instance)
+        .and_then(|shown| shown.window_id(id.region))
+        .unwrap_or_else(WindowId::next);
     registry.windows.borrow_mut().insert(id, window);
     let held = Rc::clone(&registry);
     on_cleanup(move || {
@@ -247,8 +258,10 @@ fn RegionWindow(
                 .map_or(initial, |view| view.size)
         })
     });
+    let docked = requested
+        .with_untracked(|requested| requested.iter().any(|view| view.id == id && view.docked));
     let content = match registry.shown(id.instance) {
-        Some(shown) => shown.content(id.region),
+        Some(shown) => shown.content(id.region, docked),
         None => RenderFn::new(|_: WindowHandle| {
             view! {
                 <Frame />

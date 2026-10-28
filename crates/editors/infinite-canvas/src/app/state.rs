@@ -2002,17 +2002,14 @@ impl CanvasState {
 
     fn pick_block_from(self, center: Option<CanvasPoint>, anchor: Rect) {
         let state = self;
-        let filter = BlockFilter {
-            anchor: Some(anchor),
-            ..BlockFilter::default()
-        };
-        self.editor.pick_block(filter, move |picked| {
-            if let Ok(picked) = picked
-                && state.is_alive()
-            {
-                state.place_picked_block(picked.id(), center);
-            }
-        });
+        self.editor
+            .pick_block(BlockFilter::default(), anchor, move |picked| {
+                if let Ok(picked) = picked
+                    && state.is_alive()
+                {
+                    state.place_picked_block(picked.id(), center);
+                }
+            });
     }
 
     fn place_picked_block(&self, block_id: Uuid, center: Option<CanvasPoint>) {
@@ -2048,8 +2045,8 @@ impl CanvasState {
                 excluded: Vec::new(),
                 templates: false,
                 place: None,
-                anchor,
             },
+            anchor,
             move |picked| {
                 if let Ok(picked) = picked
                     && state.is_alive()
@@ -2077,21 +2074,18 @@ impl CanvasState {
                 excluded: Vec::new(),
                 templates: false,
                 place: None,
-                anchor: request.anchor,
             },
-            None => BlockFilter {
-                anchor: request.anchor,
-                ..BlockFilter::default()
-            },
+            None => BlockFilter::default(),
         };
         let state = self;
-        self.editor.pick_block(filter, move |picked| {
-            if let Ok(picked) = picked
-                && state.is_alive()
-            {
-                state.set_picked_value(&selected, schema_id, field_id, picked.id());
-            }
-        });
+        self.editor
+            .pick_block(filter, request.anchor, move |picked| {
+                if let Ok(picked) = picked
+                    && state.is_alive()
+                {
+                    state.set_picked_value(&selected, schema_id, field_id, picked.id());
+                }
+            });
     }
 
     fn set_picked_value(

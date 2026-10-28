@@ -13,9 +13,7 @@ fn block_type_colors_are_shown_on_a_phone() {
         .unwrap()
         .color = Some([203, 91, 125]);
     fixture.test.catalog(types);
-    fixture
-        .test
-        .request_touch_pick(5, filter(), BlockLocation::Root, None);
+    let mut fixture = picking_with(&fixture, filter(), BlockLocation::Root, true);
     fixture.test.settle();
     fixture
         .test

@@ -113,7 +113,7 @@ pub use segmented_control::SegmentedControl;
 pub use select::Select;
 pub use selectable_text::SelectableText;
 pub use settings::{SettingsLink, SettingsPage, SettingsRow, SettingsSection};
-pub use sheet::{ModalSheet, SHEET_STOPS, Sheet};
+pub use sheet::{ModalSheet, SHEET_STOPS, Sheet, modal_sheet_room};
 pub use shortcut::Shortcut;
 pub use slider::Slider;
 pub use split_button::SplitButton;

@@ -1,5 +1,4 @@
-use block_editor_beui::beui::{Pos2, Vec2};
-use block_editor_beui::{BlockLocation, CreationProgress, PickedBlock, Rect};
+use block_editor_beui::{BlockLocation, CreationProgress, PickedBlock};
 
 use super::*;
 
@@ -28,14 +27,8 @@ fn a_presentation_offers_its_slide_templates_first() {
     let mut asked = filter();
     asked.name = "Slide".to_owned();
     asked.templates = true;
-    asked.anchor = Some(Rect::from_min_size(
-        Pos2::new(300.0, 60.0),
-        Vec2::new(200.0, 32.0),
-    ));
     let deck = Uuid::new_v4();
-    fixture
-        .test
-        .request_pick(3, asked, BlockLocation::Block(deck.into_bytes()), None);
+    let mut fixture = picking(&fixture, asked, BlockLocation::Block(deck.into_bytes()));
     fixture.settle();
 
     assert!(
@@ -69,15 +62,12 @@ fn a_presentation_offers_its_slide_templates_first() {
         CreationProgress::Created(created.into_bytes()),
     );
     assert_eq!(
-        fixture.test.take_pick_answers(),
-        vec![(
-            3,
-            Ok(Some(PickedBlock {
-                block_id: created.into_bytes(),
-                block_type: TEMPLATE_TYPE.into_bytes(),
-                linked: false,
-                placed: false,
-            }))
-        )]
+        fixture.test.take_picked(),
+        vec![Ok(Some(PickedBlock {
+            block_id: created.into_bytes(),
+            block_type: TEMPLATE_TYPE.into_bytes(),
+            linked: false,
+            placed: false,
+        }))]
     );
 }

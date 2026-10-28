@@ -3,14 +3,23 @@ use crate::{DecodeError, MAX_MENU_DEPTH, collection};
 pub(crate) fn nest<T, N>(
     items: Vec<T>,
     depth: impl Fn(&T) -> u32,
+    node: impl FnMut(T, Vec<N>) -> Result<N, DecodeError>,
+) -> Result<Vec<N>, DecodeError> {
+    nest_within(items, (MAX_MENU_DEPTH, "menu depth"), depth, node)
+}
+
+pub(crate) fn nest_within<T, N>(
+    items: Vec<T>,
+    (limit, exceeded): (usize, &'static str),
+    depth: impl Fn(&T) -> u32,
     mut node: impl FnMut(T, Vec<N>) -> Result<N, DecodeError>,
 ) -> Result<Vec<N>, DecodeError> {
     collection(items.len())?;
     let mut open: Vec<(Option<T>, Vec<N>)> = vec![(None, Vec::new())];
     for item in items {
         let depth = depth(&item) as usize;
-        if depth > MAX_MENU_DEPTH {
-            return Err(DecodeError::LimitExceeded("menu depth"));
+        if depth > limit {
+            return Err(DecodeError::LimitExceeded(exceeded));
         }
         if depth >= open.len() {
             return Err(DecodeError::MalformedPayload);

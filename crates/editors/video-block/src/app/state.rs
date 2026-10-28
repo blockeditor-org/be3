@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel};
-use block_editor_beui::{BlockFilter, ChildTarget, ContentProjection, Editor};
+use block_editor_beui::{BlockFilter, ChildTarget, ContentProjection, Editor, PickAnchor};
 use block_editor_beui::{BlockInfo, BlockParent, BlockQuery};
 use uuid::Uuid;
 use video_block_types::VideoContent;
@@ -204,7 +204,7 @@ impl VideoState {
     pub(crate) fn open_picker(&self, attachment: Option<Uuid>) {
         let state = *self;
         self.editor
-            .pick_block(BlockFilter::default(), move |picked| {
+            .pick_block(BlockFilter::default(), PickAnchor::Centre, move |picked| {
                 let Ok(picked) = picked else {
                     return;
                 };

@@ -161,7 +161,7 @@ pub struct Space {
     sprite: Sprite,
     focused: Option<WindowId>,
     keyboards: Vec<WindowId>,
-    popups: Vec<WindowId>,
+    popups: Vec<(WindowId, Option<WindowId>)>,
     typing: Option<(WindowId, Rect)>,
     pressed: u32,
     dropped: u32,
@@ -403,9 +403,8 @@ impl Space {
 
     fn focus(&mut self, window: Option<WindowId>) {
         if self.focused == window
-            || window.is_some_and(|window| {
-                self.keyboards.contains(&window) || self.popups.contains(&window)
-            })
+            || window
+                .is_some_and(|window| self.keyboards.contains(&window) || self.is_popup(window))
         {
             return;
         }
@@ -416,6 +415,38 @@ impl Space {
             }
         }
         self.focused = window;
+    }
+
+    fn is_popup(&self, window: WindowId) -> bool {
+        self.popups.iter().any(|(popup, _)| *popup == window)
+    }
+
+    fn dismiss_popups(&mut self, ray: Ray, out: &mut Vec<Incoming>) -> bool {
+        let pressed = self
+            .chrome_hit(ray)
+            .map(|(_, hit)| hit.window)
+            .or_else(|| self.pick(ray).map(|hit| hit.window));
+        let mut kept = Vec::new();
+        let mut on = pressed;
+        while let Some(window) = on.filter(|window| !kept.contains(window)) {
+            kept.push(window);
+            on = self
+                .popups
+                .iter()
+                .find(|(popup, _)| *popup == window)
+                .and_then(|(_, over)| *over);
+        }
+        let gone: Vec<WindowId> = self
+            .popups
+            .iter()
+            .map(|(popup, _)| *popup)
+            .filter(|popup| !kept.contains(popup))
+            .collect();
+        for popup in &gone {
+            self.close(*popup);
+            out.push(Incoming::Window(WindowReport::Closed(*popup)));
+        }
+        !gone.is_empty()
     }
 
     fn pressed_on(&self, ray: Ray) -> Option<WindowId> {
@@ -819,6 +850,15 @@ impl Space {
         let Some(ray) = self.cursor_ray() else {
             return;
         };
+        if pressed
+            && self.mouse.gripped().is_none()
+            && self.mouse.gesture.is_none()
+            && self.pressed == 0
+            && self.dismiss_popups(ray, out)
+        {
+            self.dropped += 1;
+            return;
+        }
         if pressed && self.mouse.gripped().is_none() && self.mouse.gesture.is_none() {
             self.focus(self.pressed_on(ray));
         }
@@ -1235,6 +1275,14 @@ impl Space {
         role: WindowRole,
     ) {
         let opening = self.panel(window).is_none();
+        self.popups.retain(|(popup, _)| *popup != window);
+        if role == WindowRole::Popup {
+            let over = match placement {
+                WindowPlacement::Over { window: over, .. } => Some(*over),
+                _ => None,
+            };
+            self.popups.push((window, over));
+        }
         if opening {
             let mut panel = Panel::new(window, Pose::default(), size);
             let beside = match role {
@@ -1242,11 +1290,7 @@ impl Space {
                     self.keyboards.push(window);
                     self.beside_typing(size)
                 }
-                WindowRole::Popup => {
-                    self.popups.push(window);
-                    None
-                }
-                WindowRole::Normal => None,
+                WindowRole::Popup | WindowRole::Normal => None,
             };
             let placed = match placement {
                 _ if beside.is_some() => {
@@ -1258,7 +1302,7 @@ impl Space {
                 }
                 WindowPlacement::Host(placement) => panel.placed(placement),
                 WindowPlacement::Over { window: other, at } => self
-                    .over(*other, *at, size)
+                    .over(None, *other, *at, size)
                     .map(|(pose, metres_per_point)| {
                         panel.pose = pose;
                         panel.metres_per_point = metres_per_point;
@@ -1270,6 +1314,8 @@ impl Space {
                 panel.pose = self.at_pointer(size);
             }
             self.panels.push(panel);
+        } else {
+            self.reopen(window, placement, size);
         }
         let Some(panel) = self.panel(window) else {
             return;
@@ -1287,6 +1333,36 @@ impl Space {
         self.reports.extend(reports.map(Incoming::Window));
         if opening {
             self.focus(Some(window));
+        }
+    }
+
+    fn reopen(&mut self, window: WindowId, placement: &WindowPlacement, size: Vec2) {
+        if self.holders().any(|held| {
+            held.resize.is_some_and(|resize| resize.window == window)
+                || held
+                    .carry
+                    .as_ref()
+                    .is_some_and(|carry| carry.window == window)
+        }) {
+            return;
+        }
+        let over = match placement {
+            WindowPlacement::Over { window: other, at } if *other != window => {
+                self.over(Some(window), *other, *at, size)
+            }
+            _ => None,
+        };
+        let Some(panel) = self.panel_mut(window) else {
+            return;
+        };
+        let corner = panel.frame_at(Pos2::ZERO);
+        panel.size = size;
+        match over {
+            Some((pose, metres_per_point)) => {
+                panel.pose = pose;
+                panel.metres_per_point = metres_per_point;
+            }
+            None => panel.anchor(Pos2::ZERO, corner),
         }
     }
 
@@ -1350,10 +1426,16 @@ impl Space {
                 )
             }
         };
-        self.over(window, at, size)
+        self.over(None, window, at, size)
     }
 
-    fn over(&self, other: WindowId, at: Pos2, size: Vec2) -> Option<(Pose, f32)> {
+    fn over(
+        &self,
+        own: Option<WindowId>,
+        other: WindowId,
+        at: Pos2,
+        size: Vec2,
+    ) -> Option<(Pose, f32)> {
         let other = self.panel(other)?;
         let mut panel = Panel::new(WindowId::MAIN, other.pose, size);
         panel.metres_per_point = other.metres_per_point;
@@ -1365,13 +1447,17 @@ impl Space {
         let centre = corner + Vec3::new(half.x, -half.y, 0.0);
         let mut depth = OVER_NEARER;
         for _ in 0..self.panels.len() {
-            let stacked = self.panels.iter().any(|placed| {
-                let at = local(placed);
-                let reach = placed.metres() / 2.0 + half;
-                (at.z - depth).abs() < OVER_NEARER / 2.0
-                    && (at.x - centre.x).abs() < reach.x
-                    && (at.y - centre.y).abs() < reach.y
-            });
+            let stacked = self
+                .panels
+                .iter()
+                .filter(|placed| Some(placed.window) != own)
+                .any(|placed| {
+                    let at = local(placed);
+                    let reach = placed.metres() / 2.0 + half;
+                    (at.z - depth).abs() < OVER_NEARER / 2.0
+                        && (at.x - centre.x).abs() < reach.x
+                        && (at.y - centre.y).abs() < reach.y
+                });
             if !stacked {
                 break;
             }
@@ -1388,7 +1474,7 @@ impl Space {
         }
         self.panels.retain(|panel| panel.window != window);
         self.keyboards.retain(|keyboard| *keyboard != window);
-        self.popups.retain(|popup| *popup != window);
+        self.popups.retain(|(popup, _)| *popup != window);
         self.scales.retain(|(held, _)| *held != window);
         self.rescaling.retain(|(waiting, ..)| *waiting != window);
         if let Some(compositor) = &self.compositor {
@@ -2247,7 +2333,7 @@ impl Space {
         let Some(ray) = laser.aimed() else {
             return;
         };
-        if busy || self.both.is_some() {
+        if busy || self.both.is_some() || self.dismiss_popups(ray, out) {
             return;
         }
         if let Some((part, hit)) = self.chrome_hit(ray) {

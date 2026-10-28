@@ -536,6 +536,7 @@ impl ViewData {
         let error = self.error;
         self.editor.pick_block(
             value_block_filter(&name, request),
+            request.anchor,
             move |picked| match picked {
                 Ok(picked) => set_cell(
                     &database,
@@ -573,7 +574,6 @@ pub fn value_block_filter(field_name: &str, request: DatabaseBlockPickRequest) -
         excluded: Vec::new(),
         templates: false,
         place: None,
-        anchor: request.anchor,
     }
 }
 

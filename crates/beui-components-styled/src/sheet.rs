@@ -17,6 +17,11 @@ const GRIP_WIDTH: Size = Size::Custom(36.0);
 const GRIP_HEIGHT: Size = Size::Custom(4.0);
 const ANCHORED_STOPS: [f32; 2] = [0.5, 0.9];
 
+pub fn modal_sheet_room(extent: f32) -> f32 {
+    let grip = crate::tokens::Stroke::Hairline.px() + HANDLE_HEIGHT.px();
+    (SHEET_STOPS[2] * extent - grip).max(0.0)
+}
+
 #[component]
 pub fn Sheet(
     extent: Prop<f32>,

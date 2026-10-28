@@ -19,8 +19,8 @@ use uuid::Uuid;
 use crate::host;
 
 use super::{
-    ArtifactSlot, ArtifactState, BlockPickRequest, CreationSlot, CreationState, HostChild,
-    HostChildStatus, InstanceRole, RuntimeStatus, SurfaceStatus,
+    ArtifactSlot, ArtifactState, CreationSlot, CreationState, HostChild, HostChildStatus,
+    InstanceRole, RuntimeStatus, SurfaceStatus,
     backend::{Availability, Backend, Deadline, Frame, ShownFrame},
     calls::{EditorAnswer, EditorCall, Heard, Outbound, PluginCall},
     input::{BlockDrag, BlockDragEvent},
@@ -382,6 +382,7 @@ impl Runtime {
         self.fallbacks = super::fonts::Fallbacks::new();
         self.presents = Presents::default();
         self.instances.reopen();
+        super::docks::restarted(&plugin.identity.id);
         self.backend.start(&plugin);
     }
 
@@ -424,6 +425,25 @@ impl Runtime {
             messages.push(PluginCall::Screens(self.instances.screen_set(next.screens)).into());
         }
         messages.extend(self.instances.pending());
+        messages.extend(
+            super::docks::take(&self.plugin.identity.id)
+                .into_iter()
+                .map(|(instance, update)| Outbound::Editor(instance, EditorCall::Dock(update))),
+        );
+        messages.extend(
+            super::docks::take_bars(&self.plugin.identity.id)
+                .into_iter()
+                .map(|(placer, child, action)| {
+                    Outbound::Editor(
+                        placer,
+                        EditorCall::ChildBar {
+                            region: EditorRegion::Frame,
+                            child,
+                            action,
+                        },
+                    )
+                }),
+        );
         self.serve();
         messages.extend(self.instances.configure(&messages).map(Outbound::from));
         let awaited = messages.iter().any(|message| {
@@ -880,7 +900,14 @@ impl Runtime {
             changed |= self.instances.set_children(placements);
         }
         self.instances.laid(laid.serial, &screens);
+        self.report_docked();
         changed
+    }
+
+    fn report_docked(&self) {
+        for (placer, children) in self.instances.docked_children() {
+            super::docks::placed(placer, &children);
+        }
     }
 
     fn apply(&mut self, answers: Vec<Answer>) {
@@ -970,7 +997,9 @@ impl Runtime {
             animating,
             presented,
             window_requests,
+            docks,
         } = commit;
+        super::docks::heard(&self.plugin.identity.id, docks);
         crate::compositor::request_windows(&self.plugin.identity.id, window_requests);
         self.pacing.animating = animating;
         self.await_next_frame(repaint_after_micros);
@@ -1173,24 +1202,12 @@ pub(crate) fn report_children(
     });
 }
 
-pub(crate) fn take_block_pick(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-) -> Option<BlockPickRequest> {
-    with(plugin_id, |runtime| {
-        runtime.instances.take_block_pick(instance)
-    })
-    .flatten()
+pub(crate) fn picked(plugin_id: &str, instance: EditorInstanceId) -> Option<BlockPick> {
+    with(plugin_id, |runtime| runtime.instances.picked(instance)).flatten()
 }
 
-pub(crate) fn take_pick_answers(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-) -> Vec<(u64, BlockPick)> {
-    with(plugin_id, |runtime| {
-        runtime.instances.take_pick_answers(instance)
-    })
-    .unwrap_or_default()
+pub(crate) fn card(plugin_id: &str, instance: EditorInstanceId) -> bool {
+    with(plugin_id, |runtime| runtime.instances.card(instance)).unwrap_or(false)
 }
 
 pub(crate) fn take_child_dismissals(
@@ -1213,37 +1230,6 @@ pub(crate) fn take_child_commits(
     .unwrap_or_default()
 }
 
-pub(crate) struct Pick {
-    pub(crate) pick: u64,
-    pub(crate) filter: block_plugin_api::BlockFilter,
-    pub(crate) parent: block_plugin_api::BlockLocation,
-    pub(crate) within: Option<Uuid>,
-    pub(crate) touch: bool,
-}
-
-pub(crate) fn take_withdrawn_picks(
-    plugin_id: &str,
-) -> Vec<(EditorInstanceId, block_plugin_api::ops::OpId)> {
-    with(plugin_id, |runtime| {
-        runtime.instances.take_withdrawn_picks()
-    })
-    .unwrap_or_default()
-}
-
-pub(crate) fn withdraw_pick(plugin_id: &str, instance: EditorInstanceId, pick: u64) {
-    with(plugin_id, |runtime| {
-        let messages = runtime.instances.withdraw_pick(instance, pick);
-        runtime.send(messages);
-    });
-}
-
-pub(crate) fn request_pick(plugin_id: &str, instance: EditorInstanceId, pick: Pick) {
-    with(plugin_id, |runtime| {
-        let messages = runtime.instances.request_pick(instance, pick);
-        runtime.send(messages);
-    });
-}
-
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct FramePlacement {
     pub(crate) rect: Rect,
@@ -1254,10 +1240,18 @@ pub(crate) fn frame_placement(
     plugin_id: &str,
     instance: EditorInstanceId,
 ) -> Option<FramePlacement> {
+    region_placement(plugin_id, instance, EditorRegion::Frame)
+}
+
+pub(crate) fn region_placement(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+    region: EditorRegion,
+) -> Option<FramePlacement> {
     with(plugin_id, |runtime| {
         runtime
             .placements
-            .get(&(instance, EditorRegion::Frame))
+            .get(&(instance, region))
             .map(|placed| FramePlacement {
                 rect: placed.rect,
                 zoom: placed.zoom,
@@ -1276,18 +1270,6 @@ pub(crate) fn reanchor(anchor: Rect, from: FramePlacement, to: FramePlacement) -
         .iter()
         .all(|value| value.is_finite())
         .then_some(moved)
-}
-
-pub(crate) fn block_picked(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-    request_id: u64,
-    pick: BlockPick,
-) {
-    with(plugin_id, |runtime| {
-        runtime.instances.block_picked(instance, request_id, pick);
-        runtime.serve();
-    });
 }
 
 fn scale_rect(rect: Rect, size: Vec2) -> Rect {
@@ -1680,6 +1662,7 @@ pub(crate) fn kill(plugin_id: &str) {
 
 pub(crate) fn close(plugin_id: &str, instance: EditorInstanceId) {
     super::instances::want_presence(instance, false);
+    super::docks::forget(instance);
     with(plugin_id, |runtime| {
         let messages = runtime
             .instances
@@ -2003,6 +1986,16 @@ pub(crate) fn mount_region(slot: RegionSlot<'_>) {
             return;
         };
         runtime.contain(|runtime| {
+            super::docks::register(
+                instance,
+                &plugin.identity.id,
+                match role {
+                    InstanceRole::Editor(_, block) => Some(block.id),
+                    InstanceRole::Creation(..)
+                    | InstanceRole::Artifact(..)
+                    | InstanceRole::Picker(_) => None,
+                },
+            );
             runtime
                 .instances
                 .mount(instance, region, client_id, role, block_types);
@@ -2022,6 +2015,7 @@ pub(crate) fn unmount_region(
     with(plugin_id, |runtime| {
         runtime.instances.unmount(instance, region);
         withdraw(runtime, instance, region, mount);
+        runtime.report_docked();
     });
     mark(plugin_id);
     host::request_repaint();
@@ -2034,7 +2028,8 @@ pub(crate) fn unplace_region(
     mount: u64,
 ) {
     with(plugin_id, |runtime| {
-        withdraw(runtime, instance, region, mount)
+        withdraw(runtime, instance, region, mount);
+        runtime.report_docked();
     });
     mark(plugin_id);
     host::request_repaint();

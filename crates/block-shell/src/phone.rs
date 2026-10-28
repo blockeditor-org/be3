@@ -21,11 +21,11 @@ const SHEET_PADDING: Space = Space::Lg;
 const SECTION_PADDING: Space = Space::Md;
 
 #[component]
-pub(crate) fn DetailsSheet(workspace: Workspace, tab: TabId) -> NodeId {
+pub(crate) fn DetailsSheet(workspace: Workspace) -> NodeId {
     let sheet = workspace.sheet;
     let shown = create_memo(move || match sheet.get() {
-        PhoneSheet::Details(shown) if shown == tab => Some(shown),
-        PhoneSheet::Details(_) | PhoneSheet::Closed => None,
+        PhoneSheet::Details(shown) => Some(shown),
+        PhoneSheet::Closed => None,
     });
     let open = create_memo(move || shown.get().is_some());
     view! {

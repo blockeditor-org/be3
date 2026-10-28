@@ -5,11 +5,13 @@ use super::*;
 
 #[test]
 fn importing_a_block_file_in_the_picker_answers_the_pick() {
-    let (mut fixture, _) = editor();
+    let (fixture, _) = editor();
     let parent = Uuid::new_v4();
-    fixture
-        .test
-        .request_pick(4, filter(), BlockLocation::Block(parent.into_bytes()), None);
+    let mut fixture = picking(
+        &fixture,
+        filter(),
+        BlockLocation::Block(parent.into_bytes()),
+    );
     fixture.settle();
     fixture.test.take_requests();
 
@@ -41,7 +43,7 @@ fn importing_a_block_file_in_the_picker_answers_the_pick() {
         fixture.says("Import a file…"),
         "cancelling the file picker leaves the menu open to try again"
     );
-    assert!(fixture.test.take_pick_answers().is_empty());
+    assert!(fixture.test.take_picked().is_empty());
 
     fixture.test.click("picker.import");
     fixture.settle();
@@ -65,16 +67,13 @@ fn importing_a_block_file_in_the_picker_answers_the_pick() {
     fixture.settle();
 
     assert_eq!(
-        fixture.test.take_pick_answers(),
-        vec![(
-            4,
-            Ok(Some(PickedBlock {
-                block_id: imported.into_bytes(),
-                block_type: SHOWN_TYPE.into_bytes(),
-                linked: false,
-                placed: false,
-            }))
-        )]
+        fixture.test.take_picked(),
+        vec![Ok(Some(PickedBlock {
+            block_id: imported.into_bytes(),
+            block_type: SHOWN_TYPE.into_bytes(),
+            linked: false,
+            placed: false,
+        }))]
     );
     assert!(
         !fixture.test.shown("picker.import"),

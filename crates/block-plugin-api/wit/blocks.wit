@@ -3,19 +3,11 @@ package be3:plugin@0.1.0;
 /// The blocks an editor reads and changes through its host: the block graph,
 /// a block's content, history and version control, and asks to open blocks.
 interface blocks {
-    use types.{editor-id, failure, host-panel};
+    use types.{block-location, editor-id, failure, host-panel};
     use be3:shared/ids@0.1.0.{
         account-id, block-id, block-type-id, commit-id, content-type-id, uuid,
     };
     use be3:shared/access@0.1.0.{access-level};
-
-    /// Where a block is listed: at the root, detached from every parent, or
-    /// inside a block.
-    variant block-location {
-        root,
-        detached,
-        block(block-id),
-    }
 
     variant block-query {
         roots,

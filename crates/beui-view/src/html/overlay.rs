@@ -46,6 +46,7 @@ pub(crate) fn overlay(
     window: Prop<Option<WindowSpec>>,
     open: Prop<bool>,
     keep_alive: bool,
+    dismissable: Prop<bool>,
     on_dismiss: Callback<Dismiss>,
     content: RenderFn<()>,
 ) -> NodeId {
@@ -83,6 +84,10 @@ pub(crate) fn overlay(
     bind(level, move |level| held.set_level(level));
     let held = layer.clone();
     bind(traps_focus, move |traps| held.set_traps_focus(traps));
+    let held = layer.clone();
+    bind(dismissable, move |dismissable| {
+        held.set_dismissable(dismissable)
+    });
     let held = layer.clone();
     bind(beak, move |reach| held.set_beak(reach));
     let presence = OverlayPresence::new(create_memo(move || open.get()));

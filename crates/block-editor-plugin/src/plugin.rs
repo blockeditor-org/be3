@@ -107,6 +107,7 @@ pub struct Region {
     pub describe: Option<u64>,
     pub seen: bool,
     pub windows: bool,
+    pub docked: bool,
     pub placement: Option<String>,
 }
 

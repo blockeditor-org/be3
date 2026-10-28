@@ -2308,9 +2308,10 @@ window's own `(0, 0)`-cornered rect less any on-screen keyboard there):
 rect (`OverlayAnchor::Rect`, in that window's coordinates) is placed against it
 and kept inside the window. Where an app shows one window per monitor (block-app
 under `--session`, one per display), each window is a monitor, so a dialog opened
-in it stays on it. `use_viewport_size()` is the size of the main window a
-document is shown in (a `Dialog` reads it, or its hosted window's size, to become
-a sheet on a narrow one). `styled::Toasts` takes any anchor this way, so the desktop plugin stacks its toasts in the
+in it stays on it. `use_viewport_size()` is the size of the window the
+caller is built in: the hosted window around it (a plugin region is one), or else
+the main window the document is shown in (a `Dialog` reads it to become a sheet on
+a narrow one). `styled::Toasts` takes any anchor this way, so the desktop plugin stacks its toasts in the
 corner of a display above its bar. A toast goes after its `duration` unless it is `sticky` or
 `danger`: an error stays until it is dismissed, so it cannot be missed. All of that is
 `unstyled::Toasts`: the overlay at an `edge` that lets input through, the stack, each
@@ -2333,7 +2334,10 @@ owns the tree, the dragging and the keyboard, and paints nothing; the demo in
 
 The children describe the layout the dock starts with and the tabs that exist;
 a `DockingLayout<K>` holds where everything is now, and is what the caller saves
-and restores:
+and restores. `K` is a `DockKey`: a tab's key, whose `key()` names it as a
+string for good (implemented for `TabId`, `u64`, `String` and `&'static str`;
+a type of your own implements it), which a dock declared to a host across
+plugins sends as the tab's key:
 
 ```rust
 let layout = DockingLayout::new();
@@ -2368,8 +2372,15 @@ app: neither its pane nor a stacked dock fills behind it, so the pane's chrome l
 `DockChromeHandle::see_through`, and it stays on the main surface, where nothing of the dock is
 under it (`DockState::admits` refuses it a window). A tab's key is any `Clone + Eq + Hash` type; a key that is a
 `TabId` or a `u64` names the tab's `TabId` too, which is what the test ids of its
-close button and switcher row carry. Every container has an `id`, saved with the
-layout, so that a layout saved by older code still finds its panes.
+close button and switcher row carry (`dock.tab.<tab>.close`; a group's close button
+carries its hosting tab's). Every container has an `id`, saved with the
+layout, so that a layout saved by older code still finds its panes. A pane's
+bar names its controls after the pane's `id`: `dock.grip.<id>`, and under the
+prefix `dock.<id>` its More button (`dock.<id>.menu`, its items
+`dock.<id>.menu.<item>`), pinned actions (`dock.<id>.pin.<action>`) and close
+button (`dock.<id>.close`), so two panes showing the same actions stay apart. A
+pane the user made has no `id` and the bare prefix `dock`, as has the one bar of
+a stacked dock (`dock.menu`, `dock.pin.<action>`).
 
 The children are the full set of tabs: a tab the code no longer declares is
 closed, and a tab it starts declaring is placed. Closing is a request -
@@ -2645,6 +2656,61 @@ disabled until the tab is back in its area, and is never done for it), and
 "Pop out into a window" is disabled while a tab is locked or pinned. Seeding,
 reconciling and `restore` move any locked tab found outside its area back into
 it. A stacked dock ignores locks and keeps them for when it tiles again.
+
+A `Docking` built inside a `DockTab` of another `Docking` joins it rather than
+docking on its own (the first one in that tab does, found through a context
+the outer dock provides beside `use_dock_tab()`'s). It draws nothing: the outer dock puts what its
+children declare in a pinned group keyed `joined:<tab>` in place of that tab
+(titled, iconed and closed as the tab), with its pane, split and group keys
+prefixed `joined:<tab>/`, so its locked panes stay areas inside the group (a
+tab declared in a locked pane has that area as its home, inside a pinned group
+too), and its `DockWindow`s become windows of the outer dock. Its tabs are
+locked to the group: "Unlock" lets one go anywhere in the outer dock, "Lock"
+works once it is back. The outer dock places their bodies, built in a scope
+under the inner `Docking` with the outer dock's `use_dock_tab()` and
+`dock_menu`, so they survive moving; switching, back history, fullscreen and
+the stacked mode are the outer dock's and cover them like its own tabs. The
+inner `DockingLayout` keeps working: `show`, `focused`, `shown`, `contains`,
+`mode` and fullscreen go through the outer dock, `state()` and `snapshot` are
+the group as the outer dock holds it (moved-out tabs leave the snapshot but
+not `contains`), and `restore`/`reset` rebuild the group. A tab joins when its
+body is first built, so a hosting tab not yet shown is an ordinary tab until
+then. When the inner `Docking` goes (its tab closes, or its body stops
+building it) the group turns back into the tab and every inner tab closes,
+those moved out too. On the outer layout, a focused or shown inner tab counts
+as its hosting tab (`focused`, `shown`), `show` of the hosting tab shows its
+group, and `contains` holds it while the group stands. The outer `snapshot`
+saves the hosting tab in the group's place, the group's subtree beside it, and
+every inner tab, in the group or moved out, by a key path (the hosting tab's id,
+then each level's declared tab key), never by an inner id. `restore` puts the
+moved-out tabs back where they were, titled but empty, and once the hosting
+tab's inner `Docking` declares again it grafts the group back and gives the
+moved-out tabs their bodies; a saved tab it no longer declares closes. The seam is `docking/host.rs`'s
+`DockHostLink`, plain data both ways (`DockDeclaration`, `DockHosted`,
+`DockRequest`, `DockHostEvent`, `DockBodies`; `DockState::plain` and
+`from_plain` read and build a state as plain `DockPlain` data), and a platform
+implements it too: a `Docking` that finds no outer dock claims the
+`DockHostSlot` context if one is provided above it, and joins that host the same
+way. block-editor-beui provides one in the frame of an editor whose dock joins
+another plugin's (guides/adding_a_plugin_editor.md), and its `ChildBlock` in a
+tab body claims that tab's `DockJoin` (`use_dock_join()`, `DockJoin::host`,
+`claim`) for the child editor's dock. Such a platform builds the tab bodies
+itself, and provides `DockTabMenu` and `DockTabControl::hosted(tab, hosted,
+request)` in each body's scope, so `dock_menu` and `use_dock_tab()` work there
+as in a local dock; `DockTabControl::is_hosted` tells such a body apart, and
+`claim_body` lets one child in it claim the tab. A `DockDialog` whose parent tab is hosting a group hangs
+from the group's shown tab. The inner dock's `DockDialog`s are declared too
+(`DockDeclaredDialog`) and the outer dock presents them as its own, over their
+parent's place, building their bodies like tab bodies and handing a close back
+to the inner `on_close`; a pane's `empty` view shows in the outer dock as a tab
+body does (`DockBodies::empty`), and the inner `focus` picks the group's tab
+when the group first takes the hosting tab's place. A `DockTab`'s `picture`
+reaches an outer dock in the same tree; across plugins it is not carried (a
+`dock-tab` has no texture, and only the shell's own window tabs use pictures).
+A `Docking` inside a tab body of a dock that joined a platform's host (not an
+outer `Docking`) joins its own dock in turn: the joined dock splices it in as
+`joined:<tab>` and declares its tabs and dialogs as its own, keeping the host
+tab's panel alive (`DockBodies::hosts`) and passing its requests up.
 
 A tab's panel is built the first time the tab is shown and belongs to the dock
 rather than to the pane showing it: the pane holds a `Portal` pointed at it, so
@@ -3351,7 +3417,12 @@ collects `WindowRequest`s into `FrameOutput::window_requests`: `Open { window,
 placement, size, role }` (a `WindowRole`: `Normal`, `Keyboard` for an
 on-screen keyboard, which the host never focuses and places by the field it
 types into, or `Popup` for a menu of the window it is placed over, which the
-host never focuses either; the `Window` component's `role`), `BeginMove(window)`, `BeginResize { window, edge }`
+host never focuses either and closes, reporting `Closed`, when a press lands
+outside it and outside the popups opened over it, keeping that press from what
+is under it as a `BlocksAll` menu does; block-app does so for every plugin
+window it overlays, anywhere in its own window, and beui-layer-space for every
+panel, a press in any other panel or none closing it; the `Window` component's `role`,
+and a hosted window whose role changes is opened again with the new one), `BeginMove(window)`, `BeginResize { window, edge }`
 (the host then moves or resizes it, as an OS does after winit's
 `drag_window`), `Resize { window, size }` (the app wants another size; the
 host answers with the size it gives) and `Close(window)`. A `WindowPlacement` is `AtPointer`,
@@ -3413,7 +3484,8 @@ app that follows `Resized` reports in its `size` never fights the host; `on_repo
 again. Elsewhere it is an `Overlay` at `at` (`Placement::At`,
 `LayerPolicy::Pass`, no focus trap) holding its content at `size`, which is
 how floating windows looked before there were windows, so an app looks the
-same either way. `WindowHandle` (also `use_window()` inside the content)
+same either way (a `Popup` one too: closing it on a press outside is left to
+the app, as be-wayland's popups need). `WindowHandle` (also `use_window()` inside the content)
 carries the `id`, the shown `size` and `is_window()`, which says which of the
 two it is (`real_window()` is the hosted window it is drawn in: its own, or the
 one around the overlay it is). `begin_move()`, `begin_resize(edge)` and `close()` ask the host and
@@ -3699,7 +3771,11 @@ it, and all its 3D (`glam`) stays in the crate.
   carries it like any panel. A `WindowRole::Popup` window opens where its
   placement says and never takes the focus either, so the window it belongs
   to keeps it (a Wayland popup's grab ends when its toplevel loses the
-  keyboard). `Resize` sets the panel's size,
+  keyboard). A mouse press or trigger pull that lands anywhere but on a popup
+  or a popup placed `Over` it (chrome included) closes it, reporting `Closed`,
+  and goes no further, its release neither (`Space::dismiss_popups`). A window
+  opened again takes its new role and size, and moves where an `Over`
+  placement puts it (keeping its top-left corner otherwise). `Resize` sets the panel's size,
   keeping its top-left corner, and reports `Resized` the next frame. `Close`
   removes the panel and its texture; the main window's panel never closes.
 - Grab: while its window has focus the host holds the pointer

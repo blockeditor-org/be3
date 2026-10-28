@@ -29,6 +29,7 @@ pub fn Overlay(
     #[prop(default = None)] window: Prop<Option<WindowSpec>>,
     open: Prop<bool>,
     #[prop(default = false)] keep_alive: bool,
+    #[prop(default = true)] dismissable: Prop<bool>,
     on_dismiss: Callback<Dismiss>,
     #[prop(children)] content: RenderFn<()>,
 ) -> NodeId {
@@ -46,6 +47,7 @@ pub fn Overlay(
         window,
         open,
         keep_alive,
+        dismissable,
         on_dismiss,
         content,
     )

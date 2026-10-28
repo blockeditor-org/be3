@@ -7,13 +7,21 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 
 use block_plugin_api::{
-    BarAction, ChildId, ChildLayer, ChildMode, ChildPreview, DialogFrame, KeyChord, MenuCheck,
-    MenuEntry, MenuPin, TopBar,
+    BarAction, ChildId, ChildLayer, ChildMode, ChildPreview, DialogFrame, DockTabPath, KeyChord,
+    MenuCheck, MenuEntry, MenuPin, TopBar,
 };
+use uuid::Uuid;
 
 use crate::{ChildState, ChildTarget, Editor, SubregionContent, watch_block_label};
 use beui::native::draw_gpu;
 use beui::{Align, Align2};
+
+#[derive(Clone, Copy)]
+pub struct ChildDockTab {
+    pub menu: Memo<Vec<MenuNode>>,
+    pub body: NodeId,
+    pub owner: Option<Uuid>,
+}
 
 #[derive(Clone)]
 pub struct ChildHandle {
@@ -36,10 +44,13 @@ pub fn ChildBlock(
     on_state: Callback<ChildState>,
     on_bar: Callback<BarAction>,
     on_focus: Callback<()>,
+    docked_tab: Option<RenderFn<ChildDockTab, NodeId>>,
     #[prop(children)] content: Option<Render<ChildHandle>>,
 ) -> NodeId {
     let placed = create_memo(move || block.get().map(SubregionContent::Block));
     let placing = Placing {
+        claims: true,
+        docked_tab,
         mode,
         layer,
         own_frame,
@@ -88,6 +99,8 @@ pub fn Subregion(
         false => Prop::Static(None),
     };
     let placing = Placing {
+        claims: false,
+        docked_tab: None,
         mode,
         layer,
         own_frame,
@@ -108,6 +121,8 @@ pub fn Subregion(
 }
 
 struct Placing {
+    claims: bool,
+    docked_tab: Option<RenderFn<ChildDockTab, NodeId>>,
     mode: Prop<ChildMode>,
     layer: Prop<ChildLayer>,
     own_frame: Prop<bool>,
@@ -130,6 +145,8 @@ fn SubregionView(
     placing: Placing,
 ) -> NodeId {
     let Placing {
+        claims,
+        docked_tab,
         mode,
         layer,
         own_frame,
@@ -151,6 +168,24 @@ fn SubregionView(
     let mode = create_memo(move || mode.get());
     let turn = create_memo(move || rotation.get());
     let fade = create_memo(move || opacity.get());
+    let docked = beui::dock::unstyled::use_dock_tab().filter(|tab| tab.is_hosted());
+    let join = match docked {
+        Some(_) => None,
+        None => beui::dock::unstyled::use_dock_join(),
+    };
+    let dock_tab = docked
+        .as_ref()
+        .map(|docked| docked.tab().value())
+        .or_else(|| join.as_ref().map(|join| join.host().value()));
+    let (docks, link) = match (claims, &docked, &join) {
+        (false, _, _) => (false, None),
+        (true, Some(docked), _) => (docked.claim_body(), None),
+        (true, None, Some(join)) => match join.claim() {
+            Some(link) => (true, Some(link)),
+            None => (false, None),
+        },
+        (true, None, None) => (false, None),
+    };
     let state = editor.register_child(
         slot,
         placed.into_prop(),
@@ -165,7 +200,12 @@ fn SubregionView(
         on_state,
         on_bar,
         on_focus,
+        dock_tab,
+        docks,
     );
+    if let Some(link) = link {
+        crate::docked::bridge_child_dock(editor, link, state, docked_tab);
+    }
     let preview = create_memo(move || state.with(|state| state.preview));
     let pictured = create_memo(move || {
         mode.get() == ChildMode::Preview || preview.get() != ChildPreview::Hosted
@@ -278,22 +318,38 @@ struct Mirrored {
     checked: OwnedSignal<bool>,
 }
 
-struct MenuMirror {
+#[derive(Clone)]
+pub(crate) enum MenuPicks {
+    Child,
+    DockTab(DockTabPath),
+}
+
+pub(crate) struct MenuMirror {
     editor: Editor,
+    picks: MenuPicks,
     commands: HashMap<String, Mirrored>,
     shape: Option<(Option<ChildId>, Vec<Shape>)>,
 }
 
 impl MenuMirror {
-    fn new(editor: Editor) -> Self {
+    pub(crate) fn new(editor: Editor) -> Self {
+        Self::picking(editor, MenuPicks::Child)
+    }
+
+    pub(crate) fn picking(editor: Editor, picks: MenuPicks) -> Self {
         Self {
             editor,
+            picks,
             commands: HashMap::new(),
             shape: None,
         }
     }
 
-    fn update(&mut self, child: Option<ChildId>, entries: &[MenuEntry]) -> Option<Vec<MenuNode>> {
+    pub(crate) fn update(
+        &mut self,
+        child: Option<ChildId>,
+        entries: &[MenuEntry],
+    ) -> Option<Vec<MenuNode>> {
         let entries = match child {
             Some(_) => entries,
             None => &[],
@@ -382,8 +438,12 @@ impl MenuMirror {
                     );
                     let host = self.editor.host();
                     let picked = id.clone();
-                    let mut action = Action::new(id.clone(), label, move || {
-                        host.pick_child_menu(child, picked.clone())
+                    let picks = self.picks.clone();
+                    let mut action = Action::new(id.clone(), label, move || match &picks {
+                        MenuPicks::Child => host.pick_child_menu(child, picked.clone()),
+                        MenuPicks::DockTab(tab) => {
+                            host.pick_child_dock_tab(child, tab.clone(), picked.clone())
+                        }
                     })
                     .glyph(*glyph)
                     .enabled(enabled);

@@ -1,40 +1,16 @@
 package be3:plugin@0.1.0;
 
 /// What an editor asks of its host and waits for: files and their dialogs, the
-/// network, a block's revisions, who it is shared with, and blocks to pick or
+/// network, a block's revisions, who it is shared with, and blocks to
 /// import. An editor makes every call for itself, its `editor` the call's
 /// parent, so closing the editor cancels whatever it still waits on: the host
-/// drops that work (a pick it has not shown, a fetch, an import or export not
-/// yet made) and answers `canceled`.
+/// drops that work (a fetch, an import or export not yet made) and answers
+/// `canceled`.
 interface host-services {
     use be3:shared/ids@0.1.0.{account-id, block-id, block-type-id, commit-id};
     use be3:shared/access@0.1.0.{access-level};
-    use blocks.{block-location};
-    use types.{failure};
+    use types.{block-location, failure};
     use be3:ui/types@0.1.0.{rect, file-filter, file-pick, saved-file, file-save};
-
-    /// Which blocks a pick offers: of these types (any when empty), never the
-    /// excluded ones, with templates to make new ones from or not, placed in
-    /// `place` once chosen, and hung from `anchor` (in the asking region).
-    record block-filter {
-        name: string,
-        block-types: list<block-type-id>,
-        excluded: list<block-id>,
-        templates: bool,
-        place: option<block-location>,
-        anchor: option<rect>,
-    }
-
-    /// A block chosen in a pick, and whether it was linked or placed.
-    record picked-block {
-        block-id: block-id,
-        block-type: block-type-id,
-        linked: bool,
-        placed: bool,
-    }
-
-    /// What a pick answers: the block chosen, or none when the user cancelled.
-    type block-pick = result<option<picked-block>, failure>;
 
     record rename-dialog {
         anchor: option<rect>,
@@ -111,9 +87,6 @@ interface host-services {
 
     /// The block as the plain file its type writes it as.
     read-plain-file: async func(block: block-id) -> result<saved-file, failure>;
-
-    /// Asks the user for a block, none when they cancel.
-    pick-block: async func(filter: block-filter) -> block-pick;
 
     /// Asks the user for a block file and imports it into `parent`, none when
     /// they cancel.
