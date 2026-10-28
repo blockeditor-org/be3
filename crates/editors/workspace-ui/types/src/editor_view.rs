@@ -93,7 +93,7 @@ impl Root for EditorView {
 
     fn child_edit(&self, change: ChildChange) -> Option<Edit> {
         match change {
-            ChildChange::Add(_) => None,
+            ChildChange::Add(_) | ChildChange::Reorder { .. } => None,
             ChildChange::Delete(old) => {
                 self.rewrite_refs(|id| if id == old { Uuid::nil() } else { id })
             }

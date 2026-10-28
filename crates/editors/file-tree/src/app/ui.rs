@@ -41,7 +41,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
     let picker = picker(editor, tree, renaming, tree_ref);
     let exporter = Exporter::new(editor);
     let exported = exporter.error();
-    let held: Held = store(std::cell::Cell::new(None));
+    let held: Held = store(std::cell::RefCell::new(None));
     let inspecting = create_signal(None::<Inspection>);
     let tools = RowTools {
         editor,
@@ -140,13 +140,16 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                 block_type: row.block_type,
                 source: row.source,
                 is_reference: row.is_reference,
+                key: row.key.clone(),
+                can_reorder: row.can_reorder,
             })
         });
         let Some(carried) = carried else {
             return;
         };
-        held.with(|held| held.set(Some(carried)));
-        editor.host().drag_block(carried.id, carried.block_type);
+        let (id, block_type) = (carried.id, carried.block_type);
+        held.with(|held| *held.borrow_mut() = Some(carried));
+        editor.host().drag_block(id, block_type);
     };
 
     let narrow = phone_layout();
@@ -246,6 +249,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                                     <RowMenu tools key />
                                 }}
                                 editing={renaming.editing()}
+                                reorder=true
                                 on_select={open}
                                 on_expand={expand}
                                 on_reveal={reveal}
@@ -867,15 +871,17 @@ fn RowActions(
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub(crate) struct Carried {
     id: Uuid,
     block_type: Uuid,
     source: BlockParent,
     is_reference: bool,
+    key: RowKey,
+    can_reorder: bool,
 }
 
-pub(crate) type Held = Stored<std::cell::Cell<Option<Carried>>>;
+pub(crate) type Held = Stored<std::cell::RefCell<Option<Carried>>>;
 
 fn arrival(
     editor: Editor,
@@ -884,36 +890,133 @@ fn arrival(
     tree: ComponentRef<TreeApi<RowKey>>,
     drag: ReadSignal<Option<Drag>>,
 ) -> Option<(RowKey, bool)> {
-    let drag = drag.get()?;
-    let carried = held.with(std::cell::Cell::get)?;
+    let drag = drag.get();
     let tree = tree.try_get()?;
-    if carried.id != drag.block_id {
+    let carried = held.with(|held| held.borrow().clone())?;
+    let Some(drag) = drag.filter(|drag| drag.block_id == carried.id) else {
+        tree.drag_over(None, |_| false);
         return None;
-    }
-    let (key, id, can_add) = rows.with(|rows| {
-        rows.iter().find_map(|row| {
-            let id = row.id?;
-            let rect = row_rect(tree, &row.key)?;
-            rect.contains(drag.position)
-                .then(|| (row.key.clone(), id, row.can_add))
-        })
-    })?;
-    let accepts = can_add && carried.id != id && carried.source != BlockParent::Block(id);
+    };
+    let over =
+        rows.with(|rows| tree.drag_over(Some(drag.position), |drop| allows(rows, &carried, drop)));
+    let drop = over.as_ref().and_then(|over| over.drop.clone());
     if drag.dropped {
-        held.with(|held| held.set(None));
-        if accepts {
-            editor.host().move_block(
-                carried.id,
-                carried.block_type,
-                carried.source,
-                id,
-                carried.is_reference,
-            );
-        }
+        held.with(|held| held.borrow_mut().take());
+        let settles = rows.with_untracked(|rows| land(editor, rows, &carried, drop));
+        tree.drag_end(settles);
         return None;
     }
-    editor.accept_drag(accepts);
-    Some((key, accepts))
+    editor.accept_drag(drop.is_some());
+    let over = over?;
+    match drop {
+        Some(TreeDrop::Into(key)) => Some((key, true)),
+        Some(TreeDrop::Among { .. }) => None,
+        None => rows
+            .with_untracked(|rows| find(rows, &over.row).is_some_and(|row| row.id.is_some()))
+            .then_some((over.row, false)),
+    }
+}
+
+fn find<'a>(rows: &'a [Row], key: &RowKey) -> Option<&'a Row> {
+    rows.iter().find(|row| row.key == *key)
+}
+
+fn holds(key: &RowKey, id: Uuid) -> bool {
+    match key {
+        RowKey::Block(path) => path.contains(&id),
+        RowKey::Pinned(path) => path.last() == Some(&id),
+        RowKey::Shared
+        | RowKey::Orphans
+        | RowKey::System
+        | RowKey::Note(_)
+        | RowKey::SharedNote
+        | RowKey::OrphansNote
+        | RowKey::SystemNote => false,
+    }
+}
+
+fn container_key(key: &RowKey) -> Option<RowKey> {
+    match key {
+        RowKey::Block(path) if path.len() > 1 => {
+            Some(RowKey::Block(path[..path.len() - 1].to_vec()))
+        }
+        _ => None,
+    }
+}
+
+fn takes(row: &Row, carried: &Carried) -> bool {
+    row.id.is_some_and(|id| {
+        row.can_add && !holds(&row.key, carried.id) && carried.source != BlockParent::Block(id)
+    })
+}
+
+fn allows(rows: &[Row], carried: &Carried, drop: &TreeDrop<RowKey>) -> bool {
+    match drop {
+        TreeDrop::Into(key) => find(rows, key).is_some_and(|row| takes(row, carried)),
+        TreeDrop::Among { parent, .. } => {
+            let Some(parent) = parent.as_ref().and_then(|parent| find(rows, parent)) else {
+                return false;
+            };
+            let home = container_key(&carried.key).as_ref() == Some(&parent.key);
+            carried.can_reorder
+                && parent.orders_children
+                && matches!(parent.key, RowKey::Block(_))
+                && (home || takes(parent, carried))
+        }
+    }
+}
+
+fn land(editor: Editor, rows: &[Row], carried: &Carried, drop: Option<TreeDrop<RowKey>>) -> bool {
+    let host = editor.host();
+    let parent = match drop {
+        None => return false,
+        Some(TreeDrop::Into(key)) => {
+            if let Some(id) = find(rows, &key).and_then(|row| row.id) {
+                host.move_block(
+                    carried.id,
+                    carried.block_type,
+                    carried.source,
+                    id,
+                    carried.is_reference,
+                );
+            }
+            return false;
+        }
+        Some(TreeDrop::Among { parent, after }) => parent.map(|parent| (parent, after)),
+    };
+    let Some((parent, after)) = parent else {
+        return false;
+    };
+    let Some(id) = find(rows, &parent).and_then(|row| row.id) else {
+        return false;
+    };
+    let after = after
+        .as_ref()
+        .and_then(|after| find(rows, after))
+        .filter(|row| matches!(row.key, RowKey::Block(_)))
+        .and_then(|row| row.id);
+    if container_key(&carried.key) == Some(parent.clone()) {
+        let siblings: Vec<Uuid> = rows
+            .iter()
+            .filter(|row| container_key(&row.key).as_ref() == Some(&parent))
+            .filter_map(|row| row.id)
+            .collect();
+        let at = siblings.iter().position(|sibling| *sibling == carried.id);
+        let previous = at.and_then(|at| at.checked_sub(1)).map(|at| siblings[at]);
+        if after == Some(carried.id) || after == previous {
+            return false;
+        }
+    } else {
+        host.move_block(
+            carried.id,
+            carried.block_type,
+            carried.source,
+            id,
+            carried.is_reference,
+        );
+    }
+    host.reorder_block(carried.id, id, after);
+    true
 }
 
 fn row_rect(tree: TreeApi<RowKey>, key: &RowKey) -> Option<Rect> {

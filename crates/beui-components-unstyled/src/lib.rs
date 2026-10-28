@@ -39,6 +39,7 @@ pub mod popover;
 pub mod popup_trigger;
 pub mod pressable;
 pub mod progress;
+pub mod reorder;
 pub mod rubber_band;
 pub mod scroll;
 pub mod scrollbar;
@@ -65,10 +66,10 @@ pub use action_bar::{ActionBar, ActionBarHandle, title_action};
 pub use anchored::{Anchored, AnchoredHandle, AnchoredSheetHandle, AnchoredStyle, SheetWhen};
 pub use back_slide::BackSlide;
 pub use banner::Banner;
-pub use beui_view::drag::DragPoint;
+pub use beui_view::drag::{DragPoint, DragSource};
 pub use button::{Button, ButtonApi, ButtonHandle};
 pub use calendar::{Calendar, CalendarApi, CalendarCellHandle, CalendarHeaderHandle, CalendarMode};
-pub use choice::{Choice, ChoiceApi, ChoiceKind, ChoiceOption, ChoiceOptionHandle};
+pub use choice::{Choice, ChoiceApi, ChoiceItem, ChoiceKind, ChoiceOption, ChoiceOptionHandle};
 pub use color_area::{ColorArea, ColorAreaApi, ColorAreaHandle};
 pub use color_input::{
     ColorInput, ColorInputFieldHandle, ColorInputHandle, ColorInputPickerHandle,
@@ -122,6 +123,9 @@ pub use popover::{Popover, PopoverApi, PopoverHandle, PopoverPlacement};
 pub use popup_trigger::{PopupTrigger, PopupTriggerHandle};
 pub use pressable::Pressable;
 pub use progress::{Progress, ProgressHandle};
+pub use reorder::{
+    Reorder, ReorderGap, ReorderHandle, ReorderItem, ReorderItemHandle, ReorderMove,
+};
 pub use scroll::{
     SCROLLBAR_FADE_OUT, SCROLLBAR_LINGER, Scroll, ScrollApi, ScrollHandle, ScrollbarStyle,
 };
@@ -151,7 +155,7 @@ pub use toast::{TOAST_DURATION, Toast, ToastAction, ToastHandle, Toasts};
 pub use toggle::{Toggle, ToggleApi, ToggleHandle};
 pub use tooltip::{TOOLTIP_DELAY, Tooltip, TooltipHandle};
 pub use tree::{
-    Tree, TreeApi, TreeItem, TreeMenu, TreeMenus, TreeReveal, TreeRevealHandle, TreeRowArea,
-    TreeRowEdit, TreeRowEditor, TreeRowHandle, TreeRowMenu, TreeRowMenuButton, TreeRowTarget,
-    TreeToggle, TreeToggleHandle,
+    Tree, TreeApi, TreeDragOver, TreeDrop, TreeItem, TreeMenu, TreeMenus, TreeReveal,
+    TreeRevealHandle, TreeRowArea, TreeRowEdit, TreeRowEditor, TreeRowHandle, TreeRowMenu,
+    TreeRowMenuButton, TreeRowTarget, TreeToggle, TreeToggleHandle,
 };

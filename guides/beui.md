@@ -301,6 +301,7 @@ direction:
 | --- | --- |
 | `ui-types` | the vocabulary beui shares with the plugin protocol, which depends on nothing but serde and `geometry`: `Key` (with its names for drive, `Key::from_name` and `Key::name`, its evdev code, `Key::evdev`, and what every platform names keys with: `Key::from_typed`, the one rule for a character key, `Key::from_value` for a W3C key value, and `Key::evdev_from_code` and `Key::from_evdev` for a physical place), `Modifiers`, `KeyChord`, `PointerButton`, the touch, pen and back phases, `ImeEvent`, `CursorIcon`, `Pasted` and `PickedFile`; `Input`, the raw input every platform, drive's gestures, the on-screen keyboard and the plugin protocol produce; `WindowRequests` and `ImeArea`, what an app asks of its window; the window vocabulary of window-hosting layers (`WindowId`, `WindowPlacement`, `HostPlacement`, `WindowEdge`, `WindowRole`, `WindowRequest`, `WindowReport`, which `beui_core::window` re-exports); the preferences (`ThemeKind`, `Motion`, `Preferences`, `PreferenceLayer`); and the display and pointer settings `beui-platform-drm` applies and block settings store (`DisplayMode`, `Rotation`, `InputDevice`, `PointerSettings`) |
 | `beui-types` | the plain values components share whichever core draws them, with no nodes in them: colours (`Color32`, `Hsva`, `Oklch`, and `Color`, `ColorVar` and `color_var!`, which both cores resolve), `Image` and `Thumbhash`, the layout values (`Direction`, `Align`, `Justify`, `ItemSize`, `Sizing`, `Sides`, `Extent`, `Track`, `ScrollPosition`, `Corners`, `Outline`, `CanvasView`, and `Measured`, what `measure` answers), the text values (`FontId`, `TextAlign`, `Overflow`, `SpanStyle`, `TextMark`, `TextGlyph`, `TextCaret`), the layer values (`Placement`, `LayerPolicy`, `LayerLevel`, `Dismiss`), raw pointer and wheel input (`PointerId`, `PointerInput`, `PointerStage`, `WheelInput`), the declarative hit areas (`Area`, `HitRegion`, `Claim`) and the gestures (`PointerPress`, `ScrollGesture`, `DragGesture`, `ZoomGesture`), `KeyPhase` and `SystemBars`, with `geometry`, `ui-types`' input values and lucide's `icons` re-exported. beui-core re-exports each where it used to live; unstyled and styled reach them as `beui_view::types` and apps as `beui::`, and values that hold a node (`NodeId`, `OverlayAnchor`, `KeyAt`, `KeyEvent`, `ImeCursor`) through `beui::reactive` |
+| `beui-drag` | the drag board both cores run (`Board<S: Surface>`, `Target`, `DragSource`, `EdgeScroller`, `EDGE_BAND`), each core giving only the `Surface` that says where its nodes are and how they stack (see [Drag and drop](#drag-and-drop)) |
 | `beui-tree` | what makes a tree of components, whatever it is made of: `#[component]` and `view!`'s runtime, `Prop`, child slots (`Children`, `Run`, `SlotChild`, `SlotHost`) and `Show`, `ShowKeepAlive`, `Dynamic`, `Keyed` and `ForEach` |
 | `beui-core` | `Document` and `Context`, the retained nodes and their layout, input and its dispatch, accessibility, paint output and damage, the font and image interfaces, the icon codepoints, the `App` contract, and the `Runner` every platform drives it through |
 | `beui-font-freetype` | `FreetypeFonts`: FreeType and HarfBuzz shaping and rasterizing, and the fonts beui compiles in |
@@ -684,6 +685,7 @@ What each primitive is on the HTML core (the bodies are in
 | `List`, `Spacer` | flexbox and a flex child; `@sizing` becomes flex grow, shrink and basis |
 | `Grid`, `Layers` | CSS grid; `Layers` stacks every child in one cell |
 | `Text` and its spans | a `div` of `span`s and text nodes with `white-space: pre-wrap`; `marks` are CSS Custom Highlights, `carets` positioned boxes, `glyphs` `::before` content, `Break` an `::after` newline no browser copies; a `TextItem` with `at` an absolutely placed box that a layout pass moves onto that index's caret |
+| `Glide` | a one-cell grid holding one translated element; a move is caught from `measure` (so it may show for a frame before gliding) in the coordinates of the content of the scrollers around it (`measure::scrolled_by` added back), so scrolling an ancestor is no move, `hold_glide` translates it, and `set_raised` gives it a `z-index` |
 | `Offset` | an `overflow: hidden` element moved through `scrollTop`/`scrollLeft`, never a transform |
 | `VirtualList` | rows in flow between two spacer elements, measured by `ResizeObserver` |
 | `Canvas` | an inner element translated to the view, `--beui-scale` scaling items |
@@ -793,7 +795,7 @@ need:
 - **Tempted to add a base component?** Almost always, add an unstyled one
   instead. The base layer is small on purpose — `Frame`, `List`, `Spacer`, `Layers`,
   `Grid`, `Text`, `Offset`, `VirtualList`, `Canvas`, `Drawing`, `Overlay`, `Interactive`,
-  `Portal` and `Root` — and it stays small because most things are
+  `Portal`, `Root` and `Glide` — and it stays small because most things are
   compositions of those. `unstyled::Picture` is one: a `Drawing` with a size, and
   `Window` (`beui_view::window`, re-exported as `beui::Window`) is another: an
   `Overlay` given a `window` spec. Back is a hook, `on_back`, not a node, and
@@ -1112,7 +1114,30 @@ outside its viewport are culled like any other node out of sight. `Frame`'s
 input and the accessibility tree still see the child unturned, so it is for pictures, such
 as a preview of a turned screen, not for controls. Nothing swaps a box's width and
 height for a quarter turn any more; turn a square box, as the display settings'
-rotation tiles do. `VirtualList` is an ordinary box that stands for
+rotation tiles do. `Glide`
+animates a move: wrap each item of a list in one and bump its `arm` (a `u64`
+generation) in the same update that reorders the keys. An armed glide notes where it
+rests, and once a layout moves it, adds old minus new to the displacement its child is
+moved by, so the child still shows where it was; a spring (`GLIDE_SPRING`) then takes the
+displacement to zero through the frame clock. Both cores keep that displacement and its
+velocity as a `GlideMotion` (beui-types), whose `step`, `hold` and `settle` are the one
+spring and hold rule; a core only decides when a move was made and where it shows. Natively the move is caught in the layout
+pass that makes it, and each frame lays out only the glide (its child keeps its layout and
+only moves); on HTML the glide is an element whose inner element is translated, caught from
+`measure`, so the first frame of a move may show the child in its new place. A move it was
+not armed for (a window resized, a list scrolled, which moves no parent-local rect anyway)
+lands at once, as does every move under `Motion::Instant`. Moved again mid-flight, it adds
+the new difference and keeps its velocity. `from`, a point in window coordinates, hands it a
+place to start from instead, for a new item or a dropped one that should settle from where
+the pointer left it. The glide's own rect (`measure` of the node `Glide` returns) is where it
+rests; its child's rect is where it is shown. Placements are parent-local, so the glide must
+be the list's own child: wrapped in a frame, it never sees itself move. `hold_glide(glide,
+Some(GlideHold { at, along }))` pins the child's corner to a window point (along one axis, or
+both), whatever slot the glide rests in, which is how a reorderable list's lifted item
+follows the pointer; letting go keeps the held displacement and springs it home.
+`set_raised(node, true)` makes a child of a `List` or `VirtualList` paint after its siblings
+(a `z-index` on HTML), so a lifted item passes over its neighbours rather than under the
+later ones. `VirtualList` is an ordinary box that stands for
 one item per key, each of an estimated `item_size`, and builds only the ones its slice of
 the viewport reaches (see [Long lists](#long-lists)).
 `Scroll` takes a `direction`, so the same tag is a
@@ -1333,7 +1358,11 @@ gesture in progress is dropped rather than committed. A finger dragged across a
 `TouchDrags::All` (or `true`), which a canvas that draws or moves things under
 the finger sets, or `TouchDrags::Along(direction)`, which keeps finger drags
 along one direction only and leaves the other to the scroll around it, as a
-dock tab in a scrolling tab bar does.
+dock tab in a scrolling tab bar does. A catcher that sets `on_long_press_drag` takes the long press instead:
+the press is not cancelled and no context menu opens, the callback hears where the
+finger rests, and the catcher keeps the finger's later moves as its drag, which is how a
+reorderable list in a list that scrolls along its axis lets a finger lift a row (on HTML,
+a touch `contextmenu` stands for the long press).
 A pen is `Event::Pen`: a `PenPhase` (`Move` in range, whether or not the tip is down, `Down`
 and `Up` of the tip, which is `Primary`, and of its barrel buttons, and `Gone` when it leaves
 range) and a `Pen` with its pressure from 0 to 1, its tilt in degrees and whether it is the
@@ -1665,8 +1694,11 @@ On the HTML core `unstyled::Scroll` leaves all of that to the browser
 with the scroll's content slotted inside and `scrollbar-width: none` when its
 `ScrollbarStyle` has no bar. The browser scrolls it on the compositor with the
 wheel, touch, the keys (from the scroller or anything focused in it) and its
-own scrollbar, with no momentum, rubber band, autoscroll or drawn scrollbar of
-beui's. Its `scroll` listener and the measured sizes of the scroller and its
+own scrollbar, with no momentum, rubber band, middle-click autoscroll or drawn
+scrollbar of beui's; a carried drag's edge autoscroll (below) sets its
+`scrollTop` on a frame-clock timer. The content sits in an `overflow: clip`
+wrapper, so a translated child (a lifted reorder item, a glide) never adds to
+what the browser lets it scroll, as the native layout ignores it too. Its `scroll` listener and the measured sizes of the scroller and its
 content feed `on_change`; `offset` and `ScrollApi::scroll_to_end` set its
 `scrollTop` (or `scrollLeft`); `follow_end` keeps it at the end while it was
 there; `reveal` scrolls a row into view; the focusable `Interactive` sits on
@@ -2275,6 +2307,28 @@ row for tests, as `<id>.row`, `<id>.chevron` and `<id>.more`, and `outline` give
 row an outline of its own, which is how a drop target says whether it will
 take what is over it.
 
+Given `reorder`, rows part to show where a dragged row would land. The tree does
+not carry the drag itself: whoever follows it - the tree's own `on_drag_move` and
+`on_drop`, which report the row and the pointer after `on_drag_start`, or a host's
+drag that a plugin only hears as positions - hands each window point to
+`TreeApi::drag_over(Some(point), allow)`. That finds the row under it (where the
+rows rest, so the gap never moves a row out from under the pointer, and the pointer
+over the gap keeps what it last chose) and answers with a `TreeDragOver` - the
+`row` and the `drop` it chose, a `TreeDrop`: `Into(row)` or `Among { parent,
+after }`, the shape of be-model's `Anchor`. The top and bottom quarters of a row
+place among its siblings, before it or after it, and the middle half goes into it;
+a row that `allow` refuses to take something inside splits at its middle instead,
+and an edge `allow` refuses falls back to going inside. Below an expanded row means
+first among its children. For `Among`, the siblings glide aside to open a gap of a
+row's height where it would land: the tree is an `unstyled::Reorder` over the
+sibling group, with each row a `ReorderItem`, whose gap `drag_over` opens at
+exactly the place it chose, so a group whose rows are not next to each other (an
+expanded sibling's children between them) still parts in the right place. `Into`
+opens no gap; outline the row instead. `drag_over(None, ..)` closes the gap, and
+`drag_end(settle)` ends the drag: `settle` keeps the gap open until the keys
+change, for a caller that applies the move later (the file tree asks its host), so
+the rows glide from the gap into their new order; without it the gap closes now.
+
 A row's name is edited in place through the controlled `editing` prop, the
 key being renamed or `None`. While it names a row, the row's face gives way
 to a field of the row's height holding `TreeItem::label`, focused with all of
@@ -2552,17 +2606,34 @@ target is looked for in the window whose layer is on top at the pointer, never
 in one covered there by a layer that is not the dock's (a menu, a dialog, the
 fullscreen tab).
 
-Dragging a tab picks a drop target from what is under the pointer: a tab bar
-inserts it between the tabs there, the middle of a pane joins that pane, and an
-edge of one splits it. Holding Alt while dropping floats the tab into a window
-instead, which is also what "Pop out into a window" on a tab's own menu does. Every pane
+Each tab bar is a `Reorder` (see "Reorderable lists") whose items are the
+bar's entries, carrying `DockDragged::Entry`: past the threshold a tab lifts and
+follows the pointer along its bar, its neighbours glide aside, and nothing
+changes in the `DockState` until the drop, which calls `drop_entry` with a
+`DockDrop::Tab` (the only way to join a pane). Pulled out across the bar it
+becomes the floating preview and the gap behind it closes; over another bar
+that admits it (`DockState::admits`, so a pinned tab parts only bars inside its
+group) a gap of its size opens where it would land. A pane's grip carries
+`DockDragged::Pane`, which bars accept too. The rest of a bar's row - its grip,
+the padding around the tabs, a window's title bar - belongs to the dock's own
+drop target, which hands the bar under the pointer to that bar's `Reorder`
+(`ReorderHandle::hover`, `drop_at`), so the gap opens there as well. Off every
+bar, an edge of a pane splits it, and the middle of a pane groups the tab with the entry that pane
+shows (`DockDrop::Group` at the pane's active index; dropping the shown entry on
+its own pane is refused). When the tidying below would fold that group straight
+back into the pane (a pane left holding only the group), the drop only joins
+it. The highlight then says which: `DockHighlightHandle::group_with` holds the
+title of the entry a drop would group with, which the styled dock shows as a
+"Group with ..." label, and nothing for a plain join. Holding Alt while dropping floats the tab into a window
+instead, over a bar too (the bar's `Reorder` declines through `takes`), which is also what "Pop out into a window" on a tab's own menu does. Every pane
 and every window wears the same bar: a grip, the tabs, and a button that closes
 them all, shown only when every tab in it can close. A middle click on a tab closes it. A finger picks a tab up by
 dragging it out of its bar, across the way the bar scrolls; sliding along the
 bar scrolls it. Dragging a docked pane's
 grip carries the whole pane (`DockState::drop_leaf`), with the same drop targets
-a tab has. A window holds one pane, so a tab dropped anywhere inside one joins
-it rather than splitting it, and that pane's bar is the window's title bar:
+a tab has; a pane dropped on the middle of another is grouped, all its tabs
+in one group with the entry shown there. A window holds one pane, so a tab dropped
+anywhere in its body groups with what it shows rather than splitting it, and that pane's bar is the window's title bar:
 anywhere on it that is not a tab drags the window. Right-clicking a grip moves
 that pane's tabs into a sidebar beside its body (`DockState::set_vertical`),
 whose edge drags or arrows to a new width (`set_sidebar_width`); a window in
@@ -2594,14 +2665,17 @@ panel. The bar between two panes is a tab
 stop with a `Splitter` role: the arrow keys move it, and the tab bar is a
 `Choice` inside a `Scroll` running the way the bar does, so the arrows, Home and End walk it like
 any other tab list and scroll the tab they reach into view when a pane has more
-tabs than it has room for.
+tabs than it has room for. Alt with an arrow along the bar moves the focused tab
+one place (`Reorder`'s keyboard move); the bar's `Choice` wraps each option's
+button in a `ReorderItem` through its `item` prop, and keeps its buttons by
+option rather than by index, so a moved tab keeps its node and its focus.
 
 A place in a tab bar holds an `Entry`: either a `Tab` or a `Group`. A group is a
 tab that holds a dock tree of its own, so choosing it shows that tree in the
 pane's body - one pane with a second tab bar under the first, or panes split
 side by side - and the same drops work inside it as anywhere else. Dropping a
-tab onto the middle of another tab groups the two (onto a group, it joins the
-group); the outer edge of a pane showing a group still splits the outer pane,
+tab on the middle of a pane groups it with the tab shown there (with a group
+shown, it joins the group); the outer edge of a pane showing a group still splits the outer pane,
 so the drop zones of the group sit inside a thin band that belongs to its
 parent. A tab's menu offers "Group with next tab" and "Split with next tab",
 and a group's own menu ungroups it, closes every tab in it, or floats it into a
@@ -2624,8 +2698,8 @@ inside the group, and the group can be moved with all of them, but a pinned
 tab cannot be dragged, popped or carried out of it with its pane. "Unpin from
 group" on a tab's menu (`set_tab_pinned`) lets it go, it may come back later,
 and "Pin to group" pins it again once it is back. A drag that the state would
-refuse (`admits`, `admits_leaf`) shows no drop marker, and letting go there
-does nothing. `unpin` makes the whole group an ordinary group again. `tree` reads a surface's or a group's layout
+refuse (`admits`, `admits_leaf`) opens no gap and shows no highlight, and
+letting go there glides the tab home. `unpin` makes the whole group an ordinary group again. `tree` reads a surface's or a group's layout
 out as a `DockTree`, which names tabs but no leaf, split or group ids, so it can
 be compared, sent elsewhere and rebuilt: `from_tree` makes a state out of one
 and `set_tree` replaces a tree in place, moving in any of its tabs that were
@@ -2820,7 +2894,9 @@ that nest - a card inside the pile that holds it - set `capture_presses`, so a
 press reaches the innermost one and not the one around it, the way
 `unstyled::Button` wins a press; of overlapping ones only the topmost hears it.
 
-While a drag is under way the `preview` is shown beside the pointer in an
+`preview` is required: every drag shows something under the pointer, even one
+whose targets draw the item themselves, since the pointer may be over none of
+them. While a drag is under way the `preview` is shown beside the pointer in an
 inert overlay at `LayerLevel::Top`, so it paints above every window and takes
 no input. Where windows open (`Context::opens_windows`), it is shown in the
 window the pointer is over (the overlay's `shown_in`, the board's `DragPoint::window`),
@@ -2836,8 +2912,9 @@ its preview sits above the finger instead of under it.
 
 A `DropTarget` is registered by the rectangle its content was laid out at. The
 target under the pointer that accepts the payload takes the drop - `accepts`
-filters by value, and a target of another payload type never sees the drag at
-all - and of the targets under the pointer the one painted last wins: the
+filters by value, `takes` by the point (where in the target, which modifiers are
+held; a target that declines lets the drop fall to the one beneath it), and a
+target of another payload type never sees the drag at all - and of the targets under the pointer the one painted last wins: the
 innermost in the document tree, or the one in the higher layer, whatever order
 they were built in, so a slot inside a column inside a sidebar can each take a
 drop of its own. Only the part of a target that is on screen counts. Its `DropHandle` carries
@@ -2845,9 +2922,90 @@ drop of its own. Only the part of a target that is on screen counts. Its `DropHa
 `over`, true for the one that would take it now; `on_over` reports the payload
 and the pointer as it moves, which is how a target that works out where inside
 itself the drop lands - the dock's tab bars and split zones, a timeline's
-insertion point - draws its marker, and how a filmstrip reorders live. The drop
+insertion point - draws its marker. A list that reorders its own items uses
+`Reorder` (below) instead. The drop
 is handed over before the source hears `on_drag_change(false)`, so a source can
 keep whatever it set up for the drag until the drop has used it.
+
+Every `DragPoint` a target hears carries `item`, the carried item's rect
+relative to the pointer (the source's face as it was laid out when pressed,
+so `point.local + point.item.min.to_vec2()` is where its corner would sit in
+the target, `Rect::ZERO` for a drag no `Draggable` began); `Board::item`
+answers the same. That is how a list the item is carried into opens a gap of
+the right size where it would land.
+
+A drag ends one of three ways for its source. A target takes it (a source that
+began the drag with `Board::begin` hears `DragSource::dropped`), it is let go
+outside every window (`on_drop_outside`), or nothing takes it: Escape (a
+built-in capture key handler, ahead of overlays' own Escape, calls
+`Board::cancel`; on HTML the board listens for it on the window), a cancelled pointer, or a release over no target that
+accepts it. In that last case the targets see the drag leave (Escape does not first turn
+the item back into a floating preview), nothing drops,
+and the source hears `on_cancel` before `on_drag_change(false)`, so it can
+animate the item back; after Escape the press that is still held does not lift
+it again.
+
+A target that draws the carried item itself sets `hides_preview`: while the
+pointer is over it the floating preview is hidden, and the source's
+`DragHandle::floating` is false (`dragging` stays true), so a reorderable list
+can show the item lifted in its own slot and leave the overlay preview to the
+moment it is pulled out of the list. `floating` is `dragging` and not over
+such a target. The board tells the source which it is on the first point it
+tracks, so an item whose first move past the threshold is already off its list
+(a flick) floats at once. The drop lands where the button is let go, even when
+the source's node is gone by then.
+
+Holding a carried drag within `EDGE_BAND` (40 points, at most a quarter of
+the viewport) of the edge of a `Scroll` under the pointer, in that scroll's
+direction, scrolls it, faster the closer the pointer is to the edge. Each
+`Scroll` registers its catcher with the board as an `EdgeScroller`
+(`Board::register_scroller`: its node, its axis, whether it can still move each
+way, and a `scroll(depth)` callback). On each point it tracks, the board picks
+the innermost registered scroll under the pointer whose band the pointer is in
+and that can still move that way (by paint order natively, the smallest on
+HTML) and calls `scroll(Some(depth))`, the signed distance into the band; the
+scroll turns it into the speed a middle-click autoscroll would have (without
+its origin marker) and moves on its own timer by the frame clock, until the
+board calls `scroll(None)` once the pointer leaves the band or the window or
+the drag ends. Natively the board tracks the pointer every frame, so while it
+scrolls targets keep hearing `on_over` with the pointer in their moved
+coordinates even when the pointer is still; on HTML it tracks pointer moves,
+through window listeners it holds while it carries something (so a drag goes
+on, and ends on release, when the source's element is gone), and a scroll
+calls `Board::retrack` after each step it scrolls, which tracks the last point
+again so targets hear it in their moved coordinates there too.
+
+A target that `holds` a payload (a `Func<P, bool>`) keeps a drag of it that no
+other target could take: while no other registered target accepts the payload,
+the board treats the pointer as over that target wherever it is, even outside
+the window, so the drag never floats off into nothing and a release anywhere
+drops there. Escape and a cancelled pointer still drop nothing. It is how a
+`Reorder` keeps its own item (below).
+
+A target that would refuse a drop at a point declines it with `takes` rather
+than taking it and doing nothing: the drag then falls through, and a source
+such as a `Reorder` item hears it cancelled and glides home. The dock's target
+declines every drop its locks or rules refuse.
+
+The board is written once, for both cores, in `beui-drag`: `Board<S: Surface>`
+holds what is carried, the targets and scrollers, which one is under the point,
+floating, holding, `takes`, drops, cancels, the outside release and the edge
+scroller choice. A core gives only a `Surface`: where a node is (`placed`, its
+window rect and scale, which a `DragPoint`'s `within` uses), which part of it can
+be hit (`visible`), which window it is in (`window`), how two targets or two
+scrollers under the point rank (`target_order`, `scroller_order`; the highest
+wins, the last registered among equals), and `carrying`, called as a drag starts and
+ends. Natively that is `Painted` in beui-core's `drag_board.rs`: rects from the
+laid-out `Rects`, and paint order and windows that `Document::order_drags`
+reads before each point pointer.rs tracks. On HTML it is `Measured` in
+beui-core-html's `drag_board.rs`: `measure` rects, every node in the main window,
+the last registered target and the smallest scroller winning, and window
+pointer listeners held while carrying; that file also makes the board with its
+Escape listener. As a drag ends, every target hears it leave (`over(None)`, then
+`carrying(false)`) before the one that takes it hears `dropped`, so a target
+(a fixed `Reorder` re-aiming its gap) can rely on that order. A change to how a drag behaves goes in beui-drag, whose tests
+(crates/beui-drag/src/tests) drive a board over a fake surface with no core;
+a core's file changes only when where things are, or how they stack, does.
 
 A drag between editors is not this inside the plugin: a block dragged from
 the file tree to another editor crosses plugins, so it goes through the host
@@ -2857,6 +3015,107 @@ a block puts it there with `Board::begin`, each plugin region is a `DropTarget`
 for it, and the board drops whatever it carries when the primary button or the
 finger is let go, wherever the press was, so a drag that no `Draggable` began
 still ends; a cancelled touch ends it without a drop.
+
+### Reorderable lists
+
+`unstyled::Reorder` makes a list whose items are dragged into a new order, within
+it or into another list. It does not lay the list out: it wraps whatever does - a
+`List` over a `ForEach`, a `VirtualList`, a `Choice` - and hands it the order to
+show, and each item is a `ReorderItem` around its face:
+
+```rust
+view! {
+    <Reorder
+        keys={tasks}
+        payload={Func::new(|task: TaskId| Some(task))}
+        text={move |task: TaskId| title(task)}
+        preview={move |task: TaskId| view! { <TaskRow task lifted=true /> }}
+        on_move={move |moved: ReorderMove<TaskId, TaskId>| move_task(moved.payload, moved.after)}
+    >|reorder: ReorderHandle<TaskId, TaskId>|
+        <List spacing=Space::Xs>
+            <ForEach keys={reorder.order}>|task: TaskId|
+                <ReorderItem reorder item=task>|item: ReorderItemHandle|
+                    <TaskRow task lifted={item.lifted} />
+                </ReorderItem>
+            </ForEach>
+        </List>
+    </Reorder>
+}
+```
+
+In a `Choice`, whose list items are the buttons it makes, the `item` prop
+wraps each button in the `ReorderItem` (`ChoiceItem` hands it the button and its
+reactive `index`); `Choice` keeps a button per option across reorders.
+Keys are stable identities (a row id, never an index). `payload` is what the drag
+board carries for a key, `None` for one that cannot move. Other lists see it too, so
+it must name the item wherever it is dropped, never a position in its list: give
+each kind of item its own type (a `TaskId`, not a `usize`), since a list's `accepts`
+sees every payload of its type and a bare index from another list reads as one of
+its own. A list takes no item but its own unless `accepts` says so. `disabled` turns dragging
+off for the whole list (a read-only view, a sorted one). Nothing is committed while
+an item is carried: `reorder.order` is the keys with the carried one moved to where
+it would land, and the drop calls `on_move` once with a `ReorderMove` - the
+`payload`, its `key` here (`None` when it came from another list), `after`, the key
+it now follows (`None` for first, the shape of be-model's `Anchor`), and its `index`.
+Apply it in the same update (the keys then already match the order shown); a list
+that ignores it glides the item back.
+
+Past the threshold the item lifts in place: it follows the pointer along the list
+and nothing else (`hold_glide`), paints over its neighbours (`set_raised`), and
+moves past a neighbour once it covers half of it: its leading edge (the one facing
+the way it moves) crosses the neighbour's middle, measured against where the
+neighbours rest. That is the same pointer position going either way, whatever the
+widths, so the item cannot flicker between two slots (a list's spacing adds that
+much hysteresis). The held item stays within the list's length: it stops at the
+first and last items however far the pointer goes. A carried item from another list opens its gap by the same rule:
+it lands after every item whose middle its leading (top or left) edge is past, so
+the gap opens under it, and moving within the gap behaves like a lifted item. Neighbours glide aside (the list's `Glide`s share one arm). The list is the
+item's own drop target with `hides_preview` and `holds`: an item only leaves its
+list when something else could take it, another target that accepts the payload
+or the list's own `on_drop_outside`. Until then it stays lifted in its list
+wherever the pointer goes, and a release anywhere drops it in the slot it shows.
+Once something else could take it, pulled out across the list it turns into the
+floating `preview` under the pointer (required: the item's own face is still in
+the list) and the gap behind it closes; from then on it is carried like any other
+list's item, its own list included. Any `Reorder` whose `accepts` takes the payload
+opens a gap the size of the carried item (`DragPoint::item`) and the list's spacing
+where it would land, and a drop there settles the new item from the pointer. The gap
+is animated: it opens and closes along a spring (`GLIDE_SPRING`) by the frame clock,
+at once under `Motion::Instant`, so the list's length and the items after it follow
+it rather than jump; it moves from one slot to another by gliding the neighbours. A
+drop into it, or a release of a detached item over nothing (its slot then opens
+again before it settles home from the pointer), takes its place with no jump. `takes` (as on `DropTarget`) lets a list decline a drop at some
+points, as a dock bar does while Alt is held; its own item then floats off it. Let go over nothing, or press Escape, and it glides home. Alt with the
+arrow keys along the list moves the focused item through the same `on_move`
+(`ReorderHandle::step` does the same for a "Move up" command), and a polite live
+status says where it went, naming the item with `text`. A finger dragged across
+the list lifts an item; `long_press` lets a held finger lift it too, for lists that
+scroll along their axis. Edge autoscroll comes from the drag board.
+
+The list owns the drag, not the item, so a `VirtualList` may drop and reuse the
+lifted row's node. `on_drag_change` reports which key is being dragged and
+`on_drop_outside` a drop outside every window. A list whose order something else
+decides (a sorted column) sets `fixed`: its items still go to other lists and
+come in from them, but never move within it (`step` refuses). Its own item is
+carried as the floating preview from the start, its slot staying open while it is
+over its own list (a drop there changes nothing) and closing elsewhere. A carried
+item's gap opens where `slot` (payload -> index among the list's other keys, `None`
+for one that would not show) says it will land, wherever the pointer is, so it must
+come from the same ordering the list's keys do; without `slot` no gap opens. A
+foreign drop reports that index and keeps the gap open until the keys change, so an
+edit that applies later still lands with no jump. `ReorderHandle::visited` says a
+foreign item is over the list, for a highlight. The list fills the area it is given, so a column can wrap its whole
+frame (header included) to make all of it the drop target. A drag the board does not carry -
+the host's block drag that a plugin only hears as positions - can still part the
+list: `ReorderHandle::hover(Some(point))` opens the gap for a window point and the
+carried item's rect, and `drop_at(payload, point)` drops as a foreign item would. `ReorderHandle::resting(key)`
+is where an item rests, unshifted and without its gap, for a list that hit-tests
+its own items (`Tree`'s `reorder` does both).
+Styled code uses `styled::ReorderItem`, which adds the lifted look (a raised fill,
+a hairline and a shadow `LIFT_DROP` below it) from theme tokens; its `margin`
+keeps space around the item outside that look, for a `VirtualList`, which has no
+spacing of its own. Click handling goes on the `ReorderItem`'s `on_click`, not on
+a row inside it: a row's own click would fire on the release that ends a drag.
 
 ### Pan and zoom
 

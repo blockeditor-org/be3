@@ -1,7 +1,7 @@
-use std::any::Any;
 use std::rc::Rc;
 
-pub use crate::types::drag::{DragPoint, Outside, Pending, Target};
+use crate::types::Rect;
+pub use beui_drag::{DragPoint, DragSource, EDGE_BAND, EdgeScroller, Outside, Pending, Target};
 
 #[derive(Clone)]
 pub struct Board(Rc<crate::core::drag::Board>);
@@ -15,18 +15,24 @@ impl Board {
         self.0.unregister(id);
     }
 
+    pub fn register_scroller(&self, scroller: EdgeScroller) -> u64 {
+        self.0.register_scroller(scroller)
+    }
+
+    pub fn unregister_scroller(&self, id: u64) {
+        self.0.unregister_scroller(id);
+    }
+
     pub fn carrying(&self) -> bool {
         self.0.carrying()
     }
 
-    pub fn begin(
-        &self,
-        payload: Rc<dyn Any>,
-        point: DragPoint,
-        follow: Rc<dyn Fn(DragPoint)>,
-        outside: Outside,
-    ) {
-        self.0.begin(payload, point, follow, outside);
+    pub fn item(&self) -> Option<Rect> {
+        self.0.item()
+    }
+
+    pub fn begin(&self, source: DragSource, point: DragPoint) {
+        self.0.begin(source, point);
     }
 
     pub fn press(&self, pending: Pending) {
@@ -41,12 +47,20 @@ impl Board {
         self.0.track(point);
     }
 
+    pub fn retrack(&self) {
+        self.0.retrack();
+    }
+
     pub fn finish(&self) {
         self.0.finish();
     }
 
-    pub fn end(&self, point: Option<DragPoint>) {
-        self.0.end(point);
+    pub fn end(&self, point: Option<DragPoint>) -> bool {
+        self.0.end(point)
+    }
+
+    pub fn cancel(&self) -> bool {
+        self.0.cancel()
     }
 }
 

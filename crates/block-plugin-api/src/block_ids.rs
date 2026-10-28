@@ -176,6 +176,12 @@ impl BlockCommand {
                 source.visit_block_ids(visit);
                 visit(BlockIdRole::Existing, destination);
             }
+            Self::Reorder { parent, after } => {
+                visit(BlockIdRole::Existing, parent);
+                if let Some(after) = after {
+                    visit(BlockIdRole::Existing, after);
+                }
+            }
             Self::Place { parent, .. } => visit(BlockIdRole::Existing, parent),
             Self::Undo | Self::Redo | Self::Artifact { .. } | Self::Restore => {}
         }

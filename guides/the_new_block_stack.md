@@ -1331,14 +1331,18 @@ places in, since moving a tree into another workspace rekeys every block in it.
 
 ### Children, duplication and undo
 
-Moving a block into a container, deleting a child or replacing it with a copy
-asks the container's content to change. `PluginEditor` sends that to
+Moving a block into a container, deleting a child, replacing it with a copy or
+moving it among its siblings asks the container's content to change. `PluginEditor` sends that to
 `be::change_child`, which opens the container's replica if nothing has and sends
 it `Change::Child`; the content type answers with `Root::child_edit`, which
 turns a `be_block::ChildChange` into an ordinary edit: a presentation adds or
 drops a slide, a database clears or rewrites the cells that link the block, a
-hotbar unpins or repoints a component. `change_child` answers `None` only for a
-content type no module has.
+hotbar unpins or repoints a component, a folder moves an entry (`Reorder`). `change_child` answers `None` only for a
+content type no module has. An editor asks for a reorder with
+`EditorHost::reorder_block(block, parent, after)` (`BlockCommand::Reorder`); the
+app queues it behind any move of the same block still under way (`queue_reorder`
+in block-app's main.rs) and sends it only to a type whose manifest says
+`children.reorder`.
 
 Duplicating a block is `be::duplicate`: it adds the copy to the mirror with the
 source's type, references and metadata (without its artifact source), and the
@@ -1453,7 +1457,13 @@ has no add of its own, only New workspace, which makes one at the root and
 opens the rename dialog. Every picker places a new block in a workspace, My
 files when nothing else is named.
 A block moves between workspaces with the host's `move_block`, by dragging it
-or from its Move to menu. A phone shows the same tree with taller rows, under a
+onto the middle of a folder's row or from its Move to menu. Dragged onto the top or
+bottom quarter of a row, a row whose `can_reorder` holds lands among that row's
+siblings, which part to show where: `reorder_block(id, container, after)` in its own
+container, or `move_block` then `reorder_block` in another that keeps an order
+(`Row::orders_children`). The drag is the host's block drag, which the tree only
+hears as positions, so it drives `styled::Tree`'s `reorder` through
+`TreeApi::drag_over` (guides/beui.md, the tree). A phone shows the same tree with taller rows, under a
 title with New workspace and the account button in place of the toolbar.
 Pressing a folder, a workspace or one of the other sections zooms into it rather
 than opening it: the tree then holds only what it holds, under a bar with the

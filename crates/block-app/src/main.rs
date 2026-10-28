@@ -553,6 +553,7 @@ struct BlockApp {
     dynamic_artifact_settings_open: Option<Uuid>,
 
     pending_transfers: Vec<PendingTransfer>,
+    pending_reorders: Vec<PendingReorder>,
     pending_copies: Vec<PendingCopy>,
     about_open: bool,
     unsent_open: bool,
@@ -647,6 +648,13 @@ struct PendingTransfer {
     destination: Option<Uuid>,
     parent_after: Option<BlockParent>,
     stage: TransferStage,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+struct PendingReorder {
+    child: Uuid,
+    parent: Uuid,
+    after: Option<Uuid>,
 }
 
 #[derive(Clone, Copy)]
@@ -816,6 +824,7 @@ impl BlockApp {
             dynamic_artifact_settings: HashMap::new(),
             dynamic_artifact_settings_open: None,
             pending_transfers: Vec::new(),
+            pending_reorders: Vec::new(),
             pending_copies: Vec::new(),
             about_open: false,
             unsent_open: false,
@@ -1023,6 +1032,7 @@ impl BlockApp {
             .is_some_and(|pending| pending.browser.is_none())
             || self.pending_organization_request.is_some()
             || !self.pending_transfers.is_empty()
+            || !self.pending_reorders.is_empty()
             || !self.pending_copies.is_empty()
             || (self.dev_workspace && self.organization.is_none())
             || be::busy()
@@ -1718,6 +1728,7 @@ impl BlockApp {
         self.dynamic_artifact_settings.clear();
         self.dynamic_artifact_settings_open = None;
         self.pending_transfers.clear();
+        self.pending_reorders.clear();
         self.about_open = false;
         self.unsent_open = false;
         self.discarding_unsent = None;
@@ -1866,6 +1877,41 @@ impl BlockApp {
             parent_after: (!is_reference).then_some(BlockParent::Block(destination)),
             stage: TransferStage::DeleteSource,
         });
+    }
+
+    fn queue_reorder(&mut self, child: Uuid, parent: Uuid, after: Option<Uuid>) {
+        if child == parent || after == Some(child) {
+            return;
+        }
+        let reorder = PendingReorder {
+            child,
+            parent,
+            after,
+        };
+        if self.pending_reorders.contains(&reorder) || !self.ensure_editor(parent) {
+            return;
+        }
+        self.pending_reorders.push(reorder);
+    }
+
+    fn process_pending_reorders(&mut self) {
+        let pending = std::mem::take(&mut self.pending_reorders);
+        for reorder in pending {
+            let moving = self
+                .pending_transfers
+                .iter()
+                .any(|transfer| transfer.child == reorder.child);
+            let done = !moving
+                && self
+                    .with_editor(reorder.parent, |editor| {
+                        editor.reorder_child(reorder.child, reorder.after)
+                    })
+                    .flatten()
+                    .is_some();
+            if !done {
+                self.pending_reorders.push(reorder);
+            }
+        }
     }
 
     fn restore(&mut self, id: Uuid) {
@@ -2725,6 +2771,9 @@ impl BlockApp {
                 Uuid::from_bytes(destination),
                 is_reference,
             ),
+            BlockCommand::Reorder { parent, after } => {
+                self.queue_reorder(id, Uuid::from_bytes(parent), after.map(Uuid::from_bytes))
+            }
             BlockCommand::Restore => self.restore(id),
             BlockCommand::Place {
                 block_type,
@@ -2884,6 +2933,7 @@ impl BlockApp {
             return;
         }
         self.process_pending_transfers();
+        self.process_pending_reorders();
         self.process_pending_copies();
         self.show_shell();
         #[cfg(windows)]

@@ -169,6 +169,25 @@ fn measured(_node: NodeId) -> Option<Measured> {
 }
 
 #[cfg(target_arch = "wasm32")]
+pub fn scrolled_by(node: NodeId) -> beui_types::Vec2 {
+    use wasm_bindgen::JsCast;
+
+    let mut by = beui_types::Vec2::ZERO;
+    let element = crate::dom::dom(node).and_then(|dom| dom.dyn_into::<web_sys::Element>().ok());
+    let mut ancestor = element.and_then(|element| element.parent_element());
+    while let Some(element) = ancestor {
+        by += beui_types::vec2(element.scroll_left() as f32, element.scroll_top() as f32);
+        ancestor = element.parent_element();
+    }
+    by
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn scrolled_by(_node: NodeId) -> beui_types::Vec2 {
+    beui_types::Vec2::ZERO
+}
+
+#[cfg(target_arch = "wasm32")]
 pub fn rect(node: NodeId) -> Option<Rect> {
     use wasm_bindgen::JsCast;
 

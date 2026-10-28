@@ -43,7 +43,7 @@ fn the_layers_panel_selects_reorders_and_hides() {
     assert_eq!(
         order(&editor),
         vec![front, middle],
-        "dropping a layer on the top half of another puts it in front"
+        "carrying a layer above another puts it in front"
     );
 
     editor.click(format!("infinite-canvas.layer.{front}.visibility"));

@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use super::*;
-use crate::unstyled::{DragPoint, DropHandle, DropTarget};
+use crate::unstyled::{DragPoint, DragSource, DropHandle, DropTarget};
 
 #[test]
 fn a_drag_put_on_the_board_drops_where_the_button_is_let_go() {
@@ -30,10 +30,8 @@ fn a_drag_put_on_the_board_drops_where_the_button_is_let_go() {
     let to = harness.center(target);
     harness.press_at(from);
     harness.document().drag_board().begin(
-        Rc::new(7_u32),
+        DragSource::new(Rc::new(7_u32)),
         DragPoint::at(from, Modifiers::NONE),
-        Rc::new(|_| {}),
-        Rc::new(|_| {}),
     );
     harness.frame(vec![Input::PointerMoved(to)]);
     assert_eq!(

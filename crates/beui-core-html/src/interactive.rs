@@ -27,6 +27,7 @@ pub struct Handlers {
     pub on_middle_click: ClickCallback,
     pub on_press: Callback<PointerPress>,
     pub on_secondary_press: Callback<PointerPress>,
+    pub on_long_press_drag: Callback<PointerPress>,
     pub on_drag: Callback<PointerPress>,
     pub on_pointer: Callback<PointerInput, bool>,
     pub on_forward: Callback<ForwardedInput>,
@@ -869,6 +870,16 @@ mod web {
                 else {
                     return;
                 };
+                let touch = event
+                    .dyn_ref::<web_sys::PointerEvent>()
+                    .is_some_and(|event| event.pointer_type() == "touch");
+                if touch && !held.handlers.on_long_press_drag.is_empty() {
+                    held.handlers
+                        .on_long_press_drag
+                        .call(press(&element, event));
+                    handled(event, true);
+                    return;
+                }
                 if held.handlers.on_secondary_press.is_empty() {
                     return;
                 }

@@ -7737,6 +7737,7 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-drag:beui-drag",
                     "//crates/beui-tree:beui-tree",
                     "//crates/beui-types:beui-types",
                     "//crates/geometry:geometry",
@@ -7760,6 +7761,7 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-drag:beui-drag",
                     "//crates/beui-tree:beui-tree",
                     "//crates/beui-types:beui-types",
                     "//crates/geometry:geometry",
@@ -7783,6 +7785,7 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-drag:beui-drag",
                     "//crates/beui-tree:beui-tree",
                     "//crates/beui-types:beui-types",
                     "//crates/geometry:geometry",
@@ -7806,6 +7809,7 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-drag:beui-drag",
                     "//crates/beui-tree:beui-tree",
                     "//crates/beui-types:beui-types",
                     "//crates/geometry:geometry",
@@ -7829,6 +7833,7 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-drag:beui-drag",
                     "//crates/beui-tree:beui-tree",
                     "//crates/beui-types:beui-types",
                     "//crates/geometry:geometry",
@@ -7852,6 +7857,7 @@ crates = {
             "wasi": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-drag:beui-drag",
                     "//crates/beui-tree:beui-tree",
                     "//crates/beui-types:beui-types",
                     "//crates/geometry:geometry",
@@ -7875,6 +7881,7 @@ crates = {
             "wasi-guest": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-drag:beui-drag",
                     "//crates/beui-tree:beui-tree",
                     "//crates/beui-types:beui-types",
                     "//crates/geometry:geometry",
@@ -7898,6 +7905,7 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-drag:beui-drag",
                     "//crates/beui-tree:beui-tree",
                     "//crates/beui-types:beui-types",
                     "//crates/geometry:geometry",
@@ -7921,6 +7929,7 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-drag:beui-drag",
                     "//crates/beui-tree:beui-tree",
                     "//crates/beui-types:beui-types",
                     "//crates/geometry:geometry",
@@ -7959,6 +7968,7 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-drag:beui-drag",
                     "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-html:beui-html",
                     "//crates/beui-tree:beui-tree",
@@ -7977,6 +7987,7 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-drag:beui-drag",
                     "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-html:beui-html",
                     "//crates/beui-tree:beui-tree",
@@ -7995,6 +8006,7 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-drag:beui-drag",
                     "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-html:beui-html",
                     "//crates/beui-tree:beui-tree",
@@ -8013,6 +8025,7 @@ crates = {
             "linux-x86_64-html": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-drag:beui-drag",
                     "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-html:beui-html",
                     "//crates/beui-tree:beui-tree",
@@ -8031,6 +8044,7 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-drag:beui-drag",
                     "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-html:beui-html",
                     "//crates/beui-tree:beui-tree",
@@ -8049,6 +8063,7 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-drag:beui-drag",
                     "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-html:beui-html",
                     "//crates/beui-tree:beui-tree",
@@ -8067,6 +8082,7 @@ crates = {
             "wasi-html": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-drag:beui-drag",
                     "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-html:beui-html",
                     "//crates/beui-tree:beui-tree",
@@ -8089,6 +8105,7 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-drag:beui-drag",
                     "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-html:beui-html",
                     "//crates/beui-tree:beui-tree",
@@ -8107,6 +8124,7 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-drag:beui-drag",
                     "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-html:beui-html",
                     "//crates/beui-tree:beui-tree",
@@ -8957,6 +8975,145 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/beui-drag": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "beui_drag",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "beui-drag",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-types:beui-types",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/beui-tree:beui-tree",
+                ],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-types:beui-types",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/beui-tree:beui-tree",
+                ],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-types:beui-types",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/beui-tree:beui-tree",
+                ],
+                "test_features": [],
+            },
+            "linux-x86_64-html": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-types:beui-types",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-types:beui-types",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/beui-tree:beui-tree",
+                ],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-types:beui-types",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/beui-tree:beui-tree",
+                ],
+                "test_features": [],
+            },
+            "wasi": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-types:beui-types",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-types:beui-types",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-html": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-types:beui-types",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-types:beui-types",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/beui-tree:beui-tree",
+                ],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-types:beui-types",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/beui-tree:beui-tree",
+                ],
                 "test_features": [],
             },
         },
@@ -11813,6 +11970,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-drag:beui-drag",
                     "//crates/beui-html:beui-html",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-tree:beui-tree",
@@ -11831,6 +11989,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-drag:beui-drag",
                     "//crates/beui-html:beui-html",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-tree:beui-tree",
@@ -11849,6 +12008,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-drag:beui-drag",
                     "//crates/beui-html:beui-html",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-tree:beui-tree",
@@ -11867,6 +12027,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core-html:beui-core-html",
+                    "//crates/beui-drag:beui-drag",
                     "//crates/beui-html:beui-html",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-tree:beui-tree",
@@ -11885,6 +12046,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-drag:beui-drag",
                     "//crates/beui-html:beui-html",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-tree:beui-tree",
@@ -11903,6 +12065,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-drag:beui-drag",
                     "//crates/beui-html:beui-html",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-tree:beui-tree",
@@ -11921,6 +12084,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-drag:beui-drag",
                     "//crates/beui-html:beui-html",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-tree:beui-tree",
@@ -11937,6 +12101,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-drag:beui-drag",
                     "//crates/beui-html:beui-html",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-tree:beui-tree",
@@ -11953,6 +12118,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core-html:beui-core-html",
+                    "//crates/beui-drag:beui-drag",
                     "//crates/beui-html:beui-html",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-tree:beui-tree",
@@ -11969,6 +12135,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-drag:beui-drag",
                     "//crates/beui-html:beui-html",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-tree:beui-tree",
@@ -11987,6 +12154,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-drag:beui-drag",
                     "//crates/beui-html:beui-html",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-tree:beui-tree",

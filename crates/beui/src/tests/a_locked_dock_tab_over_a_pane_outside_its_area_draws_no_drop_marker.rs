@@ -44,21 +44,31 @@ fn a_locked_dock_tab_over_a_pane_outside_its_area_draws_no_drop_marker() {
     let outside = harness.center(dock_tab(harness.document(), root, "Tab 1"));
     let inside = harness.center(dock_tab(harness.document(), root, "Tab 11"));
 
+    let first = harness.center(dock_tab(harness.document(), root, "Tab 2"));
+
     harness.press_at(locked);
     harness.frame(vec![Input::PointerMoved(outside)]);
-    harness.frame(Vec::new());
+    harness.frames_to_settle();
 
     assert!(
         !shown(&harness, "dock.drop"),
         "a locked tab over a bar outside its area is shown no place to land"
     );
+    assert_eq!(
+        harness.center(dock_tab(harness.document(), root, "Tab 2")),
+        first,
+        "and that bar opens no gap for it"
+    );
 
     harness.frame(vec![Input::PointerMoved(inside)]);
-    harness.frame(Vec::new());
-
-    assert!(
-        shown(&harness, "dock.drop"),
-        "the same tab over its own area's bar is shown where it would land"
-    );
+    harness.frames_to_settle();
     harness.release_at(inside);
+    harness.frames_to_settle();
+
+    let carried = harness.center(dock_tab(harness.document(), root, "Tab 10"));
+    let passed = harness.center(dock_tab(harness.document(), root, "Tab 11"));
+    assert!(
+        carried.x > passed.x,
+        "the same tab over its own area's bar lands where it was shown, after Tab 11"
+    );
 }

@@ -1672,8 +1672,8 @@ impl CanvasState {
         self.record_update(vec![held], vec![updated]);
     }
 
-    pub(crate) fn move_layer(&self, moved: Uuid, onto: Uuid, in_front: bool) {
-        if moved == onto {
+    pub(crate) fn move_layer(&self, moved: Uuid, behind: Option<Uuid>) {
+        if behind == Some(moved) {
             return;
         }
         let mut order: Vec<Uuid> = self
@@ -1682,12 +1682,19 @@ impl CanvasState {
             .iter()
             .map(|entity| entity.id)
             .collect();
+        let before = order.clone();
         order.retain(|id| *id != moved);
-        let Some(at) = order.iter().position(|id| *id == onto) else {
-            return;
+        let at = match behind {
+            None => order.len(),
+            Some(behind) => match order.iter().position(|id| *id == behind) {
+                Some(at) => at,
+                None => return,
+            },
         };
-        order.insert(at + usize::from(in_front), moved);
-        self.record(InfiniteCanvasOperation::ExactOrder { ids: order });
+        order.insert(at, moved);
+        if order != before {
+            self.record(InfiniteCanvasOperation::ExactOrder { ids: order });
+        }
     }
 
     pub(crate) fn selection_can_group(&self) -> bool {

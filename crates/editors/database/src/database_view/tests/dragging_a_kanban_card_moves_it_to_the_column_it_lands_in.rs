@@ -17,8 +17,8 @@ fn dragging_a_kanban_card_moves_it_to_the_column_it_lands_in() {
     fixture.edit_view(DatabaseView::set_kind(DatabaseViewKind::Kanban));
     fixture.settle();
 
-    let waiting = fixture.harness.rect_of("database-view.card.0");
-    let finished = fixture.harness.rect_of("database-view.card.1");
+    let waiting = fixture.harness.rect_of(&fixture.card(0));
+    let finished = fixture.harness.rect_of(&fixture.card(1));
     fixture.harness.drag(waiting.center(), finished.center());
     fixture.settle();
 
@@ -28,7 +28,7 @@ fn dragging_a_kanban_card_moves_it_to_the_column_it_lands_in() {
         "the card must take the status of the column it was dropped in"
     );
 
-    let moved = fixture.harness.rect_of("database-view.card.0");
+    let moved = fixture.harness.rect_of(&fixture.card(0));
     assert!(
         moved.left() >= waiting.right(),
         "the card must now sit in the column it was dropped in"

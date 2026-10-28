@@ -31,6 +31,9 @@ key Tab Enter
 wait 'focused #demo.catalog.Rows'
 wait 'Tab "Rows" selected'
 key Tab Enter
+wait 'focused #demo.catalog.Reordering'
+wait 'Tab "Reordering" selected'
+key Tab Enter
 wait 'focused #demo.catalog.Tree'
 wait 'Tab "Tree" selected'
 key Tab Enter

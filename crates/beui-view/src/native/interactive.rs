@@ -67,6 +67,7 @@ pub(crate) fn interactive(
     on_middle_click: ClickCallback,
     on_press: Callback<PointerPress>,
     on_secondary_press: Callback<PointerPress>,
+    on_long_press_drag: Callback<PointerPress>,
     on_drag: Callback<PointerPress>,
     on_pointer: Callback<PointerInput, bool>,
     on_wheel: Callback<WheelInput, bool>,
@@ -134,6 +135,7 @@ pub(crate) fn interactive(
         node.on_middle_click = on_middle_click;
         node.on_press = on_press;
         node.on_secondary_press = on_secondary_press;
+        node.on_long_press_drag = on_long_press_drag;
         node.on_drag = on_drag;
         node.on_pointer = on_pointer;
         node.on_wheel = on_wheel;

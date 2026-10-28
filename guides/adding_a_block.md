@@ -158,7 +158,7 @@ Every save records this as the block's `INTRINSIC_NAME` metadata, and the app sh
 
 ## 6. Children
 
-If the type has a natural notion of a child that the Files sidebar can add, remove or swap by drag and drop, override `Root::child_edit`. It turns a `ChildChange` into an ordinary edit, and answers `None` for a change the type does not support:
+If the type has a natural notion of a child that the Files sidebar can add, remove, swap or reorder by drag and drop, override `Root::child_edit`. It turns a `ChildChange` into an ordinary edit, and answers `None` for a change the type does not support:
 
 ```rust
 fn child_edit(&self, change: ChildChange) -> Option<Edit> {
@@ -166,11 +166,12 @@ fn child_edit(&self, change: ChildChange) -> Option<Edit> {
         ChildChange::Add(block) => self.add_block(block),
         ChildChange::Delete(block) => self.remove_block(block),
         ChildChange::Replace { old, new } => self.repoint(old, new),
+        ChildChange::Reorder { block, after } => self.reorder(block, after),
     })
 }
 ```
 
-The app calls it through `be::change_child`, which the block's replica turns into an edit (`Change::Child`), so the editor is not asked. An empty `Edit` is the answer for a child already in the requested state. `crates/editors/presentation/types/src/presentation.rs` and be-block's `folder.rs` and `hotbar.rs` are the examples. An editor whose references live inside content it does not model this way - the text editor's block URLs - answers `Editor::on_replace_child` instead. The type's manifest entry says which of these edits it accepts (`children`, below).
+The app calls it through `be::change_child`, which the block's replica turns into an edit (`Change::Child`), so the editor is not asked. An empty `Edit` is the answer for a child already in the requested state, or for a reorder naming a block it does not hold. `Reorder` moves `block` among the type's children to just after `after`, or first when `after` is `None`; a type that keeps them in order makes `Root::references` return them in that order too, since the file tree lists a block's children in the order of its references (be-model's own reference index keeps the order blocks first appeared in, not the order they are listed in now). `crates/editors/workspace-ui/types/src/folder.rs` (a folder and a workspace, which reorder), `crates/editors/presentation/types/src/presentation.rs` and `hotbar.rs` are the examples. An editor whose references live inside content it does not model this way - the text editor's block URLs - answers `Editor::on_replace_child` instead. The type's manifest entry says which of these edits it accepts (`children`, below).
 
 ## 7. Undo
 
@@ -189,14 +190,14 @@ The plugin's `manifest.json` declares each type it brings under `block_types`, n
     "display_name": "My block",
     "icon": "\ue1d0",
     "color": [203, 91, 125],
-    "children": {"add": true, "delete": true, "replace": true},
+    "children": {"add": true, "delete": true, "replace": true, "reorder": true},
     "press": "Open",
     "module": "my_block_types.wasm"
   }
 }
 ```
 
-`id` is the `CONTENT_TYPE`. `display_name`, `icon` (a Lucide codepoint) and `color` are what the add menu, the file tree and every label show for a block of the type, whichever editor opens it. `children` (each `false` by default) is which structural edits it takes, `press` is `Open` (the default) or `Zoom`, which the file tree does to a block of it instead of opening it (a folder), `exported_whole` (`false` by default) makes exporting any child of a block of the type as a block file export the block instead (a database view, so its database never leaves without it), and `module` is the plugin's type module, the file `:module` builds. All of a plugin's types name the same module: the host runs one instance of it per plugin. Every type names it: the manifest is refused without one. Then give the editor's `editor()` call in its BUCK file `types = "//crates/editors/my-block/types:module"`, which stages the module beside the plugin's own, with its `.cwasm` and its SHA-256, the tag of its sessions.
+`id` is the `CONTENT_TYPE`. `display_name`, `icon` (a Lucide codepoint) and `color` are what the add menu, the file tree and every label show for a block of the type, whichever editor opens it. `children` (each `false` by default) is which structural edits it takes (the file tree offers each only under a container that takes it: a row can move among its siblings only under `reorder`, its `can_reorder`), `press` is `Open` (the default) or `Zoom`, which the file tree does to a block of it instead of opening it (a folder), `exported_whole` (`false` by default) makes exporting any child of a block of the type as a block file export the block instead (a database view, so its database never leaves without it), and `module` is the plugin's type module, the file `:module` builds. All of a plugin's types name the same module: the host runs one instance of it per plugin. Every type names it: the manifest is refused without one. Then give the editor's `editor()` call in its BUCK file `types = "//crates/editors/my-block/types:module"`, which stages the module beside the plugin's own, with its `.cwasm` and its SHA-256, the tag of its sessions.
 
 The host builds its catalog of block types from every installed manifest and the types it applies itself, and refuses a plugin that declares a type another plugin or the host already has, or whose editor `edits` (or whose template makes) a type nobody declares. The type is known from its manifest before its module has started.
 

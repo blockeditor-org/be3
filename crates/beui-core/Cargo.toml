@@ -7,6 +7,7 @@ license.workspace = true
 [dependencies]
 beui-types = { path = "../beui-types" }
 accesskit = "0.24.1"
+beui-drag = { path = "../beui-drag" }
 beui-tree = { path = "../beui-tree" }
 foldhash = "0.2"
 geometry = { path = "../geometry" }

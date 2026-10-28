@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 use crate::app::PresentationApp;
 
+mod a_carried_slide_parts_the_filmstrip_and_settles_where_it_is_dropped;
 mod a_slide_template_makes_a_canvas_with_its_placeholders;
 mod a_slide_with_no_picture_of_its_own_shows_its_name_in_the_filmstrip;
 mod detaching_a_slide_takes_it_off_the_deck;

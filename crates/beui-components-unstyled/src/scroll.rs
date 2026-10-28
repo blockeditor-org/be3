@@ -11,7 +11,10 @@ use super::rubber_band::{MINIMUM_VELOCITY, bounce, rubber_band};
 use super::watched::Watched;
 use crate::gestures::{self, AUTOSCROLL_DEAD_ZONE};
 use beui_view::components::overlay::Overlay;
-use beui_view::escape::beui_html::{Event as HtmlEvent, Node as HtmlNode, elements as html, on};
+use beui_view::drag::{EdgeScroller, drag_board};
+use beui_view::escape::beui_html::{
+    Event as HtmlEvent, Node as HtmlNode, attr, elements as html, on,
+};
 use beui_view::escape::html_escape;
 use beui_view::primitives::*;
 use beui_view::reactive::KeyAt;
@@ -252,6 +255,40 @@ impl Momentum {
             }
         }
     }
+}
+
+const EDGE_GAIN: f32 = 3.0;
+
+const CONTENT_CLIP: &str =
+    "display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); overflow: clip";
+
+fn edge_scroll(
+    node: NodeRef,
+    direction: Prop<Direction>,
+    position: impl Fn() -> Option<ScrollPosition> + 'static,
+    scroll: impl Fn(Option<f32>) + 'static,
+) {
+    let board = drag_board();
+    let edge = board.register_scroller(EdgeScroller {
+        id: 0,
+        node,
+        axis: Rc::new(move || direction.get_untracked()),
+        movable: Rc::new(move || {
+            position().map_or([false; 2], |position| {
+                [
+                    position.offset > 0.0,
+                    position.offset < position.max_offset(),
+                ]
+            })
+        }),
+        scroll: Rc::new(move |depth: Option<f32>| {
+            scroll(
+                depth
+                    .map(|depth| (AUTOSCROLL_DEAD_ZONE + depth.abs() * EDGE_GAIN) * depth.signum()),
+            );
+        }),
+    });
+    on_cleanup(move || board.unregister_scroller(edge));
 }
 
 fn chaining(
@@ -716,6 +753,19 @@ fn Scrolling(
         }
         motion.value().autoscroll(gesture);
     });
+    edge_scroll(
+        catcher,
+        direction,
+        move || Some(position.get_untracked()),
+        move |reach: Option<f32>| {
+            let pos = Pos2::ZERO + direction.get_untracked().axes(reach.unwrap_or(0.0), 0.0);
+            motion.value().autoscroll(AutoscrollGesture {
+                origin: Pos2::ZERO,
+                pos,
+                ended: reach.is_none(),
+            });
+        },
+    );
     let pointer = gestures::first_of([
         autoscroll.pointer,
         gestures::chaining_scroll_drag(
@@ -998,7 +1048,7 @@ fn BrowserScroll(
                 on_blur={move |_: HtmlEvent| focused.set(false)}
                 @on={("scroll", move |_: HtmlEvent| scrolled())}
             >
-                {content}
+                <html::Div @attr={("style", CONTENT_CLIP.to_owned())}>{content}</html::Div>
             </html::Div>
         };
         scroller.with(|held| *held.borrow_mut() = Some(element.clone()));
@@ -1027,6 +1077,42 @@ fn BrowserScroll(
             refresh();
         }
     });
+    let viewport = NodeRef::new();
+    let speed = store(Cell::new(0.0_f32));
+    let edge_offset = store(Cell::new(None::<f32>));
+    let ticked = store(Cell::new(now()));
+    let edging = create_timer(move || {
+        let speed = speed.with(Cell::get);
+        let position = reported.get_untracked()?;
+        if speed == 0.0 {
+            return None;
+        }
+        let elapsed = now().saturating_duration_since(ticked.with(|ticked| ticked.replace(now())));
+        let from = edge_offset.with(Cell::get).unwrap_or(position.offset);
+        let to = (from + speed * elapsed.as_secs_f32()).clamp(0.0, position.max_offset());
+        edge_offset.with(|offset| offset.set(Some(to)));
+        scroll_to(to);
+        scrolled();
+        drag_board().retrack();
+        Some(Duration::ZERO)
+    });
+    edge_scroll(
+        viewport,
+        direction,
+        move || reported.get_untracked(),
+        move |reach: Option<f32>| {
+            let now_speed = reach.map_or(0.0, autoscroll_speed);
+            speed.with(|speed| speed.set(now_speed));
+            if now_speed == 0.0 {
+                edging.stop();
+                edge_offset.with(|offset| offset.set(None));
+            } else if !edging.running() {
+                ticked.with(|ticked| ticked.set(now()));
+                edge_offset.with(|offset| offset.set(None));
+                edging.start(Duration::ZERO);
+            }
+        },
+    );
     let motion = store(Motion {
         node: None,
         reported: reported.read_only(),
@@ -1059,7 +1145,12 @@ fn BrowserScroll(
             <Frame outline={ring_when(focused, focus_ring)}>
                 <List direction={direction} spacing=0.0>
                     <Frame fade_edges={edges} @sizing={content_sizing(fit)}>
-                        <Interactive focusable=true tab_stop={overflows} yields_tab_stop=true>
+                        <Interactive
+                            focusable=true
+                            tab_stop={overflows}
+                            yields_tab_stop=true
+                            @node_ref=&viewport
+                        >
                             {node}
                         </Interactive>
                     </Frame>

@@ -20,12 +20,18 @@ mod a_phone_lists_what_is_shared_with_it;
 mod a_phone_reaches_the_account_s_system_blocks;
 mod a_phone_walks_into_folders_and_opens_files;
 mod a_pinned_block_is_listed_first_in_its_workspace;
+mod a_row_carried_among_its_siblings_parts_them_and_is_reordered_on_drop;
+mod a_row_dropped_between_the_rows_of_another_folder_moves_there_in_that_place;
+mod a_row_in_a_folder_is_reordered_among_its_siblings;
 mod a_row_whose_access_or_settings_are_its_own_opens_them_from_an_icon;
+mod a_row_whose_container_keeps_no_order_only_moves_into_folders;
 mod a_tag_from_the_workspace_marks_a_block_and_shows_on_its_row;
 mod a_workspace_header_adds_into_that_workspace;
 mod a_workspace_is_shown_with_what_it_holds_already_listed;
+mod a_workspace_s_rows_follow_the_order_it_lists_its_children_in;
 mod an_opened_folder_is_kept_open_in_the_view_and_reopens_open;
 mod clicking_the_chevron_opens_and_closes_its_own_row;
+mod dropping_a_row_on_the_middle_of_a_folder_still_moves_it_inside;
 mod expanding_a_folder_shows_its_children_without_more_input;
 mod exporting_a_block_as_its_own_file_reads_it_from_the_host_and_saves_it;
 mod exporting_any_block_as_a_block_file_asks_the_host_for_it;
@@ -114,6 +120,33 @@ impl Fixture {
             .is_some_and(|root| says_within(&document, root, words))
     }
 
+    fn row(&self, block: Uuid) -> block_editor_beui::beui::Rect {
+        self.test.rect_of(&format!("file-tree.{block}.row"))
+    }
+
+    fn lift(&mut self, block: Uuid) {
+        let from = self.row(block).center();
+        self.test.down(from, PointerButton::Primary);
+        self.test.next_frame();
+        self.test.hover(from + Vec2::new(0.0, 4.0));
+        self.test.next_frame();
+        self.test.hover(from + Vec2::new(0.0, 10.0));
+        self.settle();
+    }
+
+    fn carry(&mut self, block: Uuid, block_type: Uuid, to: Pos2) -> Option<bool> {
+        self.test.drag_block(to, block, block_type, false);
+        self.test.run();
+        self.test.take_drag_accepted()
+    }
+
+    fn put_down(&mut self, block: Uuid, block_type: Uuid, at: Pos2) {
+        self.test.drag_block(at, block, block_type, true);
+        self.test.run();
+        self.test.up(at, PointerButton::Primary);
+        self.settle();
+    }
+
     fn opened(&mut self) -> Vec<Uuid> {
         self.test
             .take_opens()
@@ -160,6 +193,7 @@ fn containers_hold_blocks(fixture: &mut Fixture) {
             add: true,
             delete: true,
             replace: true,
+            reorder: true,
         },
     );
 }
@@ -249,6 +283,57 @@ fn phone() -> Fixture {
     fixture.settle();
     fixture
 }
+
+fn across(row: block_editor_beui::beui::Rect, fraction: f32) -> Pos2 {
+    Pos2::new(row.center().x, row.top() + row.height() * fraction)
+}
+
+fn named_block(
+    id: u128,
+    block_type: Uuid,
+    parent: Uuid,
+    name: &str,
+) -> block_editor_beui::BlockInfo {
+    let mut block = block_editor_beui::BlockInfo::new(
+        Uuid::from_u128(id),
+        block_type,
+        block_editor_beui::BlockParent::Block(parent),
+    );
+    block.set_name(name);
+    block
+}
+
+fn folder_of(
+    fixture: &mut Fixture,
+    id: u128,
+    name: &str,
+    inside: Vec<block_editor_beui::BlockInfo>,
+) -> block_editor_beui::BlockInfo {
+    use block_editor_beui::be_block::BlockContent;
+    let mut folder = named_block(id, FolderContent::CONTENT_TYPE, MY_FILES, name);
+    folder.references = inside.iter().map(|block| block.id).collect();
+    fixture
+        .host
+        .set_blocks(block_editor_beui::BlockQuery::References(folder.id), inside);
+    folder
+}
+
+fn expand(
+    fixture: &mut Fixture,
+    folder: &block_editor_beui::BlockInfo,
+    inside: Vec<block_editor_beui::BlockInfo>,
+) {
+    fixture
+        .test
+        .click(format!("file-tree.{}.chevron", folder.id));
+    fixture.test.run();
+    fixture
+        .host
+        .set_blocks(block_editor_beui::BlockQuery::References(folder.id), inside);
+    fixture.settle();
+}
+
+const PLAIN: Uuid = Uuid::from_u128(1);
 
 fn open_item(document: &Document, node: NodeId, label: &str, open: bool) -> Option<Pos2> {
     let open = match document.node_kind(node) {

@@ -24,8 +24,9 @@ use super::state::{
 };
 use super::{
     Dock, DockApi, DockAwayHandle, DockBarHandle, DockChromeHandle, DockConfig, DockGripHandle,
-    DockMode, DockPreviewHandle, DockSplitterHandle, DockStackHandle, DockState, DockSwitchHandle,
-    DockSwitcherHandle, DockTabHandle, GroupId, LeafId, SIDEBAR_WIDTH, TabId,
+    DockHighlightHandle, DockMode, DockPreviewHandle, DockSplitterHandle, DockStackHandle,
+    DockState, DockSwitchHandle, DockSwitcherHandle, DockTabHandle, GroupId, LeafId, SIDEBAR_WIDTH,
+    TabId,
 };
 use beui_components_unstyled::menu_popup::MenuStyle;
 
@@ -741,7 +742,6 @@ pub fn Docking<K>(
     #[prop(default = 0.0)] splitter_reach: f32,
     #[prop(default = 0.0)] group_inset: f32,
     tab_spacing: f32,
-    drop_marker_width: f32,
     back_shade: Prop<Color>,
     icon_sidebar_width: f32,
     #[prop(default = 0.0)] inset: Prop<f32>,
@@ -753,7 +753,7 @@ pub fn Docking<K>(
     bar: Option<RenderFn<DockBarHandle>>,
     splitter: Option<RenderFn<DockSplitterHandle>>,
     grip: Option<RenderFn<DockGripHandle>>,
-    highlight: Option<RenderFn<()>>,
+    highlight: Option<RenderFn<DockHighlightHandle>>,
     preview: Option<RenderFn<DockPreviewHandle>>,
     stack: Option<RenderFn<DockStackHandle>>,
     switcher: Option<RenderFn<DockSwitcherHandle>>,
@@ -863,7 +863,6 @@ where
                 splitter_reach,
                 group_inset,
                 tab_spacing,
-                marker_width: drop_marker_width,
                 back_shade: create_memo(move || back_shade.get()),
                 icon_sidebar_width,
                 inset,

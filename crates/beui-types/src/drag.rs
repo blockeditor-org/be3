@@ -11,6 +11,7 @@ pub struct DragPoint {
     pub size: Vec2,
     pub fraction: Vec2,
     pub modifiers: Modifiers,
+    pub item: Rect,
 }
 
 impl DragPoint {
@@ -22,6 +23,7 @@ impl DragPoint {
             size: press.size,
             fraction: press.fraction,
             modifiers: press.modifiers,
+            item: Rect::ZERO,
         }
     }
 
@@ -33,6 +35,7 @@ impl DragPoint {
             size: Vec2::ZERO,
             fraction: Vec2::ZERO,
             modifiers,
+            item: Rect::ZERO,
         }
     }
 
@@ -59,19 +62,4 @@ impl DragPoint {
             ..self
         }
     }
-}
-
-pub type Accepts = std::rc::Rc<dyn Fn(&dyn std::any::Any) -> bool>;
-pub type Dropped = std::rc::Rc<dyn Fn(&dyn std::any::Any, DragPoint)>;
-pub type Over = std::rc::Rc<dyn Fn(Option<(&dyn std::any::Any, DragPoint)>)>;
-pub type Pending = std::rc::Rc<dyn Fn(DragPoint)>;
-pub type Outside = std::rc::Rc<dyn Fn(DragPoint)>;
-
-pub struct Target {
-    pub id: u64,
-    pub node: crate::node::NodeRef,
-    pub accepts: Accepts,
-    pub carrying: std::rc::Rc<dyn Fn(bool)>,
-    pub over: Over,
-    pub dropped: Dropped,
 }

@@ -27,7 +27,12 @@ fn a_drop_target_built_before_the_one_around_it_still_takes_the_drop() {
         };
         [
             view! {
-                <Draggable payload={1_u32}>|_: DragHandle|
+                <Draggable
+                    payload={1_u32}
+                    preview={|_: u32| view! {
+                        <Frame width=40.0 height=40.0 />
+                    }}
+                >|_: DragHandle|
                     <Frame width=40.0 height=40.0 />
                 </Draggable>
             },

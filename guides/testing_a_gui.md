@@ -250,7 +250,7 @@ A beui document that is not an editor - beui's demo, say - is painted the same w
 block_ui_test::DocumentTest, with only the fonts beui carries, never the system's. Its tests
 are compiled to wasm with plugin_tests like an editor's; crates/beui-demo paints every page of
 the demo that way. A DocumentTest is beui's `testing::Stepped` (guides/beui.md, Test and
-verify changes) with snapshots added: the document runs through the real `Runner`, frame(inputs)
+verify changes) with snapshots, and record() as an editor's, added: the document runs through the real `Runner`, frame(inputs)
 pushes raw `Input`s in points through the runner's intake as a platform would, and its
 gestures are drive's - `click`, `drag`, `scroll`, `key`, `type_text`, `fingers` - each
 answering after the frame that took it. `click` and `scroll` reveal a test id that is out of

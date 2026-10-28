@@ -7,6 +7,7 @@ pub(crate) mod drawing;
 pub(crate) mod escape;
 pub(crate) mod files;
 pub(crate) mod frame;
+pub(crate) mod glide;
 pub(crate) mod grid;
 pub(crate) mod interactive;
 pub(crate) mod layers;

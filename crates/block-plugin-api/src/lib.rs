@@ -39,7 +39,7 @@ be_ops_bindgen::generate!({
     ],
     inline: [
         "rename-command", "artifact-command", "unlink-command",
-        "delete-command", "move-command", "place-command", "app-menu-command", "adopt-command",
+        "delete-command", "move-command", "reorder-command", "place-command", "app-menu-command", "adopt-command",
         "finish-command", "branch-command", "create-branch-command", "resolve-command",
         "undo-operation-command", "performance-duration", "performance-count", "view-zoom",
         "rename-dialog",

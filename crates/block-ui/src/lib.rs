@@ -47,6 +47,7 @@ pub struct ChildEdits {
     pub add: bool,
     pub delete: bool,
     pub replace: bool,
+    pub reorder: bool,
 }
 
 pub struct BlockTypeEntry {

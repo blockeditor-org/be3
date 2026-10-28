@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 
 use reactive::{
-    Get, Scope, ScopeContext, Set, Signal, Stored, create_binding, create_signal, store,
+    Get, ReadSignal, Scope, ScopeContext, Set, Signal, Stored, create_binding, create_signal, store,
 };
 
 use crate::child_list::{ChildList, SlotId};
@@ -258,6 +258,55 @@ impl<T: 'static, C: SlotChild<Stored = Rc<T>>> Run<C> {
                 slot.fill(next.iter().map(|(_, stored, _)| stored.clone()).collect());
                 *held.borrow_mut() = next;
                 drop(gone);
+            });
+        })
+    }
+}
+
+type HeldKeyed<T, R> =
+    Stored<RefCell<Vec<(Rc<T>, <R as SlotChild>::Stored, Scope, Signal<usize>)>>>;
+
+impl<T: 'static, C: SlotChild<Stored = Rc<T>>> Run<C> {
+    pub fn build_keyed<R: SlotChild, U: IntoChild<R>>(
+        &self,
+        row: impl Fn(Rc<T>, ReadSignal<usize>) -> U + 'static,
+    ) -> DynamicSegment<R> {
+        let run = self.clone();
+        DynamicSegment::new(move |slot: ChildSlot<R>| {
+            let held: HeldKeyed<T, R> = store(RefCell::new(Vec::new()));
+            create_binding(move || {
+                let held = held.value();
+                let items = run.items();
+                let mut previous: Vec<_> = std::mem::take(&mut *held.borrow_mut())
+                    .into_iter()
+                    .map(Some)
+                    .collect();
+                let mut next = Vec::with_capacity(items.len());
+                for (index, item) in items.into_iter().enumerate() {
+                    let kept = previous
+                        .iter_mut()
+                        .find_map(|row| row.take_if(|(built, ..)| Rc::ptr_eq(built, &item)));
+                    match kept {
+                        Some(row) => {
+                            if row.3.get_untracked() != index {
+                                row.3.set(index);
+                            }
+                            next.push(row);
+                        }
+                        None => {
+                            let scope = Scope::detached();
+                            let (stored, at) = scope.context().run(|| {
+                                let at = create_signal(index);
+                                let built = row(item.clone(), at.read_only()).into_child();
+                                (slot.store(built), at)
+                            });
+                            next.push((item, stored, scope, at));
+                        }
+                    }
+                }
+                slot.fill(next.iter().map(|(_, stored, ..)| stored.clone()).collect());
+                *held.borrow_mut() = next;
+                drop(previous);
             });
         })
     }

@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
@@ -24,7 +25,7 @@ use database_types::database_view::{
 use uuid::Uuid;
 
 use crate::database_view::groups::{Group, GroupKey, group_rows, matches_search};
-use crate::database_view::sort::BlockLabels;
+use crate::database_view::sort::{BlockLabels, display_order, sorted_by};
 use text_block_types::{TextBlock, TextContent};
 
 pub type Data = ViewData;
@@ -33,6 +34,7 @@ pub type Data = ViewData;
 pub struct Selection {
     pub row: usize,
     pub field: Option<Uuid>,
+    pub id: Option<ObjectId>,
 }
 
 #[derive(Clone, Copy)]
@@ -68,6 +70,7 @@ pub struct ViewData {
     pub selected: Signal<Option<Selection>>,
     pub error: Signal<Option<String>>,
     pub read_only: Memo<bool>,
+    pub reorderable: Memo<bool>,
     pub sharing_prefix: Memo<Vec<Uuid>>,
 }
 
@@ -160,6 +163,19 @@ impl ViewData {
         let labels = watch_labels(editor, database_id, rows, row_labels);
 
         let selected = create_signal(None::<Selection>);
+        create_effect(move || {
+            let moved = row_index.with(|indices| {
+                let selection = selected.get_untracked()?;
+                let index = *indices.get(&selection.id?)?;
+                (index != selection.row).then_some(Selection {
+                    row: index,
+                    ..selection
+                })
+            });
+            if let Some(moved) = moved {
+                selected.set(Some(moved));
+            }
+        });
         let error = create_signal(None::<String>);
         let search = create_signal(String::new());
         let toggled = create_signal(HashSet::<GroupKey>::new());
@@ -192,12 +208,15 @@ impl ViewData {
                             })
                             .collect();
                             let field = group_by.and_then(|id| fields.iter().find(|f| f.id == id));
-                            group_rows(rows, &shown, field, labels, show_empty)
+                            group_rows(rows, &ids, &shown, field, labels, show_empty)
                         })
                     })
                 })
             })
         });
+
+        let read_only = editor.read_only();
+        let reorderable = create_memo(move || !read_only.get() && sort.get().is_none());
 
         Self {
             editor,
@@ -230,7 +249,8 @@ impl ViewData {
             scatter_y,
             selected,
             error,
-            read_only: editor.read_only(),
+            read_only,
+            reorderable,
             sharing_prefix,
         }
     }
@@ -240,7 +260,8 @@ impl ViewData {
     }
 
     pub fn select(&self, row: usize, field: Option<Uuid>) {
-        self.selected.set(Some(Selection { row, field }));
+        let id = self.row_ids.with_untracked(|ids| ids.get(row).copied());
+        self.selected.set(Some(Selection { row, field, id }));
     }
 
     pub fn step_selection(&self, rows: isize) {
@@ -413,6 +434,121 @@ impl ViewData {
         row
     }
 
+    pub fn move_row(&self, row: ObjectId, group: GroupKey, after: Option<ObjectId>) {
+        let Some((value, first)) = self.groups.with_untracked(|groups| {
+            let group = groups.iter().find(|held| held.key == group)?;
+            Some((
+                group.value(),
+                group.rows.iter().copied().find(|shown| *shown != row),
+            ))
+        }) else {
+            return;
+        };
+        let placed = self
+            .reorderable
+            .get_untracked()
+            .then(|| self.place(row, after, first))
+            .flatten();
+        let field = self
+            .group_by
+            .get_untracked()
+            .filter(|_| group != GroupKey::All);
+        let mut edit = Edit::default();
+        if let Some(field) = field {
+            let current = self.row_index.with_untracked(|indices| {
+                let index = *indices.get(&row)?;
+                self.rows.with_untracked(|rows| rows.get(index)?.get(field))
+            });
+            if current != value {
+                match self.is_inverse(field) {
+                    true => self.set_value(row, field, value),
+                    false => edit
+                        .0
+                        .extend(self.value_edit(row, field, value).unwrap_or_default().0),
+                }
+            }
+        }
+        edit.0.extend(placed.unwrap_or_default().0);
+        if !edit.0.is_empty() {
+            self.database.operate(edit);
+        }
+    }
+
+    pub fn slot_in(&self, row: ObjectId, group: GroupKey) -> Option<usize> {
+        let field = self.group_by.get_untracked()?;
+        let (value, others) = self.groups.with_untracked(|groups| {
+            let group = groups.iter().find(|held| held.key == group)?;
+            let others: Vec<ObjectId> = group
+                .rows
+                .iter()
+                .copied()
+                .filter(|shown| *shown != row)
+                .collect();
+            Some((group.value(), others))
+        })?;
+        self.row_index.with_untracked(|indices| {
+            let index = *indices.get(&row)?;
+            self.rows.with_untracked(|rows| {
+                let mut moved = rows.get(index)?.clone();
+                moved.values = moved
+                    .values
+                    .iter()
+                    .filter(|(id, _)| **id != field)
+                    .map(|(id, value)| (*id, value.clone()))
+                    .chain(value.map(|value| (field, value)))
+                    .collect();
+                self.fields.with_untracked(|fields| {
+                    let shown = self.filters.with_untracked(|filters| {
+                        filters.iter().all(|filter| filter.matches(&moved, fields))
+                    });
+                    if !shown {
+                        return None;
+                    }
+                    let sorted = sorted_by(self.sort.get_untracked(), fields);
+                    self.labels.with_untracked(|labels| {
+                        let before = |other: &ObjectId| {
+                            let at = *indices.get(other)?;
+                            let order =
+                                display_order((rows.get(at)?, at), (&moved, index), sorted, labels);
+                            Some(order == Ordering::Less)
+                        };
+                        Some(
+                            others
+                                .iter()
+                                .filter(|other| before(other).unwrap_or(false))
+                                .count(),
+                        )
+                    })
+                })
+            })
+        })
+    }
+
+    fn place(
+        &self,
+        row: ObjectId,
+        after: Option<ObjectId>,
+        first: Option<ObjectId>,
+    ) -> Option<Edit> {
+        if after == Some(row) {
+            return None;
+        }
+        self.row_ids.with_untracked(|ids| {
+            let before = |at: usize| ids[..at].iter().rev().copied().find(|id| *id != row);
+            let wanted = match after {
+                Some(after) => Some(after),
+                None => before(ids.iter().position(|id| Some(*id) == first)?),
+            };
+            let current = before(ids.iter().position(|id| *id == row)?);
+            (current != wanted).then(|| Database::move_row(row, wanted))
+        })
+    }
+
+    fn is_inverse(&self, field: Uuid) -> bool {
+        self.inverses
+            .with_untracked(|inverses| inverses.iter().any(|inverse| inverse.id == field))
+    }
+
     pub fn set_value(&self, row: ObjectId, field: Uuid, value: Option<DatabaseValue>) {
         let inverse = self.inverses.with_untracked(|inverses| {
             inverses.iter().find(|inverse| inverse.id == field).cloned()
@@ -421,7 +557,13 @@ impl ViewData {
             self.set_inverse(&inverse, row, value);
             return;
         }
-        let edit = match value {
+        if let Some(edit) = self.value_edit(row, field, value) {
+            self.database.operate(edit);
+        }
+    }
+
+    fn value_edit(&self, row: ObjectId, field: Uuid, value: Option<DatabaseValue>) -> Option<Edit> {
+        match value {
             Some(DatabaseValue::Links(targets)) => self
                 .database
                 .read(|database| database.root().set_links(row, field, &targets)),
@@ -433,9 +575,6 @@ impl ViewData {
                     .collect()
             }),
             Some(value) => Some(Database::set_value(row, field, Some(&value))),
-        };
-        if let Some(edit) = edit {
-            self.database.operate(edit);
         }
     }
 

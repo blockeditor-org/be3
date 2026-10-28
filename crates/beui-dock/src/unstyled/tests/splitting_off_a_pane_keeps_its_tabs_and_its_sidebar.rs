@@ -36,7 +36,13 @@ fn splitting_off_a_pane_keeps_its_tabs_and_its_sidebar() {
         "the pane keeps its tabs in a sidebar"
     );
 
-    state.drop_leaf(moved, DockDrop::Pane { leaf: moved });
+    state.drop_leaf(
+        moved,
+        DockDrop::Group {
+            leaf: moved,
+            index: 1,
+        },
+    );
     assert_eq!(
         state.entries(moved).len(),
         2,

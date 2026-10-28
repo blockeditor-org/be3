@@ -1,5 +1,6 @@
 use super::*;
 use beui::KeyAt;
+use beui::Pos2;
 use beui::TextAlign;
 use beui::icons::Glyph;
 use beui::icons::{
@@ -112,9 +113,8 @@ pub(crate) fn DockingPage() -> NodeId {
             <Sample title="The dock around this page" code={vec![DemoShell::SOURCE]}>
                 <List spacing=SECTION_SPACING>
                     <Text style=TextStyle::PARAGRAPH>
-                        "Drag a tab by its label. Drop it over the middle of a pane to join \
-                         that pane, over an edge to split it, or over a tab bar to land between the \
-                         tabs there. With a finger, pull the tab down out of its bar first: sliding \
+                        "Drag a tab by its label. Drop it over a tab bar to land between the tabs \
+                         there, or over the edge of a pane to split it. With a finger, pull the tab down out of its bar first: sliding \
                          along the bar scrolls it. The arrow keys walk a tab bar, and Ctrl+Tab and \
                          Ctrl+Shift+Tab walk the tabs of whichever pane you are in."
                     </Text>
@@ -132,8 +132,8 @@ pub(crate) fn DockingPage() -> NodeId {
                          resizes from any edge."
                     </Text>
                     <Text style=TextStyle::PARAGRAPH>
-                        "Drop a tab onto the middle of another tab to group them: the group \
-                         becomes one tab, and choosing it shows a second tab bar holding the tabs \
+                        "Drop a tab over the middle of a pane to group it with the tab the pane \
+                         shows: the group becomes one tab, and choosing it shows a second tab bar holding the tabs \
                          inside. A group ungroups from its own right-click menu."
                     </Text>
                     <Text style=TextStyle::PARAGRAPH>
@@ -3333,6 +3333,7 @@ pub(crate) fn TreePage() -> NodeId {
                     tree_ancestors::SOURCE,
                     has_children::SOURCE,
                     visible_tree_rows::SOURCE,
+                    moved_tree_row::SOURCE,
                 ]}
             >
                 <ProjectTree />
@@ -3344,27 +3345,43 @@ pub(crate) fn TreePage() -> NodeId {
 #[sample]
 #[component]
 fn ProjectTree() -> NodeId {
+    let nodes = create_signal(
+        TREE_NODES
+            .iter()
+            .enumerate()
+            .map(|(row, (_, depth))| (row, *depth))
+            .collect::<Vec<_>>(),
+    );
     let collapsed = create_signal(Vec::<usize>::new());
     let selected = create_signal(None::<usize>);
     let chosen = create_signal(None::<String>);
     let comfortable = create_signal(false);
     let names = create_signal(TREE_NODES.map(|(name, _)| name.to_owned()).to_vec());
     let editing = create_signal(None::<usize>);
+    let landing = create_signal(None::<usize>);
+    let tree = ComponentRef::new();
     let name = move |row: usize| names.with(|names| names[row].clone());
     provide_density(create_memo(move || match comfortable.get() {
         true => Density::Comfortable,
         false => Density::Compact,
     }));
-    let keys = create_memo(move || visible_tree_rows(&collapsed.get()));
+    let keys = create_memo(move || nodes.with(|nodes| visible_tree_rows(nodes, &collapsed.get())));
     let status_text = create_memo(move || match (chosen.get(), selected.get()) {
         (Some(chosen), _) => chosen,
         (None, Some(row)) => format!("{} selected", name(row)),
         (None, None) => "Nothing selected".to_owned(),
     });
+    let over = move |row: usize, at: Pos2| {
+        let tree: TreeApi<usize> = tree.get();
+        tree.drag_over(Some(at), |drop: &TreeDrop<usize>| {
+            nodes.with(|nodes| moved_tree_row(nodes, row, drop).is_some())
+        })
+        .and_then(|over| over.drop)
+    };
     view! {
         <List spacing=SECTION_SPACING>
             <Text style=TextStyle::CAPTION>
-                "Arrow keys walk the tree and Enter selects; the left of a row, or an arrow key, opens and closes a folder; a row's menu opens from its button, a right click or a long press; F2 or Rename edits a name in place, Enter or clicking away keeps it and Escape puts it back"
+                "Arrow keys walk the tree and Enter selects; the left of a row, or an arrow key, opens and closes a folder; a row's menu opens from its button, a right click or a long press; F2 or Rename edits a name in place, Enter or clicking away keeps it and Escape puts it back; drag a row between two others to move it there, or onto the middle of a folder to move it inside"
             </Text>
             <LabelledSwitch
                 @test_id="demo.tree.comfortable"
@@ -3373,12 +3390,15 @@ fn ProjectTree() -> NodeId {
             />
             <Tree
                 @sizing=ItemSize::Fixed(TREE_HEIGHT)
+                api=tree
                 keys
-                item={move |row: usize| tree_item(row, &name(row), &collapsed.get())}
+                item={move |row: usize| nodes.with(|nodes| tree_item(nodes, row, &name(row), &collapsed.get()))}
                 selected
                 editing
-                ancestors={tree_ancestors}
+                reorder=true
+                ancestors={move |row: usize| nodes.with(|nodes| tree_ancestors(nodes, row))}
                 row_test_id={|row: usize| format!("demo.tree.{row}")}
+                outline={move |row: usize| (landing.get() == Some(row)).then_some(ColorRole::Accent)}
                 menu={move |row: usize| Some(TreeMenu {
                     items: view! {
                         <MenuItem
@@ -3407,7 +3427,8 @@ fn ProjectTree() -> NodeId {
                 }}
                 on_reveal={move |row: usize| {
                     collapsed.update(|collapsed| {
-                        collapsed.retain(|candidate| !tree_ancestors(row).contains(candidate));
+                        let ancestors = nodes.with(|nodes| tree_ancestors(nodes, row));
+                        collapsed.retain(|candidate| !ancestors.contains(candidate));
                     });
                 }}
                 on_select={move |row: usize| {
@@ -3422,6 +3443,25 @@ fn ProjectTree() -> NodeId {
                         }
                     });
                 }}
+                on_drag_move={move |(row, at): (usize, Pos2)| {
+                    let into = match over(row, at) {
+                        Some(TreeDrop::Into(folder)) => Some(folder),
+                        _ => None,
+                    };
+                    landing.set(into);
+                }}
+                on_drop={move |(row, at): (usize, Pos2)| {
+                    landing.set(None);
+                    let moved = over(row, at).and_then(|drop| {
+                        nodes.with_untracked(|nodes| moved_tree_row(nodes, row, &drop))
+                    });
+                    let tree: TreeApi<usize> = tree.get();
+                    tree.drag_end(moved.is_some());
+                    if let Some(moved) = moved {
+                        chosen.set(Some(format!("Moved {}", name(row))));
+                        nodes.set(moved);
+                    }
+                }}
             >|row: TreeRowFace<usize>|
                 <Text>{create_memo(move || name(row.key))}</Text>
             </Tree>
@@ -3431,54 +3471,120 @@ fn ProjectTree() -> NodeId {
 }
 
 #[sample]
-fn tree_item(row: usize, name: &str, collapsed: &[usize]) -> TreeItem {
+fn tree_item(nodes: &[(usize, usize)], row: usize, name: &str, collapsed: &[usize]) -> TreeItem {
     TreeItem {
         label: name.to_owned(),
-        depth: TREE_NODES[row].1,
-        expandable: has_children(row),
+        depth: depth_of(nodes, row),
+        expandable: has_children(nodes, row),
         expanded: !collapsed.contains(&row),
     }
 }
 
+fn depth_of(nodes: &[(usize, usize)], row: usize) -> usize {
+    nodes
+        .iter()
+        .find(|(id, _)| *id == row)
+        .map_or(0, |(_, depth)| *depth)
+}
+
 #[sample]
-fn tree_ancestors(row: usize) -> Vec<usize> {
-    let mut depth = TREE_NODES[row].1;
-    let mut ancestors: Vec<usize> = (0..row)
+fn tree_ancestors(nodes: &[(usize, usize)], row: usize) -> Vec<usize> {
+    let Some(at) = nodes.iter().position(|(id, _)| *id == row) else {
+        return Vec::new();
+    };
+    let mut depth = nodes[at].1;
+    let mut ancestors: Vec<usize> = nodes[..at]
+        .iter()
         .rev()
-        .filter(|candidate| {
-            let above = TREE_NODES[*candidate].1 < depth;
-            if above {
-                depth = TREE_NODES[*candidate].1;
+        .filter(|(_, above)| {
+            let outer = *above < depth;
+            if outer {
+                depth = *above;
             }
-            above
+            outer
         })
+        .map(|(id, _)| *id)
         .collect();
     ancestors.reverse();
     ancestors
 }
 
 #[sample]
-fn has_children(row: usize) -> bool {
-    TREE_NODES
-        .get(row + 1)
-        .is_some_and(|(_, depth)| *depth > TREE_NODES[row].1)
+fn has_children(nodes: &[(usize, usize)], row: usize) -> bool {
+    nodes
+        .iter()
+        .position(|(id, _)| *id == row)
+        .is_some_and(|at| {
+            nodes
+                .get(at + 1)
+                .is_some_and(|(_, depth)| *depth > nodes[at].1)
+        })
 }
 
 #[sample]
-fn visible_tree_rows(collapsed: &[usize]) -> Vec<usize> {
+fn visible_tree_rows(nodes: &[(usize, usize)], collapsed: &[usize]) -> Vec<usize> {
     let mut rows = Vec::new();
     let mut hidden_below: Option<usize> = None;
-    for (row, (_, depth)) in TREE_NODES.iter().enumerate() {
+    for (row, depth) in nodes {
         match hidden_below {
             Some(limit) if *depth > limit => continue,
             _ => hidden_below = None,
         }
-        rows.push(row);
-        if collapsed.contains(&row) {
+        rows.push(*row);
+        if collapsed.contains(row) {
             hidden_below = Some(*depth);
         }
     }
     rows
+}
+
+fn subtree_end(nodes: &[(usize, usize)], at: usize) -> usize {
+    let depth = nodes[at].1;
+    at + 1
+        + nodes[at + 1..]
+            .iter()
+            .take_while(|(_, below)| *below > depth)
+            .count()
+}
+
+#[sample]
+fn moved_tree_row(
+    nodes: &[(usize, usize)],
+    moved: usize,
+    drop: &TreeDrop<usize>,
+) -> Option<Vec<(usize, usize)>> {
+    let from = nodes.iter().position(|(id, _)| *id == moved)?;
+    let carried = nodes[from..subtree_end(nodes, from)].to_vec();
+    let mut rest: Vec<(usize, usize)> = nodes[..from]
+        .iter()
+        .chain(&nodes[from + carried.len()..])
+        .copied()
+        .collect();
+    let find = |id: usize| rest.iter().position(|(shown, _)| *shown == id);
+    let (at, depth) = match drop {
+        TreeDrop::Into(folder) => {
+            let at = find(*folder).filter(|at| has_children(&rest, rest[*at].0))?;
+            (subtree_end(&rest, at), rest[at].1 + 1)
+        }
+        TreeDrop::Among { parent, after } => {
+            let depth = match parent {
+                Some(parent) => rest[find(*parent)?].1 + 1,
+                None => 0,
+            };
+            let at = match (after, parent) {
+                (Some(after), _) => subtree_end(&rest, find(*after)?),
+                (None, Some(parent)) => find(*parent)? + 1,
+                (None, None) => 0,
+            };
+            (at, depth)
+        }
+    };
+    let shift = depth as isize - carried[0].1 as isize;
+    let placed = carried
+        .iter()
+        .map(|(id, below)| (*id, below.saturating_add_signed(shift)));
+    rest.splice(at..at, placed);
+    (rest != nodes).then_some(rest)
 }
 
 #[component]
@@ -4213,6 +4319,202 @@ fn ThemeSample(name: &'static str) -> NodeId {
                     </List>
                 </List>
             </Card>
+        </Frame>
+    }
+}
+
+const REORDER_TABS: [&str; 5] = ["Inbox", "A much longer tab", "Notes", "Q3", "Drafts"];
+const REORDER_TASKS: [&str; 5] = [
+    "Write the release notes",
+    "Review the layout change",
+    "Answer the support thread",
+    "Plan the next sprint",
+    "Tidy the issue tracker",
+];
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+struct ReorderTab(usize);
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+struct ReorderTask(usize);
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+struct ReorderCard(usize);
+
+const REORDER_COLUMN_WIDTH: Size = Size::Custom(200.0);
+const REORDER_LIST_WIDTH: Size = Size::Custom(320.0);
+const REORDER_COLUMN_HEIGHT: Size = Size::Custom(180.0);
+
+#[component]
+pub(crate) fn ReorderingPage() -> NodeId {
+    view! {
+        <ScrollPage>
+            <Sample title="A strip of tabs" code={vec![ReorderTabs::SOURCE, ReorderChip::SOURCE]}>
+                <ReorderTabs />
+            </Sample>
+            <Sample title="A list" code={vec![ReorderTasks::SOURCE, ReorderChip::SOURCE]}>
+                <ReorderTasks />
+            </Sample>
+            <Sample
+                title="Two lists to drag between"
+                code={vec![ReorderColumns::SOURCE, ReorderColumn::SOURCE, ReorderChip::SOURCE]}
+            >
+                <ReorderColumns />
+            </Sample>
+        </ScrollPage>
+    }
+}
+
+fn reordered<K: Clone + PartialEq>(keys: &mut Vec<K>, moved: K, after: Option<K>) {
+    keys.retain(|key| *key != moved);
+    let at = after
+        .and_then(|after| keys.iter().position(|key| *key == after))
+        .map_or(0, |at| at + 1);
+    keys.insert(at, moved);
+}
+
+#[sample]
+#[component]
+fn ReorderTabs() -> NodeId {
+    let tabs = create_signal((0..REORDER_TABS.len()).map(ReorderTab).collect::<Vec<_>>());
+    view! {
+        <List spacing=SECTION_SPACING>
+            <Text style=TextStyle::CAPTION>
+                "Drag a tab along the strip, or focus one and press Alt with an arrow key."
+            </Text>
+            <Reorder
+                keys={tabs}
+                direction=Direction::Horizontal
+                payload={Func::new(|tab: ReorderTab| Some(tab))}
+                text={|tab: ReorderTab| REORDER_TABS[tab.0].to_owned()}
+                preview={|tab: ReorderTab| view! {
+                    <ReorderChip label={REORDER_TABS[tab.0].to_owned()} />
+                }}
+                on_move={move |moved: ReorderMove<ReorderTab, ReorderTab>| {
+                    tabs.update(|tabs| reordered(tabs, moved.payload, moved.after))
+                }}
+            >|reorder: ReorderHandle<ReorderTab, ReorderTab>|
+                <List direction=Direction::Horizontal spacing=Space::Xs>
+                    <ForEach keys={reorder.order}>|tab: ReorderTab|
+                        <ReorderItem reorder item=tab>|_: ReorderItemHandle|
+                            <Interactive
+                                @test_id={format!("demo.reorder.tab.{}", tab.0)}
+                                focusable=true
+                            >
+                                <ReorderChip label={REORDER_TABS[tab.0].to_owned()} />
+                            </Interactive>
+                        </ReorderItem>
+                    </ForEach>
+                </List>
+            </Reorder>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn ReorderTasks() -> NodeId {
+    let tasks = create_signal(
+        (0..REORDER_TASKS.len())
+            .map(ReorderTask)
+            .collect::<Vec<_>>(),
+    );
+    view! {
+        <Frame width=REORDER_LIST_WIDTH>
+            <Reorder
+                keys={tasks}
+                payload={Func::new(|task: ReorderTask| Some(task))}
+                text={|task: ReorderTask| REORDER_TASKS[task.0].to_owned()}
+                preview={|task: ReorderTask| view! {
+                    <ReorderChip label={REORDER_TASKS[task.0].to_owned()} />
+                }}
+                on_move={move |moved: ReorderMove<ReorderTask, ReorderTask>| {
+                    tasks.update(|tasks| reordered(tasks, moved.payload, moved.after))
+                }}
+            >|reorder: ReorderHandle<ReorderTask, ReorderTask>|
+                <List spacing=Space::Xs>
+                    <ForEach keys={reorder.order}>|task: ReorderTask|
+                        <ReorderItem reorder item=task>|_: ReorderItemHandle|
+                            <Interactive
+                                @test_id={format!("demo.reorder.task.{}", task.0)}
+                                focusable=true
+                            >
+                                <ReorderChip label={REORDER_TASKS[task.0].to_owned()} />
+                            </Interactive>
+                        </ReorderItem>
+                    </ForEach>
+                </List>
+            </Reorder>
+        </Frame>
+    }
+}
+
+#[sample]
+#[component]
+fn ReorderColumns() -> NodeId {
+    let columns = create_signal(vec![
+        vec![ReorderCard(0), ReorderCard(1), ReorderCard(2)],
+        vec![ReorderCard(3), ReorderCard(4)],
+    ]);
+    view! {
+        <List direction=Direction::Horizontal wrap=true spacing=ROW_SPACING>
+            <ReorderColumn column=0 columns />
+            <ReorderColumn column=1 columns />
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn ReorderColumn(column: usize, columns: Signal<Vec<Vec<ReorderCard>>>) -> NodeId {
+    let keys = create_memo(move || columns.with(|columns| columns[column].clone()));
+    view! {
+        <Frame
+            width=REORDER_COLUMN_WIDTH
+            height=REORDER_COLUMN_HEIGHT
+            border={Border::DEFAULT}
+            radius=Radius::Lg
+            padding=Space::Sm
+        >
+            <Reorder
+                keys={keys}
+                payload={Func::new(|card: ReorderCard| Some(card))}
+                accepts={Func::new(|_: ReorderCard| true)}
+                text={|card: ReorderCard| REORDER_TASKS[card.0].to_owned()}
+                preview={|card: ReorderCard| view! {
+                    <ReorderChip label={REORDER_TASKS[card.0].to_owned()} />
+                }}
+                on_move={move |moved: ReorderMove<ReorderCard, ReorderCard>| columns.update(|columns| {
+                    for list in columns.iter_mut() {
+                        list.retain(|card| *card != moved.payload);
+                    }
+                    reordered(&mut columns[column], moved.payload, moved.after);
+                })}
+            >|reorder: ReorderHandle<ReorderCard, ReorderCard>|
+                <List spacing=Space::Xs>
+                    <ForEach keys={reorder.order}>|card: ReorderCard|
+                        <ReorderItem reorder item=card>|_: ReorderItemHandle|
+                            <Frame @test_id={format!("demo.reorder.card.{}", card.0)}>
+                                <ReorderChip label={REORDER_TASKS[card.0].to_owned()} />
+                            </Frame>
+                        </ReorderItem>
+                    </ForEach>
+                </List>
+            </Reorder>
+        </Frame>
+    }
+}
+
+#[sample]
+#[component]
+fn ReorderChip(label: String) -> NodeId {
+    view! {
+        <Frame
+            fill=ColorRole::Surface
+            border={Border::DEFAULT}
+            radius=Radius::Md
+            padding={Padding::symmetric(Space::Md, Space::Sm)}
+        >
+            <Text>{label}</Text>
         </Frame>
     }
 }

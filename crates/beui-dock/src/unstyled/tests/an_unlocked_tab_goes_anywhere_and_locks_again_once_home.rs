@@ -10,10 +10,22 @@ fn an_unlocked_tab_goes_anywhere_and_locks_again_once_home() {
     state.set_tab_pinned(TabId::new(1), false);
     assert!(!state.is_tab_pinned(TabId::new(1)));
     assert!(
-        state.admits(Entry::Tab(TabId::new(1)), DockDrop::Pane { leaf: editors }),
+        state.admits(
+            Entry::Tab(TabId::new(1)),
+            DockDrop::Tab {
+                leaf: editors,
+                index: usize::MAX
+            }
+        ),
         "an unlocked tab may join a locked area that is not its home"
     );
-    state.drop_tab(TabId::new(1), DockDrop::Pane { leaf: editors });
+    state.drop_tab(
+        TabId::new(1),
+        DockDrop::Tab {
+            leaf: editors,
+            index: usize::MAX,
+        },
+    );
     assert_eq!(leaf_of(&state, 1), editors);
 
     state.set_tab_pinned(TabId::new(1), true);
@@ -30,12 +42,24 @@ fn an_unlocked_tab_goes_anywhere_and_locks_again_once_home() {
     );
     assert_eq!(state.windows().len(), 1, "an unlocked tab floats");
 
-    state.drop_tab(TabId::new(1), DockDrop::Pane { leaf: files });
+    state.drop_tab(
+        TabId::new(1),
+        DockDrop::Tab {
+            leaf: files,
+            index: usize::MAX,
+        },
+    );
     assert!(state.at_home(TabId::new(1)));
     state.set_tab_pinned(TabId::new(1), true);
     assert!(
         state.is_tab_pinned(TabId::new(1)),
         "back home it locks again"
     );
-    assert!(!state.admits(Entry::Tab(TabId::new(1)), DockDrop::Pane { leaf: editors }));
+    assert!(!state.admits(
+        Entry::Tab(TabId::new(1)),
+        DockDrop::Tab {
+            leaf: editors,
+            index: usize::MAX
+        }
+    ));
 }

@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use crate::database_view::app::controls::MARK;
 use crate::database_view::app::data::Data;
-use crate::database_view::app::list::{Parts, group_test_key, row_parts, row_title};
+use crate::database_view::app::list::{Parts, group_test_key, row_name, row_parts, row_title};
 use crate::database_view::groups::{Group, GroupKey};
 use beui::{Align, Direction, ItemSize};
 
@@ -19,7 +19,6 @@ const FOLDED_WIDTH: Size = Size::Xl2;
 const COLUMN_SPACING: Space = Space::Lg;
 const CARD_SPACING: Space = Space::Md;
 const PADDING: Space = Space::Lg;
-const DRAG_THRESHOLD: f32 = 6.0;
 const CARD_HEIGHT: f32 = 104.0;
 
 #[component]
@@ -172,22 +171,52 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
         GroupKey::Option(option) => option.to_string(),
         _ => "none".to_owned(),
     };
-    let dropped = move |(row, _): (usize, DragPoint)| {
-        let Some(field_id) = data.group_by.get_untracked() else {
-            return;
-        };
-        data.set_cell(row, field_id, value.get_untracked());
+    let column_id = format!("database-view.kanban.column.{test_key}");
+    let add_id = format!("database-view.kanban.add.{test_key}");
+    let sorted = create_memo(move || data.sort.with(Option::is_some));
+    let moved = move |moved: ReorderMove<ObjectId, ObjectId>| {
+        data.move_row(moved.payload, key, moved.after);
+    };
+    let slot = Func::new(move |row: ObjectId| data.slot_in(row, key));
+    let name = move |row: ObjectId| row_name(data, row);
+    let ghost = move |row: ObjectId| {
+        view! {
+            <Frame width={Size::Custom(COLUMN_WIDTH - 16.0)} @test_id="database-view.card-ghost">
+                <CardFace data={data} row={row} />
+            </Frame>
+        }
     };
     view! {
-        <DropTarget on_drop={dropped}>|handle: DropHandle| {
-            let DropHandle { over, .. } = handle;
+        <Reorder
+            keys={keys}
+            payload={Func::new(|row: ObjectId| Some(row))}
+            accepts={Func::new(|_: ObjectId| true)}
+            disabled={read_only}
+            fixed={sorted}
+            slot={slot}
+            long_press=true
+            text={name}
+            preview={ghost}
+            on_move={moved}
+        >|reorder: ReorderHandle<ObjectId, ObjectId>| {
+            let visited = reorder.visited;
+            let gap = reorder.gap;
+            let landing = create_memo(move || {
+                keys.with(Vec::is_empty)
+                    .then(|| gap.with(|gap| gap.as_ref().map(|gap| gap.size)))
+                    .flatten()
+            });
+            let (column_id, add_id) = (column_id.clone(), add_id.clone());
+            let landing_shown = create_memo(move || landing.get().is_some());
+            let landing_height = create_memo(move || Size::Custom(landing.get().unwrap_or(0.0)));
             view! {
                 <Frame
                     width={Size::Custom(COLUMN_WIDTH)}
                     fill=ColorRole::Surface
-                    border={create_memo(move || over.get().then_some(Border::new(ColorRole::Accent).width(Stroke::Focus)))}
+                    border={create_memo(move || visited.get().then_some(Border::new(ColorRole::Accent).width(Stroke::Focus)))}
                     radius=Radius::Lg
                     padding={Padding::horizontal(Space::Md).bottom(Space::Md)}
+                    @test_id={column_id}
                 >
                     <List spacing=CARD_SPACING>
                         <Frame padding={Padding::vertical(Space::Xs).left(Space::Xs)}>
@@ -207,65 +236,61 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
                                     variant=ButtonVariant::Ghost
                                     size=ButtonSize::Small
                                     disabled={read_only}
-                                    @test_id={format!("database-view.kanban.add.{test_key}")}
+                                    @test_id={add_id}
                                     on_click={add}
                                 />
                             </List>
                         </Frame>
+                        <Show condition={landing_shown}>
+                            <Frame height={landing_height} />
+                        </Show>
                         <Scroll @sizing=ItemSize::Percent(100.0)>
                             <VirtualList
-                                keys={keys}
+                                keys={reorder.order}
                                 item_size=CARD_HEIGHT
                                 overscan=CARD_HEIGHT
-                            >|row: ReadSignal<usize>|
-                                <Frame
-                                    padding={Padding::new(Space::None, Space::None, Space::None, CARD_SPACING)}
-                                >
+                            >|row: ReadSignal<ObjectId>|
+                                <ReorderItem
+                                    reorder
+                                    item={row}
+                                    margin={Padding::ZERO.bottom(CARD_SPACING)}
+                                    on_click={move || pick(data, row.get_untracked())}
+                                >|_: ReorderItemHandle|
                                     <KanbanCard data={data} row={row} />
-                                </Frame>
+                                </ReorderItem>
                             </VirtualList>
                         </Scroll>
                     </List>
                 </Frame>
             }
-        }</DropTarget>
+        }</Reorder>
     }
 }
 
 #[component]
-fn KanbanCard(data: Data, row: ReadSignal<usize>) -> NodeId {
-    let selected = create_memo(move || {
-        data.selected
-            .get()
-            .is_some_and(|selection| selection.row == row.get())
-    });
-    let pick = move || data.select(row.get_untracked(), None);
-    let read_only = data.read_only;
-    let payload = create_memo(move || (!read_only.get()).then(|| row.get()));
-    let element_test_id = create_memo(move || format!("database-view.card.{}", row.get()));
-    let ghost = move |row: usize| {
-        view! {
-            <Frame width={Size::Custom(COLUMN_WIDTH - 16.0)} @test_id="database-view.card-ghost">
-                <CardFace data={data} row={row} />
-            </Frame>
-        }
-    };
+fn KanbanCard(data: Data, row: ReadSignal<ObjectId>) -> NodeId {
+    let selected = create_memo(move || data.selected_row() == Some(row.get()));
+    let element_test_id =
+        create_memo(move || format!("database-view.card.{}", row.get().as_uuid()));
     view! {
-        <Draggable payload={payload} threshold=DRAG_THRESHOLD preview={ghost}>|_: DragHandle|
-            <ListRow
-                selected={selected}
-                @test_id={element_test_id}
-                on_click={pick}
-                on_activate={pick}
-            >
-                <CardLines data={data} row={row} />
-            </ListRow>
-        </Draggable>
+        <ListRow
+            selected={selected}
+            @test_id={element_test_id}
+            on_activate={move || pick(data, row.get_untracked())}
+        >
+            <CardLines data={data} row={row} />
+        </ListRow>
+    }
+}
+
+fn pick(data: Data, row: ObjectId) {
+    if let Some(index) = data.index_of(row) {
+        data.select(index, None);
     }
 }
 
 #[component]
-fn CardFace(data: Data, row: usize) -> NodeId {
+fn CardFace(data: Data, row: ObjectId) -> NodeId {
     view! {
         <Frame
             fill=ColorRole::SurfaceRaised
@@ -279,15 +304,14 @@ fn CardFace(data: Data, row: usize) -> NodeId {
 }
 
 #[component]
-fn CardLines(data: Data, row: Prop<usize>) -> NodeId {
-    let entry = create_memo(move || data.rows.with(|rows| rows.get(row.get()).cloned()));
-    let code = create_memo(move || {
-        data.row_ids
-            .with(|ids| ids.get(row.get()).copied())
-            .map_or_else(String::new, |id: ObjectId| {
-                short_id(&data.prefix.get(), id.as_uuid())
-            })
+fn CardLines(data: Data, row: Prop<ObjectId>) -> NodeId {
+    let entry = create_memo(move || {
+        let index = data
+            .row_index
+            .with(|indices| indices.get(&row.get()).copied())?;
+        data.rows.with(|rows| rows.get(index).cloned())
     });
+    let code = create_memo(move || short_id(&data.prefix.get(), row.get().as_uuid()));
     let title = create_memo(move || {
         let field = data.title_field.get();
         entry.with(|entry| row_title(entry.as_ref(), field))

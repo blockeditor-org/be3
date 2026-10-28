@@ -432,6 +432,11 @@ impl Database {
         DatabaseRow::PAGE.set(row, &page.map(BlockRef)).into()
     }
 
+    pub fn move_row(row: ObjectId, after: Option<ObjectId>) -> Edit {
+        let anchor = after.map_or(Anchor::Start, Anchor::After);
+        Self::ROWS.move_into(ObjectId::ROOT, anchor, row).into()
+    }
+
     pub fn remove_row(row: ObjectId) -> Edit {
         Change::remove(row).into()
     }
@@ -522,7 +527,7 @@ impl Root for Database {
 
     fn child_edit(&self, change: ChildChange) -> Option<Edit> {
         let (old, new) = match change {
-            ChildChange::Add(_) => return None,
+            ChildChange::Add(_) | ChildChange::Reorder { .. } => return None,
             ChildChange::Delete(old) => (old, None),
             ChildChange::Replace { old, new } => (old, Some(new)),
         };

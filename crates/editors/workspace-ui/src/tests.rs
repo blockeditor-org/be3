@@ -138,6 +138,7 @@ impl Fixture {
         let from = self.text_rect(words).center();
         self.test.drag(from, to);
         self.settle();
+        self.test.settle();
     }
 
     fn show_history(&mut self) {
@@ -316,6 +317,7 @@ fn catalog() -> block_editor_beui::Catalog {
                 add: holds,
                 delete: holds,
                 replace: holds,
+                reorder: holds,
             },
             press: block_plugin_api::Press::Open,
             plain_file: false,

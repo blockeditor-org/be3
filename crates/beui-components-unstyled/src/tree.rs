@@ -13,6 +13,7 @@ use crate::menu::MenuItem;
 use crate::menu_button::MenuButton;
 use crate::menu_popup::MenuStyle;
 use crate::popup_trigger::PopupTriggerHandle;
+use crate::reorder::{Reorder, ReorderGap, ReorderHandle, ReorderItem, ReorderItemHandle};
 use crate::text_input::{TextInput, TextInputHandle, TextInputStyle};
 use crate::typeahead::Typeahead;
 use beui_view::primitives::*;
@@ -24,6 +25,7 @@ use beui_view::types::{CursorIcon, Key, KeyPress, PointerPress};
 use beui_view::types::{Pos2, Rect};
 
 const ROW_DRAG_THRESHOLD: f32 = 6.0;
+const EDGE_BAND: f32 = 0.25;
 
 #[derive(Clone, Default, PartialEq)]
 pub struct TreeItem {
@@ -31,6 +33,18 @@ pub struct TreeItem {
     pub depth: usize,
     pub expandable: bool,
     pub expanded: bool,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum TreeDrop<K> {
+    Into(K),
+    Among { parent: Option<K>, after: Option<K> },
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct TreeDragOver<K> {
+    pub row: K,
+    pub drop: Option<TreeDrop<K>>,
 }
 
 pub struct TreeMenu {
@@ -97,6 +111,8 @@ pub struct TreeRowTarget {
     select: ClickCallback,
     open: ClickCallback,
     drag_start: ClickCallback,
+    drag_move: Callback<Pos2>,
+    drop: Callback<Pos2>,
     hover: Callback<bool>,
     hovered: Signal<bool>,
     active: Signal<bool>,
@@ -108,7 +124,7 @@ pub struct TreeRevealHandle {
     pub reveal: ClickCallback,
 }
 
-struct State<K> {
+struct State<K: 'static> {
     list: NodeRef,
     nodes: Nodes<K>,
     keys: Memo<Vec<K>>,
@@ -125,6 +141,11 @@ struct State<K> {
     on_cancel_edit: Callback<K>,
     menu: Option<TreeMenus<K>>,
     typeahead: Stored<RefCell<Typeahead>>,
+    spacing: f32,
+    parting: Stored<Cell<Option<ReorderHandle<K, ()>>>>,
+    group: Signal<Vec<K>>,
+    over: Stored<RefCell<Option<TreeDragOver<K>>>>,
+    settling: Stored<Cell<bool>>,
 }
 
 impl<K> Clone for State<K> {
@@ -147,11 +168,14 @@ pub fn Tree<K>(
     #[prop(default = 0.0)] spacing: f32,
     #[prop(default = None)] editing: Prop<Option<K>>,
     #[prop(default = None)] menu: Option<TreeMenus<K>>,
+    #[prop(default = false)] reorder: bool,
     on_select: Callback<K>,
     on_open: Callback<K>,
     on_expand: Callback<(K, bool)>,
     on_hover_change: Callback<(K, bool)>,
     on_drag_start: Callback<K>,
+    on_drag_move: Callback<(K, Pos2)>,
+    on_drop: Callback<(K, Pos2)>,
     on_edit: Callback<K>,
     on_rename: Callback<(K, String)>,
     on_cancel_edit: Callback<K>,
@@ -213,6 +237,11 @@ where
         on_cancel_edit,
         menu,
         typeahead: store(RefCell::default()),
+        spacing,
+        parting: store(Cell::new(None)),
+        group: create_signal(Vec::new()),
+        over: store(RefCell::default()),
+        settling: store(Cell::new(false)),
     };
     api.fill(TreeApi(state));
 
@@ -221,32 +250,68 @@ where
             state.typeahead.value().borrow_mut().clear();
         }
     });
+    create_effect(move || {
+        keys.with(|_| ());
+        if state.settling.value().replace(false)
+            && let Some(parted) = state.parting.value().get()
+        {
+            parted.shut();
+        }
+    });
 
+    let rows = move |parted: Option<ReorderHandle<K, ()>>| {
+        view! {
+            <List spacing @node_ref=&list>
+                <ForEach keys>|key: K| {
+                    let item = create_memo({ let key = key.clone(); move || item.call(key.clone()) });
+                    let selected = selection.memo(Some(key.clone()));
+                    let marked = burial.memo(Some(key.clone()));
+                    let editing = edited.memo(Some(key.clone()));
+                    let shown = view! {
+                        <TreeRow
+                            row_key={key.clone()}
+                            item
+                            selected
+                            marked
+                            editing
+                            tab_stop={tab_stops}
+                            focused={focused}
+                            state={state}
+                            nodes={nodes}
+                            row={row}
+                            on_hover_change={on_hover_change}
+                            on_drag_start={on_drag_start}
+                            on_drag_move={on_drag_move}
+                            on_drop={on_drop}
+                        />
+                    };
+                    match parted {
+                        None => shown,
+                        Some(parted) => view! {
+                            <ReorderItem reorder={parted} item={key}>|_: ReorderItemHandle| {
+                                shown
+                            }</ReorderItem>
+                        },
+                    }
+                }</ForEach>
+            </List>
+        }
+    };
+    if !reorder {
+        return rows(None);
+    }
+    let group = state.group;
     view! {
-        <List spacing @node_ref=&list>
-            <ForEach keys>|key: K| {
-                let item = create_memo({ let key = key.clone(); move || item.call(key.clone()) });
-                let selected = selection.memo(Some(key.clone()));
-                let marked = burial.memo(Some(key.clone()));
-                let editing = edited.memo(Some(key.clone()));
-                view! {
-                    <TreeRow
-                        row_key={key}
-                        item
-                        selected
-                        marked
-                        editing
-                        tab_stop={tab_stops}
-                        focused={focused}
-                        state={state}
-                        nodes={nodes}
-                        row={row}
-                        on_hover_change={on_hover_change}
-                        on_drag_start={on_drag_start}
-                    />
-                }
-            }</ForEach>
-        </List>
+        <Reorder
+            keys={group}
+            payload={Func::new(|_: K| None::<()>)}
+            preview={|_: ()| view! {
+                <Frame />
+            }}
+        >|parted: ReorderHandle<K, ()>| {
+            state.parting.value().set(Some(parted));
+            rows(Some(parted))
+        }</Reorder>
     }
 }
 
@@ -264,6 +329,8 @@ fn TreeRow<K>(
     row: RenderFn<TreeRowHandle<K>>,
     on_hover_change: Callback<(K, bool)>,
     on_drag_start: Callback<K>,
+    on_drag_move: Callback<(K, Pos2)>,
+    on_drop: Callback<(K, Pos2)>,
 ) -> NodeId
 where
     K: Clone + Eq + Hash + 'static,
@@ -297,12 +364,18 @@ where
     });
     let drag_key = row_key.clone();
     let drag_start = ClickCallback::new(move || on_drag_start.call(drag_key.clone()));
+    let move_key = row_key.clone();
+    let drag_move = Callback::new(move |at: Pos2| on_drag_move.call((move_key.clone(), at)));
+    let drop_key = row_key.clone();
+    let drop = Callback::new(move |at: Pos2| on_drop.call((drop_key.clone(), at)));
     let hovered = create_signal(false);
     let active = create_signal(false);
     let target = TreeRowTarget {
         select: chosen,
         open: opened,
         drag_start,
+        drag_move,
+        drop,
         hover,
         hovered,
         active,
@@ -440,35 +513,51 @@ pub fn TreeRowArea(target: TreeRowTarget, children: Child) -> NodeId {
         select,
         open,
         drag_start,
+        drag_move,
+        drop,
         hover,
         hovered,
         active,
     } = target;
-    let gesture: Stored<Cell<Option<(Pos2, bool)>>> = store(Cell::default());
+    let gesture: Stored<Cell<Option<Gesture>>> = store(Cell::default());
     let pressed = move |press: PointerPress| {
-        gesture.with(|gesture| gesture.set(Some((press.pos, false))));
+        gesture.with(|gesture| {
+            gesture.set(Some(Gesture {
+                origin: press.pos,
+                at: press.pos,
+                started: false,
+            }))
+        });
         if press.clicks >= 2 {
             open.call();
         }
     };
     let dragged = move |at: PointerPress| {
-        let Some((origin, started)) = gesture.with(Cell::get) else {
+        let Some(mut held) = gesture.with(Cell::get) else {
             return;
         };
-        if started || (at.pos - origin).length() < ROW_DRAG_THRESHOLD {
-            return;
+        held.at = at.pos;
+        let starts = !held.started && (at.pos - held.origin).length() >= ROW_DRAG_THRESHOLD;
+        held.started |= starts;
+        gesture.with(|gesture| gesture.set(Some(held)));
+        if starts {
+            drag_start.call();
         }
-        gesture.with(|gesture| gesture.set(Some((origin, true))));
-        drag_start.call();
+        if held.started {
+            drag_move.call(at.pos);
+        }
     };
     let settled = move |down: bool| {
         active.set(down);
         if !down {
-            gesture.with(|gesture| gesture.set(None));
+            let held = gesture.with(|gesture| gesture.take());
+            if let Some(held) = held.filter(|held| held.started) {
+                drop.call(held.at);
+            }
         }
     };
     let chose = move || {
-        if gesture.with(Cell::get).is_none_or(|(_, started)| !started) {
+        if gesture.with(Cell::get).is_none_or(|held| !held.started) {
             select.call();
         }
     };
@@ -487,6 +576,13 @@ pub fn TreeRowArea(target: TreeRowTarget, children: Child) -> NodeId {
             {children}
         </Interactive>
     }
+}
+
+#[derive(Clone, Copy)]
+struct Gesture {
+    origin: Pos2,
+    at: Pos2,
+    started: bool,
 }
 
 #[component]
@@ -808,4 +904,171 @@ impl<K: Clone + Eq + Hash + 'static> TreeApi<K> {
     pub fn node(&self) -> NodeId {
         self.0.list.get()
     }
+
+    pub fn drag_over(
+        &self,
+        at: Option<Pos2>,
+        allow: impl Fn(&TreeDrop<K>) -> bool,
+    ) -> Option<TreeDragOver<K>> {
+        let state = self.0;
+        let parted = state.parting.value().get()?;
+        state.settling.value().set(false);
+        let Some(at) = at else {
+            state.over.value().borrow_mut().take();
+            parted.hover(None);
+            return None;
+        };
+        let keys = state.keys.get_untracked();
+        let within = state
+            .list
+            .try_get()
+            .and_then(|list| measure(list).get_untracked().map(|measured| measured.rect))
+            .is_some_and(|list| list.contains(at));
+        let found = keys.iter().enumerate().find_map(|(index, key)| {
+            let rect = parted.resting(key)?;
+            (rect.top() <= at.y && at.y < rect.bottom()).then_some((index, rect))
+        });
+        let over = match (found, within) {
+            (Some((index, rect)), true) => {
+                let fraction = (at.y - rect.top()) / rect.height().max(1.0);
+                let drop = resolve(state, &keys, index, fraction, &allow);
+                let size = rect.height() + state.spacing;
+                part(state, &keys, parted, drop.as_ref(), size);
+                Some(TreeDragOver {
+                    row: keys[index].clone(),
+                    drop,
+                })
+            }
+            (None, true) => state.over.value().borrow().clone(),
+            (_, false) => {
+                parted.hover(None);
+                None
+            }
+        };
+        *state.over.value().borrow_mut() = over.clone();
+        over
+    }
+
+    pub fn drag_end(&self, settle: bool) {
+        let state = self.0;
+        state.over.value().borrow_mut().take();
+        let Some(parted) = state.parting.value().get() else {
+            return;
+        };
+        match settle && parted.gap.with_untracked(Option::is_some) {
+            true => state.settling.value().set(true),
+            false => parted.hover(None),
+        }
+    }
+}
+
+fn parents<K>(state: State<K>, keys: &[K]) -> Vec<Option<usize>>
+where
+    K: Clone + Eq + Hash + 'static,
+{
+    let mut open: Vec<(usize, usize)> = Vec::new();
+    keys.iter()
+        .enumerate()
+        .map(|(index, key)| {
+            let depth = untrack(|| state.item.call(key.clone())).depth;
+            while open.last().is_some_and(|(_, above)| *above >= depth) {
+                open.pop();
+            }
+            let parent = open.last().map(|(at, _)| *at);
+            open.push((index, depth));
+            parent
+        })
+        .collect()
+}
+
+fn resolve<K>(
+    state: State<K>,
+    keys: &[K],
+    row: usize,
+    fraction: f32,
+    allow: &dyn Fn(&TreeDrop<K>) -> bool,
+) -> Option<TreeDrop<K>>
+where
+    K: Clone + Eq + Hash + 'static,
+{
+    let parents = parents(state, keys);
+    let key = &keys[row];
+    let parent = parents[row].map(|at| keys[at].clone());
+    let siblings: Vec<usize> = (0..keys.len())
+        .filter(|at| parents[*at] == parents[row])
+        .collect();
+    let previous = siblings
+        .iter()
+        .rev()
+        .find(|at| **at < row)
+        .map(|at| keys[*at].clone());
+    let into = TreeDrop::Into(key.clone());
+    let edge = match allow(&into) {
+        true => EDGE_BAND,
+        false => 0.5,
+    };
+    let before = TreeDrop::Among {
+        parent: parent.clone(),
+        after: previous,
+    };
+    let opened = parents.get(row + 1) == Some(&Some(row));
+    let after = match opened {
+        true => TreeDrop::Among {
+            parent: Some(key.clone()),
+            after: None,
+        },
+        false => TreeDrop::Among {
+            parent,
+            after: Some(key.clone()),
+        },
+    };
+    let candidates = match fraction {
+        fraction if fraction < edge => vec![before, into],
+        fraction if fraction > 1.0 - edge => vec![after, into],
+        _ => vec![into],
+    };
+    candidates.into_iter().find(|drop| allow(drop))
+}
+
+fn gap_before<K>(state: State<K>, keys: &[K], drop: &TreeDrop<K>) -> Option<(Vec<K>, Option<K>)>
+where
+    K: Clone + Eq + Hash + 'static,
+{
+    let TreeDrop::Among { parent, after } = drop else {
+        return None;
+    };
+    let parents = parents(state, keys);
+    let parent = match parent {
+        Some(parent) => Some(keys.iter().position(|key| key == parent)?),
+        None => None,
+    };
+    let group: Vec<K> = (0..keys.len())
+        .filter(|at| parents[*at] == parent)
+        .map(|at| keys[at].clone())
+        .collect();
+    let next = match after {
+        None => 0,
+        Some(after) => group.iter().position(|key| key == after)? + 1,
+    };
+    let before = group.get(next).cloned();
+    Some((group, before))
+}
+
+fn part<K>(
+    state: State<K>,
+    keys: &[K],
+    parted: ReorderHandle<K, ()>,
+    drop: Option<&TreeDrop<K>>,
+    size: f32,
+) where
+    K: Clone + Eq + Hash + 'static,
+{
+    let Some((group, before)) = drop.and_then(|drop| gap_before(state, keys, drop)) else {
+        parted.hover(None);
+        return;
+    };
+    if state.group.with_untracked(|shown| *shown != group) {
+        state.group.set(group);
+    }
+    parted.part(Some(ReorderGap { before, size }));
 }

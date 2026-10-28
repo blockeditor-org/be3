@@ -1,6 +1,7 @@
 pub use crate::components::canvas::{Canvas, CanvasItem};
 pub use crate::components::drawing::Drawing;
 pub use crate::components::frame::Frame;
+pub use crate::components::glide::Glide;
 pub use crate::components::grid::{Grid, GridCell};
 pub use crate::components::interactive::Interactive;
 pub use crate::components::layers::{Layer, Layers};

@@ -18,6 +18,7 @@ pub use crate::animation::{
 };
 pub use crate::colors::{color_scheme, define_colors, resolve_color};
 pub use crate::component_ref::ComponentRef;
+pub use crate::components::glide::{glide_displacement, hold_glide, set_raised};
 pub use crate::file_picker::{FileFilter, FilePick, FilePicker, create_file_picker, pick_file};
 pub use crate::file_saver::{FileSave, SavedFile, save_file};
 pub use crate::measure::{

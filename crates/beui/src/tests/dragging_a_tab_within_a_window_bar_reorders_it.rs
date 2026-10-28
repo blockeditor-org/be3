@@ -22,12 +22,12 @@ fn dragging_a_tab_within_a_window_bar_reorders_it() {
     let floated = harness.rect(dock_tab(harness.document(), dock, "Tab 2"));
     let tab = harness.center(dock_tab(harness.document(), dock, "Tab 1"));
     harness.drag(tab, pos2(floated.right() + 20.0, origin.y + 10.0));
-    harness.frame(Vec::new());
+    harness.frames_to_settle();
 
     let first = harness.center(dock_tab(harness.document(), dock, "Tab 2"));
-    let second = harness.rect(dock_tab(harness.document(), dock, "Tab 1"));
-    harness.drag(first, pos2(second.right() + 4.0, second.center().y));
-    harness.frame(Vec::new());
+    let second = dock_tab_extent(&harness, dock, "Tab 1", 1);
+    harness.drag(first, pos2(second.right() - 4.0, second.center().y));
+    harness.frames_to_settle();
 
     let state = harness.document().api::<DockApi>(dock).state();
     assert_eq!(

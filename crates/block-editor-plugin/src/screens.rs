@@ -467,6 +467,7 @@ fn catalog(catalog: &Catalog, debug: &[DebugTemplate]) -> BlockCatalog {
                     add: descriptor.children.add,
                     delete: descriptor.children.delete,
                     replace: descriptor.children.replace,
+                    reorder: descriptor.children.reorder,
                 },
                 press: match descriptor.press {
                     block_plugin_api::Press::Open => block_ui::Press::Open,

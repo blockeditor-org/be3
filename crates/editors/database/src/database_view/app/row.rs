@@ -73,12 +73,10 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
     });
     let groups = visible_groups(data);
     let order = create_memo(move || {
-        let ids = data.row_ids.get();
         groups.with(|groups| {
             groups
                 .iter()
-                .flat_map(|group| group.rows.iter())
-                .filter_map(|index| ids.get(*index).copied())
+                .flat_map(|group| group.rows.iter().copied())
                 .collect::<Vec<ObjectId>>()
         })
     });

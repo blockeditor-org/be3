@@ -11,6 +11,9 @@ fn dragging_onto_a_drop_target_hands_it_the_payload() {
             view! {
                 <Draggable
                     payload={7_u32}
+                    preview={|_: u32| view! {
+                        <Frame width=40.0 height=40.0 />
+                    }}
                     on_click={move || clicks.update(|clicks| *clicks += 1)}
                 >|_: DragHandle|
                     <Frame width=40.0 height=40.0 />

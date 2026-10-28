@@ -1252,6 +1252,7 @@ name = "beui-core"
 version = "0.1.0"
 dependencies = [
  "accesskit",
+ "beui-drag",
  "beui-tree",
  "beui-types",
  "foldhash 0.2.0",
@@ -1273,6 +1274,7 @@ version = "0.1.0"
 dependencies = [
  "accesskit",
  "base64",
+ "beui-drag",
  "beui-fonts",
  "beui-html",
  "beui-tree",
@@ -1325,6 +1327,14 @@ dependencies = [
  "beui_macros",
  "reactive",
  "serde",
+]
+
+[[package]]
+name = "beui-drag"
+version = "0.1.0"
+dependencies = [
+ "beui-tree",
+ "beui-types",
 ]
 
 [[package]]
@@ -1597,6 +1607,7 @@ dependencies = [
  "accesskit",
  "beui-core",
  "beui-core-html",
+ "beui-drag",
  "beui-html",
  "beui-tree",
  "beui-types",

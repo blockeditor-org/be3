@@ -21,7 +21,7 @@ pub enum ChoiceKind {
 }
 
 pub struct ChoiceOptionHandle {
-    pub index: usize,
+    pub index: ReadSignal<usize>,
     pub label: Prop<String>,
     pub selected: Memo<bool>,
     pub hovered: ReadSignal<bool>,
@@ -48,6 +48,11 @@ pub fn ChoiceOption(label: Prop<String>) -> ChoiceOption {
     }
 }
 
+pub struct ChoiceItem {
+    pub index: ReadSignal<usize>,
+    pub button: NodeId,
+}
+
 #[derive(Clone, Copy)]
 struct State {
     options: Stored<Run<ChoiceOption>>,
@@ -68,6 +73,7 @@ pub fn Choice(
     #[prop(default = false)] wrap: bool,
     spacing: f32,
     #[prop(default = String::new())] label: Prop<String>,
+    #[prop(default = None)] item: Option<RenderFn<ChoiceItem>>,
     #[prop(children)] option: Option<RenderFn<ChoiceOptionHandle>>,
 ) -> NodeId {
     let option = option.expect("choice requires an `option` builder");
@@ -106,53 +112,57 @@ pub fn Choice(
         typeahead: store(RefCell::default()),
     };
     api.fill(ChoiceApi(state));
-    let built_options: Stored<RefCell<Vec<Rc<ChoiceOption>>>> = store(RefCell::default());
-    let buttons = options.build_each(
-        built_options,
-        |_, option| option,
-        move |index| {
-            let label = built_options.value().borrow()[index].label;
-            let is_selected = selection.memo(Some(index));
-            let accessibility = create_memo(move || {
-                let mut node = Node::new(match kind {
-                    ChoiceKind::Tabs => Role::Tab,
-                    ChoiceKind::Radio => Role::RadioButton,
-                    ChoiceKind::Listbox => Role::ListBoxOption,
-                });
-                node.set_label(label.get());
-                if kind == ChoiceKind::Radio {
-                    node.set_toggled(Toggled::from(is_selected.get()));
-                } else {
-                    node.set_selected(is_selected.get());
-                }
-                node
+    let buttons = options.build_keyed(move |built: Rc<ChoiceOption>, index: ReadSignal<usize>| {
+        let label = built.label;
+        let is_selected = create_memo(move || selection.is_selected(&Some(index.get())));
+        let accessibility = create_memo(move || {
+            let mut node = Node::new(match kind {
+                ChoiceKind::Tabs => Role::Tab,
+                ChoiceKind::Radio => Role::RadioButton,
+                ChoiceKind::Listbox => Role::ListBoxOption,
             });
-            view! {
-                <unstyled::Button
-                    tab_stop={tab_stop_owner.memo(index)}
-                    focused={focused.memo(Some(index))}
-                    accessibility
-                    on_focus_change={move |has_focus: bool| track_focus(state, index, has_focus)}
-                    on_click={move || select(state, Some(index))}
-                    on_key={move |press: KeyPress| key(state, index, press)}
-                    on_text={move |typed: String| {
-                        if state.kind == ChoiceKind::Listbox {
-                            typeahead(state, index, &typed);
-                        }
-                    }}
-                >|button: ButtonHandle| {
-                    option.call(ChoiceOptionHandle {
-                        index,
-                        label: label.into_prop(),
-                        selected: is_selected,
-                        hovered: button.hovered,
-                        active: button.active,
-                        focused: button.focused,
-                    })
-                }</unstyled::Button>
+            if label.is_alive() {
+                node.set_label(label.get());
             }
-        },
-    );
+            if kind == ChoiceKind::Radio {
+                node.set_toggled(Toggled::from(is_selected.get()));
+            } else {
+                node.set_selected(is_selected.get());
+            }
+            node
+        });
+        let id = option_id(&built);
+        let tab_stop = create_memo(move || tab_stop_owner.is_selected(&index.get()));
+        let focus_here = focused.memo(Some(id));
+        let button = view! {
+            <unstyled::Button
+                tab_stop={tab_stop}
+                focused={focus_here}
+                accessibility
+                on_focus_change={move |has_focus: bool| track_focus(state, id, has_focus)}
+                on_click={move || select(state, Some(index.get_untracked()))}
+                on_key={move |press: KeyPress| key(state, index.get_untracked(), press)}
+                on_text={move |typed: String| {
+                    if state.kind == ChoiceKind::Listbox {
+                        typeahead(state, index.get_untracked(), &typed);
+                    }
+                }}
+            >|button: ButtonHandle| {
+                option.call(ChoiceOptionHandle {
+                    index,
+                    label: label.into_prop(),
+                    selected: is_selected,
+                    hovered: button.hovered,
+                    active: button.active,
+                    focused: button.focused,
+                })
+            }</unstyled::Button>
+        };
+        match item {
+            Some(item) => item.call(ChoiceItem { index, button }),
+            None => button,
+        }
+    });
 
     if kind == ChoiceKind::Listbox {
         create_effect(move || {
@@ -167,10 +177,23 @@ pub fn Choice(
     }
 }
 
-fn track_focus(state: State, index: usize, has_focus: bool) {
+fn option_id(option: &Rc<ChoiceOption>) -> usize {
+    Rc::as_ptr(option) as usize
+}
+
+fn id_at(state: State, index: usize) -> Option<usize> {
+    state
+        .options
+        .value()
+        .get_untracked()
+        .get(index)
+        .map(option_id)
+}
+
+fn track_focus(state: State, id: usize, has_focus: bool) {
     if has_focus {
-        state.focus.set(Some(index));
-    } else if state.focus.get_untracked() == Some(index) {
+        state.focus.set(Some(id));
+    } else if state.focus.get_untracked() == Some(id) {
         state.focus.set(None);
     }
 }
@@ -188,7 +211,7 @@ fn select(state: State, selected: Option<usize>) {
     let focused = state.focus.get_untracked().is_some();
     state.selected.set(selected);
     if focused && selected.unwrap_or(0) < option_count(state) {
-        state.focus.set(Some(selected.unwrap_or(0)));
+        state.focus.set(id_at(state, selected.unwrap_or(0)));
     }
 }
 
@@ -217,7 +240,7 @@ fn key(state: State, index: usize, press: KeyPress) -> bool {
         _ => return false,
     };
     if press.pressed {
-        state.focus.set(Some(next));
+        state.focus.set(id_at(state, next));
         select(state, Some(next));
     }
     true
@@ -238,7 +261,7 @@ fn typeahead(state: State, index: usize, text: &str) {
             .borrow_mut()
             .matched(text, index, labels.len(), |option| labels[option].clone());
     if let Some(next) = matched {
-        state.focus.set(Some(next));
+        state.focus.set(id_at(state, next));
         select(state, Some(next));
     }
 }

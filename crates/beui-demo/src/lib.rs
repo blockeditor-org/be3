@@ -17,10 +17,10 @@ use beui::icons::{
     ICON_CIRCLE_DOT, ICON_CLIPBOARD, ICON_CODE, ICON_COLUMNS_3, ICON_CONTRAST, ICON_COPY,
     ICON_EXTERNAL_LINK, ICON_GRIP_VERTICAL, ICON_HEADING, ICON_LAYERS, ICON_LAYOUT_DASHBOARD,
     ICON_LAYOUT_GRID, ICON_LAYOUT_PANEL_LEFT, ICON_LINK, ICON_LIST, ICON_LOCK, ICON_LOG_IN,
-    ICON_MAIL, ICON_MENU, ICON_MOUSE, ICON_MOUSE_POINTER_CLICK, ICON_NETWORK, ICON_PALETTE,
-    ICON_PEN_TOOL, ICON_PENCIL, ICON_PLAY, ICON_POINTER, ICON_SHARE_2, ICON_SLIDERS_HORIZONTAL,
-    ICON_SPLINE, ICON_SPLIT, ICON_SQUARE, ICON_STAR, ICON_TEXT_ALIGN_START, ICON_TOGGLE_RIGHT,
-    ICON_TRASH, ICON_TYPE,
+    ICON_MAIL, ICON_MENU, ICON_MOUSE, ICON_MOUSE_POINTER_CLICK, ICON_MOVE_VERTICAL, ICON_NETWORK,
+    ICON_PALETTE, ICON_PEN_TOOL, ICON_PENCIL, ICON_PLAY, ICON_POINTER, ICON_SHARE_2,
+    ICON_SLIDERS_HORIZONTAL, ICON_SPLINE, ICON_SPLIT, ICON_SQUARE, ICON_STAR,
+    ICON_TEXT_ALIGN_START, ICON_TOGGLE_RIGHT, ICON_TRASH, ICON_TYPE,
 };
 use beui::reactive::*;
 use beui::styled::theme::NARROW_WIDTH;
@@ -42,8 +42,8 @@ use std::sync::Arc;
 use styled_pages::{AttachedCard, AttachedDialog};
 use styled_pages::{
     ButtonsPage, CanvasPage, ChoicesPage, ColorsPage, DockingPage, EditorPage, InputsPage,
-    LabelledSwitch, LayoutPage, MenusPage, OverlaysPage, PickersPage, RowsPage, TextPage,
-    ThemesPage, TreePage,
+    LabelledSwitch, LayoutPage, MenusPage, OverlaysPage, PickersPage, ReorderingPage, RowsPage,
+    TextPage, ThemesPage, TreePage,
 };
 use text_editor_core::{
     EditorCommand, Highlighter, Language, MarkdownCommand, TextBuffer, TextLanguage,
@@ -88,6 +88,7 @@ enum Page {
     Menus,
     Overlays,
     Rows,
+    Reordering,
     Tree,
     Layout,
     Editor,
@@ -111,7 +112,7 @@ enum Page {
     Paths,
 }
 
-const STYLED_PAGES: [Page; 17] = [
+const STYLED_PAGES: [Page; 18] = [
     Page::Docking,
     Page::Text,
     Page::Buttons,
@@ -122,6 +123,7 @@ const STYLED_PAGES: [Page; 17] = [
     Page::Menus,
     Page::Overlays,
     Page::Rows,
+    Page::Reordering,
     Page::Tree,
     Page::Layout,
     Page::Editor,
@@ -150,7 +152,7 @@ const BASE_PAGES: [Page; 7] = [
     Page::Layering,
 ];
 
-const PAGES: [Page; 30] = [
+const PAGES: [Page; 31] = [
     Page::Docking,
     Page::Text,
     Page::Buttons,
@@ -161,6 +163,7 @@ const PAGES: [Page; 30] = [
     Page::Menus,
     Page::Overlays,
     Page::Rows,
+    Page::Reordering,
     Page::Tree,
     Page::Layout,
     Page::Editor,
@@ -196,6 +199,7 @@ impl Page {
             Page::Menus => "Menus",
             Page::Overlays => "Overlays",
             Page::Rows => "Rows",
+            Page::Reordering => "Reordering",
             Page::Tree => "Tree",
             Page::Layout => "Layout",
             Page::Editor => "Editor",
@@ -231,6 +235,7 @@ impl Page {
             Page::Menus => ICON_MENU,
             Page::Overlays => ICON_LAYERS,
             Page::Rows => ICON_LIST,
+            Page::Reordering => ICON_MOVE_VERTICAL,
             Page::Tree => ICON_NETWORK,
             Page::Layout => ICON_LAYOUT_DASHBOARD,
             Page::Editor => ICON_TEXT_ALIGN_START,
@@ -266,6 +271,7 @@ impl Page {
             Page::Menus => "Context, menu and split buttons",
             Page::Overlays => "Popovers, dialogs, sheets",
             Page::Rows => "Virtual lists of thousands of rows",
+            Page::Reordering => "Lists whose items are dragged into a new order",
             Page::Tree => "An expandable, keyboard-driven tree",
             Page::Layout => "Cards, accordions, stacks, scrolls, pictures",
             Page::Editor => "A markdown text area",
@@ -703,6 +709,9 @@ fn PageView(page: Page) -> NodeId {
         },
         Page::Rows => view! {
             <RowsPage />
+        },
+        Page::Reordering => view! {
+            <ReorderingPage />
         },
         Page::Tree => view! {
             <TreePage />

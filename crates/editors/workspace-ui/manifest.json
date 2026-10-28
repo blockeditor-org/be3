@@ -27,7 +27,7 @@
       "display_name": "Folder",
       "icon": "\ue0d7",
       "color": [155, 112, 211],
-      "children": {"add": true, "delete": true, "replace": true},
+      "children": {"add": true, "delete": true, "replace": true, "reorder": true},
       "press": "Zoom",
       "module": "workspace_ui_types.wasm"
     },
@@ -36,7 +36,7 @@
       "display_name": "Workspace",
       "icon": "\ue2d0",
       "color": [211, 126, 59],
-      "children": {"add": true, "delete": true, "replace": true},
+      "children": {"add": true, "delete": true, "replace": true, "reorder": true},
       "press": "Zoom",
       "module": "workspace_ui_types.wasm"
     },

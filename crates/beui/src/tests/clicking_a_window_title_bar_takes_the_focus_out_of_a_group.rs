@@ -23,8 +23,10 @@ fn clicking_a_window_title_bar_takes_the_focus_out_of_a_group() {
     let dragged = harness.center(dock_tab(harness.document(), dock, "Tab 2"));
     harness.drag(dragged, pos2(window.right() + 30.0, window.center().y));
     harness.frame(Vec::new());
+    harness.click(harness.center(dock_tab(harness.document(), dock, "Tab 2")));
+    harness.frame(Vec::new());
     let dragged = harness.center(dock_tab(harness.document(), dock, "Tab 3"));
-    let onto = dock_tab_extent(&harness, dock, "Tab 2", 2).center();
+    let onto = harness.rect(harness.find("content.2")).center();
     harness.drag(dragged, onto);
     harness.frame(Vec::new());
     let state = harness.document().api::<DockApi>(dock).state();

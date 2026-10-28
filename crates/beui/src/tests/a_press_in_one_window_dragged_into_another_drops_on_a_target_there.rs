@@ -12,7 +12,12 @@ fn a_press_in_one_window_dragged_into_another_drops_on_a_target_there() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Draggable payload={7_u32}>|_: DragHandle|
+                <Draggable
+                    payload={7_u32}
+                    preview={|_: u32| view! {
+                        <Frame width=40.0 height=40.0 />
+                    }}
+                >|_: DragHandle|
                     <Frame width=40.0 height=40.0 />
                 </Draggable>
                 <DropTarget on_drop={move |_: (u32, DragPoint)| beneath.set(true)}>|_: DropHandle|

@@ -410,9 +410,9 @@ impl Element for ListNode {
     }
 
     fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, _rect: Rect) {
-        for item in self.items.iter() {
-            crate::paint::paint(doc, painter, rects, item.child);
-        }
+        crate::paint::paint_raised_last(doc, painter, rects, || {
+            self.items.iter().map(|item| item.child)
+        });
     }
 
     fn children(&self) -> Vec<NodeId> {

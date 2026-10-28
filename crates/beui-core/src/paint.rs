@@ -1174,3 +1174,23 @@ pub fn paint(doc: &Document, painter: &Painter, rects: &Rects, id: NodeId) {
     }
     painter.paint_child(id, at);
 }
+
+pub fn paint_raised_last<I: Iterator<Item = NodeId>>(
+    doc: &Document,
+    painter: &Painter,
+    rects: &Rects,
+    children: impl Fn() -> I,
+) {
+    let mut raised = false;
+    for child in children() {
+        match doc.is_raised(child) {
+            true => raised = true,
+            false => paint(doc, painter, rects, child),
+        }
+    }
+    if raised {
+        for child in children().filter(|child| doc.is_raised(*child)) {
+            paint(doc, painter, rects, child);
+        }
+    }
+}
