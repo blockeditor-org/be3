@@ -998,7 +998,6 @@ fn revoke_frame_child(editors: &Editors, block: Uuid) {
 struct Viewport {
     zoom: f32,
     pan: Vec2,
-    center: Option<Pos2>,
     moved: bool,
 }
 
@@ -1007,9 +1006,14 @@ impl Default for Viewport {
         Self {
             zoom: 1.0,
             pan: Vec2::ZERO,
-            center: None,
             moved: false,
         }
+    }
+}
+
+impl Viewport {
+    fn shown(self, area: Rect, content: Vec2) -> Rect {
+        Rect::from_center_size(area.center() + self.pan, content * self.zoom)
     }
 }
 
@@ -1401,7 +1405,7 @@ fn BlockFrameView(
         revision.get();
         let rect = rect.get();
         block_app_plugin_host::frame_rects(&plugin_id.value(), instance)
-            .map(|rects| rects.content.translate(rect.min.to_vec2()))
+            .map(|frame| frame.content(rect))
             .filter(Rect::is_positive)
             .unwrap_or(rect)
     });
@@ -1413,11 +1417,9 @@ fn BlockFrameView(
         vec2(size.x.max(intrinsic.x), size.y.max(intrinsic.y))
     });
     let content_rect = create_memo(move || {
-        let state = viewport.get();
-        Rect::from_center_size(
-            viewport_rect.get().center() + state.pan,
-            content_size.get() * state.zoom,
-        )
+        viewport
+            .get()
+            .shown(viewport_rect.get(), content_size.get())
     });
     let editor_view = create_memo(move || {
         if !handle.pan_and_zoom {
@@ -1486,9 +1488,6 @@ fn BlockFrameView(
         let content = content_size.get();
         let area = fitted.get().filter(|_| chrome.get() == Chrome::Drawn);
         let mut state = viewport.get_untracked();
-        if let Some(previous) = state.center.replace(rect.center()) {
-            state.pan += previous - rect.center();
-        }
         follow(&mut state, area, rect, content, max_zoom);
         if state != viewport.get_untracked() {
             viewport.set(state);

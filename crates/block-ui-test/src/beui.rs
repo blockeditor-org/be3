@@ -740,7 +740,7 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn content_rect(&self) -> Option<Rect> {
         let report = self.report.as_ref()?;
-        Some(report.content)
+        Some(report.content.inside(self.rect()))
     }
 
     pub fn replace_child(&mut self, old: Uuid, new: Uuid) -> bool {

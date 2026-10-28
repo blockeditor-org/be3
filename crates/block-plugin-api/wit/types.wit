@@ -387,9 +387,19 @@ interface types {
         color: color,
     }
 
+    /// How far a rectangle sits inside a region, from each of its edges.
+    record insets {
+        left: f32,
+        top: f32,
+        right: f32,
+        bottom: f32,
+    }
+
     record frame-report {
         screen: screen-id,
-        content: rect,
+        /// The content area, as insets from the region's edges, so the host
+        /// finds it for the region's current size while that size changes.
+        content: insets,
         painted: list<rect>,
         /// Where the region's overlays take input: their content and the
         /// areas their scrims block, clear or not.

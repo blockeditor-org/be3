@@ -38,11 +38,7 @@ fn a_followed_fit_gives_way_to_a_move_by_hand() {
     viewport.moved = false;
     follow(&mut viewport, world, rect, content, MAX_ZOOM);
     assert_eq!(
-        viewport,
-        Viewport {
-            center: moved.center,
-            ..fitted
-        },
+        viewport, fitted,
         "a Fit the person pressed follows the content again"
     );
 }

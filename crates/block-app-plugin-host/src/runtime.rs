@@ -1147,8 +1147,14 @@ pub fn replace_gpu(setup: &beui::native::Setup) {
 }
 
 pub struct HostFrame {
-    pub content: Rect,
+    insets: block_plugin_api::Insets,
     pub floating: Vec<Rect>,
+}
+
+impl HostFrame {
+    pub fn content(&self, region: Rect) -> Rect {
+        self.insets.inside(region)
+    }
 }
 
 pub fn report_child_bars(
@@ -1753,7 +1759,7 @@ pub fn frame_rects(plugin_id: &str, instance: EditorInstanceId) -> Option<HostFr
             .instances
             .frame_report(instance, EditorRegion::Frame)
             .map(|report| HostFrame {
-                content: report.content,
+                insets: report.content,
                 floating: report.floating.clone(),
             })
     })

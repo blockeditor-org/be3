@@ -40,7 +40,12 @@ fn frame_screens_and_reports_round_trip() {
     let frames = FrameCommit {
         reports: vec![FrameReport {
             screen: ScreenId(1),
-            content: Rect::from_min_size(Pos2::new(0.0, 40.0), Vec2::new(640.0, 440.0)),
+            content: Insets {
+                left: 0.0,
+                top: 40.0,
+                right: 0.0,
+                bottom: 0.0,
+            },
             painted: vec![Rect::from_min_size(
                 Pos2::new(0.0, 0.0),
                 Vec2::new(640.0, 40.0),

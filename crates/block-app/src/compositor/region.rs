@@ -641,11 +641,14 @@ pub(crate) fn PluginRegion(
         let Some(placed) = frame.get_untracked().and_then(|frame| frame.content) else {
             return false;
         };
+        let size = state.with_untracked(|view| view.rect.size());
         region == EditorRegion::Frame
             && !placed.contains(local)
             && block_app_plugin_host::frame_rects(&plugin_id.value(), instance).is_some_and(
                 |frame| {
-                    frame.content.contains(local)
+                    frame
+                        .content(Rect::from_min_size(Pos2::ZERO, size))
+                        .contains(local)
                         && !frame
                             .floating
                             .iter()
@@ -701,8 +704,10 @@ pub(crate) fn PluginRegion(
                 instance,
             )
             .map_or_else(beui::HitRegion::new, |frame| {
+                let size = state.with(|view| view.rect.size());
                 frame.floating.iter().fold(
-                    beui::HitRegion::rect(frame.content).without(placed),
+                    beui::HitRegion::rect(frame.content(Rect::from_min_size(Pos2::ZERO, size)))
+                        .without(placed),
                     |beyond, floating| beyond.without(*floating),
                 )
             }),

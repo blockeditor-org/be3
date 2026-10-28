@@ -862,7 +862,7 @@ impl EditorSession {
             }
             state.report = reports.then(|| FrameReport {
                 screen,
-                content: reported_content,
+                content: block_plugin_api::Insets::between(host, reported_content),
                 painted: frame.painted.clone(),
                 floating: frame.floating.clone(),
                 floating_painted: frame.floating_painted.clone(),

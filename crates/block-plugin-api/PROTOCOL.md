@@ -488,11 +488,13 @@ if from its frame.
 
 A frame surface is transparent wherever its owner does not paint, so whatever
 the host draws beneath shows through there. The plugin publishes, with every
-frame that laid it out again, the content rectangle it laid out, the
-rectangles it painted and the rectangles its floating layers took, all in the
-frame's own logical coordinates. The host works out the view it hands a pan-and-zoom editor
-against the content it was told about, delivers no pointer input over the
-parts of the frame the instance did not paint, and composites the frames of
+frame that laid it out again, the content area it laid out, as insets from
+the frame's edges, and the rectangles it painted and the rectangles its
+floating layers took, in the frame's own logical coordinates. The host works
+out the view it hands a pan-and-zoom editor against the content area those
+insets leave of the frame's current size, so a frame resized since the
+editor last drew is handed a view for its new size in the same frame. It
+delivers no pointer input over the parts of the frame the instance did not paint, and composites the frames of
 one tab bottom-up: every frame's painted area first, then every frame's
 floating rectangles, so a menu opened by an editor underneath still falls over
 the frame above it. The two passes are cut into disjoint rectangles, so no

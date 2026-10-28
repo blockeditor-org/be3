@@ -36,7 +36,7 @@ be_ops_bindgen::generate!({
         "power-availability", "media-level", "audio-output", "media-levels", "wifi-security",
         "wifi-network", "wifi-link", "wifi-status", "incoming-notification", "notification-inbox",
         "notification-report", "host-program", "tray-toggle", "tray-menu-item", "host-tray-item",
-        "dialog-status", "dialog-frame", "window-kind",
+        "dialog-status", "dialog-frame", "window-kind", "insets",
     ],
     inline: [
         "rename-command", "artifact-command", "unlink-command",
@@ -76,8 +76,8 @@ pub use types::{BlockFilter, BlockLocation, BlockPick, OpenPicker, PickedBlock};
 pub use types::{
     ChildContent, ChildLayer, ChildMode, ChildPlacement, ChildPlacements, DialogFrame, Failure,
     FontFace, FontRole, Fonts, FrameChrome, FrameCommit, FrameReport, FrameSpec, Hello,
-    HelloAccepted, HostPanel, InputBatch, Occluder, OpenArtifact, OpenBlock, OpenCreation, Opening,
-    PresentedFrame, PressClaim, RegionSize, ScreenDamage, ScreenLayout, ScreenPlacement,
+    HelloAccepted, HostPanel, InputBatch, Insets, Occluder, OpenArtifact, OpenBlock, OpenCreation,
+    Opening, PresentedFrame, PressClaim, RegionSize, ScreenDamage, ScreenLayout, ScreenPlacement,
     ScreenRequest, ScreenWindow, Scrim, Size, SurfaceFormat, SurfaceRect, SurfaceSpec,
     SurfaceSupport, TimedInput, TopBar, ViewportMetrics,
 };
@@ -453,6 +453,24 @@ impl fmt::Debug for FontFace {
             .field("index", &self.index)
             .field("bytes", &self.data.len())
             .finish()
+    }
+}
+
+impl Insets {
+    pub fn between(outer: Rect, inner: Rect) -> Self {
+        Self {
+            left: inner.min.x - outer.min.x,
+            top: inner.min.y - outer.min.y,
+            right: outer.max.x - inner.max.x,
+            bottom: outer.max.y - inner.max.y,
+        }
+    }
+
+    pub fn inside(self, outer: Rect) -> Rect {
+        Rect::from_min_max(
+            Pos2::new(outer.min.x + self.left, outer.min.y + self.top),
+            Pos2::new(outer.max.x - self.right, outer.max.y - self.bottom),
+        )
     }
 }
 
