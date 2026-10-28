@@ -42,7 +42,7 @@ fn a_plugin_tree_reads_as_a_pane_under_the_window() {
         focus: NodeId(102),
     });
     let area = Rect::from_min_size(pos2(100.0, 50.0), vec2(200.0, 100.0));
-    let fragment = embedded.fragment("Checklist", area, area.min.to_vec2(), 1.0, true, true);
+    let fragment = embedded.fragment(Some("Checklist"), area, area.min.to_vec2(), 1.0, true, true);
     let pane = fragment.root;
     let mut dump = AccessibilityDump::new();
     dump.update(tree_update("Test", VIEWPORT, 2.0, vec![fragment]));

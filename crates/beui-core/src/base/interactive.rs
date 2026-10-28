@@ -607,7 +607,7 @@ impl Document {
             .iter()
             .filter(|id| self.arena.contains(**id))
             .filter(|id| {
-                self.window_of(**id) != window
+                !self.shows_over(window, self.window_of(**id))
                     || !rects
                         .visible(id)
                         .is_some_and(|rect| rect.contains_half_open(pos))

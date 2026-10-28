@@ -757,7 +757,7 @@ pub(crate) fn PluginRegion(
         let overlaid = (!shows_desktop).then(|| {
             let editor = editor.clone();
             view! {
-                <OverlaidWindows editor region />
+                <OverlaidWindows editor region rect />
             }
         });
         let panels = (!nests_windows).then(|| {
@@ -906,7 +906,7 @@ fn DesktopWindows(editor: RegionEditor, state: Memo<RegionView>, rect: Memo<Rect
 }
 
 #[component]
-fn OverlaidWindows(editor: RegionEditor, region: EditorRegion) -> NodeId {
+fn OverlaidWindows(editor: RegionEditor, region: EditorRegion, rect: Memo<Rect>) -> NodeId {
     let block = editor.role.block().map(|block| block.id);
     let keys = super::desktop::overlaid(editor.plugin_id().to_owned(), editor.instance, region);
     let viewport = use_viewport_size();
@@ -933,8 +933,11 @@ fn OverlaidWindows(editor: RegionEditor, region: EditorRegion) -> NodeId {
                         dismissed.with(super::desktop::dismiss);
                     }
                 };
-                let shown = create_memo(move || {
-                    asked.get().map_or(Rect::ZERO, |rect| super::desktop::clamped(rect, viewport.get()))
+                let shown = create_memo(move || match (asked.get(), role.get(), region) {
+                    (None, _, _) => Rect::ZERO,
+                    (Some(asked), WindowRole::Overlay, EditorRegion::Window(_)) => asked,
+                    (Some(asked), WindowRole::Overlay, _) => Rect::from_min_size(rect.get().min, asked.size()),
+                    (Some(asked), _, _) => super::desktop::clamped(asked, viewport.get()),
                 });
                 let anchor = create_memo(move || OverlayAnchor::Point(shown.get().min));
                 let width = create_memo(move || Size::Custom(shown.get().width()));

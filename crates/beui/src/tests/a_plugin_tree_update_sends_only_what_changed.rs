@@ -36,7 +36,7 @@ fn a_plugin_tree_update_sends_only_what_changed() {
     let mut embedded = Embedded::new(3);
     let mut dump = AccessibilityDump::new();
     let mut publish = |embedded: &mut Embedded, origin: Vec2, full: bool| {
-        let fragment = embedded.fragment("Tasks", area, origin, 1.0, false, full);
+        let fragment = embedded.fragment(Some("Tasks"), area, origin, 1.0, false, full);
         let sent = fragment.nodes.len();
         dump.update(tree_update("Test", VIEWPORT, 1.0, vec![fragment]));
         let rendered = dump.rendered();

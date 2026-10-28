@@ -594,8 +594,32 @@ impl Document {
     }
 
     pub fn content_of_overlay(&self, node: NodeId) -> Option<NodeId> {
-        let overlay = self.arena.kind_of::<OverlayNode>(node)?;
+        let overlay = self.overlay_of(node)?;
         self.overlay_content(overlay)
+    }
+
+    pub fn overlay_of(&self, node: NodeId) -> Option<NodeOf<OverlayNode>> {
+        let node = match self.arena.kind_of::<crate::base::portal::PortalNode>(node) {
+            Some(portal) => {
+                self.arena
+                    .get_as::<crate::base::portal::PortalNode>(portal)
+                    .child?
+            }
+            None => node,
+        };
+        let overlay = self.arena.kind_of::<OverlayNode>(node)?;
+        let shows = self
+            .overlay_window(overlay)
+            .is_some_and(|spec| spec.role == crate::window::WindowRole::Overlay);
+        if !shows {
+            return Some(overlay);
+        }
+        let shown = self.overlay_content(overlay).and_then(|content| {
+            self.children(content)
+                .iter()
+                .find_map(|child| self.arena.kind_of::<OverlayNode>(*child))
+        });
+        Some(shown.unwrap_or(overlay))
     }
 
     pub fn overlay_window(&self, overlay: NodeOf<OverlayNode>) -> Option<&WindowSpec> {
@@ -705,12 +729,11 @@ impl Document {
     }
 
     pub fn is_overlay(&self, node: NodeId) -> bool {
-        self.arena.kind_of::<OverlayNode>(node).is_some()
+        self.overlay_of(node).is_some()
     }
 
     pub fn is_overlay_open(&self, overlay: NodeId) -> bool {
-        self.arena
-            .kind_of::<OverlayNode>(overlay)
+        self.overlay_of(overlay)
             .is_some_and(|overlay| self.arena.get_as(overlay).open)
     }
 

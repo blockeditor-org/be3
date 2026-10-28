@@ -12,3 +12,9 @@ pub(crate) fn opens_windows() -> ReadSignal<bool> {
 pub(crate) fn placed_windows() -> ReadSignal<bool> {
     create_signal(false).read_only()
 }
+
+pub(crate) fn overlays_in_windows() -> bool {
+    false
+}
+
+pub(crate) fn clear_window(_window: crate::types::WindowId) {}

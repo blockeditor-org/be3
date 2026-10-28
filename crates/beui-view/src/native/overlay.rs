@@ -8,7 +8,6 @@ use crate::reactive::Scope;
 use crate::reactive::Set;
 use crate::reactive::create_binding;
 use crate::reactive::create_effect;
-use crate::reactive::create_memo;
 use crate::reactive::owner_scope;
 use crate::reactive::provide_context;
 use crate::reactive::store;
@@ -42,10 +41,10 @@ pub(crate) fn overlay(
     pointer: Option<NodeRef>,
     beak: Prop<f32>,
     window: Prop<Option<WindowSpec>>,
-    open: Prop<bool>,
     keep_alive: bool,
     dismissable: Prop<bool>,
     on_dismiss: Callback<Dismiss>,
+    presence: OverlayPresence,
     content: RenderFn<()>,
 ) -> NodeId {
     let overlay = with_document(|document| {
@@ -88,13 +87,7 @@ pub(crate) fn overlay(
             document.set_overlay_level(overlay, level);
         })
     });
-    let presence = OverlayPresence::new(create_memo(move || open.get()));
-    let shown = create_memo(move || {
-        presence.open().get()
-            || presence
-                .lingering()
-                .with(|lingering| lingering.iter().any(Get::get))
-    });
+    let shown = presence.shown();
     let owner = owner_scope().expect("an overlay is built inside a scope");
     let mounted = store(RefCell::new(None::<Mounted>));
     create_effect(move || {

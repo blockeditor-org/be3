@@ -426,7 +426,9 @@ of its own (`windows`): the plugin then asks for each with a `window-request`
 in its frame (`open`, naming the region it opens from and a placement: at the
 pointer, at a point of a region, or where a `placement` the host gave says,
 and its role, which a host showing windows in space reads to never focus a
-keyboard or a popup; then `begin-move` and `begin-resize`, which hand the pointer to the host until
+keyboard or a popup, and with which an `overlay` window, the plugin's menus and
+tooltips over the region it is placed over, stays in front of that region and
+takes only the presses its frame says it paints; then `begin-move` and `begin-resize`, which hand the pointer to the host until
 the press is let go, `resize` and `close`), and the host shows it as a
 `window(w)` screen of that instance, whose size, scale and `placement` are the
 host's answer, whose focus arrives as input, and whose going away closes it.

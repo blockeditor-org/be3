@@ -29,6 +29,10 @@ impl WindowHandle {
         self.real.get_untracked()
     }
 
+    pub(crate) fn watch_real_window(self) -> Memo<Option<WindowId>> {
+        self.real
+    }
+
     pub fn following(
         id: WindowId,
         current: impl Fn() -> Option<WindowHandle> + Clone + 'static,

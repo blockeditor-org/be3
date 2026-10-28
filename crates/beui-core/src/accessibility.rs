@@ -440,13 +440,20 @@ impl Pass<'_> {
         let Some(placed) = document.rects.placed(&id) else {
             return;
         };
-        let Some((key, size)) = self.locate(id, placed, frame) else {
+        let Some((mut key, size)) = self.locate(id, placed, frame) else {
             return;
         };
         let element = document.arena.get(id);
         let overlay = element.as_any().downcast_ref::<OverlayNode>();
         if overlay.is_some_and(|node| !node.is_open()) {
             return;
+        }
+        if overlay
+            .and_then(|node| node.window.as_ref())
+            .is_some_and(|window| document.hosts_window(window))
+            && let Some(own) = detached_spot(&document.rects, id, None)
+        {
+            key.at = own.at;
         }
         let layered = overlay.is_some();
 

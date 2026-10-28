@@ -2012,7 +2012,14 @@ Each layer has one `policy` (`LayerPolicy`):
 An overlay that is not a window of its own is shown in the window it was
 opened in, unless `shown_in` names another of the document's windows where
 windows open: it is then laid out in that window's viewport, painted in it and
-counts as in it (`Document::window_of`).
+counts as in it (`Document::window_of`). Where the context says the host shows
+overlays in windows (`Context::overlays_in_windows`, which the plugin platform
+sets) and the window it was opened in is hosted, the `Overlay` component opens
+a transparent `Window` of role `Overlay` the size of that window, placed `Over`
+it at its corner, while the overlay is open or lingers, and shows the overlay
+in it through `shown_in`, so the host stacks the overlay's menus, tooltips and
+dialogs with its other windows rather than drawing them in the window's own
+picture.
 
 `traps_focus` (on unless a caller turns it off) keeps Tab inside the layer and
 makes it a boundary for keys (see the keyboard guide): a menu, a dialog and a
@@ -3425,7 +3432,11 @@ host never focuses either and closes, reporting `Closed`, when a press lands
 outside it and outside the popups opened over it, keeping that press from what
 is under it as a `BlocksAll` menu does; block-app does so for every plugin
 window it overlays, anywhere in its own window, and beui-layer-space for every
-panel, a press in any other panel or none closing it; the `Window` component's `role`,
+panel, a press in any other panel or none closing it; or `Overlay` for the
+window an `Overlay` opens to show itself in (above), which the host keeps in
+front of the window it is placed over and never focuses, letting presses
+through wherever it paints nothing, and which the app closes itself;
+the `Window` component's `role`,
 and a hosted window whose role changes is opened again with the new one), `BeginMove(window)`, `BeginResize { window, edge }`
 (the host then moves or resizes it, as an OS does after winit's
 `drag_window`), `Raise(window)` (sent whenever `Document::raise_overlay` raises a

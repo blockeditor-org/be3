@@ -27,7 +27,7 @@ fn a_plugin_tree_that_is_not_a_tree_is_cut_into_one() {
         focus: NodeId(9),
     });
     let area = Rect::from_min_size(pos2(0.0, 0.0), vec2(100.0, 100.0));
-    let fragment = embedded.fragment("Broken", area, Vec2::ZERO, 1.0, true, true);
+    let fragment = embedded.fragment(Some("Broken"), area, Vec2::ZERO, 1.0, true, true);
 
     let nodes: HashMap<NodeId, &Node> = fragment
         .nodes

@@ -180,9 +180,13 @@ impl<A: BeuiApp> Parts<A> {
     }
 
     fn window_report(view_size: beui::Vec2, document: &Document, window: WindowId) -> Report {
+        let painted = match document.window_role(window) {
+            Some(beui::WindowRole::Overlay) => document.overlay_rects(window),
+            _ => vec![beui::Rect::from_min_size(beui::Pos2::ZERO, view_size)],
+        };
         Report {
             content: None,
-            painted: vec![beui::Rect::from_min_size(beui::Pos2::ZERO, view_size)],
+            painted,
             floating: document.overlay_rects(window),
             floating_painted: document.overlay_painted_rects(window),
             scrims: document.overlay_scrims(window),

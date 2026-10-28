@@ -51,6 +51,7 @@ impl Platform for PluginPlatform {
             runner.context().set_window_hosting(WindowHosting::Placed);
             runner.context().set_shows_main(false);
             runner.context().set_hosts_scrims(true);
+            runner.context().set_overlays_in_windows(true);
             let waker = self
                 .host
                 .module()
