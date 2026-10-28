@@ -8,7 +8,7 @@ use wasm_bindgen::JsCast;
 type Checked = Result<(), String>;
 
 pub fn run() -> String {
-    let checks: [(&str, fn() -> Checked); 7] = [
+    let checks: [(&str, fn() -> Checked); 8] = [
         (
             "mounting_keeps_nodes_while_bindings_update",
             mounting_keeps_nodes,
@@ -25,6 +25,7 @@ pub fn run() -> String {
         ("raw_text_elements_keep_their_text", raw_text_elements),
         ("a_handler_is_flushed_after_it_runs", handlers_are_flushed),
         ("hydrated_nodes_take_their_listeners", hydrated_listeners),
+        ("hydrating_a_form_keeps_its_inputs", hydrating_a_form),
     ];
     let mut report = String::new();
     for (name, check) in checks {
@@ -388,5 +389,71 @@ fn hydrated_listeners() -> Checked {
     let text = button.text_content().unwrap_or_default();
     expect(text == "2", || {
         format!("after two clicks the hydrated button reads {text:?}, not 2")
+    })
+}
+
+fn sign_in() -> beui::primitives::Root {
+    use beui::reactive::{Get, create_memo as memo, create_signal as signal, view as beui_view};
+    use beui::styled::*;
+    let email = signal("ada@example.com".to_owned());
+    let password = signal(String::new());
+    let report = memo(move || format!("Password {}", password.get()));
+    beui_view! {
+        <Root>
+            <Form action="/auth/login" hidden={vec![("csrf", "token".to_owned())]}>
+                <List spacing=Space::Md>
+                    <TextInput value={email} label="Email" kind=InputKind::Email name="email" />
+                    <TextInput
+                        value={password}
+                        label="Password"
+                        kind=InputKind::Password
+                        name="password"
+                    />
+                    <Button label="Sign in" submit=true />
+                    <Text>{report}</Text>
+                </List>
+            </Form>
+        </Root>
+    }
+}
+
+fn inputs(host: &web_sys::Element) -> Vec<web_sys::HtmlInputElement> {
+    let found = host.query_selector_all("input").expect("a valid selector");
+    (0..found.length())
+        .filter_map(|index| found.item(index))
+        .filter_map(|node| node.dyn_into().ok())
+        .collect()
+}
+
+fn hydrating_a_form() -> Checked {
+    let host = host();
+    host.set_id("hydrated-form");
+    host.set_inner_html(&beui::html::render_to_string(sign_in));
+    let before = inputs(&host);
+    expect(before.len() == 3, || {
+        format!("the server page holds {} inputs, not 3", before.len())
+    })?;
+    before[2].set_value("typed before hydration");
+    beui::html::hydrate("hydrated-form", sign_in)?;
+    let after = inputs(&host);
+    expect(
+        after.len() == 3 && before.iter().zip(&after).all(|(a, b)| same(a, b)),
+        || "hydration replaced the server's inputs".to_owned(),
+    )?;
+    let password = &after[2];
+    expect(password.type_() == "password", || {
+        format!("the password field is a {:?} input", password.type_())
+    })?;
+    expect(password.value() == "typed before hydration", || {
+        format!("hydration overwrote what was typed: {:?}", password.value())
+    })?;
+    password.set_value("hunter2");
+    let event = web_sys::Event::new("input").map_err(|_| "an input event".to_owned())?;
+    password
+        .dispatch_event(&event)
+        .map_err(|_| "dispatching input".to_owned())?;
+    let text = host.text_content().unwrap_or_default();
+    expect(text.contains("Password hunter2"), || {
+        format!("typing did not reach the signal: {text:?}")
     })
 }

@@ -683,7 +683,7 @@ What each primitive is on the HTML core (the bodies are in
 | `Frame` | a one-cell CSS grid; `translate` and `rotate` are a transform, `opacity` CSS opacity, `fade_edges` a mask image |
 | `List`, `Spacer` | flexbox and a flex child; `@sizing` becomes flex grow, shrink and basis |
 | `Grid`, `Layers` | CSS grid; `Layers` stacks every child in one cell |
-| `Text` and its spans | a `div` of `span`s and text nodes with `white-space: pre-wrap`; `marks` are CSS Custom Highlights, `carets` positioned boxes, `glyphs` `::before` content, `Break` an `::after` newline no browser copies; a `TextItem` with `at` is a stand-in |
+| `Text` and its spans | a `div` of `span`s and text nodes with `white-space: pre-wrap`; `marks` are CSS Custom Highlights, `carets` positioned boxes, `glyphs` `::before` content, `Break` an `::after` newline no browser copies; a `TextItem` with `at` an absolutely placed box that a layout pass moves onto that index's caret |
 | `Offset` | an `overflow: hidden` element moved through `scrollTop`/`scrollLeft`, never a transform |
 | `VirtualList` | rows in flow between two spacer elements, measured by `ResizeObserver` |
 | `Canvas` | an inner element translated to the view, `--beui-scale` scaling items |
@@ -719,14 +719,18 @@ paints its faces as an image on the CPU instead (`color_wheel/cpu.rs`, used
 without the `gpu` feature). Text editing is not an escape hatch:
 `TextArea` and `TextInput` are the same unstyled code on both cores, built on
 `Text`'s `marks`, `glyphs`, `carets` and `hang` and on `measure_text`, typing
-through a hidden textarea on HTML.
+through a hidden textarea on HTML. The one exception is a plain single-line
+`TextInput`, which is a real `<input>` on HTML ([Forms and text
+fields](#forms-and-text-fields)).
 
 An app on the HTML core starts with `beui::html::run(element_id, build)` in
 the browser. To serve a page that shows before any script runs, render it on
 the host with `beui::html::render_to_string(build)` (a program built for
 `linux_x86_64_html`, run at build time by the `prerendered_page` rule in
-buck/app/defs.bzl), put `beui::html::stylesheet()` in a `<style
-id=STYLES_ID>` in its head, and call `beui::html::hydrate(element_id, build)`
+buck/app/defs.bzl, or at request time, as be-server's account portal does
+with crates/be-portal-ui), put `beui::html::stylesheet(font_base)` in a
+`<style id=STYLES_ID>` in its head, with `font_base` the URL its `@font-face`
+rules find the bundled fonts under, and call `beui::html::hydrate(element_id, build)`
 with the same view in the browser: it claims the server's elements instead of
 building new ones (beui-html's hydration, [Live DOM and
 hydration](#live-dom-and-hydration)), and `run` and `hydrate` read the
@@ -747,8 +751,8 @@ To test on both cores:
   //crates/beui-view:html-test` for primitives, `./scripts/test
   //crates/beui:html-test` for unstyled and styled components (tests in
   `crates/beui/src/html_paintings/tests/`), and the spike's `:html-test`. Build
-  the page's `<style>` from `stylesheet()`: its `@font-face` rules name the
-  bundled fonts at the page's root, which the browser rasterizer serves, so
+  the page's `<style>` from `stylesheet("/")`: its `@font-face` rules then
+  name the bundled fonts at the page's root, which the browser rasterizer serves, so
   text and icons draw as they do natively. Paintings show layout, colour and
   text, not what needs the browser's layout (marks, carets).
 - The spike's dark painting
@@ -1654,6 +1658,23 @@ focusable `Interactive` for the keys, the wheel and the drag, keeps the
 momentum an unfinished fling carries, and drives the offset from all three. So reach for `Offset` when something needs its
 content shifted under a viewport and nothing more, and for a `Scroll` whenever
 something needs to scroll.
+
+On the HTML core `unstyled::Scroll` leaves all of that to the browser
+(`if CORE == Core::Html` in scroll.rs, `BrowserScroll`): it builds a real
+`overflow: auto` `<div>` through the [platform escape](#the-platform-escape),
+with the scroll's content slotted inside and `scrollbar-width: none` when its
+`ScrollbarStyle` has no bar. The browser scrolls it on the compositor with the
+wheel, touch, the keys (from the scroller or anything focused in it) and its
+own scrollbar, with no momentum, rubber band, autoscroll or drawn scrollbar of
+beui's. Its `scroll` listener and the measured sizes of the scroller and its
+content feed `on_change`; `offset` and `ScrollApi::scroll_to_end` set its
+`scrollTop` (or `scrollLeft`); `follow_end` keeps it at the end while it was
+there; `reveal` scrolls a row into view; the focusable `Interactive` sits on
+the scroller itself, which rings only when it has the focus itself
+(`ScrollApi::animating` is always false there). Revealing a node with no
+beui `Offset` around it scrolls it into view the browser's way, and a
+`VirtualList` is clipped by any ancestor that clips, so both work inside such
+a scroller. The sheet's offset is still beui's on both cores.
 
 A `Scroll`'s momentum is one motion across the edge, not a fling with a band
 laid over it. It keeps how far its content has gone past an end unbanded (the
@@ -2957,6 +2978,90 @@ native dialog, the web runner from an `<input type=file>`, Android from
 picker answers that it has none. The document delivers the answer at the start of a later frame,
 inside its reactive scope, so `picked` can write signals like an event handler.
 A host that runs beui itself does the same with the requests in `file_picks`.
+
+### Forms and text fields
+
+On the HTML core a plain single-line `TextInput` is a real `<input>`, so the
+browser edits it: IME, selection, its own context menu, autofill and password
+managers. Unstyled `TextInput` switches on `CORE` and builds `<input>` (through
+the [platform escape](#the-platform-escape), wrapped in an `Interactive` for
+focus, `focused` and hover)
+when it is not `multiline`, its style has no `prose` and it does not
+`select_on_focus`; everything else, every `TextArea`, and anything rich (marks,
+syntax colouring, glyphs, completion) stays beui's own on both cores, and so
+does every field natively. The value stays bound both ways, Enter calls
+`on_submit`, and styled draws its frame, fill and focus ring around the
+`<input>` exactly as around beui's own field: the `<input>` itself draws no
+box, takes the field's font, colour, caret colour and padding, and its
+placeholder and selection colours through `--beui-placeholder` and
+`--beui-selection`. A new kind of single-line field gets a variant of
+`InputKind`, never a component of its own; a field that needs something an
+`<input>` cannot express stays beui's own on both cores.
+
+`TextInput` (unstyled and styled) takes:
+
+- `kind: InputKind`: `Text` (the default), `Password` (masked on both cores),
+  `Email`, `Search`, `Url`, `Tel`; the `<input type>` on HTML, otherwise only
+  `Password` changes anything natively.
+- `name` and `autocomplete` (strings, the HTML vocabulary: `username`, `email`,
+  `current-password`, `new-password`, `nickname`, `one-time-code`, `off`, ...):
+  the field's form name and autofill hint on HTML, inert natively.
+
+A form is `Form` (`beui::unstyled::Form`, re-exported by styled): `action`
+(the URL a browser posts to), `hidden` (`Vec<(&'static str, String)>`, name and
+value of each hidden field) and `on_submit`. On HTML it is a `<form
+method="post" action novalidate>` holding the hidden `<input>`s and its
+content, so a server-rendered page posts natively before and without wasm;
+once running, an `on_submit` turns a submit into a call instead of a post.
+Natively it is no node at all: Enter in any field inside it and its submit
+buttons call `on_submit`. A submit button is `Button submit=true` (unstyled
+and styled), a `<button type="submit">` on HTML, so Enter in a field submits as
+browsers do. A navigation link is `href` on unstyled `Button` (and so styled
+`Button` and `Link`), an `<a href>` on HTML that navigates before wasm loads;
+natively `href` is inert and `on_click` does the navigating.
+
+```rust
+view! {
+    <Form action="/auth/login" hidden={vec![("csrf", csrf), ("code", code)]}>
+        <List spacing=Space::Md>
+            <TextInput value={email} label="Email" kind=InputKind::Email
+                name="email" autocomplete="username" />
+            <TextInput value={password} label="Password" kind=InputKind::Password
+                name="password" autocomplete="current-password" />
+            <Button label="Sign in" variant=ButtonVariant::Primary submit=true />
+            <Link label="Forgot your password?" href={Some("/auth/forgot".to_owned())} />
+        </List>
+    </Form>
+}
+```
+
+`render_to_string` writes each `<input>` with its `type`, `name`,
+`autocomplete`, `placeholder` and escaped `value`, and `hydrate` claims them
+in place, keeping whatever was typed before wasm loaded.
+
+### The platform escape
+
+`beui::escape::html_escape(build)` is the one way to put an element of the
+platform's own into the tree: `build` gets an `&Escape` and returns a
+`beui_html::Node` made with beui-html's `view!` and `html::*` elements
+(`beui::escape::beui_html`), with their attributes and events; the result is a
+beui `NodeId` like any other. It renders into server-rendered pages and
+hydrates as beui-html does. `escape.embed(child)` slots a beui `Child` into
+those nodes; `escape.style(property, value)` sets the root's inline CSS (the
+core owns the root's `style`, since a parent's layout writes to it too, so the
+root takes no `style` attribute of its own); `Escape::color` and
+`Escape::font` spell a beui `Color` or `FontId` in CSS. The root is placed and
+measured like a beui node, and an `Interactive` around it decorates it.
+`beui_html::Node::number`, `set_number` and `call` read and write a live
+element's properties (`scrollTop`) and call its methods (`focus`).
+
+It exists only on the HTML core: calling it natively panics, so call it only
+under `if CORE == Core::Html`, in unstyled or styled, for a component whose
+HTML form is the browser's own element (a field, a form, a link, a scroller),
+with the beui version in the other branch keeping the same public API. A
+switch on `CORE` is for exactly that; it never works around a primitive one
+core lacks, and the cores themselves gain no knowledge of fields, forms,
+links or scrolling for it.
 
 ### Hold the pointer
 
@@ -4920,7 +5025,21 @@ pointer input is dispatched) and a touchpad zoom. `first_of([..])` puts several
 on one catcher, asking each in turn until one takes the input. So a vertical
 wheel over a horizontal strip passes through to whatever is around it, and a
 drag reaches the innermost catcher that scrolls that way. `unstyled::Scroll` is
-`scroll_wheel`, `scroll_drag` and `autoscroll`; `PanZoom` is `pan_zoom`.
+`scroll_wheel`, `chaining_scroll_drag` (`scroll_drag` with a test that turns a
+settled drag down) and `autoscroll`; `PanZoom` is `pan_zoom`.
+
+Scrolling chains as in a browser. A `Scroll` turns down a wheel gesture or a
+settled finger drag that starts with it already at its edge in that direction
+(or with nothing to scroll), so the input goes on to the catchers around it,
+such as an enclosing `Scroll`. It decides once, when the gesture starts: a
+wheel turn within `WHEEL_LATCH_TIMEOUT` of the last one it took continues that
+gesture, so a fling or a run of turns that reaches its end keeps going into its
+rubber band and never moves the scroll around it mid-gesture. When every
+catcher on the path turns an input down, the core offers it once more along the
+path with `unclaimed` set (`ScrollGesture::unclaimed`, and
+`PointerInput::unclaimed` beside `settles`), and a `Scroll` takes an unclaimed
+input even at its edge, so an outermost scroll still bands. On the HTML core
+the browser scrolls and chains a `Scroll` itself.
 
 Where a catcher hears the pointer is declared, never asked at the moment of a
 press: `hit_area`, `capture_presses`, `gesture_area`, `drawing` and each
@@ -4989,7 +5108,9 @@ under where the pointer was when it turned whose `on_wheel` takes it, unless
 a forwarding catcher comes first (one with `forwards_wheel=false`, such as the
 on-screen keyboard, forwards only its presses and lets the wheel pass to what is
 under it), and stays latched to it for
-`WHEEL_LATCH_TIMEOUT` while the pointer holds still.
+`WHEEL_LATCH_TIMEOUT` while the pointer holds still. A turn every catcher
+turns down is offered along the path again with `unclaimed` set, and so is a
+touch drag's settling move that no catcher claims.
 
 Parts a catcher draws outside its own rectangle, such as the touch selection
 handles of `unstyled::TextArea`, take their presses with a claim on
@@ -5723,7 +5844,7 @@ Elements take event props `on_click`, `on_input`, `on_change`, `on_submit`,
 `on_pointermove` and `on_pointerup`, and `@on={("name", handler)}` listens to any
 other event. Handlers are `Callback<beui_html::Event>`; write a closure in
 braces with its argument typed, `on_click={move |_: html::Event| ...}`. `Event`
-has `key`, `target_value`, `target_checked`, `prevent_default`,
+has `key`, `holds` (a modifier key), `composing`, `target_value`, `target_checked`, `prevent_default`,
 `stop_propagation` and, on wasm, `raw`, so a handler compiles for both
 backends. The string backend ignores listeners. The live backend flushes after
 each handler; for signals set anywhere else, the host installs a flush with

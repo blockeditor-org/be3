@@ -1,5 +1,5 @@
 use beui_view::types::LayerPolicy;
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
@@ -11,6 +11,8 @@ use super::rubber_band::{MINIMUM_VELOCITY, bounce, rubber_band};
 use super::watched::Watched;
 use crate::gestures::{self, AUTOSCROLL_DEAD_ZONE};
 use beui_view::components::overlay::Overlay;
+use beui_view::escape::beui_html::{Event as HtmlEvent, Node as HtmlNode, elements as html, on};
+use beui_view::escape::html_escape;
 use beui_view::primitives::*;
 use beui_view::reactive::KeyAt;
 use beui_view::reactive::NodeId;
@@ -23,11 +25,15 @@ use beui_view::types::Placement;
 use beui_view::types::Pos2;
 use beui_view::types::Sides;
 use beui_view::types::{
-    AutoscrollGesture, CursorIcon, DragGesture, Key, KeyPress, PointerPress, ScrollGesture,
+    AutoscrollGesture, CursorIcon, DragGesture, Key, KeyPress, PointerPress, ScrollGesture, Vec2,
+    WHEEL_LATCH_TIMEOUT, WheelInput,
 };
 use beui_view::types::{Direction, ItemSize, Justify, ScrollPosition, Sizing};
+use beui_view::{CORE, Core};
 
 const STEP: f32 = 40.0;
+const EDGE_SLACK: f32 = 0.5;
+const END_SLACK: f32 = 1.0;
 const AUTOSCROLL_GAIN: f32 = 6.0;
 const AUTOSCROLL_ACCELERATION: f32 = 0.02;
 
@@ -248,6 +254,20 @@ impl Momentum {
     }
 }
 
+fn chaining(
+    motion: Stored<Motion>,
+    wheel: Callback<WheelInput, bool>,
+) -> Callback<WheelInput, bool> {
+    Callback::new(move |input: WheelInput| {
+        if let WheelInput::Scroll(gesture) = &input
+            && motion.value().wheel_chains(gesture)
+        {
+            return false;
+        }
+        wheel.call(input)
+    })
+}
+
 fn autoscroll_speed(distance: f32) -> f32 {
     let beyond = (distance.abs() - AUTOSCROLL_DEAD_ZONE).max(0.0);
     distance.signum() * (beyond * AUTOSCROLL_GAIN + beyond * beyond * AUTOSCROLL_ACCELERATION)
@@ -265,6 +285,7 @@ struct Motion {
     animation: Cell<Option<Animation>>,
     autoscrolling: Cell<Option<Timer>>,
     autoscrolled: Cell<Instant>,
+    wheeled: Cell<Option<Instant>>,
 }
 
 impl Motion {
@@ -306,6 +327,35 @@ impl Motion {
 
     fn stop_fling(&self) {
         self.momentum.borrow_mut().stop_fling();
+    }
+
+    fn chains(&self, along: f32) -> bool {
+        if along == 0.0 {
+            return false;
+        }
+        let Some(position) = self.placed() else {
+            return false;
+        };
+        match along < 0.0 {
+            true => position.offset >= position.max_offset() - EDGE_SLACK,
+            false => position.offset <= EDGE_SLACK,
+        }
+    }
+
+    fn wheel_chains(&self, gesture: &ScrollGesture) -> bool {
+        let along = self.axis().main(gesture.delta);
+        if along == 0.0 {
+            return false;
+        }
+        let latched = self
+            .wheeled
+            .get()
+            .is_some_and(|last| now().saturating_duration_since(last) < WHEEL_LATCH_TIMEOUT);
+        if !latched && !gesture.unclaimed && self.chains(along) {
+            return true;
+        }
+        self.wheeled.set(Some(now()));
+        false
     }
 
     fn wheel(&self, gesture: ScrollGesture) {
@@ -544,6 +594,7 @@ fn Scrolling(
         animation: Cell::default(),
         autoscrolling: Cell::default(),
         autoscrolled: Cell::new(now()),
+        wheeled: Cell::new(None),
     });
     settles.set(Some(motion));
     let animation = create_animation(
@@ -570,7 +621,7 @@ fn Scrolling(
     if let Some(offset) = motion.with(|motion| motion.node) {
         offset.on_steer(move |()| motion.value().steer());
     }
-    api.fill(ScrollApi(motion));
+    api.fill(ScrollApi(motion, ClickCallback::empty()));
 
     let position = create_memo(move || reported.get().unwrap_or_default());
     let overflows = create_memo(move || position.get().max_offset() > 0.0);
@@ -667,15 +718,24 @@ fn Scrolling(
     });
     let pointer = gestures::first_of([
         autoscroll.pointer,
-        gestures::scroll_drag(axis, move |gesture: DragGesture| {
-            motion.value().drag(gesture)
-        }),
+        gestures::chaining_scroll_drag(
+            axis,
+            move |movement: Vec2| {
+                motion
+                    .value()
+                    .chains(direction.get_untracked().main(movement))
+            },
+            move |gesture: DragGesture| motion.value().drag(gesture),
+        ),
     ]);
     let wheel = gestures::first_of([
         autoscroll.wheel,
-        gestures::scroll_wheel(axis, move |gesture: ScrollGesture| {
-            motion.value().wheel(gesture)
-        }),
+        chaining(
+            motion,
+            gestures::scroll_wheel(axis, move |gesture: ScrollGesture| {
+                motion.value().wheel(gesture)
+            }),
+        ),
     ]);
     let cursor = create_memo(move || {
         autoscroll.active.get().then(|| match direction.get() {
@@ -758,10 +818,30 @@ pub fn Scroll(
     on_change: Callback<ScrollPosition>,
     children: Children<ListChild>,
 ) -> NodeId {
+    let rows = NodeRef::new();
+    if CORE == Core::Html {
+        let scroll = view! {
+            <BrowserScroll
+                api
+                offset
+                direction
+                fit
+                follow_end
+                bleed
+                focus_ring
+                scrollbar
+                on_change={on_change}
+                rows
+            >
+                {children}
+            </BrowserScroll>
+        };
+        reveal_row(reveal, rows);
+        return scroll;
+    }
     let fade = scrollbar.fade();
     let faded = create_signal(None::<ScrollPosition>);
     let edges = create_memo(move || fade_edges(direction.get(), faded.get(), fade));
-    let rows = NodeRef::new();
     let marker = marker.unwrap_or_else(|| {
         Render::new(|_| {
             view! {
@@ -798,6 +878,11 @@ pub fn Scroll(
             </Frame>
         </Scrolling>
     };
+    reveal_row(reveal, rows);
+    scroll
+}
+
+fn reveal_row(reveal: Prop<Option<usize>>, rows: NodeRef) {
     create_effect(move || {
         let Some(index) = reveal.get() else {
             return;
@@ -807,7 +892,181 @@ pub fn Scroll(
             row.reveal();
         }
     });
-    scroll
+}
+
+#[component]
+fn BrowserScroll(
+    api: ComponentRef<ScrollApi>,
+    offset: Prop<f32>,
+    direction: Prop<Direction>,
+    fit: bool,
+    follow_end: Prop<bool>,
+    bleed: Prop<Sides>,
+    focus_ring: Prop<Option<Outline>>,
+    scrollbar: ScrollbarStyle,
+    on_change: Callback<ScrollPosition>,
+    rows: NodeRef,
+    children: Children<ListChild>,
+) -> NodeId {
+    let reported = create_signal(None::<ScrollPosition>);
+    let fade = scrollbar.fade();
+    let edges = create_memo(move || fade_edges(direction.get(), reported.get(), fade));
+    let content = view! {
+        <Frame padding={bleed}>
+            <List @node_ref=&rows direction={direction} spacing=0.0>{children}</List>
+        </Frame>
+    };
+    let scroller = store(RefCell::new(None::<HtmlNode>));
+    let pinned = store(Cell::new(true));
+    let placed = store(Cell::new(false));
+    let horizontal = move || direction.get_untracked() == Direction::Horizontal;
+    let names = move || match horizontal() {
+        true => ("scrollLeft", "scrollWidth", "clientWidth"),
+        false => ("scrollTop", "scrollHeight", "clientHeight"),
+    };
+    let scroll_to = move |value: f32| {
+        scroller.with(|held| {
+            if let Some(element) = held.borrow().as_ref() {
+                element.set_number(names().0, f64::from(value));
+            }
+        });
+    };
+    let refresh = move || {
+        let (offset_name, content_name, viewport_name) = names();
+        let position = scroller.with(|held| {
+            let held = held.borrow();
+            let element = held.as_ref()?;
+            Some(ScrollPosition {
+                offset: element.number(offset_name)? as f32,
+                content: element.number(content_name)? as f32,
+                viewport: element.number(viewport_name)? as f32,
+            })
+        });
+        let Some(position) = position else {
+            return;
+        };
+        if reported.get_untracked() != Some(position) {
+            reported.set(Some(position));
+            on_change.call(position);
+        }
+    };
+    let scrolled = move || {
+        refresh();
+        if let Some(position) = reported.get_untracked() {
+            pinned.with(|pinned| pinned.set(position.offset >= position.max_offset() - END_SLACK));
+        }
+    };
+    let bare = scrollbar.bar.is_none();
+    let focused = create_signal(false);
+    let node = html_escape(move |escape| {
+        escape.style("outline", "none".to_owned());
+        escape.style("overflow-anchor", "auto".to_owned());
+        if bare {
+            escape.style("scrollbar-width", "none".to_owned());
+        }
+        escape.style("display", "grid".to_owned());
+        let track = match fit {
+            true => "minmax(100%, max-content)",
+            false => "max-content",
+        };
+        for (property, vertical, sideways) in [
+            ("overflow-y", "auto", "hidden"),
+            ("overflow-x", "hidden", "auto"),
+            ("grid-template-columns", "minmax(0, 1fr)", "none"),
+            ("grid-template-rows", "none", "minmax(0, 1fr)"),
+            ("grid-auto-flow", "row", "column"),
+            ("grid-auto-rows", track, "auto"),
+            ("grid-auto-columns", "auto", track),
+        ] {
+            escape.style(
+                property,
+                Prop::dynamic(move || {
+                    Some(
+                        match direction.get() {
+                            Direction::Vertical => vertical,
+                            Direction::Horizontal => sideways,
+                        }
+                        .to_owned(),
+                    )
+                }),
+            );
+        }
+        let content = escape.embed(content);
+        let element = view! {
+            <html::Div
+                on_focus={move |_: HtmlEvent| focused.set(true)}
+                on_blur={move |_: HtmlEvent| focused.set(false)}
+                @on={("scroll", move |_: HtmlEvent| scrolled())}
+            >
+                {content}
+            </html::Div>
+        };
+        scroller.with(|held| *held.borrow_mut() = Some(element.clone()));
+        element
+    });
+    let shown = measure(node);
+    let laid = measure(content);
+    create_effect(move || {
+        shown.get();
+        laid.get();
+        if shown.get_untracked().is_none() {
+            return;
+        }
+        if !placed.with(|placed| placed.replace(true)) {
+            scroll_to(offset.get_untracked());
+        }
+        if follow_end.get_untracked() && pinned.with(Cell::get) {
+            scroll_to(f32::MAX);
+        }
+        refresh();
+    });
+    create_effect(move || {
+        let offset = offset.get();
+        if placed.with(Cell::get) {
+            scroll_to(offset);
+            refresh();
+        }
+    });
+    let motion = store(Motion {
+        node: None,
+        reported: reported.read_only(),
+        direction,
+        momentum: Watched::new(Momentum::new(), Momentum::coasting),
+        animation: Cell::default(),
+        autoscrolling: Cell::default(),
+        autoscrolled: Cell::new(now()),
+        wheeled: Cell::new(None),
+    });
+    api.fill(ScrollApi(
+        motion,
+        ClickCallback::new(move || {
+            pinned.with(|pinned| pinned.set(true));
+            scroll_to(f32::MAX);
+            refresh();
+        }),
+    ));
+    component_accessibility(create_memo(move || {
+        scroll_view(reported.get(), direction.get())
+    }));
+    let overflows = create_memo(move || {
+        reported
+            .get()
+            .is_some_and(|position| position.max_offset() > 0.0)
+    });
+    let outset = create_memo(move || -bleed.get());
+    view! {
+        <Frame padding={outset}>
+            <Frame outline={ring_when(focused, focus_ring)}>
+                <List direction={direction} spacing=0.0>
+                    <Frame fade_edges={edges} @sizing={content_sizing(fit)}>
+                        <Interactive focusable=true tab_stop={overflows} yields_tab_stop=true>
+                            {node}
+                        </Interactive>
+                    </Frame>
+                </List>
+            </Frame>
+        </Frame>
+    }
 }
 
 fn content_sizing(fit: bool) -> Sizing {
@@ -901,7 +1160,7 @@ fn navigates(key: Key) -> bool {
 }
 
 #[derive(Clone, Copy)]
-pub struct ScrollApi(Stored<Motion>);
+pub struct ScrollApi(Stored<Motion>, ClickCallback);
 
 impl ScrollApi {
     pub fn animating(&self) -> bool {
@@ -909,6 +1168,10 @@ impl ScrollApi {
     }
 
     pub fn scroll_to_end(&self) {
+        if !self.1.is_empty() {
+            self.1.call();
+            return;
+        }
         self.0.with(|motion| motion.to_end());
     }
 }

@@ -43,7 +43,7 @@ fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {
                     on_dismiss={move |_: Dismiss| dismissed.update(|dismissed| *dismissed += 1)}
                 >
                     <Frame width=200.0 height=40.0>
-                        <TextInput @test_id={"password"} value={typed} password=true />
+                        <TextInput @test_id={"password"} value={typed} kind={InputKind::Password} />
                     </Frame>
                 </Overlay>
             </List>

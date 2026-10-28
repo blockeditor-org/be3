@@ -149,7 +149,7 @@ impl Browser {
     fn submit(&mut self, page: &str, action: &str, fields: &[(&str, &str)]) -> Result<(), String> {
         let (_, form) = self.request("GET", page, "")?;
         let csrf = form
-            .split("name=\"csrf\" value=\"")
+            .split("\"csrf\":\"")
             .nth(1)
             .and_then(|rest| rest.split('"').next())
             .ok_or_else(|| format!("{page} has no form: {form}"))?;

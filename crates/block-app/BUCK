@@ -97,6 +97,7 @@ web_files = glob(["web/*.js"]) + ["//crates/local-tools:block-index"] + ["//buck
         name = shim,
         src = "web/" + shim,
         visibility = [
+            "//crates/be-portal-ui:",
             "//crates/beui-demo-html:",
             "//crates/beui-html-spike:",
             "//crates/beui-shared-tests:",

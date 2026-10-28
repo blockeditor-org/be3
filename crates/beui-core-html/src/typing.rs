@@ -28,6 +28,7 @@ mod web {
     use std::cell::Cell;
 
     use beui_types::input::{Input, Key, Keystroke, Modifiers, typing};
+    use wasm_bindgen::JsCast;
 
     thread_local! {
         static HELD: Cell<Modifiers> = const { Cell::new(Modifiers::NONE) };
@@ -113,11 +114,59 @@ mod web {
             return;
         };
         let taken = !target.dispatch_event(&event).unwrap_or(true);
-        if stroke.pressed
-            && !taken
-            && let Some(text) = stroke.text
-        {
+        if !stroke.pressed || taken {
+            return;
+        }
+        if let Some(input) = target.dyn_ref::<web_sys::HtmlInputElement>() {
+            edit(input, key, stroke.text.as_deref());
+        } else if let Some(text) = stroke.text {
             crate::ime::commit(text);
+        }
+    }
+
+    fn edit(input: &web_sys::HtmlInputElement, key: Key, text: Option<&str>) {
+        let length = input.value().encode_utf16().count() as u32;
+        let start = input.selection_start().ok().flatten().unwrap_or(length);
+        let end = input.selection_end().ok().flatten().unwrap_or(start);
+        let collapsed = start == end;
+        let replace = |text: &str, from: u32, to: u32| {
+            let _ = input.set_range_text_with_start_and_end_and_selection_mode(
+                text,
+                from,
+                to,
+                web_sys::SelectionMode::End,
+            );
+            let init = web_sys::EventInit::new();
+            init.set_bubbles(true);
+            if let Ok(event) = web_sys::Event::new_with_event_init_dict("input", &init) {
+                let _ = input.dispatch_event(&event);
+            }
+        };
+        let place = |at: u32| {
+            let _ = input.set_selection_range(at, at);
+        };
+        match (key, text) {
+            (Key::Enter, _) => {
+                if let Some(form) = input.form() {
+                    let _ = form.request_submit();
+                }
+            }
+            (_, Some(text)) => replace(text, start, end),
+            (Key::Backspace, _) if !collapsed => replace("", start, end),
+            (Key::Backspace, _) if start > 0 => replace("", start - 1, start),
+            (Key::Delete, _) if !collapsed => replace("", start, end),
+            (Key::Delete, _) if end < length => replace("", start, end + 1),
+            (Key::ArrowLeft, _) => place(match collapsed {
+                true => start.saturating_sub(1),
+                false => start,
+            }),
+            (Key::ArrowRight, _) => place(match collapsed {
+                true => (end + 1).min(length),
+                false => end,
+            }),
+            (Key::Home, _) => place(0),
+            (Key::End, _) => place(length),
+            _ => {}
         }
     }
 

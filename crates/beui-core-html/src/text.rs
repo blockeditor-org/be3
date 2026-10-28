@@ -29,7 +29,7 @@ pub fn line_height(size: f32) -> f32 {
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum TextSlot {
-    Anchored,
+    Anchored(Option<usize>),
     Inline(usize),
 }
 
@@ -40,7 +40,7 @@ impl TextSlot {
 
     pub fn bytes(self) -> usize {
         match self {
-            TextSlot::Anchored => 0,
+            TextSlot::Anchored(_) => 0,
             TextSlot::Inline(bytes) => bytes,
         }
     }
@@ -245,6 +245,8 @@ pub(crate) struct Decor {
 
 pub struct TextModel {
     pub(crate) node: NodeId,
+    this: std::rc::Weak<TextModel>,
+    placing: RefCell<Option<Rc<dyn Fn() -> bool>>>,
     host: Rc<dyn SlotHost<NodeId>>,
     order: RefCell<ChildList<NodeId>>,
     slots: RefCell<Vec<(SlotId, SlotId)>>,
@@ -270,8 +272,10 @@ pub fn revision(node: NodeId) -> u64 {
 
 impl TextModel {
     pub fn new(node: NodeId) -> Rc<Self> {
-        let model = Rc::new(Self {
+        let model = Rc::new_cyclic(|this| Self {
             node,
+            this: this.clone(),
+            placing: RefCell::default(),
             host: crate::tree::node_host(node),
             order: RefCell::default(),
             slots: RefCell::default(),
@@ -294,7 +298,34 @@ impl TextModel {
     }
 
     pub fn insert(&self, node: NodeId, piece: Piece) {
+        if let Piece::Item(slot) = &piece
+            && let TextSlot::Anchored(_) = reactive::untrack(|| slot.get())
+        {
+            self.anchor(node);
+        }
         self.pieces.borrow_mut().insert(node, piece);
+    }
+
+    fn anchor(&self, item: NodeId) {
+        crate::document::set_style(self.node, "position", Some("relative".to_owned()));
+        crate::document::set_style(item, "position", Some("absolute".to_owned()));
+        if self.placing.borrow().is_some() {
+            return;
+        }
+        let model = self.this.clone();
+        let pass: Rc<dyn Fn() -> bool> = Rc::new(move || {
+            #[cfg(target_arch = "wasm32")]
+            {
+                model.upgrade().is_some_and(|model| web::place(&model))
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                let _ = &model;
+                false
+            }
+        });
+        crate::frame::hold_layout(&pass);
+        *self.placing.borrow_mut() = Some(pass);
     }
 
     fn changed(&self) {

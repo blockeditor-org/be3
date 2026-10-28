@@ -212,7 +212,7 @@ fn LockCard(
                         value={password}
                         placeholder="Password"
                         label="Password"
-                        password=true
+                        kind={InputKind::Password}
                         disabled={busy}
                         focused={focused}
                         @test_id={password_id}

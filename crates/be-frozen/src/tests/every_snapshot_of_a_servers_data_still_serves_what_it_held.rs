@@ -51,7 +51,7 @@ async fn portal_http(
     String::from_utf8(bytes).unwrap()
 }
 fn csrf(page: &str) -> &str {
-    page.split("name=\"csrf\" value=\"")
+    page.split("\"csrf\":\"")
         .nth(1)
         .unwrap()
         .split('"')

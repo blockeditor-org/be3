@@ -1,0 +1,23 @@
+[package]
+name = "be-portal-ui"
+description = "be-server's account portal on beui's HTML core: rendered on the server, hydrated in the browser"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+be-portal = { path = "../be-portal" }
+beui = { path = "../beui", default-features = false }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasi-threads = { path = "../wasi-threads" }
+wasm-bindgen = "0.2"
+
+[dev-dependencies]
+paint-snapshot = { path = "../paint-snapshot" }
+
+[lints]
+workspace = true

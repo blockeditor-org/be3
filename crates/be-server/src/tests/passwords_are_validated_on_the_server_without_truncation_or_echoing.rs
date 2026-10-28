@@ -21,7 +21,7 @@ async fn passwords_are_validated_on_the_server_without_truncation_or_echoing() {
         .await;
     assert_eq!(status, 400);
     assert!(page.contains(&long_name));
-    assert!(page.contains("Display name:"));
+    assert!(page.contains("Enter a name of at most 200 bytes."));
     assert!(!page.contains(secret));
     let (_, page) = browser
         .submit(
@@ -36,7 +36,7 @@ async fn passwords_are_validated_on_the_server_without_truncation_or_echoing() {
             ],
         )
         .await;
-    assert!(page.contains("Email:"));
+    assert!(page.contains("Enter a valid email address"));
     assert!(page.contains("bad address"));
     let (_, page) = browser
         .submit(
@@ -51,7 +51,7 @@ async fn passwords_are_validated_on_the_server_without_truncation_or_echoing() {
             ],
         )
         .await;
-    assert!(page.contains("Password confirmation:"));
+    assert!(page.contains("The passwords do not match."));
     assert!(!page.contains(secret));
     for constraint in ["required=", "maxlength=", "minlength=", "pattern="] {
         assert!(!page.contains(constraint));
