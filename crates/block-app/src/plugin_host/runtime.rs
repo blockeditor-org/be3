@@ -2276,7 +2276,7 @@ pub(crate) struct RegionView {
     pub(crate) ime: Option<beui::ImeArea>,
     pub(crate) handles_back: bool,
     pub(crate) wants_keyboard: bool,
-    pub(crate) keyboard_toggles: u32,
+    pub(crate) keyboard_toggles: Option<u32>,
     pub(crate) intercepted_keys: Vec<beui::KeyChord>,
     pub(crate) pastes: Vec<beui::PasteKind>,
     pub(crate) clipboard_keys: bool,
@@ -2303,7 +2303,7 @@ impl RegionView {
             ime: None,
             handles_back: false,
             wants_keyboard: false,
-            keyboard_toggles: 0,
+            keyboard_toggles: None,
             intercepted_keys: Vec::new(),
             pastes: Vec::new(),
             clipboard_keys: false,
@@ -2536,7 +2536,7 @@ fn placed_view(
             ime: runtime.instances.ime(instance, region, rect),
             handles_back,
             wants_keyboard: window.is_some_and(|window| window.wants_keyboard),
-            keyboard_toggles: window.map_or(0, |window| window.keyboard_toggles),
+            keyboard_toggles: window.map(|window| window.keyboard_toggles),
             intercepted_keys,
             pastes: window
                 .map(|window| window.pastes.clone())

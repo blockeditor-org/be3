@@ -1165,14 +1165,15 @@ fn focus_when_presenting(
 
 fn toggle_keyboard_when_asked(state: Memo<RegionView>, primary: Memo<bool>) {
     let toggles = create_memo(move || state.with(|view| view.keyboard_toggles));
-    let seen = StoredCell::new(0u32);
+    let seen = StoredCell::new(None::<u32>);
     create_effect(move || {
-        let toggles = toggles.get();
-        if toggles != seen.get() {
-            seen.set(toggles);
-            if primary.get_untracked() {
-                untrack(toggle_keyboard);
-            }
+        let Some(toggles) = toggles.get() else {
+            return;
+        };
+        let before = seen.get();
+        seen.set(Some(toggles));
+        if before.is_some_and(|before| before != toggles) && primary.get_untracked() {
+            untrack(toggle_keyboard);
         }
     });
 }
