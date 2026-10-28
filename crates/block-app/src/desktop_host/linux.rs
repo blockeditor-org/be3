@@ -352,7 +352,12 @@ pub(crate) fn opening_windows() -> Vec<(uuid::Uuid, HostWindowId)> {
 
 pub(crate) fn close(window: HostWindowId) {
     if let Some(windows) = windows() {
-        windows.close(WindowId(window.0));
+        let id = WindowId(window.0);
+        windows.close(id);
+        if let Some(dialog) = windows.blocked_by(id) {
+            windows.activate(dialog);
+            crate::host::wake();
+        }
     }
 }
 

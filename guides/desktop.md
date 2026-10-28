@@ -96,7 +96,11 @@ opens from them (`windows` in the screen request, set for the shell's frame and 
 and for the windows themselves; guides/adding_a_plugin_editor.md), so every `Window` the shell
 opens, each of the desktop plugin's dock windows, becomes a `window(w)` region that block-app keeps
 in `compositor/desktop.rs`: a list of `Floated` windows, each its rect in desktop points, in
-stacking order (a press raises one). The shell's region on each display draws, between its own
+stacking order. A press on one raises it, and so does the plugin's `raise` window request,
+which the dock sends when a window takes the focus (a press on a program's content focuses the
+program, which focuses its tab); raising a window brings the windows opened over it, its dialogs
+and popups, along in front of it. The dock's windows clear to transparent, so the margin their
+resize grips reach into and their rounded corners show what is behind them. The shell's region on each display draws, between its own
 surface and its floating layers (menus, popovers, toasts), the windows that display holds most
 of (`desktop::shown_on`, `DesktopWindows` in `compositor/region.rs`), each a `PluginRegion` of
 its window region placed at its rect less the display's corner, whose children are the program

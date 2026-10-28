@@ -404,8 +404,9 @@ pub(crate) fn PluginRegion(
                 placed.get(),
             )
         });
-        let held: Rc<RefCell<Option<(DrawingKey, beui::native::Drawing, u64)>>> =
-            Rc::new(RefCell::new(None));
+        let held: Rc<
+            RefCell<Option<(DrawingKey, beui::native::Drawing, u64, plugin_host::Pieces)>>,
+        > = Rc::new(RefCell::new(None));
         let drawn = create_memo(move || {
             let (_, rotation, opacity, pieces, _, placed) = shown.get();
             let (drawn, held_rect, size) =
@@ -421,8 +422,19 @@ pub(crate) fn PluginRegion(
             };
             let previous = held.borrow().clone();
             let published = plugin_host::region_published(&plugin_id.value());
-            if let Some((_, drawing, seen)) = previous.filter(|(was, _, _)| *was == key)
-                && let Some(damage) = state.with_untracked(|view| {
+            let reused = previous.and_then(|(was, drawing, seen, shared)| {
+                let repieced = DrawingKey {
+                    pieces: pieces.clone(),
+                    ..was.clone()
+                };
+                if repieced != key {
+                    return None;
+                }
+                let uncovered = match was.pieces == pieces {
+                    true => Vec::new(),
+                    false => plugin_host::uncovered_pieces(&was.pieces, &pieces)?,
+                };
+                let damage = state.with_untracked(|view| {
                     plugin_host::region_damage(
                         &plugin_id.value(),
                         instance,
@@ -432,10 +444,13 @@ pub(crate) fn PluginRegion(
                         rotation,
                         seen,
                     )
-                })
-            {
+                })?;
+                Some((drawing, shared, [damage, uncovered].concat()))
+            });
+            if let Some((drawing, shared, damage)) = reused {
+                *shared.borrow_mut() = pieces;
                 if damage.is_empty() {
-                    *held.borrow_mut() = Some((key, drawing.clone(), published));
+                    *held.borrow_mut() = Some((key, drawing.clone(), published, shared));
                     return Some(drawing);
                 }
                 let damaged = damage.iter().fold(Region::default(), |damaged, fraction| {
@@ -448,7 +463,7 @@ pub(crate) fn PluginRegion(
                     ))
                 });
                 let redrawn = drawing.redrawn(damaged);
-                *held.borrow_mut() = Some((key, redrawn.clone(), published));
+                *held.borrow_mut() = Some((key, redrawn.clone(), published, shared));
                 return Some(redrawn);
             }
             let drawing = state.with_untracked(|view| {
@@ -462,8 +477,10 @@ pub(crate) fn PluginRegion(
                     opacity,
                 )
             });
-            *held.borrow_mut() = drawing.clone().map(|drawing| (key, drawing, published));
-            drawing
+            *held.borrow_mut() = drawing
+                .clone()
+                .map(|(drawing, shared)| (key, drawing, published, shared));
+            drawing.map(|(drawing, _)| drawing)
         });
         Prop::dynamic(move || draw_gpu(drawn.get()))
     };

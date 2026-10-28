@@ -2427,18 +2427,21 @@ fn placed_view(
             .instances
             .host_children(instance, region, rect, clip, view);
         let report = runtime.instances.frame_report(instance, region);
-        let floating_rects: Vec<Rect> = match held {
-            Some(_) => Vec::new(),
-            None => report
-                .map(|report| {
-                    report
-                        .floating
-                        .iter()
-                        .map(|floating| floating.translate(rect.min.to_vec2()))
-                        .collect()
-                })
-                .unwrap_or_default(),
+        let in_region = |rects: fn(&block_plugin_api::FrameReport) -> &Vec<Rect>| -> Vec<Rect> {
+            match held {
+                Some(_) => Vec::new(),
+                None => report
+                    .map(|report| {
+                        rects(report)
+                            .iter()
+                            .map(|floating| floating.translate(rect.min.to_vec2()))
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+            }
         };
+        let floating_rects = in_region(|report| &report.floating);
+        let painted_rects = in_region(|report| &report.floating_painted);
         let window = runtime.instances.window(instance, region);
         let handles_back = window.is_some_and(|window| window.handles_back);
         let claims = report
@@ -2466,9 +2469,9 @@ fn placed_view(
             .iter()
             .flat_map(|window| window.intercepted_keys.iter().copied())
             .collect();
-        let base: Vec<Rect> = match floating_rects.is_empty() {
+        let base: Vec<Rect> = match painted_rects.is_empty() {
             true => vec![visible],
-            false => super::pieces::subtract(visible, &floating_rects),
+            false => super::pieces::subtract(visible, &painted_rects),
         };
         let (base, floating) = match held {
             Some(_) => (
@@ -2480,7 +2483,7 @@ fn placed_view(
             ),
             None => (
                 pieces_of(rect, visible, textured, &base),
-                pieces_of(rect, visible, textured, &floating_rects),
+                pieces_of(rect, visible, textured, &painted_rects),
             ),
         };
         let loading = screen.is_none_or(|screen| runtime.layout.placement(screen).is_none());
@@ -2615,20 +2618,22 @@ pub(crate) fn region_drawing(
     pieces: &[Piece],
     rotation: f32,
     opacity: f32,
-) -> Option<beui::native::Drawing> {
-    if pieces.is_empty() || view.loading {
+) -> Option<(beui::native::Drawing, super::presenter::Pieces)> {
+    if view.loading {
         return None;
     }
     with(plugin_id, |runtime| {
         let screen = runtime.instances.screen_id(instance, region)?;
         let mut template = runtime.template(screen, view.drawn);
         template.quad.opacity = opacity;
-        Some(beui::native::painted_drawing(RegionDrawing::new(
+        let shared = Rc::new(RefCell::new(pieces.to_vec()));
+        let drawing = beui::native::painted_drawing(RegionDrawing::new(
             template,
-            pieces.to_vec(),
+            Rc::clone(&shared),
             view.held,
             rotation,
-        )))
+        ));
+        Some((drawing, shared))
     })
     .flatten()
 }

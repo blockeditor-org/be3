@@ -1263,6 +1263,7 @@ impl Space {
                 }
             }
             WindowRequest::Resize { window, size } => self.resize_window(*window, *size),
+            WindowRequest::Raise(_) => {}
             WindowRequest::Close(window) => self.close(*window),
         }
     }

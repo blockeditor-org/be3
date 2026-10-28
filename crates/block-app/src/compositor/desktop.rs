@@ -331,6 +331,12 @@ pub(crate) fn apply() {
                     });
                 }
             }
+            WindowRequest::Raise(window) => {
+                if let Some(index) = find(&windows, window) {
+                    let key = windows[index].key.clone();
+                    raise_in(&mut windows, &key);
+                }
+            }
             WindowRequest::BeginResize(resize) => {
                 if let Some(panel) =
                     find(&windows, resize.window).and_then(|index| windows[index].panel.as_mut())
@@ -702,16 +708,35 @@ fn resized(rect: Rect, edge: WindowEdge, moved: Vec2) -> Rect {
 
 fn raise(key: &FloatedKey) {
     let floated = floated_signal();
-    let last = floated.with_untracked(|windows| windows.last().map(|window| window.key.clone()));
-    if last.as_ref() == Some(key) {
-        return;
+    let mut windows = floated.get_untracked();
+    raise_in(&mut windows, key);
+    if floated.with_untracked(|held| *held != windows) {
+        floated.set(windows);
     }
-    floated.update(|windows| {
-        if let Some(index) = windows.iter().position(|window| window.key == *key) {
-            let window = windows.remove(index);
-            windows.push(window);
-        }
-    });
+}
+
+fn raise_in(windows: &mut Vec<Floated>, key: &FloatedKey) {
+    let mut raised = vec![key.window];
+    let mut index = 0;
+    while index < raised.len() {
+        let parent = raised[index];
+        let children: Vec<u64> = windows
+            .iter()
+            .filter(|window| {
+                window.key.plugin == key.plugin
+                    && window.parent == Some(parent)
+                    && !raised.contains(&window.key.window)
+            })
+            .map(|window| window.key.window)
+            .collect();
+        raised.extend(children);
+        index += 1;
+    }
+    let (on_top, mut below): (Vec<Floated>, Vec<Floated>) = std::mem::take(windows)
+        .into_iter()
+        .partition(|window| window.key.plugin == key.plugin && raised.contains(&window.key.window));
+    below.extend(on_top);
+    *windows = below;
 }
 
 pub(crate) fn merged_statuses(

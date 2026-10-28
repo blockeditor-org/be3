@@ -2,7 +2,7 @@ use super::*;
 use crate::selection::client;
 
 #[test]
-fn with_middle_click_paste_off_a_selection_is_cancelled_and_offered_to_no_one() {
+fn with_middle_click_paste_off_a_selection_stays_its_owners_and_is_offered_to_no_one() {
     let mut harness = Harness::new();
     let _keyboard = harness.client.keyboard();
     let _pointer = harness.client.pointer();
@@ -21,8 +21,8 @@ fn with_middle_click_paste_off_a_selection_is_cancelled_and_offered_to_no_one() 
         .select(&device, "selected in a window", serial);
     harness.settle();
     assert!(
-        client::primary_cancelled(),
-        "the window's selection is cancelled"
+        !client::primary_cancelled(),
+        "the window keeps its selection, so a terminal keeps it highlighted"
     );
     assert!(client::primary().is_none(), "the window is offered nothing");
     assert!(
@@ -35,8 +35,8 @@ fn with_middle_click_paste_off_a_selection_is_cancelled_and_offered_to_no_one() 
         .select_with_control(&control, "selected by a manager");
     harness.settle();
     assert!(
-        client::source_cancelled(),
-        "a clipboard manager's selection is cancelled too"
+        !client::source_cancelled(),
+        "a clipboard manager keeps its selection too"
     );
     assert!(client::primary().is_none());
     assert!(client::control_primary().is_none());

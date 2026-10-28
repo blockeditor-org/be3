@@ -379,6 +379,9 @@ impl Document {
             && self.is_overlay_open(overlay.id())
         {
             self.raise_layer(overlay);
+            if let Some(window) = self.real_window(overlay) {
+                self.request_window(crate::window::WindowRequest::Raise(window));
+            }
         }
     }
 
@@ -755,6 +758,21 @@ impl Document {
         covers.into_iter().filter(Rect::is_positive).collect()
     }
 
+    fn layer_paints(&self, layer: &Layer) -> Vec<Rect> {
+        let Some(content) = layer.content.and_then(|content| self.node_rect(content)) else {
+            return Vec::new();
+        };
+        let scrim = layer
+            .overlay
+            .filter(|overlay| self.arena.get_as::<OverlayNode>(*overlay).dims())
+            .and_then(|overlay| self.node_rect(self.overlay_scrim(overlay)));
+        scrim
+            .into_iter()
+            .chain([content])
+            .filter(Rect::is_positive)
+            .collect()
+    }
+
     fn window_overlays(&self, window: WindowId) -> Vec<(usize, Layer)> {
         let own = self.window_node(window);
         self.layers()
@@ -771,6 +789,13 @@ impl Document {
         self.window_overlays(window)
             .iter()
             .flat_map(|(_, layer)| self.layer_covers(layer))
+            .collect()
+    }
+
+    pub fn overlay_painted_rects(&self, window: WindowId) -> Vec<Rect> {
+        self.window_overlays(window)
+            .iter()
+            .flat_map(|(_, layer)| self.layer_paints(layer))
             .collect()
     }
 

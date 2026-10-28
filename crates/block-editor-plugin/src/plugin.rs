@@ -132,6 +132,7 @@ pub struct Frame {
     pub content: Option<Rect>,
     pub painted: Vec<Rect>,
     pub floating: Vec<Rect>,
+    pub floating_painted: Vec<Rect>,
     pub drawing: Vec<Rect>,
     pub every_sample: bool,
     pub claims: Vec<Claim>,

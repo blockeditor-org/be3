@@ -358,6 +358,10 @@ impl OverlayNode {
         }
     }
 
+    pub(crate) fn dims(&self) -> bool {
+        self.dims
+    }
+
     pub(crate) fn scrim_covers(&self) -> bool {
         match self.policy {
             LayerPolicy::BlocksAll => true,

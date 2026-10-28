@@ -407,7 +407,14 @@ interface types {
         screen: screen-id,
         content: rect,
         painted: list<rect>,
+        /// Where the region's overlays take input: their content and the
+        /// areas their scrims block, clear or not.
         floating: list<rect>,
+        /// The parts of `floating` the overlays paint, which the host draws
+        /// above the region's children: their content and any scrim that
+        /// dims. A clear scrim only blocks input, so the children show
+        /// through it.
+        floating-painted: list<rect>,
         drawing: list<rect>,
         every-sample: bool,
         claims: list<press-claim>,
@@ -488,12 +495,13 @@ interface types {
 
     /// What the plugin asks of the host about a window it shows: to open it
     /// (as a `window` region of the instance it opened from), move or resize it
-    /// with the pointer as a window manager does, give it another size, or
-    /// close it. The host answers through the window's screen: its size and
+    /// with the pointer as a window manager does, raise it in front of the
+    /// plugin's others, give it another size, or close it. The host answers through the window's screen: its size and
     /// scale, its `placement`, focus as input, and closing as the screen going.
     variant window-request {
         open(window-open),
         begin-move(u64),
+        raise(u64),
         begin-resize(window-resize-begin),
         resize(window-resize),
         close(u64),

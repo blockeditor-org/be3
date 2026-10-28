@@ -35,7 +35,9 @@ mod wire;
 pub(crate) use description::describe;
 pub(crate) use input::BlockDrag;
 pub(crate) use instances::EditorView;
+pub(crate) use pieces::uncovered as uncovered_pieces;
 pub(crate) use presenter::Piece;
+pub(crate) use presenter::Pieces;
 #[cfg(target_arch = "wasm32")]
 pub(crate) use presenter::shown as shown_blits;
 #[cfg(target_arch = "wasm32")]

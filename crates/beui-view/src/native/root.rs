@@ -14,14 +14,16 @@ pub(crate) fn root(
     children: Child,
 ) -> Root {
     let handle = crate::window::use_window();
-    let window = move || {
-        handle
-            .filter(|handle| handle.is_window())
-            .map(|handle| handle.id)
+    let window = move || match handle {
+        None => Some(None),
+        Some(handle) if handle.is_window() => Some(Some(handle.id)),
+        Some(_) => None,
     };
     create_effect(move || {
         let color = crate::colors::resolve_color(clear_color.get());
-        let window = window();
+        let Some(window) = window() else {
+            return;
+        };
         with_document(|document| {
             document.update_appearance(window, |appearance| appearance.clear_color = color)
         });
@@ -29,7 +31,9 @@ pub(crate) fn root(
     if let Some(title) = title {
         create_effect(move || {
             let title = title.get();
-            let window = window();
+            let Some(window) = window() else {
+                return;
+            };
             with_document(|document| {
                 document.update_appearance(window, |appearance| appearance.title = Some(title))
             });
@@ -37,7 +41,9 @@ pub(crate) fn root(
     }
     create_effect(move || {
         let bars = system_bars.get();
-        let window = window();
+        let Some(window) = window() else {
+            return;
+        };
         with_document(|document| {
             document.update_appearance(window, |appearance| appearance.system_bars = bars)
         });

@@ -525,10 +525,12 @@ interface types {
         size: vec2,
     }
 
-    /// What an app asks of the host that shows its windows.
+    /// What an app asks of the host that shows its windows. `raise` puts a
+    /// window in front of the app's others, as when it takes the focus.
     variant window-request {
         open(window-request-open),
         begin-move(window-id),
+        raise(window-id),
         begin-resize(window-request-begin-resize),
         resize(window-request-resize),
         close(window-id),

@@ -313,6 +313,7 @@ impl ModuleRunner {
             }
             _ if !self.floated.contains_key(&window) => {}
             WindowRequest::BeginMove(window) => self.push_ask(window, Ask::BeginMove(window.raw())),
+            WindowRequest::Raise(window) => self.push_ask(window, Ask::Raise(window.raw())),
             WindowRequest::BeginResize { window, edge } => self.push_ask(
                 window,
                 Ask::BeginResize(block_plugin_api::WindowResizeBegin {
@@ -624,6 +625,7 @@ impl Regions for ModuleRunner {
                     content: report.content.map(to_region),
                     painted: report.painted.into_iter().map(to_region).collect(),
                     floating: report.floating.into_iter().map(to_region).collect(),
+                    floating_painted: report.floating_painted.into_iter().map(to_region).collect(),
                     drawing: report.drawing.into_iter().map(to_region).collect(),
                     every_sample: report.every_sample,
                     claims: report

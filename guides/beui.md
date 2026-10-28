@@ -3424,7 +3424,10 @@ window it overlays, anywhere in its own window, and beui-layer-space for every
 panel, a press in any other panel or none closing it; the `Window` component's `role`,
 and a hosted window whose role changes is opened again with the new one), `BeginMove(window)`, `BeginResize { window, edge }`
 (the host then moves or resizes it, as an OS does after winit's
-`drag_window`), `Resize { window, size }` (the app wants another size; the
+`drag_window`), `Raise(window)` (sent whenever `Document::raise_overlay` raises a
+hosted window, as a dock does when one of its windows takes the focus, so the host
+stacks its windows as the document does; the host keeps the windows opened over it,
+its dialogs and popups, in front of it), `Resize { window, size }` (the app wants another size; the
 host answers with the size it gives) and `Close(window)`. A `WindowPlacement` is `AtPointer`,
 `Over { window, at }` (its top-left corner at `at` in that window's points, where
 the app would draw it inside that window), or `Host(HostPlacement)`: a value only the host
@@ -3542,7 +3545,11 @@ holding the focus, and the rest of `WindowState` stays on the main window,
 except the appearance: a `Root` built inside a hosted window sets that
 window's clear colour, title and system bars
 (`Document::update_appearance(Some(window), ..)`), and a window without one
-takes the main window's. The accessibility tree stays one tree, with each
+takes the main window's. A `Root` inside a `Window` that is an overlay sets
+nothing, since an overlay has no clear of its own. A window that draws its own
+rounded or inset chrome, as the dock's floating windows and window-presented
+dialogs do, sets `Color::TRANSPARENT` so its host shows what is behind its corners
+and margins. The accessibility tree stays one tree, with each
 window's nodes in its own coordinates; `FrameOutput::window_accessibility_tree`
 is the part of it in one window (its nodes, rooted at the window, with the
 focus when the focus is there), and `FrameOutput::window_overflows` names the
@@ -3550,7 +3557,9 @@ window of each overflow.
 
 What a host is told about one window is asked of the document by window:
 `overlay_rects(window)`, `floating_rects(window)` and `overlay_layers(window)`
-cover the overlays opened in it, `drawing_rects(window)`,
+cover the overlays opened in it (`overlay_rects` where they take input, scrims
+included; `overlay_painted_rects` only what they paint: their content and a scrim
+that dims, never a clear one), `drawing_rects(window)`,
 `press_claims(window)` and `wants_every_sample(window)` the nodes in it, and
 `measure_node(ctx, node, available)` measures a node with the painter of its
 window. A key listener at `KeyAt::Window` and an action, registered inside a

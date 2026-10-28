@@ -49,6 +49,10 @@ fn frame_screens_and_reports_round_trip() {
                 Pos2::new(8.0, 44.0),
                 Vec2::new(120.0, 90.0),
             )],
+            floating_painted: vec![Rect::from_min_size(
+                Pos2::new(8.0, 44.0),
+                Vec2::new(120.0, 90.0),
+            )],
             drawing: vec![Rect::from_min_size(
                 Pos2::new(0.0, 0.0),
                 Vec2::new(640.0, 400.0),

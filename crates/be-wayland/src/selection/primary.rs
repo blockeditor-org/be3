@@ -45,12 +45,9 @@ macro_rules! gated {
                 handle: &DisplayHandle,
                 init: &mut DataInit<'_, State>,
             ) {
-                if let $set { source, .. } = &request
+                if let $set { .. } = &request
                     && !state.selection.primary_on()
                 {
-                    if let Some(source) = source {
-                        source.cancelled();
-                    }
                     return;
                 }
                 <$state as Dispatch<$device, $data, State>>::request(

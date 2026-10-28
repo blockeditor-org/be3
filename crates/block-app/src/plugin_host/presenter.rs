@@ -413,19 +413,16 @@ pub(crate) struct RegionDrawing {
     #[cfg(target_arch = "wasm32")]
     id: u64,
     template: Blit,
-    pieces: Vec<Piece>,
+    pieces: Pieces,
     held: Option<Rect>,
     rotation: f32,
     drawing: PluginDrawing,
 }
 
+pub(crate) type Pieces = Rc<RefCell<Vec<Piece>>>;
+
 impl RegionDrawing {
-    pub(super) fn new(
-        template: Blit,
-        pieces: Vec<Piece>,
-        held: Option<Rect>,
-        rotation: f32,
-    ) -> Self {
+    pub(super) fn new(template: Blit, pieces: Pieces, held: Option<Rect>, rotation: f32) -> Self {
         Self {
             #[cfg(target_arch = "wasm32")]
             id: next_drawing(),
@@ -464,6 +461,7 @@ impl RegionDrawing {
             ))
         };
         self.pieces
+            .borrow()
             .iter()
             .map(|piece| {
                 let local = piece.local;
@@ -615,7 +613,7 @@ impl Paints for RegionDrawing {
                 textures.entry(*key).or_insert_with(|| pixels.clone());
             }
         }
-        found.then_some(Painting {
+        (found || self.pieces.borrow().is_empty()).then_some(Painting {
             frame: beui::native::painting::Frame {
                 size: [1, 1],
                 pixels_per_point: 1.0,
