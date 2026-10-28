@@ -68,6 +68,7 @@ struct State<K: 'static, P: 'static> {
     accepts: Option<Func<P, bool>>,
     disabled: Prop<bool>,
     fixed: Prop<bool>,
+    slot: Option<Func<P, Option<usize>>>,
     long_press: Prop<bool>,
     text: Callback<K, String>,
     on_move: Callback<ReorderMove<K, P>>,
@@ -90,6 +91,7 @@ struct State<K: 'static, P: 'static> {
     board: Board,
     gone: Cell<bool>,
     returning: Cell<bool>,
+    settling: Cell<bool>,
     area: Cell<Option<NodeId>>,
 }
 
@@ -120,7 +122,7 @@ where
     }
 
     pub fn hover(&self, point: Option<DragPoint>) {
-        visit(self.state, point);
+        visit(self.state, None, point);
     }
 
     pub(crate) fn part(&self, gap: Option<ReorderGap<K>>) {
@@ -397,27 +399,46 @@ where
     });
 }
 
-fn visit<K, P>(stored: Stored<State<K, P>>, point: Option<DragPoint>)
+fn visit<K, P>(stored: Stored<State<K, P>>, payload: Option<P>, point: Option<DragPoint>)
 where
     K: Clone + Eq + Hash + 'static,
     P: Clone + PartialEq + 'static,
 {
     let (own, gap) = stored.with(|state| {
+        state.settling.set(false);
         let own = state.lifted.with_untracked(Option::is_some);
-        let gap = point.filter(|_| !state.fixed.get_untracked()).map(|point| {
+        let gap = point.and_then(|point| {
             let keys = shown_keys(state);
-            let direction = state.direction.get_untracked();
             let size = carried_size(state, point);
-            let span = span_of(direction, point);
-            let index = slot_at(state, &keys, None, span, keys.len(), size);
-            ReorderGap {
+            let index = match state.fixed.get_untracked() {
+                true => sorted_slot(state, payload)?,
+                false => {
+                    let span = span_of(state.direction.get_untracked(), point);
+                    slot_at(state, &keys, None, span, keys.len(), size)
+                }
+            };
+            Some(ReorderGap {
                 before: keys.get(index).cloned(),
                 size,
-            }
+            })
         });
         (own, gap)
     });
     open_gap(stored, point.is_some() && !own, gap);
+}
+
+fn sorted_slot<K: Clone + PartialEq, P: Clone + PartialEq>(
+    state: &State<K, P>,
+    payload: Option<P>,
+) -> Option<usize> {
+    let lifted = state.lifted.get_untracked();
+    if let Some(lifted) =
+        lifted.filter(|lifted| payload.as_ref().is_none_or(|p| *p == lifted.payload))
+    {
+        return Some(lifted.slot);
+    }
+    let index = state.slot?.call(payload?)?;
+    Some(index.min(shown_keys(state).len()))
 }
 
 fn open_gap<K, P>(stored: Stored<State<K, P>>, visited: bool, gap: Option<ReorderGap<K>>)
@@ -429,7 +450,6 @@ where
         if state.visited.get_untracked() != visited {
             state.visited.set(visited);
         }
-        let gap = gap.filter(|_| !state.fixed.get_untracked());
         let aim = gap.as_ref().map_or(0.0, |gap| gap.size);
         match (gap, state.gap.get_untracked()) {
             (Some(gap), Some(shown)) if gap.before != shown.before => {
@@ -528,7 +548,7 @@ where
         let lifted = state
             .lifted
             .get_untracked()
-            .filter(|lifted| !lifted.home && lifted.size > 0.0 && !state.fixed.get_untracked())?;
+            .filter(|lifted| !lifted.home && lifted.size > 0.0)?;
         let keys = state.keys.get_untracked();
         let at = keys.iter().position(|key| *key == lifted.key)?;
         let rest = rest_of(&keys, &lifted.key);
@@ -589,7 +609,6 @@ where
         };
         hold(state, false);
         if !lifted.home
-            && !state.fixed.get_untracked()
             && let Some(at) = shown_at(state)
         {
             *state.arrival.borrow_mut() = Some(Arrival::Back(lifted.key.clone(), at));
@@ -646,9 +665,14 @@ where
             .as_ref()
             .and_then(|own| keys.iter().position(|key| key == own));
         let direction = state.direction.get_untracked();
-        let index = match state.fixed.get_untracked() {
-            true => from.unwrap_or(0),
-            false => {
+        let fixed = state.fixed.get_untracked();
+        let sorted = fixed
+            .then(|| sorted_slot(state, Some(payload.clone())))
+            .flatten();
+        let index = match (fixed, sorted) {
+            (true, Some(index)) => index,
+            (true, None) => from.unwrap_or(0),
+            (false, _) => {
                 let size = carried_size(state, point);
                 let span = span_of(direction, point);
                 slot_at(state, &rest, None, span, rest.len(), size)
@@ -659,19 +683,31 @@ where
             Some(own) => Arrival::Back(own.clone(), at),
             None => Arrival::New(keys.clone(), at),
         });
-        shut(state);
+        let held = (own.is_none() && sorted.is_some()).then(|| ReorderGap {
+            before: rest.get(index).cloned(),
+            size: carried_size(state, point),
+        });
+        if held.is_none() {
+            shut(state);
+        }
         state.visited.set(false);
         bump(state);
         if let Some(own) = &own {
             announce(state, own, index, keys.len());
         }
-        (from != Some(index)).then(|| ReorderMove {
+        let commit = (from != Some(index)).then(|| ReorderMove {
             payload,
             key: own,
             after: index.checked_sub(1).and_then(|at| rest.get(at).cloned()),
             index,
-        })
+        });
+        (commit, held)
     });
+    let (commit, held) = commit;
+    if let Some(held) = held {
+        open_gap(stored, false, Some(held));
+        stored.with(|state| state.settling.set(true));
+    }
     if let Some(commit) = commit {
         stored.with(|state| state.on_move.call(commit));
     }
@@ -731,23 +767,22 @@ where
         state.arrival.borrow_mut().take();
         *state.point.borrow_mut() = Some(point);
         state.raised.set(Some(press.key.clone()));
-        let fixed = state.fixed.get_untracked();
         state.lifted.set(Some(Lifted {
             key: press.key.clone(),
             payload: payload.clone(),
             item: press.item,
-            home: !fixed,
+            home: true,
             slot,
             size: 0.0,
         }));
-        if fixed {
-            state.floating_at.set(Some(point));
-        }
         state.on_drag_change.call(Some(press.key.clone()));
         Some((payload, state.board.clone()))
     }) else {
         return;
     };
+    if stored.with(|state| state.fixed.get_untracked()) {
+        detach(stored);
+    }
     board.begin(
         DragSource {
             item: press.item,
@@ -868,6 +903,7 @@ pub fn Reorder<K, P>(
     #[prop(default = None)] takes: Option<Func<DragPoint, bool>>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] fixed: Prop<bool>,
+    #[prop(default = None)] slot: Option<Func<P, Option<usize>>>,
     #[prop(default = false)] long_press: Prop<bool>,
     text: Callback<K, String>,
     on_move: Callback<ReorderMove<K, P>>,
@@ -893,6 +929,7 @@ where
         accepts,
         disabled,
         fixed,
+        slot,
         long_press,
         text,
         on_move,
@@ -915,6 +952,7 @@ where
         board: drag_board(),
         gone: Cell::new(false),
         returning: Cell::new(false),
+        settling: Cell::new(false),
         area: Cell::new(None),
     });
     let placed = create_memo(move || {
@@ -927,7 +965,7 @@ where
     let order = create_memo(move || {
         let keys = keys.get();
         match placed.get() {
-            Some((key, home, slot)) if keys.contains(&key) && !fixed.get() => {
+            Some((key, home, slot)) if keys.contains(&key) => {
                 let mut rest = rest_of(&keys, &key);
                 if home {
                     rest.insert(slot.min(rest.len()), key);
@@ -943,6 +981,14 @@ where
         move || settle_gap(state),
     );
     state.with(|state| state.frames.set(Some(frames)));
+    create_effect(move || {
+        keys.with(|_| ());
+        state.with(|state| {
+            if state.settling.replace(false) {
+                shut(state);
+            }
+        });
+    });
     let handle = ReorderHandle {
         state,
         order,
@@ -1005,7 +1051,8 @@ where
             on_over={move |over: Option<(P, DragPoint)>| {
                 match (over, home()) {
                     (Some((_, point)), true) => place(state, point),
-                    (over, false) => visit(state, over.map(|(_, point)| point)),
+                    (Some((payload, point)), false) => visit(state, Some(payload), Some(point)),
+                    (None, false) => visit(state, None, None),
                     (None, true) => {}
                 }
             }}

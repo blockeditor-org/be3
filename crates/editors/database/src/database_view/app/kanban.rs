@@ -177,6 +177,7 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
     let moved = move |moved: ReorderMove<ObjectId, ObjectId>| {
         data.move_row(moved.payload, key, moved.after);
     };
+    let slot = Func::new(move |row: ObjectId| data.slot_in(row, key));
     let name = move |row: ObjectId| row_name(data, row);
     let ghost = move |row: ObjectId| {
         view! {
@@ -192,6 +193,7 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
             accepts={Func::new(|_: ObjectId| true)}
             disabled={read_only}
             fixed={sorted}
+            slot={slot}
             long_press=true
             text={name}
             preview={ghost}

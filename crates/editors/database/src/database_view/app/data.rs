@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
@@ -24,7 +25,7 @@ use database_types::database_view::{
 use uuid::Uuid;
 
 use crate::database_view::groups::{Group, GroupKey, group_rows, matches_search};
-use crate::database_view::sort::BlockLabels;
+use crate::database_view::sort::{BlockLabels, display_order, sorted_by};
 use text_block_types::{TextBlock, TextContent};
 
 pub type Data = ViewData;
@@ -471,6 +472,56 @@ impl ViewData {
         if !edit.0.is_empty() {
             self.database.operate(edit);
         }
+    }
+
+    pub fn slot_in(&self, row: ObjectId, group: GroupKey) -> Option<usize> {
+        let field = self.group_by.get_untracked()?;
+        let (value, others) = self.groups.with_untracked(|groups| {
+            let group = groups.iter().find(|held| held.key == group)?;
+            let others: Vec<ObjectId> = group
+                .rows
+                .iter()
+                .copied()
+                .filter(|shown| *shown != row)
+                .collect();
+            Some((group.value(), others))
+        })?;
+        self.row_index.with_untracked(|indices| {
+            let index = *indices.get(&row)?;
+            self.rows.with_untracked(|rows| {
+                let mut moved = rows.get(index)?.clone();
+                moved.values = moved
+                    .values
+                    .iter()
+                    .filter(|(id, _)| **id != field)
+                    .map(|(id, value)| (*id, value.clone()))
+                    .chain(value.map(|value| (field, value)))
+                    .collect();
+                self.fields.with_untracked(|fields| {
+                    let shown = self.filters.with_untracked(|filters| {
+                        filters.iter().all(|filter| filter.matches(&moved, fields))
+                    });
+                    if !shown {
+                        return None;
+                    }
+                    let sorted = sorted_by(self.sort.get_untracked(), fields);
+                    self.labels.with_untracked(|labels| {
+                        let before = |other: &ObjectId| {
+                            let at = *indices.get(other)?;
+                            let order =
+                                display_order((rows.get(at)?, at), (&moved, index), sorted, labels);
+                            Some(order == Ordering::Less)
+                        };
+                        Some(
+                            others
+                                .iter()
+                                .filter(|other| before(other).unwrap_or(false))
+                                .count(),
+                        )
+                    })
+                })
+            })
+        })
     }
 
     fn place(

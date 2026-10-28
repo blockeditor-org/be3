@@ -3073,10 +3073,15 @@ The list owns the drag, not the item, so a `VirtualList` may drop and reuse the
 lifted row's node. `on_drag_change` reports which key is being dragged and
 `on_drop_outside` a drop outside every window. A list whose order something else
 decides (a sorted column) sets `fixed`: its items still go to other lists and
-come in from them, but are carried as the floating preview from the start, open
-no gap and never move within it (`step` refuses), and a foreign drop reports
-`after: None`; `ReorderHandle::visited` says a foreign item is over the list, for
-a highlight. The list fills the area it is given, so a column can wrap its whole
+come in from them, but never move within it (`step` refuses). Its own item is
+carried as the floating preview from the start, its slot staying open while it is
+over its own list (a drop there changes nothing) and closing elsewhere. A carried
+item's gap opens where `slot` (payload -> index among the list's other keys, `None`
+for one that would not show) says it will land, wherever the pointer is, so it must
+come from the same ordering the list's keys do; without `slot` no gap opens. A
+foreign drop reports that index and keeps the gap open until the keys change, so an
+edit that applies later still lands with no jump. `ReorderHandle::visited` says a
+foreign item is over the list, for a highlight. The list fills the area it is given, so a column can wrap its whole
 frame (header included) to make all of it the drop target. A drag the board does not carry -
 the host's block drag that a plugin only hears as positions - can still part the
 list: `ReorderHandle::hover(Some(point))` opens the gap for a window point and the

@@ -154,7 +154,9 @@ them in the handoff.
   card or a list row (or Alt with an arrow key) moves it there with
   `ViewData::move_row`, and into another group sets its group value, in one
   edit. A sort decides the order instead, so a sorted list does not drag and a
-  sorted board only carries cards between columns. Schema fields reorder the
+  sorted board only carries cards between columns: the column a card is carried
+  over opens its gap where the sort will put it (`ViewData::slot_in`, from the
+  same `sort::display_order` the view sorts by, ties in `Database::rows` order). Schema fields reorder the
   same way. The editor's header holds the views of the same database as tabs (the
   view blocks that reference it), search, New, filter chips and a Display menu
   for everything else; a selected row opens beside the list, board or scatter
