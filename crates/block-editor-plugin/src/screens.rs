@@ -133,6 +133,7 @@ impl Screens {
             animating: false,
             presented: None,
             window_requests: Vec::new(),
+            docks: Vec::new(),
         };
         let mut laid_out: Vec<_> = self.laid_out.drain().collect();
         laid_out.sort_by_key(|instance| instance.0);
@@ -336,6 +337,13 @@ impl Screens {
                 open.organization_id,
                 open.client_id,
             ),
+            Opening::Picker(open) => (
+                open.instance,
+                open.editor,
+                open.account_id,
+                open.organization_id,
+                open.client_id,
+            ),
         };
         let session = self.open(instance, Uuid::from_bytes(editor));
         session.set_block_types(block_types);
@@ -352,6 +360,11 @@ impl Screens {
                 );
             }
             Opening::Creation(open) => session.connect_creation(open.template),
+            Opening::Picker(open) => session.connect_picker(crate::host::PickerRequest {
+                filter: open.filter,
+                parent: crate::graph::BlockParent::decode(open.parent),
+                touch: open.touch,
+            }),
             Opening::Artifact(open) => session.connect_artifact(
                 crate::Artifact {
                     block_id: Uuid::from_bytes(open.block_id),

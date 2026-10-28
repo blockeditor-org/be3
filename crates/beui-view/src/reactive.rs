@@ -259,8 +259,13 @@ pub fn pixels_per_point() -> ReadSignal<f32> {
     core::pixels_per_point()
 }
 
-pub fn use_viewport_size() -> ReadSignal<Vec2> {
-    core::use_viewport_size()
+pub fn use_viewport_size() -> Memo<Vec2> {
+    let viewport = core::use_viewport_size();
+    let window = crate::window::use_window();
+    create_memo(move || match window.filter(|window| window.is_window()) {
+        Some(window) => window.size.get(),
+        None => viewport.get(),
+    })
 }
 
 pub fn use_font_revision() -> ReadSignal<u64> {

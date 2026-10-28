@@ -25,6 +25,7 @@ fn region() -> Region {
         describe: None,
         seen: true,
         windows: false,
+        docked: false,
         placement: None,
     }
 }

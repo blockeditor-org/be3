@@ -605,7 +605,6 @@ pub(crate) struct CreationSnapshot {
     pub(crate) games: Vec<StagedChoice>,
     pub(crate) listing: bool,
     pub(crate) module: Option<String>,
-    pub(crate) picking: bool,
     pub(crate) error: Option<String>,
     pub(crate) ready: bool,
 }
@@ -615,7 +614,6 @@ pub(crate) fn GameCreation(
     creation: Stored<Rc<dyn GameCreationModel>>,
     snapshot: ReadSignal<CreationSnapshot>,
 ) -> NodeId {
-    let picking = create_memo(move || snapshot.get().picking);
     let games = create_memo(move || snapshot.get().games);
     let status = create_memo(move || {
         let snapshot = snapshot.get();
@@ -691,7 +689,6 @@ pub(crate) fn GameCreation(
                 <Button
                     label="Choose game module…"
                     variant=ButtonVariant::Secondary
-                    disabled={picking}
                     @test_id={"game.choose"}
                     on_click={move || creation.value().choose_module()}
                 />

@@ -9,6 +9,7 @@ use beui_view::reactive::*;
 use beui_view::types::Color;
 use beui_view::types::Placement;
 use beui_view::types::Pos2;
+use beui_view::types::WindowId;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ModalPlacement {
@@ -35,6 +36,7 @@ pub fn Modal(
     #[prop(default = ModalPlacement::Center)] placement: ModalPlacement,
     #[prop(default = LayerLevel::Normal)] level: Prop<LayerLevel>,
     #[prop(default = ModalMotion::Slides)] motion: ModalMotion,
+    #[prop(default = None)] shown_in: Prop<Option<WindowId>>,
     on_dismiss: ClickCallback,
     #[prop(children)] content: Render<ModalHandle>,
 ) -> NodeId {
@@ -91,6 +93,7 @@ pub fn Modal(
             placement=placed
             scrim={faded}
             level={level}
+            shown_in={shown_in}
             policy={create_memo(move || match asked.get() && !open.get() {
                 true => LayerPolicy::Inert,
                 false => LayerPolicy::BlocksAll,

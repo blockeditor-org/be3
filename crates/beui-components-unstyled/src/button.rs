@@ -4,9 +4,12 @@ use beui_view::types::icons::Glyph;
 
 use beui_view::types::{CursorIcon, KeyPress, PointerPress};
 
+use beui_view::escape::beui_html::{Node as HtmlNode, elements as html};
+use beui_view::escape::html_escape;
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::{CORE, Core};
 
 #[derive(Clone, Copy)]
 pub struct ButtonHandle {
@@ -40,6 +43,8 @@ pub fn Button(
     #[prop(default = true)] press_focus: Prop<bool>,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = false)] icon_only: Prop<bool>,
+    #[prop(default = None)] href: Prop<Option<String>>,
+    #[prop(default = false)] submit: bool,
     expanded: Option<Prop<bool>>,
     on_click: ClickCallback,
     on_click_at: Callback<PointerPress>,
@@ -100,6 +105,7 @@ pub fn Button(
         })
     });
 
+    let form = crate::form::form_submit().filter(|_| submit && CORE != Core::Html);
     let click = move || {
         if disabled.get_untracked() {
             return;
@@ -108,6 +114,9 @@ pub fn Button(
             action.run();
         }
         on_click.call();
+        if let Some(form) = form {
+            form.call();
+        }
     };
     let key_click = click.clone();
     let click_at = move |press: PointerPress| {
@@ -123,6 +132,38 @@ pub fn Button(
         focused: focused.read_only(),
     }));
 
+    let linked = untrack(|| href.get().is_some());
+    let platform = match (CORE, linked, submit) {
+        (Core::Html, true, _) => Some(true),
+        (Core::Html, false, true) => Some(false),
+        _ => None,
+    };
+    let browser_activates = platform.is_some();
+    let content_node = match platform {
+        Some(link) => Some(html_escape(move |escape| {
+            crate::form::fill_cell(escape);
+            let inner: Children<HtmlNode> = content_node
+                .map(|child| escape.embed(child))
+                .into_iter()
+                .collect();
+            match link {
+                true => view! {
+                    <html::A href={Prop::dynamic(move || href.get().filter(|_| !disabled.get()))}>
+                        {inner}
+                    </html::A>
+                },
+                false => view! {
+                    <html::Button r#type="submit" disabled={disabled}>{inner}</html::Button>
+                },
+            }
+        })),
+        None => content_node,
+    };
+    let (key_active_change, key_click): (Callback<bool>, ClickCallback) = match browser_activates {
+        true => (Callback::empty(), ClickCallback::empty()),
+        false => (key_active.into(), ClickCallback::new(key_click)),
+    };
+
     view! {
         <Interactive
             focusable=true
@@ -135,7 +176,7 @@ pub fn Button(
                 focused.set(has_focus);
                 on_focus_change.call(has_focus);
             }}
-            on_activate_change={key_active}
+            on_activate_change={key_active_change}
             on_activate={key_click}
             cursor=CursorIcon::PointingHand
             capture_presses

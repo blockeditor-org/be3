@@ -109,6 +109,7 @@ mod a_dock_dialog_floats_over_its_parent_and_hides_with_its_tab;
 mod a_dock_dialog_is_never_a_tab;
 mod a_dock_dialog_over_a_hidden_tab_is_built_when_the_tab_is_shown;
 mod a_dock_document_opened_in_place_keeps_its_tab_and_rebuilds_only_for_another_document;
+mod a_dock_inside_a_dock_tab_joins_it_as_a_locked_group;
 mod a_dock_stacked_by_narrowing_it_leaves_the_hidden_panel_unplaced;
 mod a_dock_tab_dropped_where_no_window_is_opens_a_window_at_the_pointer;
 mod a_dock_tab_floated_into_a_window_its_host_focuses_takes_the_keyboard_with_it;
@@ -267,6 +268,9 @@ mod a_multi_root_view_fills_a_children_prop_in_order;
 mod a_narrow_inspector_covering_the_app_unplaces_its_embeds;
 mod a_narrow_window_stacks_the_app_and_the_inspector;
 mod a_nested_container_reports_its_own_width_not_the_windows;
+mod a_nested_docks_dialog_and_focus_are_the_outer_docks;
+mod a_nested_docks_layout_shows_reads_and_restores_its_tabs_through_the_outer_dock;
+mod a_nested_docks_tab_leaves_its_group_only_once_unlocked_and_keeps_its_panel;
 mod a_nested_overlay_closes_with_its_parent_whatever_the_parents_policy;
 mod a_new_line_typed_into_an_empty_text_area_paints_one_caret;
 mod a_node_ref_lets_go_of_a_removed_node;
@@ -393,6 +397,7 @@ mod a_stack_built_inside_a_show_still_measures_the_container_above_it;
 mod a_stacked_dock_bar_goes_back_switches_tabs_and_holds_the_tabs_actions;
 mod a_stacked_dock_bar_shows_the_menu_its_tab_hands_it;
 mod a_stacked_dock_fills_itself_with_the_focused_tab_and_keeps_its_panels;
+mod a_stacked_dock_shows_a_nested_docks_tabs_as_its_own;
 mod a_stacked_dock_shows_any_locked_tab_and_tiles_again_with_its_locks;
 mod a_stopped_clock_lets_an_animating_app_settle_and_pause_moves_it;
 mod a_style_provider_sizes_and_colours_the_text_inside_it;
@@ -584,6 +589,7 @@ mod closing_a_dock_tab_asks_its_owner_to_remove_it;
 mod closing_a_fullscreen_tab_leaves_the_tab_beside_it_in_its_window;
 mod closing_a_panes_last_tab_keeps_its_bar_tall_and_darkens_it_without_a_border;
 mod closing_a_window_asks_its_host_and_a_close_by_the_host_reaches_the_app;
+mod closing_the_tab_that_holds_a_nested_dock_closes_its_tabs_wherever_they_went;
 mod compacting_virtual_rows_clamps_the_scroll_anchor_at_the_end;
 mod component_children_keep_their_owner_when_rendered_later;
 mod copy_and_cut_export_only_selected_text_and_cut_can_be_undone;
@@ -1422,7 +1428,11 @@ impl Harness {
     }
 
     pub(crate) fn close_button_center(&self) -> Pos2 {
-        self.inspector_center("dock.pin.inspector.close")
+        let tiled = "dock.tools.pin.inspector.close";
+        match self.inspector().document.find_test_id(tiled) {
+            Some(_) => self.inspector_center(tiled),
+            None => self.inspector_center("dock.pin.inspector.close"),
+        }
     }
 
     pub(crate) fn app_rect(&self) -> Rect {
@@ -1998,6 +2008,84 @@ pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
         }
     });
     (document, dock.get())
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct NestedDock {
+    pub(crate) node: NodeId,
+    pub(crate) outer: dock::unstyled::DockingLayout<u64>,
+    pub(crate) inner: dock::unstyled::DockingLayout<u64>,
+    pub(crate) hosts: Signal<Vec<u64>>,
+}
+
+pub(crate) fn nested_dock() -> (Document, NestedDock) {
+    use dock::unstyled::{DockPane, DockSplit, DockTab, DockingLayout};
+    let dock = NodeRef::new();
+    let built = Rc::new(std::cell::Cell::new(None));
+    let handle = Rc::clone(&built);
+    let document = build_node(move || {
+        let outer = DockingLayout::new();
+        let inner = DockingLayout::new();
+        let hosts = create_signal(vec![2u64]);
+        handle.set(Some((outer, inner, hosts)));
+        view! {
+            <dock::styled::Docking @node_ref=&dock layout=outer focus=2u64>
+                <DockSplit id="root" fraction=0.3>
+                    <DockPane id="side">
+                        <DockTab id=1u64 title="Side">
+                            <Frame @test_id="content.1" />
+                        </DockTab>
+                    </DockPane>
+                    <DockPane id="main">
+                        <ForEach keys={hosts}>|id: u64|
+                            <DockTab
+                                id
+                                title="Nested"
+                                on_close={move || hosts.update(|hosts| hosts.retain(|other| *other != id))}
+                            >
+                                <dock::styled::Docking layout=inner>
+                                    <DockPane id="inner">
+                                        <DockTab id=10u64 title="Inner 10">
+                                            <Frame @test_id="content.10" />
+                                        </DockTab>
+                                        <DockTab id=11u64 title="Inner 11">
+                                            <Frame @test_id="content.11" />
+                                        </DockTab>
+                                    </DockPane>
+                                </dock::styled::Docking>
+                            </DockTab>
+                        </ForEach>
+                    </DockPane>
+                </DockSplit>
+            </dock::styled::Docking>
+        }
+    });
+    let (outer, inner, hosts) = built.get().expect("the dock was built");
+    let node = dock.get();
+    (
+        document,
+        NestedDock {
+            node,
+            outer,
+            inner,
+            hosts,
+        },
+    )
+}
+
+pub(crate) fn pick_dock_tab_menu(harness: &mut Harness, dock: NodeId, title: &str, row: &str) {
+    let pos = harness.center(dock_tab(harness.document(), dock, title));
+    harness.frame(vec![Input::PointerMoved(pos)]);
+    harness.frame(vec![Input::PointerButton {
+        pos,
+        button: PointerButton::Secondary,
+        pressed: true,
+    }]);
+    harness.frame(Vec::new());
+    let found = text_within(harness.document(), dock, row)
+        .unwrap_or_else(|| panic!("the menu of {title} offers {row}"));
+    harness.click(harness.center(found));
+    harness.frame(Vec::new());
 }
 
 pub(crate) fn windowed_dock(drag_modifier: Option<Modifiers>) -> (Document, NodeId) {

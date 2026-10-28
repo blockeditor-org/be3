@@ -1,7 +1,7 @@
 use beui::{Vec2, vec2};
 use block_plugin_api::{
-    BlockPick, DialogAnswer, DialogStatus, EditorCapabilities, EditorInstanceId, EditorManifest,
-    EditorRegion, FrameSpec, HostPanel, InteractionMode, PluginManifest, ResizeMode,
+    DialogAnswer, DialogStatus, EditorCapabilities, EditorInstanceId, EditorManifest, EditorRegion,
+    FrameSpec, HostPanel, InteractionMode, PluginManifest, ResizeMode,
 };
 use std::sync::{
     Arc,
@@ -81,6 +81,68 @@ impl PluginCreation {
     }
 }
 
+pub(crate) struct PluginPicker {
+    plugin: Arc<PluginManifest>,
+    editor: Uuid,
+    instance: EditorInstanceId,
+}
+
+impl PluginPicker {
+    pub(crate) fn new(
+        plugin: Arc<PluginManifest>,
+        editor: Uuid,
+        request: crate::plugin_host::PickerRequest,
+    ) -> Self {
+        let instance = next_instance();
+        crate::plugin_host::ask_picker(instance, request);
+        Self {
+            plugin,
+            editor,
+            instance,
+        }
+    }
+
+    pub(crate) fn region(&self, registry: &EditorRegistry, client_id: Uuid) -> HostedRegion {
+        HostedRegion {
+            editor: RegionEditor {
+                plugin: Arc::clone(&self.plugin),
+                role: InstanceRole::Picker(self.editor),
+                instance: self.instance,
+                block_types: Arc::clone(registry.plugin_block_types()),
+                client_id,
+            },
+            region: EditorRegion::Frame,
+            frame: Some(FrameSpec::default()),
+        }
+    }
+
+    pub(crate) fn source(&self) -> InstanceSource {
+        InstanceSource {
+            plugin_id: self.plugin.identity.id.clone(),
+            instance: self.instance,
+        }
+    }
+
+    pub(crate) fn picked(&self) -> Option<block_plugin_api::BlockPick> {
+        crate::plugin_host::picked(&self.plugin.identity.id, self.instance)
+    }
+
+    pub(crate) fn intrinsic(&self) -> Option<Vec2> {
+        crate::plugin_host::intrinsic_size(&self.plugin.identity.id, self.instance)
+    }
+
+    pub(crate) fn card(&self) -> bool {
+        crate::plugin_host::card(&self.plugin.identity.id, self.instance)
+    }
+}
+
+impl Drop for PluginPicker {
+    fn drop(&mut self) {
+        crate::plugin_host::close(&self.plugin.identity.id, self.instance);
+        crate::plugin_host::forget_picker(self.instance);
+    }
+}
+
 impl Drop for PluginCreation {
     fn drop(&mut self) {
         if self.opened {
@@ -94,8 +156,8 @@ impl PendingCreation for PluginCreation {
         self.target.dialog.then(|| self.hosted(registry, client_id))
     }
 
-    fn pick_source(&self) -> PickSource {
-        PickSource {
+    fn source(&self) -> InstanceSource {
+        InstanceSource {
             plugin_id: self.plugin.identity.id.clone(),
             instance: self.instance,
         }
@@ -191,19 +253,9 @@ pub(crate) struct PluginEditor {
 }
 
 #[derive(Clone)]
-pub(crate) struct PickSource {
+pub(crate) struct InstanceSource {
     pub(crate) plugin_id: String,
     pub(crate) instance: EditorInstanceId,
-}
-
-impl PickSource {
-    pub(crate) fn take(&self) -> Option<crate::plugin_host::BlockPickRequest> {
-        crate::plugin_host::take_block_pick(&self.plugin_id, self.instance)
-    }
-
-    pub(crate) fn answer(&self, request_id: u64, pick: BlockPick) {
-        crate::plugin_host::block_picked(&self.plugin_id, self.instance, request_id, pick);
-    }
 }
 
 impl PluginEditor {
@@ -277,9 +329,9 @@ impl PluginEditor {
         }
     }
 
-    pub(crate) fn pick_source(&self) -> Option<PickSource> {
+    pub(crate) fn source(&self) -> Option<InstanceSource> {
         let plugin = self.plugin()?;
-        Some(PickSource {
+        Some(InstanceSource {
             plugin_id: plugin.identity.id.clone(),
             instance: self.instance,
         })

@@ -14,7 +14,6 @@
       ],
       "accepts": [
         "show_block",
-        "pick",
         "dialog",
         "panel",
         "window"

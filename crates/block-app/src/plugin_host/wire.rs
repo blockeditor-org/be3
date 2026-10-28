@@ -4,11 +4,12 @@ use super::calls::{EditorAnswer, EditorCall, Heard, PluginCall};
 use block_plugin_api::{Encoded, Watch};
 
 use block_plugin_api::{
-    AudioStatus, BlockPick, Catalog, ChildStatus, DebugTemplate, EditorInstanceId, Failure, Fonts,
+    AudioStatus, Catalog, ChildStatus, DebugTemplate, DockUpdate, EditorInstanceId, Failure, Fonts,
     HelloAccepted, InputBatch, Opening, Preferences, WebViewEvent, WebViewId,
     embed::{
         blocks,
         debug::debug::Call as DebugCall,
+        dock::Call as DockCall,
         exports::{
             debug::paintings,
             plugin::{self, Editor},
@@ -44,7 +45,6 @@ pub(super) struct Wire {
     editors: HashMap<EditorInstanceId, Editor>,
     draws: BTreeMap<OpId, Awaited>,
     answering: BTreeMap<OpId, (EditorInstanceId, Answering)>,
-    picks: HashMap<(EditorInstanceId, u64), OpId>,
     painting: HashMap<OpId, Ticket<Vec<u8>>>,
     audio: HashMap<EditorInstanceId, Watch<AudioStatus>>,
     published: HashMap<OpId, PublishedWatch>,
@@ -56,6 +56,7 @@ pub(super) struct Wire {
     input: Watch<Vec<InputBatch>>,
     serving: HashMap<OpId, EditorInstanceId>,
     child_statuses: HashMap<EditorInstanceId, Watch<Vec<ChildStatus>>>,
+    docks: HashMap<EditorInstanceId, Watch<Vec<DockUpdate>>>,
     block_types: Watch<Catalog>,
     debug_templates: Watch<Vec<DebugTemplate>>,
     held: Held,
@@ -69,7 +70,6 @@ enum Answering {
     Created(Ticket<Result<[u8; 16], Failure>>),
     Regenerated(Ticket<Result<(), Failure>>),
     Replaced(u64, Ticket<bool>),
-    Picked(u64, Ticket<BlockPick>),
 }
 
 impl Answering {
@@ -84,10 +84,6 @@ impl Answering {
             Self::Regenerated(ticket) => {
                 EditorAnswer::Regenerated(ticket.decode(outcome).unwrap_or_else(failed))
             }
-            Self::Picked(pick, ticket) => EditorAnswer::Picked {
-                pick,
-                answer: ticket.decode(outcome).unwrap_or(Ok(None)),
-            },
             Self::Replaced(request_id, ticket) => EditorAnswer::Replaced {
                 request_id,
                 replaced: ticket.decode(outcome).unwrap_or(false),
@@ -109,7 +105,6 @@ impl Default for Wire {
             editors: HashMap::new(),
             draws: BTreeMap::new(),
             answering: BTreeMap::new(),
-            picks: HashMap::new(),
             painting: HashMap::new(),
             audio: HashMap::new(),
             published: HashMap::new(),
@@ -121,6 +116,7 @@ impl Default for Wire {
             input: Watch::default(),
             serving: HashMap::new(),
             child_statuses: HashMap::new(),
+            docks: HashMap::new(),
             block_types: Watch::default(),
             debug_templates: Watch::default(),
             held: Held::default(),
@@ -160,6 +156,7 @@ impl Wire {
             editor.resource_drop(&mut self.connection);
         }
         self.child_statuses.remove(&instance);
+        self.docks.remove(&instance);
         self.audio.remove(&instance);
     }
 
@@ -249,6 +246,16 @@ impl Wire {
                         merged
                     });
             }
+            EditorCall::Dock(update) => {
+                self.docks
+                    .entry(instance)
+                    .or_default()
+                    .change(connection, |held| {
+                        let mut updates = held.unwrap_or_default();
+                        DockUpdate::queue(&mut updates, update);
+                        updates
+                    });
+            }
             EditorCall::MenuPick(id) => editor.menu_pick(connection, id),
             EditorCall::Dismiss => editor.dismiss(connection),
             EditorCall::ChildBar {
@@ -281,18 +288,6 @@ impl Wire {
                 let ticket = editor.regenerate_artifact(connection, data);
                 self.answering
                     .insert(ticket.op(), (instance, Answering::Regenerated(ticket)));
-            }
-            EditorCall::Pick(request) => {
-                let pick = request.pick;
-                let ticket = editor.pick(connection, request);
-                self.picks.insert((instance, pick), ticket.op());
-                self.answering
-                    .insert(ticket.op(), (instance, Answering::Picked(pick, ticket)));
-            }
-            EditorCall::WithdrawPick(pick) => {
-                if let Some(op) = self.picks.remove(&(instance, pick)) {
-                    connection.cancel(op);
-                }
             }
             EditorCall::ReplaceChild {
                 request_id,
@@ -653,6 +648,27 @@ impl Wire {
                 }
                 return Ok(());
             }
+            Incoming::Started(started) if DockCall::accepts(&started) => {
+                let connection = &mut self.connection;
+                match DockCall::accept(connection, started) {
+                    Some(DockCall::DockWatchNew { resource, instance }) => {
+                        if self.editors.contains_key(&instance) {
+                            self.docks
+                                .entry(instance)
+                                .or_default()
+                                .opened(resource.op());
+                        }
+                    }
+                    Some(DockCall::DockWatchNext { this, reply }) => {
+                        match self.docks.values_mut().find(|watch| watch.is(this.op())) {
+                            Some(watch) => watch.next(connection, reply),
+                            None => reply.fail(connection, OpError::Canceled),
+                        }
+                    }
+                    None => {}
+                }
+                return Ok(());
+            }
             Incoming::Started(started) if ShellCall::accepts(&started) => {
                 if let Some(call) = ShellCall::accept(&mut self.connection, started) {
                     self.watch_call(call, heard);
@@ -709,7 +725,6 @@ impl Wire {
                     return Ok(());
                 }
                 if let Some((instance, answering)) = self.answering.remove(&op) {
-                    self.picks.retain(|_, pick| *pick != op);
                     heard.push(Heard::Answer(instance, answering.answer(outcome)));
                     return Ok(());
                 }
@@ -750,12 +765,14 @@ impl Wire {
                     heard.push(Heard::Withdrawn(op));
                 }
                 let watched = self.child_statuses.values().any(|watch| watch.is(op))
+                    || self.docks.values().any(|watch| watch.is(op))
                     || self.audio.values().any(|watch| watch.is(op))
                     || self.web_views.contains_key(&op)
                     || self.published.contains_key(&op)
                     || self.block_types.is(op)
                     || self.debug_templates.is(op);
                 self.child_statuses.retain(|_, watch| !watch.is(op));
+                self.docks.retain(|_, watch| !watch.is(op));
                 self.audio.retain(|_, watch| !watch.is(op));
                 self.web_views.remove(&op);
                 self.published.remove(&op);

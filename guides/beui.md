@@ -726,7 +726,7 @@ What each primitive is on the HTML core (the bodies are in
 | `Frame` | a one-cell CSS grid; `translate` and `rotate` are a transform, `opacity` CSS opacity, `fade_edges` a mask image |
 | `List`, `Spacer` | flexbox and a flex child; `@sizing` becomes flex grow, shrink and basis |
 | `Grid`, `Layers` | CSS grid; `Layers` stacks every child in one cell |
-| `Text` and its spans | a `div` of `span`s and text nodes with `white-space: pre-wrap`; `marks` are CSS Custom Highlights, `carets` positioned boxes, `glyphs` `::before` content, `Break` an `::after` newline no browser copies; a `TextItem` with `at` is a stand-in |
+| `Text` and its spans | a `div` of `span`s and text nodes with `white-space: pre-wrap`; `marks` are CSS Custom Highlights, `carets` positioned boxes, `glyphs` `::before` content, `Break` an `::after` newline no browser copies; a `TextItem` with `at` an absolutely placed box that a layout pass moves onto that index's caret |
 | `Offset` | an `overflow: hidden` element moved through `scrollTop`/`scrollLeft`, never a transform |
 | `VirtualList` | rows in flow between two spacer elements, measured by `ResizeObserver` |
 | `Canvas` | an inner element translated to the view, `--beui-scale` scaling items |
@@ -762,14 +762,18 @@ paints its faces as an image on the CPU instead (`color_wheel/cpu.rs`, used
 without the `gpu` feature). Text editing is not an escape hatch:
 `TextArea` and `TextInput` are the same unstyled code on both cores, built on
 `Text`'s `marks`, `glyphs`, `carets` and `hang` and on `measure_text`, typing
-through a hidden textarea on HTML.
+through a hidden textarea on HTML. The one exception is a plain single-line
+`TextInput`, which is a real `<input>` on HTML ([Forms and text
+fields](#forms-and-text-fields)).
 
 An app on the HTML core starts with `beui::html::run(element_id, build)` in
 the browser. To serve a page that shows before any script runs, render it on
 the host with `beui::html::render_to_string(build)` (a program built for
 `linux_x86_64_html`, run at build time by the `prerendered_page` rule in
-buck/app/defs.bzl), put `beui::html::stylesheet()` in a `<style
-id=STYLES_ID>` in its head, and call `beui::html::hydrate(element_id, build)`
+buck/app/defs.bzl, or at request time, as be-server's account portal does
+with crates/be-portal-ui), put `beui::html::stylesheet(font_base)` in a
+`<style id=STYLES_ID>` in its head, with `font_base` the URL its `@font-face`
+rules find the bundled fonts under, and call `beui::html::hydrate(element_id, build)`
 with the same view in the browser: it claims the server's elements instead of
 building new ones (beui-html's hydration, [Live DOM and
 hydration](#live-dom-and-hydration)), and `run` and `hydrate` read the
@@ -790,8 +794,8 @@ To test on both cores:
   //crates/beui-view:html-test` for primitives, `./scripts/test
   //crates/beui:html-test` for unstyled and styled components (tests in
   `crates/beui/src/html_paintings/tests/`), and the spike's `:html-test`. Build
-  the page's `<style>` from `stylesheet()`: its `@font-face` rules name the
-  bundled fonts at the page's root, which the browser rasterizer serves, so
+  the page's `<style>` from `stylesheet("/")`: its `@font-face` rules then
+  name the bundled fonts at the page's root, which the browser rasterizer serves, so
   text and icons draw as they do natively. Paintings show layout, colour and
   text, not what needs the browser's layout (marks, carets).
 - The spike's dark painting
@@ -1714,6 +1718,23 @@ momentum an unfinished fling carries, and drives the offset from all three. So r
 content shifted under a viewport and nothing more, and for a `Scroll` whenever
 something needs to scroll.
 
+On the HTML core `unstyled::Scroll` leaves all of that to the browser
+(`if CORE == Core::Html` in scroll.rs, `BrowserScroll`): it builds a real
+`overflow: auto` `<div>` through the [platform escape](#the-platform-escape),
+with the scroll's content slotted inside and `scrollbar-width: none` when its
+`ScrollbarStyle` has no bar. The browser scrolls it on the compositor with the
+wheel, touch, the keys (from the scroller or anything focused in it) and its
+own scrollbar, with no momentum, rubber band, autoscroll or drawn scrollbar of
+beui's. Its `scroll` listener and the measured sizes of the scroller and its
+content feed `on_change`; `offset` and `ScrollApi::scroll_to_end` set its
+`scrollTop` (or `scrollLeft`); `follow_end` keeps it at the end while it was
+there; `reveal` scrolls a row into view; the focusable `Interactive` sits on
+the scroller itself, which rings only when it has the focus itself
+(`ScrollApi::animating` is always false there). Revealing a node with no
+beui `Offset` around it scrolls it into view the browser's way, and a
+`VirtualList` is clipped by any ancestor that clips, so both work inside such
+a scroller. The sheet's offset is still beui's on both cores.
+
 A `Scroll`'s momentum is one motion across the edge, not a fling with a band
 laid over it. It keeps how far its content has gone past an end unbanded (the
 fingers' distance in a drag, the fling's travel after a fling crosses the end),
@@ -2346,9 +2367,10 @@ window's own `(0, 0)`-cornered rect less any on-screen keyboard there):
 rect (`OverlayAnchor::Rect`, in that window's coordinates) is placed against it
 and kept inside the window. Where an app shows one window per monitor (block-app
 under `--session`, one per display), each window is a monitor, so a dialog opened
-in it stays on it. `use_viewport_size()` is the size of the main window a
-document is shown in (a `Dialog` reads it, or its hosted window's size, to become
-a sheet on a narrow one). `styled::Toasts` takes any anchor this way, so the desktop plugin stacks its toasts in the
+in it stays on it. `use_viewport_size()` is the size of the window the
+caller is built in: the hosted window around it (a plugin region is one), or else
+the main window the document is shown in (a `Dialog` reads it to become a sheet on
+a narrow one). `styled::Toasts` takes any anchor this way, so the desktop plugin stacks its toasts in the
 corner of a display above its bar. A toast goes after its `duration` unless it is `sticky` or
 `danger`: an error stays until it is dismissed, so it cannot be missed. All of that is
 `unstyled::Toasts`: the overlay at an `edge` that lets input through, the stack, each
@@ -2371,7 +2393,10 @@ owns the tree, the dragging and the keyboard, and paints nothing; the demo in
 
 The children describe the layout the dock starts with and the tabs that exist;
 a `DockingLayout<K>` holds where everything is now, and is what the caller saves
-and restores:
+and restores. `K` is a `DockKey`: a tab's key, whose `key()` names it as a
+string for good (implemented for `TabId`, `u64`, `String` and `&'static str`;
+a type of your own implements it), which a dock declared to a host across
+plugins sends as the tab's key:
 
 ```rust
 let layout = DockingLayout::new();
@@ -2406,8 +2431,15 @@ app: neither its pane nor a stacked dock fills behind it, so the pane's chrome l
 `DockChromeHandle::see_through`, and it stays on the main surface, where nothing of the dock is
 under it (`DockState::admits` refuses it a window). A tab's key is any `Clone + Eq + Hash` type; a key that is a
 `TabId` or a `u64` names the tab's `TabId` too, which is what the test ids of its
-close button and switcher row carry. Every container has an `id`, saved with the
-layout, so that a layout saved by older code still finds its panes.
+close button and switcher row carry (`dock.tab.<tab>.close`; a group's close button
+carries its hosting tab's). Every container has an `id`, saved with the
+layout, so that a layout saved by older code still finds its panes. A pane's
+bar names its controls after the pane's `id`: `dock.grip.<id>`, and under the
+prefix `dock.<id>` its More button (`dock.<id>.menu`, its items
+`dock.<id>.menu.<item>`), pinned actions (`dock.<id>.pin.<action>`) and close
+button (`dock.<id>.close`), so two panes showing the same actions stay apart. A
+pane the user made has no `id` and the bare prefix `dock`, as has the one bar of
+a stacked dock (`dock.menu`, `dock.pin.<action>`).
 
 The children are the full set of tabs: a tab the code no longer declares is
 closed, and a tab it starts declaring is placed. Closing is a request -
@@ -2684,6 +2716,61 @@ disabled until the tab is back in its area, and is never done for it), and
 reconciling and `restore` move any locked tab found outside its area back into
 it. A stacked dock ignores locks and keeps them for when it tiles again.
 
+A `Docking` built inside a `DockTab` of another `Docking` joins it rather than
+docking on its own (the first one in that tab does, found through a context
+the outer dock provides beside `use_dock_tab()`'s). It draws nothing: the outer dock puts what its
+children declare in a pinned group keyed `joined:<tab>` in place of that tab
+(titled, iconed and closed as the tab), with its pane, split and group keys
+prefixed `joined:<tab>/`, so its locked panes stay areas inside the group (a
+tab declared in a locked pane has that area as its home, inside a pinned group
+too), and its `DockWindow`s become windows of the outer dock. Its tabs are
+locked to the group: "Unlock" lets one go anywhere in the outer dock, "Lock"
+works once it is back. The outer dock places their bodies, built in a scope
+under the inner `Docking` with the outer dock's `use_dock_tab()` and
+`dock_menu`, so they survive moving; switching, back history, fullscreen and
+the stacked mode are the outer dock's and cover them like its own tabs. The
+inner `DockingLayout` keeps working: `show`, `focused`, `shown`, `contains`,
+`mode` and fullscreen go through the outer dock, `state()` and `snapshot` are
+the group as the outer dock holds it (moved-out tabs leave the snapshot but
+not `contains`), and `restore`/`reset` rebuild the group. A tab joins when its
+body is first built, so a hosting tab not yet shown is an ordinary tab until
+then. When the inner `Docking` goes (its tab closes, or its body stops
+building it) the group turns back into the tab and every inner tab closes,
+those moved out too. On the outer layout, a focused or shown inner tab counts
+as its hosting tab (`focused`, `shown`), `show` of the hosting tab shows its
+group, and `contains` holds it while the group stands. The outer `snapshot`
+saves the hosting tab in the group's place, the group's subtree beside it, and
+every inner tab, in the group or moved out, by a key path (the hosting tab's id,
+then each level's declared tab key), never by an inner id. `restore` puts the
+moved-out tabs back where they were, titled but empty, and once the hosting
+tab's inner `Docking` declares again it grafts the group back and gives the
+moved-out tabs their bodies; a saved tab it no longer declares closes. The seam is `docking/host.rs`'s
+`DockHostLink`, plain data both ways (`DockDeclaration`, `DockHosted`,
+`DockRequest`, `DockHostEvent`, `DockBodies`; `DockState::plain` and
+`from_plain` read and build a state as plain `DockPlain` data), and a platform
+implements it too: a `Docking` that finds no outer dock claims the
+`DockHostSlot` context if one is provided above it, and joins that host the same
+way. block-editor-beui provides one in the frame of an editor whose dock joins
+another plugin's (guides/adding_a_plugin_editor.md), and its `ChildBlock` in a
+tab body claims that tab's `DockJoin` (`use_dock_join()`, `DockJoin::host`,
+`claim`) for the child editor's dock. Such a platform builds the tab bodies
+itself, and provides `DockTabMenu` and `DockTabControl::hosted(tab, hosted,
+request)` in each body's scope, so `dock_menu` and `use_dock_tab()` work there
+as in a local dock; `DockTabControl::is_hosted` tells such a body apart, and
+`claim_body` lets one child in it claim the tab. A `DockDialog` whose parent tab is hosting a group hangs
+from the group's shown tab. The inner dock's `DockDialog`s are declared too
+(`DockDeclaredDialog`) and the outer dock presents them as its own, over their
+parent's place, building their bodies like tab bodies and handing a close back
+to the inner `on_close`; a pane's `empty` view shows in the outer dock as a tab
+body does (`DockBodies::empty`), and the inner `focus` picks the group's tab
+when the group first takes the hosting tab's place. A `DockTab`'s `picture`
+reaches an outer dock in the same tree; across plugins it is not carried (a
+`dock-tab` has no texture, and only the shell's own window tabs use pictures).
+A `Docking` inside a tab body of a dock that joined a platform's host (not an
+outer `Docking`) joins its own dock in turn: the joined dock splices it in as
+`joined:<tab>` and declares its tabs and dialogs as its own, keeping the host
+tab's panel alive (`DockBodies::hosts`) and passing its requests up.
+
 A tab's panel is built the first time the tab is shown and belongs to the dock
 rather than to the pane showing it: the pane holds a `Portal` pointed at it, so
 the panel keeps its nodes, its scroll position, its caret and its state when
@@ -2950,6 +3037,90 @@ native dialog, the web runner from an `<input type=file>`, Android from
 picker answers that it has none. The document delivers the answer at the start of a later frame,
 inside its reactive scope, so `picked` can write signals like an event handler.
 A host that runs beui itself does the same with the requests in `file_picks`.
+
+### Forms and text fields
+
+On the HTML core a plain single-line `TextInput` is a real `<input>`, so the
+browser edits it: IME, selection, its own context menu, autofill and password
+managers. Unstyled `TextInput` switches on `CORE` and builds `<input>` (through
+the [platform escape](#the-platform-escape), wrapped in an `Interactive` for
+focus, `focused` and hover)
+when it is not `multiline`, its style has no `prose` and it does not
+`select_on_focus`; everything else, every `TextArea`, and anything rich (marks,
+syntax colouring, glyphs, completion) stays beui's own on both cores, and so
+does every field natively. The value stays bound both ways, Enter calls
+`on_submit`, and styled draws its frame, fill and focus ring around the
+`<input>` exactly as around beui's own field: the `<input>` itself draws no
+box, takes the field's font, colour, caret colour and padding, and its
+placeholder and selection colours through `--beui-placeholder` and
+`--beui-selection`. A new kind of single-line field gets a variant of
+`InputKind`, never a component of its own; a field that needs something an
+`<input>` cannot express stays beui's own on both cores.
+
+`TextInput` (unstyled and styled) takes:
+
+- `kind: InputKind`: `Text` (the default), `Password` (masked on both cores),
+  `Email`, `Search`, `Url`, `Tel`; the `<input type>` on HTML, otherwise only
+  `Password` changes anything natively.
+- `name` and `autocomplete` (strings, the HTML vocabulary: `username`, `email`,
+  `current-password`, `new-password`, `nickname`, `one-time-code`, `off`, ...):
+  the field's form name and autofill hint on HTML, inert natively.
+
+A form is `Form` (`beui::unstyled::Form`, re-exported by styled): `action`
+(the URL a browser posts to), `hidden` (`Vec<(&'static str, String)>`, name and
+value of each hidden field) and `on_submit`. On HTML it is a `<form
+method="post" action novalidate>` holding the hidden `<input>`s and its
+content, so a server-rendered page posts natively before and without wasm;
+once running, an `on_submit` turns a submit into a call instead of a post.
+Natively it is no node at all: Enter in any field inside it and its submit
+buttons call `on_submit`. A submit button is `Button submit=true` (unstyled
+and styled), a `<button type="submit">` on HTML, so Enter in a field submits as
+browsers do. A navigation link is `href` on unstyled `Button` (and so styled
+`Button` and `Link`), an `<a href>` on HTML that navigates before wasm loads;
+natively `href` is inert and `on_click` does the navigating.
+
+```rust
+view! {
+    <Form action="/auth/login" hidden={vec![("csrf", csrf), ("code", code)]}>
+        <List spacing=Space::Md>
+            <TextInput value={email} label="Email" kind=InputKind::Email
+                name="email" autocomplete="username" />
+            <TextInput value={password} label="Password" kind=InputKind::Password
+                name="password" autocomplete="current-password" />
+            <Button label="Sign in" variant=ButtonVariant::Primary submit=true />
+            <Link label="Forgot your password?" href={Some("/auth/forgot".to_owned())} />
+        </List>
+    </Form>
+}
+```
+
+`render_to_string` writes each `<input>` with its `type`, `name`,
+`autocomplete`, `placeholder` and escaped `value`, and `hydrate` claims them
+in place, keeping whatever was typed before wasm loaded.
+
+### The platform escape
+
+`beui::escape::html_escape(build)` is the one way to put an element of the
+platform's own into the tree: `build` gets an `&Escape` and returns a
+`beui_html::Node` made with beui-html's `view!` and `html::*` elements
+(`beui::escape::beui_html`), with their attributes and events; the result is a
+beui `NodeId` like any other. It renders into server-rendered pages and
+hydrates as beui-html does. `escape.embed(child)` slots a beui `Child` into
+those nodes; `escape.style(property, value)` sets the root's inline CSS (the
+core owns the root's `style`, since a parent's layout writes to it too, so the
+root takes no `style` attribute of its own); `Escape::color` and
+`Escape::font` spell a beui `Color` or `FontId` in CSS. The root is placed and
+measured like a beui node, and an `Interactive` around it decorates it.
+`beui_html::Node::number`, `set_number` and `call` read and write a live
+element's properties (`scrollTop`) and call its methods (`focus`).
+
+It exists only on the HTML core: calling it natively panics, so call it only
+under `if CORE == Core::Html`, in unstyled or styled, for a component whose
+HTML form is the browser's own element (a field, a form, a link, a scroller),
+with the beui version in the other branch keeping the same public API. A
+switch on `CORE` is for exactly that; it never works around a primitive one
+core lacks, and the cores themselves gain no knowledge of fields, forms,
+links or scrolling for it.
 
 ### Hold the pointer
 
@@ -3305,7 +3476,12 @@ collects `WindowRequest`s into `FrameOutput::window_requests`: `Open { window,
 placement, size, role }` (a `WindowRole`: `Normal`, `Keyboard` for an
 on-screen keyboard, which the host never focuses and places by the field it
 types into, or `Popup` for a menu of the window it is placed over, which the
-host never focuses either; the `Window` component's `role`), `BeginMove(window)`, `BeginResize { window, edge }`
+host never focuses either and closes, reporting `Closed`, when a press lands
+outside it and outside the popups opened over it, keeping that press from what
+is under it as a `BlocksAll` menu does; block-app does so for every plugin
+window it overlays, anywhere in its own window, and beui-layer-space for every
+panel, a press in any other panel or none closing it; the `Window` component's `role`,
+and a hosted window whose role changes is opened again with the new one), `BeginMove(window)`, `BeginResize { window, edge }`
 (the host then moves or resizes it, as an OS does after winit's
 `drag_window`), `Resize { window, size }` (the app wants another size; the
 host answers with the size it gives) and `Close(window)`. A `WindowPlacement` is `AtPointer`,
@@ -3367,7 +3543,8 @@ app that follows `Resized` reports in its `size` never fights the host; `on_repo
 again. Elsewhere it is an `Overlay` at `at` (`Placement::At`,
 `LayerPolicy::Pass`, no focus trap) holding its content at `size`, which is
 how floating windows looked before there were windows, so an app looks the
-same either way. `WindowHandle` (also `use_window()` inside the content)
+same either way (a `Popup` one too: closing it on a press outside is left to
+the app, as be-wayland's popups need). `WindowHandle` (also `use_window()` inside the content)
 carries the `id`, the shown `size` and `is_window()`, which says which of the
 two it is (`real_window()` is the hosted window it is drawn in: its own, or the
 one around the overlay it is). `begin_move()`, `begin_resize(edge)` and `close()` ask the host and
@@ -3653,7 +3830,11 @@ it, and all its 3D (`glam`) stays in the crate.
   carries it like any panel. A `WindowRole::Popup` window opens where its
   placement says and never takes the focus either, so the window it belongs
   to keeps it (a Wayland popup's grab ends when its toplevel loses the
-  keyboard). `Resize` sets the panel's size,
+  keyboard). A mouse press or trigger pull that lands anywhere but on a popup
+  or a popup placed `Over` it (chrome included) closes it, reporting `Closed`,
+  and goes no further, its release neither (`Space::dismiss_popups`). A window
+  opened again takes its new role and size, and moves where an `Over`
+  placement puts it (keeping its top-left corner otherwise). `Resize` sets the panel's size,
   keeping its top-left corner, and reports `Resized` the next frame. `Close`
   removes the panel and its texture; the main window's panel never closes.
 - Grab: while its window has focus the host holds the pointer
@@ -4907,7 +5088,21 @@ pointer input is dispatched) and a touchpad zoom. `first_of([..])` puts several
 on one catcher, asking each in turn until one takes the input. So a vertical
 wheel over a horizontal strip passes through to whatever is around it, and a
 drag reaches the innermost catcher that scrolls that way. `unstyled::Scroll` is
-`scroll_wheel`, `scroll_drag` and `autoscroll`; `PanZoom` is `pan_zoom`.
+`scroll_wheel`, `chaining_scroll_drag` (`scroll_drag` with a test that turns a
+settled drag down) and `autoscroll`; `PanZoom` is `pan_zoom`.
+
+Scrolling chains as in a browser. A `Scroll` turns down a wheel gesture or a
+settled finger drag that starts with it already at its edge in that direction
+(or with nothing to scroll), so the input goes on to the catchers around it,
+such as an enclosing `Scroll`. It decides once, when the gesture starts: a
+wheel turn within `WHEEL_LATCH_TIMEOUT` of the last one it took continues that
+gesture, so a fling or a run of turns that reaches its end keeps going into its
+rubber band and never moves the scroll around it mid-gesture. When every
+catcher on the path turns an input down, the core offers it once more along the
+path with `unclaimed` set (`ScrollGesture::unclaimed`, and
+`PointerInput::unclaimed` beside `settles`), and a `Scroll` takes an unclaimed
+input even at its edge, so an outermost scroll still bands. On the HTML core
+the browser scrolls and chains a `Scroll` itself.
 
 Where a catcher hears the pointer is declared, never asked at the moment of a
 press: `hit_area`, `capture_presses`, `gesture_area`, `drawing` and each
@@ -4976,7 +5171,9 @@ under where the pointer was when it turned whose `on_wheel` takes it, unless
 a forwarding catcher comes first (one with `forwards_wheel=false`, such as the
 on-screen keyboard, forwards only its presses and lets the wheel pass to what is
 under it), and stays latched to it for
-`WHEEL_LATCH_TIMEOUT` while the pointer holds still.
+`WHEEL_LATCH_TIMEOUT` while the pointer holds still. A turn every catcher
+turns down is offered along the path again with `unclaimed` set, and so is a
+touch drag's settling move that no catcher claims.
 
 Parts a catcher draws outside its own rectangle, such as the touch selection
 handles of `unstyled::TextArea`, take their presses with a claim on
@@ -5712,7 +5909,7 @@ Elements take event props `on_click`, `on_input`, `on_change`, `on_submit`,
 `on_pointermove` and `on_pointerup`, and `@on={("name", handler)}` listens to any
 other event. Handlers are `Callback<beui_html::Event>`; write a closure in
 braces with its argument typed, `on_click={move |_: html::Event| ...}`. `Event`
-has `key`, `target_value`, `target_checked`, `prevent_default`,
+has `key`, `holds` (a modifier key), `composing`, `target_value`, `target_checked`, `prevent_default`,
 `stop_propagation` and, on wasm, `raw`, so a handler compiles for both
 backends. The string backend ignores listeners. The live backend flushes after
 each handler; for signals set anywhere else, the host installs a flush with

@@ -1,13 +1,29 @@
-load("@root//buck/app:defs.bzl", "app")
+load("@root//buck/app:defs.bzl", "app", "html_host_program")
 load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
 
 cargo_library()
 
+# The tests serve the account portal as the executable does, so they run on
+# beui's HTML core with be-portal-ui's renderer.
 cargo_test(
-    paints = True,
+    default_target_platform = "root//buck/platforms:linux_x86_64_html",
+    target_compatible_with = ["root//buck/constraints:html"],
 )
 
-cargo_binary()
+# The executable renders the account portal on beui's HTML core and embeds
+# be-portal-ui's hydration bundle, which it serves under /auth/assets/.
+cargo_binary(
+    name = "html-bin",
+    default_target_platform = "root//buck/platforms:linux_x86_64_html",
+    env = {"BE_PORTAL_ASSETS": "$(location //crates/be-portal-ui:assets)"},
+    target_compatible_with = ["root//buck/constraints:html"],
+)
+
+html_host_program(
+    name = "bin",
+    program = ":html-bin",
+    visibility = ["PUBLIC"],
+)
 
 # What CI and a host ship: be-server under cargo's name, with the build-info.json it
 # refuses clients of any other build by (guides/hosting.md).

@@ -70,6 +70,48 @@ pub fn ScrollFixture() -> NodeId {
     }
 }
 
+fn reach(at: ScrollPosition) -> &'static str {
+    match at.offset >= at.max_offset() - 0.5 {
+        true => "end",
+        false if at.offset <= 0.5 => "start",
+        false => "middle",
+    }
+}
+
+#[component]
+pub fn ScrollChainFixture() -> NodeId {
+    let outer = create_signal("unknown");
+    let inner = create_signal("unknown");
+    let report =
+        create_memo(move || format!("Outer at the {}, inner at the {}", outer.get(), inner.get()));
+    view! {
+        <List spacing=Space::Md>
+            <Frame width=Size::Custom(240.0) height=Size::Custom(200.0)>
+                <Scroll on_change={move |at: ScrollPosition| outer.set(reach(at))}>
+                    <Text>"Above"</Text>
+                    <Frame height=Size::Custom(120.0)>
+                        <Scroll on_change={move |at: ScrollPosition| inner.set(reach(at))}>
+                            <ForEach keys={(1..=20).collect::<Vec<u32>>()}>|row: u32|
+                                <Button
+                                    label={format!("Inner {row}")}
+                                    @test_id={format!("nest.inner{row}")}
+                                />
+                            </ForEach>
+                        </Scroll>
+                    </Frame>
+                    <ForEach keys={(1..=10).collect::<Vec<u32>>()}>|row: u32|
+                        <Button
+                            label={format!("Outer {row}")}
+                            @test_id={format!("nest.outer{row}")}
+                        />
+                    </ForEach>
+                </Scroll>
+            </Frame>
+            <Text>{report}</Text>
+        </List>
+    }
+}
+
 #[component]
 pub fn DragFixture() -> NodeId {
     let dropped = create_signal(String::from("nothing"));

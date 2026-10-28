@@ -18,9 +18,9 @@ use beui::icons::{
     ICON_EXTERNAL_LINK, ICON_GRIP_VERTICAL, ICON_HEADING, ICON_LAYERS, ICON_LAYOUT_DASHBOARD,
     ICON_LAYOUT_GRID, ICON_LAYOUT_PANEL_LEFT, ICON_LINK, ICON_LIST, ICON_LOCK, ICON_LOG_IN,
     ICON_MAIL, ICON_MENU, ICON_MOUSE, ICON_MOUSE_POINTER_CLICK, ICON_NETWORK, ICON_PALETTE,
-    ICON_PEN_TOOL, ICON_PENCIL, ICON_PLAY, ICON_POINTER, ICON_SHARE_2, ICON_SLIDERS_HORIZONTAL,
-    ICON_SPLINE, ICON_SPLIT, ICON_SQUARE, ICON_STAR, ICON_TEXT_ALIGN_START, ICON_TOGGLE_RIGHT,
-    ICON_TRASH, ICON_TYPE,
+    ICON_PANELS_TOP_LEFT, ICON_PEN_TOOL, ICON_PENCIL, ICON_PLAY, ICON_POINTER, ICON_SHARE_2,
+    ICON_SLIDERS_HORIZONTAL, ICON_SPLINE, ICON_SPLIT, ICON_SQUARE, ICON_STAR,
+    ICON_TEXT_ALIGN_START, ICON_TOGGLE_RIGHT, ICON_TRASH, ICON_TYPE,
 };
 use beui::reactive::*;
 use beui::styled::theme::NARROW_WIDTH;
@@ -42,8 +42,8 @@ use std::sync::Arc;
 use styled_pages::{AttachedCard, AttachedDialog};
 use styled_pages::{
     ButtonsPage, CanvasPage, ChoicesPage, ColorsPage, DockingPage, EditorPage, InputsPage,
-    LabelledSwitch, LayoutPage, MenusPage, OverlaysPage, PickersPage, RowsPage, TextPage,
-    ThemesPage, TreePage,
+    LabelledSwitch, LayoutPage, MenusPage, NestedDocksPage, OverlaysPage, PickersPage, RowsPage,
+    TextPage, ThemesPage, TreePage,
 };
 use text_editor_core::{
     EditorCommand, Highlighter, Language, MarkdownCommand, TextBuffer, TextLanguage,
@@ -80,6 +80,7 @@ const STAND_IN: Color32 = Color32::from_rgb(255, 105, 180);
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 enum Page {
     Docking,
+    NestedDocks,
     Text,
     Buttons,
     Inputs,
@@ -111,8 +112,9 @@ enum Page {
     Paths,
 }
 
-const STYLED_PAGES: [Page; 17] = [
+const STYLED_PAGES: [Page; 18] = [
     Page::Docking,
+    Page::NestedDocks,
     Page::Text,
     Page::Buttons,
     Page::Inputs,
@@ -150,8 +152,9 @@ const BASE_PAGES: [Page; 7] = [
     Page::Layering,
 ];
 
-const PAGES: [Page; 30] = [
+const PAGES: [Page; 31] = [
     Page::Docking,
+    Page::NestedDocks,
     Page::Text,
     Page::Buttons,
     Page::Inputs,
@@ -187,6 +190,7 @@ impl Page {
     fn title(self) -> &'static str {
         match self {
             Page::Docking => "Docking",
+            Page::NestedDocks => "Nested docks",
             Page::Text => "Text",
             Page::Buttons => "Buttons",
             Page::Inputs => "Inputs",
@@ -222,6 +226,7 @@ impl Page {
     fn icon(self) -> Glyph {
         match self {
             Page::Docking => ICON_LAYOUT_PANEL_LEFT,
+            Page::NestedDocks => ICON_PANELS_TOP_LEFT,
             Page::Text => ICON_TYPE,
             Page::Buttons => ICON_MOUSE_POINTER_CLICK,
             Page::Inputs => ICON_TOGGLE_RIGHT,
@@ -257,6 +262,7 @@ impl Page {
     fn summary(self) -> &'static str {
         match self {
             Page::Docking => "Tabs, splits, windows and groups",
+            Page::NestedDocks => "A dock in a tab joins the dock around it",
             Page::Text => "Text styles, sizes, colour roles, icons in text, links",
             Page::Buttons => "Buttons, icon buttons, tooltips",
             Page::Inputs => "Fields, switches, sliders, progress",
@@ -670,6 +676,9 @@ fn PageView(page: Page) -> NodeId {
     match page {
         Page::Docking => view! {
             <DockingPage />
+        },
+        Page::NestedDocks => view! {
+            <NestedDocksPage />
         },
         Page::Text => view! {
             <TextPage />

@@ -79,6 +79,19 @@ impl Watch {
 mod web {
     use beui_types::{Direction, Rect};
 
+    fn clips(element: &web_sys::Element) -> bool {
+        let Some(style) = crate::dom::window()
+            .and_then(|window| window.get_computed_style(element).ok().flatten())
+        else {
+            return false;
+        };
+        ["overflow-x", "overflow-y"].iter().any(|axis| {
+            style
+                .get_property_value(axis)
+                .is_ok_and(|value| value != "visible")
+        })
+    }
+
     pub(super) fn visible_span(
         list: crate::node::NodeId,
         direction: Direction,
@@ -87,13 +100,12 @@ mod web {
             .filter(|element: &web_sys::Element| element.is_connected())?;
         let rect = crate::dom::client_rect(&element);
         let mut clip = crate::dom::viewport();
-        for viewer in crate::dom::nodes_above(element.parent_node()) {
-            if crate::scroll::find(viewer).is_none() {
-                continue;
-            }
-            if let Some(viewer) = crate::dom::element(viewer) {
+        let mut above = element.parent_element();
+        while let Some(viewer) = above {
+            if clips(&viewer) {
                 clip = clip.intersect(crate::dom::client_rect(&viewer));
             }
+            above = viewer.parent_element();
         }
         let scale = crate::dom::scale_of(&element, rect);
         let span = |rect: Rect| match direction {

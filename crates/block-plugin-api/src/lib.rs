@@ -43,38 +43,39 @@ be_ops_bindgen::generate!({
         "finish-command", "branch-command", "create-branch-command", "resolve-command",
         "undo-operation-command", "performance-duration", "performance-count", "view-zoom",
         "rename-dialog",
-        "block-child", "creation-child", "artifact-settings-child",
+        "block-child", "creation-child", "artifact-settings-child", "picker-child",
         "window-fullscreen", "wifi-connect", "notification-closed", "notification-action-invoked",
         "program-list", "program-launch", "program-exec", "tray-scroll", "tray-menu-chosen",
     ],
     lenient: ["editor-capabilities", "child-operations"],
-    ordered: ["child-content"],
+    ordered: ["child-content", "dock-tab-path", "block-filter"],
     own_debug: ["font-face"],
 });
 
 pub use accessibility::DescribedAction;
 pub use be_ops as ops;
 pub use blocks::{
-    ArtifactAction, ArtifactState, BlockCommand, BlockInfo, BlockLocation, BlockMetadata,
-    BlockQuery, ConflictSide, StoredHead, VersionBranch, VersionChange, VersionChangeKind,
-    VersionCommand, VersionCommit, VersionOperation, VersionStatus,
+    ArtifactAction, ArtifactState, BlockCommand, BlockInfo, BlockMetadata, BlockQuery,
+    ConflictSide, StoredHead, VersionBranch, VersionChange, VersionChangeKind, VersionCommand,
+    VersionCommit, VersionOperation, VersionStatus,
 };
 pub use debug::debug::{DebugTemplate, PerformanceMeasurement};
-pub use host_services::{
-    AccessGrant, AccessListing, BlockFilter, BlockPick, ImportedBlock, PickedBlock, Revision,
-    ShellDialog,
+pub use dock::{
+    DockChildRequest, DockClosedTab, DockDeclaredChild, DockHostedRegion, DockPickedTab, DockUpdate,
 };
+pub use guest::dock::DockWatch;
+pub use host_services::{AccessGrant, AccessListing, ImportedBlock, Revision, ShellDialog};
 pub use shared::access::AccessLevel;
 pub use shell_types::{
     ArtifactDescription, AudioCommand, AudioSource, AudioStatus, BarAction, Catalog, ChildPreview,
     CreationProgress, DialogAnswer, DialogStatus, DroppedFile, EditorDescriptor, FitArea,
-    MenuCheck, MenuCommand, MenuHeading, MenuItem, MenuItemKind, MenuPin, PreviewImage,
-    ShellCommand, Stopped, TemplateDescriptor, ViewChange, WebViewEvent,
+    PreviewImage, ShellCommand, Stopped, TemplateDescriptor, ViewChange, WebViewEvent,
 };
 pub use shell_types::{
     BlockTypeDescriptor, ChildOperations, ChildStatus, EditorCapabilities, Edits, InteractionMode,
     PanMode, Press, ResizeMode, TemplateCategory,
 };
+pub use types::{BlockFilter, BlockLocation, BlockPick, OpenPicker, PickedBlock};
 pub use types::{
     ChildContent, ChildLayer, ChildMode, ChildPlacement, ChildPlacements, DialogFrame,
     EditorRegion, Failure, FontFace, FontRole, Fonts, FrameChrome, FrameCommit, FrameReport,
@@ -83,6 +84,13 @@ pub use types::{
     ScreenLayout, ScreenPlacement, ScreenRequest, ScreenWindow, Size, SurfaceFormat, SurfaceRect,
     SurfaceSpec, SurfaceSupport, TimedInput, TopBar, ViewportMetrics,
 };
+pub use types::{
+    DockChild, DockChildClose, DockChildHosted, DockChildPick, DockDeclaration, DockDeclare,
+    DockDialog, DockDirection, DockFullscreen, DockGroup, DockHome, DockHosted, DockItem,
+    DockItemKind, DockLayout, DockMessage, DockPane, DockPlace, DockRegionRequest, DockRequest,
+    DockSplit, DockTab, DockTabPath, DockTree, DockWindow,
+};
+pub use types::{MenuCheck, MenuCommand, MenuHeading, MenuItem, MenuItemKind, MenuPin};
 pub use types::{
     RegionRef, WindowEdge, WindowOpen, WindowOver, WindowPlacement, WindowRequest, WindowResize,
     WindowResizeBegin,
@@ -126,6 +134,7 @@ pub use guest::desktop::{
 mod accesskit_mirror;
 mod block_ids;
 mod desktop_types;
+mod docking;
 mod input;
 mod manifest;
 mod nesting;
@@ -133,6 +142,10 @@ mod opening;
 pub mod requested;
 mod watch;
 pub use block_ids::BlockIdRole;
+pub use docking::{
+    DockEntry, DockFloating, DockNode, DockNodes, MAX_DOCK_DEPTH, MAX_DOCK_NESTING, dock_prefix,
+    dock_prefix_block,
+};
 pub use manifest::{
     EditorDocument, InOrder, ManifestDocument, TemplateDocument, manifest_from_json,
 };
@@ -342,7 +355,7 @@ impl ScreenLayout {
     }
 }
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct ChildId(pub u64);
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -368,7 +381,9 @@ impl ChildContent {
             | Self::Host(_)
             | Self::Window(_)
             | Self::Creation { .. }
-            | Self::ArtifactSettings { .. } => None,
+            | Self::ArtifactSettings { .. }
+            | Self::DockTab(_)
+            | Self::Picker { .. } => None,
         }
     }
 }
@@ -448,13 +463,7 @@ pub enum ShellRequest {
 }
 
 impl ShellRequest {
-    pub const ALL: [Self; 5] = [
-        Self::ShowBlock,
-        Self::Pick,
-        Self::Dialog,
-        Self::Panel,
-        Self::Window,
-    ];
+    pub const ROUTED: [Self; 4] = [Self::ShowBlock, Self::Dialog, Self::Panel, Self::Window];
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -536,6 +545,7 @@ pub enum ManifestError {
     SeveralTypeModules,
     DuplicateTemplate,
     TemplateWithoutBlockType,
+    ServiceWithTemplates,
 }
 
 impl fmt::Display for ManifestError {
@@ -574,6 +584,9 @@ impl fmt::Display for ManifestError {
             Self::DuplicateTemplate => {
                 formatter.write_str("an editor declares the same template twice")
             }
+            Self::ServiceWithTemplates => formatter.write_str(
+                "an editor that edits no block is part of the shell and declares no templates",
+            ),
         }
     }
 }
@@ -649,6 +662,9 @@ impl EditorManifest {
                 .any(|region| self.regions.iter().filter(|it| *it == region).count() > 1)
         {
             return Err(ManifestError::InvalidRegions);
+        }
+        if self.edits == Edits::Nothing && !self.templates.is_empty() {
+            return Err(ManifestError::ServiceWithTemplates);
         }
         for (index, template) in self.templates.iter().enumerate() {
             manifest_string("template id", &template.id)?;
@@ -782,7 +798,8 @@ impl FrameCommit {
                 covered = after;
             }
         }
-        Ok(())
+        collection(self.docks.len())?;
+        self.docks.iter().try_for_each(DockMessage::validate)
     }
 }
 

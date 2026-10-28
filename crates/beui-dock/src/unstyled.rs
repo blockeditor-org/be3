@@ -51,8 +51,10 @@ use beui_view::window::{Window, WindowHandle, opens_windows, use_window};
 use dialog::{DialogParts, DockDialogs};
 pub use dialog::{DockDialogHandle, DockDialogPresentation, DockSheetHandle};
 pub use docking::{
-    DockDialog, DockEntry, DockGroup, DockKey, DockNode, DockPane, DockSplit, DockTab, DockWindow,
-    Docking, DockingLayout, DockingSnapshot, OwnedDockingLayout,
+    DockBodies, DockDeclaration, DockDeclaredDialog, DockDeclaredTab, DockDialog, DockEntry,
+    DockGroup, DockHostEvent, DockHostLink, DockHostSlot, DockHosted, DockJoin, DockKey, DockNode,
+    DockPane, DockRequest, DockSplit, DockTab, DockWindow, Docking, DockingLayout, DockingSnapshot,
+    OwnedDockingLayout, use_dock_join,
 };
 pub use documents::{
     DockDocument, DockDocumentBody, DockDocumentTabs, DockDocuments, DockOpened, DockSlot,
@@ -61,7 +63,9 @@ use fullscreen::DockAway;
 pub use fullscreen::DockAwayHandle;
 use modifier_drag::{Resized, modifier_resize};
 pub use state::{
-    DockDrop, DockFullscreen, DockHome, DockLayout, DockSplitter, DockState, DockSwitch, DockTree,
+    DockDrop, DockFullscreen, DockHome, DockLayout, DockMapping, DockPlain, DockPlainEntry,
+    DockPlainHome, DockPlainNode, DockPlainPlace, DockPlainWindow, DockSpec, DockSpecEntry,
+    DockSpecNode, DockSpecPane, DockSpecWindow, DockSplitter, DockState, DockSwitch, DockTree,
     DockTreeEntry, DockVisit, Entry, GroupId, LeafId, Side, SplitId, SurfaceId, TabId, TabPosition,
     Tree, layout_surface, layout_tree,
 };
@@ -108,6 +112,7 @@ pub struct DockTabHandle {
     pub dragged: Memo<bool>,
     pub closable: Memo<bool>,
     pub waiting: Memo<bool>,
+    pub host: Option<TabId>,
     pub notice: Memo<Option<String>>,
     pub close: ClickCallback,
 }
@@ -144,6 +149,7 @@ pub struct DockBarHandle {
     pub closable: Memo<bool>,
     pub menu: Memo<Vec<MenuNode>>,
     pub close: ClickCallback,
+    pub test_prefix: String,
 }
 
 pub struct DockSplitterHandle {
@@ -193,13 +199,87 @@ pub struct DockSwitcherCardHandle {
 #[derive(Clone, Copy)]
 pub struct DockTabControl {
     tab: TabId,
-    state: Binding<DockState>,
-    dock: State,
+    backing: Backing,
+}
+
+#[derive(Clone, Copy)]
+enum Backing {
+    Local {
+        state: Binding<DockState>,
+        dock: State,
+    },
+    Hosted {
+        hosted: Memo<Option<DockHosted>>,
+        request: Callback<DockRequest>,
+        claimed: Stored<Cell<bool>>,
+    },
 }
 
 impl DockTabControl {
+    fn local(tab: TabId, state: Binding<DockState>, dock: State) -> Self {
+        Self {
+            tab,
+            backing: Backing::Local { state, dock },
+        }
+    }
+
+    pub fn hosted(
+        tab: TabId,
+        hosted: Memo<Option<DockHosted>>,
+        request: Callback<DockRequest>,
+    ) -> Self {
+        Self {
+            tab,
+            backing: Backing::Hosted {
+                hosted,
+                request,
+                claimed: store(Cell::new(false)),
+            },
+        }
+    }
+
+    pub fn is_hosted(&self) -> bool {
+        matches!(self.backing, Backing::Hosted { .. })
+    }
+
+    pub fn claim_body(&self) -> bool {
+        let Backing::Hosted { claimed, .. } = self.backing else {
+            return false;
+        };
+        if claimed.with(|claimed| claimed.replace(true)) {
+            return false;
+        }
+        on_cleanup(move || {
+            claimed.try_with(|claimed| claimed.set(false));
+        });
+        true
+    }
+
     fn dock(&self) -> Option<State> {
-        self.dock.panels.is_alive().then_some(self.dock)
+        match self.backing {
+            Backing::Local { dock, .. } => dock.panels.is_alive().then_some(dock),
+            Backing::Hosted { .. } => None,
+        }
+    }
+
+    fn read_hosted<R>(&self, read: impl FnOnce(&DockHosted) -> R) -> Option<R> {
+        match self.backing {
+            Backing::Hosted { hosted, .. } => hosted.with(|hosted| hosted.as_ref().map(read)),
+            Backing::Local { .. } => None,
+        }
+    }
+
+    fn ask(&self, request: DockRequest) {
+        if let Backing::Hosted { request: send, .. } = self.backing {
+            send.call(request);
+        }
+    }
+
+    fn with_state<R>(&self, read: impl FnOnce(&DockState) -> R) -> Option<R> {
+        match self.backing {
+            Backing::Local { state, .. } => Some(state.with(read)),
+            Backing::Hosted { .. } => None,
+        }
     }
 
     pub fn tab(&self) -> TabId {
@@ -207,21 +287,29 @@ impl DockTabControl {
     }
 
     pub fn fullscreen(&self) -> bool {
-        self.state.with(|state| {
+        if let Some(fullscreen) = self.read_hosted(|hosted| hosted.fullscreen == Some(self.tab)) {
+            return fullscreen;
+        }
+        self.with_state(|state| {
             state
                 .fullscreen()
                 .is_some_and(|shown| shown.tab == self.tab)
         })
+        .unwrap_or(false)
     }
 
     pub fn enter_fullscreen(&self, area: Option<Rect>) {
         let tab = self.tab;
+        self.ask(DockRequest::Fullscreen(Some((tab, area))));
         if let Some(dock) = self.dock() {
             dock.edit(|state| state.set_fullscreen(Some(DockFullscreen { tab, area })));
         }
     }
 
     pub fn leave_fullscreen(&self) {
+        if self.fullscreen() {
+            self.ask(DockRequest::Fullscreen(None));
+        }
         if let Some(dock) = self.dock() {
             dock.leave_fullscreen(self.tab);
         }
@@ -250,16 +338,19 @@ impl DockTabControl {
     }
 
     pub fn focused(&self) -> bool {
+        if let Some(focused) = self.read_hosted(|hosted| hosted.focused == Some(self.tab)) {
+            return focused;
+        }
+        let focused_tab = || {
+            self.with_state(|state| state.focused_tab() == Some(self.tab))
+                .unwrap_or(false)
+        };
         let Some(dock) = self.dock() else {
-            return self
-                .state
-                .with(|state| state.focused_tab() == Some(self.tab));
+            return focused_tab();
         };
         match dock.dialog_focus.get() {
             Some(dialog) => dialog == self.tab,
-            None => self
-                .state
-                .with(|state| state.focused_tab() == Some(self.tab)),
+            None => focused_tab(),
         }
     }
 
@@ -270,6 +361,7 @@ impl DockTabControl {
     }
 
     pub fn show(&self) {
+        self.ask(DockRequest::Show(self.tab));
         let Some(dock) = self.dock() else {
             return;
         };
@@ -385,6 +477,7 @@ struct State {
     drag: Signal<Option<Drag>>,
     title: Func<TabId, String>,
     group_title: Func<GroupId, Option<String>>,
+    group_host: Func<GroupId, Option<TabId>>,
     icon: Func<TabId, Option<Glyph>>,
     picture: Func<TabId, Option<Image>>,
     closable: Func<TabId, bool>,
@@ -531,11 +624,7 @@ impl State {
         }
         let scope = self.open_scope();
         let menus = self.menus;
-        let control = DockTabControl {
-            tab,
-            state: self.state,
-            dock: *self,
-        };
+        let control = DockTabControl::local(tab, self.state, *self);
         let panel = scope.context().run(|| {
             provide_context(DockTabMenu { tab, menu: menus });
             provide_context(control);
@@ -832,6 +921,9 @@ impl State {
         if let Entry::Group(group) = entry
             && self.state.with_untracked(|state| state.is_pinned(group))
         {
+            if let Some(host) = untrack(|| self.group_host.call(group)) {
+                self.close_tab(host);
+            }
             return;
         }
         let tabs = self.state.with_untracked(|state| state.entry_tabs(entry));
@@ -1399,6 +1491,8 @@ pub(crate) struct DockConfig {
     pub(crate) on_close: Callback<TabId>,
     pub(crate) title: Func<TabId, String>,
     pub(crate) group_title: Func<GroupId, Option<String>>,
+    pub(crate) group_host: Func<GroupId, Option<TabId>>,
+    pub(crate) hosts: Memo<Vec<TabId>>,
     pub(crate) icon: Func<TabId, Option<Glyph>>,
     pub(crate) picture: Func<TabId, Option<Image>>,
     pub(crate) closable: Func<TabId, bool>,
@@ -1447,6 +1541,8 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         on_close,
         title,
         group_title,
+        group_host,
+        hosts,
         icon,
         picture,
         closable,
@@ -1513,6 +1609,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         drag,
         title,
         group_title,
+        group_host,
         icon,
         picture,
         closable,
@@ -1616,7 +1713,8 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         dock.cycle(press.modifiers.shift)
     });
     create_effect(move || {
-        let tabs = state.with(DockState::all_tabs);
+        let mut tabs = state.with(DockState::all_tabs);
+        tabs.extend(hosts.get());
         dock.keep_panels(&tabs);
     });
     on_cleanup(move || dock.keep_panels(&[]));
@@ -2263,6 +2361,7 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
                         closable,
                         menu,
                         close,
+                        test_prefix: dock.pane_test_id("dock", leaf),
                     });
                     let parts = ChromeParts {
                         floating,
@@ -2534,7 +2633,11 @@ fn DockTabView(
         Entry::Group(_) => None,
     });
     let locks = create_memo(move || match entry {
-        Entry::Tab(tab) => state.with(|state| matches!(state.home(tab), Some(DockHome::Area(_)))),
+        Entry::Tab(tab) => match state.with(|state| state.home(tab)) {
+            Some(DockHome::Area(_)) => true,
+            Some(DockHome::Group(group)) => dock.group_host.call(group).is_some(),
+            None => false,
+        },
         Entry::Group(_) => false,
     });
     let toggle_held = ClickCallback::new(move || {
@@ -2552,11 +2655,16 @@ fn DockTabView(
                 .and_then(|surface| state.window_rect(surface))
                 .is_some()
     });
+    let host = match entry {
+        Entry::Group(group) => untrack(|| dock.group_host.call(group)),
+        Entry::Tab(_) => None,
+    };
     let anchored = create_memo(move || {
         state.with(|state| !state.admits(entry, DockDrop::Window { pos: Pos2::ZERO }))
     });
-    let closable = create_memo(move || {
-        !pinned && tabs.with(|tabs| tabs.iter().all(|tab| dock.closable.call(*tab)))
+    let closable = create_memo(move || match host {
+        Some(host) => dock.closable.call(host),
+        None => !pinned && tabs.with(|tabs| tabs.iter().all(|tab| dock.closable.call(*tab))),
     });
     let waiting = create_memo(move || tabs.with(|tabs| dock.waiting(tabs)));
     let notice =
@@ -2581,6 +2689,7 @@ fn DockTabView(
         dragged,
         closable,
         waiting,
+        host,
         notice,
         close,
     });
@@ -3271,6 +3380,10 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                                 closable,
                                                                 menu,
                                                                 close,
+                                                                test_prefix: hoisted.map_or_else(
+                                                                    || "dock".to_owned(),
+                                                                    |leaf| dock.pane_test_id("dock", leaf),
+                                                                ),
                                                             }),
                                                             leaf: hoisted,
                                                             body: pane,

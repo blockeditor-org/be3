@@ -12,6 +12,7 @@ use crate::plugin_host::HostChildStatus;
 const OPEN_GRAB: Vec2 = vec2(24.0, 16.0);
 const SMALLEST: Vec2 = vec2(96.0, 64.0);
 const PLACEMENT: &str = "desktop";
+const SHRINK_TO: f32 = 160.0;
 
 #[derive(Clone, Copy)]
 pub(crate) struct DesktopPlace {
@@ -39,6 +40,9 @@ pub(crate) struct Floated {
     pub(crate) key: FloatedKey,
     pub(crate) rect: Rect,
     pub(crate) panel: Option<Panel>,
+    pub(crate) anchor: EditorRegion,
+    pub(crate) role: WindowRole,
+    pub(crate) parent: Option<u64>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -51,6 +55,22 @@ pub(crate) struct Panel {
 }
 
 impl Floated {
+    fn anchored(&self, region: EditorRegion) -> bool {
+        match region {
+            EditorRegion::Tab(_) => self.anchor == region,
+            EditorRegion::Window(_) => false,
+            _ => !matches!(self.anchor, EditorRegion::Tab(_)),
+        }
+    }
+
+    fn overlaid_in(&self, region: EditorRegion) -> bool {
+        match (region, self.parent) {
+            (EditorRegion::Window(window), parent) => parent == Some(window),
+            (_, Some(_)) => false,
+            (region, None) => self.anchored(region),
+        }
+    }
+
     pub(crate) fn placement(&self) -> Option<String> {
         match &self.panel {
             Some(panel) => panel.placed.clone(),
@@ -261,19 +281,36 @@ pub(crate) fn apply() {
                     (panel, _) => panel,
                 };
                 let origin = match open.placement {
-                    WindowPlacement::Over(over) => {
-                        origin_of(&plugin, over.region.instance, over.region.region, &windows)
-                            + over.at.to_vec2()
-                    }
+                    WindowPlacement::Over(over) => point_in(
+                        &plugin,
+                        over.region.instance,
+                        over.region.region,
+                        over.at,
+                        &windows,
+                    ),
                     WindowPlacement::Host(placement) => {
                         read_placement(&placement).unwrap_or_else(|| POINTER.get() - OPEN_GRAB)
                     }
                     WindowPlacement::AtPointer => POINTER.get() - OPEN_GRAB,
                 };
+                let opener = match open.opener.region {
+                    EditorRegion::Window(opener) => windows
+                        .iter()
+                        .find(|held| held.key.plugin == plugin && held.key.window == opener),
+                    _ => None,
+                };
+                let anchor = match (open.opener.region, opener) {
+                    (EditorRegion::Window(_), Some(opener)) => opener.anchor,
+                    (EditorRegion::Window(_), None) => EditorRegion::Frame,
+                    (region, _) => region,
+                };
                 let window = Floated {
                     key: key(open.window, open.opener.instance),
                     rect: Rect::from_min_size(origin, size),
                     panel,
+                    anchor,
+                    role: open.role,
+                    parent: opener.map(|opener| opener.key.window),
                 };
                 match held {
                     Some(index) => windows[index] = window,
@@ -358,10 +395,11 @@ fn desktop_displays() -> Vec<Rect> {
         .with_untracked(|shown| shown.iter().map(|display| display.rect).collect())
 }
 
-fn origin_of(
+fn point_in(
     plugin: &str,
     instance: EditorInstanceId,
     region: EditorRegion,
+    at: Pos2,
     windows: &[Floated],
 ) -> Pos2 {
     if let EditorRegion::Window(window) = region
@@ -369,16 +407,53 @@ fn origin_of(
             .iter()
             .find(|held| held.key.plugin == plugin && held.key.window == window)
     {
-        return held.rect.min;
+        return held.rect.min + at.to_vec2();
     }
-    ORIGINS
-        .with(|origins| {
-            origins
-                .borrow()
-                .get(&(plugin.to_owned(), instance, region))
-                .copied()
+    let desktop = ORIGINS.with(|origins| {
+        origins
+            .borrow()
+            .get(&(plugin.to_owned(), instance, region))
+            .copied()
+    });
+    if let Some(origin) = desktop {
+        return origin + at.to_vec2();
+    }
+    match crate::plugin_host::region_placement(plugin, instance, region) {
+        Some(placed) if placed.zoom.is_finite() && placed.zoom > 0.0 => {
+            placed.rect.min + at.to_vec2() * placed.zoom
+        }
+        Some(placed) => placed.rect.min + at.to_vec2(),
+        None => at,
+    }
+}
+
+pub(crate) fn clamped(rect: Rect, viewport: Vec2) -> Rect {
+    let size = rect.size().min(viewport).max(Vec2::ZERO);
+    let x = rect.min.x.min(viewport.x - size.x).max(0.0);
+    let room = viewport.y - rect.min.y.max(0.0);
+    let (y, height) = match room >= size.y.min(SHRINK_TO) {
+        true => (rect.min.y.max(0.0), size.y.min(room)),
+        false => ((viewport.y - size.y).max(0.0), size.y),
+    };
+    Rect::from_min_size(pos2(x, y), vec2(size.x, height))
+}
+
+pub(crate) fn overlaid(
+    plugin: String,
+    instance: EditorInstanceId,
+    region: EditorRegion,
+) -> Memo<Vec<u64>> {
+    let floated = floated();
+    create_memo(move || {
+        floated.with(|held| {
+            held.iter()
+                .filter(|window| window.key.plugin == plugin && window.key.instance == instance)
+                .filter(|window| window.overlaid_in(region))
+                .filter(|window| window.panel.is_none())
+                .map(|window| window.key.window)
+                .collect()
         })
-        .unwrap_or(Pos2::ZERO)
+    })
 }
 
 fn read_placement(placement: &str) -> Option<Pos2> {
@@ -421,12 +496,17 @@ pub(crate) fn panel_of(key: FloatedKey) -> Memo<Option<(Vec2, Panel)>> {
     })
 }
 
-pub(crate) fn panels(plugin: String, instance: EditorInstanceId) -> Memo<Vec<u64>> {
+pub(crate) fn panels(
+    plugin: String,
+    instance: EditorInstanceId,
+    region: EditorRegion,
+) -> Memo<Vec<u64>> {
     let floated = floated();
     create_memo(move || {
         floated.with(|held| {
             held.iter()
                 .filter(|window| window.key.plugin == plugin && window.key.instance == instance)
+                .filter(|window| window.anchored(region))
                 .filter(|window| window.panel.is_some())
                 .map(|window| window.key.window)
                 .collect()
@@ -446,8 +526,29 @@ pub(crate) fn panel_placed(key: &FloatedKey, placement: String) {
     });
 }
 
-pub(crate) fn panel_closed(key: &FloatedKey) {
-    floated_signal().update(|held| held.retain(|window| window.key != *key));
+pub(crate) fn role_of(key: FloatedKey) -> Memo<WindowRole> {
+    let floated = floated();
+    create_memo(move || {
+        floated.with(|held| {
+            held.iter()
+                .find(|window| window.key == key)
+                .map_or(WindowRole::Normal, |window| window.role)
+        })
+    })
+}
+
+pub(crate) fn dismiss(key: &FloatedKey) {
+    floated_signal().update(|held| {
+        let mut gone = vec![key.window];
+        while let Some(window) = held.iter().find(|held| {
+            held.key.plugin == key.plugin
+                && !gone.contains(&held.key.window)
+                && held.parent.is_some_and(|parent| gone.contains(&parent))
+        }) {
+            gone.push(window.key.window);
+        }
+        held.retain(|window| window.key.plugin != key.plugin || !gone.contains(&window.key.window));
+    });
 }
 
 pub(crate) fn rect_of(key: FloatedKey) -> Memo<Option<Rect>> {

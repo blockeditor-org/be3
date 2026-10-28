@@ -5,7 +5,7 @@ use beui::datetime::DateTime;
 use beui::icons::ICON_X;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{Color32, NodeId, Rect};
+use beui::{Color32, NodeId};
 pub use block_ui::database::ValueLabels;
 use block_ui::database::{DatabaseValueChange, block_reference_text, field_type_label};
 use database_types::database::{
@@ -34,7 +34,7 @@ pub type RowValues = BTreeMap<Uuid, DatabaseValue>;
 pub struct DatabaseBlockPickRequest {
     pub field_id: Uuid,
     pub block_type: Option<Uuid>,
-    pub anchor: Option<Rect>,
+    pub anchor: crate::PickAnchor,
 }
 
 #[component]
@@ -513,7 +513,7 @@ fn BlockValue(
         on_pick.call(DatabaseBlockPickRequest {
             field_id: field.id,
             block_type: field.block_options.block_type,
-            anchor: crate::node_anchor(&button),
+            anchor: crate::PickAnchor::Node(button),
         });
     };
     view! {

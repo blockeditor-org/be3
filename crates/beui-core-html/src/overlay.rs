@@ -53,6 +53,7 @@ pub struct Layer {
     pointer: Option<NodeRef>,
     reach: Cell<f32>,
     wanted: Cell<bool>,
+    dismissable: Cell<bool>,
     on_dismiss: Callback<Dismiss>,
     #[cfg(target_arch = "wasm32")]
     web: RefCell<web::Held>,
@@ -88,6 +89,7 @@ pub fn layer(
         pointer,
         reach: Cell::new(0.0),
         wanted: Cell::new(false),
+        dismissable: Cell::new(true),
         on_dismiss,
         #[cfg(target_arch = "wasm32")]
         web: RefCell::default(),
@@ -190,6 +192,14 @@ impl Layer {
         self.traps.set(traps);
     }
 
+    pub fn set_dismissable(&self, dismissable: bool) {
+        self.dismissable.set(dismissable);
+    }
+
+    fn dismisses(&self) -> bool {
+        self.dismissable.get() && !self.on_dismiss.is_empty()
+    }
+
     pub fn set_beak(&self, reach: f32) {
         self.reach.set(reach.max(0.0));
         self.place_beak();
@@ -231,7 +241,7 @@ impl Layer {
     }
 
     pub fn dismiss(&self, reason: Dismiss) {
-        if self.wanted.get() && !self.on_dismiss.is_empty() {
+        if self.wanted.get() && self.dismisses() {
             self.on_dismiss.call(reason);
         }
     }
@@ -512,7 +522,7 @@ mod web {
             .into_iter()
             .rev()
             .find(|layer| layer.policy.get() != LayerPolicy::Inert);
-        let Some(layer) = top.filter(|layer| !layer.modal() && !layer.on_dismiss.is_empty()) else {
+        let Some(layer) = top.filter(|layer| !layer.modal() && layer.dismisses()) else {
             return;
         };
         event.prevent_default();

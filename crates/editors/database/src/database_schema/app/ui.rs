@@ -19,9 +19,7 @@ use block_editor_beui::beui::icons::{
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{NodeId, Vec2};
-use block_editor_beui::{
-    BlockFilter, ChildTarget, ContentProjection, Editor, node_anchor, watch_block_label,
-};
+use block_editor_beui::{BlockFilter, ChildTarget, ContentProjection, Editor, watch_block_label};
 use uuid::Uuid;
 
 use super::field_line_count;
@@ -825,8 +823,8 @@ fn RelationOptions(
                 excluded: Vec::new(),
                 templates: false,
                 place: None,
-                anchor: node_anchor(&button),
             },
+            &button,
             move |picked| {
                 if let Ok(picked) = picked {
                     schema.operate(DatabaseSchema::set_relation_options(

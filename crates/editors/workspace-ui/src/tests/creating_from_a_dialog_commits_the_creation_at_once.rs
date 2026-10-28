@@ -9,9 +9,11 @@ fn creating_from_a_dialog_commits_the_creation_at_once() {
     dialog.templates[0].dialog = true;
     fixture.test.catalog(dialog);
     let parent = Uuid::new_v4();
-    fixture
-        .test
-        .request_pick(5, filter(), BlockLocation::Block(parent.into_bytes()), None);
+    let mut fixture = picking(
+        &fixture,
+        filter(),
+        BlockLocation::Block(parent.into_bytes()),
+    );
     fixture.settle();
     fixture
         .test

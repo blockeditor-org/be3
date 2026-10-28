@@ -35,6 +35,13 @@ fn child_statuses_round_trip() {
                 handles_dismiss: true,
                 answer: Some(DialogAnswer::Accepted),
             },
+            picked: Some(Ok(Some(PickedBlock {
+                block_id: [7; 16],
+                block_type: [8; 16],
+                linked: true,
+                placed: false,
+            }))),
+            card: true,
         },
         ChildStatus {
             instance: EditorInstanceId(4),
@@ -52,11 +59,13 @@ fn child_statuses_round_trip() {
             creation: None,
             preview: Default::default(),
             dialog: DialogStatus::default(),
+            picked: None,
+            card: false,
         },
     ];
     assert_eq!(
         crate::ops::decode::<Vec<ChildStatus>>(&crate::ops::encode(&statuses)),
         Some(statuses),
-        "statuses keep their menus, flattened"
+        "statuses keep their menus, flattened, and what a picker answered"
     );
 }

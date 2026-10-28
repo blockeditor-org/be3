@@ -71,6 +71,12 @@ impl InspectorTab {
     }
 }
 
+impl beui_dock::unstyled::DockKey for InspectorTab {
+    fn key(&self) -> String {
+        format!("{self:?}")
+    }
+}
+
 pub struct State {
     expansion: RefCell<HashMap<Key, bool>>,
     pub hovered: Cell<Option<NodeId>>,

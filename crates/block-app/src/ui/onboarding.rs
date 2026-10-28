@@ -356,7 +356,7 @@ pub(super) fn AddAccountDialog(
                                 <TextInput
                                     value={authorization}
                                     label={gateway_label}
-                                    password=true
+                                    kind={InputKind::Password}
                                     @test_id="account.gateway"
                                     on_submit={move |_| submit()}
                                 />

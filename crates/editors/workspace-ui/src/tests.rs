@@ -12,6 +12,7 @@ use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
 use crate::app::WorkspaceUiApp;
+use crate::picker::PickerApp;
 
 mod a_block_opened_while_another_is_shown_gets_its_own_tab;
 mod a_block_opens_in_the_editor_it_keeps_for_itself;
@@ -28,8 +29,6 @@ mod a_hidden_window_and_its_dialog_have_no_tab_until_shown;
 mod a_host_panel_the_host_asks_for_is_placed_in_its_own_window;
 mod a_modal_window_sends_presses_on_its_parent_to_itself;
 mod a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches;
-mod a_pick_keeps_the_anchor_and_the_tab_it_was_asked_from;
-mod a_pick_withdrawn_by_the_editor_that_asked_closes_the_picker;
 mod a_presentation_offers_its_slide_templates_first;
 mod a_profile_keeps_its_tabs_as_view_blocks_and_reopens_them;
 mod a_reopened_phone_goes_back_through_the_files_in_the_order_they_were_shown;
@@ -49,7 +48,6 @@ mod a_workspace_opens_on_its_landing_page;
 mod an_import_into_a_folder_is_made_inside_it;
 mod an_import_keeps_the_location_it_started_with;
 mod an_open_menu_is_withheld_from_the_block_under_it;
-mod an_open_pick_leaves_the_tabs_where_they_were;
 mod an_unlocked_tab_moved_into_the_sidebar_is_still_there_when_the_workspace_reopens;
 mod back_asks_a_creation_dialog_to_dismiss_itself_first;
 mod block_type_colors_are_shown_in_the_add_menu_and_full_list;
@@ -58,12 +56,14 @@ mod closing_a_window_tab_asks_its_program_to_close;
 mod closing_the_only_tab_leaves_the_blank_workspace;
 mod creating_from_a_dialog_commits_the_creation_at_once;
 mod crossing_the_phone_width_keeps_the_block_on_show;
+mod escape_closes_the_add_menu_and_only_its_cards_ask_to_be_framed;
 mod importing_a_block_file_in_the_picker_answers_the_pick;
 mod linking_a_block_in_the_picker_answers_the_pick;
 mod on_a_desktop_a_touch_opens_the_add_menu_as_a_sheet_and_a_mouse_as_a_dropdown;
 mod on_a_phone_more_blocks_takes_over_the_menu_sheet_in_place;
 mod on_a_phone_tapping_a_files_name_opens_its_rename_sheet;
 mod on_a_phone_the_menu_and_its_location_page_rise_as_a_sheet;
+mod on_a_phone_the_more_sheet_keeps_its_cancel_below_the_list;
 mod on_a_wide_phone_the_more_sheet_fills_the_screen_width;
 mod renaming_a_block_the_host_asks_about_saves_its_name;
 mod revision_history_follows_the_active_file_and_previews_it;
@@ -77,7 +77,7 @@ mod showing_a_block_with_another_editor_switches_its_tab;
 mod switching_from_a_block_to_a_host_panel_keeps_the_panel_on_show;
 mod the_back_gesture_on_a_phone_leaves_a_file_for_the_files;
 mod the_blocks_area_splits_into_two_with_block_tabs_in_each;
-mod the_link_card_keeps_its_search_and_choice_across_tab_switches;
+mod the_link_card_shows_where_the_chosen_block_lives_and_links_it;
 mod the_location_page_shows_the_folders_as_a_tree_with_the_chosen_one_checked;
 mod the_picker_never_offers_a_deleted_block_to_link;
 mod the_rename_card_sets_a_blocks_name_icon_and_color;
@@ -90,12 +90,12 @@ const SHOWN_TYPE: Uuid = Uuid::from_u128(0x7368_6f77_6e2d_7479_7065_2d74_6573_74
 const TEMPLATE_EDITOR: Uuid = Uuid::from_u128(0x7465_6d70_6c61_7465_2d65_6469_746f_7231);
 const TEMPLATE_TYPE: Uuid = Uuid::from_u128(0x7465_6d70_6c61_7465_2d74_7970_6531_0000);
 
-struct Fixture {
-    test: BeuiTest<WorkspaceUiApp>,
+struct Fixture<A: block_editor_beui::BeuiApp = WorkspaceUiApp> {
+    test: BeuiTest<A>,
     host: EditorHost,
 }
 
-impl Fixture {
+impl<A: block_editor_beui::BeuiApp> Fixture<A> {
     fn settle(&mut self) {
         self.test.run();
     }
@@ -296,8 +296,38 @@ fn filter() -> block_editor_beui::BlockFilter {
         excluded: Vec::new(),
         templates: false,
         place: None,
-        anchor: None,
     }
+}
+
+fn picking(
+    beside: &Fixture,
+    filter: block_editor_beui::BlockFilter,
+    parent: block_editor_beui::BlockLocation,
+) -> Fixture<PickerApp> {
+    picking_with(beside, filter, parent, false)
+}
+
+fn picking_with(
+    beside: &Fixture,
+    filter: block_editor_beui::BlockFilter,
+    parent: block_editor_beui::BlockLocation,
+    touch: bool,
+) -> Fixture<PickerApp> {
+    let host = EditorHost::default();
+    host.set_editable(true);
+    host.set_client_id(Uuid::from_u128(0x3a_0003));
+    host.set_account_id(beside.host.account_id());
+    host.set_organization_id(beside.host.organization_id());
+    let request = block_editor_beui::PickerRequest {
+        filter,
+        parent: BlockParent::decode(parent),
+        touch,
+    };
+    let test =
+        BeuiTest::picker_beside(&beside.test, host.clone(), request).with_size(beside.test.size());
+    let mut fixture = Fixture { test, host };
+    fixture.settle();
+    fixture
 }
 
 fn catalog() -> block_editor_beui::Catalog {
@@ -375,6 +405,15 @@ fn placed_in_sidebar(fixture: &Fixture, block: Uuid) -> Option<bool> {
         .map(|placement| placement.rect.right() <= SIDEBAR_EDGE + 1.0)
 }
 
+const PLACES: Places = Places {
+    space: Uuid::from_u128(0x3a_0101),
+    trips: Uuid::from_u128(0x3a_0102),
+    work: Uuid::from_u128(0x3a_0103),
+    q4: Uuid::from_u128(0x3a_0104),
+    minutes: Uuid::from_u128(0x3a_0105),
+    budget: Uuid::from_u128(0x3a_0106),
+};
+
 struct Places {
     space: Uuid,
     trips: Uuid,
@@ -384,17 +423,10 @@ struct Places {
     budget: Uuid,
 }
 
-fn places(fixture: &mut Fixture) -> Places {
+fn places<A: block_editor_beui::BeuiApp>(fixture: &mut Fixture<A>) -> Places {
     use block_editor_beui::BlockInfo;
     use block_editor_beui::be_block::BlockContent;
-    let places = Places {
-        space: Uuid::from_u128(0x3a_0101),
-        trips: Uuid::from_u128(0x3a_0102),
-        work: Uuid::from_u128(0x3a_0103),
-        q4: Uuid::from_u128(0x3a_0104),
-        minutes: Uuid::from_u128(0x3a_0105),
-        budget: Uuid::from_u128(0x3a_0106),
-    };
+    let places = PLACES;
     let block = |id: Uuid, block_type: Uuid, parent: BlockParent, name: &str, children: &[Uuid]| {
         let mut info = BlockInfo::new(id, block_type, parent);
         info.set_name(name);
@@ -449,7 +481,10 @@ fn places(fixture: &mut Fixture) -> Places {
     places
 }
 
-fn report_creation(fixture: &mut Fixture, progress: block_editor_beui::CreationProgress) {
+fn report_creation<A: block_editor_beui::BeuiApp>(
+    fixture: &mut Fixture<A>,
+    progress: block_editor_beui::CreationProgress,
+) {
     report_creation_dialog(
         fixture,
         progress,
@@ -457,8 +492,8 @@ fn report_creation(fixture: &mut Fixture, progress: block_editor_beui::CreationP
     );
 }
 
-fn report_creation_dialog(
-    fixture: &mut Fixture,
+fn report_creation_dialog<A: block_editor_beui::BeuiApp>(
+    fixture: &mut Fixture<A>,
     progress: block_editor_beui::CreationProgress,
     dialog: block_editor_beui::DialogStatus,
 ) {
@@ -484,6 +519,8 @@ fn report_creation_dialog(
             .then(|| progress.clone()),
             preview: Default::default(),
             dialog,
+            picked: None,
+            card: false,
         });
     fixture.settle();
 }

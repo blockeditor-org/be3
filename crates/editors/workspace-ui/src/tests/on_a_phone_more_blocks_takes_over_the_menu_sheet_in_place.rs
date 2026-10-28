@@ -8,9 +8,7 @@ use super::*;
 fn on_a_phone_more_blocks_takes_over_the_menu_sheet_in_place() {
     let (mut fixture, _) = editor_sized(Some(Vec2::new(390.0, 844.0)));
     fixture.test.catalog(catalog());
-    fixture
-        .test
-        .request_pick(5, filter(), BlockLocation::Root, None);
+    let mut fixture = picking_with(&fixture, filter(), BlockLocation::Root, true);
     fixture.test.settle();
     let menu = fixture.test.rect_of("sheet.handle");
 

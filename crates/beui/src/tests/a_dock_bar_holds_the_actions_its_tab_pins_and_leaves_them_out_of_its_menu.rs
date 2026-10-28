@@ -46,7 +46,7 @@ fn a_dock_bar_holds_the_actions_its_tab_pins_and_leaves_them_out_of_its_menu() {
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.settle();
     let root = harness.document().root().expect("the document has a root");
-    let pin = harness.find("dock.pin.share");
+    let pin = harness.find("dock.tabs.pin.share");
     assert!(
         text_within(harness.document(), pin, "Share").is_some(),
         "a tiled bar labels the pinned action"
@@ -55,12 +55,15 @@ fn a_dock_bar_holds_the_actions_its_tab_pins_and_leaves_them_out_of_its_menu() {
     harness.settle();
     assert_eq!(shared.get_untracked(), 1, "pressing it runs the action");
 
-    let at = harness.center(harness.find("dock.menu"));
+    let at = harness.center(harness.find("dock.tabs.menu"));
     harness.click(at);
     harness.settle();
     assert!(text_within(harness.document(), root, "Rename").is_some());
     assert!(
-        harness.document().find_test_id("dock.menu.share").is_none(),
+        harness
+            .document()
+            .find_test_id("dock.tabs.menu.share")
+            .is_none(),
         "the menu leaves out what the bar already holds"
     );
     harness.key(Key::Escape, Modifiers::NONE);

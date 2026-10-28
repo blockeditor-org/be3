@@ -42,6 +42,8 @@ fn a_live_editor_works_in_place_and_a_pan_and_zoom_one_takes_the_frame_when_clic
             creation: None,
             preview: Default::default(),
             dialog: Default::default(),
+            picked: None,
+            card: false,
         });
         editor.run();
     };

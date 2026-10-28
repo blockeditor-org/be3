@@ -957,8 +957,8 @@ impl Picker {
                 excluded: excluded.into_iter().map(Uuid::into_bytes).collect(),
                 templates: false,
                 place: Some(place.encode()),
-                anchor,
             },
+            anchor,
             move |result| match result {
                 Ok(block) => picked(block, parent),
                 Err(failure) => error.set(Some(failure.to_string())),

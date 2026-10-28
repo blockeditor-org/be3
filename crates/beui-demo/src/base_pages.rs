@@ -16,6 +16,7 @@ use beui::{Color, Pos2, vec2};
 use beui::{FillRule, LineCap, LineJoin, Path, Stroke};
 use beui::{Overflow, TextLayout, WrapAt};
 use beui::{Window, WindowHandle};
+use beui::{WindowPlacement, WindowRole};
 
 const SWATCH: f32 = 72.0;
 const BADGE: f32 = 22.0;
@@ -650,6 +651,9 @@ pub(crate) fn LayeringPage() -> NodeId {
             <Sample title="Window" code={vec![FloatingWindow::SOURCE]}>
                 <FloatingWindow />
             </Sample>
+            <Sample title="Popup window" code={vec![PopupWindow::SOURCE]}>
+                <PopupWindow />
+            </Sample>
             <Sample title="Translate" code={vec![NudgedTile::SOURCE]}>
                 <NudgedTile />
             </Sample>
@@ -939,6 +943,100 @@ fn FloatingWindow() -> NodeId {
                     </Text>
                 </Frame>
             </Window>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn PopupWindow() -> NodeId {
+    let theme = use_theme();
+    let open = create_signal(false);
+    let inner = create_signal(false);
+    let at = create_signal(Pos2::ZERO);
+    let closed = move |shown: Signal<bool>| {
+        move |report: beui::WindowReport| {
+            if matches!(report, beui::WindowReport::Closed(_)) {
+                shown.set(false);
+            }
+        }
+    };
+    let face = theme.surface_raised;
+    let ink = theme.text;
+    let own = use_window().map(|window| window.id);
+    let placement = create_memo(move || match own {
+        Some(window) => WindowPlacement::Over {
+            window,
+            at: at.get(),
+        },
+        None => WindowPlacement::AtPointer,
+    });
+    view! {
+        <List direction=Direction::Horizontal spacing=0.0>
+            <Interactive
+                @test_id="demo.popup.trigger"
+                on_click_at={move |press: beui::PointerPress| {
+                    at.set(press.pos + vec2(16.0, 16.0));
+                    inner.set(false);
+                    open.update(|open| *open = !*open);
+                }}
+            >
+                <Frame fill=face radius={Radius::Md.px()} padding={Sides::symmetric(16.0, 10.0)}>
+                    <Text color={ink}>"Open a popup"</Text>
+                </Frame>
+            </Interactive>
+            <Window
+                size={vec2(PANEL_WIDTH, WINDOW_HEIGHT)}
+                at={at}
+                placement
+                role=WindowRole::Popup
+                open={open}
+                on_report={closed(open)}
+            >|outer: WindowHandle| {
+                let beside = vec2(PANEL_WIDTH - 32.0, WINDOW_HEIGHT - 40.0);
+                let inner_at = create_memo(move || at.get() + beside);
+                view! {
+                    <Frame
+                        @test_id="demo.popup.panel"
+                        fill={theme.surface_raised}
+                        outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
+                        radius={Radius::Lg.px()}
+                        padding=12.0
+                    >
+                        <Layers>
+                            <List spacing=8.0>
+                                <Text color={theme.text}>
+                                    "A popup closes when a press lands outside it and its own popups."
+                                </Text>
+                                <Interactive
+                                    @test_id="demo.popup.more"
+                                    on_click={move || inner.update(|inner| *inner = !*inner)}
+                                >
+                                    <Text color={theme.accent}>"More"</Text>
+                                </Interactive>
+                            </List>
+                            <Window
+                                size={vec2(PANEL_WIDTH / 2.0, WINDOW_HEIGHT / 2.0)}
+                                at={inner_at}
+                                placement={WindowPlacement::Over { window: outer.id, at: Pos2::ZERO + beside }}
+                                role=WindowRole::Popup
+                                open={inner}
+                                on_report={closed(inner)}
+                            >|_: WindowHandle|
+                                <Frame
+                                    @test_id="demo.popup.inner"
+                                    fill={theme.surface_raised}
+                                    outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
+                                    radius={Radius::Md.px()}
+                                    padding=12.0
+                                >
+                                    <Text color={theme.text}>"Its own popup"</Text>
+                                </Frame>
+                            </Window>
+                        </Layers>
+                    </Frame>
+                }
+            }</Window>
         </List>
     }
 }

@@ -16,9 +16,8 @@ use block_editor_beui::{
     TopBar,
 };
 use block_shell::{
-    AttachedWindow, BlockTab, FILES, Failure, FloatingWindow, PanelStatus, PanelWindow,
-    PickerDialog, Pickers, REVISIONS, RenameDialog, RevisionHistoryPanel, SETTINGS, WindowTab,
-    Workspace, WorkspaceDialogs,
+    AttachedWindow, BlockTab, FILES, Failure, FloatingWindow, PanelStatus, PanelWindow, REVISIONS,
+    RenameDialog, RevisionHistoryPanel, SETTINGS, WindowTab, Workspace, WorkspaceDialogs,
 };
 use uuid::Uuid;
 
@@ -88,7 +87,6 @@ pub(crate) fn WorkspaceBody(workspace: Workspace) -> NodeId {
         }
     });
     let dialog_windows = workspace.dialogs();
-    let picker_dialogs = workspace.picker_dialogs();
     let rename_dialogs = workspace.rename_dialogs();
     let panels = workspace.panels();
     view! {
@@ -132,14 +130,10 @@ pub(crate) fn WorkspaceBody(workspace: Workspace) -> NodeId {
                     <ForEach keys={dialog_windows}>|(window, parent): (HostWindowId, HostWindowId)|
                         <AttachedWindow workspace window parent />
                     </ForEach>
-                    <ForEach keys={picker_dialogs}>|(pick, tab): (u64, TabId)|
-                        <PickerDialog workspace pick tab />
-                    </ForEach>
                     <ForEach keys={rename_dialogs}>|(block, tab): (Uuid, TabId)|
                         <RenameDialog workspace block tab />
                     </ForEach>
                 </Docking>
-                <Pickers workspace />
                 <WorkspaceDialogs workspace />
             </List>
         </Frame>

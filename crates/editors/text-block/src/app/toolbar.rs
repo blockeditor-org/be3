@@ -354,8 +354,8 @@ fn pick_block(state: State) {
             excluded: Vec::new(),
             templates: false,
             place: None,
-            anchor,
         },
+        anchor,
         move |result| {
             let Ok(block) = result else {
                 return;

@@ -14,7 +14,7 @@ fn painting(size: [u32; 2], root: impl FnOnce() -> Root) -> BrowserSnapshot {
     let markup = crate::running::render_to_string(root);
     let page = format!(
         "<!doctype html><html><head><meta charset=\"utf-8\"><style>{}body {{ margin: 0; height: 100vh; font: 14px sans-serif; }}</style></head><body>{markup}</body></html>",
-        crate::running::stylesheet()
+        crate::running::stylesheet(".")
     );
     BrowserSnapshot::new(size, &page)
 }

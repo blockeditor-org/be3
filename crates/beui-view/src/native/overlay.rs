@@ -44,6 +44,7 @@ pub(crate) fn overlay(
     window: Prop<Option<WindowSpec>>,
     open: Prop<bool>,
     keep_alive: bool,
+    dismissable: Prop<bool>,
     on_dismiss: Callback<Dismiss>,
     content: RenderFn<()>,
 ) -> NodeId {
@@ -51,8 +52,14 @@ pub(crate) fn overlay(
         let overlay = document.create_overlay(anchor.get_untracked(), Placement::BelowStart);
         document.set_overlay_trigger(overlay, trigger);
         document.set_overlay_pointer(overlay, pointer);
-        document.set_overlay_on_dismiss(overlay, on_dismiss);
         overlay
+    });
+    create_binding(move || {
+        let on_dismiss = match dismissable.get() {
+            true => on_dismiss,
+            false => Callback::empty(),
+        };
+        with_document(|document| document.set_overlay_on_dismiss(overlay, on_dismiss))
     });
     create_binding(move || {
         let anchor = anchor.get();

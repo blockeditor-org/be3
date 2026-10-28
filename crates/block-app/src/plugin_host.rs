@@ -11,6 +11,7 @@ mod audio;
 mod backend;
 mod calls;
 mod description;
+mod docks;
 mod fonts;
 pub(crate) mod graph;
 mod heads;
@@ -42,18 +43,17 @@ pub(crate) use runtime::place_screens;
 #[cfg(target_os = "linux")]
 pub(crate) use runtime::watched;
 pub(crate) use runtime::{
-    PACING, Pick, artifact, artifact_draft, aspect_ratio, assigned_size, block_picked, busy, close,
+    PACING, artifact, artifact_draft, aspect_ratio, assigned_size, busy, card, close,
     commit_creation, crash, creation, dialog_status, dismiss, drawing, flush, forget_dialog_answer,
     frame_child, frame_placement, frame_rects, hold, in_use, install, intrinsic_size, kill, menu,
-    menu_pick, poll, present, presenting, preview_image, publish, reanchor, record_pacing,
-    regenerate_artifact, region_size, replace_child, replace_gpu, report_child_bars,
-    report_child_focus, report_children, request_painting, request_pick, resized,
+    menu_pick, picked, poll, present, presenting, preview_image, publish, reanchor, record_pacing,
+    regenerate_artifact, region_placement, region_size, replace_child, replace_gpu,
+    report_child_bars, report_child_focus, report_children, request_painting, resized,
     revoke_frame_child, running, set_artifact_states, set_focus, set_presence_visible,
     set_presented, set_shell, settle, show_block, show_dialog, show_panel, start_frames,
-    take_artifact_outcome, take_artifact_watch, take_bar_actions, take_block_pick, take_calls,
-    take_child_commits, take_child_dismissals, take_child_menu_picks, take_crashed, take_created,
-    take_focus_report, take_leaving, take_pick_answers, take_steps, take_view_changes,
-    take_withdrawn_picks, warm, withdraw_pick,
+    take_artifact_outcome, take_artifact_watch, take_bar_actions, take_calls, take_child_commits,
+    take_child_dismissals, take_child_menu_picks, take_crashed, take_created, take_focus_report,
+    take_leaving, take_steps, take_view_changes, warm,
 };
 pub(crate) use runtime::{
     RegionPlacement, RegionSlot, RegionView, back_region, drag_over_region, forward_region, frames,
@@ -112,6 +112,15 @@ pub(crate) enum HostContent {
         template: String,
     },
     ArtifactSettings(Uuid),
+    DockTab {
+        block: Uuid,
+        tab: u64,
+    },
+    Picker {
+        filter: block_plugin_api::BlockFilter,
+        parent: block_plugin_api::BlockLocation,
+        touch: bool,
+    },
 }
 
 impl HostContent {
@@ -121,7 +130,9 @@ impl HostContent {
             Self::Panel(_)
             | Self::Window(_)
             | Self::Creation { .. }
-            | Self::ArtifactSettings(_) => None,
+            | Self::ArtifactSettings(_)
+            | Self::DockTab { .. }
+            | Self::Picker { .. } => None,
         }
     }
 
@@ -131,7 +142,9 @@ impl HostContent {
             Self::Panel(_)
             | Self::Window(_)
             | Self::Creation { .. }
-            | Self::ArtifactSettings(_) => None,
+            | Self::ArtifactSettings(_)
+            | Self::DockTab { .. }
+            | Self::Picker { .. } => None,
         }
     }
 }
@@ -168,6 +181,8 @@ pub(crate) struct HostChildStatus {
     pub(crate) creation: Option<block_plugin_api::CreationProgress>,
     pub(crate) preview: block_plugin_api::ChildPreview,
     pub(crate) dialog: block_plugin_api::DialogStatus,
+    pub(crate) picked: Option<block_plugin_api::BlockPick>,
+    pub(crate) card: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -177,9 +192,38 @@ pub(crate) struct ChildCommit {
     pub(crate) name: Option<String>,
 }
 
-pub(crate) struct BlockPickRequest {
-    pub(crate) op: u64,
+#[derive(Clone, Debug)]
+pub(crate) struct PickerRequest {
     pub(crate) filter: block_plugin_api::BlockFilter,
+    pub(crate) parent: block_plugin_api::BlockLocation,
+    pub(crate) touch: bool,
+}
+
+impl Default for PickerRequest {
+    fn default() -> Self {
+        Self {
+            filter: block_plugin_api::BlockFilter::default(),
+            parent: block_plugin_api::BlockLocation::Root,
+            touch: false,
+        }
+    }
+}
+
+thread_local! {
+    static PICKERS: std::cell::RefCell<std::collections::HashMap<EditorInstanceId, PickerRequest>> =
+        std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
+pub(crate) fn ask_picker(instance: EditorInstanceId, request: PickerRequest) {
+    PICKERS.with(|pickers| pickers.borrow_mut().insert(instance, request));
+}
+
+pub(crate) fn forget_picker(instance: EditorInstanceId) {
+    PICKERS.with(|pickers| pickers.borrow_mut().remove(&instance));
+}
+
+fn picker_request(instance: EditorInstanceId) -> Option<PickerRequest> {
+    PICKERS.with(|pickers| pickers.borrow().get(&instance).cloned())
 }
 
 pub(crate) struct RuntimeStatus {
@@ -266,13 +310,14 @@ pub(crate) enum InstanceRole {
     Editor(Uuid, EditorBlock),
     Creation(Uuid, &'static str),
     Artifact(Uuid, EditorBlock, Uuid),
+    Picker(Uuid),
 }
 
 impl InstanceRole {
     pub(crate) fn block(self) -> Option<EditorBlock> {
         match self {
             Self::Editor(_, block) | Self::Artifact(_, block, _) => Some(block),
-            Self::Creation(..) => None,
+            Self::Creation(..) | Self::Picker(..) => None,
         }
     }
 }

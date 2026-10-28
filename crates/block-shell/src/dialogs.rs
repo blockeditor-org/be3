@@ -10,6 +10,7 @@ use block_editor_beui::{
 };
 use uuid::Uuid;
 
+use super::phone::DetailsSheet;
 use super::share::{GRANTABLE, Member, Person, Share, ShareAction};
 use super::workspace::Workspace;
 use beui::{Align, Direction, ItemSize};
@@ -34,6 +35,7 @@ pub fn WorkspaceDialogs(workspace: Workspace) -> NodeId {
             <ShareDialog workspace={workspace} />
             <ArtifactSettingsDialog workspace={workspace} />
             <UnlinkDialog workspace />
+            <DetailsSheet workspace />
         </List>
     }
 }

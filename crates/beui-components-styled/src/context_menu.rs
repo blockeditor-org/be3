@@ -86,6 +86,7 @@ pub fn MenuPopup(
     open: Prop<bool>,
     #[prop(default = false)] sheet: Prop<bool>,
     #[prop(default = Size::Menu)] min_width: Prop<Size>,
+    #[prop(default = NodeRef::new())] overlay: NodeRef,
     on_dismiss: ClickCallback,
     on_select: Callback<Vec<usize>>,
 ) -> NodeId {
@@ -102,6 +103,7 @@ pub fn MenuPopup(
             placement
             open={open}
             sheet={sheet}
+            overlay
             on_dismiss={on_dismiss}
             on_select={on_select}
         />

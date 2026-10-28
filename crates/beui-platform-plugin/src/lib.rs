@@ -167,6 +167,7 @@ impl ModuleRunner {
                     scale_factor: region.scale_factor,
                     ratio,
                     spec: region.spec,
+                    docked: region.docked,
                 })
                 .collect(),
         );

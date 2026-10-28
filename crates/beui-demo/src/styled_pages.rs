@@ -956,6 +956,9 @@ pub(crate) fn InputsPage() -> NodeId {
             <Sample title="Number input" code={vec![SeatsInput::SOURCE]}>
                 <SeatsInput />
             </Sample>
+            <Sample title="Sign-in form" code={vec![SignInForm::SOURCE]}>
+                <SignInForm />
+            </Sample>
             <Sample title="One value, two bindings" code={vec![Temperatures::SOURCE]}>
                 <Temperatures />
             </Sample>
@@ -1003,10 +1006,46 @@ fn NameInput() -> NodeId {
 
 #[sample]
 #[component]
+fn SignInForm() -> NodeId {
+    let email = create_signal(String::new());
+    let password = create_signal(String::new());
+    let signed_in = create_signal(String::new());
+    view! {
+        <Form on_submit={move || signed_in.set(format!("Signed in as {}", email.get_untracked()))}>
+            <List spacing=SECTION_SPACING>
+                <TextInput
+                    value={email}
+                    label="Email"
+                    placeholder="Email"
+                    kind=InputKind::Email
+                    name="email"
+                    autocomplete="username"
+                />
+                <TextInput
+                    value={password}
+                    label="Password"
+                    placeholder="Password"
+                    kind=InputKind::Password
+                    name="password"
+                    autocomplete="current-password"
+                />
+                <Button label="Sign in" variant=ButtonVariant::Primary submit=true />
+                <Text style=TextStyle::CAPTION>{signed_in}</Text>
+            </List>
+        </Form>
+    }
+}
+
+#[sample]
+#[component]
 fn KeyboardInput() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
-            <TextInput value=String::new() placeholder="Type with the keys below" />
+            <TextInput
+                @test_id="demo.keyboard.field"
+                value=String::new()
+                placeholder="Type with the keys below"
+            />
             <Frame height={Size::Custom(240.0)}>
                 <SoftwareKeyboard />
             </Frame>
@@ -4169,5 +4208,47 @@ fn ThemeSample(name: &'static str) -> NodeId {
                 </List>
             </Card>
         </Frame>
+    }
+}
+
+#[sample]
+#[component]
+pub(crate) fn NestedDocksPage() -> NodeId {
+    let layout = DockingLayout::<u64>::new();
+    view! {
+        <Docking layout>
+            <DockSplit id="nested" fraction=0.3>
+                <DockPane id="outline" locked=true>
+                    <DockTab id=1u64 title="Outline" icon=beui::icons::ICON_LIST_TREE>
+                        <NestedNote
+                            text="This page is a Docking of its own. Inside a tab of the demo's dock it joins that dock: its tabs are a locked group in place of the page's tab, and the demo's dock draws their bars."
+                        />
+                    </DockTab>
+                </DockPane>
+                <DockPane id="views">
+                    <DockTab id=2u64 title="Preview" icon=beui::icons::ICON_EYE>
+                        <NestedNote
+                            text="Right-click a tab here and pick Unlock to drag it anywhere in the demo's dock. Lock it again once it is back in the group."
+                        />
+                    </DockTab>
+                    <DockTab id=3u64 title="Notes" icon=beui::icons::ICON_STICKY_NOTE>
+                        <NestedNote
+                            text="The Outline pane is locked, so its tab stays in its area inside the group."
+                        />
+                    </DockTab>
+                </DockPane>
+            </DockSplit>
+        </Docking>
+    }
+}
+
+#[component]
+fn NestedNote(text: &'static str) -> NodeId {
+    view! {
+        <Scroll>
+            <Frame padding=PAGE_PADDING>
+                <Text style=TextStyle::PARAGRAPH>{text}</Text>
+            </Frame>
+        </Scroll>
     }
 }

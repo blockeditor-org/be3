@@ -87,7 +87,7 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
                             }
                         }</Dynamic>
                     </List>
-                    <DockMenu menu room=BarRoom::Phone />
+                    <DockMenu menu room=BarRoom::Phone test_prefix={"dock".to_owned()} />
                     <DockTabCount
                         count={closable_tabs}
                         label={switch_label}

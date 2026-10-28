@@ -10,7 +10,6 @@ use beui_view::reactive::*;
 use beui_view::types::Color;
 use beui_view::types::Key;
 use beui_view::types::KeyPhase;
-use beui_view::window::use_window;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum DialogKind {
@@ -347,13 +346,9 @@ pub fn Dialog(
     body: Render<DialogLayout>,
 ) -> NodeId {
     let open = create_memo(move || open.get());
-    let window = use_window();
     let viewport = use_viewport_size();
     let narrow_screen = create_memo(move || {
-        let width = match window.filter(|window| window.is_window()) {
-            Some(window) => window.size.get().x,
-            None => viewport.get().x,
-        };
+        let width = viewport.get().x;
         width > 0.0 && width < sheet_below
     });
     let touched = create_signal(false);

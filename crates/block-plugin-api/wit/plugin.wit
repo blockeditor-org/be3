@@ -5,9 +5,9 @@ interface plugin {
     use types.{child-id, editor-region, frame-commit, opening, screen-id, screen-request, size};
     use be3:shared/ids@0.1.0.{block-id};
     use accessibility.{action-request};
-    use shell-types.{bar-action, drag-over, file-drop, focus, pick-request};
+    use shell-types.{bar-action, drag-over, file-drop, focus};
     use be3:ui/types@0.1.0.{rect};
-    use host-services.{block-pick, shell-dialog};
+    use host-services.{shell-dialog};
     use types.{failure};
 
     /// An editor instance. Dropping it closes it.
@@ -67,10 +67,6 @@ interface plugin {
         /// Generates the artifact the settings describe again.
         regenerate-artifact: async func(data: list<u8>) -> result<_, failure>;
 
-        /// Shows the user a picker for a pick another editor asked for; dropping
-        /// the call closes it.
-        pick: async func(request: pick-request) -> block-pick;
-
         /// Puts a block in place of a child block; false when the editor cannot.
         replace-child: async func(old: block-id, new: block-id) -> bool;
 
@@ -113,6 +109,7 @@ world editor-plugin {
     import host-services;
     import account;
     import contacts;
+    import dock;
     import be3:desktop/windows@0.1.0;
     import be3:desktop/input@0.1.0;
     import be3:desktop/displays@0.1.0;

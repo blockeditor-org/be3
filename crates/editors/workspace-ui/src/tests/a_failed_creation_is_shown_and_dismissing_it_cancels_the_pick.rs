@@ -6,9 +6,7 @@ use super::*;
 fn a_failed_creation_is_shown_and_dismissing_it_cancels_the_pick() {
     let (mut fixture, _) = editor();
     fixture.test.catalog(catalog());
-    fixture
-        .test
-        .request_pick(5, filter(), BlockLocation::Root, None);
+    let mut fixture = picking(&fixture, filter(), BlockLocation::Root);
     fixture.settle();
     fixture
         .test
@@ -20,9 +18,9 @@ fn a_failed_creation_is_shown_and_dismissing_it_cancels_the_pick() {
         CreationProgress::Failed("the disk is full".to_owned()),
     );
     assert!(fixture.says("the disk is full"));
-    assert!(fixture.test.take_pick_answers().is_empty());
+    assert!(fixture.test.take_picked().is_empty());
 
     fixture.click_text("Dismiss");
 
-    assert_eq!(fixture.test.take_pick_answers(), vec![(5, Ok(None))]);
+    assert_eq!(fixture.test.take_picked(), vec![Ok(None)]);
 }

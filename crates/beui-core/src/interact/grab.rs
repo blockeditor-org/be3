@@ -71,6 +71,7 @@ pub(crate) fn pointer(doc: &mut Document, rects: &Rects, event: &PointerEvent, h
                 size,
                 modifiers: event.modifiers,
                 held,
+                unclaimed: false,
             });
             doc.pointers.grabbed = Some(id);
             return node(doc, id).is_some_and(|node| node.on_wheel.clone().call(wheel));

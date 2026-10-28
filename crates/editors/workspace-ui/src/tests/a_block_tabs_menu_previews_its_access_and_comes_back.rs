@@ -24,7 +24,7 @@ fn a_block_tabs_menu_previews_its_access_and_comes_back() {
     let (mut fixture, opened) = editor_sized(Some(Vec2::new(1000.0, 600.0)));
     show(&mut fixture, opened, None);
 
-    fixture.test.click("dock.menu");
+    fixture.test.click("dock.editors.menu");
     choose(&mut fixture, "Access: Managing");
     choose(&mut fixture, "No access");
     assert!(
@@ -35,7 +35,7 @@ fn a_block_tabs_menu_previews_its_access_and_comes_back() {
         "choosing No access from the tab's menu shows the block as someone who cannot open it"
     );
 
-    fixture.test.click("dock.menu");
+    fixture.test.click("dock.editors.menu");
     choose(&mut fixture, "Access: No access");
     choose(&mut fixture, "Managing");
     assert!(

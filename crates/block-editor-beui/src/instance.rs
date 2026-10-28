@@ -14,8 +14,10 @@ use uuid::Uuid;
 
 use crate::beui_frame::{self, BeuiFrame, FrameBar, FrameChrome};
 use crate::dialog::{DialogControl, PluginDialog, SettingsDialog};
+use crate::docked::{DockedTabBody, DockedTabs};
 use crate::editor::BeuiScale;
 use crate::module::{Module, Shown};
+use crate::picking::Pickers;
 use crate::{Artifacts, BeuiApp, Creation, Editor, OwnedEditor};
 
 pub struct BeuiPlugin<A: BeuiApp>(PhantomData<A>);
@@ -42,6 +44,7 @@ struct Parts<A: BeuiApp> {
     scale: Rc<Cell<BeuiScale>>,
     views: RefCell<Views<A>>,
     generation: beui::reactive::OwnedSignal<u64>,
+    docked: Rc<DockedTabs>,
 }
 
 struct Views<A: BeuiApp> {
@@ -77,7 +80,7 @@ impl<A: BeuiApp> Parts<A> {
             .update(|generation| *generation += 1);
     }
 
-    fn frame_content(&self) -> RenderFn<WindowHandle> {
+    fn frame_content(&self, docked: bool) -> RenderFn<WindowHandle> {
         let mut views = self.views.borrow_mut();
         if views.creating {
             let Some(creation) = views.creation.clone() else {
@@ -94,8 +97,12 @@ impl<A: BeuiApp> Parts<A> {
                     <beui::styled::Root clear_color=beui::styled::ColorRole::SurfaceRaised>
                         <PluginDialog host control>|| {
                             let creation = creation.clone();
+                            let children = creation.children();
                             beui::reactive::view! {
-                                <A::Creation creation />
+                                <beui::styled::Layers>
+                                    <A::Creation creation />
+                                    <Pickers editor=children />
+                                </beui::styled::Layers>
                             }
                         }</PluginDialog>
                     </beui::styled::Root>
@@ -110,7 +117,11 @@ impl<A: BeuiApp> Parts<A> {
         };
         let custom = Rc::new(RefCell::new(views.view.take()));
         let chrome = Rc::clone(&views.chrome);
+        let tabs = Rc::clone(&self.docked);
+        let host = self.host.clone();
         RenderFn::new(move |_: WindowHandle| {
+            let link = docked.then(|| tabs.link(host.clone(), editor, chrome.listed()));
+            tabs.provide_slot(link, docked);
             let custom = Rc::clone(&custom);
             let view: Rc<dyn Fn() -> beui::styled::Root> =
                 Rc::new(move || match custom.borrow_mut().take() {
@@ -119,8 +130,9 @@ impl<A: BeuiApp> Parts<A> {
                         <A::View editor />
                     },
                 });
+            let docked = Rc::clone(&tabs);
             beui::reactive::view! {
-                <FrameChrome chrome={Rc::clone(&chrome)} editor view />
+                <FrameChrome chrome={Rc::clone(&chrome)} editor docked view />
             }
             .child()
         })
@@ -134,6 +146,19 @@ impl<A: BeuiApp> Parts<A> {
             beui::reactive::view! {
                 <beui::styled::Root clear_color=beui::styled::ColorRole::None>
                     <A::Preview editor />
+                </beui::styled::Root>
+            }
+            .child()
+        })
+    }
+
+    fn tab_content(&self, tab: u64) -> RenderFn<WindowHandle> {
+        let tabs = Rc::clone(&self.docked);
+        RenderFn::new(move |_: WindowHandle| {
+            let tabs = Rc::clone(&tabs);
+            beui::reactive::view! {
+                <beui::styled::Root clear_color=beui::styled::ColorRole::None>
+                    <DockedTabBody tabs tab />
                 </beui::styled::Root>
             }
             .child()
@@ -205,6 +230,7 @@ impl<A: BeuiApp> Parts<A> {
     fn frame_report(
         &self,
         view: &View,
+        context: &beui::native::Context,
         document: &mut Document,
         window: WindowId,
     ) -> (Report, bool) {
@@ -212,6 +238,7 @@ impl<A: BeuiApp> Parts<A> {
         let editor = views.editor.as_deref().copied();
         if let Some(editor) = &editor {
             editor.end_frame(document, window);
+            editor.fit_intrinsic(document, context);
         }
         let rect = beui::Rect::from_min_size(beui::Pos2::ZERO, view.size);
         let report = Report {
@@ -275,13 +302,25 @@ impl<A: BeuiApp> Shown for Parts<A> {
         self.generation.get()
     }
 
-    fn content(&self, region: EditorRegion) -> RenderFn<WindowHandle> {
+    fn docked_key(&self, docked: bool) -> bool {
+        self.docked.key(docked)
+    }
+
+    fn content(&self, region: EditorRegion, docked: bool) -> RenderFn<WindowHandle> {
         match region {
-            EditorRegion::Frame => self.frame_content(),
+            EditorRegion::Frame => self.frame_content(docked),
             EditorRegion::Preview => self.preview_content(),
             EditorRegion::ArtifactSettings => self.settings_content(),
             EditorRegion::Display(display) => self.display_content(display),
+            EditorRegion::Tab(tab) => self.tab_content(tab),
             EditorRegion::Window(_) => empty(),
+        }
+    }
+
+    fn window_id(&self, region: EditorRegion) -> Option<WindowId> {
+        match region {
+            EditorRegion::Tab(tab) => Some(self.docked.window_id(tab)),
+            _ => None,
         }
     }
 
@@ -312,6 +351,7 @@ impl<A: BeuiApp> Shown for Parts<A> {
                     framed: view.chrome_drawn(),
                     closable: spec.content.is_some(),
                     on_phone: spec.top_bar.phone(),
+                    docked: view.docked,
                 });
                 let picks = self.host.take_menu_picks();
                 if !picks.is_empty() {
@@ -328,6 +368,11 @@ impl<A: BeuiApp> Shown for Parts<A> {
             }
             EditorRegion::Preview => {
                 if let Some(editor) = views.preview.as_deref() {
+                    editor.begin_frame();
+                }
+            }
+            EditorRegion::Tab(_) => {
+                if let Some(editor) = views.editor.as_deref() {
                     editor.begin_frame();
                 }
             }
@@ -355,6 +400,9 @@ impl<A: BeuiApp> Shown for Parts<A> {
         let creating = self.views.borrow().creating;
         match view.id.region {
             EditorRegion::Frame if creating => {
+                if let Some(creation) = &self.views.borrow().creation {
+                    creation.children().end_frame(document, window);
+                }
                 if self.dialog_control.get().is_some() {
                     context.want_keyboard();
                 }
@@ -364,7 +412,7 @@ impl<A: BeuiApp> Shown for Parts<A> {
                 }
             }
             EditorRegion::Frame => {
-                let (report, exit) = self.frame_report(view, document, window);
+                let (report, exit) = self.frame_report(view, context, document, window);
                 if exit {
                     self.host.leave_frame();
                 }
@@ -376,7 +424,7 @@ impl<A: BeuiApp> Shown for Parts<A> {
                 }
                 Report::default()
             }
-            EditorRegion::Display(_) | EditorRegion::Window(_) => {
+            EditorRegion::Display(_) | EditorRegion::Window(_) | EditorRegion::Tab(_) => {
                 if let Some(editor) = self.views.borrow().editor.as_deref() {
                     editor.end_frame(document, window);
                 }
@@ -435,6 +483,7 @@ impl<A: BeuiApp> BeuiInstance<A> {
                 scale: Rc::default(),
                 views: RefCell::new(Views::empty()),
                 generation: beui::reactive::OwnedSignal::new(0),
+                docked: Rc::default(),
             }),
             host,
             keeps_accessibility: false,

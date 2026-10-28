@@ -123,6 +123,7 @@ pub struct ServerConfig {
     pub local_profiles: bool,
     pub auth_origin: Option<String>,
     pub lease: Duration,
+    pub portal: Option<be_portal::Portal>,
 }
 
 impl ServerConfig {
@@ -132,6 +133,7 @@ impl ServerConfig {
         local_profiles: false,
         auth_origin: None,
         lease: Duration::from_millis(be_session::LEASE_MILLISECONDS.unsigned_abs()),
+        portal: None,
     };
 
     pub const OPEN: Self = Self {
@@ -196,6 +198,9 @@ pub async fn serve_with_mail(
         mail::validate_origin(origin).map_err(ServerError::Socket)?;
     }
     let services = Services {
+        portal: config
+            .portal
+            .map(|portal| Arc::new(portal::Served::new(portal))),
         store: Arc::new(ServerStore::open(data_dir.into())?),
         hub: Arc::new(WatchHub::new()),
         registry: Arc::new(SessionRegistry::new(config.lease)),
@@ -250,6 +255,7 @@ pub(crate) struct Services {
     mail: Arc<dyn mail::Delivery>,
     http: Arc<http::Sessions>,
     browser_auth: Arc<browser_auth::Sessions>,
+    portal: Option<Arc<portal::Served>>,
 }
 
 struct Connection {
@@ -452,7 +458,8 @@ where
     if !greet(&mut sink, &mut source).await? {
         return Ok(());
     }
-    let mut pings = tokio::time::interval(PING_INTERVAL);
+    let mut pings =
+        tokio::time::interval_at(tokio::time::Instant::now() + PING_INTERVAL, PING_INTERVAL);
     let mut client = Client::open(services).await;
     let mut session_changes = services.store.session_changes.subscribe();
     client.connection.header_token = bearer(authorization.as_deref());

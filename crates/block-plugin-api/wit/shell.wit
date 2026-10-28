@@ -3,59 +3,16 @@ package be3:plugin@0.1.0;
 /// What the shell around an editor and the editor share: its menus, the
 /// actions of its bar and the children it places.
 interface shell-types {
-    use types.{child-id, editor-id, editor-instance-id, editor-region, size, web-view-id};
+    use types.{
+        block-pick, child-id, editor-id, editor-instance-id, editor-region, menu-check,
+        menu-command, menu-heading, menu-item, menu-item-kind, menu-pin, size, web-view-id,
+    };
     use be3:shared/ids@0.1.0.{block-id, block-type-id, image-id};
-    use blocks.{block-location};
-    use host-services.{block-filter};
     use be3:ui/types@0.1.0.{key-chord, pos2, rect, vec2};
 
     /// An action of the bar the host draws above a frame or a child.
     enum bar-action {
         details,
-    }
-
-    /// Where a command shows outside its menu.
-    enum menu-pin {
-        none,
-        icon,
-        label,
-        title,
-    }
-
-    variant menu-check {
-        none,
-        checkbox(bool),
-        radio(bool),
-    }
-
-    record menu-command {
-        id: string,
-        label: string,
-        glyph: string,
-        enabled: bool,
-        check: menu-check,
-        shortcut: option<key-chord>,
-        pin: menu-pin,
-    }
-
-    /// A submenu's own fields; its entries follow it.
-    record menu-heading {
-        id: string,
-        label: string,
-        glyph: string,
-    }
-
-    variant menu-item-kind {
-        command(menu-command),
-        submenu(menu-heading),
-        separator,
-    }
-
-    /// One entry of a menu flattened in order: the entries of a submenu
-    /// follow it one level deeper.
-    record menu-item {
-        depth: u32,
-        kind: menu-item-kind,
     }
 
     /// A block dragged over the editor, where, and whether it was dropped there.
@@ -196,6 +153,10 @@ interface shell-types {
         creation: option<creation-progress>,
         preview: child-preview,
         dialog: dialog-status,
+        /// What a picker child answered, once it has.
+        picked: option<block-pick>,
+        /// Whether a picker child shows a card its placer frames.
+        card: bool,
     }
 
     record child-operations {
@@ -264,18 +225,6 @@ interface shell-types {
         editors: list<editor-descriptor>,
     }
 
-    /// A pick the host forwards to an editor, numbered by the host.
-    type pick-id = u64;
-
-    /// A pick the host forwards to the editor that shows its picker.
-    record pick-request {
-        pick: pick-id,
-        filter: block-filter,
-        parent: block-location,
-        within: option<block-id>,
-        touch: bool,
-    }
-
     record audio-source {
         media-type: string,
         bytes: list<u8>,
@@ -335,9 +284,8 @@ interface shell-types {
 
 /// What an editor tells the shell around it.
 interface shell {
-    use types.{child-id, editor-instance-id, editor-region, size, web-view-id};
+    use types.{block-location, block-pick, child-id, editor-instance-id, editor-region, size, web-view-id};
     use be3:shared/ids@0.1.0.{block-id, block-type-id};
-    use blocks.{block-location};
     use shell-types.{
         artifact-description, audio-command, audio-status, bar-action, catalog,
         child-status, dialog-answer, focus, menu-item, shell-command, stopped, view-change,
@@ -447,6 +395,15 @@ interface shell {
         parent: block-location,
         name: option<string>,
     );
+
+    /// The editor, opened as a picker, answers its pick: the block chosen, or
+    /// none when the user cancelled.
+    picked: func(instance: editor-instance-id, pick: block-pick);
+
+    /// The editor, opened as a picker, says whether it shows a card, which the
+    /// editor that placed it frames, rather than a menu that draws its own
+    /// surface. It arrives as the child's `child-status.card`.
+    show-card: func(instance: editor-instance-id, card: bool);
 
     /// What the artifact settings the editor was opened on say.
     artifact-described: func(instance: editor-instance-id, description: artifact-description);

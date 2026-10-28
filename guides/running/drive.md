@@ -159,7 +159,9 @@ out of view, `focused` the one with keyboard focus and `selected` a selected row
 `Pane` named after its plugin, holding the nodes its editor describes (guides/adding_a_plugin_editor.md),
 so dialogs, the file tree and every editor read like the host's own controls.
 
-- `drive ids` lists every test id in the tree with where it is, the plugins' included. Test ids
+- `drive ids` lists every test id in the tree with where it is, the plugins' included (with
+  the bodies of a docked plugin's tabs, each a `Pane` of its own wherever the workspace dock
+  shows it). Test ids
   (guides/testing_a_gui.md) are the steadiest way to name a control; `drive tree` shows them
   too, as `#id` after a node's state, and a node with nothing else to show reads as a
   `GenericContainer`.

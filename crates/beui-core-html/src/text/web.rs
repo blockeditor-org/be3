@@ -9,7 +9,7 @@ use js_sys::{Array, Function, Reflect};
 use reactive::{Get, untrack};
 use wasm_bindgen::{JsCast, JsValue};
 
-use super::{Piece, Stop, TextModel, after, before, byte_at, model, text_stops};
+use super::{Piece, Stop, TextModel, TextSlot, after, before, byte_at, model, text_stops};
 use crate::css;
 use crate::node::NodeId;
 
@@ -132,7 +132,11 @@ fn stops(model: &TextModel) -> Stops {
                 at = start + text.len();
             }
             Piece::Item(slot) => {
-                let len = untrack(|| slot.get()).bytes();
+                let slot = untrack(|| slot.get());
+                if let TextSlot::Anchored(_) = slot {
+                    continue;
+                }
+                let len = slot.bytes();
                 if let Some(dom) = crate::dom::dom(node) {
                     stops.push(Stop::Atom {
                         byte: at,
@@ -667,6 +671,44 @@ fn boxes(
         }
     }
     boxes
+}
+
+fn restyle(node: NodeId, property: &'static str, value: Option<String>) -> bool {
+    if crate::document::style_value(node, property) == value {
+        return false;
+    }
+    crate::document::set_style(node, property, value);
+    true
+}
+
+pub(crate) fn place(model: &TextModel) -> bool {
+    let Some(frame) = frame(model.node) else {
+        return false;
+    };
+    let stops = stops(model);
+    let mut changed = false;
+    for (node, piece) in model.ordered() {
+        let Piece::Item(slot) = piece else {
+            continue;
+        };
+        let TextSlot::Anchored(at) = untrack(|| slot.get()) else {
+            continue;
+        };
+        let spot = at.map(|at| spot(&frame, &stops, at));
+        changed |= restyle(node, "display", spot.is_none().then(|| "none".to_owned()));
+        let (left, top, height) = match spot {
+            Some((x, line)) => (
+                Some(css::px((x - frame.rect.left()) as f32)),
+                Some(css::px((frame.line_top(line) - frame.rect.top()) as f32)),
+                Some(css::px(frame.line as f32)),
+            ),
+            None => (None, None, None),
+        };
+        changed |= restyle(node, "left", left);
+        changed |= restyle(node, "top", top);
+        changed |= restyle(node, "height", height);
+    }
+    changed
 }
 
 pub(crate) fn decorate(model: &Rc<TextModel>) -> bool {

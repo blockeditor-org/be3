@@ -15,6 +15,7 @@ pub struct View {
     pub scale_factor: f32,
     pub ratio: f32,
     pub spec: FrameSpec,
+    pub docked: bool,
 }
 
 impl View {

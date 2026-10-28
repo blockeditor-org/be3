@@ -6,7 +6,7 @@ use super::*;
 
 #[test]
 fn the_picker_never_offers_a_deleted_block_to_link() {
-    let (mut fixture, _) = editor();
+    let (fixture, _) = editor();
     let (kept, folder, inside) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
     let store = fixture.test.store();
     let mut notes = BlockInfo::new(kept, SHOWN_TYPE, BlockParent::Root);
@@ -19,9 +19,7 @@ fn the_picker_never_offers_a_deleted_block_to_link() {
     draft.set_name("Draft");
     store.add_block(draft);
 
-    fixture
-        .test
-        .request_pick(7, filter(), BlockLocation::Root, None);
+    let mut fixture = picking(&fixture, filter(), BlockLocation::Root);
     fixture.settle();
     fixture.test.click("picker.link-existing");
 

@@ -26,9 +26,13 @@ use beui_components_styled::text::{Icon, Text, TextColor, TextSize};
 use beui_components_styled::theme::{NARROW_WIDTH, POINTER_REACH, use_theme};
 use beui_components_styled::tokens::{Padding, Size, Space, Stroke};
 use beui_components_styled::tooltip::Tooltip;
+use beui_components_unstyled::Container;
 use beui_components_unstyled::Picture;
+use beui_view::primitives::Drawing;
 use beui_view::types::Align2;
 use beui_view::types::{Align, Direction, ItemSize, Justify};
+use beui_view::types::{Color, Corners, Rect, Vec2, pos2};
+use std::rc::Rc;
 
 use beui_view::primitives::Layers;
 use beui_view::reactive::NodeId;
@@ -48,6 +52,7 @@ const TAB_HEIGHT: Size = Size::Toolbar;
 const TAB_RADIUS: Radius = Radius::Tab;
 const TAB_SPACING: Space = Space::Md;
 const BAR_HEIGHT: f32 = 39.0;
+const ROOMY_BAR: f32 = 400.0;
 const BAR_PADDING: Space = Space::Xs;
 const BAR_SPACING: Space = Space::Xs2;
 const GRIP_WIDTH: Size = Size::Xs;
@@ -73,9 +78,9 @@ const AWAY_PADDING: Space = Space::Xl3;
 const PREVIEW_OPACITY: f32 = 0.92;
 const WAITING_DOT: Size = Size::Custom(6.0);
 const CARD_POINTER_ROOM: Sides = Sides::all(POINTER_REACH);
-const CARD_MARGIN: u16 =
+pub const CARD_MARGIN: u16 =
     (beui_components_styled::dialog::MARGIN.px() - CARD_POINTER_ROOM.top) as u16;
-const CARD_GAP: u16 = (POINTER_REACH + 2.0) as u16;
+pub const CARD_GAP: u16 = (POINTER_REACH + 2.0) as u16;
 
 #[component]
 pub fn Docking<K>(
@@ -213,6 +218,7 @@ fn DockTabFace(handle: DockTabHandle) -> NodeId {
         close,
         vertical,
         icons_only,
+        host,
         ..
     } = handle;
     let grouped = matches!(entry, Entry::Group(_));
@@ -253,7 +259,7 @@ fn DockTabFace(handle: DockTabHandle) -> NodeId {
                             waiting
                             noticed
                             waiting_test_id={waiting_test_id(entry)}
-                            close_test_id={close_test_id(entry)}
+                            close_test_id={close_test_id(entry, host)}
                             close={close}
                         />
                     },
@@ -499,7 +505,7 @@ fn DockDialogSheet(handle: DockSheetHandle) -> NodeId {
     }
 }
 
-fn dialog_outline(focused: Memo<bool>, attention: ReadSignal<bool>) -> Memo<Option<Border>> {
+fn dialog_outline(focused: Memo<bool>, attention: Memo<bool>) -> Memo<Option<Border>> {
     create_memo(move || {
         let color = match (attention.get(), focused.get()) {
             (true, _) => ColorRole::Danger,
@@ -520,17 +526,117 @@ fn DockCardFace(handle: DockDialogHandle) -> NodeId {
         ..
     } = handle;
     view! {
+        <DockCard focused attention={create_memo(move || attention.get())} pointer>{body}</DockCard>
+    }
+}
+
+pub const CARD_INSET: f32 = POINTER_REACH + CHROME_PADDING.px();
+pub const CARD_POINTER: f32 = POINTER_REACH;
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum PointerSide {
+    Top,
+    Bottom,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct Pointing {
+    pub side: PointerSide,
+    pub at: f32,
+}
+
+#[component]
+pub fn DockCard(
+    #[prop(default = true)] focused: Prop<bool>,
+    #[prop(default = false)] attention: Prop<bool>,
+    #[prop(default = None)] pointing: Prop<Option<Pointing>>,
+    pointer: NodeRef,
+    children: Option<Child>,
+) -> NodeId {
+    let focused = create_memo(move || focused.get());
+    let attention = create_memo(move || attention.get());
+    let border = dialog_outline(focused, attention);
+    let body = children.unwrap_or_else(|| {
+        view! {
+            <Frame />
+        }
+    });
+    let card = view! {
         <Frame padding={Padding::custom(CARD_POINTER_ROOM)}>
             <Frame
                 @node_ref=&pointer
                 fill=ColorRole::SurfaceRaised
-                border={dialog_outline(focused, attention)}
+                border
                 radius=Radius::Lg
                 padding=CHROME_PADDING
             >
                 {body}
             </Frame>
         </Frame>
+    };
+    if matches!(pointing, Prop::Static(None)) {
+        return card;
+    }
+    let theme = use_theme();
+    let draw = Prop::dynamic(move || {
+        let pointing = pointing.get();
+        let fill = ColorRole::SurfaceRaised.resolve(&theme);
+        let outline = border.get().map(|border| border.color.resolve(&theme));
+        Rc::new(move |painter: &Painter, rect: Rect| {
+            if let Some(pointing) = pointing {
+                draw_card_pointer(painter, rect.shrink(POINTER_REACH), pointing, fill, outline);
+            }
+        }) as Draw
+    });
+    view! {
+        <Layers>
+            {card}
+            <Drawing draw />
+        </Layers>
+    }
+}
+
+fn draw_card_pointer(
+    painter: &Painter,
+    rect: Rect,
+    pointing: Pointing,
+    fill: Color,
+    outline: Option<Color>,
+) {
+    const TIP_RADIUS: f32 = 2.0;
+    let reach = CARD_POINTER;
+    let width = CHROME_BORDER;
+    let radius = Radius::Lg.px();
+    let (lowest, highest) = (
+        rect.left() + radius + reach + width,
+        rect.right() - radius - reach - width,
+    );
+    if lowest > highest {
+        return;
+    }
+    let x = (rect.left() + pointing.at).clamp(lowest, highest);
+    let half = (reach + width) / std::f32::consts::SQRT_2;
+    let around = rect.expand(reach + 1.0);
+    let (y, clip, tip) = match pointing.side {
+        PointerSide::Top => (
+            rect.top() + width,
+            Rect::from_min_max(around.min, pos2(around.right(), rect.top() + width)),
+            Corners::new(TIP_RADIUS, 0.0, 0.0, 0.0),
+        ),
+        PointerSide::Bottom => (
+            rect.bottom() - width,
+            Rect::from_min_max(pos2(around.left(), rect.bottom() - width), around.max),
+            Corners::new(0.0, 0.0, TIP_RADIUS, 0.0),
+        ),
+    };
+    let centre = pos2(x, y);
+    let square = Rect::from_center_size(centre, Vec2::splat(2.0 * half));
+    let turned = painter
+        .with_clip_rect(clip)
+        .rotated(centre, std::f32::consts::FRAC_PI_4);
+    turned.rect_filled(square, tip, fill);
+    if let Some(outline) = outline {
+        turned.rect_stroke(square, tip, width, outline);
     }
 }
 
@@ -564,7 +670,7 @@ fn DockWindowFace(handle: DockDialogHandle) -> NodeId {
         <Frame
             width=width
             fill=ColorRole::Background
-            border={dialog_outline(focused, attention)}
+            border={dialog_outline(focused, create_memo(move || attention.get()))}
             radius=Radius::Lg
             padding=CHROME_PADDING
         >
@@ -619,15 +725,16 @@ fn DockBarFace(handle: DockBarHandle) -> NodeId {
         closable,
         menu,
         close,
+        test_prefix,
         ..
     } = handle;
     let close = move || close.call();
     match vertical {
         true => view! {
-            <DockSideBar grip tabs title vacant menu closable icons_only close />
+            <DockSideBar grip tabs title vacant menu closable icons_only close test_prefix />
         },
         false => view! {
-            <DockTitleBar grip tabs title vacant menu closable close />
+            <DockTitleBar grip tabs title vacant menu closable close test_prefix />
         },
     }
 }
@@ -641,6 +748,7 @@ fn DockTitleBar(
     menu: Memo<Vec<MenuNode>>,
     closable: Memo<bool>,
     close: ClickCallback,
+    test_prefix: String,
 ) -> NodeId {
     let titled = tabs.is_none();
     let fill = bar_fill(vacant);
@@ -653,21 +761,37 @@ fn DockTitleBar(
                 padding={Padding::horizontal(BAR_PADDING)}
                 align={Align2::new(Align::Stretch, Align::Center)}
             >
-                <Frame>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
-                        {grip}
-                        {tabs} @sizing=ItemSize::Percent(100.0)
-                        <Show condition={titled}>|| {
-                            let title = title.clone(); view! {
-                                <Text overflow=Overflow::Ellipsis @sizing=ItemSize::Percent(100.0)>
-                                    {title}
-                                </Text>
-                            }
-                        }</Show>
-                        <DockMenu menu room=BarRoom::Wide />
-                        <DockClose closable close={close} />
-                    </List>
-                </Frame>
+                <Container>|size: ReadSignal<Vec2>| {
+                    let room = create_memo(move || match size.get().x < ROOMY_BAR {
+                        true => BarRoom::Narrow,
+                        false => BarRoom::Wide,
+                    });
+                    let menu_prefix = test_prefix.clone();
+                    view! {
+                        <List
+                            direction=Direction::Horizontal
+                            align=Align::Center
+                            spacing=BAR_SPACING
+                        >
+                            {grip}
+                            {tabs} @sizing=ItemSize::Percent(100.0)
+                            <Show condition={titled}>|| {
+                                let title = title.clone(); view! {
+                                    <Text
+                                        overflow=Overflow::Ellipsis
+                                        @sizing=ItemSize::Percent(100.0)
+                                    >
+                                        {title}
+                                    </Text>
+                                }
+                            }</Show>
+                            <Dynamic value={room}>|room: BarRoom|
+                                <DockMenu menu room test_prefix={menu_prefix.clone()} />
+                            </Dynamic>
+                            <DockClose closable close={close} test_prefix={test_prefix.clone()} />
+                        </List>
+                    }
+                }</Container>
             </Frame>
             <Frame fill={rule} height={Size::Custom(RULE)} />
         </List>
@@ -684,6 +808,7 @@ fn DockSideBar(
     closable: Memo<bool>,
     icons_only: Memo<bool>,
     close: ClickCallback,
+    test_prefix: String,
 ) -> NodeId {
     let titled = tabs.is_none();
     let fill = bar_fill(vacant);
@@ -692,6 +817,8 @@ fn DockSideBar(
         true => Justify::Center,
         false => Justify::SpaceBetween,
     });
+    let narrow = test_prefix.clone();
+    let column = test_prefix;
     view! {
         <List direction=Direction::Horizontal spacing=Space::None>
             <Frame fill={fill} padding=BAR_PADDING @sizing=ItemSize::Percent(100.0)>
@@ -703,16 +830,22 @@ fn DockSideBar(
                         spacing=BAR_SPACING
                     >
                         {grip}
-                        <Show condition={titles}>
-                            <List
-                                direction=Direction::Horizontal
-                                align=Align::Center
-                                spacing=BAR_SPACING
-                            >
-                                <DockMenu menu room=BarRoom::Narrow />
-                                <DockClose closable close={close} />
-                            </List>
-                        </Show>
+                        <Show condition={titles}>|| {
+                            let test_prefix = narrow.clone(); view! {
+                                <List
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    spacing=BAR_SPACING
+                                >
+                                    <DockMenu
+                                        menu
+                                        room=BarRoom::Narrow
+                                        test_prefix={test_prefix.clone()}
+                                    />
+                                    <DockClose closable close={close} test_prefix />
+                                </List>
+                            }
+                        }</Show>
                     </List>
                     {tabs} @sizing=ItemSize::Percent(100.0)
                     <Show condition={titled}>|| {
@@ -720,12 +853,18 @@ fn DockSideBar(
                             <Text overflow=Overflow::Ellipsis>{title}</Text>
                         }
                     }</Show>
-                    <Show condition={icons_only}>
-                        <List align=Align::Center spacing=BAR_SPACING>
-                            <DockMenu menu room=BarRoom::Column />
-                            <DockClose closable close={close} />
-                        </List>
-                    </Show>
+                    <Show condition={icons_only}>|| {
+                        let test_prefix = column.clone(); view! {
+                            <List align=Align::Center spacing=BAR_SPACING>
+                                <DockMenu
+                                    menu
+                                    room=BarRoom::Column
+                                    test_prefix={test_prefix.clone()}
+                                />
+                                <DockClose closable close={close} test_prefix />
+                            </List>
+                        }
+                    }</Show>
                 </List>
             </Frame>
         </List>
@@ -741,7 +880,7 @@ pub(crate) enum BarRoom {
 }
 
 #[component]
-pub(crate) fn DockMenu(menu: Memo<Vec<MenuNode>>, room: BarRoom) -> NodeId {
+pub(crate) fn DockMenu(menu: Memo<Vec<MenuNode>>, room: BarRoom, test_prefix: String) -> NodeId {
     let labels = match room {
         BarRoom::Wide => ActionLabels::Shown,
         BarRoom::Narrow | BarRoom::Column => ActionLabels::Icons,
@@ -756,23 +895,21 @@ pub(crate) fn DockMenu(menu: Memo<Vec<MenuNode>>, room: BarRoom) -> NodeId {
         BarRoom::Phone => ButtonSize::Regular,
     };
     view! {
-        <ActionBar
-            menu
-            labels
-            title={room == BarRoom::Phone}
-            direction
-            size
-            test_prefix={"dock".to_owned()}
-        />
+        <ActionBar menu labels title={room == BarRoom::Phone} direction size test_prefix />
     }
 }
 
 #[component]
-fn DockClose(closable: Memo<bool>, close: ClickCallback) -> DynamicSegment<ListChild> {
+fn DockClose(
+    closable: Memo<bool>,
+    close: ClickCallback,
+    test_prefix: String,
+) -> DynamicSegment<ListChild> {
     view! {
         <Show condition={closable}>
             <Button
                 icon_only=true
+                @test_id={format!("{test_prefix}.close")}
                 glyph=ICON_X
                 label="Close pane"
                 size=ButtonSize::Toolbar
@@ -878,10 +1015,12 @@ fn waiting_test_id(entry: Entry) -> String {
     }
 }
 
-fn close_test_id(entry: Entry) -> String {
-    match entry {
-        Entry::Tab(tab) => format!("dock.tab.{}.close", tab.value()),
-        Entry::Group(_) => String::new(),
+fn close_test_id(entry: Entry, host: Option<TabId>) -> String {
+    match (entry, host) {
+        (Entry::Tab(tab), _) | (Entry::Group(_), Some(tab)) => {
+            format!("dock.tab.{}.close", tab.value())
+        }
+        (Entry::Group(_), None) => String::new(),
     }
 }
 

@@ -190,15 +190,12 @@ impl MapState {
     }
 
     pub(crate) fn open_picker(self, at: Option<MapCoordinate>, anchor: Option<Rect>) {
-        let filter = BlockFilter {
-            anchor,
-            ..BlockFilter::default()
-        };
-        self.editor.pick_block(filter, move |picked| {
-            if let (true, Ok(picked)) = (self.inner.is_alive(), picked) {
-                self.place_picked(picked.id(), at);
-            }
-        });
+        self.editor
+            .pick_block(BlockFilter::default(), anchor, move |picked| {
+                if let (true, Ok(picked)) = (self.inner.is_alive(), picked) {
+                    self.place_picked(picked.id(), at);
+                }
+            });
     }
 
     fn place_picked(&self, block_id: Uuid, at: Option<MapCoordinate>) {

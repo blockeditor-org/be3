@@ -4,12 +4,56 @@ package be3:plugin@0.1.0;
 interface types {
     use accessibility.{description};
     use be3:ui/types@0.1.0.{
-        modifiers, pos2, rect, input, preferences, window-requests, window-role,
+        key-chord, modifiers, pos2, rect, input, preferences, window-requests, window-role,
     };
 
     use be3:shared/ids@0.1.0.{
         account-id, block-id, block-type-id, organization-id, surface-id, uuid,
     };
+
+    /// Where a command shows outside its menu.
+    enum menu-pin {
+        none,
+        icon,
+        label,
+        title,
+    }
+
+    variant menu-check {
+        none,
+        checkbox(bool),
+        radio(bool),
+    }
+
+    record menu-command {
+        id: string,
+        label: string,
+        glyph: string,
+        enabled: bool,
+        check: menu-check,
+        shortcut: option<key-chord>,
+        pin: menu-pin,
+    }
+
+    /// A submenu's own fields; its entries follow it.
+    record menu-heading {
+        id: string,
+        label: string,
+        glyph: string,
+    }
+
+    variant menu-item-kind {
+        command(menu-command),
+        submenu(menu-heading),
+        separator,
+    }
+
+    /// One entry of a menu flattened in order: the entries of a submenu
+    /// follow it one level deeper.
+    record menu-item {
+        depth: u32,
+        kind: menu-item-kind,
+    }
 
     /// An editor a plugin's manifest declares.
     type editor-id = uuid;
@@ -98,12 +142,16 @@ interface types {
     /// the others, numbered from 1 in the order the host lists its displays.
     /// `window(w)` is a window the plugin asked for with
     /// `window-request.open` and the host shows as one of its own.
+    /// `tab(t)` is the body of the instance's own dock tab `t` (a
+    /// `dock-tab-path` with no `via`), which the dock that hosts the
+    /// instance's dock shows: see `dock-message`.
     variant editor-region {
         frame,
         preview,
         artifact-settings,
         display(u32),
         window(u64),
+        tab(u64),
     }
 
     enum frame-chrome {
@@ -157,6 +205,10 @@ interface types {
     /// draws them inside the screen. `placement` is, for a `window` region,
     /// where the host last put it, a value only the host reads, which the
     /// plugin keeps and hands back to open the window there again.
+    /// `docked` says the dock this region shows joins the dock of the
+    /// instance that placed it (`child-placement.docks`): it declares itself
+    /// (`dock-message.declare`) and draws no chrome, and the host shows each
+    /// of its tabs as a `tab(t)` region.
     record screen-request {
         screen: screen-id,
         instance: editor-instance-id,
@@ -165,6 +217,7 @@ interface types {
         frame: option<frame-spec>,
         windows: bool,
         placement: option<string>,
+        docked: bool,
     }
 
     record screen-placement {
@@ -258,6 +311,46 @@ interface types {
         block-id: block-id,
     }
 
+    /// Where a block is listed: at the root, detached from every parent, or
+    /// inside a block.
+    variant block-location {
+        root,
+        detached,
+        block(block-id),
+    }
+
+    /// Which blocks a pick offers: of these types (any when empty), never the
+    /// excluded ones, with templates to make new ones from or not, and placed
+    /// in `place` once chosen.
+    record block-filter {
+        name: string,
+        block-types: list<block-type-id>,
+        excluded: list<block-id>,
+        templates: bool,
+        place: option<block-location>,
+    }
+
+    /// A block chosen in a pick, and whether it was linked or placed.
+    record picked-block {
+        block-id: block-id,
+        block-type: block-type-id,
+        linked: bool,
+        placed: bool,
+    }
+
+    /// What a pick answers: the block chosen, or none when the user cancelled.
+    type block-pick = result<option<picked-block>, failure>;
+
+    /// A picker for a block: the host runs it in the editor whose manifest
+    /// accepts `pick`, which makes new blocks in `parent` unless the filter
+    /// places them, and lays it out for touch when `touch` is set. Its answer
+    /// arrives as the child's `child-status.picked`.
+    record picker-child {
+        filter: block-filter,
+        parent: block-location,
+        touch: bool,
+    }
+
     /// What a child an editor placed shows.
     variant child-content {
         block(block-child),
@@ -266,6 +359,11 @@ interface types {
         window(host-window-id),
         creation(creation-child),
         artifact-settings(artifact-settings-child),
+        /// The body of a tab a descendant declared, as a `tab(t)` region of
+        /// the instance that owns it; `via` names at least one child. Only
+        /// the root of a dock places one.
+        dock-tab(dock-tab-path),
+        picker(picker-child),
     }
 
     record child-placement {
@@ -285,6 +383,10 @@ interface types {
         /// Set when the editor shows the child as a dialog, which the host
         /// passes on to the child's frame.
         dialog: option<dialog-frame>,
+        /// The editor's own dock tab whose body the child is placed in: the
+        /// child's frame is requested `docked`, and the host splices the
+        /// child's dock in place of that tab.
+        docks: option<u64>,
     }
 
     /// A rectangle that hides the children placed before it.
@@ -409,6 +511,8 @@ interface types {
         animating: bool,
         presented: option<presented-frame>,
         window-requests: list<window-request>,
+        /// What the plugin's docks say to the host, in order.
+        docks: list<dock-message>,
     }
 
     record open-block {
@@ -445,11 +549,258 @@ interface types {
         data: list<u8>,
     }
 
-    /// How an editor instance opens: on a block, as a creation dialog, or on
-    /// an artifact's settings.
+    /// A picker another editor placed as a child, which answers with
+    /// `shell.picked`.
+    record open-picker {
+        instance: editor-instance-id,
+        editor: editor-id,
+        filter: block-filter,
+        parent: block-location,
+        touch: bool,
+        account-id: account-id,
+        organization-id: organization-id,
+        client-id: installation-id,
+    }
+
+    /// How an editor instance opens: on a block, as a creation dialog, on an
+    /// artifact's settings, or as a picker.
     variant opening {
         block(open-block),
         creation(open-creation),
         artifact(open-artifact),
+        picker(open-picker),
+    }
+
+    // Docking across plugins. A docked region declares its own tree; the
+    // host splices each declaration into the one of the instance that placed
+    // it, in place of the tab the child is in, up to the root: the outermost
+    // instance, whose dock is not docked, which holds the only state and
+    // draws every tab bar, and alone hears and hosts its children's docks.
+
+    /// A tab, as the instance that declares it names it: its own tab `tab`
+    /// when `via` is empty, or else a tab of a docked child's declaration,
+    /// through the children that lead to its owner, outermost first. Each
+    /// child is numbered by the instance before it (the first by the instance
+    /// that names the path), and `tab` by the owner.
+    record dock-tab-path {
+        via: list<child-id>,
+        tab: u64,
+    }
+
+    /// `horizontal` puts the halves side by side, the first on the left.
+    enum dock-direction {
+        horizontal,
+        vertical,
+    }
+
+    /// Two halves, which follow it one level deeper, first then second.
+    /// `fraction` is the first half's share, from 0 to 1.
+    record dock-split {
+        key: string,
+        direction: dock-direction,
+        fraction: f32,
+    }
+
+    /// A pane of tabs, whose entries (tabs and groups) follow it one level
+    /// deeper. `active` indexes the entries; `none` in a declaration keeps
+    /// what the holder shows. `area` is the locked area the pane belongs to,
+    /// whose tabs stay in it: in a declaration the pane's own key, which
+    /// locks it; in a layout also a pane split off a locked one. `empty`, in
+    /// a declaration, names a body that is no tab of the tree: the `tab(t)`
+    /// region its owner draws in the pane while the pane holds no tab.
+    record dock-pane {
+        key: string,
+        active: option<u32>,
+        vertical: bool,
+        icons-only: bool,
+        sidebar: f32,
+        keep: bool,
+        area: option<string>,
+        empty: option<dock-tab-path>,
+    }
+
+    /// A group of tabs shown as one entry of a pane, whose root (a split or
+    /// a pane) follows it one level deeper. A `pinned` group's tabs stay in
+    /// it. `child` says the host spliced a docked child's declaration in as
+    /// the group; a plugin declares none of its own.
+    record dock-group {
+        key: string,
+        pinned: bool,
+        child: option<child-id>,
+    }
+
+    /// A floating window of the dock, in the points of the region that
+    /// declares it; its root, if any, follows it one level deeper.
+    record dock-window {
+        key: string,
+        rect: rect,
+    }
+
+    variant dock-item-kind {
+        split(dock-split),
+        pane(dock-pane),
+        tab(dock-tab-path),
+        group(dock-group),
+        window(dock-window),
+    }
+
+    /// One node of a dock tree flattened in order, its children following
+    /// it one level deeper.
+    record dock-item {
+        depth: u32,
+        kind: dock-item-kind,
+    }
+
+    /// A dock's tree: at depth 0, at most one split or pane (the main area)
+    /// and the floating windows. A declaration names every key; a layout
+    /// leaves a key empty for a node the user made.
+    record dock-tree {
+        items: list<dock-item>,
+        focus: option<dock-tab-path>,
+    }
+
+    /// How a declared tab looks. `key` names it for good, across runs, in
+    /// the declaring instance: what a layout is saved under, which the host
+    /// prefixes when it splices. `glyph` is a glyph of the host's icon font,
+    /// as a menu's, or empty.
+    record dock-tab {
+        tab: dock-tab-path,
+        key: string,
+        title: string,
+        glyph: string,
+        closable: bool,
+        /// The tab's own menu, which the root shows on the tab's bar; a pick
+        /// reaches the tab's owner as a `dock-update.pick` of the tab.
+        menu: list<menu-item>,
+    }
+
+    /// A dialog of the dock, which the root presents as it presents its own,
+    /// over `parent` (a tab of the tree or another dialog): a window, or a
+    /// `card` hung from the parent's place (from `anchor`, in the points of
+    /// the region showing the parent's body, if any), modal when `modal`.
+    /// Its body is the owner's `tab(t)` region for `tab`, which is no tab of
+    /// the tree; closing it reaches the owner as a `close` of `tab`.
+    record dock-dialog {
+        tab: dock-tab-path,
+        parent: dock-tab-path,
+        title: string,
+        glyph: string,
+        size: size,
+        modal: bool,
+        card: bool,
+        dismiss-on-outside-press: bool,
+        anchor: option<rect>,
+        closable: bool,
+    }
+
+    /// The dock a region declares, which its holder shows in place of the
+    /// tab the region's instance was placed in, as a pinned group. Every tab
+    /// of the tree is described in `tabs`, and only those. A plugin declares
+    /// only its own tabs; the root hears declarations the host spliced.
+    record dock-declaration {
+        tree: dock-tree,
+        tabs: list<dock-tab>,
+        dialogs: list<dock-dialog>,
+    }
+
+    /// Where a tab moved out of its area belongs: a locked area, by its
+    /// key, or a pinned group, by its key.
+    variant dock-place {
+        area(string),
+        group(string),
+    }
+
+    record dock-home {
+        tab: dock-tab-path,
+        place: dock-place,
+        pinned: bool,
+    }
+
+    /// A dock as its holder holds it, which it hands back to `restore`.
+    record dock-layout {
+        tree: dock-tree,
+        homes: list<dock-home>,
+    }
+
+    /// What the root shows of a docked dock, in the declaring instance's own
+    /// paths and keys. `layout` is the declaration's group as it now is;
+    /// `tabs` every declared tab it holds, in the group or moved out of it;
+    /// `visible` the tabs whose bodies are on screen, the only `tab(t)`
+    /// regions the host shows; `shown` the tab a stacked dock shows. The
+    /// host splits what the root hosts into each instance's own part, where
+    /// a spliced child's group is the tab it was placed in again.
+    record dock-hosted {
+        layout: dock-layout,
+        tabs: list<dock-tab-path>,
+        focused: option<dock-tab-path>,
+        shown: option<dock-tab-path>,
+        visible: list<dock-tab-path>,
+        fullscreen: option<dock-tab-path>,
+        stacked: bool,
+    }
+
+    /// `area` is the rectangle the tab covers, in the points of the region
+    /// that shows the tab's body; `none` covers the whole dock.
+    record dock-fullscreen {
+        tab: dock-tab-path,
+        area: option<rect>,
+    }
+
+    /// What a hosted dock asks of its holder: to show a tab, to replace the
+    /// group with a layout (restoring one saved, or a fresh one to reset),
+    /// or to show a tab full screen (`none` leaves full screen).
+    variant dock-request {
+        show(dock-tab-path),
+        restore(dock-layout),
+        fullscreen(option<dock-fullscreen>),
+    }
+
+    record dock-declare {
+        region: region-ref,
+        declaration: option<dock-declaration>,
+    }
+
+    record dock-region-request {
+        region: region-ref,
+        request: dock-request,
+    }
+
+    /// A docked child an instance placed.
+    record dock-child {
+        instance: editor-instance-id,
+        child: child-id,
+    }
+
+    record dock-child-hosted {
+        child: dock-child,
+        hosted: option<dock-hosted>,
+    }
+
+    /// `tab` is in the child's paths; the host closes it at its owner.
+    record dock-child-close {
+        child: dock-child,
+        tab: dock-tab-path,
+    }
+
+    /// The user picked command `id` of the menu `tab` carries; `tab` is in
+    /// the child's paths, and the host hands the pick to its owner.
+    record dock-child-pick {
+        child: dock-child,
+        tab: dock-tab-path,
+        id: string,
+    }
+
+    /// What a plugin's docks say, in a frame. A docked region (one whose
+    /// screen request is `docked`) declares its dock, replacing the last
+    /// declaration, `none` withdrawing it, and asks of the root. The root
+    /// hosts each docked child's spliced declaration: it hands the child
+    /// what it holds of it, replacing the last, `none` letting go; and it
+    /// passes on the user closing a tab or picking from a tab's menu.
+    variant dock-message {
+        declare(dock-declare),
+        request(dock-region-request),
+        host(dock-child-hosted),
+        close(dock-child-close),
+        pick(dock-child-pick),
     }
 }

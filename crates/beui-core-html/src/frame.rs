@@ -171,6 +171,11 @@ pub fn on_layout(pass: Rc<dyn Fn() -> bool>) {
     request_frame();
 }
 
+pub(crate) fn hold_layout(pass: &Rc<dyn Fn() -> bool>) {
+    LAYOUT.with(|passes| passes.borrow_mut().push(Rc::downgrade(pass)));
+    request_frame();
+}
+
 pub fn watch_placed(node: NodeId) -> ReadSignal<bool> {
     let held = PLACED.with(|placed| placed.borrow().get(&node).map(|signal| signal.handle()));
     let signal = match held {

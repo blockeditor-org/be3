@@ -113,7 +113,7 @@ pub use segmented_control::SegmentedControl;
 pub use select::Select;
 pub use selectable_text::SelectableText;
 pub use settings::{SettingsLink, SettingsPage, SettingsRow, SettingsSection};
-pub use sheet::{ModalSheet, SHEET_STOPS, Sheet};
+pub use sheet::{ModalSheet, SHEET_STOPS, Sheet, modal_sheet_room};
 pub use shortcut::Shortcut;
 pub use slider::Slider;
 pub use split_button::SplitButton;
@@ -150,9 +150,9 @@ pub mod radio_group;
 pub mod toggle_button;
 pub use beui_components_unstyled::{
     ButtonApi, CalendarApi, ChoiceApi, ColorAreaApi, ColorWheelApi, CommandPaletteApi,
-    ContextMenuApi, DateTimeFieldApi, DisclosureApi, MenuListApi, NumberInputApi, PanZoomApi,
-    PopoverApi, ScrollApi, SelectApi, SliderApi, TOAST_DURATION, TextAreaApi, TextInputApi,
-    TimeListApi, Toast, ToastAction, ToggleApi, TreeApi, TreeMenu,
+    ContextMenuApi, DateTimeFieldApi, DisclosureApi, Form, InputKind, MenuListApi, NumberInputApi,
+    PanZoomApi, PopoverApi, ScrollApi, SelectApi, SliderApi, TOAST_DURATION, TextAreaApi,
+    TextInputApi, TimeListApi, Toast, ToastAction, ToggleApi, TreeApi, TreeMenu,
 };
 pub use beui_view::components::selectable::SelectableState;
 pub use listbox::Listbox;

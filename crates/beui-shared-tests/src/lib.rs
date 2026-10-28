@@ -79,6 +79,9 @@ pub fn Fixture(name: String) -> Root {
         "editing" => view! {
             <EditingFixture />
         },
+        "text_item" => view! {
+            <TextItemFixture />
+        },
         "text_input" => view! {
             <TextInputFixture />
         },
@@ -123,6 +126,9 @@ pub fn Fixture(name: String) -> Root {
         },
         "scroll" => view! {
             <rows::ScrollFixture />
+        },
+        "scroll_chain" => view! {
+            <rows::ScrollChainFixture />
         },
         "drag" => view! {
             <rows::DragFixture />
@@ -767,15 +773,82 @@ fn EditingFixture() -> NodeId {
 }
 
 #[component]
-fn TextInputFixture() -> NodeId {
-    let value = create_signal("ab cd".to_owned());
-    let report = create_memo(move || format!("Value {}", value.get()));
+fn TextItemFixture() -> NodeId {
+    let stops = [0_usize, 3, 6];
+    let step = create_signal(0_usize);
+    let at = create_memo(move || Some(stops[step.get() % stops.len()]));
+    let marker = view! {
+        <Frame @test_id="text_item.marker" width=2.0 fill={BLUE} />
+    };
+    let text = view! {
+        <Text color={INK} font={FontId::monospace(16.0)} overflow={beui::Overflow::Visible}>
+            "ab cd"
+            <Break />
+            "ef"
+            <TextItem at={at}>{marker}</TextItem>
+        </Text>
+    };
+    let geometry = measure_text(text);
+    let placed = measured_rect(marker);
+    let report = create_memo(move || {
+        let Some(at) = at.get() else {
+            return "Marker hidden".to_owned();
+        };
+        let caret = geometry
+            .get()
+            .and_then(|geometry| geometry.caret_rect(at, 2.0));
+        match (placed.get(), caret) {
+            (Some(placed), Some(caret))
+                if (placed.left() - caret.left()).abs() < 1.0
+                    && (placed.top() - caret.top()).abs() < 1.0 =>
+            {
+                format!("Marker at {at} on its caret")
+            }
+            (placed, caret) => format!("Marker at {at} placed {placed:?} caret {caret:?}"),
+        }
+    });
     view! {
         <List spacing=12.0>
-            <Frame width=240.0>
-                <beui::styled::TextInput @test_id="text_input.field" value={value} />
-            </Frame>
+            <Frame width=240.0 padding={Sides::all(8.0)} fill={PAPER}>{text}</Frame>
             <Text color={INK}>{report}</Text>
+            <Button
+                id="text_item.next"
+                label="Next"
+                on_click={move || step.set(step.get_untracked() + 1)}
+            />
         </List>
+    }
+}
+
+#[component]
+fn TextInputFixture() -> NodeId {
+    let value = create_signal("ab cd".to_owned());
+    let secret = create_signal(String::new());
+    let sent = create_signal(0);
+    let report = create_memo(move || format!("Value {}", value.get()));
+    let hidden = create_memo(move || format!("Secret {}", secret.get()));
+    let count = create_memo(move || format!("Sent {}", sent.get()));
+    view! {
+        <beui::styled::Form on_submit={move || sent.update(|sent| *sent += 1)}>
+            <List spacing=12.0>
+                <Frame width=240.0>
+                    <beui::styled::TextInput @test_id="text_input.field" value={value} />
+                </Frame>
+                <Frame width=240.0>
+                    <beui::styled::TextInput
+                        @test_id="text_input.password"
+                        value={secret}
+                        label="Password"
+                        kind={beui::styled::InputKind::Password}
+                        name="password"
+                        autocomplete="current-password"
+                    />
+                </Frame>
+                <beui::styled::Button label="Send" submit=true />
+                <Text color={INK}>{report}</Text>
+                <Text color={INK}>{hidden}</Text>
+                <Text color={INK}>{count}</Text>
+            </List>
+        </beui::styled::Form>
     }
 }
