@@ -61,6 +61,15 @@ fn nested(restored: Option<DockingSnapshot<u64>>) -> DocumentTest {
     test
 }
 
+fn text_center(test: &DocumentTest, text: &str) -> Pos2 {
+    let document = test.document();
+    let root = document.root().expect("the test built a root");
+    find_text(document, root, text)
+        .and_then(|node| document.node_rect(node))
+        .unwrap_or_else(|| panic!("{text} is shown"))
+        .center()
+}
+
 fn text_x(test: &DocumentTest, text: &str) -> f32 {
     let document = test.document();
     let root = document.root().expect("the test built a root");
@@ -102,12 +111,14 @@ fn a_nested_dock_saved_with_a_tab_moved_out_comes_back_once_it_joins_again() {
         text_x(&test, "Beta") < SIZE.x / 2.0,
         "the inner tabs join the outer dock where the host tab was"
     );
-    test.click_with(Target::text("Beta"), PointerButton::Secondary);
+    let beta = text_center(&test, "Beta");
+    test.click_with(Target::point(beta), PointerButton::Secondary);
     test.frame(Vec::new());
-    test.click(Target::text("Unlock"));
+    assert!(menu_shows(&test, "Unlock"), "the tab menu opened");
+    test.click("dock.tab.lock");
     test.frame(Vec::new());
     let bar = pos2(text_x(&test, "Other") + 60.0, BAR_Y);
-    test.drag(Target::text("Beta"), Target::point(bar));
+    test.drag(Target::point(beta), Target::point(bar));
     test.frame(Vec::new());
     test.settle();
     assert!(

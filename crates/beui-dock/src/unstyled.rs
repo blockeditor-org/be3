@@ -2809,7 +2809,7 @@ fn TabMenu(
                 <MenuItem label={split_label} disabled={alone} />
                 <MenuItem label={close_label} disabled={unclosable} />
                 <Show condition={!grouped}>
-                    <MenuItem label={pin_label} disabled={homeless} />
+                    <MenuItem label={pin_label} disabled={homeless} @test_id={"dock.tab.lock"} />
                 </Show>
                 <Show condition={grouped}>
                     <MenuItem label="Ungroup" disabled={pinned} />
