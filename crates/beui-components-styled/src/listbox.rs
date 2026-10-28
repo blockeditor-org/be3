@@ -6,12 +6,15 @@ use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
 #[component]
-pub fn Listbox(
-    #[prop(default = ComponentRef::new())] api: ComponentRef<crate::ChoiceApi>,
+pub fn Listbox<T>(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<crate::ChoiceApi<T>>,
 
-    options: Children<ChoiceOption>,
-    #[prop(default = None)] selected: Binding<Option<usize>>,
-) -> NodeId {
+    options: Children<ChoiceOption<T>>,
+    #[prop(default = None)] selected: Binding<Option<T>>,
+) -> NodeId
+where
+    T: Clone + PartialEq + 'static,
+{
     view! {
         <Choice
             api

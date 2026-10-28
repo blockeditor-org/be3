@@ -7,15 +7,12 @@ fn the_editor_changes_rules_and_keeps_the_comments() {
     let mut editor = editor(RemapState::On, Some(WRITTEN));
 
     editor.click("input-remaps.group.0.add-rule");
-    editor.run();
     editor.click("input-remaps.group.0.rule.1.key");
-    editor.run();
     editor.key(
         block_editor_beui::beui::Key::A,
         block_editor_beui::beui::Modifiers::CTRL,
     );
     editor.type_text("K");
-    editor.run();
 
     let text = stored(&editor);
     assert!(
@@ -27,6 +24,5 @@ fn the_editor_changes_rules_and_keeps_the_comments() {
     editor.snapshot("the_editor_changes_rules_and_keeps_the_comments");
 
     editor.click("input-remaps.group.0.rule.0.remove");
-    editor.run();
     assert!(!stored(&editor).contains("MouseLeft"));
 }

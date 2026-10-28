@@ -66,34 +66,34 @@ pub fn ChoicesFixture() -> NodeId {
         <List spacing=Space::Md>
             <RadioGroup
                 options={view! {
-                    <ChoiceOption label="Automatic" />
-                    <ChoiceOption label="Manual" />
-                    <ChoiceOption label="Scheduled" />
+                    <ChoiceOption value=0_usize label="Automatic" />
+                    <ChoiceOption value=1_usize label="Manual" />
+                    <ChoiceOption value=2_usize label="Scheduled" />
                 }}
                 selected={mode}
             />
             <SegmentedControl
                 label="Period"
                 options={view! {
-                    <ChoiceOption label="Day" />
-                    <ChoiceOption label="Week" />
-                    <ChoiceOption label="Month" />
+                    <ChoiceOption value=0_usize label="Day" />
+                    <ChoiceOption value=1_usize label="Week" />
+                    <ChoiceOption value=2_usize label="Month" />
                 }}
                 selected={period}
             />
             <Tabs
                 label="Section"
                 options={view! {
-                    <ChoiceOption label="Overview" />
-                    <ChoiceOption label="Details" />
+                    <ChoiceOption value=0_usize label="Overview" />
+                    <ChoiceOption value=1_usize label="Details" />
                 }}
                 selected={tab}
             />
             <Listbox
                 options={view! {
-                    <ChoiceOption label="Amber" />
-                    <ChoiceOption label="Blue" />
-                    <ChoiceOption label="Green" />
+                    <ChoiceOption value=0_usize label="Amber" />
+                    <ChoiceOption value=1_usize label="Blue" />
+                    <ChoiceOption value=2_usize label="Green" />
                 }}
                 selected={color}
             />
@@ -135,9 +135,9 @@ pub fn MenusFixture() -> NodeId {
                 />
                 <Select
                     options={view! {
-                        <ChoiceOption label="Apple" />
-                        <ChoiceOption label="Banana" />
-                        <ChoiceOption label="Cherry" />
+                        <ChoiceOption value=0_usize label="Apple" />
+                        <ChoiceOption value=1_usize label="Banana" />
+                        <ChoiceOption value=2_usize label="Cherry" />
                     }}
                     selected={fruit}
                     label="Fruit"

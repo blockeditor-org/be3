@@ -1,3 +1,4 @@
+use beui::native::testing::Gui;
 use std::time::Duration;
 
 use beui::{Key, Modifiers, Vec2};

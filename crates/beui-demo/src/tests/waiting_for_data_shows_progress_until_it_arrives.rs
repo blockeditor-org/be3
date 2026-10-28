@@ -6,12 +6,12 @@ fn waiting_for_data_shows_progress_until_it_arrives() {
     let root = test.document().root().expect("the demo built a root");
     reveal(&mut test, "demo.loading.arrive");
     assert!(
-        !test.shows("demo.loading.content"),
+        !test.shown("demo.loading.content"),
         "nothing is shown before it arrives"
     );
 
     test.click("demo.loading.arrive");
     test.frame(Vec::new());
-    assert!(test.shows("demo.loading.content"));
+    assert!(test.shown("demo.loading.content"));
     assert_eq!(showing(test.document(), root, "Hello, the data is here"), 1);
 }

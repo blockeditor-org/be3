@@ -29,16 +29,19 @@ const OPTION_PADDING_VERTICAL: Space = Space::Sm;
 const ARROW_SPACING: Space = Space::Xs;
 
 #[component]
-pub fn Select(
-    #[prop(default = ComponentRef::new())] api: ComponentRef<crate::SelectApi>,
+pub fn Select<T>(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<crate::SelectApi<T>>,
 
-    options: Children<ChoiceOption>,
-    #[prop(default = None)] selected: Binding<Option<usize>>,
+    options: Children<ChoiceOption<T>>,
+    #[prop(default = None)] selected: Binding<Option<T>>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = String::new())] placeholder: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = Length::Extent(Extent::at_most(TRIGGER_MAX_WIDTH)))] width: Prop<Length>,
-) -> NodeId {
+) -> NodeId
+where
+    T: Clone + PartialEq + 'static,
+{
     let options = options.into_run();
     let placeholder = create_memo(move || placeholder.get());
     view! {

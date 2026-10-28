@@ -10,13 +10,10 @@ fn text_left_empty_leaves_nothing_behind() {
         let tap = |editor: &mut BeuiTest<CanvasApp>, at: Pos2| match finger {
             true => {
                 editor.fingers(TouchPhase::Start, &[(1, at)]);
-                editor.run();
                 editor.fingers(TouchPhase::End, &[(1, at)]);
-                editor.run();
             }
             false => {
                 editor.click(at);
-                editor.run();
             }
         };
         let write = |editor: &mut BeuiTest<CanvasApp>, at: Pos2| {

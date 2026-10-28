@@ -1,6 +1,6 @@
 use std::any::Any;
 
-use crate::base::list::Align;
+use crate::base::list::{Align, Direction};
 use crate::color::Color;
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2, vec2};
@@ -109,6 +109,14 @@ impl FrameNode {
         inner: Rect,
     ) -> Rect {
         let grid = doc.pixel_grid();
+        let inner = crate::layout::stretched(
+            doc,
+            painter,
+            child,
+            inner,
+            self.align.horizontal == Align::Stretch,
+            self.align.vertical == Align::Stretch,
+        );
         if self.align == Align2::STRETCH {
             return inner;
         }
@@ -254,6 +262,14 @@ impl Element for FrameNode {
 
     fn relayout_boundary(&self) -> bool {
         self.width.exact.is_some() && self.height.exact.is_some()
+    }
+
+    fn sizes_itself(&self, _doc: &Document, axis: Direction) -> bool {
+        let extent = match axis {
+            Direction::Horizontal => self.width,
+            Direction::Vertical => self.height,
+        };
+        extent.exact.is_none() && extent.fraction.is_some()
     }
 
     fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect) {

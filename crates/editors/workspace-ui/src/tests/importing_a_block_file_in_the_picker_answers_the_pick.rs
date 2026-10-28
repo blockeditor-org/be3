@@ -16,7 +16,6 @@ fn importing_a_block_file_in_the_picker_answers_the_pick() {
     fixture.test.take_requests();
 
     fixture.test.click("picker.import");
-    fixture.settle();
 
     let imports: Vec<_> = fixture
         .test
@@ -46,7 +45,6 @@ fn importing_a_block_file_in_the_picker_answers_the_pick() {
     assert!(fixture.test.take_picked().is_empty());
 
     fixture.test.click("picker.import");
-    fixture.settle();
     let request = fixture
         .test
         .take_requests()

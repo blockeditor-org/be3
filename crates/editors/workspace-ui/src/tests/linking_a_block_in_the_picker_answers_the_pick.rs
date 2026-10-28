@@ -23,11 +23,9 @@ fn linking_a_block_in_the_picker_answers_the_pick() {
     );
 
     fixture.test.click("picker.link-existing");
-    fixture.settle();
     fixture
         .test
         .double_click(format!("picker.link.{linked}.row"));
-    fixture.settle();
 
     assert_eq!(
         fixture.test.take_picked(),

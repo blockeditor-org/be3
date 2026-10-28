@@ -1,5 +1,6 @@
 use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
+use block_ui_test::prelude::*;
 use database_types::database_schema::{DatabaseSchema, DatabaseSchemaContent};
 use uuid::Uuid;
 

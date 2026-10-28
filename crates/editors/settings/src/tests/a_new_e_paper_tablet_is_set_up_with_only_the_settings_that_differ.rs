@@ -27,7 +27,6 @@ fn a_new_e_paper_tablet_is_set_up_with_only_the_settings_that_differ() {
     setup.editor.snapshot("setting_up_an_e_paper_tablet");
 
     setup.editor.click("setup.done");
-    setup.editor.run();
     assert!(!setup.shows("setup.done"));
     assert!(
         setup.shows("setup.kind"),

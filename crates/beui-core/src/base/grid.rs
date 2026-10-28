@@ -211,6 +211,8 @@ impl Element for GridNode {
                 pos2(rect.left() + left, rect.top() + row_starts[cell.row]),
                 vec2(width, plan.rows[cell.row]),
             );
+            let cell_rect =
+                crate::layout::stretched(doc, painter, cell.child, cell_rect, true, true);
             crate::layout::layout(doc, painter, cell.child, cell_rect, out);
         }
     }

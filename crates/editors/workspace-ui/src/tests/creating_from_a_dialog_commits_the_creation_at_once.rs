@@ -19,7 +19,6 @@ fn creating_from_a_dialog_commits_the_creation_at_once() {
         .test
         .click(format!("picker.menu.{TEMPLATE_EDITOR}/main"));
     fixture.settle();
-    fixture.settle();
 
     report_creation_dialog(
         &mut fixture,

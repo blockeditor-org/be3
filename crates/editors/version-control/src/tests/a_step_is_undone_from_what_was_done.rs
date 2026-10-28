@@ -33,7 +33,6 @@ fn a_step_is_undone_from_what_was_done() {
     editor.snapshot("a_step_is_undone_from_what_was_done");
 
     editor.click(format!("version.undo.{}", short_id(&[2; 16])));
-    editor.run();
 
     assert_eq!(
         editor.take_version_commands(),

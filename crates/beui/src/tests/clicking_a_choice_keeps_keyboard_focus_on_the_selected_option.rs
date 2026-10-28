@@ -8,11 +8,11 @@ fn clicking_a_choice_keeps_keyboard_focus_on_the_selected_option() {
         [view! {
             <RadioGroup
                 options={view! {
-                    <unstyled::ChoiceOption label="One" />
-                    <unstyled::ChoiceOption label="Two" />
-                    <unstyled::ChoiceOption label="Three" />
+                    <unstyled::ChoiceOption value="One" label="One" />
+                    <unstyled::ChoiceOption value="Two" label="Two" />
+                    <unstyled::ChoiceOption value="Three" label="Three" />
                 }}
-                selected=Some(0)
+                selected=Some("One")
             />
         }]
     });
@@ -23,16 +23,16 @@ fn clicking_a_choice_keeps_keyboard_focus_on_the_selected_option() {
     assert_eq!(
         harness
             .document()
-            .api::<styled::ChoiceApi>(group)
+            .api::<styled::ChoiceApi<&str>>(group)
             .selected(),
-        Some(1)
+        Some("Two")
     );
     harness.key(Key::ArrowRight, Modifiers::NONE);
     assert_eq!(
         harness
             .document()
-            .api::<styled::ChoiceApi>(group)
+            .api::<styled::ChoiceApi<&str>>(group)
             .selected(),
-        Some(2)
+        Some("Three")
     );
 }

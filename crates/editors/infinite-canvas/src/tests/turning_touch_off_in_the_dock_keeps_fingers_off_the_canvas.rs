@@ -20,9 +20,7 @@ fn turning_touch_off_in_the_dock_keeps_fingers_off_the_canvas() {
     editor.reveal(toggle);
     let at = editor.point_of(toggle);
     editor.fingers(TouchPhase::Start, &[(1, at)]);
-    editor.run();
     editor.fingers(TouchPhase::End, &[(1, at)]);
-    editor.run();
     assert_eq!(
         kept(&editor),
         Some(CanvasTouch::Off),
@@ -37,17 +35,15 @@ fn turning_touch_off_in_the_dock_keeps_fingers_off_the_canvas() {
 
     let center = editor.rect_of(&shape).center();
     editor.fingers(TouchPhase::Start, &[(1, center)]);
-    editor.run();
     for step in 1..=4 {
         editor.fingers(
             TouchPhase::Move,
             &[(1, center + Vec2::new(30.0 * step as f32, 0.0))],
         );
-        editor.run();
     }
     editor.advance(std::time::Duration::from_secs(1));
-    editor.fingers(TouchPhase::End, &[(1, center + Vec2::new(120.0, 0.0))]);
     editor.run();
+    editor.fingers(TouchPhase::End, &[(1, center + Vec2::new(120.0, 0.0))]);
     assert_eq!(
         entities(&editor),
         vec![rectangle.clone()],
@@ -76,9 +72,7 @@ fn turning_touch_off_in_the_dock_keeps_fingers_off_the_canvas() {
     editor.reveal(toggle);
     let at = editor.point_of(toggle);
     editor.fingers(TouchPhase::Start, &[(1, at)]);
-    editor.run();
     editor.fingers(TouchPhase::End, &[(1, at)]);
-    editor.run();
     assert_eq!(
         kept(&editor),
         Some(CanvasTouch::On),

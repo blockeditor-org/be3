@@ -17,7 +17,7 @@ fn a_card_opened_from_a_button_flips_above_it_near_the_bottom() {
     test.click(pos2(card.right() + 40.0, button.center().y));
     test.frame(Vec::new());
     assert!(
-        !test.shows(&dialog_id(0)),
+        !test.shown(&dialog_id(0)),
         "a press on the tab beside the card closes it"
     );
 }

@@ -10,7 +10,7 @@ fn a_phone_link_opens_the_named_painting() {
     review.deliver();
     review.test.settle();
     assert_eq!(review.shown_name(), "text-block.typing_a_paragraph");
-    assert!(review.test.shows("paint_review.stage"));
+    assert!(review.test.shown("paint_review.stage"));
     review
         .test
         .snapshot("a_phone_link_opens_the_named_painting");

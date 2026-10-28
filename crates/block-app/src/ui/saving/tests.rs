@@ -1,3 +1,4 @@
+use beui::native::testing::Gui;
 use std::time::Duration;
 
 use beui::native::WindowSize;

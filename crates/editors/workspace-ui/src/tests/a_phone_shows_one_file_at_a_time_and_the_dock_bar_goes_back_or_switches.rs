@@ -30,7 +30,6 @@ fn placement_instance() -> EditorInstanceId {
 
 fn tap(fixture: &mut Fixture, test_id: &str) {
     fixture.test.click(test_id);
-    fixture.settle();
 }
 
 #[test]
@@ -86,7 +85,6 @@ fn a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches() {
     );
     assert_eq!(fixture.open_tabs(), 0, "a phone draws no tab bars");
     fixture.test.back();
-    fixture.settle();
     fixture.test.settle();
     assert!(
         !fixture.test.shown("dock.switcher.tab.1"),
@@ -104,7 +102,6 @@ fn a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches() {
     );
     drop(document);
     fixture.test.back();
-    fixture.settle();
     let child = placed(&fixture, second)
         .expect("the block is on show")
         .child;
@@ -146,7 +143,6 @@ fn a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches() {
         .center();
     drop(document);
     fixture.test.click(at);
-    fixture.settle();
     assert_eq!(
         fixture.test.take_child_menu_picks(),
         [(child, "editor.rename".to_owned())],

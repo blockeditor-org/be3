@@ -28,7 +28,6 @@ fn revision_history_on_a_phone_and_late_replies() {
     fixture
         .test
         .click(format!("workspace.revision.{}", "03".repeat(32)));
-    fixture.settle();
     let request = fixture
         .test
         .take_requests()
@@ -51,7 +50,6 @@ fn revision_history_on_a_phone_and_late_replies() {
     fixture.test.set_size(Vec2::new(390.0, 720.0));
     fixture.settle();
     fixture.test.click("dock.switch");
-    fixture.settle();
     fixture.test.settle();
     fixture.click_text("History");
     fixture

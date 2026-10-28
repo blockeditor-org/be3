@@ -9,7 +9,6 @@ fn choosing_a_tool_marks_it_in_the_sidebar() {
     assert!(!pressed(&editor, "Eraser"));
 
     editor.click("pixel-art.tool.Eraser");
-    editor.run();
 
     assert!(pressed(&editor, "Eraser"));
     assert!(!pressed(&editor, "Pencil"));

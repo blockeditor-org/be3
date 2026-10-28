@@ -65,7 +65,6 @@ fn a_live_editor_works_in_place_and_a_pan_and_zoom_one_takes_the_frame_when_clic
     assert_eq!(mode(&editor), ChildMode::Passive);
     let rect = editor.children()[0].rect;
     editor.click(rect.center());
-    editor.run();
     live(&mut editor, true);
 
     assert_eq!(

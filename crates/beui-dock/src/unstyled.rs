@@ -96,7 +96,6 @@ pub enum DockMode {
 pub struct DockTabHandle {
     pub entry: Entry,
     pub leaf: LeafId,
-    pub index: usize,
     pub floating: bool,
     pub pinned: bool,
     pub vertical: bool,
@@ -2517,7 +2516,7 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
     };
     let state = dock.state;
     let entries = create_memo(move || state.with(|state| state.entries(leaf)));
-    let selected = create_memo(move || Some(state.with(|state| state.active_index(leaf))));
+    let selected = create_memo(move || state.with(|state| state.active_entry(leaf)));
     view! {
         <Scroll direction @node_ref=&strip>
             <Choice
@@ -2527,16 +2526,20 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
                         let dock = dock;
                         let label = create_memo(move || dock.entry_title(entry));
                         view! {
-                            <ChoiceOption label={label} />
+                            <ChoiceOption value=entry label={label} />
                         }
                     }</ForEach>
                 }}
-                selected={Binding::new(selected, move |index: Option<usize>| {
-                    let Some(index) = index else {
+                selected={Binding::new(selected, move |entry: Option<Entry>| {
+                    let Some(entry) = entry else {
                         return;
                     };
                     dock.edit(|state| {
-                        state.set_active_index(leaf, index);
+                        if let Some((at, index)) = state.locate(entry)
+                            && at == leaf
+                        {
+                            state.set_active_index(leaf, index);
+                        }
                         state.focus(leaf);
                     });
                     dock.release_dialog_focus();
@@ -2551,16 +2554,11 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
                 kind=ChoiceKind::Tabs
                 direction
                 spacing={dock.tab_spacing}
-            >|handle: ChoiceOptionHandle| {
+            >|handle: ChoiceOptionHandle<Entry>| {
                 let dock = dock;
-                let entry = dock.state.get_untracked().entries(leaf).get(handle.index).copied();
-                match entry {
-                    Some(entry) => view! {
-                        <DockTabView dock leaf entry handle vertical />
-                    },
-                    None => view! {
-                        <Frame />
-                    },
+                let entry = handle.value;
+                view! {
+                    <DockTabView dock leaf entry handle vertical />
                 }
             }</Choice>
         </Scroll>
@@ -2572,11 +2570,10 @@ fn DockTabView(
     dock: State,
     leaf: LeafId,
     entry: Entry,
-    handle: ChoiceOptionHandle,
+    handle: ChoiceOptionHandle<Entry>,
     vertical: bool,
 ) -> NodeId {
     let ChoiceOptionHandle {
-        index,
         selected,
         hovered,
         active,
@@ -2676,7 +2673,6 @@ fn DockTabView(
     let face = dock.tab.call(DockTabHandle {
         entry,
         leaf,
-        index,
         floating,
         pinned,
         vertical,
@@ -2813,7 +2809,7 @@ fn TabMenu(
                 <MenuItem label={split_label} disabled={alone} />
                 <MenuItem label={close_label} disabled={unclosable} />
                 <Show condition={!grouped}>
-                    <MenuItem label={pin_label} disabled={homeless} />
+                    <MenuItem label={pin_label} disabled={homeless} @test_id={"dock.tab.lock"} />
                 </Show>
                 <Show condition={grouped}>
                     <MenuItem label="Ungroup" disabled={pinned} />

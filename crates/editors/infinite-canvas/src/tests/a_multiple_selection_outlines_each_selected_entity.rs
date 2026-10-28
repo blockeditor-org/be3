@@ -14,7 +14,6 @@ fn a_multiple_selection_outlines_each_selected_entity() {
     let mut editor = editor(&[left.clone(), right]);
 
     editor.click(format!("infinite-canvas.entity.{}", left.id));
-    editor.run();
     editor.key(
         Key::A,
         Modifiers {

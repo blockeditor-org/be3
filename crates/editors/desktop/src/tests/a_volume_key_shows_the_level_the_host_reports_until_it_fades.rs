@@ -67,6 +67,7 @@ fn a_volume_key_shows_the_level_the_host_reports_until_it_fades() {
     fixture.test.snapshot("a_mute_key_shows_the_volume_muted");
 
     fixture.test.advance(OSD_DURATION + Duration::from_secs(1));
+    fixture.test.run();
     fixture.settle();
     assert!(
         !fixture.test.shown("desktop.osd.0"),

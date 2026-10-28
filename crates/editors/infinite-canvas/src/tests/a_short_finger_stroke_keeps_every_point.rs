@@ -6,14 +6,11 @@ fn a_short_finger_stroke_keeps_every_point() {
     let mut editor = phone(&[]);
 
     editor.click("infinite-canvas.dock.tool.Pen");
-    editor.run();
     let from = editor.rect_of("infinite-canvas.canvas").center();
     editor.fingers(TouchPhase::Start, &[(1, from)]);
     editor.fingers(TouchPhase::Move, &[(1, from + Vec2::new(3.0, 0.0))]);
-    editor.run();
     editor.fingers(TouchPhase::Move, &[(1, from + Vec2::new(3.0, 3.0))]);
     editor.fingers(TouchPhase::End, &[(1, from + Vec2::new(3.0, 3.0))]);
-    editor.run();
 
     let entities = entities(&editor);
     assert_eq!(entities.len(), 1, "the stroke adds one entity");

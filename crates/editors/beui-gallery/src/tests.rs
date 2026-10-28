@@ -3,6 +3,7 @@ use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::beui::Vec2;
 use block_editor_beui::{Creation, EditorHost, GraphCommand, OwnedEditor};
 use block_ui_test::BeuiTest;
+use block_ui_test::prelude::*;
 use uuid::Uuid;
 
 use crate::app::BeuiGalleryApp;

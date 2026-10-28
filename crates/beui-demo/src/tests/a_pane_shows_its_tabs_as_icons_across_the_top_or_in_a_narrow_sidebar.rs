@@ -5,7 +5,7 @@ use beui::native::testing::Target;
 fn choose(test: &mut DocumentTest, grip: &str, item: &str) {
     test.click_with(grip, PointerButton::Secondary);
     test.frame(Vec::new());
-    test.click(Target::text(item));
+    test.drive(&["--no-settle", "click", item]);
     test.frame(Vec::new());
 }
 

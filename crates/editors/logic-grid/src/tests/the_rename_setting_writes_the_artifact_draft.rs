@@ -19,7 +19,6 @@ fn the_rename_setting_writes_the_artifact_draft() {
     );
 
     settings.click("logic-grid.rename-with-source");
-    settings.run();
 
     assert_eq!(
         crate::app::artifact_summary(settings.draft()),

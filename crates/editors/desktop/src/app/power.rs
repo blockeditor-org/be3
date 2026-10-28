@@ -62,7 +62,7 @@ fn PowerItem(action: PowerAction, available: Memo<PowerAvailability>) -> MenuIte
             label={label(action).to_owned()}
             glyph={glyph(action).to_owned()}
             disabled
-            row_test_id={format!("desktop.power.{}", key(action))}
+            @test_id={format!("desktop.power.{}", key(action))}
         />
     }
 }

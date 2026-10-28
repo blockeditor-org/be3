@@ -28,6 +28,7 @@ fn with_instant_motion_the_level_keeps_its_time_and_goes_without_fading() {
     fixture
         .test
         .advance(OSD_DURATION - Duration::from_millis(100));
+    fixture.test.run();
     fixture.settle();
     assert!(
         fixture.test.shown("desktop.osd.0"),
@@ -35,6 +36,7 @@ fn with_instant_motion_the_level_keeps_its_time_and_goes_without_fading() {
     );
 
     fixture.test.advance(Duration::from_millis(200));
+    fixture.test.run();
     fixture.settle();
     assert!(
         !fixture.test.shown("desktop.osd.0"),

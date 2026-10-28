@@ -43,7 +43,6 @@ fn a_peer_sees_where_another_is_writing() {
 
     let resting = writer.rect_of(&format!("infinite-canvas.text.{}", note.id));
     writer.double_click(pos2(resting.right() - 2.0, resting.center().y));
-    writer.run();
     for _ in 0.."world".len() {
         writer.key(Key::ArrowLeft, Modifiers::SHIFT);
     }
@@ -61,7 +60,6 @@ fn a_peer_sees_where_another_is_writing() {
     watcher.snapshot("a_peer_sees_where_another_is_writing");
 
     writer.key(Key::Escape, Modifiers::NONE);
-    writer.run();
     let cursor = shown_cursor(&mut writer).expect("the writer shows its cursor");
     assert_eq!(cursor.caret, None, "a text left behind shares no caret");
     held.clear();
@@ -70,9 +68,7 @@ fn a_peer_sees_where_another_is_writing() {
     assert!(shown_carets(&watcher, note.id).is_empty());
 
     writer.click(format!("infinite-canvas.entity.{}", shape.id));
-    writer.run();
     writer.key(Key::Enter, Modifiers::NONE);
-    writer.run();
     forward_presence(&mut writer, &mut watcher, &mut held);
     let label = shape.text.to_str_lossy().len();
     let [theirs] = &shown_carets(&watcher, shape.id)[..] else {

@@ -11,10 +11,10 @@ fn a_sheet_rises_from_the_bottom_on_a_phone() {
     test.click("demo.dialog.card");
     test.settle();
     let sheet = dialog_id(0);
-    assert!(test.shows(&sheet), "the sheet rises from the bottom");
+    assert!(test.shown(&sheet), "the sheet rises from the bottom");
     test.snapshot("docking_sheet_phone");
 
     press_key(&mut test, beui::Key::Escape);
     test.settle();
-    assert!(!test.shows(&sheet), "Escape closes it");
+    assert!(!test.shown(&sheet), "Escape closes it");
 }

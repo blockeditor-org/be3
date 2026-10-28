@@ -9,12 +9,12 @@ fn listbox_typeahead_matches_prefixes_and_cycles_repeated_letters() {
             view! {
                 <Listbox
                     options={view! {
-                        <unstyled::ChoiceOption label="Apple" />
-                        <unstyled::ChoiceOption label="Banana" />
-                        <unstyled::ChoiceOption label="Blueberry" />
-                        <unstyled::ChoiceOption label="Cherry" />
+                        <unstyled::ChoiceOption value="Apple" label="Apple" />
+                        <unstyled::ChoiceOption value="Banana" label="Banana" />
+                        <unstyled::ChoiceOption value="Blueberry" label="Blueberry" />
+                        <unstyled::ChoiceOption value="Cherry" label="Cherry" />
                     }}
-                    selected=Some(0)
+                    selected=Some("Apple")
                 />
             },
             view! {
@@ -29,9 +29,9 @@ fn listbox_typeahead_matches_prefixes_and_cycles_repeated_letters() {
     assert_eq!(
         harness
             .document()
-            .api::<styled::ChoiceApi>(listbox)
+            .api::<styled::ChoiceApi<&str>>(listbox)
             .selected(),
-        Some(2)
+        Some("Blueberry")
     );
     harness.key(Key::Tab, Modifiers::NONE);
     assert!(after_focus.get());
@@ -40,34 +40,34 @@ fn listbox_typeahead_matches_prefixes_and_cycles_repeated_letters() {
     assert_eq!(
         harness
             .document()
-            .api::<styled::ChoiceApi>(listbox)
+            .api::<styled::ChoiceApi<&str>>(listbox)
             .selected(),
-        Some(1)
+        Some("Banana")
     );
     harness.type_text("b");
     assert_eq!(
         harness
             .document()
-            .api::<styled::ChoiceApi>(listbox)
+            .api::<styled::ChoiceApi<&str>>(listbox)
             .selected(),
-        Some(2)
+        Some("Blueberry")
     );
     harness.key(Key::End, Modifiers::NONE);
     harness.key(Key::ArrowDown, Modifiers::NONE);
     assert_eq!(
         harness
             .document()
-            .api::<styled::ChoiceApi>(listbox)
+            .api::<styled::ChoiceApi<&str>>(listbox)
             .selected(),
-        Some(3)
+        Some("Cherry")
     );
     harness.key(Key::Home, Modifiers::NONE);
     harness.key(Key::ArrowUp, Modifiers::NONE);
     assert_eq!(
         harness
             .document()
-            .api::<styled::ChoiceApi>(listbox)
+            .api::<styled::ChoiceApi<&str>>(listbox)
             .selected(),
-        Some(0)
+        Some("Apple")
     );
 }

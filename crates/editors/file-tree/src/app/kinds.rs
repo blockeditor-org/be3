@@ -36,7 +36,7 @@ pub(crate) fn TagsMenu(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
         }
     };
     view! {
-        <MenuItem label="Tags" glyph=ICON_TAG row_test_id={"file-tree.tags".to_owned()}>
+        <MenuItem label="Tags" glyph=ICON_TAG @test_id={"file-tree.tags".to_owned()}>
             <ForEach keys={keys}>|tag: Uuid| {
                 let found = editor.watch_blocks(BlockQuery::Block(tag));
                 let colors = use_choice_colors();
@@ -66,7 +66,7 @@ pub(crate) fn TagsMenu(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
                         glyph_color={color}
                         checked={checked}
                         disabled={unchangeable}
-                        row_test_id={format!("file-tree.tags.{tag}")}
+                        @test_id={format!("file-tree.tags.{tag}")}
                         on_click={move || {
                             if let Some(block) = block {
                                 editor.set_tagged(block, tag, !on.get_untracked());
@@ -79,7 +79,7 @@ pub(crate) fn TagsMenu(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
                 label="Manage tags…"
                 glyph=ICON_SETTINGS
                 separated=true
-                row_test_id={"file-tree.tags.manage".to_owned()}
+                @test_id={"file-tree.tags.manage".to_owned()}
                 on_click={manage}
             />
         </MenuItem>
@@ -109,11 +109,7 @@ pub(crate) fn OpensIn(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
         block.and_then(|(id, _)| editor.blocks().info(id)?.metadata.get(&PREFERRED_EDITOR))
     });
     view! {
-        <MenuItem
-            label="Opens in"
-            glyph=ICON_APP_WINDOW
-            row_test_id={"file-tree.opens-in".to_owned()}
-        >
+        <MenuItem label="Opens in" glyph=ICON_APP_WINDOW @test_id={"file-tree.opens-in".to_owned()}>
             <ForEach keys={keys}>|chosen: Uuid| {
                 let label = create_memo(move || match chosen.is_nil() {
                     true => "Your default editor".to_owned(),
@@ -133,7 +129,7 @@ pub(crate) fn OpensIn(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
                         label={label}
                         checked={checked}
                         radio=true
-                        row_test_id={format!("file-tree.opens-in.{chosen}")}
+                        @test_id={format!("file-tree.opens-in.{chosen}")}
                         on_click={move || {
                             if let Some((id, _)) = block {
                                 let editor_id = (!chosen.is_nil()).then_some(chosen);
@@ -191,11 +187,11 @@ pub(crate) fn HomeItems(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
         false => "Use it as a template".to_owned(),
     });
     view! {
-        <MenuItem label="Workspace home" glyph=ICON_HOUSE row_test_id={"file-tree.home".to_owned()}>
+        <MenuItem label="Workspace home" glyph=ICON_HOUSE @test_id={"file-tree.home".to_owned()}>
             <MenuItem
                 label={pin_label}
                 glyph=ICON_PIN
-                row_test_id={"file-tree.home.pin".to_owned()}
+                @test_id={"file-tree.home.pin".to_owned()}
                 on_click={move || {
                     if let Some(block) = block {
                         change(Home::pin(block, !pinned.get_untracked()));
@@ -205,7 +201,7 @@ pub(crate) fn HomeItems(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
             <MenuItem
                 label={landing_label}
                 glyph=ICON_HOUSE
-                row_test_id={"file-tree.home.landing".to_owned()}
+                @test_id={"file-tree.home.landing".to_owned()}
                 on_click={move || {
                     change(Home::set_landing(match landing.get_untracked() {
                         true => None,
@@ -216,7 +212,7 @@ pub(crate) fn HomeItems(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
             <MenuItem
                 label={template_label}
                 glyph=ICON_LAYOUT_TEMPLATE
-                row_test_id={"file-tree.home.template".to_owned()}
+                @test_id={"file-tree.home.template".to_owned()}
                 on_click={move || {
                     if let Some(block) = block {
                         change(Home::keep_template(block, !template.get_untracked()));

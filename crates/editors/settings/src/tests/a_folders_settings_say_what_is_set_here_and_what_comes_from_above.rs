@@ -125,11 +125,8 @@ fn a_folders_settings_say_what_is_set_here_and_what_comes_from_above() {
     editor.snapshot("a_folders_settings_say_what_is_set_here_and_what_comes_from_above");
 
     editor.click(&format!("settings.kind.{HOTBAR}.visibility"));
-    editor.run();
     editor.key(Key::ArrowDown, Modifiers::NONE);
-    editor.run();
     editor.key(Key::Enter, Modifiers::NONE);
-    editor.run();
     assert_eq!(
         editor.take_access_changes(),
         [(hotbar, ANYONE_INSIDE, AccessLevel::None)]

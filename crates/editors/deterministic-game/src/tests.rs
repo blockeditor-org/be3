@@ -1,4 +1,5 @@
 use block_editor_beui::be_block::BlockContent;
+use block_ui_test::prelude::*;
 
 use block_editor_beui::beui::{Pos2, Vec2};
 use block_editor_beui::{Creation, EditorHost, OwnedEditor};

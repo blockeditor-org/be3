@@ -18,9 +18,7 @@ fn a_folder_chosen_on_the_location_page_holds_the_block_made_there() {
     );
 
     fixture.test.click("picker.location");
-    fixture.settle();
     fixture.test.click(format!("picker.place.{}", places.q4));
-    fixture.settle();
     assert!(
         fixture.says("Q4"),
         "choosing a folder goes back to the menu, which names it"
@@ -28,7 +26,6 @@ fn a_folder_chosen_on_the_location_page_holds_the_block_made_there() {
     fixture
         .test
         .click(format!("picker.menu.{TEMPLATE_EDITOR}/main"));
-    fixture.settle();
     fixture.settle();
     assert_eq!(
         fixture

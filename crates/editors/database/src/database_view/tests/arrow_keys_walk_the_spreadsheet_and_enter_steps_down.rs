@@ -15,7 +15,6 @@ fn arrow_keys_walk_the_spreadsheet_and_enter_steps_down() {
     fixture
         .harness
         .click(format!("database-view.cell.0.{first}"));
-    fixture.settle();
 
     assert_eq!(
         fixture.harness.label("database-view.cell-editor.cell"),
@@ -23,7 +22,6 @@ fn arrow_keys_walk_the_spreadsheet_and_enter_steps_down() {
     );
 
     fixture.harness.key(Key::ArrowDown, Modifiers::NONE);
-    fixture.settle();
 
     assert_eq!(
         fixture.harness.label("database-view.cell-editor.cell"),
@@ -32,7 +30,6 @@ fn arrow_keys_walk_the_spreadsheet_and_enter_steps_down() {
     );
 
     fixture.harness.key(Key::ArrowRight, Modifiers::NONE);
-    fixture.settle();
 
     assert_eq!(
         fixture.harness.label("database-view.cell-editor.cell"),
@@ -43,9 +40,7 @@ fn arrow_keys_walk_the_spreadsheet_and_enter_steps_down() {
         "database-view.cell-editor.field.{}",
         fixture.fields[1]
     ));
-    fixture.settle();
     fixture.harness.key(Key::Enter, Modifiers::NONE);
-    fixture.settle();
 
     assert_eq!(
         fixture.harness.label("database-view.cell-editor.cell"),

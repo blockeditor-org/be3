@@ -78,6 +78,7 @@ mod scroll;
 mod scroll_chain;
 mod sheet;
 mod stack;
+mod stretch;
 mod table;
 mod text;
 mod text_area;

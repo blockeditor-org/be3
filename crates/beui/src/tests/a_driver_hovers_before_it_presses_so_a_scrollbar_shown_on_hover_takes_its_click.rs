@@ -23,7 +23,7 @@ fn a_driver_hovers_before_it_presses_so_a_scrollbar_shown_on_hover_takes_its_cli
     let bar = harness.rect(harness.document().children(scrollbar_of(&harness, scroll))[0]);
     let below_the_thumb = pos2(bar.center().x, bar.bottom() - 2.0);
 
-    harness.run(&[
+    harness.drive(&[
         "click",
         &format!("{},{}", below_the_thumb.x, below_the_thumb.y),
     ]);

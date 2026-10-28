@@ -22,7 +22,6 @@ fn every_transform_field_previews_what_is_typed() {
         Some(Vec2::new(800.0, 900.0)),
     );
     editor.click(&drawn);
-    editor.run();
     let resting = editor.rect_of(&drawn);
 
     for (field, typed) in [
@@ -33,9 +32,7 @@ fn every_transform_field_previews_what_is_typed() {
         ("rotation", "45"),
     ] {
         editor.click(format!("infinite-canvas.transform.{field}"));
-        editor.run();
         editor.type_text(typed);
-        editor.run();
 
         assert_ne!(
             editor.rect_of(&drawn),
@@ -44,7 +41,6 @@ fn every_transform_field_previews_what_is_typed() {
         );
 
         editor.key(Key::Escape, Modifiers::NONE);
-        editor.run();
 
         assert_eq!(
             editor.rect_of(&drawn),

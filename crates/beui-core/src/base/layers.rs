@@ -43,6 +43,7 @@ impl Element for LayersNode {
 
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         for item in self.items.iter() {
+            let rect = crate::layout::stretched(doc, painter, *item, rect, true, true);
             crate::layout::layout(doc, painter, *item, rect, out);
         }
     }

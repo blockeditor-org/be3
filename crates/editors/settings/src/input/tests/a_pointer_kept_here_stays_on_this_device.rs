@@ -46,7 +46,6 @@ fn a_pointer_kept_here_stays_on_this_device() {
     };
 
     editor.click(TAP);
-    editor.run();
     assert_eq!(
         tap(&editor, None),
         Some(false),
@@ -55,13 +54,10 @@ fn a_pointer_kept_here_stays_on_this_device() {
     assert_eq!(tap(&editor, Some(here)), None);
 
     editor.click(format!("{TAP}.menu"));
-    editor.run();
     editor.click(format!("{TAP}.keep"));
-    editor.run();
     assert_eq!(tap(&editor, Some(here)), Some(false));
 
     editor.click(TAP);
-    editor.run();
     assert_eq!(
         tap(&editor, Some(here)),
         Some(true),

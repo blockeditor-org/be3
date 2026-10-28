@@ -1,6 +1,7 @@
 use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::{BlockInfo, BlockParent, EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
+use block_ui_test::prelude::*;
 use image::ImageEncoder;
 use uuid::Uuid;
 

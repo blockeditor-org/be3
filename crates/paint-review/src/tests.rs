@@ -1,3 +1,4 @@
+use block_ui_test::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 

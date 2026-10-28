@@ -43,7 +43,6 @@ fn a_window_that_stops_responding_offers_to_wait_or_force_close() {
         .snapshot("a_window_that_stops_responding_offers_to_wait_or_force_close");
 
     fixture.test.click("workspace.window.wait");
-    fixture.settle();
     assert!(
         fixture.test.occluders().is_empty(),
         "waiting puts the banner away"
@@ -68,7 +67,6 @@ fn a_window_that_stops_responding_offers_to_wait_or_force_close() {
     );
 
     fixture.test.click("workspace.window.force_close");
-    fixture.settle();
     assert!(
         force_closed(&fixture),
         "force close asks the host to close it"

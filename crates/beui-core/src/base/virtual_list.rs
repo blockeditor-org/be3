@@ -450,6 +450,14 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
                 start + grid.snap(row.position),
                 row.length,
             );
+            let placed = crate::layout::stretched(
+                doc,
+                painter,
+                row.node,
+                placed,
+                self.direction == Direction::Vertical,
+                self.direction == Direction::Horizontal,
+            );
             crate::layout::layout(doc, painter, row.node, placed, out);
         }
         doc.arena.adopt_children(node);

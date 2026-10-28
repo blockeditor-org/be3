@@ -27,10 +27,8 @@ fn its_settings_dialog_offers_apply_once_the_copy_changes() {
     );
 
     settings.click("logic-grid.rename-with-source");
-    settings.run();
     settings.snapshot("its_settings_dialog_offers_apply_once_the_copy_changes");
     settings.click("artifact-settings.confirm");
-    settings.run();
     assert_eq!(settings.take_dialog_closes(), vec![DialogAnswer::Accepted]);
 
     settings.dismiss();

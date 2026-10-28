@@ -25,6 +25,7 @@ fn a_press_inside_a_color_wheels_triangle_picks_saturation_and_value() {
         scale: 1.0,
     };
     let mut app = Stepped::new(context(), Showing(document), window, None);
+    app.run();
 
     app.click(Target::id("wheel").at(vec2(WHEEL_SIZE / 2.0, WHEEL_SIZE / 2.0)));
 

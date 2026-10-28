@@ -10,7 +10,6 @@ fn searching_the_link_tree_keeps_matches_and_the_folders_above_them() {
     let mut fixture = picking(&fixture, filter(), BlockLocation::Root);
     fixture.settle();
     fixture.test.click("picker.link-existing");
-    fixture.settle();
     assert!(
         !fixture
             .test
@@ -20,7 +19,6 @@ fn searching_the_link_tree_keeps_matches_and_the_folders_above_them() {
 
     fixture.test.click("picker.search");
     fixture.test.type_text("minu");
-    fixture.settle();
     assert!(
         !fixture
             .test
@@ -37,10 +35,8 @@ fn searching_the_link_tree_keeps_matches_and_the_folders_above_them() {
     fixture
         .test
         .click(format!("picker.link.{}.chevron", places.work));
-    fixture.settle();
     fixture.test.click("picker.search");
     fixture.test.type_text("minu");
-    fixture.settle();
     for kept in [places.space, places.work, places.minutes] {
         assert!(
             fixture.test.shown(&format!("picker.link.{kept}.row")),
@@ -60,7 +56,6 @@ fn searching_the_link_tree_keeps_matches_and_the_folders_above_them() {
             .key(block_editor_beui::beui::Key::Backspace, Modifiers::NONE);
     }
     fixture.test.type_text(&places.budget.to_string());
-    fixture.settle();
     assert!(
         fixture
             .test

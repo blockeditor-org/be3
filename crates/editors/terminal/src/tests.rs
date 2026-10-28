@@ -5,6 +5,7 @@ use block_editor_beui::beui::native::Document;
 use block_editor_beui::beui::{Key, Modifiers, NodeId, PointerButton, Pos2, Rect, Vec2};
 use block_editor_beui::{EditorHost, OwnedEditor, PeerPresence};
 use block_ui_test::BeuiTest;
+use block_ui_test::prelude::*;
 use terminal_types::{
     Terminal, TerminalColor, TerminalColors, TerminalContent, TerminalCursor, TerminalHost,
     TerminalLine, TerminalMessage, TerminalShell, TerminalSize, TerminalStyle,
@@ -224,7 +225,6 @@ impl Harness {
 
     fn copy(&mut self) -> Vec<String> {
         self.editor.key(Key::C, ctrl_shift());
-        self.editor.run();
         self.editor.take_copied_text()
     }
 }

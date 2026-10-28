@@ -16,7 +16,6 @@ fn the_editor_opens_every_page_of_the_catalog() {
             .center();
         drop(document);
         test.click(at);
-        test.run();
         assert!(
             test.document().find_test_id(&row).is_some(),
             "the catalog stays beside {title}"

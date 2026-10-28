@@ -13,7 +13,6 @@ fn the_location_page_shows_the_folders_as_a_tree_with_the_chosen_one_checked() {
     fixture.settle();
 
     fixture.test.click("picker.location");
-    fixture.settle();
 
     for shown in [places.space, places.trips, places.work, places.q4] {
         assert!(

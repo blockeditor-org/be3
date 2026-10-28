@@ -7,8 +7,8 @@ fn an_unreadable_painting_says_why() {
     review.test.frame(Vec::new());
 
     assert_eq!(review.shown_name(), "pixel-art.broken");
-    assert!(review.test.shows("paint_review.detail"));
-    assert!(review.test.shows("paint_review.image.none"));
+    assert!(review.test.shown("paint_review.detail"));
+    assert!(review.test.shown("paint_review.image.none"));
     assert_eq!(
         review.requested().len(),
         3,

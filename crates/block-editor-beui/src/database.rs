@@ -361,21 +361,18 @@ fn EnumValue(
             Some(DatabaseValue::Enum(id)) => id,
             _ => return None,
         };
-        options.with(|options| options.iter().position(|option| option.id == chosen))
+        Some(chosen)
     });
-    let picked = move |index: Option<usize>| {
-        let (Some(index), Some(field_id)) = (
-            index,
+    let picked = move |chosen: Option<Uuid>| {
+        let (Some(chosen), Some(field_id)) = (
+            chosen,
             field.with_untracked(|field| field.as_ref().map(|field| field.id)),
         ) else {
             return;
         };
-        let Some(option) = options.with_untracked(|options| options.get(index).cloned()) else {
-            return;
-        };
         on_change.call(DatabaseValueChange {
             field_id,
-            value: Some(DatabaseValue::Enum(option.id)),
+            value: Some(DatabaseValue::Enum(chosen)),
             continuous: false,
         });
     };
@@ -392,7 +389,7 @@ fn EnumValue(
                         })
                     });
                     view! {
-                        <ChoiceOption label={label} />
+                        <ChoiceOption value=id label={label} />
                     }
                 }</ForEach>
             }}
@@ -569,17 +566,14 @@ fn RelationValue(
         let Some(DatabaseValue::Relation(chosen)) = value.get() else {
             return None;
         };
-        choices.with(|choices| choices.iter().position(|(link, _)| *link == chosen))
+        Some(chosen)
     });
     let unlinked = create_memo(move || target.get().is_none());
-    let picked = move |index: Option<usize>| {
+    let picked = move |link: Option<RowRef>| {
         let Some(field_id) = field.with_untracked(|field| field.as_ref().map(|field| field.id))
         else {
             return;
         };
-        let link = index.and_then(|index| {
-            choices.with_untracked(|choices| choices.get(index).map(|(link, _)| *link))
-        });
         on_change.call(DatabaseValueChange {
             field_id,
             value: link.map(DatabaseValue::Relation),
@@ -603,7 +597,7 @@ fn RelationValue(
                             })
                         });
                         view! {
-                            <ChoiceOption label={label} />
+                            <ChoiceOption value=link label={label} />
                         }
                     }</ForEach>
                 }}
@@ -664,10 +658,8 @@ fn LinksValue(
             continuous: false,
         });
     };
-    let added = move |index: Option<usize>| {
-        let Some(link) = index.and_then(|index| {
-            addable.with_untracked(|rows| rows.get(index).map(|(link, _)| *link))
-        }) else {
+    let added = move |chosen: Option<RowRef>| {
+        let Some(link) = chosen else {
             return;
         };
         let mut links = linked.get_untracked();
@@ -717,7 +709,7 @@ fn LinksValue(
                             })
                         });
                         view! {
-                            <ChoiceOption label={label} />
+                            <ChoiceOption value=link label={label} />
                         }
                     }</ForEach>
                 }}

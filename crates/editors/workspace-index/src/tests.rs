@@ -1,4 +1,5 @@
 use block_editor_beui::be_block::BlockContent;
+use block_ui_test::prelude::*;
 use counter_types::CounterContent;
 
 use block_editor_beui::{EditorHost, OwnedEditor};

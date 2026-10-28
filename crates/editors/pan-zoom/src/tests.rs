@@ -1,6 +1,7 @@
 use block_editor_beui::beui::{Rect, Vec2, pos2};
 use block_editor_beui::{Editor, EditorHost, OwnedEditor, ViewChange};
 use block_ui_test::BeuiTest;
+use block_ui_test::prelude::*;
 use uuid::Uuid;
 
 use crate::app::PanZoomApp;

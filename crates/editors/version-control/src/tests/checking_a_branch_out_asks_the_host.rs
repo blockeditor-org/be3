@@ -17,7 +17,6 @@ fn checking_a_branch_out_asks_the_host() {
     let mut editor = repository(Repository::default(), status);
 
     editor.click("repository.checkout.main");
-    editor.run();
 
     assert_eq!(
         editor.take_version_commands(),

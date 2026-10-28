@@ -61,18 +61,25 @@ That is how an item made of data rather than nodes — a label, a key, a
 callback — can still be a component, with its own scope, context, memos and
 cleanups, and still be written as a tag. Such a component has nothing for `ComponentRef::fill`, `component_accessibility`,
 or `component_placed` to watch, so calling any of them in its body
-panics when it is built, and `@test_id` and `@node_ref` on its tag do not compile,
-because they only take a component whose output implements `BuildsNode`.
+panics when it is built, and `@node_ref` on its tag does not compile, because
+it only takes a component whose output implements `BuildsNode`. `@test_id`
+takes anything that implements `TakesTestId`: every `BuildsNode` does, binding
+the id on its node, and a value child type implements it by keeping the
+`Prop<String>` it is handed, so the parent binds it on the node it builds for
+that child (with `bind_test_id`).
 `unstyled::MenuItem` is one: a menu item is a label, an icon, a detail, a
 `checked` state (`Some` makes it a check box item, or a radio item with
 `radio`, ticked when true; an `action`'s own tick by default), a
 disabled and a danger flag, a separator above it, an `on_click` and its
 own submenu or page items, so a menu is written as tags and each row follows
-the signals its tag was given, and `unstyled::ChoiceOption` is the same for the
-options of a tab bar, a listbox, a radio group and a select. Declare the type
+the signals its tag was given, and `<MenuItem label="Rename" @test_id="tree.menu.rename" />`
+names the row the menu builds for it. `unstyled::ChoiceOption<T>` is the same
+for the options of a tab bar, a segmented control, a listbox, a radio group and
+a select: each carries the `value: T` it stands for, and the control's
+`selected` is that value, never a position (see "Choices" below). Declare the type
 with `value_child_type!`, which makes it a `ChildValue` and says how a run of it
 is kept, so a `show` or a `for_each` can build one; a generic type names its
-parameters first, as in `value_child_type!(<K> DockNode<K>)`.
+parameters first, as in `value_child_type!(<T> ChoiceOption<T>)`.
 
 Functions that build no part of a view are ordinary functions. Deriving a
 colour from theme tokens and interaction state, mapping a value to a label —
@@ -242,6 +249,42 @@ State a control both shows and changes (`checked`, `value`, `open`,
 pass a signal (`<Slider value={volume} />`), leave it out for the control to
 own, or pass `Binding::new(read, write)` for derived state
 (guides/reactive.md, "Bindings").
+
+#### Choices
+
+`Choice`, `Select`, `Listbox` and `RadioGroup` take `selected:
+Binding<Option<T>>`, and `Tabs` and `SegmentedControl`, which always show one
+option chosen, take `selected: Binding<T>` (`T: Default`, the value an
+unbound one starts at). Each `ChoiceOption` names its value: an option built
+by a `ForEach` over ids passes the id, and a fixed list passes an enum value.
+
+```rust
+<Select
+    options={view! {
+        <ForEach keys={output_ids}>|id: String|
+            <ChoiceOption value={id.clone()} label={output_name(&id)} />
+        </ForEach>
+    }}
+    selected={Binding::new(default_output, choose_output)}
+/>
+<SegmentedControl
+    options={view! {
+        <ChoiceOption value=View::Day label="Day" />
+        <ChoiceOption value=View::Week label="Week" />
+    }}
+    selected={view}
+/>
+```
+
+Never map a position back to an item in a write callback: the list can change
+between the frame a person saw and their click, and the position then names a
+different item, the wrong output, the wrong row to delete, the wrong person to
+share with. A selected value that is not among the current options shows
+nothing chosen, and its option is chosen again if it comes back; the control
+never falls back to whatever sits where it was. Positions stay private to
+`Choice`, for its roving focus, arrow keys and typeahead. A "nothing" entry, such
+as "Default" or "All", is an option whose value is `None`, which makes the
+binding an `Option<Option<V>>`.
 
 Do not wrap a prop in a `create_memo` just to read it twice. A memo adds a
 node to the graph, and a `T` that is not `PartialEq` cannot go in one at all.
@@ -974,7 +1017,23 @@ combination is what `Row`, `Column` and `CenteredRow` were, and reading the
 props beats remembering which names exist. `justify` places whatever main-axis
 space the children leave (`Start`, `Center`, `End`, `SpaceBetween`,
 `SpaceAround`, `SpaceEvenly`), so pushing the last item of a toolbar to the
-far end needs no spacer. `Align::Baseline` lines a row's children up on the
+far end needs no spacer. `Align::Stretch`, the default, stretches only a child with no size of its
+own on the cross axis, as CSS does: a child whose `Element::sizes_itself`
+says it has one there (a `Frame` with a fraction width in a column) is
+measured and placed at that size at the start, so a
+`width={Extent::fraction(0.33)}` bar in a column is a third wide without an
+`align` of its own. `Frame`, `Grid`, `Layers`, `Offset` and `VirtualList` follow
+the same rule wherever they stretch a child, through `layout::stretched`, and
+wrappers that lay their child out in their own rect (`Interactive`, `Portal`,
+`Embed`) answer `sizes_itself` for their child. A `Frame` answers for its own
+width and height, so one that only moves, turns or fades what it holds
+stretches like any frame without a size. The HTML core needs no hook: CSS's
+`align-items: stretch` already leaves an item with a width of its own alone,
+and beui-shared-tests' `stretch` script holds both cores to it. A frame's exact
+or at-most width needs no hook: it draws its box at that width at the start of
+whatever rect it is given, though the rect, and so where it takes input, is
+the stretched one.
+`Align::Baseline` lines a row's children up on the
 first baseline of their text, which a node reports through
 `Element::baseline`; a column treats it as `Start`. `wrap=true` flows
 children onto more lines: a child too wide for a line by itself is measured
@@ -1285,7 +1344,7 @@ unstyled one without a sheet stays a dropdown. Every component with a menu
 requires its `MenuStyle`; a text field's context menu is
 `TextInputStyle::menu: Option<MenuStyle>`, where `None` means no menu. An item's children cascade as a
 submenu in a dropdown; in a sheet, or with `page`, they open in place of the menu as a page led by a back row
-titled by the item (`<id>.back` for an item with a `row_test_id`); Left, Escape
+titled by the item (`<id>.back` for an item with an `@test_id`); Left, Escape
 and the back row return to the item, and the dropdown or sheet resizes to each
 page. `then` says what choosing an item does: `MenuThen::Close` (the default),
 `Back` to the page before (a location picked on a page), or `Stay`. `MenuCaption` is a
@@ -4586,7 +4645,9 @@ ones from `beui::unstyled`.
 `view!` supports three framework attributes on every tag, in their own `@`
 namespace so a component can name its props whatever it likes:
 
-- `@test_id` gives a node a name for headless interaction tests. It takes a
+- `@test_id` gives a node a name for headless interaction tests. On a value
+  child, such as a `MenuItem` or a `ChoiceOption`, it names the row its parent
+  builds for it. It takes a
   `Prop<String>`, so a row whose identity is itself reactive can carry one:
   bind a memo and the name follows it, and the name it left behind stops
   resolving. A test id is one word. It is a property of the node like its
@@ -4643,6 +4704,8 @@ Use `Frame`'s `width` and `height` props to constrain a component's own size,
 `@sizing` to describe how it participates among siblings in a `List`. Say a
 width once: a `Frame` nested inside one that carries the width
 is laid out within it, so the outer box is the only place the number belongs.
+A width a frame does carry is kept wherever its parent stretches it (see
+`List`'s `align`), so it needs no `align` on the parent to take effect.
 `Container`, `narrower_than` and `shorter_than` provide container-responsive
 state; `unstyled::Stack` and `styled::Stack` switch between a row and a column
 without rebuilding their children.
@@ -5134,7 +5197,7 @@ State that belongs to the component's own handlers should be captured directly.
 When callers, tests or host integration need to read it, the component exposes a
 typed handle: a `Copy` struct named after it (`ToggleApi`, `SelectApi`), usually
 wrapping its private state, whose methods answer what may be asked
-(`checked()`, `selected()`, `option_button(index)`). The component takes it as
+(`checked()`, `selected()`, `option_button(&value)`). The component takes it as
 an ordinary prop, `#[prop(default = ComponentRef::new())] api: ComponentRef<SelectApi>`,
 and calls `api.fill(SelectApi(state))` while it builds. A caller that wants the
 handle passes its own `ComponentRef` (`<Select api=select ...>`, then
@@ -5677,12 +5740,14 @@ Every test that runs a document or an app runs it through `beui::native::testing
 a platform does: through the real `Runner` under one drive layer, on the headless window's `Simulation`
 (`Stepped::new`) or on a `PlatformServices` the test supplies (`Stepped::on`), with a gpu-free
 `testing::Screen`, the clock stopped, and one frame interval per frame.
-`testing::Showing(document)` is a `Document` as an app. Its gestures are `drive`'s commands,
-run by the same drive layer (crates/beui-platform-headless/src/testing.rs): `click(Target::id("wheel").at(offset))`, `drag`, `down`,
-`up`, `hover`, `scroll`, `zoom`, `pinch`, `fingers`, `type_text`, `key`, `key_down`, `wait`
-and `settle` are typed forms of them, a `Pos2` is a target too, and `ask(&["back", "0.5"])` sends
-any other. Each settles as `drive` does, unless the test turned that off
-with `settle_after_gestures(false)`, when it answers after the frame that took the input.
+`testing::Showing(document)` is a `Document` as an app. A `Stepped<Showing>` is driven and read
+through the `testing::Gui` trait, which block-ui-test's harnesses share (guides/testing_a_gui.md):
+`click(Target::id("wheel").at(offset))`, `drag`, `down`, `up`, `hover`, `scroll`, `zoom`, `pinch`,
+`fingers`, `type_text`, `key`, `key_down`, `settle`, `shown`, `rect_of`, `label` and the rest build
+`drive`'s gestures (`beui::native::drive::gestures`) and paint them frame by frame; a `Pos2` is a target
+too. `drive(&["back", "0.5"])` (or `ask`, which hands back the error) sends any other command
+through the drive layer. A gesture settles afterwards unless the test turned that off with
+`settle_after_gestures(false)`, when it answers after the frame that took the input.
 `frame(inputs)` pushes the `Input`s it is handed in points (`Incoming::points`) and paints one
 frame, for a test of what a single frame does, and hands back its output. Like every input,
 they go through the runner's intake, so a test sends what a platform would: an
@@ -5702,8 +5767,8 @@ Tests of the `Runner` itself take `testing::Screen` rather than a renderer of th
 
 For a beui block editor, use `block_ui_test::BeuiTest`, built from an `Editor`
 (or a `Creation`, for a dialog) so the test holds the same handle the component
-was handed. Give every interacted node an `@test_id`, call `run` after queued
-gestures, assert the resulting block state, and snapshot only when the painting is meaningful. `BeuiTest` also
+was handed. Give every interacted node an `@test_id`, drive it through the same `Gui`
+trait, assert the resulting block state, and snapshot only when the painting is meaningful. `BeuiTest` also
 supports key presses, text, hover, pointer clicks, and touch gestures. See the
 [GUI testing guide](testing_a_gui.md) and the counter editor tests for examples.
 

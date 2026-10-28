@@ -282,13 +282,7 @@ fn RuleRows(edits: Edits, group: usize, rule: usize) -> NodeId {
     let on = create_memo(move || outline.get().on);
     let key = create_memo(move || outline.get().key);
     let not_held = create_memo(move || outline.get().not_held);
-    let does = create_memo(move || {
-        Some(match outline.get().does {
-            Does::Send => 0,
-            Does::Tap => 1,
-            Does::Steps => 2,
-        })
-    });
+    let does = create_memo(move || Some(outline.get().does));
     let keyed = create_memo(move || outline.get().does != Does::Steps);
     let tapping = create_memo(move || outline.get().does == Does::Tap);
     let stepping = create_memo(move || outline.get().does == Does::Steps);
@@ -332,17 +326,14 @@ fn RuleRows(edits: Edits, group: usize, rule: usize) -> NodeId {
                     @sizing=ItemSize::Percent(100.0)
                     width={Extent::fraction(1.0)}
                     options={view! {
-                        <ChoiceOption label="Holds a key while it is held" />
-                        <ChoiceOption label="Taps a key" />
-                        <ChoiceOption label="Plays steps" />
+                        <ChoiceOption value=Does::Send label="Holds a key while it is held" />
+                        <ChoiceOption value=Does::Tap label="Taps a key" />
+                        <ChoiceOption value=Does::Steps label="Plays steps" />
                     }}
-                    selected={Binding::new(does, move |index: Option<usize>| {
-                        let chosen = match index {
-                            Some(1) => Does::Tap,
-                            Some(2) => Does::Steps,
-                            _ => Does::Send,
-                        };
-                        edits.edit_rule(group, rule, RuleEdit::Does(chosen));
+                    selected={Binding::new(does, move |chosen: Option<Does>| {
+                        if let Some(chosen) = chosen {
+                            edits.edit_rule(group, rule, RuleEdit::Does(chosen));
+                        }
                     })}
                     label="Does"
                     disabled={edits.read_only}

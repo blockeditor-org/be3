@@ -39,9 +39,23 @@ pub type Render<H = (), C = NodeId> = beui_tree::reactive::Render<H, C>;
 
 pub type RenderFn<H, C = NodeId> = beui_tree::reactive::RenderFn<H, C>;
 
-pub fn test_id<T: BuildsNode>(built: T, value: impl IntoProp<String>) -> T {
-    bind_test_id(built.built_node(), value.into_prop());
-    built
+#[diagnostic::on_unimplemented(
+    message = "a `{Self}` is no node, so `@test_id` has nothing to name",
+    label = "put `@test_id` on a tag that builds a node, or on a value child its parent names a node for"
+)]
+pub trait TakesTestId: Sized {
+    fn take_test_id(self, test_id: Prop<String>) -> Self;
+}
+
+impl<T: BuildsNode> TakesTestId for T {
+    fn take_test_id(self, test_id: Prop<String>) -> Self {
+        bind_test_id(self.built_node(), test_id);
+        self
+    }
+}
+
+pub fn test_id<T: TakesTestId>(built: T, value: impl IntoProp<String>) -> T {
+    built.take_test_id(value.into_prop())
 }
 
 pub fn node_ref<T: BuildsNode>(built: T, reference: &NodeRef) -> T {

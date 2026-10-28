@@ -1,3 +1,4 @@
+use beui::native::testing::Gui;
 use beui::{Input, NodeId, PointerButton, Pos2, Rect, Vec2, pos2, vec2};
 use block_editor_beui::{BeuiApp, EditorRegion};
 use block_plugin_api::{

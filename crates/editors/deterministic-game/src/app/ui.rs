@@ -399,7 +399,7 @@ fn Sidebar(panel: Panel) -> NodeId {
                                             })
                                         });
                                         view! {
-                                            <ChoiceOption label />
+                                            <ChoiceOption value=seat label />
                                         }
                                     }</ForEach>
                                 }}

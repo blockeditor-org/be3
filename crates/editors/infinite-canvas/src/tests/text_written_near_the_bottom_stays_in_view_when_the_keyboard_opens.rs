@@ -6,13 +6,10 @@ fn text_written_near_the_bottom_stays_in_view_when_the_keyboard_opens() {
     let mut editor = phone(&[]);
     editor.reveal("infinite-canvas.dock.tool.Text");
     editor.click("infinite-canvas.dock.tool.Text");
-    editor.run();
     let canvas = editor.rect_of("infinite-canvas.canvas");
     let at = pos2(canvas.center().x - 100.0, canvas.bottom() - 160.0);
     editor.fingers(TouchPhase::Start, &[(1, at)]);
-    editor.run();
     editor.fingers(TouchPhase::End, &[(1, at)]);
-    editor.run();
     let [text] = entities(&editor)
         .try_into()
         .expect("the tap writes one text");
@@ -35,7 +32,6 @@ fn text_written_near_the_bottom_stays_in_view_when_the_keyboard_opens() {
     }
     editor.snapshot("text_written_near_the_bottom_stays_in_view_when_the_keyboard_opens");
     editor.type_text("Hi");
-    editor.run();
     assert_eq!(
         entities(&editor)[0].text.to_str_lossy(),
         "Hi",

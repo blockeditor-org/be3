@@ -49,6 +49,7 @@ pub(crate) struct Computation<F: ?Sized = dyn FnMut() -> bool> {
     pub(crate) queued_at: Cell<u64>,
     runs: Cell<(u64, u32)>,
     binding: Cell<bool>,
+    kept: Cell<bool>,
     pub(crate) zone: u64,
     gate: Option<Rc<Gate>>,
     callback: RefCell<Slot<F>>,
@@ -91,6 +92,7 @@ impl Computation {
             queued_at: Cell::new(0),
             runs: Cell::new((0, 0)),
             binding: Cell::new(false),
+            kept: Cell::new(false),
             zone: current_zone(),
             gate: owner.gate.borrow().clone(),
             callback: RefCell::new(Slot {
@@ -278,7 +280,8 @@ impl Computation {
     }
 
     fn is_spent(&self) -> bool {
-        self.source.is_none()
+        !self.kept.get()
+            && self.source.is_none()
             && self.state.get() == State::Clean
             && self.dependencies.borrow().is_empty()
             && self
@@ -334,6 +337,17 @@ impl Computation {
 
     pub(crate) fn is_disposed(&self) -> bool {
         self.state.get() == State::Disposed
+    }
+
+    pub(crate) fn is_dirty(&self) -> bool {
+        self.state.get() == State::Dirty
+    }
+
+    pub(crate) fn kept_binding(callback: impl FnMut() -> bool + 'static) -> Rc<Self> {
+        let computation = Self::new(None, callback);
+        computation.binding.set(true);
+        computation.kept.set(true);
+        computation
     }
 }
 

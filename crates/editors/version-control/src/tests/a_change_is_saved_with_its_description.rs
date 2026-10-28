@@ -23,9 +23,7 @@ fn a_change_is_saved_with_its_description() {
 
     editor.click("checkout.description");
     editor.type_text("Say more");
-    editor.run();
     editor.click("checkout.save");
-    editor.run();
 
     assert_eq!(
         editor.take_version_commands(),

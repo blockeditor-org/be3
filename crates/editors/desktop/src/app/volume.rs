@@ -73,14 +73,8 @@ fn OutputPicker(editor: Editor, levels: Memo<MediaLevels>) -> NodeId {
                 .collect::<Vec<_>>()
         })
     });
-    let selected = create_memo(move || {
-        let chosen = levels.with(|levels| levels.default_output.clone())?;
-        outputs.with(|outputs| outputs.iter().position(|output| output.id == chosen))
-    });
-    let choose = move |index: Option<usize>| {
-        let chosen = index.and_then(|index| {
-            outputs.with_untracked(|outputs| outputs.get(index).map(|output| output.id.clone()))
-        });
+    let selected = create_memo(move || levels.with(|levels| levels.default_output.clone()));
+    let choose = move |chosen: Option<String>| {
         if let Some(id) = chosen {
             editor.act(move || desktop::media::request(MediaRequest::ChooseOutput(id)));
         }
@@ -91,6 +85,7 @@ fn OutputPicker(editor: Editor, levels: Memo<MediaLevels>) -> NodeId {
             <Select
                 options={view! {
                     <ForEach keys={keys}>|id: String| {
+                        let value = id.clone();
                         let label = create_memo(move || {
                             outputs.with(|outputs| {
                                 outputs
@@ -101,7 +96,7 @@ fn OutputPicker(editor: Editor, levels: Memo<MediaLevels>) -> NodeId {
                             })
                         });
                         view! {
-                            <ChoiceOption label />
+                            <ChoiceOption value label />
                         }
                     }</ForEach>
                 }}

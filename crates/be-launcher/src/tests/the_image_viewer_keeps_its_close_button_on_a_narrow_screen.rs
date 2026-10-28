@@ -2,6 +2,7 @@ use beui::native::WindowSize;
 use beui::native::testing::{Showing, Stepped};
 use beui::reactive::*;
 use beui::{Vec2, native::Context, native::FreetypeFonts};
+use block_ui_test::prelude::*;
 
 use crate::viewer::ViewerBar;
 use beui::native::build;

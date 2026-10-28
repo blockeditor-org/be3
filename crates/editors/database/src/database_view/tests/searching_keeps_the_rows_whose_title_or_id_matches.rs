@@ -8,7 +8,6 @@ fn searching_keeps_the_rows_whose_title_or_id_matches() {
     tracker.fixture.harness.click("database-view.search");
     tracker.fixture.run();
     tracker.fixture.harness.type_text("SCALING");
-    tracker.fixture.settle();
     assert!(tracker.fixture.harness.shown(&tracker.line(5)));
     assert!(!tracker.fixture.harness.shown(&tracker.line(4)));
 
@@ -17,7 +16,6 @@ fn searching_keeps_the_rows_whose_title_or_id_matches() {
         tracker.fixture.harness.key(Key::Backspace, Modifiers::NONE);
     }
     tracker.fixture.harness.type_text(&code);
-    tracker.fixture.settle();
     assert!(tracker.fixture.harness.shown(&tracker.line(4)));
     assert!(!tracker.fixture.harness.shown(&tracker.line(5)));
 }

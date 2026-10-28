@@ -1,5 +1,6 @@
 use super::*;
 use crate::native::rich::RichLayout;
+use crate::native::testing::Gui;
 use crate::native::*;
 use crate::native::{Embed, EmbedPlacement, EmbedSlot};
 use crate::reactive::Painter;
@@ -420,6 +421,7 @@ mod a_tap_on_the_simulated_trackpad_holds_its_press_until_the_double_tap_timer_r
 mod a_tap_outside_selectable_text_puts_its_toolbar_away;
 mod a_tapped_field_opens_the_software_keyboard_and_its_keys_type_into_it;
 mod a_test_id_names_the_copy_that_is_shown;
+mod a_test_id_on_a_choice_option_or_a_menu_item_names_the_row_built_for_it;
 mod a_test_id_reaches_the_accessibility_tree_as_its_author_id;
 mod a_text_area_in_a_scaled_canvas_item_is_not_laid_out_again_by_a_pan_or_zoom;
 mod a_text_area_shows_its_placeholder_until_something_is_typed;
@@ -450,6 +452,7 @@ mod a_two_finger_drag_on_the_simulated_trackpad_scrolls_smoothly;
 mod a_typed_paste_types_the_clipboard_key_by_key;
 mod a_typed_shortcut_leaves_the_text_input_that_has_the_focus_alone;
 mod a_value_child_that_watches_its_placement_panics_when_built;
+mod a_value_keyed_choice_keeps_its_value_when_options_reorder_and_shows_none_once_it_is_removed;
 mod a_value_written_between_tags_takes_the_sizing_after_it;
 mod a_vertical_separator_rules_down_the_row_it_sits_in;
 mod a_virtual_list_builds_its_overscan_beyond_the_window;
@@ -1212,7 +1215,8 @@ impl Harness {
                 from + (to - from) * (step as f32 / steps as f32),
             );
         }
-        self.pause(HOLD);
+        self.advance(HOLD);
+        self.run();
         self.touch(TouchPhase::End, to);
     }
 
@@ -1255,7 +1259,7 @@ impl Harness {
         pos: Pos2,
     ) -> crate::native::FrameOutput {
         self.fingers(phase, &[(finger, pos)]);
-        self.take_output()
+        self.output().clone()
     }
 
     pub(crate) fn toggle_inspector(&mut self) {
@@ -1383,22 +1387,26 @@ impl Harness {
         self.inspector_center("inspector.simulation.touch_emulation")
     }
 
-    pub(crate) fn choose_in_simulation(&mut self, control: &str, index: usize) {
+    pub(crate) fn choose_in_simulation<T: Clone + PartialEq + 'static>(
+        &mut self,
+        control: &str,
+        value: T,
+    ) {
         let select = self
             .inspector()
             .find(&format!("inspector.simulation.{control}"));
         let trigger = self
             .inspector()
             .document
-            .api::<crate::unstyled::SelectApi>(select)
+            .api::<crate::unstyled::SelectApi<T>>(select)
             .trigger();
         self.click_in_inspector(trigger);
         self.frame(Vec::new());
         let option = self
             .inspector()
             .document
-            .api::<crate::unstyled::SelectApi>(select)
-            .option_button(index)
+            .api::<crate::unstyled::SelectApi<T>>(select)
+            .option_button(&value)
             .expect("the option is shown");
         self.click(self.node_center(option));
         self.frame(Vec::new());

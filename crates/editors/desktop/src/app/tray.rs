@@ -220,7 +220,14 @@ fn TrayEntry(
     let children = create_memo(move || entry.with(|entry| entry.children.clone()));
     let row_test_id = format!("{prefix}.{id}");
     view! {
-        <MenuItem label glyph disabled separated row_test_id on_click={move || chosen.call(id)}>
+        <MenuItem
+            label
+            glyph
+            disabled
+            separated
+            @test_id={row_test_id}
+            on_click={move || chosen.call(id)}
+        >
             <TrayEntries entries={children} chosen prefix />
         </MenuItem>
     }

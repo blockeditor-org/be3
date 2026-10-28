@@ -17,10 +17,8 @@ fn renaming_a_block_the_host_asks_about_saves_its_name() {
     assert!(fixture.says("Rename"));
 
     fixture.test.click("rename.name");
-    fixture.settle();
     fixture.test.type_text("Notes");
     fixture.test.key(Key::Enter, Modifiers::NONE);
-    fixture.settle();
 
     assert_eq!(
         fixture.test.take_renames(),

@@ -78,7 +78,6 @@ fn a_blocked_row_lists_its_blockers_and_they_list_it_as_blocking() {
         database_types::database::inverse_id(database, blocked_by),
         id(2).as_uuid()
     ));
-    fixture.settle();
     assert_eq!(
         fixture
             .database()

@@ -68,11 +68,14 @@ fn the_on_screen_keyboard_opens_for_a_field_and_shows_what_its_modes_type() {
     );
     test.snapshot("software_keyboard");
 
-    test.click(key(&test, Layer::Text, Value::Modifier(Modifier::Shift)));
+    let pressed = key(&test, Layer::Text, Value::Modifier(Modifier::Shift));
+
+    test.click(pressed);
     test.frame(Vec::new());
     test.snapshot("software_keyboard_shifted");
     for letter in ['h', 'i'] {
-        test.click(key(&test, Layer::Text, Value::Char(letter)));
+        let pressed = key(&test, Layer::Text, Value::Char(letter));
+        test.click(pressed);
     }
     test.frame(Vec::new());
     assert_eq!(value_of(&test), "Hi", "shift lasts for one key");
@@ -87,11 +90,15 @@ fn the_on_screen_keyboard_opens_for_a_field_and_shows_what_its_modes_type() {
         "superscript turns the next key into its superscript"
     );
 
-    test.click(key(&test, Layer::Text, Value::Compose));
-    test.click(key(&test, Layer::Text, Value::Char('a')));
+    let pressed = key(&test, Layer::Text, Value::Compose);
+
+    test.click(pressed);
+    let pressed = key(&test, Layer::Text, Value::Char('a'));
+    test.click(pressed);
     test.frame(Vec::new());
     test.snapshot("software_keyboard_composing");
-    test.click(key(&test, Layer::Text, Value::Char('e')));
+    let pressed = key(&test, Layer::Text, Value::Char('e'));
+    test.click(pressed);
     test.frame(Vec::new());
     assert_eq!(
         value_of(&test),

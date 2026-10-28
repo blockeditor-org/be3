@@ -13,21 +13,17 @@ fn the_link_card_shows_where_the_chosen_block_lives_and_links_it() {
     let mut fixture = picking(&fixture, filter(), BlockLocation::Block(notes.into_bytes()));
     fixture.settle();
     fixture.test.click("picker.link-existing");
-    fixture.settle();
     fixture
         .test
         .click(format!("picker.link.{}.chevron", places.work));
-    fixture.settle();
     fixture
         .test
         .click(format!("picker.link.{}.row", places.minutes));
-    fixture.settle();
     fixture
         .test
         .snapshot("the_link_card_shows_where_the_chosen_block_lives");
 
     fixture.test.click("picker.confirm");
-    fixture.settle();
 
     assert_eq!(
         fixture.test.take_picked(),

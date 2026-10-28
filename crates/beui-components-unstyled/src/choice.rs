@@ -20,8 +20,8 @@ pub enum ChoiceKind {
     Listbox,
 }
 
-pub struct ChoiceOptionHandle {
-    pub index: usize,
+pub struct ChoiceOptionHandle<T> {
+    pub value: T,
     pub label: Prop<String>,
     pub selected: Memo<bool>,
     pub hovered: ReadSignal<bool>,
@@ -29,61 +29,112 @@ pub struct ChoiceOptionHandle {
     pub focused: ReadSignal<bool>,
 }
 
-pub struct ChoiceOption {
+pub struct ChoiceOption<T> {
+    value: T,
     label: Memo<String>,
+    test_id: Option<Prop<String>>,
 }
 
-impl ChoiceOption {
+impl<T> ChoiceOption<T> {
+    pub fn value(&self) -> &T {
+        &self.value
+    }
+
     pub fn label(&self) -> Memo<String> {
         self.label
     }
-}
 
-beui_view::value_child_type!(ChoiceOption);
-
-#[component]
-pub fn ChoiceOption(label: Prop<String>) -> ChoiceOption {
-    ChoiceOption {
-        label: create_memo(move || label.get()),
+    pub fn test_id(&self) -> Option<Prop<String>> {
+        self.test_id.clone()
     }
 }
 
-#[derive(Clone, Copy)]
-struct State {
-    options: Stored<Run<ChoiceOption>>,
+impl<T> TakesTestId for ChoiceOption<T> {
+    fn take_test_id(mut self, test_id: Prop<String>) -> Self {
+        self.test_id = Some(test_id);
+        self
+    }
+}
+
+beui_view::value_child_type!(<T> ChoiceOption<T>);
+
+#[component]
+pub fn ChoiceOption<T>(value: T, label: Prop<String>) -> ChoiceOption<T>
+where
+    T: 'static,
+{
+    ChoiceOption {
+        value,
+        label: create_memo(move || label.get()),
+        test_id: None,
+    }
+}
+
+pub(crate) fn position<T: PartialEq + 'static>(
+    options: &Run<ChoiceOption<T>>,
+    value: &T,
+) -> Option<usize> {
+    options
+        .items()
+        .iter()
+        .position(|option| option.value == *value)
+}
+
+pub(crate) fn value_at<T: Clone + 'static>(
+    options: &Run<ChoiceOption<T>>,
+    index: usize,
+) -> Option<T> {
+    options
+        .get_untracked()
+        .get(index)
+        .map(|option| option.value.clone())
+}
+
+struct State<T: 'static> {
+    options: Stored<Run<ChoiceOption<T>>>,
     focus: Signal<Option<usize>>,
-    selected: Binding<Option<usize>>,
+    selected: Binding<Option<T>>,
+    shown: Memo<Option<usize>>,
     kind: ChoiceKind,
     direction: Direction,
     typeahead: Stored<RefCell<Typeahead>>,
 }
 
+impl<T> Clone for State<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for State<T> {}
+
 #[component]
-pub fn Choice(
-    #[prop(default = ComponentRef::new())] api: ComponentRef<ChoiceApi>,
-    options: Children<ChoiceOption>,
-    #[prop(default = None)] selected: Binding<Option<usize>>,
+pub fn Choice<T>(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<ChoiceApi<T>>,
+    options: Children<ChoiceOption<T>>,
+    #[prop(default = None)] selected: Binding<Option<T>>,
     kind: ChoiceKind,
     direction: Option<Direction>,
     #[prop(default = false)] wrap: bool,
     spacing: f32,
     #[prop(default = String::new())] label: Prop<String>,
-    #[prop(children)] option: Option<RenderFn<ChoiceOptionHandle>>,
-) -> NodeId {
+    #[prop(children)] option: Option<RenderFn<ChoiceOptionHandle<T>>>,
+) -> NodeId
+where
+    T: Clone + PartialEq + 'static,
+{
     let option = option.expect("choice requires an `option` builder");
     let options = options.into_run();
     let direction = direction.unwrap_or(match kind {
         ChoiceKind::Tabs => Direction::Horizontal,
         ChoiceKind::Radio | ChoiceKind::Listbox => Direction::Vertical,
     });
-    let selection = create_selector(move || selected.get());
-    let counted = options.clone();
-    let tab_stop_owner = create_selector(move || {
-        selected
-            .get()
-            .filter(|index| *index < counted.len())
-            .unwrap_or(0)
+    let among = options.clone();
+    let shown = create_memo(move || {
+        selected.with(|selected| selected.as_ref().and_then(|value| position(&among, value)))
     });
+    let selection = create_selector(move || shown.get());
+    let tab_stop_owner = create_selector(move || shown.get().unwrap_or(0));
     let focus = create_signal(None);
     let focused = create_selector(move || focus.get());
 
@@ -101,17 +152,23 @@ pub fn Choice(
         options: store(options.clone()),
         focus,
         selected,
+        shown,
         kind,
         direction,
         typeahead: store(RefCell::default()),
     };
     api.fill(ChoiceApi(state));
-    let built_options: Stored<RefCell<Vec<Rc<ChoiceOption>>>> = store(RefCell::default());
+    let built_options: Stored<RefCell<Vec<Rc<ChoiceOption<T>>>>> = store(RefCell::default());
     let buttons = options.build_each(
         built_options,
         |_, option| option,
         move |index| {
-            let label = built_options.value().borrow()[index].label;
+            let (label, value, test_id) = {
+                let built = built_options.value();
+                let built = built.borrow();
+                let option = &built[index];
+                (option.label, option.value.clone(), option.test_id.clone())
+            };
             let is_selected = selection.memo(Some(index));
             let accessibility = create_memo(move || {
                 let mut node = Node::new(match kind {
@@ -127,13 +184,13 @@ pub fn Choice(
                 }
                 node
             });
-            view! {
+            let built = view! {
                 <unstyled::Button
                     tab_stop={tab_stop_owner.memo(index)}
                     focused={focused.memo(Some(index))}
                     accessibility
                     on_focus_change={move |has_focus: bool| track_focus(state, index, has_focus)}
-                    on_click={move || select(state, Some(index))}
+                    on_click={move || select(state, index)}
                     on_key={move |press: KeyPress| key(state, index, press)}
                     on_text={move |typed: String| {
                         if state.kind == ChoiceKind::Listbox {
@@ -142,7 +199,7 @@ pub fn Choice(
                     }}
                 >|button: ButtonHandle| {
                     option.call(ChoiceOptionHandle {
-                        index,
+                        value: value.clone(),
                         label: label.into_prop(),
                         selected: is_selected,
                         hovered: button.hovered,
@@ -150,7 +207,11 @@ pub fn Choice(
                         focused: button.focused,
                     })
                 }</unstyled::Button>
+            };
+            if let Some(test_id) = test_id {
+                bind_test_id(built, test_id);
             }
+            built
         },
     );
 
@@ -167,7 +228,7 @@ pub fn Choice(
     }
 }
 
-fn track_focus(state: State, index: usize, has_focus: bool) {
+fn track_focus<T>(state: State<T>, index: usize, has_focus: bool) {
     if has_focus {
         state.focus.set(Some(index));
     } else if state.focus.get_untracked() == Some(index) {
@@ -175,24 +236,25 @@ fn track_focus(state: State, index: usize, has_focus: bool) {
     }
 }
 
-fn option_count(state: State) -> usize {
+fn option_count<T>(state: State<T>) -> usize {
     state.options.value().get_untracked().len()
 }
 
-fn select(state: State, selected: Option<usize>) {
-    if selected.is_some_and(|index| index >= option_count(state))
-        || state.selected.get_untracked() == selected
-    {
+fn select<T: Clone + PartialEq + 'static>(state: State<T>, index: usize) {
+    let Some(value) = value_at(&state.options.value(), index) else {
+        return;
+    };
+    if state.shown.get_untracked() == Some(index) {
         return;
     }
     let focused = state.focus.get_untracked().is_some();
-    state.selected.set(selected);
-    if focused && selected.unwrap_or(0) < option_count(state) {
-        state.focus.set(Some(selected.unwrap_or(0)));
+    state.selected.set(Some(value));
+    if focused {
+        state.focus.set(Some(index));
     }
 }
 
-fn key(state: State, index: usize, press: KeyPress) -> bool {
+fn key<T: Clone + PartialEq + 'static>(state: State<T>, index: usize, press: KeyPress) -> bool {
     if press.modifiers.ctrl || press.modifiers.alt {
         return false;
     }
@@ -218,12 +280,12 @@ fn key(state: State, index: usize, press: KeyPress) -> bool {
     };
     if press.pressed {
         state.focus.set(Some(next));
-        select(state, Some(next));
+        select(state, next);
     }
     true
 }
 
-fn typeahead(state: State, index: usize, text: &str) {
+fn typeahead<T: Clone + PartialEq + 'static>(state: State<T>, index: usize, text: &str) {
     let labels: Vec<String> = state
         .options
         .value()
@@ -239,19 +301,24 @@ fn typeahead(state: State, index: usize, text: &str) {
             .matched(text, index, labels.len(), |option| labels[option].clone());
     if let Some(next) = matched {
         state.focus.set(Some(next));
-        select(state, Some(next));
+        select(state, next);
     }
 }
 
-#[derive(Clone, Copy)]
-pub struct ChoiceApi(State);
+pub struct ChoiceApi<T: 'static>(State<T>);
 
-impl ChoiceApi {
-    pub fn selected(&self) -> Option<usize> {
+impl<T> Clone for ChoiceApi<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for ChoiceApi<T> {}
+
+impl<T: Clone + 'static> ChoiceApi<T> {
+    pub fn selected(&self) -> Option<T> {
         let state = self.0;
-        state
-            .selected
-            .get_untracked()
-            .filter(|index| *index < option_count(state))
+        let index = state.shown.get_untracked()?;
+        value_at(&state.options.value(), index)
     }
 }

@@ -1,3 +1,4 @@
+use beui::native::testing::Gui;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;

@@ -2,6 +2,7 @@ use block_editor_beui::be_block::{Edit, ObjectId};
 use block_editor_beui::beui::native::Document;
 use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
+use block_ui_test::prelude::*;
 use checklist_types::{Checklist as ChecklistModel, ChecklistContent};
 use uuid::Uuid;
 
@@ -53,12 +54,10 @@ impl Harness {
 
     fn click(&mut self, test_id: &str) {
         self.editor.click(test_id);
-        self.run();
     }
 
     fn type_text(&mut self, text: &str) {
         self.editor.type_text(text);
-        self.run();
     }
 
     fn document(&self) -> std::cell::Ref<'_, Document> {

@@ -7,6 +7,6 @@ fn a_missing_image_says_why() {
     });
     review.deliver();
 
-    assert!(review.test.shows("paint_review.image.failed"));
+    assert!(review.test.shown("paint_review.image.failed"));
     review.test.snapshot("a_missing_image_says_why");
 }

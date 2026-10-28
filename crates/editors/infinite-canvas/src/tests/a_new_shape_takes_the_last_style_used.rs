@@ -8,23 +8,18 @@ fn a_new_shape_takes_the_last_style_used() {
 
     editor.click("infinite-canvas.dock.tool-lock");
     editor.click("infinite-canvas.dock.tool.Rectangle");
-    editor.run();
     assert!(
         editor.shown("infinite-canvas.style"),
         "with nothing selected the style is for the next shape"
     );
     editor.click("infinite-canvas.style");
-    editor.run();
     editor.click("infinite-canvas.stroke.Green");
     editor.click("infinite-canvas.width.Thin");
-    editor.run();
     editor.click("infinite-canvas.style");
-    editor.run();
 
     let canvas = editor.rect_of("infinite-canvas.canvas");
     let from = canvas.center() - Vec2::new(150.0, 60.0);
     editor.drag(from, from + Vec2::new(120.0, 80.0));
-    editor.run();
 
     let [first] = entities(&editor).try_into().unwrap();
     let green = CanvasColor::Palette {
@@ -40,16 +35,11 @@ fn a_new_shape_takes_the_last_style_used() {
     );
 
     editor.click("infinite-canvas.style");
-    editor.run();
     editor.click("infinite-canvas.roughness.Clean");
-    editor.run();
     editor.click("infinite-canvas.style");
-    editor.run();
     editor.click("infinite-canvas.dock.tool.Ellipse");
-    editor.run();
     let from = canvas.center() + Vec2::new(30.0, -40.0);
     editor.drag(from, from + Vec2::new(120.0, 80.0));
-    editor.run();
 
     let drawn = entities(&editor);
     assert_eq!(drawn.len(), 2);

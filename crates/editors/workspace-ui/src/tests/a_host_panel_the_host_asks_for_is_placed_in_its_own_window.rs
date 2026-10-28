@@ -36,7 +36,6 @@ fn a_host_panel_the_host_asks_for_is_placed_in_its_own_window() {
 
     let tab = (1u64 << 40) + 1;
     fixture.test.click(format!("dock.tab.{tab}.close"));
-    fixture.settle();
 
     assert!(
         fixture

@@ -3,6 +3,7 @@ use block_editor_beui::{
     ChildContent, EditorHost, OwnedEditor, WebViewCommand, WebViewEvent, WebViewId,
 };
 use block_ui_test::BeuiTest;
+use block_ui_test::prelude::*;
 use browser_tab_types::{BrowserTabContent, HistoryItem};
 use uuid::Uuid;
 

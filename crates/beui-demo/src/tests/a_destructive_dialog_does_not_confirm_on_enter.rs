@@ -13,7 +13,7 @@ fn a_destructive_dialog_does_not_confirm_on_enter() {
     press_key(&mut test, Key::Enter);
     test.settle();
     assert!(
-        !test.shows("demo.discard.confirm"),
+        !test.shown("demo.discard.confirm"),
         "Enter presses Cancel, where the focus starts, and closes the dialog"
     );
     assert_eq!(
@@ -27,7 +27,7 @@ fn a_destructive_dialog_does_not_confirm_on_enter() {
     test.click("demo.discard.confirm");
     test.frame(Vec::new());
     assert!(
-        !test.shows("demo.discard.confirm"),
+        !test.shown("demo.discard.confirm"),
         "a click on Discard closes it"
     );
     assert_eq!(showing(test.document(), root, "Discarded the changes"), 1);

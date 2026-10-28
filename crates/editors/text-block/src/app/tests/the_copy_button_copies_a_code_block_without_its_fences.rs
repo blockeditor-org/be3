@@ -1,4 +1,5 @@
 use super::editor;
+use block_ui_test::prelude::*;
 
 #[test]
 fn the_copy_button_copies_a_code_block_without_its_fences() {
@@ -20,9 +21,7 @@ fn the_copy_button_copies_a_code_block_without_its_fences() {
     editor.snapshot("the_copy_button_copies_a_code_block_without_its_fences");
 
     editor.click("text.copy_code.3");
-    editor.run();
     editor.click("text.copy_code.9");
-    editor.run();
 
     assert_eq!(
         editor.take_copied_text(),

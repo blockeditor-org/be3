@@ -16,9 +16,7 @@ fn the_actions_menu_deletes_the_selection() {
     let mut editor = editor(std::slice::from_ref(&rectangle));
 
     editor.click(format!("infinite-canvas.entity.{}", rectangle.id));
-    editor.run();
     editor.click("infinite-canvas.delete");
-    editor.run();
 
     assert!(entities(&editor).is_empty());
 }

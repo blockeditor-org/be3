@@ -247,6 +247,37 @@ order signal — read it with `with` rather than `get` so the list is not cloned
 and `get(&key)` is that item's signal, which stays the same handle across
 reconciles.
 
+One item at a time goes through `set(key, value)`, which appends a new key to
+the order, `remove(&key)`, and `update(&key, |item| ...)`, which edits the item
+in place, wakes its readers only if the value changed, and returns `None` when
+the key is absent.
+
+A memo that sums, sorts or filters the items by reading `get(&key)` for every
+key subscribes to every item and reruns over all of them when any one changes.
+The store keeps such views itself instead, told of every insert, update, removal
+and reorder, and each returns a `ReadSignal` that wakes only when its result
+changes:
+
+```rust
+let total = counters.sum_by(|counter| counter.count);
+let highest = counters.max_by(|counter| counter.count);
+let by_name = counters.sorted_by_key(|counter| counter.name.clone());
+let done = tasks.filter(|task| task.done);
+```
+
+- `sum_by` applies each change's difference, so a write costs one or two calls
+  of its closure.
+- `max_by` and `min_by` give `None` for an empty store and cost O(log n) a write.
+- `sorted_by_key` keeps the keys ordered by the closure's value, with ties in
+  the store's order; `filter` keeps the keys that pass, in the store's order.
+  Both move only the key whose result changed and wake nothing when it didn't;
+  a reorder re-sorts from the results they hold, without calling the closure.
+
+Each closure is called with the changed item only. A signal or memo it reads is
+tracked: when one changes, the view rebuilds from every item once, at the next
+flush. A view belongs to the scope that made it, like a memo, and the store
+forgets it when that scope is disposed.
+
 That handle is what a row binds to, which is why `for_each` takes keys rather
 than values:
 
@@ -608,7 +639,9 @@ such as `{content.call(())} @sizing=ItemSize::Percent(100.0)`.
 
 The GUI modifiers `@test_id="toolbar.button"`, `@node_ref=&panel`, and `@sizing`
 respectively name the node for `find_test_id`, fill a `NodeRef`, and place the
-node with its sizing among siblings. They are imported from `beui::reactive`,
+node with its sizing among siblings. `@test_id` also goes on a value child that
+implements `TakesTestId` (`MenuItem`, `ChoiceOption`), naming the node its
+parent builds for it. They are imported from `beui::reactive`,
 usually through `use beui::reactive::*`. If a local binding shadows a modifier,
 qualify the function path. Ordinary `test_id` and `node_ref` props are allowed
 when the component declares them.

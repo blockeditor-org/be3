@@ -129,30 +129,15 @@ fn Sidebar(model: Model) -> NodeId {
         Loaded::Ready(name) => name,
         Loaded::Failed(error) => error,
     });
-    let tab = create_memo(move || match model.filter.get() {
-        Filter::Open => 0,
-        Filter::Closed => 1,
-    });
     let loading = create_memo(move || model.listing.get() == Loaded::Loading);
     let error = create_memo(move || match model.listing.get() {
         Loaded::Failed(error) => error,
         _ => String::new(),
     });
     let failed = create_memo(move || !error.get().is_empty());
-    let visible = create_memo(move || {
-        let query = model.query.get().to_lowercase();
-        let pull_requests = model.pull_requests;
-        pull_requests
-            .keys()
-            .get()
-            .into_iter()
-            .filter(|number| {
-                query.is_empty()
-                    || pull_requests
-                        .try_get(number)
-                        .is_some_and(|pull_request| matches(&pull_request.get(), &query))
-            })
-            .collect::<Vec<u64>>()
+    let query = create_memo(move || model.query.get().to_lowercase());
+    let visible = model.pull_requests.filter(move |pull_request| {
+        query.with(|query| query.is_empty() || matches(pull_request, query))
     });
     let empty = create_memo(move || visible.get().is_empty() && !loading.get() && !failed.get());
     let empty_text =
@@ -164,13 +149,6 @@ fn Sidebar(model: Model) -> NodeId {
             },
         );
     let refresh = move || model.refresh_list();
-    let show = move |index: usize| {
-        model.show(if index == 0 {
-            Filter::Open
-        } else {
-            Filter::Closed
-        });
-    };
     let query = model.query;
     view! {
         <List spacing=Space::None>
@@ -198,10 +176,10 @@ fn Sidebar(model: Model) -> NodeId {
                     <SegmentedControl
                         label="State"
                         options={view! {
-                            <ChoiceOption label="Open" />
-                            <ChoiceOption label="Closed" />
+                            <ChoiceOption value=Filter::Open label="Open" />
+                            <ChoiceOption value=Filter::Closed label="Closed" />
                         }}
-                        selected={Binding::new(tab, show)}
+                        selected={Binding::new(model.filter, move |filter: Filter| model.show(filter))}
                     />
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                         <Text color=TextColor::Muted align=TextAlign::Center>

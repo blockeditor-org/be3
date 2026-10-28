@@ -19,7 +19,6 @@ fn an_import_into_a_folder_is_made_inside_it() {
     fixture.test.take_requests();
 
     fixture.test.click("picker.import");
-    fixture.settle();
     let place = fixture
         .test
         .take_requests()

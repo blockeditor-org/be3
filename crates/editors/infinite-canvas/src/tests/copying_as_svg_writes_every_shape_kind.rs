@@ -44,9 +44,7 @@ pub(super) fn palette_runs(editor: &mut BeuiTest<CanvasApp>, typed: &str) {
     );
     editor.run();
     editor.type_text(typed);
-    editor.run();
     editor.key(Key::Enter, Modifiers::NONE);
-    editor.run();
 }
 
 #[test]

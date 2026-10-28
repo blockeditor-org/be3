@@ -18,15 +18,10 @@ fn keys_and_text_reach_the_host_as_input() {
     assert!(resizes(&harness.sent()) >= 1, "it tells the host its size");
 
     harness.editor.click("terminal.screen");
-    harness.editor.run();
     harness.editor.type_text("ls");
-    harness.editor.run();
     harness.editor.key(Key::Enter, Modifiers::NONE);
-    harness.editor.run();
     harness.editor.key(Key::C, ctrl());
-    harness.editor.run();
     harness.editor.key(Key::V, ctrl());
-    harness.editor.run();
     assert_eq!(
         keys(harness.sent()),
         [
@@ -40,7 +35,6 @@ fn keys_and_text_reach_the_host_as_input() {
     );
 
     harness.editor.key(Key::C, ctrl_shift());
-    harness.editor.run();
     assert!(
         harness.sent().is_empty(),
         "Ctrl+Shift+C is the terminal's copy"
@@ -77,7 +71,6 @@ fn keys_and_text_reach_the_host_as_input() {
     );
     harness.editor.run();
     harness.editor.type_text("x");
-    harness.editor.run();
     assert!(
         harness
             .editor
@@ -90,9 +83,7 @@ fn keys_and_text_reach_the_host_as_input() {
     viewer.show(&[prompt()]);
     viewer.connect_host();
     viewer.editor.click("terminal.screen");
-    viewer.editor.run();
     viewer.editor.type_text("rm");
-    viewer.editor.run();
     assert!(
         viewer.sent().is_empty(),
         "someone who may only read the block sends the host nothing"

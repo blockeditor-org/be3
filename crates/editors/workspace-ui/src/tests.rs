@@ -1,3 +1,4 @@
+use block_ui_test::prelude::*;
 use workspace_ui_types::{EditorView, EditorViewContent, ViewState};
 use workspace_ui_types::{FolderContent, WorkspaceContent};
 
@@ -122,7 +123,6 @@ impl<A: block_editor_beui::BeuiApp> Fixture<A> {
     fn click_text(&mut self, words: &str) {
         let center = self.text_rect(words).center();
         self.test.click(center);
-        self.settle();
     }
 
     fn text_rect(&self, words: &str) -> Rect {
@@ -137,7 +137,6 @@ impl<A: block_editor_beui::BeuiApp> Fixture<A> {
     fn drag_text(&mut self, words: &str, to: block_editor_beui::beui::Pos2) {
         let from = self.text_rect(words).center();
         self.test.drag(from, to);
-        self.settle();
     }
 
     fn show_history(&mut self) {
@@ -172,7 +171,6 @@ impl<A: block_editor_beui::BeuiApp> Fixture<A> {
             .copied()
             .expect("an open tab can be closed");
         self.test.click(cross.center());
-        self.settle();
     }
 
     fn tab_closes(&self) -> Vec<Rect> {
@@ -396,7 +394,6 @@ fn open_tab_menu(fixture: &mut Fixture, title: &str) {
     fixture
         .test
         .click_with(at, block_editor_beui::beui::PointerButton::Secondary);
-    fixture.settle();
 }
 
 fn placed_in_sidebar(fixture: &Fixture, block: Uuid) -> Option<bool> {

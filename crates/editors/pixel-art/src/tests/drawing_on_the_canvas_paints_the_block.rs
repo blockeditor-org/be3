@@ -16,7 +16,6 @@ fn drawing_on_the_canvas_paints_the_block() {
         artwork.left() + cell * 2.5,
         artwork.top() + cell * 1.5,
     ));
-    editor.run();
 
     let art = art_of(&editor);
     let painted = art

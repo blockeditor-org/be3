@@ -214,6 +214,11 @@ impl Element for InteractiveNode {
         false
     }
 
+    fn sizes_itself(&self, doc: &Document, axis: crate::base::list::Direction) -> bool {
+        self.child
+            .is_some_and(|child| crate::layout::sizes_itself(doc, child, axis))
+    }
+
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         match self.child {
             Some(child) => crate::layout::measure(doc, painter, child, available),

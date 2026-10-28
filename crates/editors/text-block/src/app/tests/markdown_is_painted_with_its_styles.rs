@@ -1,4 +1,5 @@
 use super::editor;
+use block_ui_test::prelude::*;
 
 #[test]
 fn markdown_is_painted_with_its_styles() {

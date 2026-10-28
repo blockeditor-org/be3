@@ -6,7 +6,6 @@ fn the_pen_tool_keeps_every_coalesced_sample_and_draws_the_predicted_tail() {
     let mut editor = editor(&[]);
 
     editor.click("infinite-canvas.dock.tool.Pen");
-    editor.run();
     let canvas = editor.rect_of("infinite-canvas.canvas");
     let from = canvas.center() - Vec2::new(150.0, 0.0);
     let at = |along: f32| from + Vec2::new(200.0 * along, 60.0 * (along * 3.0).sin());

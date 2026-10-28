@@ -23,7 +23,6 @@ fn another_branch_is_combined_into_this_one() {
     let mut editor = checkout(state, status);
 
     editor.click("checkout.merge.draft");
-    editor.run();
 
     assert_eq!(
         editor.take_version_commands(),

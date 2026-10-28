@@ -308,7 +308,7 @@ fn PolicyRow(
     locked: Memo<bool>,
     separated: bool,
 ) -> NodeId {
-    let options: Vec<String> = options.iter().map(|label| (*label).to_owned()).collect();
+    let numbers: Vec<usize> = (0..options.len()).collect();
     view! {
         <SettingsRow
             label={label.to_owned()}
@@ -320,8 +320,8 @@ fn PolicyRow(
                 @sizing=ItemSize::Percent(100.0)
                 width={Extent::fraction(1.0)}
                 options={view! {
-                    <ForEach keys={options}>|label: String|
-                        <ChoiceOption label={label} />
+                    <ForEach keys={numbers}>|option: usize|
+                        <ChoiceOption value=option label={options[option]} />
                     </ForEach>
                 }}
                 selected={Binding::new(selected, move |chosen: Option<usize>| choose.call(chosen))}

@@ -274,18 +274,9 @@ fn TextSettings(state: State) -> NodeId {
         content.get();
         state.text.indentation()
     });
-    let language_index = create_memo(move || {
-        TextLanguage::ALL
-            .iter()
-            .position(|choice| *choice == language.get())
-    });
-    let indentation_index = create_memo(move || {
-        Some(usize::from(matches!(
-            indentation.get(),
-            TextIndentation::Spaces { .. }
-        )))
-    });
+    let language_chosen = create_memo(move || Some(language.get()));
     let spaces = create_memo(move || matches!(indentation.get(), TextIndentation::Spaces { .. }));
+    let spaces_chosen = create_memo(move || Some(spaces.get()));
     let width = create_memo(move || match indentation.get() {
         TextIndentation::Spaces { width } => f64::from(width),
         TextIndentation::Tabs => 2.0,
@@ -297,18 +288,16 @@ fn TextSettings(state: State) -> NodeId {
                 <Select
                     width=SELECT_WIDTH
                     label="Language"
-                    selected={Binding::new(language_index, move |index: Option<usize>| {
-                        let Some(choice) = index.and_then(|index| TextLanguage::ALL.get(index)) else {
+                    selected={Binding::new(language_chosen, move |chosen: Option<TextLanguage>| {
+                        let Some(choice) = chosen else {
                             return;
                         };
-                        state.text.execute(EditorCommand::SetLanguage(*choice));
+                        state.text.execute(EditorCommand::SetLanguage(choice));
                     })}
                     @test_id={"text.language"}
                     options={view! {
-                        <ForEach
-                            keys={(0..TextLanguage::ALL.len()).collect::<Vec<usize>>()}
-                        >|index: usize|
-                            <ChoiceOption label={TextLanguage::ALL[index].label().to_owned()} />
+                        <ForEach keys={TextLanguage::ALL.to_vec()}>|choice: TextLanguage|
+                            <ChoiceOption value=choice label={choice.label().to_owned()} />
                         </ForEach>
                     }}
                 />
@@ -318,17 +307,17 @@ fn TextSettings(state: State) -> NodeId {
                 <Select
                     width=SELECT_WIDTH
                     label="Indentation"
-                    selected={Binding::new(indentation_index, move |index: Option<usize>| {
-                        let indentation = match index {
-                            Some(1) => TextIndentation::Spaces { width: 2 },
+                    selected={Binding::new(spaces_chosen, move |chosen: Option<bool>| {
+                        let indentation = match chosen {
+                            Some(true) => TextIndentation::Spaces { width: 2 },
                             _ => TextIndentation::Tabs,
                         };
                         state.text.execute(EditorCommand::SetIndentation(indentation));
                     })}
                     @test_id={"text.indentation"}
                     options={view! {
-                        <ChoiceOption label="Tabs" />
-                        <ChoiceOption label="Spaces" />
+                        <ChoiceOption value=false label="Tabs" />
+                        <ChoiceOption value=true label="Spaces" />
                     }}
                 />
             </List>

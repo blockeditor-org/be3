@@ -13,13 +13,13 @@ fn a_show_adds_and_removes_a_tab_among_the_tabs_beside_it() {
             <Tabs
                 @node_ref=&tabs
                 options={view! {
-                    <unstyled::ChoiceOption label="List" />
+                    <unstyled::ChoiceOption value="List" label="List" />
                     <Show condition={extra}>
-                        <unstyled::ChoiceOption label="Load" />
+                        <unstyled::ChoiceOption value="Load" label="Load" />
                     </Show>
-                    <unstyled::ChoiceOption label="Name" />
+                    <unstyled::ChoiceOption value="Name" label="Name" />
                 }}
-                selected=0
+                selected="List"
             />
         }]
     });
@@ -47,13 +47,9 @@ fn a_show_adds_and_removes_a_tab_among_the_tabs_beside_it() {
     harness.click(harness.center(third));
     harness.frame(Vec::new());
     assert_eq!(
-        harness
-            .document()
-            .api::<ChoiceApi>(tabs)
-            .selected()
-            .unwrap_or(0),
-        2,
-        "the tabs after a shown one report the index they now sit at"
+        harness.document().api::<ChoiceApi<&str>>(tabs).selected(),
+        Some("Name"),
+        "a tab after a shown one still selects its own value"
     );
 }
 

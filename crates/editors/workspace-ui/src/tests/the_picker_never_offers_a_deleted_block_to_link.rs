@@ -22,7 +22,6 @@ fn the_picker_never_offers_a_deleted_block_to_link() {
     let mut fixture = picking(&fixture, filter(), BlockLocation::Root);
     fixture.settle();
     fixture.test.click("picker.link-existing");
-    fixture.settle();
 
     assert!(fixture.test.shown(&format!("picker.link.{kept}.row")));
     assert!(

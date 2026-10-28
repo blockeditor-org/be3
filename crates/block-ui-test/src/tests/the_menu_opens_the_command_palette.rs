@@ -41,9 +41,7 @@ fn the_menu_opens_the_command_palette() {
     assert!(test.shown("command-palette.search"));
 
     test.type_text("tidy");
-    test.run();
     test.key(beui::Key::Enter, Modifiers::NONE);
-    test.run();
     let node = test
         .document()
         .find_test_id("tidy.state")

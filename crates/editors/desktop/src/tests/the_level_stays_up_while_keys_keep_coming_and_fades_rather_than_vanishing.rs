@@ -24,6 +24,7 @@ fn the_level_stays_up_while_keys_keep_coming_and_fades_rather_than_vanishing() {
     fixture
         .test
         .advance(OSD_DURATION - Duration::from_millis(100));
+    fixture.test.run();
     fixture.settle();
     assert!(
         fixture.test.shown("desktop.osd.0"),
@@ -35,6 +36,7 @@ fn the_level_stays_up_while_keys_keep_coming_and_fades_rather_than_vanishing() {
     fixture
         .test
         .advance(OSD_DURATION - Duration::from_millis(100));
+    fixture.test.run();
     fixture.settle();
     assert!(
         fixture.test.shown("desktop.osd.0"),
@@ -42,6 +44,7 @@ fn the_level_stays_up_while_keys_keep_coming_and_fades_rather_than_vanishing() {
     );
 
     fixture.test.advance(Duration::from_millis(200));
+    fixture.test.run();
     fixture.settle();
     assert!(
         fixture.test.shown("desktop.osd.0"),
@@ -50,6 +53,7 @@ fn the_level_stays_up_while_keys_keep_coming_and_fades_rather_than_vanishing() {
     fixture.test.snapshot("the_volume_fading");
 
     fixture.test.advance(Duration::from_secs(1));
+    fixture.test.run();
     fixture.settle();
     assert!(
         !fixture.test.shown("desktop.osd.0"),

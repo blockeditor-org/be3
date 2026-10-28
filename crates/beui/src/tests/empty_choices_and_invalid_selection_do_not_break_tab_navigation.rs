@@ -9,16 +9,16 @@ fn empty_choices_and_invalid_selection_do_not_break_tab_navigation() {
             view! {
                 <Listbox
                     options={view! {}}
-                    selected=Some(4)
+                    selected=Some("Four")
                 />
             },
             view! {
                 <Tabs
                     options={view! {
-                        <unstyled::ChoiceOption label="One" />
-                        <unstyled::ChoiceOption label="Two" />
+                        <unstyled::ChoiceOption value="One" label="One" />
+                        <unstyled::ChoiceOption value="Two" label="Two" />
                     }}
-                    selected=99
+                    selected="Missing"
                 />
             },
             view! {
@@ -27,13 +27,13 @@ fn empty_choices_and_invalid_selection_do_not_break_tab_navigation() {
         ]
     });
     assert_eq!(
-        document
-            .api::<styled::ChoiceApi>(tabs)
-            .selected()
-            .unwrap_or(0),
-        1
+        document.api::<styled::ChoiceApi<&str>>(tabs).selected(),
+        None
     );
-    assert_eq!(document.api::<styled::ChoiceApi>(empty).selected(), None);
+    assert_eq!(
+        document.api::<styled::ChoiceApi<&str>>(empty).selected(),
+        None
+    );
     let after_focus = document.api::<unstyled::ButtonApi>(after).focused();
     let mut harness = Harness::new(document);
     harness.key(Key::Tab, Modifiers::NONE);

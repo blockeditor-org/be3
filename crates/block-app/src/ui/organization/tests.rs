@@ -1,5 +1,5 @@
 use beui::native::WindowSize;
-use beui::native::testing::{Showing, Stepped};
+use beui::native::testing::{Gui, Showing, Stepped};
 use beui::{Rect, native::Context, native::FreetypeFonts, pos2, vec2};
 
 use super::*;

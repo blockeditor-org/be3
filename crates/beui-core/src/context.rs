@@ -236,6 +236,7 @@ impl WindowOutput {
     }
 }
 
+#[derive(Clone)]
 pub struct FrameOutput {
     pub windows: Vec<WindowOutput>,
     pub window_requests: Vec<WindowRequest>,

@@ -1,4 +1,5 @@
 use block_editor_beui::be_block::BlockContent;
+use block_ui_test::prelude::*;
 
 use block_editor_beui::{BlockInfo, BlockParent, EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;

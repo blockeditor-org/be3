@@ -1,3 +1,4 @@
+use block_ui_test::prelude::*;
 use std::{cmp::Ordering, collections::HashMap};
 
 use block_editor_beui::be_block::Edit;

@@ -2,6 +2,7 @@ use beui::datetime::Date;
 use beui::native::{Document, build};
 use beui::{Input, NodeId, Pos2, Vec2, pos2};
 use block_ui_test::DocumentTest;
+use block_ui_test::prelude::*;
 
 use super::*;
 use crate::{DemoRoot, LoneRoot, PAGES, Page};
@@ -19,6 +20,7 @@ mod a_dialog_hangs_from_the_tab_that_opened_it;
 mod a_dialog_on_a_narrow_screen_is_a_sheet_with_its_buttons_stacked;
 mod a_docked_page_shown_fullscreen_covers_the_dock_until_escape;
 mod a_fade_shows_what_it_holds_at_its_opacity;
+mod a_fraction_wide_frame_keeps_its_width_where_its_parent_stretches;
 mod a_frame_moves_turns_and_fades_what_it_holds;
 mod a_list_leaves_no_gap_for_a_hidden_frame;
 mod a_long_menu_page_scrolls_to_the_row_the_keyboard_is_on;
@@ -149,12 +151,12 @@ fn alone(size: Vec2, page: Page) -> DocumentTest {
 
 fn open(test: &mut DocumentTest, page: Page) {
     let row = format!("demo.catalog.{}", page.title());
-    if !test.shows(&row) && test.document().find_test_id("dock.back").is_some() {
+    if !test.shown(&row) && test.document().find_test_id("dock.back").is_some() {
         test.click("dock.back");
     }
     for _ in 0..REVEAL_TICKS {
         let bottom = test.size().y;
-        let shown = test.shows(&row) && test.rect_of(&row).bottom() <= bottom;
+        let shown = test.shown(&row) && test.rect_of(&row).bottom() <= bottom;
         if shown {
             test.click(&row);
             test.frame(Vec::new());
@@ -174,7 +176,7 @@ fn open_beside(test: &mut DocumentTest, page: Page) {
 fn reveal(test: &mut DocumentTest, test_id: &str) {
     let page = pos2(test.size().x * 0.75, test.size().y / 2.0);
     for _ in 0..REVEAL_TICKS {
-        if test.shows(test_id) && test.rect_of(test_id).bottom() <= test.size().y {
+        if test.shown(test_id) && test.rect_of(test_id).bottom() <= test.size().y {
             return;
         }
         test.scroll(page, Vec2::new(0.0, REVEAL_STEP));

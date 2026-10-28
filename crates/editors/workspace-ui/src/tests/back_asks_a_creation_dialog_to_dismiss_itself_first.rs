@@ -14,7 +14,6 @@ fn back_asks_a_creation_dialog_to_dismiss_itself_first() {
         .test
         .click(format!("picker.menu.{TEMPLATE_EDITOR}/main"));
     fixture.settle();
-    fixture.settle();
     let asking = DialogStatus {
         handles_dismiss: true,
         answer: None,

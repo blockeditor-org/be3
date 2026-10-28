@@ -15,6 +15,7 @@ use block_editor_beui::{
     WifiRequest, WifiSecurity, WifiStatus, WifiWatch, WindowAction, WindowKind, WindowOrigin,
     WindowsWatch,
 };
+use block_ui_test::prelude::*;
 
 use block_shell::{KeptWindow, saved_windows};
 use block_ui_test::BeuiTest;

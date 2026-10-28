@@ -75,11 +75,8 @@ fn an_organizations_policies_show_to_its_administrators_and_fix_what_devices_kee
     );
 
     editor.click("settings.organization.workspaces");
-    editor.run();
     editor.key(Key::ArrowDown, Modifiers::NONE);
-    editor.run();
     editor.key(Key::Enter, Modifiers::NONE);
-    editor.run();
     assert_eq!(
         editor
             .content::<OrganizationPoliciesContent>(Some(policies))

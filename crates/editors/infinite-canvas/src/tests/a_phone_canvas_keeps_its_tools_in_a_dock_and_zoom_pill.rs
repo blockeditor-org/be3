@@ -11,13 +11,10 @@ fn a_phone_canvas_keeps_its_tools_in_a_dock_and_zoom_pill() {
 
     let before = editor.label("infinite-canvas.pill.zoom");
     editor.click("infinite-canvas.pill.zoom-in");
-    editor.run();
     assert_ne!(editor.label("infinite-canvas.pill.zoom"), before);
     editor.click("infinite-canvas.pill.fit");
-    editor.run();
 
     editor.click(format!("infinite-canvas.entity.{}", rectangle.id));
-    editor.run();
     assert!(editor.shown("infinite-canvas.selection-bar"));
     assert!(
         editor.rect_of("infinite-canvas.selection-bar").bottom()

@@ -160,7 +160,7 @@ pub(crate) fn DesktopBar(
                                 }
                             }</ForEach>
                             <MenuItem
-                                row_test_id={"desktop.sessions.new".to_owned()}
+                                @test_id={"desktop.sessions.new".to_owned()}
                                 label="New session"
                                 glyph=ICON_PLUS
                                 separated={listing}

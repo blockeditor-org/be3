@@ -174,17 +174,10 @@ fn KindHere(editor: Editor, kind: Uuid, block: Memo<Option<Uuid>>, manages: Memo
             });
         }
     });
-    let selected = create_memo(move || {
-        open_inside.get().map(|open| match open {
-            true => 0,
-            false => 1,
-        })
-    });
-    let choose = move |index: Option<usize>| {
-        let (Some(index), Some(block)) = (index, block.get_untracked()) else {
+    let choose = move |chosen: Option<bool>| {
+        let (Some(open), Some(block)) = (chosen, block.get_untracked()) else {
             return;
         };
-        let open = index == 0;
         open_inside.set(Some(open));
         let level = match open {
             true => AccessLevel::View,
@@ -206,10 +199,10 @@ fn KindHere(editor: Editor, kind: Uuid, block: Memo<Option<Uuid>>, manages: Memo
                 <Select
                     label="Who can read it"
                     options={view! {
-                        <ChoiceOption label={ANYONE_INSIDE_LABEL.to_owned()} />
-                        <ChoiceOption label={MEMBERS_ONLY_LABEL.to_owned()} />
+                        <ChoiceOption value=true label={ANYONE_INSIDE_LABEL.to_owned()} />
+                        <ChoiceOption value=false label={MEMBERS_ONLY_LABEL.to_owned()} />
                     }}
-                    selected={Binding::new(selected, choose)}
+                    selected={Binding::new(open_inside, choose)}
                     disabled={unchangeable}
                     @test_id={format!("settings.kind.{kind}.visibility")}
                 />

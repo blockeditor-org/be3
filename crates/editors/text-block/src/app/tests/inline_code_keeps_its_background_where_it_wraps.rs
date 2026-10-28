@@ -1,4 +1,5 @@
 use super::editor;
+use block_ui_test::prelude::*;
 
 #[test]
 fn inline_code_keeps_its_background_where_it_wraps() {
