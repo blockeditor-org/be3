@@ -1850,6 +1850,7 @@ fn ActionMenu() -> NodeId {
     let wrap = Action::new("demo.menu.wrap", "Wrap lines", move || {
         wrapped.update(|wrapped| *wrapped = !*wrapped)
     })
+    .glyph(ICON_TEXT_ALIGN_START)
     .checked(wrapped)
     .register();
     let link = Action::new(
@@ -1902,8 +1903,8 @@ fn ActionMenu() -> NodeId {
                     <Text style=TextStyle::PARAGRAPH>
                         "One description of actions, separators and submenus fills this menu, a \
                          plugin's frame menu and the command palette. Each row shows its action's \
-                         shortcut, a checkbox ticks while its action is checked, and a radio group \
-                         ticks the chosen one."
+                         shortcut. A checkable action shows its tick where its icon would be, and a \
+                         radio group ticks the chosen one."
                     </Text>
                 </Card>
             </ContextMenu>
@@ -2345,6 +2346,7 @@ fn HeldMenu() -> NodeId {
 #[component]
 fn NewSlideMenu() -> NodeId {
     let added = create_signal("No slide added yet".to_owned());
+    let chosen = create_signal(None::<usize>);
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
@@ -2361,6 +2363,8 @@ fn NewSlideMenu() -> NodeId {
                                 <MenuItem
                                     label={SLIDE_LAYOUTS[layout].0}
                                     glyph={SLIDE_LAYOUTS[layout].1}
+                                    checked={create_memo(move || Some(chosen.get() == Some(layout)))}
+                                    radio=true
                                     row_test_id={format!("demo.slide.{layout}")}
                                 />
                             </ForEach>
@@ -2370,7 +2374,10 @@ fn NewSlideMenu() -> NodeId {
                     }}
                     on_select={move |path: Vec<usize>| {
                         let what = match path.as_slice() {
-                            [1, layout] => SLIDE_LAYOUTS[*layout].0,
+                            [1, layout] => {
+                                chosen.set(Some(*layout));
+                                SLIDE_LAYOUTS[*layout].0
+                            }
                             [2] => "another block",
                             _ => "a link",
                         };

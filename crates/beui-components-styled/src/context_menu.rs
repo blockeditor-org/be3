@@ -227,18 +227,17 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
         (false, true) => TextColor::Danger,
         (false, false) => TextColor::Default,
     });
-    let icon_color = create_memo(move || match (disabled.get(), danger.get()) {
-        (true, _) => TextColor::Muted,
-        (false, true) => TextColor::Danger,
+    let glyph = leading_mark(kind, glyph, checked, radio);
+    let icon_color = create_memo(move || match (disabled.get(), danger.get(), glyph.get()) {
+        (true, _, _) => TextColor::Muted,
+        (false, true, _) => TextColor::Danger,
+        (false, false, LeadingMark::Mark(_)) => TextColor::Accent,
         _ => glyph_color
             .get()
             .map_or(TextColor::Muted, TextColor::Custom),
     });
-    let glyph = create_memo(move || match kind {
-        MenuRowKind::Back => Some(ICON_CHEVRON_LEFT),
-        _ => glyph.get(),
-    });
-    let has_glyph = create_memo(move || glyph.get().is_some() || glyphs.get());
+    let has_glyph = create_memo(move || glyph.get() != LeadingMark::None || glyphs.get());
+    let glyph = create_memo(move || glyph.get().glyph());
     let lead = create_memo(move || lead.get());
     let has_lead = create_memo(move || !lead.get().is_empty());
     let detail = create_memo(move || detail.get());
@@ -288,7 +287,6 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
                             {shortcut}
                         </Text>
                     </Show>
-                    <MenuCheck checked radio />
                     <Show condition={has_submenu}>
                         <Text size=TextSize::Sm color={chevron_color} align=TextAlign::Center>
                             <Icon glyph=ICON_CHEVRON_RIGHT />
@@ -311,23 +309,40 @@ fn GlyphSlot(glyph: Memo<Option<Glyph>>, color: Memo<TextColor>) -> NodeId {
     }
 }
 
-#[component]
-pub(crate) fn MenuCheck(
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum LeadingMark {
+    None,
+    Icon(Glyph),
+    Mark(Glyph),
+    Unmarked,
+}
+
+impl LeadingMark {
+    fn glyph(self) -> Option<Glyph> {
+        match self {
+            LeadingMark::Icon(glyph) | LeadingMark::Mark(glyph) => Some(glyph),
+            LeadingMark::None | LeadingMark::Unmarked => None,
+        }
+    }
+}
+
+fn leading_mark(
+    kind: MenuRowKind,
+    glyph: Prop<Option<Glyph>>,
     checked: Prop<Option<bool>>,
-    #[prop(default = false)] radio: bool,
-) -> DynamicSegment<ListChild> {
-    let ticked = create_memo(move || checked.get() == Some(true));
+    radio: bool,
+) -> Memo<LeadingMark> {
     let tick = match radio {
         true => ICON_DOT,
         false => ICON_CHECK,
     };
-    view! {
-        <Show condition={ticked}>
-            <Text size=TextSize::Sm color=TextColor::Accent align=TextAlign::Center>
-                <Icon glyph=tick />
-            </Text>
-        </Show>
-    }
+    create_memo(move || match (kind, checked.get(), glyph.get()) {
+        (MenuRowKind::Back, _, _) => LeadingMark::Icon(ICON_CHEVRON_LEFT),
+        (_, Some(true), _) => LeadingMark::Mark(tick),
+        (_, Some(false), _) => LeadingMark::Unmarked,
+        (_, None, Some(glyph)) => LeadingMark::Icon(glyph),
+        (_, None, None) => LeadingMark::None,
+    })
 }
 
 #[component]
@@ -408,25 +423,30 @@ fn MenuTileFace(handle: MenuRowHandle, padding: Padding) -> NodeId {
         label,
         glyph,
         glyph_color,
+        checked,
         disabled,
         hovered,
         focused,
         ..
     } = handle;
     let disabled = create_memo(move || disabled.get());
-    let color = create_memo(move || match disabled.get() {
-        true => TextColor::Muted,
-        false => TextColor::Default,
+    let ticked = create_memo(move || checked.get() == Some(true));
+    let color = create_memo(move || match (disabled.get(), ticked.get()) {
+        (true, _) => TextColor::Muted,
+        (false, true) => TextColor::Accent,
+        (false, false) => TextColor::Default,
     });
-    let icon_color = create_memo(move || match disabled.get() {
-        true => TextColor::Muted,
-        false => glyph_color
+    let icon_color = create_memo(move || match (disabled.get(), ticked.get()) {
+        (true, _) => TextColor::Muted,
+        (false, true) => TextColor::Accent,
+        (false, false) => glyph_color
             .get()
             .map_or(TextColor::Default, TextColor::Custom),
     });
     let fill_color = create_memo(move || row_background(focused.get(), hovered.get()));
+    let border = create_memo(move || ticked.get().then_some(Border::new(ColorRole::Accent)));
     view! {
-        <Frame fill={fill_color} radius=Radius::Md padding>
+        <Frame fill={fill_color} border radius=Radius::Md padding>
             <List align=Align::Center spacing=TILE_SPACING>
                 <Text size=TextSize::Xl color={icon_color} align=TextAlign::Center>
                     <Icon glyph={glyph} />
@@ -481,15 +501,16 @@ fn MenuSheetRowFace(handle: MenuRowHandle) -> NodeId {
         focused,
         ..
     } = handle;
-    let glyph = match kind {
-        MenuRowKind::Back => Prop::Static(Some(ICON_CHEVRON_LEFT)),
-        _ => glyph,
-    };
-    let trailing = create_memo(move || match (has_submenu.get(), checked.get(), radio) {
-        (true, _, _) => RowTrailing::Chevron,
-        (false, Some(true), true) => RowTrailing::Radio,
-        (false, Some(true), false) => RowTrailing::Check,
-        _ => RowTrailing::None,
+    let mark = leading_mark(kind, glyph, checked, radio);
+    let leading = create_memo(move || glyphs.get() || mark.get() != LeadingMark::None);
+    let glyph_color = create_memo(move || match mark.get() {
+        LeadingMark::Mark(_) => Some(TextColor::Accent),
+        _ => glyph_color.get().map(TextColor::Custom),
+    });
+    let glyph = create_memo(move || mark.get().glyph());
+    let trailing = create_memo(move || match has_submenu.get() {
+        true => RowTrailing::Chevron,
+        false => RowTrailing::None,
     });
     view! {
         <List spacing=SHEET_SEPARATOR_SPACING>
@@ -506,9 +527,9 @@ fn MenuSheetRowFace(handle: MenuRowHandle) -> NodeId {
                 label
                 lead
                 glyph
-                glyph_color={create_memo(move || glyph_color.get().map(TextColor::Custom))}
+                glyph_color
                 detail
-                leading={glyphs}
+                leading
                 trailing={trailing}
                 depth
                 expanded
