@@ -10,6 +10,7 @@ accesskit = "0.24.1"
 base64 = "0.22"
 beui-fonts = { path = "../beui-fonts" }
 beui-html = { path = "../beui-html" }
+beui-drag = { path = "../beui-drag" }
 beui-tree = { path = "../beui-tree" }
 beui-types = { path = "../beui-types" }
 png = "0.18"

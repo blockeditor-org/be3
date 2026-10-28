@@ -299,7 +299,9 @@ impl Document {
             keyboard_asks: 0,
             activated: None,
             activation_key: None,
-            drags: Rc::new(crate::drag_board::Board::new(Rc::clone(&rects))),
+            drags: Rc::new(crate::drag_board::Board::new(
+                crate::drag_board::Painted::new(Rc::clone(&rects)),
+            )),
             rects,
             tools: None,
             keyboard_host: None,

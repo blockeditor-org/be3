@@ -6,15 +6,13 @@ use crate::reactive::{
     Animation, Child, Get, NodeId, Prop, Set, create_animation, create_binding, create_effect,
     create_signal, use_preferences,
 };
-use crate::types::layout::GLIDE_SPRING;
-use crate::types::{Direction, GlideHold, Pos2, Vec2};
+use crate::types::{GlideHold, GlideMotion, Pos2, Vec2};
 use beui_core_html::css;
 use beui_core_html::document::{append, create, set_state, set_style, state};
 
 #[derive(Default)]
 struct Glide {
-    displacement: Cell<Vec2>,
-    velocity: Cell<Vec2>,
+    motion: Cell<GlideMotion>,
     armed: Cell<Option<Pos2>>,
     from: Cell<Option<Pos2>>,
     hold: Cell<Option<GlideHold>>,
@@ -32,7 +30,7 @@ struct Held {
 
 impl Held {
     fn show(&self) {
-        let displacement = self.glide.displacement.get();
+        let displacement = self.glide.motion.get().displacement;
         if self.shown.get_untracked() != displacement {
             self.shown.set(displacement);
         }
@@ -42,8 +40,7 @@ impl Held {
         if self.animates.get_untracked() {
             self.frames.start();
         } else {
-            self.glide.displacement.set(Vec2::ZERO);
-            self.glide.velocity.set(Vec2::ZERO);
+            self.glide.motion.set(GlideMotion::default());
         }
         self.show();
     }
@@ -52,13 +49,9 @@ impl Held {
         let (Some(hold), Some(resting)) = (self.glide.hold.get(), self.glide.resting.get()) else {
             return;
         };
-        let moved = hold.at - resting;
-        self.glide.displacement.set(match hold.along {
-            Some(Direction::Horizontal) => Vec2::new(moved.x, 0.0),
-            Some(Direction::Vertical) => Vec2::new(0.0, moved.y),
-            None => moved,
-        });
-        self.glide.velocity.set(Vec2::ZERO);
+        let mut motion = self.glide.motion.get();
+        motion.hold(hold.along, hold.at - resting);
+        self.glide.motion.set(motion);
         self.show();
     }
 }
@@ -87,21 +80,15 @@ pub(crate) fn glide(arm: Prop<u64>, from: Prop<Option<Pos2>>, children: Child) -
                 if glide.hold.get().is_some() {
                     return false;
                 }
-                let (mut displacement, mut velocity) =
-                    (glide.displacement.get(), glide.velocity.get());
-                let seconds = frame.delta.as_secs_f32();
-                GLIDE_SPRING.advance(&mut displacement.x, &mut velocity.x, seconds);
-                GLIDE_SPRING.advance(&mut displacement.y, &mut velocity.y, seconds);
-                glide.displacement.set(displacement);
-                glide.velocity.set(velocity);
-                shown.set(displacement);
-                displacement != Vec2::ZERO || velocity != Vec2::ZERO
+                let mut motion = glide.motion.get();
+                let moving = motion.step(frame.delta.as_secs_f32());
+                glide.motion.set(motion);
+                shown.set(motion.displacement);
+                moving
             },
             {
                 move || {
-                    let glide = &settled;
-                    glide.displacement.set(Vec2::ZERO);
-                    glide.velocity.set(Vec2::ZERO);
+                    settled.motion.set(GlideMotion::default());
                     shown.set(Vec2::ZERO);
                 }
             },
@@ -168,7 +155,9 @@ pub(crate) fn glide(arm: Prop<u64>, from: Prop<Option<Pos2>>, children: Child) -
         if glide.hold.get().is_some() {
             held.take_hold();
         } else if moved != Vec2::ZERO {
-            glide.displacement.set(glide.displacement.get() + moved);
+            let mut motion = glide.motion.get();
+            motion.displacement += moved;
+            glide.motion.set(motion);
             held.start();
         }
     });
@@ -182,14 +171,14 @@ pub(crate) fn hold_glide(glide: NodeId, hold: Option<GlideHold>) {
     let released = held.glide.hold.get().is_some() && hold.is_none();
     held.glide.hold.set(hold);
     match released {
-        true if held.glide.displacement.get() != Vec2::ZERO => held.start(),
+        true if held.glide.motion.get().displacement != Vec2::ZERO => held.start(),
         true => {}
         false => held.take_hold(),
     }
 }
 
 pub(crate) fn glide_displacement(glide: NodeId) -> Option<Vec2> {
-    state::<Held>(glide).map(|held| held.glide.displacement.get())
+    state::<Held>(glide).map(|held| held.glide.motion.get().displacement)
 }
 
 pub(crate) fn set_raised(node: NodeId, raised: bool) {

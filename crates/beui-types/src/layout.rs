@@ -603,3 +603,34 @@ pub struct GlideHold {
     pub at: Pos2,
     pub along: Option<Direction>,
 }
+
+#[derive(Clone, Copy, PartialEq, Default, Debug)]
+pub struct GlideMotion {
+    pub displacement: Vec2,
+    pub velocity: Vec2,
+}
+
+impl GlideMotion {
+    pub fn moving(self) -> bool {
+        self.displacement != Vec2::ZERO || self.velocity != Vec2::ZERO
+    }
+
+    pub fn step(&mut self, seconds: f32) -> bool {
+        GLIDE_SPRING.advance(&mut self.displacement.x, &mut self.velocity.x, seconds);
+        GLIDE_SPRING.advance(&mut self.displacement.y, &mut self.velocity.y, seconds);
+        self.moving()
+    }
+
+    pub fn settle(&mut self) {
+        *self = Self::default();
+    }
+
+    pub fn hold(&mut self, along: Option<Direction>, moved: Vec2) {
+        self.displacement = match along {
+            Some(Direction::Horizontal) => Vec2::new(moved.x, 0.0),
+            Some(Direction::Vertical) => Vec2::new(0.0, moved.y),
+            None => moved,
+        };
+        self.velocity = Vec2::ZERO;
+    }
+}

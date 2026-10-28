@@ -1,13 +1,12 @@
 use std::any::Any;
 
-use crate::base::list::Direction;
 use crate::callback::Callback;
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2};
 use crate::node::{Element, NodeId, NodeOf, Placed, Rects};
 use crate::painter::Painter;
 
-pub use beui_types::layout::{GLIDE_SPRING, GlideHold};
+pub use beui_types::layout::{GLIDE_SPRING, GlideHold, GlideMotion};
 
 #[derive(Clone, Copy)]
 struct Origin {
@@ -17,8 +16,7 @@ struct Origin {
 
 pub struct GlideNode {
     child: Option<NodeId>,
-    displacement: Vec2,
-    velocity: Vec2,
+    motion: GlideMotion,
     origin: Option<Origin>,
     hold: Option<GlideHold>,
     on_start: Callback<()>,
@@ -33,12 +31,7 @@ impl GlideNode {
             return;
         };
         let moved = out.transform(placed.space).local_pos(hold.at) - placed.rect.min;
-        self.displacement = match hold.along {
-            Some(Direction::Horizontal) => Vec2::new(moved.x, 0.0),
-            Some(Direction::Vertical) => Vec2::new(0.0, moved.y),
-            None => moved,
-        };
-        self.velocity = Vec2::ZERO;
+        self.motion.hold(hold.along, moved);
     }
 
     fn take_origin(&mut self, doc: &mut Document, out: &Rects) {
@@ -61,7 +54,7 @@ impl GlideNode {
         if moved == Vec2::ZERO || !doc.motion().animates() {
             return;
         }
-        self.displacement += moved;
+        self.motion.displacement += moved;
         let on_start = self.on_start;
         if !on_start.is_empty() {
             doc.report_after_layout(move || on_start.call(()));
@@ -92,7 +85,7 @@ impl Element for GlideNode {
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         self.take_origin(doc, out);
         self.take_hold(doc, out);
-        let rect = rect.translate(doc.pixel_grid().snap_vec(self.displacement));
+        let rect = rect.translate(doc.pixel_grid().snap_vec(self.motion.displacement));
         if let Some(child) = self.child {
             crate::layout::layout(doc, painter, child, rect, out);
         }
@@ -102,7 +95,7 @@ impl Element for GlideNode {
         let Some(child) = self.child else {
             return;
         };
-        if self.displacement != Vec2::ZERO
+        if self.motion.displacement != Vec2::ZERO
             && rects
                 .placed(&child)
                 .is_some_and(|placed| !placed.rect.intersects(painter.clip_rect()))
@@ -127,8 +120,9 @@ impl Element for GlideNode {
     }
 
     fn detail(&self) -> Option<String> {
-        (self.displacement != Vec2::ZERO)
-            .then(|| format!("{:.1}, {:.1}", self.displacement.x, self.displacement.y))
+        let displacement = self.motion.displacement;
+        (displacement != Vec2::ZERO)
+            .then(|| format!("{:.1}, {:.1}", displacement.x, displacement.y))
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -144,8 +138,7 @@ impl Document {
     pub fn create_glide(&mut self, child: NodeId) -> NodeOf<GlideNode> {
         self.arena.insert(GlideNode {
             child: Some(child),
-            displacement: Vec2::ZERO,
-            velocity: Vec2::ZERO,
+            motion: GlideMotion::default(),
             origin: None,
             hold: None,
             on_start: Callback::empty(),
@@ -194,11 +187,11 @@ impl Document {
             return;
         }
         if !animates {
-            node.displacement = Vec2::ZERO;
+            node.motion.displacement = Vec2::ZERO;
             return;
         }
         let on_start = node.on_start;
-        if node.displacement != Vec2::ZERO && !on_start.is_empty() {
+        if node.motion.displacement != Vec2::ZERO && !on_start.is_empty() {
             match self.laying_out() {
                 Some(_) => self.report_after_layout(move || on_start.call(())),
                 None => crate::current::enter(self, || on_start.call(())),
@@ -211,7 +204,7 @@ impl Document {
     }
 
     pub fn glide_displacement(&self, glide: NodeOf<GlideNode>) -> Vec2 {
-        self.arena.get_as::<GlideNode>(glide).displacement
+        self.arena.get_as::<GlideNode>(glide).motion.displacement
     }
 
     pub fn step_glide(&mut self, glide: NodeOf<GlideNode>, seconds: f32) -> bool {
@@ -222,15 +215,12 @@ impl Document {
         if node.hold.is_some() {
             return false;
         }
-        let (mut displacement, mut velocity) = (node.displacement, node.velocity);
-        GLIDE_SPRING.advance(&mut displacement.x, &mut velocity.x, seconds);
-        GLIDE_SPRING.advance(&mut displacement.y, &mut velocity.y, seconds);
-        if displacement != node.displacement || velocity != node.velocity {
-            let node = self.arena.relayout_alone_mut_as::<GlideNode>(glide);
-            node.displacement = displacement;
-            node.velocity = velocity;
+        let mut motion = node.motion;
+        let moving = motion.step(seconds);
+        if motion != node.motion {
+            self.arena.relayout_alone_mut_as::<GlideNode>(glide).motion = motion;
         }
-        displacement != Vec2::ZERO || velocity != Vec2::ZERO
+        moving
     }
 
     pub fn settle_glide(&mut self, glide: NodeOf<GlideNode>) {
@@ -238,10 +228,11 @@ impl Document {
             return;
         }
         let node = self.arena.get_as::<GlideNode>(glide);
-        if node.displacement != Vec2::ZERO || node.velocity != Vec2::ZERO {
-            let node = self.arena.relayout_alone_mut_as::<GlideNode>(glide);
-            node.displacement = Vec2::ZERO;
-            node.velocity = Vec2::ZERO;
+        if node.motion.moving() {
+            self.arena
+                .relayout_alone_mut_as::<GlideNode>(glide)
+                .motion
+                .settle();
         }
     }
 }

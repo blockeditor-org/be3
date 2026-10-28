@@ -1032,7 +1032,7 @@ fn end(doc: &mut Document, frame: &Frame, mut session: Session, lost: bool) {
             if doc.dragging() && !cancelled {
                 let board = doc.drag_board();
                 let modifiers = frame.ctx.input(|input| input.modifiers);
-                board.order(doc);
+                doc.order_drags();
                 board.track(
                     crate::drag_board::DragPoint::at(pos, modifiers).in_window(session.window),
                 );
@@ -1087,7 +1087,7 @@ fn end(doc: &mut Document, frame: &Frame, mut session: Session, lost: bool) {
                 );
             }
             if doc.dragging() {
-                doc.drag_board().order(doc);
+                doc.order_drags();
                 match cancelled {
                     true => {
                         doc.drag_board().end(None);
@@ -1651,6 +1651,6 @@ fn track(doc: &mut Document, frame: &Frame) {
     };
     doc.last_pointer = Some(PointerSample { pos, touch });
     let board = doc.drag_board();
-    board.order(doc);
+    doc.order_drags();
     board.track(crate::drag_board::DragPoint::at(pos, modifiers).in_window(window));
 }

@@ -301,6 +301,7 @@ direction:
 | --- | --- |
 | `ui-types` | the vocabulary beui shares with the plugin protocol, which depends on nothing but serde and `geometry`: `Key` (with its names for drive, `Key::from_name` and `Key::name`, its evdev code, `Key::evdev`, and what every platform names keys with: `Key::from_typed`, the one rule for a character key, `Key::from_value` for a W3C key value, and `Key::evdev_from_code` and `Key::from_evdev` for a physical place), `Modifiers`, `KeyChord`, `PointerButton`, the touch, pen and back phases, `ImeEvent`, `CursorIcon`, `Pasted` and `PickedFile`; `Input`, the raw input every platform, drive's gestures, the on-screen keyboard and the plugin protocol produce; `WindowRequests` and `ImeArea`, what an app asks of its window; the window vocabulary of window-hosting layers (`WindowId`, `WindowPlacement`, `HostPlacement`, `WindowEdge`, `WindowRole`, `WindowRequest`, `WindowReport`, which `beui_core::window` re-exports); the preferences (`ThemeKind`, `Motion`, `Preferences`, `PreferenceLayer`); and the display and pointer settings `beui-platform-drm` applies and block settings store (`DisplayMode`, `Rotation`, `InputDevice`, `PointerSettings`) |
 | `beui-types` | the plain values components share whichever core draws them, with no nodes in them: colours (`Color32`, `Hsva`, `Oklch`, and `Color`, `ColorVar` and `color_var!`, which both cores resolve), `Image` and `Thumbhash`, the layout values (`Direction`, `Align`, `Justify`, `ItemSize`, `Sizing`, `Sides`, `Extent`, `Track`, `ScrollPosition`, `Corners`, `Outline`, `CanvasView`, and `Measured`, what `measure` answers), the text values (`FontId`, `TextAlign`, `Overflow`, `SpanStyle`, `TextMark`, `TextGlyph`, `TextCaret`), the layer values (`Placement`, `LayerPolicy`, `LayerLevel`, `Dismiss`), raw pointer and wheel input (`PointerId`, `PointerInput`, `PointerStage`, `WheelInput`), the declarative hit areas (`Area`, `HitRegion`, `Claim`) and the gestures (`PointerPress`, `ScrollGesture`, `DragGesture`, `ZoomGesture`), `KeyPhase` and `SystemBars`, with `geometry`, `ui-types`' input values and lucide's `icons` re-exported. beui-core re-exports each where it used to live; unstyled and styled reach them as `beui_view::types` and apps as `beui::`, and values that hold a node (`NodeId`, `OverlayAnchor`, `KeyAt`, `KeyEvent`, `ImeCursor`) through `beui::reactive` |
+| `beui-drag` | the drag board both cores run (`Board<S: Surface>`, `Target`, `DragSource`, `EdgeScroller`, `EDGE_BAND`), each core giving only the `Surface` that says where its nodes are and how they stack (see [Drag and drop](#drag-and-drop)) |
 | `beui-tree` | what makes a tree of components, whatever it is made of: `#[component]` and `view!`'s runtime, `Prop`, child slots (`Children`, `Run`, `SlotChild`, `SlotHost`) and `Show`, `ShowKeepAlive`, `Dynamic`, `Keyed` and `ForEach` |
 | `beui-core` | `Document` and `Context`, the retained nodes and their layout, input and its dispatch, accessibility, paint output and damage, the font and image interfaces, the icon codepoints, the `App` contract, and the `Runner` every platform drives it through |
 | `beui-font-freetype` | `FreetypeFonts`: FreeType and HarfBuzz shaping and rasterizing, and the fonts beui compiles in |
@@ -1118,7 +1119,9 @@ animates a move: wrap each item of a list in one and bump its `arm` (a `u64`
 generation) in the same update that reorders the keys. An armed glide notes where it
 rests, and once a layout moves it, adds old minus new to the displacement its child is
 moved by, so the child still shows where it was; a spring (`GLIDE_SPRING`) then takes the
-displacement to zero through the frame clock. Natively the move is caught in the layout
+displacement to zero through the frame clock. Both cores keep that displacement and its
+velocity as a `GlideMotion` (beui-types), whose `step`, `hold` and `settle` are the one
+spring and hold rule; a core only decides when a move was made and where it shows. Natively the move is caught in the layout
 pass that makes it, and each frame lays out only the glide (its child keeps its layout and
 only moves); on HTML the glide is an element whose inner element is translated, caught from
 `measure`, so the first frame of a move may show the child in its new place. A move it was
@@ -2983,6 +2986,24 @@ A target that would refuse a drop at a point declines it with `takes` rather
 than taking it and doing nothing: the drag then falls through, and a source
 such as a `Reorder` item hears it cancelled and glides home. The dock's target
 declines every drop its locks or rules refuse.
+
+The board is written once, for both cores, in `beui-drag`: `Board<S: Surface>`
+holds what is carried, the targets and scrollers, which one is under the point,
+floating, holding, `takes`, drops, cancels, the outside release and the edge
+scroller choice. A core gives only a `Surface`: where a node is (`placed`, its
+window rect and scale, which a `DragPoint`'s `within` uses), which part of it can
+be hit (`visible`), which window it is in (`window`), how two targets or two
+scrollers under the point rank (`target_order`, `scroller_order`; the highest
+wins, the last registered among equals), and `carrying`, called as a drag starts and
+ends. Natively that is `Painted` in beui-core's `drag_board.rs`: rects from the
+laid-out `Rects`, and paint order and windows that `Document::order_drags`
+reads before each point pointer.rs tracks. On HTML it is `Measured` in
+beui-core-html's `drag_board.rs`: `measure` rects, every node in the main window,
+the last registered target and the smallest scroller winning, and window
+pointer listeners held while carrying; that file also makes the board with its
+Escape listener. A change to how a drag behaves goes in beui-drag, whose tests
+(crates/beui-drag/src/tests) drive a board over a fake surface with no core;
+a core's file changes only when where things are, or how they stack, does.
 
 A drag between editors is not this inside the plugin: a block dragged from
 the file tree to another editor crosses plugins, so it goes through the host

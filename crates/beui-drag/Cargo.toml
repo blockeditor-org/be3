@@ -1,0 +1,15 @@
+[package]
+name = "beui-drag"
+description = "beui's drag board, written once for both cores: what is carried, the targets and scrollers it passes over, floating, drops, cancels and edge scrolling, over a core's Surface"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+beui-types = { path = "../beui-types" }
+
+[dev-dependencies]
+beui-tree = { path = "../beui-tree" }
+
+[lints]
+workspace = true
