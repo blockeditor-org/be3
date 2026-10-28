@@ -400,6 +400,14 @@ impl Document {
             }
         }
         let asked = self.windows.asked.clone();
+        let (earlier, later): (Vec<WindowRequest>, Vec<WindowRequest>) =
+            std::mem::take(&mut self.windows.requests)
+                .into_iter()
+                .partition(|request| asked.contains(&request.window()));
+        for request in earlier {
+            ctx.request_window(request);
+        }
+        self.windows.requests = later;
         self.windows
             .wanted
             .retain(|window, _| asked.contains(window));

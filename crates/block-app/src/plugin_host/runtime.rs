@@ -1100,7 +1100,7 @@ impl Runtime {
 }
 
 #[cfg(target_arch = "wasm32")]
-pub(crate) fn place_screens(blits: &[Blit], scale: f32, background: beui::Color32) {
+pub(crate) fn place_screens(blits: &[Blit], scale: f32, background: beui::color::Color32) {
     super::web::set_background(background);
     let mut placed = HashMap::<u32, Vec<super::web::Placement>>::new();
     for (order, blit) in blits.iter().enumerate() {
@@ -2265,6 +2265,7 @@ pub(crate) struct RegionView {
     pub(crate) base: Vec<Piece>,
     pub(crate) floating: Vec<Piece>,
     pub(crate) floating_rects: Vec<Rect>,
+    pub(crate) scrims: Vec<(Rect, beui::color::Color32)>,
     pub(crate) drawing: Vec<Rect>,
     pub(crate) claims: Vec<(beui::Modifiers, Rect)>,
     pub(crate) held: Option<Rect>,
@@ -2291,6 +2292,7 @@ impl RegionView {
             base: Vec::new(),
             floating: Vec::new(),
             floating_rects: Vec::new(),
+            scrims: Vec::new(),
             drawing: Vec::new(),
             claims: Vec::new(),
             held: None,
@@ -2442,6 +2444,29 @@ fn placed_view(
         };
         let floating_rects = in_region(|report| &report.floating);
         let painted_rects = in_region(|report| &report.floating_painted);
+        let scrims = match held {
+            Some(_) => Vec::new(),
+            None => report
+                .map(|report| {
+                    report
+                        .scrims
+                        .iter()
+                        .map(|scrim| {
+                            let color = &scrim.color;
+                            (
+                                scrim.rect.translate(rect.min.to_vec2()),
+                                beui::color::Color32::from_rgba_unmultiplied(
+                                    color.red,
+                                    color.green,
+                                    color.blue,
+                                    color.alpha,
+                                ),
+                            )
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
+        };
         let window = runtime.instances.window(instance, region);
         let handles_back = window.is_some_and(|window| window.handles_back);
         let claims = report
@@ -2495,6 +2520,7 @@ fn placed_view(
             base,
             floating,
             floating_rects,
+            scrims,
             drawing,
             claims,
             held: held.map(|held| held.rect),

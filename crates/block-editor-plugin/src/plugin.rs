@@ -133,6 +133,7 @@ pub struct Frame {
     pub painted: Vec<Rect>,
     pub floating: Vec<Rect>,
     pub floating_painted: Vec<Rect>,
+    pub scrims: Vec<block_plugin_api::Scrim>,
     pub drawing: Vec<Rect>,
     pub every_sample: bool,
     pub claims: Vec<Claim>,

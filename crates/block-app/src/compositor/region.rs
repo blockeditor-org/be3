@@ -805,6 +805,7 @@ pub(crate) fn PluginRegion(
                     <DesktopWindows editor={desktop_editor.with(Clone::clone)} state rect />
                 </Show>
                 <RegionChildren state rect child_view below=false />
+                <Scrims state />
                 <Drawing draw={floating} />
                 {windows}
             </Layers>
@@ -812,6 +813,40 @@ pub(crate) fn PluginRegion(
     };
     on_back(handles_back, back);
     built
+}
+
+#[component]
+fn Scrims(state: Memo<RegionView>) -> NodeId {
+    let count = create_memo(move || state.with(|view| (0..view.scrims.len()).collect::<Vec<_>>()));
+    view! {
+        <Canvas>
+            <ForEach keys={count}>|index: usize| {
+                let scrim = create_memo(move || {
+                    state.with(|view| {
+                        view.scrims.get(index).map(|(rect, color)| {
+                            (rect.translate(-view.rect.min.to_vec2()), *color)
+                        })
+                    })
+                });
+                let rect = create_memo(move || scrim.get().map_or(Rect::ZERO, |(rect, _)| rect));
+                let fill = create_memo(move || {
+                    ColorRole::Custom(beui::color::Color::literal(
+                        scrim.get().map_or(beui::color::Color32::TRANSPARENT, |(_, color)| color),
+                    ))
+                });
+                view! {
+                    <CanvasItem
+                        x={create_memo(move || rect.get().min.x)}
+                        y={create_memo(move || rect.get().min.y)}
+                        width={create_memo(move || rect.get().width())}
+                        height={create_memo(move || rect.get().height())}
+                    >
+                        <Frame fill={fill} />
+                    </CanvasItem>
+                }
+            }</ForEach>
+        </Canvas>
+    }
 }
 
 #[component]

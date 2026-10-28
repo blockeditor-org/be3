@@ -2,7 +2,7 @@ package be3:plugin@0.1.0;
 
 /// What the host and an editor plugin share.
 interface types {
-    use accessibility.{description};
+    use accessibility.{color, description};
     use be3:ui/types@0.1.0.{
         key-chord, modifiers, pos2, rect, input, preferences, window-requests, window-role,
     };
@@ -403,6 +403,12 @@ interface types {
         occluders: list<occluder>,
     }
 
+    /// A dimming scrim of one of a region's overlays, for the host to draw.
+    record scrim {
+        rect: rect,
+        color: color,
+    }
+
     record frame-report {
         screen: screen-id,
         content: rect,
@@ -411,10 +417,13 @@ interface types {
         /// areas their scrims block, clear or not.
         floating: list<rect>,
         /// The parts of `floating` the overlays paint, which the host draws
-        /// above the region's children: their content and any scrim that
-        /// dims. A clear scrim only blocks input, so the children show
-        /// through it.
+        /// above the region's children: their content. A scrim is never
+        /// painted into the region's surface: a clear one only blocks
+        /// input, and the host draws each one that dims (`scrims`) over the
+        /// region's children and under the content, so the children show
+        /// dimmed through it.
         floating-painted: list<rect>,
+        scrims: list<scrim>,
         drawing: list<rect>,
         every-sample: bool,
         claims: list<press-claim>,

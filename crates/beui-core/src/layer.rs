@@ -1,6 +1,7 @@
 use crate::back::BackHandlerId;
 use crate::base::overlay::OverlayNode;
 use crate::callback::Callback;
+use crate::color::Color32;
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect};
 use crate::input::BackGesture;
@@ -764,12 +765,31 @@ impl Document {
         };
         let scrim = layer
             .overlay
+            .filter(|_| !self.hosts_scrims())
             .filter(|overlay| self.arena.get_as::<OverlayNode>(*overlay).dims())
             .and_then(|overlay| self.node_rect(self.overlay_scrim(overlay)));
         scrim
             .into_iter()
             .chain([content])
             .filter(Rect::is_positive)
+            .collect()
+    }
+
+    pub(crate) fn hosts_scrims(&self) -> bool {
+        self.context().is_some_and(|ctx| ctx.hosts_scrims())
+    }
+
+    pub fn overlay_scrims(&self, window: WindowId) -> Vec<(Rect, Color32)> {
+        self.window_overlays(window)
+            .iter()
+            .filter_map(|(_, layer)| {
+                layer.content?;
+                let overlay = layer.overlay?;
+                let node = self.arena.get_as::<OverlayNode>(overlay);
+                let rect = self.node_rect(self.overlay_scrim(overlay))?;
+                (node.dims() && rect.is_positive())
+                    .then(|| (rect, self.resolve_color(node.scrim_color())))
+            })
             .collect()
     }
 

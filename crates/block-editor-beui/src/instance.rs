@@ -185,6 +185,7 @@ impl<A: BeuiApp> Parts<A> {
             painted: vec![beui::Rect::from_min_size(beui::Pos2::ZERO, view_size)],
             floating: document.overlay_rects(window),
             floating_painted: document.overlay_painted_rects(window),
+            scrims: document.overlay_scrims(window),
             drawing: document.drawing_rects(window),
             every_sample: document.wants_every_sample(window),
             claims: document
@@ -250,6 +251,7 @@ impl<A: BeuiApp> Parts<A> {
             painted: vec![rect],
             floating: document.overlay_rects(window),
             floating_painted: document.overlay_painted_rects(window),
+            scrims: document.overlay_scrims(window),
             drawing: document.drawing_rects(window),
             every_sample: document.wants_every_sample(window),
             claims: document

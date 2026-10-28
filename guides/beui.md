@@ -2828,7 +2828,11 @@ it. The dock binds no key to leave: whoever enters fullscreen offers the way out
 as the demo's Escape does. Fullscreen is not part of the saved layout.
 Showing or focusing the fullscreen tab (`DockingLayout::show`, the switcher, a press anywhere on
 its content) raises the fullscreen overlay above the floating windows, its own pane's window
-included, so a window brought in front of it and then left goes behind it again. The pane
+included, so a window brought in front of it and then left goes behind it again. Where a host
+opens windows (`opens_windows`) the panel goes into a `Window` over that area instead, so the
+host stacks it among its other windows as Windows and Linux do: a window opened or focused
+later comes in front of it, and focusing the fullscreen tab raises it again and gives it the
+keyboard. The pane
 it left draws Docking's `away` render prop (styled: a note that it is full screen and a Leave
 full screen button), seen where the fullscreen area does not cover it, such as another screen.
 A tab's content calls `DockTabControl::offer_fullscreen` to add Full screen / Leave full screen
@@ -3427,7 +3431,8 @@ and a hosted window whose role changes is opened again with the new one), `Begin
 `drag_window`), `Raise(window)` (sent whenever `Document::raise_overlay` raises a
 hosted window, as a dock does when one of its windows takes the focus, so the host
 stacks its windows as the document does; the host keeps the windows opened over it,
-its dialogs and popups, in front of it), `Resize { window, size }` (the app wants another size; the
+its dialogs and popups, in front of it; the document sends a frame's requests for windows already open
+before the `Open`s of new ones, so a window opened in that frame ends up in front), `Resize { window, size }` (the app wants another size; the
 host answers with the size it gives) and `Close(window)`. A `WindowPlacement` is `AtPointer`,
 `Over { window, at }` (its top-left corner at `at` in that window's points, where
 the app would draw it inside that window), or `Host(HostPlacement)`: a value only the host
@@ -3558,8 +3563,12 @@ window of each overflow.
 What a host is told about one window is asked of the document by window:
 `overlay_rects(window)`, `floating_rects(window)` and `overlay_layers(window)`
 cover the overlays opened in it (`overlay_rects` where they take input, scrims
-included; `overlay_painted_rects` only what they paint: their content and a scrim
-that dims, never a clear one), `drawing_rects(window)`,
+included; `overlay_painted_rects` only what they paint: their content, and a scrim
+that dims unless the host draws scrims; `overlay_scrims` the scrims that dim, each
+with its colour). Where `Context::hosts_scrims` (set by the plugin platform), the
+document paints no scrim at all and its host draws `overlay_scrims` between what it
+shows under the window and the overlays' content, so a host's own children under a
+dimming overlay are dimmed with the rest rather than hidden; `drawing_rects(window)`,
 `press_claims(window)` and `wants_every_sample(window)` the nodes in it, and
 `measure_node(ctx, node, available)` measures a node with the painter of its
 window. A key listener at `KeyAt::Window` and an action, registered inside a

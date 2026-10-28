@@ -164,6 +164,7 @@ pub struct OverlayNode {
     pub(crate) shown_in: Option<WindowId>,
     scrim: NodeOf<FrameNode>,
     dims: bool,
+    scrim_color: Color,
     pub(crate) open: bool,
     pub(crate) anchor: OverlayAnchor,
     anchored: Option<Rect>,
@@ -186,6 +187,7 @@ impl OverlayNode {
             shown_in: None,
             scrim,
             dims: false,
+            scrim_color: Color::TRANSPARENT,
             open: false,
             anchor,
             anchored: None,
@@ -360,6 +362,10 @@ impl OverlayNode {
 
     pub(crate) fn dims(&self) -> bool {
         self.dims
+    }
+
+    pub(crate) fn scrim_color(&self) -> Color {
+        self.scrim_color
     }
 
     pub(crate) fn scrim_covers(&self) -> bool {
@@ -640,7 +646,11 @@ impl Document {
         let color = color.into();
         let node = self.arena.get_as::<OverlayNode>(overlay);
         let (scrim, dims) = (node.scrim, !color.is_clear());
-        if node.dims != dims {
+        let (held, dimmed) = (node.scrim_color, node.dims);
+        if held != color {
+            self.arena.get_mut_as::<OverlayNode>(overlay).scrim_color = color;
+        }
+        if dimmed != dims {
             self.arena.get_mut_as::<OverlayNode>(overlay).dims = dims;
             self.layers_changed();
         }

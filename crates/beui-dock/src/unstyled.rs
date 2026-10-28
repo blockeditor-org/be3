@@ -502,6 +502,7 @@ struct State {
     panes: Stored<RefCell<HashMap<Tree, NodeRef>>>,
     windows: Stored<RefCell<HashMap<SurfaceId, NodeRef>>>,
     fullscreen_layer: NodeRef,
+    fullscreen_window: NodeRef,
     bars: Stored<RefCell<HashMap<LeafId, TabBar>>>,
     panels: Stored<RefCell<HashMap<TabId, (NodeId, Scope)>>>,
     owner: Stored<Option<ScopeContext>>,
@@ -668,16 +669,26 @@ impl State {
     }
 
     fn raise_window(&self, window: NodeRef) {
+        self.raise_window_of(window, None);
+    }
+
+    fn raise_window_of(&self, window: NodeRef, surface: Option<SurfaceId>) {
         let Some(window) = window.try_get() else {
             return;
         };
-        let fullscreen = self
-            .fullscreen_layer
-            .try_get()
-            .filter(|_| self.fullscreen_in_front());
+        let holds = surface.is_some_and(|surface| {
+            self.state.with_untracked(|state| {
+                state
+                    .fullscreen()
+                    .is_some_and(|shown| state.surface_tabs(surface).contains(&shown.tab))
+            })
+        });
+        let in_front = holds || self.fullscreen_in_front();
         window.raise_overlay();
-        if let Some(fullscreen) = fullscreen {
-            fullscreen.raise_overlay();
+        for fullscreen in [self.fullscreen_layer, self.fullscreen_window] {
+            if let Some(fullscreen) = fullscreen.try_get().filter(|_| in_front) {
+                fullscreen.raise_overlay();
+            }
         }
     }
 
@@ -1605,6 +1616,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         state,
         windows: store(RefCell::default()),
         fullscreen_layer: NodeRef::new(),
+        fullscreen_window: NodeRef::new(),
         panels: store(RefCell::default()),
         owner: store(owner_scope()),
         on_close,
@@ -1769,41 +1781,86 @@ fn DockFullscreenView(dock: State) -> NodeId {
     let width = create_memo(move || area.get().map(|area| area.width()));
     let height = create_memo(move || area.get().map(|area| area.height()));
     let front = create_memo(move || dock.fullscreen_in_front());
-    let layer = dock.fullscreen_layer;
+    let body = dock.fullscreen.call(view! {
+        <Portal node={panel} />
+    });
+    let face = view! {
+        <Interactive
+            on_press={move |_: PointerPress| {
+                if let Some(tab) = dock.fullscreen_tab() {
+                    dock.show(tab);
+                    dock.release_dialog_focus();
+                }
+            }}
+        >
+            <Frame @test_id="dock.fullscreen" width=width height=height>{body}</Frame>
+        </Interactive>
+    };
+    let hosted = opens_windows();
+    let overlaid = create_memo(move || open.get() && !hosted.get());
+    let windowed = create_memo(move || open.get() && hosted.get());
+    let in_overlay = create_memo(move || (!hosted.get()).then_some(face));
+    let in_window = create_memo(move || hosted.get().then_some(face));
+    let parent = use_window().map_or(WindowId::MAIN, |window| window.id);
+    let shown = create_memo(move || {
+        area.get()
+            .unwrap_or_else(|| Rect::from_min_size(Pos2::ZERO, dock.rect.get().size()))
+    });
+    let window_size = create_memo(move || shown.get().size());
+    let window_placement = create_memo(move || WindowPlacement::Over {
+        window: parent,
+        at: shown.get().min,
+    });
+    let view = view! {
+        <List spacing=0.0>
+            <Overlay
+                @node_ref={&dock.fullscreen_layer}
+                anchor
+                placement
+                policy=LayerPolicy::Pass
+                traps_focus=false
+                open={overlaid}
+            >
+                <Portal node={in_overlay} />
+            </Overlay>
+            <Window
+                @node_ref={&dock.fullscreen_window}
+                id={None}
+                size={window_size}
+                placement={window_placement}
+                open={windowed}
+                keep_alive=true
+                on_report={move |report: WindowReport| {
+                    if let WindowReport::Focused { focused: true, .. } = report
+                        && let Some(tab) = dock.fullscreen_tab()
+                    {
+                        dock.show(tab);
+                    }
+                }}
+            >|_: WindowHandle|
+                <Portal node={in_window} />
+            </Window>
+        </List>
+    };
     create_effect(move || {
-        if !front.get() {
+        if !windowed.get() || !untrack(|| front.get()) {
             return;
         }
-        if let Some(layer) = layer.try_get() {
+        if let Some(tab) = untrack(|| dock.fullscreen_tab()) {
+            untrack(|| dock.give_keyboard(tab));
+        }
+    });
+    let layers = [dock.fullscreen_layer, dock.fullscreen_window];
+    create_effect(move || {
+        let shown = overlaid.get() || windowed.get();
+        if !(shown && front.get()) {
+            return;
+        }
+        for layer in layers.iter().filter_map(NodeRef::try_get) {
             untrack(|| layer.raise_overlay());
         }
     });
-    let body = move || {
-        dock.fullscreen.call(view! {
-            <Portal node={panel} />
-        })
-    };
-    view! {
-        <Overlay
-            @node_ref={&dock.fullscreen_layer}
-            anchor
-            placement
-            policy=LayerPolicy::Pass
-            traps_focus=false
-            open
-        >
-            <Interactive
-                on_press={move |_: PointerPress| {
-                    if let Some(tab) = dock.fullscreen_tab() {
-                        dock.show(tab);
-                        dock.release_dialog_focus();
-                    }
-                }}
-            >
-                <Frame @test_id="dock.fullscreen" width=width height=height>{body()}</Frame>
-            </Interactive>
-        </Overlay>
-    }
+    view
 }
 
 #[component]
@@ -3212,7 +3269,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
     create_effect(move || {
         shows.with(DockState::shows);
         if focused.get() {
-            untrack(|| dock.raise_window(overlay));
+            untrack(|| dock.raise_window_of(overlay, Some(surface)));
         }
     });
     let claimed = modifier_claims(dock.drag_modifier);

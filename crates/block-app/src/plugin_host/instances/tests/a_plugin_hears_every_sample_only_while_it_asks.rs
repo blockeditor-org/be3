@@ -39,6 +39,7 @@ fn a_plugin_hears_every_sample_only_while_it_asks() {
         painted: Vec::new(),
         floating: Vec::new(),
         floating_painted: Vec::new(),
+        scrims: Vec::new(),
         drawing: Vec::new(),
         every_sample: true,
         claims: Vec::new(),
