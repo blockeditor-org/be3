@@ -64,6 +64,16 @@ type Pending<T> = std::pin::Pin<Box<dyn Future<Output = T>>>;
 
 type Waiting = tokio::sync::oneshot::Sender<Outcome>;
 
+pub(crate) fn answer_in(
+    answered: &mut tokio::sync::oneshot::Receiver<Outcome>,
+) -> Option<Result<Outcome, OpError>> {
+    match answered.try_recv() {
+        Ok(outcome) => Some(Ok(outcome)),
+        Err(tokio::sync::oneshot::error::TryRecvError::Closed) => Some(Err(OpError::Canceled)),
+        Err(tokio::sync::oneshot::error::TryRecvError::Empty) => None,
+    }
+}
+
 fn unreachable(error: &ClientError) -> bool {
     error.is_unreachable()
 }
@@ -464,16 +474,12 @@ impl<H: Host> Replicas<H> {
         &mut self,
         ctx: Ctx<'_, H>,
         ticket: Ticket<T>,
-        answered: tokio::sync::oneshot::Receiver<Outcome>,
+        mut answered: tokio::sync::oneshot::Receiver<Outcome>,
     ) -> Result<T, OpError> {
-        let mut answered = std::pin::pin!(answered);
         loop {
             self.drain(ctx).await;
-            if let Some(outcome) = futures_util::FutureExt::now_or_never(answered.as_mut()) {
-                return match outcome {
-                    Ok(outcome) => ticket.decode(outcome),
-                    Err(_) => Err(OpError::Canceled),
-                };
+            if let Some(outcome) = answer_in(&mut answered) {
+                return outcome.and_then(|outcome| ticket.decode(outcome));
             }
             self.woken().await;
         }

@@ -30,6 +30,7 @@ be-block = { path = "../be-block" }
 checklist-types = { path = "../editors/checklist/types" }
 counter-types = { path = "../editors/counter/types" }
 pollster = "0.4"
+tokio = { version = "1", features = ["rt", "sync"] }
 
 [lints]
 workspace = true
