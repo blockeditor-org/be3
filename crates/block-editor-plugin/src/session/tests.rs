@@ -39,6 +39,7 @@ fn input(screen: ScreenId) -> Delivery {
         screen,
         every_sample: false,
         events: Vec::new(),
+        dismissed: Vec::new(),
     })
 }
 
@@ -62,6 +63,7 @@ fn screen(screen: ScreenId, instance: EditorInstanceId) -> ScreenRequest {
         windows: false,
         placement: None,
         docked: false,
+        layers: None,
     }
 }
 

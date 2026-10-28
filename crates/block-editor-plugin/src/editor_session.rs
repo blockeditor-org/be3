@@ -883,6 +883,7 @@ impl EditorSession {
                         actions: description.actions.clone(),
                     }
                 }),
+                layers: Vec::new(),
             });
         }
         frame

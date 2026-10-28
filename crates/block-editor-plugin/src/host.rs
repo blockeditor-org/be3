@@ -299,6 +299,7 @@ enum Identity {
     ArtifactSettings([u8; 16]),
     DockTab(block_plugin_api::DockTabPath),
     Picker(BlockFilter),
+    Rename([u8; 16]),
 }
 
 impl Identity {
@@ -314,6 +315,7 @@ impl Identity {
             ChildContent::ArtifactSettings { block_id } => Self::ArtifactSettings(*block_id),
             ChildContent::DockTab(tab) => Self::DockTab(tab.clone()),
             ChildContent::Picker { filter, .. } => Self::Picker(filter.clone()),
+            ChildContent::Rename(block_id) => Self::Rename(*block_id),
         }
     }
 }
@@ -1916,6 +1918,7 @@ impl EditorHost {
                 follows_view,
                 dialog,
                 docks,
+                in_layer: None,
             });
         child
     }

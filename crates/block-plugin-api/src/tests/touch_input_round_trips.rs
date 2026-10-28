@@ -5,6 +5,7 @@ fn touch_input_round_trips() {
     let message = InputBatch {
         screen: ScreenId(3),
         every_sample: false,
+        dismissed: Vec::new(),
         events: vec![TimedInput {
             input: Input::Touch {
                 id: TouchId {
@@ -17,6 +18,7 @@ fn touch_input_round_trips() {
             },
             time_micros: Some(1_234_567),
             over: Some(ScreenId(4)),
+            layer: Some(LayerId(2)),
         }],
     };
 

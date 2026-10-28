@@ -150,6 +150,7 @@ impl Desk {
                 windows: true,
                 placement: None,
                 docked: false,
+                layers: None,
             });
         let windows = self.windows.iter().map(|window| ScreenRequest {
             screen: window.screen,
@@ -160,6 +161,7 @@ impl Desk {
             windows: true,
             placement: Some(placement(window.rect)),
             docked: false,
+            layers: None,
         });
         displays.chain(windows).collect()
     }
@@ -420,6 +422,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             input,
             time_micros: Some(self.clock.as_micros() as u64),
             over,
+            layer: None,
         });
         let ended = pressed == Some(false) && {
             desk.pressed = None;
@@ -432,6 +435,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             screen: holder,
             every_sample: true,
             events,
+            dismissed: Vec::new(),
         });
         self.step(Vec::new());
     }

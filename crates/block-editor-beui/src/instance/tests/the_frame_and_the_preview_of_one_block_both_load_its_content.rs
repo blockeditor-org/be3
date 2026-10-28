@@ -65,6 +65,7 @@ fn screen(region: EditorRegion, screen: u32) -> (ScreenPlacement, ScreenRequest)
         windows: false,
         placement: None,
         docked: false,
+        layers: None,
     };
     (placement, request)
 }

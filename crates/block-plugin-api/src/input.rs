@@ -6,12 +6,15 @@ impl InputBatch {
             screen,
             events: Vec::new(),
             every_sample,
+            dismissed: Vec::new(),
         }
     }
 
     pub fn queue(batches: &mut Vec<InputBatch>, incoming: InputBatch) {
         match batches.last_mut() {
-            Some(last) if last.screen == incoming.screen => last.merge(&incoming),
+            Some(last) if last.screen == incoming.screen && incoming.dismissed.is_empty() => {
+                last.merge(&incoming)
+            }
             _ => batches.push(incoming),
         }
     }
@@ -26,6 +29,7 @@ impl InputBatch {
     pub fn push(&mut self, event: impl Into<TimedInput>) {
         let event = event.into();
         if let Some(last) = self.events.last_mut()
+            && last.layer == event.layer
             && coalesce_input(&mut last.input, &event.input)
         {
             return;

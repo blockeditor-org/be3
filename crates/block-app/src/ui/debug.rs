@@ -88,6 +88,9 @@ pub(crate) fn HostPanelSurface(panel: HostPanel) -> NodeId {
                                 <PluginsPanel @sizing=ItemSize::Percent(100.0) plugins />
                             }
                         }
+                        HostPanel::AppMenu => view! {
+                            <Spacer @sizing=ItemSize::Percent(100.0) />
+                        },
                     }
                 }</Dynamic>
             </List>

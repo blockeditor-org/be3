@@ -65,6 +65,7 @@ fn frame(session: &mut EditorSession, content: Option<Rect>, top_bar: TopBar) {
             windows: false,
             placement: None,
             docked: false,
+            layers: None,
         }],
     );
 }
@@ -104,6 +105,7 @@ fn dock_screen(
         windows: false,
         placement: None,
         docked: docked && region == EditorRegion::Frame,
+        layers: None,
     };
     (placement, request)
 }

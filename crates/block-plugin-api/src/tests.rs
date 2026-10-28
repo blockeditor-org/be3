@@ -44,6 +44,38 @@ fn committed(children: ChildPlacements) -> FrameCommit {
     }
 }
 
+fn report(screen: u64, layers: Vec<Layer>) -> FrameReport {
+    FrameReport {
+        screen: ScreenId(screen),
+        content: Insets::default(),
+        painted: Vec::new(),
+        floating: Vec::new(),
+        floating_painted: Vec::new(),
+        scrims: Vec::new(),
+        drawing: Vec::new(),
+        every_sample: false,
+        claims: Vec::new(),
+        description: None,
+        layers,
+    }
+}
+
+fn layer(id: u64, parent: LayerParent, placement: LayerPlacement, rect: Rect) -> Layer {
+    Layer {
+        id: LayerId(id),
+        parent,
+        placement,
+        rect,
+        surface: 7,
+        painted: vec![rect],
+        floating: vec![rect],
+        scrims: Vec::new(),
+        dismiss_on_outside_press: true,
+        keyboard: true,
+        blocks_owner: false,
+    }
+}
+
 fn screen(
     screen: u64,
     instance: u64,
@@ -88,6 +120,7 @@ fn region_screen(
         windows: false,
         placement: None,
         docked: false,
+        layers: None,
     }
 }
 
@@ -95,6 +128,7 @@ mod a_childs_dock_splices_in_place_of_its_tab_and_splits_back_out;
 mod a_description_keeps_every_kind_of_node_property;
 mod a_dock_declaration_round_trips_and_nests;
 mod a_frame_says_which_host_state_it_was_laid_out_against;
+mod a_host_transform_maps_region_points_to_host_coordinates;
 mod a_hosted_state_waiting_for_the_editor_is_replaced_by_the_latest;
 mod a_layout_gives_each_shown_screen_its_own_surface;
 mod a_menu_nested_too_deeply_is_refused_while_nesting;
@@ -118,6 +152,7 @@ mod host_panel_messages_round_trip;
 mod host_window_messages_round_trip;
 mod ime_messages_round_trip;
 mod insets_give_the_content_area_of_a_region_resized_since_they_were_reported;
+mod layers_and_their_children_round_trip;
 mod media_messages_round_trip;
 mod menus_and_their_picks_round_trip;
 mod notification_messages_round_trip;
@@ -126,7 +161,9 @@ mod pointer_motion_round_trips;
 mod power_messages_round_trip;
 mod preference_messages_round_trip;
 mod region_sizes_round_trip;
+mod rejects_layers_hung_from_one_not_open_before_them;
 mod rejects_unordered_occluders;
+mod rename_and_app_menu_children_round_trip;
 mod touch_input_round_trips;
 mod tray_messages_round_trip;
 mod web_view_events_waiting_for_the_editor_fold_and_stay_bounded;

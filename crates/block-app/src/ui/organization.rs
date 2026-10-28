@@ -239,6 +239,7 @@ fn panel_icon(panel: HostPanel) -> Glyph {
         HostPanel::BlockStack => beui::icons::ICON_LAYERS,
         HostPanel::Performance => beui::icons::ICON_GAUGE,
         HostPanel::Plugins => beui::icons::ICON_PUZZLE,
+        HostPanel::AppMenu => beui::icons::ICON_MENU,
     }
 }
 

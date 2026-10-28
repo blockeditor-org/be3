@@ -5,7 +5,7 @@ interface types {
     use be3:manifest/types@0.1.0.{plugin-identity, editor-region};
     use accessibility.{color, description};
     use be3:ui/types@0.1.0.{
-        key-chord, modifiers, pos2, rect, input, window-requests, window-role,
+        key-chord, modifiers, pos2, rect, vec2, input, window-requests, window-role,
     };
     use be3:preferences/types@0.1.0.{preferences};
 
@@ -187,7 +187,8 @@ interface types {
     /// `docked` says the dock this region shows joins the dock of the
     /// instance that placed it (`child-placement.docks`): it declares itself
     /// (`dock-message.declare`) and draws no chrome, and the host shows each
-    /// of its tabs as a `tab(t)` region.
+    /// of its tabs as a `tab(t)` region. `layers` is where the region may
+    /// open layers (`frame-report.layers`), `none` where it may open none.
     record screen-request {
         screen: screen-id,
         instance: editor-instance-id,
@@ -197,6 +198,24 @@ interface types {
         windows: bool,
         placement: option<string>,
         docked: bool,
+        layers: option<layer-space>,
+    }
+
+    /// Maps a region's logical points to the app window's (host
+    /// coordinates): `host = origin + point * scale`, per axis.
+    record host-transform {
+        origin: pos2,
+        scale: vec2,
+    }
+
+    /// Where a region's layers go. `to-host` maps the region's points to host
+    /// coordinates at the view this request lays the region out against.
+    /// `bounds`, in host coordinates, is where its layers may go: the app
+    /// window for a trusted plugin, the plugin's own box for a confined one,
+    /// and never more than the bounds of the region that placed this one.
+    record layer-space {
+        to-host: host-transform,
+        bounds: rect,
     }
 
     record screen-placement {
@@ -219,19 +238,30 @@ interface types {
     /// screen's coordinates. While a press holds it and the pointer is over none
     /// of the plugin's screens, the host sends `pointer-left` and goes on with
     /// positions in this screen's coordinates.
+    ///
+    /// `layer` names the layer of this screen (`frame-report.layers`) the
+    /// event landed on, which the host hit-tests before the screen's own
+    /// pixels; its positions stay in this screen's coordinates, which the
+    /// plugin maps to host coordinates with the `to-host` its layers were
+    /// laid out against.
     record timed-input {
         input: input,
         time-micros: option<u64>,
         over: option<screen-id>,
+        layer: option<layer-id>,
     }
 
     /// Input for one screen. Batches waiting for the plugin merge: pointer moves
     /// and pixel scrolls fold into the last of a run unless `every-sample`, and
-    /// everything else stays, in order.
+    /// everything else stays, in order. `dismissed` lists the screen's layers
+    /// a press outside them closed (`layer.dismiss-on-outside-press`), each
+    /// heard before the batch's events; a batch that dismisses any never
+    /// merges into the one before it.
     record input-batch {
         screen: screen-id,
         events: list<timed-input>,
         every-sample: bool,
+        dismissed: list<layer-id>,
     }
 
     record region-size {
@@ -249,6 +279,9 @@ interface types {
         block-stack,
         performance,
         plugins,
+        /// The app's menu, which an editor places in a layer it opened from
+        /// its menu button.
+        app-menu,
     }
 
     /// A child an editor placed, numbered by the editor.
@@ -342,6 +375,9 @@ interface types {
         /// the root of a dock places one.
         dock-tab(dock-tab-path),
         picker(picker-child),
+        /// A form renaming a block, which the host draws in an editor of its
+        /// own and an editor places in a layer it opened.
+        rename(block-id),
     }
 
     record child-placement {
@@ -365,6 +401,11 @@ interface types {
         /// child's frame is requested `docked`, and the host splices the
         /// child's dock in place of that tab.
         docks: option<u64>,
+        /// The layer of the region the child is placed in (`layer.id`), or
+        /// `none` for the region itself. In a layer, `rect` and `clip` are
+        /// in host coordinates, like the layer's, `layer` orders the child
+        /// against the layer's own pixels, and no occluder hides it.
+        in-layer: option<layer-id>,
     }
 
     /// A rectangle that hides the children placed before it.
@@ -395,6 +436,61 @@ interface types {
         bottom: f32,
     }
 
+    /// A layer a region opened, numbered by the plugin: unique among the
+    /// layers of its screen while it is open.
+    type layer-id = u64;
+
+    /// What a layer hangs from: the region itself, or another of its layers,
+    /// as a submenu hangs from its menu.
+    variant layer-parent {
+        region,
+        layer(layer-id),
+    }
+
+    enum layer-edge {
+        top,
+        bottom,
+        left,
+        right,
+    }
+
+    /// How the plugin placed a layer: anchored to a rectangle in its parent's
+    /// coordinates (the region's points, or host coordinates for a layer), as
+    /// a menu hangs from its button, or attached to an edge of the bounds, as
+    /// a sheet is.
+    variant layer-placement {
+        anchored(rect),
+        edge(layer-edge),
+    }
+
+    /// Painted output of a region allowed outside the region's rectangle: a
+    /// menu, popover, tooltip or sheet. The plugin lays it out against
+    /// `layer-space.bounds`, paints it into `surface` (one it configured
+    /// itself, painted from its top-left corner at the screen's raster) and
+    /// commits it with the frame. `rect`, `painted`, `floating` and
+    /// `scrims` are in host coordinates. `painted` is what the layer drew,
+    /// `floating` where it takes input (its content and the areas its
+    /// scrims block, clear or not), and `scrims` the dims the host draws
+    /// under it. With `dismiss-on-outside-press`, a press outside the
+    /// layer's chain (it and the layers hanging from it) closes the chain:
+    /// the owner hears `input-batch.dismissed`, and the press still reaches
+    /// what it landed on. `keyboard` gives the owner the keyboard while the
+    /// layer is open; `blocks-owner` keeps presses on the owning region from
+    /// reaching its content.
+    record layer {
+        id: layer-id,
+        parent: layer-parent,
+        placement: layer-placement,
+        rect: rect,
+        surface: surface-id,
+        painted: list<rect>,
+        floating: list<rect>,
+        scrims: list<scrim>,
+        dismiss-on-outside-press: bool,
+        keyboard: bool,
+        blocks-owner: bool,
+    }
+
     record frame-report {
         screen: screen-id,
         /// The content area, as insets from the region's edges, so the host
@@ -416,6 +512,10 @@ interface types {
         every-sample: bool,
         claims: list<press-claim>,
         description: option<description>,
+        /// The layers open over the region, replacing the last report's, in
+        /// the order they opened: a layer comes after its parent. Only a
+        /// screen requested with `layers` opens any.
+        layers: list<layer>,
     }
 
     record screen-window {

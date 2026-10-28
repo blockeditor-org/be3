@@ -97,6 +97,7 @@ fn a_surface_the_host_does_not_render_runs_its_frames_without_a_gpu() {
             windows: false,
             placement: None,
             docked: false,
+            layers: None,
         }]),
         Delivery::Configure(1),
     ] {

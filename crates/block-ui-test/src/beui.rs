@@ -434,6 +434,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                 windows: false,
                 placement: None,
                 docked: false,
+                layers: None,
             }]
         });
         block_plugin_api::embed::exports::plugin::screens(&mut self.connection, screens);
@@ -1009,6 +1010,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                         input,
                         time_micros: sampled.then_some(now),
                         over: None,
+                        layer: None,
                     }
                 })
                 .collect();
@@ -1017,6 +1019,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                     screen: SCREEN,
                     every_sample: false,
                     events,
+                    dismissed: Vec::new(),
                 },
                 "the host's input",
             );

@@ -23,9 +23,10 @@ be_ops_bindgen::generate!({
         "host-window-id": crate::HostWindowId,
         "child-id": crate::ChildId,
         "web-view-id": crate::WebViewId,
+        "layer-id": crate::LayerId,
     },
     copy: [
-        "uuid", "hash", "host-window-id", "editor-instance-id", "screen-id", "child-id", "web-view-id",
+        "uuid", "hash", "host-window-id", "editor-instance-id", "screen-id", "child-id", "web-view-id", "layer-id",
     ],
     default: [
         "frame-chrome", "top-bar", "frame-spec", "size", "fonts", "screen-layout",
@@ -76,8 +77,9 @@ pub use types::{BlockFilter, BlockLocation, BlockPick, OpenPicker, PickedBlock};
 pub use types::{
     ChildContent, ChildLayer, ChildMode, ChildPlacement, ChildPlacements, DialogFrame, Failure,
     FontFace, FontRole, Fonts, FrameChrome, FrameCommit, FrameReport, FrameSpec, Hello,
-    HelloAccepted, HostPanel, InputBatch, Insets, Occluder, OpenArtifact, OpenBlock, OpenCreation,
-    Opening, PresentedFrame, PressClaim, RegionSize, ScreenDamage, ScreenLayout, ScreenPlacement,
+    HelloAccepted, HostPanel, HostTransform, InputBatch, Insets, Layer, LayerEdge, LayerParent,
+    LayerPlacement, LayerSpace, Occluder, OpenArtifact, OpenBlock, OpenCreation, Opening,
+    PresentedFrame, PressClaim, RegionSize, ScreenDamage, ScreenLayout, ScreenPlacement,
     ScreenRequest, ScreenWindow, Scrim, Size, SurfaceFormat, SurfaceRect, SurfaceSpec,
     SurfaceSupport, TimedInput, TopBar, ViewportMetrics,
 };
@@ -358,6 +360,34 @@ pub struct ChildId(pub u64);
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct WebViewId(pub u32);
 
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct LayerId(pub u64);
+
+impl HostTransform {
+    pub const IDENTITY: Self = Self {
+        origin: Pos2::ZERO,
+        scale: Vec2::new(1.0, 1.0),
+    };
+
+    pub fn point(self, point: Pos2) -> Pos2 {
+        Pos2::new(
+            self.origin.x + point.x * self.scale.x,
+            self.origin.y + point.y * self.scale.y,
+        )
+    }
+
+    pub fn rect(self, rect: Rect) -> Rect {
+        Rect::from_min_max(self.point(rect.min), self.point(rect.max))
+    }
+
+    pub fn inverse_point(self, point: Pos2) -> Pos2 {
+        Pos2::new(
+            (point.x - self.origin.x) / self.scale.x,
+            (point.y - self.origin.y) / self.scale.y,
+        )
+    }
+}
+
 impl HostPanel {
     pub const ALL: [Self; 3] = [Self::BlockStack, Self::Performance, Self::Plugins];
 
@@ -366,6 +396,7 @@ impl HostPanel {
             Self::BlockStack => "Block Stack State",
             Self::Performance => "Performance",
             Self::Plugins => "Plugins",
+            Self::AppMenu => "Menu",
         }
     }
 }
@@ -380,7 +411,8 @@ impl ChildContent {
             | Self::Creation { .. }
             | Self::ArtifactSettings { .. }
             | Self::DockTab(_)
-            | Self::Picker { .. } => None,
+            | Self::Picker { .. }
+            | Self::Rename(_) => None,
         }
     }
 }
@@ -495,6 +527,7 @@ impl From<Input> for TimedInput {
             input,
             time_micros: None,
             over: None,
+            layer: None,
         }
     }
 }
@@ -526,7 +559,29 @@ impl FrameCommit {
             }
         }
         collection(self.docks.len())?;
-        self.docks.iter().try_for_each(DockMessage::validate)
+        self.docks.iter().try_for_each(DockMessage::validate)?;
+        self.reports.iter().try_for_each(FrameReport::validate)
+    }
+}
+
+impl FrameReport {
+    pub fn validate(&self) -> Result<(), DecodeError> {
+        collection(self.layers.len())?;
+        for (index, layer) in self.layers.iter().enumerate() {
+            let earlier = &self.layers[..index];
+            if earlier.iter().any(|other| other.id == layer.id) {
+                return Err(DecodeError::MalformedPayload);
+            }
+            if let LayerParent::Layer(parent) = layer.parent
+                && !earlier.iter().any(|other| other.id == parent)
+            {
+                return Err(DecodeError::MalformedPayload);
+            }
+            collection(layer.painted.len())?;
+            collection(layer.floating.len())?;
+            collection(layer.scrims.len())?;
+        }
+        Ok(())
     }
 }
 

@@ -22,6 +22,7 @@ fn host_panel_messages_round_trip() {
                 follows_view: false,
                 dialog: None,
                 docks: None,
+                in_layer: None,
             }],
             occluders: Vec::new(),
         });

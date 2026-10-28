@@ -38,7 +38,7 @@ impl ChildPlacements {
                 | ChildContent::Window(_)
                 | ChildContent::Creation { .. }
                 | ChildContent::DockTab(_) => {}
-                ChildContent::ArtifactSettings { block_id } => {
+                ChildContent::ArtifactSettings { block_id } | ChildContent::Rename(block_id) => {
                     visit(self.instance, BlockIdRole::Existing, block_id);
                 }
                 ChildContent::Picker { filter, parent, .. } => {

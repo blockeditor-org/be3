@@ -44,6 +44,7 @@ fn a_plugin_hears_every_sample_only_while_it_asks() {
         every_sample: true,
         claims: Vec::new(),
         description: None,
+        layers: Vec::new(),
     }]);
     let (messages, _) =
         instances.forward(INSTANCE, REGION, &stroke(), &|_, _| beui::Aim::Own, &|_| {

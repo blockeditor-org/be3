@@ -830,6 +830,7 @@ impl Instances {
                     windows: false,
                     placement: None,
                     docked: false,
+                    layers: None,
                 },
                 last_seen: pass,
                 mounted: 0,
@@ -1040,6 +1041,7 @@ impl Instances {
             screen: screen.request.screen,
             every_sample: false,
             events: vec![block_plugin_api::Input::Back(gesture).into()],
+            dismissed: Vec::new(),
         })]
     }
 
@@ -1067,6 +1069,7 @@ impl Instances {
             screen: screen.request.screen,
             every_sample: false,
             events,
+            dismissed: Vec::new(),
         })]
     }
 
@@ -1093,6 +1096,7 @@ impl Instances {
             screen: screen.request.screen,
             every_sample: false,
             events: vec![block_plugin_api::Input::InterceptedTap(key).into()],
+            dismissed: Vec::new(),
         })]
     }
 
@@ -2042,7 +2046,7 @@ impl Instances {
                     parent: *parent,
                     touch: *touch,
                 },
-                ChildContent::WebView(_) => continue,
+                ChildContent::WebView(_) | ChildContent::Rename(_) => continue,
             };
             if !child.rect.is_positive() {
                 continue;

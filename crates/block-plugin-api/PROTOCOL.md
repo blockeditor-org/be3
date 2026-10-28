@@ -500,6 +500,45 @@ floating rectangles, so a menu opened by an editor underneath still falls over
 the frame above it. The two passes are cut into disjoint rectangles, so no
 pixel is blended twice.
 
+Layers carry what points back to where it came from (menus and their
+submenus, popovers, tooltips, the selection toolbar, small dialogs opened from
+a control) and sheets attached to an edge out of the region that opened them,
+with no round trip. A screen request may carry a layer space
+(`screen-request.layers`): `to-host`, which maps the region's points to host
+coordinates (the app window's logical points) at the view the request lays it
+out against, and `bounds`, the rectangle in host coordinates where its layers
+may go: the app window for a trusted plugin, the plugin's own box for a
+confined one. A child's bounds never exceed its parent's, and a screen
+requested without a layer space opens no layers. Each frame report lists the
+region's open layers (`frame-report.layers`, replacing the last report's), in
+the order they opened, each after its parent: the region, or another layer for
+a submenu (`layer-parent`). The plugin places each one itself, anchored to a
+rectangle in its parent's coordinates or attached to an edge of the bounds
+(`layer-placement`), lays it out against the bounds (flipping, sliding or
+shrinking it to fit), paints it into a surface it configured itself, and
+commits its rectangle, painted and input (`floating`) rectangles and scrims in
+host coordinates with the frame that drew it; the host only clips it to the
+bounds. The host draws layers after every region, in the order they opened.
+When a region moves, the host moves its layers rigidly by the difference
+between the `to-host` it shows the region at and the one the frame was laid
+out against; a pan of the region's camera does nothing to them, and the
+plugin repositions or closes them on its next layout. The host hit-tests
+layers before any region, and input that lands on one reaches its owning
+screen tagged with its id (`timed-input.layer`), in that screen's own
+coordinates. A press outside a chain of layers marked
+`dismiss-on-outside-press` (a layer and those hanging from it) closes the
+chain: the owner hears the layers in `input-batch.dismissed`, before the
+batch's events, and the press still reaches whatever it landed on. A layer
+marked `keyboard` gives its owner the keyboard while it is open, and one
+marked `blocks-owner` keeps presses on the owning region from its content.
+A layer's accessibility tree goes in its owner's description, in host
+coordinates. A layer may embed other editors: a child placement naming the
+layer (`child-placement.in-layer`) is placed in host coordinates, ordered
+against the layer's pixels by its `layer`, clipped to the layer and hidden by
+no occluder; the child's own frame appears one frame after the layer that
+holds it. The host's embedded popups are such children: a block's rename form
+(`child-content.rename`) and the app's menu (`host-panel.app-menu`).
+
 A frame report may also carry press claims: a set of modifiers and a
 rectangle. While every one of those modifiers is held, a pointer press inside
 the rectangle belongs to the instance itself, not to the children placed
