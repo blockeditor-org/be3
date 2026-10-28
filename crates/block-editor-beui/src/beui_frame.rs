@@ -231,6 +231,13 @@ impl Watched {
         list.read().ok()?.into_iter().next()
     }
 
+    fn is_session(&self) -> bool {
+        self.info().is_some_and(|info| {
+            info.block_type
+                == <workspace_ui_types::EditorViewContent as be_block::BlockContent>::CONTENT_TYPE
+        })
+    }
+
     fn can_edit(&self) -> bool {
         self.info().is_none_or(|info| info.access.can_edit())
     }
@@ -372,16 +379,19 @@ pub(crate) fn FrameMenu(
     let on_phone = create_memo(move || bar.get().on_phone);
     let shown = create_memo(move || bar.get().shown && !on_phone.get());
     let closable = create_memo(move || bar.get().closable);
-    let docked = create_memo(move || bar.get().docked);
-    let live = create_memo(move || shown.get() || on_phone.get() || docked.get());
-    let framed = create_memo(move || bar.get().framed);
-    let answering = create_memo(move || live.get() || framed.get());
-    let state = create_signal(BarState::default());
     let watched = store(Watched {
         editor,
         list: RefCell::new(None),
         watching: Cell::new(false),
     });
+    let docked = create_memo(move || bar.get().docked);
+    let session = create_memo(move || docked.get() && watched.with(Watched::is_session));
+    let live = create_memo(move || {
+        !session.get() && (shown.get() || on_phone.get() || docked.get())
+    });
+    let framed = create_memo(move || bar.get().framed);
+    let answering = create_memo(move || live.get() || framed.get());
+    let state = create_signal(BarState::default());
     let actions = frame_actions(
         editor,
         watched,
