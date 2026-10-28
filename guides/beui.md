@@ -3001,7 +3001,9 @@ reads before each point pointer.rs tracks. On HTML it is `Measured` in
 beui-core-html's `drag_board.rs`: `measure` rects, every node in the main window,
 the last registered target and the smallest scroller winning, and window
 pointer listeners held while carrying; that file also makes the board with its
-Escape listener. A change to how a drag behaves goes in beui-drag, whose tests
+Escape listener. As a drag ends, every target hears it leave (`over(None)`, then
+`carrying(false)`) before the one that takes it hears `dropped`, so a target
+(a fixed `Reorder` re-aiming its gap) can rely on that order. A change to how a drag behaves goes in beui-drag, whose tests
 (crates/beui-drag/src/tests) drive a board over a fake surface with no core;
 a core's file changes only when where things are, or how they stack, does.
 
