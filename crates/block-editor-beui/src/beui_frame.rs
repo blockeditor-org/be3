@@ -386,9 +386,8 @@ pub(crate) fn FrameMenu(
     });
     let docked = create_memo(move || bar.get().docked);
     let session = create_memo(move || docked.get() && watched.with(Watched::is_session));
-    let live = create_memo(move || {
-        !session.get() && (shown.get() || on_phone.get() || docked.get())
-    });
+    let live =
+        create_memo(move || !session.get() && (shown.get() || on_phone.get() || docked.get()));
     let framed = create_memo(move || bar.get().framed);
     let answering = create_memo(move || live.get() || framed.get());
     let state = create_signal(BarState::default());
