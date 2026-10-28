@@ -1263,6 +1263,7 @@ impl Space {
                 }
             }
             WindowRequest::Resize { window, size } => self.resize_window(*window, *size),
+            WindowRequest::Raise(_) => {}
             WindowRequest::Close(window) => self.close(*window),
         }
     }
@@ -1290,7 +1291,7 @@ impl Space {
                     self.keyboards.push(window);
                     self.beside_typing(size)
                 }
-                WindowRole::Popup | WindowRole::Normal => None,
+                WindowRole::Popup | WindowRole::Overlay | WindowRole::Normal => None,
             };
             let placed = match placement {
                 _ if beside.is_some() => {

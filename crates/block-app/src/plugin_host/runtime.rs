@@ -1100,7 +1100,7 @@ impl Runtime {
 }
 
 #[cfg(target_arch = "wasm32")]
-pub(crate) fn place_screens(blits: &[Blit], scale: f32, background: beui::Color32) {
+pub(crate) fn place_screens(blits: &[Blit], scale: f32, background: beui::color::Color32) {
     super::web::set_background(background);
     let mut placed = HashMap::<u32, Vec<super::web::Placement>>::new();
     for (order, blit) in blits.iter().enumerate() {
@@ -2265,6 +2265,7 @@ pub(crate) struct RegionView {
     pub(crate) base: Vec<Piece>,
     pub(crate) floating: Vec<Piece>,
     pub(crate) floating_rects: Vec<Rect>,
+    pub(crate) scrims: Vec<(Rect, beui::color::Color32)>,
     pub(crate) drawing: Vec<Rect>,
     pub(crate) claims: Vec<(beui::Modifiers, Rect)>,
     pub(crate) held: Option<Rect>,
@@ -2275,7 +2276,7 @@ pub(crate) struct RegionView {
     pub(crate) ime: Option<beui::ImeArea>,
     pub(crate) handles_back: bool,
     pub(crate) wants_keyboard: bool,
-    pub(crate) keyboard_toggles: u32,
+    pub(crate) keyboard_toggles: Option<u32>,
     pub(crate) intercepted_keys: Vec<beui::KeyChord>,
     pub(crate) pastes: Vec<beui::PasteKind>,
     pub(crate) clipboard_keys: bool,
@@ -2291,6 +2292,7 @@ impl RegionView {
             base: Vec::new(),
             floating: Vec::new(),
             floating_rects: Vec::new(),
+            scrims: Vec::new(),
             drawing: Vec::new(),
             claims: Vec::new(),
             held: None,
@@ -2301,7 +2303,7 @@ impl RegionView {
             ime: None,
             handles_back: false,
             wants_keyboard: false,
-            keyboard_toggles: 0,
+            keyboard_toggles: None,
             intercepted_keys: Vec::new(),
             pastes: Vec::new(),
             clipboard_keys: false,
@@ -2427,14 +2429,40 @@ fn placed_view(
             .instances
             .host_children(instance, region, rect, clip, view);
         let report = runtime.instances.frame_report(instance, region);
-        let floating_rects: Vec<Rect> = match held {
+        let in_region = |rects: fn(&block_plugin_api::FrameReport) -> &Vec<Rect>| -> Vec<Rect> {
+            match held {
+                Some(_) => Vec::new(),
+                None => report
+                    .map(|report| {
+                        rects(report)
+                            .iter()
+                            .map(|floating| floating.translate(rect.min.to_vec2()))
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+            }
+        };
+        let floating_rects = in_region(|report| &report.floating);
+        let painted_rects = in_region(|report| &report.floating_painted);
+        let scrims = match held {
             Some(_) => Vec::new(),
             None => report
                 .map(|report| {
                     report
-                        .floating
+                        .scrims
                         .iter()
-                        .map(|floating| floating.translate(rect.min.to_vec2()))
+                        .map(|scrim| {
+                            let color = &scrim.color;
+                            (
+                                scrim.rect.translate(rect.min.to_vec2()),
+                                beui::color::Color32::from_rgba_unmultiplied(
+                                    color.red,
+                                    color.green,
+                                    color.blue,
+                                    color.alpha,
+                                ),
+                            )
+                        })
                         .collect()
                 })
                 .unwrap_or_default(),
@@ -2466,9 +2494,9 @@ fn placed_view(
             .iter()
             .flat_map(|window| window.intercepted_keys.iter().copied())
             .collect();
-        let base: Vec<Rect> = match floating_rects.is_empty() {
+        let base: Vec<Rect> = match painted_rects.is_empty() {
             true => vec![visible],
-            false => super::pieces::subtract(visible, &floating_rects),
+            false => super::pieces::subtract(visible, &painted_rects),
         };
         let (base, floating) = match held {
             Some(_) => (
@@ -2480,7 +2508,7 @@ fn placed_view(
             ),
             None => (
                 pieces_of(rect, visible, textured, &base),
-                pieces_of(rect, visible, textured, &floating_rects),
+                pieces_of(rect, visible, textured, &painted_rects),
             ),
         };
         let loading = screen.is_none_or(|screen| runtime.layout.placement(screen).is_none());
@@ -2492,6 +2520,7 @@ fn placed_view(
             base,
             floating,
             floating_rects,
+            scrims,
             drawing,
             claims,
             held: held.map(|held| held.rect),
@@ -2507,7 +2536,7 @@ fn placed_view(
             ime: runtime.instances.ime(instance, region, rect),
             handles_back,
             wants_keyboard: window.is_some_and(|window| window.wants_keyboard),
-            keyboard_toggles: window.map_or(0, |window| window.keyboard_toggles),
+            keyboard_toggles: window.map(|window| window.keyboard_toggles),
             intercepted_keys,
             pastes: window
                 .map(|window| window.pastes.clone())
@@ -2615,20 +2644,22 @@ pub(crate) fn region_drawing(
     pieces: &[Piece],
     rotation: f32,
     opacity: f32,
-) -> Option<beui::native::Drawing> {
-    if pieces.is_empty() || view.loading {
+) -> Option<(beui::native::Drawing, super::presenter::Pieces)> {
+    if view.loading {
         return None;
     }
     with(plugin_id, |runtime| {
         let screen = runtime.instances.screen_id(instance, region)?;
         let mut template = runtime.template(screen, view.drawn);
         template.quad.opacity = opacity;
-        Some(beui::native::painted_drawing(RegionDrawing::new(
+        let shared = Rc::new(RefCell::new(pieces.to_vec()));
+        let drawing = beui::native::painted_drawing(RegionDrawing::new(
             template,
-            pieces.to_vec(),
+            Rc::clone(&shared),
             view.held,
             rotation,
-        )))
+        ));
+        Some((drawing, shared))
     })
     .flatten()
 }

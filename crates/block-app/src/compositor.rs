@@ -1,4 +1,4 @@
-mod desktop;
+pub(crate) mod desktop;
 mod editors;
 mod intercept;
 pub(crate) mod region;

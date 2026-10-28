@@ -119,6 +119,7 @@ pub struct Document {
     node_test_ids: HashMap<NodeId, Vec<String>>,
     layout_revision: u64,
     paint_revision: u64,
+    painted_scrims: Option<bool>,
     reports: Vec<Box<dyn FnOnce()>>,
     invalidated: Vec<NodeId>,
     interaction_done: Option<Rc<dyn Fn()>>,
@@ -348,6 +349,7 @@ impl Document {
             node_test_ids: HashMap::default(),
             layout_revision: 0,
             paint_revision: 0,
+            painted_scrims: None,
             reports: Vec::new(),
             invalidated: Vec::new(),
             interaction_done: None,
@@ -1449,7 +1451,9 @@ impl Document {
         self.arena.recycle(released);
         let mut window_damage = None;
         let mut window_moves = Vec::new();
-        if !repaints.is_empty() || self.paint_revision != self.arena.revision {
+        let scrims = !ctx.hosts_scrims();
+        let rescrimmed = self.painted_scrims.replace(scrims) != Some(scrims);
+        if !repaints.is_empty() || self.paint_revision != self.arena.revision || rescrimmed {
             measurement.painted = true;
             let verifying = verifying_paint();
             let previous =
@@ -1585,12 +1589,12 @@ impl Document {
             if !shown {
                 continue;
             }
-            let scrim = self.overlay_scrim(overlay);
+            let scrim = (!ctx.hosts_scrims()).then(|| self.overlay_scrim(overlay));
             let content = self.overlay_content(overlay);
             let beak = self.overlay_beak(overlay);
             let painter = ctx.window_painter(layer.window);
             self.paint_cache.get_mut().paint_into(layer.window);
-            for root in [Some(scrim), content, beak].into_iter().flatten() {
+            for root in [scrim, content, beak].into_iter().flatten() {
                 if self.rects.contains_key(&root) {
                     paint::paint(self, &painter, &self.rects, root);
                     roots.push((layer.window, root));

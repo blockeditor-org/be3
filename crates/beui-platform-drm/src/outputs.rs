@@ -31,6 +31,7 @@ pub struct Outputs {
     pub icon: CursorIcon,
     pub gpu: Rc<Gpu>,
     pub flips: Flips,
+    pub hosted: bool,
     cursor: SoftwareCursor,
     cursors: Cursors,
     cursor_scale: f32,
@@ -44,6 +45,7 @@ impl Outputs {
         Self {
             outputs: Vec::new(),
             flips: Flips::default(),
+            hosted: false,
             pointer: Pos2::ZERO,
             icon: CursorIcon::Default,
             gpu,
@@ -238,7 +240,9 @@ impl Renderer for DisplayRenderer {
             queue: outputs.gpu.queue().clone(),
             format: FORMAT,
         });
-        setup.provide(outputs.cursor.clone());
+        if !outputs.hosted {
+            setup.provide(outputs.cursor.clone());
+        }
     }
 
     fn resize(&mut self, _width: u32, _height: u32) {}

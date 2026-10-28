@@ -106,6 +106,7 @@ impl HeadlessPlugin {
             .module()
             .with_handler(|handler| {
                 let runner = ModuleRunner::of(handler)?;
+                runner.context().set_hosts_scrims(false);
                 let windows: Vec<(ScreenPlacement, beui::WindowId)> = placements
                     .into_iter()
                     .filter_map(|placement| {

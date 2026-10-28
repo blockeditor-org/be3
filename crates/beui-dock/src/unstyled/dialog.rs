@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;
+use beui_view::components::root::Root;
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
@@ -53,6 +54,7 @@ pub struct DockDialogHandle {
     pub attention: ReadSignal<bool>,
     pub closable: bool,
     pub close: ClickCallback,
+    pub begin_move: Callback<()>,
     pub pointer: NodeRef,
     pub body: NodeId,
 }
@@ -345,6 +347,12 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
     let held = create_memo(move || (!stacked.get()).then_some(body));
     let pointer = NodeRef::new();
     let closable = on_close.is_some();
+    let opened = StoredCell::new(None::<WindowHandle>);
+    let begin_move = Callback::new(move |()| {
+        if let Some(handle) = opened.get() {
+            handle.begin_move();
+        }
+    });
     let chrome = dock.dialog_chrome;
     let notice = create_memo(move || dock.notice(tab));
     let face = Render::new(move |()| {
@@ -360,6 +368,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
             attention: attention.read_only(),
             closable,
             close,
+            begin_move,
             pointer,
             body: view! {
                 <Portal node={held} />
@@ -474,9 +483,16 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
                     WindowReport::Focused { focused: true, .. } => dock.focus_dialog(tab),
                     _ => {}
                 }}
-            >|_: WindowHandle|
-                <Portal node={in_window} />
-            </Window>
+            >|handle: WindowHandle| {
+                opened.set(Some(handle));
+                on_cleanup(move || opened.set(None));
+                view! {
+                    <Root clear_color=Color::TRANSPARENT>
+                        <Portal node={in_window} />
+                    </Root>
+                }
+                .child()
+            }</Window>
             {fallback}
         </List>
     };

@@ -511,7 +511,9 @@ icon directories, following `Inherits`), looked up by CSS name and then the old 
 window, a `wp_cursor_shape_v1` shape becomes the window's `CursorIcon` (`Windows::cursor`, which
 the winit backend shows too), and a `wl_pointer.set_cursor` surface reaches the platform through
 `beui_platform_drm::SoftwareCursor` (block-app's `desktop_host/linux.rs`), redrawn whenever the client
-commits to it; a null cursor hides the pointer.
+commits to it; a null cursor hides the pointer. Under a layer that opens windows (`BEUI_LAYERS=space`)
+the platform offers no `SoftwareCursor`, since its pointer is not where the layer's is: the layer
+draws its own cursor from the window's `CursorIcon`.
 
 Under `--session` the app runs a frame only when an output has flipped since the last one (`beui-platform-drm`'s `pacing.rs`), and a window's `wl_surface.frame` callbacks and `wp_presentation_feedback` are answered by the flip of the display it mostly covers, with the flip's time, refresh and sequence: the platform reports each flip through `beui_platform_drm::Flips`, which block-app hands to `Compositor::presented` (`presentation.rs`). Elsewhere there are no flips, so they are answered as soon as the window is painted, at the frame clock's time.
 
@@ -672,9 +674,11 @@ Middle-click paste (`zwp_primary_selection_device_manager_v1`, and the primary s
 data-control protocols) is off unless the input settings' "Middle-click paste" is on. The globals are always
 advertised, because a program that finds no primary selection protocol emulates one (Firefox
 then pastes the clipboard on a middle click). While the setting is off the primary selection
-just stays empty: `selection/primary.rs` answers every `set_selection` on a primary device, and
-`set_primary_selection` on a data-control device, by cancelling the source, and switching it
-off clears the current one, so it takes effect at once in running programs. X11 programs keep
+just stays empty: `selection/primary.rs` drops every `set_selection` on a primary device, and
+`set_primary_selection` on a data-control device, so no one is offered it. It never cancels the
+source: a program whose source is cancelled has lost its selection, and a terminal then clears
+the text it just highlighted. Switching the setting off clears the current one, so it takes
+effect at once in running programs. X11 programs keep
 their own `PRIMARY` in Xwayland, which nothing bridges to Wayland, so they can still
 middle-click paste among themselves.
 

@@ -209,6 +209,7 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
     )));
     let mut runner = Runner::new(launch);
     let hosted = runner.context().opens_windows();
+    outputs.borrow_mut().hosted = hosted;
     if !hosted {
         runner.context().set_window_hosting(WindowHosting::Placed);
         runner.context().set_shows_main(false);

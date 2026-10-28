@@ -404,8 +404,9 @@ pub(crate) fn PluginRegion(
                 placed.get(),
             )
         });
-        let held: Rc<RefCell<Option<(DrawingKey, beui::native::Drawing, u64)>>> =
-            Rc::new(RefCell::new(None));
+        let held: Rc<
+            RefCell<Option<(DrawingKey, beui::native::Drawing, u64, plugin_host::Pieces)>>,
+        > = Rc::new(RefCell::new(None));
         let drawn = create_memo(move || {
             let (_, rotation, opacity, pieces, _, placed) = shown.get();
             let (drawn, held_rect, size) =
@@ -421,8 +422,19 @@ pub(crate) fn PluginRegion(
             };
             let previous = held.borrow().clone();
             let published = plugin_host::region_published(&plugin_id.value());
-            if let Some((_, drawing, seen)) = previous.filter(|(was, _, _)| *was == key)
-                && let Some(damage) = state.with_untracked(|view| {
+            let reused = previous.and_then(|(was, drawing, seen, shared)| {
+                let repieced = DrawingKey {
+                    pieces: pieces.clone(),
+                    ..was.clone()
+                };
+                if repieced != key {
+                    return None;
+                }
+                let uncovered = match was.pieces == pieces {
+                    true => Vec::new(),
+                    false => plugin_host::uncovered_pieces(&was.pieces, &pieces)?,
+                };
+                let damage = state.with_untracked(|view| {
                     plugin_host::region_damage(
                         &plugin_id.value(),
                         instance,
@@ -432,10 +444,13 @@ pub(crate) fn PluginRegion(
                         rotation,
                         seen,
                     )
-                })
-            {
+                })?;
+                Some((drawing, shared, [damage, uncovered].concat()))
+            });
+            if let Some((drawing, shared, damage)) = reused {
+                *shared.borrow_mut() = pieces;
                 if damage.is_empty() {
-                    *held.borrow_mut() = Some((key, drawing.clone(), published));
+                    *held.borrow_mut() = Some((key, drawing.clone(), published, shared));
                     return Some(drawing);
                 }
                 let damaged = damage.iter().fold(Region::default(), |damaged, fraction| {
@@ -448,7 +463,7 @@ pub(crate) fn PluginRegion(
                     ))
                 });
                 let redrawn = drawing.redrawn(damaged);
-                *held.borrow_mut() = Some((key, redrawn.clone(), published));
+                *held.borrow_mut() = Some((key, redrawn.clone(), published, shared));
                 return Some(redrawn);
             }
             let drawing = state.with_untracked(|view| {
@@ -462,8 +477,10 @@ pub(crate) fn PluginRegion(
                     opacity,
                 )
             });
-            *held.borrow_mut() = drawing.clone().map(|drawing| (key, drawing, published));
-            drawing
+            *held.borrow_mut() = drawing
+                .clone()
+                .map(|(drawing, shared)| (key, drawing, published, shared));
+            drawing.map(|(drawing, _)| drawing)
         });
         Prop::dynamic(move || draw_gpu(drawn.get()))
     };
@@ -740,7 +757,7 @@ pub(crate) fn PluginRegion(
         let overlaid = (!shows_desktop).then(|| {
             let editor = editor.clone();
             view! {
-                <OverlaidWindows editor region />
+                <OverlaidWindows editor region rect />
             }
         });
         let panels = (!nests_windows).then(|| {
@@ -788,6 +805,7 @@ pub(crate) fn PluginRegion(
                     <DesktopWindows editor={desktop_editor.with(Clone::clone)} state rect />
                 </Show>
                 <RegionChildren state rect child_view below=false />
+                <Scrims state />
                 <Drawing draw={floating} />
                 {windows}
             </Layers>
@@ -795,6 +813,40 @@ pub(crate) fn PluginRegion(
     };
     on_back(handles_back, back);
     built
+}
+
+#[component]
+fn Scrims(state: Memo<RegionView>) -> NodeId {
+    let count = create_memo(move || state.with(|view| (0..view.scrims.len()).collect::<Vec<_>>()));
+    view! {
+        <Canvas>
+            <ForEach keys={count}>|index: usize| {
+                let scrim = create_memo(move || {
+                    state.with(|view| {
+                        view.scrims.get(index).map(|(rect, color)| {
+                            (rect.translate(-view.rect.min.to_vec2()), *color)
+                        })
+                    })
+                });
+                let rect = create_memo(move || scrim.get().map_or(Rect::ZERO, |(rect, _)| rect));
+                let fill = create_memo(move || {
+                    ColorRole::Custom(beui::color::Color::literal(
+                        scrim.get().map_or(beui::color::Color32::TRANSPARENT, |(_, color)| color),
+                    ))
+                });
+                view! {
+                    <CanvasItem
+                        x={create_memo(move || rect.get().min.x)}
+                        y={create_memo(move || rect.get().min.y)}
+                        width={create_memo(move || rect.get().width())}
+                        height={create_memo(move || rect.get().height())}
+                    >
+                        <Frame fill={fill} />
+                    </CanvasItem>
+                }
+            }</ForEach>
+        </Canvas>
+    }
 }
 
 #[component]
@@ -854,7 +906,7 @@ fn DesktopWindows(editor: RegionEditor, state: Memo<RegionView>, rect: Memo<Rect
 }
 
 #[component]
-fn OverlaidWindows(editor: RegionEditor, region: EditorRegion) -> NodeId {
+fn OverlaidWindows(editor: RegionEditor, region: EditorRegion, rect: Memo<Rect>) -> NodeId {
     let block = editor.role.block().map(|block| block.id);
     let keys = super::desktop::overlaid(editor.plugin_id().to_owned(), editor.instance, region);
     let viewport = use_viewport_size();
@@ -881,8 +933,11 @@ fn OverlaidWindows(editor: RegionEditor, region: EditorRegion) -> NodeId {
                         dismissed.with(super::desktop::dismiss);
                     }
                 };
-                let shown = create_memo(move || {
-                    asked.get().map_or(Rect::ZERO, |rect| super::desktop::clamped(rect, viewport.get()))
+                let shown = create_memo(move || match (asked.get(), role.get(), region) {
+                    (None, _, _) => Rect::ZERO,
+                    (Some(asked), WindowRole::Overlay, EditorRegion::Window(_)) => asked,
+                    (Some(asked), WindowRole::Overlay, _) => Rect::from_min_size(rect.get().min, asked.size()),
+                    (Some(asked), _, _) => super::desktop::clamped(asked, viewport.get()),
                 });
                 let anchor = create_memo(move || OverlayAnchor::Point(shown.get().min));
                 let width = create_memo(move || Size::Custom(shown.get().width()));
@@ -1113,14 +1168,15 @@ fn focus_when_presenting(
 
 fn toggle_keyboard_when_asked(state: Memo<RegionView>, primary: Memo<bool>) {
     let toggles = create_memo(move || state.with(|view| view.keyboard_toggles));
-    let seen = StoredCell::new(0u32);
+    let seen = StoredCell::new(None::<u32>);
     create_effect(move || {
-        let toggles = toggles.get();
-        if toggles != seen.get() {
-            seen.set(toggles);
-            if primary.get_untracked() {
-                untrack(toggle_keyboard);
-            }
+        let Some(toggles) = toggles.get() else {
+            return;
+        };
+        let before = seen.get();
+        seen.set(Some(toggles));
+        if before.is_some_and(|before| before != toggles) && primary.get_untracked() {
+            untrack(toggle_keyboard);
         }
     });
 }

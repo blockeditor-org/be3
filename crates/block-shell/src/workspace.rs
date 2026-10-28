@@ -1002,7 +1002,12 @@ impl Workspace {
                 Some(window) => self
                     .host()
                     .act(move || desktop::windows::request(WindowAction::Close(window))),
-                None if self.keeps_windows => self.dismiss(key),
+                None if self
+                    .desk
+                    .with_untracked(|desk| desk.placeholders.contains(&key)) =>
+                {
+                    self.dismiss(key)
+                }
                 None => self
                     .host()
                     .act(move || desktop::windows::request(WindowAction::Close(key))),

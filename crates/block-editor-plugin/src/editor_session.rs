@@ -865,6 +865,8 @@ impl EditorSession {
                 content: reported_content,
                 painted: frame.painted.clone(),
                 floating: frame.floating.clone(),
+                floating_painted: frame.floating_painted.clone(),
+                scrims: frame.scrims.clone(),
                 drawing: frame.drawing.clone(),
                 every_sample: frame.every_sample,
                 claims: frame

@@ -28,8 +28,9 @@ use beui_components_styled::tokens::{Padding, Size, Space, Stroke};
 use beui_components_styled::tooltip::Tooltip;
 use beui_components_unstyled::Container;
 use beui_components_unstyled::Picture;
-use beui_view::primitives::Drawing;
+use beui_view::primitives::{Drawing, Interactive};
 use beui_view::types::Align2;
+use beui_view::types::PointerPress;
 use beui_view::types::{Align, Direction, ItemSize, Justify};
 use beui_view::types::{Color, Corners, Rect, Vec2, pos2};
 use std::rc::Rc;
@@ -652,6 +653,7 @@ fn DockWindowFace(handle: DockDialogHandle) -> NodeId {
         attention,
         closable,
         close,
+        begin_move,
         body,
         ..
     } = handle;
@@ -675,38 +677,48 @@ fn DockWindowFace(handle: DockDialogHandle) -> NodeId {
             padding=CHROME_PADDING
         >
             <List spacing=Space::None>
-                <Frame
-                    fill={header}
-                    height=TAB_HEIGHT
-                    padding={Padding::horizontal(TAB_PADDING_HORIZONTAL)}
-                >
-                    <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
-                        <Show condition={pictured}>
-                            <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::Center>
-                                <Icon glyph={icon} />
-                            </Text>
-                        </Show>
-                        <Text
-                            color={label}
-                            overflow=Overflow::Ellipsis
-                            @sizing=ItemSize::Percent(100.0)
+                <Interactive on_press={move |_: PointerPress| begin_move.call(())}>
+                    <Frame
+                        fill={header}
+                        height=TAB_HEIGHT
+                        padding={Padding::horizontal(TAB_PADDING_HORIZONTAL)}
+                    >
+                        <List
+                            direction=Direction::Horizontal
+                            align=Align::Center
+                            spacing=TAB_SPACING
                         >
-                            {title}
-                        </Text>
-                        <Show condition={closable}>
-                            <Button
-                                icon_only=true
-                                @test_id={format!("dock.dialog.{}.close", tab.value())}
-                                glyph=ICON_X
-                                label="Close"
-                                size=ButtonSize::Small
-                                variant=ButtonVariant::Ghost
-                                capture_presses=true
-                                on_click={close}
-                            />
-                        </Show>
-                    </List>
-                </Frame>
+                            <Show condition={pictured}>
+                                <Text
+                                    size=TextSize::Sm
+                                    color=TextColor::Muted
+                                    align=TextAlign::Center
+                                >
+                                    <Icon glyph={icon} />
+                                </Text>
+                            </Show>
+                            <Text
+                                color={label}
+                                overflow=Overflow::Ellipsis
+                                @sizing=ItemSize::Percent(100.0)
+                            >
+                                {title}
+                            </Text>
+                            <Show condition={closable}>
+                                <Button
+                                    icon_only=true
+                                    @test_id={format!("dock.dialog.{}.close", tab.value())}
+                                    glyph=ICON_X
+                                    label="Close"
+                                    size=ButtonSize::Small
+                                    variant=ButtonVariant::Ghost
+                                    capture_presses=true
+                                    on_click={close}
+                                />
+                            </Show>
+                        </List>
+                    </Frame>
+                </Interactive>
                 {body}
             </List>
         </Frame>

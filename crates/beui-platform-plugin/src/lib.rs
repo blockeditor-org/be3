@@ -50,6 +50,8 @@ impl Platform for PluginPlatform {
             let mut runner = Runner::new(launch);
             runner.context().set_window_hosting(WindowHosting::Placed);
             runner.context().set_shows_main(false);
+            runner.context().set_hosts_scrims(true);
+            runner.context().set_overlays_in_windows(true);
             let waker = self
                 .host
                 .module()
@@ -313,6 +315,7 @@ impl ModuleRunner {
             }
             _ if !self.floated.contains_key(&window) => {}
             WindowRequest::BeginMove(window) => self.push_ask(window, Ask::BeginMove(window.raw())),
+            WindowRequest::Raise(window) => self.push_ask(window, Ask::Raise(window.raw())),
             WindowRequest::BeginResize { window, edge } => self.push_ask(
                 window,
                 Ask::BeginResize(block_plugin_api::WindowResizeBegin {
@@ -591,9 +594,12 @@ impl Regions for ModuleRunner {
                 let id = region.id();
                 let mut mine = Vec::new();
                 asks.retain(|(from, ask)| {
-                    let here = *from == id
-                        || (Some(id) == fallback
-                            && !regions.iter().any(|region| region.id() == *from));
+                    let owner = regions
+                        .iter()
+                        .map(Region::id)
+                        .find(|region| region.instance == from.instance)
+                        .or(fallback);
+                    let here = owner == Some(id);
                     if here {
                         mine.push(ask.clone());
                     }
@@ -624,6 +630,23 @@ impl Regions for ModuleRunner {
                     content: report.content.map(to_region),
                     painted: report.painted.into_iter().map(to_region).collect(),
                     floating: report.floating.into_iter().map(to_region).collect(),
+                    floating_painted: report.floating_painted.into_iter().map(to_region).collect(),
+                    scrims: report
+                        .scrims
+                        .into_iter()
+                        .map(|(rect, color)| {
+                            let [red, green, blue, alpha] = color.to_array();
+                            block_plugin_api::Scrim {
+                                rect: to_region(rect),
+                                color: block_plugin_api::accessibility::Color {
+                                    red,
+                                    green,
+                                    blue,
+                                    alpha,
+                                },
+                            }
+                        })
+                        .collect(),
                     drawing: report.drawing.into_iter().map(to_region).collect(),
                     every_sample: report.every_sample,
                     claims: report

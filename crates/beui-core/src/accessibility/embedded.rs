@@ -17,7 +17,7 @@ pub struct Embedded {
     next: u64,
     changed: HashSet<AccessNodeId>,
     restructured: bool,
-    placed: Option<(String, Rect, Vec2, f32)>,
+    placed: Option<(Option<String>, Rect, Vec2, f32)>,
 }
 
 impl Embedded {
@@ -62,14 +62,14 @@ impl Embedded {
 
     pub fn fragment(
         &mut self,
-        title: &str,
+        title: Option<&str>,
         area: Rect,
         origin: Vec2,
         scale: f32,
         focused: bool,
         full: bool,
     ) -> Fragment {
-        let placed = (title.to_owned(), area, origin, scale);
+        let placed = (title.map(str::to_owned), area, origin, scale);
         let moved = self.placed.as_ref() != Some(&placed);
         self.placed = Some(placed);
         let restructured = std::mem::take(&mut self.restructured);
@@ -80,8 +80,14 @@ impl Embedded {
         let root = self.root.filter(|root| self.nodes.contains_key(root));
         let mut nodes = Vec::new();
         if resend || moved {
-            let mut pane = Node::new(Role::Pane);
-            pane.set_label(title);
+            let mut pane = match title {
+                Some(title) => {
+                    let mut pane = Node::new(Role::Pane);
+                    pane.set_label(title);
+                    pane
+                }
+                None => Node::new(Role::GenericContainer),
+            };
             pane.set_bounds(bounds(area));
             if let Some(root) = root {
                 pane.set_children(vec![self.host(root)]);

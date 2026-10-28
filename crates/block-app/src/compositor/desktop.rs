@@ -264,13 +264,14 @@ pub(crate) fn apply() {
             WindowRequest::Open(open) => {
                 let size = vec2(open.size.width.max(1.0), open.size.height.max(1.0));
                 let held = find(&windows, open.window);
-                let panel = crate::host::opens_windows().then(|| Panel {
-                    opened: open.placement.clone(),
-                    role: open.role,
-                    placed: None,
-                    moves: 0,
-                    resizes: (0, WindowEdge::BottomRight),
-                });
+                let panel = (crate::host::opens_windows() && open.role != WindowRole::Overlay)
+                    .then(|| Panel {
+                        opened: open.placement.clone(),
+                        role: open.role,
+                        placed: None,
+                        moves: 0,
+                        resizes: (0, WindowEdge::BottomRight),
+                    });
                 let panel = match (panel, held.and_then(|index| windows[index].panel.as_ref())) {
                     (Some(panel), Some(was)) => Some(Panel {
                         placed: was.placed.clone(),
@@ -316,6 +317,7 @@ pub(crate) fn apply() {
                     Some(index) => windows[index] = window,
                     None => windows.push(window),
                 }
+                keep_overlays_on_top(&mut windows);
             }
             WindowRequest::BeginMove(window) => {
                 if let Some(panel) =
@@ -329,6 +331,12 @@ pub(crate) fn apply() {
                         began_on: None,
                         start: pressed_on(&windows[index].key),
                     });
+                }
+            }
+            WindowRequest::Raise(window) => {
+                if let Some(index) = find(&windows, window) {
+                    let key = windows[index].key.clone();
+                    raise_in(&mut windows, &key);
                 }
             }
             WindowRequest::BeginResize(resize) => {
@@ -537,6 +545,18 @@ pub(crate) fn role_of(key: FloatedKey) -> Memo<WindowRole> {
     })
 }
 
+pub(crate) fn is_overlay(plugin: &str, instance: EditorInstanceId, window: u64) -> bool {
+    FLOATED.get().is_some()
+        && floated_signal().with_untracked(|held| {
+            held.iter().any(|held| {
+                held.key.plugin == plugin
+                    && held.key.instance == instance
+                    && held.key.window == window
+                    && held.role == WindowRole::Overlay
+            })
+        })
+}
+
 pub(crate) fn dismiss(key: &FloatedKey) {
     floated_signal().update(|held| {
         let mut gone = vec![key.window];
@@ -555,9 +575,18 @@ pub(crate) fn rect_of(key: FloatedKey) -> Memo<Option<Rect>> {
     let floated = floated();
     create_memo(move || {
         floated.with(|held| {
-            held.iter()
-                .find(|window| window.key == key)
-                .map(|window| window.rect)
+            let window = held.iter().find(|window| window.key == key)?;
+            let parent = window
+                .parent
+                .filter(|_| window.role == WindowRole::Overlay)
+                .and_then(|parent| {
+                    held.iter()
+                        .find(|held| held.key.plugin == key.plugin && held.key.window == parent)
+                });
+            Some(match parent {
+                Some(parent) => Rect::from_min_size(parent.rect.min, window.rect.size()),
+                None => window.rect,
+            })
         })
     })
 }
@@ -702,16 +731,44 @@ fn resized(rect: Rect, edge: WindowEdge, moved: Vec2) -> Rect {
 
 fn raise(key: &FloatedKey) {
     let floated = floated_signal();
-    let last = floated.with_untracked(|windows| windows.last().map(|window| window.key.clone()));
-    if last.as_ref() == Some(key) {
-        return;
+    let mut windows = floated.get_untracked();
+    raise_in(&mut windows, key);
+    if floated.with_untracked(|held| *held != windows) {
+        floated.set(windows);
     }
-    floated.update(|windows| {
-        if let Some(index) = windows.iter().position(|window| window.key == *key) {
-            let window = windows.remove(index);
-            windows.push(window);
-        }
-    });
+}
+
+fn raise_in(windows: &mut Vec<Floated>, key: &FloatedKey) {
+    let mut raised = vec![key.window];
+    let mut index = 0;
+    while index < raised.len() {
+        let parent = raised[index];
+        let children: Vec<u64> = windows
+            .iter()
+            .filter(|window| {
+                window.key.plugin == key.plugin
+                    && window.parent == Some(parent)
+                    && !raised.contains(&window.key.window)
+            })
+            .map(|window| window.key.window)
+            .collect();
+        raised.extend(children);
+        index += 1;
+    }
+    let (on_top, mut below): (Vec<Floated>, Vec<Floated>) = std::mem::take(windows)
+        .into_iter()
+        .partition(|window| window.key.plugin == key.plugin && raised.contains(&window.key.window));
+    below.extend(on_top);
+    *windows = below;
+    keep_overlays_on_top(windows);
+}
+
+fn keep_overlays_on_top(windows: &mut Vec<Floated>) {
+    let (overlays, mut rest): (Vec<Floated>, Vec<Floated>) = std::mem::take(windows)
+        .into_iter()
+        .partition(|window| window.role == WindowRole::Overlay && window.parent.is_none());
+    rest.extend(overlays);
+    *windows = rest;
 }
 
 pub(crate) fn merged_statuses(

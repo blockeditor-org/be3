@@ -164,6 +164,7 @@ pub struct OverlayNode {
     pub(crate) shown_in: Option<WindowId>,
     scrim: NodeOf<FrameNode>,
     dims: bool,
+    scrim_color: Color,
     pub(crate) open: bool,
     pub(crate) anchor: OverlayAnchor,
     anchored: Option<Rect>,
@@ -186,6 +187,7 @@ impl OverlayNode {
             shown_in: None,
             scrim,
             dims: false,
+            scrim_color: Color::TRANSPARENT,
             open: false,
             anchor,
             anchored: None,
@@ -356,6 +358,14 @@ impl OverlayNode {
         if let Some(rect) = placed {
             crate::layout::layout(doc, painter, beak.id(), rect, out);
         }
+    }
+
+    pub(crate) fn dims(&self) -> bool {
+        self.dims
+    }
+
+    pub(crate) fn scrim_color(&self) -> Color {
+        self.scrim_color
     }
 
     pub(crate) fn scrim_covers(&self) -> bool {
@@ -584,8 +594,32 @@ impl Document {
     }
 
     pub fn content_of_overlay(&self, node: NodeId) -> Option<NodeId> {
-        let overlay = self.arena.kind_of::<OverlayNode>(node)?;
+        let overlay = self.overlay_of(node)?;
         self.overlay_content(overlay)
+    }
+
+    pub fn overlay_of(&self, node: NodeId) -> Option<NodeOf<OverlayNode>> {
+        let node = match self.arena.kind_of::<crate::base::portal::PortalNode>(node) {
+            Some(portal) => {
+                self.arena
+                    .get_as::<crate::base::portal::PortalNode>(portal)
+                    .child?
+            }
+            None => node,
+        };
+        let overlay = self.arena.kind_of::<OverlayNode>(node)?;
+        let shows = self
+            .overlay_window(overlay)
+            .is_some_and(|spec| spec.role == crate::window::WindowRole::Overlay);
+        if !shows {
+            return Some(overlay);
+        }
+        let shown = self.overlay_content(overlay).and_then(|content| {
+            self.children(content)
+                .iter()
+                .find_map(|child| self.arena.kind_of::<OverlayNode>(*child))
+        });
+        Some(shown.unwrap_or(overlay))
     }
 
     pub fn overlay_window(&self, overlay: NodeOf<OverlayNode>) -> Option<&WindowSpec> {
@@ -636,7 +670,11 @@ impl Document {
         let color = color.into();
         let node = self.arena.get_as::<OverlayNode>(overlay);
         let (scrim, dims) = (node.scrim, !color.is_clear());
-        if node.dims != dims {
+        let (held, dimmed) = (node.scrim_color, node.dims);
+        if held != color {
+            self.arena.get_mut_as::<OverlayNode>(overlay).scrim_color = color;
+        }
+        if dimmed != dims {
             self.arena.get_mut_as::<OverlayNode>(overlay).dims = dims;
             self.layers_changed();
         }
@@ -691,12 +729,11 @@ impl Document {
     }
 
     pub fn is_overlay(&self, node: NodeId) -> bool {
-        self.arena.kind_of::<OverlayNode>(node).is_some()
+        self.overlay_of(node).is_some()
     }
 
     pub fn is_overlay_open(&self, overlay: NodeId) -> bool {
-        self.arena
-            .kind_of::<OverlayNode>(overlay)
+        self.overlay_of(overlay)
             .is_some_and(|overlay| self.arena.get_as(overlay).open)
     }
 

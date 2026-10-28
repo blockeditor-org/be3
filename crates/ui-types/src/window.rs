@@ -50,7 +50,7 @@ impl WindowRequest {
             Self::Open { window, .. }
             | Self::BeginResize { window, .. }
             | Self::Resize { window, .. } => *window,
-            Self::BeginMove(window) | Self::Close(window) => *window,
+            Self::BeginMove(window) | Self::Raise(window) | Self::Close(window) => *window,
         }
     }
 }

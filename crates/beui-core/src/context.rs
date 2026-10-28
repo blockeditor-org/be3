@@ -90,6 +90,8 @@ struct Inner {
     keyboard_window: Cell<WindowId>,
     window_hosting: Cell<WindowHosting>,
     shows_main: Cell<bool>,
+    hosts_scrims: Cell<bool>,
+    overlays_in_windows: Cell<bool>,
     keyboard_in_a_window: Cell<bool>,
     fullscreen: Cell<Option<bool>>,
     fullscreen_shown: Cell<bool>,
@@ -354,6 +356,8 @@ impl Context {
                 keyboard_window: Cell::new(WindowId::MAIN),
                 window_hosting: Cell::new(WindowHosting::None),
                 shows_main: Cell::new(true),
+                hosts_scrims: Cell::new(false),
+                overlays_in_windows: Cell::new(false),
                 keyboard_in_a_window: Cell::new(false),
                 fullscreen: Cell::new(None),
                 fullscreen_shown: Cell::new(false),
@@ -1011,6 +1015,22 @@ impl Context {
 
     pub fn set_shows_main(&self, shows: bool) {
         self.inner.shows_main.set(shows);
+    }
+
+    pub fn hosts_scrims(&self) -> bool {
+        self.inner.hosts_scrims.get()
+    }
+
+    pub fn set_hosts_scrims(&self, hosts: bool) {
+        self.inner.hosts_scrims.set(hosts);
+    }
+
+    pub fn overlays_in_windows(&self) -> bool {
+        self.inner.overlays_in_windows.get()
+    }
+
+    pub fn set_overlays_in_windows(&self, shows: bool) {
+        self.inner.overlays_in_windows.set(shows);
     }
 
     pub fn window_size(&self, window: WindowId) -> Option<Vec2> {

@@ -193,6 +193,12 @@ impl Desk {
                 }
             }
             WindowRequest::BeginMove(window) => self.gesture = Some((window, Gesture::Move)),
+            WindowRequest::Raise(window) => {
+                if let Some(index) = find(&self.windows, window) {
+                    let raised = self.windows.remove(index);
+                    self.windows.push(raised);
+                }
+            }
             WindowRequest::BeginResize(resize) => {
                 self.gesture = Some((resize.window, Gesture::Resize(resize.edge)));
             }

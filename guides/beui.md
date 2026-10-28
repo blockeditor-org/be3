@@ -2012,7 +2012,14 @@ Each layer has one `policy` (`LayerPolicy`):
 An overlay that is not a window of its own is shown in the window it was
 opened in, unless `shown_in` names another of the document's windows where
 windows open: it is then laid out in that window's viewport, painted in it and
-counts as in it (`Document::window_of`).
+counts as in it (`Document::window_of`). Where the context says the host shows
+overlays in windows (`Context::overlays_in_windows`, which the plugin platform
+sets) and the window it was opened in is hosted, the `Overlay` component opens
+a transparent `Window` of role `Overlay` the size of that window, placed `Over`
+it at its corner, while the overlay is open or lingers, and shows the overlay
+in it through `shown_in`, so the host stacks the overlay's menus, tooltips and
+dialogs with its other windows rather than drawing them in the window's own
+picture.
 
 `traps_focus` (on unless a caller turns it off) keeps Tab inside the layer and
 makes it a boundary for keys (see the keyboard guide): a menu, a dialog and a
@@ -2828,7 +2835,11 @@ it. The dock binds no key to leave: whoever enters fullscreen offers the way out
 as the demo's Escape does. Fullscreen is not part of the saved layout.
 Showing or focusing the fullscreen tab (`DockingLayout::show`, the switcher, a press anywhere on
 its content) raises the fullscreen overlay above the floating windows, its own pane's window
-included, so a window brought in front of it and then left goes behind it again. The pane
+included, so a window brought in front of it and then left goes behind it again. Where a host
+opens windows (`opens_windows`) the panel goes into a `Window` over that area instead, so the
+host stacks it among its other windows as Windows and Linux do: a window opened or focused
+later comes in front of it, and focusing the fullscreen tab raises it again and gives it the
+keyboard. The pane
 it left draws Docking's `away` render prop (styled: a note that it is full screen and a Leave
 full screen button), seen where the fullscreen area does not cover it, such as another screen.
 A tab's content calls `DockTabControl::offer_fullscreen` to add Full screen / Leave full screen
@@ -3421,10 +3432,18 @@ host never focuses either and closes, reporting `Closed`, when a press lands
 outside it and outside the popups opened over it, keeping that press from what
 is under it as a `BlocksAll` menu does; block-app does so for every plugin
 window it overlays, anywhere in its own window, and beui-layer-space for every
-panel, a press in any other panel or none closing it; the `Window` component's `role`,
+panel, a press in any other panel or none closing it; or `Overlay` for the
+window an `Overlay` opens to show itself in (above), which the host keeps in
+front of the window it is placed over and never focuses, letting presses
+through wherever it paints nothing, and which the app closes itself;
+the `Window` component's `role`,
 and a hosted window whose role changes is opened again with the new one), `BeginMove(window)`, `BeginResize { window, edge }`
 (the host then moves or resizes it, as an OS does after winit's
-`drag_window`), `Resize { window, size }` (the app wants another size; the
+`drag_window`), `Raise(window)` (sent whenever `Document::raise_overlay` raises a
+hosted window, as a dock does when one of its windows takes the focus, so the host
+stacks its windows as the document does; the host keeps the windows opened over it,
+its dialogs and popups, in front of it; the document sends a frame's requests for windows already open
+before the `Open`s of new ones, so a window opened in that frame ends up in front), `Resize { window, size }` (the app wants another size; the
 host answers with the size it gives) and `Close(window)`. A `WindowPlacement` is `AtPointer`,
 `Over { window, at }` (its top-left corner at `at` in that window's points, where
 the app would draw it inside that window), or `Host(HostPlacement)`: a value only the host
@@ -3542,7 +3561,11 @@ holding the focus, and the rest of `WindowState` stays on the main window,
 except the appearance: a `Root` built inside a hosted window sets that
 window's clear colour, title and system bars
 (`Document::update_appearance(Some(window), ..)`), and a window without one
-takes the main window's. The accessibility tree stays one tree, with each
+takes the main window's. A `Root` inside a `Window` that is an overlay sets
+nothing, since an overlay has no clear of its own. A window that draws its own
+rounded or inset chrome, as the dock's floating windows and window-presented
+dialogs do, sets `Color::TRANSPARENT` so its host shows what is behind its corners
+and margins. The accessibility tree stays one tree, with each
 window's nodes in its own coordinates; `FrameOutput::window_accessibility_tree`
 is the part of it in one window (its nodes, rooted at the window, with the
 focus when the focus is there), and `FrameOutput::window_overflows` names the
@@ -3550,7 +3573,13 @@ window of each overflow.
 
 What a host is told about one window is asked of the document by window:
 `overlay_rects(window)`, `floating_rects(window)` and `overlay_layers(window)`
-cover the overlays opened in it, `drawing_rects(window)`,
+cover the overlays opened in it (`overlay_rects` where they take input, scrims
+included; `overlay_painted_rects` only what they paint: their content, and a scrim
+that dims unless the host draws scrims; `overlay_scrims` the scrims that dim, each
+with its colour). Where `Context::hosts_scrims` (set by the plugin platform), the
+document paints no scrim at all and its host draws `overlay_scrims` between what it
+shows under the window and the overlays' content, so a host's own children under a
+dimming overlay are dimmed with the rest rather than hidden; `drawing_rects(window)`,
 `press_claims(window)` and `wants_every_sample(window)` the nodes in it, and
 `measure_node(ctx, node, available)` measures a node with the painter of its
 window. A key listener at `KeyAt::Window` and an action, registered inside a
