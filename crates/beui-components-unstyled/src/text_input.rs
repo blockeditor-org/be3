@@ -357,6 +357,8 @@ fn BrowserField(
         ..
     } = style;
     let shown = placeholder.clone();
+    let named = accessibility.clone();
+    let label = Prop::dynamic(move || named.get().label().map(str::to_owned));
     component_accessibility(create_memo(move || {
         let mut node = accessibility.get();
         let text = value.get();
@@ -422,6 +424,7 @@ fn BrowserField(
                 placeholder={Prop::dynamic(move || present(placeholder.get()))}
                 disabled={disabled}
                 @attr={("spellcheck", "false".to_owned())}
+                @attr={("aria-label", label)}
                 on_input={move |event: Event| take(&event)}
                 on_change={move |event: Event| take(&event)}
                 on_keydown={move |event: Event| {

@@ -4,6 +4,7 @@ use paint_snapshot::BrowserSnapshot;
 use crate::render;
 
 mod a_page_renders_the_same_twice_and_escapes_what_it_shows;
+mod every_field_is_labelled_by_its_visible_label;
 mod forms_escape_their_code_and_leave_validation_to_the_server;
 mod the_portal_captures_account_management_and_approval;
 mod the_portal_captures_errors_and_server_policy;
