@@ -4265,3 +4265,75 @@ fn NestedNote(text: &'static str) -> NodeId {
         </Scroll>
     }
 }
+
+#[component]
+pub(crate) fn DockBarsPage() -> NodeId {
+    let layout = DockingLayout::<u64>::new();
+    view! {
+        <Docking layout>
+            <DockPane id="stage" bare=true>
+                <DockTab id=1u64 title="Stage" icon=beui::icons::ICON_PEN_TOOL>
+                    <BarsStage />
+                </DockTab>
+            </DockPane>
+            <DockBar id=2u64 parent=1u64 placement={DockBarPlacement::Over(DockEdge::Left)}>
+                <DemoToolBar />
+            </DockBar>
+        </Docking>
+    }
+}
+
+#[component]
+fn BarsStage() -> NodeId {
+    view! {
+        <Frame @test_id="bars.stage" fill=ColorRole::Background>
+            <Frame padding=PAGE_PADDING align=Align::Center>
+                <Text style=TextStyle::PARAGRAPH color=TextColor::Muted>
+                    "This page is a Docking of its own with one bare pane and a tool bar. Drag the \
+                     bar by its grip to float it over an edge of the stage, to dock it along an edge \
+                     beside the stage, or away from the stage to pop it out into a window. The \
+                     grip's menu moves it without dragging."
+                </Text>
+            </Frame>
+        </Frame>
+    }
+}
+
+#[component]
+fn DemoToolBar() -> NodeId {
+    let bar = use_dock_bar();
+    let direction = create_memo(move || bar.map_or(Direction::Horizontal, |bar| bar.direction()));
+    let tools = [
+        ("Select", beui::icons::ICON_MOUSE_POINTER_2),
+        ("Hand", beui::icons::ICON_HAND),
+        ("Pencil", beui::icons::ICON_PENCIL),
+        ("Shape", ICON_SQUARE),
+        ("Text", beui::icons::ICON_TYPE),
+        ("Eraser", beui::icons::ICON_ERASER),
+    ];
+    view! {
+        <Frame
+            @test_id="bars.tools"
+            fill=ColorRole::SurfaceRaised
+            border={Border::DEFAULT}
+            radius=Radius::Md
+            padding=Space::Xs
+        >
+            <List direction={direction} align=Align::Center spacing=Space::Xs>
+                <Frame @test_id="bars.grip">
+                    <DockBarGrip />
+                </Frame>
+                <ForEach keys={tools.to_vec()}>|(label, glyph): (&'static str, Glyph)|
+                    <Button
+                        @test_id={format!("bars.tool.{}", label.to_lowercase())}
+                        label
+                        glyph={Some(glyph)}
+                        icon_only=true
+                        variant=ButtonVariant::Ghost
+                        size=ButtonSize::Toolbar
+                    />
+                </ForEach>
+            </List>
+        </Frame>
+    }
+}

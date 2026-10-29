@@ -9,14 +9,15 @@ use beui_macros::{component, view};
 
 use crate::unstyled as dock;
 pub use crate::unstyled::{
-    DockApi, DockDialog, DockDialogPresentation, DockDocument, DockDocumentBody, DockDocumentTabs,
-    DockDocuments, DockEntry, DockMode, DockNode, DockPane, DockSlot, DockSplit, DockTab,
-    DockWindow, DockingLayout, DockingSnapshot, TabId, dock_menu, use_dock_tab,
+    DockApi, DockBar, DockBarControl, DockBarPlacement, DockDialog, DockDialogPresentation,
+    DockDocument, DockDocumentBody, DockDocumentTabs, DockDocuments, DockEdge, DockEntry, DockMode,
+    DockNode, DockPane, DockSlot, DockSplit, DockTab, DockWindow, DockingLayout, DockingSnapshot,
+    TabId, dock_menu, use_dock_bar, use_dock_tab,
 };
 use crate::unstyled::{
-    DockAwayHandle, DockBarHandle, DockChromeHandle, DockDialogHandle, DockDragged, DockGripHandle,
-    DockKey, DockPreviewHandle, DockSheetHandle, DockSplitterHandle, DockStackHandle,
-    DockSwitchHandle, DockSwitcherHandle, DockTabHandle, Entry,
+    DockAwayHandle, DockBarHandle, DockBarTargetHandle, DockChromeHandle, DockDialogHandle,
+    DockDragged, DockGripHandle, DockKey, DockPreviewHandle, DockSheetHandle, DockSplitterHandle,
+    DockStackHandle, DockSwitchHandle, DockSwitcherHandle, DockTabHandle, Entry,
 };
 use beui_components_styled::List;
 use beui_components_styled::action_bar::{ActionBar, ActionLabels};
@@ -35,6 +36,8 @@ use beui_view::types::{Align, Direction, ItemSize, Justify};
 use beui_view::types::{Color, Corners, Rect, Vec2, pos2};
 use std::rc::Rc;
 
+use beui_components_styled::menu_button::MenuButton;
+use beui_components_unstyled::menu::MenuNodes;
 use beui_view::primitives::Layers;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
@@ -43,7 +46,7 @@ use beui_view::types::Modifiers;
 use beui_view::types::Sides;
 use beui_view::types::TextAlign;
 use beui_view::types::icons::{
-    ICON_APP_WINDOW, ICON_GRIP_VERTICAL, ICON_MAXIMIZE, ICON_MINIMIZE, ICON_X,
+    ICON_APP_WINDOW, ICON_GRIP_HORIZONTAL, ICON_GRIP_VERTICAL, ICON_MAXIMIZE, ICON_MINIMIZE, ICON_X,
 };
 use stack::{DockStackBar, DockSwitcher};
 use switch::DockSwitchPanel;
@@ -56,6 +59,7 @@ const BAR_HEIGHT: f32 = 39.0;
 const ROOMY_BAR: f32 = 400.0;
 const BAR_PADDING: Space = Space::Xs;
 const BAR_SPACING: Space = Space::Xs2;
+const BAR_MARGIN: Space = Space::Md;
 const GRIP_WIDTH: Size = Size::Xs;
 const ICON_SIDEBAR: f32 = TAB_HEIGHT.px() + 2.0 * BAR_PADDING.px();
 const PREVIEW_PADDING: Space = Space::Md;
@@ -161,6 +165,10 @@ where
             }}
             highlight={move || view! {
                 <DockDropHighlight />
+            }}
+            bar_margin={BAR_MARGIN.px()}
+            bar_target={move |handle: DockBarTargetHandle| view! {
+                <DockBarTargetFace handle />
             }}
             preview={move |handle: DockPreviewHandle| {
                 let DockPreviewHandle { dragged, title, icon } = handle;
@@ -977,6 +985,75 @@ fn DockSplitterFace(handle: DockSplitterHandle) -> NodeId {
         <Frame padding={padding} border={focus_border(focused, Border::FOCUS)}>
             <Frame fill={line} />
         </Frame>
+    }
+}
+
+#[component]
+fn DockBarTargetFace(handle: DockBarTargetHandle) -> NodeId {
+    let DockBarTargetHandle { placement, active } = handle;
+    let fill = create_memo(move || match active.get() {
+        true => ColorRole::Accent,
+        false => ColorRole::SurfaceRaised,
+    });
+    let border = create_memo(move || match active.get() {
+        true => Some(Border::FOCUS),
+        false => Some(Border::DEFAULT),
+    });
+    let marker = match placement {
+        DockBarPlacement::Over(edge) => format!("dock.bar.target.over.{}", edge.name()),
+        DockBarPlacement::Beside(edge) => format!("dock.bar.target.beside.{}", edge.name()),
+        DockBarPlacement::Window { .. } => String::new(),
+    };
+    view! {
+        <Frame @test_id={marker} fill={fill} border={border} radius=Radius::Sm />
+    }
+}
+
+#[component]
+pub fn DockBarGrip(#[prop(default = None)] control: Option<DockBarControl>) -> NodeId {
+    let Some(control) = control.or_else(use_dock_bar) else {
+        return view! {
+            <Frame />
+        };
+    };
+    let pressed = StoredCell::new(None::<PointerPress>);
+    let glyph = create_memo(move || match control.direction() {
+        Direction::Horizontal => ICON_GRIP_VERTICAL,
+        Direction::Vertical => ICON_GRIP_HORIZONTAL,
+    });
+    let menu = control.menu();
+    view! {
+        <Interactive
+            cursor=beui_view::types::CursorIcon::Grab
+            on_press={move |press: PointerPress| pressed.set(Some(press))}
+            on_drag={move |press: PointerPress| {
+                let Some(down) = pressed.get() else {
+                    return;
+                };
+                if (press.pos - down.pos).length() >= beui_components_unstyled::DRAG_THRESHOLD {
+                    control.begin_move(down);
+                    control.begin_move(press);
+                }
+            }}
+            on_active_change={move |active: bool| {
+                if !active {
+                    pressed.set(None);
+                }
+            }}
+        >
+            <MenuButton
+                @test_id={format!("dock.bar.{}.grip", control.bar().value())}
+                label="Move toolbar"
+                glyph={create_memo(move || Some(glyph.get()))}
+                icon_only=true
+                arrow=false
+                variant=ButtonVariant::Ghost
+                size=ButtonSize::Toolbar
+                items={view! {
+                    <MenuNodes nodes={menu} />
+                }}
+            />
+        </Interactive>
     }
 }
 

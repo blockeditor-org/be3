@@ -5,11 +5,11 @@ use beui::Align;
 use beui::KeyAt;
 use beui::Overflow;
 use beui::datetime::{Date, DateTime, HourCycle, Time};
-use beui::dock::styled::Docking;
+use beui::dock::styled::{DockBarGrip, Docking};
 use beui::dock::unstyled::{
-    DockDialog, DockDialogPresentation, DockDocument, DockDocumentBody, DockDocumentTabs,
-    DockDocuments, DockOpened, DockPane, DockSlot, DockSplit, DockTab, DockTabControl,
-    DockingLayout, TabId, dock_menu, use_dock_tab,
+    DockBar, DockBarPlacement, DockDialog, DockDialogPresentation, DockDocument, DockDocumentBody,
+    DockDocumentTabs, DockDocuments, DockEdge, DockOpened, DockPane, DockSlot, DockSplit, DockTab,
+    DockTabControl, DockingLayout, TabId, dock_menu, use_dock_bar, use_dock_tab,
 };
 use beui::icons::Glyph;
 use beui::icons::{
@@ -18,8 +18,8 @@ use beui::icons::{
     ICON_EXTERNAL_LINK, ICON_GRIP_VERTICAL, ICON_HEADING, ICON_LAYERS, ICON_LAYOUT_DASHBOARD,
     ICON_LAYOUT_GRID, ICON_LAYOUT_PANEL_LEFT, ICON_LINK, ICON_LIST, ICON_LOCK, ICON_LOG_IN,
     ICON_MAIL, ICON_MENU, ICON_MOUSE, ICON_MOUSE_POINTER_CLICK, ICON_NETWORK, ICON_PALETTE,
-    ICON_PANELS_TOP_LEFT, ICON_PEN_TOOL, ICON_PENCIL, ICON_PLAY, ICON_POINTER, ICON_SHARE_2,
-    ICON_SLIDERS_HORIZONTAL, ICON_SPLINE, ICON_SPLIT, ICON_SQUARE, ICON_STAR,
+    ICON_PANEL_BOTTOM, ICON_PANELS_TOP_LEFT, ICON_PEN_TOOL, ICON_PENCIL, ICON_PLAY, ICON_POINTER,
+    ICON_SHARE_2, ICON_SLIDERS_HORIZONTAL, ICON_SPLINE, ICON_SPLIT, ICON_SQUARE, ICON_STAR,
     ICON_TEXT_ALIGN_START, ICON_TOGGLE_RIGHT, ICON_TRASH, ICON_TYPE,
 };
 use beui::reactive::*;
@@ -41,9 +41,9 @@ use std::rc::Rc;
 use std::sync::Arc;
 use styled_pages::{AttachedCard, AttachedDialog};
 use styled_pages::{
-    ButtonsPage, CanvasPage, ChoicesPage, ColorsPage, DockingPage, EditorPage, InputsPage,
-    LabelledSwitch, LayoutPage, MenusPage, NestedDocksPage, OverlaysPage, PickersPage, RowsPage,
-    TextPage, ThemesPage, TreePage,
+    ButtonsPage, CanvasPage, ChoicesPage, ColorsPage, DockBarsPage, DockingPage, EditorPage,
+    InputsPage, LabelledSwitch, LayoutPage, MenusPage, NestedDocksPage, OverlaysPage, PickersPage,
+    RowsPage, TextPage, ThemesPage, TreePage,
 };
 use text_editor_core::{
     EditorCommand, Highlighter, Language, MarkdownCommand, TextBuffer, TextLanguage,
@@ -81,6 +81,7 @@ const STAND_IN: Color32 = Color32::from_rgb(255, 105, 180);
 enum Page {
     Docking,
     NestedDocks,
+    DockBars,
     Text,
     Buttons,
     Inputs,
@@ -112,9 +113,10 @@ enum Page {
     Paths,
 }
 
-const STYLED_PAGES: [Page; 18] = [
+const STYLED_PAGES: [Page; 19] = [
     Page::Docking,
     Page::NestedDocks,
+    Page::DockBars,
     Page::Text,
     Page::Buttons,
     Page::Inputs,
@@ -152,9 +154,10 @@ const BASE_PAGES: [Page; 7] = [
     Page::Layering,
 ];
 
-const PAGES: [Page; 31] = [
+const PAGES: [Page; 32] = [
     Page::Docking,
     Page::NestedDocks,
+    Page::DockBars,
     Page::Text,
     Page::Buttons,
     Page::Inputs,
@@ -191,6 +194,7 @@ impl Page {
         match self {
             Page::Docking => "Docking",
             Page::NestedDocks => "Nested docks",
+            Page::DockBars => "Dock bars",
             Page::Text => "Text",
             Page::Buttons => "Buttons",
             Page::Inputs => "Inputs",
@@ -227,6 +231,7 @@ impl Page {
         match self {
             Page::Docking => ICON_LAYOUT_PANEL_LEFT,
             Page::NestedDocks => ICON_PANELS_TOP_LEFT,
+            Page::DockBars => ICON_PANEL_BOTTOM,
             Page::Text => ICON_TYPE,
             Page::Buttons => ICON_MOUSE_POINTER_CLICK,
             Page::Inputs => ICON_TOGGLE_RIGHT,
@@ -263,6 +268,7 @@ impl Page {
         match self {
             Page::Docking => "Tabs, splits, windows and groups",
             Page::NestedDocks => "A dock in a tab joins the dock around it",
+            Page::DockBars => "A tool bar on any edge of its pane, or in a window",
             Page::Text => "Text styles, sizes, colour roles, icons in text, links",
             Page::Buttons => "Buttons, icon buttons, tooltips",
             Page::Inputs => "Fields, switches, sliders, progress",
@@ -685,6 +691,9 @@ fn PageView(page: Page) -> NodeId {
         },
         Page::NestedDocks => view! {
             <NestedDocksPage />
+        },
+        Page::DockBars => view! {
+            <DockBarsPage />
         },
         Page::Text => view! {
             <TextPage />

@@ -4,8 +4,9 @@ use beui_view::types::Direction;
 use beui_view::types::{Pos2, Rect};
 
 use super::{
-    DockHome, DockState, Entry, FLOATING_SIZE, Group, GroupId, Home, Leaf, LeafId, MIN_FRACTION,
-    MIN_SIDEBAR_WIDTH, Node, Side, Split, SplitId, Surface, SurfaceId, TabId, Tree,
+    Bar, DockBarPlacement, DockHome, DockState, Entry, FLOATING_SIZE, Group, GroupId, Home, Leaf,
+    LeafId, MIN_FRACTION, MIN_SIDEBAR_WIDTH, Node, Side, Split, SplitId, Surface, SurfaceId, TabId,
+    Tree,
 };
 
 const FLOAT_ORIGIN: Pos2 = Pos2::new(64.0, 48.0);
@@ -16,6 +17,14 @@ pub struct DockSpec {
     pub windows: Vec<DockSpecWindow>,
     pub focus: Option<TabId>,
     pub see_through: Vec<TabId>,
+    pub bars: Vec<DockSpecBar>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct DockSpecBar {
+    pub bar: TabId,
+    pub owner: TabId,
+    pub placement: DockBarPlacement,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -47,6 +56,7 @@ pub struct DockSpecPane {
     pub sidebar: f32,
     pub keep: bool,
     pub locked: bool,
+    pub bare: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -255,6 +265,7 @@ impl DockState {
 
     pub fn reconcile_keeping(&mut self, spec: &DockSpec, kept: &HashSet<TabId>) {
         self.see_through.clone_from(&spec.see_through);
+        self.reconcile_bars(spec);
         if !self.seeded {
             self.seed(spec);
             return;
@@ -274,6 +285,31 @@ impl DockState {
         self.settle_areas(&sites);
         self.normalize();
         self.settle_focus();
+    }
+
+    fn reconcile_bars(&mut self, spec: &DockSpec) {
+        let seeded = self.seeded;
+        self.bars.retain(|held| {
+            seeded
+                && spec
+                    .bars
+                    .iter()
+                    .any(|declared| declared.bar == held.bar && declared.owner == held.owner)
+        });
+        for declared in &spec.bars {
+            if !self.bars.iter().any(|held| held.bar == declared.bar) {
+                self.bars.push(Bar {
+                    bar: declared.bar,
+                    owner: declared.owner,
+                    placement: declared.placement,
+                });
+            }
+        }
+        self.bars.sort_by_key(|held| {
+            spec.bars
+                .iter()
+                .position(|declared| declared.bar == held.bar)
+        });
     }
 
     fn seed(&mut self, spec: &DockSpec) {
@@ -394,6 +430,7 @@ impl DockState {
         leaf.key = Some(pane.key.clone());
         leaf.keep = pane.keep;
         leaf.area = pane.locked.then(|| pane.key.clone());
+        leaf.bare = pane.bare;
         leaf
     }
 
@@ -523,11 +560,13 @@ impl DockState {
                 continue;
             };
             let keep = site.pane.keep;
+            let bare = site.pane.bare;
             if let Some(held) = self.leaf_mut(leaf) {
                 if held.keep && !keep && held.entries.is_empty() {
                     loosened.push(leaf);
                 }
                 held.keep = keep;
+                held.bare = bare;
             }
         }
         self.prune_loose(loosened);

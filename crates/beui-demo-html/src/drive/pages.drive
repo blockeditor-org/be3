@@ -8,6 +8,9 @@ wait 'focused #demo.catalog.Nested docks'
 wait 'Tab "Outline"'
 wait 'Tab "Preview"'
 key Tab Enter
+wait 'focused #demo.catalog.Dock bars'
+wait '#bars.tools'
+key Tab Enter
 wait 'focused #demo.catalog.Text'
 wait 'Tab "Text" selected'
 key Tab Enter

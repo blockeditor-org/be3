@@ -7,18 +7,22 @@ use beui_view::types::Direction;
 use beui_view::types::{Pos2, Rect, Vec2};
 use serde::{Deserialize, Serialize};
 
+mod bars;
 mod history;
 mod joined;
 mod plain;
 mod spec;
 mod switch;
 
+use bars::Bar;
+pub use bars::{DockBarPlacement, DockEdge};
 pub use history::DockVisit;
 pub use joined::{DockMapping, joined_host, joined_key, joined_prefix};
 pub use plain::{
-    DockPlain, DockPlainEntry, DockPlainHome, DockPlainNode, DockPlainPlace, DockPlainWindow,
+    DockPlain, DockPlainBar, DockPlainEntry, DockPlainHome, DockPlainNode, DockPlainPlace,
+    DockPlainWindow,
 };
-pub use spec::{DockSpec, DockSpecEntry, DockSpecNode, DockSpecPane, DockSpecWindow};
+pub use spec::{DockSpec, DockSpecBar, DockSpecEntry, DockSpecNode, DockSpecPane, DockSpecWindow};
 pub use switch::DockSwitch;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
@@ -141,6 +145,8 @@ struct Leaf {
     key: Option<String>,
     keep: bool,
     area: Option<String>,
+    #[serde(default)]
+    bare: bool,
 }
 
 impl Leaf {
@@ -155,6 +161,7 @@ impl Leaf {
             key: None,
             keep: false,
             area: None,
+            bare: false,
         }
     }
 }
@@ -508,6 +515,8 @@ pub struct DockState {
     history: Vec<DockVisit>,
     next: u64,
     seeded: bool,
+    #[serde(default)]
+    bars: Vec<Bar>,
     #[serde(skip)]
     fullscreen: Option<DockFullscreen>,
     #[serde(skip)]
@@ -537,6 +546,7 @@ impl DockState {
             history: Vec::new(),
             next: 0,
             seeded: false,
+            bars: Vec::new(),
             fullscreen: None,
             switch: None,
             lookup: Lookup::default(),
@@ -796,6 +806,10 @@ impl DockState {
             false if moved < 0.0 && width < MIN_SIDEBAR_WIDTH => leaf.icons_only = true,
             false => leaf.sidebar = width.max(MIN_SIDEBAR_WIDTH),
         }
+    }
+
+    pub fn is_bare(&self, leaf: LeafId) -> bool {
+        self.leaf(leaf).is_some_and(|leaf| leaf.bare)
     }
 
     pub fn is_kept(&self, leaf: LeafId) -> bool {
@@ -1346,6 +1360,7 @@ impl DockState {
                 leaf.key.clone_from(&like.key);
                 leaf.keep = like.keep;
                 leaf.area.clone_from(&like.area);
+                leaf.bare = like.bare;
             }
         }
     }
@@ -1698,6 +1713,12 @@ impl DockState {
     }
 
     pub fn admits(&self, entry: Entry, target: DockDrop) -> bool {
+        if let DockDrop::Tab { leaf, .. } | DockDrop::Group { leaf, .. } | DockDrop::Pane { leaf } =
+            target
+            && self.is_bare(leaf)
+        {
+            return false;
+        }
         let away = target
             .leaf()
             .is_none_or(|leaf| self.surface_of(leaf) != Some(self.main()));

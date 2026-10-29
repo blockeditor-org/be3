@@ -2843,6 +2843,37 @@ body moves between the two through `Portal`s, so nothing in it is rebuilt. A dia
 body is built once when it is declared and kept while its tab is hidden,
 whichever presentation it has.
 
+A `DockBar`, declared beside the dock's other children like a `DockDialog`, is a
+tool bar that belongs to a tab: `<DockBar id parent placement>body</DockBar>`
+(`placement` is where it starts). Its owner draws all of it, the grip included. A
+`DockBarPlacement` is `Over(edge)`, floating over the tab's body at a `DockEdge`
+(centred along it, Docking's `bar_margin` in from it, the body keeping its full
+size), `Beside(edge)`, a band along that edge of the pane that the body gives up
+room for, or `Window { edge, origin }`, popped out into a dock window sized to
+the bar, `origin` being relative to the dock. A bar shows only while its tab
+is shown, wherever that tab goes, since its placement is relative to whatever
+pane shows the tab; in a stacked dock a popped-out bar floats over the body at
+its edge. The placements are part of `DockState` (`bars`, `bars_of(owner)`,
+`bar_owner`, `bar_placement`, `set_bar_placement`, `is_bar_shown`), so they are
+saved and restored with the layout; `DockingLayout::bar_placement` and
+`place_bar` read and set one by key. The body's `use_dock_bar()` is a
+`DockBarControl`: `placement()`, `edge()` and `direction()` (the way to lay its
+items out, across for the top and bottom edges) are tracked reads, `place` and
+`pop_out` move it, `menu()` is the radio menu of every placement, and
+`begin_move(press)` starts a drag, called from the handle's `on_drag` once past
+the drag threshold with the press that went down, then with each move. The dock
+carries the drag: over the tab's body it draws Docking's `bar_target` for the 8
+placements (the outer band of the body docks the bar beside that edge, the next
+band in floats it over it), and dropped away from the body it pops out where it
+was let go. Where a host opens windows, dragging a popped-out bar asks the host
+to move its window, and the menu docks it again. The styled `DockBarGrip`
+(`dock.bar.<bar>.grip`) is such a handle: a grip that drags the bar and opens
+its menu when clicked or pressed with Enter. A bar declared by a `Docking` that
+joins another is declared up to it (`DockDeclaration::bars`) and drawn by it. A
+`bare` `DockPane` draws no tab bar: it holds one tab, takes no tab dropped onto
+it (only a split at its edge), and is what a joined dock's single pane uses so
+its group shows no second tab strip. The demo's Dock bars page has both.
+
 One tab at a time can be fullscreen: `DockState::set_fullscreen` with a
 `DockFullscreen` naming the tab and an area (a rect in document coordinates, or
 `None` for the screen it opens on), `DockingLayout::enter_fullscreen` and

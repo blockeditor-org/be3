@@ -13,6 +13,7 @@ mod a_back_handler_that_takes_the_gesture_hears_each_phase_and_stays_put;
 mod a_back_slide_carries_its_page_away_and_brings_the_next_one_in;
 mod a_back_slide_shows_the_page_it_goes_back_to_while_it_is_swiped;
 mod a_backdrop_drag_expands_an_unscrolled_half_open_sheet;
+mod a_bare_dock_pane_draws_no_tab_bar;
 mod a_bare_separator_rules_across_the_column_it_sits_in;
 mod a_baseline_row_lines_up_text_of_different_sizes;
 mod a_break_in_rich_text_ends_the_line_but_holds_no_bytes;
@@ -97,6 +98,9 @@ mod a_disabled_select_does_not_open_when_its_trigger_is_clicked;
 mod a_disabled_text_input_ignores_typing_and_reads_as_dimmed;
 mod a_disposed_animation_cancels_without_completion;
 mod a_dock_bar_holds_the_actions_its_tab_pins_and_leaves_them_out_of_its_menu;
+mod a_dock_bar_shows_only_while_its_tab_does_and_moves_with_it;
+mod a_dock_bar_sits_at_each_placement_of_its_pane;
+mod a_dock_bars_grip_menu_moves_it_without_dragging;
 mod a_dock_card_anchored_at_a_control_flips_above_it_near_the_bottom;
 mod a_dock_card_anchored_at_a_control_follows_its_pane_when_it_resizes;
 mod a_dock_card_anchored_at_a_control_points_at_it_without_dimming_its_tab;
@@ -611,6 +615,7 @@ mod double_tapping_with_the_screen_reader_activates_what_it_is_reading;
 mod dragging_a_color_picker_previews_the_color_and_reports_it_once;
 mod dragging_a_color_wheels_ring_turns_its_hue;
 mod dragging_a_curved_slider_reads_its_midpoint_at_the_centre;
+mod dragging_a_dock_bar_by_its_grip_moves_it_to_an_edge_or_out_into_a_window;
 mod dragging_a_dock_tab_in_space_onto_another_panels_bar_moves_it_there;
 mod dragging_a_dock_tab_in_space_where_no_panel_is_opens_one_at_the_pointer;
 mod dragging_a_dock_windows_bar_in_space_carries_its_panel;
@@ -3123,4 +3128,62 @@ impl InSpace {
         self.frame([button(to, false)]);
         self.settle();
     }
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct BarDock {
+    pub(crate) layout: dock::unstyled::DockingLayout<u64>,
+    pub(crate) shown: Signal<Vec<u64>>,
+}
+
+#[component]
+fn TestToolBar() -> NodeId {
+    let bar = dock::unstyled::use_dock_bar();
+    let direction = create_memo(move || bar.map_or(Direction::Horizontal, |bar| bar.direction()));
+    view! {
+        <Frame @test_id="bar.9">
+            <List direction={direction} spacing=4.0>
+                <dock::styled::DockBarGrip />
+                <Frame width=24.0 height=24.0 />
+                <Frame width=24.0 height=24.0 />
+                <Frame width=24.0 height=24.0 />
+            </List>
+        </Frame>
+    }
+}
+
+pub(crate) fn bar_dock(
+    placement: dock::unstyled::DockBarPlacement,
+    bare: bool,
+) -> (Document, BarDock) {
+    use dock::unstyled::{DockBar, DockPane, DockSplit, DockTab, DockingLayout};
+    let built = Rc::new(std::cell::Cell::new(None));
+    let handle = Rc::clone(&built);
+    let document = build_node(move || {
+        let layout = DockingLayout::new();
+        let shown = create_signal(vec![1u64]);
+        handle.set(Some(BarDock { layout, shown }));
+        view! {
+            <dock::styled::Docking layout focus=1u64>
+                <DockSplit id="root" fraction=0.6>
+                    <DockPane id="stage" bare>
+                        <ForEach keys={shown}>|id: u64|
+                            <DockTab id title={format!("Tab {id}")}>
+                                <Frame @test_id={format!("content.{id}")} />
+                            </DockTab>
+                        </ForEach>
+                    </DockPane>
+                    <DockPane id="side">
+                        <DockTab id=2u64 title="Side">
+                            <Frame @test_id="content.2" />
+                        </DockTab>
+                    </DockPane>
+                </DockSplit>
+                <DockBar id=9u64 parent=1u64 placement>
+                    <TestToolBar />
+                </DockBar>
+            </dock::styled::Docking>
+        }
+    });
+    (document, built.get().expect("the dock was built"))
 }

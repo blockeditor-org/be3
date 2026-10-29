@@ -1,4 +1,5 @@
 use beui_view::types::icons::Glyph;
+mod bars;
 mod dialog;
 mod docking;
 mod documents;
@@ -49,13 +50,15 @@ use beui_view::types::{Direction, ItemSize};
 use beui_view::types::{Pos2, Rect, Vec2, pos2, vec2};
 use beui_view::window::{Window, WindowHandle, opens_windows, use_window};
 
+use bars::{BarPanels, DockBarTargets, DockBarWindows, DockBarred};
+pub use bars::{DockBarControl, DockBarTargetHandle, use_dock_bar};
 use dialog::{DialogParts, DockDialogs};
 pub use dialog::{DockDialogHandle, DockDialogPresentation, DockSheetHandle};
 pub use docking::{
-    DockBodies, DockDeclaration, DockDeclaredDialog, DockDeclaredTab, DockDialog, DockEntry,
-    DockGroup, DockHostEvent, DockHostLink, DockHostSlot, DockHosted, DockJoin, DockKey, DockNode,
-    DockPane, DockRequest, DockSplit, DockTab, DockWindow, Docking, DockingLayout, DockingSnapshot,
-    OwnedDockingLayout, use_dock_join,
+    DockBar, DockBodies, DockDeclaration, DockDeclaredBar, DockDeclaredDialog, DockDeclaredTab,
+    DockDialog, DockEntry, DockGroup, DockHostEvent, DockHostLink, DockHostSlot, DockHosted,
+    DockJoin, DockKey, DockNode, DockPane, DockRequest, DockSplit, DockTab, DockWindow, Docking,
+    DockingLayout, DockingSnapshot, OwnedDockingLayout, use_dock_join,
 };
 pub use documents::{
     DockDocument, DockDocumentBody, DockDocumentTabs, DockDocuments, DockOpened, DockSlot,
@@ -64,11 +67,12 @@ use fullscreen::DockAway;
 pub use fullscreen::DockAwayHandle;
 use modifier_drag::{Resized, modifier_resize};
 pub use state::{
-    DockDrop, DockFullscreen, DockHome, DockLayout, DockMapping, DockPlain, DockPlainEntry,
-    DockPlainHome, DockPlainNode, DockPlainPlace, DockPlainWindow, DockSpec, DockSpecEntry,
-    DockSpecNode, DockSpecPane, DockSpecWindow, DockSplitter, DockState, DockSwitch, DockTree,
-    DockTreeEntry, DockVisit, Entry, GroupId, LeafId, Side, SplitId, SurfaceId, TabId, TabPosition,
-    Tree, layout_surface, layout_tree,
+    DockBarPlacement, DockDrop, DockEdge, DockFullscreen, DockHome, DockLayout, DockMapping,
+    DockPlain, DockPlainBar, DockPlainEntry, DockPlainHome, DockPlainNode, DockPlainPlace,
+    DockPlainWindow, DockSpec, DockSpecBar, DockSpecEntry, DockSpecNode, DockSpecPane,
+    DockSpecWindow, DockSplitter, DockState, DockSwitch, DockTree, DockTreeEntry, DockVisit, Entry,
+    GroupId, LeafId, Side, SplitId, SurfaceId, TabId, TabPosition, Tree, layout_surface,
+    layout_tree,
 };
 use state::{FLOATING_SIZE, MIN_WINDOW_SIZE, fraction_moved};
 pub use state::{MIN_PANE_LENGTH, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH};
@@ -123,6 +127,7 @@ pub struct DockTabHandle {
 pub enum DockDragged {
     Entry(Entry),
     Pane(LeafId),
+    Bar(TabId),
 }
 
 pub struct DockPreviewHandle {
@@ -469,6 +474,7 @@ struct TabBar {
 struct Drag {
     dragged: DockDragged,
     target: Option<DockDrop>,
+    bar_target: Option<DockBarPlacement>,
     highlight: Option<Rect>,
 }
 
@@ -536,6 +542,13 @@ struct State {
     attention: Signal<(u64, Option<TabId>)>,
     given: Signal<(u64, Option<TabId>)>,
     remembered: Stored<RefCell<HashMap<TabId, NodeId>>>,
+    bar_panels: Stored<BarPanels>,
+    bodies: Stored<RefCell<HashMap<LeafId, NodeRef>>>,
+    bar_windows: Stored<RefCell<HashMap<TabId, WindowHandle>>>,
+    bar_placements: Signal<HashMap<TabId, WindowPlacement>>,
+    bar_grab: StoredCell<(Vec2, Vec2)>,
+    bar_margin: f32,
+    bar_target: RenderFn<DockBarTargetHandle>,
 }
 
 impl State {
@@ -587,6 +600,7 @@ impl State {
     fn dragged_icon(&self, dragged: DockDragged) -> Option<Glyph> {
         match dragged {
             DockDragged::Entry(entry) => self.entry_icon(entry),
+            DockDragged::Bar(_) => None,
             DockDragged::Pane(leaf) => {
                 match self.state.with(|state| state.entries(leaf)).as_slice() {
                     [entry] => self.entry_icon(*entry),
@@ -979,6 +993,7 @@ impl State {
         self.edit(|state| match dragged {
             DockDragged::Entry(entry) => state.drop_entry(entry, target),
             DockDragged::Pane(leaf) => state.drop_leaf(leaf, target),
+            DockDragged::Bar(_) => {}
         });
         let opened: Vec<SurfaceId> = self
             .state
@@ -1087,6 +1102,7 @@ impl State {
     fn dragged_title(&self, dragged: DockDragged) -> String {
         match dragged {
             DockDragged::Entry(entry) => self.entry_title(entry),
+            DockDragged::Bar(_) => String::new(),
             DockDragged::Pane(leaf) => {
                 let tabs = self.state.with(|state| {
                     state
@@ -1111,6 +1127,7 @@ impl State {
         self.drag.set(Some(Drag {
             dragged,
             target: None,
+            bar_target: None,
             highlight: None,
         }));
     }
@@ -1119,6 +1136,18 @@ impl State {
         let Some(mut drag) = self.drag.get_untracked() else {
             return;
         };
+        if let DockDragged::Bar(bar) = drag.dragged {
+            let (target, highlight) = match point {
+                Some(point) => self.resolve_bar(point, bar),
+                None => (None, None),
+            };
+            drag.bar_target = target;
+            drag.highlight = highlight;
+            if self.drag.get_untracked() != Some(drag) {
+                self.drag.set(Some(drag));
+            }
+            return;
+        }
         let (target, highlight) = match point {
             Some(point) => self.admitted(point, drag.dragged),
             None => (None, None),
@@ -1133,6 +1162,10 @@ impl State {
     }
 
     fn drop_at(&self, dragged: DockDragged, point: DragPoint) {
+        if let DockDragged::Bar(bar) = dragged {
+            self.drop_bar(bar, point);
+            return;
+        }
         let (target, _) = self.admitted(point, dragged);
         let Some(target) = target else {
             return;
@@ -1140,6 +1173,7 @@ impl State {
         self.edit(|state| match dragged {
             DockDragged::Entry(entry) => state.drop_entry(entry, target),
             DockDragged::Pane(leaf) => state.drop_leaf(leaf, target),
+            DockDragged::Bar(_) => {}
         });
     }
 
@@ -1149,6 +1183,7 @@ impl State {
             self.state.with_untracked(|state| match dragged {
                 DockDragged::Entry(entry) => !state.admits(entry, target),
                 DockDragged::Pane(leaf) => !state.admits_leaf(leaf, target),
+                DockDragged::Bar(_) => true,
             })
         });
         match refused {
@@ -1544,6 +1579,8 @@ pub(crate) struct DockConfig {
     pub(crate) dialog_gap: u16,
     pub(crate) dialog_beak: f32,
     pub(crate) dialog_outset: Vec2,
+    pub(crate) bar_margin: f32,
+    pub(crate) bar_target: Option<RenderFn<DockBarTargetHandle>>,
 }
 
 #[component]
@@ -1594,6 +1631,8 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         dialog_gap,
         dialog_beak,
         dialog_outset,
+        bar_margin,
+        bar_target,
     } = config;
     let dock_rect_held = create_signal(Rect::ZERO);
     let dock_rect = dock_rect_held.read_only();
@@ -1652,6 +1691,19 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         attention,
         given,
         remembered: store(RefCell::default()),
+        bar_panels: store(RefCell::default()),
+        bodies: store(RefCell::default()),
+        bar_windows: store(RefCell::default()),
+        bar_placements: create_signal(HashMap::new()),
+        bar_grab: StoredCell::new((Vec2::ZERO, Vec2::ZERO)),
+        bar_margin,
+        bar_target: bar_target.unwrap_or_else(|| {
+            RenderFn::new(|_| {
+                view! {
+                    <Frame />
+                }
+            })
+        }),
         thickness: splitter_thickness,
         reach: splitter_reach,
         group_inset,
@@ -1731,7 +1783,14 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         tabs.extend(hosts.get());
         dock.keep_panels(&tabs);
     });
-    on_cleanup(move || dock.keep_panels(&[]));
+    create_effect(move || {
+        let bars = state.with(DockState::bars);
+        dock.keep_bar_panels(&bars);
+    });
+    on_cleanup(move || {
+        dock.keep_panels(&[]);
+        dock.keep_bar_panels(&[]);
+    });
     let built = view! {
         <List spacing=0.0>
             <Frame @sizing=ItemSize::Percent(100.0) padding=inset>
@@ -1917,7 +1976,15 @@ fn DockStack(dock: State) -> NodeId {
                     {empty.call(state.with_untracked(vacant_leaf))} @sizing=ItemSize::Percent(100.0)
                 </Show>
                 <Show condition={here}>
-                    <Portal node={panel} @sizing=ItemSize::Percent(100.0) />
+                    <DockBarred
+                        dock
+                        leaf={None}
+                        tab={shown}
+                        stacked=true
+                        @sizing=ItemSize::Percent(100.0)
+                    >
+                        <Portal node={panel} />
+                    </DockBarred>
                 </Show>
                 <Show condition={left}>
                     <DockAway dock gone @sizing=ItemSize::Percent(100.0) />
@@ -2090,27 +2157,43 @@ fn DockTiles(dock: State) -> NodeId {
         <DropTarget
             on_over={move |point: Option<(DockDragged, DragPoint)>| dock.drag_over(point.map(|(_, point)| point))}
             on_drop={move |(dragged, point): (DockDragged, DragPoint)| dock.drop_at(dragged, point)}
-        >|_: DropHandle|
-            <List spacing=0.0>
-                <Dynamic value={main}>|surface: SurfaceId| {
-                    let dock = dock;
-                    view! {
-                        <DockTreeView
-                            dock
-                            tree={Tree::Surface(surface)}
-                            @sizing=ItemSize::Percent(100.0)
-                        />
-                    }
-                }</Dynamic>
-                <ForEach keys={windows}>|surface: SurfaceId| {
-                    let dock = dock;
-                    view! {
-                        <DockWindowView dock surface />
-                    }
-                }</ForEach>
-                <DockDragLayer dock />
-            </List>
-        </DropTarget>
+        >|handle: DropHandle| {
+            let carrying = handle.carrying;
+            create_effect(move || {
+                if carrying.get() {
+                    return;
+                }
+                let moving = dock.drag.with_untracked(|drag| {
+                    drag.as_ref().is_some_and(|drag| matches!(drag.dragged, DockDragged::Bar(_)))
+                });
+                if moving {
+                    dock.end_drag();
+                }
+            });
+            view! {
+                <List spacing=0.0>
+                    <Dynamic value={main}>|surface: SurfaceId| {
+                        let dock = dock;
+                        view! {
+                            <DockTreeView
+                                dock
+                                tree={Tree::Surface(surface)}
+                                @sizing=ItemSize::Percent(100.0)
+                            />
+                        }
+                    }</Dynamic>
+                    <ForEach keys={windows}>|surface: SurfaceId| {
+                        let dock = dock;
+                        view! {
+                            <DockWindowView dock surface />
+                        }
+                    }</ForEach>
+                    <DockBarWindows dock />
+                    <DockDragLayer dock />
+                    <DockBarTargets dock />
+                </List>
+            }
+        }</DropTarget>
     }
 }
 
@@ -2357,7 +2440,11 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
         .unwrap_or_else(|| state.with_untracked(DockState::main));
     let nested = matches!(tree, Tree::Group(_));
     let floating = !nested && state.with_untracked(|state| state.window_rect(surface).is_some());
-    let vertical = create_memo(move || !hoisted && state.with(|state| state.is_vertical(leaf)));
+    let chrome = create_memo(move || {
+        let bare = state.with(|state| state.is_bare(leaf));
+        let vertical = !hoisted && !bare && state.with(|state| state.is_vertical(leaf));
+        (vertical, bare)
+    });
     let contents = create_memo(move || {
         state.with(|state| {
             state
@@ -2396,9 +2483,9 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
             }}
         >
             <List spacing=0.0>
-                <Dynamic value={vertical}>|vertical: bool| {
+                <Dynamic value={chrome}>|(vertical, bare): (bool, bool)| {
                     let dock = dock;
-                    let bar = (!hoisted).then(|| DockBarHandle {
+                    let bar = (!hoisted && !bare).then(|| DockBarHandle {
                         floating,
                         vertical,
                         icons_only,
@@ -2544,7 +2631,15 @@ fn DockTabBody(dock: State, leaf: LeafId) -> NodeId {
         <List spacing=0.0>
             <Show condition={vacant}>{empty.call(leaf)} @sizing=ItemSize::Percent(100.0)</Show>
             <Show condition={occupied}>
-                <Portal node={panel} @sizing=ItemSize::Percent(100.0) />
+                <DockBarred
+                    dock
+                    leaf={Some(leaf)}
+                    tab={shown}
+                    stacked=false
+                    @sizing=ItemSize::Percent(100.0)
+                >
+                    <Portal node={panel} />
+                </DockBarred>
             </Show>
             <Show condition={left}>
                 <DockAway dock gone @sizing=ItemSize::Percent(100.0) />
@@ -3545,9 +3640,9 @@ fn DockDragLayer(dock: State) -> NodeId {
     let marked = create_memo(move || {
         drag.with(|drag| {
             let drag = drag.as_ref()?;
-            matches!(drag.target?, DockDrop::Window { .. })
-                .then_some(drag.highlight)
-                .flatten()
+            let floats = matches!(drag.target, Some(DockDrop::Window { .. }));
+            let bar = matches!(drag.dragged, DockDragged::Bar(_));
+            (floats || bar).then_some(drag.highlight).flatten()
         })
     });
     let marking = create_memo(move || marked.get().is_some());

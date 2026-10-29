@@ -1,8 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
 use super::{
-    DockHome, DockSpecNode, DockState, DockVisit, Entry, Group, GroupId, Home, LeafId, Node, Split,
-    SplitId, TabId, Tree,
+    Bar, DockHome, DockSpecNode, DockState, DockVisit, Entry, Group, GroupId, Home, LeafId, Node,
+    Split, SplitId, TabId, Tree,
 };
 
 const JOINED: &str = "joined:";
@@ -190,6 +190,17 @@ impl DockState {
                 });
             }
         }
+        out.bars = self
+            .bars
+            .iter()
+            .filter_map(|bar| {
+                Some(Bar {
+                    bar: (map.tab)(bar.bar)?,
+                    owner: (map.tab)(bar.owner)?,
+                    placement: bar.placement,
+                })
+            })
+            .collect();
         out.seeded = true;
         out
     }
@@ -285,6 +296,13 @@ impl DockState {
             };
             self.homes.push(home);
         }
+        for bar in &from.bars {
+            let (Some(moved), Some(owner)) = ((map.tab)(bar.bar), (map.tab)(bar.owner)) else {
+                continue;
+            };
+            self.add_bar(moved, owner, bar.placement);
+            self.set_bar_placement(moved, bar.placement);
+        }
         self.normalize();
         let refocus = from
             .focus
@@ -333,6 +351,7 @@ impl DockState {
                 copy.key = key;
                 copy.keep = keep;
                 copy.area = leaf.area.as_deref().and_then(map.key);
+                copy.bare = leaf.bare;
                 copied.leaves.insert(leaf.id, copy.id);
                 Some(Node::Leaf(copy))
             }

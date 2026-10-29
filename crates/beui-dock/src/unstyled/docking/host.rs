@@ -11,7 +11,8 @@ use beui_view::types::{Rect, Vec2};
 use super::super::DockMode;
 use super::super::dialog::DockDialogPresentation;
 use super::super::state::{
-    DockFullscreen, DockMapping, DockSpec, DockState, TabId, joined_host, joined_key, joined_prefix,
+    DockBarPlacement, DockFullscreen, DockMapping, DockSpec, DockState, TabId, joined_host,
+    joined_key, joined_prefix,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -19,6 +20,7 @@ pub struct DockDeclaration {
     pub spec: DockSpec,
     pub tabs: Vec<DockDeclaredTab>,
     pub dialogs: Vec<DockDeclaredDialog>,
+    pub bars: Vec<DockDeclaredBar>,
 }
 
 impl DockDeclaration {
@@ -29,6 +31,18 @@ impl DockDeclaration {
     pub fn dialog(&self, tab: TabId) -> Option<&DockDeclaredDialog> {
         self.dialogs.iter().find(|declared| declared.tab == tab)
     }
+
+    pub fn bar(&self, tab: TabId) -> Option<&DockDeclaredBar> {
+        self.bars.iter().find(|declared| declared.tab == tab)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct DockDeclaredBar {
+    pub tab: TabId,
+    pub key: String,
+    pub owner: TabId,
+    pub placement: DockBarPlacement,
 }
 
 #[derive(Clone, Debug, PartialEq)]

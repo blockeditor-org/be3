@@ -814,6 +814,7 @@ fn rekeyed(plain: &DockPlain, key: &dyn Fn(&str) -> String) -> DockPlain {
                 sidebar,
                 keep,
                 area,
+                bare,
                 entries,
             } => DockPlainNode::Pane {
                 key: key(own),
@@ -823,6 +824,7 @@ fn rekeyed(plain: &DockPlain, key: &dyn Fn(&str) -> String) -> DockPlain {
                 sidebar: *sidebar,
                 keep: *keep,
                 area: area.as_deref().map(key),
+                bare: *bare,
                 entries: entries
                     .iter()
                     .map(|entry| match entry {
@@ -865,6 +867,7 @@ fn rekeyed(plain: &DockPlain, key: &dyn Fn(&str) -> String) -> DockPlain {
                 pinned: home.pinned,
             })
             .collect(),
+        bars: plain.bars.clone(),
     }
 }
 
@@ -1085,6 +1088,7 @@ fn api_node(node: &api::DockNode, paths: &mut Paths) -> DockSpecNode {
                 sidebar: pane.sidebar,
                 keep: pane.keep,
                 locked: pane.area.as_ref() == Some(&pane.key),
+                bare: false,
             })
         }
     }
@@ -1112,6 +1116,7 @@ fn declaration_from_api(
             .as_ref()
             .map(|focus| paths.tab(focus)),
         see_through: Vec::new(),
+        bars: Vec::new(),
     };
     let tabs = declaration
         .tabs
@@ -1148,6 +1153,7 @@ fn declaration_from_api(
         spec,
         tabs,
         dialogs,
+        bars: Vec::new(),
     })
 }
 
@@ -1177,6 +1183,7 @@ fn plain_node(node: &DockPlainNode, path: PathOf<'_>) -> api::DockNode {
             keep,
             area,
             entries,
+            ..
         } => {
             let mut kept = Vec::new();
             let mut shown = None;
@@ -1290,6 +1297,7 @@ fn api_plain_node(node: &api::DockNode, tab: TabOf<'_>) -> DockPlainNode {
                 sidebar: pane.sidebar,
                 keep: pane.keep,
                 area: pane.area.clone(),
+                bare: false,
                 entries: kept,
             }
         }
@@ -1326,6 +1334,7 @@ fn layout_to_plain(layout: &api::DockLayout, tab: TabOf<'_>) -> DockPlain {
                 })
             })
             .collect(),
+        bars: Vec::new(),
     }
 }
 

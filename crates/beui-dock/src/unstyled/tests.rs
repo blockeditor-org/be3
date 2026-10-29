@@ -2,6 +2,8 @@ use super::*;
 use crate::unstyled::state::{DockSpec, DockSpecEntry, DockSpecNode, DockSpecPane, DockSpecWindow};
 use beui_view::types::Direction;
 
+mod a_bar_keeps_its_placement_wherever_its_tab_goes;
+mod a_bare_pane_shows_its_one_tab_and_takes_no_other;
 mod a_fullscreen_tab_closed_and_opened_again_comes_back_in_its_pane;
 mod a_group_cannot_be_dropped_inside_itself;
 mod a_group_left_with_one_tab_becomes_that_tab_again;
@@ -61,6 +63,7 @@ fn pane_spec(key: &str) -> DockSpecPane {
         sidebar: SIDEBAR_WIDTH,
         keep: false,
         locked: false,
+        bare: false,
     }
 }
 
