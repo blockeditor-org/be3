@@ -7,7 +7,7 @@ license.workspace = true
 [dependencies]
 be-block = { path = "../be-block" }
 beui = { path = "../beui", default-features = false }
-beui-platform-plugin = { path = "../beui-platform-plugin" }
+beui-platform-plugin-api = { path = "../beui-platform-plugin-api" }
 block-editor-plugin = { path = "../block-editor-plugin" }
 block-plugin-api = { path = "../block-plugin-api" }
 block-ui = { path = "../block-ui" }
@@ -20,6 +20,7 @@ workspace-ui-types = { path = "../editors/workspace-ui/types" }
 
 [dev-dependencies]
 be-model = { path = "../be-model" }
+beui-platform-plugin = { path = "../beui-platform-plugin" }
 presentation-types = { path = "../editors/presentation/types" }
 
 [lints]

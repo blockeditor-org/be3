@@ -1515,11 +1515,21 @@ version = "0.1.0"
 dependencies = [
  "beui",
  "beui-core",
+ "beui-font-freetype",
+ "beui-platform-plugin-api",
  "beui-renderer-wgpu",
  "block-editor-plugin",
  "block-plugin-api",
- "uuid",
  "wgpu",
+]
+
+[[package]]
+name = "beui-platform-plugin-api"
+version = "0.1.0"
+dependencies = [
+ "beui-core",
+ "block-editor-plugin",
+ "uuid",
 ]
 
 [[package]]
@@ -1856,6 +1866,7 @@ dependencies = [
  "be-model",
  "beui",
  "beui-platform-plugin",
+ "beui-platform-plugin-api",
  "block-editor-plugin",
  "block-plugin-api",
  "block-ui",
@@ -1984,6 +1995,7 @@ name = "block-plugin-sdk"
 version = "0.1.0"
 dependencies = [
  "beui",
+ "beui-platform-plugin",
  "block-editor-beui",
  "block-editor-plugin",
  "serde",
@@ -2055,6 +2067,7 @@ dependencies = [
  "be-store",
  "beui",
  "beui-core",
+ "beui-platform-plugin",
  "block-editor-beui",
  "block-plugin-api",
  "block-type-guest",

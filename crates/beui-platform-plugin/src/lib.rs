@@ -1,7 +1,7 @@
+mod fonts;
 mod input;
 mod platform;
 mod surface;
-mod views;
 
 use std::any::Any;
 use std::collections::{HashMap, HashSet};
@@ -27,7 +27,7 @@ use block_editor_plugin::{PaintTarget, SurfaceRect};
 
 use platform::HostPlatform;
 use surface::{ModuleRenderer, Surface};
-pub use views::{Report, View, Views};
+use beui_platform_plugin_api::{PluginRuntime, RegionsRunner, View, Views};
 
 pub struct PluginPlatform {
     host: EditorHost,
@@ -84,16 +84,47 @@ impl Platform for PluginPlatform {
     }
 }
 
-pub fn launch(
+struct Runtime;
+
+impl PluginRuntime for Runtime {
+    fn launch(
+        &self,
+        host: &EditorHost,
+        options: RunOptions,
+        app: Box<dyn App>,
+    ) -> Result<(), Box<dyn Error>> {
+        launch(host, options, fonts::context(), app)
+    }
+
+    fn context(&self) -> Context {
+        fonts::context()
+    }
+
+    fn use_bundled_fonts(&self) {
+        fonts::use_bundled();
+    }
+
+    fn runner<'a>(&self, handler: &'a mut dyn Regions) -> Option<&'a mut dyn RegionsRunner> {
+        Some(ModuleRunner::of(handler)?)
+    }
+}
+
+// unsafe(ffi)
+#[unsafe(no_mangle)]
+fn __be3_beui_plugin_runtime() -> &'static dyn PluginRuntime {
+    &Runtime
+}
+
+fn launch(
     host: &EditorHost,
     options: RunOptions,
     context: Context,
-    app: impl App + 'static,
+    app: Box<dyn App>,
 ) -> Result<(), Box<dyn Error>> {
     let launch = Launch {
         options,
         context,
-        app: Box::new(app),
+        app,
         layers: Vec::new(),
     };
     let mut running = Box::new(PluginPlatform::new(host.clone())).run(launch);
@@ -106,7 +137,7 @@ pub fn launch(
     }
 }
 
-pub struct ModuleRunner {
+struct ModuleRunner {
     runner: Runner,
     services: HostPlatform,
     views: Views,
@@ -128,25 +159,23 @@ struct Floated {
     placement: Option<String>,
 }
 
-impl ModuleRunner {
-    pub fn of(handler: &mut dyn Regions) -> Option<&mut Self> {
-        (handler as &mut dyn Any).downcast_mut()
-    }
-
-    pub fn context(&self) -> &Context {
+impl RegionsRunner for ModuleRunner {
+    fn context(&self) -> &Context {
         self.runner.context()
     }
 
-    pub fn output(&self) -> Option<&FrameOutput> {
-        self.runner.output()
+    fn window(&self, region: RegionId) -> Option<WindowId> {
+        self.windows.get(&region).copied()
     }
 
-    pub fn take_output(&mut self) -> Option<FrameOutput> {
+    fn take_output(&mut self) -> Option<FrameOutput> {
         self.runner.take_output()
     }
+}
 
-    pub fn window(&self, region: RegionId) -> Option<WindowId> {
-        self.windows.get(&region).copied()
+impl ModuleRunner {
+    fn of(handler: &mut dyn Regions) -> Option<&mut Self> {
+        (handler as &mut dyn Any).downcast_mut()
     }
 
     fn ratio(&self, regions: &[Region]) -> f32 {

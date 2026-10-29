@@ -1,5 +1,7 @@
 pub use beui;
 pub use beui::{FileFilter, PickedFile};
+#[cfg(test)]
+extern crate beui_platform_plugin as _;
 pub use block_editor_plugin;
 pub use block_editor_plugin::*;
 
@@ -14,7 +16,6 @@ mod docked;
 mod editor;
 mod file_chooser;
 mod fitting;
-pub mod fonts;
 pub mod headless;
 mod instance;
 mod layered_settings;
@@ -101,6 +102,10 @@ pub trait BeuiApp: 'static {
     fn aspect_ratio() -> Option<f32> {
         None
     }
+}
+
+pub fn context() -> beui::native::Context {
+    beui_platform_plugin_api::runtime().context()
 }
 
 pub fn presence_color(color: PresenceColor) -> beui::Color32 {

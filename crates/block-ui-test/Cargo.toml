@@ -9,6 +9,7 @@ be-session = { path = "../be-session" }
 be-store = { path = "../be-store" }
 beui = { path = "../beui", default-features = false }
 beui-core = { path = "../beui-core" }
+beui-platform-plugin = { path = "../beui-platform-plugin" }
 block-editor-beui = { path = "../block-editor-beui" }
 block-plugin-api = { path = "../block-plugin-api" }
 block-type-guest = { path = "../block-type-guest" }

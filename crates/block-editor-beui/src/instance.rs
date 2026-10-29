@@ -8,7 +8,7 @@ use beui::WindowId;
 use beui::native::Document;
 use beui::reactive::RenderFn;
 use beui::styled::WindowHandle;
-use beui_platform_plugin::{Report, View};
+use beui_platform_plugin_api::{Report, View};
 use block_editor_plugin::{Artifact, EditorHost, EditorInstanceId, EditorRegion, Instance};
 use uuid::Uuid;
 

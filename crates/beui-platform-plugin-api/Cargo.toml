@@ -1,0 +1,13 @@
+[package]
+name = "beui-platform-plugin-api"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+beui-core = { path = "../beui-core" }
+block-editor-plugin = { path = "../block-editor-plugin" }
+uuid = "1"
+
+[lints]
+workspace = true

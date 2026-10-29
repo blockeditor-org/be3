@@ -28,6 +28,7 @@ fn a_window_the_app_floats_inside_a_region_stays_in_that_region() {
         "a window opened without one of the platform's placements is drawn inside the region it was opened in"
     );
     let windows = surface
+        .runner
         .output()
         .map(|output| output.windows.len())
         .unwrap_or_default();

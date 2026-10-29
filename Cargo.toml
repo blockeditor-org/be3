@@ -35,6 +35,7 @@ members = [
     "crates/beui-platform-drm",
     "crates/beui-platform-headless",
     "crates/beui-platform-plugin",
+    "crates/beui-platform-plugin-api",
     "crates/beui-layer-space",
     "crates/beui-layer-drive",
     "crates/beui-platform-web",

@@ -73,7 +73,7 @@ impl Views {
         self.0.floated.borrow().clone()
     }
 
-    pub(crate) fn set_floated(&self, floated: Vec<(RegionId, beui_core::window::WindowId)>) {
+    pub fn set_floated(&self, floated: Vec<(RegionId, beui_core::window::WindowId)>) {
         *self.0.floated.borrow_mut() = floated;
     }
 
@@ -81,7 +81,7 @@ impl Views {
         self.0.reports.borrow_mut().insert(id, report);
     }
 
-    pub(crate) fn set(&self, views: Vec<View>) {
+    pub fn set(&self, views: Vec<View>) {
         if *self.0.views.borrow() == views {
             return;
         }
@@ -92,11 +92,11 @@ impl Views {
         }
     }
 
-    pub(crate) fn take_report(&self, id: RegionId) -> Report {
+    pub fn take_report(&self, id: RegionId) -> Report {
         self.0.reports.borrow_mut().remove(&id).unwrap_or_default()
     }
 
-    pub(crate) fn placed(&self, placement: &HostPlacement) -> Option<RegionId> {
+    pub fn placed(&self, placement: &HostPlacement) -> Option<RegionId> {
         self.0
             .views
             .borrow()

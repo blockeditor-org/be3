@@ -6,7 +6,7 @@ use beui::WindowId;
 use beui::native::Document;
 use beui::reactive::*;
 use beui::styled::*;
-use beui_platform_plugin::{Report, View, Views};
+use beui_platform_plugin_api::{Report, View, Views};
 use block_editor_plugin::{EditorHost, EditorInstanceId, EditorRegion, RegionId};
 
 pub(crate) trait Shown {
@@ -91,9 +91,7 @@ impl Module {
             views: None,
             requested: OwnedSignal::new(Vec::new()),
         };
-        if let Err(error) =
-            beui_platform_plugin::launch(host, options, crate::fonts::context(), app)
-        {
+        if let Err(error) = beui_platform_plugin_api::runtime().launch(host, options, Box::new(app)) {
             panic!("the plugin's beui app could not start: {error}");
         }
     }

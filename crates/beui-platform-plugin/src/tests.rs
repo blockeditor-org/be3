@@ -179,7 +179,7 @@ fn Shown(id: RegionId, requested: ReadSignal<Vec<View>>, views: Views, content: 
 fn launched(host: &EditorHost, app: impl App + 'static) -> Box<ModuleRunner> {
     let module = Module::default();
     host.join_module(&module);
-    launch(host, RunOptions::default(), beui::native::context(), app).expect("a plugin app starts");
+    launch(host, RunOptions::default(), beui::native::context(), Box::new(app)).expect("a plugin app starts");
     let handler: Box<dyn Any> = module
         .take_handler()
         .expect("the platform registers its handler with the module");

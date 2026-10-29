@@ -323,7 +323,7 @@ direction:
 | `beui-layer-xr` | space on an OpenXR headset (`BEUI_LAYERS=xr`): the runtime, the Vulkan device it picks, its session, swapchains and frame pacing, and `XrSpace`, the `Layer` that drives `Space` from them ("Headsets" in the space section below) |
 | `beui-layer-drive` | `beui::native::drive`: drive as a `Layer` (`Drive`, one layer or a tap under each of several layers sharing a session), its command `Inbox` and `Reply`, its socket protocol and the gestures it and the editor tests share (guides/running/drive.md) |
 | `beui-platform-headless` | `beui::native::Headless`, the platform that draws offscreen with no window or display server; `beui::native::Simulation`, the headless window and its stand-in services; and `beui::native::testing`, the harness that steps an app frame by frame under a drive layer |
-| `beui-platform-plugin` | the `Platform`, `PlatformServices` and `Renderer` for a block editor plugin module: `launch` starts the module's one app and registers its runner with the plugin framework as the module's `Regions` handler, whose batched calls then drive its frames; every region the host shows is a window of that app, which the app opens from the `Views` handle the platform provides through `Setup` (guides/adding_a_plugin_editor.md); it depends on the plugin framework, so the facade does not offer it, and it reads no `BEUI_*` variable |
+| `beui-platform-plugin` | the `Platform`, `PlatformServices` and `Renderer` for a block editor plugin module: its `PluginRuntime` (crates/beui-platform-plugin-api, which block-editor-beui reaches it through without depending on it) launches the module's one app and registers its runner with the plugin framework as the module's `Regions` handler, whose batched calls then drive its frames; every region the host shows is a window of that app, which the app opens from the `Views` handle (in beui-platform-plugin-api) the platform provides through `Setup` (guides/adding_a_plugin_editor.md); it depends on the plugin framework, so the facade does not offer it, and it reads no `BEUI_*` variable |
 
 Core cannot see the crates above it, so the few places it used to reach up are
 hooks the higher crates fill in:
@@ -3466,7 +3466,7 @@ lays out, and `Context::window_size`, `Context::window_placement` and
 the main one instead), `Any` (a layer opens every window, as space does) or `Placed`
 (the platform opens only the windows it placed itself: a `Window` opened with
 a `WindowPlacement::Host` the platform handed out through a handle in `Setup`,
-as beui-platform-plugin's `Views` and its `views.placement(id)` do; every other
+as beui-platform-plugin-api's `Views` and its `views.placement(id)` do; every other
 `Window` is an overlay inside the window it was opened in, so a plugin's
 docked windows stay inside its region). A platform may move between them: the
 plugin platform hosts every window while its host shows the windows of one of
@@ -4922,7 +4922,7 @@ The type it names holds no state: the
 framework builds the view once and keeps it. A plugin module is one beui app,
 with one `Document` and one `Context`: every region the host shows of every
 instance (a frame, a preview, artifact settings) is one of its windows, a
-`Window` block-editor-beui opens from beui-platform-plugin's `Views` handle
+`Window` block-editor-beui opens from beui-platform-plugin-api's `Views` handle
 with `views.placement(id)` and the region's size, and its content is the
 region's view, so an editor only ever writes `View(editor)`.
 

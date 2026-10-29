@@ -10969,9 +10969,10 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-font-freetype:beui-font-freetype",
+                    "//crates/beui-platform-plugin-api:beui-platform-plugin-api",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
-                    "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
                 "features": [],
@@ -10984,9 +10985,10 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-font-freetype:beui-font-freetype",
+                    "//crates/beui-platform-plugin-api:beui-platform-plugin-api",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
-                    "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
                 "features": [],
@@ -10999,9 +11001,10 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-font-freetype:beui-font-freetype",
+                    "//crates/beui-platform-plugin-api:beui-platform-plugin-api",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
-                    "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
                 "features": [],
@@ -11014,9 +11017,10 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-font-freetype:beui-font-freetype",
+                    "//crates/beui-platform-plugin-api:beui-platform-plugin-api",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
-                    "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
                 "features": [],
@@ -11029,9 +11033,10 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-font-freetype:beui-font-freetype",
+                    "//crates/beui-platform-plugin-api:beui-platform-plugin-api",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
-                    "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
                 "features": [],
@@ -11044,10 +11049,11 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-font-freetype:beui-font-freetype",
+                    "//crates/beui-platform-plugin-api:beui-platform-plugin-api",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
-                    "//third-party/rust:uuid-1.23.2",
                     "//third-party/rust:wgpu-29.0.3",
                 ],
                 "examples": {},
@@ -11059,9 +11065,10 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-font-freetype:beui-font-freetype",
+                    "//crates/beui-platform-plugin-api:beui-platform-plugin-api",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
-                    "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
                 "features": [],
@@ -11074,15 +11081,127 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-font-freetype:beui-font-freetype",
+                    "//crates/beui-platform-plugin-api:beui-platform-plugin-api",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
-                    "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
                 "features": [],
                 "test_deps": [
                     "//crates/beui:beui",
                 ],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/beui-platform-plugin-api": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "beui_platform_plugin_api",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "beui-platform-plugin-api",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/block-editor-plugin:block-editor-plugin",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/block-editor-plugin:block-editor-plugin",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/block-editor-plugin:block-editor-plugin",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/block-editor-plugin:block-editor-plugin",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/block-editor-plugin:block-editor-plugin",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/block-editor-plugin:block-editor-plugin",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/block-editor-plugin:block-editor-plugin",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/block-editor-plugin:block-editor-plugin",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
                 "test_features": [],
             },
         },
@@ -13303,7 +13422,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-block:be-block",
-                    "//crates/beui-platform-plugin:beui-platform-plugin",
+                    "//crates/beui-platform-plugin-api:beui-platform-plugin-api",
                     "//crates/beui:beui",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -13324,7 +13443,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-block:be-block",
-                    "//crates/beui-platform-plugin:beui-platform-plugin",
+                    "//crates/beui-platform-plugin-api:beui-platform-plugin-api",
                     "//crates/beui:beui",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -13345,7 +13464,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-block:be-block",
-                    "//crates/beui-platform-plugin:beui-platform-plugin",
+                    "//crates/beui-platform-plugin-api:beui-platform-plugin-api",
                     "//crates/beui:beui",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -13366,7 +13485,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-block:be-block",
-                    "//crates/beui-platform-plugin:beui-platform-plugin",
+                    "//crates/beui-platform-plugin-api:beui-platform-plugin-api",
                     "//crates/beui:beui",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -13387,7 +13506,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-block:be-block",
-                    "//crates/beui-platform-plugin:beui-platform-plugin",
+                    "//crates/beui-platform-plugin-api:beui-platform-plugin-api",
                     "//crates/beui:beui",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -13408,7 +13527,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-block:be-block",
-                    "//crates/beui-platform-plugin:beui-platform-plugin",
+                    "//crates/beui-platform-plugin-api:beui-platform-plugin-api",
                     "//crates/beui:beui",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -13424,6 +13543,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-model:be-model",
+                    "//crates/beui-platform-plugin:beui-platform-plugin",
                     "//crates/editors/presentation/types:presentation-types",
                 ],
                 "test_features": [],
@@ -13432,7 +13552,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-block:be-block",
-                    "//crates/beui-platform-plugin:beui-platform-plugin",
+                    "//crates/beui-platform-plugin-api:beui-platform-plugin-api",
                     "//crates/beui:beui",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -13453,7 +13573,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-block:be-block",
-                    "//crates/beui-platform-plugin:beui-platform-plugin",
+                    "//crates/beui-platform-plugin-api:beui-platform-plugin-api",
                     "//crates/beui:beui",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -14561,6 +14681,7 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-platform-plugin:beui-platform-plugin",
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
                     "//crates/block-editor-plugin:block-editor-plugin",
@@ -14576,6 +14697,7 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-platform-plugin:beui-platform-plugin",
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
                     "//crates/block-editor-plugin:block-editor-plugin",
@@ -14591,6 +14713,7 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-platform-plugin:beui-platform-plugin",
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
                     "//crates/block-editor-plugin:block-editor-plugin",
@@ -14606,6 +14729,7 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-platform-plugin:beui-platform-plugin",
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
                     "//crates/block-editor-plugin:block-editor-plugin",
@@ -14621,6 +14745,7 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-platform-plugin:beui-platform-plugin",
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
                     "//crates/block-editor-plugin:block-editor-plugin",
@@ -14636,6 +14761,7 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-platform-plugin:beui-platform-plugin",
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
                     "//crates/block-editor-plugin:block-editor-plugin",
@@ -14651,6 +14777,7 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-platform-plugin:beui-platform-plugin",
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
                     "//crates/block-editor-plugin:block-editor-plugin",
@@ -15349,6 +15476,7 @@ crates = {
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-platform-plugin:beui-platform-plugin",
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -15372,6 +15500,7 @@ crates = {
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-platform-plugin:beui-platform-plugin",
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -15395,6 +15524,7 @@ crates = {
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-platform-plugin:beui-platform-plugin",
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -15418,6 +15548,7 @@ crates = {
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-platform-plugin:beui-platform-plugin",
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -15441,6 +15572,7 @@ crates = {
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-platform-plugin:beui-platform-plugin",
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -15464,6 +15596,7 @@ crates = {
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-platform-plugin:beui-platform-plugin",
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -15485,6 +15618,7 @@ crates = {
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-platform-plugin:beui-platform-plugin",
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -15508,6 +15642,7 @@ crates = {
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-platform-plugin:beui-platform-plugin",
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
                     "//crates/block-plugin-api:block-plugin-api",
