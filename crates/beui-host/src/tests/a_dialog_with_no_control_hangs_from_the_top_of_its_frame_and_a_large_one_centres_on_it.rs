@@ -56,9 +56,5 @@ fn a_dialog_with_no_control_hangs_from_the_top_of_its_frame_and_a_large_one_cent
     give_layer_space(&mut harness);
     let layers = harness.document().escaped_layers();
     assert_eq!(layers.len(), 1, "it escapes, attached to its frame");
-    assert_eq!(
-        layers[0].scrims.len(),
-        1,
-        "and dims its frame"
-    );
+    assert_eq!(layers[0].scrims.len(), 1, "and dims its frame");
 }

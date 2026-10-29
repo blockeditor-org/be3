@@ -340,7 +340,9 @@ impl Document {
             }
             let node = self.arena.get_as::<OverlayNode>(overlay);
             layers[at].escapes = self.real_window(overlay).is_none()
-                && self.escape_space(node.placement(), layers[at].window).is_some();
+                && self
+                    .escape_space(node.placement(), layers[at].window)
+                    .is_some();
         }
         Layers(layers.into())
     }

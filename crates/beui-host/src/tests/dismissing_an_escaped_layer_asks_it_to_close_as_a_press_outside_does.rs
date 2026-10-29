@@ -31,7 +31,10 @@ fn dismissing_an_escaped_layer_asks_it_to_close_as_a_press_outside_does() {
     harness.context().dismiss_layer(layers[0].id);
     harness.frame(Vec::new());
     assert_eq!(heard.get_untracked(), vec![Dismiss::OutsidePress]);
-    assert!(harness.document().escaped_layers().is_empty(), "the owner closed it");
+    assert!(
+        harness.document().escaped_layers().is_empty(),
+        "the owner closed it"
+    );
 
     harness.context().dismiss_layer(layers[0].id);
     harness.frame(Vec::new());

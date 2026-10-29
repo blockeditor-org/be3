@@ -2,6 +2,7 @@ use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
 use super::modal::{Modal, ModalHandle};
+use beui_view::components::overlay::Overlay;
 use beui_view::components::portal::Portal;
 use beui_view::primitives::*;
 use beui_view::reactive::KeyAt;
@@ -11,7 +12,6 @@ use beui_view::types::Color;
 use beui_view::types::Key;
 use beui_view::types::KeyPhase;
 use beui_view::types::{Dismiss, OverlayAnchor, Placement, Pos2, Rect};
-use beui_view::components::overlay::Overlay;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum DialogKind {
@@ -379,12 +379,10 @@ pub fn dialog_presentation(
         },
         (DialogKind::Dialog, false, DialogAnchor::None, _) => DialogPresentation::Centred,
         (DialogKind::Dialog, false, _, DialogSize::Large) => DialogPresentation::OverFrame,
-        (DialogKind::Dialog, false, DialogAnchor::Control(_), DialogSize::Small) => {
-            match opener {
-                Some(node) => DialogPresentation::Anchored(node),
-                None => DialogPresentation::HangsFromFrame,
-            }
-        }
+        (DialogKind::Dialog, false, DialogAnchor::Control(_), DialogSize::Small) => match opener {
+            Some(node) => DialogPresentation::Anchored(node),
+            None => DialogPresentation::HangsFromFrame,
+        },
         (DialogKind::Dialog, false, DialogAnchor::Frame, DialogSize::Small) => {
             DialogPresentation::HangsFromFrame
         }
@@ -435,7 +433,8 @@ pub fn Dialog(
     let presentation = create_memo(move || {
         dialog_presentation(kind, size, anchor.get(), opener.get(), narrow.get())
     });
-    let sheeted = create_memo(move || matches!(presentation.get(), DialogPresentation::Sheet { .. }));
+    let sheeted =
+        create_memo(move || matches!(presentation.get(), DialogPresentation::Sheet { .. }));
     let centred = create_memo(move || presentation.get() == DialogPresentation::Centred);
     let layout = DialogLayout {
         narrow,
@@ -517,11 +516,9 @@ pub fn Dialog(
         ),
         DialogPresentation::Centred
         | DialogPresentation::OverFrame
-        | DialogPresentation::Sheet { .. } => (
-            OverlayAnchor::Rect(frame.get()),
-            Placement::CenterOn,
-            true,
-        ),
+        | DialogPresentation::Sheet { .. } => {
+            (OverlayAnchor::Rect(frame.get()), Placement::CenterOn, true)
+        }
     });
     let at = create_memo(move || placed.get().0);
     let placement = create_memo(move || placed.get().1);
@@ -536,11 +533,9 @@ pub fn Dialog(
     });
     view! {
         <List spacing=0.0>
-            <Modal open={as_card} scrim on_dismiss={on_dismiss}>|_: ModalHandle| {
-                view! {
-                    <Portal node={centred_card} />
-                }
-            }</Modal>
+            <Modal open={as_card} scrim on_dismiss={on_dismiss}>|_: ModalHandle|
+                <Portal node={centred_card} />
+            </Modal>
             <Overlay
                 anchor={at}
                 placement={placement}

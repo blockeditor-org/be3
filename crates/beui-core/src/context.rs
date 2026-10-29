@@ -21,7 +21,6 @@ use crate::geometry::Vec2;
 use crate::geometry::{Pos2, Rect, pos2};
 use crate::input::{CursorIcon, Event, ImeArea, InputState, KeyChord};
 use crate::node::NodeId;
-use beui_types::layer::{EscapedLayer, HostTransform, LayerSpace};
 use crate::paint::{Item, Recorded, Recording};
 use crate::painter::{Painter, PainterState, Scope, Shape};
 use crate::preferences::{PreferenceLayer, PreferenceLayers, PreferenceSource, Preferences};
@@ -29,6 +28,7 @@ use crate::screen_simulation::ScreenSimulation;
 use crate::window::{
     Appearance, HostPlacement, WindowHosting, WindowId, WindowReport, WindowRequest, WindowState,
 };
+use beui_types::layer::{EscapedLayer, HostTransform, LayerSpace};
 
 type CopyWatcher = Rc<dyn Fn(&str)>;
 
@@ -1091,7 +1091,11 @@ impl Context {
             .map(|(_, window, to_host)| (*window, *to_host))
     }
 
-    pub(crate) fn show_escaped(&self, escaped: Vec<EscapedOutput>, targets: Vec<(u64, WindowId, HostTransform)>) {
+    pub(crate) fn show_escaped(
+        &self,
+        escaped: Vec<EscapedOutput>,
+        targets: Vec<(u64, WindowId, HostTransform)>,
+    ) {
         *self.inner.escaped_targets.borrow_mut() = targets;
         *self.inner.escaped.borrow_mut() = escaped;
     }

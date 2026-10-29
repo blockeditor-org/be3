@@ -44,8 +44,12 @@ fn a_dialog_opened_from_a_menu_row_hangs_from_what_the_menu_was_opened_on() {
     harness.frame(Vec::new());
     let held = harness.rect(region.get());
     press_secondary(&mut harness, held.center());
-    let label = text_within(harness.document(), harness.document().root.expect("a root"), "Rename")
-        .expect("the menu shows its row");
+    let label = text_within(
+        harness.document(),
+        harness.document().root.expect("a root"),
+        "Rename",
+    )
+    .expect("the menu shows its row");
     let at = harness.center(label);
     harness.frame(vec![Input::PointerMoved(at)]);
     harness.click(at);

@@ -21,7 +21,10 @@ fn a_sheet_escapes_attached_to_the_bottom_of_its_layer_space() {
     assert_eq!(layers.len(), 1, "the sheet escapes");
     let layer = &layers[0];
     assert_eq!(layer.placement, LayerPlacement::Edge(LayerEdge::Bottom));
-    assert_eq!(layer.rect, LAYER_SPACE.bounds, "the sheet's layer is the layer space");
+    assert_eq!(
+        layer.rect, LAYER_SPACE.bounds,
+        "the sheet's layer is the layer space"
+    );
     let sheet = LAYER_SPACE.to_host.rect(harness.rect(body.get()));
     assert!(
         sheet.bottom() > LAYER_SPACE.to_host.point(pos2(0.0, 300.0)).y,

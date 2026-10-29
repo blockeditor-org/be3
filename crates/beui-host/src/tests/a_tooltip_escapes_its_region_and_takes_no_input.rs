@@ -41,7 +41,10 @@ fn a_tooltip_escapes_its_region_and_takes_no_input() {
     let layers = harness.document().escaped_layers();
     assert_eq!(layers.len(), 1, "the tooltip escapes");
     let layer = &layers[0];
-    let below = LAYER_SPACE.to_host.rect(harness.rect(button.get())).bottom();
+    let below = LAYER_SPACE
+        .to_host
+        .rect(harness.rect(button.get()))
+        .bottom();
     assert!(
         layer.rect.top() >= below - 1.0,
         "with room below in the layer space it stays under its button rather than flipping above: {:?}",

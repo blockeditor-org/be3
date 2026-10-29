@@ -29,7 +29,10 @@ fn a_context_menu_without_a_layer_space_stays_in_its_window() {
 
     assert!(harness.document().escaped_layers().is_empty());
     let output = harness.frame(Vec::new());
-    assert!(output.escaped.is_empty(), "nothing escapes without a layer space");
+    assert!(
+        output.escaped.is_empty(),
+        "nothing escapes without a layer space"
+    );
     let overlay = kind_of::<OverlayNode>(
         harness.document(),
         harness

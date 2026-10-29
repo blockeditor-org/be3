@@ -17,7 +17,10 @@ fn a_menu_and_a_card_escape_the_frame_given_a_layer_space() {
     test.frame(Vec::new());
     reveal(&mut test, "demo.actions");
     let card = test.rect_of("demo.actions");
-    let at = pos2(card.right().min(FRAME.x) - 24.0, card.bottom().min(FRAME.y) - 12.0);
+    let at = pos2(
+        card.right().min(FRAME.x) - 24.0,
+        card.bottom().min(FRAME.y) - 12.0,
+    );
     test.click_with(at, PointerButton::Secondary);
     test.settle();
     let layers = test.document().escaped_layers();
@@ -31,7 +34,10 @@ fn a_menu_and_a_card_escape_the_frame_given_a_layer_space() {
     test.snapshot_layers("a_menu_escapes_the_frame_given_a_layer_space");
     press_key(&mut test, beui::Key::Escape);
     test.settle();
-    assert!(test.document().escaped_layers().is_empty(), "Escape closes it");
+    assert!(
+        test.document().escaped_layers().is_empty(),
+        "Escape closes it"
+    );
 
     let mut test = alone(FRAME, Page::Overlays);
     test.context().set_layer_space(WindowId::MAIN, Some(SPACE));
@@ -45,6 +51,10 @@ fn a_menu_and_a_card_escape_the_frame_given_a_layer_space() {
         field.top() > button.bottom(),
         "the rename card hangs from the button that opened it: {field:?} under {button:?}"
     );
-    assert_eq!(test.document().escaped_layers().len(), 1, "and escapes the frame");
+    assert_eq!(
+        test.document().escaped_layers().len(),
+        1,
+        "and escapes the frame"
+    );
     test.snapshot_layers("a_card_from_a_button_escapes_the_frame_given_a_layer_space");
 }

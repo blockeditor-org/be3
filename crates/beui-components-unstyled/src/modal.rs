@@ -8,9 +8,9 @@ use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
 use beui_view::types::Color;
 use beui_view::types::Placement;
-use beui_view::types::layer::LayerEdge;
 use beui_view::types::Pos2;
 use beui_view::types::WindowId;
+use beui_view::types::layer::LayerEdge;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ModalPlacement {

@@ -3,15 +3,15 @@ use std::rc::Rc;
 use foldhash::HashMap;
 
 use crate::base::overlay::OverlayNode;
+use crate::color::Color32;
 use crate::context::{Context, EscapedOutput, WindowOutput};
 use crate::damage::Region;
 use crate::display::{Display, Group, Layer as Shown};
 use crate::document::Document;
-use crate::color::Color32;
 use crate::geometry::{Pos2, Rect, Rotation, Vec2};
-use crate::painter::{Corners, Shape};
 use crate::layer::{Dismiss, LayerPolicy};
 use crate::node::{NodeId, NodeOf};
+use crate::painter::{Corners, Shape};
 use crate::window::{WindowId, WindowState};
 
 pub use beui_types::layer::{
@@ -60,7 +60,11 @@ impl Document {
         self.escapes.spaces.get(&window).copied()
     }
 
-    pub(crate) fn escape_space(&self, placement: Placement, window: WindowId) -> Option<LayerSpace> {
+    pub(crate) fn escape_space(
+        &self,
+        placement: Placement,
+        window: WindowId,
+    ) -> Option<LayerSpace> {
         placement
             .escapes()
             .then(|| self.layer_space(window))
@@ -150,9 +154,11 @@ impl Document {
             .iter()
             .find(|(window, _)| *window == paint)
             .map_or(Rect::NOTHING, |(_, painting)| {
-                painting.iter().fold(Rect::NOTHING, |bounds, (display, at)| {
-                    bounds.union(display.bounds.translate(*at))
-                })
+                painting
+                    .iter()
+                    .fold(Rect::NOTHING, |bounds, (display, at)| {
+                        bounds.union(display.bounds.translate(*at))
+                    })
             })
     }
 
@@ -242,7 +248,12 @@ impl Document {
             let Some(space) = self.layer_space(layer.window) else {
                 continue;
             };
-            let Some(escape) = self.escapes.held.iter().find(|escape| escape.id == layer.id) else {
+            let Some(escape) = self
+                .escapes
+                .held
+                .iter()
+                .find(|escape| escape.id == layer.id)
+            else {
                 continue;
             };
             let paint = escape.paint;
