@@ -4,7 +4,7 @@
 //   node web-test.mjs --bundle=DIR [--checks] SCRIPT.drive... [--nocapture] [NAME]
 //
 // It serves DIR, and for each script opens DIR's index.html with
-// ?fixture=<the script's file name> and runs the script's commands, one a line
+// ?fixture=<the script's file name>, waits for it to settle and runs the script's commands, one a line
 // as `drive -` reads them. The page answers the reading commands through its
 // automate(words) (beui-core-html's automate: tree, ids, find, wait, gone,
 // settle, pause, clock); click, move, down, up, drag, wheel, type and key are real Playwright input, at the
@@ -143,6 +143,12 @@ async function open(query, colorScheme = "light") {
         }
     });
     if (started) errors.push(`the page did not start: ${started}`);
+    else {
+        // As a native program's launch does, start from a settled page: its
+        // first frames may still be laying out what it built.
+        const { error } = await automate(page, ["settle"]);
+        if (error !== undefined) errors.push(`the page did not settle: ${error}`);
+    }
     return { context, page, log, errors };
 }
 
