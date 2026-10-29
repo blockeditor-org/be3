@@ -4044,14 +4044,34 @@ it, and all its 3D (`glam`) stays in the crate.
   grab offset, and the one turn left about the line to the eye is the one
   that keeps the panel's right perpendicular to the head's up), and then
   keeps facing them, so letting go turns it no further.
-  The carry keeps the grabbed point at `Carry::distance` from the eye (where
-  it was picked up, changed by scroll), whatever it passes in front of or
-  behind: panels are drawn and picked by depth alone, so a panel carried
-  across a nearer one goes behind it. Scroll changes the distance by
+  The carry asks for the grabbed point at `Carry::distance` from the eye
+  (where it was picked up, changed by scroll). Scroll changes the distance by
   `STEP_PER_LINE` (0.95) per line, about 5%; a touchpad's pixels move it by
   their share of a line (`SCROLL_LINE` points), so it glides in proportion,
   between `carry::NEAREST` and `FARTHEST`. It does not reach the app, which
   sees no pointer moves meanwhile.
+  A carried panel never passes through another (`Carry::settle`, `contact.rs`):
+  each frame it is moved along its carry's ray (the eye's, or the laser's) to
+  the nearest distance to the one asked for at which it keeps the side it is on
+  of every panel it overlaps, `contact::CLEARANCE` (12 mm) clear of it, and is
+  turned to face the viewer there again. `contact::span` finds the distances
+  along that ray at which two panels would come that close: lines along the ray
+  through a grid of points on each panel and its chrome, met on the other
+  panel's surface, with points past the other's edge counting less the farther
+  out they are, so the distance is continuous as a panel slides off another.
+  Which side it is on is decided when an overlap begins, by where the panel was
+  (`carry::Side`, `Carry::side`), and kept until the overlap ends, so a panel
+  that started in front, like a window popped out over its spot, stays in front
+  however it is carried and turned, and one behind stays behind. Only a deliberate
+  push changes the side: while it rests against another panel, a scroll (or a
+  laser moved) farther into it is held as `push` lines instead of moving it,
+  drawn as a ghost (`Carry::ghost`, an outline below) where it is being pushed
+  to, and once the push reaches `PUSH_LINES` (2) and the ghost is clear of the
+  other panel the side flips and the panel goes there. Backing off takes the
+  push back first, and letting go, or sliding off the other panel, drops it.
+  Pulling it nearer through a panel in front of it works the same way. Only
+  `Popup` and `Overlay` windows take no part (`contact::collides`). A two-hand
+  hold (below) is not stopped.
   An app's `BeginMove` or `BeginResize` starts a carry or resize only while
   a press it was given is held (any window's, since one app's drag can open
   and carry another window; for a laser, while its trigger holds that
@@ -4073,7 +4093,9 @@ it, and all its 3D (`glam`) stays in the crate.
   side of a panel's chrome (`resize::Resize`)
   the cursor's ray meets the panel's surface as it was, and that edge or corner
   follows it while the opposite one stays put, no smaller than
-  `resize::SMALLEST`. Each new size is reported as `Resized` at once, so the
+  `resize::SMALLEST`, and stops where the panel would touch another panel it was
+  clear of (`contact::newly_touching`), as the chrome's scale, turn, roll and
+  bend drags do. Each new size is reported as `Resized` at once, so the
   app lays out at it the same frame; the app sees no moves meanwhile, and the
   carry's rule for letting go ends it, with a `Placed` for the panel's new
   centre.
@@ -4223,7 +4245,10 @@ it, and all its 3D (`glam`) stays in the crate.
   where it hits a panel or its chrome, or `laser::REACH` (5 m) on a miss,
   faint at the hand, blue, and white while pressed, with a dot `DOT` times
   its distance from the eye across where it hits; the paintings draw them
-  over the panels.
+  over the panels. Outlines (`Space::outlines`, `render::Outline`: a carry's
+  ghost and a raised window's flash) are drawn after the beams with no depth
+  test, so they show through every panel: a faint `OUTLINE` fill and an edge
+  `OUTLINE_WIDTH` times its distance from the eye wide.
 - Keyboard: while any laser has a ray, `Space::keyboard_attached` (its
   `Layer::keyboard_attached`) says no keyboard is attached, so tapping a
   field opens beui's on-screen keyboard as a panel (above); with only the
@@ -4241,9 +4266,14 @@ it, and all its 3D (`glam`) stays in the crate.
   app's document lets go of, and later restores, the keyboard focus inside
   that window (a window just opened gets its first focusable, or the dock's
   tab, see Windows and window hosts). While no panel is focused, key presses and text reach no
-  window. Nothing is raised: panels have no stacking order in 3D, only depth.
+  window. Nothing is raised: panels have no stacking order in 3D, only depth,
+  and only a carry moves one. A `WindowRequest::Raise` for a panel that is not
+  focused and that another panel hides from the eye, even in part
+  (`Space::hidden`), flashes its outline instead, drawn through everything and
+  fading over `FLASH_SECONDS` (1 s), so it can be found and carried out.
   Closing the focused panel focuses the main one.
-- Chrome: the host draws and handles controls of its own around every panel
+- Chrome: the host draws and handles controls of its own around every panel of
+  a `Normal` or `Keyboard` window (`Panel::framed`; popups and overlays have none)
   (`chrome.rs`): an L bracket just outside each corner, the window's title
   (its `WindowState` appearance title, which the `Window` component's
   `title` sets) in a pill centred above the top edge, or in its place,

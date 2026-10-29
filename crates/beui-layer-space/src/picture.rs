@@ -12,7 +12,11 @@ use glam::Vec3;
 use crate::chrome::LIFT;
 use crate::floor;
 use crate::head::NEAR;
-use crate::render::{BEAM_WIDTH, Frame, PanelFrame};
+use crate::panel::bent;
+use crate::render::{
+    BEAM_WIDTH, Frame, OUTLINE, OUTLINE_FILL, OUTLINE_LINE, OUTLINE_WIDTH, Outline, PanelFrame,
+    SEGMENTS,
+};
 use crate::space::SKY;
 
 mod scene;
@@ -78,6 +82,9 @@ pub fn painting(frame: &Frame, rect: Rect) -> Option<Painting> {
     }
     scene.paint(&mut out, scale);
     out.beams(frame, rect);
+    for outline in &frame.outlines {
+        out.outline(frame, rect, outline);
+    }
     if let (Some(cursor), Some(output)) = (&frame.cursor, &frame.sprite) {
         let picture = painting::painting(
             output,
@@ -263,6 +270,97 @@ impl Out {
                     });
                 }
             }
+        }
+        self.mesh(rect, triangles);
+    }
+
+    fn outline(&mut self, frame: &Frame, rect: Rect, outline: &Outline) {
+        let screen = |world: Vec3| -> Option<glam::Vec2> {
+            let clip = frame.view_projection * world.extend(1.0);
+            (clip.w > NEAR).then(|| {
+                glam::Vec2::new(
+                    rect.min.x + (clip.x / clip.w + 1.0) / 2.0 * rect.width(),
+                    rect.min.y + (1.0 - clip.y / clip.w) / 2.0 * rect.height(),
+                )
+            })
+        };
+        let world = |u: f32, v: f32| {
+            let local = bent(
+                outline.metres.x,
+                outline.bend,
+                (u - 0.5) * outline.metres.x,
+                (0.5 - v) * outline.metres.y,
+                0.0,
+            );
+            outline.model.transform_point3(local)
+        };
+        let color = OUTLINE.to_array();
+        let vertex = |at: glam::Vec2, alpha: f32| Vertex {
+            pos: at.to_array(),
+            uv: [0.0, 0.0],
+            color: [
+                color[0],
+                color[1],
+                color[2],
+                (alpha * outline.strength * 255.0).round().clamp(0.0, 255.0) as u8,
+            ],
+        };
+        let quad = |triangles: &mut Vec<Triangle>, corners: [Vertex; 4]| {
+            triangles.push(Triangle {
+                texture: WHITE,
+                corners: [corners[0], corners[1], corners[2]],
+            });
+            triangles.push(Triangle {
+                texture: WHITE,
+                corners: [corners[0], corners[2], corners[3]],
+            });
+        };
+        let along = |index: u32| index as f32 / SEGMENTS as f32;
+        let mut triangles = Vec::new();
+        for index in 0..SEGMENTS {
+            let (u, next) = (along(index), along(index + 1));
+            let corners = [
+                world(u, 0.0),
+                world(next, 0.0),
+                world(next, 1.0),
+                world(u, 1.0),
+            ];
+            if let [Some(a), Some(b), Some(c), Some(d)] = corners.map(screen) {
+                quad(
+                    &mut triangles,
+                    [a, b, c, d].map(|at| vertex(at, OUTLINE_FILL)),
+                );
+            }
+        }
+        let mut edge = Vec::new();
+        for index in 0..=SEGMENTS {
+            edge.push(world(along(index), 0.0));
+        }
+        edge.push(world(1.0, 1.0));
+        for index in (0..=SEGMENTS).rev() {
+            edge.push(world(along(index), 1.0));
+        }
+        edge.push(world(0.0, 0.0));
+        for pair in edge.windows(2) {
+            let (Some(from), Some(to)) = (screen(pair[0]), screen(pair[1])) else {
+                continue;
+            };
+            let Some(side) =
+                screen(pair[0] + frame.right * OUTLINE_WIDTH * pair[0].distance(frame.eye))
+            else {
+                continue;
+            };
+            let width = from.distance(side).max(0.5);
+            let direction = to - from;
+            if direction.length() < 1e-3 {
+                continue;
+            }
+            let across = direction.normalize().perp() * width / 2.0;
+            quad(
+                &mut triangles,
+                [from + across, to + across, to - across, from - across]
+                    .map(|at| vertex(at, OUTLINE_LINE)),
+            );
         }
         self.mesh(rect, triangles);
     }

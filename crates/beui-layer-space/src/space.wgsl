@@ -11,6 +11,10 @@ struct Scene {
     inverse: mat4x4<f32>,
     options: vec4<f32>,
     beams: array<vec4<f32>, 6>,
+    outlines: array<mat4x4<f32>, 4>,
+    outline_shapes: array<vec4<f32>, 4>,
+    outline_color: vec4<f32>,
+    outline_look: vec4<f32>,
 };
 
 @group(0) @binding(0) var<uniform> scene: Scene;
@@ -111,25 +115,68 @@ struct PanelOut {
 
 const SEGMENTS: u32 = 48u;
 
-@vertex
-fn panel_vertex(@builtin(vertex_index) index: u32) -> PanelOut {
-    let weight = vec2<f32>(f32(index / 2u) / f32(SEGMENTS), f32(index & 1u));
-    let at = mix(panel.span.xy, panel.span.zw, weight);
-    let width = panel.shape.x;
-    let bend = panel.shape.z;
+fn strip(index: u32) -> vec2<f32> {
+    return vec2<f32>(f32(index / 2u) / f32(SEGMENTS), f32(index & 1u));
+}
+
+fn surface(shape: vec4<f32>, at: vec2<f32>) -> vec3<f32> {
+    let width = shape.x;
+    let bend = shape.z;
     let across = (at.x - 0.5) * width;
-    let up = (0.5 - at.y) * panel.shape.y;
-    var local = vec3<f32>(across, up, panel.shape.w);
+    let up = (0.5 - at.y) * shape.y;
+    var local = vec3<f32>(across, up, shape.w);
     if bend > 1e-4 {
         let radius = width / bend;
         let angle = across / radius;
         let normal = vec3<f32>(-sin(angle), 0.0, cos(angle));
-        local = vec3<f32>(radius * sin(angle), up, radius * (1.0 - cos(angle))) + normal * panel.shape.w;
+        local = vec3<f32>(radius * sin(angle), up, radius * (1.0 - cos(angle))) + normal * shape.w;
     }
+    return local;
+}
+
+@vertex
+fn panel_vertex(@builtin(vertex_index) index: u32) -> PanelOut {
+    let weight = strip(index);
+    let local = surface(panel.shape, mix(panel.span.xy, panel.span.zw, weight));
     var out: PanelOut;
     out.position = scene.view_projection * panel.model * vec4<f32>(local, 1.0);
     out.uv = weight;
     return out;
+}
+
+struct OutlineOut {
+    @builtin(position) position: vec4<f32>,
+    @location(0) uv: vec2<f32>,
+    @location(1) world: vec3<f32>,
+    @location(2) @interpolate(flat) instance: u32,
+};
+
+@vertex
+fn outline_vertex(@builtin(vertex_index) index: u32, @builtin(instance_index) instance: u32) -> OutlineOut {
+    let weight = strip(index);
+    let shape = scene.outline_shapes[instance];
+    let local = surface(vec4<f32>(shape.xyz, 0.0), weight);
+    let world = scene.outlines[instance] * vec4<f32>(local, 1.0);
+    var out: OutlineOut;
+    out.position = scene.view_projection * world;
+    out.uv = weight;
+    out.world = world.xyz;
+    out.instance = instance;
+    return out;
+}
+
+@fragment
+fn outline_fragment(input: OutlineOut) -> @location(0) vec4<f32> {
+    let shape = scene.outline_shapes[input.instance];
+    let edge = min(
+        min(input.uv.x, 1.0 - input.uv.x) * shape.x,
+        min(input.uv.y, 1.0 - input.uv.y) * shape.y,
+    );
+    let width = scene.outline_look.x * distance(input.world, scene.eye.xyz);
+    let feather = max(fwidth(edge), 1e-6);
+    let line = 1.0 - smoothstep(width - feather, width + feather, edge);
+    let alpha = shape.w * mix(scene.outline_look.y, scene.outline_look.z, line);
+    return vec4<f32>(encode(scene.outline_color.rgb) * alpha, alpha);
 }
 
 @fragment

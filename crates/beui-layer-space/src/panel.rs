@@ -1,5 +1,5 @@
 use beui_core::geometry::{Pos2, Vec2, pos2};
-use beui_core::window::{HostPlacement, WindowId};
+use beui_core::window::{HostPlacement, WindowId, WindowRole};
 use glam::{Mat4, Quat, Vec3};
 
 use crate::head::Ray;
@@ -30,6 +30,7 @@ pub struct Panel {
     pub metres_per_point: f32,
     pub bend: f32,
     pub chrome: crate::chrome::Fit,
+    pub role: WindowRole,
 }
 
 impl Panel {
@@ -41,7 +42,12 @@ impl Panel {
             metres_per_point: 1.0 / POINTS_PER_METRE,
             bend: 0.0,
             chrome: crate::chrome::Fit::default(),
+            role: WindowRole::Normal,
         }
+    }
+
+    pub fn framed(&self) -> bool {
+        matches!(self.role, WindowRole::Normal | WindowRole::Keyboard)
     }
 
     pub fn placement(&self) -> HostPlacement {
