@@ -83,6 +83,11 @@ Today an editor shows things through region kinds that each carry their own feat
 - **Editors create views themselves.** An editor creates any view it needs in its commit (an anchored view, a window view with the rect it wants, a tab or bar view it declares to its dock); the host validates, clips to the layer space's bounds and places it in that frame, so opening a window costs no frame either. `window-request.open` merges into this path. Views another placer asks for (a parent asking for the preview view, the host asking for a display) are requested by that placer, and the editor answers with the view in the same commit path.
 - **The host still sizes views placed by others:** a view placed by a parent, the dock or a display gets its size, scale and layer space from the host (today's screen request, per view); a view the editor places itself (anchored, a window it opens) carries the rect it chose.
 
+- **Whether chrome joins depends only on where an editor is placed:** placed in a dock tab, its dock joins and the root draws its chrome; placed anywhere else (a card, a confined plugin), its dock draws itself inside its own view; a child taking over its parent's frame takes over the placement of its parent's content view, so its dock joins whatever places that view.
+- **Presentation as a docked editor:** the stage is a bare tab in a locked area whose body places the slide's child in that tab (so the slide's editor joins through it), the filmstrip a tab in its own locked area, the toolbar a bar on the stage's pane. Presenting, a card or a preview declares no dock, only the stage.
+- **Several bars on one edge** stack in a fixed order, the outer editor's nearer the edge; dropping a bar on an occupied edge slots it in.
+- **Docks that never join keep their layout too,** saved by the editor's own plugin (block-editor-beui, per device, keyed by block type) exactly as joined ones are; the root never saves another plugin's layout.
+
 V runs after B4 and before C, F, I and D4, which build on views. D3's phase 2 (generalizing the frame to the tab that holds the content) is part of V.
 
 ## Workstreams and waves
