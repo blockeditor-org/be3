@@ -377,28 +377,35 @@ impl Screens {
             .iter()
             .filter_map(|piece| Some((piece, surface(piece.surface)?.0)))
             .collect();
-        let source = shown.first().map_or(wgpu::TextureFormat::Rgba8Unorm, |(_, texture)| {
-            texture.format()
-        });
+        let source = shown
+            .first()
+            .map_or(wgpu::TextureFormat::Rgba8Unorm, |(_, texture)| {
+                texture.format()
+            });
         let [width, height] = overlay.size;
-        self.render(&mut overlay.target, source, overlay.size, |screens, format| {
-            let pipeline = screens.layers.pipeline(&screens.device, format);
-            shown
-                .iter()
-                .filter_map(|(piece, texture)| {
-                    let [left, top, right, bottom] = piece.target;
-                    let x = left.max(0.0).floor() as u32;
-                    let y = top.max(0.0).floor() as u32;
-                    let right = (right.ceil().max(0.0) as u32).min(width);
-                    let bottom = (bottom.ceil().max(0.0) as u32).min(height);
-                    (right > x && bottom > y).then(|| Draw {
-                        pipeline: pipeline.clone(),
-                        group: screens.layers.group(&screens.device, texture, piece),
-                        within: Some([x, y, right - x, bottom - y]),
+        self.render(
+            &mut overlay.target,
+            source,
+            overlay.size,
+            |screens, format| {
+                let pipeline = screens.layers.pipeline(&screens.device, format);
+                shown
+                    .iter()
+                    .filter_map(|(piece, texture)| {
+                        let [left, top, right, bottom] = piece.target;
+                        let x = left.max(0.0).floor() as u32;
+                        let y = top.max(0.0).floor() as u32;
+                        let right = (right.ceil().max(0.0) as u32).min(width);
+                        let bottom = (bottom.ceil().max(0.0) as u32).min(height);
+                        (right > x && bottom > y).then(|| Draw {
+                            pipeline: pipeline.clone(),
+                            group: screens.layers.group(&screens.device, texture, piece),
+                            within: Some([x, y, right - x, bottom - y]),
+                        })
                     })
-                })
-                .collect()
-        })
+                    .collect()
+            },
+        )
     }
 
     fn show_texture(&mut self, texture: &wgpu::Texture, target: &mut Target) -> Result<(), String> {
@@ -587,7 +594,12 @@ impl Layers {
         }
     }
 
-    fn group(&self, device: &wgpu::Device, texture: &wgpu::Texture, piece: &Piece) -> wgpu::BindGroup {
+    fn group(
+        &self,
+        device: &wgpu::Device,
+        texture: &wgpu::Texture,
+        piece: &Piece,
+    ) -> wgpu::BindGroup {
         let values: Vec<u8> = piece
             .target
             .iter()
@@ -600,7 +612,10 @@ impl Layers {
             usage: wgpu::BufferUsages::UNIFORM,
             mapped_at_creation: true,
         });
-        buffer.slice(..).get_mapped_range_mut().copy_from_slice(&values);
+        buffer
+            .slice(..)
+            .get_mapped_range_mut()
+            .copy_from_slice(&values);
         buffer.unmap();
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -619,7 +634,11 @@ impl Layers {
         })
     }
 
-    fn pipeline(&mut self, device: &wgpu::Device, format: wgpu::TextureFormat) -> wgpu::RenderPipeline {
+    fn pipeline(
+        &mut self,
+        device: &wgpu::Device,
+        format: wgpu::TextureFormat,
+    ) -> wgpu::RenderPipeline {
         self.pipelines
             .entry(format)
             .or_insert_with(|| {
