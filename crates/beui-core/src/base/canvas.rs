@@ -187,6 +187,7 @@ struct Revealing {
     target: NodeId,
     since: Instant,
     view: Option<CanvasView>,
+    laid: Option<Rect>,
     distance: f32,
 }
 
@@ -243,12 +244,13 @@ impl CanvasNode {
 }
 
 impl CanvasNode {
-    fn follow_reveal(&mut self, doc: &mut Document, host: NodeId) {
+    fn follow_reveal(&mut self, doc: &mut Document, host: NodeId, laid: Rect) {
         if let Some(target) = doc.take_reveal(host) {
             self.revealing = Some(Revealing {
                 target,
                 since: doc.now(),
                 view: None,
+                laid: None,
                 distance: f32::INFINITY,
             });
         }
@@ -261,10 +263,14 @@ impl CanvasNode {
             self.revealing = None;
             return;
         }
-        if self.view.is_none() || revealing.view == self.view {
+        if self.view.is_none() || (revealing.view == self.view && revealing.laid == Some(laid)) {
             return;
         }
+        if revealing.laid != Some(laid) {
+            revealing.distance = f32::INFINITY;
+        }
         revealing.view = self.view;
+        revealing.laid = Some(laid);
         let (target, distance, on_reveal) = (revealing.target, revealing.distance, self.on_reveal);
         doc.report_after_layout(move || {
             let delta = with_document(|doc| {
@@ -279,7 +285,11 @@ impl CanvasNode {
                                 revealing.distance = delta.length();
                             }
                         }
-                        None => canvas.revealing = None,
+                        None => {
+                            if let Some(revealing) = canvas.revealing.as_mut() {
+                                revealing.distance = 0.0;
+                            }
+                        }
                     }
                 }
                 delta
@@ -299,10 +309,10 @@ impl Document {
             .take_while(|node| *node != canvas)
             .find(|node| rects.contains_key(node))?;
         let extent = self.outlined_extent(&rects, node)?;
-        let shown = clear_of(
-            rects.get(&canvas)?,
-            &self.floating_rects(self.window_of(canvas)),
-        );
+        let window = self.window_of(canvas);
+        let mut covers = self.floating_rects(window);
+        covers.extend(self.kept_clear(window));
+        let shown = clear_of(rects.get(&canvas)?, &covers);
         let caret = (Some(target) == self.focused_node())
             .then(|| self.ime_cursor_in(&rects, target))
             .flatten();
@@ -440,7 +450,7 @@ impl Element for CanvasNode {
         if was_laid != self.laid || painted != (self.host, self.shift, self.zoom) {
             doc.arena.note_relaid(host);
         }
-        self.follow_reveal(doc, host);
+        self.follow_reveal(doc, host, rect);
     }
 
     fn paints_from_layout(&self) -> bool {

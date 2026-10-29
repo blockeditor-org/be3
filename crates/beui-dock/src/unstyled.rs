@@ -50,6 +50,7 @@ use beui_view::types::{Direction, ItemSize};
 use beui_view::types::{Pos2, Rect, Vec2, pos2, vec2};
 use beui_view::window::{Window, WindowHandle, opens_windows, use_window};
 
+pub(crate) use bars::BarCovers;
 use bars::{BarPanels, DockBarTargets, DockBarWindows, DockBarred};
 pub use bars::{DockBarControl, DockBarTargetHandle, use_dock_bar};
 use dialog::{DialogParts, DockDialogs};
@@ -549,6 +550,7 @@ struct State {
     bar_placements: Signal<HashMap<TabId, WindowPlacement>>,
     bar_grab: StoredCell<(Vec2, Vec2)>,
     bar_margin: f32,
+    covers: Signal<BarCovers>,
     bar_target: RenderFn<DockBarTargetHandle>,
     dragged_edits: Stored<RefCell<Vec<Box<dyn FnOnce(&mut DockState)>>>>,
 }
@@ -1605,6 +1607,7 @@ pub(crate) struct DockConfig {
     pub(crate) dialog_beak: f32,
     pub(crate) dialog_outset: Vec2,
     pub(crate) bar_margin: f32,
+    pub(crate) covers: Signal<BarCovers>,
     pub(crate) bar_target: Option<RenderFn<DockBarTargetHandle>>,
 }
 
@@ -1658,12 +1661,14 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         dialog_outset,
         bar_margin,
         bar_target,
+        covers,
     } = config;
     let dock_rect_held = create_signal(Rect::ZERO);
     let dock_rect = dock_rect_held.read_only();
     let mode = create_memo(move || {
         let width = dock_rect.get().width();
-        match width > 0.0 && width < stack_below {
+        let stacks = !state.with(DockState::is_one_bare_pane);
+        match stacks && width > 0.0 && width < stack_below {
             true => DockMode::Stacked,
             false => DockMode::Tiled,
         }
@@ -1722,6 +1727,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         bar_placements: create_signal(HashMap::new()),
         bar_grab: StoredCell::new((Vec2::ZERO, Vec2::ZERO)),
         bar_margin,
+        covers,
         bar_target: bar_target.unwrap_or_else(|| {
             RenderFn::new(|_| {
                 view! {

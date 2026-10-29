@@ -188,6 +188,7 @@ fn hosted_tabs(
             visible: own(visible),
             fullscreen: None,
             stacked: false,
+            covers: Vec::new(),
         }),
     })
 }

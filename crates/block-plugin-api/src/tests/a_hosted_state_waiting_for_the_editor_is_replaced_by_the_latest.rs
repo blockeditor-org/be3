@@ -21,6 +21,7 @@ fn a_hosted_state_waiting_for_the_editor_is_replaced_by_the_latest() {
                 visible: Vec::new(),
                 fullscreen: None,
                 stacked,
+                covers: Vec::new(),
             }),
         })
     };

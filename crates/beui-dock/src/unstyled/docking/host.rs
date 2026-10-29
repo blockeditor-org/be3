@@ -79,6 +79,7 @@ pub struct DockHosted {
     pub visible: Vec<TabId>,
     pub fullscreen: Option<TabId>,
     pub mode: DockMode,
+    pub covers: Vec<(TabId, Rect)>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -217,6 +218,7 @@ pub(crate) struct Registry {
     pub(crate) above: Signal<Option<DockHosted>>,
     pub(crate) host: RefCell<Option<Rc<dyn DockHostLink>>>,
     pub(crate) dock: Cell<Option<ComponentRef<DockApi>>>,
+    pub(crate) covers: Signal<super::super::BarCovers>,
 }
 
 impl Registry {
@@ -274,6 +276,7 @@ impl Registry {
         let mode = above
             .as_ref()
             .map_or_else(|| self.mode.get(), |above| above.mode);
+        let covers = self.covers.get();
         self.state.with(|state| {
             let group = state.find_group(&joined_key(host))?;
             let prefix = joined_prefix(host);
@@ -296,6 +299,11 @@ impl Registry {
                     visible: list(&above.visible),
                     fullscreen: above.fullscreen.and_then(inner),
                     mode,
+                    covers: above
+                        .covers
+                        .iter()
+                        .filter_map(|(tab, rect)| Some((inner(*tab)?, *rect)))
+                        .collect(),
                 });
             }
             let stacked = mode == DockMode::Stacked;
@@ -313,6 +321,10 @@ impl Registry {
                     .collect(),
                 fullscreen: state.fullscreen().and_then(|shown| inner(shown.tab)),
                 mode,
+                covers: covers
+                    .iter()
+                    .filter_map(|((tab, _), rect)| Some((inner(*tab)?, *rect)))
+                    .collect(),
             })
         })
     }

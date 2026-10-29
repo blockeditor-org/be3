@@ -12,7 +12,7 @@ use block_editor_beui::{narrow_chrome, sheet_control};
 use infinite_canvas_types::{CanvasColor, CanvasProfile};
 
 #[component]
-pub(crate) fn SelectionTools(state: CanvasState) -> NodeId {
+pub(crate) fn SelectionTools(state: CanvasState, direction: Memo<Direction>) -> NodeId {
     let narrow = narrow_chrome();
     let prototyping = create_memo(move || state.profile.get() == CanvasProfile::Prototyping);
     let vector = create_memo(move || !prototyping.get());
@@ -45,7 +45,7 @@ pub(crate) fn SelectionTools(state: CanvasState) -> NodeId {
             padding=Space::Sm
             @test_id={"infinite-canvas.selection-bar"}
         >
-            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
+            <List direction={direction} align=Align::Center spacing=Space::Xs>
                 <Show condition={prototyping}>
                     <StylePopover state={state} />
                 </Show>
@@ -59,7 +59,7 @@ pub(crate) fn SelectionTools(state: CanvasState) -> NodeId {
                     }
                 }</Show>
                 <Show condition={colored}>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs2>
+                    <List direction={direction} align=Align::Center spacing=Space::Xs2>
                         <ForEach keys={(0..STROKES.len()).collect::<Vec<usize>>()}>|index: usize| {
                             let (name, color) = STROKES[index];
                             view! {
@@ -76,7 +76,7 @@ pub(crate) fn SelectionTools(state: CanvasState) -> NodeId {
                 </Show>
                 <Show condition={chosen}>|| {
                     let actions = actions.clone(); view! {
-                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
+                        <List direction={direction} align=Align::Center spacing=Space::Xs>
                             <Button
                                 icon_only=true
                                 @test_id={"infinite-canvas.front"}

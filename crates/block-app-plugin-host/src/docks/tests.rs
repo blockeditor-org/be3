@@ -154,6 +154,7 @@ fn hosted_by_root() -> DockHosted {
         visible: vec![path(&[], 1), path(&[INNER_CHILD], 5)],
         fullscreen: None,
         stacked: false,
+        covers: Vec::new(),
     }
 }
 

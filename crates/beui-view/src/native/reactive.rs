@@ -99,14 +99,24 @@ fn listen(at: KeyAt, phase: KeyPhase, reveal: bool, handler: impl Fn(KeyEvent) -
     on_cleanup(move || drop(handler));
 }
 
-pub(crate) fn arrow_focus(row: NodeRef, direction: Direction) {
-    let (back, forth) = match direction {
-        Direction::Horizontal => (Key::ArrowLeft, Key::ArrowRight),
-        Direction::Vertical => (Key::ArrowUp, Key::ArrowDown),
-    };
+pub(crate) fn keep_clear(node: NodeId, rects: Prop<Vec<crate::types::Rect>>) {
+    create_effect(move || {
+        let rects = rects.get();
+        with_document(|document| document.set_kept_clear(node, Some(rects)));
+    });
+    on_cleanup(move || {
+        try_with_document(|document| document.set_kept_clear(node, None));
+    });
+}
+
+pub(crate) fn arrow_focus(row: NodeRef, direction: Prop<Direction>) {
     on_key(KeyAt::Node(row), KeyPhase::Bubble, move |event| {
         let Some(press) = event.press() else {
             return false;
+        };
+        let (back, forth) = match direction.get_untracked() {
+            Direction::Horizontal => (Key::ArrowLeft, Key::ArrowRight),
+            Direction::Vertical => (Key::ArrowUp, Key::ArrowDown),
         };
         if press.modifiers.ctrl || press.modifiers.alt || press.modifiers.shift {
             return false;

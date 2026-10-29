@@ -131,6 +131,7 @@ fn hosted(stage: u64, bar: u64, placement: DockBarPlacement) -> DockUpdate {
             visible: vec![DockTabPath::own(stage)],
             fullscreen: None,
             stacked: false,
+            covers: Vec::new(),
         }),
     })
 }

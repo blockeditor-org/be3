@@ -199,7 +199,11 @@ fn PickerPopover(editor: Editor, picking: Picking) -> NodeId {
     });
     let shown = create_memo(move || hung.get().window.size());
     let at = create_memo(move || hung.get().window.min);
-    let window = own.map(|handle| handle.id);
+    let window = match picking.0.anchor {
+        PickAnchor::Node(node) => node.try_get().map(window_of),
+        _ => None,
+    }
+    .or(own.map(|handle| handle.id));
     let placement = create_memo(move || match window {
         Some(window) => WindowPlacement::Over {
             window,

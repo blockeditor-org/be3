@@ -40,6 +40,7 @@ pub use host::{
     use_dock_join,
 };
 use host::{Joined, Registry};
+use super::BarCovers;
 
 pub trait DockKey: Clone + Eq + Hash + 'static {
     fn key(&self) -> String;
@@ -361,6 +362,7 @@ pub struct DockingLayout<K: 'static> {
     state: Signal<DockState>,
     mode: Signal<DockMode>,
     restores: Signal<u64>,
+    covers: Signal<BarCovers>,
     inner: Stored<LayoutInner<K>>,
 }
 
@@ -424,7 +426,9 @@ impl<K: DockKey> DockingLayout<K> {
         let mode = create_signal(DockMode::Tiled);
         let restores = create_signal(0);
         let hosted = create_signal(None);
+        let covers = create_signal(BarCovers::new());
         let registry = Rc::new(Registry {
+            covers,
             version: create_signal(0),
             joins: RefCell::default(),
             foreign: RefCell::default(),
@@ -448,6 +452,7 @@ impl<K: DockKey> DockingLayout<K> {
             state,
             mode,
             restores,
+            covers,
             inner,
         };
         (layout, inner)
@@ -1648,6 +1653,7 @@ where
                 dialog_outset,
                 bar_margin,
                 bar_target,
+                covers: layout.covers,
             }}
         />
     }

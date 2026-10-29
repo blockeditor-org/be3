@@ -76,6 +76,7 @@ fn a_childs_bar_and_bare_pane_splice_in_and_split_back_out_with_where_its_tabs_w
         visible: vec![side],
         fullscreen: None,
         stacked: false,
+        covers: Vec::new(),
     };
     round_trips(&hosted);
     assert_eq!(hosted.validate(), Ok(()));

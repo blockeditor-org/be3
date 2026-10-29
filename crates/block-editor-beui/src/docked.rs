@@ -27,7 +27,7 @@ mod saved;
 
 const EMPTY_BODIES: u64 = 1 << 62;
 const BAR_ROOM: f32 = 4096.0;
-const UNMEASURED_BAR: beui::Vec2 = beui::vec2(40.0, 40.0);
+const EMPTY_BAR: beui::Vec2 = beui::vec2(1.0, 1.0);
 
 pub(crate) struct DockedTabs {
     link: RefCell<Option<Rc<ProtocolLink>>>,
@@ -368,6 +368,21 @@ impl ProtocolLink {
                 }
             }
             let body = bodies.body.call(tab);
+            if let (Some(hosted), false) = (watched, bar) {
+                let covers = create_memo(move || {
+                    hosted.with(|hosted| {
+                        hosted.as_ref().map_or_else(Vec::new, |hosted| {
+                            hosted
+                                .covers
+                                .iter()
+                                .filter(|(covered, _)| *covered == tab)
+                                .map(|(_, rect)| *rect)
+                                .collect::<Vec<_>>()
+                        })
+                    })
+                });
+                keep_clear(body, covers);
+            }
             let measured = RenderFn::new(move |body: NodeId| {
                 view! {
                     <MeasuredBar body tab sizes />
@@ -438,9 +453,6 @@ fn MeasuredBar(body: NodeId, tab: TabId, sizes: Signal<HashMap<TabId, beui::Vec2
         let Some(size) = measured.get().map(|measured| measured.size) else {
             return;
         };
-        if size.x <= 0.0 || size.y <= 0.0 {
-            return;
-        }
         if sizes.with_untracked(|sizes| sizes.get(&tab) != Some(&size)) {
             sizes.update(|sizes| {
                 sizes.insert(tab, size);
@@ -768,7 +780,7 @@ fn DockBarBody(
         untrack(|| host.child_dock(child))
             .and_then(|declaration| declaration.bar(&path).map(|bar| bar.size))
             .filter(|size| size.width > 0.0 && size.height > 0.0)
-            .map_or(UNMEASURED_BAR, |size| beui::vec2(size.width, size.height))
+            .map_or(EMPTY_BAR, |size| beui::vec2(size.width, size.height))
     });
     let width =
         create_memo(move || beui::styled::Length::Size(beui::styled::Size::Custom(size.get().x)));
@@ -1556,6 +1568,11 @@ fn hosted_from_api(hosted: &api::DockHosted, tab: TabOf<'_>) -> DockHosted {
         |paths: &[DockTabPath]| -> Vec<TabId> { paths.iter().filter_map(&mut *tab).collect() };
     let tabs = list(&hosted.tabs);
     let visible = list(&hosted.visible);
+    let covers = hosted
+        .covers
+        .iter()
+        .filter_map(|cover| Some((tab(&cover.tab)?, cover.rect)))
+        .collect();
     DockHosted {
         state,
         tabs,
@@ -1567,6 +1584,7 @@ fn hosted_from_api(hosted: &api::DockHosted, tab: TabOf<'_>) -> DockHosted {
             true => DockMode::Stacked,
             false => DockMode::Tiled,
         },
+        covers,
     }
 }
 
@@ -1580,6 +1598,16 @@ fn hosted_to_api(hosted: &DockHosted, path: PathOf<'_>) -> api::DockHosted {
         visible: list(&hosted.visible),
         fullscreen: hosted.fullscreen.and_then(path),
         stacked: hosted.mode == DockMode::Stacked,
+        covers: hosted
+            .covers
+            .iter()
+            .filter_map(|(tab, rect)| {
+                Some(api::DockCover {
+                    tab: path(*tab)?,
+                    rect: *rect,
+                })
+            })
+            .collect(),
     }
 }
 

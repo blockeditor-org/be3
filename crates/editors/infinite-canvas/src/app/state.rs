@@ -20,7 +20,7 @@ use block_editor_beui::block_ui::BlockLabel;
 use block_editor_beui::{
     BlockFilter, ChildState, Drag, Editor, FileDrop, InteractionMode, ResizeMode,
 };
-use block_editor_beui::{BlockParent, BlockQuery};
+use block_editor_beui::{BlockParent, BlockQuery, PickAnchor};
 use block_editor_database::DatabaseBlockPickRequest;
 use block_editor_text::SharedCaret;
 use database_types::database::DatabaseValue;
@@ -1997,11 +1997,11 @@ impl CanvasState {
         self.pick_block_from(center, Rect::from_min_size(on_screen, Vec2::ZERO));
     }
 
-    pub(crate) fn open_block_picker_at(self, button: Rect) {
+    pub(crate) fn open_block_picker_at(self, button: NodeRef) {
         self.pick_block_from(None, button);
     }
 
-    fn pick_block_from(self, center: Option<CanvasPoint>, anchor: Rect) {
+    fn pick_block_from(self, center: Option<CanvasPoint>, anchor: impl Into<PickAnchor>) {
         let state = self;
         self.editor
             .pick_block(BlockFilter::default(), anchor, move |picked| {

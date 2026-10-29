@@ -6,6 +6,8 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::Vec2;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
+use block_editor_beui::beui::dock::styled::{DockBar, DockPane, DockTab, Docking, DockingLayout};
+use block_editor_beui::beui::dock::unstyled::{DockBarPlacement, DockEdge, DockHostSlot};
 use block_editor_beui::{Creation, Editor};
 use uuid::Uuid;
 
@@ -34,7 +36,7 @@ use canvas::CanvasStage;
 use export::ExportDialog;
 use sidebar::CanvasSidebar;
 use state::CanvasState;
-use toolbar::{ImportError, ToolDock, ZoomPill};
+use toolbar::{ImportError, STAGE, SelectionDock, TOOLS, ToolBar, ZoomPill, tools_open};
 use touch::TouchSetting;
 
 use crate::geometry::MIN_SIZE;
@@ -103,22 +105,37 @@ fn CanvasEditor(editor: Editor) -> NodeId {
     let touch = actions.touch;
     let exporter = actions.exporter;
     provide_context(actions);
+    let open = tools_open(state, chrome);
+    let bar_size = create_signal(Vec2::ZERO);
+    let layout = DockingLayout::<&'static str>::new();
+    provide_context(DockHostSlot::new(None));
     view! {
-        <List @node_ref=&scope spacing=Space::None>
-            <TouchSetting editor choice={touch} />
-            <ImportError state={state} />
-            <ExportDialog exporter />
-            <List
-                @sizing=ItemSize::Percent(100.0)
-                direction=Direction::Horizontal
-                spacing=Space::None
-            >
-                <CanvasStage @sizing=ItemSize::Percent(100.0) @node_ref={&content} state={state} />
-                <CanvasSidebar state={state} shown={inspected} />
-            </List>
-            <ToolDock state={state} anchor={content} shown={chrome} />
-            <ZoomPill state={state} anchor={content} shown={chrome} />
-        </List>
+        <Docking layout>
+            <DockPane id="canvas" bare=true>
+                <DockTab id=STAGE title="Canvas">
+                    <List @node_ref=&scope spacing=Space::None>
+                        <TouchSetting editor choice={touch} />
+                        <ImportError state={state} />
+                        <ExportDialog exporter />
+                        <List
+                            @sizing=ItemSize::Percent(100.0)
+                            direction=Direction::Horizontal
+                            spacing=Space::None
+                        >
+                            <Layers @sizing=ItemSize::Percent(100.0)>
+                                <CanvasStage @node_ref={&content} state={state} />
+                                <SelectionDock state layout open bar={bar_size.read_only()} />
+                            </Layers>
+                            <CanvasSidebar state={state} shown={inspected} />
+                        </List>
+                        <ZoomPill state={state} anchor={content} shown={chrome} />
+                    </List>
+                </DockTab>
+            </DockPane>
+            <DockBar id=TOOLS parent=STAGE placement={DockBarPlacement::Over(DockEdge::Bottom)}>
+                <ToolBar state open size={bar_size} />
+            </DockBar>
+        </Docking>
     }
 }
 

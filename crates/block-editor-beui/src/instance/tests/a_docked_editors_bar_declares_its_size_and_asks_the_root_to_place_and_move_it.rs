@@ -49,6 +49,7 @@ fn hosted(bar: u64, placement: DockBarPlacement) -> DockUpdate {
             visible: vec![stage],
             fullscreen: None,
             stacked: false,
+            covers: Vec::new(),
         }),
     })
 }

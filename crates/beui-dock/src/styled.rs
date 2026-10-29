@@ -1051,7 +1051,7 @@ pub fn DockBarGrip(#[prop(default = None)] control: Option<DockBarControl>) -> N
                 variant=ButtonVariant::Ghost
                 size=ButtonSize::Toolbar
                 items={view! {
-                    <MenuNodes nodes={menu} />
+                    <MenuNodes nodes={menu} test_prefix={"grip".to_owned()} />
                 }}
             />
         </Interactive>

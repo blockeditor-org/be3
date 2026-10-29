@@ -10,7 +10,6 @@ mod block_link;
 mod child;
 mod chrome;
 mod dialog;
-mod dock;
 mod docked;
 mod editor;
 mod file_chooser;
@@ -33,7 +32,6 @@ pub use child::{ChildBlock, ChildDockTab, ChildHandle as ChildBlockHandle, Subre
 pub use chrome::{
     NARROW_WIDTH, SIDEBAR_WIDTH, Side, Sidebar, Toolbar, narrow_chrome, sheet_control, sheet_open,
 };
-pub use dock::BottomDock;
 pub use editor::{
     Artifacts, ChildState, ChildTarget, Creation, Drag, Editor, KindsAbove, OrganizationLayers,
     OwnedEditor, SetKind, SubregionContent, fit_content, node_anchor,

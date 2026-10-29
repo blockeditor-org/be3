@@ -912,6 +912,15 @@ interface types {
         visible: list<dock-tab-path>,
         fullscreen: option<dock-tab-path>,
         stacked: bool,
+        /// What the root draws over each tab's body, such as a bar floating
+        /// over an edge, in the points of the region that shows the body, so
+        /// the editor keeps what it reveals clear of it.
+        covers: list<dock-cover>,
+    }
+
+    record dock-cover {
+        tab: dock-tab-path,
+        rect: rect,
     }
 
     /// `area` is the rectangle the tab covers, in the points of the region

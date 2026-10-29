@@ -84,7 +84,7 @@ pub use types::{
     SurfaceSupport, TimedInput, TopBar, ViewportMetrics,
 };
 pub use types::{
-    DockBar, DockBarMove, DockBarPlace, DockBarPlacement, DockBarWindow, DockChild, DockChildClose,
+    DockBar, DockBarMove, DockBarPlace, DockBarPlacement, DockBarWindow, DockChild, DockCover, DockChildClose,
     DockChildHosted, DockChildPick, DockDeclaration, DockDeclare, DockDialog, DockDirection,
     DockDragStage, DockEdge, DockFullscreen, DockGroup, DockHome, DockHosted, DockItem,
     DockItemKind, DockLayout, DockMessage, DockOutside, DockOutsidePane, DockOutsidePlace,

@@ -1,6 +1,6 @@
 use super::{DockEntry, DockFloating, DockNode, DockNodes};
 use crate::{
-    ChildId, DecodeError, DockBar, DockDeclaration, DockGroup, DockHome, DockHosted, DockLayout,
+    ChildId, DecodeError, DockBar, DockCover, DockDeclaration, DockGroup, DockHome, DockHosted, DockLayout,
     DockOutside, DockPane, DockPlace, DockPlacedBar, DockRequest, DockTab, DockTabPath, DockTree,
 };
 
@@ -393,6 +393,12 @@ impl DockHosted {
                 .collect(),
             fullscreen: self.fullscreen.as_ref().filter(|tab| tab.is_own()).cloned(),
             stacked: self.stacked,
+            covers: self
+                .covers
+                .iter()
+                .filter(|cover| cover.tab.is_own())
+                .cloned()
+                .collect(),
         })
     }
 
@@ -427,6 +433,16 @@ impl DockHosted {
             visible: self.visible.iter().filter_map(within).collect(),
             fullscreen: self.fullscreen.as_ref().and_then(within),
             stacked: self.stacked,
+            covers: self
+                .covers
+                .iter()
+                .filter_map(|cover| {
+                    Some(DockCover {
+                        tab: within(&cover.tab)?,
+                        rect: cover.rect,
+                    })
+                })
+                .collect(),
         }))
     }
 }

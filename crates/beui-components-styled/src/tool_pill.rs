@@ -9,21 +9,24 @@ use crate::tokens::Space;
 use beui_view::types::{Align, Direction, ItemSize};
 
 #[component]
-pub fn ToolPill(children: Children<ListChild>) -> NodeId {
+pub fn ToolPill(
+    #[prop(default = Direction::Horizontal)] direction: Prop<Direction>,
+    children: Children<ListChild>,
+) -> NodeId {
     let row = NodeRef::new();
-    arrow_focus(row, Direction::Horizontal);
+    arrow_focus(row, direction);
     view! {
         <Frame fill=ColorRole::SurfaceRaised border={Border::DEFAULT} radius=Radius::Full>
-            <List direction=Direction::Horizontal spacing=Space::None>
+            <List direction={direction} spacing=Space::None>
                 <Scroll
                     @sizing={ItemSize::Intrinsic.shrink(1.0)}
-                    direction=Direction::Horizontal
+                    direction={direction}
                     fit=true
                 >
                     <Frame padding=Space::Xs>
                         <List
                             @node_ref=&row
-                            direction=Direction::Horizontal
+                            direction={direction}
                             align=Align::Center
                             spacing=Space::Xs2
                             children

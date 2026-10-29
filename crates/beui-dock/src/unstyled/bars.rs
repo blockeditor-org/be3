@@ -641,9 +641,10 @@ fn DockBarFloat(dock: State, tab: Memo<Option<TabId>>, edge: DockEdge, stacked: 
         DockBarPlacement::Beside(_) => false,
     });
     let margin = dock.bar_margin;
-    view! {
+    let held = NodeRef::new();
+    let built = view! {
         <Frame align={float_align(edge)} padding={Sides::all(margin)}>
-            <List direction={across(edge)} spacing={margin}>
+            <List @node_ref=&held direction={across(edge)} spacing={margin}>
                 <ForEach keys={bars}>|bar: TabId| {
                     let dock = dock;
                     view! {
@@ -652,7 +653,56 @@ fn DockBarFloat(dock: State, tab: Memo<Option<TabId>>, edge: DockEdge, stacked: 
                 }</ForEach>
             </List>
         </Frame>
-    }
+    };
+    let Some(list) = held.try_get() else {
+        return built;
+    };
+    let area = measure(built);
+    let covered = measure(list);
+    keep_clear(
+        list,
+        create_memo(move || {
+            covered
+                .get()
+                .map(|covered| vec![Rect::from_min_size(Pos2::ZERO, covered.rect.size())])
+                .unwrap_or_default()
+        }),
+    );
+    let covers = dock.covers;
+    let held_tab = StoredCell::new(None::<TabId>);
+    let forget = move || {
+        if let Some(tab) = held_tab.get() {
+            held_tab.set(None);
+            if covers.is_alive() {
+                covers.update(|covers| {
+                    covers.remove(&(tab, edge));
+                });
+            }
+        }
+    };
+    create_effect(move || {
+        let cover = tab
+            .get()
+            .filter(|_| !bars.with(Vec::is_empty))
+            .zip(area.get().zip(covered.get()))
+            .map(|(tab, (area, covered))| (tab, covered.rect.translate(-area.rect.min.to_vec2())))
+            .filter(|(_, rect)| rect.is_positive());
+        untrack(|| {
+            if cover.map(|(tab, _)| tab) != held_tab.get() {
+                forget();
+            }
+            if let Some((tab, rect)) = cover {
+                held_tab.set(Some(tab));
+                if covers.with(|covers| covers.get(&(tab, edge)) != Some(&rect)) {
+                    covers.update(|covers| {
+                        covers.insert((tab, edge), rect);
+                    });
+                }
+            }
+        });
+    });
+    on_cleanup(forget);
+    built
 }
 
 #[component]
@@ -827,3 +877,5 @@ pub(super) fn DockBarTargets(dock: State) -> NodeId {
 }
 
 pub(super) type BarPanels = RefCell<HashMap<TabId, (NodeId, Scope)>>;
+
+pub(crate) type BarCovers = HashMap<(TabId, DockEdge), Rect>;

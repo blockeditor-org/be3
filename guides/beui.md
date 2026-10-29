@@ -5442,9 +5442,16 @@ it shows nothing while that is `None`. Its test ids are `{id}` and
 region labelled with the message.
 
 `ToolPill` is the raised, bordered, fully rounded bar a floating set of tools
-sits in (a canvas's zoom controls, block-editor-beui's `BottomDock`): its
-children in a row with arrow-key focus, scrolling sideways when the bar is
-offered less than it needs. Placing it (a `Floating`, a margin) is the caller's.
+sits in (a canvas's zoom controls and its tool bar): its children in a row,
+or a column with `direction=Direction::Vertical` (a dock bar on a side edge),
+with arrow-key focus along it, scrolling when the bar is offered less than it
+needs. Placing it (a `Floating`, a dock bar, a margin) is the caller's.
+
+`keep_clear(node, rects)` names parts of a node (rects relative to it) that
+something floats over, as floating overlays do: a `Canvas` revealing its
+focused content keeps it out of both. beui-dock keeps an over-the-body dock
+bar clear this way, and a joined editor's tab body is kept clear of the bars
+the root draws over it (`DockHosted.covers`).
 
 ### Text
 

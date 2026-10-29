@@ -555,6 +555,11 @@ impl DockHosted {
             collection(tabs.len())?;
             tabs.iter().try_for_each(DockTabPath::validate)?;
         }
+        collection(self.covers.len())?;
+        for cover in &self.covers {
+            cover.tab.validate()?;
+            finite(cover.rect)?;
+        }
         [&self.focused, &self.shown, &self.fullscreen]
             .into_iter()
             .flatten()

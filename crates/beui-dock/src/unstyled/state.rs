@@ -821,6 +821,11 @@ impl DockState {
         self.leaf(leaf).is_some_and(|leaf| leaf.bare)
     }
 
+    pub fn is_one_bare_pane(&self) -> bool {
+        self.surfaces.len() == 1
+            && matches!(self.leaves(self.main()).as_slice(), [leaf] if self.is_bare(*leaf))
+    }
+
     pub fn is_kept(&self, leaf: LeafId) -> bool {
         self.leaf(leaf).is_some_and(|leaf| leaf.keep)
     }

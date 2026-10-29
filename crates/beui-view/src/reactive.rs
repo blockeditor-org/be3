@@ -192,8 +192,12 @@ pub fn focus_outline(
     })
 }
 
-pub fn arrow_focus(row: NodeRef, direction: Direction) {
-    core::arrow_focus(row, direction);
+pub fn keep_clear(node: NodeId, rects: impl IntoProp<Vec<crate::types::Rect>>) {
+    core::keep_clear(node, rects.into_prop());
+}
+
+pub fn arrow_focus(row: NodeRef, direction: impl IntoProp<Direction>) {
+    core::arrow_focus(row, direction.into_prop());
 }
 
 pub fn held_modifiers() -> ReadSignal<Modifiers> {

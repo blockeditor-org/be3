@@ -829,6 +829,23 @@ impl Document {
             .collect()
     }
 
+    pub fn set_kept_clear(&mut self, node: NodeId, rects: Option<Vec<Rect>>) {
+        match rects {
+            Some(rects) => self.clear_of.insert(node, rects),
+            None => self.clear_of.remove(&node),
+        };
+    }
+
+    pub fn kept_clear(&self, window: WindowId) -> Vec<Rect> {
+        self.clear_of
+            .iter()
+            .filter(|(node, _)| self.arena.contains(**node) && self.window_of(**node) == window)
+            .filter_map(|(node, rects)| Some((self.node_rect(*node)?, rects)))
+            .flat_map(|(at, rects)| rects.iter().map(move |rect| rect.translate(at.min.to_vec2())))
+            .filter(|rect| rect.is_positive())
+            .collect()
+    }
+
     pub fn floating_rects(&self, window: WindowId) -> Vec<Rect> {
         self.window_overlays(window)
             .iter()
