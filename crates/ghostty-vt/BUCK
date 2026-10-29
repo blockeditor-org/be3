@@ -27,6 +27,10 @@ genrule(
     + """
         set -eu
         repository=`mktemp -d`
+        # Zig keeps the packages it fetches in a global cache under $HOME,
+        # which a worker need not set.
+        ZIG_GLOBAL_CACHE_DIR="$repository/zig-global-cache"
+        export ZIG_GLOBAL_CACHE_DIR
         if [ -n "$android_ndk" ]; then
             ANDROID_NDK_HOME="$repository/ndk"
             export ANDROID_NDK_HOME

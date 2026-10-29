@@ -8,7 +8,8 @@ it to be asked again); anything else builds on Namespace.
 | `BE3_BUILD_SERVER` | Server | Key | Claude Code Cloud Session |
 |---|---|---|---|
 | `namespace` (the default, and CI's) | Namespace's remote execution | the API gateway's header, to its waker | Should work with 0 configuration |
-| `api.be3.pfg.pw` | our own NativeLink server | `authorization: Bearer KEY` | Should work with 0 configuration |
+| `api.be3.pfg.pw` | our own NativeLink server | the API gateway's header | Should work with 0 configuration |
+| `blocks.pfg.pw` | our NativeLink build VM, behind the same gateway, reached from it over WireGuard | the API gateway's header | Works once the session's proxy adds the gateway header for it |
 | `buildbuddy` | BuildBuddy's `remote.buildbuddy.io` | `x-buildbuddy-api-key: KEY` | Currently not working |
 | `local` | a NativeLink server of your own, at `host:port` | none, and no TLS | Not powerful enough to host |
 
@@ -16,30 +17,31 @@ it to be asked again); anything else builds on Namespace.
 or else the second line of `~/.config/be3/build-server`, where the prompt
 saves it. It is dialed directly, never through `scripts/internal/re-relay`.
 
-The servers share nothing: each has its own cache and its own key.
+The servers share nothing but the gateway key: each has its own cache.
 `./scripts/buck` writes the one it picked into `.buckconfig.local`, with its
 name as `be3.build_server`; `worker_properties` (`buck/tools/defs.bzl`) reads
 that to pick the workers' image, since Namespace runs only its own copy of it.
 
-Namespace's waker is behind the API gateway, so `namespace` sends the
+Namespace's waker and our NativeLink servers (`api.be3.pfg.pw`,
+`blocks.pfg.pw`) are behind the API gateway, so `./scripts/buck` sends them the
 gateway's `Be3-Gateway-Authorization` header, as `./scripts/be` does
 (guides/tracker.md): `BE3_AUTHORIZATION`, or else `.gateway-authorization` at
-the root of the checkout or `~/.config/be3/gateway-authorization`. When the
-gateway refuses the request at a terminal, `./scripts/buck` asks for the key
-until it is accepted and saves it to the last. CI sets the variable, and in an
-agent's cloud session the proxy adds the header itself. A server other than `namespace` and
-`local` takes its key from:
+the root of the checkout or `~/.config/be3/gateway-authorization`. For
+`namespace`, when the gateway refuses the request at a terminal,
+`./scripts/buck` asks for the key until it is accepted and saves it to the
+last; for a NativeLink server it asks once at a terminal when none is saved,
+and otherwise sends no header. CI sets the variable, and in an agent's cloud
+session the proxy adds the header itself, for each of those hosts it has a
+rule for.
+
+BuildBuddy takes its key from:
 
 1. `BE3_BUILD_SERVER_KEY` in the environment
-2. `.build-server-key.SERVER` at the root of the checkout
-3. `~/.config/be3/build-server-key.SERVER`
+2. `.build-server-key.buildbuddy` at the root of the checkout
+3. `~/.config/be3/build-server-key.buildbuddy`
 
-where `SERVER` is the value of `BE3_BUILD_SERVER`. Without one, at a terminal,
-`./scripts/buck` asks for it and saves it to the last.
-
-In an agent's cloud session the proxy adds the key to requests for
-`api.be3.pfg.pw`, and `BE3_BUILD_SERVER_KEY` is a
-placeholder; there is no key for BuildBuddy there.
+Without one, at a terminal, `./scripts/buck` asks for it and saves it to the
+last. There is no key for BuildBuddy in an agent's cloud session.
 
 ## When a build keeps failing
 
