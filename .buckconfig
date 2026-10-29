@@ -47,6 +47,16 @@ sqlite_materializer_state = true
 # (crates/bootstrap/src/server.rs). The address is a bare
 # host:port (buck2 rejects grpcs:// and https://), http_headers uses a colon,
 # and there is no instance name.
+#
+# Before an action runs remotely, buck2 asks the server which of its inputs it
+# lacks, one FindMissingBlobs call at a time, and remembers the answer only
+# for as long as the daemon lives. A crate's test links against the toolchain,
+# the sysroot and every dependency's rlib, tens of thousands of files, so at
+# buck2's default of 100 a call, block-app's first test after a daemon starts
+# waited half a minute on hundreds of round trips through the proxy before it
+# compiled.
+[buck2_re_client]
+find_missing_blobs_batch_size = 10000
 
 # What buck2 does not watch or read as part of the workspace: git's own
 # directory, whose every fetch would otherwise be a file change, and the
