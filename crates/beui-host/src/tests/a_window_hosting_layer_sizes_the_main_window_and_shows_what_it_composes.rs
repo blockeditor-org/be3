@@ -1,9 +1,9 @@
 use super::*;
 use beui_core::app::SafeArea;
 use beui_core::damage::Region;
+use beui_core::window::{WindowHosting, WindowId, WindowReport, WindowState};
 use beui_runner::renderer::{Loaded, Renderer};
 use beui_runner::{Incoming, Launch, Layer, LayerFrame, RunOptions, Runner, Shown};
-use beui_core::window::{WindowHosting, WindowId, WindowReport, WindowState};
 
 struct Screen(Rc<RefCell<Vec<Color32>>>);
 

@@ -49,9 +49,9 @@ use beui_core::input::{
     CursorIcon, DroppedFile, FileDrag, ImeArea, ImeEvent, Input, Key, Keystroke, Modifiers, Pen,
     PenPhase, PointerButton, ScrollDelta, TouchId, TouchPhase,
 };
+use beui_core::window::WindowState;
 use beui_runner::renderer::{Loaded, WindowHandle};
 use beui_runner::{Incoming, Launch, Platform, PlatformServices, Running};
-use beui_core::window::WindowState;
 use clipboard::Clipboard;
 use preferences::SystemPreferences;
 use wheel::{Wheel, Wheeled};

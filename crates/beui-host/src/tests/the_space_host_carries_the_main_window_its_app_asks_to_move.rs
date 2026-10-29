@@ -1,8 +1,8 @@
 use super::*;
 use beui_core::app::SafeArea;
+use beui_core::window::{WindowId, WindowRequest};
 use beui_runner::renderer::{Loaded, Renderer};
 use beui_runner::{Launch, RunOptions, Runner};
-use beui_core::window::{WindowId, WindowRequest};
 use std::cell::Cell;
 
 struct Screen;

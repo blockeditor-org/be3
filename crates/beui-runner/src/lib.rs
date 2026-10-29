@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 
 use accesskit::TreeUpdate;
 
+use crate::renderer::{Capture, Loaded, Rendering};
 use beui_core::app::accessibility_dump::AccessibilityDump;
 use beui_core::app::{App, SafeArea, Setup, Waker, next_batch, safe_rect};
 use beui_core::clipboard::{PasteAnswer, PasteKind, PasteRequest, Pasted};
@@ -17,14 +18,13 @@ use beui_core::file_picker::{FilePick, FilePickAnswer, FilePickId, FilePickReque
 use beui_core::file_saver::{FileSave, FileSaveAnswer, FileSaveId, FileSaveRequest};
 use beui_core::geometry::Vec2;
 use beui_core::input::{Event, Input};
-use crate::renderer::{Capture, Loaded, Rendering};
 use beui_core::window::{Resize, WindowId, WindowReport, WindowReports, WindowState};
 
 mod controller;
-pub mod renderer;
 pub mod environment;
 mod intake;
 mod layer;
+pub mod renderer;
 
 pub use controller::{Controller, Hand, HandPose};
 use intake::{Drain, Intake};
@@ -475,8 +475,10 @@ impl Runner {
             self.context.set_touchscreen_attached(attached);
         }
         if let Some(preferences) = self.reports.take_system_preferences() {
-            self.context
-                .set_preference_layer(beui_core::preferences::PreferenceSource::System, preferences);
+            self.context.set_preference_layer(
+                beui_core::preferences::PreferenceSource::System,
+                preferences,
+            );
         }
         let pixels_per_point = self.native;
         let visible = rendering.physical();

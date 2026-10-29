@@ -36,9 +36,9 @@ use beui_core::input::{
     Pen, PenPhase, PointerButton, ScrollDelta, TouchId, TouchPhase,
 };
 use beui_core::preferences::{Motion, PreferenceLayer, ThemeKind};
+use beui_core::window::{SystemBars, WindowState};
 use beui_runner::renderer::{Loaded, WindowHandle};
 use beui_runner::{Incoming, Launch, Platform, PlatformServices, Running};
-use beui_core::window::{SystemBars, WindowState};
 use clipboard::Clipboard;
 
 const SURFACE_RELEASE_TIMEOUT: Duration = Duration::from_secs(2);

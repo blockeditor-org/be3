@@ -12,16 +12,16 @@ use beui::{
     Keystroke, Modifiers, Pen, PenPhase, PointerButton, Pos2, ScrollDelta, TouchId, TouchPhase,
     native::Setup, native::Waker, vec2,
 };
-use beui_runner::{Launch, PlatformServices};
 use beui_core::app::SafeArea;
 use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::preferences::{Motion, PreferenceLayer, ThemeKind};
-use beui_runner::renderer::Loaded;
-use beui_runner::Incoming;
-use beui_runner::{Runner, panic_message};
 use beui_core::window::{
     WindowHosting, WindowId, WindowPlacement, WindowReport, WindowRequest, WindowState,
 };
+use beui_runner::Incoming;
+use beui_runner::renderer::Loaded;
+use beui_runner::{Launch, PlatformServices};
+use beui_runner::{Runner, panic_message};
 use smithay::backend::allocator::gbm::GbmDevice;
 use smithay::backend::drm::{
     DrmDevice, DrmDeviceFd, DrmEvent, DrmEventMetadata, DrmEventTime, DrmNode, NodeType,

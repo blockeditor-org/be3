@@ -1,8 +1,8 @@
 use super::*;
 use beui_core::app::SafeArea;
+use beui_core::window::WindowState;
 use beui_runner::renderer::Loaded;
 use beui_runner::{Launch, PlatformServices, RunOptions, Runner};
-use beui_core::window::WindowState;
 
 struct Window(Vec<Option<Rect>>);
 

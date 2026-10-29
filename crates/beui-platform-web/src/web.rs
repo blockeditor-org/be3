@@ -21,9 +21,9 @@ use beui_core::input::{
     PointerButton, TouchId, TouchPhase,
 };
 use beui_core::preferences::{Motion, PreferenceLayer, ThemeKind};
+use beui_core::window::{Appearance, WindowReports, WindowState};
 use beui_runner::renderer::Loaded;
 use beui_runner::{Incoming, Launch, Platform, PlatformServices, Running};
-use beui_core::window::{Appearance, WindowReports, WindowState};
 
 use crate::lock::Lock;
 use beui_web_input::ime_mirror::{ImeInput, ImeMirror};

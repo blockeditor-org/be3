@@ -9,17 +9,15 @@ use beui::primitives::{Span, Text};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::unstyled::TextAreaState;
-use beui::{
-    Input, PointerButton, Pos2, Vec2, native::Setup, native::Waker, pos2,
-};
-use beui_host::native::{Incoming, Launch, PlatformServices, RunOptions};
+use beui::{Input, PointerButton, Pos2, Vec2, native::Setup, native::Waker, pos2};
 use beui_core::app::SafeArea;
-use beui_runner::renderer::Loaded;
-use beui_runner::Runner;
 use beui_host::native::Document;
 use beui_host::native::build;
 use beui_host::native::enter;
 use beui_host::native::testing::{Screen, Showing};
+use beui_host::native::{Incoming, Launch, PlatformServices, RunOptions};
+use beui_runner::Runner;
+use beui_runner::renderer::Loaded;
 use text_editor_core::TextBuffer;
 
 const VIEWPORT: Vec2 = Vec2::new(1000.0, 800.0);
