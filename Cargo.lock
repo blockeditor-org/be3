@@ -732,7 +732,7 @@ dependencies = [
  "memchr",
  "postcard",
  "serde",
- "ui-types",
+ "ui-preferences",
  "uuid",
 ]
 
@@ -1973,6 +1973,7 @@ dependencies = [
  "serde",
  "serde_bytes",
  "serde_json",
+ "ui-preferences",
  "ui-types",
  "uuid",
 ]
@@ -8510,6 +8511,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "ui-preferences"
+version = "0.1.0"
+dependencies = [
+ "be-ops-bindgen",
+ "serde",
+]
+
+[[package]]
 name = "ui-types"
 version = "0.1.0"
 dependencies = [
@@ -8517,6 +8526,7 @@ dependencies = [
  "geometry",
  "serde",
  "serde_bytes",
+ "ui-preferences",
 ]
 
 [[package]]

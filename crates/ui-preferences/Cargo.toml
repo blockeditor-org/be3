@@ -1,0 +1,13 @@
+[package]
+name = "ui-preferences"
+description = "The preferences and the display and pointer settings that beui, the plugin protocol and settings blocks share, with no geometry"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-ops-bindgen = { path = "../be-ops-bindgen" }
+serde = { version = "1", features = ["derive"] }
+
+[lints]
+workspace = true

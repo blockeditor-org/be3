@@ -4,8 +4,9 @@ package be3:plugin@0.1.0;
 interface types {
     use accessibility.{color, description};
     use be3:ui/types@0.1.0.{
-        key-chord, modifiers, pos2, rect, input, preferences, window-requests, window-role,
+        key-chord, modifiers, pos2, rect, input, window-requests, window-role,
     };
+    use be3:preferences/types@0.1.0.{preferences};
 
     use be3:shared/ids@0.1.0.{
         account-id, block-id, block-type-id, organization-id, surface-id, uuid,

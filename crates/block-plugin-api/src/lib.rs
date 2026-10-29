@@ -6,9 +6,10 @@ use std::fmt;
 be_ops_bindgen::generate!({
     path: "wit",
     world: "editor-plugin",
-    deps: ["../ui-types/wit", "../be-ops/wit", "../block-gpu-abi/wit"],
+    deps: ["../ui-preferences/wit", "../ui-types/wit", "../be-ops/wit", "../block-gpu-abi/wit"],
     uses: {
         "be3:ui/types@0.1.0": ::ui_types::types,
+        "be3:preferences/types@0.1.0": ::ui_preferences::types,
         "be3:gpu/device@0.1.0": ::block_gpu_abi::device,
     },
     local: ["be3:gpu/device@0.1.0"],

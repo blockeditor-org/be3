@@ -1,6 +1,6 @@
 [package]
 name = "ui-types"
-description = "Framework-free vocabulary that beui and the plugin protocol share: keys, pointers, themes and preferences"
+description = "Framework-free vocabulary that beui and the plugin protocol share: keys, pointers, input and windows, with the preferences of ui-preferences"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
@@ -10,6 +10,7 @@ be-ops-bindgen = { path = "../be-ops-bindgen" }
 geometry = { path = "../geometry" }
 serde = { version = "1", features = ["derive", "rc"] }
 serde_bytes = "0.11"
+ui-preferences = { path = "../ui-preferences" }
 
 [lints]
 workspace = true

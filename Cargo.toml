@@ -177,6 +177,7 @@ members = [
     "crates/terminal-emulator",
     "crates/terminal-view",
     "crates/text-editor-core",
+    "crates/ui-preferences",
     "crates/ui-types",
     "crates/verify",
     "crates/wasi-threads",
