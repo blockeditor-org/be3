@@ -28,6 +28,10 @@ fn a_database_view_given_content_references_its_database() {
     let view = Uuid::new_v4();
     let (database, other) = (Uuid::new_v4(), Uuid::new_v4());
     let mut instances = placed_on(view, DatabaseViewContent::CONTENT_TYPE);
+    block_app_stack::wait_for(Duration::from_secs(20), |_| {
+        block_app_stack::is_known(DatabaseViewContent::CONTENT_TYPE).then_some(())
+    })
+    .expect("the stack never started the database's type module");
 
     seed(&mut instances, view, database);
     block_app_stack::flush();
