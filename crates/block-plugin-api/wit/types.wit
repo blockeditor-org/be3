@@ -251,12 +251,14 @@ interface types {
         layer: option<layer-id>,
     }
 
-    /// Input for one screen. Batches waiting for the plugin merge: pointer moves
-    /// and pixel scrolls fold into the last of a run unless `every-sample`, and
-    /// everything else stays, in order. `dismissed` lists the screen's layers
-    /// a press outside them closed (`layer.dismiss-on-outside-press`), each
-    /// heard before the batch's events; a batch that dismisses any never
-    /// merges into the one before it.
+    /// Input for one screen. Batches waiting for the plugin merge as a frame's
+    /// input does in beui (`ui_types::input::enqueue`): pointer moves fold into
+    /// the latest unless `every-sample`, which the host sets while the screen's
+    /// `window-requests` ask for it, scrolls and zooms fold into the last of a
+    /// run on the same layer, and everything else stays, in order. `dismissed`
+    /// lists the screen's layers a press outside them closed
+    /// (`layer.dismiss-on-outside-press`), each heard before the batch's events;
+    /// a batch that dismisses any never merges into the one before it.
     record input-batch {
         screen: screen-id,
         events: list<timed-input>,
@@ -509,7 +511,6 @@ interface types {
         floating-painted: list<rect>,
         scrims: list<scrim>,
         drawing: list<rect>,
-        every-sample: bool,
         claims: list<press-claim>,
         description: option<description>,
         /// The layers open over the region, replacing the last report's, in

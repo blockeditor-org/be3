@@ -59,7 +59,6 @@ fn commit(serial: u64, layers: Vec<Layer>) {
                 floating_painted: Vec::new(),
                 scrims: Vec::new(),
                 drawing: Vec::new(),
-                every_sample: false,
                 claims: Vec::new(),
                 description: None,
                 layers,

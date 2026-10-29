@@ -497,9 +497,13 @@ hooks the higher crates fill in:
   and they would scroll clamped at an end instead of banding. The browser
   reports neither, so a web wheel scroll never stretches or flings. Every pointer sample is an event of its
   own: the web platform pushes each of a `pointermove`'s
-  `getCoalescedEvents()` rather than only the last, and `on_drag` runs once
-  per sample, so a stroke keeps every point the device reported between two
-  frames. After a pressed move it pushes `Input::Predicted` with the last of
+  `getCoalescedEvents()` rather than only the last. The runner queues a
+  frame's input with `ui_types::input::enqueue`, the one set of rules a
+  plugin's host merges its input batches by too: scrolls and zooms fold into
+  the last of a run, a repeated modifiers report is dropped, and each pointer
+  (the mouse, a finger, the pen) is heard once per frame, at its latest move,
+  unless its window asks for every sample. A press, a release or any other
+  event between two moves keeps both, so a click lands where it was made. After a pressed move it pushes `Input::Predicted` with the last of
   `getPredictedEvents()`, where the pointer is expected to be by the next
   frame; the runner attaches it to the move just before it as
   `PointerEvent::predicted`, and the drag it makes carries it as
@@ -517,11 +521,13 @@ hooks the higher crates fill in:
   when it arrives. An event pushed without one, as tests and drive push
   them, happens at the frame clock's `now`, so a test steps time by stepping
   frames. An `Interactive` with `every_sample` (a `Prop<bool>`, set while it
-  needs them, as the canvas's pen does for a stroke) asks for every sample
-  where a host would otherwise coalesce them: `Document::wants_every_sample`
-  is true while one is in the document, and a plugin reports it to its host
-  (`FrameReport::every_sample`). Within beui itself every sample always reaches
-  `on_drag`. `Incoming::logical` marks
+  needs them, as the canvas's pen does for a stroke) asks for every sample:
+  while one is in a window, the document sets `WindowRequests::every_sample`
+  for it (`Context::want_every_sample`), the runner then keeps every move
+  queued for that window and `on_drag` runs once per sample, so a stroke keeps
+  every point the device reported between two frames. A plugin's window
+  requests carry it to its host, whose region asks for every sample from its
+  own runner and keeps every sample in the batches it sends. `Incoming::logical` marks
   input whose pixels are the window's logical ones (physical pixels
   over the scale it last reported: the browser's CSS pixels), so the runner
   converts them with the same scale the frame lays out at and no platform
@@ -3689,7 +3695,7 @@ with its colour). Where `Context::hosts_scrims` (set by the plugin platform), th
 document paints no scrim at all and its host draws `overlay_scrims` between what it
 shows under the window and the overlays' content, so a host's own children under a
 dimming overlay are dimmed with the rest rather than hidden; `drawing_rects(window)`,
-`press_claims(window)` and `wants_every_sample(window)` the nodes in it, and
+and `press_claims(window)` the nodes in it, and
 `measure_node(ctx, node, available)` measures a node with the painter of its
 window. A key listener at `KeyAt::Window` and an action, registered inside a
 `Window`, belong to the hosted window that holds it
@@ -4128,14 +4134,34 @@ it, and all its 3D (`glam`) stays in the crate.
   grab offset, and the one turn left about the line to the eye is the one
   that keeps the panel's right perpendicular to the head's up), and then
   keeps facing them, so letting go turns it no further.
-  The carry keeps the grabbed point at `Carry::distance` from the eye (where
-  it was picked up, changed by scroll), whatever it passes in front of or
-  behind: panels are drawn and picked by depth alone, so a panel carried
-  across a nearer one goes behind it. Scroll changes the distance by
+  The carry asks for the grabbed point at `Carry::distance` from the eye
+  (where it was picked up, changed by scroll). Scroll changes the distance by
   `STEP_PER_LINE` (0.95) per line, about 5%; a touchpad's pixels move it by
   their share of a line (`SCROLL_LINE` points), so it glides in proportion,
   between `carry::NEAREST` and `FARTHEST`. It does not reach the app, which
   sees no pointer moves meanwhile.
+  A carried panel never passes through another (`Carry::settle`, `contact.rs`):
+  each frame it is moved along its carry's ray (the eye's, or the laser's) to
+  the nearest distance to the one asked for at which it keeps the side it is on
+  of every panel it overlaps, `contact::CLEARANCE` (12 mm) clear of it, and is
+  turned to face the viewer there again. `contact::span` finds the distances
+  along that ray at which two panels would come that close: lines along the ray
+  through a grid of points on each panel and its chrome, met on the other
+  panel's surface, with points past the other's edge counting less the farther
+  out they are, so the distance is continuous as a panel slides off another.
+  Which side it is on is decided when an overlap begins, by where the panel was
+  (`carry::Side`, `Carry::side`), and kept until the overlap ends, so a panel
+  that started in front, like a window popped out over its spot, stays in front
+  however it is carried and turned, and one behind stays behind. Only a deliberate
+  push changes the side: while it rests against another panel, a scroll (or a
+  laser moved) farther into it is held as `push` lines instead of moving it,
+  drawn as a ghost (`Carry::ghost`, an outline below) where it is being pushed
+  to, and once the push reaches `PUSH_LINES` (2) and the ghost is clear of the
+  other panel the side flips and the panel goes there. Backing off takes the
+  push back first, and letting go, or sliding off the other panel, drops it.
+  Pulling it nearer through a panel in front of it works the same way. Only
+  `Popup` and `Overlay` windows take no part (`contact::collides`). A two-hand
+  hold (below) is not stopped.
   An app's `BeginMove` or `BeginResize` starts a carry or resize only while
   a press it was given is held (any window's, since one app's drag can open
   and carry another window; for a laser, while its trigger holds that
@@ -4157,7 +4183,9 @@ it, and all its 3D (`glam`) stays in the crate.
   side of a panel's chrome (`resize::Resize`)
   the cursor's ray meets the panel's surface as it was, and that edge or corner
   follows it while the opposite one stays put, no smaller than
-  `resize::SMALLEST`. Each new size is reported as `Resized` at once, so the
+  `resize::SMALLEST`, and stops where the panel would touch another panel it was
+  clear of (`contact::newly_touching`), as the chrome's scale, turn, roll and
+  bend drags do. Each new size is reported as `Resized` at once, so the
   app lays out at it the same frame; the app sees no moves meanwhile, and the
   carry's rule for letting go ends it, with a `Placed` for the panel's new
   centre.
@@ -4307,7 +4335,10 @@ it, and all its 3D (`glam`) stays in the crate.
   where it hits a panel or its chrome, or `laser::REACH` (5 m) on a miss,
   faint at the hand, blue, and white while pressed, with a dot `DOT` times
   its distance from the eye across where it hits; the paintings draw them
-  over the panels.
+  over the panels. Outlines (`Space::outlines`, `render::Outline`: a carry's
+  ghost and a raised window's flash) are drawn after the beams with no depth
+  test, so they show through every panel: a faint `OUTLINE` fill and an edge
+  `OUTLINE_WIDTH` times its distance from the eye wide.
 - Keyboard: while any laser has a ray, `Space::keyboard_attached` (its
   `Layer::keyboard_attached`) says no keyboard is attached, so tapping a
   field opens beui's on-screen keyboard as a panel (above); with only the
@@ -4325,9 +4356,14 @@ it, and all its 3D (`glam`) stays in the crate.
   app's document lets go of, and later restores, the keyboard focus inside
   that window (a window just opened gets its first focusable, or the dock's
   tab, see Windows and window hosts). While no panel is focused, key presses and text reach no
-  window. Nothing is raised: panels have no stacking order in 3D, only depth.
+  window. Nothing is raised: panels have no stacking order in 3D, only depth,
+  and only a carry moves one. A `WindowRequest::Raise` for a panel that is not
+  focused and that another panel hides from the eye, even in part
+  (`Space::hidden`), flashes its outline instead, drawn through everything and
+  fading over `FLASH_SECONDS` (1 s), so it can be found and carried out.
   Closing the focused panel focuses the main one.
-- Chrome: the host draws and handles controls of its own around every panel
+- Chrome: the host draws and handles controls of its own around every panel of
+  a `Normal` or `Keyboard` window (`Panel::framed`; popups and overlays have none)
   (`chrome.rs`): an L bracket just outside each corner, the window's title
   (its `WindowState` appearance title, which the `Window` component's
   `title` sets) in a pill centred above the top edge, or in its place,

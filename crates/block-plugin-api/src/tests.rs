@@ -53,7 +53,6 @@ fn report(screen: u64, layers: Vec<Layer>) -> FrameReport {
         floating_painted: Vec::new(),
         scrims: Vec::new(),
         drawing: Vec::new(),
-        every_sample: false,
         claims: Vec::new(),
         description: None,
         layers,

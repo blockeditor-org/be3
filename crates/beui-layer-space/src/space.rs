@@ -23,6 +23,7 @@ use glam::{Mat4, Quat, Vec3};
 
 use crate::carry::{Carry, NEAREST};
 use crate::chrome::{self, Chrome, Corner, Gesture, Look, Part, Side};
+use crate::contact;
 use crate::cursor::{self, Sprite};
 use crate::head::{Body, Head, Ray, TURN_PER_PIXEL, View, Views};
 use crate::hold::Hold;
@@ -30,7 +31,7 @@ use crate::laser::{self, Ending, Laser};
 use crate::layers::{Allowance, Candidate, PanelLayer};
 use crate::notice::{self, Notice};
 use crate::panel::{Hit, Panel, Pose, pick};
-use crate::render::{Beam, ChromeFrame, Compositor, Frame, PanelFrame};
+use crate::render::{Beam, ChromeFrame, Compositor, Frame, Outline, PanelFrame};
 use crate::resize::Resize;
 
 pub const SKY: Color32 = Color32::from_rgb(22, 25, 31);
@@ -42,6 +43,8 @@ pub const OPEN_GRAB: Pos2 = pos2(24.0, 16.0);
 pub const OVER_NEARER: f32 = 0.03;
 pub const CURSOR_LIFT: f32 = 0.01;
 pub const KEYBOARD_GAP: f32 = 12.0;
+pub const FLASH_SECONDS: f32 = 1.0;
+const FLASH_SAMPLES: usize = 5;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 struct Stroke {
@@ -131,6 +134,7 @@ struct Shown {
     look: Option<cursor::Look>,
     chrome: Vec<(WindowId, Look, f32)>,
     beams: Vec<Beam>,
+    outlines: Vec<Outline>,
     notice: Option<Notice>,
 }
 
@@ -176,6 +180,7 @@ pub struct Space {
     scales: Vec<(WindowId, f32)>,
     rescaling: Vec<(WindowId, f32, Instant)>,
     titles: Vec<(WindowId, chrome::Title)>,
+    flashes: Vec<(WindowId, Instant)>,
     notice: Option<Notice>,
 }
 
@@ -229,6 +234,7 @@ impl Space {
             scales: Vec::new(),
             rescaling: Vec::new(),
             titles: Vec::new(),
+            flashes: Vec::new(),
             notice: None,
         }
     }
@@ -1139,12 +1145,22 @@ impl Space {
             return;
         };
         let (pose, size) = resize.to(hit.pos);
+        let Some(before) = self.panel(resize.window).copied() else {
+            return;
+        };
+        let after = Panel {
+            pose,
+            size,
+            ..before
+        };
+        if !self.fits(&before, &after) {
+            return;
+        }
         let Some(panel) = self.panel_mut(resize.window) else {
             return;
         };
-        panel.pose = pose;
-        if panel.size != size {
-            panel.size = size;
+        *panel = after;
+        if before.size != size {
             out.push(Incoming::Window(WindowReport::Resized {
                 window: resize.window,
                 size,
@@ -1263,9 +1279,77 @@ impl Space {
                 }
             }
             WindowRequest::Resize { window, size } => self.resize_window(*window, *size),
-            WindowRequest::Raise(_) => {}
+            WindowRequest::Raise(window) => self.raise(*window),
             WindowRequest::Close(window) => self.close(*window),
         }
+    }
+
+    fn raise(&mut self, window: WindowId) {
+        let Some(now) = self.clock else {
+            return;
+        };
+        if self.focused == Some(window) || !self.hidden(window) {
+            return;
+        }
+        self.flashes.retain(|(flashed, _)| *flashed != window);
+        self.flashes.push((window, now));
+    }
+
+    fn hidden(&self, window: WindowId) -> bool {
+        let Some(panel) = self.panel(window).filter(|panel| panel.framed()) else {
+            return false;
+        };
+        let framed: Vec<Panel> = self
+            .panels
+            .iter()
+            .filter(|panel| panel.framed())
+            .copied()
+            .collect();
+        let step = |index: usize| index as f32 / (FLASH_SAMPLES - 1) as f32;
+        (0..FLASH_SAMPLES).any(|row| {
+            (0..FLASH_SAMPLES).any(|column| {
+                let point =
+                    panel.world(pos2(panel.size.x * step(column), panel.size.y * step(row)));
+                let toward = self.toward(point);
+                pick(&framed, toward).is_some_and(|hit| {
+                    hit.window != window && hit.distance < point.distance(toward.origin) - 1e-3
+                })
+            })
+        })
+    }
+
+    fn flash(&self, began: Instant) -> f32 {
+        let Some(now) = self.clock else {
+            return 0.0;
+        };
+        let t = now.saturating_duration_since(began).as_secs_f32() / FLASH_SECONDS;
+        let left = (1.0 - t).clamp(0.0, 1.0);
+        left * left * (3.0 - 2.0 * left)
+    }
+
+    pub fn flashing(&self) -> bool {
+        self.flashes
+            .iter()
+            .any(|(_, began)| self.flash(*began) > 0.0)
+    }
+
+    pub fn outlines(&self) -> Vec<Outline> {
+        let outline = |panel: &Panel, strength: f32| Outline {
+            model: panel.model(),
+            metres: panel.metres(),
+            bend: panel.bend,
+            strength,
+        };
+        let ghosts = self
+            .holders()
+            .filter_map(|held| held.carry.as_ref()?.ghost())
+            .map(|ghost| outline(ghost, 1.0));
+        let flashes = self.flashes.iter().filter_map(|(window, began)| {
+            let strength = self.flash(*began);
+            let panel = self.panel(*window)?;
+            (strength > 0.0).then(|| outline(panel, strength))
+        });
+        ghosts.chain(flashes).collect()
     }
 
     pub fn open(
@@ -1286,6 +1370,7 @@ impl Space {
         }
         if opening {
             let mut panel = Panel::new(window, Pose::default(), size);
+            panel.role = role;
             let beside = match role {
                 WindowRole::Keyboard => {
                     self.keyboards.push(window);
@@ -1518,30 +1603,37 @@ impl Space {
                 self.chrome.hovered = self.on_chrome();
             }
         }
-        let (head, now) = (self.head, self.clock);
-        let Some(panel) = self.panel_mut(carry.window) else {
+        carry.finish();
+        let Some(panel) = self.carried(&mut carry) else {
             return;
         };
-        carry.finish();
-        carry.place(&head, panel, now);
         out.push(Incoming::Window(WindowReport::Placed {
             window: carry.window,
             placement: panel.placement(),
         }));
     }
 
+    fn carried(&mut self, carry: &mut Carry) -> Option<Panel> {
+        let (head, now) = (self.head, self.clock);
+        let mut panel = self.panel(carry.window).copied()?;
+        carry.place(&head, &mut panel, now);
+        carry.settle(&head, &mut panel, &self.panels, now);
+        let placed = self.panel_mut(carry.window)?;
+        *placed = panel;
+        Some(panel)
+    }
+
     fn place_carried(&mut self) {
         for pointer in self.pointers() {
             let ray = self.ray(pointer);
-            let (head, now) = (self.head, self.clock);
+            let head = self.head;
             let Some(mut carry) = self.held_mut(pointer).and_then(|held| held.carry.take()) else {
                 continue;
             };
             if let Some(ray) = ray {
                 carry.follow(ray);
             }
-            if let Some(panel) = self.panel_mut(carry.window) {
-                carry.place(&head, panel, now);
+            if self.carried(&mut carry).is_some() {
                 if pointer == Pointer::Mouse {
                     let grabbed = carry.grabbed_at(&head);
                     self.cursor =
@@ -1670,6 +1762,11 @@ impl Space {
         for request in requests {
             self.request(request);
         }
+        let flashes = std::mem::take(&mut self.flashes);
+        self.flashes = flashes
+            .into_iter()
+            .filter(|(window, began)| self.panel(*window).is_some() && self.flash(*began) > 0.0)
+            .collect();
         let resizing: Vec<WindowId> = self
             .holders()
             .filter_map(|held| held.resize.map(|resize| resize.window))
@@ -1692,7 +1789,8 @@ impl Space {
                     .as_ref()
                     .is_some_and(|carry| carry.turning(self.clock))
             })
-            || self.lasers.iter().any(Laser::settling);
+            || self.lasers.iter().any(Laser::settling)
+            || self.flashing();
         let repaint_after = match animating || !self.reports.is_empty() {
             true => Duration::ZERO,
             false => self.settled_in().min(self.hold.due_in(self.clock)),
@@ -1736,6 +1834,7 @@ impl Space {
                 .map(|(window, look, _)| (*window, look.clone(), self.chrome_opacity(*window)))
                 .collect(),
             beams: self.beams(),
+            outlines: self.outlines(),
             notice: self.notice.clone(),
         };
         let size = view.platform / view.pixels_per_point;
@@ -1927,6 +2026,7 @@ impl Space {
             sprite: cursor.as_ref().and(self.sprite.output().cloned()),
             cursor,
             beams: self.beams(),
+            outlines: self.outlines(),
             panels: self
                 .panels
                 .iter()
@@ -1935,7 +2035,7 @@ impl Space {
                     model: panel.model(),
                     metres: panel.metres(),
                     bend: panel.bend,
-                    chrome: Some(ChromeFrame {
+                    chrome: panel.framed().then(|| ChromeFrame {
                         span: chrome::span(panel),
                         opacity: self.chrome_opacity(panel.window),
                     }),
@@ -1961,7 +2061,7 @@ impl Space {
     fn refresh_chrome(&mut self, pixels_per_point: f32) -> bool {
         let mut changed = false;
         let mut shown = Vec::with_capacity(self.panels.len());
-        for panel in &self.panels {
+        for panel in self.panels.iter().filter(|panel| panel.framed()) {
             let scale = match self.scale(panel.window) {
                 Some(window) => chrome::pixels_per_point(panel, window),
                 None => self
@@ -2153,9 +2253,11 @@ impl Space {
         ) else {
             return;
         };
-        let Some(panel) = self.panel_mut(gesture.window()) else {
+        let Some(before) = self.panel(gesture.window()).copied() else {
             return;
         };
+        let mut after = before;
+        let panel = &mut after;
         let mut gesture = gesture;
         if pointer != Pointer::Mouse
             && let Gesture::Turn { aim, .. } = &mut gesture
@@ -2193,6 +2295,15 @@ impl Space {
             }
             Gesture::Move { .. } | Gesture::Resize { .. } | Gesture::Press { .. } => {}
         }
+        if self.fits(&before, &after)
+            && let Some(panel) = self.panel_mut(after.window)
+        {
+            *panel = after;
+        }
+    }
+
+    fn fits(&self, before: &Panel, after: &Panel) -> bool {
+        !contact::newly_touching(before, after, &self.panels, self.head.position)
     }
 
     fn end_gesture(&mut self, pointer: Pointer, out: &mut Vec<Incoming>) {

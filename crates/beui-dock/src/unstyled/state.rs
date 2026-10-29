@@ -1686,10 +1686,14 @@ impl DockState {
     }
 
     pub fn area_of(&self, leaf: LeafId) -> Option<&str> {
+        self.leaf(self.area_leaf(leaf)?)?.area.as_deref()
+    }
+
+    fn area_leaf(&self, leaf: LeafId) -> Option<LeafId> {
         let mut leaf = leaf;
         loop {
-            if let Some(area) = self.leaf(leaf)?.area.as_deref() {
-                return Some(area);
+            if self.leaf(leaf)?.area.is_some() {
+                return Some(leaf);
             }
             match self.tree_of(leaf)? {
                 Tree::Surface(_) => return None,
@@ -1758,9 +1762,16 @@ impl DockState {
                 DockHome::Group(group) => {
                     entry != Entry::Group(*group) && !self.lands_in(target, *group)
                 }
-                DockHome::Area(_) => !target
-                    .leaf()
-                    .is_some_and(|leaf| self.is_home(leaf, &home.place)),
+                DockHome::Area(_) => {
+                    let carried = self
+                        .locate(Entry::Tab(*tab))
+                        .and_then(|(leaf, _)| self.area_leaf(leaf))
+                        .is_some_and(|area| self.contains_leaf(entry, area));
+                    !carried
+                        && !target
+                            .leaf()
+                            .is_some_and(|leaf| self.is_home(leaf, &home.place))
+                }
             }
         });
         if held {

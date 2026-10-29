@@ -191,7 +191,6 @@ impl<A: BeuiApp> Parts<A> {
             floating_painted: document.overlay_painted_rects(window),
             scrims: document.overlay_scrims(window),
             drawing: document.drawing_rects(window),
-            every_sample: document.wants_every_sample(window),
             claims: document
                 .press_claims(window)
                 .into_iter()
@@ -257,7 +256,6 @@ impl<A: BeuiApp> Parts<A> {
             floating_painted: document.overlay_painted_rects(window),
             scrims: document.overlay_scrims(window),
             drawing: document.drawing_rects(window),
-            every_sample: document.wants_every_sample(window),
             claims: document
                 .press_claims(window)
                 .into_iter()

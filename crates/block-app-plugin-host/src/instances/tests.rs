@@ -353,7 +353,6 @@ fn report_layers(instances: &mut Instances, layers: Vec<block_plugin_api::Layer>
         floating_painted: Vec::new(),
         scrims: Vec::new(),
         drawing: Vec::new(),
-        every_sample: false,
         claims: Vec::new(),
         description: None,
         layers,

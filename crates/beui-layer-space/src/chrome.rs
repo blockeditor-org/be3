@@ -497,6 +497,7 @@ pub fn part_at(panel: &Panel, pos: Pos2, slider: bool) -> Option<Part> {
 pub fn pick(panels: &[Panel], ray: Ray, slider: Option<WindowId>) -> Option<(Part, Hit)> {
     panels
         .iter()
+        .filter(|panel| panel.framed())
         .filter_map(|panel| {
             let hit = panel.intersect(ray)?;
             let part = part_at(panel, hit.pos, slider == Some(panel.window))?;

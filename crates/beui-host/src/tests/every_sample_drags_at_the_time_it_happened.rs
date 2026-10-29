@@ -19,8 +19,11 @@ fn every_sample_drags_at_the_time_it_happened() {
         }
     });
     let mut harness = Harness::new(document);
-    harness.frame(Vec::new());
-    assert!(harness.document().wants_every_sample(crate::WindowId::MAIN));
+    let output = harness.frame(Vec::new());
+    assert!(
+        output.main().window.requests.every_sample,
+        "the window asks for every sample"
+    );
     let pen = |phase, x| Input::Pen {
         phase,
         pos: pos2(x, 100.0),

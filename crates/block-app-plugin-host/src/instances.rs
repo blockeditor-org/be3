@@ -1245,10 +1245,7 @@ impl Instances {
             true => input.rect.width() / screen.request.metrics.logical.width,
             false => 1.0,
         };
-        let every_sample = screen
-            .report
-            .as_ref()
-            .is_some_and(|report| report.every_sample);
+        let every_sample = screen.window.every_sample;
         let mut messages: Vec<Outbound> = screen
             .input
             .forward(input, id, zoom, every_sample, aim, &screen_of)
@@ -1321,10 +1318,7 @@ impl Instances {
             true => placement.rect.width() / screen.request.metrics.logical.width,
             false => 1.0,
         };
-        let every_sample = screen
-            .report
-            .as_ref()
-            .is_some_and(|report| report.every_sample);
+        let every_sample = screen.window.every_sample;
         let id = screen.request.screen;
         screen
             .input

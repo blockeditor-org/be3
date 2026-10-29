@@ -89,6 +89,7 @@ struct Inner {
     shown_windows: RefCell<Vec<ShownWindow>>,
     drawing_into: Cell<WindowId>,
     keyboard_window: Cell<WindowId>,
+    every_sample: RefCell<Vec<WindowId>>,
     window_hosting: Cell<WindowHosting>,
     shows_main: Cell<bool>,
     hosts_scrims: Cell<bool>,
@@ -366,6 +367,7 @@ impl Context {
                 shown_windows: RefCell::new(Vec::new()),
                 drawing_into: Cell::new(WindowId::MAIN),
                 keyboard_window: Cell::new(WindowId::MAIN),
+                every_sample: RefCell::new(Vec::new()),
                 window_hosting: Cell::new(WindowHosting::None),
                 shows_main: Cell::new(true),
                 hosts_scrims: Cell::new(false),
@@ -637,6 +639,7 @@ impl Context {
             .iter()
             .any(|event| matches!(event, Event::Ime(_) | Event::Text(_)));
         self.inner.window.borrow_mut().begin_frame(typed);
+        self.inner.every_sample.borrow_mut().clear();
         self.inner.input.borrow_mut().begin_frame(events, now);
         self.inner.layers.borrow_mut().clear();
         self.inner.grouping.borrow_mut().clear();
@@ -883,6 +886,13 @@ impl Context {
 
     pub fn want_keyboard(&self) {
         self.inner.window.borrow_mut().requests.wants_keyboard = true;
+    }
+
+    pub fn want_every_sample(&self, window: WindowId) {
+        let mut windows = self.inner.every_sample.borrow_mut();
+        if !windows.contains(&window) {
+            windows.push(window);
+        }
     }
 
     pub fn intercept_keys(&self, chords: &[KeyChord]) {
@@ -1248,6 +1258,7 @@ impl Context {
             if keyboard == window.id {
                 state.requests.ime = main.requests.ime.take();
             }
+            state.requests.every_sample = self.inner.every_sample.borrow().contains(&window.id);
             others.push(state);
         }
         if shown.iter().any(|window| window.id == pointer) {
@@ -1258,6 +1269,7 @@ impl Context {
 
     fn shown_window(&self) -> WindowState {
         let mut window = self.inner.window.borrow().clone();
+        window.requests.every_sample = self.inner.every_sample.borrow().contains(&WindowId::MAIN);
         window.requests.keyboard_toggles = self.inner.keyboard.borrow().toggles();
         if self.touch_emulation() {
             window.requests.cursor = CursorIcon::Touch;

@@ -7,7 +7,8 @@ use beui_tree::reactive::{IntoProp, Memo, Prop, ReadSignal, Signal};
 
 pub use ui_types::input::{
     BackEdge, BackGesture, CursorIcon, ImeEvent, ImeText, Input, Key, KeyChord, KeyPress, Keyboard,
-    Keystroke, Modifiers, Pen, PenPhase, PointerButton, ScrollDelta, TouchId, TouchPhase,
+    Keystroke, Modifiers, Pen, PenPhase, PointerButton, Queued, ScrollDelta, TouchId, TouchPhase,
+    enqueue,
 };
 
 pub mod typing;

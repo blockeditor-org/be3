@@ -687,7 +687,6 @@ impl Regions for ModuleRunner {
                         })
                         .collect(),
                     drawing: report.drawing.into_iter().map(to_region).collect(),
-                    every_sample: report.every_sample,
                     claims: report
                         .claims
                         .into_iter()

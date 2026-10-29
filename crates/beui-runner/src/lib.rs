@@ -584,6 +584,12 @@ impl Runner {
         let mut output = self.context.run_with(events, view.now, |context| {
             app.update(context, safe_rect(screen, safe_area, scale));
         });
+        self.intake.every_sample = output
+            .windows
+            .iter()
+            .filter(|window| window.window.requests.every_sample)
+            .map(|window| window.id)
+            .collect();
         if self.publishing_accessibility {
             let title = output
                 .main()

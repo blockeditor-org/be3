@@ -6,6 +6,7 @@ use beui_core::input::{
     Event, FileDrag, Input, Key, KeyPress, Keystroke, Modifiers, PointerButton, TouchId, TouchPhase,
 };
 use beui_core::window::{WindowId, WindowReport};
+use beui_types::input::enqueue;
 
 pub use beui_types::input::{PINCH_SPEED, SCROLL_LINE, SCROLL_PAGE, scrolled};
 
@@ -124,6 +125,7 @@ impl From<Input> for Incoming {
 pub(crate) struct Intake {
     pub(crate) incoming: Vec<Incoming>,
     pub(crate) reports: Vec<WindowReport>,
+    pub(crate) every_sample: Vec<WindowId>,
     modifiers: Modifiers,
     pointer: Pos2,
     window: WindowId,
@@ -137,6 +139,7 @@ impl Default for Intake {
         Self {
             incoming: Vec::new(),
             reports: Vec::new(),
+            every_sample: Vec::new(),
             modifiers: Modifiers::NONE,
             pointer: Pos2::ZERO,
             window: WindowId::MAIN,
@@ -164,37 +167,68 @@ impl Intake {
         if !drain.touch_emulation && std::mem::take(&mut self.emulated_touch) {
             events.push(self.touch(TouchPhase::Cancel));
         }
-        let mut produced = false;
+        let mut queue = Vec::new();
         for incoming in std::mem::take(&mut self.incoming) {
             match incoming {
                 Incoming::Time(at) => {
-                    if produced {
-                        events.push(Event::Time(at));
+                    if let Some(last) = queue.last_mut()
+                        && let Queued {
+                            time: time @ None, ..
+                        } = last
+                    {
+                        *time = Some(at);
                     }
                 }
-                Incoming::FileDrag(drag) => {
-                    events.push(match drag {
-                        FileDrag::Hovered => Event::FileHovered,
-                        FileDrag::Cancelled => Event::FileHoverCancelled,
-                        FileDrag::Dropped(file) => Event::FileDropped(file),
-                    });
-                    produced = true;
-                }
+                Incoming::FileDrag(drag) => queue.push(Queued {
+                    entry: Entry::FileDrag(drag),
+                    time: None,
+                }),
                 Incoming::Window(report) => self.reports.push(report),
                 Incoming::Controller(_) => {}
                 Incoming::Layer { layer, input } => {
                     let Some((window, to_host)) = (drain.layer_target)(layer) else {
                         continue;
                     };
-                    if window != self.window && points_into_window(&input) {
-                        self.window = window;
-                        events.push(Event::PointerWindow(window));
-                    }
-                    let before = events.len();
-                    self.input(from_host(input, to_host), 1.0, drain, events);
-                    produced = events.len() > before;
+                    enqueue(
+                        &mut queue,
+                        Queued {
+                            entry: Entry::Layer {
+                                layer,
+                                window,
+                                input: from_host(input, to_host),
+                            },
+                            time: None,
+                        },
+                        self.every_sample.contains(&window),
+                    );
                 }
                 Incoming::Input {
+                    units,
+                    window,
+                    input,
+                } => enqueue(
+                    &mut queue,
+                    Queued {
+                        entry: Entry::Input {
+                            units,
+                            window,
+                            input,
+                        },
+                        time: None,
+                    },
+                    self.every_sample.contains(&window),
+                ),
+            }
+        }
+        for Queued { entry, time } in queue {
+            let before = events.len();
+            match entry {
+                Entry::FileDrag(drag) => events.push(match drag {
+                    FileDrag::Hovered => Event::FileHovered,
+                    FileDrag::Cancelled => Event::FileHoverCancelled,
+                    FileDrag::Dropped(file) => Event::FileDropped(file),
+                }),
+                Entry::Input {
                     units,
                     window,
                     input,
@@ -208,10 +242,20 @@ impl Intake {
                         Units::Logical => drain.pixels_per_point / drain.native_pixels_per_point,
                         Units::Points => 1.0,
                     };
-                    let before = events.len();
                     self.input(input, scale, drain, events);
-                    produced = events.len() > before;
                 }
+                Entry::Layer { window, input, .. } => {
+                    if window != self.window && points_into_window(&input) {
+                        self.window = window;
+                        events.push(Event::PointerWindow(window));
+                    }
+                    self.input(input, 1.0, drain, events);
+                }
+            }
+            if let Some(at) = time
+                && events.len() > before
+            {
+                events.push(Event::Time(at));
             }
         }
     }
@@ -390,6 +434,56 @@ impl Intake {
             phase,
             pos: self.pointer,
             force: None,
+        }
+    }
+}
+
+struct Queued {
+    entry: Entry,
+    time: Option<Instant>,
+}
+
+enum Entry {
+    Input {
+        units: Units,
+        window: WindowId,
+        input: Input,
+    },
+    Layer {
+        layer: u64,
+        window: WindowId,
+        input: Input,
+    },
+    FileDrag(FileDrag),
+}
+
+impl beui_types::input::Queued for Queued {
+    fn input(&self) -> Option<&Input> {
+        match &self.entry {
+            Entry::Input { input, .. } | Entry::Layer { input, .. } => Some(input),
+            Entry::FileDrag(_) => None,
+        }
+    }
+
+    fn input_mut(&mut self) -> Option<&mut Input> {
+        match &mut self.entry {
+            Entry::Input { input, .. } | Entry::Layer { input, .. } => Some(input),
+            Entry::FileDrag(_) => None,
+        }
+    }
+
+    fn joins(&self, later: &Self) -> bool {
+        match (&self.entry, &later.entry) {
+            (
+                Entry::Input { units, window, .. },
+                Entry::Input {
+                    units: later_units,
+                    window: later_window,
+                    ..
+                },
+            ) => units == later_units && window == later_window,
+            (Entry::Layer { layer, .. }, Entry::Layer { layer: later, .. }) => layer == later,
+            _ => false,
         }
     }
 }

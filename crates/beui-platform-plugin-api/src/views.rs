@@ -32,7 +32,6 @@ pub struct Report {
     pub floating_painted: Vec<Rect>,
     pub scrims: Vec<(Rect, beui_core::color::Color32)>,
     pub drawing: Vec<Rect>,
-    pub every_sample: bool,
     pub claims: Vec<Claim>,
 }
 
