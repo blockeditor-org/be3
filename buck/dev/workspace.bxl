@@ -1,21 +1,26 @@
-load("//buck/cargo/html.bzl", "html_libraries")
-
-# One subtarget of every first-party Rust target in every configuration, the
-# wasm ones included through transitions; prints "label<TAB>path" per target.
+# One subtarget of every first-party Rust target in the configurations the
+# tests build, the wasm ones included through transitions; prints
+# "label<TAB>path" per target.
 #
 #   buck2 bxl //buck/dev/workspace.bxl:subtarget -- --subtarget check
 
-# Every first-party Rust target in every configuration //:check covers.
-# ./scripts/deploy's target is left out of the universe: it configures
-# block-app for every desktop platform, and a pattern takes every
-# configuration in the universe. Nothing transitions to beui's HTML core yet,
-# so the libraries planned for it are added on its platforms (html.bzl).
+# The platforms ./scripts/verify's tests compile on: the host, and plugins.
+# Everything else - release copies, Android, the desktop and arm64 targets the
+# dist bundles transition to, the web's wasm, the type modules and games on
+# wasm32, beui's HTML core and its Windows check - is left to ./scripts/verify
+# and CI, since each is another compile of most of the workspace for a change
+# that seldom breaks only there.
+_PLATFORMS = ["linux_x86_64", "wasi_guest"]
+
+def _platform(target) -> str:
+    return str(target.label).rpartition("(")[2].partition("#")[0].rpartition(":")[2]
+
+# Every first-party Rust target on those platforms. ./scripts/deploy's target is
+# left out of the universe: it configures block-app for every desktop platform.
 def _rust_targets(ctx: bxl.Context) -> list:
     universe = ctx.target_universe(ctx.uquery().eval("//crates/... - //crates/local-tools:deploy"))
-    targets = list(ctx.cquery().kind("^rust_(library|binary|test)$", universe.lookup("//crates/...")))
-    for label, platform in html_libraries():
-        targets.extend(ctx.cquery(target_platform = platform).eval(label))
-    return targets
+    targets = ctx.cquery().kind("^rust_(library|binary|test)$", universe.lookup("//crates/..."))
+    return [target for target in targets if _platform(target) in _PLATFORMS]
 
 def _impl(ctx: bxl.Context):
     name = ctx.cli_args.subtarget
