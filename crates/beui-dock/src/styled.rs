@@ -46,8 +46,8 @@ use beui_view::types::Modifiers;
 use beui_view::types::Sides;
 use beui_view::types::TextAlign;
 use beui_view::types::icons::{
-    ICON_APP_WINDOW, ICON_GRIP_HORIZONTAL, ICON_GRIP_VERTICAL, ICON_LOCK, ICON_MAXIMIZE, ICON_MINIMIZE,
-    ICON_X,
+    ICON_APP_WINDOW, ICON_GRIP_HORIZONTAL, ICON_GRIP_VERTICAL, ICON_LOCK, ICON_MAXIMIZE,
+    ICON_MINIMIZE, ICON_X,
 };
 use stack::{DockStackBar, DockSwitcher};
 use switch::DockSwitchPanel;
