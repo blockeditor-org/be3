@@ -7,15 +7,17 @@ use uuid::Uuid;
 
 use crate::app::PresentationApp;
 
+mod a_card_shows_only_the_stage;
 mod a_slide_template_makes_a_canvas_with_its_placeholders;
 mod a_slide_with_no_picture_of_its_own_shows_its_name_in_the_filmstrip;
 mod detaching_a_slide_takes_it_off_the_deck;
 mod dragging_a_slide_onto_another_reorders_the_deck;
 mod editing_gives_the_slide_the_whole_stage;
+mod on_a_phone_the_filmstrip_is_a_page_of_its_own;
 mod presenting_hides_the_filmstrip_and_the_toolbar;
 mod the_filmstrip_keeps_its_focus_outline_off_the_tiles;
 mod the_filmstrip_places_a_child_editor_for_every_slide;
-mod the_filmstrip_stays_while_a_slide_holds_the_frame;
+mod the_filmstrip_pops_out_into_a_window_once_its_area_is_unlocked;
 mod the_stage_shows_the_slide_the_filmstrip_selected;
 
 type Harness = BeuiTest<PresentationApp>;

@@ -892,26 +892,13 @@ fn nested_restore(
     paths: &Rc<RefCell<Paths>>,
 ) -> Option<DockRequest> {
     let api::DockRequest::Restore(layout) = request else {
-        let mut through = request.clone();
-        for child in owner.iter().rev() {
-            through = through_owner(&through, *child);
-        }
-        return request_from_api(&through, &mut paths.borrow_mut());
+        return request_from_api(request, &mut paths.borrow_mut());
     };
     let nodes = declaration.nest().ok()?;
     let group = group_key(&nodes, owner)?;
-    let prefixed = |key: &str| match key.is_empty() {
-        true => String::new(),
-        false => format!("{group}/{key}"),
-    };
-    let mut layout = layout.clone();
-    for child in owner.iter().rev() {
-        layout = through_layout(&layout, *child);
-    }
     let from = {
         let mut paths = paths.borrow_mut();
-        let plain = layout_to_plain(&layout, &mut |path| Some(paths.tab(path)));
-        DockState::from_plain(&rekeyed(&plain, &prefixed))
+        DockState::from_plain(&layout_to_plain(layout, &mut |path| Some(paths.tab(path))))
     };
     let hosted = untrack(|| link.hosted().get_untracked())?;
     let mut state = hosted.state;
@@ -926,142 +913,6 @@ fn nested_restore(
         },
     );
     Some(DockRequest::Restore(state))
-}
-
-fn through_owner(request: &api::DockRequest, child: ChildId) -> api::DockRequest {
-    match request {
-        api::DockRequest::Show(tab) => api::DockRequest::Show(tab.clone().through(child)),
-        api::DockRequest::Restore(layout) => {
-            api::DockRequest::Restore(through_layout(layout, child))
-        }
-        api::DockRequest::Fullscreen(fullscreen) => {
-            api::DockRequest::Fullscreen(fullscreen.as_ref().map(|fullscreen| {
-                api::DockFullscreen {
-                    tab: fullscreen.tab.clone().through(child),
-                    area: fullscreen.area,
-                }
-            }))
-        }
-        api::DockRequest::PlaceBar(place) => api::DockRequest::PlaceBar(api::DockBarPlace {
-            bar: place.bar.clone().through(child),
-            placement: place.placement.clone(),
-        }),
-        api::DockRequest::MoveBar(moved) => api::DockRequest::MoveBar(api::DockBarMove {
-            bar: moved.bar.clone().through(child),
-            ..moved.clone()
-        }),
-    }
-}
-
-fn through_layout(layout: &api::DockLayout, child: ChildId) -> api::DockLayout {
-    let mut layout = layout.clone();
-    for item in &mut layout.tree.items {
-        if let api::DockItemKind::Tab(tab) = &mut item.kind {
-            *tab = tab.clone().through(child);
-        }
-    }
-    layout.tree.focus = layout.tree.focus.map(|focus| focus.through(child));
-    for home in &mut layout.homes {
-        home.tab = home.tab.clone().through(child);
-    }
-    for bar in &mut layout.bars {
-        bar.bar = bar.bar.clone().through(child);
-        bar.owner = bar.owner.clone().through(child);
-    }
-    for outside in &mut layout.outside {
-        outside.tab = outside.tab.clone().through(child);
-    }
-    layout
-}
-
-fn rekeyed(plain: &DockPlain, key: &dyn Fn(&str) -> String) -> DockPlain {
-    fn node(held: &DockPlainNode, key: &dyn Fn(&str) -> String) -> DockPlainNode {
-        match held {
-            DockPlainNode::Split {
-                key: own,
-                direction,
-                fraction,
-                first,
-                second,
-            } => DockPlainNode::Split {
-                key: key(own),
-                direction: *direction,
-                fraction: *fraction,
-                first: Box::new(node(first, key)),
-                second: Box::new(node(second, key)),
-            },
-            DockPlainNode::Pane {
-                key: own,
-                active,
-                vertical,
-                icons_only,
-                sidebar,
-                keep,
-                area,
-                bare,
-                entries,
-            } => DockPlainNode::Pane {
-                key: key(own),
-                active: *active,
-                vertical: *vertical,
-                icons_only: *icons_only,
-                sidebar: *sidebar,
-                keep: *keep,
-                area: area.as_deref().map(key),
-                bare: *bare,
-                entries: entries
-                    .iter()
-                    .map(|entry| match entry {
-                        DockPlainEntry::Tab(tab) => DockPlainEntry::Tab(*tab),
-                        DockPlainEntry::Group {
-                            key: own,
-                            pinned,
-                            root,
-                        } => DockPlainEntry::Group {
-                            key: key(own),
-                            pinned: *pinned,
-                            root: Box::new(node(root, key)),
-                        },
-                    })
-                    .collect(),
-            },
-        }
-    }
-    DockPlain {
-        main: plain.main.as_ref().map(|main| node(main, key)),
-        windows: plain
-            .windows
-            .iter()
-            .map(|window| DockPlainWindow {
-                key: key(&window.key),
-                rect: window.rect,
-                root: window.root.as_ref().map(|root| node(root, key)),
-            })
-            .collect(),
-        focus: plain.focus,
-        homes: plain
-            .homes
-            .iter()
-            .map(|home| DockPlainHome {
-                tab: home.tab,
-                place: rekeyed_place(&home.place, key),
-            })
-            .collect(),
-        bars: plain.bars.clone(),
-        outside: plain.outside.clone(),
-        unlocked: plain
-            .unlocked
-            .iter()
-            .map(|place| rekeyed_place(place, key))
-            .collect(),
-    }
-}
-
-fn rekeyed_place(place: &DockPlainPlace, key: &dyn Fn(&str) -> String) -> DockPlainPlace {
-    match place {
-        DockPlainPlace::Area(area) => DockPlainPlace::Area(key(area)),
-        DockPlainPlace::Group(group) => DockPlainPlace::Group(key(group)),
-    }
 }
 
 type PathOf<'a> = &'a dyn Fn(TabId) -> Option<DockTabPath>;

@@ -306,7 +306,26 @@ impl DockDeclaration {
                 parent: dialog.parent.clone().through(child),
                 ..dialog.clone()
             }));
-        self.bars.retain(|bar| bar.owner != host);
+        let lent = inner_nodes
+            .main
+            .as_ref()
+            .and_then(|main| {
+                let mut tabs = Vec::new();
+                main.tabs(&mut tabs);
+                tabs.first().map(|tab| (*tab).clone().through(child))
+            });
+        self.bars.retain_mut(|bar| {
+            if bar.owner != host {
+                return true;
+            }
+            match &lent {
+                Some(tab) => {
+                    bar.owner = tab.clone();
+                    true
+                }
+                None => false,
+            }
+        });
         self.bars.extend(inner.bars.iter().map(|bar| DockBar {
             tab: bar.tab.clone().through(child),
             key: prefixed(prefix, &bar.key),
@@ -415,8 +434,22 @@ impl DockHosted {
                 .map(|(_, tab)| DockTabPath::own(*tab))
                 .filter(|tab| !self.tabs.contains(tab)),
         );
+        let mut layout = mapping.layout(&nodes, &self.layout);
+        layout.bars = self
+            .layout
+            .bars
+            .iter()
+            .filter(|bar| bar.bar.is_own())
+            .filter_map(|bar| {
+                Some(DockPlacedBar {
+                    bar: bar.bar.clone(),
+                    owner: path(&bar.owner)?,
+                    placement: bar.placement.clone(),
+                })
+            })
+            .collect();
         Ok(DockHosted {
-            layout: mapping.layout(&nodes, &self.layout),
+            layout,
             tabs,
             focused: self.focused.as_ref().and_then(path),
             shown: self.shown.as_ref().and_then(path),

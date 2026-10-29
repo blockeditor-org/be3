@@ -4,6 +4,7 @@ use beui_view::types::Direction;
 
 mod a_bar_keeps_its_placement_wherever_its_tab_goes;
 mod a_bare_pane_shows_its_one_tab_and_takes_no_other;
+mod a_dock_joining_through_an_emptied_pane_of_a_group_lands_in_that_pane;
 mod a_fullscreen_tab_closed_and_opened_again_comes_back_in_its_pane;
 mod a_group_cannot_be_dropped_inside_itself;
 mod a_group_left_with_one_tab_becomes_that_tab_again;

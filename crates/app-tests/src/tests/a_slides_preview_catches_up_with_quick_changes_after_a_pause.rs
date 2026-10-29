@@ -26,7 +26,7 @@ fn a_slides_preview_catches_up_with_quick_changes_after_a_pause() {
         drawn + 2,
         "the rectangle was copied twice"
     );
-    app.crop("#workspace.block");
+    app.crop("#presentation.filmstrip");
     app.record();
     app.pause(600);
     app.snapshot("a_slides_preview_catches_up_with_quick_changes_after_a_pause");

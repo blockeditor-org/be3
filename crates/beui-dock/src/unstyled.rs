@@ -3086,7 +3086,7 @@ fn TabMenu(
         <ContextMenu
             menu
             items={view! {
-                <MenuItem label="Pop out into a window" disabled={stuck} />
+                <MenuItem label="Pop out into a window" disabled={stuck} row_test_id="dock.tab.pop-out" />
                 <MenuItem label={group_label} disabled={alone} />
                 <MenuItem label={split_label} disabled={alone} />
                 <MenuItem label={close_label} disabled={unclosable} />
@@ -3166,7 +3166,7 @@ fn GripMenu(
                 <MenuItem label="Icons only" checked />
                 <MenuItem label="Close all tabs" disabled={unclosable} />
                 <Show condition={lockable}>
-                    <MenuItem label="Locked" checked={lock} />
+                    <MenuItem label="Locked" checked={lock} row_test_id="dock.pane.locked" />
                 </Show>
                 <MenuNodes nodes={tab_menu} />
             }}

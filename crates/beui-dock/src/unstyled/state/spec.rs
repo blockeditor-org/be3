@@ -866,6 +866,12 @@ impl DockState {
             self.focus(id);
             return;
         }
+        if (site.pane.locked || matches!(site.holder, Holder::Group(_)))
+            && let Some(leaf) = self.recreate(site)
+        {
+            self.insert_entry(leaf, 0, entry);
+            return;
+        }
         if let Some((leaf, at)) = self.nearest(sites, index, position, entry) {
             self.insert_entry(leaf, at + 1, entry);
             return;
