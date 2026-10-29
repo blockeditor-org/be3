@@ -214,11 +214,13 @@ Keep the portal’s Referrer-Policy at `strict-origin`: `no-referrer` makes brow
 form navigations send a null Origin, which the same-origin check rejects.
 
 be-server decides what each request shows as a `be_portal::Page` (crates/be-portal) and
-renders it through the `Portal` in `ServerConfig::portal`. The executable's is
-crates/be-portal-ui: beui styled components rendered with `render_to_string` on beui's
-HTML core, which is why `//crates/be-server:bin` and its tests build for
-`linux_x86_64_html` (`:bin` transitions there from any configuration, so `:dist`,
-deploy and block-app's web scripts get it unchanged). Each page embeds its `Page` as JSON
+renders it through the `Portal` in `ServerConfig::portal`. The executable, crates/be-server-bin,
+passes crates/be-portal-ui: beui styled components rendered with `render_to_string` on beui's
+HTML core. Only the executable depends on it, so the be-server library and its tests
+(which run with no portal) build on the native core and never wait on beui;
+`//crates/be-server-bin:bin` builds for `linux_x86_64_html` (`:bin` transitions there from
+any configuration, so `:dist`, deploy and block-app's web scripts get it unchanged).
+be-portal-ui's own tests check what each page renders. Each page embeds its `Page` as JSON
 and loads be-portal-ui's hydration bundle, which adds live checks such as mismatched
 passwords; every form and link works before and without it. The executable embeds that
 bundle (the wasm module, its JS, the WASI shims and the fonts), so deployment still copies
@@ -230,7 +232,7 @@ server's own scripts, `'wasm-unsafe-eval'` and the import map's hash. A server w
 `Portal`, as every server embedded in a native program is (block-app's local server, and
 the servers be-frozen's and block-app's tests and app-bench drive the portal of), answers each `/auth` page with its
 `Page` as JSON instead, with the same routes, redirects, cookies and form checks.
-To look at the portal locally: `./scripts/buck build //crates/be-server:dist --show-output`,
+To look at the portal locally: `./scripts/buck build //crates/be-server-bin:dist --show-output`,
 then run the staged `be-server --allow-login --allow-registration` and open
 http://127.0.0.1:9090/auth; verification and reset links are in its log.
 

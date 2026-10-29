@@ -104,16 +104,6 @@ wasi_app_module = _module_rule(wasi_app_transition)
 
 wasi_html_module = _module_rule(wasi_html_transition)
 
-# A library built for the web app's wasi, for a crate whose web code nothing
-# built for the web uses yet, so that //:check still compiles that code.
-def _wasi_app_library_impl(ctx: AnalysisContext) -> list[Provider]:
-    return [ctx.attrs.library[DefaultInfo]]
-
-wasi_app_library = rule(
-    attrs = {"library": attrs.transition_dep(cfg = wasi_app_transition)},
-    impl = _wasi_app_library_impl,
-)
-
 # rustc links a cdylib with --no-entry, which strips the symbols a host needs to
 # lay out a thread's storage and leaves nothing to run libc's constructors; the
 # host does both itself, so a guest exports them.
@@ -175,7 +165,8 @@ def plugin_sdk():
 # which :types names for the app to stage beside :module.
 #
 # Outside a release build the plugin crate itself is compiled at opt-level 0,
-# like its tests below, while its dependencies keep the plugin profile's 2.
+# like its tests below, while its workspace dependencies are compiled at 1
+# (buck/cargo/defs.bzl) and its third-party ones keep the plugin profile's 2.
 # Most of a plugin's code is beui's generics instantiated anew, so a change
 # under beui recompiles every plugin, and at opt-level 2 LLVM made that the
 # longest part of ./scripts/verify: thirty plugins took 1,130 seconds of
@@ -241,8 +232,8 @@ def editor(module, visibility = ["PUBLIC"], test_env = {}, data = {}, extra_deps
 # the module a plugin's imports; an editor's, block-editor-plugin's and
 # block-editor-beui's.
 #
-# The test crate itself is compiled at opt-level 0 while its dependencies keep
-# the plugin profile's 2. Every module instantiates beui's generics anew, so a
+# The test crate itself is compiled at opt-level 0 while its dependencies are
+# compiled as the plugin's are. Every module instantiates beui's generics anew, so a
 # change to beui recompiles about thirty of them at once, and at opt-level 2
 # LLVM is most of that: the step took twice as long, though the tests run
 # faster and the modules are smaller to precompile.

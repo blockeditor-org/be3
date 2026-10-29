@@ -32,7 +32,7 @@ Super tap and placeholders' Open need `ProgramsWatch`, the bell `NotificationsWa
 menu `PowerWatch`, the media keys `MediaWatch` (the volume item, its `output`), the Wi-Fi item
 `WifiWatch` (its `available`), and the tray its items. block-app publishes each as soon as the
 service behind it runs, even empty. block-app publishes the package on Linux, and on Windows its
-`windows`, `programs` and `power` (`plugin_host/published.rs`); a host that does not publish it (elsewhere, the web and Android)
+`windows`, `programs` and `power` (`block-app-plugin-host/src/published.rs`); a host that does not publish it (elsewhere, the web and Android)
 answers every watch of the package `unsupported` and drops its calls, which the desktop
 sees as nothing offered. The web and Android apps have no `--desktop`: a desktop with none of
 these is only a dock of block windows, which their own shells already are.
@@ -80,7 +80,7 @@ choosing one sends `show` (when hidden) then `focus`, and a shown entry's Hide c
 (`desktop.windows.entry.ID.hide`) sends `hide`; closing stays `close`. On Linux it is a window
 switcher too. block-app's Wayland host opens every window shown and lists no displays; `hide`
 only stops the shells drawing it (the client keeps running and connected), and the shown state
-lives in `block-app/src/desktop_host/shown.rs` for as long as block-app runs, forgotten when the window closes.
+lives in `block-app-desktop/src/desktop_host/shown.rs` for as long as block-app runs, forgotten when the window closes.
 A hidden window shown again opens at its default place, not where it was.
 
 ## Displays

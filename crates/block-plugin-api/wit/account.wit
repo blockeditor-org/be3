@@ -3,7 +3,7 @@ package be3:plugin@0.1.0;
 /// What the host knows of the account it is signed in as and of the app,
 /// watched by any editor.
 interface account {
-    use be3:ui/types@0.1.0.{preference-layer};
+    use be3:preferences/types@0.1.0.{preference-layer};
 
     /// Where the preferences an editor is drawn with come from, below the
     /// user's own: the system's and the developer's.

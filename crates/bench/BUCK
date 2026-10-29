@@ -22,7 +22,7 @@ suite(
         "app-bench": "//crates/app-bench:bin",
         "canvas-bench": "//crates/editors/infinite-canvas:example-canvas-bench",
         "open-bench": "//crates/beui-demo:example-open-bench",
-        "text-bench": "//crates/beui:example-text-bench",
+        "text-bench": "//crates/beui-host:example-text-bench",
     },
     runner = ":bin",
 )

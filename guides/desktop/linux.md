@@ -149,7 +149,7 @@ thread waits on the bus. `dbus::session()` is the shared session bus connection.
 ## Notifications
 
 The desktop shell (`--session` and `--desktop`) serves `org.freedesktop.Notifications` on the
-session bus from block-app's `src/notifications/server.rs`, asking for the name without
+session bus from block-app-services' `src/notifications/server.rs`, asking for the name without
 replacing an owner, so under another desktop that already runs a notification daemon it logs
 that and serves nothing. The host keeps only what a plugin cannot do: it owns the name, reads
 the hints, loads the picture (image-data, image-path, the app icon through be-wayland's
@@ -235,7 +235,7 @@ the same output level while the host reports one, and its popup sets the volume,
 the default output (`MediaRequest::SetVolume`, `SetMute`, `ChooseOutput`) from the sinks the
 host lists in `MediaLevels::outputs`.
 
-block-app does what a plugin cannot: `src/media.rs` starts its backends once a plugin watches
+block-app-services does what a plugin cannot: `src/media.rs` starts its backends once a plugin watches
 the levels or the shell asks for something, carries out the shell's requests only, and reports
 the levels back. The backends run as tasks on the D-Bus thread:
 - `media/audio.rs`: volume steps up to 100%, set volume, mute and mic mute on the default sink
@@ -337,7 +337,7 @@ the module (the modifiers they need are pressed for them if the module held them
 screen is locked nothing does, so a module can neither keep the session from ending nor read the
 password. Locking lets go of what the module held, too.
 
-block-app (`src/remap/linux.rs`) holds the chosen block, reads the envelope whenever it changes, fetches
+block-app-desktop (`src/remap/linux.rs`) holds the chosen block, reads the envelope whenever it changes, fetches
 the module from the plugin's data (`discovery::data`, only from a plugin that has an `InputRemapper`
 editor) when the plugin or path changes and only reconfigures the running one when only the config
 does, and keeps the last module and config it ran in its own database (`remapper`), so the session
@@ -510,7 +510,7 @@ icon directories, following `Inherits`), looked up by CSS name and then the old 
 (`cursors.rs`), at the size the scale needs; without a theme the built-in arrow is drawn. Over a
 window, a `wp_cursor_shape_v1` shape becomes the window's `CursorIcon` (`Windows::cursor`, which
 the winit backend shows too), and a `wl_pointer.set_cursor` surface reaches the platform through
-`beui_platform_drm::SoftwareCursor` (block-app's `desktop_host/linux.rs`), redrawn whenever the client
+`beui_platform_drm::SoftwareCursor` (block-app-desktop's `desktop_host/linux.rs`), redrawn whenever the client
 commits to it; a null cursor hides the pointer. Under a layer that opens windows (`BEUI_LAYERS=space`)
 the platform offers no `SoftwareCursor`, since its pointer is not where the layer's is: the layer
 draws its own cursor from the window's `CursorIcon`.
@@ -591,7 +591,7 @@ The plugin side is only that editor id on a `ChildTarget`; the host does the res
 child region asks for a block in a listed program (`programs::opens`), `HostedChild` shows a
 `ProgramSurface` instead of a plugin, and `programs::show` starts a session for the block:
 
-- **Write out.** `be::plain_file` asks the block's type module for `to-file`, the same
+- **Write out.** `block_app_stack::plain_file` asks the block's type module for `to-file`, the same
   file form `be sync` writes, and `programs/files.rs` puts it at a path that stays the same for
   the block, `DATA/files/<block id>/<file name>` in the app's data directory (not a cache). It
   writes only when the bytes differ, so what a program keeps beside the file stays valid:
@@ -608,7 +608,7 @@ child region asks for a block in a listed program (`programs::opens`), `HostedCh
   it; its dialogs are listed as top-level windows of their own.
 - **Write back.** The file's folder is watched (`programs/watch.rs`, the `notify` crate), and
   when the file's size or time differs from what was recorded, its bytes go back into the block
-  as a `from-file` change (`be::from_file`), a commit like any other edit. A file changed while
+  as a `from-file` change (`block_app_stack::from_file`), a commit like any other edit. A file changed while
   nothing watched it (the app ended first) is taken back instead of written over when the block
   is next opened.
 - **Close.** Closing the tab closes its editor (`programs::close`, from `close_editor`, which

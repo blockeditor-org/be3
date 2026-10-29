@@ -31,7 +31,9 @@ const STORE: EditorId = u64::MAX;
 fn every_type() -> Vec<Registration> {
     host_types::registrations()
         .into_iter()
-        .chain([Registration::of::<workspace_ui_types::EditorViewContent>()])
+        .chain([Registration::of::<
+            block_editor_beui::be_block::EditorViewContent,
+        >()])
         .map(Registration::without_undo)
         .collect()
 }

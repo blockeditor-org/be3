@@ -1,8 +1,8 @@
 use beui::native::Document;
-use beui::native::testing::{Target, button_name};
 use beui::{
     Input, Key, KeyChord, Modifiers, Pen, PenPhase, PointerButton, Pos2, Rect, TouchPhase, Vec2,
 };
+use beui_host::native::testing::{Target, button_name};
 use block_editor_beui::FromEditor;
 use block_editor_beui::be_block::{LiveEdit, Merge};
 use block_editor_beui::headless::{Adopted, HeadlessPlugin};
@@ -49,7 +49,7 @@ use uuid::Uuid;
 use crate::document::FRAME_INTERVAL;
 use crate::link::Sent;
 use crate::{ContentStore, overflow, snapshot};
-use beui::native::drive::gestures::{Frames, Gestures};
+use beui_host::native::drive::gestures::{Frames, Gestures};
 
 pub(crate) mod capture;
 mod desk;

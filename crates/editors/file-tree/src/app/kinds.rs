@@ -4,9 +4,9 @@ use block_editor_beui::beui::icons::{
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::database::use_choice_colors;
-use block_editor_beui::tags::{tag_color, tags_of};
 use block_editor_beui::{BlockQuery, Editor};
+use block_editor_database::tags::{tag_color, tags_of};
+use block_editor_database::use_choice_colors;
 use uuid::Uuid;
 
 use super::rows::Row;

@@ -101,21 +101,21 @@ files.js answers from memory and nothing survives a reload.
   same time in the be worker.
 - An unload cannot wait for the be worker, so durability does not depend on
   it: a replica seals within `SEAL_INTERVAL` of an edit, and until then
-  `be::status().unsaved` counts it, from the command the page sends to the
+  `block_app_stack::status().unsaved` counts it, from the command the page sends to the
   module's next report (`Replicas::counts`). `beforeunload` asks first while
   anything is unsaved, and the worker seals while the browser asks;
-  `be::flush` returns what was unsaved when it cannot wait (web) and what is
+  `block_app_stack::flush` returns what was unsaved when it cannot wait (web) and what is
   left after waiting (native).
 
-- The block stack (`be::start`) runs in a worker of its own, `web/be-worker.js`, as it
+- The block stack (`block_app_stack::start`) runs in a worker of its own, `web/be-worker.js`, as it
   runs on a thread natively: a second instance of the module on the page's
   shared memory, started through the wasm-bindgen glue (with its bare imports
   rewritten, since a worker has no import map) so that its sockets, timers,
   fetches and type-module workers are its own. It lives as long as the page.
-  Its channels, `Shared` and `Condvar` are the native ones. `be::stop`
+  Its channels, `Shared` and `Condvar` are the native ones. `block_app_stack::stop`
   cannot wait for it, so a stack started after another (switching
   organization and back) waits in its own worker until the earlier one's
-  `serve` has returned (`be/web.rs`). The page's thread
+  `serve` has returned (`block-app-stack/src/web.rs`). The page's thread
   may never wait on a lock (a browser traps `memory.atomic.wait` there), so a
   lock the page shares with that worker is `wasi_threads::Mutex`, which spins
   on wasm, and the beui waker takes no lock.

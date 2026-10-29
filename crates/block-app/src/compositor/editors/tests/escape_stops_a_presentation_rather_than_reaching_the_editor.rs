@@ -1,9 +1,10 @@
 use beui::native::WindowSize;
-use beui::native::testing::{Showing, Stepped};
-use beui::{Event, ForwardedInput, Input, Keystroke, native::Context, native::FreetypeFonts};
+use beui::{Event, ForwardedInput, Input, Keystroke, native::Context};
+use beui_host::native::FreetypeFonts;
+use beui_host::native::testing::{Showing, Stepped};
 
 use super::*;
-use beui::native::build;
+use beui_host::native::build;
 
 #[test]
 fn escape_stops_a_presentation_rather_than_reaching_the_editor() {

@@ -3,10 +3,11 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use beui::{
-    Color32, CursorIcon, Pos2, Rect, Vec2, WindowId, native::GpuSetup, native::RendererInfo,
-    native::Repainting, native::Setup, native::WindowOutput,
+    Color32, CursorIcon, Pos2, Rect, Vec2, WindowId, native::RendererInfo, native::Setup,
+    native::WindowOutput,
 };
-use beui_core::renderer::Renderer;
+use beui_host::{native::GpuSetup, native::Repainting};
+use beui_runner::renderer::Renderer;
 
 use crate::cursors::{Cursors, Shape};
 use crate::flips::Flips;

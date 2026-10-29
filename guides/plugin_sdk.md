@@ -8,7 +8,8 @@ it to the SDK when it loads it, on wasmtime and in the browser alike, from the s
 ## What is in it
 
 `crates/block-plugin-sdk` is a crate that depends on what the plugins have in common: beui,
-block-editor-beui, block-editor-plugin, serde, serde_json and uuid, and through them
+block-editor-beui, beui-platform-plugin (the runtime block-editor-beui reaches through a symbol
+rather than a dependency, which brings beui-host: the renderer, fonts and inspector), block-editor-plugin, serde, serde_json and uuid, and through them
 everything underneath. All of it is linked into the SDK whole and exported, since the SDK cannot
 know what a plugin it has not seen will use. A crate only one or two plugins use stays in those
 plugins. To move one into the SDK, add it to the crate's `Cargo.toml` (and its `lib.rs`) and
@@ -137,7 +138,7 @@ guest share:
   output back for a later step wakes itself.
 - `thread::spawn` runs a `thread::Runnable` on a thread of its own and is the `Channel` for it;
   its loader is handed the `Wake` to give the guest, which marks the guest woken before it
-  reaches the host. Dropping it interrupts the guest. Editors (`plugin_host/wasm.rs`) and pure guests both use it.
+  reaches the host. Dropping it interrupts the guest. Editors (`block-app-plugin-host/src/wasm.rs`) and pure guests both use it.
 - `InProcess<G: Guest>` runs a guest's Rust in the same process, for unit tests.
 - `web::WebGuest` runs a pure guest in a web worker of its own, with frames moved as
   transferable buffers and nothing else in the worker: no gpu shim, no dylink, no

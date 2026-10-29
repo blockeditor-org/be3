@@ -1,5 +1,5 @@
 use super::*;
-use beui::native::build;
+use beui_host::native::build;
 
 fn display(id: &str, rect: beui::Rect, scale: f32) -> crate::display::shown::ShownDisplay {
     crate::display::shown::ShownDisplay {

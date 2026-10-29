@@ -105,18 +105,13 @@ struct Harness {
     handle: Option<tokio::task::JoinHandle<()>>,
 }
 
-const PORTAL: ServerConfig = ServerConfig {
-    portal: Some(be_portal_ui::PORTAL),
-    ..ServerConfig::OPEN
-};
-
 impl Harness {
     async fn start() -> Self {
         Self::at(std::env::temp_dir().join(format!("be-server-test-{}", Uuid::new_v4()))).await
     }
 
     async fn at(directory: PathBuf) -> Self {
-        Self::at_with_config(directory, PORTAL).await
+        Self::at_with_config(directory, ServerConfig::OPEN).await
     }
 
     async fn configured(config: ServerConfig) -> Self {
@@ -825,6 +820,9 @@ impl Browser {
         assert_eq!(status, 303, "{page}");
         assert!(!self.cookie.is_empty());
     }
+}
+fn page_of(response: &str) -> be_portal::Page {
+    be_portal::Page::from_json(response.split("\r\n\r\n").nth(1).unwrap()).unwrap()
 }
 fn csrf(page: &str) -> String {
     page.split("\"csrf\":\"")

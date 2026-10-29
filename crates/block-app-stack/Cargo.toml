@@ -1,0 +1,61 @@
+[package]
+name = "block-app-stack"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[features]
+testing = []
+
+[dependencies]
+be-block = { path = "../be-block" }
+be-client = { path = "../be-client" }
+be-commit = { path = "../be-commit" }
+be-graph = { path = "../be-graph" }
+be-keys = { path = "../be-keys" }
+be-protocol = { path = "../be-protocol" }
+be-store = { path = "../be-store" }
+be-types-host = { path = "../be-types-host" }
+be-vcs = { path = "../be-vcs" }
+block-app-base = { path = "../block-app-base" }
+block-guest-abi = { path = "../block-guest-abi" }
+block-plugin-api = { path = "../block-plugin-api" }
+block-plugin-manifest = { path = "../block-plugin-manifest" }
+block-type-api = { path = "../block-type-api" }
+block-type-guest = { path = "../block-type-guest" }
+build-id = { path = "../build-id" }
+futures-util = { version = "0.3", features = ["io"] }
+host-types = { path = "../host-types" }
+serde_json = "1"
+tokio = { version = "1", features = ["sync"] }
+uuid = { version = "1", features = ["serde", "v4", "v7"] }
+wasi-threads = { path = "../wasi-threads" }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+be-server = { path = "../be-server" }
+tokio = { version = "1", features = ["net", "rt", "rt-multi-thread", "sync", "time"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+js-sys = "0.3"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+block-editor-plugin = { path = "../block-editor-plugin" }
+calendar-types = { path = "../editors/calendar/types" }
+checklist-types = { path = "../editors/checklist/types" }
+counter-types = { path = "../editors/counter/types" }
+fault-relay = { path = "../fault-relay" }
+first-party-types = { path = "../first-party-types" }
+image-block-types = { path = "../editors/image-block/types" }
+presentation-types = { path = "../editors/presentation/types" }
+terminal-types = { path = "../editors/terminal/types" }
+text-block-types = { path = "../editors/text-block/types" }
+ureq = { version = "2", features = ["gzip"] }
+workspace-ui-types = { path = "../editors/workspace-ui/types" }
+
+[target.'cfg(not(any(target_arch = "wasm32", target_os = "android")))'.dev-dependencies]
+be-cli = { path = "../be-cli" }
+
+[lints]
+workspace = true

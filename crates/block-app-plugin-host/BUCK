@@ -1,0 +1,15 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
+
+cargo_library()
+
+# The tests link ALSA, which the worker's image does not have, so they load it
+# from the sysroot it was linked against. The surface presenter's tests draw
+# through lavapipe, as the renderer's do.
+test_environment = {
+    "LD_LIBRARY_PATH": "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu:$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu",
+    "VK_ICD_FILENAMES": "$(location //buck/sysroot:lavapipe_icd.json)",
+}
+
+cargo_test(
+    env = test_environment,
+)

@@ -212,6 +212,9 @@ impl Run {
     }
 
     fn bootstrap(&mut self) {
+        if self.expected("bootstrap") == 0 {
+            return;
+        }
         let built = self.built("bootstrap").first().cloned();
         match bootstrap::check(
             built.as_deref(),

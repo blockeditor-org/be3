@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use super::*;
-use beui::native::build;
+use beui_host::native::build;
 
 #[test]
 fn its_actions_are_told_apart_by_place() {

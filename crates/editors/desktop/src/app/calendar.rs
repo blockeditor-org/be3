@@ -1,12 +1,12 @@
 use beui::Extent;
 use block_editor_beui::be_block::Root;
+use block_editor_beui::be_block::ViewState;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::{BlockQuery, ChildBlock, ChildMode, ChildTarget, Editor};
 use calendar_types::{Calendar, CalendarContent};
 use uuid::Uuid;
-use workspace_ui_types::ViewState;
 
 pub(crate) const CALENDAR_STATE: &str = "desktop.calendar";
 pub(crate) const CALENDAR_WIDTH: f32 = 640.0;

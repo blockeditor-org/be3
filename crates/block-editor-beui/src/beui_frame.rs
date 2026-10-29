@@ -233,8 +233,7 @@ impl Watched {
 
     fn is_session(&self) -> bool {
         self.info().is_some_and(|info| {
-            info.block_type
-                == <workspace_ui_types::EditorViewContent as be_block::BlockContent>::CONTENT_TYPE
+            info.block_type == <be_block::EditorViewContent as be_block::BlockContent>::CONTENT_TYPE
         })
     }
 

@@ -17,7 +17,7 @@ pub struct FilePickAnswer {
 }
 
 impl FilePickAnswer {
-    pub(crate) fn new(
+    pub fn new(
         id: FilePickId,
         sender: std::sync::mpsc::Sender<(FilePickId, FilePick)>,
         waker: Option<crate::app::Waker>,

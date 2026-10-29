@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use block_editor_beui::EditorHost;
-use block_editor_beui::block_ui::{BlockCatalog, BlockTypeEntry, ChildEdits, Press};
+use block_editor_beui::block_ui::{BlockCatalog, BlockTypeEntry};
+use block_editor_beui::{ChildOperations, EditorHost, Press};
 
 use super::*;
 
@@ -14,14 +14,14 @@ mod unlinking_needs_a_container_that_can_replace_a_child;
 const CONTAINER: Uuid = Uuid::from_u128(1);
 const LISTED: Uuid = Uuid::from_u128(2);
 
-fn catalog(edits: ChildEdits) -> BlockCatalog {
+fn catalog(children: ChildOperations) -> BlockCatalog {
     BlockCatalog::new([(
         LISTED,
         BlockTypeEntry {
             display_name: "Listed".to_owned(),
             color: None,
             icon: None,
-            child_edits: edits,
+            children,
             press: Press::Open,
             plain_file: false,
         },

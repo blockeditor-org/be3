@@ -49,9 +49,9 @@ use beui_core::input::{
     CursorIcon, DroppedFile, FileDrag, ImeArea, ImeEvent, Input, Key, Keystroke, Modifiers, Pen,
     PenPhase, PointerButton, ScrollDelta, TouchId, TouchPhase,
 };
-use beui_core::renderer::{Loaded, WindowHandle};
-use beui_core::runner::{Incoming, Launch, Platform, PlatformServices, Running};
 use beui_core::window::WindowState;
+use beui_runner::renderer::{Loaded, WindowHandle};
+use beui_runner::{Incoming, Launch, Platform, PlatformServices, Running};
 use clipboard::Clipboard;
 use preferences::SystemPreferences;
 use wheel::{Wheel, Wheeled};
@@ -95,7 +95,7 @@ fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
     let app_id = launch.options.app_id.clone();
     let outcome = Outcome::default();
     let runner = Runner {
-        runner: beui_core::runner::Runner::new(launch),
+        runner: beui_runner::Runner::new(launch),
         size,
         #[cfg(all(unix, not(target_os = "macos")))]
         app_id,
@@ -129,7 +129,7 @@ struct Surface {
 }
 
 struct Runner {
-    runner: beui_core::runner::Runner,
+    runner: beui_runner::Runner,
     size: Vec2,
     #[cfg(all(unix, not(target_os = "macos")))]
     app_id: Option<String>,

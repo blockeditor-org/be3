@@ -3,7 +3,7 @@ load(":defs.bzl", "bootstrap_dist")
 
 # What every script in scripts/ runs (scripts/internal/bootstrap.sh downloads
 # the release scripts/internal/pins names). :dist is that release for every
-# platform; ./scripts/ci --bootstrap builds it when the crate changed.
+# platform, which ./scripts/ci builds and compares with the pins.
 
 cargo_library()
 

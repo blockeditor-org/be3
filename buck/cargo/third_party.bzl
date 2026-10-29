@@ -68,6 +68,17 @@ def _crate(key, crate, fixup):
         urls = ["https://static.crates.io/crates/{}/{}/download".format(crate["name"], crate["version"])],
         visibility = [],
     )
+    # The download, configured for one platform whichever platform asks, so a
+    # crate built for several unpacks once rather than once for each. Its
+    # output is still named after the archive, which is where the crate's
+    # sources sit beside its rules.
+    unpacked = key + "-source"
+    native.configured_alias(
+        name = unpacked,
+        actual = ":" + archive,
+        platform = "root//buck/platforms:linux_x86_64",
+        visibility = [],
+    )
     overlay = {source: "{}/{}".format(archive, path) for path, source in fixup.get("overlay", {}).items()}
     env = _env(crate, archive)
     library = crate["library"]
@@ -94,7 +105,7 @@ def _crate(key, crate, fixup):
         platform = _platforms(crate, fixup),
         proc_macro = library["proc_macro"],
         rustc_flags = dev_only(crate.get("profile_flags", [])) + rustc_flags + _plan_flags(fixup),
-        srcs = [":" + archive],
+        srcs = [":" + unpacked],
         visibility = ["PUBLIC"],
     )
 
@@ -112,7 +123,7 @@ def _crate(key, crate, fixup):
         mapped_srcs = overlay,
         named_deps = build_script.get("named_deps", {}),
         platform = _platforms(crate, fixup, script = True),
-        srcs = [":" + archive],
+        srcs = [":" + unpacked],
         visibility = [],
     )
     run_env = {name: value for name, value in env.items() if name != "CARGO_MANIFEST_DIR"}
@@ -123,6 +134,7 @@ def _crate(key, crate, fixup):
         name = key + "-build-script-run",
         buildscript_rule = ":{}-build-script-build".format(key),
         env = run_env,
+        manifest_dir = ":" + unpacked,
         package_name = crate["name"],
         platform = _platforms(crate, fixup, script = True),
         rustc_link_lib = True,

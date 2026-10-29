@@ -17,7 +17,7 @@ pub struct FileSaveAnswer {
 }
 
 impl FileSaveAnswer {
-    pub(crate) fn new(
+    pub fn new(
         id: FileSaveId,
         sender: std::sync::mpsc::Sender<(FileSaveId, FileSave)>,
         waker: Option<crate::app::Waker>,

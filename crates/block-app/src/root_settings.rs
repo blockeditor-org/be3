@@ -11,8 +11,6 @@ use be_block::{
 use be_graph::BlockParent;
 use uuid::Uuid;
 
-use crate::be;
-
 pub(crate) const SESSION_TYPES: [(Uuid, &str); 2] = [
     (WORKSPACE_EDITOR, "Workspace UI"),
     (DESKTOP_EDITOR, "Desktop"),
@@ -50,8 +48,8 @@ fn device_name(class: DeviceClass) -> &'static str {
 }
 
 fn decode<C: BlockContent>(block: Uuid) -> Option<C> {
-    be::hold(block, C::CONTENT_TYPE);
-    C::decode(be::content(block)?.bytes()).ok()
+    block_app_stack::hold(block, C::CONTENT_TYPE);
+    C::decode(block_app_stack::content(block)?.bytes()).ok()
 }
 
 #[derive(Default)]
@@ -70,8 +68,8 @@ impl Cache {
         content_type: Uuid,
         decode: impl FnOnce() -> Option<T>,
     ) -> Option<T> {
-        be::hold(block, content_type);
-        let revision = be::content_revision(block)?;
+        block_app_stack::hold(block, content_type);
+        let revision = block_app_stack::content_revision(block)?;
         if let Some((seen, value)) = held.get(&block)
             && *seen == revision
         {
@@ -115,15 +113,15 @@ impl RootSettings {
     }
 
     fn owned(&self) -> Option<Vec<Uuid>> {
-        let account = be::account()?;
-        let revision = be::graph_revision();
+        let account = block_app_stack::account()?;
+        let revision = block_app_stack::graph_revision();
         let mut cache = self.cache.borrow_mut();
         if let Some((seen, owned)) = &cache.owned
             && *seen == revision
         {
             return Some(owned.clone());
         }
-        let mut owned: Vec<Uuid> = be::query(be::Query::Roots)
+        let mut owned: Vec<Uuid> = block_app_stack::query(block_app_stack::Query::Roots)
             .into_iter()
             .filter(|node| {
                 node.content_type == Settings::CONTENT_TYPE && node.author == Some(account)
@@ -140,9 +138,9 @@ impl RootSettings {
     }
 
     pub(crate) fn ensure(&mut self) -> Option<Uuid> {
-        if self.find().is_none() && be::ready(be::Query::Roots) {
+        if self.find().is_none() && block_app_stack::ready(block_app_stack::Query::Roots) {
             let block = Uuid::now_v7();
-            be::create(
+            block_app_stack::create(
                 block,
                 SettingsContent::CONTENT_TYPE,
                 BlockParent::Root,
@@ -155,9 +153,9 @@ impl RootSettings {
     }
 
     pub(crate) fn my_files(&self) -> Option<Uuid> {
-        let (account, organization) = be::identity()?;
+        let (account, organization) = block_app_stack::identity()?;
         let block = be_block::my_files(organization, account);
-        be::node(block)
+        block_app_stack::node(block)
             .is_some_and(|node| node.parent == Some(BlockParent::Root))
             .then_some(block)
             .or_else(|| self.created_files())
@@ -165,27 +163,31 @@ impl RootSettings {
 
     fn created_files(&self) -> Option<Uuid> {
         self.created_files.filter(|block| {
-            be::node(*block).is_none_or(|node| node.parent != Some(BlockParent::Detached))
+            block_app_stack::node(*block)
+                .is_none_or(|node| node.parent != Some(BlockParent::Detached))
         })
     }
 
     pub(crate) fn ensure_my_files(&mut self) -> Option<Uuid> {
         if self.my_files().is_none()
-            && be::ready(be::Query::Roots)
-            && let Some((account, organization)) = be::identity()
-            && be::ready(be::Query::Block(be_block::my_files(organization, account)))
+            && block_app_stack::ready(block_app_stack::Query::Roots)
+            && let Some((account, organization)) = block_app_stack::identity()
+            && block_app_stack::ready(block_app_stack::Query::Block(be_block::my_files(
+                organization,
+                account,
+            )))
         {
             let block = be_block::my_files(organization, account);
-            if let Some(deleted) = be::node(block) {
+            if let Some(deleted) = block_app_stack::node(block) {
                 if deleted.parent == Some(BlockParent::Detached) {
-                    be::set_parent(block, BlockParent::Root);
+                    block_app_stack::set_parent(block, BlockParent::Root);
                     self.created_files = Some(block);
                 }
                 return self.my_files();
             }
             let mut metadata = BlockMetadata::default();
             metadata.insert(&NAME, &"My files".to_owned());
-            be::create(block, WORKSPACE_TYPE, BlockParent::Root, metadata, None);
+            block_app_stack::create(block, WORKSPACE_TYPE, BlockParent::Root, metadata, None);
             self.created_files = Some(block);
         }
         self.my_files()
@@ -229,7 +231,7 @@ impl RootSettings {
         let mut cache = self.cache.borrow_mut();
         Cache::read(&mut cache.editors, session, VIEW_TYPE, || {
             Some(
-                be::node(session)?
+                block_app_stack::node(session)?
                     .metadata
                     .get(&VIEW_EDITOR)
                     .filter(|editor| !editor.is_nil())
@@ -256,12 +258,16 @@ impl RootSettings {
     ) -> Resolution<OfflineSettings> {
         let kind = OfflineSettingsContent::CONTENT_TYPE;
         let block = organization.map(organization_settings);
-        be::want(
-            be::Owner::Organization,
-            block.into_iter().map(be::Query::Block).collect(),
+        block_app_stack::want(
+            block_app_stack::Owner::Organization,
+            block
+                .into_iter()
+                .map(block_app_stack::Query::Block)
+                .collect(),
         );
-        let held =
-            block.filter(|block| be::node(*block).is_some_and(|node| node.access.can_view()));
+        let held = block.filter(|block| {
+            block_app_stack::node(*block).is_some_and(|node| node.access.can_view())
+        });
         let held = held.and_then(|block| {
             let mut cache = self.cache.borrow_mut();
             Cache::read(&mut cache.settings, block, Settings::CONTENT_TYPE, || {
@@ -281,7 +287,7 @@ impl RootSettings {
     }
 
     pub(crate) fn workspaces(&self) -> Vec<Uuid> {
-        be::query(be::Query::Roots)
+        block_app_stack::query(block_app_stack::Query::Roots)
             .into_iter()
             .filter(|node| node.content_type == WORKSPACE_TYPE)
             .map(|node| node.id)
@@ -292,11 +298,11 @@ impl RootSettings {
         let Some(block) = self.find() else {
             return;
         };
-        be::operate(block, SettingsContent::encode_operation(edit));
+        block_app_stack::operate(block, SettingsContent::encode_operation(edit));
     }
 
     fn named(block: Uuid, fallback: &str) -> String {
-        be::node(block)
+        block_app_stack::node(block)
             .and_then(|node| node.metadata.name())
             .unwrap_or_else(|| fallback.to_owned())
     }
@@ -373,7 +379,7 @@ impl RootSettings {
     fn create_session(&self, editor: Uuid, name: String) -> Option<Uuid> {
         let settings = self.find()?;
         let session = Uuid::new_v4();
-        be::create(
+        block_app_stack::create(
             session,
             VIEW_TYPE,
             BlockParent::Block(settings),
@@ -386,7 +392,7 @@ impl RootSettings {
     fn create_profile(&self, name: String, content: &SettingsProfileContent) -> Option<Uuid> {
         let settings = self.find()?;
         let profile = Uuid::new_v4();
-        be::create(
+        block_app_stack::create(
             profile,
             SettingsProfileContent::CONTENT_TYPE,
             BlockParent::Block(settings),
@@ -453,7 +459,7 @@ impl RootSettings {
         }
         let profile = self.create_profile(device_name(class).to_owned(), &content)?;
         if defaults {
-            be::create(
+            block_app_stack::create(
                 display_block,
                 DisplaySettingsContent::CONTENT_TYPE,
                 BlockParent::Block(profile),

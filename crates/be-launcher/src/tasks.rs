@@ -160,7 +160,7 @@ pub(crate) fn start(program: &Path) -> Result<(), String> {
 #[cfg(not(target_os = "android"))]
 pub(crate) fn command(program: impl AsRef<std::ffi::OsStr>) -> Command {
     let mut command = Command::new(program);
-    for variable in beui::native::environment::VARIABLES {
+    for variable in beui_host::native::environment::VARIABLES {
         command.env_remove(variable);
     }
     #[cfg(windows)]

@@ -32,7 +32,7 @@ fn a_popup_holds_its_own_popups_and_takes_them_when_dismissed() {
     let frame = overlaid(PLUGIN.to_owned(), INSTANCE, EditorRegion::Frame);
     let first = overlaid(PLUGIN.to_owned(), INSTANCE, EditorRegion::Window(1));
     let second = overlaid(PLUGIN.to_owned(), INSTANCE, EditorRegion::Window(2));
-    request(
+    block_app_plugin_host::request_windows(
         PLUGIN,
         vec![
             open(1, EditorRegion::Frame),

@@ -3,10 +3,8 @@ package be3:plugin@0.1.0;
 /// What the shell around an editor and the editor share: its menus, the
 /// actions of its bar and the children it places.
 interface shell-types {
-    use types.{
-        block-pick, child-id, editor-id, editor-instance-id, editor-region, menu-check,
-        menu-command, menu-heading, menu-item, menu-item-kind, menu-pin, size, web-view-id,
-    };
+    use be3:manifest/types@0.1.0.{interaction-mode, editor-capabilities, resize-mode, block-type-descriptor, template-category, edits, editor-region};
+    use types.{block-pick, child-id, editor-id, editor-instance-id, menu-check, menu-command, menu-heading, menu-item, menu-item-kind, menu-pin, size, web-view-id};
     use be3:shared/ids@0.1.0.{block-id, block-type-id, image-id};
     use be3:ui/types@0.1.0.{key-chord, pos2, rect, vec2};
 
@@ -65,34 +63,6 @@ interface shell-types {
     variant artifact-description {
         described(string),
         unreadable(string),
-    }
-
-    /// How an editor takes input where it is shown.
-    enum interaction-mode {
-        live,
-        preview,
-        playback,
-    }
-
-    enum pan-mode {
-        two-finger,
-        none,
-        one-finger,
-    }
-
-    record editor-capabilities {
-        rotation: bool,
-        preserve-aspect-ratio: bool,
-        pan-and-zoom: bool,
-        max-zoom: option<u32>,
-        pan: pan-mode,
-    }
-
-    enum resize-mode {
-        both,
-        none,
-        horizontal,
-        vertical,
     }
 
     /// How far a creation dialog shown as a child got: still asking, since
@@ -159,39 +129,6 @@ interface shell-types {
         card: bool,
     }
 
-    record child-operations {
-        add: bool,
-        delete: bool,
-        replace: bool,
-    }
-
-    /// What pressing a block in a container does.
-    enum press {
-        open,
-        zoom,
-    }
-
-    /// A colour's red, green and blue.
-    type rgb = tuple<u8, u8, u8>;
-
-    record block-type-descriptor {
-        block-type: block-type-id,
-        display-name: string,
-        color: option<rgb>,
-        icon-codepoint: string,
-        children: child-operations,
-        press: press,
-        plain-file: bool,
-    }
-
-    /// Where a picker lists a template: among every block, among the ones
-    /// offered first, or as a template to start from.
-    enum template-category {
-        regular,
-        important,
-        template,
-    }
-
     record template-descriptor {
         editor: editor-id,
         template: string,
@@ -200,12 +137,6 @@ interface shell-types {
         icon-codepoint: string,
         category: template-category,
         dialog: bool,
-    }
-
-    variant edits {
-        %type(block-type-id),
-        any,
-        nothing,
     }
 
     record editor-descriptor {
@@ -284,7 +215,8 @@ interface shell-types {
 
 /// What an editor tells the shell around it.
 interface shell {
-    use types.{block-location, block-pick, child-id, editor-instance-id, editor-region, size, web-view-id};
+    use be3:manifest/types@0.1.0.{editor-region};
+    use types.{block-location, block-pick, child-id, editor-instance-id, size, web-view-id};
     use be3:shared/ids@0.1.0.{block-id, block-type-id};
     use shell-types.{
         artifact-description, audio-command, audio-status, bar-action, catalog,

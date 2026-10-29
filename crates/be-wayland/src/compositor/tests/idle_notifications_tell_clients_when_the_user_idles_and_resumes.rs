@@ -10,7 +10,7 @@ fn idle_notifications_tell_clients_when_the_user_idles_and_resumes() {
     let _notification = harness
         .client
         .idle_notification(TIMEOUT.as_millis() as u32, false);
-    let start = harness.context().now() + beui::native::testing::FRAME_INTERVAL;
+    let start = harness.context().now() + beui_host::native::testing::FRAME_INTERVAL;
     harness.settle();
 
     harness.frame_at(start + TIMEOUT - Duration::from_millis(1));

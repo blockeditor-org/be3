@@ -1,0 +1,13 @@
+[package]
+name = "ui-keys"
+description = "The keys and modifiers that beui, the plugin protocol and the terminal share, with no geometry"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-ops-bindgen = { path = "../be-ops-bindgen" }
+serde = { version = "1", features = ["derive"] }
+
+[lints]
+workspace = true

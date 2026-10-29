@@ -1,5 +1,5 @@
 use super::*;
-use beui::native::build;
+use beui_host::native::build;
 
 #[test]
 fn an_expired_session_signs_in_through_the_browser() {

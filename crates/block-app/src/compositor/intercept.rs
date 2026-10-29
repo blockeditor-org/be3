@@ -4,8 +4,6 @@ use beui::reactive::*;
 use beui::{KeyChord, KeyEvent, KeyInput, Modifiers};
 use block_plugin_api::{EditorInstanceId, EditorRegion};
 
-use crate::plugin_host;
-
 pub(super) fn intercept_keys(
     plugin_id: Stored<String>,
     instance: EditorInstanceId,
@@ -21,7 +19,7 @@ pub(super) fn intercept_keys(
                     chords.iter().any(|chord| chord.tap && chord.key == key)
                 });
                 if asked && allowed() {
-                    plugin_host::intercept_tap(&plugin_id.value(), instance, region, key);
+                    block_app_plugin_host::intercept_tap(&plugin_id.value(), instance, region, key);
                 }
                 return false;
             }
@@ -38,7 +36,7 @@ pub(super) fn intercept_keys(
             }
             held.with(|held| held.set(press.modifiers));
         }
-        plugin_host::intercept_region(
+        block_app_plugin_host::intercept_region(
             &plugin_id.value(),
             instance,
             region,
@@ -62,6 +60,6 @@ pub(super) fn intercept_keys(
                 logo: was.logo && now.logo,
             })
         });
-        plugin_host::intercept_region(&plugin_id.value(), instance, region, None, now);
+        block_app_plugin_host::intercept_region(&plugin_id.value(), instance, region, None, now);
     });
 }

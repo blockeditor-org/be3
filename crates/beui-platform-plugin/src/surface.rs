@@ -7,7 +7,7 @@ use beui_core::context::{Moved, RendererInfo, WindowOutput};
 use beui_core::damage::Region;
 use beui_core::display::Layer;
 use beui_core::geometry::{Vec2, vec2};
-use beui_core::renderer::Renderer;
+use beui_runner::renderer::Renderer;
 use block_plugin_api::SurfaceRect;
 
 #[cfg(target_arch = "wasm32")]

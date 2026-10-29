@@ -68,7 +68,7 @@ app(
 )
 
 # What CI ships per platform: the app under cargo's name; the plugins ship
-# once, from :plugins, and the server from //crates/be-server:dist.
+# once, from :plugins, and the server from //crates/be-server-bin:dist.
 app(
     name = "native-dist",
     binary = ":bin",
@@ -122,7 +122,7 @@ app(
         "$(location :serve.sh)",
         "$(location //buck/tools:caddy)",
         "$(location :Caddyfile)",
-        "$(location //crates/be-server:bin)",
+        "$(location //crates/be-server-bin:bin)",
     ],
     sdk = "//crates/block-plugin-sdk:module",
     wasm_bindgen = "//buck/cargo:wasm-bindgen",
@@ -152,7 +152,7 @@ command_alias(
         "$(location //buck/tools:caddy)",
         "$(location :Caddyfile)",
         "$(location :web)",
-        "$(location //crates/be-server:bin)",
+        "$(location //crates/be-server-bin:bin)",
         "$(location //buck/app:drive-browser)/web-drive.mjs",
     ],
 )

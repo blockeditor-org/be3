@@ -18,20 +18,18 @@ use block_plugin_api::{
 };
 use uuid::Uuid;
 
-use crate::desktop_host::WindowSurface;
+use block_app_desktop::desktop_host::WindowSurface;
 
 use super::region::{ChildView, PanDrag, PluginRegion, RegionEditor};
 use crate::editors::plugin::{InstanceSource, PluginPicker};
 use crate::editors::{
     Chrome, EditorRegistry, PendingCreation, PluginEditor, editor_access_ceiling,
 };
-use crate::host::HostItem;
-use crate::plugin_host::{self, ChildCommit, EditorView, HostChild, HostChildStatus, HostContent};
-use crate::surfaces::{
-    ConflictNotice, HostItemFace, HostedRegion, HostedSurface, StaleBlock, SurfaceId,
-};
+use crate::surfaces::{ConflictNotice, HostedRegion, HostedSurface, StaleBlock, SurfaceId};
 use crate::ui::HostPanelSurface;
 use beui::{Align, Direction, ItemSize, Placement};
+use block_app_desktop::host_item::{HostItem, HostItemFace};
+use block_app_plugin_host::{ChildCommit, EditorView, HostChild, HostChildStatus, HostContent};
 
 const MIN_ZOOM: f32 = 1.0 / 64.0;
 const MAX_ZOOM: f32 = 32.0;
@@ -91,7 +89,7 @@ pub(crate) fn release_revisions(ids: &[Uuid]) {
             editors.forget_parent(*id);
         }
         drop(removed);
-        super::changed();
+        block_app_base::host::changed();
     }
 }
 
@@ -139,7 +137,7 @@ impl Editors {
         state.settings_children.borrow_mut().clear();
         state.settings_shown.borrow_mut().clear();
         state.simulated.borrow_mut().clear();
-        super::changed();
+        block_app_base::host::changed();
     }
 
     pub(crate) fn simulated(&self, id: Uuid) -> Option<Access> {
@@ -165,7 +163,7 @@ impl Editors {
     pub(crate) fn with_simulated<R>(&self, act: impl FnOnce(&mut HashMap<Uuid, Access>) -> R) -> R {
         let state = self.0.value();
         let result = act(&mut state.simulated.borrow_mut());
-        super::changed();
+        block_app_base::host::changed();
         result
     }
 
@@ -299,7 +297,7 @@ impl Editors {
             }
         }
         if dismissed {
-            super::changed();
+            block_app_base::host::changed();
         }
     }
 
@@ -371,7 +369,7 @@ impl Editors {
             return;
         }
         *state.settings_status.borrow_mut() = status;
-        super::changed();
+        block_app_base::host::changed();
     }
 
     fn settings_status(&self, block: Uuid) -> Option<(f32, DialogStatus)> {
@@ -396,7 +394,11 @@ impl Editors {
             .collect()
     }
 
-    fn ensure_picker(&self, key: CreationKey, request: crate::plugin_host::PickerRequest) -> bool {
+    fn ensure_picker(
+        &self,
+        key: CreationKey,
+        request: block_app_plugin_host::PickerRequest,
+    ) -> bool {
         let state = self.0.value();
         if state.pickers.borrow().contains_key(&key) {
             return true;
@@ -447,9 +449,9 @@ impl Editors {
                 None => CreationProgress::Options,
                 Some(commit) => match child.creation.create() {
                     Ok(Some(block)) => {
-                        crate::be::set_parent(block, commit.parent);
+                        block_app_stack::set_parent(block, commit.parent);
                         if let Some(name) = commit.name.clone() {
-                            crate::be::name_when_created(block, name);
+                            block_app_stack::name_when_created(block, name);
                         }
                         CreationProgress::Created(block.into_bytes())
                     }
@@ -466,7 +468,7 @@ impl Editors {
             }
         }
         if changed {
-            super::changed();
+            block_app_base::host::changed();
         }
     }
 
@@ -488,9 +490,9 @@ impl Editors {
 #[derive(Clone)]
 struct Handle {
     block_type: Uuid,
-    plugin: Option<std::sync::Arc<block_plugin_api::PluginManifest>>,
+    plugin: Option<std::sync::Arc<block_plugin_manifest::PluginManifest>>,
     instance: block_plugin_api::EditorInstanceId,
-    role: plugin_host::InstanceRole,
+    role: block_app_plugin_host::InstanceRole,
     pan_and_zoom: bool,
     max_zoom: Option<u32>,
     pan: PanMode,
@@ -632,9 +634,9 @@ pub(crate) fn PresentingSurface() -> NodeId {
             <Layers>
                 <ForEach keys={keys}>|block: Uuid| {
                     provide_context(Nesting::root());
-                    crate::host::set_fullscreen(true);
+                    block_app_base::host::set_fullscreen(true);
                     on_cleanup(move || {
-                        crate::host::set_fullscreen(false);
+                        block_app_base::host::set_fullscreen(false);
                         editors.with(|open| {
                             if let Some(editor) = open.get_mut(&block) {
                                 editor.stop_presenting_now();
@@ -663,7 +665,7 @@ pub(crate) fn ConflictSurface() -> NodeId {
     let any = super::any();
     let comparison = create_memo(move || {
         any.get();
-        crate::be::conflicts::comparing()
+        block_app_stack::conflicts::comparing()
     });
     view! {
         <ConflictDialog comparison />
@@ -671,7 +673,7 @@ pub(crate) fn ConflictSurface() -> NodeId {
 }
 
 #[component]
-fn ConflictDialog(comparison: Memo<Option<crate::be::conflicts::Comparison>>) -> NodeId {
+fn ConflictDialog(comparison: Memo<Option<block_app_stack::conflicts::Comparison>>) -> NodeId {
     let open = create_memo(move || comparison.with(Option::is_some));
     let error = create_memo(move || {
         comparison
@@ -689,12 +691,12 @@ fn ConflictDialog(comparison: Memo<Option<crate::be::conflicts::Comparison>>) ->
             actions={vec![
                 DialogAction::primary("Keep merged", move || {
                     if let Some(comparison) = comparison.get_untracked() {
-                        crate::be::conflicts::dismiss(comparison.block);
+                        block_app_stack::conflicts::dismiss(comparison.block);
                     }
                 }),
                 DialogAction::cancel("Close"),
             ]}
-            on_dismiss={crate::be::conflicts::stop_comparing}
+            on_dismiss={block_app_stack::conflicts::stop_comparing}
         >
             <List spacing=Space::Lg>
                 <Text style=TextStyle::CAPTION>
@@ -704,12 +706,12 @@ fn ConflictDialog(comparison: Memo<Option<crate::be::conflicts::Comparison>>) ->
                     <ConflictSide
                         @sizing=ItemSize::Percent(50.0)
                         comparison
-                        side=crate::be::conflicts::Side::Ours
+                        side=block_app_stack::conflicts::Side::Ours
                     />
                     <ConflictSide
                         @sizing=ItemSize::Percent(50.0)
                         comparison
-                        side=crate::be::conflicts::Side::Theirs
+                        side=block_app_stack::conflicts::Side::Theirs
                     />
                 </List>
                 <Show condition={failed}>
@@ -722,10 +724,10 @@ fn ConflictDialog(comparison: Memo<Option<crate::be::conflicts::Comparison>>) ->
 
 #[component]
 fn ConflictSide(
-    comparison: Memo<Option<crate::be::conflicts::Comparison>>,
-    side: crate::be::conflicts::Side,
+    comparison: Memo<Option<block_app_stack::conflicts::Comparison>>,
+    side: block_app_stack::conflicts::Side,
 ) -> NodeId {
-    use crate::be::conflicts::Side;
+    use block_app_stack::conflicts::Side;
     let title = match side {
         Side::Ours => "On this device",
         Side::Theirs => "From another device",
@@ -785,7 +787,7 @@ fn ConflictSide(
                     disabled={create_memo(move || !ready.get())}
                     on_click={move || {
                         if let Some(block) = block.get_untracked() {
-                            crate::be::conflicts::keep(block, side);
+                            block_app_stack::conflicts::keep(block, side);
                         }
                     }}
                 />
@@ -797,7 +799,7 @@ fn ConflictSide(
 #[component]
 fn ConflictPreview(preview: Uuid) -> NodeId {
     let editors = editors();
-    if let Some(node) = crate::be::node(preview) {
+    if let Some(node) = block_app_stack::node(preview) {
         editors.ensure(preview, node.content_type, None, None, preview);
     }
     provide_context(Nesting {
@@ -903,7 +905,7 @@ fn TabFrame(
             depth => stack[depth - 2],
         };
         revoke_frame_child(&editors, parent);
-        crate::host::request_repaint();
+        block_app_base::host::request_repaint();
     });
     provide_context(TabContext {
         stack,
@@ -951,7 +953,7 @@ fn TabFrame(
 
 fn frame_child(editors: &Editors, block: Uuid) -> Option<Uuid> {
     let handle = editors.handle(block)?;
-    plugin_host::frame_child(handle.plugin_id()?, handle.instance)
+    block_app_plugin_host::frame_child(handle.plugin_id()?, handle.instance)
 }
 
 fn chrome_owner(editors: &Editors, block: Uuid) -> Uuid {
@@ -988,7 +990,7 @@ fn revoke_frame_child(editors: &Editors, block: Uuid) {
     if let Some(handle) = editors.handle(block)
         && let Some(plugin_id) = handle.plugin_id()
     {
-        plugin_host::revoke_frame_child(plugin_id, handle.instance);
+        block_app_plugin_host::revoke_frame_child(plugin_id, handle.instance);
     }
 }
 
@@ -1156,7 +1158,7 @@ enum Resolution {
     Missing,
     Locked,
     Unsupported(Uuid),
-    Stale(Uuid, crate::be::Stale),
+    Stale(Uuid, block_app_stack::Stale),
     Ready { region: RegionKey, access: Access },
 }
 
@@ -1165,19 +1167,19 @@ fn ProgramSurface(block: Uuid) -> NodeId {
     let any = super::any();
     let shown = create_memo(move || {
         any.get();
-        crate::programs::shown(block)
+        block_app_desktop::programs::shown(block)
     });
     view! {
         <Layers>
-            <Dynamic value={shown}>|shown: Option<crate::programs::Shown>| {
+            <Dynamic value={shown}>|shown: Option<block_app_desktop::programs::Shown>| {
                 match shown {
-                    Some(crate::programs::Shown::Window(window)) => view! {
+                    Some(block_app_desktop::programs::Shown::Window(window)) => view! {
                         <WindowSurface window={window} />
                     },
-                    Some(crate::programs::Shown::Closed(name)) => view! {
+                    Some(block_app_desktop::programs::Shown::Closed(name)) => view! {
                         <ProgramClosed name block />
                     },
-                    Some(crate::programs::Shown::Failed(problem)) => view! {
+                    Some(block_app_desktop::programs::Shown::Failed(problem)) => view! {
                         <Notice
                             item={HostItem::Notice {
                                 text: problem,
@@ -1186,7 +1188,7 @@ fn ProgramSurface(block: Uuid) -> NodeId {
                             }}
                         />
                     },
-                    Some(crate::programs::Shown::Opening(name)) => view! {
+                    Some(block_app_desktop::programs::Shown::Opening(name)) => view! {
                         <Notice
                             item={HostItem::Notice {
                                 text: format!("Opening in {name}…"),
@@ -1219,7 +1221,7 @@ fn ProgramClosed(name: String, block: Uuid) -> NodeId {
                     label="Open again"
                     variant=ButtonVariant::Primary
                     @test_id={"program.reopen"}
-                    on_click={move || crate::programs::reopen(block)}
+                    on_click={move || block_app_desktop::programs::reopen(block)}
                 />
             </List>
         </Frame>
@@ -1258,10 +1260,10 @@ fn BlockFrameBody(
         let Some(handle) = editors.handle(block) else {
             return Resolution::Missing;
         };
-        if crate::be::locked(block) {
+        if block_app_stack::locked(block) {
             return Resolution::Locked;
         }
-        if let Some(stale) = crate::be::staleness(block) {
+        if let Some(stale) = block_app_stack::staleness(block) {
             return Resolution::Stale(handle.block_type, stale);
         }
         match region_key(&editors, block, false) {
@@ -1272,7 +1274,7 @@ fn BlockFrameBody(
     let conflicted = create_memo(move || {
         any.get();
         match resolution.get() {
-            Resolution::Ready { .. } => crate::be::conflicts::conflicted(block)
+            Resolution::Ready { .. } => block_app_stack::conflicts::conflicted(block)
                 .map(|conflicted| conflicted.count)
                 .into_iter()
                 .collect::<Vec<_>>(),
@@ -1377,7 +1379,7 @@ fn BlockFrameView(
     let framed = create_memo(move || content.get().is_some());
     create_effect(move || {
         let _ = framed.get();
-        plugin_host::hold(&plugin_id.value(), instance, EditorRegion::Frame);
+        block_app_plugin_host::hold(&plugin_id.value(), instance, EditorRegion::Frame);
     });
     let revision = super::listen(&plugin_id.value());
     let rect_held = create_signal(Rect::ZERO);
@@ -1398,7 +1400,7 @@ fn BlockFrameView(
     let viewport_rect = create_memo(move || {
         revision.get();
         let rect = rect.get();
-        plugin_host::frame_rects(&plugin_id.value(), instance)
+        block_app_plugin_host::frame_rects(&plugin_id.value(), instance)
             .map(|rects| rects.content.translate(rect.min.to_vec2()))
             .filter(Rect::is_positive)
             .unwrap_or(rect)
@@ -1406,8 +1408,8 @@ fn BlockFrameView(
     let content_size = create_memo(move || {
         revision.get();
         let size = viewport_rect.get().size().max(Vec2::splat(1.0));
-        let intrinsic =
-            plugin_host::intrinsic_size(&plugin_id.value(), instance).unwrap_or(vec2(420.0, 240.0));
+        let intrinsic = block_app_plugin_host::intrinsic_size(&plugin_id.value(), instance)
+            .unwrap_or(vec2(420.0, 240.0));
         vec2(size.x.max(intrinsic.x), size.y.max(intrinsic.y))
     });
     let content_rect = create_memo(move || {
@@ -1431,7 +1433,7 @@ fn BlockFrameView(
         }
         revision.get();
         let shown = content.get().unwrap_or(rect.get());
-        let scale = plugin_host::intrinsic_size(&plugin_id.value(), instance)
+        let scale = block_app_plugin_host::intrinsic_size(&plugin_id.value(), instance)
             .filter(|intrinsic| intrinsic.x > 0.0 && intrinsic.y > 0.0)
             .map_or(1.0, |intrinsic| {
                 (shown.width() / intrinsic.x).min(shown.height() / intrinsic.y)
@@ -1496,7 +1498,7 @@ fn BlockFrameView(
     create_effect(move || {
         revision.get();
         let rect = rect.get_untracked();
-        for change in plugin_host::take_view_changes(&plugin_id.value(), instance) {
+        for change in block_app_plugin_host::take_view_changes(&plugin_id.value(), instance) {
             command(match change {
                 ViewChange::Pan(by) => Command::Pan(by),
                 ViewChange::Zoom { factor, anchor } => Command::Zoom {
@@ -1517,7 +1519,7 @@ fn BlockFrameView(
                 }
             });
         }
-        let actions = plugin_host::take_bar_actions(&plugin_id.value(), instance);
+        let actions = block_app_plugin_host::take_bar_actions(&plugin_id.value(), instance);
         for action in actions {
             on_bar_action.call(action);
         }
@@ -1525,7 +1527,7 @@ fn BlockFrameView(
     if let Some(tab) = use_context::<TabContext>() {
         create_effect(move || {
             revision.get();
-            if plugin_host::take_leaving(&plugin_id.value(), instance) {
+            if block_app_plugin_host::take_leaving(&plugin_id.value(), instance) {
                 tab.exit.call();
             }
         });
@@ -1591,7 +1593,7 @@ fn BlockFrameView(
         if let Some(steered) = steered.get() {
             area = area.without(steered.translate(-origin));
         }
-        if let Some(frame) = plugin_host::frame_rects(&plugin_id.value(), instance) {
+        if let Some(frame) = block_app_plugin_host::frame_rects(&plugin_id.value(), instance) {
             for floating in frame.floating {
                 area = area.without(floating);
             }
@@ -1605,7 +1607,7 @@ fn BlockFrameView(
         }
         revision.get();
         let shown = rect.get();
-        plugin_host::assigned_size(&plugin_id.value(), instance)
+        block_app_plugin_host::assigned_size(&plugin_id.value(), instance)
             .filter(|assigned| assigned.x > 0.0 && assigned.y > 0.0)
             .map_or(1.0, |assigned| {
                 (shown.width() / assigned.x).min(shown.height() / assigned.y)
@@ -1687,20 +1689,22 @@ fn HostedChild(
     let nesting = use_context::<Nesting>().unwrap_or_else(Nesting::root);
     let tab = use_context::<TabContext>();
     let any = super::any();
-    let inherited = super::region::occlusion();
-    provide_context(super::region::Occlusion(create_memo(move || {
-        let mut rects = inherited
-            .as_ref()
-            .map(|inherited| inherited.get())
-            .unwrap_or_default();
-        rects.extend(child.with(|child| {
-            child
+    let inherited = block_app_desktop::occlusion::occlusion();
+    provide_context(block_app_desktop::occlusion::Occlusion(create_memo(
+        move || {
+            let mut rects = inherited
                 .as_ref()
-                .map(|child| child.occluders.clone())
-                .unwrap_or_default()
-        }));
-        rects
-    })));
+                .map(|inherited| inherited.get())
+                .unwrap_or_default();
+            rects.extend(child.with(|child| {
+                child
+                    .as_ref()
+                    .map(|child| child.occluders.clone())
+                    .unwrap_or_default()
+            }));
+            rects
+        },
+    )));
     let content = create_memo(move || child.get().map(|child| child.content));
     let creation_key: CreationKey = (parent, region, key);
     on_cleanup(move || {
@@ -1745,7 +1749,7 @@ fn HostedChild(
                 parent,
                 touch,
             }) => {
-                let request = crate::plugin_host::PickerRequest {
+                let request = block_app_plugin_host::PickerRequest {
                     filter,
                     parent,
                     touch,
@@ -1762,14 +1766,14 @@ fn HostedChild(
                 editor,
             }) => (block_id, block_type, view_block, editor),
         };
-        if crate::be::revisions::released(id) {
+        if block_app_stack::revisions::released(id) {
             return Kind::Unavailable;
         }
         if nesting.above.with(|above| above.contains(&id)) {
             return Kind::Unavailable;
         }
-        if let Some(program) = editor.filter(|editor| crate::programs::opens(*editor)) {
-            crate::programs::show(id, block_type, program, parent);
+        if let Some(program) = editor.filter(|editor| block_app_desktop::programs::opens(*editor)) {
+            block_app_desktop::programs::show(id, block_type, program, parent);
             return Kind::Program(id);
         }
         editors.ensure(id, block_type, view_block, editor, parent);
@@ -1795,7 +1799,7 @@ fn HostedChild(
             child.block_id().and_then(|id| editors.handle(id)),
         ) && let Some(plugin_id) = handle.plugin_id()
         {
-            plugin_host::resized(plugin_id, handle.instance, size);
+            block_app_plugin_host::resized(plugin_id, handle.instance, size);
         }
     });
     if let Some(reports) = use_context::<ChildReports>() {
@@ -2098,7 +2102,7 @@ fn status_of(editors: &Editors, child: &HostChild, available: bool) -> HostChild
         interaction,
         capabilities,
         resize,
-        error: crate::be::revisions::error(block)
+        error: block_app_stack::revisions::error(block)
             .or_else(|| (!available).then(|| CHILD_UNAVAILABLE.to_owned())),
         creation: None,
         preview: ChildPreview::Hosted,
@@ -2122,7 +2126,7 @@ fn reporter_for(
     let on_bar_action = report_to.clone().and_then(|parent| {
         let plugin_id = parent.plugin_id()?.to_owned();
         Some(Callback::new(move |action: BarAction| {
-            plugin_host::report_child_bars(
+            block_app_plugin_host::report_child_bars(
                 &plugin_id,
                 parent.instance,
                 region,
@@ -2136,7 +2140,7 @@ fn reporter_for(
     let instance = report_to.map(|parent| parent.instance);
     let on_focus = Callback::new(move |()| {
         if let (Some(plugin_id), Some(instance)) = (&plugin_id, instance) {
-            plugin_host::report_child_focus(plugin_id, instance, region, key);
+            block_app_plugin_host::report_child_focus(plugin_id, instance, region, key);
         }
         within.call(());
     });
@@ -2185,7 +2189,7 @@ fn preview_of(editors: &Editors, block: Uuid) -> ChildPreview {
     let Some(plugin) = handle.plugin_id() else {
         return ChildPreview::Label;
     };
-    plugin_host::preview_image(plugin, handle.instance)
+    block_app_plugin_host::preview_image(plugin, handle.instance)
         .map_or(ChildPreview::Waiting, ChildPreview::Image)
 }
 

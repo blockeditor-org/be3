@@ -10,17 +10,18 @@ use std::time::{Duration, Instant};
 
 use beui::{
     Keystroke, Modifiers, Pen, PenPhase, PointerButton, Pos2, ScrollDelta, TouchId, TouchPhase,
-    native::Launch, native::PlatformServices, native::Setup, native::Waker, vec2,
+    native::Setup, native::Waker, vec2,
 };
 use beui_core::app::SafeArea;
 use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::preferences::{Motion, PreferenceLayer, ThemeKind};
-use beui_core::renderer::Loaded;
-use beui_core::runner::Incoming;
-use beui_core::runner::{Runner, panic_message};
 use beui_core::window::{
     WindowHosting, WindowId, WindowPlacement, WindowReport, WindowRequest, WindowState,
 };
+use beui_runner::Incoming;
+use beui_runner::renderer::Loaded;
+use beui_runner::{Launch, PlatformServices};
+use beui_runner::{Runner, panic_message};
 use smithay::backend::allocator::gbm::GbmDevice;
 use smithay::backend::drm::{
     DrmDevice, DrmDeviceFd, DrmEvent, DrmEventMetadata, DrmEventTime, DrmNode, NodeType,
@@ -425,7 +426,7 @@ fn open_gpu(node: u64, lost: &Arc<AtomicBool>) -> Result<(wgpu::Device, wgpu::Qu
         trace: wgpu::Trace::Off,
     };
     let (device, queue) =
-        beui::native::open_vulkan_device(&adapter, &descriptor, &DEVICE_EXTENSIONS)
+        beui_host::native::open_vulkan_device(&adapter, &descriptor, &DEVICE_EXTENSIONS)
             .ok_or("the Vulkan device could not be opened")?;
     let flag = lost.clone();
     device.set_device_lost_callback(move |_, message| {
@@ -1049,15 +1050,15 @@ impl Session {
         }
     }
 
-    fn push(&mut self, input: impl Into<beui::native::Incoming>) {
+    fn push(&mut self, input: impl Into<beui_runner::Incoming>) {
         self.runner.push(input);
         self.pacer.ask();
     }
 
-    fn push_sample(&mut self, event: impl Into<beui::native::Incoming>) {
+    fn push_sample(&mut self, event: impl Into<beui_runner::Incoming>) {
         self.push(event);
         if let Some(at) = self.sampled {
-            self.push(beui::native::Incoming::Time(at));
+            self.push(beui_runner::Incoming::Time(at));
         }
     }
 

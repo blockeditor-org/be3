@@ -1,0 +1,12 @@
+[package]
+name = "beui-draw"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+beui-core = { path = "../beui-core" }
+wgpu = { version = "29", default-features = false, features = ["std", "wgsl"] }
+
+[lints]
+workspace = true

@@ -1,7 +1,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use beui_renderer_wgpu::{Draw, DrawAt, Drawing};
+use beui_core::drawing::Drawing;
+use beui_draw::{Draw, DrawAt};
 use beui_view::reactive::Painter;
 use beui_view::types::Rect;
 use bytemuck::{Pod, Zeroable};
@@ -70,7 +71,7 @@ struct Slot(Rc<RefCell<Option<Bound>>>);
 
 impl Slot {
     fn drawing(&self, face: Face) -> Drawing {
-        beui_renderer_wgpu::drawing(WheelDraw {
+        beui_draw::drawing(WheelDraw {
             slot: self.clone(),
             face,
         })

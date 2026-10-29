@@ -2,14 +2,13 @@ use std::{cell::RefCell, collections::HashMap};
 
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{Align, NodeId, TextAlign};
+use beui::{Align, NodeId};
 use block_plugin_api::{
     BlockCommand, BlockLocation, DialogFrame, EditorInstanceId, EditorRegion, FrameSpec,
 };
 use uuid::Uuid;
 
 use crate::compositor::{ChildView, PluginRegion, RegionEditor, ShellSurface};
-use crate::host::HostItem;
 use beui::{Align2, Direction};
 
 mod notices;
@@ -150,71 +149,27 @@ pub(crate) fn HostedSurface(
 }
 
 #[component]
-pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
-    let kind = content.get_untracked();
-    let text = create_memo(move || match content.get() {
-        HostItem::Notice { text, .. } => text,
-        HostItem::Unsupported { block, .. } => format!("Block: {block}"),
-    });
-    let detail = create_memo(move || match content.get() {
-        HostItem::Unsupported { block_type, .. } => format!("Type: {block_type}"),
-        _ => String::new(),
-    });
-    let busy = create_memo(move || matches!(content.get(), HostItem::Notice { busy: true, .. }));
-    let glyph = create_memo(move || match content.get() {
-        HostItem::Notice { icon, .. } => icon,
-        HostItem::Unsupported { .. } => None,
-    });
-    let has_glyph = create_memo(move || glyph.get().is_some());
-    let unsupported = matches!(kind, HostItem::Unsupported { .. });
-    view! {
-        <Frame padding=Space::Lg>
-            <List spacing=Space::Md align=Align::Center>
-                <Show condition={unsupported}>
-                    <Text style=TextStyle::HEADING align=TextAlign::Center>
-                        "Unsupported block type"
-                    </Text>
-                </Show>
-                <Show condition={has_glyph}>
-                    <Text size=TextSize::Xl color=TextColor::Muted align=TextAlign::Center>
-                        <Icon glyph={glyph} />
-                    </Text>
-                </Show>
-                <Text align=TextAlign::Center color=TextColor::Muted>{text}</Text>
-                <Show condition={unsupported}>
-                    <Text style=TextStyle::CAPTION align=TextAlign::Center>{detail}</Text>
-                </Show>
-                <Show condition={busy}>
-                    <Progress width=INLINE_PROGRESS_WIDTH />
-                </Show>
-            </List>
-        </Frame>
-    }
-}
-
-#[component]
-pub(crate) fn StaleBlock(block: Uuid, block_type: Uuid, stale: crate::be::Stale) -> NodeId {
-    let can_try = matches!(stale, crate::be::Stale::Reshaped);
+pub(crate) fn StaleBlock(block: Uuid, block_type: Uuid, stale: block_app_stack::Stale) -> NodeId {
+    let can_try = matches!(stale, block_app_stack::Stale::Reshaped);
     let detail = match stale {
-        crate::be::Stale::Unreadable(error) => {
+        block_app_stack::Stale::Unreadable(error) => {
             format!("This build cannot read what another build saved here: {error}")
         }
-        crate::be::Stale::Reshaped => {
+        block_app_stack::Stale::Reshaped => {
             "Another build saved this block in a shape this build may read wrongly.".to_owned()
         }
     };
     let delete = move || {
-        let source = crate::be::node(block).and_then(|node| node.parent).map_or(
-            BlockLocation::Detached,
-            |parent| match parent {
+        let source = block_app_stack::node(block)
+            .and_then(|node| node.parent)
+            .map_or(BlockLocation::Detached, |parent| match parent {
                 be_graph::BlockParent::Root => BlockLocation::Root,
                 be_graph::BlockParent::Detached => BlockLocation::Detached,
                 be_graph::BlockParent::Block(parent) => BlockLocation::Block(parent.into_bytes()),
-            },
-        );
+            });
         crate::compositor::act(
             None,
-            crate::editors::EditorAction::Command {
+            block_app_plugin_host::EditorAction::Command {
                 id: block,
                 command: BlockCommand::Delete {
                     block_type: block_type.into_bytes(),
@@ -229,9 +184,9 @@ pub(crate) fn StaleBlock(block: Uuid, block_type: Uuid, stale: crate::be::Stale)
                 title="Saved by another build"
                 detail={detail}
                 can_try
-                on_reset={move || crate::be::reset(block)}
+                on_reset={move || block_app_stack::reset(block)}
                 on_delete={delete}
-                on_try={move || crate::be::try_anyway(block)}
+                on_try={move || block_app_stack::try_anyway(block)}
             />
         </Frame>
     }
@@ -266,13 +221,13 @@ pub(crate) fn ConflictNotice(block: Uuid, count: usize) -> NodeId {
                         @test_id={format!("conflict.{block}.compare")}
                         label="See both versions"
                         variant=ButtonVariant::Secondary
-                        on_click={move || crate::be::conflicts::compare(block)}
+                        on_click={move || block_app_stack::conflicts::compare(block)}
                     />
                     <Button
                         @test_id={format!("conflict.{block}.dismiss")}
                         label="Keep merged"
                         variant=ButtonVariant::Ghost
-                        on_click={move || crate::be::conflicts::dismiss(block)}
+                        on_click={move || block_app_stack::conflicts::dismiss(block)}
                     />
                 </List>
             </Frame>

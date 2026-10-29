@@ -1,11 +1,11 @@
 use block_editor_beui::be_block::be_model::{Document as Content, Edit, ObjectId};
 use block_editor_beui::be_block::block_url::{BLOCK_URL_MAX_BYTES, parse_block_urls};
 
-use block_editor_beui::live_text::{LiveText, TextField};
+use block_editor_text::live_text::{LiveText, TextField};
 use text_editor_core::{TextIndentation, TextLanguage};
 use uuid::Uuid;
 
-pub use block_editor_beui::live_text::History;
+pub use block_editor_text::live_text::History;
 use text_block_types::TextBlock;
 
 #[cfg(test)]

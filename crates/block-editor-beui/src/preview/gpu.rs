@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use beui_renderer_wgpu::{Draw, DrawAt};
+use beui::native::{Draw, DrawAt};
 use block_editor_plugin::wgpu;
 use block_plugin_api::PreviewImage;
 

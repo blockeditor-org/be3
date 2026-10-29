@@ -3,43 +3,18 @@ pub(crate) mod plugin;
 use std::{collections::HashMap, sync::Arc};
 
 use be_graph::Access;
-use block_plugin_api::{EditorManifest, Edits, PluginManifest, ShellRequest, TemplateCategory};
+use block_plugin_api::{Edits, TemplateCategory};
+use block_plugin_manifest::{EditorManifest, PluginManifest, ShellRequest};
 use uuid::Uuid;
 
 use crate::surfaces::HostedRegion;
+use block_app_plugin_host::PluginCatalog;
 
 pub(crate) use self::plugin::PluginEditor;
 
 pub struct FocusReport {
     pub block: Option<(Uuid, Uuid)>,
     pub via: Vec<Uuid>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct BlockOpen {
-    pub id: Uuid,
-    pub block_type: Uuid,
-    pub via: Option<Uuid>,
-    pub editor: Option<Uuid>,
-}
-
-pub enum EditorAction {
-    OpenBlock(BlockOpen),
-    Command {
-        id: Uuid,
-        command: block_plugin_api::BlockCommand,
-    },
-    Shell {
-        id: Uuid,
-        command: block_plugin_api::ShellCommand,
-    },
-    SimulateAccess {
-        id: Uuid,
-        access: block_plugin_api::AccessLevel,
-    },
-    AppMenu {
-        at: Option<beui::Rect>,
-    },
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -67,7 +42,7 @@ pub enum DirectEditorResize {
 }
 
 pub fn editor_access_ceiling(id: Uuid) -> Access {
-    let Some(node) = crate::be::node(id) else {
+    let Some(node) = block_app_stack::node(id) else {
         return Access::Manage;
     };
     match node.metadata.contains(&be_block::ARTIFACT) {
@@ -159,29 +134,23 @@ impl RegisteredEditor {
     }
 }
 
-#[derive(Clone, Debug, Default)]
-pub(crate) struct PluginCatalog {
-    pub(crate) catalog: block_plugin_api::Catalog,
-    pub(crate) debug_templates: Vec<block_plugin_api::DebugTemplate>,
-}
-
 pub struct EditorRegistry {
     editors: Vec<RegisteredEditor>,
     templates: Vec<TemplateEntry>,
     types: HashMap<Uuid, block_plugin_api::BlockTypeDescriptor>,
-    plugin_block_types: Arc<crate::editors::PluginCatalog>,
+    plugin_block_types: Arc<PluginCatalog>,
 }
 
 impl EditorRegistry {
     pub fn new() -> Self {
-        Self::from_manifests(plugin::discovery::manifests())
+        Self::from_manifests(block_app_stack::discovery::manifests())
     }
 
     pub(crate) fn from_manifests(manifests: Vec<Arc<PluginManifest>>) -> Self {
         let mut registry = Self {
             editors: Vec::new(),
             templates: Vec::new(),
-            types: plugin::discovery::block_types(&manifests),
+            types: block_app_stack::discovery::block_types(&manifests),
             plugin_block_types: Arc::default(),
         };
         for manifest in manifests {
@@ -236,7 +205,7 @@ impl EditorRegistry {
         registry
     }
 
-    pub(super) fn plugin_block_types(&self) -> &Arc<crate::editors::PluginCatalog> {
+    pub(super) fn plugin_block_types(&self) -> &Arc<PluginCatalog> {
         &self.plugin_block_types
     }
 
@@ -319,7 +288,7 @@ impl EditorRegistry {
 
     pub(crate) fn picker(
         &self,
-        request: crate::plugin_host::PickerRequest,
+        request: block_app_plugin_host::PickerRequest,
     ) -> Option<plugin::PluginPicker> {
         let editor = self.editors.iter().find(|editor| {
             editor

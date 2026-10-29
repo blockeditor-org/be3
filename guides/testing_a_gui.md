@@ -99,7 +99,7 @@ node has that test id, which is usually a node that was never given one, or one 
 list has not built; shown() and label() ask about one without clicking it.
 
 run() hands the editor what was queued since the last one, frame by frame. Its gestures are
-drive's, built by the same `beui::native::drive::gestures::Gestures` (guides/running/drive.md),
+drive's, built by the same `beui_host::native::drive::gestures::Gestures` (guides/running/drive.md),
 so an editor test presses, types and touches as drive and the app tests do: the pointer spends
 a frame arriving where a click, a press or a drag starts before it presses, a click or a key
 then arrives in one frame, a key carries the text it types and a chord presses its modifiers
@@ -293,7 +293,7 @@ that path, so a page on beui's HTML core whose `<style>` is `beui::html::stylesh
 draws its text and icons without copying the fonts into every painting.
 Keep dynamic ids, form tokens and displayed times fixed in fixtures.
 Native test crates opt into acceptance and cleanup with `cargo_test(paints = True)` in
-BUCK. The portal's tests in `crates/be-server/src/portal/tests/` demonstrate this.
+BUCK. The portal's tests in `crates/be-portal-ui/src/tests/` demonstrate this.
 
 Tests compare the encoded bytes without starting a browser. Browser paintings share the
 native acceptance and cleanup pipeline, but Git shows their text diffs and prevents line
@@ -306,7 +306,7 @@ For local browser rasterization, install the optional runtime once:
     ~/.cache/be3/browser-rasterizer/bin/pip install -r crates/browser-rasterizer/requirements.txt
     ~/.cache/be3/browser-rasterizer/bin/python -m playwright install --with-deps chromium
     export BE3_PLAYWRIGHT_PYTHON=~/.cache/be3/browser-rasterizer/bin/python
-    ./scripts/buck run //crates/local-tools:bin -- rasterize crates/be-server/snapshots/portal_login_phone.browser.paint out.png
+    ./scripts/buck run //crates/local-tools:bin -- rasterize crates/be-portal-ui/snapshots/portal_login_phone.browser.paint out.png
 
 Setting `BE3_CHROME` to a Chrome or Chromium executable uses that browser instead of
 Playwright's download, which is what CI does with the runner's Google Chrome.

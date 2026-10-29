@@ -1,8 +1,8 @@
 use block_editor_beui::Loaded;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::Root;
-use block_editor_beui::database::create_database;
 use block_editor_beui::{Creation, Editor};
+use block_editor_database::create_database;
 use uuid::Uuid;
 
 mod ui;

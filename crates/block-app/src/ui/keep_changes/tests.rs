@@ -6,7 +6,7 @@ use beui::native::Document;
 use block_ui_test::DocumentTest;
 
 use super::*;
-use beui::native::build;
+use beui_host::native::build;
 
 const TIMEOUT: Duration = Duration::from_secs(15);
 const WIDE: Vec2 = Vec2::new(1100.0, 800.0);

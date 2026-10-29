@@ -2,9 +2,9 @@ use crate::ui::{Line, LineStyle};
 
 pub(super) fn lines() -> Vec<Line> {
     let mut lines = Vec::new();
-    let status = crate::be::status();
+    let status = block_app_stack::status();
     push(&mut lines, LineStyle::Heading, 0, "Block Stack");
-    if let Some((account, organization)) = crate::be::identity() {
+    if let Some((account, organization)) = block_app_stack::identity() {
         field(&mut lines, 1, "Account", account);
         field(&mut lines, 1, "Organization", organization);
     }
@@ -53,10 +53,10 @@ pub(super) fn lines() -> Vec<Line> {
 }
 
 fn graph() -> String {
-    if !crate::be::ready(crate::be::Query::Roots) {
+    if !block_app_stack::ready(block_app_stack::Query::Roots) {
         return "Loading".to_owned();
     }
-    let roots = crate::be::query(crate::be::Query::Roots).len();
+    let roots = block_app_stack::query(block_app_stack::Query::Roots).len();
     format!("{roots} root(s)")
 }
 

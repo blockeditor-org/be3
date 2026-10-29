@@ -45,5 +45,5 @@ app(
     manifests = [],
     modules = [],
     wasm_bindgen = "//buck/cargo:wasm-bindgen",
-    visibility = ["//crates/be-server:"],
+    visibility = ["//crates/be-server-bin:"],
 )
