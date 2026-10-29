@@ -45,7 +45,7 @@ pub(super) struct Docks {
     hosted: HashMap<EditorInstanceId, DockHosted>,
     docked: HashSet<EditorInstanceId>,
     outbox: Vec<(EditorInstanceId, DockUpdate)>,
-    bars: Vec<(EditorInstanceId, ChildId, BarAction)>,
+    bars: Vec<(EditorInstanceId, ViewId, ChildId, BarAction)>,
     menus: HashMap<(EditorInstanceId, ViewId), Vec<MenuItem>>,
     picks: Vec<(EditorInstanceId, ViewId, String)>,
     changed: HashSet<String>,
@@ -223,24 +223,28 @@ impl Docks {
         if !self.docked(instance) || !self.declared.contains_key(&instance) {
             return false;
         }
-        let Some((placer, child, _)) = self.placer_of(instance) else {
+        let Some((placer, child, record)) = self.placer_of(instance) else {
             return false;
         };
         if let Some(plugin) = self.plugins.get(&placer) {
             self.changed.insert(plugin.clone());
         }
-        self.bars.push((placer, child, action));
+        let view = match self.docked(placer) {
+            true => ViewId(record.tab),
+            false => ViewId::MAIN,
+        };
+        self.bars.push((placer, view, child, action));
         true
     }
 
     pub(super) fn take_bars(
         &mut self,
         plugin: &str,
-    ) -> Vec<(EditorInstanceId, ChildId, BarAction)> {
+    ) -> Vec<(EditorInstanceId, ViewId, ChildId, BarAction)> {
         let plugins = &self.plugins;
         let (taken, kept) = std::mem::take(&mut self.bars)
             .into_iter()
-            .partition(|(to, _, _)| plugins.get(to).is_some_and(|held| held == plugin));
+            .partition(|(to, _, _, _)| plugins.get(to).is_some_and(|held| held == plugin));
         self.bars = kept;
         taken
     }
@@ -664,7 +668,7 @@ pub(super) fn bar(instance: EditorInstanceId, action: BarAction) -> bool {
     with(|docks| docks.bar(instance, action))
 }
 
-pub(super) fn take_bars(plugin: &str) -> Vec<(EditorInstanceId, ChildId, BarAction)> {
+pub(super) fn take_bars(plugin: &str) -> Vec<(EditorInstanceId, ViewId, ChildId, BarAction)> {
     DOCKS.with(|docks| docks.borrow_mut().take_bars(plugin))
 }
 

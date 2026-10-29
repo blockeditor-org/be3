@@ -450,11 +450,11 @@ impl Runtime {
         messages.extend(
             super::docks::take_bars(&self.plugin.identity.id)
                 .into_iter()
-                .map(|(placer, child, action)| {
+                .map(|(placer, view, child, action)| {
                     Outbound::Editor(
                         placer,
                         EditorCall::ChildBar {
-                            view: ViewId::MAIN,
+                            view,
                             child,
                             action,
                         },

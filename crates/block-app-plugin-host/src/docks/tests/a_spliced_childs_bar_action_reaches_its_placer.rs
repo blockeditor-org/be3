@@ -7,8 +7,8 @@ fn a_spliced_childs_bar_action_reaches_its_placer() {
     assert!(docks.bar(INNER, BarAction::Details));
     assert_eq!(
         docks.take_bars("outer"),
-        [(OUTER, INNER_CHILD, BarAction::Details)],
-        "the frame that would carry it is not shown, so the host passes it on"
+        [(OUTER, ViewId(2), INNER_CHILD, BarAction::Details)],
+        "the frame that would carry it is not shown, so the host passes it on, to the tab view the child is placed in"
     );
     assert!(docks.take_bars("outer").is_empty());
 
