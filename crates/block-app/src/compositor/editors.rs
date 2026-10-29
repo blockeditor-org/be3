@@ -26,7 +26,7 @@ use crate::editors::{
     Chrome, EditorRegistry, PendingCreation, PluginEditor, editor_access_ceiling,
 };
 use crate::surfaces::HostItem;
-use crate::plugin_host::{self, ChildCommit, EditorView, HostChild, HostChildStatus, HostContent};
+use block_app_plugin_host::{ChildCommit, EditorView, HostChild, HostChildStatus, HostContent};
 use crate::surfaces::{
     ConflictNotice, HostItemFace, HostedRegion, HostedSurface, StaleBlock, SurfaceId,
 };
@@ -396,7 +396,7 @@ impl Editors {
             .collect()
     }
 
-    fn ensure_picker(&self, key: CreationKey, request: crate::plugin_host::PickerRequest) -> bool {
+    fn ensure_picker(&self, key: CreationKey, request: block_app_plugin_host::PickerRequest) -> bool {
         let state = self.0.value();
         if state.pickers.borrow().contains_key(&key) {
             return true;
@@ -490,7 +490,7 @@ struct Handle {
     block_type: Uuid,
     plugin: Option<std::sync::Arc<block_plugin_manifest::PluginManifest>>,
     instance: block_plugin_api::EditorInstanceId,
-    role: plugin_host::InstanceRole,
+    role: block_app_plugin_host::InstanceRole,
     pan_and_zoom: bool,
     max_zoom: Option<u32>,
     pan: PanMode,
@@ -951,7 +951,7 @@ fn TabFrame(
 
 fn frame_child(editors: &Editors, block: Uuid) -> Option<Uuid> {
     let handle = editors.handle(block)?;
-    plugin_host::frame_child(handle.plugin_id()?, handle.instance)
+    block_app_plugin_host::frame_child(handle.plugin_id()?, handle.instance)
 }
 
 fn chrome_owner(editors: &Editors, block: Uuid) -> Uuid {
@@ -988,7 +988,7 @@ fn revoke_frame_child(editors: &Editors, block: Uuid) {
     if let Some(handle) = editors.handle(block)
         && let Some(plugin_id) = handle.plugin_id()
     {
-        plugin_host::revoke_frame_child(plugin_id, handle.instance);
+        block_app_plugin_host::revoke_frame_child(plugin_id, handle.instance);
     }
 }
 
@@ -1377,7 +1377,7 @@ fn BlockFrameView(
     let framed = create_memo(move || content.get().is_some());
     create_effect(move || {
         let _ = framed.get();
-        plugin_host::hold(&plugin_id.value(), instance, EditorRegion::Frame);
+        block_app_plugin_host::hold(&plugin_id.value(), instance, EditorRegion::Frame);
     });
     let revision = super::listen(&plugin_id.value());
     let rect_held = create_signal(Rect::ZERO);
@@ -1398,7 +1398,7 @@ fn BlockFrameView(
     let viewport_rect = create_memo(move || {
         revision.get();
         let rect = rect.get();
-        plugin_host::frame_rects(&plugin_id.value(), instance)
+        block_app_plugin_host::frame_rects(&plugin_id.value(), instance)
             .map(|rects| rects.content.translate(rect.min.to_vec2()))
             .filter(Rect::is_positive)
             .unwrap_or(rect)
@@ -1407,7 +1407,7 @@ fn BlockFrameView(
         revision.get();
         let size = viewport_rect.get().size().max(Vec2::splat(1.0));
         let intrinsic =
-            plugin_host::intrinsic_size(&plugin_id.value(), instance).unwrap_or(vec2(420.0, 240.0));
+            block_app_plugin_host::intrinsic_size(&plugin_id.value(), instance).unwrap_or(vec2(420.0, 240.0));
         vec2(size.x.max(intrinsic.x), size.y.max(intrinsic.y))
     });
     let content_rect = create_memo(move || {
@@ -1431,7 +1431,7 @@ fn BlockFrameView(
         }
         revision.get();
         let shown = content.get().unwrap_or(rect.get());
-        let scale = plugin_host::intrinsic_size(&plugin_id.value(), instance)
+        let scale = block_app_plugin_host::intrinsic_size(&plugin_id.value(), instance)
             .filter(|intrinsic| intrinsic.x > 0.0 && intrinsic.y > 0.0)
             .map_or(1.0, |intrinsic| {
                 (shown.width() / intrinsic.x).min(shown.height() / intrinsic.y)
@@ -1496,7 +1496,7 @@ fn BlockFrameView(
     create_effect(move || {
         revision.get();
         let rect = rect.get_untracked();
-        for change in plugin_host::take_view_changes(&plugin_id.value(), instance) {
+        for change in block_app_plugin_host::take_view_changes(&plugin_id.value(), instance) {
             command(match change {
                 ViewChange::Pan(by) => Command::Pan(by),
                 ViewChange::Zoom { factor, anchor } => Command::Zoom {
@@ -1517,7 +1517,7 @@ fn BlockFrameView(
                 }
             });
         }
-        let actions = plugin_host::take_bar_actions(&plugin_id.value(), instance);
+        let actions = block_app_plugin_host::take_bar_actions(&plugin_id.value(), instance);
         for action in actions {
             on_bar_action.call(action);
         }
@@ -1525,7 +1525,7 @@ fn BlockFrameView(
     if let Some(tab) = use_context::<TabContext>() {
         create_effect(move || {
             revision.get();
-            if plugin_host::take_leaving(&plugin_id.value(), instance) {
+            if block_app_plugin_host::take_leaving(&plugin_id.value(), instance) {
                 tab.exit.call();
             }
         });
@@ -1591,7 +1591,7 @@ fn BlockFrameView(
         if let Some(steered) = steered.get() {
             area = area.without(steered.translate(-origin));
         }
-        if let Some(frame) = plugin_host::frame_rects(&plugin_id.value(), instance) {
+        if let Some(frame) = block_app_plugin_host::frame_rects(&plugin_id.value(), instance) {
             for floating in frame.floating {
                 area = area.without(floating);
             }
@@ -1605,7 +1605,7 @@ fn BlockFrameView(
         }
         revision.get();
         let shown = rect.get();
-        plugin_host::assigned_size(&plugin_id.value(), instance)
+        block_app_plugin_host::assigned_size(&plugin_id.value(), instance)
             .filter(|assigned| assigned.x > 0.0 && assigned.y > 0.0)
             .map_or(1.0, |assigned| {
                 (shown.width() / assigned.x).min(shown.height() / assigned.y)
@@ -1745,7 +1745,7 @@ fn HostedChild(
                 parent,
                 touch,
             }) => {
-                let request = crate::plugin_host::PickerRequest {
+                let request = block_app_plugin_host::PickerRequest {
                     filter,
                     parent,
                     touch,
@@ -1795,7 +1795,7 @@ fn HostedChild(
             child.block_id().and_then(|id| editors.handle(id)),
         ) && let Some(plugin_id) = handle.plugin_id()
         {
-            plugin_host::resized(plugin_id, handle.instance, size);
+            block_app_plugin_host::resized(plugin_id, handle.instance, size);
         }
     });
     if let Some(reports) = use_context::<ChildReports>() {
@@ -2122,7 +2122,7 @@ fn reporter_for(
     let on_bar_action = report_to.clone().and_then(|parent| {
         let plugin_id = parent.plugin_id()?.to_owned();
         Some(Callback::new(move |action: BarAction| {
-            plugin_host::report_child_bars(
+            block_app_plugin_host::report_child_bars(
                 &plugin_id,
                 parent.instance,
                 region,
@@ -2136,7 +2136,7 @@ fn reporter_for(
     let instance = report_to.map(|parent| parent.instance);
     let on_focus = Callback::new(move |()| {
         if let (Some(plugin_id), Some(instance)) = (&plugin_id, instance) {
-            plugin_host::report_child_focus(plugin_id, instance, region, key);
+            block_app_plugin_host::report_child_focus(plugin_id, instance, region, key);
         }
         within.call(());
     });
@@ -2185,7 +2185,7 @@ fn preview_of(editors: &Editors, block: Uuid) -> ChildPreview {
     let Some(plugin) = handle.plugin_id() else {
         return ChildPreview::Label;
     };
-    plugin_host::preview_image(plugin, handle.instance)
+    block_app_plugin_host::preview_image(plugin, handle.instance)
         .map_or(ChildPreview::Waiting, ChildPreview::Image)
 }
 

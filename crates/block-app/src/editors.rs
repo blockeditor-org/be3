@@ -7,7 +7,7 @@ use block_plugin_api::{Edits, TemplateCategory};
 use block_plugin_manifest::{EditorManifest, PluginManifest, ShellRequest};
 use uuid::Uuid;
 
-use crate::plugin_host::PluginCatalog;
+use block_app_plugin_host::PluginCatalog;
 use crate::surfaces::HostedRegion;
 
 pub(crate) use self::plugin::PluginEditor;
@@ -288,7 +288,7 @@ impl EditorRegistry {
 
     pub(crate) fn picker(
         &self,
-        request: crate::plugin_host::PickerRequest,
+        request: block_app_plugin_host::PickerRequest,
     ) -> Option<plugin::PluginPicker> {
         let editor = self.editors.iter().find(|editor| {
             editor

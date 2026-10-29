@@ -7,7 +7,7 @@ use block_plugin_api::{
     EditorInstanceId, EditorRegion, WindowEdge, WindowPlacement, WindowRequest, WindowRole,
 };
 
-use crate::plugin_host::HostChildStatus;
+use block_app_plugin_host::HostChildStatus;
 
 const OPEN_GRAB: Vec2 = vec2(24.0, 16.0);
 const SMALLEST: Vec2 = vec2(96.0, 64.0);
@@ -111,7 +111,7 @@ thread_local! {
 }
 
 pub(crate) fn install() {
-    crate::plugin_host::serve_overlays(is_overlay);
+    block_app_plugin_host::serve_overlays(is_overlay);
     FLOATED.set(Some(create_signal(Vec::new())));
     GESTURE.set(Some(create_signal(None)));
 }
@@ -220,7 +220,7 @@ pub(crate) fn aim(
 }
 
 pub(crate) fn apply() {
-    let (pending, forgotten) = crate::plugin_host::take_window_requests();
+    let (pending, forgotten) = block_app_plugin_host::take_window_requests();
     if (pending.is_empty() && forgotten.is_empty()) || FLOATED.get().is_none() {
         return;
     }
@@ -405,7 +405,7 @@ fn point_in(
     if let Some(origin) = desktop {
         return origin + at.to_vec2();
     }
-    match crate::plugin_host::region_placement(plugin, instance, region) {
+    match block_app_plugin_host::region_placement(plugin, instance, region) {
         Some(placed) if placed.zoom.is_finite() && placed.zoom > 0.0 => {
             placed.rect.min + at.to_vec2() * placed.zoom
         }

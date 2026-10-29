@@ -11,7 +11,6 @@ mod frame;
 mod input;
 mod local_settings;
 mod members;
-mod plugin_host;
 mod programs;
 mod remap;
 mod root_settings;
@@ -48,7 +47,7 @@ use block_plugin_api::{
     AccessLevel, ArtifactAction, BlockCommand, BlockLocation, HostPanel, ShellDialog,
 };
 use block_plugin_manifest::ShellRequest;
-use plugin_host::{BlockOpen, EditorAction};
+use block_app_plugin_host::{BlockOpen, EditorAction};
 use editors::{
     ArtifactSession, ArtifactStatus, EditorRegistry, PluginEditor,
     SidebarDragSource, plugin::InstanceSource,
@@ -318,9 +317,9 @@ impl Shell {
                 </beui::styled::Root>
             }
         });
-        document.on_interacted(plugin_host::start_frames);
+        document.on_interacted(block_app_plugin_host::start_frames);
         document.on_laid_out(|| {
-            plugin_host::settle();
+            block_app_plugin_host::settle();
             compositor::notify_after_layout();
         });
         Self {
@@ -336,7 +335,7 @@ impl beui::native::App for Shell {
         let waker = setup.waker.clone();
         host::install_waker(move || waker.wake());
         host::install_clock(beui::reactive::now);
-        plugin_host::install(setup);
+        block_app_plugin_host::install(setup);
         desktop_host::start(setup);
         input::start(setup);
         #[cfg(target_os = "linux")]
@@ -359,7 +358,7 @@ impl beui::native::App for Shell {
     }
 
     fn renderer_replaced(&mut self, setup: &beui::native::Setup) {
-        plugin_host::replace_gpu(setup);
+        block_app_plugin_host::replace_gpu(setup);
         desktop_host::replace_gpu(setup);
     }
 
@@ -406,13 +405,13 @@ impl beui::native::App for Shell {
             store.set(view);
         });
         #[cfg(target_arch = "wasm32")]
-        plugin_host::place_screens(
-            &plugin_host::shown_blits(),
+        block_app_plugin_host::place_screens(
+            &block_app_plugin_host::shown_blits(),
             context.pixels_per_point() / context.native_pixels_per_point(),
             beui::styled::Theme::of(self.document.preferences().theme).background,
         );
         self.document.show(context, rect);
-        plugin_host::describe(context);
+        block_app_plugin_host::describe(context);
         #[cfg(target_os = "linux")]
         if let Some(lock) = &mut self.app.screen_lock {
             lock.note_drawn(self.document.locked());
@@ -436,12 +435,12 @@ impl beui::native::App for Shell {
                 accessibility: timings.accessibility,
             },
         );
-        plugin_host::record_pacing();
+        block_app_plugin_host::record_pacing();
     }
 
     fn busy(&self) -> bool {
         self.app.error.is_none()
-            && (self.app.busy() || plugin_host::busy() || compositor::owes_frame())
+            && (self.app.busy() || block_app_plugin_host::busy() || compositor::owes_frame())
     }
 
     fn environment(&self) -> Vec<(String, String)> {
@@ -449,15 +448,15 @@ impl beui::native::App for Shell {
     }
 
     fn drawing(&self) -> bool {
-        plugin_host::drawing()
+        block_app_plugin_host::drawing()
     }
 
     fn request_painting(&mut self) {
-        plugin_host::request_painting();
+        block_app_plugin_host::request_painting();
     }
 
     fn other_frames(&mut self) -> Vec<(String, beui::native::FrameTimes)> {
-        plugin_host::take_steps()
+        block_app_plugin_host::take_steps()
     }
 
     fn close_requested(&mut self) -> bool {
@@ -475,7 +474,7 @@ impl beui::native::App for Shell {
 
     fn exiting(&mut self) {
         desktop_host::exiting();
-        plugin_host::exiting();
+        block_app_plugin_host::exiting();
         display::stop();
         #[cfg(target_os = "linux")]
         {
@@ -700,7 +699,7 @@ impl BlockApp {
         std::fs::create_dir_all(&data_dir)?;
         forget_caches_of_other_builds(&data_dir)?;
         panic_guard::report_in(&data_dir);
-        plugin_host::cache_in(data_dir.join("plugin-cache"));
+        block_app_plugin_host::cache_in(data_dir.join("plugin-cache"));
         let embedded_server = embedded_server::start_embedded_server(data_dir.join("server"))?;
         let url = embedded_server.url.clone();
         let app_state = AppStateStore::open(data_dir.join("app.sqlite3"))?;
@@ -2120,11 +2119,11 @@ impl BlockApp {
         }
         self.block_types.remove(&previous);
         compositor::set_shell(None);
-        plugin_host::set_shell(None);
+        block_app_plugin_host::set_shell(None);
     }
 
     fn watch_shell(&mut self) {
-        let crashed = plugin_host::take_crashed();
+        let crashed = block_app_plugin_host::take_crashed();
         let Some(shell) = self.shell else {
             return;
         };
@@ -2137,7 +2136,7 @@ impl BlockApp {
             return;
         };
         self.stop_shell();
-        plugin_host::kill(&plugin);
+        block_app_plugin_host::kill(&plugin);
         self.choosing_session = true;
     }
 
@@ -2182,10 +2181,10 @@ impl BlockApp {
         let target = self.with_editor(handler, |editor| editor.source());
         let anchor = (|| {
             let (source, target) = (source.flatten()?, target.flatten()?);
-            crate::plugin_host::reanchor(
+            block_app_plugin_host::reanchor(
                 anchor?,
-                crate::plugin_host::frame_placement(&source.plugin_id, source.instance)?,
-                crate::plugin_host::frame_placement(&target.plugin_id, target.instance)?,
+                block_app_plugin_host::frame_placement(&source.plugin_id, source.instance)?,
+                block_app_plugin_host::frame_placement(&target.plugin_id, target.instance)?,
             )
         })();
         let within = from.and_then(|from| self.child_within(handler, from));
@@ -2327,7 +2326,7 @@ impl BlockApp {
             }
         }
         if refocused && let Some(focus) = self.focus(shell) {
-            plugin_host::set_focus(focus.block, focus.via);
+            block_app_plugin_host::set_focus(focus.block, focus.via);
         }
         if rewatched {
             self.watch_artifacts(self.watched());
@@ -2371,7 +2370,7 @@ impl BlockApp {
         let hosted = self.editors.hosted_sources();
         for (id, source) in editors.iter().chain(&hosted) {
             let (settings, commits): (Vec<_>, Vec<_>) =
-                crate::plugin_host::take_child_commits(&source.plugin_id, source.instance)
+                block_app_plugin_host::take_child_commits(&source.plugin_id, source.instance)
                     .into_iter()
                     .partition(|commit| self.editors.settings_block(*id, commit.child).is_some());
             for commit in settings {
@@ -2383,7 +2382,7 @@ impl BlockApp {
                 self.editors.commit_creations(*id, commits);
             }
             let (settings, dismissed): (Vec<_>, Vec<_>) =
-                crate::plugin_host::take_child_dismissals(&source.plugin_id, source.instance)
+                block_app_plugin_host::take_child_dismissals(&source.plugin_id, source.instance)
                     .into_iter()
                     .partition(|child| self.editors.settings_block(*id, *child).is_some());
             for child in settings {
@@ -2732,7 +2731,7 @@ impl BlockApp {
 
     fn run_frame(&mut self) {
         performance::begin_frame();
-        plugin_host::poll();
+        block_app_plugin_host::poll();
         self.watch_shell();
         self.poll_account_request();
         #[cfg(target_os = "linux")]
@@ -2796,7 +2795,7 @@ impl BlockApp {
         }
         self.poll_artifacts();
         self.record_plugins_in_use();
-        plugin_host::flush();
+        block_app_plugin_host::flush();
         performance::end_frame();
     }
 
@@ -2812,14 +2811,14 @@ impl BlockApp {
                 .iter()
                 .any(|editor| Uuid::from_bytes(editor.id) == shell);
             if edits_shell || in_use.contains(&manifest.identity.id) {
-                plugin_host::warm(&manifest);
+                block_app_plugin_host::warm(&manifest);
             }
         }
         self.plugins_in_use = in_use;
     }
 
     fn record_plugins_in_use(&mut self) {
-        let in_use = plugin_host::in_use();
+        let in_use = block_app_plugin_host::in_use();
         if in_use.is_empty() || in_use == self.plugins_in_use {
             return;
         }

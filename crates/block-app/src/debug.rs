@@ -34,8 +34,8 @@ pub(crate) fn panel_hidden(panel: HostPanel) {
 
 pub(crate) fn command(command: DebugCommand) {
     match command {
-        DebugCommand::KillPlugin(plugin_id) => crate::plugin_host::kill(&plugin_id),
-        DebugCommand::CrashPlugin(plugin_id) => crate::plugin_host::crash(
+        DebugCommand::KillPlugin(plugin_id) => block_app_plugin_host::kill(&plugin_id),
+        DebugCommand::CrashPlugin(plugin_id) => block_app_plugin_host::crash(
             &plugin_id,
             "It was crashed from the Plugins panel.".to_owned(),
         ),

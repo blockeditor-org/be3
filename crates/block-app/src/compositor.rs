@@ -10,7 +10,7 @@ use std::{
 
 use beui::reactive::*;
 
-use crate::plugin_host::EditorAction;
+use block_app_plugin_host::EditorAction;
 
 pub(crate) use desktop::DesktopPlace;
 pub(crate) use editors::{
@@ -123,7 +123,7 @@ fn notify_plugins() -> bool {
     if STALE.with(|seen| seen.replace(stale)) != stale {
         block_app_base::host::changed();
     }
-    let changed = crate::plugin_host::take_changed();
+    let changed = block_app_plugin_host::take_changed();
     let notified = !changed.is_empty() || block_app_base::host::take_changed();
     if notified && let Some(any) = ANY.with(|any| *any.borrow()) {
         any.update(|revision| *revision += 1);

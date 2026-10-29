@@ -270,7 +270,7 @@ impl Programs {
                     })
                     .collect();
             });
-            crate::plugin_host::set_program_editors(descriptors(&openers));
+            block_app_plugin_host::set_program_editors(descriptors(&openers));
             block_app_base::host::changed();
         }
         self.step_sessions();

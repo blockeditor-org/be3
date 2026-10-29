@@ -19,7 +19,7 @@ use block_plugin_manifest::PluginManifest;
 use uuid::Uuid;
 
 use crate::surfaces::HostItem;
-use crate::plugin_host::{
+use block_app_plugin_host::{
     self, BlockDrag, EditorView, HostChild, InstanceRole, Piece, RegionPlacement, RegionSlot,
     RegionView,
 };
@@ -39,7 +39,7 @@ pub(crate) struct RegionEditor {
     pub(crate) plugin: Arc<PluginManifest>,
     pub(crate) role: InstanceRole,
     pub(crate) instance: EditorInstanceId,
-    pub(crate) block_types: Arc<crate::plugin_host::PluginCatalog>,
+    pub(crate) block_types: Arc<block_app_plugin_host::PluginCatalog>,
     pub(crate) client_id: Uuid,
 }
 
@@ -244,7 +244,7 @@ pub(crate) fn PluginRegion(
     provide_context(Presented(create_memo(move || {
         presented.get() || presenting.get()
     })));
-    plugin_host::mount_region(RegionSlot {
+    block_app_plugin_host::mount_region(RegionSlot {
         plugin: &editor.plugin,
         block_types: &editor.block_types,
         client_id: editor.client_id,
@@ -253,14 +253,14 @@ pub(crate) fn PluginRegion(
         region,
     });
     let mount = next_mount();
-    on_cleanup(move || plugin_host::unmount_region(&plugin_id.value(), instance, region, mount));
+    on_cleanup(move || block_app_plugin_host::unmount_region(&plugin_id.value(), instance, region, mount));
     create_effect(move || {
         let presented = presented.get();
-        untrack(|| plugin_host::set_presented(&plugin_id.value(), instance, presented));
+        untrack(|| block_app_plugin_host::set_presented(&plugin_id.value(), instance, presented));
     });
     on_cleanup(move || {
         if presented.get_untracked() {
-            plugin_host::set_presented(&plugin_id.value(), instance, false);
+            block_app_plugin_host::set_presented(&plugin_id.value(), instance, false);
         }
     });
     let revision = super::listen(&plugin_id.value());
@@ -268,7 +268,7 @@ pub(crate) fn PluginRegion(
     let stored_key = store(floated_key.clone());
     let windowed = windowing.is_some();
     let placer = Callback::new(move |placement: Option<EmbedPlacement>| match placement {
-        Some(placement) => plugin_host::place_region(
+        Some(placement) => block_app_plugin_host::place_region(
             &plugin_id.value(),
             instance,
             region,
@@ -285,7 +285,7 @@ pub(crate) fn PluginRegion(
             frame.get_untracked(),
             view.get_untracked(),
         ),
-        None => plugin_host::unplace_region(&plugin_id.value(), instance, region, mount),
+        None => block_app_plugin_host::unplace_region(&plugin_id.value(), instance, region, mount),
     });
     let slot = EmbedSlot::new();
     slot.on_place(move |placement| {
@@ -310,7 +310,7 @@ pub(crate) fn PluginRegion(
     }
     let state = create_memo(move || {
         revision.get();
-        plugin_host::region_view(
+        block_app_plugin_host::region_view(
             &editor.plugin,
             instance,
             region,
@@ -320,7 +320,7 @@ pub(crate) fn PluginRegion(
     });
     create_effect(move || {
         revision.get();
-        let actions = plugin_host::take_region_actions(&plugin_id.value(), instance);
+        let actions = block_app_plugin_host::take_region_actions(&plugin_id.value(), instance);
         if !actions.is_empty() {
             let from = super::editors::editors().block_of(&plugin_id.value(), instance);
             for action in actions {
@@ -335,13 +335,13 @@ pub(crate) fn PluginRegion(
         });
         let children: Vec<ChildId> = placed.iter().map(|(child, _)| *child).collect();
         for (child, pick) in
-            plugin_host::take_child_menu_picks(&plugin_id.value(), instance, &children)
+            block_app_plugin_host::take_child_menu_picks(&plugin_id.value(), instance, &children)
         {
             if let Some((_, block)) = placed.iter().find(|(placed, _)| *placed == child) {
                 super::editors::pick_frame_menu(*block, pick);
             }
         }
-        for drag in plugin_host::take_block_drags(&plugin_id.value(), instance) {
+        for drag in block_app_plugin_host::take_block_drags(&plugin_id.value(), instance) {
             carry(drag);
         }
     });
@@ -355,7 +355,7 @@ pub(crate) fn PluginRegion(
             mount,
             Some(super::editors::statuses(&reports)),
         );
-        plugin_host::report_children(&plugin_id.value(), instance, region, statuses);
+        block_app_plugin_host::report_children(&plugin_id.value(), instance, region, statuses);
     });
     on_cleanup(move || {
         super::desktop::merged_statuses(
@@ -375,11 +375,11 @@ pub(crate) fn PluginRegion(
     }
     let frames = create_memo(move || {
         revision.get();
-        plugin_host::frames(&plugin_id.value())
+        block_app_plugin_host::frames(&plugin_id.value())
     });
     let placed = create_memo(move || {
         revision.get();
-        plugin_host::region_placed(&plugin_id.value(), instance, region)
+        block_app_plugin_host::region_placed(&plugin_id.value(), instance, region)
     });
     let drawing = |floating: bool| {
         let shown = create_memo(move || {
@@ -406,7 +406,7 @@ pub(crate) fn PluginRegion(
             )
         });
         let held: Rc<
-            RefCell<Option<(DrawingKey, beui::native::Drawing, u64, plugin_host::Pieces)>>,
+            RefCell<Option<(DrawingKey, beui::native::Drawing, u64, block_app_plugin_host::Pieces)>>,
         > = Rc::new(RefCell::new(None));
         let drawn = create_memo(move || {
             let (_, rotation, opacity, pieces, _, placed) = shown.get();
@@ -422,7 +422,7 @@ pub(crate) fn PluginRegion(
                 placed,
             };
             let previous = held.borrow().clone();
-            let published = plugin_host::region_published(&plugin_id.value());
+            let published = block_app_plugin_host::region_published(&plugin_id.value());
             let reused = previous.and_then(|(was, drawing, seen, shared)| {
                 let repieced = DrawingKey {
                     pieces: pieces.clone(),
@@ -433,10 +433,10 @@ pub(crate) fn PluginRegion(
                 }
                 let uncovered = match was.pieces == pieces {
                     true => Vec::new(),
-                    false => plugin_host::uncovered_pieces(&was.pieces, &pieces)?,
+                    false => block_app_plugin_host::uncovered_pieces(&was.pieces, &pieces)?,
                 };
                 let damage = state.with_untracked(|view| {
-                    plugin_host::region_damage(
+                    block_app_plugin_host::region_damage(
                         &plugin_id.value(),
                         instance,
                         region,
@@ -468,7 +468,7 @@ pub(crate) fn PluginRegion(
                 return Some(redrawn);
             }
             let drawing = state.with_untracked(|view| {
-                plugin_host::region_drawing(
+                block_app_plugin_host::region_drawing(
                     &plugin_id.value(),
                     instance,
                     region,
@@ -597,7 +597,7 @@ pub(crate) fn PluginRegion(
             let target = |node: beui::NodeId| {
                 super::desktop::catcher(node).map(|held| (held.instance, held.region))
             };
-            plugin_host::forward_region(
+            block_app_plugin_host::forward_region(
                 &plugin_id.value(),
                 instance,
                 region,
@@ -617,7 +617,7 @@ pub(crate) fn PluginRegion(
                 let cancel = steered.take_over(pan_drag.pan);
                 steering.set(steered);
                 if let Some(cancel) = cancel {
-                    plugin_host::forward_region(
+                    block_app_plugin_host::forward_region(
                         &plugin_id.value(),
                         instance,
                         region,
@@ -630,7 +630,7 @@ pub(crate) fn PluginRegion(
         });
     }
     let back = move |gesture: beui::BackGesture| {
-        plugin_host::back_region(&plugin_id.value(), instance, region, gesture);
+        block_app_plugin_host::back_region(&plugin_id.value(), instance, region, gesture);
     };
     let occluded = occlusion();
     let beyond = move |local: Pos2| {
@@ -639,7 +639,7 @@ pub(crate) fn PluginRegion(
         };
         region == EditorRegion::Frame
             && !placed.contains(local)
-            && plugin_host::frame_rects(&plugin_id.value(), instance).is_some_and(|frame| {
+            && block_app_plugin_host::frame_rects(&plugin_id.value(), instance).is_some_and(|frame| {
                 frame.content.contains(local)
                     && !frame
                         .floating
@@ -667,11 +667,11 @@ pub(crate) fn PluginRegion(
         let over = over
             .filter(|(_, point)| taken(*point))
             .map(|(drag, point)| (drag, point.pos));
-        plugin_host::drag_over_region(&plugin_id.value(), instance, region, over, false);
+        block_app_plugin_host::drag_over_region(&plugin_id.value(), instance, region, over, false);
     };
     let dropped = move |(drag, point): (BlockDrag, DragPoint)| {
         if taken(point) {
-            plugin_host::drag_over_region(
+            block_app_plugin_host::drag_over_region(
                 &plugin_id.value(),
                 instance,
                 region,
@@ -681,7 +681,7 @@ pub(crate) fn PluginRegion(
         }
     };
     let pressed_outside = move |_: Pos2| {
-        plugin_host::pressed_outside_region(&plugin_id.value(), instance, region);
+        block_app_plugin_host::pressed_outside_region(&plugin_id.value(), instance, region);
     };
     let hit_area = create_memo(move || {
         if passive.get() {
@@ -690,7 +690,7 @@ pub(crate) fn PluginRegion(
         revision.get();
         let content = frame.get().and_then(|frame| frame.content);
         let beyond = match (region == EditorRegion::Frame, content) {
-            (true, Some(placed)) => plugin_host::frame_rects(&plugin_id.value(), instance)
+            (true, Some(placed)) => block_app_plugin_host::frame_rects(&plugin_id.value(), instance)
                 .map_or_else(beui::HitRegion::new, |frame| {
                     frame.floating.iter().fold(
                         beui::HitRegion::rect(frame.content).without(placed),
@@ -1137,7 +1137,7 @@ fn focus_when_asked(
             if !primary.get() {
                 return;
             }
-            if !plugin_host::take_focus_request(&plugin_id.value(), instance, region) {
+            if !block_app_plugin_host::take_focus_request(&plugin_id.value(), instance, region) {
                 return;
             }
             if let Some(node) = catcher.try_get() {

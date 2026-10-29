@@ -1,0 +1,836 @@
+use std::{
+    cell::RefCell,
+    collections::VecDeque,
+    rc::Rc,
+    sync::{Arc, Mutex},
+};
+
+use beui::native::painting::{Painting, Paints, Placement};
+use beui::{Pos2, Rect, Vec2, native::DrawAt, pos2, vec2};
+use block_plugin_api::{ScreenDamage, ScreenId, ScreenLayout, ScreenPlacement, SurfaceRect};
+
+use super::backend::{Availability, Frame, ShownFrame};
+
+#[cfg(not(target_arch = "wasm32"))]
+use super::surface::{Presenter as PlatformPresenter, presenter as build_presenter};
+#[cfg(target_arch = "wasm32")]
+use super::web::presenter::{Presenter as PlatformPresenter, presenter as build_presenter};
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum PresenterState {
+    Waiting,
+    Presenting,
+    Unsupported(String),
+    Failed(String),
+    Released,
+}
+
+#[derive(Clone)]
+pub(super) struct PresenterStatus(Arc<Mutex<PresenterState>>);
+
+impl PresenterStatus {
+    pub(super) fn waiting() -> Self {
+        Self(Arc::new(Mutex::new(PresenterState::Waiting)))
+    }
+
+    pub(super) fn get(&self) -> PresenterState {
+        self.0.lock().unwrap().clone()
+    }
+
+    fn set(&self, state: PresenterState) {
+        *self.0.lock().unwrap() = state;
+    }
+}
+
+pub(super) trait SurfacePresenter {
+    type Frame;
+
+    fn replace(
+        &mut self,
+        device: &wgpu::Device,
+        slot: u32,
+        frame: &Self::Frame,
+    ) -> Result<(), String>;
+
+    fn prepare(
+        &mut self,
+        queue: &wgpu::Queue,
+        slot: u32,
+        frame: &Self::Frame,
+    ) -> Result<(), String>;
+
+    fn paint(
+        &self,
+        pass: &mut wgpu::RenderPass<'_>,
+        slot: u32,
+        surface: u32,
+        regions: &wgpu::BindGroup,
+        offset: u32,
+    );
+
+    fn retain(&mut self, slot: u32, surfaces: &[u32]);
+
+    fn release(&mut self, slot: u32);
+}
+
+const MAX_PENDING_FRAMES: usize = 8;
+pub(super) const REGION_BYTES: u64 = 64;
+
+pub(super) struct RegionLayout {
+    pub(super) layout: wgpu::BindGroupLayout,
+    stride: u32,
+}
+
+impl RegionLayout {
+    pub(super) fn new(device: &wgpu::Device) -> Self {
+        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("hosted plugin region layout"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: true,
+                    min_binding_size: wgpu::BufferSize::new(REGION_BYTES),
+                },
+                count: None,
+            }],
+        });
+        let stride = device
+            .limits()
+            .min_uniform_buffer_offset_alignment
+            .max(REGION_BYTES as u32);
+        Self { layout, stride }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Quad {
+    pub rect: Rect,
+    pub corners: [Pos2; 4],
+    pub opacity: f32,
+}
+
+impl Quad {
+    pub fn upright(rect: Rect) -> Self {
+        Self {
+            rect,
+            corners: [
+                rect.left_top(),
+                rect.right_top(),
+                rect.right_bottom(),
+                rect.left_bottom(),
+            ],
+            opacity: 1.0,
+        }
+    }
+
+    pub fn crop_to(self, clip: Rect) -> Option<(Self, Rect)> {
+        let horizontal = self.corners[1] - self.corners[0];
+        let vertical = self.corners[3] - self.corners[0];
+        let determinant = horizontal.x * vertical.y - horizontal.y * vertical.x;
+        if determinant.abs() <= f32::EPSILON {
+            return None;
+        }
+        let to_uv = |point: Pos2| {
+            let delta = point - self.corners[0];
+            pos2(
+                (delta.x * vertical.y - delta.y * vertical.x) / determinant,
+                (horizontal.x * delta.y - horizontal.y * delta.x) / determinant,
+            )
+        };
+        let source = Rect::from_points(&[
+            to_uv(clip.left_top()),
+            to_uv(clip.right_top()),
+            to_uv(clip.right_bottom()),
+            to_uv(clip.left_bottom()),
+        ])
+        .intersect(Rect::from_min_max(Pos2::ZERO, pos2(1.0, 1.0)));
+        if source.width() <= 0.0 || source.height() <= 0.0 {
+            return None;
+        }
+        let point = |u: f32, v: f32| self.corners[0] + horizontal * u + vertical * v;
+        let corners = [
+            point(source.min.x, source.min.y),
+            point(source.max.x, source.min.y),
+            point(source.max.x, source.max.y),
+            point(source.min.x, source.max.y),
+        ];
+        Some((
+            Self {
+                rect: Rect::from_points(&corners),
+                corners,
+                opacity: self.opacity,
+            },
+            source,
+        ))
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct Region {
+    pub(super) offset: [f32; 2],
+    pub(super) scale: [f32; 2],
+    pub(super) quad: Quad,
+}
+
+impl Region {
+    pub(super) fn of(quad: Quad, source: Rect) -> Self {
+        Self {
+            offset: [source.min.x, source.min.y],
+            scale: [source.width(), source.height()],
+            quad,
+        }
+    }
+
+    fn values(&self, at: &DrawAt) -> [f32; 16] {
+        let scale = at.pixels_per_point;
+        let screen: Vec2 = vec2(at.screen.x.max(1.0), at.screen.y.max(1.0));
+        let mut values = [0.0; 16];
+        values[..2].copy_from_slice(&self.offset);
+        values[2..4].copy_from_slice(&self.scale);
+        for (index, corner) in self.quad.corners.iter().enumerate() {
+            values[4 + index * 2] = corner.x * scale / screen.x * 2.0 - 1.0;
+            values[5 + index * 2] = 1.0 - corner.y * scale / screen.y * 2.0;
+        }
+        values[12] = self.quad.opacity.clamp(0.0, 1.0);
+        values
+    }
+}
+
+#[derive(Default)]
+pub(super) struct Shared {
+    pub(super) layout: ScreenLayout,
+    pub(super) frames: Vec<Frame>,
+    pub(super) paintings: std::collections::HashMap<ScreenId, Painting>,
+    pub(super) overflows: std::collections::HashMap<ScreenId, Vec<String>>,
+    pub(super) published: Published,
+}
+
+impl Shared {
+    pub(super) fn publish(&mut self, layout: &ScreenLayout, frame: Option<Frame>) {
+        self.layout.clone_from(layout);
+        let Some(frame) = frame else {
+            return;
+        };
+        self.published.record(frame.damage());
+        if self.frames.len() >= MAX_PENDING_FRAMES {
+            self.frames.remove(0);
+        }
+        self.frames.push(frame);
+    }
+
+    fn take_frames(&mut self) -> Vec<Frame> {
+        std::mem::take(&mut self.frames)
+    }
+}
+
+const REMEMBERED_FRAMES: usize = 16;
+
+#[derive(Default)]
+pub(super) struct Published {
+    count: u64,
+    recent: VecDeque<Option<Vec<ScreenDamage>>>,
+}
+
+impl Published {
+    pub(super) fn record(&mut self, damage: Option<&[ScreenDamage]>) {
+        self.count += 1;
+        if self.recent.len() == REMEMBERED_FRAMES {
+            self.recent.pop_front();
+        }
+        self.recent.push_back(damage.map(<[ScreenDamage]>::to_vec));
+    }
+
+    pub(super) fn count(&self) -> u64 {
+        self.count
+    }
+
+    pub(super) fn since(&self, seen: u64) -> Option<Vec<ScreenDamage>> {
+        let missed = usize::try_from(self.count.checked_sub(seen)?).ok()?;
+        let skipped = self.recent.len().checked_sub(missed)?;
+        let mut damage = Vec::new();
+        for frame in self.recent.iter().skip(skipped) {
+            damage.extend_from_slice(frame.as_deref()?);
+        }
+        Some(damage)
+    }
+}
+
+#[derive(Clone)]
+pub struct Blit {
+    pub(super) surface: u32,
+    pub(super) status: PresenterStatus,
+    pub(super) shared: Rc<RefCell<Shared>>,
+    pub(super) screen: ScreenId,
+    pub(super) quad: Quad,
+    pub(super) source: Rect,
+    pub(super) drawn: Option<(u32, u32)>,
+    pub(super) requested: Option<(u32, u32)>,
+    pub(super) placed: Option<[u32; 3]>,
+}
+
+impl PartialEq for Blit {
+    fn eq(&self, other: &Self) -> bool {
+        self.surface == other.surface
+            && Rc::ptr_eq(&self.shared, &other.shared)
+            && self.screen == other.screen
+            && self.quad == other.quad
+            && self.source == other.source
+            && self.drawn == other.drawn
+            && self.requested == other.requested
+            && self.placed == other.placed
+    }
+}
+
+impl Blit {
+    pub(super) fn damage(&self, pieces: &[Piece], seen: u64) -> Option<Vec<Rect>> {
+        let shared = self.shared.borrow();
+        let damage = shared.published.since(seen)?;
+        if damage.is_empty() {
+            return Some(Vec::new());
+        }
+        let placement = shared.layout.placement(self.screen)?;
+        if placement.width == 0
+            || placement.height == 0
+            || self
+                .requested
+                .is_some_and(|requested| requested != (placement.width, placement.height))
+        {
+            return None;
+        }
+        Some(
+            damage
+                .iter()
+                .filter(|damage| damage.screen == self.screen)
+                .flat_map(|damage| damaged_pieces(damage.rect, *placement, pieces))
+                .collect(),
+        )
+    }
+}
+
+pub(super) fn unstretched(
+    quad: Quad,
+    source: Rect,
+    requested: (u32, u32),
+    drawn: (u32, u32),
+) -> Option<(Quad, Rect)> {
+    let axis = |min: f32, max: f32, requested: u32, drawn: u32| {
+        let (from, to) = (min * requested as f32, max * requested as f32);
+        let end = to.min(drawn as f32);
+        (end > from && drawn > 0).then(|| {
+            (
+                from / drawn as f32,
+                end / drawn as f32,
+                (end - from) / (to - from),
+            )
+        })
+    };
+    let (left, right, across) = axis(source.min.x, source.max.x, requested.0, drawn.0)?;
+    let (top, bottom, down) = axis(source.min.y, source.max.y, requested.1, drawn.1)?;
+    let [origin, along, _, below] = quad.corners;
+    let at = |x: f32, y: f32| origin + (along - origin) * x + (below - origin) * y;
+    let corners = [
+        at(0.0, 0.0),
+        at(across, 0.0),
+        at(across, down),
+        at(0.0, down),
+    ];
+    Some((
+        Quad {
+            rect: Rect::from_points(&corners),
+            corners,
+            opacity: quad.opacity,
+        },
+        Rect::from_min_max(pos2(left, top), pos2(right, bottom)),
+    ))
+}
+
+pub(super) fn damaged_pieces(
+    rect: SurfaceRect,
+    placement: ScreenPlacement,
+    pieces: &[Piece],
+) -> Vec<Rect> {
+    let (width, height) = (placement.width as f32, placement.height as f32);
+    let changed = Rect::from_min_max(
+        pos2(rect.x as f32 / width, rect.y as f32 / height),
+        pos2(
+            (rect.x as f32 + rect.width as f32) / width,
+            (rect.y as f32 + rect.height as f32) / height,
+        ),
+    );
+    pieces
+        .iter()
+        .filter_map(|piece| {
+            let hit = changed.intersect(piece.source);
+            if !hit.is_positive() || !piece.source.is_positive() {
+                return None;
+            }
+            let local = |point: Pos2| {
+                pos2(
+                    piece.local.min.x
+                        + (point.x - piece.source.min.x) / piece.source.width()
+                            * piece.local.width(),
+                    piece.local.min.y
+                        + (point.y - piece.source.min.y) / piece.source.height()
+                            * piece.local.height(),
+                )
+            };
+            Some(Rect::from_min_max(local(hit.min), local(hit.max)))
+        })
+        .collect()
+}
+
+struct Regions {
+    buffer: wgpu::Buffer,
+    group: wgpu::BindGroup,
+    capacity: usize,
+}
+
+pub struct PluginDrawing {
+    blits: RefCell<Vec<Blit>>,
+    regions: RefCell<Option<Regions>>,
+    placed: RefCell<Vec<Option<(u32, u32)>>>,
+}
+
+impl PluginDrawing {
+    pub fn new(blits: Vec<Blit>) -> Self {
+        Self {
+            blits: RefCell::new(blits),
+            regions: RefCell::new(None),
+            placed: RefCell::new(Vec::new()),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Piece {
+    pub local: Rect,
+    pub source: Rect,
+}
+
+pub struct RegionDrawing {
+    #[cfg(target_arch = "wasm32")]
+    id: u64,
+    template: Blit,
+    pieces: Pieces,
+    held: Option<Rect>,
+    rotation: f32,
+    drawing: PluginDrawing,
+}
+
+pub type Pieces = Rc<RefCell<Vec<Piece>>>;
+
+impl RegionDrawing {
+    pub(super) fn new(template: Blit, pieces: Pieces, held: Option<Rect>, rotation: f32) -> Self {
+        Self {
+            #[cfg(target_arch = "wasm32")]
+            id: next_drawing(),
+            template,
+            pieces,
+            held,
+            rotation,
+            drawing: PluginDrawing::new(Vec::new()),
+        }
+    }
+
+    fn blits(&self, at: &DrawAt) -> Vec<Blit> {
+        let scale = at.pixels_per_point.max(f32::EPSILON);
+        self.blits_in(Rect::from_min_max(
+            pos2(at.rect[0] / scale, at.rect[1] / scale),
+            pos2(at.rect[2] / scale, at.rect[3] / scale),
+        ))
+    }
+
+    fn blits_in(&self, laid: Rect) -> Vec<Blit> {
+        let rect = self.held.unwrap_or(laid);
+        let center = rect.center();
+        let (sin, cos) = self.rotation.sin_cos();
+        let turn = |point: Pos2| {
+            let offset = point - center;
+            center
+                + vec2(
+                    offset.x * cos - offset.y * sin,
+                    offset.x * sin + offset.y * cos,
+                )
+        };
+        let at_fraction = |x: f32, y: f32| {
+            turn(pos2(
+                rect.min.x + rect.width() * x,
+                rect.min.y + rect.height() * y,
+            ))
+        };
+        self.pieces
+            .borrow()
+            .iter()
+            .map(|piece| {
+                let local = piece.local;
+                let corners = [
+                    at_fraction(local.min.x, local.min.y),
+                    at_fraction(local.max.x, local.min.y),
+                    at_fraction(local.max.x, local.max.y),
+                    at_fraction(local.min.x, local.max.y),
+                ];
+                Blit {
+                    quad: Quad {
+                        rect: Rect::from_points(&corners),
+                        corners,
+                        opacity: self.template.quad.opacity,
+                    },
+                    source: piece.source,
+                    ..self.template.clone()
+                }
+            })
+            .collect()
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+thread_local! {
+    static SHOWN: RefCell<std::collections::HashMap<u64, (u64, Vec<Blit>)>> =
+        RefCell::new(std::collections::HashMap::new());
+    static PREPARED: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(target_arch = "wasm32")]
+fn next_drawing() -> u64 {
+    thread_local! {
+        static NEXT: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+    }
+    NEXT.with(|next| {
+        next.set(next.get() + 1);
+        next.get()
+    })
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn shown() -> Vec<Blit> {
+    SHOWN.with(|shown| {
+        let shown = shown.borrow();
+        let mut ordered: Vec<&(u64, Vec<Blit>)> = shown.values().collect();
+        ordered.sort_by_key(|(order, _)| *order);
+        ordered
+            .into_iter()
+            .flat_map(|(_, blits)| blits.iter().cloned())
+            .collect()
+    })
+}
+
+#[cfg(target_arch = "wasm32")]
+fn record_shown(id: u64, blits: &[Blit]) {
+    let order = PREPARED.with(|prepared| {
+        prepared.set(prepared.get() + 1);
+        prepared.get()
+    });
+    let moved = SHOWN.with(|shown| {
+        let mut shown = shown.borrow_mut();
+        let moved = shown
+            .get(&id)
+            .is_none_or(|(_, held)| held.as_slice() != blits);
+        shown.insert(id, (order, blits.to_vec()));
+        moved
+    });
+    if moved {
+        block_app_base::host::wake();
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl Drop for RegionDrawing {
+    fn drop(&mut self) {
+        SHOWN.with(|shown| shown.borrow_mut().remove(&self.id));
+        block_app_base::host::wake();
+    }
+}
+
+impl beui::native::Draw for RegionDrawing {
+    fn prepare(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
+        at: DrawAt,
+    ) {
+        let blits = self.blits(&at);
+        #[cfg(target_arch = "wasm32")]
+        record_shown(self.id, &blits);
+        *self.drawing.blits.borrow_mut() = blits;
+        self.drawing.prepare(device, queue, encoder, at);
+    }
+
+    fn paint(&self, pass: &mut wgpu::RenderPass<'_>, at: DrawAt) {
+        self.drawing.paint(pass, at);
+    }
+}
+
+impl Paints for RegionDrawing {
+    fn overflows(&self, rect: Rect) -> Vec<String> {
+        let mut found = Vec::new();
+        for blit in self.blits_in(rect) {
+            if let Some(overflows) = blit.shared.borrow().overflows.get(&blit.screen) {
+                found.extend_from_slice(overflows);
+            }
+        }
+        found
+    }
+
+    fn painting(&self, rect: Rect) -> Option<Painting> {
+        let mut primitives = Vec::new();
+        let mut textures = std::collections::BTreeMap::new();
+        let mut found = false;
+        for blit in self.blits_in(rect) {
+            let shared = blit.shared.borrow();
+            let Some(placement) = shared.layout.placement(blit.screen) else {
+                continue;
+            };
+            let size = (placement.width, placement.height);
+            if blit.drawn.is_some_and(|drawn| drawn != size) {
+                continue;
+            }
+            let placed = match (blit.drawn, blit.requested) {
+                (None, Some(requested)) if requested != size => {
+                    unstretched(blit.quad, blit.source, requested, size)
+                }
+                _ => Some((blit.quad, blit.source)),
+            };
+            let (Some((quad, source)), Some(screen)) = (placed, shared.paintings.get(&blit.screen))
+            else {
+                continue;
+            };
+            let screen = super::previews::painting(screen.clone());
+            found = true;
+            primitives.extend(screen.placed(Placement {
+                source: [source.min.x, source.min.y, source.max.x, source.max.y],
+                corners: quad.corners.map(|corner| [corner.x, corner.y]),
+                clip: [
+                    quad.rect.min.x,
+                    quad.rect.min.y,
+                    quad.rect.max.x,
+                    quad.rect.max.y,
+                ],
+            }));
+            for (key, pixels) in &screen.textures {
+                textures.entry(*key).or_insert_with(|| pixels.clone());
+            }
+        }
+        (found || self.pieces.borrow().is_empty()).then_some(Painting {
+            frame: beui::native::painting::Frame {
+                size: [1, 1],
+                pixels_per_point: 1.0,
+                background: [0; 4],
+                primitives,
+            },
+            textures,
+        })
+    }
+}
+
+impl beui::native::Draw for PluginDrawing {
+    fn prepare(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        _encoder: &mut wgpu::CommandEncoder,
+        at: DrawAt,
+    ) {
+        let blits = self.blits.borrow();
+        PRESENTER.with(|presenter| {
+            let mut presenter = presenter.borrow_mut();
+            let Some(presenter) = presenter.as_mut() else {
+                for blit in blits.iter() {
+                    blit.status.set(PresenterState::Unsupported(
+                        "The active renderer has no plugin surface presenter.".to_owned(),
+                    ));
+                }
+                return;
+            };
+            let mut regions = self.regions.borrow_mut();
+            let needed = blits.len().max(1);
+            if regions
+                .as_ref()
+                .is_none_or(|regions| regions.capacity < needed)
+            {
+                let capacity = needed.next_power_of_two();
+                let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("plugin surface regions"),
+                    size: u64::from(presenter.regions.stride) * capacity as u64,
+                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                    mapped_at_creation: false,
+                });
+                let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("plugin surface regions"),
+                    layout: &presenter.regions.layout,
+                    entries: &[wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                            buffer: &buffer,
+                            offset: 0,
+                            size: wgpu::BufferSize::new(REGION_BYTES),
+                        }),
+                    }],
+                });
+                *regions = Some(Regions {
+                    buffer,
+                    group,
+                    capacity,
+                });
+            }
+            let regions = regions.as_ref().expect("the regions were just created");
+            let mut placed = self.placed.borrow_mut();
+            placed.clear();
+            for (index, blit) in blits.iter().enumerate() {
+                let (frames, region, surfaces) = {
+                    let mut shared = blit.shared.borrow_mut();
+                    let frames = shared.take_frames();
+                    let region = shared.layout.placement(blit.screen).and_then(|placement| {
+                        let size = (placement.width, placement.height);
+                        if blit.drawn.is_some_and(|drawn| drawn != size) {
+                            return None;
+                        }
+                        let (quad, source) = match (blit.drawn, blit.requested) {
+                            (None, Some(requested)) if requested != size => {
+                                unstretched(blit.quad, blit.source, requested, size)?
+                            }
+                            _ => (blit.quad, blit.source),
+                        };
+                        Some((placement.surface, Region::of(quad, source)))
+                    });
+                    let surfaces: Vec<u32> = shared
+                        .layout
+                        .screens
+                        .iter()
+                        .map(|placement| placement.surface)
+                        .collect();
+                    (frames, region, surfaces)
+                };
+                let mut failure = None;
+                for frame in &frames {
+                    let applied = presenter
+                        .replace(device, blit.surface, frame)
+                        .and_then(|()| presenter.prepare(queue, blit.surface, frame));
+                    if let Err(error) = applied {
+                        failure = Some(error);
+                    }
+                }
+                if !frames.is_empty() {
+                    presenter.retain(blit.surface, &surfaces);
+                }
+                match failure {
+                    Some(error) => blit.status.set(PresenterState::Failed(error)),
+                    None if presenter.platform.is_some() => {
+                        blit.status.set(PresenterState::Presenting);
+                    }
+                    None => blit
+                        .status
+                        .set(PresenterState::Unsupported(UNSUPPORTED.to_owned())),
+                }
+                placed.push(region.map(|(surface, region)| {
+                    let offset = presenter.regions.stride * index as u32;
+                    queue.write_buffer(
+                        &regions.buffer,
+                        u64::from(offset),
+                        bytemuck::cast_slice(&region.values(&at)),
+                    );
+                    (offset, surface)
+                }));
+            }
+        });
+    }
+
+    fn paint(&self, pass: &mut wgpu::RenderPass<'_>, _at: DrawAt) {
+        PRESENTER.with(|presenter| {
+            let presenter = presenter.borrow();
+            let Some(presenter) = presenter.as_ref() else {
+                return;
+            };
+            let Some(platform) = &presenter.platform else {
+                return;
+            };
+            let regions = self.regions.borrow();
+            let Some(regions) = regions.as_ref() else {
+                return;
+            };
+            let placed = self.placed.borrow();
+            let blits = self.blits.borrow();
+            for (blit, placed) in blits.iter().zip(placed.iter()) {
+                if let Some((offset, surface)) = placed {
+                    platform.paint(pass, blit.surface, *surface, &regions.group, *offset);
+                }
+            }
+        });
+    }
+}
+
+thread_local! {
+    static PRESENTER: RefCell<Option<Presenter>> = const { RefCell::new(None) };
+}
+
+struct Presenter {
+    regions: RegionLayout,
+    platform: Option<PlatformPresenter>,
+}
+
+pub(super) fn install(setup: &beui::native::Setup) -> Availability {
+    let Some(gpu) = setup.get::<beui_host::native::GpuSetup>() else {
+        return Availability(Ok(()));
+    };
+    let regions = RegionLayout::new(&gpu.device);
+    let platform = build_presenter(&gpu.device, &gpu.queue, &regions, gpu.format);
+    let availability = Availability(platform.as_ref().map(|_| ()).map_err(Clone::clone));
+    PRESENTER.with(|presenter| {
+        *presenter.borrow_mut() = Some(Presenter {
+            regions,
+            platform: platform.ok(),
+        });
+    });
+    availability
+}
+
+pub(super) fn rendered() -> bool {
+    PRESENTER.with(|presenter| presenter.borrow().is_some())
+}
+
+pub(super) fn stop() {
+    let presenter = PRESENTER.with(|presenter| presenter.borrow_mut().take());
+    drop(presenter);
+}
+
+pub(super) fn release(slot: u32, status: &PresenterStatus) {
+    PRESENTER.with(|presenter| {
+        if let Some(platform) = presenter
+            .borrow_mut()
+            .as_mut()
+            .and_then(|presenter| presenter.platform.as_mut())
+        {
+            platform.release(slot);
+        }
+    });
+    status.set(PresenterState::Released);
+}
+
+impl Presenter {
+    fn replace(&mut self, device: &wgpu::Device, slot: u32, frame: &Frame) -> Result<(), String> {
+        match &mut self.platform {
+            Some(presenter) => presenter.replace(device, slot, frame),
+            None => Err(UNSUPPORTED.to_owned()),
+        }
+    }
+
+    fn prepare(&mut self, queue: &wgpu::Queue, slot: u32, frame: &Frame) -> Result<(), String> {
+        match &mut self.platform {
+            Some(presenter) => presenter.prepare(queue, slot, frame),
+            None => Err(UNSUPPORTED.to_owned()),
+        }
+    }
+
+    fn retain(&mut self, slot: u32, surfaces: &[u32]) {
+        if let Some(presenter) = &mut self.platform {
+            presenter.retain(slot, surfaces);
+        }
+    }
+}
+
+const UNSUPPORTED: &str = "This build has no presenter for that plugin surface.";
+
+#[cfg(test)]
+mod tests;

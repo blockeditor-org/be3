@@ -226,7 +226,7 @@ pub(crate) fn StaleBlock(block: Uuid, block_type: Uuid, stale: block_app_stack::
         );
         crate::compositor::act(
             None,
-            crate::plugin_host::EditorAction::Command {
+            block_app_plugin_host::EditorAction::Command {
                 id: block,
                 command: BlockCommand::Delete {
                     block_type: block_type.into_bytes(),

@@ -732,7 +732,7 @@ dependencies = [
  "memchr",
  "postcard",
  "serde",
- "ui-preferences",
+ "ui-types",
  "uuid",
 ]
 
@@ -750,10 +750,10 @@ dependencies = [
  "be-store",
  "be-sync",
  "be-types-host",
- "block-plugin-manifest",
+ "block-plugin-api",
  "block-type-api",
  "block-type-guest",
- "block-ui-database",
+ "block-ui",
  "build-id",
  "database-types",
  "first-party-types",
@@ -832,8 +832,8 @@ dependencies = [
 name = "be-drive"
 version = "0.1.0"
 dependencies = [
+ "beui-core",
  "beui-layer-drive",
- "beui-runner",
  "image",
  "libc",
  "paint-snapshot",
@@ -897,7 +897,6 @@ version = "0.1.0"
 dependencies = [
  "be-block",
  "beui",
- "beui-host",
  "block-ui-test",
  "comrak",
  "image",
@@ -1024,6 +1023,7 @@ dependencies = [
  "be-graph",
  "be-keys",
  "be-portal",
+ "be-portal-ui",
  "be-protocol",
  "be-session",
  "be-store",
@@ -1039,21 +1039,9 @@ dependencies = [
  "tokio",
  "tokio-tungstenite",
  "tracing",
+ "tracing-subscriber",
  "ureq",
  "uuid",
-]
-
-[[package]]
-name = "be-server-bin"
-version = "0.1.0"
-dependencies = [
- "be-portal",
- "be-portal-ui",
- "be-server",
- "build-id",
- "tokio",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -1153,7 +1141,6 @@ version = "0.1.0"
 dependencies = [
  "be-dmabuf",
  "beui",
- "beui-host",
  "beui-layer-space",
  "bytemuck",
  "gvdb",
@@ -1202,16 +1189,33 @@ name = "beui"
 version = "0.1.0"
 dependencies = [
  "accesskit",
+ "bench",
  "beui-components-styled",
  "beui-components-unstyled",
  "beui-core",
  "beui-dock",
- "beui-draw",
+ "beui-font-freetype",
+ "beui-inspector",
  "beui-keyboard",
+ "beui-layer-drive",
+ "beui-layer-space",
+ "beui-layer-xr",
+ "beui-platform-android",
+ "beui-platform-headless",
+ "beui-platform-web",
+ "beui-platform-winit",
+ "beui-renderer-wgpu",
  "beui-view",
  "beui_macros",
  "paint-snapshot",
+ "pollster",
+ "raw-window-handle",
  "reactive",
+ "serde_json",
+ "text-editor-core",
+ "wasm-bindgen",
+ "web-sys",
+ "wgpu",
 ]
 
 [[package]]
@@ -1220,8 +1224,7 @@ version = "0.1.0"
 dependencies = [
  "accesskit",
  "beui-components-unstyled",
- "beui-core",
- "beui-draw",
+ "beui-renderer-wgpu",
  "beui-view",
  "beui_macros",
  "bytemuck",
@@ -1291,11 +1294,9 @@ dependencies = [
  "bench",
  "beui",
  "beui-core",
- "beui-host",
  "beui-inspector",
  "beui-layer-space",
  "beui-renderer-wgpu",
- "beui-runner",
  "beui_macros",
  "block-ui-test",
  "pollster",
@@ -1324,14 +1325,6 @@ dependencies = [
  "beui_macros",
  "reactive",
  "serde",
-]
-
-[[package]]
-name = "beui-draw"
-version = "0.1.0"
-dependencies = [
- "beui-core",
- "wgpu",
 ]
 
 [[package]]
@@ -1370,38 +1363,6 @@ dependencies = [
  "be-model",
  "block-type-guest",
  "uuid",
-]
-
-[[package]]
-name = "beui-host"
-version = "0.1.0"
-dependencies = [
- "accesskit",
- "bench",
- "beui",
- "beui-core",
- "beui-font-freetype",
- "beui-inspector",
- "beui-keyboard",
- "beui-layer-drive",
- "beui-layer-space",
- "beui-layer-xr",
- "beui-platform-android",
- "beui-platform-headless",
- "beui-platform-web",
- "beui-platform-winit",
- "beui-renderer-wgpu",
- "beui-runner",
- "beui-view",
- "beui_macros",
- "pollster",
- "raw-window-handle",
- "reactive",
- "serde_json",
- "text-editor-core",
- "wasm-bindgen",
- "web-sys",
- "wgpu",
 ]
 
 [[package]]
@@ -1459,7 +1420,6 @@ version = "0.1.0"
 dependencies = [
  "accesskit",
  "beui-core",
- "beui-runner",
 ]
 
 [[package]]
@@ -1468,11 +1428,9 @@ version = "0.1.0"
 dependencies = [
  "beui-components-styled",
  "beui-core",
- "beui-draw",
  "beui-font-freetype",
  "beui-keyboard",
  "beui-renderer-wgpu",
- "beui-runner",
  "beui-types",
  "beui-view",
  "beui_macros",
@@ -1492,7 +1450,6 @@ dependencies = [
  "beui-font-freetype",
  "beui-layer-space",
  "beui-renderer-wgpu",
- "beui-runner",
  "glam",
  "libloading 0.9.0",
  "openxr",
@@ -1508,7 +1465,6 @@ dependencies = [
  "accesskit",
  "accesskit_android",
  "beui-core",
- "beui-runner",
  "jni 0.22.4",
  "libc",
  "ndk 0.9.0",
@@ -1524,8 +1480,6 @@ dependencies = [
  "be-dmabuf",
  "beui",
  "beui-core",
- "beui-host",
- "beui-runner",
  "bytemuck",
  "rustix 1.1.4",
  "smithay",
@@ -1541,7 +1495,6 @@ dependencies = [
  "beui-core",
  "beui-layer-drive",
  "beui-renderer-wgpu",
- "beui-runner",
  "pollster",
 ]
 
@@ -1551,24 +1504,11 @@ version = "0.1.0"
 dependencies = [
  "beui",
  "beui-core",
- "beui-font-freetype",
- "beui-host",
- "beui-platform-plugin-api",
  "beui-renderer-wgpu",
- "beui-runner",
  "block-editor-plugin",
  "block-plugin-api",
- "wgpu",
-]
-
-[[package]]
-name = "beui-platform-plugin-api"
-version = "0.1.0"
-dependencies = [
- "beui",
- "beui-core",
- "block-editor-plugin",
  "uuid",
+ "wgpu",
 ]
 
 [[package]]
@@ -1576,7 +1516,6 @@ name = "beui-platform-web"
 version = "0.1.0"
 dependencies = [
  "beui-core",
- "beui-runner",
  "beui-web-input",
  "futures-util",
  "js-sys",
@@ -1596,7 +1535,6 @@ dependencies = [
  "arboard",
  "ashpd",
  "beui-core",
- "beui-runner",
  "futures-util",
  "image",
  "pollster",
@@ -1610,9 +1548,7 @@ version = "0.1.0"
 dependencies = [
  "beui-components-unstyled",
  "beui-core",
- "beui-draw",
  "beui-font-freetype",
- "beui-runner",
  "beui-view",
  "beui_macros",
  "bytemuck",
@@ -1622,22 +1558,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "beui-runner"
-version = "0.1.0"
-dependencies = [
- "accesskit",
- "beui-core",
- "beui-types",
- "raw-window-handle",
-]
-
-[[package]]
 name = "beui-shared-tests"
 version = "0.1.0"
 dependencies = [
  "be-drive",
  "beui",
- "beui-host",
  "beui-html",
  "beui-layer-drive",
  "wasi-threads",
@@ -1686,7 +1611,6 @@ version = "0.1.0"
 dependencies = [
  "beui",
  "beui-demo",
- "beui-host",
  "wasi-threads",
  "wasm-bindgen",
  "wasm-bindgen-futures",
@@ -1811,7 +1735,6 @@ name = "block-accounts-ui"
 version = "0.1.0"
 dependencies = [
  "beui",
- "beui-host",
  "paint-snapshot",
 ]
 
@@ -1821,7 +1744,6 @@ version = "0.1.0"
 dependencies = [
  "be-block",
  "be-client",
- "be-commit",
  "be-dmabuf",
  "be-graph",
  "be-keys",
@@ -1834,39 +1756,26 @@ dependencies = [
  "be-win32-capture",
  "be-win32-input",
  "beui",
- "beui-host",
  "beui-platform-drm",
  "block-accounts-ui",
  "block-app-base",
+ "block-app-plugin-host",
  "block-app-services",
  "block-app-stack",
  "block-app-testing",
- "block-guest-host",
  "block-plugin-api",
- "block-plugin-manifest",
- "block-type-api",
- "block-type-guest",
  "block-ui-test",
- "block-wasm-host",
- "browser-tab-types",
  "build-id",
  "bytemuck",
- "calendar-types",
- "counter-types",
- "database-types",
  "directories-next",
  "futures-util",
  "image",
- "js-sys",
  "libc",
  "notify",
  "paint-snapshot",
  "pollster",
  "reactive",
- "rodio",
- "serde",
  "serde_json",
- "text-block-types",
  "tokio",
  "uuid",
  "wasi-threads",
@@ -1901,6 +1810,42 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+]
+
+[[package]]
+name = "block-app-plugin-host"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-client",
+ "be-commit",
+ "be-graph",
+ "be-types-host",
+ "beui",
+ "block-app-base",
+ "block-app-stack",
+ "block-app-testing",
+ "block-guest-host",
+ "block-plugin-api",
+ "block-type-api",
+ "block-type-guest",
+ "block-wasm-host",
+ "browser-tab-types",
+ "bytemuck",
+ "calendar-types",
+ "counter-types",
+ "database-types",
+ "image",
+ "js-sys",
+ "pollster",
+ "rodio",
+ "serde",
+ "serde_json",
+ "text-block-types",
+ "uuid",
+ "wasm-bindgen",
+ "web-sys",
+ "wgpu",
 ]
 
 [[package]]
@@ -2004,27 +1949,20 @@ name = "block-editor-beui"
 version = "0.1.0"
 dependencies = [
  "be-block",
+ "be-model",
  "beui",
  "beui-platform-plugin",
- "beui-platform-plugin-api",
+ "beui-renderer-wgpu",
  "block-editor-plugin",
  "block-plugin-api",
  "block-ui",
+ "database-types",
  "presentation-types",
  "serde",
  "serde_json",
+ "text-editor-core",
  "uuid",
-]
-
-[[package]]
-name = "block-editor-database"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-editor-beui",
- "block-ui-database",
- "database-types",
- "uuid",
+ "workspace-ui-types",
 ]
 
 [[package]]
@@ -2035,7 +1973,6 @@ dependencies = [
  "block-gpu-guest",
  "block-guest-abi",
  "block-plugin-api",
- "block-plugin-manifest",
  "block-type-guest",
  "block-ui",
  "checklist-types",
@@ -2048,19 +1985,6 @@ dependencies = [
  "uuid",
  "wasi-threads",
  "wgpu",
-]
-
-[[package]]
-name = "block-editor-text"
-version = "0.1.0"
-dependencies = [
- "be-block",
- "be-model",
- "beui",
- "block-editor-plugin",
- "serde",
- "text-editor-core",
- "uuid",
 ]
 
 [[package]]
@@ -2143,23 +2067,10 @@ dependencies = [
  "be-ops",
  "be-ops-bindgen",
  "block-gpu-abi",
- "block-plugin-manifest",
  "serde",
  "serde_bytes",
  "serde_json",
- "ui-keys",
- "ui-preferences",
  "ui-types",
- "uuid",
-]
-
-[[package]]
-name = "block-plugin-manifest"
-version = "0.1.0"
-dependencies = [
- "be-ops-bindgen",
- "serde",
- "serde_json",
  "uuid",
 ]
 
@@ -2168,7 +2079,6 @@ name = "block-plugin-sdk"
 version = "0.1.0"
 dependencies = [
  "beui",
- "beui-platform-plugin",
  "block-editor-beui",
  "block-editor-plugin",
  "serde",
@@ -2186,6 +2096,7 @@ dependencies = [
  "serde_json",
  "settings-types",
  "uuid",
+ "workspace-ui-types",
 ]
 
 [[package]]
@@ -2225,17 +2136,9 @@ dependencies = [
 name = "block-ui"
 version = "0.1.0"
 dependencies = [
- "block-plugin-manifest",
- "lucide",
- "uuid",
-]
-
-[[package]]
-name = "block-ui-database"
-version = "0.1.0"
-dependencies = [
- "block-ui",
+ "be-block",
  "database-types",
+ "lucide",
  "uuid",
 ]
 
@@ -2247,8 +2150,6 @@ dependencies = [
  "be-store",
  "beui",
  "beui-core",
- "beui-host",
- "beui-platform-plugin",
  "block-editor-beui",
  "block-plugin-api",
  "block-type-guest",
@@ -2257,6 +2158,7 @@ dependencies = [
  "serde",
  "text-block-types",
  "uuid",
+ "workspace-ui-types",
 ]
 
 [[package]]
@@ -3356,8 +3258,6 @@ version = "0.1.0"
 dependencies = [
  "beui",
  "block-editor-beui",
- "block-editor-database",
- "block-ui-database",
  "block-ui-test",
  "database-types",
  "text-block-types",
@@ -3464,6 +3364,7 @@ dependencies = [
  "block-ui-test",
  "calendar-types",
  "uuid",
+ "workspace-ui-types",
 ]
 
 [[package]]
@@ -3854,7 +3755,6 @@ version = "0.1.0"
 dependencies = [
  "beui",
  "block-editor-beui",
- "block-editor-database",
  "block-ui-test",
  "serde",
  "uuid",
@@ -4829,9 +4729,6 @@ dependencies = [
  "bench",
  "beui",
  "block-editor-beui",
- "block-editor-database",
- "block-editor-text",
- "block-ui-database",
  "block-ui-test",
  "counter-types",
  "database-types",
@@ -6156,7 +6053,6 @@ name = "paint-review"
 version = "0.1.0"
 dependencies = [
  "beui",
- "beui-host",
  "block-ui-test",
  "paint-review-manifest",
 ]
@@ -6173,7 +6069,6 @@ name = "paint-review-web"
 version = "0.1.0"
 dependencies = [
  "beui",
- "beui-host",
  "image",
  "js-sys",
  "paint-review",
@@ -6455,7 +6350,6 @@ name = "pixel_ray_tracer"
 version = "0.1.0"
 dependencies = [
  "beui",
- "beui-host",
  "block-editor-beui",
  "block-ui-test",
  "pixel-ray-tracer-types",
@@ -7591,7 +7485,6 @@ dependencies = [
  "be-remap",
  "beui",
  "block-editor-beui",
- "block-editor-database",
  "block-ui-test",
  "settings-types",
  "text-editor-core",
@@ -8151,7 +8044,7 @@ dependencies = [
  "be-model",
  "block-type-guest",
  "serde",
- "ui-keys",
+ "ui-types",
  "uuid",
 ]
 
@@ -8203,7 +8096,6 @@ version = "0.1.0"
 dependencies = [
  "beui",
  "block-editor-beui",
- "block-editor-text",
  "block-ui-test",
  "image-block-types",
  "serde",
@@ -8715,22 +8607,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ui-keys"
-version = "0.1.0"
-dependencies = [
- "be-ops-bindgen",
- "serde",
-]
-
-[[package]]
-name = "ui-preferences"
-version = "0.1.0"
-dependencies = [
- "be-ops-bindgen",
- "serde",
-]
-
-[[package]]
 name = "ui-types"
 version = "0.1.0"
 dependencies = [
@@ -8738,8 +8614,6 @@ dependencies = [
  "geometry",
  "serde",
  "serde_bytes",
- "ui-keys",
- "ui-preferences",
 ]
 
 [[package]]
@@ -10852,6 +10726,7 @@ dependencies = [
  "be-commit",
  "be-model",
  "block-type-guest",
+ "postcard",
  "serde",
  "uuid",
 ]

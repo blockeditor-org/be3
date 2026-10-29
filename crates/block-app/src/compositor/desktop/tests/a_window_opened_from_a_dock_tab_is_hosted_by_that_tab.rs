@@ -32,7 +32,7 @@ fn a_window_opened_from_a_dock_tab_is_hosted_by_that_tab() {
     let frame = overlaid(PLUGIN.to_owned(), INSTANCE, EditorRegion::Frame);
     let within = overlaid(PLUGIN.to_owned(), INSTANCE, EditorRegion::Window(1));
     note_origin(PLUGIN, INSTANCE, TAB, pos2(200.0, 100.0));
-    crate::plugin_host::request_windows(
+    block_app_plugin_host::request_windows(
         PLUGIN,
         vec![
             open(1, TAB, pos2(10.0, 20.0)),

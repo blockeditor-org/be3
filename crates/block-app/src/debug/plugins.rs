@@ -4,7 +4,7 @@ use beui::Vec2;
 use block_plugin_api::{EditorCapabilities, EditorRegion};
 use block_plugin_manifest::PluginManifest;
 
-use crate::plugin_host::{InstanceStatus, RuntimeStatus, ScreenStatus};
+use block_app_plugin_host::{InstanceStatus, RuntimeStatus, ScreenStatus};
 use crate::ui::{Line, LineStyle, PluginsView, RuntimeView};
 
 fn push(lines: &mut Vec<Line>, style: LineStyle, indent: u8, text: impl Into<String>) {
@@ -20,7 +20,7 @@ pub(super) fn view() -> PluginsView {
     discovered(&mut lines);
     PluginsView {
         lines,
-        runtimes: crate::plugin_host::running()
+        runtimes: block_app_plugin_host::running()
             .iter()
             .map(|runtime| RuntimeView {
                 id: runtime.plugin_id.clone(),
