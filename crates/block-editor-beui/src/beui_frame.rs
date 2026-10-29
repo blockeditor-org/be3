@@ -346,7 +346,8 @@ fn frame_actions(
         .enabled(can(|state| state.can_redo))
         .register(),
         rename: Action::new("editor.rename", "Rename", move || {
-            editor.rename_block(id, crate::PickAnchor::Centre)
+            let tab = editor.frame_anchor().get_untracked();
+            editor.rename_block(id, crate::PickAnchor::from(tab))
         })
         .glyph(ICON_PENCIL_LINE)
         .pin(Pin::Title)
