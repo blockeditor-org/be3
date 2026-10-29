@@ -293,7 +293,7 @@ pub(crate) fn PluginRegion(
                 layer_bounds: (!offscreen
                     && region != EditorRegion::Preview
                     && cfg!(not(target_arch = "wasm32")))
-                    .then(|| layer_bounds.get_untracked()),
+                .then(|| layer_bounds.get_untracked()),
             },
             frame.get_untracked(),
             view.get_untracked(),
