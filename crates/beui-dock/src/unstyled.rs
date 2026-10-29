@@ -45,8 +45,8 @@ use beui_view::types::Image;
 use beui_view::types::Placement;
 use beui_view::types::window::{WindowEdge, WindowId, WindowPlacement, WindowReport};
 use beui_view::types::{Area, Claim, HitRegion, TouchDrags};
-use beui_view::types::{CursorIcon, Key, KeyPress, Modifiers, PointerPress};
 use beui_view::types::{CanvasArrangement, Direction, ItemSize};
+use beui_view::types::{CursorIcon, Key, KeyPress, Modifiers, PointerPress};
 use beui_view::types::{Pos2, Rect, Vec2, pos2, vec2};
 use beui_view::window::{Window, WindowHandle, opens_windows, use_window};
 
@@ -2333,12 +2333,29 @@ fn DockTreeView(
     let reach = dock.reach;
     let state = dock.state;
     let shape = create_memo(move || state.with(|state| tree_shape(state, tree)));
-    let leaves = create_memo(move || shape.with(|shape| shape.as_ref().map(DockShape::leaves).unwrap_or_default()));
-    let splits = create_memo(move || shape.with(|shape| shape.as_ref().map(DockShape::splits).unwrap_or_default()));
+    let floats = match tree {
+        Tree::Surface(surface) => state.with_untracked(|state| state.window_rect(surface).is_some()),
+        Tree::Group(_) => false,
+    };
+    let area = dock.rect;
+    let opens = dock.opens;
+    let waiting = create_memo(move || floats && !opens.get() && area.get().size() == Vec2::ZERO);
+    let leaves = create_memo(move || match waiting.get() {
+        true => Vec::new(),
+        false => shape.with(|shape| shape.as_ref().map(DockShape::leaves).unwrap_or_default()),
+    });
+    let splits = create_memo(move || {
+        shape.with(|shape| shape.as_ref().map(DockShape::splits).unwrap_or_default())
+    });
     let arrangement = create_memo(move || {
         let shape = shape.get()?;
         Some(CanvasArrangement::new(move |size| {
-            arranged(&shape, Rect::from_min_size(Pos2::ZERO, size), thickness, reach)
+            arranged(
+                &shape,
+                Rect::from_min_size(Pos2::ZERO, size),
+                thickness,
+                reach,
+            )
         }))
     });
     let hoisted = hoisted.get_untracked();

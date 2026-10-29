@@ -54,7 +54,9 @@ pub(crate) fn canvas(
     let state = beui_core_html::canvas::canvas(canvas, shown, on_reveal);
     let arranging = std::rc::Rc::clone(&state);
     bind(view, move |view| state.set_view(view));
-    bind(arrangement, move |arrangement| arranging.set_arrangement(arrangement));
+    bind(arrangement, move |arrangement| {
+        arranging.set_arrangement(arrangement)
+    });
     children.mount(host::<CanvasKind>(shown));
     canvas
 }
