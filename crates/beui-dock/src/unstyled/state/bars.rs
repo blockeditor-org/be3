@@ -177,6 +177,62 @@ impl DockState {
         self.bars.insert(at, moved);
     }
 
+    pub fn bar_windows(&self, key: &dyn Fn(TabId) -> String) -> Vec<(String, Vec<TabId>)> {
+        let mut windows: Vec<(String, Vec<TabId>)> = Vec::new();
+        for held in self.bars.iter().filter(|held| held.placement.is_window()) {
+            let shared = key(held.bar);
+            match windows.iter_mut().find(|(held, _)| *held == shared) {
+                Some((_, bars)) => bars.push(held.bar),
+                None => windows.push((shared, vec![held.bar])),
+            }
+        }
+        windows
+    }
+
+    pub fn followed_bar(&self, bars: &[TabId]) -> Option<TabId> {
+        let recent = self.recent_tabs();
+        bars.iter()
+            .copied()
+            .filter(|bar| self.is_bar_shown(*bar, false))
+            .min_by_key(|bar| {
+                self.bar_tab(*bar)
+                    .and_then(|tab| recent.iter().position(|held| *held == tab))
+                    .unwrap_or(usize::MAX)
+            })
+    }
+
+    pub fn share_bar_placement(&mut self, bar: TabId, key: &dyn Fn(TabId) -> String) {
+        let Some(placement) = self.bar_placement(bar) else {
+            return;
+        };
+        let shared = key(bar);
+        for held in self.bars.iter_mut() {
+            if held.bar != bar && key(held.bar) == shared {
+                held.placement = placement;
+            }
+        }
+    }
+
+    pub fn adopt_bar_placements(&mut self, before: &DockState, key: &dyn Fn(TabId) -> String) {
+        let arrived: Vec<TabId> = self
+            .bars
+            .iter()
+            .map(|held| held.bar)
+            .filter(|bar| before.bar(*bar).is_none())
+            .collect();
+        for bar in arrived {
+            let shared = key(bar);
+            let kept = before
+                .bars
+                .iter()
+                .find(|held| self.bar(held.bar).is_some() && key(held.bar) == shared)
+                .map(|held| held.placement);
+            if let Some(placement) = kept {
+                self.set_bar_placement(bar, placement);
+            }
+        }
+    }
+
     fn owner_pane(&self, owner: TabId) -> Option<(TabId, usize)> {
         if self.contains(owner) {
             return Some((owner, 0));

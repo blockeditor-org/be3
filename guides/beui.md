@@ -2972,7 +2972,24 @@ apart): its reads follow the hosted state, and `place`, `pop_out` and
 `DockDragStage`), which the root's `Docking` carries as if its own grip were
 dragged; such a handle calls `end_move` when its press ends, which drops the
 bar (a local control ignores it). `DockingLayout::place_bar` of a joined dock
-asks the root the same way. A
+asks the root the same way.
+
+A dock that joins none (the root, or a standalone dock) places bars by key: a
+bar's key is its own `DockBar` id's `key()` (for a joined bar, the last `/`
+segment of its declared key, so every canvas's `tools` bar shares one, whichever
+editor or plugin declared it). Placing, dragging, popping out or docking back
+one bar places every bar of its key the same way (`DockState::share_bar_placement`),
+and a bar that arrives later takes the placement of the bars of its key already
+there (`adopt_bar_placements`), so popping out one canvas's tool bar pops out
+every canvas's. The popped-out bars of a key share one dock window
+(`DockState::bar_windows(key)`): it shows the bar of the declarer whose tab
+was focused last and is shown (`followed_bar`, by `recent_tabs`), and hides
+while no such tab is shown. Pressing or focusing that window focuses no tab, so
+it keeps following the tab it was. Every bar of the key stays laid out in the
+window, the ones not followed clipped to nothing and taking no pointer, so a
+joined plugin's bar region keeps running and switching tabs shows it at once.
+The window takes the size of the bar it shows and keeps its top-left corner,
+where a bar's grip comes first. A
 `bare` `DockPane` draws no tab bar: it holds one tab, takes no tab dropped onto
 it (only a split at its edge), and is what a joined dock's single pane uses so
 its group shows no second tab strip. The demo's Dock bars page has both.

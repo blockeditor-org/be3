@@ -18,6 +18,7 @@ use beui_view::types::{
 use beui_view::types::{Pos2, Rect, Sides, Vec2, pos2, vec2};
 use beui_view::window::{Window, WindowHandle};
 
+use super::state::DockState;
 use super::{
     DockBarMove, DockBarPlacement, DockDragStage, DockDragged, DockEdge, DockHosted, DockMode,
     DockRequest, FLOAT_INSET, LeafId, State, TabId,
@@ -175,7 +176,8 @@ impl DockBarControl {
         }
         let windowed = untrack(|| self.placement().is_window());
         if windowed && dock.opens.get_untracked() {
-            let handle = dock.bar_windows.value().borrow().get(&bar).copied();
+            let key = dock.window_key(bar);
+            let handle = dock.bar_windows.value().borrow().get(&key).copied();
             if handle.is_some_and(WindowHandle::begin_move) {
                 return;
             }
@@ -245,10 +247,25 @@ impl State {
 
     fn place_bar(&self, bar: TabId, placement: DockBarPlacement) {
         if placement.is_window() {
-            self.bar_placements
-                .update(|placements| placements.retain(|held, _| *held != bar));
+            let key = self.window_key(bar);
+            self.bar_placements.update(|placements| {
+                placements.remove(&key);
+            });
         }
-        self.edit(|state| state.set_bar_placement(bar, placement));
+        let dock = *self;
+        self.edit(|state| {
+            state.set_bar_placement(bar, placement);
+            dock.share_placement(state, bar);
+        });
+    }
+
+    pub(super) fn window_key(&self, bar: TabId) -> String {
+        shared_key(self.bar_key.call(bar), bar)
+    }
+
+    fn share_placement(&self, state: &mut DockState, bar: TabId) {
+        let dock = *self;
+        state.share_bar_placement(bar, &|held| dock.window_key(held));
     }
 
     fn pop_out_bar(&self, bar: TabId) {
@@ -297,7 +314,8 @@ impl State {
                     .with_untracked(|state| state.bar_placement(bar))
                     .is_some_and(DockBarPlacement::is_window);
                 if windowed && self.opens.get_untracked() {
-                    let handle = self.bar_windows.value().borrow().get(&bar).copied();
+                    let key = self.window_key(bar);
+                    let handle = self.bar_windows.value().borrow().get(&key).copied();
                     if handle.is_some_and(WindowHandle::begin_move) {
                         return;
                     }
@@ -455,12 +473,14 @@ impl State {
             return;
         };
         if placement.is_window() {
-            self.bar_placements
-                .update(|placements| placements.retain(|held, _| *held != bar));
-            self.edit(|state| state.set_bar_placement(bar, placement));
+            self.place_bar(bar, placement);
             return;
         }
-        self.edit(|state| state.place_bar_at(bar, placement, slot));
+        let dock = *self;
+        self.edit(|state| {
+            state.place_bar_at(bar, placement, slot);
+            dock.share_placement(state, bar);
+        });
     }
 
     fn bar_outside(&self, bar: TabId, _: DragPoint) {
@@ -472,9 +492,14 @@ impl State {
             .with_untracked(|state| state.bar_placement(bar))
             .map_or(DockEdge::Top, DockBarPlacement::edge);
         let origin = pos2(FLOAT_INSET.x, FLOAT_INSET.y);
-        self.edit(|state| state.set_bar_placement(bar, DockBarPlacement::Window { edge, origin }));
+        let dock = *self;
+        self.edit(|state| {
+            state.set_bar_placement(bar, DockBarPlacement::Window { edge, origin });
+            dock.share_placement(state, bar);
+        });
+        let key = self.window_key(bar);
         self.bar_placements.update(|placements| {
-            placements.insert(bar, WindowPlacement::AtPointer);
+            placements.insert(key, WindowPlacement::AtPointer);
         });
     }
 
@@ -803,29 +828,25 @@ fn DockBarFloat(dock: State, tab: Memo<Option<TabId>>, edge: DockEdge, stacked: 
 pub(super) fn DockBarWindows(dock: State) -> NodeId {
     let state = dock.state;
     let away = dock.bars_away;
-    let bars = create_memo(move || {
+    let keys = create_memo(move || {
         if away.get() {
             return Vec::new();
         }
+        let windows = state.with(|state| state.bar_windows(&|bar| dock.window_key(bar)));
         state.with(|state| {
-            state
-                .bars()
+            windows
                 .into_iter()
-                .filter(|bar| {
-                    state
-                        .bar_placement(*bar)
-                        .is_some_and(DockBarPlacement::is_window)
-                        && state.is_bar_shown(*bar, false)
-                })
+                .filter(|(_, bars)| state.followed_bar(bars).is_some())
+                .map(|(key, _)| key)
                 .collect::<Vec<_>>()
         })
     });
     view! {
         <List spacing=0.0>
-            <ForEach keys={bars}>|bar: TabId| {
+            <ForEach keys={keys}>|key: String| {
                 let dock = dock;
                 view! {
-                    <DockBarWindow dock bar />
+                    <DockBarWindow dock key />
                 }
             }</ForEach>
         </List>
@@ -833,30 +854,46 @@ pub(super) fn DockBarWindows(dock: State) -> NodeId {
 }
 
 #[component]
-fn DockBarWindow(dock: State, bar: TabId) -> NodeId {
+fn DockBarWindow(dock: State, key: String) -> NodeId {
     let state = dock.state;
-    let panel = dock.bar_panel(bar);
-    let measured = measure(panel);
+    let shared = key.clone();
+    let bars = create_memo(move || {
+        let windows = state.with(|state| state.bar_windows(&|bar| dock.window_key(bar)));
+        windows
+            .into_iter()
+            .find(|(held, _)| *held == shared)
+            .map(|(_, bars)| bars)
+            .unwrap_or_default()
+    });
+    let followed = create_memo(move || bars.with(|bars| state.with(|state| state.followed_bar(bars))));
+    let sizes = create_signal(HashMap::<TabId, Vec2>::new());
     let size = create_signal(
-        measured
+        followed
             .get_untracked()
-            .map(|measured| measured.size)
+            .and_then(|bar| dock.bar_panel_rect(bar))
+            .map(|rect| rect.size())
             .filter(|size| size.x > 0.0 && size.y > 0.0)
             .unwrap_or(WINDOW_SIZE),
     );
     create_effect(move || {
-        let Some(measured) = measured.get() else {
+        let Some(measured) = followed
+            .get()
+            .and_then(|bar| sizes.with(|sizes| sizes.get(&bar).copied()))
+        else {
             return;
         };
-        if measured.size.x > 0.0 && measured.size.y > 0.0 && size.get_untracked() != measured.size {
-            size.set(measured.size);
+        if measured.x > 0.0 && measured.y > 0.0 && size.get_untracked() != measured {
+            size.set(measured);
         }
     });
     let origin = create_memo(move || {
-        let origin = state.with(|state| match state.bar_placement(bar) {
+        let placement = followed
+            .get()
+            .and_then(|bar| state.with(|state| state.bar_placement(bar)));
+        let origin = match placement {
             Some(DockBarPlacement::Window { origin, .. }) => origin,
             _ => pos2(FLOAT_INSET.x, FLOAT_INSET.y),
-        });
+        };
         dock.clamped_origin(
             Rect::from_min_size(origin, size.get()),
             dock.rect.get().size(),
@@ -864,9 +901,10 @@ fn DockBarWindow(dock: State, bar: TabId) -> NodeId {
     });
     let at = create_memo(move || dock.rect.get().min + origin.get().to_vec2());
     let parent = dock.home();
+    let placed = key.clone();
     let placement = create_memo(move || {
         dock.bar_placements
-            .with(|placements| placements.get(&bar).cloned())
+            .with(|placements| placements.get(&placed).cloned())
             .unwrap_or(WindowPlacement::Over {
                 window: parent,
                 at: at.get(),
@@ -874,9 +912,11 @@ fn DockBarWindow(dock: State, bar: TabId) -> NodeId {
     });
     let overlay = NodeRef::new();
     let windows = dock.bar_windows;
+    let forgotten = key.clone();
     on_cleanup(move || {
-        windows.try_with(|windows| windows.borrow_mut().remove(&bar));
+        windows.try_with(|windows| windows.borrow_mut().remove(&forgotten));
     });
+    let reported = key.clone();
     let view = view! {
         <Window
             @node_ref=&overlay
@@ -886,27 +926,31 @@ fn DockBarWindow(dock: State, bar: TabId) -> NodeId {
             placement={placement}
             on_report={move |report: WindowReport| match report {
                 WindowReport::Placed { placement, .. } => dock.bar_placements.update(|placements| {
-                    placements.insert(bar, WindowPlacement::Host(placement));
+                    placements.insert(reported.clone(), WindowPlacement::Host(placement));
                 }),
                 WindowReport::Closed(_) => {
+                    let Some(bar) = followed.get_untracked() else {
+                        return;
+                    };
                     let edge = dock
                         .state
                         .with_untracked(|state| state.bar_placement(bar))
                         .map_or(DockEdge::Top, DockBarPlacement::edge);
-                    dock.edit(|state| state.set_bar_placement(bar, DockBarPlacement::Over(edge)));
+                    dock.place_bar(bar, DockBarPlacement::Over(edge));
                 }
                 _ => {}
             }}
         >|handle: WindowHandle| {
-            windows.value().borrow_mut().insert(bar, handle);
+            windows.value().borrow_mut().insert(key.clone(), handle);
             view! {
                 <Root clear_color=Color::TRANSPARENT>
                     <Canvas>
-                        <CanvasItem x=0.0 y=0.0 width=WINDOW_ROOM height=WINDOW_ROOM clip=false>
-                            <Frame align=Align2::START>
-                                <Portal node={Some(panel)} />
-                            </Frame>
-                        </CanvasItem>
+                        <ForEach keys={bars}>|bar: TabId| {
+                            let dock = dock;
+                            view! {
+                                <SharedBar dock bar followed sizes />
+                            }
+                        }</ForEach>
                     </Canvas>
                 </Root>
             }
@@ -915,6 +959,52 @@ fn DockBarWindow(dock: State, bar: TabId) -> NodeId {
     };
     create_effect(move || untrack(|| dock.raise_window(overlay)));
     view
+}
+
+#[component]
+fn SharedBar(
+    dock: State,
+    bar: TabId,
+    followed: Memo<Option<TabId>>,
+    sizes: Signal<HashMap<TabId, Vec2>>,
+) -> CanvasItem {
+    let panel = dock.bar_panel(bar);
+    let measured = measure(panel);
+    create_effect(move || {
+        if let Some(measured) = measured.get() {
+            sizes.update(|sizes| {
+                sizes.insert(bar, measured.size);
+            });
+        }
+    });
+    on_cleanup(move || {
+        if sizes.is_alive() {
+            sizes.update(|sizes| {
+                sizes.remove(&bar);
+            });
+        }
+    });
+    let shown = create_memo(move || followed.get() == Some(bar));
+    let hidden = create_memo(move || !shown.get());
+    let room = create_memo(move || match shown.get() {
+        true => WINDOW_ROOM,
+        false => 0.0,
+    });
+    view! {
+        <CanvasItem x=0.0 y=0.0 width={room} height={room} clip={hidden} pointer={shown}>
+            <Canvas>
+                <CanvasItem x=0.0 y=0.0 width=WINDOW_ROOM height=WINDOW_ROOM clip=false>
+                    <Frame align=Align2::START>
+                        <Portal node={Some(panel)} />
+                    </Frame>
+                </CanvasItem>
+            </Canvas>
+        </CanvasItem>
+    }
+}
+
+pub(super) fn shared_key(key: Option<String>, bar: TabId) -> String {
+    key.unwrap_or_else(|| format!("#{}", bar.value()))
 }
 
 #[component]

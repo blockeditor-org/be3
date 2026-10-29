@@ -35,6 +35,7 @@ use beui_components_unstyled::menu_popup::MenuStyle;
 const MAX_JOINED_DEPTH: usize = 16;
 
 use super::BarCovers;
+use super::bars::shared_key;
 pub use host::{
     DockBarMove, DockBodies, DockDeclaration, DockDeclaredBar, DockDeclaredDialog, DockDeclaredTab,
     DockDragStage, DockHostEvent, DockHostLink, DockHostSlot, DockHosted, DockJoin, DockKeeper,
@@ -775,6 +776,7 @@ impl<K: DockKey> DockingLayout<K> {
         spec: &DockSpec,
         dialogs: &[(TabId, TabId)],
         hosts: &[(TabId, DockSpecNode, Option<TabId>)],
+        bar_key: &dyn Fn(TabId) -> String,
     ) {
         let current = self.state.get_untracked();
         let mut next = current.clone();
@@ -793,6 +795,7 @@ impl<K: DockKey> DockingLayout<K> {
             }
         }
         next.reconcile(spec);
+        next.adopt_bar_placements(&current, bar_key);
         let registry = Rc::clone(&self.inner().registry);
         for (host, _, _) in hosts {
             let pending = registry
@@ -1312,6 +1315,16 @@ impl<K: DockKey> Found<K> {
             .collect()
     }
 
+    fn bar_key(&self, bar: TabId) -> Option<String> {
+        if let Some((key, _)) = self.bars.get(&bar) {
+            return Some(key.clone());
+        }
+        let (joined, inner) = self.foreign.get(&bar)?;
+        let declaration = joined.declaration.borrow();
+        let key = &declaration.as_ref()?.bar(*inner)?.key;
+        Some(key.rsplit('/').next().unwrap_or(key).to_owned())
+    }
+
     fn own_keys(&self) -> Vec<(TabId, String)> {
         let mut keys: Vec<(TabId, String)> = self
             .tabs
@@ -1518,7 +1531,8 @@ where
         let hosts = held.hosts.clone();
         untrack(|| {
             found.set(Rc::new(held));
-            layout.reconcile(&spec, &dialogs, &hosts);
+            let bar_key = |bar: TabId| shared_key(found.with_untracked(|found| found.bar_key(bar)), bar);
+            layout.reconcile(&spec, &dialogs, &hosts, &bar_key);
             if declares {
                 declared.set(Some(spec));
             }
@@ -1732,6 +1746,7 @@ where
                 bar_target,
                 covers: layout.covers,
                 bars_away: create_memo(move || bars_hosted.with(Option::is_some)),
+                bar_key: Func::new(move |bar: TabId| found.with(|found| found.bar_key(bar))),
             }}
         />
     }

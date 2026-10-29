@@ -585,8 +585,9 @@ struct State {
     remembered: Stored<RefCell<HashMap<TabId, NodeId>>>,
     bar_panels: Stored<BarPanels>,
     bodies: Stored<RefCell<HashMap<LeafId, (NodeRef, NodeRef)>>>,
-    bar_windows: Stored<RefCell<HashMap<TabId, WindowHandle>>>,
-    bar_placements: Signal<HashMap<TabId, WindowPlacement>>,
+    bar_windows: Stored<RefCell<HashMap<String, WindowHandle>>>,
+    bar_placements: Signal<HashMap<String, WindowPlacement>>,
+    bar_key: Func<TabId, Option<String>>,
     bar_grab: StoredCell<(Vec2, Vec2)>,
     bar_margin: f32,
     covers: Signal<BarCovers>,
@@ -1683,6 +1684,7 @@ pub(crate) struct DockConfig {
     pub(crate) covers: Signal<BarCovers>,
     pub(crate) bar_target: Option<RenderFn<DockBarTargetHandle>>,
     pub(crate) bars_away: Memo<bool>,
+    pub(crate) bar_key: Func<TabId, Option<String>>,
 }
 
 #[component]
@@ -1733,6 +1735,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         bar_target,
         covers,
         bars_away,
+        bar_key,
     } = config;
     let dock_rect_held = create_signal(Rect::ZERO);
     let dock_rect = dock_rect_held.read_only();
@@ -1792,6 +1795,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         bodies: store(RefCell::default()),
         bar_windows: store(RefCell::default()),
         bar_placements: create_signal(HashMap::new()),
+        bar_key,
         bar_grab: StoredCell::new((Vec2::ZERO, Vec2::ZERO)),
         bar_margin,
         covers,
