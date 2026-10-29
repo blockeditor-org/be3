@@ -118,7 +118,8 @@ def cargo_library(name = None, extra_deps = [], extra_features = [], extra_srcs 
 #
 # A test whose env names LD_LIBRARY_PATH is a library_path_test around the
 # test harness, built as a binary, since Namespace's workers replace an
-# action's LD_LIBRARY_PATH with their own.
+# action's LD_LIBRARY_PATH with their own. Its compile never takes the
+# variable: a sysroot's libc in it would load into the compiler.
 def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apart = False, run_env = {}, resources = [], foreign_resources = {}, **kwargs):
     crate = _crate()
     library = crate["library"]
@@ -134,11 +135,12 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apa
         mapped_srcs = cargo_manifest_sources(resources, foreign_resources),
         srcs = cargo_test_sources(),
     )
+    compile_env = {key: value for key, value in env.items() if key != "LD_LIBRARY_PATH"}
     if paints:
         paintings = native.glob(["snapshots/*.paint"])
         native.rust_binary(
             name = name + "-harness",
-            env = _env(crate, library["crate"], env),
+            env = _env(crate, library["crate"], compile_env),
             rustc_flags = rustc_flags + ["--test"],
             target_compatible_with = kwargs.get("target_compatible_with", []),
             **common,
@@ -160,7 +162,6 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apa
             )
         return
     if "LD_LIBRARY_PATH" in env:
-        compile_env = {key: value for key, value in env.items() if key != "LD_LIBRARY_PATH"}
         native.rust_binary(
             name = name + "-harness",
             env = _env(crate, library["crate"], compile_env),
