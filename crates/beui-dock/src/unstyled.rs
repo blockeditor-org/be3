@@ -536,6 +536,7 @@ struct State {
     attention: Signal<(u64, Option<TabId>)>,
     given: Signal<(u64, Option<TabId>)>,
     remembered: Stored<RefCell<HashMap<TabId, NodeId>>>,
+    dragged_edits: Stored<RefCell<Vec<Box<dyn FnOnce(&mut DockState)>>>>,
 }
 
 impl State {
@@ -547,6 +548,29 @@ impl State {
             return;
         }
         self.state.set(next);
+    }
+
+    fn drag_edit(&self, change: impl FnOnce(&mut DockState) + 'static) {
+        let queued = self.dragged_edits.value();
+        let mut queued = queued.borrow_mut();
+        queued.push(Box::new(change));
+        if queued.len() > 1 {
+            return;
+        }
+        let dock = *self;
+        after_input(move || {
+            let Some(changes) = dock
+                .dragged_edits
+                .try_with(|edits| std::mem::take(&mut *edits.borrow_mut()))
+            else {
+                return;
+            };
+            dock.edit(|state| {
+                for change in changes {
+                    change(state);
+                }
+            });
+        });
     }
 
     fn title(&self, tab: TabId) -> String {
@@ -1652,6 +1676,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         attention,
         given,
         remembered: store(RefCell::default()),
+        dragged_edits: store(RefCell::default()),
         thickness: splitter_thickness,
         reach: splitter_reach,
         group_inset,
@@ -3039,7 +3064,7 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
                     start,
                     moved,
                 );
-                dock.edit(|state| state.set_split_fraction(split, fraction));
+                dock.drag_edit(move |state| state.set_split_fraction(split, fraction));
             }}
         >
             <Frame>{face}</Frame>
@@ -3134,7 +3159,7 @@ fn DockSidebarSplitter(dock: State, leaf: LeafId) -> NodeId {
                 }
                 held.set(Some((start, from, press.pos.x)));
                 let next = start + (press.pos.x - from.x);
-                dock.edit(|state| state.drag_sidebar(leaf, next, moved));
+                dock.drag_edit(move |state| state.drag_sidebar(leaf, next, moved));
             }}
             children={face}
         />
@@ -3359,7 +3384,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                         let mut band = band.borrow_mut();
                                                         band.stretch(origin, placed.min - origin, bounds, banding, beui_view::reactive::now());
                                                         overshoot.set(band.offset);
-                                                        dock.edit(|state| {
+                                                        dock.drag_edit(move |state| {
                                                             state.set_window_rect(
                                                                 surface,
                                                                 Rect::from_min_size(origin, start.size()),
@@ -3508,7 +3533,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                         return;
                                                     };
                                                     let resized = grip.resized(start, press.pos - from);
-                                                    dock.edit(|state| state.set_window_rect(surface, resized));
+                                                    dock.drag_edit(move |state| state.set_window_rect(surface, resized));
                                                 }}
                                             ></Interactive>
                                         </CanvasItem>
