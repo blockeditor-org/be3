@@ -67,6 +67,24 @@ Each plugin worker gets one overlay canvas covering the app viewport, above the 
 - A layer's snapshot includes where its moved-out entries are (a bar's edge or popped-out rect relative to the owner's frame); the root's snapshot stops saving joined subtrees and keeps only the hosting tab.
 - block-editor-beui saves the layout of every editor whose dock joins another plugin's in `DisplaySettings.docks` through `LayeredSettings` (this device), keyed by block type, restores it once the settings are ready and the dock has declared, writes on change, and every open instance follows (no per-editor code). The workspace keeps saving its own layout in its `EditorView`.
 
+### Views (workstream V)
+
+Today an editor shows things through region kinds that each carry their own features: `frame` (camera, frame menu, bar actions, taking over the frame, popping out), `tab(t)` and bars (placed by the root, with `dock-tab.menu`), `window(w)` (opened by `window-request` after a round trip), `display(n)`, `preview`, `artifact-settings`, and layers (in the frame report). V replaces them with one concept.
+
+- **A view** is a surface an editor instance draws, with an id unique in the instance. View 0 is the instance's main view (today's frame). Frame, tab, bar body, window, display, preview, artifact settings and layer stop being region kinds.
+- **Features belong to the view, not to its kind:** its menu (merging the frame menu and `dock-tab.menu`), bar actions, child placements, the camera (on the view that holds `editor.content`), the layers hanging from it, chrome shown, keyboard requests, intercepted keys, accessibility.
+- **Every view has exactly one placer**, and placement is separate from the view:
+  - *parent*: a child placement names the child's view (its main view, its preview view);
+  - *dock*: the root dock places a view as a tab body or bar body (dock tabs and bars name view ids);
+  - *host*: a window (in-app panel or OS window) or a display;
+  - *anchored*: the view places itself against an anchor in its parent view (today's layers).
+- **Docking is only a question of who places the views.** A non-docked editor's main view is placed by its parent. A docked editor declares its views as tabs and bars and the root places them. The canvas joining the workspace moves its stage view and bar view to the root's placement; no feature is lost because features follow the view.
+- **Popping out** changes a view's placer to a host window, the same move for a tab, a bar or a whole editor.
+- **Editors create views themselves.** An editor creates any view it needs in its commit (an anchored view, a window view with the rect it wants, a tab or bar view it declares to its dock); the host validates, clips to the layer space's bounds and places it in that frame, so opening a window costs no frame either. `window-request.open` merges into this path. Views another placer asks for (a parent asking for the preview view, the host asking for a display) are requested by that placer, and the editor answers with the view in the same commit path.
+- **The host still sizes views placed by others:** a view placed by a parent, the dock or a display gets its size, scale and layer space from the host (today's screen request, per view); a view the editor places itself (anchored, a window it opens) carries the rect it chose.
+
+V runs after B4 and before C, F, I and D4, which build on views. D3's phase 2 (generalizing the frame to the tab that holds the content) is part of V.
+
 ## Workstreams and waves
 
 | Wave | Work |
@@ -74,7 +92,9 @@ Each plugin worker gets one overlay canvas covering the app viewport, above the 
 | 0 | B0 protocol types and PROTOCOL.md (no behaviour) · A1 camera · D1 beui-dock bars in-process with a beui-demo page |
 | 1 | B1 host (block-app compositor, routing, dismissal) · B2 plugin runtime (layer surfaces, commit, input) · B3 beui (layer space, escaping overlays, `Dialog` anchor and presentation) · D1 then E1 |
 | 2 | B4 integration, app tests, accessibility, `drive`, delete Overlay windows and `overlays_in_windows` · D2 bars across plugins |
-| 3 | C picker, rename, app menu · F dock dialogs as owner-drawn layers · G web · D3 canvas toolbar · E2 settings · H dialog call sites |
-| 4 | I tab anchors and one small-dialog placement (with F) · D4 shared window · cleanup of dead mechanisms · guides (PROTOCOL.md, adding_a_plugin_editor.md, beui.md, pan_and_zoom.md, desktop guides) |
+| 3 | G web · D3 phase 1 (bars outside the compositor) · E2 settings · H dialog call sites |
+| 4 | V views: V0 protocol, then host and plugin side, then migrating every region kind and feature, the canvas joining the root (D3 phase 2) |
+| 5 | C picker, rename, app menu as views · F dock dialogs · I tab anchors and one small-dialog placement · D4 shared window |
+| 6 | cleanup of dead mechanisms · guides (PROTOCOL.md, adding_a_plugin_editor.md, beui.md, pan_and_zoom.md, desktop guides) |
 
 File ownership, to keep parallel agents apart: B1 `crates/block-app/src/compositor/*`, `plugin_host/runtime.rs`, `plugin_host/instances.rs`; B2 `crates/block-editor-plugin`, `crates/block-gpu-guest`, `crates/beui-platform-plugin`; B3 `crates/beui-core`, `crates/beui-view`, `crates/beui-types`, `crates/beui-components-*`; D1 and E1 `crates/beui-dock`; G `crates/beui-platform-web`, `crates/block-app/src/plugin_host/web`.
