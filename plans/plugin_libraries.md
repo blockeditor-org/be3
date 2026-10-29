@@ -62,8 +62,15 @@ the work.
   `Limits::downlevel_defaults()` (`objects.rs` around line 160).
 - **The editor stack.**
   - `block-plugin-api` (wire types) and `block-editor-plugin` (`Plugin`,
-    `Instance`, `Regions`, `Frame`, `EditorHost`) know nothing of beui, apart
-    from re-exporting `reactive`.
+    `Instance`, `Regions`, `Frame`, `EditorHost`) know nothing of beui, but
+    block-editor-plugin is built on `reactive`, the signal graph under beui,
+    and re-exports it. Its content API (`ContentProjection` in `content.rs`:
+    `project`, `field`, `object`, `objects`, `project_keyed`) hands out
+    `ReadSignal`s and `KeyedStore`s, `ready`, `read` and the block queries
+    return `reactive::Ready`, and the block graph (`graph.rs`) and one host
+    read in `host.rs` call `revision.get()` on an `OwnedSignal` so a reactive
+    scope re-runs when they change. About 49 files in `crates/editors` use the
+    content projections.
   - `beui-platform-plugin` (about 1.4k lines) runs beui's `Runner` behind
     `Regions`: input, per-region surfaces, the `Frame` accounting (windows,
     floats, scrims, claims, descriptions), and host services in `platform.rs`
@@ -147,11 +154,16 @@ and an instantiation per thread:
 
 | Library | Holds |
 |---|---|
-| base | std, alloc, the allocator, the panic runtime, wasi-libc, libc++ and libc++abi (whole), the forced C math and libc functions, wgpu with the custom backend (block-gpu-guest), be-ops, block-plugin-api, block-editor-plugin, reactive, geometry, serde, postcard, serde_json, uuid |
-| beui | beui and everything under it, beui-platform-plugin, block-editor-beui, FreeType, HarfBuzz |
+| base | std, alloc, the allocator, the panic runtime, wasi-libc, libc++ and libc++abi (whole), the forced C math and libc functions, wgpu with the custom backend (block-gpu-guest), be-ops, block-plugin-api, block-editor-plugin, geometry, serde, postcard, serde_json, uuid |
+| beui | reactive, block-editor-reactive (below), beui and everything under it, beui-platform-plugin, block-editor-beui, FreeType, HarfBuzz |
 
 serde, postcard and uuid go in base: block-plugin-api and be-ops encode every
-frame with postcard over serde, and block ids are uuids. Triangle links base;
+frame with postcard over serde, and block ids are uuids. `reactive` does not:
+only a retained, fine-grained framework needs signals, and an immediate-mode
+one rereads its state every frame and only needs to know when to run one.
+Taking it out of base needs the refactor in "Reactivity out of base" below. If
+another framework ever wants `reactive` without beui, it becomes a library of
+its own. Triangle links base;
 every beui editor links base and beui. Split base further only when a module
 needs part of it, for example a type module that wants std without wgpu.
 
@@ -206,6 +218,28 @@ list of one with nothing to relocate. `dylink.rs` and `dylink.js` loop over it.
 A spawned thread instantiates the whole list again. Natively the host keeps one
 compiled module per identity per engine; in the browser, cache compiled modules
 across workers if the platform allows it.
+
+### Reactivity out of base
+
+block-editor-plugin keeps its state and drops `reactive`:
+- Reads return plain values: the content as `read(&C)`, a loading state as a
+  plain enum in place of `reactive::Ready`, the graph's query results and
+  known blocks as values.
+- Changes are announced, not tracked: each piece of state keeps its revision
+  counter (the graph's `revision`, the content's revision) and a list of
+  change callbacks, and the existing `on_touched` keyed watchers in
+  `content.rs` stay as they are, since they do not use signals. A change also
+  wakes the plugin, as now.
+
+A new crate, block-editor-reactive, in the beui library, puts signals back on
+top: `ContentProjection`'s `project`, `field`, `object`, `objects`,
+`project_keyed` and `ready` become signals fed by those callbacks, and a
+graph or host read tracks a signal its revision callback bumps.
+block-editor-beui re-exports it, so the editors' imports change in one place
+and their code does not.
+
+Do this before splitting the SDK into base and beui (step 5 in Order), since
+the split needs it.
 
 ### Build rules
 
@@ -308,19 +342,21 @@ beui, so a second framework would add views and a thin adapter only.
 
 ### Editor state
 
-Move from `block-editor-beui` into `block-editor-plugin`, or a new crate
-beside it **(ask)**, the parts that are state over `EditorHost` rather than
-views:
+Take the parts of `block-editor-beui` that are state over `EditorHost` rather
+than views, and split each in two: the logic (the calls to the host, the
+bookkeeping) moves into block-editor-plugin as plain state with change
+callbacks, and the signals over it move into block-editor-reactive. The
+candidates:
 - `Editor`, `OwnedEditor`, `Artifacts`, `Creation` and `ChildState` from
   `editor.rs`, which has no `view!`. It still uses `beui::native::Document`,
   `EmbedSlot` and `CanvasView`; split those uses off into what stays in
   block-editor-beui.
 - `fitting.rs` and `related_content.rs`, which use only `beui::reactive` and
-  geometry, both of which the lower crates have.
+  geometry.
 - The data halves of `version_control.rs` and `layered_settings.rs`.
 
-`reactive` stays the state model: an immediate-mode framework reads the same
-signals each frame.
+An immediate-mode framework then uses block-editor-plugin alone; a reactive
+one uses block-editor-reactive too.
 
 ### The region driver
 
@@ -349,6 +385,7 @@ the same change that would let a second framework use them.
 4. `be3.lib`, the closure checks and the N-module plan in `wasm-link` and
    `wasm-dylink`; both loaders; the build rules. Today's SDK becomes one
    library, to land the machinery without moving code.
-5. Split it into base and beui. Measure. Move triangle onto base alone.
+5. Reactivity out of base (part 1). Then split the SDK into base and beui.
+   Measure. Move triangle onto base alone.
 6. Fill the GPU gaps, one group per PR.
 7. Editor state and the region driver (part 3), except docks and overlays.
