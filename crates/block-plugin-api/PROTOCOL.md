@@ -531,6 +531,15 @@ palette, over that tab's body, not in its frame).
 A bar action of a docked child whose dock the host spliced (its frame is not
 shown), such as asking for its details, reaches its placer as a `child-bar` as
 if from its frame.
+Popping a tab out keeps the root as the placer of its body: the root holds
+the only dock state, so it draws the popped-out window's chrome (its tab
+strip, the grab bar that moves it, the drop targets that dock it again, its
+tabs' menus and locks) as a window it creates as it creates any view, in the
+frame that pops the tab out, and places the tab's body in it
+(`child-content.dock-tab`), so the owner's view stays placed by the dock
+whichever plugin owns it, keeping every feature it has, and only its size
+changes. An instance popping out a view of its own that no dock places opens
+a window for it the same way.
 
 An editor's features belong to the view that holds its content, not to view
 0. That view is the one whose frame report gives `content` (insets); a view
