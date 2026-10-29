@@ -14,13 +14,19 @@ fn a_menu_grid_ticks_the_layout_last_picked() {
     test.snapshot("a_menu_grid_ticks_the_layout_last_picked");
 
     let document = test.document();
-    let view = document.accessibility_view().expect("an accessibility tree");
+    let view = document
+        .accessibility_view()
+        .expect("an accessibility tree");
     let ticks: Vec<(String, Toggled)> = view
         .nodes()
         .filter(|node| node.role() == Role::MenuItemRadio)
         .filter_map(|node| Some((node.label()?.to_owned(), node.toggled()?)))
         .collect();
-    assert_eq!(ticks.len(), 6, "every layout tile is a radio item: {ticks:?}");
+    assert_eq!(
+        ticks.len(),
+        6,
+        "every layout tile is a radio item: {ticks:?}"
+    );
     assert_eq!(
         ticks
             .iter()
