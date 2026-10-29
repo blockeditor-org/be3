@@ -20,6 +20,7 @@ be-vcs = { path = "../be-vcs" }
 block-app-base = { path = "../block-app-base" }
 block-guest-abi = { path = "../block-guest-abi" }
 block-plugin-api = { path = "../block-plugin-api" }
+block-plugin-manifest = { path = "../block-plugin-manifest" }
 block-type-api = { path = "../block-type-api" }
 block-type-guest = { path = "../block-type-guest" }
 build-id = { path = "../build-id" }

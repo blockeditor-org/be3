@@ -20,7 +20,6 @@ cp -RL "$workspace/." "$scratch/workspace"
 # cargo rewrites Cargo.lock in place when the manifests have changed.
 chmod -R u+w "$scratch/workspace"
 cd "$scratch/workspace"
-chmod u+w Cargo.lock
 while IFS= read -r path || [ -n "$path" ]; do
     mkdir -p "$(dirname "$path")"
     : > "$path"

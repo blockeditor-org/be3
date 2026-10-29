@@ -10,11 +10,13 @@ be-client = { path = "../be-client" }
 be-commit = { path = "../be-commit" }
 be-graph = { path = "../be-graph" }
 be-types-host = { path = "../be-types-host" }
-beui = { path = "../beui", default-features = false, features = ["render"] }
+beui = { path = "../beui" }
+beui-host = { path = "../beui-host", default-features = false }
 block-app-base = { path = "../block-app-base" }
 block-app-stack = { path = "../block-app-stack" }
 block-guest-host = { path = "../block-guest-host" }
 block-plugin-api = { path = "../block-plugin-api" }
+block-plugin-manifest = { path = "../block-plugin-manifest" }
 block-type-api = { path = "../block-type-api" }
 block-type-guest = { path = "../block-type-guest" }
 bytemuck = { version = "1.24.0", features = ["derive"] }
