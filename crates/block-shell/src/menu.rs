@@ -41,7 +41,7 @@ pub(crate) fn unlink_permission(
     let container_type = container.and_then(|container| workspace.known_type(container));
     let types = workspace.types();
     match (container, container_type) {
-        (Some(_), Some(block_type)) if !types.child_edits(block_type).replace => {
+        (Some(_), Some(block_type)) if !types.child_operations(block_type).replace => {
             Err("This container doesn't support replacing a reference")
         }
         (Some(container), Some(_)) if !workspace.can_edit(container) => {
@@ -59,7 +59,7 @@ fn can_delete_from(workspace: &Workspace, source: BlockParent) -> bool {
             let types = workspace.types();
             workspace
                 .known_type(id)
-                .is_some_and(|block_type| types.child_edits(block_type).delete)
+                .is_some_and(|block_type| types.child_operations(block_type).delete)
                 && workspace.can_edit(id)
         }
     }
@@ -79,7 +79,7 @@ pub(crate) fn permissions(
     let offers_delete = is_reference
         || reference.id != be_block::my_files(host.organization_id(), host.account_id());
     Permissions {
-        add: types.child_edits(reference.block_type).add && can_edit,
+        add: types.child_operations(reference.block_type).add && can_edit,
         edit: can_edit,
         share: workspace.can_manage(reference.id),
         settings: workspace.can_manage(reference.id)

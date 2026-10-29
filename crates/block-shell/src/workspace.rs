@@ -1103,7 +1103,7 @@ impl Workspace {
     pub(crate) fn new_file_near(&self, id: Uuid) {
         let holds_children = self
             .known_type(id)
-            .is_some_and(|block_type| self.types().child_edits(block_type).add)
+            .is_some_and(|block_type| self.types().child_operations(block_type).add)
             && self.can_edit(id);
         let parent = match holds_children {
             true => BlockParent::Block(id),

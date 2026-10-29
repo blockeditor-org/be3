@@ -606,7 +606,7 @@ pub(crate) fn place_rows(catalog: &BlockCatalog, pick: &Pick, graph: &Graph) -> 
         !block.deleted
             && (held
                 || (block.access.can_edit()
-                    && (catalog.child_edits(block.block_type).add || is_workspace(block))
+                    && (catalog.child_operations(block.block_type).add || is_workspace(block))
                     && !excluded.contains(&block.id)))
     };
     let enabled = |_: &BlockInfo| true;

@@ -15709,6 +15709,7 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/block-plugin-manifest:block-plugin-manifest",
                     "//crates/lucide:lucide",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -15720,6 +15721,7 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/block-plugin-manifest:block-plugin-manifest",
                     "//crates/lucide:lucide",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -15731,6 +15733,7 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/block-plugin-manifest:block-plugin-manifest",
                     "//crates/lucide:lucide",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -15742,6 +15745,7 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/block-plugin-manifest:block-plugin-manifest",
                     "//crates/lucide:lucide",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -15753,6 +15757,7 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/block-plugin-manifest:block-plugin-manifest",
                     "//crates/lucide:lucide",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -15764,6 +15769,7 @@ crates = {
             "wasi-guest": {
                 "binaries": {},
                 "deps": [
+                    "//crates/block-plugin-manifest:block-plugin-manifest",
                     "//crates/lucide:lucide",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -15775,6 +15781,7 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/block-plugin-manifest:block-plugin-manifest",
                     "//crates/lucide:lucide",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -15786,6 +15793,7 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/block-plugin-manifest:block-plugin-manifest",
                     "//crates/lucide:lucide",
                     "//third-party/rust:uuid-1.23.2",
                 ],

@@ -5,7 +5,7 @@ fn deleting_needs_a_container_that_can_delete_children() {
     let client = client();
     let block_types = block_types();
 
-    let refusing = catalog(ChildEdits::default());
+    let refusing = catalog(ChildOperations::default());
     assert!(!can_move_out_of(
         &client,
         &refusing,
@@ -34,7 +34,7 @@ fn deleting_needs_a_container_that_can_delete_children() {
         true
     ));
 
-    let deleting = catalog(ChildEdits {
+    let deleting = catalog(ChildOperations {
         add: false,
         delete: true,
         replace: false,

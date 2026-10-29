@@ -11,7 +11,7 @@ fn an_editor_that_edits_nothing_is_never_offered() {
         extensions: Vec::new(),
     };
     let catalog = BlockCatalog::default().with_editors([
-        entry(10, Edits::Type(block_type)),
+        entry(10, Edits::Type(block_type.into_bytes())),
         entry(11, Edits::Nothing),
         entry(12, Edits::Any),
     ]);

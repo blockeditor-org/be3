@@ -1,3 +1,4 @@
+use block_plugin_manifest::{ChildOperations, Edits, Press};
 use lucide::Glyph;
 pub mod datetime;
 #[cfg(test)]
@@ -28,33 +29,19 @@ pub trait BlockTypes {
     fn color(&self, _block_type: Uuid) -> Option<[u8; 3]> {
         None
     }
-    fn child_edits(&self, _block_type: Uuid) -> ChildEdits {
-        ChildEdits::default()
+    fn child_operations(&self, _block_type: Uuid) -> ChildOperations {
+        ChildOperations::default()
     }
     fn press(&self, _block_type: Uuid) -> Press {
         Press::Open
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub enum Press {
-    #[default]
-    Open,
-    Zoom,
-}
-
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub struct ChildEdits {
-    pub add: bool,
-    pub delete: bool,
-    pub replace: bool,
-}
-
 pub struct BlockTypeEntry {
     pub display_name: String,
     pub color: Option<[u8; 3]>,
     pub icon: Option<Glyph>,
-    pub child_edits: ChildEdits,
+    pub children: ChildOperations,
     pub press: Press,
     pub plain_file: bool,
 }
@@ -89,17 +76,10 @@ pub struct EditorEntry {
     pub extensions: Vec<String>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Edits {
-    Type(Uuid),
-    Any,
-    Nothing,
-}
-
 impl EditorEntry {
     fn edits_type(&self, block_type: Uuid) -> bool {
         match self.edits {
-            Edits::Type(edited) => edited == block_type,
+            Edits::Type(edited) => edited == block_type.into_bytes(),
             Edits::Any => true,
             Edits::Nothing => false,
         }
@@ -145,7 +125,7 @@ impl BlockCatalog {
             .filter(|editor| editor.extensions.is_empty());
         let specific = plain
             .clone()
-            .filter(|editor| editor.edits == Edits::Type(block_type));
+            .filter(|editor| editor.edits == Edits::Type(block_type.into_bytes()));
         let programs = self.programs_for(block_type, file_name);
         let any = plain.filter(|editor| editor.edits == Edits::Any);
         specific.chain(programs).chain(any).collect()
@@ -184,7 +164,9 @@ impl BlockCatalog {
     pub fn own_editor(&self, block_type: Uuid, file_name: Option<&str>) -> Option<Uuid> {
         self.editors
             .iter()
-            .find(|editor| editor.extensions.is_empty() && editor.edits == Edits::Type(block_type))
+            .find(|editor| {
+                editor.extensions.is_empty() && editor.edits == Edits::Type(block_type.into_bytes())
+            })
             .or_else(|| self.programs_for(block_type, file_name).next())
             .map(|editor| editor.editor)
     }
@@ -218,10 +200,10 @@ impl BlockTypes for BlockCatalog {
         self.types.get(&block_type).and_then(|entry| entry.color)
     }
 
-    fn child_edits(&self, block_type: Uuid) -> ChildEdits {
+    fn child_operations(&self, block_type: Uuid) -> ChildOperations {
         self.types
             .get(&block_type)
-            .map_or_else(ChildEdits::default, |entry| entry.child_edits)
+            .map_or_else(ChildOperations::default, |entry| entry.children)
     }
 
     fn press(&self, block_type: Uuid) -> Press {

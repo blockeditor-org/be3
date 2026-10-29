@@ -2119,6 +2119,7 @@ dependencies = [
 name = "block-ui"
 version = "0.1.0"
 dependencies = [
+ "block-plugin-manifest",
  "lucide",
  "uuid",
 ]

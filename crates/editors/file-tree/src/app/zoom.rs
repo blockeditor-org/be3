@@ -4,11 +4,11 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use block_editor_beui::Editor;
+use block_editor_beui::Press;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_ARROW_UP, ICON_PLUS};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::block_ui::Press;
 
 use super::rows::{Row, RowKey, Tree as FileTree};
 use beui::{Align, Direction, ItemSize};
