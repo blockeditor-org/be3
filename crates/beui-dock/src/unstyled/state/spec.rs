@@ -296,20 +296,22 @@ impl DockState {
                     .iter()
                     .any(|declared| declared.bar == held.bar && declared.owner == held.owner)
         });
-        for declared in &spec.bars {
-            if !self.bars.iter().any(|held| held.bar == declared.bar) {
-                self.bars.push(Bar {
+        for (index, declared) in spec.bars.iter().enumerate() {
+            if self.bars.iter().any(|held| held.bar == declared.bar) {
+                continue;
+            }
+            let after = spec.bars[..index].iter().rev().find_map(|earlier| {
+                self.bars.iter().position(|held| held.bar == earlier.bar)
+            });
+            self.bars.insert(
+                after.map_or(0, |at| at + 1),
+                Bar {
                     bar: declared.bar,
                     owner: declared.owner,
                     placement: declared.placement,
-                });
-            }
+                },
+            );
         }
-        self.bars.sort_by_key(|held| {
-            spec.bars
-                .iter()
-                .position(|declared| declared.bar == held.bar)
-        });
     }
 
     fn seed(&mut self, spec: &DockSpec) {

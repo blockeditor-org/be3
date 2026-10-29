@@ -1,7 +1,10 @@
 use beui_view::types::{Direction, Pos2};
 use serde::{Deserialize, Serialize};
 
-use super::{DockState, TabId};
+use super::joined::joined_host;
+
+const MAX_HOSTING_DEPTH: usize = 16;
+use super::{DockState, Entry, GroupId, TabId, Tree};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub enum DockEdge {
@@ -122,8 +125,83 @@ impl DockState {
     }
 
     pub fn is_bar_shown(&self, bar: TabId, stacked: bool) -> bool {
-        self.bar_owner(bar)
-            .is_some_and(|owner| self.is_shown(owner, stacked))
+        self.bar_tab(bar)
+            .is_some_and(|tab| self.is_shown(tab, stacked))
+    }
+
+    pub fn bar_tab(&self, bar: TabId) -> Option<TabId> {
+        self.owner_pane(self.bar_owner(bar)?).map(|(tab, _)| tab)
+    }
+
+    pub fn bar_depth(&self, bar: TabId) -> Option<usize> {
+        self.owner_pane(self.bar_owner(bar)?).map(|(_, depth)| depth)
+    }
+
+    pub fn pane_bars(&self, tab: TabId) -> Vec<TabId> {
+        let mut found: Vec<(usize, TabId)> = self
+            .bars
+            .iter()
+            .filter_map(|held| {
+                let (shown, depth) = self.owner_pane(held.owner)?;
+                (shown == tab).then_some((depth, held.bar))
+            })
+            .collect();
+        found.sort_by_key(|(depth, _)| std::cmp::Reverse(*depth));
+        found.into_iter().map(|(_, bar)| bar).collect()
+    }
+
+    pub fn place_bar_at(&mut self, bar: TabId, placement: DockBarPlacement, slot: usize) {
+        let Some(from) = self.bars.iter().position(|held| held.bar == bar) else {
+            return;
+        };
+        let mut moved = self.bars.remove(from);
+        moved.placement = placement;
+        let tab = self.owner_pane(moved.owner).map(|(tab, _)| tab);
+        let siblings: Vec<usize> = self
+            .bars
+            .iter()
+            .enumerate()
+            .filter(|(_, held)| {
+                held.owner == moved.owner
+                    && held.placement.same_place(placement)
+                    && self.owner_pane(held.owner).map(|(tab, _)| tab) == tab
+            })
+            .map(|(at, _)| at)
+            .collect();
+        let at = match (siblings.get(slot), siblings.last()) {
+            (Some(at), _) => *at,
+            (None, Some(last)) => last + 1,
+            (None, None) => from.min(self.bars.len()),
+        };
+        self.bars.insert(at, moved);
+    }
+
+    fn owner_pane(&self, owner: TabId) -> Option<(TabId, usize)> {
+        if self.contains(owner) {
+            return Some((owner, 0));
+        }
+        let group = self
+            .groups
+            .iter()
+            .find(|group| group.key.as_deref().and_then(joined_host) == Some(owner))?
+            .id;
+        let (tab, depth) = self.first_pane_tab(group, 0)?;
+        Some((tab, depth + 1))
+    }
+
+    fn first_pane_tab(&self, group: GroupId, nested: usize) -> Option<(TabId, usize)> {
+        if nested > MAX_HOSTING_DEPTH {
+            return None;
+        }
+        let leaf = *self.tree_leaves(Tree::Group(group)).first()?;
+        match self.active_entry(leaf)? {
+            Entry::Tab(tab) => Some((tab, 0)),
+            Entry::Group(inner) => {
+                let (tab, depth) = self.first_pane_tab(inner, nested + 1)?;
+                let hosted = self.group(inner).and_then(|held| held.key.as_deref()).and_then(joined_host);
+                Some((tab, depth + usize::from(hosted.is_some())))
+            }
+        }
     }
 
     fn bar(&self, bar: TabId) -> Option<&Bar> {

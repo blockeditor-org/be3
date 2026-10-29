@@ -2922,9 +2922,16 @@ room for, or `Window { edge, origin }`, popped out into a dock window sized to
 the bar, `origin` being relative to the dock. A bar shows only while its tab
 is shown, wherever that tab goes, since its placement is relative to whatever
 pane shows the tab; in a stacked dock a popped-out bar floats over the body at
-its edge. The placements are part of `DockState` (`bars`, `bars_of(owner)`,
-`bar_owner`, `bar_placement`, `set_bar_placement`, `is_bar_shown`), so they are
-saved and restored with the layout; `DockingLayout::bar_placement` and
+its edge. Several bars on one edge of a pane stack away from it, the
+nearest first: a joined layer's bars after those of the layers around it (a tab
+that hosts a joined dock lends its bars to the first pane of that dock, so the
+outer editor's bar sits nearer the edge than the inner one's), and one layer's
+bars in the order kept in `DockState`, which starts as the order they were
+declared in and which a drop changes. The placements and that order are part of
+`DockState` (`bars`, `bars_of(owner)`, `bar_owner`, `bar_placement`,
+`set_bar_placement`, `place_bar_at(bar, placement, slot)`, `pane_bars(tab)`,
+`bar_tab(bar)`, `bar_depth(bar)`, `is_bar_shown`), so they are saved and restored
+with the layout; `DockingLayout::bar_placement` and
 `place_bar` read and set one by key. The body's `use_dock_bar()` is a
 `DockBarControl`: `placement()`, `edge()` and `direction()` (the way to lay its
 items out, across for the top and bottom edges) are tracked reads, `place` and
@@ -2932,9 +2939,13 @@ items out, across for the top and bottom edges) are tracked reads, `place` and
 `begin_move(press)` starts a drag, called from the handle's `on_drag` once past
 the drag threshold with the press that went down, then with each move. The dock
 carries the drag: over the tab's body it draws Docking's `bar_target` for the 8
-placements (the outer band of the body docks the bar beside that edge, the next
-band in floats it over it), and dropped away from the body it pops out where it
-was let go. Where a host opens windows, dragging a popped-out bar asks the host
+placements (the outer band of the pane, past any bars already beside that edge,
+docks the bar beside it, the next band in, or any bar already floating there,
+floats it over it), and dropped away from the pane it pops out where it was let
+go. On an edge that already holds bars the drop slots the bar in among its own
+layer's bars by where the pointer is against their middles, and the highlight
+shows that slot. The bars floating over an edge are kept clear together
+(`keep_clear` on their list). Where a host opens windows, dragging a popped-out bar asks the host
 to move its window, and the menu docks it again. The styled `DockBarGrip`
 (`dock.bar.<bar>.grip`) is such a handle: a grip that drags the bar and opens
 its menu when clicked or pressed with Enter. A bar declared by a `Docking` that

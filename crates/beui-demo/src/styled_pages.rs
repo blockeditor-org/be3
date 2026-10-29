@@ -4280,7 +4280,10 @@ pub(crate) fn DockBarsPage() -> NodeId {
                 </DockTab>
             </DockPane>
             <DockBar id=2u64 parent=1u64 placement={DockBarPlacement::Over(DockEdge::Left)}>
-                <DemoToolBar />
+                <DemoToolBar name="tools" tools={DRAWING_TOOLS.to_vec()} />
+            </DockBar>
+            <DockBar id=3u64 parent=1u64 placement={DockBarPlacement::Over(DockEdge::Left)}>
+                <DemoToolBar name="style" tools={STYLE_TOOLS.to_vec()} />
             </DockBar>
         </Docking>
     }
@@ -4292,9 +4295,10 @@ fn BarsStage() -> NodeId {
         <Frame @test_id="bars.stage" fill=ColorRole::Background>
             <Frame padding=PAGE_PADDING align=Align::Center>
                 <Text style=TextStyle::PARAGRAPH color=TextColor::Muted>
-                    "This page is a Docking of its own with one bare pane and a tool bar. Drag the \
+                    "This page is a Docking of its own with one bare pane and two tool bars. Drag a \
                      bar by its grip to float it over an edge of the stage, to dock it along an edge \
-                     beside the stage, or away from the stage to pop it out into a window. The \
+                     beside the stage, or away from the stage to pop it out into a window. Bars on \
+                     one edge stack, and a bar dropped between or beside them takes that place. The \
                      grip's menu moves it without dragging."
                 </Text>
             </Frame>
@@ -4302,31 +4306,42 @@ fn BarsStage() -> NodeId {
     }
 }
 
+const DRAWING_TOOLS: [(&str, Glyph); 6] = [
+    ("Select", beui::icons::ICON_MOUSE_POINTER_2),
+    ("Hand", beui::icons::ICON_HAND),
+    ("Pencil", beui::icons::ICON_PENCIL),
+    ("Shape", ICON_SQUARE),
+    ("Text", beui::icons::ICON_TYPE),
+    ("Eraser", beui::icons::ICON_ERASER),
+];
+
+const STYLE_TOOLS: [(&str, Glyph); 3] = [
+    ("Fill", beui::icons::ICON_PAINT_BUCKET),
+    ("Colour", beui::icons::ICON_PALETTE),
+    ("Layers", beui::icons::ICON_LAYERS),
+];
+
 #[component]
-fn DemoToolBar() -> NodeId {
+fn DemoToolBar(name: &'static str, tools: Vec<(&'static str, Glyph)>) -> NodeId {
     let bar = use_dock_bar();
     let direction = create_memo(move || bar.map_or(Direction::Horizontal, |bar| bar.direction()));
-    let tools = [
-        ("Select", beui::icons::ICON_MOUSE_POINTER_2),
-        ("Hand", beui::icons::ICON_HAND),
-        ("Pencil", beui::icons::ICON_PENCIL),
-        ("Shape", ICON_SQUARE),
-        ("Text", beui::icons::ICON_TYPE),
-        ("Eraser", beui::icons::ICON_ERASER),
-    ];
+    let grip = match name {
+        "tools" => "bars.grip".to_owned(),
+        name => format!("bars.{name}.grip"),
+    };
     view! {
         <Frame
-            @test_id="bars.tools"
+            @test_id={format!("bars.{name}")}
             fill=ColorRole::SurfaceRaised
             border={Border::DEFAULT}
             radius=Radius::Md
             padding=Space::Xs
         >
             <List direction={direction} align=Align::Center spacing=Space::Xs>
-                <Frame @test_id="bars.grip">
+                <Frame @test_id={grip}>
                     <DockBarGrip />
                 </Frame>
-                <ForEach keys={tools.to_vec()}>|(label, glyph): (&'static str, Glyph)|
+                <ForEach keys={tools}>|(label, glyph): (&'static str, Glyph)|
                     <Button
                         @test_id={format!("bars.tool.{}", label.to_lowercase())}
                         label

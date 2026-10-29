@@ -545,7 +545,7 @@ struct State {
     given: Signal<(u64, Option<TabId>)>,
     remembered: Stored<RefCell<HashMap<TabId, NodeId>>>,
     bar_panels: Stored<BarPanels>,
-    bodies: Stored<RefCell<HashMap<LeafId, NodeRef>>>,
+    bodies: Stored<RefCell<HashMap<LeafId, (NodeRef, NodeRef)>>>,
     bar_windows: Stored<RefCell<HashMap<TabId, WindowHandle>>>,
     bar_placements: Signal<HashMap<TabId, WindowPlacement>>,
     bar_grab: StoredCell<(Vec2, Vec2)>,
@@ -1168,7 +1168,7 @@ impl State {
                 Some(point) => self.resolve_bar(point, bar),
                 None => (None, None),
             };
-            drag.bar_target = target;
+            drag.bar_target = target.map(|(placement, _)| placement);
             drag.highlight = highlight;
             if self.drag.get_untracked() != Some(drag) {
                 self.drag.set(Some(drag));

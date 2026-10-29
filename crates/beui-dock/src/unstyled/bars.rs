@@ -341,21 +341,49 @@ impl State {
     }
 
     pub(super) fn bar_body(&self, bar: TabId) -> Option<Rect> {
+        self.bar_areas(bar).map(|(body, _)| body)
+    }
+
+    fn bar_areas(&self, bar: TabId) -> Option<(Rect, Rect)> {
         let state = self.state.get_untracked();
-        let owner = state.bar_owner(bar)?;
-        let leaf = state.find(owner)?.leaf;
-        if !state.is_shown(owner, false) {
+        let tab = state.bar_tab(bar)?;
+        let leaf = state.find(tab)?.leaf;
+        if !state.is_shown(tab, false) {
             return None;
         }
-        let node = self.bodies.value().borrow().get(&leaf)?.try_get()?;
-        Some(measure(node).get_untracked()?.rect)
+        let (body, pane) = *self.bodies.value().borrow().get(&leaf)?;
+        let body = measure(body.try_get()?).get_untracked()?.rect;
+        let pane = pane
+            .try_get()
+            .and_then(|pane| measure(pane).get_untracked())
+            .map_or(body, |pane| pane.rect);
+        Some((body, pane))
+    }
+
+    fn stacked_on(&self, bar: TabId, placement: DockBarPlacement) -> Vec<(TabId, Rect)> {
+        let state = self.state.get_untracked();
+        let Some(tab) = state.bar_tab(bar) else {
+            return Vec::new();
+        };
+        state
+            .pane_bars(tab)
+            .into_iter()
+            .filter(|other| *other != bar && state.bar_placement(*other) == Some(placement))
+            .filter_map(|other| Some((other, self.bar_panel_rect(other)?)))
+            .collect()
+    }
+
+    fn layer_of(&self, bar: TabId) -> usize {
+        self.state
+            .with_untracked(|state| state.bar_depth(bar))
+            .unwrap_or(0)
     }
 
     pub(super) fn resolve_bar(
         &self,
         point: DragPoint,
         bar: TabId,
-    ) -> (Option<DockBarPlacement>, Option<Rect>) {
+    ) -> (Option<(DockBarPlacement, usize)>, Option<Rect>) {
         let Some(current) = self.state.with_untracked(|state| state.bar_placement(bar)) else {
             return (None, None);
         };
@@ -363,37 +391,73 @@ impl State {
             return (None, None);
         }
         let (grab, size) = self.bar_grab.get();
-        if let Some(body) = self.bar_body(bar).filter(|body| body.contains(point.pos)) {
-            return match bar_zone(body, point.pos) {
-                Some(placement) => (
-                    Some(placement),
-                    Some(bar_highlight(body, placement, size, self.bar_margin)),
-                ),
-                None => (None, None),
+        if let Some((body, pane)) = self.bar_areas(bar).filter(|(_, pane)| pane.contains(point.pos)) {
+            let (edge, distance) = nearest_edge(pane, point.pos);
+            let beside = reach(pane, body, edge);
+            let band = band(body);
+            let over_far = self
+                .stacked_on(bar, DockBarPlacement::Over(edge))
+                .iter()
+                .map(|(_, rect)| reach_far(pane, *rect, edge))
+                .fold(0.0_f32, f32::max);
+            let placement = if distance < beside + band {
+                DockBarPlacement::Beside(edge)
+            } else if distance < (beside + band * 2.0).max(over_far + band) {
+                DockBarPlacement::Over(edge)
+            } else {
+                return (None, None);
             };
+            let own = self.layer_of(bar);
+            let stacked = self.stacked_on(bar, placement);
+            let slot = stacked
+                .iter()
+                .filter(|(other, rect)| {
+                    self.layer_of(*other) == own && centre_reach(pane, *rect, edge) < distance
+                })
+                .count();
+            let before = stacked
+                .iter()
+                .filter(|(other, _)| self.layer_of(*other) > own)
+                .count()
+                + slot;
+            let boundary = match (stacked.get(before), stacked.last()) {
+                (Some((_, rect)), _) => reach(pane, *rect, edge),
+                (None, Some((_, rect))) => reach_far(pane, *rect, edge),
+                (None, None) => match placement {
+                    DockBarPlacement::Over(_) => beside + self.bar_margin,
+                    _ => 0.0,
+                },
+            };
+            let highlight = slot_highlight(pane, body, placement, size, self.bar_margin, boundary);
+            return (Some((placement, slot)), Some(highlight));
         }
         let dock = self.rect.get_untracked();
         let origin = point.pos - dock.min.to_vec2() - grab;
         let origin = self.clamped_origin(Rect::from_min_size(origin, size), dock.size());
         (
-            Some(DockBarPlacement::Window {
-                edge: current.edge(),
-                origin,
-            }),
+            Some((
+                DockBarPlacement::Window {
+                    edge: current.edge(),
+                    origin,
+                },
+                0,
+            )),
             Some(Rect::from_min_size(dock.min + origin.to_vec2(), size)),
         )
     }
 
     pub(super) fn drop_bar(&self, bar: TabId, point: DragPoint) {
         let (target, _) = self.resolve_bar(point, bar);
-        let Some(placement) = target else {
+        let Some((placement, slot)) = target else {
             return;
         };
         if placement.is_window() {
             self.bar_placements
                 .update(|placements| placements.retain(|held, _| *held != bar));
+            self.edit(|state| state.set_bar_placement(bar, placement));
+            return;
         }
-        self.edit(|state| state.set_bar_placement(bar, placement));
+        self.edit(|state| state.place_bar_at(bar, placement, slot));
     }
 
     fn bar_outside(&self, bar: TabId, _: DragPoint) {
@@ -414,6 +478,7 @@ impl State {
     fn bars_at(
         &self,
         tab: Memo<Option<TabId>>,
+        edge: DockEdge,
         wanted: impl Fn(DockBarPlacement) -> bool + 'static,
     ) -> Memo<Vec<TabId>> {
         let state = self.state;
@@ -421,13 +486,17 @@ impl State {
             let Some(tab) = tab.get() else {
                 return Vec::new();
             };
-            state.with(|state| {
+            let mut bars: Vec<TabId> = state.with(|state| {
                 state
-                    .bars_of(tab)
+                    .pane_bars(tab)
                     .into_iter()
                     .filter(|bar| state.bar_placement(*bar).is_some_and(&wanted))
                     .collect()
-            })
+            });
+            if matches!(edge, DockEdge::Bottom | DockEdge::Right) {
+                bars.reverse();
+            }
+            bars
         })
     }
 }
@@ -496,16 +565,26 @@ fn nearest_edge(body: Rect, pos: Pos2) -> (DockEdge, f32) {
     .unwrap_or((DockEdge::Top, 0.0))
 }
 
-pub(super) fn bar_zone(body: Rect, pos: Pos2) -> Option<DockBarPlacement> {
-    let (edge, distance) = nearest_edge(body, pos);
-    let band = band(body);
-    if distance < band {
-        return Some(DockBarPlacement::Beside(edge));
+fn reach(pane: Rect, rect: Rect, edge: DockEdge) -> f32 {
+    match edge {
+        DockEdge::Top => rect.top() - pane.top(),
+        DockEdge::Bottom => pane.bottom() - rect.bottom(),
+        DockEdge::Left => rect.left() - pane.left(),
+        DockEdge::Right => pane.right() - rect.right(),
     }
-    if distance < band * 2.0 {
-        return Some(DockBarPlacement::Over(edge));
+}
+
+fn reach_far(pane: Rect, rect: Rect, edge: DockEdge) -> f32 {
+    match edge {
+        DockEdge::Top => rect.bottom() - pane.top(),
+        DockEdge::Bottom => pane.bottom() - rect.top(),
+        DockEdge::Left => rect.right() - pane.left(),
+        DockEdge::Right => pane.right() - rect.left(),
     }
-    None
+}
+
+fn centre_reach(pane: Rect, rect: Rect, edge: DockEdge) -> f32 {
+    (reach(pane, rect, edge) + reach_far(pane, rect, edge)) / 2.0
 }
 
 fn edge_rect(body: Rect, edge: DockEdge, depth: f32, along: f32, across: f32) -> Rect {
@@ -537,11 +616,13 @@ pub(super) fn bar_chip(body: Rect, placement: DockBarPlacement) -> Rect {
     edge_rect(body, edge, depth, along, band * CHIP_DEPTH)
 }
 
-pub(super) fn bar_highlight(
+fn slot_highlight(
+    pane: Rect,
     body: Rect,
     placement: DockBarPlacement,
     size: Vec2,
     margin: f32,
+    boundary: f32,
 ) -> Rect {
     let edge = placement.edge();
     let length = match edge.direction() {
@@ -549,13 +630,21 @@ pub(super) fn bar_highlight(
         Direction::Vertical => body.height(),
     };
     let thickness = size.x.min(size.y).max(1.0);
-    match placement {
-        DockBarPlacement::Over(_) => {
-            let along = size.x.max(size.y).min((length - margin * 2.0).max(1.0));
-            edge_rect(body, edge, margin + thickness / 2.0, along, thickness)
-        }
-        _ => edge_rect(body, edge, thickness / 2.0, length, thickness),
-    }
+    let along = match placement {
+        DockBarPlacement::Over(_) => size.x.max(size.y).min((length - margin * 2.0).max(1.0)),
+        _ => length,
+    };
+    let centre = match edge.direction() {
+        Direction::Horizontal => pos2(body.center().x, pane.center().y),
+        Direction::Vertical => pos2(pane.center().x, body.center().y),
+    };
+    edge_rect(
+        Rect::from_center_size(centre, pane.size()),
+        edge,
+        boundary + thickness / 2.0,
+        along,
+        thickness,
+    )
 }
 
 fn across(edge: DockEdge) -> Direction {
@@ -583,14 +672,15 @@ pub(super) fn DockBarred(
     children: Child,
 ) -> NodeId {
     let body = NodeRef::new();
+    let pane = NodeRef::new();
     if let Some(leaf) = leaf {
-        dock.bodies.value().borrow_mut().insert(leaf, body);
+        dock.bodies.value().borrow_mut().insert(leaf, (body, pane));
         on_cleanup(move || {
             dock.bodies.try_with(|bodies| {
                 let mut bodies = bodies.borrow_mut();
                 if bodies
                     .get(&leaf)
-                    .is_some_and(|held| held.try_get() == body.try_get())
+                    .is_some_and(|(held, _)| held.try_get() == body.try_get())
                 {
                     bodies.remove(&leaf);
                 }
@@ -598,7 +688,7 @@ pub(super) fn DockBarred(
         });
     }
     view! {
-        <List direction=Direction::Vertical spacing=0.0>
+        <List @node_ref=&pane direction=Direction::Vertical spacing=0.0>
             <DockBarBand dock tab edge=DockEdge::Top />
             <List direction=Direction::Horizontal spacing=0.0 @sizing=ItemSize::Percent(100.0)>
                 <DockBarBand dock tab edge=DockEdge::Left />
@@ -618,7 +708,7 @@ pub(super) fn DockBarred(
 
 #[component]
 fn DockBarBand(dock: State, tab: Memo<Option<TabId>>, edge: DockEdge) -> NodeId {
-    let bars = dock.bars_at(tab, move |placement| {
+    let bars = dock.bars_at(tab, edge, move |placement| {
         placement == DockBarPlacement::Beside(edge)
     });
     view! {
@@ -635,7 +725,7 @@ fn DockBarBand(dock: State, tab: Memo<Option<TabId>>, edge: DockEdge) -> NodeId 
 
 #[component]
 fn DockBarFloat(dock: State, tab: Memo<Option<TabId>>, edge: DockEdge, stacked: bool) -> NodeId {
-    let bars = dock.bars_at(tab, move |placement| match placement {
+    let bars = dock.bars_at(tab, edge, move |placement| match placement {
         DockBarPlacement::Over(held) => held == edge,
         DockBarPlacement::Window { edge: held, .. } => stacked && held == edge,
         DockBarPlacement::Beside(_) => false,
