@@ -46,7 +46,6 @@ mod bench {
 
     use beui::datetime::Date;
     use beui::native::Document;
-    use beui_host::native::testing::Screen;
     use beui::reactive::view;
     use beui::{
         Color32, Input, PointerButton, Pos2, Rect, ScrollDelta, Vec2, native::Context,
@@ -58,6 +57,7 @@ mod bench {
     use beui_core::renderer::{Loaded, Renderer};
     use beui_core::runner::Runner;
     use beui_demo::DemoRoot;
+    use beui_host::native::testing::Screen;
     use beui_renderer_wgpu::offscreen::OffscreenSurface;
 
     const VIEWPORT: Vec2 = Vec2::new(1440.0, 900.0);

@@ -24,7 +24,7 @@ fn component_children_keep_their_owner_when_rendered_later() {
     assert_eq!(
         document.component_tree().text(&document, false),
         concat!(
-            "beui::tests::component_children_keep_their_owner_when_rendered_later::Deferred\n",
+            "beui_host::tests::component_children_keep_their_owner_when_rendered_later::Deferred\n",
             "  primitives::List\n",
             "    styled::Frame\n",
             "      styled::Text\n",

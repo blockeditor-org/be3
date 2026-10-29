@@ -15,8 +15,8 @@ mod stage;
 
 pub use images::{ImageRequest, ImageState, Images};
 
-use beui_host::native::build;
 use beui::{Align, ItemSize};
+use beui_host::native::build;
 use paint_review_manifest::Manifest;
 use painting::PaintingView;
 use review::{Mode, Review};

@@ -19,7 +19,7 @@ fn the_components_tab_lists_components_instead_of_base_nodes() {
         harness.tree(),
         [
             "primitives::List",
-            "  beui::tests::ButtonFace",
+            "  beui_host::tests::ButtonFace",
             "    internals",
             "      primitives::Frame",
             "        primitives::Text",

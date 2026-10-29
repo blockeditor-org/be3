@@ -80,14 +80,14 @@ mod with_middle_click_paste_off_a_selection_stays_its_owners_and_is_offered_to_n
 mod with_middle_click_paste_on_a_selection_is_offered_until_it_is_switched_off;
 
 use beui::native::WindowSize;
-use beui_host::native::testing::Stepped;
 use beui::styled::*;
 use beui::{Input, Key, Keystroke, NodeId, native::FrameOutput, pos2};
+use beui_host::native::testing::Stepped;
 
 use crate::test_client::{TestClient, TestWindow};
 use crate::view::WindowView;
-use beui_host::native::build;
 use beui::{LayerLevel, Placement};
+use beui_host::native::build;
 
 const SCREEN: Vec2 = Vec2::new(1000.0, 700.0);
 const SHOWN: Vec2 = Vec2::new(400.0, 300.0);

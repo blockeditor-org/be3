@@ -7,7 +7,6 @@ mod bench {
 
     use beui::datetime::Date;
     use beui::native::Document;
-    use beui_host::native::testing::Screen;
     use beui::reactive::view;
     use beui::{
         CursorIcon, Input, Pos2, Vec2, native::Context, native::Incoming, native::Launch,
@@ -17,6 +16,7 @@ mod bench {
     use beui_core::renderer::{Loaded, Renderer};
     use beui_core::runner::Runner;
     use beui_demo::DemoRoot;
+    use beui_host::native::testing::Screen;
     use beui_layer_space::Space;
     use beui_renderer_wgpu::offscreen::OffscreenSurface;
 

@@ -23,7 +23,7 @@ fn picking_a_node_in_the_components_tab_selects_the_component_that_built_it() {
     assert_eq!(harness.inspector().state().selected.get(), Some(face));
     assert_eq!(
         harness.selected_row().as_deref(),
-        Some("beui::tests::ButtonFace")
+        Some("beui_host::tests::ButtonFace")
     );
 
     harness.click(harness.row_center(3));

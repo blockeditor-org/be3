@@ -1,7 +1,7 @@
+use beui::native::Context;
 use beui::native::WindowSize;
+use beui_host::native::FreetypeFonts;
 use beui_host::native::testing::{Showing, Stepped};
-use beui::{native::Context};
-use beui_host::{native::FreetypeFonts};
 
 use super::*;
 use beui_host::native::build;

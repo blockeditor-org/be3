@@ -1,9 +1,9 @@
 use std::time::Duration;
 
 use beui::native::WindowSize;
-use beui_host::native::testing::{Showing, Stepped};
 use beui::{Input, PointerButton, native::Context, vec2};
-use beui_host::{native::FreetypeFonts};
+use beui_host::native::FreetypeFonts;
+use beui_host::native::testing::{Showing, Stepped};
 
 use super::*;
 use beui_host::native::build;

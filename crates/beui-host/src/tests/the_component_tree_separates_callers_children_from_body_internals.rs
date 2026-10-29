@@ -25,7 +25,7 @@ fn the_component_tree_separates_callers_children_from_body_internals() {
     let public = tree.text(&document, false);
     assert_eq!(
         public,
-        "beui::tests::the_component_tree_separates_callers_children_from_body_internals::Shell\n  styled::Text\n    \"Outside\"\n  styled::Text\n    \"Sibling\"\n"
+        "beui_host::tests::the_component_tree_separates_callers_children_from_body_internals::Shell\n  styled::Text\n    \"Outside\"\n  styled::Text\n    \"Sibling\"\n"
     );
     let full = tree.text(&document, true);
     assert!(
@@ -40,7 +40,7 @@ fn the_component_tree_separates_callers_children_from_body_internals() {
     assert_eq!(
         harness.tree(),
         [
-            "beui::tests::the_component_tree_separates_callers_children_from_body_internals::Shell",
+            "beui_host::tests::the_component_tree_separates_callers_children_from_body_internals::Shell",
             "  internals",
             "    primitives::List",
             "      styled::Text",
@@ -59,7 +59,7 @@ fn the_component_tree_separates_callers_children_from_body_internals() {
     assert_eq!(
         harness.tree(),
         [
-            "beui::tests::the_component_tree_separates_callers_children_from_body_internals::Shell",
+            "beui_host::tests::the_component_tree_separates_callers_children_from_body_internals::Shell",
             "  internals",
             "  styled::Text",
             "    internals",
