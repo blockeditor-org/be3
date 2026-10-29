@@ -10,6 +10,8 @@ use beui_view::reactive::*;
 use beui_view::types::Color;
 use beui_view::types::Key;
 use beui_view::types::KeyPhase;
+use beui_view::types::{Dismiss, OverlayAnchor, Placement, Pos2, Rect};
+use beui_view::components::overlay::Overlay;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum DialogKind {
@@ -330,8 +332,67 @@ impl Default for DialogDismissal {
 pub struct DialogSheetHandle {
     pub open: Memo<bool>,
     pub close: ClickCallback,
+    pub tall: bool,
     pub body: Child,
 }
+
+pub struct DialogCardHandle {
+    pub pointer: NodeRef,
+    pub body: Child,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum DialogSize {
+    #[default]
+    Small,
+    Large,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum DialogAnchor {
+    #[default]
+    None,
+    Control(NodeRef),
+    Frame,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DialogPresentation {
+    Centred,
+    Anchored(NodeId),
+    HangsFromFrame,
+    OverFrame,
+    Sheet { tall: bool },
+}
+
+pub fn dialog_presentation(
+    kind: DialogKind,
+    size: DialogSize,
+    anchor: DialogAnchor,
+    opener: Option<NodeId>,
+    narrow: bool,
+) -> DialogPresentation {
+    match (kind, narrow, anchor, size) {
+        (DialogKind::Alert, _, _, _) => DialogPresentation::Centred,
+        (DialogKind::Dialog, true, _, size) => DialogPresentation::Sheet {
+            tall: size == DialogSize::Large,
+        },
+        (DialogKind::Dialog, false, DialogAnchor::None, _) => DialogPresentation::Centred,
+        (DialogKind::Dialog, false, _, DialogSize::Large) => DialogPresentation::OverFrame,
+        (DialogKind::Dialog, false, DialogAnchor::Control(_), DialogSize::Small) => {
+            match opener {
+                Some(node) => DialogPresentation::Anchored(node),
+                None => DialogPresentation::HangsFromFrame,
+            }
+        }
+        (DialogKind::Dialog, false, DialogAnchor::Frame, DialogSize::Small) => {
+            DialogPresentation::HangsFromFrame
+        }
+    }
+}
+
+const DIALOG_GAP: u16 = 4;
+const DIALOG_MARGIN: u16 = 8;
 
 #[component]
 pub fn Dialog(
@@ -340,8 +401,11 @@ pub fn Dialog(
     scrim: Prop<Color>,
     sheet_below: f32,
     #[prop(default = false)] narrow: Prop<bool>,
+    #[prop(default = DialogSize::Small)] size: DialogSize,
+    #[prop(default = DialogAnchor::None)] anchor: Prop<DialogAnchor>,
+    #[prop(default = 0.0)] beak: f32,
     on_dismiss: ClickCallback,
-    card: Render<Child>,
+    card: Render<DialogCardHandle>,
     sheet: Render<DialogSheetHandle>,
     body: Render<DialogLayout>,
 ) -> NodeId {
@@ -352,14 +416,27 @@ pub fn Dialog(
         width > 0.0 && width < sheet_below
     });
     let touched = create_signal(false);
+    let opener = create_signal(None::<NodeId>);
+    let asked = anchor.clone();
     create_effect(move || {
         if open.get() {
             let touched_now = untrack(touched_by_finger);
-            untrack(|| touched.set(touched_now));
+            let found = untrack(|| match asked.get() {
+                DialogAnchor::Control(control) => control.try_get().map(opener_of),
+                DialogAnchor::None | DialogAnchor::Frame => None,
+            });
+            untrack(|| {
+                touched.set(touched_now);
+                opener.set(found);
+            });
         }
     });
     let narrow = create_memo(move || narrow.get() || narrow_screen.get() || touched.get());
-    let sheeted = create_memo(move || kind == DialogKind::Dialog && narrow.get());
+    let presentation = create_memo(move || {
+        dialog_presentation(kind, size, anchor.get(), opener.get(), narrow.get())
+    });
+    let sheeted = create_memo(move || matches!(presentation.get(), DialogPresentation::Sheet { .. }));
+    let centred = create_memo(move || presentation.get() == DialogPresentation::Centred);
     let layout = DialogLayout {
         narrow,
         sheet: sheeted,
@@ -372,37 +449,110 @@ pub fn Dialog(
         ever
     });
     let built = create_signal(None::<NodeId>);
-    let pending = std::cell::Cell::new(Some(body));
+    let card_built = create_signal(None::<NodeId>);
+    let in_sheet = create_memo(move || sheeted.get().then(|| built.get()).flatten());
+    let in_card = create_memo(move || (!sheeted.get()).then(|| built.get()).flatten());
+    let pointer = NodeRef::new();
+    let pending = std::cell::Cell::new(Some((body, card)));
     let scope = owner_scope().expect("a dialog is built inside a scope");
     create_binding(move || {
         if opened.get()
-            && let Some(body) = pending.take()
+            && let Some((body, card)) = pending.take()
         {
-            let node = untrack(|| scope.run(|| body.call(layout)));
+            let (node, card) = untrack(|| {
+                scope.run(|| {
+                    let node = body.call(layout);
+                    let card = card.call(DialogCardHandle {
+                        pointer,
+                        body: view! {
+                            <Portal node={in_card} />
+                        },
+                    });
+                    (node, card)
+                })
+            });
             built.set(Some(node));
+            card_built.set(Some(card));
         }
     });
-    let in_card = create_memo(move || (!sheeted.get()).then(|| built.get()).flatten());
-    let in_sheet = create_memo(move || sheeted.get().then(|| built.get()).flatten());
+    let centred_card = create_memo(move || centred.get().then(|| card_built.get()).flatten());
+    let layer_card = create_memo(move || {
+        (!centred.get() && !sheeted.get())
+            .then(|| card_built.get())
+            .flatten()
+    });
     let ready = create_memo(move || open.get() && built.with(Option::is_some));
-    let as_card = create_memo(move || ready.get() && !sheeted.get());
+    let as_card = create_memo(move || ready.get() && centred.get());
     let as_sheet = create_memo(move || ready.get() && sheeted.get());
+    let as_layer = create_memo(move || ready.get() && !centred.get() && !sheeted.get());
     let sheet_body = view! {
         <Portal node={in_sheet} />
     };
     let sheet = sheet.call(DialogSheetHandle {
         open: as_sheet,
         close: on_dismiss,
+        tall: size == DialogSize::Large,
         body: sheet_body,
+    });
+    let held = NodeRef::new();
+    let frame = create_memo(move || Rect::from_min_size(Pos2::ZERO, viewport.get()));
+    let placed = create_memo(move || match presentation.get() {
+        DialogPresentation::Anchored(node) => {
+            if held.try_get() != Some(node) {
+                held.fill(node);
+            }
+            (
+                OverlayAnchor::Node(held),
+                Placement::Popover {
+                    gap: DIALOG_GAP,
+                    margin: DIALOG_MARGIN,
+                },
+                false,
+            )
+        }
+        DialogPresentation::HangsFromFrame => (
+            OverlayAnchor::Rect(frame.get()),
+            Placement::HangFrom(DIALOG_MARGIN),
+            true,
+        ),
+        DialogPresentation::Centred
+        | DialogPresentation::OverFrame
+        | DialogPresentation::Sheet { .. } => (
+            OverlayAnchor::Rect(frame.get()),
+            Placement::CenterOn,
+            true,
+        ),
+    });
+    let at = create_memo(move || placed.get().0);
+    let placement = create_memo(move || placed.get().1);
+    let dims = scrim.clone();
+    let layer_scrim = create_memo(move || match placed.get().2 {
+        true => dims.get(),
+        false => Color::TRANSPARENT,
+    });
+    let reach = create_memo(move || match placed.get().1 {
+        Placement::Popover { .. } => beak,
+        _ => 0.0,
     });
     view! {
         <List spacing=0.0>
             <Modal open={as_card} scrim on_dismiss={on_dismiss}>|_: ModalHandle| {
-                let portal = view! {
-                    <Portal node={in_card} />
-                };
-                card.call(portal)
+                view! {
+                    <Portal node={centred_card} />
+                }
             }</Modal>
+            <Overlay
+                anchor={at}
+                placement={placement}
+                scrim={layer_scrim}
+                pointer={pointer}
+                beak={reach}
+                open={as_layer}
+                keep_alive=true
+                on_dismiss={move |_: Dismiss| on_dismiss.call()}
+            >
+                <Portal node={layer_card} />
+            </Overlay>
             {sheet}
         </List>
     }

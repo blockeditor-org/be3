@@ -62,7 +62,7 @@ pub use action_row::ActionRow;
 pub use banner::Banner;
 pub use beui_components_unstyled::NumberDrag;
 pub use beui_components_unstyled::{
-    ActionRole, DialogAction, DialogKind, ModalMotion, ModalPlacement,
+    ActionRole, DialogAction, DialogAnchor, DialogKind, DialogSize, ModalMotion, ModalPlacement,
 };
 pub use beui_components_unstyled::{
     BackSlide, ChoiceOption, Container, DragHandle, DragPoint, Draggable, DropHandle, DropTarget,

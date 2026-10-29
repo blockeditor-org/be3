@@ -18,7 +18,7 @@ use beui_view::types::PointerPress;
 use beui_view::types::icons::ICON_ELLIPSIS;
 use beui_view::types::{Align, Direction, ItemSize};
 use beui_view::types::{Dismiss, LayerPolicy};
-use beui_view::types::{Pos2, Rect, pos2};
+use beui_view::types::{Pos2, Rect, Vec2, pos2};
 
 #[derive(Clone, Copy)]
 struct State {
@@ -48,7 +48,11 @@ pub fn ContextMenu(
     let open = create_signal(false);
     let focusing = create_signal(true);
     let position = create_signal(Pos2::ZERO);
-    let anchor = create_memo(move || OverlayAnchor::Point(position.get()));
+    let holder = NodeRef::new();
+    let anchor = create_memo(move || OverlayAnchor::Pinned {
+        node: holder,
+        rect: Rect::from_min_size(position.get(), Vec2::ZERO),
+    });
     let (overlay, content) = (NodeRef::new(), NodeRef::new());
     let (toolbar, bar, more_button) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
     api.fill(ContextMenuApi(State {
@@ -106,6 +110,7 @@ pub fn ContextMenu(
     let toolbar_items = items.clone();
     view! {
         <Interactive
+            @node_ref=&holder
             on_secondary_press={move |press: PointerPress| {
                 if disabled.get() || (press.touch && !opens_on_hold) {
                     return;

@@ -7,11 +7,11 @@ use crate::button::{Button, ButtonSize, ButtonVariant};
 use crate::scroll::{Bleed, Scroll};
 use crate::sheet::ModalSheet;
 use crate::text::{Text, TextStyle};
-use crate::theme::use_theme;
+use crate::theme::{POINTER_REACH, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    ActionRole, DialogAction, DialogBodyHandle, DialogKind, DialogLayout, DialogSheetHandle,
-    ModalHandle, ModalMotion, ModalPlacement,
+    ActionRole, DialogAction, DialogAnchor, DialogBodyHandle, DialogCardHandle, DialogKind,
+    DialogLayout, DialogSheetHandle, DialogSize, ModalHandle, ModalMotion, ModalPlacement,
 };
 use beui_view::primitives::Spacer;
 use beui_view::reactive::NodeId;
@@ -75,6 +75,8 @@ pub fn Dialog(
     #[prop(default = DialogKind::Dialog)] kind: DialogKind,
     #[prop(default = String::new())] title: Prop<String>,
     #[prop(default = DIALOG_WIDTH)] width: Prop<Size>,
+    #[prop(default = DialogSize::Small)] size: DialogSize,
+    #[prop(default = DialogAnchor::None)] anchor: Prop<DialogAnchor>,
     #[prop(default = String::new())] id: Prop<String>,
     #[prop(default = Vec::new())] actions: Vec<DialogAction>,
     #[prop(default = true)] scrolls: bool,
@@ -82,7 +84,7 @@ pub fn Dialog(
     #[prop(children)] content: Render<(), Children<ListChild>>,
 ) -> NodeId {
     view! {
-        <DialogFrame open kind width on_dismiss={on_dismiss}>
+        <DialogFrame open kind width size anchor on_dismiss={on_dismiss}>
             <DialogBody kind title id actions scrolls on_dismiss={on_dismiss}>
                 {content.call(())}
             </DialogBody>
@@ -96,6 +98,8 @@ pub fn DialogFrame(
     #[prop(default = DialogKind::Dialog)] kind: DialogKind,
     #[prop(default = DIALOG_WIDTH)] width: Prop<Size>,
     #[prop(default = false)] narrow: Prop<bool>,
+    #[prop(default = DialogSize::Small)] size: DialogSize,
+    #[prop(default = DialogAnchor::None)] anchor: Prop<DialogAnchor>,
     on_dismiss: ClickCallback,
     #[prop(children)] content: Render,
 ) -> NodeId {
@@ -108,14 +112,22 @@ pub fn DialogFrame(
             scrim={scrim}
             sheet_below=SHEET_BELOW
             narrow
+            size
+            anchor
+            beak=POINTER_REACH
             on_dismiss={on_dismiss}
-            card={move |body: Child| view! {
-                <DialogCard width>{body}</DialogCard>
+            card={move |handle: DialogCardHandle| view! {
+                <DialogCard width pointer={handle.pointer}>{handle.body}</DialogCard>
             }}
             sheet={|handle: DialogSheetHandle| {
-                let DialogSheetHandle { open, close, body } = handle;
-                view! {
-                    <ModalSheet open fit=true on_close={close}>{body}</ModalSheet>
+                let DialogSheetHandle { open, close, tall, body } = handle;
+                match tall {
+                    true => view! {
+                        <ModalSheet open rest=1.0 stops={vec![1.0]} on_close={close}>{body}</ModalSheet>
+                    },
+                    false => view! {
+                        <ModalSheet open fit=true on_close={close}>{body}</ModalSheet>
+                    },
                 }
             }}
             body={move |_: DialogLayout| content.call(())}
@@ -124,10 +136,15 @@ pub fn DialogFrame(
 }
 
 #[component]
-pub fn DialogCard(#[prop(default = DIALOG_WIDTH)] width: Prop<Size>, children: Child) -> NodeId {
+pub fn DialogCard(
+    #[prop(default = DIALOG_WIDTH)] width: Prop<Size>,
+    #[prop(default = NodeRef::new())] pointer: NodeRef,
+    children: Child,
+) -> NodeId {
     view! {
         <Frame padding=MARGIN>
             <Frame
+                @node_ref=&pointer
                 width={width.map(at_most)}
                 fill=ColorRole::SurfaceRaised
                 border={Border::DEFAULT}

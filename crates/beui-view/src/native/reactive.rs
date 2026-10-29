@@ -191,7 +191,7 @@ pub(crate) fn bind_test_id(node: NodeId, test_id: Prop<String>) {
 
 pub(crate) use crate::core::nodes::{
     focus_ancestry, focused_node, set_focus, stacked_at, tree_local, use_font_revision,
-    use_preference_layer, use_preferences, window_of,
+    opener_of, use_preference_layer, use_preferences, window_of,
 };
 
 pub(crate) fn use_preference_layers() -> Memo<beui_core::preferences::PreferenceLayers> {

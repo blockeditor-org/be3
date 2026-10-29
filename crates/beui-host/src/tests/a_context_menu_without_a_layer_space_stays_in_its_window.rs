@@ -1,4 +1,5 @@
 use super::*;
+use crate::base::overlay::OverlayNode;
 use crate::reactive::*;
 use crate::styled::*;
 
@@ -29,10 +30,17 @@ fn a_context_menu_without_a_layer_space_stays_in_its_window() {
     assert!(harness.document().escaped_layers().is_empty());
     let output = harness.frame(Vec::new());
     assert!(output.escaped.is_empty(), "nothing escapes without a layer space");
+    let overlay = kind_of::<OverlayNode>(
+        harness.document(),
+        harness
+            .document()
+            .api::<unstyled::ContextMenuApi>(menu)
+            .overlay(),
+    );
     let content = harness
         .document()
-        .api::<unstyled::ContextMenuApi>(menu)
-        .menu();
+        .overlay_content(overlay)
+        .expect("the open menu has content");
     assert!(
         Rect::from_min_size(Pos2::ZERO, window).contains_rect(harness.rect(content)),
         "the menu is kept inside the window as before"

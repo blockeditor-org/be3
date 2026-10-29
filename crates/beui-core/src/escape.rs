@@ -11,7 +11,7 @@ use crate::color::Color32;
 use crate::geometry::{Pos2, Rect, Rotation, Vec2};
 use crate::painter::{Corners, Shape};
 use crate::layer::{Dismiss, LayerPolicy};
-use crate::node::NodeOf;
+use crate::node::{NodeId, NodeOf};
 use crate::window::{WindowId, WindowState};
 
 pub use beui_types::layer::{
@@ -65,6 +65,38 @@ impl Document {
             .escapes()
             .then(|| self.layer_space(window))
             .flatten()
+    }
+
+    pub fn opener_of(&self, node: NodeId) -> NodeId {
+        let mut opener = node;
+        let mut current = Some(node);
+        for _ in 0..crate::node::ANCESTOR_LIMIT {
+            let Some(id) = current else {
+                break;
+            };
+            if let Some(overlay) = self.arena.kind_of::<OverlayNode>(id) {
+                let held = self.arena.get_as::<OverlayNode>(overlay);
+                let trigger = held
+                    .trigger
+                    .as_ref()
+                    .and_then(crate::callback::NodeRef::try_get);
+                let menu = held.policy() == LayerPolicy::BlocksAll && trigger.is_some();
+                let from = trigger.or_else(|| held.anchor_node());
+                match (menu || !held.is_open(), from) {
+                    (true, Some(from)) if self.contains(from) => {
+                        opener = from;
+                        current = Some(from);
+                        continue;
+                    }
+                    _ => return opener,
+                }
+            }
+            if Some(id) == self.root {
+                break;
+            }
+            current = self.arena.parent(id);
+        }
+        opener
     }
 
     pub(crate) fn follow_layer_spaces(&mut self, ctx: &Context) {

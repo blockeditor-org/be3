@@ -146,6 +146,10 @@ pub fn window_of(node: NodeId) -> WindowId {
     core::window_of(node)
 }
 
+pub fn opener_of(node: NodeId) -> NodeId {
+    core::opener_of(node)
+}
+
 pub fn stacked_at(nodes: &[NodeId], window: WindowId, pos: Pos2) -> Vec<NodeId> {
     core::stacked_at(nodes, window, pos)
 }

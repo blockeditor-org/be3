@@ -45,6 +45,10 @@ pub(crate) fn use_fullscreen() -> ReadSignal<bool> {
     create_signal(false).read_only()
 }
 
+pub(crate) fn opener_of(node: NodeId) -> NodeId {
+    node
+}
+
 pub(crate) fn window_of(_node: NodeId) -> crate::types::WindowId {
     crate::types::WindowId::MAIN
 }
