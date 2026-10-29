@@ -1,10 +1,10 @@
 use std::collections::HashSet;
 
 use crate::{
-    ChildId, DecodeError, DockBar, DockBarPlacement, DockDeclaration, DockGroup, DockHold, DockHome,
-    DockHosted, DockItem, DockItemKind, DockLayout, DockMessage, DockOutside, DockOutsidePlace,
-    DockPane, DockPlace, DockPlacedBar, DockRequest, DockSplit, DockTab, DockTabPath, DockTree,
-    DockUpdate, DockWindow, Rect, collection, nesting, string,
+    ChildId, DecodeError, DockBar, DockBarPlacement, DockDeclaration, DockGroup, DockHold,
+    DockHome, DockHosted, DockItem, DockItemKind, DockLayout, DockMessage, DockOutside,
+    DockOutsidePlace, DockPane, DockPlace, DockPlacedBar, DockRequest, DockSplit, DockTab,
+    DockTabPath, DockTree, DockUpdate, DockWindow, Rect, collection, nesting, string,
 };
 
 mod splice;

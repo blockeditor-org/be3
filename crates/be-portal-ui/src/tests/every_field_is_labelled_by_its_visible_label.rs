@@ -13,7 +13,12 @@ fn every_field_is_labelled_by_its_visible_label() {
             "{label} has no label"
         );
     }
-    for screen in [Screen::SignIn, Screen::Register, Screen::Forgot, Screen::Reset] {
+    for screen in [
+        Screen::SignIn,
+        Screen::Register,
+        Screen::Forgot,
+        Screen::Reset,
+    ] {
         let html = render(&page(screen));
         for input in html.split("<input").skip(1) {
             let tag = &input[..input.find('>').unwrap()];

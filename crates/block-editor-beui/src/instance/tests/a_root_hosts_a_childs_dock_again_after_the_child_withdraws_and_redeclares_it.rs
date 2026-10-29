@@ -1,7 +1,7 @@
 use super::*;
 use block_plugin_api::{
-    ChildContent, DockDeclaration, DockDeclaredChild, DockItem, DockItemKind, DockPane, DockTab,
-    DockHold, DockMessage, DockTabPath, DockTree, DockUpdate,
+    ChildContent, DockDeclaration, DockDeclaredChild, DockHold, DockItem, DockItemKind,
+    DockMessage, DockPane, DockTab, DockTabPath, DockTree, DockUpdate,
 };
 
 fn inner() -> DockDeclaration {

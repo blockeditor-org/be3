@@ -99,7 +99,10 @@ fn a_docked_editors_bar_declares_its_size_and_asks_the_root_to_place_and_move_it
         panic!("the dock declares its one bar, not {:?}", declaration.bars);
     };
     assert_eq!(bar.key, "3");
-    let (block_type, key) = bar.kind.split_once('/').expect("a bar's kind names its type");
+    let (block_type, key) = bar
+        .kind
+        .split_once('/')
+        .expect("a bar's kind names its type");
     assert!(
         Uuid::try_parse(block_type).is_ok() && key == "3",
         "a bar's kind is the editor's block type and the bar's key: {}",

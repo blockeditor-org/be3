@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use block_plugin_api::{
     ChildId, DockChild, DockChildClose, DockChildHosted, DockChildPick, DockDeclaration,
-    DockDeclare, DockHold, DockHosted, DockMessage, DockRequest, DockTabPath, DockUpdate, DockViewRequest,
-    EditorInstanceId, ViewId, ViewRef,
+    DockDeclare, DockHold, DockHosted, DockMessage, DockRequest, DockTabPath, DockUpdate,
+    DockViewRequest, EditorInstanceId, ViewId, ViewRef,
 };
 
 use crate::EditorHost;

@@ -5,9 +5,9 @@ use std::{
 
 use block_plugin_api::{
     BarAction, ChildId, DockBarPlacement, DockChild, DockChildRequest, DockClosedTab,
-    DockDeclaration, DockDeclaredChild, DockHold, DockHosted, DockHostedView, DockMessage, DockPlacedBar,
-    DockRequest, DockTabPath, DockTree, DockUpdate, EditorInstanceId, MAX_DOCK_NESTING, MenuItem,
-    ViewId, dock_prefix,
+    DockDeclaration, DockDeclaredChild, DockHold, DockHosted, DockHostedView, DockMessage,
+    DockPlacedBar, DockRequest, DockTabPath, DockTree, DockUpdate, EditorInstanceId,
+    MAX_DOCK_NESTING, MenuItem, ViewId, dock_prefix,
 };
 use uuid::Uuid;
 
