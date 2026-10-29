@@ -213,6 +213,20 @@ impl Registry {
         self.joins.borrow().get(&host).cloned()
     }
 
+    pub(crate) fn keep_joined(&self) {
+        let joins: Vec<(TabId, Rc<Joined>)> = self
+            .joins
+            .borrow()
+            .iter()
+            .map(|(host, joined)| (*host, Rc::clone(joined)))
+            .collect();
+        for (host, joined) in joins {
+            if let Some(hosted) = untrack(|| self.hosted(host)) {
+                *joined.pending.borrow_mut() = Some(hosted.state);
+            }
+        }
+    }
+
     pub(crate) fn graft(&self, state: &mut DockState, host: TabId, from: &DockState) -> bool {
         let Some(group) = state.find_group(&joined_key(host)) else {
             return false;
@@ -246,7 +260,7 @@ impl Registry {
         self.state.with(|state| {
             let group = state.find_group(&joined_key(host))?;
             let prefix = joined_prefix(host);
-            let subtree = state.subtree(
+            let mut subtree = state.subtree(
                 group,
                 &DockMapping {
                     tab: &inner,
@@ -254,6 +268,7 @@ impl Registry {
                     group: &|key| joined_host(key).and_then(inner),
                 },
             );
+            subtree.set_outside(state.outside_of(group, &inner));
             if let Some(above) = &above {
                 let list = |tabs: &[TabId]| tabs.iter().copied().filter_map(inner).collect();
                 return Some(DockHosted {

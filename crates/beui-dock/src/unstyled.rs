@@ -68,11 +68,11 @@ pub use fullscreen::DockAwayHandle;
 use modifier_drag::{Resized, modifier_resize};
 pub use state::{
     DockBarPlacement, DockDrop, DockEdge, DockFullscreen, DockHome, DockLayout, DockMapping,
-    DockPlain, DockPlainBar, DockPlainEntry, DockPlainHome, DockPlainNode, DockPlainPlace,
-    DockPlainWindow, DockSpec, DockSpecBar, DockSpecEntry, DockSpecNode, DockSpecPane,
-    DockSpecWindow, DockSplitter, DockState, DockSwitch, DockTree, DockTreeEntry, DockVisit, Entry,
-    GroupId, LeafId, Side, SplitId, SurfaceId, TabId, TabPosition, Tree, layout_surface,
-    layout_tree,
+    DockOutside, DockOutsidePlace, DockPlain, DockPlainBar, DockPlainEntry, DockPlainHome,
+    DockPlainNode, DockPlainPlace, DockPlainWindow, DockSpec, DockSpecBar, DockSpecEntry,
+    DockSpecNode, DockSpecPane, DockSpecWindow, DockSplitter, DockState, DockSwitch, DockTree,
+    DockTreeEntry, DockVisit, Entry, GroupId, LeafId, Side, SplitId, SurfaceId, TabId, TabPosition,
+    Tree, layout_surface, layout_tree,
 };
 use state::{FLOATING_SIZE, MIN_WINDOW_SIZE, fraction_moved};
 pub use state::{MIN_PANE_LENGTH, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH};

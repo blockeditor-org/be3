@@ -1,5 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
+use beui_view::types::Rect;
+use serde::{Deserialize, Serialize};
+
 use super::{
     Bar, DockHome, DockSpecNode, DockState, DockVisit, Entry, Group, GroupId, Home, LeafId, Node,
     Split, SplitId, TabId, Tree,
@@ -19,6 +22,24 @@ pub fn joined_prefix(host: TabId) -> String {
     format!("{}/", joined_key(host))
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct DockOutside {
+    pub tab: TabId,
+    pub place: DockOutsidePlace,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum DockOutsidePlace {
+    Pane {
+        key: String,
+        index: usize,
+    },
+    Window {
+        #[serde(with = "rect")]
+        rect: Rect,
+    },
+}
+
 pub struct DockMapping<'a> {
     pub tab: &'a dyn Fn(TabId) -> Option<TabId>,
     pub key: &'a dyn Fn(&str) -> Option<String>,
@@ -32,6 +53,78 @@ struct Copied {
 }
 
 impl DockState {
+    pub fn outside(&self) -> &[DockOutside] {
+        &self.outside
+    }
+
+    pub fn set_outside(&mut self, outside: Vec<DockOutside>) {
+        self.outside = outside;
+    }
+
+    pub fn outside_of(
+        &self,
+        group: GroupId,
+        inner: &dyn Fn(TabId) -> Option<TabId>,
+    ) -> Vec<DockOutside> {
+        let inside = self.group_tabs(group);
+        self.all_tabs()
+            .into_iter()
+            .filter(|tab| !inside.contains(tab))
+            .filter_map(|tab| {
+                let held = inner(tab)?;
+                let position = self.find(tab)?;
+                let place = match self.pane_key(position.leaf) {
+                    Some(key) => DockOutsidePlace::Pane {
+                        key: key.to_owned(),
+                        index: position.index,
+                    },
+                    None if !self.is_nested(position.leaf) => DockOutsidePlace::Window {
+                        rect: self.window_rect(position.surface)?,
+                    },
+                    None => return None,
+                };
+                Some(DockOutside { tab: held, place })
+            })
+            .collect()
+    }
+
+    fn put_outside(&mut self, group: GroupId, from: &DockState, map: &DockMapping<'_>) {
+        let focus = self.focus;
+        for outside in &from.outside {
+            let Some(tab) = (map.tab)(outside.tab) else {
+                continue;
+            };
+            match &outside.place {
+                DockOutsidePlace::Pane { key, index } => {
+                    let Some(leaf) = self
+                        .leaf_by_key(key)
+                        .filter(|leaf| !self.contains_leaf(Entry::Group(group), *leaf))
+                    else {
+                        continue;
+                    };
+                    self.take(Entry::Tab(tab));
+                    if self.leaf(leaf).is_some() {
+                        self.insert_entry(leaf, *index, Entry::Tab(tab));
+                    }
+                }
+                DockOutsidePlace::Window { rect } => {
+                    self.take(Entry::Tab(tab));
+                    self.open_window_with(*rect, vec![Entry::Tab(tab)]);
+                }
+            }
+            if self.contains(tab) {
+                self.homes.retain(|home| home.tab != tab);
+                self.homes.push(Home {
+                    tab,
+                    place: DockHome::Group(group),
+                    pinned: false,
+                    within: None,
+                });
+            }
+        }
+        self.focus = focus.filter(|leaf| self.leaf(*leaf).is_some());
+    }
+
     pub fn find_group(&self, key: &str) -> Option<GroupId> {
         self.group_by_key(key)
     }
@@ -296,6 +389,7 @@ impl DockState {
             };
             self.homes.push(home);
         }
+        self.put_outside(group, from, map);
         for bar in &from.bars {
             let (Some(moved), Some(owner)) = ((map.tab)(bar.bar), (map.tab)(bar.owner)) else {
                 continue;
@@ -445,5 +539,24 @@ impl DockState {
                 self.pinned_group_of(leaf)
             }
         }
+    }
+}
+
+mod rect {
+    use beui_view::types::{Pos2, Rect};
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    pub(super) fn serialize<S: Serializer>(rect: &Rect, serializer: S) -> Result<S::Ok, S::Error> {
+        [rect.min.x, rect.min.y, rect.max.x, rect.max.y].serialize(serializer)
+    }
+
+    pub(super) fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Rect, D::Error> {
+        let [left, top, right, bottom] = <[f32; 4]>::deserialize(deserializer)?;
+        Ok(Rect::from_min_max(
+            Pos2::new(left, top),
+            Pos2::new(right, bottom),
+        ))
     }
 }

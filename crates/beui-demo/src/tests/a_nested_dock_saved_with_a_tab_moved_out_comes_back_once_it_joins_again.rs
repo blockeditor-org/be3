@@ -7,6 +7,8 @@ use std::cell::Cell;
 
 thread_local! {
     static LAYOUT: Cell<Option<DockingLayout<u64>>> = const { Cell::new(None) };
+    static INNER: Cell<Option<DockingLayout<u64>>> = const { Cell::new(None) };
+    static INNER_SAVED: std::cell::RefCell<Option<DockingSnapshot<u64>>> = const { std::cell::RefCell::new(None) };
 }
 
 const BAR_Y: f32 = 20.0;
@@ -15,6 +17,10 @@ const SIZE: Vec2 = Vec2::new(900.0, 500.0);
 #[component]
 fn Inner() -> NodeId {
     let layout = DockingLayout::<u64>::new();
+    if let Some(saved) = INNER_SAVED.with(|saved| saved.borrow_mut().take()) {
+        layout.restore(saved);
+    }
+    INNER.with(|held| held.set(Some(layout)));
     view! {
         <Docking layout>
             <DockPane id="inner">
@@ -117,6 +123,18 @@ fn a_nested_dock_saved_with_a_tab_moved_out_comes_back_once_it_joins_again() {
 
     let layout = LAYOUT.with(Cell::get).expect("the outer dock was built");
     let saved = with_reactive_scope(test.document_mut(), || layout.snapshot());
+    assert_eq!(
+        saved.keys().copied().collect::<Vec<_>>(),
+        vec![1, 2],
+        "the outer dock saves only its own tabs, the host tab standing for the inner dock"
+    );
+    let inner = INNER.with(Cell::get).expect("the inner dock was built");
+    let inner_saved = with_reactive_scope(test.document_mut(), || inner.snapshot());
+    assert!(
+        !inner_saved.state().outside().is_empty(),
+        "the inner dock saves where its moved-out tab went"
+    );
+    INNER_SAVED.with(|held| *held.borrow_mut() = Some(inner_saved));
 
     let mut reopened = nested(Some(saved));
     assert!(

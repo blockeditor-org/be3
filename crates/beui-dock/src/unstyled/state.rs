@@ -17,7 +17,9 @@ mod switch;
 use bars::Bar;
 pub use bars::{DockBarPlacement, DockEdge};
 pub use history::DockVisit;
-pub use joined::{DockMapping, joined_host, joined_key, joined_prefix};
+pub use joined::{
+    DockMapping, DockOutside, DockOutsidePlace, joined_host, joined_key, joined_prefix,
+};
 pub use plain::{
     DockPlain, DockPlainBar, DockPlainEntry, DockPlainHome, DockPlainNode, DockPlainPlace,
     DockPlainWindow,
@@ -517,6 +519,8 @@ pub struct DockState {
     seeded: bool,
     #[serde(default)]
     bars: Vec<Bar>,
+    #[serde(default)]
+    outside: Vec<DockOutside>,
     #[serde(skip)]
     fullscreen: Option<DockFullscreen>,
     #[serde(skip)]
@@ -547,6 +551,7 @@ impl DockState {
             next: 0,
             seeded: false,
             bars: Vec::new(),
+            outside: Vec::new(),
             fullscreen: None,
             switch: None,
             lookup: Lookup::default(),

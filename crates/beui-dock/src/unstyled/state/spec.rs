@@ -472,7 +472,7 @@ impl DockState {
             .chain(self.groups.iter_mut().map(|group| &mut group.root))
     }
 
-    fn leaf_by_key(&self, key: &str) -> Option<LeafId> {
+    pub(super) fn leaf_by_key(&self, key: &str) -> Option<LeafId> {
         self.roots().find_map(|root| find_leaf(root, key))
     }
 

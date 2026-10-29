@@ -2700,20 +2700,21 @@ under the inner `Docking` with the outer dock's `use_dock_tab()` and
 the stacked mode are the outer dock's and cover them like its own tabs. The
 inner `DockingLayout` keeps working: `show`, `focused`, `shown`, `contains`,
 `mode` and fullscreen go through the outer dock, `state()` and `snapshot` are
-the group as the outer dock holds it (moved-out tabs leave the snapshot but
-not `contains`), and `restore`/`reset` rebuild the group. A tab joins when its
+the group as the outer dock holds it, with `DockState::outside` naming where
+each tab moved out of the group went (a `DockOutside`: the keyed outer pane and
+index, or the window's rect), and `restore`/`reset` rebuild the group and put
+the moved-out tabs back where they were (unlocked) when those panes are there. A tab joins when its
 body is first built, so a hosting tab not yet shown is an ordinary tab until
 then. When the inner `Docking` goes (its tab closes, or its body stops
 building it) the group turns back into the tab and every inner tab closes,
 those moved out too. On the outer layout, a focused or shown inner tab counts
 as its hosting tab (`focused`, `shown`), `show` of the hosting tab shows its
-group, and `contains` holds it while the group stands. The outer `snapshot`
-saves the hosting tab in the group's place, the group's subtree beside it, and
-every inner tab, in the group or moved out, by a key path (the hosting tab's id,
-then each level's declared tab key), never by an inner id. `restore` puts the
-moved-out tabs back where they were, titled but empty, and once the hosting
-tab's inner `Docking` declares again it grafts the group back and gives the
-moved-out tabs their bodies; a saved tab it no longer declares closes. The seam is `docking/host.rs`'s
+group, and `contains` holds it while the group stands. Each layer saves its own layout: the outer
+`snapshot` keeps only the hosting tab, leaving out every inner tab and bar,
+in the group or moved out, so the inner dock's owner saves the inner
+`snapshot` and restores it before or after it joins (a restore made before it
+joins is grafted in once the group stands). An outer `restore` while an inner
+dock is joined keeps that dock's layout as it is. The seam is `docking/host.rs`'s
 `DockHostLink`, plain data both ways (`DockDeclaration`, `DockHosted`,
 `DockRequest`, `DockHostEvent`, `DockBodies`; `DockState::plain` and
 `from_plain` read and build a state as plain `DockPlain` data), and a platform
