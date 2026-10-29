@@ -1,0 +1,72 @@
+package be3:preferences@0.1.0;
+
+/// The preferences and the display and pointer settings that beui, the plugin
+/// protocol and the display and input settings blocks share. The Rust in
+/// `ui-preferences` is generated from this, so these shapes are what every
+/// program serializes. None of them is frozen (guides/frozen_formats.md), so a
+/// shape may change like any other.
+interface types {
+    record display-mode {
+        width: u32,
+        height: u32,
+        refresh-millihertz: u32,
+    }
+
+    enum rotation {
+        normal,
+        clockwise90,
+        clockwise180,
+        clockwise270,
+    }
+
+    record input-device {
+        name: string,
+        vendor: u32,
+        product: u32,
+    }
+
+    /// A pointer speed from -1 to 1, kept by hand in Rust for its clamping.
+    record pointer-speed {
+        speed: f32,
+    }
+
+    record pointer-settings {
+        speed: option<pointer-speed>,
+        tap-to-click: option<bool>,
+        natural-scroll: option<bool>,
+    }
+
+    enum theme-kind {
+        dark,
+        oled-dark,
+        light,
+        e-paper,
+    }
+
+    enum motion {
+        animated,
+        instant,
+    }
+
+    enum canvas-touch {
+        on,
+        off,
+    }
+
+    record preferences {
+        theme: theme-kind,
+        motion: motion,
+        canvas-touch: canvas-touch,
+    }
+
+    /// Read with every field defaulted, as a settings block saved it.
+    record preference-layer {
+        theme: option<theme-kind>,
+        motion: option<motion>,
+        canvas-touch: option<canvas-touch>,
+    }
+}
+
+world preferences {
+    import types;
+}

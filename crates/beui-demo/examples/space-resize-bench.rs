@@ -7,19 +7,19 @@ mod bench {
 
     use beui::datetime::Date;
     use beui::native::Document;
-    use beui::native::testing::Screen;
     use beui::reactive::view;
     use beui::{
-        Input, PointerButton, Pos2, Vec2, WindowId, native::Context, native::Incoming,
-        native::Launch, native::PlatformServices, native::RunOptions, native::Setup, native::Waker,
+        Input, PointerButton, Pos2, Vec2, WindowId, native::Context, native::Setup, native::Waker,
     };
     use beui_core::app::SafeArea;
-    use beui_core::renderer::{Loaded, Renderer};
-    use beui_core::runner::Runner;
     use beui_core::window::WindowEdge;
     use beui_demo::DemoRoot;
+    use beui_host::native::testing::Screen;
+    use beui_host::native::{Incoming, Launch, PlatformServices, RunOptions};
     use beui_layer_space::Space;
     use beui_renderer_wgpu::offscreen::OffscreenSurface;
+    use beui_runner::Runner;
+    use beui_runner::renderer::{Loaded, Renderer};
 
     const PLATFORM: Vec2 = Vec2::new(1440.0, 900.0);
     const FRAME_INTERVAL: Duration = Duration::from_micros(16_667);
@@ -47,7 +47,7 @@ mod bench {
 
     impl Bench {
         fn new(gpu: bool) -> Self {
-            let context: Context = beui::native::context();
+            let context: Context = beui_host::native::context();
             context.stop_clock();
             let space = Rc::new(RefCell::new(Space::new()));
             let mut runner = Runner::new(Launch {
@@ -56,7 +56,7 @@ mod bench {
                     ..RunOptions::default()
                 },
                 context,
-                app: Box::new(beui::native::build(|| {
+                app: Box::new(beui_host::native::build(|| {
                     view! {
                         <DemoRoot today={Date::today()} />
                     }

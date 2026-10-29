@@ -1,15 +1,16 @@
 use std::time::Duration;
 
 use beui::native::WindowSize;
-use beui::native::testing::{Showing, Stepped};
-use beui::{Input, PointerButton, native::Context, native::FreetypeFonts, vec2};
+use beui::{Input, PointerButton, native::Context, vec2};
+use beui_host::native::FreetypeFonts;
+use beui_host::native::testing::{Showing, Stepped};
 
 use super::*;
-use beui::native::build;
+use beui_host::native::build;
 
 fn painting(
     name: &str,
-    browser: Option<crate::accounts::BrowserLogin>,
+    browser: Option<block_app_stack::accounts::BrowserLogin>,
     error: Option<String>,
     select_default: bool,
 ) {
@@ -18,7 +19,7 @@ fn painting(
 
 fn painting_sized(
     name: &str,
-    browser: Option<crate::accounts::BrowserLogin>,
+    browser: Option<block_app_stack::accounts::BrowserLogin>,
     error: Option<String>,
     select_default: bool,
     size: beui::Vec2,

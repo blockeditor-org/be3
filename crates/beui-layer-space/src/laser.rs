@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use beui_core::runner::{Hand, HandPose};
+use beui_runner::{Hand, HandPose};
 use beui_types::Pos2;
 use beui_types::WindowId;
 use beui_types::input::TouchId;

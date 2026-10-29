@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use be_block::presence::{ChannelKind, PresenceKind};
+use be_block::{EditorViewContent, ViewState};
 use beui::native::Document;
 use beui::native::EmbedSlot;
 use beui::native::try_with_document;
@@ -16,7 +17,6 @@ use block_plugin_api::{
 };
 use block_ui::BlockCatalog;
 use uuid::Uuid;
-use workspace_ui_types::{EditorViewContent, ViewState};
 
 use crate::{
     BlockFilter, BlockList, BlockParent, BlockQuery, Blocks, ContentProjection, EditorHost,
@@ -1585,6 +1585,7 @@ pub fn node_anchor(node: &NodeRef) -> Option<Rect> {
 }
 
 mod settings;
+mod tags;
 
 pub use settings::{KindsAbove, OrganizationLayers, SetKind};
 

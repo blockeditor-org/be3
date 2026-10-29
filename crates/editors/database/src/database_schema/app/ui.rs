@@ -2,9 +2,7 @@ use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::be_block::Edit;
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::database::{
-    ChoiceMark, choice_color_label, choice_glyph, choice_icon_label,
-};
+use block_editor_database::{ChoiceMark, choice_color_label, choice_glyph, choice_icon_label};
 use database_types::database::DatabaseContent;
 use database_types::database_schema::{
     ChoiceColor, ChoiceIcon, DatabaseBlockOptions, DatabaseEnumOption, DatabaseField,

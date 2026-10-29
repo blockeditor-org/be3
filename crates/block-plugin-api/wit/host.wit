@@ -3,7 +3,7 @@ package be3:plugin@0.1.0;
 /// What an editor plugin asks of its host.
 interface host {
     use types.{fonts, hello, hello-accepted, input-batch, screen-layout};
-    use be3:ui/types@0.1.0.{preferences};
+    use be3:preferences/types@0.1.0.{preferences};
 
     /// The plugin's first call. Nothing else reaches it before the answer.
     connect: async func(hello: hello) -> hello-accepted;

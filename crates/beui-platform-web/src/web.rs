@@ -21,9 +21,9 @@ use beui_core::input::{
     PointerButton, TouchId, TouchPhase,
 };
 use beui_core::preferences::{Motion, PreferenceLayer, ThemeKind};
-use beui_core::renderer::Loaded;
-use beui_core::runner::{Incoming, Launch, Platform, PlatformServices, Running};
 use beui_core::window::{Appearance, WindowReports, WindowState};
+use beui_runner::renderer::Loaded;
+use beui_runner::{Incoming, Launch, Platform, PlatformServices, Running};
 
 use crate::lock::Lock;
 use beui_web_input::ime_mirror::{ImeInput, ImeMirror};
@@ -206,7 +206,7 @@ fn run_frame() {
 }
 
 struct Runner {
-    runner: beui_core::runner::Runner,
+    runner: beui_runner::Runner,
     platform: WebPlatform,
     size: (u32, u32),
     ratio: f32,
@@ -556,7 +556,7 @@ async fn run(element_id: &str, launch: Launch, load: Load) -> Result<(), Box<dyn
         .map_err(|_| "could not add the text input to the page")?;
     let loaded = load(surface.clone()).await?;
 
-    let mut runner = beui_core::runner::Runner::new(launch);
+    let mut runner = beui_runner::Runner::new(launch);
     runner.start(loaded, Setup::new(waker()))?;
     let reports = runner.reports().clone();
     let runner = Runner {

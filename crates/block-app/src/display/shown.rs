@@ -30,7 +30,7 @@ pub(crate) fn shown() -> Signal<Vec<ShownDisplay>> {
 #[cfg_attr(not(any(target_os = "linux", test)), allow(dead_code))]
 pub(crate) fn offer(displays: Vec<ShownDisplay>) {
     PENDING.with(|pending| *pending.borrow_mut() = Some(displays));
-    crate::host::wake();
+    block_app_base::host::wake();
 }
 
 pub(crate) fn apply() {

@@ -1,7 +1,7 @@
+mod fonts;
 mod input;
 mod platform;
 mod surface;
-mod views;
 
 use std::any::Any;
 use std::collections::{HashMap, HashSet};
@@ -10,13 +10,14 @@ use std::task::{Context as TaskContext, Poll, Waker as TaskWaker};
 
 use beui_core::app::{App, SafeArea, Setup, Waker};
 use beui_core::context::{Context, FrameOutput};
+use beui_core::document::Document;
 use beui_core::geometry::{Rect, Vec2, vec2};
-use beui_core::renderer::Loaded;
-use beui_core::runner::{Incoming, Launch, Platform, RunOptions, Runner, Running};
 use beui_core::window::{
     HostPlacement, WindowEdge, WindowHosting, WindowId, WindowPlacement, WindowReport,
     WindowRequest, WindowRequests, WindowState,
 };
+use beui_runner::renderer::Loaded;
+use beui_runner::{Incoming, Launch, Platform, RunOptions, Runner, Running};
 use block_editor_plugin::accesskit::{ActionRequest, Affine, TreeUpdate};
 use block_editor_plugin::{
     Claim, DescribedAction, Description, EditorHost, EditorRegion, Frame, Input, Region, RegionId,
@@ -25,9 +26,10 @@ use block_editor_plugin::{
 #[cfg(target_arch = "wasm32")]
 use block_editor_plugin::{PaintTarget, SurfaceRect};
 
+use beui_host::styled::Root;
+use beui_platform_plugin_api::{PluginRuntime, RegionsRunner, View, Views};
 use platform::HostPlatform;
 use surface::{ModuleRenderer, Surface};
-pub use views::{Report, View, Views};
 
 pub struct PluginPlatform {
     host: EditorHost,
@@ -84,16 +86,55 @@ impl Platform for PluginPlatform {
     }
 }
 
-pub fn launch(
+struct Runtime;
+
+impl PluginRuntime for Runtime {
+    fn launch(
+        &self,
+        host: &EditorHost,
+        keeps_accessibility: bool,
+        app: Box<dyn App>,
+    ) -> Result<(), Box<dyn Error>> {
+        let options = RunOptions {
+            accessibility_tree: keeps_accessibility,
+            ..RunOptions::default()
+        };
+        launch(host, options, fonts::context(), app)
+    }
+
+    fn build(&self, root: Box<dyn FnOnce() -> Root>) -> Document {
+        beui_host::native::build(root)
+    }
+
+    fn context(&self) -> Context {
+        fonts::context()
+    }
+
+    fn use_bundled_fonts(&self) {
+        fonts::use_bundled();
+    }
+
+    fn runner<'a>(&self, handler: &'a mut dyn Regions) -> Option<&'a mut dyn RegionsRunner> {
+        Some(ModuleRunner::of(handler)?)
+    }
+}
+
+// unsafe(ffi)
+#[unsafe(no_mangle)]
+fn __be3_beui_plugin_runtime() -> &'static dyn PluginRuntime {
+    &Runtime
+}
+
+fn launch(
     host: &EditorHost,
     options: RunOptions,
     context: Context,
-    app: impl App + 'static,
+    app: Box<dyn App>,
 ) -> Result<(), Box<dyn Error>> {
     let launch = Launch {
         options,
         context,
-        app: Box::new(app),
+        app,
         layers: Vec::new(),
     };
     let mut running = Box::new(PluginPlatform::new(host.clone())).run(launch);
@@ -106,7 +147,7 @@ pub fn launch(
     }
 }
 
-pub struct ModuleRunner {
+struct ModuleRunner {
     runner: Runner,
     services: HostPlatform,
     views: Views,
@@ -128,25 +169,23 @@ struct Floated {
     placement: Option<String>,
 }
 
-impl ModuleRunner {
-    pub fn of(handler: &mut dyn Regions) -> Option<&mut Self> {
-        (handler as &mut dyn Any).downcast_mut()
-    }
-
-    pub fn context(&self) -> &Context {
+impl RegionsRunner for ModuleRunner {
+    fn context(&self) -> &Context {
         self.runner.context()
     }
 
-    pub fn output(&self) -> Option<&FrameOutput> {
-        self.runner.output()
+    fn window(&self, region: RegionId) -> Option<WindowId> {
+        self.windows.get(&region).copied()
     }
 
-    pub fn take_output(&mut self) -> Option<FrameOutput> {
+    fn take_output(&mut self) -> Option<FrameOutput> {
         self.runner.take_output()
     }
+}
 
-    pub fn window(&self, region: RegionId) -> Option<WindowId> {
-        self.windows.get(&region).copied()
+impl ModuleRunner {
+    fn of(handler: &mut dyn Regions) -> Option<&mut Self> {
+        (handler as &mut dyn Any).downcast_mut()
     }
 
     fn ratio(&self, regions: &[Region]) -> f32 {

@@ -11,13 +11,14 @@ use beui_core::context::{Moved, WindowOutput};
 use beui_core::damage::Region;
 use beui_core::display::{Display, Group, Layer, Part};
 use beui_core::draw::{Quad, Turn, push_quads};
-pub use beui_core::drawing::Drawing;
+use beui_core::drawing::Drawing;
 use beui_core::fade::Fade;
 use beui_core::filter::Filter;
 use beui_core::font::{GlyphId, GlyphImage};
 use beui_core::geometry::{Rect, Vec2};
 use beui_core::image::{Image, ImageId};
 use beui_core::painter::placed_shape;
+use beui_draw::{Draw, DrawAt};
 
 pub mod filter;
 pub mod present;
@@ -31,52 +32,7 @@ pub mod window;
 
 use beui_core::context::RendererInfo;
 
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub struct DrawAt {
-    pub rect: [f32; 4],
-    pub clip: [f32; 4],
-    pub screen: Vec2,
-    pub pixels_per_point: f32,
-    pub format: wgpu::TextureFormat,
-    pub renderer: u64,
-}
-
 static RENDERERS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
-
-impl DrawAt {
-    pub fn width(&self) -> u32 {
-        (self.rect[2] - self.rect[0]).max(0.0) as u32
-    }
-
-    pub fn height(&self) -> u32 {
-        (self.rect[3] - self.rect[1]).max(0.0) as u32
-    }
-}
-
-pub trait Draw: 'static {
-    fn prepare(
-        &self,
-        _device: &wgpu::Device,
-        _queue: &wgpu::Queue,
-        _encoder: &mut wgpu::CommandEncoder,
-        _at: DrawAt,
-    ) {
-    }
-
-    fn paint(&self, pass: &mut wgpu::RenderPass<'_>, at: DrawAt);
-}
-
-pub fn drawing(draw: impl Draw) -> Drawing {
-    let draw: Rc<dyn Draw> = Rc::new(draw);
-    Drawing::erased(draw)
-}
-
-pub fn painted_drawing(draw: impl Draw + beui_core::painting::Paints) -> Drawing {
-    let draw = Rc::new(draw);
-    let paints: Rc<dyn beui_core::painting::Paints> = draw.clone();
-    let draw: Rc<dyn Draw> = draw;
-    Drawing::painted(draw, paints)
-}
 
 pub fn renderer_info(adapter: &wgpu::AdapterInfo, format: wgpu::TextureFormat) -> RendererInfo {
     let mut rows = vec![

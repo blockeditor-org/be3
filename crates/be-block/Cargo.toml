@@ -12,7 +12,7 @@ be-store = { path = "../be-store", default-features = false }
 memchr = "2"
 postcard = { version = "1", features = ["use-std"] }
 serde = { version = "1", features = ["derive"] }
-ui-types = { path = "../ui-types" }
+ui-preferences = { path = "../ui-preferences" }
 uuid = { version = "1", features = ["serde", "v4"] }
 
 [lints]

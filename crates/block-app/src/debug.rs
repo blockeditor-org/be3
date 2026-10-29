@@ -17,7 +17,7 @@ fn is_shown(panel: HostPanel) -> bool {
 
 pub(crate) fn panel_shown(panel: HostPanel) {
     SHOWN.with(|shown| *shown.borrow_mut().entry(panel).or_default() += 1);
-    crate::host::request_repaint();
+    block_app_base::host::request_repaint();
 }
 
 pub(crate) fn panel_hidden(panel: HostPanel) {
@@ -34,8 +34,8 @@ pub(crate) fn panel_hidden(panel: HostPanel) {
 
 pub(crate) fn command(command: DebugCommand) {
     match command {
-        DebugCommand::KillPlugin(plugin_id) => crate::plugin_host::kill(&plugin_id),
-        DebugCommand::CrashPlugin(plugin_id) => crate::plugin_host::crash(
+        DebugCommand::KillPlugin(plugin_id) => block_app_plugin_host::kill(&plugin_id),
+        DebugCommand::CrashPlugin(plugin_id) => block_app_plugin_host::crash(
             &plugin_id,
             "It was crashed from the Plugins panel.".to_owned(),
         ),
@@ -45,7 +45,7 @@ pub(crate) fn command(command: DebugCommand) {
 pub(crate) fn view() -> DebugView {
     DebugView {
         client: is_shown(HostPanel::BlockStack).then(client::lines),
-        performance: is_shown(HostPanel::Performance).then(crate::performance::rows),
+        performance: is_shown(HostPanel::Performance).then(block_app_base::performance::rows),
         plugins: is_shown(HostPanel::Plugins).then(plugins::view),
     }
 }

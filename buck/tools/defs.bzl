@@ -18,14 +18,16 @@ def worker_properties():
 # Lays the Rust dist components over one another into the sysroot rustup would
 # have installed: rustc's bin and lib, each target's standard library under
 # lib/rustlib, and clippy-driver beside rustc so that it finds the same
-# librustc_driver through the same $ORIGIN/../lib.
+# librustc_driver through the same $ORIGIN/../lib. Every component has its own
+# manifest.in, and a worker may hand an action its inputs read-only, so each
+# copy is made writable before the next one lays its files over it.
 def _rust_sysroot_impl(ctx: AnalysisContext) -> list[Provider]:
     out = ctx.actions.declare_output("sysroot", dir = True)
     ctx.actions.run(
         cmd_args(
             "sh",
             "-c",
-            'out="$1"; shift; mkdir -p "$out"; for component; do cp -R "$component"/. "$out"/; done',
+            'out="$1"; shift; mkdir -p "$out"; for component; do cp -R "$component"/. "$out"/; chmod -R u+w "$out"; done',
             "--",
             out.as_output(),
             ctx.attrs.components,

@@ -36,9 +36,9 @@ use beui_core::input::{
     Pen, PenPhase, PointerButton, ScrollDelta, TouchId, TouchPhase,
 };
 use beui_core::preferences::{Motion, PreferenceLayer, ThemeKind};
-use beui_core::renderer::{Loaded, WindowHandle};
-use beui_core::runner::{Incoming, Launch, Platform, PlatformServices, Running};
 use beui_core::window::{SystemBars, WindowState};
+use beui_runner::renderer::{Loaded, WindowHandle};
+use beui_runner::{Incoming, Launch, Platform, PlatformServices, Running};
 use clipboard::Clipboard;
 
 const SURFACE_RELEASE_TIMEOUT: Duration = Duration::from_secs(2);
@@ -188,7 +188,7 @@ fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
         .take()
         .ok_or("the app is already running")?;
     let mut runner = Runner {
-        runner: beui_core::runner::Runner::new(launch),
+        runner: beui_runner::Runner::new(launch),
         platform: AndroidPlatform {
             vm: JavaVM::singleton()?,
             view: None,
@@ -214,7 +214,7 @@ fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
 }
 
 struct Runner {
-    runner: beui_core::runner::Runner,
+    runner: beui_runner::Runner,
     platform: AndroidPlatform,
     load: Option<Load>,
     window: Option<NativeWindow>,

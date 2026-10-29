@@ -44,129 +44,64 @@ exported = true
 be-block = { path = "../be-block" }
 be-client = { path = "../be-client" }
 be-keys = { path = "../be-keys" }
-be-commit = { path = "../be-commit" }
 be-graph = { path = "../be-graph" }
 be-protocol = { path = "../be-protocol" }
-be-store = { path = "../be-store" }
 be-session = { path = "../be-session" }
-be-vcs = { path = "../be-vcs" }
-beui = { path = "../beui", default-features = false, features = ["render"] }
+beui = { path = "../beui" }
+block-app-base = { path = "../block-app-base" }
+block-app-desktop = { path = "../block-app-desktop" }
+block-app-plugin-host = { path = "../block-app-plugin-host" }
+block-app-stack = { path = "../block-app-stack" }
 block-accounts-ui = { path = "../block-accounts-ui" }
-block-guest-abi = { path = "../block-guest-abi" }
-block-guest-host = { path = "../block-guest-host" }
 block-plugin-api = { path = "../block-plugin-api" }
-# Block types run as type modules: the replica library for the types the app
-# applies itself, which run in process, and the protocol of every module.
-block-type-api = { path = "../block-type-api" }
-block-type-guest = { path = "../block-type-guest" }
+block-plugin-manifest = { path = "../block-plugin-manifest" }
 be-types-host = { path = "../be-types-host" }
-host-types = { path = "../host-types" }
 build-id = { path = "../build-id" }
-bytemuck = { version = "1.24.0", features = ["derive"] }
 futures-util = { version = "0.3", features = ["io"] }
-image = { version = "0.25", default-features = false, features = ["bmp", "gif", "ico", "jpeg", "png", "pnm", "tga", "tiff", "webp"] }
 reactive = { path = "../reactive" }
-serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # Only the synchronisation primitives are shared with the browser build; the
 # new block stack's worker gets its executor and its timer from be/ instead.
 tokio = { version = "1", features = ["sync"] }
 uuid = { version = "1", features = ["serde", "v4", "v7"] }
 wasi-threads = { path = "../wasi-threads" }
-wgpu = { version = "29", default-features = false }
-# App state, on every platform: the web build's files are in the browser's
-# origin private file system (web/files.js).
-rusqlite = { version = "0.32", features = ["bundled"] }
-sqlite-schema = { path = "../sqlite-schema" }
 
-# Desktop and Android. The web build has no embedded server and no blocking
-# HTTP client.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-# The wasmtime plugin host, which runs every plugin on every platform but the
-# browser. The browser runs the same wasm in a worker of its own.
-be-server = { path = "../be-server" }
-beui = { path = "../beui", features = ["window"] }
-block-wasm-host = { path = "../block-wasm-host" }
+beui-host = { path = "../beui-host" }
 directories-next = "2"
 tokio = { version = "1", features = ["net", "rt", "rt-multi-thread", "sync", "time"] }
-ureq = { version = "2", features = ["gzip"] }
-# rodio (via cpal) reaches ALSA/CoreAudio/WASAPI on desktop and Oboe on
-# Android. The web build talks to the Web Audio API through web-sys directly
-# instead: cpal's own Web Audio backend only targets wasm32-unknown-unknown,
-# not this project's wasm32-wasip1 (see editors/audio/playback.rs).
-rodio = "0.20"
-
 # Desktop only: Android has no embedded browser, and the browser sandbox has
 # none either.
 [target.'cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))'.dependencies]
 
-# The plugin side of the protocol, for the tests that check the host only sends
-# a plugin's session messages it accepts. Nothing in the app links it.
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-# The Windows host's mapping to the desktop's types, tested everywhere.
-be-win32 = { path = "../be-win32" }
-block-editor-plugin = { path = "../block-editor-plugin" }
-fault-relay = { path = "../fault-relay" }
-# The plugins' type modules, which the unit tests run in process beside the
-# host's own (first-party-types), and name the blocks of.
-first-party-types = { path = "../first-party-types" }
-calendar-types = { path = "../editors/calendar/types" }
-checklist-types = { path = "../editors/checklist/types" }
-counter-types = { path = "../editors/counter/types" }
-terminal-types = { path = "../editors/terminal/types" }
-browser-tab-types = { path = "../editors/browser-tab/types" }
-image-block-types = { path = "../editors/image-block/types" }
-workspace-ui-types = { path = "../editors/workspace-ui/types" }
-database-types = { path = "../editors/database/types" }
-text-block-types = { path = "../editors/text-block/types" }
-presentation-types = { path = "../editors/presentation/types" }
-pollster = "0.4"
+# The block stack with the plugins' type modules in process.
+block-app-testing = { path = "../block-app-testing" }
 paint-snapshot = { path = "../paint-snapshot" }
 block-ui-test = { path = "../block-ui-test" }
-
-# The terminal host, for the test that runs a real one against the app's stack.
-[target.'cfg(not(any(target_arch = "wasm32", target_os = "android")))'.dev-dependencies]
-be-cli = { path = "../be-cli" }
 
 # Linux runs the app as a Wayland compositor, and --session runs it on the
 # displays and input devices themselves rather than in a window.
 [target.'cfg(target_os = "linux")'.dependencies]
-async-executor = "1"
-async-io = "2"
-async-lock = "3"
+block-app-services = { path = "../block-app-services" }
 be-dmabuf = { path = "../be-dmabuf" }
 be-wayland = { path = "../be-wayland" }
-be-remap-host = { path = "../remap/host" }
 beui-platform-drm = { path = "../beui-platform-drm" }
-# Files a block is written to for a program to open are watched, so what the
-# program saves is taken back into the block.
-notify = "8"
-pollster = "0.4"
-# The PulseAudio protocol, which pipewire-pulse serves, in pure Rust: the volume
-# keys set the default sink's and source's volume and mute through it.
-pulseaudio = "0.3"
 zbus = { version = "5", default-features = false, features = ["async-io"] }
 
 # Windows's monitors and windows are captured onto the app's own Vulkan device.
 [target.'cfg(windows)'.dependencies]
-be-win32 = { path = "../be-win32" }
 be-win32-capture = { path = "../be-win32-capture" }
-be-win32-input = { path = "../be-win32-input" }
 
 [target.'cfg(all(unix, not(target_os = "android"), not(target_arch = "wasm32")))'.dependencies]
 libc = "0.2"
 
 [target.'cfg(target_os = "android")'.dependencies]
 libc = "0.2"
-# Used by the version-switching debug window to build the ContentResolver /
-# Intent calls that download and install a GitHub Actions build.
-jni = "0.22"
-ndk-context = "0.1"
 zip = { version = "8", default-features = false, features = ["deflate"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-beui = { path = "../beui", default-features = false, features = ["web"] }
-js-sys = "0.3"
+beui-host = { path = "../beui-host", default-features = false, features = ["web"] }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 web-sys = { version = "0.3", features = [

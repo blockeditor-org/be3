@@ -52,7 +52,7 @@ pub struct Frame {
     pub display: Instant,
     pub views: Vec<View>,
     pub format: wgpu::TextureFormat,
-    pub controllers: Vec<beui_core::runner::Controller>,
+    pub controllers: Vec<beui_runner::Controller>,
     pub layers: Layers,
 }
 

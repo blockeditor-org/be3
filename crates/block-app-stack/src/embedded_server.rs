@@ -1,0 +1,71 @@
+use std::{error::Error, net::TcpListener as StdTcpListener, path::PathBuf, thread};
+
+use tokio::net::TcpListener;
+
+pub struct EmbeddedServer {
+    pub url: String,
+    shutdown: Option<tokio::sync::oneshot::Sender<()>>,
+    thread: Option<thread::JoinHandle<()>>,
+}
+
+impl Drop for EmbeddedServer {
+    fn drop(&mut self) {
+        if let Some(shutdown) = self.shutdown.take() {
+            let _ = shutdown.send(());
+        }
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
+        }
+    }
+}
+
+pub fn start_embedded_server(
+    data_dir: PathBuf,
+) -> Result<EmbeddedServer, Box<dyn Error + Send + Sync>> {
+    start_embedded_server_at("127.0.0.1:0", data_dir, be_server::ServerConfig::OPEN.lease)
+}
+
+pub fn start_embedded_server_at(
+    address: &str,
+    data_dir: PathBuf,
+    lease: std::time::Duration,
+) -> Result<EmbeddedServer, Box<dyn Error + Send + Sync>> {
+    let listener = StdTcpListener::bind(address)?;
+    listener.set_nonblocking(true)?;
+    let address = listener.local_addr()?;
+    let (shutdown_sender, shutdown_receiver) = tokio::sync::oneshot::channel();
+    let thread = thread::Builder::new()
+        .name("block-app-server".into())
+        .spawn(move || {
+            let runtime = tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()
+                .expect("failed to create embedded block server runtime");
+            runtime.block_on(async move {
+                let listener = TcpListener::from_std(listener)
+                    .expect("failed to initialize embedded block server listener");
+                let shutdown = async {
+                    let _ = shutdown_receiver.await;
+                };
+                if let Err(error) = be_server::serve_with_config(
+                    listener,
+                    data_dir,
+                    be_server::ServerConfig {
+                        local_profiles: true,
+                        lease,
+                        ..be_server::ServerConfig::OPEN
+                    },
+                    shutdown,
+                )
+                .await
+                {
+                    panic!("embedded block server stopped: {error}");
+                }
+            });
+        })?;
+    Ok(EmbeddedServer {
+        url: format!("http://{address}"),
+        shutdown: Some(shutdown_sender),
+        thread: Some(thread),
+    })
+}

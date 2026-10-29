@@ -8,7 +8,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
-use beui_core::runner::environment;
+use beui_runner::environment;
 
 use crate::{Unanswered, request};
 

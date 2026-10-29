@@ -1,15 +1,6 @@
-load("@root//buck/cargo:defs.bzl", "cargo_example", "cargo_library", "cargo_test")
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
 
 cargo_library()
-
-# Most tests paint without a GPU; those that draw (space under drive) go
-# through a real graphics adapter, which on a worker is lavapipe.
-cargo_test(
-    env = {
-        "LD_LIBRARY_PATH": "$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu",
-        "VK_ICD_FILENAMES": "$(location //buck/sysroot:lavapipe_icd.json)",
-    },
-)
 
 # Styled components on beui's HTML core, rendered to a string on the host as
 # browser paintings.
@@ -18,9 +9,3 @@ cargo_test(
     default_target_platform = "root//buck/platforms:linux_x86_64_html",
     paints = True,
 )
-
-# The examples: `./scripts/buck run //crates/beui:example-<example>`.
-
-cargo_example("survey")
-
-cargo_example("text-bench")

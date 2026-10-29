@@ -196,7 +196,7 @@ pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
     });
     let session = untrack(|| workspace.tab(tab)).is_some_and(|item| {
         item.block_type
-            == <workspace_ui_types::EditorViewContent as block_editor_beui::be_block::BlockContent>::CONTENT_TYPE
+            == <block_editor_beui::be_block::EditorViewContent as block_editor_beui::be_block::BlockContent>::CONTENT_TYPE
     });
     let preview = create_memo(move || workspace.revisions.preview_for(workspace.tab(tab)));
     let previewing = create_memo(move || preview.get().is_some());
@@ -338,7 +338,7 @@ fn DockedBlockTab(
             let watched = RefCell::new(Watched::default());
             create_effect(move || owned.set(read_owner_info(&workspace, block, &watched)));
             let session = untrack(|| workspace.known_type(block)) == Some(
-                <workspace_ui_types::EditorViewContent as block_editor_beui::be_block::BlockContent>::CONTENT_TYPE,
+                <block_editor_beui::be_block::EditorViewContent as block_editor_beui::be_block::BlockContent>::CONTENT_TYPE,
             );
             (owned.read_only(), session)
         }

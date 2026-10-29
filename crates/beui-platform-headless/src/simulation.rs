@@ -1,8 +1,8 @@
 use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::file_picker::PickedFile;
 use beui_core::geometry::Vec2;
-use beui_core::runner::PlatformServices;
 use beui_core::window::{MAX_PIXELS, Resize, WindowReports, WindowSize};
+use beui_runner::PlatformServices;
 
 pub struct Simulation {
     pub window: WindowSize,

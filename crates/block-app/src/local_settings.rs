@@ -2,8 +2,7 @@ use be_block::be_model::{Document, Edit};
 use be_block::{BlockContent, Layered, Layers, LiveEdit, Root, SettingsLayer, layered};
 use uuid::Uuid;
 
-use crate::app_state::{AppStateError, AppStateStore};
-use crate::be;
+use block_app_base::app_state::{AppStateError, AppStateStore};
 
 pub(crate) trait LocalSettings: Root + Clone + Default + PartialEq {
     fn load(store: &AppStateStore) -> Result<Option<Vec<u8>>, AppStateError>;
@@ -204,8 +203,8 @@ impl<R: LocalSettings + Layered> SettingsSync<R> {
             let Some(block) = blocks.block(layer) else {
                 continue;
             };
-            be::hold(block, R::CONTENT_TYPE);
-            let Some(revision) = be::content_revision(block) else {
+            block_app_stack::hold(block, R::CONTENT_TYPE);
+            let Some(revision) = block_app_stack::content_revision(block) else {
                 return;
             };
             revisions.push((block, revision));
@@ -219,13 +218,13 @@ impl<R: LocalSettings + Layered> SettingsSync<R> {
             let Some(block) = blocks.block(layer) else {
                 continue;
             };
-            let Some(content) = be::content(block)
+            let Some(content) = block_app_stack::content(block)
                 .and_then(|content| Document::<R>::decode(content.bytes()).ok())
                 .map(|content| content.root())
             else {
                 return;
             };
-            let revision = be::content_revision(block).unwrap_or(0);
+            let revision = block_app_stack::content_revision(block).unwrap_or(0);
             let (content, resend) = self.outboxes[slot(layer)].overlay(revision, content);
             Self::write(block, resend);
             contents.set(layer, content);
@@ -275,7 +274,7 @@ impl<R: LocalSettings + Layered> SettingsSync<R> {
         self.applied = Some(settings);
         for layer in LAYERS {
             if let Some(block) = self.blocks.block(layer)
-                && let Some(revision) = be::content_revision(block)
+                && let Some(revision) = block_app_stack::content_revision(block)
             {
                 Self::write(block, self.outboxes[slot(layer)].send(revision));
             }
@@ -284,7 +283,7 @@ impl<R: LocalSettings + Layered> SettingsSync<R> {
 
     fn write(block: Uuid, edits: Vec<Edit>) {
         for edit in edits {
-            be::operate(block, Document::<R>::encode_operation(&edit));
+            block_app_stack::operate(block, Document::<R>::encode_operation(&edit));
         }
     }
 

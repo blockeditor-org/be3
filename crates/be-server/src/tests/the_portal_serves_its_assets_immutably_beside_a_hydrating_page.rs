@@ -10,8 +10,14 @@ const ASSETS: &[be_portal::Asset] = &[be_portal::Asset {
 async fn the_portal_serves_its_assets_immutably_beside_a_hydrating_page() {
     let harness = Harness::configured(ServerConfig {
         portal: Some(be_portal::Portal {
+            render: |page| {
+                format!(
+                    "<!doctype html><script type=\"module\" src=\"{}start.js\"></script>",
+                    page.assets
+                )
+            },
+            import_map: |base| format!("{{ \"imports\": {{ \"wasi\": \"{base}threads.js\" }} }}"),
             assets: ASSETS,
-            ..be_portal_ui::PORTAL
         }),
         ..ServerConfig::OPEN
     })

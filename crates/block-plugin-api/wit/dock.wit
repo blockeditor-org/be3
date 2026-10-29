@@ -4,10 +4,8 @@ package be3:plugin@0.1.0;
 /// the docks of the children it placed. What the instance says back travels
 /// in its frames, as `dock-message`s.
 interface dock {
-    use types.{
-        child-id, dock-declaration, dock-hosted, dock-request, dock-tab-path,
-        editor-instance-id, editor-region,
-    };
+    use be3:manifest/types@0.1.0.{editor-region};
+    use types.{child-id, dock-declaration, dock-hosted, dock-request, dock-tab-path, editor-instance-id};
 
     record dock-hosted-region {
         region: editor-region,

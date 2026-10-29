@@ -1,4 +1,5 @@
-use beui::{Rect, Vec2, native::Renderer, native::Repaint, native::WindowOutput, vec2};
+use beui::{Rect, Vec2, native::WindowOutput, vec2};
+use beui_host::{native::Renderer, native::Repaint};
 use smithay::utils::{Physical, Rectangle};
 
 use crate::gpu::{Gpu, Sprite};
@@ -201,7 +202,9 @@ impl Screen {
             };
             let load = match effective {
                 Repaint::Region { .. } => wgpu::LoadOp::Load,
-                Repaint::Everything => wgpu::LoadOp::Clear(beui::native::wgpu_color(frame.clear)),
+                Repaint::Everything => {
+                    wgpu::LoadOp::Clear(beui_host::native::wgpu_color(frame.clear))
+                }
             };
             let view = self
                 .retained

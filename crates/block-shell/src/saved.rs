@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
+use block_editor_beui::be_block::ViewState;
 use block_editor_beui::beui::dock::styled::{DockingSnapshot, TabId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use workspace_ui_types::ViewState;
 
 use super::kept::KeptWindow;
 use super::tab::TabItem;

@@ -10,9 +10,9 @@ use std::{
 
 use beui::reactive::*;
 
-use crate::editors::EditorAction;
+use block_app_plugin_host::EditorAction;
 
-pub(crate) use desktop::{DesktopPlace, forget as forget_windows, request as request_windows};
+pub(crate) use desktop::DesktopPlace;
 pub(crate) use editors::{
     ConflictSurface, OwnedEditors, PresentingSurface, ShellDisplay, ShellSurface,
 };
@@ -25,7 +25,6 @@ thread_local! {
     static NEXT_LISTENER: Cell<u64> = const { Cell::new(0) };
     static ACTIONS: RefCell<Vec<(Option<uuid::Uuid>, EditorAction)>> = const { RefCell::new(Vec::new()) };
     static ANY: RefCell<Option<Signal<u64>>> = const { RefCell::new(None) };
-    static CHANGED: Cell<bool> = const { Cell::new(false) };
     static STALE: Cell<u64> = const { Cell::new(0) };
     static OWED: Cell<bool> = const { Cell::new(false) };
     static PENDING_SHELL: Cell<Option<Option<uuid::Uuid>>> = const { Cell::new(None) };
@@ -75,11 +74,6 @@ pub(crate) fn any() -> ReadSignal<u64> {
     })
 }
 
-pub(crate) fn changed() {
-    CHANGED.with(|changed| changed.set(true));
-    crate::host::request_repaint();
-}
-
 pub(crate) fn listen(plugin_id: &str) -> ReadSignal<u64> {
     let revision = create_signal(0u64);
     let id = NEXT_LISTENER.with(|next| {
@@ -104,12 +98,8 @@ pub(crate) fn listen(plugin_id: &str) -> ReadSignal<u64> {
     revision.read_only()
 }
 
-pub(crate) fn release_revision_editors(ids: &[uuid::Uuid]) {
-    editors::release_revisions(ids);
-}
-
 pub(crate) fn notify() {
-    crate::be::revisions::collect_released();
+    block_app_stack::revisions::collect_released(editors::release_revisions);
     OWED.with(|owed| owed.set(false));
     apply_shell();
     desktop::apply();
@@ -120,7 +110,7 @@ pub(crate) fn notify() {
 pub(crate) fn notify_after_layout() {
     if notify_plugins() {
         OWED.with(|owed| owed.set(true));
-        crate::host::request_repaint();
+        block_app_base::host::request_repaint();
     }
 }
 
@@ -129,12 +119,12 @@ pub(crate) fn owes_frame() -> bool {
 }
 
 fn notify_plugins() -> bool {
-    let stale = crate::be::stale_revision();
+    let stale = block_app_stack::stale_revision();
     if STALE.with(|seen| seen.replace(stale)) != stale {
-        changed();
+        block_app_base::host::changed();
     }
-    let changed = crate::plugin_host::take_changed();
-    let notified = !changed.is_empty() || CHANGED.with(|flag| flag.replace(false));
+    let changed = block_app_plugin_host::take_changed();
+    let notified = !changed.is_empty() || block_app_base::host::take_changed();
     if notified && let Some(any) = ANY.with(|any| *any.borrow()) {
         any.update(|revision| *revision += 1);
     }
@@ -155,7 +145,7 @@ fn notify_plugins() -> bool {
 
 pub(crate) fn act(from: Option<uuid::Uuid>, action: EditorAction) {
     ACTIONS.with(|actions| actions.borrow_mut().push((from, action)));
-    crate::host::request_repaint();
+    block_app_base::host::request_repaint();
 }
 
 pub(crate) fn take_actions() -> Vec<(Option<uuid::Uuid>, EditorAction)> {

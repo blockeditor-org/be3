@@ -9,8 +9,9 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 be-remap = { path = "../../remap/rules", features = ["text"] }
-beui = { path = "../../beui", default-features = false, features = ["render"] }
+beui = { path = "../../beui" }
 block-editor-beui = { path = "../../block-editor-beui" }
+block-editor-database = { path = "../../block-editor-database" }
 settings-types = { path = "types" }
 text-editor-core = { path = "../../text-editor-core" }
 uuid = "1"

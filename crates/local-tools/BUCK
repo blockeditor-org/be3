@@ -44,7 +44,7 @@ deploy(
     app_windows_x86_64 = native_app,
     be_linux_arm64 = "//crates/be-cli:native",
     be_linux_x86_64 = "//crates/be-cli:native",
-    server = "//crates/be-server:bin",
+    server = "//crates/be-server-bin:bin",
     tool = ":bin",
     web = "//crates/block-app:web",
     web_download = downloads,

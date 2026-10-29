@@ -1,5 +1,5 @@
 use super::*;
-use beui::native::build;
+use beui_host::native::build;
 
 fn type_password(test: &mut DocumentTest, password: &str) {
     for letter in password.chars() {

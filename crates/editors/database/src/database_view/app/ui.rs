@@ -1,10 +1,10 @@
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, Vec2};
-use block_editor_beui::block_ui::database::DatabaseValueChange;
-use block_editor_beui::database::DatabaseBlockPickRequest;
-use block_editor_beui::database::DatabaseValueEditor;
 use block_editor_beui::{Editor, Loaded, Toolbar, narrow_chrome};
+use block_editor_database::DatabaseBlockPickRequest;
+use block_editor_database::DatabaseValueEditor;
+use block_ui_database::DatabaseValueChange;
 use database_types::database_schema::DatabaseField;
 use database_types::database_view::DatabaseViewKind;
 use uuid::Uuid;

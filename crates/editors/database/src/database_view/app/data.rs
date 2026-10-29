@@ -10,9 +10,9 @@ use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::be_block::{PrefixRegistry, PrefixRegistryContent, normal_prefix};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::block_ui::BlockLabel;
-use block_editor_beui::database::DatabaseBlockPickRequest;
-use block_editor_beui::database::{relation_targets, watch_inverses, watch_row_labels};
 use block_editor_beui::{BlockFilter, ContentProjection, Editor, RelatedContent};
+use block_editor_database::DatabaseBlockPickRequest;
+use block_editor_database::{relation_targets, watch_inverses, watch_row_labels};
 use database_types::database::Inverse;
 use database_types::database::{
     Database, DatabaseContent, DatabaseRow, DatabaseValue, RowRef, short_id,
@@ -605,7 +605,7 @@ fn watch_labels(
     editor: Editor,
     database_id: Memo<Option<Uuid>>,
     rows: Memo<Vec<DatabaseRow>>,
-    row_labels: block_editor_beui::database::RowLabels,
+    row_labels: block_editor_database::RowLabels,
 ) -> Memo<BlockLabels> {
     let labels = watch_database_blocks(
         editor,

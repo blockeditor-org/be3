@@ -8,7 +8,7 @@ license.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-beui = { path = "../../beui", default-features = false, features = ["render"] }
+beui = { path = "../../beui" }
 beui-demo = { path = "../../beui-demo" }
 block-editor-beui = { path = "../../block-editor-beui" }
 beui-gallery-types = { path = "types" }
