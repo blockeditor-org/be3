@@ -16,7 +16,7 @@ use beui::{ItemSize, NodeId};
 use block_plugin_api::HostPanel;
 use uuid::Uuid;
 
-use crate::compositor::ShellDisplay;
+use crate::compositor::{PluginLayers, ShellDisplay};
 use block_app_base::app_state::{SavedAccount, ServerLocation};
 use block_app_desktop::desktop_host::WindowActions;
 
@@ -447,7 +447,10 @@ pub(crate) fn Displays(view: AppViewStore) -> NodeId {
             <Dynamic value={windowed}>|windowed: bool| {
                 match windowed {
                     false => view! {
-                        <Root view />
+                        <Layers>
+                            <Root view />
+                            <PluginLayers />
+                        </Layers>
                     },
                     true => {
                         let keys = create_memo(move || {
@@ -525,6 +528,7 @@ fn DisplayWindow(view: AppViewStore, id: String) -> NodeId {
                                 },
                             }
                         }</Dynamic>
+                        <PluginLayers />
                     </Layers>
                 </beui::styled::Root>
             }

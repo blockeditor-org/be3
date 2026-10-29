@@ -282,6 +282,92 @@ fn replica_sent_until(
     }
 }
 
+fn window() -> Rect {
+    Rect::from_min_max(Pos2::ZERO, pos2(400.0, 300.0))
+}
+
+fn place_layered(instances: &mut Instances, origin: Pos2, bounds: Rect) {
+    let rect = Rect::from_min_size(origin, SIZE);
+    instances.place_mounted(
+        INSTANCE,
+        REGION,
+        Some(block_plugin_api::FrameSpec::default()),
+        SIZE,
+        Rect::from_min_size(Pos2::ZERO, SIZE),
+        1.0,
+        1.0,
+        false,
+        None,
+        Some(block_plugin_api::LayerSpace {
+            to_host: block_plugin_api::HostTransform {
+                origin,
+                scale: vec2(1.0, 1.0),
+            },
+            bounds,
+        }),
+    );
+    instances.place(INSTANCE, REGION, Placement { rect, clip: rect });
+}
+
+fn layered(origin: Pos2) -> Instances {
+    let mut instances = placed();
+    place_layered(&mut instances, origin, window());
+    lay_out(&mut instances);
+    instances
+}
+
+fn lay_out(instances: &mut Instances) {
+    configure(instances);
+    let serial = instances.serial();
+    instances.confirm(serial, &HashSet::new());
+}
+
+fn layer(id: u64, parent: block_plugin_api::LayerParent, rect: Rect) -> block_plugin_api::Layer {
+    block_plugin_api::Layer {
+        id: LayerId(id),
+        parent,
+        placement: block_plugin_api::LayerPlacement::Anchored(Rect::from_min_size(
+            Pos2::ZERO,
+            vec2(10.0, 10.0),
+        )),
+        rect,
+        surface: 7,
+        painted: vec![rect],
+        floating: vec![rect],
+        scrims: Vec::new(),
+        dismiss_on_outside_press: true,
+        keyboard: false,
+        blocks_owner: false,
+    }
+}
+
+fn report_layers(instances: &mut Instances, layers: Vec<block_plugin_api::Layer>) {
+    let screen = instances
+        .screen_id(INSTANCE, REGION)
+        .expect("the region has a screen");
+    instances.set_frame_reports(vec![block_plugin_api::FrameReport {
+        screen,
+        content: block_plugin_api::Insets::default(),
+        painted: Vec::new(),
+        floating: Vec::new(),
+        floating_painted: Vec::new(),
+        scrims: Vec::new(),
+        drawing: Vec::new(),
+        every_sample: false,
+        claims: Vec::new(),
+        description: None,
+        layers,
+    }]);
+}
+
+fn shown_rects(instances: &Instances) -> Vec<Rect> {
+    instances
+        .layers(INSTANCE, REGION)
+        .into_iter()
+        .map(|layer| layer.rect)
+        .collect()
+}
+
 mod a_block_is_named_after_its_content_until_someone_names_it;
 mod a_block_shown_before_its_instance_reports_reaches_it_once_it_does;
 mod a_click_outside_a_frame_child_hands_the_frame_back;
@@ -339,3 +425,8 @@ fn resize(instances: &mut Instances, size: Vec2, scale_factor: f32) {
         PASS,
     );
 }
+mod a_layer_is_shown_from_the_report_that_opens_it_clipped_to_its_bounds;
+mod a_moved_region_moves_its_layers_with_it_and_a_pan_does_not;
+mod input_on_a_layer_reaches_its_owner_tagged_with_it_in_the_screen_s_coordinates;
+mod a_press_outside_a_dismissable_chain_closes_it_and_what_hangs_from_it;
+mod a_child_placed_in_a_layer_is_shown_in_host_coordinates_inside_it;

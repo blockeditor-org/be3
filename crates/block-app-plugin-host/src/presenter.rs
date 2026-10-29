@@ -68,6 +68,10 @@ pub(super) trait SurfacePresenter {
         offset: u32,
     );
 
+    fn size(&self, _slot: u32, _surface: u32) -> Option<(u32, u32)> {
+        None
+    }
+
     fn retain(&mut self, slot: u32, surfaces: &[u32]);
 
     fn release(&mut self, slot: u32);
@@ -205,6 +209,7 @@ pub(super) struct Shared {
     pub(super) paintings: std::collections::HashMap<ScreenId, Painting>,
     pub(super) overflows: std::collections::HashMap<ScreenId, Vec<String>>,
     pub(super) published: Published,
+    pub(super) layer_surfaces: Vec<u32>,
 }
 
 impl Shared {
@@ -268,6 +273,13 @@ pub struct Blit {
     pub(super) drawn: Option<(u32, u32)>,
     pub(super) requested: Option<(u32, u32)>,
     pub(super) placed: Option<[u32; 3]>,
+    pub(super) layer: Option<LayerSource>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct LayerSource {
+    pub(super) surface: u32,
+    pub(super) pixels: Rect,
 }
 
 impl PartialEq for Blit {
@@ -280,10 +292,15 @@ impl PartialEq for Blit {
             && self.drawn == other.drawn
             && self.requested == other.requested
             && self.placed == other.placed
+            && self.layer == other.layer
     }
 }
 
 impl Blit {
+    pub fn rect(&self) -> Rect {
+        self.quad.rect
+    }
+
     pub(super) fn damage(&self, pieces: &[Piece], seen: u64) -> Option<Vec<Rect>> {
         let shared = self.shared.borrow();
         let damage = shared.published.since(seen)?;
@@ -485,6 +502,74 @@ impl RegionDrawing {
     }
 }
 
+pub type LayerBlits = Rc<RefCell<Vec<Blit>>>;
+
+pub struct LayersDrawing {
+    blits: LayerBlits,
+    drawing: PluginDrawing,
+}
+
+impl LayersDrawing {
+    pub(super) fn new(blits: LayerBlits) -> Self {
+        Self {
+            blits,
+            drawing: PluginDrawing::new(Vec::new()),
+        }
+    }
+}
+
+impl beui::native::Draw for LayersDrawing {
+    fn prepare(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
+        at: DrawAt,
+    ) {
+        let scale = at.pixels_per_point.max(f32::EPSILON);
+        let offset = vec2(at.rect[0] / scale, at.rect[1] / scale);
+        *self.drawing.blits.borrow_mut() = self
+            .blits
+            .borrow()
+            .iter()
+            .map(|blit| {
+                let corners = blit.quad.corners.map(|corner| corner + offset);
+                Blit {
+                    quad: Quad {
+                        rect: blit.quad.rect.translate(offset),
+                        corners,
+                        opacity: blit.quad.opacity,
+                    },
+                    ..blit.clone()
+                }
+            })
+            .collect();
+        self.drawing.prepare(device, queue, encoder, at);
+    }
+
+    fn paint(&self, pass: &mut wgpu::RenderPass<'_>, at: DrawAt) {
+        self.drawing.paint(pass, at);
+    }
+}
+
+impl Paints for LayersDrawing {
+    fn overflows(&self, _rect: Rect) -> Vec<String> {
+        Vec::new()
+    }
+
+    fn painting(&self, _rect: Rect) -> Option<Painting> {
+        Some(Painting {
+            frame: beui::native::painting::Frame {
+                size: [1, 1],
+                pixels_per_point: 1.0,
+                background: [0; 4],
+                primitives: Vec::new(),
+            },
+            textures: std::collections::BTreeMap::new(),
+        })
+    }
+}
+
 #[cfg(target_arch = "wasm32")]
 thread_local! {
     static SHOWN: RefCell<std::collections::HashMap<u64, (u64, Vec<Blit>)>> =
@@ -682,7 +767,7 @@ impl beui::native::Draw for PluginDrawing {
                 let (frames, region, surfaces) = {
                     let mut shared = blit.shared.borrow_mut();
                     let frames = shared.take_frames();
-                    let region = shared.layout.placement(blit.screen).and_then(|placement| {
+                    let laid = |placement: &ScreenPlacement| {
                         let size = (placement.width, placement.height);
                         if blit.drawn.is_some_and(|drawn| drawn != size) {
                             return None;
@@ -694,12 +779,17 @@ impl beui::native::Draw for PluginDrawing {
                             _ => (blit.quad, blit.source),
                         };
                         Some((placement.surface, Region::of(quad, source)))
-                    });
+                    };
+                    let region = match blit.layer {
+                        Some(_) => None,
+                        None => shared.layout.placement(blit.screen).and_then(laid),
+                    };
                     let surfaces: Vec<u32> = shared
                         .layout
                         .screens
                         .iter()
                         .map(|placement| placement.surface)
+                        .chain(shared.layer_surfaces.iter().copied())
                         .collect();
                     (frames, region, surfaces)
                 };
@@ -715,6 +805,20 @@ impl beui::native::Draw for PluginDrawing {
                 if !frames.is_empty() {
                     presenter.retain(blit.surface, &surfaces);
                 }
+                let region = match blit.layer {
+                    Some(layer) => presenter.size(blit.surface, layer.surface).and_then(
+                        |(width, height)| {
+                            let (width, height) = (width as f32, height as f32);
+                            let source = Rect::from_min_max(
+                                pos2(layer.pixels.min.x / width, layer.pixels.min.y / height),
+                                pos2(layer.pixels.max.x / width, layer.pixels.max.y / height),
+                            );
+                            (width > 0.0 && height > 0.0)
+                                .then(|| (layer.surface, Region::of(blit.quad, source)))
+                        },
+                    ),
+                    None => region,
+                };
                 match failure {
                     Some(error) => blit.status.set(PresenterState::Failed(error)),
                     None if presenter.platform.is_some() => {
@@ -821,6 +925,10 @@ impl Presenter {
             Some(presenter) => presenter.prepare(queue, slot, frame),
             None => Err(UNSUPPORTED.to_owned()),
         }
+    }
+
+    fn size(&self, slot: u32, surface: u32) -> Option<(u32, u32)> {
+        self.platform.as_ref()?.size(slot, surface)
     }
 
     fn retain(&mut self, slot: u32, surfaces: &[u32]) {

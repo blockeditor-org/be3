@@ -41,6 +41,7 @@ fn a_frame_published_after_its_damage_was_read_is_redrawn_next() {
         drawn: None,
         requested: None,
         placed: None,
+        layer: None,
     };
     let left = SurfaceRect {
         x: 0,

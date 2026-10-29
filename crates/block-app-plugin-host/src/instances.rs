@@ -3,7 +3,7 @@ use beui::{ImeArea, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
     AccessLevel, ArtifactDescription, AudioCommand, BlockCommand, BlockPick, ChildContent, ChildId,
     ChildMode, ChildPlacement, ChildPlacements, ChildStatus, DialogStatus, EditorInstanceId,
-    EditorRegion, FrameReport, FrameSpec, MenuEntry, Occluder, OpenArtifact, OpenBlock,
+    EditorRegion, FrameReport, FrameSpec, LayerId, LayerSpace, MenuEntry, Occluder, OpenArtifact, OpenBlock,
     OpenCreation, OpenPicker, Opening, PerformanceMeasurement, RegionSize, ScreenId, ScreenLayout,
     ScreenRequest, ScreenWindow, ShellCommand, Size, Stopped, ViewChange, ViewportMetrics,
     WebViewEvent, WebViewId,
@@ -20,7 +20,8 @@ use std::{
 use uuid::Uuid;
 
 use super::{
-    ChildCommit, EditorBlock, HostChild, HostChildStatus, InstanceRole, MAX_LIVE_CHILDREN,
+    ChildCommit, EditorBlock, HostChild, HostChildStatus, HostLayer, InstanceRole,
+    MAX_LIVE_CHILDREN,
     audio::AudioPlayer,
     calls::{self, BlockIds, EditorAnswer, EditorCall, Outbound, PluginCall},
     heads::{HeadReads, Heads},
@@ -34,6 +35,7 @@ use block_app_base::{host, performance};
 mod services;
 
 thread_local! {
+    static LAYERS_OPENED: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
     static PRESENCE_WANTED: std::cell::RefCell<std::collections::HashSet<EditorInstanceId>> =
         std::cell::RefCell::default();
 }
@@ -557,6 +559,8 @@ struct Screen {
     revoked: HashSet<ChildId>,
     frame_revoked: HashSet<ChildId>,
     scales: Sent<f32>,
+    spaces: Sent<Option<(LayerSpace, f32)>>,
+    opened: HashMap<LayerId, u64>,
     serial: u64,
     kept: Option<ViewportMetrics>,
 }
@@ -573,6 +577,76 @@ impl Screen {
             ratio(rect.width(), metrics.logical.width),
             ratio(rect.height(), metrics.logical.height),
         ) * ratio(painted, metrics.scale_factor)
+    }
+
+    fn layer_shift(&self) -> Option<(LayerSpace, Vec2, f32)> {
+        let now = self.request.layers?;
+        let (laid, raster) = self
+            .spaces
+            .at(self.serial)
+            .copied()
+            .flatten()
+            .unwrap_or((now, self.request.metrics.raster));
+        let shift = now.to_host.origin - laid.to_host.origin;
+        let scale = laid.to_host.scale.x;
+        let pixels_per_point = match scale.is_finite() && scale > 0.0 {
+            true => raster / scale,
+            false => raster,
+        };
+        Some((now, shift, pixels_per_point))
+    }
+
+    fn layers(&self) -> Vec<HostLayer> {
+        let (Some(report), Some(_), Some((space, shift, pixels_per_point))) =
+            (&self.report, self.placement, self.layer_shift())
+        else {
+            return Vec::new();
+        };
+        let bounds = space.bounds;
+        let within = |rects: &[Rect]| -> Vec<Rect> {
+            rects
+                .iter()
+                .map(|rect| rect.translate(shift).intersect(bounds))
+                .filter(|rect| rect.is_positive())
+                .collect()
+        };
+        report
+            .layers
+            .iter()
+            .map(|layer| HostLayer {
+                id: layer.id,
+                parent: layer.parent.clone(),
+                opened: self.opened.get(&layer.id).copied().unwrap_or_default(),
+                rect: layer.rect.translate(shift),
+                bounds,
+                painted: within(&layer.painted),
+                floating: within(&layer.floating),
+                scrims: layer
+                    .scrims
+                    .iter()
+                    .filter_map(|scrim| {
+                        let rect = scrim.rect.translate(shift).intersect(bounds);
+                        let color = &scrim.color;
+                        rect.is_positive().then(|| {
+                            (
+                                rect,
+                                beui::color::Color32::from_rgba_unmultiplied(
+                                    color.red,
+                                    color.green,
+                                    color.blue,
+                                    color.alpha,
+                                ),
+                            )
+                        })
+                    })
+                    .collect(),
+                surface: layer.surface,
+                pixels_per_point,
+                dismiss_on_outside_press: layer.dismiss_on_outside_press,
+                keyboard: layer.keyboard,
+                blocks_owner: layer.blocks_owner,
+            })
+            .collect()
     }
 
     fn unplace(&mut self) {
@@ -849,6 +923,8 @@ impl Instances {
                 revoked: HashSet::new(),
                 frame_revoked: HashSet::new(),
                 scales: Sent::default(),
+                spaces: Sent::default(),
+                opened: HashMap::new(),
                 serial: 0,
                 kept: None,
             }
@@ -966,10 +1042,12 @@ impl Instances {
         raster: f32,
         windows: bool,
         placement: Option<String>,
+        layers: Option<LayerSpace>,
     ) {
         let Some(screen) = self.screen_mut(instance, region) else {
             return;
         };
+        screen.request.layers = layers;
         let metrics = viewport_metrics(size, visible, scale_factor, raster);
         if region == EditorRegion::Frame && metrics.pixel_width > 0 && metrics.pixel_height > 0 {
             screen.kept = Some(metrics);
@@ -1182,6 +1260,112 @@ impl Instances {
         let revoked =
             (escaped || (pressed && input.hovered)) && self.revoke_active(instance, region);
         (messages, revoked)
+    }
+
+    pub(super) fn layers(&self, instance: EditorInstanceId, region: EditorRegion) -> Vec<HostLayer> {
+        self.entries
+            .get(&instance)
+            .and_then(|entry| entry.screens.get(&region))
+            .map(Screen::layers)
+            .unwrap_or_default()
+    }
+
+    pub(super) fn forward_layer(
+        &mut self,
+        instance: EditorInstanceId,
+        region: EditorRegion,
+        layer: LayerId,
+        input: &beui::ForwardedInput,
+    ) -> Vec<Outbound> {
+        let announced = &self.announced;
+        let Some(screen) = self
+            .entries
+            .get_mut(&instance)
+            .and_then(|entry| entry.screens.get_mut(&region))
+            .filter(|screen| announced.contains(&screen.request.screen))
+        else {
+            return Vec::new();
+        };
+        let Some(placement) = screen.placement else {
+            return Vec::new();
+        };
+        if !screen
+            .report
+            .as_ref()
+            .is_some_and(|report| report.layers.iter().any(|open| open.id == layer))
+        {
+            return Vec::new();
+        }
+        let events = input
+            .events
+            .iter()
+            .filter(|event| matches!(event, beui::Forwarded::Pointer { .. } | beui::Forwarded::Left))
+            .cloned()
+            .collect();
+        let input = beui::ForwardedInput {
+            events,
+            rect: placement.rect,
+            focused: false,
+            ..input.clone()
+        };
+        let zoom = match screen.request.metrics.logical.width > 0.0 {
+            true => placement.rect.width() / screen.request.metrics.logical.width,
+            false => 1.0,
+        };
+        let every_sample = screen
+            .report
+            .as_ref()
+            .is_some_and(|report| report.every_sample);
+        let id = screen.request.screen;
+        screen
+            .input
+            .forward(&input, id, zoom, every_sample, &|_, _| beui::Aim::Own, &|_| None)
+            .into_iter()
+            .map(|call| match call {
+                PluginCall::Input(mut batch) => {
+                    for event in &mut batch.events {
+                        event.layer = Some(layer);
+                    }
+                    Outbound::from(PluginCall::Input(batch))
+                }
+                call => Outbound::from(call),
+            })
+            .collect()
+    }
+
+    pub(super) fn dismiss_layers(
+        &mut self,
+        instance: EditorInstanceId,
+        region: EditorRegion,
+        dismissed: Vec<LayerId>,
+    ) -> Vec<Outbound> {
+        let announced = &self.announced;
+        let Some(screen) = self
+            .entries
+            .get(&instance)
+            .and_then(|entry| entry.screens.get(&region))
+            .filter(|screen| announced.contains(&screen.request.screen))
+        else {
+            return Vec::new();
+        };
+        let open: Vec<LayerId> = screen
+            .report
+            .as_ref()
+            .map(|report| report.layers.iter().map(|layer| layer.id).collect())
+            .unwrap_or_default();
+        let dismissed: Vec<LayerId> = dismissed
+            .into_iter()
+            .filter(|id| open.contains(id))
+            .collect();
+        if dismissed.is_empty() {
+            return Vec::new();
+        }
+        vec![Outbound::from(PluginCall::Input(block_plugin_api::InputBatch {
+            screen: screen.request.screen,
+            every_sample: false,
+            events: Vec::new(),
+            dismissed,
+        }))]
     }
 
     pub(super) fn hold(&mut self, instance: EditorInstanceId, region: EditorRegion) {
@@ -1694,6 +1878,12 @@ impl Instances {
                     for request in screens {
                         if let Some(screen) = self.screen_by_id(request.screen) {
                             screen.scales.push(serial, request.metrics.scale_factor);
+                            screen.spaces.push(
+                                serial,
+                                request
+                                    .layers
+                                    .map(|layers| (layers, request.metrics.raster)),
+                            );
                         }
                     }
                 }
@@ -1753,6 +1943,7 @@ impl Instances {
             let oldest = entry.screens.values().map(|screen| screen.serial).min();
             for screen in entry.screens.values_mut() {
                 screen.scales.confirm(screen.serial);
+                screen.spaces.confirm(screen.serial);
             }
             if let Some(oldest) = oldest {
                 entry.views.confirm(oldest);
@@ -1960,6 +2151,10 @@ impl Instances {
         let mut holes = Holes::default();
         let mut live = 0;
         let mut shown_tabs = HashSet::new();
+        let layers = screen.layers();
+        let shift = screen
+            .layer_shift()
+            .map_or(Vec2::ZERO, |(_, shift, _)| shift);
         if let Some(report) = &screen.report {
             let painted: Vec<Rect> = report
                 .painted
@@ -1976,6 +2171,13 @@ impl Instances {
             }
         }
         for (index, child) in table.children.iter().enumerate() {
+            let layer = match child.in_layer {
+                None => None,
+                Some(id) => match layers.iter().find(|layer| layer.id == id) {
+                    Some(layer) => Some(layer),
+                    None => continue,
+                },
+            };
             if self
                 .entries
                 .get(&instance)
@@ -2068,22 +2270,36 @@ impl Instances {
                     }
                 }
             };
-            let child_rect = host_rect(child.rect, origin, scale);
-            let (view_rect, child_clip) = match (child.follows_view, laid_view, view) {
-                (true, Some(laid_view), Some(view)) => (
-                    host_rect(through(child.rect, laid_view, view), origin, scale),
-                    host_rect(followed_clip(child, laid_view, view), origin, scale),
-                ),
-                _ => (child_rect, host_rect(child.clip, origin, scale)),
+            let (child_rect, view_rect, child_clip, occluders) = match layer {
+                Some(layer) => {
+                    let rect = child.rect.translate(shift);
+                    let clip = child
+                        .clip
+                        .translate(shift)
+                        .intersect(layer.rect)
+                        .intersect(layer.bounds);
+                    (rect, rect, clip, Vec::new())
+                }
+                None => {
+                    let child_rect = host_rect(child.rect, origin, scale);
+                    let (view_rect, child_clip) = match (child.follows_view, laid_view, view) {
+                        (true, Some(laid_view), Some(view)) => (
+                            host_rect(through(child.rect, laid_view, view), origin, scale),
+                            host_rect(followed_clip(child, laid_view, view), origin, scale),
+                        ),
+                        _ => (child_rect, host_rect(child.clip, origin, scale)),
+                    };
+                    let occluders: Vec<Rect> = table
+                        .occluders
+                        .iter()
+                        .filter(|occluder| occluder.after as usize > index)
+                        .map(|occluder| host_rect(occluder.rect, origin, scale))
+                        .collect();
+                    (child_rect, view_rect, child_clip.intersect(clip), occluders)
+                }
             };
-            let child_clip = child_clip.intersect(clip);
-            let occluders: Vec<Rect> = table
-                .occluders
-                .iter()
-                .filter(|occluder| occluder.after as usize > index)
-                .map(|occluder| host_rect(occluder.rect, origin, scale))
-                .collect();
-            if matches!(
+            if layer.is_none()
+                && matches!(
                 mode,
                 ChildMode::Active | ChildMode::Live | ChildMode::InPlace
             ) {
@@ -2112,6 +2328,7 @@ impl Instances {
                 rotation: child.rotation,
                 opacity: child.opacity,
                 dialog: child.dialog,
+                in_layer: layer.map(|layer| layer.id),
             });
         }
         (children, holes)
@@ -2394,11 +2611,31 @@ impl Instances {
                         changed = true;
                     }
                     changed |= screen.report.as_ref() != Some(&report);
+                    screen
+                        .opened
+                        .retain(|id, _| report.layers.iter().any(|layer| layer.id == *id));
+                    for layer in &report.layers {
+                        screen.opened.entry(layer.id).or_insert_with(|| {
+                            LAYERS_OPENED.with(|opened| {
+                                opened.set(opened.get() + 1);
+                                opened.get()
+                            })
+                        });
+                    }
                     screen.report = Some(report.clone());
                 }
             }
         }
         changed
+    }
+
+    pub(super) fn layer_surfaces(&self) -> Vec<u32> {
+        self.entries
+            .values()
+            .flat_map(|entry| entry.screens.values())
+            .filter_map(|screen| screen.report.as_ref())
+            .flat_map(|report| report.layers.iter().map(|layer| layer.surface))
+            .collect()
     }
 
     pub(super) fn frame_report(

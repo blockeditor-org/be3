@@ -1,6 +1,7 @@
 pub(crate) mod desktop;
 mod editors;
 mod intercept;
+pub(crate) mod layers;
 pub(crate) mod region;
 
 use std::{
@@ -16,6 +17,7 @@ pub(crate) use desktop::DesktopPlace;
 pub(crate) use editors::{
     ConflictSurface, OwnedEditors, PresentingSurface, ShellDisplay, ShellSurface,
 };
+pub(crate) use layers::PluginLayers;
 pub(crate) use region::{ChildView, PluginRegion, RegionEditor};
 
 type Listeners = HashMap<String, Vec<(u64, Signal<u64>)>>;
@@ -33,6 +35,7 @@ thread_local! {
 
 pub(crate) fn install() {
     desktop::install();
+    layers::install();
     let signal = create_signal(0u64);
     ANY.with(|any| *any.borrow_mut() = Some(signal));
     let shell = create_signal(None);

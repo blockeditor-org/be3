@@ -18,6 +18,7 @@ use block_plugin_api::{ChildId, EditorInstanceId, EditorRegion, FrameSpec};
 use block_plugin_manifest::PluginManifest;
 use uuid::Uuid;
 
+use super::layers::PluginLayers;
 use crate::surfaces::CrashNotice;
 use beui::native::draw_gpu;
 use beui::reactive::toggle_keyboard;
@@ -262,6 +263,17 @@ pub(crate) fn PluginRegion(
     });
     let revision = super::listen(&plugin_id.value());
     let placed = store(Cell::new(None::<EmbedPlacement>));
+    let window = super::layers::host_window();
+    let parent_bounds = use_context::<super::layers::LayerBounds>();
+    let viewport = use_viewport_size();
+    let layer_bounds = create_memo(move || {
+        let parent = parent_bounds.map_or_else(
+            || Rect::from_min_size(Pos2::ZERO, viewport.get()),
+            |super::layers::LayerBounds(bounds)| bounds.get(),
+        );
+        super::layers::bounds_within(parent, parent, false)
+    });
+    provide_context(super::layers::LayerBounds(layer_bounds));
     let stored_key = store(floated_key.clone());
     let windowed = windowing.is_some();
     let placer = Callback::new(move |placement: Option<EmbedPlacement>| match placement {
@@ -278,6 +290,8 @@ pub(crate) fn PluginRegion(
                 windows: hosts_windows || windowed,
                 placement: stored_key
                     .with(|key| key.as_ref().and_then(super::desktop::placement_of)),
+                layer_bounds: (!offscreen && region != EditorRegion::Preview)
+                    .then(|| layer_bounds.get_untracked()),
             },
             frame.get_untracked(),
             view.get_untracked(),
@@ -295,6 +309,7 @@ pub(crate) fn PluginRegion(
         let _ = zoom.get();
         let _ = floated_rect.map(|rect| rect.get());
         let _ = floated_placement.map(|placement| placement.get());
+        let _ = layer_bounds.get();
         placer.call(placed.with(Cell::get));
     });
     if shows_desktop {
@@ -536,6 +551,19 @@ pub(crate) fn PluginRegion(
             super::desktop::forget_catcher(node);
         }
     });
+    super::layers::register(super::layers::LayerOwner {
+        mount,
+        plugin: plugin_id.value().to_string(),
+        instance,
+        region,
+        window,
+        state,
+        revision,
+        child_view,
+        scope: reactive::current_scope(),
+        catcher,
+    });
+    let blocked = create_memo(move || state.with(|view| view.blocks_owner));
     let anchor = NodeRef::new();
     let ime = create_memo(move || state.with(|view| view.ime.is_some()));
     let ime_cursor = create_memo(move || {
@@ -689,7 +717,10 @@ pub(crate) fn PluginRegion(
             );
         }
     };
-    let pressed_outside = move |_: Pos2| {
+    let pressed_outside = move |pos: Pos2| {
+        if state.with_untracked(|view| view.layers.iter().any(|layer| layer.takes(pos))) {
+            return;
+        }
         block_app_plugin_host::pressed_outside_region(&plugin_id.value(), instance, region);
     };
     let hit_area = create_memo(move || {
@@ -822,6 +853,9 @@ pub(crate) fn PluginRegion(
                 <RegionChildren state rect child_view below=false />
                 <Scrims state />
                 <Drawing draw={floating} />
+                <Show condition={blocked}>||
+                    <Interactive press_focus=false on_forward={|_: ForwardedInput| {}} />
+                </Show>
                 {windows}
             </Layers>
         </DropTarget>
@@ -1068,13 +1102,19 @@ fn PanelWindows(editor: RegionEditor, region: EditorRegion, rect: Memo<Rect>) ->
                         on_report={report}
                     >|handle: WindowHandle| {
                         follow_panel_asks(panel, handle);
+                        let hosted = create_memo(move || handle.is_window());
                         view! {
-                            <PluginRegion
-                                editor={editor.with(RegionEditor::clone)}
-                                region
-                                child_view
-                                on_focus={Callback::new(|()| {})}
-                            />
+                            <Layers>
+                                <PluginRegion
+                                    editor={editor.with(RegionEditor::clone)}
+                                    region
+                                    child_view
+                                    on_focus={Callback::new(|()| {})}
+                                />
+                                <Show condition={hosted}>||
+                                    <PluginLayers />
+                                </Show>
+                            </Layers>
                         }
                     }</Window>
                 }
@@ -1278,6 +1318,7 @@ fn RegionChildren(
         state.with(|view| {
             view.children
                 .iter()
+                .filter(|child| child.in_layer.is_none())
                 .filter(|child| (child.is_below() && !child.frame_owner) == below)
                 .map(|child| child.child)
                 .collect::<Vec<ChildId>>()

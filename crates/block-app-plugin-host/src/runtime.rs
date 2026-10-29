@@ -10,7 +10,7 @@ use beui::native::EmbedPlacement;
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
     ArtifactDescription, BlockPick, ChildPlacements, ChildPreview, EditorInstanceId, EditorRegion,
-    FrameCommit, FrameSpec, HostPanel, Opening, PresentedFrame, PreviewImage, RegionSize,
+    FrameCommit, FrameSpec, HostPanel, HostTransform, LayerId, LayerSpace, Opening, PresentedFrame, PreviewImage, RegionSize,
     ScreenDamage, ScreenId, ScreenLayout, ScreenPlacement, ScreenRequest, ScreenWindow,
     SurfaceFormat, SurfaceSpec, ViewChange,
 };
@@ -21,12 +21,15 @@ use block_app_base::host;
 
 use super::{
     ArtifactSlot, ArtifactState, CreationSlot, CreationState, HostChild, HostChildStatus,
-    InstanceRole, RuntimeStatus, SurfaceStatus,
+    HostLayer, InstanceRole, RuntimeStatus, SurfaceStatus,
     backend::{Availability, Backend, Deadline, Frame, ShownFrame},
     calls::{EditorAnswer, EditorCall, Heard, Outbound, PluginCall},
     input::{BlockDrag, BlockDragEvent},
     instances::{EditorView, Focus, Instances, Placement},
-    presenter::{self, Blit, Piece, PresenterState, PresenterStatus, Quad, RegionDrawing, Shared},
+    presenter::{
+        self, Blit, LayerBlits, LayerSource, LayersDrawing, Piece, PresenterState,
+        PresenterStatus, Quad, RegionDrawing, Shared,
+    },
     preview_scale, previews,
     session::{Session, SessionFailure, SessionState},
 };
@@ -1011,6 +1014,7 @@ impl Runtime {
         let held = self.held_screens();
         let mut changed = self.instances.confirm(serial, &held);
         changed |= self.instances.set_frame_reports(reports);
+        self.shared.borrow_mut().layer_surfaces = self.instances.layer_surfaces();
         changed |= self.lay(Laid {
             serial,
             sizes,
@@ -1087,6 +1091,7 @@ impl Runtime {
                 }),
             placed: placement
                 .map(|placement| [placement.surface, placement.width, placement.height]),
+            layer: None,
         }
     }
 
@@ -2038,6 +2043,7 @@ pub struct RegionPlacement {
     pub raster: f32,
     pub windows: bool,
     pub placement: Option<String>,
+    pub layer_bounds: Option<Rect>,
 }
 
 pub(super) struct Offer {
@@ -2107,6 +2113,7 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: Edito
         .map(|offer| offer.placement.raster);
     let windows = chosen.placement.windows;
     let host_placement = chosen.placement.placement.clone();
+    let layer_bounds = chosen.placement.layer_bounds;
     let frame = chosen.frame;
     let view = chosen.view;
     let RegionPlacement {
@@ -2139,6 +2146,18 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: Edito
         (Some(raster), _) => scale_factor * raster,
     };
     let visible = shown.map_or(Rect::ZERO, |source| scale_rect(source, size));
+    let layers = layer_bounds
+        .filter(|_| region != EditorRegion::Preview)
+        .map(|bounds| LayerSpace {
+            to_host: HostTransform {
+                origin: rect.min,
+                scale: vec2(
+                    ratio_of(rect.width(), size.x),
+                    ratio_of(rect.height(), size.y),
+                ),
+            },
+            bounds,
+        });
     runtime.instances.place_mounted(
         instance,
         region,
@@ -2149,6 +2168,7 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: Edito
         raster,
         windows,
         host_placement,
+        layers,
     );
     if let Some(view) = view {
         runtime.instances.set_view(instance, view);
@@ -2156,6 +2176,46 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: Edito
     runtime
         .instances
         .place(instance, region, Placement { rect, clip });
+}
+
+fn ratio_of(shown: f32, logical: f32) -> f32 {
+    match logical > 0.0 && (shown / logical).is_finite() {
+        true => shown / logical,
+        false => 1.0,
+    }
+}
+
+pub fn forward_layer(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+    region: EditorRegion,
+    layer: LayerId,
+    input: &beui::ForwardedInput,
+) {
+    with(plugin_id, |runtime| {
+        let messages = runtime
+            .instances
+            .forward_layer(instance, region, layer, input);
+        runtime.pacing.needed |= !messages.is_empty();
+        runtime.send(messages);
+    });
+    host::request_repaint();
+}
+
+pub fn dismiss_layers(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+    region: EditorRegion,
+    dismissed: Vec<LayerId>,
+) {
+    with(plugin_id, |runtime| {
+        let messages = runtime
+            .instances
+            .dismiss_layers(instance, region, dismissed);
+        runtime.pacing.needed |= !messages.is_empty();
+        runtime.send(messages);
+    });
+    host::request_repaint();
 }
 
 pub fn forward_region(
@@ -2246,6 +2306,8 @@ pub struct RegionView {
     pub held: Option<Rect>,
     pub drawn: Option<(u32, u32)>,
     pub children: Vec<HostChild>,
+    pub layers: Vec<HostLayer>,
+    pub blocks_owner: bool,
     pub holes: Vec<(Rect, Vec<Rect>)>,
     pub cursor: Option<beui::CursorIcon>,
     pub ime: Option<beui::ImeArea>,
@@ -2273,6 +2335,8 @@ impl RegionView {
             held: None,
             drawn: None,
             children: Vec::new(),
+            layers: Vec::new(),
+            blocks_owner: false,
             holes: Vec::new(),
             cursor: None,
             ime: None,
@@ -2487,6 +2551,7 @@ fn placed_view(
             ),
         };
         let loading = screen.is_none_or(|screen| runtime.layout.placement(screen).is_none());
+        let layers = runtime.instances.layers(instance, region);
         RegionView {
             error: None,
             rect,
@@ -2501,6 +2566,7 @@ fn placed_view(
             held: held.map(|held| held.rect),
             drawn: held.map(|held| held.drawn),
             children,
+            blocks_owner: layers.iter().any(|layer| layer.blocks_owner),
             holes: holes.parts(),
             cursor: match runtime.instances.dragging(instance, region)
                 && runtime.instances.drag_accepted(instance)
@@ -2510,7 +2576,9 @@ fn placed_view(
             },
             ime: runtime.instances.ime(instance, region, rect),
             handles_back,
-            wants_keyboard: window.is_some_and(|window| window.wants_keyboard),
+            wants_keyboard: window.is_some_and(|window| window.wants_keyboard)
+                || layers.iter().any(|layer| layer.keyboard),
+            layers,
             keyboard_toggles: window.map(|window| window.keyboard_toggles),
             intercepted_keys,
             pastes: window
@@ -2637,6 +2705,51 @@ pub fn region_drawing(
         Some((drawing, shared))
     })
     .flatten()
+}
+
+pub fn layer_blits(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+    region: EditorRegion,
+    layer: &HostLayer,
+) -> Vec<Blit> {
+    with(plugin_id, |runtime| {
+        let screen = runtime.instances.screen_id(instance, region)?;
+        let template = runtime.template(screen, None);
+        let pixels_per_point = layer.pixels_per_point;
+        Some(
+            layer
+                .painted
+                .iter()
+                .map(|piece| piece.intersect(layer.rect))
+                .filter(|piece| piece.is_positive())
+                .map(|piece| {
+                    let from = piece.min - layer.rect.min;
+                    let to = piece.max - layer.rect.min;
+                    Blit {
+                        quad: Quad::upright(piece),
+                        source: UNIT,
+                        drawn: None,
+                        requested: None,
+                        layer: Some(LayerSource {
+                            surface: layer.surface,
+                            pixels: Rect::from_min_max(
+                                Pos2::ZERO + from * pixels_per_point,
+                                Pos2::ZERO + to * pixels_per_point,
+                            ),
+                        }),
+                        ..template.clone()
+                    }
+                })
+                .collect(),
+        )
+    })
+    .flatten()
+    .unwrap_or_default()
+}
+
+pub fn layers_drawing(blits: LayerBlits) -> beui::native::Drawing {
+    beui::native::painted_drawing(LayersDrawing::new(blits))
 }
 
 pub fn region_placed(

@@ -518,17 +518,25 @@ rectangle in its parent's coordinates or attached to an edge of the bounds
 shrinking it to fit), paints it into a surface it configured itself, and
 commits its rectangle, painted and input (`floating`) rectangles and scrims in
 host coordinates with the frame that drew it; the host only clips it to the
-bounds. The host draws layers after every region, in the order they opened.
+bounds. The surface holds the layer from its top-left corner at the screen's
+raster divided by `to-host`'s scale, in pixels per host point (the window's
+own density for a region shown at its own size). The host draws layers after
+every region, in the order they opened across every region of the window:
+each one's scrims, then its `painted` rectangles from its surface; it draws
+nothing of a layer outside `painted`, and the report that opens a layer draws
+it in the same host frame.
 When a region moves, the host moves its layers rigidly by the difference
 between the `to-host` it shows the region at and the one the frame was laid
 out against; a pan of the region's camera does nothing to them, and the
 plugin repositions or closes them on its next layout. The host hit-tests
 layers before any region, and input that lands on one reaches its owning
 screen tagged with its id (`timed-input.layer`), in that screen's own
-coordinates. A press outside a chain of layers marked
+coordinates. Layers take input over their `floating`
+rectangles, the one opened last first. A press outside a chain of layers marked
 `dismiss-on-outside-press` (a layer and those hanging from it) closes the
 chain: the owner hears the layers in `input-batch.dismissed`, before the
-batch's events, and the press still reaches whatever it landed on. A layer
+batch's events, and the press still reaches whatever it landed on. A press on
+a menu closes only the submenus hanging from it. A layer
 marked `keyboard` gives its owner the keyboard while it is open, and one
 marked `blocks-owner` keeps presses on the owning region from its content.
 A layer's accessibility tree goes in its owner's description, in host

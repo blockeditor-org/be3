@@ -39,12 +39,14 @@ pub use instances::EditorView;
 pub use pieces::uncovered as uncovered_pieces;
 pub use presenter::Piece;
 pub use presenter::Pieces;
+pub use presenter::{Blit, LayerBlits};
 #[cfg(target_arch = "wasm32")]
 pub use presenter::shown as shown_blits;
 #[cfg(target_arch = "wasm32")]
 pub use runtime::place_screens;
 pub use runtime::{
-    RegionPlacement, RegionSlot, RegionView, back_region, drag_over_region, forward_region, frames,
+    RegionPlacement, RegionSlot, RegionView, back_region, dismiss_layers, drag_over_region,
+    forward_layer, forward_region, frames, layer_blits, layers_drawing,
     intercept_region, intercept_tap, mount_region, place_region, pressed_outside_region,
     region_damage, region_drawing, region_placed, region_published, region_view, take_block_drags,
     take_changed, take_focus_request, take_region_actions, unmount_region, unplace_region,
@@ -132,6 +134,64 @@ pub struct HostChild {
     pub rotation: f32,
     pub opacity: f32,
     pub dialog: Option<block_plugin_api::DialogFrame>,
+    pub in_layer: Option<block_plugin_api::LayerId>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct HostLayer {
+    pub id: block_plugin_api::LayerId,
+    pub parent: block_plugin_api::LayerParent,
+    pub opened: u64,
+    pub rect: Rect,
+    pub bounds: Rect,
+    pub painted: Vec<Rect>,
+    pub floating: Vec<Rect>,
+    pub scrims: Vec<(Rect, beui::color::Color32)>,
+    pub surface: u32,
+    pub pixels_per_point: f32,
+    pub dismiss_on_outside_press: bool,
+    pub keyboard: bool,
+    pub blocks_owner: bool,
+}
+
+impl HostLayer {
+    pub fn takes(&self, pos: beui::Pos2) -> bool {
+        self.floating.iter().any(|rect| rect.contains(pos))
+    }
+}
+
+pub fn dismissed_by_press(layers: &[HostLayer], pos: beui::Pos2) -> Vec<block_plugin_api::LayerId> {
+    let below = |root: block_plugin_api::LayerId| {
+        let mut chain = vec![root];
+        for layer in layers {
+            if let block_plugin_api::LayerParent::Layer(parent) = layer.parent
+                && chain.contains(&parent)
+                && !chain.contains(&layer.id)
+            {
+                chain.push(layer.id);
+            }
+        }
+        chain
+    };
+    let mut dismissed = Vec::new();
+    for layer in layers {
+        if !layer.dismiss_on_outside_press || dismissed.contains(&layer.id) {
+            continue;
+        }
+        let chain = below(layer.id);
+        let inside = layers
+            .iter()
+            .filter(|held| chain.contains(&held.id))
+            .any(|held| held.takes(pos));
+        if !inside {
+            for id in chain {
+                if !dismissed.contains(&id) {
+                    dismissed.push(id);
+                }
+            }
+        }
+    }
+    dismissed
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
