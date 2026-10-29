@@ -133,9 +133,7 @@ be-cli = { path = "../be-cli" }
 # Linux runs the app as a Wayland compositor, and --session runs it on the
 # displays and input devices themselves rather than in a window.
 [target.'cfg(target_os = "linux")'.dependencies]
-async-executor = "1"
-async-io = "2"
-async-lock = "3"
+block-app-services = { path = "../block-app-services" }
 be-dmabuf = { path = "../be-dmabuf" }
 be-wayland = { path = "../be-wayland" }
 be-remap-host = { path = "../remap/host" }
@@ -144,9 +142,6 @@ beui-platform-drm = { path = "../beui-platform-drm" }
 # program saves is taken back into the block.
 notify = "8"
 pollster = "0.4"
-# The PulseAudio protocol, which pipewire-pulse serves, in pure Rust: the volume
-# keys set the default sink's and source's volume and mute through it.
-pulseaudio = "0.3"
 zbus = { version = "5", default-features = false, features = ["async-io"] }
 
 # Windows's monitors and windows are captured onto the app's own Vulkan device.

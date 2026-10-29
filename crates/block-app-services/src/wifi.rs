@@ -11,24 +11,24 @@ use block_plugin_api::{WifiRequest, WifiStatus};
 const PASSPHRASE_BYTES: std::ops::RangeInclusive<usize> = 8..=63;
 const HEX_KEY_LENGTH: usize = 64;
 
-pub(crate) trait Backend {
+pub trait Backend {
     fn request(&self, request: WifiRequest);
 }
 
-pub(crate) struct Wifi {
+pub struct Wifi {
     backend: Rc<dyn Backend>,
     reports: Receiver<WifiStatus>,
     status: WifiStatus,
 }
 
 impl Wifi {
-    pub(crate) fn start() -> Self {
+    pub fn start() -> Self {
         let (sender, reports) = block_app_base::host::waking_channel();
         let backend = network_manager::NetworkManager::start(sender);
         Self::with(Rc::new(backend), reports)
     }
 
-    pub(crate) fn with(backend: Rc<dyn Backend>, reports: Receiver<WifiStatus>) -> Self {
+    pub fn with(backend: Rc<dyn Backend>, reports: Receiver<WifiStatus>) -> Self {
         Self {
             backend,
             reports,
@@ -36,13 +36,13 @@ impl Wifi {
         }
     }
 
-    pub(crate) fn request(&self, request: WifiRequest) {
+    pub fn request(&self, request: WifiRequest) {
         if let Some(request) = checked(request) {
             self.backend.request(request);
         }
     }
 
-    pub(crate) fn frame(&mut self) -> Option<WifiStatus> {
+    pub fn frame(&mut self) -> Option<WifiStatus> {
         let latest = self.reports.try_iter().last()?;
         (latest != self.status).then(|| {
             self.status = latest.clone();

@@ -13,9 +13,9 @@ use super::Backend;
 use super::model::{self, AccessPoint, Attempts, Outcome, Plan};
 use block_app_base::host::WakingSender;
 
-pub(crate) const SERVICE: &str = "org.freedesktop.NetworkManager";
-pub(crate) const PATH: &str = "/org/freedesktop/NetworkManager";
-pub(crate) const SETTINGS_PATH: &str = "/org/freedesktop/NetworkManager/Settings";
+pub const SERVICE: &str = "org.freedesktop.NetworkManager";
+pub const PATH: &str = "/org/freedesktop/NetworkManager";
+pub const SETTINGS_PATH: &str = "/org/freedesktop/NetworkManager/Settings";
 const MANAGER: &str = SERVICE;
 const DEVICE: &str = "org.freedesktop.NetworkManager.Device";
 const WIRELESS: &str = "org.freedesktop.NetworkManager.Device.Wireless";
@@ -30,12 +30,12 @@ const SECURITY_TYPE: &str = "802-11-wireless-security";
 const DEVICE_TYPE_WIFI: u32 = 2;
 const NO_OBJECT: &str = "/";
 
-pub(crate) struct NetworkManager {
+pub struct NetworkManager {
     requests: UnboundedSender<WifiRequest>,
 }
 
 impl NetworkManager {
-    pub(crate) fn start(reports: WakingSender<WifiStatus>) -> Self {
+    pub fn start(reports: WakingSender<WifiStatus>) -> Self {
         let (requests, requested) = unbounded_channel();
         crate::dbus::spawn(async move {
             let Some(connection) = crate::dbus::system().await else {
@@ -169,7 +169,7 @@ struct Watcher {
     unreadable: bool,
 }
 
-pub(crate) async fn run_on(
+pub async fn run_on(
     connection: Connection,
     mut requested: UnboundedReceiver<WifiRequest>,
     mut report: impl FnMut(WifiStatus) + Send + 'static,

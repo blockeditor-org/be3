@@ -42,7 +42,7 @@ impl Logind {
     pub(crate) fn connect() -> Self {
         let (requests, requested) = unbounded_channel();
         let (sender, events) = waking_channel();
-        crate::dbus::spawn(run(requested, sender.clone()));
+        block_app_services::dbus::spawn(run(requested, sender.clone()));
         Self {
             requests,
             sender,
@@ -83,7 +83,7 @@ enum Next {
 }
 
 async fn run(mut requested: UnboundedReceiver<Request>, events: WakingSender<LogindEvent>) {
-    let Some(connection) = crate::dbus::system().await else {
+    let Some(connection) = block_app_services::dbus::system().await else {
         return;
     };
     let manager = match Proxy::new(&connection, DESTINATION, PATH, MANAGER).await {

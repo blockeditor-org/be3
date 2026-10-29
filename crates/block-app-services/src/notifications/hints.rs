@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use beui::Image;
+use beui_types::Image;
 use zbus::zvariant::{OwnedValue, Value};
 
 use block_plugin_api::NotificationUrgency as Urgency;
@@ -8,16 +8,16 @@ use block_plugin_api::NotificationUrgency as Urgency;
 const MAX_IMAGE_SIDE: i32 = 1024;
 
 #[derive(Debug, Default, PartialEq)]
-pub(crate) struct Hints {
-    pub(crate) urgency: Urgency,
-    pub(crate) transient: bool,
-    pub(crate) resident: bool,
-    pub(crate) desktop_entry: Option<String>,
-    pub(crate) image: Option<Image>,
-    pub(crate) image_path: Option<String>,
+pub struct Hints {
+    pub urgency: Urgency,
+    pub transient: bool,
+    pub resident: bool,
+    pub desktop_entry: Option<String>,
+    pub image: Option<Image>,
+    pub image_path: Option<String>,
 }
 
-pub(crate) fn read(hints: &HashMap<String, OwnedValue>) -> Hints {
+pub fn read(hints: &HashMap<String, OwnedValue>) -> Hints {
     let get = |name: &str| hints.get(name).map(|value| unwrap(value));
     let text = |name: &str| match get(name) {
         Some(Value::Str(text)) if !text.is_empty() => Some(text.as_str().to_owned()),
@@ -55,7 +55,7 @@ fn unwrap<'a>(value: &'a Value<'a>) -> &'a Value<'a> {
     }
 }
 
-pub(crate) fn image_data(value: &Value<'_>) -> Option<Image> {
+pub fn image_data(value: &Value<'_>) -> Option<Image> {
     let Value::Structure(structure) = unwrap(value) else {
         return None;
     };

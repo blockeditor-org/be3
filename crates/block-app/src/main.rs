@@ -5,8 +5,6 @@ mod arguments;
 mod be;
 mod compositor;
 mod contacts;
-#[cfg(target_os = "linux")]
-mod dbus;
 mod debug;
 mod desktop_host;
 mod display;
@@ -19,11 +17,7 @@ mod invite_link;
 mod keys;
 mod link;
 mod local_settings;
-#[cfg(target_os = "linux")]
-mod media;
 mod members;
-#[cfg(target_os = "linux")]
-mod notifications;
 mod offline_choice;
 mod plugin_host;
 mod programs;
@@ -33,11 +27,7 @@ mod root_settings;
 mod session;
 mod shell_route;
 mod surfaces;
-#[cfg(target_os = "linux")]
-mod tray;
 mod ui;
-#[cfg(target_os = "linux")]
-mod wifi;
 
 use std::{
     collections::{HashMap, HashSet},
@@ -51,6 +41,8 @@ use std::{
 use std::path::Path;
 
 use accounts::{AccountError, Session};
+#[cfg(target_os = "linux")]
+use block_app_services::{media, notifications, tray, wifi};
 use block_app_base::{app_state, host, notices, panic_guard, performance, platform};
 use app_state::{AppStateStore, SavedAccount, ServerLocation};
 use be_block::{DisplaySettings, InputSettings, Root, WORKSPACE_EDITOR};

@@ -4,14 +4,14 @@ use std::process::{Child, Command, Stdio};
 
 use zbus::Connection;
 
-pub(crate) struct Bus {
+pub struct Bus {
     daemon: Child,
     dir: PathBuf,
     address: String,
 }
 
 impl Bus {
-    pub(crate) fn start() -> Self {
+    pub fn start() -> Self {
         let dir = std::env::temp_dir().join(format!("be3-bus-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).expect("a directory for the bus");
         let config = dir.join("bus.conf");
@@ -44,7 +44,7 @@ impl Bus {
         }
     }
 
-    pub(crate) async fn connect(&self) -> Connection {
+    pub async fn connect(&self) -> Connection {
         zbus::connection::Builder::address(self.address.as_str())
             .expect("the address parses")
             .build()

@@ -8,27 +8,27 @@ const KEY_MGMT_OWE: u32 = 0x800;
 const KEY_MGMT_OWE_TM: u32 = 0x1000;
 const KEY_MGMT_EAP_SUITE_B_192: u32 = 0x2000;
 
-pub(crate) const DISCONNECTED: u32 = 30;
-pub(crate) const PREPARE: u32 = 40;
-pub(crate) const SECONDARIES: u32 = 90;
-pub(crate) const ACTIVATED: u32 = 100;
-pub(crate) const FAILED: u32 = 120;
+pub const DISCONNECTED: u32 = 30;
+pub const PREPARE: u32 = 40;
+pub const SECONDARIES: u32 = 90;
+pub const ACTIVATED: u32 = 100;
+pub const FAILED: u32 = 120;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(crate) struct AccessPoint {
-    pub(crate) ssid: Vec<u8>,
-    pub(crate) strength: u8,
-    pub(crate) flags: u32,
-    pub(crate) wpa: u32,
-    pub(crate) rsn: u32,
+pub struct AccessPoint {
+    pub ssid: Vec<u8>,
+    pub strength: u8,
+    pub flags: u32,
+    pub wpa: u32,
+    pub rsn: u32,
 }
 
 impl AccessPoint {
-    pub(crate) fn name(&self) -> String {
+    pub fn name(&self) -> String {
         String::from_utf8_lossy(&self.ssid).into_owned()
     }
 
-    pub(crate) fn security(&self) -> WifiSecurity {
+    pub fn security(&self) -> WifiSecurity {
         let managed = self.wpa | self.rsn;
         if managed & (KEY_MGMT_802_1X | KEY_MGMT_EAP_SUITE_B_192) != 0 {
             return WifiSecurity::Unsupported;
@@ -45,7 +45,7 @@ impl AccessPoint {
         }
     }
 
-    pub(crate) fn key_management(&self) -> Option<&'static str> {
+    pub fn key_management(&self) -> Option<&'static str> {
         let managed = self.wpa | self.rsn;
         match self.security() {
             WifiSecurity::Password if managed & KEY_MGMT_PSK != 0 => Some("wpa-psk"),
@@ -56,7 +56,7 @@ impl AccessPoint {
     }
 }
 
-pub(crate) fn strongest(points: &[AccessPoint], name: &str) -> Option<usize> {
+pub fn strongest(points: &[AccessPoint], name: &str) -> Option<usize> {
     points
         .iter()
         .enumerate()
@@ -65,7 +65,7 @@ pub(crate) fn strongest(points: &[AccessPoint], name: &str) -> Option<usize> {
         .map(|(index, _)| index)
 }
 
-pub(crate) fn networks(points: &[AccessPoint], saved: &[Vec<u8>]) -> Vec<WifiNetwork> {
+pub fn networks(points: &[AccessPoint], saved: &[Vec<u8>]) -> Vec<WifiNetwork> {
     let mut listed: Vec<WifiNetwork> = Vec::new();
     for point in points.iter().filter(|point| !point.ssid.is_empty()) {
         let ssid = point.name();
@@ -91,7 +91,7 @@ pub(crate) fn networks(points: &[AccessPoint], saved: &[Vec<u8>]) -> Vec<WifiNet
     listed
 }
 
-pub(crate) fn link(state: u32, ssid: Option<String>) -> WifiLink {
+pub fn link(state: u32, ssid: Option<String>) -> WifiLink {
     match (state, ssid) {
         (ACTIVATED, Some(ssid)) => WifiLink::Connected(ssid),
         (PREPARE..=SECONDARIES, Some(ssid)) => WifiLink::Connecting(ssid),
@@ -100,7 +100,7 @@ pub(crate) fn link(state: u32, ssid: Option<String>) -> WifiLink {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum Plan {
+pub enum Plan {
     Activate {
         connection: usize,
         point: Option<usize>,
@@ -115,7 +115,7 @@ pub(crate) enum Plan {
     Refuse,
 }
 
-pub(crate) fn plan(
+pub fn plan(
     name: &str,
     password: Option<String>,
     points: &[AccessPoint],
@@ -170,40 +170,40 @@ pub(crate) fn plan(
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum Outcome {
+pub enum Outcome {
     Connected,
     Failed,
 }
 
 #[derive(Debug, Default)]
-pub(crate) struct Attempts {
+pub struct Attempts {
     trying: Option<String>,
     began: bool,
-    pub(crate) failed: Option<String>,
+    pub failed: Option<String>,
 }
 
 impl Attempts {
-    pub(crate) fn start(&mut self, ssid: String) {
+    pub fn start(&mut self, ssid: String) {
         self.trying = Some(ssid);
         self.began = false;
         self.failed = None;
     }
 
-    pub(crate) fn trying(&self) -> Option<&str> {
+    pub fn trying(&self) -> Option<&str> {
         self.trying.as_deref()
     }
 
-    pub(crate) fn refused(&mut self, ssid: String) {
+    pub fn refused(&mut self, ssid: String) {
         self.trying = None;
         self.failed = Some(ssid);
     }
 
-    pub(crate) fn cancel(&mut self) {
+    pub fn cancel(&mut self) {
         self.trying = None;
         self.failed = None;
     }
 
-    pub(crate) fn state(&mut self, state: u32, active: Option<&str>) -> Option<Outcome> {
+    pub fn state(&mut self, state: u32, active: Option<&str>) -> Option<Outcome> {
         let trying = self.trying.as_deref()?;
         match state {
             PREPARE..=SECONDARIES => {

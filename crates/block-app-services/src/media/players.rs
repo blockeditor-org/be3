@@ -18,12 +18,12 @@ const PROPERTIES: &str = "org.freedesktop.DBus.Properties";
 const BUS: &str = "org.freedesktop.DBus";
 const BUS_PATH: &str = "/org/freedesktop/DBus";
 
-pub(crate) struct Mpris {
+pub struct Mpris {
     requests: UnboundedSender<PlayerCommand>,
 }
 
 impl Mpris {
-    pub(crate) fn start() -> Self {
+    pub fn start() -> Self {
         let (requests, requested) = unbounded_channel();
         crate::dbus::spawn(run(requested));
         Self { requests }

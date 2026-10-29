@@ -7,16 +7,16 @@ use block_plugin_api::{
     NotificationSignal,
 };
 
-pub(crate) const MAX_PENDING: usize = 64;
+pub const MAX_PENDING: usize = 64;
 
 #[derive(Default)]
-pub(crate) struct Ids {
+pub struct Ids {
     last: u32,
     in_use: HashSet<u32>,
 }
 
 impl Ids {
-    pub(crate) fn assign(&mut self, replaces: u32) -> u32 {
+    pub fn assign(&mut self, replaces: u32) -> u32 {
         if replaces != 0 && self.in_use.contains(&replaces) {
             return replaces;
         }
@@ -29,7 +29,7 @@ impl Ids {
     }
 }
 
-pub(crate) struct Inbox {
+pub struct Inbox {
     ids: Arc<Mutex<Ids>>,
     pending: Vec<(u64, NotificationRequest)>,
     next: u64,
@@ -37,7 +37,7 @@ pub(crate) struct Inbox {
 }
 
 impl Inbox {
-    pub(crate) fn new(ids: Arc<Mutex<Ids>>) -> Self {
+    pub fn new(ids: Arc<Mutex<Ids>>) -> Self {
         Self {
             ids,
             pending: Vec::new(),
@@ -46,7 +46,7 @@ impl Inbox {
         }
     }
 
-    pub(crate) fn frame(
+    pub fn frame(
         &mut self,
         requests: &Receiver<NotificationRequest>,
         reports: Vec<NotificationReport>,
@@ -93,7 +93,7 @@ impl Inbox {
         (changed, signals)
     }
 
-    pub(crate) fn published(&self) -> NotificationInbox {
+    pub fn published(&self) -> NotificationInbox {
         NotificationInbox {
             requests: self.pending.clone(),
         }

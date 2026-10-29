@@ -10,7 +10,7 @@ use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 
 use inbox::{Ids, Inbox};
 
-pub(crate) struct Notifications {
+pub struct Notifications {
     requests: Receiver<NotificationRequest>,
     signals: UnboundedSender<NotificationSignal>,
     inbox: Inbox,
@@ -18,7 +18,7 @@ pub(crate) struct Notifications {
 }
 
 impl Notifications {
-    pub(crate) fn start() -> Self {
+    pub fn start() -> Self {
         let (sender, requests) = block_app_base::host::waking_channel();
         let (signals, heard) = unbounded_channel();
         let ids = Arc::new(Mutex::new(Ids::default()));
@@ -31,7 +31,7 @@ impl Notifications {
         }
     }
 
-    pub(crate) fn frame(&mut self) {
+    pub fn frame(&mut self) {
         let reports =
             block_app_base::watches::take_calls(block_plugin_api::requested::notification_report);
         let (changed, signals) = self.inbox.frame(&self.requests, reports);

@@ -10,7 +10,7 @@ use std::sync::mpsc::Receiver;
 use block_plugin_api::{AudioOutput, MediaLevel, MediaLevels, MediaRequest, PlayerCommand};
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) enum AudioRequest {
+pub enum AudioRequest {
     Step(f32),
     Set(f32),
     ToggleMute,
@@ -19,47 +19,47 @@ pub(crate) enum AudioRequest {
     ToggleMicMute,
 }
 
-pub(crate) trait Audio {
+pub trait Audio {
     fn request(&self, request: AudioRequest);
 }
 
-pub(crate) trait Backlight {
+pub trait Backlight {
     fn step(&self, by: f32);
 }
 
-pub(crate) trait Players {
+pub trait Players {
     fn request(&self, command: PlayerCommand);
 }
 
 #[derive(Clone)]
-pub(crate) struct Backends {
-    pub(crate) audio: Rc<dyn Audio>,
-    pub(crate) backlight: Rc<dyn Backlight>,
-    pub(crate) players: Rc<dyn Players>,
+pub struct Backends {
+    pub audio: Rc<dyn Audio>,
+    pub backlight: Rc<dyn Backlight>,
+    pub players: Rc<dyn Players>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct AudioState {
-    pub(crate) output: Option<MediaLevel>,
-    pub(crate) input: Option<MediaLevel>,
-    pub(crate) outputs: Vec<AudioOutput>,
-    pub(crate) default_output: Option<String>,
+pub struct AudioState {
+    pub output: Option<MediaLevel>,
+    pub input: Option<MediaLevel>,
+    pub outputs: Vec<AudioOutput>,
+    pub default_output: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) enum MediaEvent {
+pub enum MediaEvent {
     Audio(AudioState),
     Brightness(f32),
 }
 
-pub(crate) struct Media {
+pub struct Media {
     backends: Backends,
     events: Receiver<MediaEvent>,
     levels: MediaLevels,
 }
 
 impl Media {
-    pub(crate) fn start() -> Self {
+    pub fn start() -> Self {
         let (sender, events) = block_app_base::host::waking_channel();
         let backends = Backends {
             audio: Rc::new(audio::PulseAudio::start(sender.clone())),
@@ -69,7 +69,7 @@ impl Media {
         Self::with(backends, events)
     }
 
-    pub(crate) fn with(backends: Backends, events: Receiver<MediaEvent>) -> Self {
+    pub fn with(backends: Backends, events: Receiver<MediaEvent>) -> Self {
         Self {
             backends,
             events,
@@ -77,7 +77,7 @@ impl Media {
         }
     }
 
-    pub(crate) fn request(&self, request: MediaRequest) {
+    pub fn request(&self, request: MediaRequest) {
         let backends = &self.backends;
         match request {
             MediaRequest::StepVolume(by) => {
@@ -107,7 +107,7 @@ impl Media {
         }
     }
 
-    pub(crate) fn frame(&mut self) -> Option<MediaLevels> {
+    pub fn frame(&mut self) -> Option<MediaLevels> {
         let before = self.levels.clone();
         for event in self.events.try_iter() {
             match event {

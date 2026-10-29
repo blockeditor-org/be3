@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use be_wayland::programs::{DesktopEntry, Environment, IconThemes, load_icon};
-use beui::Image;
+use beui_types::Image;
 use block_plugin_api::{
     HostImage, HostNotificationAction, IncomingNotification, NotificationRequest,
     NotificationSignal,
@@ -249,7 +249,7 @@ impl Server {
     ) -> zbus::Result<()>;
 }
 
-pub(crate) async fn run(
+pub async fn run(
     requests: WakingSender<NotificationRequest>,
     mut signals: UnboundedReceiver<NotificationSignal>,
     ids: Arc<Mutex<Ids>>,

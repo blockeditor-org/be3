@@ -1819,9 +1819,6 @@ dependencies = [
 name = "block-app"
 version = "0.1.0"
 dependencies = [
- "async-executor",
- "async-io",
- "async-lock",
  "be-block",
  "be-cli",
  "be-client",
@@ -1845,6 +1842,7 @@ dependencies = [
  "beui-platform-drm",
  "block-accounts-ui",
  "block-app-base",
+ "block-app-services",
  "block-editor-plugin",
  "block-guest-abi",
  "block-guest-host",
@@ -1876,7 +1874,6 @@ dependencies = [
  "paint-snapshot",
  "pollster",
  "presentation-types",
- "pulseaudio",
  "reactive",
  "rodio",
  "rusqlite",
@@ -1921,6 +1918,26 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+]
+
+[[package]]
+name = "block-app-services"
+version = "0.1.0"
+dependencies = [
+ "async-executor",
+ "async-io",
+ "async-lock",
+ "be-wayland",
+ "beui-types",
+ "block-app-base",
+ "block-plugin-api",
+ "futures-util",
+ "image",
+ "pulseaudio",
+ "serde",
+ "tokio",
+ "uuid",
+ "zbus",
 ]
 
 [[package]]

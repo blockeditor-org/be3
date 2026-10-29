@@ -22,12 +22,12 @@ use block_app_base::host::WakingSender;
 
 const LONGEST_FRAME: usize = 16 << 20;
 
-pub(crate) struct PulseAudio {
+pub struct PulseAudio {
     requests: UnboundedSender<AudioRequest>,
 }
 
 impl PulseAudio {
-    pub(crate) fn start(events: WakingSender<MediaEvent>) -> Self {
+    pub fn start(events: WakingSender<MediaEvent>) -> Self {
         let (requests, requested) = unbounded_channel();
         crate::dbus::spawn(run(requested, events));
         Self { requests }

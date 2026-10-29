@@ -1,5 +1,5 @@
 #[cfg(test)]
-pub(crate) mod test_bus;
+pub mod test_bus;
 
 use std::future::{Future, pending};
 use std::sync::Once;
@@ -13,7 +13,7 @@ static STARTED: Once = Once::new();
 static SYSTEM: OnceCell<Option<Connection>> = OnceCell::new();
 static SESSION: OnceCell<Option<Connection>> = OnceCell::new();
 
-pub(crate) fn spawn(task: impl Future<Output = ()> + Send + 'static) {
+pub fn spawn(task: impl Future<Output = ()> + Send + 'static) {
     STARTED.call_once(|| {
         let started = std::thread::Builder::new()
             .name("dbus".to_owned())
@@ -31,14 +31,14 @@ pub(crate) fn spawn(task: impl Future<Output = ()> + Send + 'static) {
         .detach();
 }
 
-pub(crate) async fn system() -> Option<Connection> {
+pub async fn system() -> Option<Connection> {
     SYSTEM
         .get_or_init(|| connect("system", Connection::system()))
         .await
         .clone()
 }
 
-pub(crate) async fn session() -> Option<Connection> {
+pub async fn session() -> Option<Connection> {
     SESSION
         .get_or_init(|| connect("session", Connection::session()))
         .await

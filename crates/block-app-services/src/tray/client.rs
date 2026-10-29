@@ -20,7 +20,7 @@ const PROPERTIES: &str = "org.freedesktop.DBus.Properties";
 const BUS: &str = "org.freedesktop.DBus";
 const BUS_PATH: &str = "/org/freedesktop/DBus";
 
-pub(crate) enum Event {
+pub enum Event {
     Registered {
         service: String,
         sender: Option<String>,
@@ -62,7 +62,7 @@ struct Client {
     serving: Option<Registered>,
 }
 
-pub(crate) async fn run(
+pub async fn run(
     sender: UnboundedSender<Event>,
     events: UnboundedReceiver<Event>,
     publish: impl FnMut(Vec<HostTrayItem>) + Send + 'static,
@@ -73,7 +73,7 @@ pub(crate) async fn run(
     run_on(connection, sender, events, publish).await;
 }
 
-pub(crate) async fn run_on(
+pub async fn run_on(
     connection: Connection,
     sender: UnboundedSender<Event>,
     mut events: UnboundedReceiver<Event>,

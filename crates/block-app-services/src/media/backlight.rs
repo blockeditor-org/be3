@@ -11,12 +11,12 @@ const DESTINATION: &str = "org.freedesktop.login1";
 const SESSION: &str = "/org/freedesktop/login1/session/auto";
 const INTERFACE: &str = "org.freedesktop.login1.Session";
 
-pub(crate) struct LogindBacklight {
+pub struct LogindBacklight {
     steps: UnboundedSender<f32>,
 }
 
 impl LogindBacklight {
-    pub(crate) fn start(events: WakingSender<MediaEvent>) -> Self {
+    pub fn start(events: WakingSender<MediaEvent>) -> Self {
         let (steps, stepped) = unbounded_channel();
         crate::dbus::spawn(run(stepped, events));
         Self { steps }
