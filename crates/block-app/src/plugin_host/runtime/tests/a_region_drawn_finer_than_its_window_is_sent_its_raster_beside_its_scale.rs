@@ -67,7 +67,7 @@ fn a_region_drawn_finer_than_its_window_is_sent_its_raster_beside_its_scale() {
             REGION,
             Uuid::nil(),
             role,
-            &Arc::new(crate::editors::PluginCatalog::default()),
+            &Arc::new(crate::plugin_host::PluginCatalog::default()),
         )
     });
     let rect = Rect::from_min_size(pos2(20.0, 30.0), vec2(300.0, 200.0));

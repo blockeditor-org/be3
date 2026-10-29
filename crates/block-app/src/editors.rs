@@ -7,6 +7,7 @@ use block_plugin_api::{Edits, TemplateCategory};
 use block_plugin_manifest::{EditorManifest, PluginManifest, ShellRequest};
 use uuid::Uuid;
 
+use crate::plugin_host::PluginCatalog;
 use crate::surfaces::HostedRegion;
 
 pub(crate) use self::plugin::PluginEditor;
@@ -14,33 +15,6 @@ pub(crate) use self::plugin::PluginEditor;
 pub struct FocusReport {
     pub block: Option<(Uuid, Uuid)>,
     pub via: Vec<Uuid>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct BlockOpen {
-    pub id: Uuid,
-    pub block_type: Uuid,
-    pub via: Option<Uuid>,
-    pub editor: Option<Uuid>,
-}
-
-pub enum EditorAction {
-    OpenBlock(BlockOpen),
-    Command {
-        id: Uuid,
-        command: block_plugin_api::BlockCommand,
-    },
-    Shell {
-        id: Uuid,
-        command: block_plugin_api::ShellCommand,
-    },
-    SimulateAccess {
-        id: Uuid,
-        access: block_plugin_api::AccessLevel,
-    },
-    AppMenu {
-        at: Option<beui::Rect>,
-    },
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -160,17 +134,11 @@ impl RegisteredEditor {
     }
 }
 
-#[derive(Clone, Debug, Default)]
-pub(crate) struct PluginCatalog {
-    pub(crate) catalog: block_plugin_api::Catalog,
-    pub(crate) debug_templates: Vec<block_plugin_api::DebugTemplate>,
-}
-
 pub struct EditorRegistry {
     editors: Vec<RegisteredEditor>,
     templates: Vec<TemplateEntry>,
     types: HashMap<Uuid, block_plugin_api::BlockTypeDescriptor>,
-    plugin_block_types: Arc<crate::editors::PluginCatalog>,
+    plugin_block_types: Arc<PluginCatalog>,
 }
 
 impl EditorRegistry {
@@ -237,7 +205,7 @@ impl EditorRegistry {
         registry
     }
 
-    pub(super) fn plugin_block_types(&self) -> &Arc<crate::editors::PluginCatalog> {
+    pub(super) fn plugin_block_types(&self) -> &Arc<PluginCatalog> {
         &self.plugin_block_types
     }
 

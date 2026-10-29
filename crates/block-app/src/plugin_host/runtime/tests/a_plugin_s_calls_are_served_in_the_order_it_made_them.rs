@@ -34,7 +34,7 @@ fn opened(runtime: &mut Runtime, guest: &mut Connection) -> OpId {
                 view_block: None,
             },
         ),
-        &Arc::new(crate::editors::PluginCatalog::default()),
+        &Arc::new(crate::plugin_host::PluginCatalog::default()),
         Some(FrameSpec::default()),
         size,
         Rect::from_min_size(Pos2::ZERO, size),

@@ -628,7 +628,7 @@ impl Runtime {
         let _ = block_app_base::panic_guard::contain(|| self.backend.shutdown());
         previews::forget(&self.plugin.identity.id);
         CRASHED.with(|crashed| crashed.borrow_mut().push(self.plugin.identity.id.clone()));
-        crate::compositor::forget_windows(&self.plugin.identity.id);
+        super::forget_windows(&self.plugin.identity.id);
         mark(&self.plugin.identity.id);
         host::request_repaint();
     }
@@ -999,7 +999,7 @@ impl Runtime {
             docks,
         } = commit;
         super::docks::heard(&self.plugin.identity.id, docks);
-        crate::compositor::request_windows(&self.plugin.identity.id, window_requests);
+        super::request_windows(&self.plugin.identity.id, window_requests);
         self.pacing.animating = animating;
         self.await_next_frame(repaint_after_micros);
         if let Some(presented) = presented {
@@ -1616,7 +1616,7 @@ pub(crate) fn show_panel(plugin_id: &str, instance: EditorInstanceId, panel: Hos
 pub(crate) fn show_block(
     plugin: &PluginManifest,
     instance: EditorInstanceId,
-    open: crate::editors::BlockOpen,
+    open: crate::plugin_host::BlockOpen,
 ) {
     HOST.with(|host| {
         let mut host = host.borrow_mut();
@@ -1952,7 +1952,7 @@ pub(crate) fn take_changed() -> Vec<String> {
 
 pub(crate) struct RegionSlot<'a> {
     pub(crate) plugin: &'a PluginManifest,
-    pub(crate) block_types: &'a Arc<crate::editors::PluginCatalog>,
+    pub(crate) block_types: &'a Arc<crate::plugin_host::PluginCatalog>,
     pub(crate) client_id: Uuid,
     pub(crate) role: InstanceRole,
     pub(crate) instance: EditorInstanceId,
@@ -2553,8 +2553,8 @@ pub(crate) fn take_focus_request(
 pub(crate) fn take_region_actions(
     plugin_id: &str,
     instance: EditorInstanceId,
-) -> Vec<crate::editors::EditorAction> {
-    use crate::editors::EditorAction;
+) -> Vec<crate::plugin_host::EditorAction> {
+    use crate::plugin_host::EditorAction;
     with(plugin_id, |runtime| {
         let mut actions = Vec::new();
         while let Some(open) = runtime.instances.take_open(instance) {

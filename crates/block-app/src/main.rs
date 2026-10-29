@@ -48,8 +48,9 @@ use block_plugin_api::{
     AccessLevel, ArtifactAction, BlockCommand, BlockLocation, HostPanel, ShellDialog,
 };
 use block_plugin_manifest::ShellRequest;
+use plugin_host::{BlockOpen, EditorAction};
 use editors::{
-    ArtifactSession, ArtifactStatus, BlockOpen, EditorAction, EditorRegistry, PluginEditor,
+    ArtifactSession, ArtifactStatus, EditorRegistry, PluginEditor,
     SidebarDragSource, plugin::InstanceSource,
 };
 use invite_link::InviteLink;

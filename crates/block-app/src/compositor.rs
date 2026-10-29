@@ -10,9 +10,9 @@ use std::{
 
 use beui::reactive::*;
 
-use crate::editors::EditorAction;
+use crate::plugin_host::EditorAction;
 
-pub(crate) use desktop::{DesktopPlace, forget as forget_windows, request as request_windows};
+pub(crate) use desktop::DesktopPlace;
 pub(crate) use editors::{
     ConflictSurface, OwnedEditors, PresentingSurface, ShellDisplay, ShellSurface,
 };

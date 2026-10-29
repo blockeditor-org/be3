@@ -482,7 +482,7 @@ impl PluginEditor {
         )
     }
 
-    pub(crate) fn show_block(&self, open: super::BlockOpen) {
+    pub(crate) fn show_block(&self, open: crate::plugin_host::BlockOpen) {
         let Some(plugin) = self.plugin() else {
             return;
         };

@@ -20,6 +20,7 @@ mod instances;
 mod pieces;
 mod presenter;
 mod previews;
+mod programs;
 mod published;
 mod runtime;
 mod sent;
@@ -30,6 +31,7 @@ mod surface;
 mod wasm;
 #[cfg(target_arch = "wasm32")]
 mod web;
+mod windows;
 mod wire;
 
 pub(crate) use description::describe;
@@ -38,6 +40,10 @@ pub(crate) use instances::EditorView;
 pub(crate) use pieces::uncovered as uncovered_pieces;
 pub(crate) use presenter::Piece;
 pub(crate) use presenter::Pieces;
+pub(crate) use programs::{program_editors, set_program_editors};
+pub(crate) use windows::{
+    forget_windows, is_overlay, request_windows, serve_overlays, take_window_requests,
+};
 #[cfg(target_arch = "wasm32")]
 pub(crate) use presenter::shown as shown_blits;
 #[cfg(target_arch = "wasm32")]
@@ -77,6 +83,39 @@ pub(crate) fn exiting() {
 }
 
 pub(crate) const MAX_LIVE_CHILDREN: usize = 16;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BlockOpen {
+    pub id: Uuid,
+    pub block_type: Uuid,
+    pub via: Option<Uuid>,
+    pub editor: Option<Uuid>,
+}
+
+pub enum EditorAction {
+    OpenBlock(BlockOpen),
+    Command {
+        id: Uuid,
+        command: block_plugin_api::BlockCommand,
+    },
+    Shell {
+        id: Uuid,
+        command: block_plugin_api::ShellCommand,
+    },
+    SimulateAccess {
+        id: Uuid,
+        access: block_plugin_api::AccessLevel,
+    },
+    AppMenu {
+        at: Option<Rect>,
+    },
+}
+
+#[derive(Clone, Debug, Default)]
+pub(crate) struct PluginCatalog {
+    pub(crate) catalog: block_plugin_api::Catalog,
+    pub(crate) debug_templates: Vec<block_plugin_api::DebugTemplate>,
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct HostChild {
@@ -286,7 +325,7 @@ pub(crate) fn preview_scale(size: Vec2, scale_factor: f32) -> f32 {
 
 pub(crate) struct CreationSlot<'a> {
     pub(crate) plugin: &'a PluginManifest,
-    pub(crate) block_types: &'a Arc<crate::editors::PluginCatalog>,
+    pub(crate) block_types: &'a Arc<crate::plugin_host::PluginCatalog>,
     pub(crate) client_id: Uuid,
     pub(crate) instance: EditorInstanceId,
     pub(crate) role: InstanceRole,
@@ -324,7 +363,7 @@ impl InstanceRole {
 
 pub(crate) struct ArtifactSlot<'a> {
     pub(crate) plugin: &'a PluginManifest,
-    pub(crate) block_types: &'a Arc<crate::editors::PluginCatalog>,
+    pub(crate) block_types: &'a Arc<crate::plugin_host::PluginCatalog>,
     pub(crate) client_id: Uuid,
     pub(crate) instance: EditorInstanceId,
     pub(crate) editor: Uuid,

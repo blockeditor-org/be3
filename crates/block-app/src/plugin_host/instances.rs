@@ -56,7 +56,7 @@ pub(super) struct Instances {
     connection: Option<Connection>,
     next_screen: u64,
     announced: HashSet<ScreenId>,
-    block_types: Option<Arc<crate::editors::PluginCatalog>>,
+    block_types: Option<Arc<crate::plugin_host::PluginCatalog>>,
     sent_block_types: Option<(u64, u64)>,
     network: Vec<String>,
     plugin_id: String,
@@ -203,7 +203,7 @@ impl ContentLink {
     }
 }
 
-pub(super) type OpenRequest = crate::editors::BlockOpen;
+pub(super) type OpenRequest = crate::plugin_host::BlockOpen;
 
 #[derive(Clone, Default, PartialEq)]
 pub(crate) struct Focus {
@@ -791,7 +791,7 @@ impl Instances {
         region: EditorRegion,
         client_id: Uuid,
         role: InstanceRole,
-        block_types: &Arc<crate::editors::PluginCatalog>,
+        block_types: &Arc<crate::plugin_host::PluginCatalog>,
         frame: Option<FrameSpec>,
         size: Vec2,
         visible: Rect,
@@ -860,7 +860,7 @@ impl Instances {
         region: EditorRegion,
         client_id: Uuid,
         role: InstanceRole,
-        block_types: &Arc<crate::editors::PluginCatalog>,
+        block_types: &Arc<crate::plugin_host::PluginCatalog>,
     ) {
         self.report(
             instance,
@@ -1318,7 +1318,7 @@ impl Instances {
         &mut self,
         instance: EditorInstanceId,
         client_id: Uuid,
-        block_types: &Arc<crate::editors::PluginCatalog>,
+        block_types: &Arc<crate::plugin_host::PluginCatalog>,
         role: InstanceRole,
     ) -> bool {
         self.connect(client_id);
@@ -1335,7 +1335,7 @@ impl Instances {
         &mut self,
         instance: EditorInstanceId,
         client_id: Uuid,
-        block_types: &Arc<crate::editors::PluginCatalog>,
+        block_types: &Arc<crate::plugin_host::PluginCatalog>,
         editor: Uuid,
         block: EditorBlock,
         source: Uuid,
@@ -1453,7 +1453,7 @@ impl Instances {
         let mut opened = Vec::new();
         let mut screens = Vec::new();
         self.relaying.clear();
-        let (programs, program_editors) = crate::programs::editors();
+        let (programs, program_editors) = super::program_editors();
         let sent = (be_types_host::plain_forms_revision(), programs);
         if self.sent_block_types != Some(sent)
             && let Some(block_types) = &self.block_types

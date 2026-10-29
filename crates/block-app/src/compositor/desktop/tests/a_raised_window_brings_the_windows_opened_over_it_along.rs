@@ -33,7 +33,7 @@ fn order() -> Vec<u64> {
 fn a_raised_window_brings_the_windows_opened_over_it_along() {
     let _root = beui::reactive::RootScope::new();
     install();
-    request(
+    crate::plugin_host::request_windows(
         PLUGIN,
         vec![
             open(1, EditorRegion::Frame),
@@ -44,7 +44,7 @@ fn a_raised_window_brings_the_windows_opened_over_it_along() {
     apply();
     assert_eq!(order(), [1, 2, 3]);
 
-    request(PLUGIN, vec![WindowRequest::Raise(1)]);
+    crate::plugin_host::request_windows(PLUGIN, vec![WindowRequest::Raise(1)]);
     apply();
     assert_eq!(
         order(),
@@ -52,7 +52,7 @@ fn a_raised_window_brings_the_windows_opened_over_it_along() {
         "the dialog window 2 opened over window 1 stays in front of it"
     );
 
-    request(PLUGIN, vec![WindowRequest::Raise(3)]);
+    crate::plugin_host::request_windows(PLUGIN, vec![WindowRequest::Raise(3)]);
     apply();
     assert_eq!(order(), [1, 2, 3]);
 }

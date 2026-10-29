@@ -5,7 +5,6 @@ mod watch;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
 use std::sync::mpsc::Receiver;
 
 use block_plugin_api::{EditorDescriptor, Edits, HostWindowId, ProgramAction, ProgramsWatch};
@@ -29,26 +28,6 @@ pub(crate) fn editor_id(program: &str) -> Uuid {
 
 pub(crate) fn is_program(editor: Uuid) -> bool {
     editor.as_u64_pair().0 == PROGRAM_EDITORS
-}
-
-static EDITORS: Mutex<(u64, Vec<EditorDescriptor>)> = Mutex::new((0, Vec::new()));
-
-pub(crate) fn editors() -> (u64, Vec<EditorDescriptor>) {
-    EDITORS
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .clone()
-}
-
-fn set_editors(listed: Vec<EditorDescriptor>) {
-    let mut held = EDITORS
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    if held.1 != listed {
-        held.0 += 1;
-        held.1 = listed;
-        block_app_base::host::wake();
-    }
 }
 
 fn descriptors(openers: &[desktop_host::Opener]) -> Vec<EditorDescriptor> {
@@ -291,7 +270,7 @@ impl Programs {
                     })
                     .collect();
             });
-            set_editors(descriptors(&openers));
+            crate::plugin_host::set_program_editors(descriptors(&openers));
             block_app_base::host::changed();
         }
         self.step_sessions();

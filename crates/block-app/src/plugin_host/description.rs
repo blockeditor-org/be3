@@ -69,7 +69,7 @@ pub(crate) fn describe(context: &beui::native::Context) {
                 .collect();
             let overlay = match region {
                 EditorRegion::Window(window) => {
-                    crate::compositor::desktop::is_overlay(&plugin, instance, window)
+                    super::is_overlay(&plugin, instance, window)
                 }
                 _ => false,
             };
