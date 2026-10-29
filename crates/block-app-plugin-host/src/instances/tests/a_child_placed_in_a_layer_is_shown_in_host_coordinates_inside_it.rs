@@ -27,7 +27,10 @@ fn a_child_placed_in_a_layer_is_shown_in_host_coordinates_inside_it() {
     );
     let shown = &children[0];
     assert_eq!(shown.in_layer, Some(LayerId(1)));
-    assert_eq!(shown.rect, picker, "its rect is already in host coordinates");
+    assert_eq!(
+        shown.rect, picker,
+        "its rect is already in host coordinates"
+    );
     assert_eq!(
         shown.clip,
         picker.intersect(card),

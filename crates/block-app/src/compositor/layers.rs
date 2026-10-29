@@ -285,6 +285,7 @@ pub(crate) fn PluginLayers() -> NodeId {
     });
     let blits: LayerBlits = Rc::new(RefCell::new(Vec::new()));
     let held: Rc<RefCell<Option<beui::native::Drawing>>> = Rc::new(RefCell::new(None));
+    let latest: Rc<RefCell<Option<beui::native::Drawing>>> = Rc::new(RefCell::new(None));
     let pixels = create_memo(move || {
         let layers = shown.get();
         let mut drawn = Vec::new();
@@ -307,6 +308,9 @@ pub(crate) fn PluginLayers() -> NodeId {
         }
         drawn.sort_by_key(|(opened, _)| *opened);
         let drawn: Vec<_> = drawn.into_iter().flat_map(|(_, blits)| blits).collect();
+        if drawn.is_empty() && blits.borrow().is_empty() {
+            return latest.borrow().clone();
+        }
         let damage = blits
             .borrow()
             .iter()
@@ -319,6 +323,7 @@ pub(crate) fn PluginLayers() -> NodeId {
             .borrow_mut()
             .get_or_insert_with(|| block_app_plugin_host::layers_drawing(Rc::clone(&blits)))
             .redrawn(damage);
+        *latest.borrow_mut() = Some(drawing.clone());
         Some(drawing)
     });
     let pressing: Rc<Cell<Option<Target>>> = Rc::new(Cell::new(None));
@@ -420,7 +425,9 @@ fn LayerChildren(keys: Memo<Vec<(u64, ChildId)>>) -> NodeId {
                         on_cleanup(move || scope.dispose());
                         Some(built)
                     })
-                    .unwrap_or_else(|| view! { <Frame /> });
+                    .unwrap_or_else(|| view! {
+                        <Frame />
+                    });
                 let x = create_memo(move || clip.get().min.x);
                 let y = create_memo(move || clip.get().min.y);
                 let width = create_memo(move || clip.get().width());

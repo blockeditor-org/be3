@@ -31,7 +31,7 @@ fn placement(rect: Rect, clip: Rect) -> RegionPlacement {
         raster: 1.0,
         windows: false,
         placement: None,
-                layer_bounds: None,
+        layer_bounds: None,
     }
 }
 

@@ -3,10 +3,10 @@ use beui::{ImeArea, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
     AccessLevel, ArtifactDescription, AudioCommand, BlockCommand, BlockPick, ChildContent, ChildId,
     ChildMode, ChildPlacement, ChildPlacements, ChildStatus, DialogStatus, EditorInstanceId,
-    EditorRegion, FrameReport, FrameSpec, LayerId, LayerSpace, MenuEntry, Occluder, OpenArtifact, OpenBlock,
-    OpenCreation, OpenPicker, Opening, PerformanceMeasurement, RegionSize, ScreenId, ScreenLayout,
-    ScreenRequest, ScreenWindow, ShellCommand, Size, Stopped, ViewChange, ViewportMetrics,
-    WebViewEvent, WebViewId,
+    EditorRegion, FrameReport, FrameSpec, LayerId, LayerSpace, MenuEntry, Occluder, OpenArtifact,
+    OpenBlock, OpenCreation, OpenPicker, Opening, PerformanceMeasurement, RegionSize, ScreenId,
+    ScreenLayout, ScreenRequest, ScreenWindow, ShellCommand, Size, Stopped, ViewChange,
+    ViewportMetrics, WebViewEvent, WebViewId,
 };
 use block_plugin_api::{
     DescribedAction, WindowRequests,
@@ -1262,7 +1262,11 @@ impl Instances {
         (messages, revoked)
     }
 
-    pub(super) fn layers(&self, instance: EditorInstanceId, region: EditorRegion) -> Vec<HostLayer> {
+    pub(super) fn layers(
+        &self,
+        instance: EditorInstanceId,
+        region: EditorRegion,
+    ) -> Vec<HostLayer> {
         self.entries
             .get(&instance)
             .and_then(|entry| entry.screens.get(&region))
@@ -1299,7 +1303,12 @@ impl Instances {
         let events = input
             .events
             .iter()
-            .filter(|event| matches!(event, beui::Forwarded::Pointer { .. } | beui::Forwarded::Left))
+            .filter(|event| {
+                matches!(
+                    event,
+                    beui::Forwarded::Pointer { .. } | beui::Forwarded::Left
+                )
+            })
             .cloned()
             .collect();
         let input = beui::ForwardedInput {
@@ -1319,7 +1328,14 @@ impl Instances {
         let id = screen.request.screen;
         screen
             .input
-            .forward(&input, id, zoom, every_sample, &|_, _| beui::Aim::Own, &|_| None)
+            .forward(
+                &input,
+                id,
+                zoom,
+                every_sample,
+                &|_, _| beui::Aim::Own,
+                &|_| None,
+            )
             .into_iter()
             .map(|call| match call {
                 PluginCall::Input(mut batch) => {
@@ -1360,12 +1376,14 @@ impl Instances {
         if dismissed.is_empty() {
             return Vec::new();
         }
-        vec![Outbound::from(PluginCall::Input(block_plugin_api::InputBatch {
-            screen: screen.request.screen,
-            every_sample: false,
-            events: Vec::new(),
-            dismissed,
-        }))]
+        vec![Outbound::from(PluginCall::Input(
+            block_plugin_api::InputBatch {
+                screen: screen.request.screen,
+                every_sample: false,
+                events: Vec::new(),
+                dismissed,
+            },
+        ))]
     }
 
     pub(super) fn hold(&mut self, instance: EditorInstanceId, region: EditorRegion) {
@@ -2300,9 +2318,10 @@ impl Instances {
             };
             if layer.is_none()
                 && matches!(
-                mode,
-                ChildMode::Active | ChildMode::Live | ChildMode::InPlace
-            ) {
+                    mode,
+                    ChildMode::Active | ChildMode::Live | ChildMode::InPlace
+                )
+            {
                 let interactive = child_rect.intersect(child_clip);
                 if interactive.is_positive() {
                     holes.holes.push(Hole {

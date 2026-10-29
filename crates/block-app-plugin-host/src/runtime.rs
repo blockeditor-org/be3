@@ -10,9 +10,9 @@ use beui::native::EmbedPlacement;
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
     ArtifactDescription, BlockPick, ChildPlacements, ChildPreview, EditorInstanceId, EditorRegion,
-    FrameCommit, FrameSpec, HostPanel, HostTransform, LayerId, LayerSpace, Opening, PresentedFrame, PreviewImage, RegionSize,
-    ScreenDamage, ScreenId, ScreenLayout, ScreenPlacement, ScreenRequest, ScreenWindow,
-    SurfaceFormat, SurfaceSpec, ViewChange,
+    FrameCommit, FrameSpec, HostPanel, HostTransform, LayerId, LayerSpace, Opening, PresentedFrame,
+    PreviewImage, RegionSize, ScreenDamage, ScreenId, ScreenLayout, ScreenPlacement, ScreenRequest,
+    ScreenWindow, SurfaceFormat, SurfaceSpec, ViewChange,
 };
 use block_plugin_manifest::PluginManifest;
 use uuid::Uuid;
@@ -27,8 +27,8 @@ use super::{
     input::{BlockDrag, BlockDragEvent},
     instances::{EditorView, Focus, Instances, Placement},
     presenter::{
-        self, Blit, LayerBlits, LayerSource, LayersDrawing, Piece, PresenterState,
-        PresenterStatus, Quad, RegionDrawing, Shared,
+        self, Blit, LayerBlits, LayerSource, LayersDrawing, Piece, PresenterState, PresenterStatus,
+        Quad, RegionDrawing, Shared,
     },
     preview_scale, previews,
     session::{Session, SessionFailure, SessionState},

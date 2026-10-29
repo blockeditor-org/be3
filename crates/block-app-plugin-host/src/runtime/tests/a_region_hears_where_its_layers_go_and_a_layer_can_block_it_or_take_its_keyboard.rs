@@ -144,15 +144,21 @@ fn a_region_hears_where_its_layers_go_and_a_layer_can_block_it_or_take_its_keybo
     );
 
     let view = || {
-        with(PLUGIN, |runtime| placed_view(runtime, INSTANCE, REGION, None, None))
-            .expect("the runtime is running")
+        with(PLUGIN, |runtime| {
+            placed_view(runtime, INSTANCE, REGION, None, None)
+        })
+        .expect("the runtime is running")
     };
     assert!(view().layers.is_empty());
     assert!(!view().blocks_owner && !view().wants_keyboard);
 
     commit(1, vec![sheet(true, false)]);
     let shown = view();
-    assert_eq!(shown.layers.len(), 1, "the commit that opens a layer shows it");
+    assert_eq!(
+        shown.layers.len(),
+        1,
+        "the commit that opens a layer shows it"
+    );
     assert!(
         shown.blocks_owner,
         "a layer that blocks its owner keeps presses from the region's content"

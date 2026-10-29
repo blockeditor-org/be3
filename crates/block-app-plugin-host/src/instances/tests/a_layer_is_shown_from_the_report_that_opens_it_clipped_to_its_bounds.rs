@@ -14,7 +14,10 @@ fn a_layer_is_shown_from_the_report_that_opens_it_clipped_to_its_bounds() {
     let shown = instances.layers(INSTANCE, REGION);
     assert_eq!(shown.len(), 1, "the report that opens a layer shows it");
     let layer = &shown[0];
-    assert_eq!(layer.rect, menu, "a layer is placed where the plugin put it");
+    assert_eq!(
+        layer.rect, menu,
+        "a layer is placed where the plugin put it"
+    );
     assert_eq!(layer.bounds, window());
     let clipped = Rect::from_min_max(pos2(350.0, 40.0), pos2(400.0, 120.0));
     assert_eq!(

@@ -290,7 +290,9 @@ pub(crate) fn PluginRegion(
                 windows: hosts_windows || windowed,
                 placement: stored_key
                     .with(|key| key.as_ref().and_then(super::desktop::placement_of)),
-                layer_bounds: (!offscreen && region != EditorRegion::Preview)
+                layer_bounds: (!offscreen
+                    && region != EditorRegion::Preview
+                    && cfg!(not(target_arch = "wasm32")))
                     .then(|| layer_bounds.get_untracked()),
             },
             frame.get_untracked(),

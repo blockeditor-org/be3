@@ -39,17 +39,17 @@ pub use instances::EditorView;
 pub use pieces::uncovered as uncovered_pieces;
 pub use presenter::Piece;
 pub use presenter::Pieces;
-pub use presenter::{Blit, LayerBlits};
 #[cfg(target_arch = "wasm32")]
 pub use presenter::shown as shown_blits;
+pub use presenter::{Blit, LayerBlits};
 #[cfg(target_arch = "wasm32")]
 pub use runtime::place_screens;
 pub use runtime::{
     RegionPlacement, RegionSlot, RegionView, back_region, dismiss_layers, drag_over_region,
-    forward_layer, forward_region, frames, layer_blits, layers_drawing,
-    intercept_region, intercept_tap, mount_region, place_region, pressed_outside_region,
-    region_damage, region_drawing, region_placed, region_published, region_view, take_block_drags,
-    take_changed, take_focus_request, take_region_actions, unmount_region, unplace_region,
+    forward_layer, forward_region, frames, intercept_region, intercept_tap, layer_blits,
+    layers_drawing, mount_region, place_region, pressed_outside_region, region_damage,
+    region_drawing, region_placed, region_published, region_view, take_block_drags, take_changed,
+    take_focus_request, take_region_actions, unmount_region, unplace_region,
 };
 pub use runtime::{
     artifact, artifact_draft, aspect_ratio, assigned_size, busy, card, close, commit_creation,

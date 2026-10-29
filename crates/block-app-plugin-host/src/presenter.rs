@@ -805,20 +805,21 @@ impl beui::native::Draw for PluginDrawing {
                 if !frames.is_empty() {
                     presenter.retain(blit.surface, &surfaces);
                 }
-                let region = match blit.layer {
-                    Some(layer) => presenter.size(blit.surface, layer.surface).and_then(
-                        |(width, height)| {
-                            let (width, height) = (width as f32, height as f32);
-                            let source = Rect::from_min_max(
-                                pos2(layer.pixels.min.x / width, layer.pixels.min.y / height),
-                                pos2(layer.pixels.max.x / width, layer.pixels.max.y / height),
-                            );
-                            (width > 0.0 && height > 0.0)
-                                .then(|| (layer.surface, Region::of(blit.quad, source)))
-                        },
-                    ),
-                    None => region,
-                };
+                let region =
+                    match blit.layer {
+                        Some(layer) => presenter.size(blit.surface, layer.surface).and_then(
+                            |(width, height)| {
+                                let (width, height) = (width as f32, height as f32);
+                                let source = Rect::from_min_max(
+                                    pos2(layer.pixels.min.x / width, layer.pixels.min.y / height),
+                                    pos2(layer.pixels.max.x / width, layer.pixels.max.y / height),
+                                );
+                                (width > 0.0 && height > 0.0)
+                                    .then(|| (layer.surface, Region::of(blit.quad, source)))
+                            },
+                        ),
+                        None => region,
+                    };
                 match failure {
                     Some(error) => blit.status.set(PresenterState::Failed(error)),
                     None if presenter.platform.is_some() => {
