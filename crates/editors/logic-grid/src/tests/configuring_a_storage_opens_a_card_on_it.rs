@@ -13,7 +13,11 @@ fn configuring_a_storage_opens_a_card_on_it() {
     let point = canvas_point(&editor, Vec2::new(-60.0, -80.0));
     editor.click(point);
     editor.run();
-    assert_eq!(grid(&editor).components().count(), 1, "the click placed a storage");
+    assert_eq!(
+        grid(&editor).components().count(),
+        1,
+        "the click placed a storage"
+    );
 
     editor.key(Key::Five, Modifiers::NONE);
     editor.run();
