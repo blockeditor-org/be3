@@ -11220,7 +11220,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
-                    "//crates/beui-view:beui-view",
+                    "//crates/beui:beui",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -11233,7 +11233,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
-                    "//crates/beui-view:beui-view",
+                    "//crates/beui:beui",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -11246,7 +11246,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
-                    "//crates/beui-view:beui-view",
+                    "//crates/beui:beui",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -11259,7 +11259,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
-                    "//crates/beui-view:beui-view",
+                    "//crates/beui:beui",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -11272,7 +11272,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
-                    "//crates/beui-view:beui-view",
+                    "//crates/beui:beui",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -11285,7 +11285,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
-                    "//crates/beui-view:beui-view",
+                    "//crates/beui:beui",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -11298,7 +11298,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
-                    "//crates/beui-view:beui-view",
+                    "//crates/beui:beui",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -11311,7 +11311,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
-                    "//crates/beui-view:beui-view",
+                    "//crates/beui:beui",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//third-party/rust:uuid-1.23.2",
                 ],

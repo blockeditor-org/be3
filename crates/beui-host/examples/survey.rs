@@ -1,8 +1,8 @@
-use beui_host::native::Document;
-use beui_host::native::build;
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{Rect, native::App, native::Context};
+use beui_host::native::Document;
+use beui_host::native::build;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     beui_host::native::run(SurveyApp::new())

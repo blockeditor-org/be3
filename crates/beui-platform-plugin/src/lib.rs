@@ -26,7 +26,7 @@ use block_editor_plugin::{
 #[cfg(target_arch = "wasm32")]
 use block_editor_plugin::{PaintTarget, SurfaceRect};
 
-use beui_host::primitives::Root;
+use beui_host::styled::Root;
 use beui_platform_plugin_api::{PluginRuntime, RegionsRunner, View, Views};
 use platform::HostPlatform;
 use surface::{ModuleRenderer, Surface};

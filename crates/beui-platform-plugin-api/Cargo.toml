@@ -5,8 +5,8 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
+beui = { path = "../beui" }
 beui-core = { path = "../beui-core" }
-beui-view = { path = "../beui-view" }
 block-editor-plugin = { path = "../block-editor-plugin" }
 uuid = "1"
 

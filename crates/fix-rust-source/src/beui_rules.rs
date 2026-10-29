@@ -212,7 +212,7 @@ fn component_uses(tree: &SourceFile, source: &str, relative: &str) -> Vec<String
                     }
                     if let Some(renderer) = ast::MethodCallExpr::cast(parent.clone())
                         && renderer.name_ref().is_some_and(|name| {
-                            matches!(name.text(), "with_sheet" | "with_toolbar")
+                            matches!(name.text(), "with_sheet" | "with_toolbar" | "build")
                         })
                     {
                         return false;

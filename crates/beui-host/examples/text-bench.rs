@@ -5,10 +5,6 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use beui_host::native::Document;
-use beui_host::native::build;
-use beui_host::native::enter;
-use beui_host::native::testing::{Screen, Showing};
 use beui::primitives::{Span, Text};
 use beui::reactive::*;
 use beui::styled::*;
@@ -20,6 +16,10 @@ use beui::{
 use beui_core::app::SafeArea;
 use beui_core::renderer::Loaded;
 use beui_core::runner::Runner;
+use beui_host::native::Document;
+use beui_host::native::build;
+use beui_host::native::enter;
+use beui_host::native::testing::{Screen, Showing};
 use text_editor_core::TextBuffer;
 
 const VIEWPORT: Vec2 = Vec2::new(1000.0, 800.0);
