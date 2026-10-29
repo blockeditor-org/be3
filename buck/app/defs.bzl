@@ -199,8 +199,8 @@ prerendered_page = rule(
 )
 
 # A program on beui's HTML core for the host (linux_x86_64_html), from any
-# configuration: be-server's executable renders its account portal on that
-# core, so whatever stages, runs or deploys `//crates/be-server:bin` gets it
+# configuration: be-server's executable (be-server-bin) renders its account portal on that
+# core, so whatever stages, runs or deploys `//crates/be-server-bin:bin` gets it
 # built there.
 def _html_host_program_impl(ctx: AnalysisContext) -> list[Provider]:
     return [ctx.attrs.program[DefaultInfo], ctx.attrs.program[RunInfo]]

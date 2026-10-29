@@ -1024,7 +1024,6 @@ dependencies = [
  "be-graph",
  "be-keys",
  "be-portal",
- "be-portal-ui",
  "be-protocol",
  "be-session",
  "be-store",
@@ -1040,9 +1039,21 @@ dependencies = [
  "tokio",
  "tokio-tungstenite",
  "tracing",
- "tracing-subscriber",
  "ureq",
  "uuid",
+]
+
+[[package]]
+name = "be-server-bin"
+version = "0.1.0"
+dependencies = [
+ "be-portal",
+ "be-portal-ui",
+ "be-server",
+ "build-id",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

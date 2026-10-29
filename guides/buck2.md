@@ -19,7 +19,7 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 | `./scripts/test //crates/editors/checklist:test [adding] [--update]` | one crate's tests, or those of them whose names contain `adding`; `--update` accepts their paintings |
 | `./scripts/buck run //crates/block-app:native` | the app, with every plugin beside it |
 | `./scripts/test //crates/app-tests:test [--update]` | the app tests: block-app headless with every plugin, driven and painted as a whole |
-| `./scripts/buck build //crates/block-app:native-dist --out DIR` | a platform's release of the app; `//crates/be-server:dist` is the server's |
+| `./scripts/buck build //crates/block-app:native-dist --out DIR` | a platform's release of the app; `//crates/be-server-bin:dist` is the server's |
 | `./scripts/buck build //crates/block-app:plugins --out DIR` | the plugins alone, shared by every platform |
 | `./scripts/buck build //crates/block-app:web --out DIR` | the web bundle with every plugin (`:web-dist` without) |
 | `./scripts/buck run //crates/block-app:web` | the web bundle and `be-server`, on http://127.0.0.1:8080 |
@@ -48,7 +48,7 @@ crypto crates), which `crates.bzl` carries as each crate's rustc flags.
 Which build a program is lives in a file beside it, never in its code:
 `//buck/app:build-info.json` is the JSON file `buck/app/build-info.json`, and every bundle
 (`:native`, `:native-dist`, `:web`, `:web-dist`, the APK's assets, be-cli's
-`:native`, be-server's `:dist`)
+`:native`, be-server-bin's `:dist`)
 carries it. A client and a server refuse each other unless their ids match, a
 program that finds no id refuses to connect or serve, and the app shows the id
 as its build. The metadata contains `id` (the compatibility identity) and `app_id` (`BlockDev`
@@ -260,7 +260,7 @@ runs with, kept out of its compile. crates/app-tests runs block-app's `:native` 
 It also passes `run_apart = True`, which makes a `:test-run-<file>` for each file under
 `src/tests/` in place of one `:test-run`: a failed action keeps no outputs, so a failing test
 then loses only its own paintings, not every one the crate accepts.
-crates/be-server captures its SSR portal as text browser paintings without a browser.
+crates/be-portal-ui captures its SSR portal as text browser paintings without a browser.
 
 **Browser tests** (`web_drive_test` in `buck/app/drive.bzl`) are the one kind that runs on this
 machine rather than a worker, since the workers have no browser: their `:<name>-run` is a
@@ -349,7 +349,7 @@ A native target depends on a wasm one through a transition in
   platform finds its plugins through it, beside the executable, in the APK's
   assets, or at the bundle root.
 - `:native-dist` is a platform's release, `:plugins` the plugins once for
-  all, and `//crates/be-server:dist` the server with its build id.
+  all, and `//crates/be-server-bin:dist` the server with its build id.
 - `:web` is block-app for `wasi` and `block-gpu-shim` for `wasm32`, each run
   through `wasm-bindgen` (`buck/cargo:wasm-bindgen`, pinned to `Cargo.lock`'s
   version), with the page and shims from `crates/block-app/web`. `buck2 run` on it runs Caddy

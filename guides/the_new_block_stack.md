@@ -63,6 +63,7 @@ be-vcs       snapshot trees, diff, tree merge      client
 be-client    a peer: local store, blocks, relay   client
 be-sync      a folder <-> a directory on disk      client (native)
 be-server    the always-online peer               server
+be-server-bin the executable, with its portal       server
 ```
 
 The server is one more peer that never decrypts. That is why most crates are
@@ -850,7 +851,7 @@ undone.
 ## Running it
 
 ```
-./scripts/buck run //crates/be-server:bin -- --addr 127.0.0.1:9090 --data-dir be-server-data --allow-login --allow-registration
+./scripts/buck run //crates/be-server-bin:bin -- --addr 127.0.0.1:9090 --data-dir be-server-data --allow-login --allow-registration
 ```
 
 Open `http://127.0.0.1:9090/auth` to register. Until email delivery is connected,

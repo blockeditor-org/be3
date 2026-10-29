@@ -27,12 +27,8 @@ sqlite-schema = { path = "../sqlite-schema" }
 tokio = { version = "1", features = ["io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-tungstenite = "0.23"
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 ureq = { version = "2", features = ["json"] }
 uuid = { version = "1", features = ["serde", "v4"] }
-
-[target.'cfg(beui_html)'.dependencies]
-be-portal-ui = { path = "../be-portal-ui" }
 
 [lints]
 workspace = true
