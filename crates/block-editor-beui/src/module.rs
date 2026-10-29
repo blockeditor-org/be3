@@ -91,7 +91,8 @@ impl Module {
             views: None,
             requested: OwnedSignal::new(Vec::new()),
         };
-        if let Err(error) = beui_platform_plugin_api::runtime().launch(host, options, Box::new(app)) {
+        if let Err(error) = beui_platform_plugin_api::runtime().launch(host, options, Box::new(app))
+        {
             panic!("the plugin's beui app could not start: {error}");
         }
     }
