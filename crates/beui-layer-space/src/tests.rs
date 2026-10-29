@@ -18,6 +18,12 @@ use crate::panel::{Panel, Pose};
 use crate::{Pointer, Space};
 
 mod a_bracket_in_front_of_another_panel_takes_the_click;
+mod resizing_a_window_stops_where_it_would_touch_another;
+mod popups_and_overlays_have_no_chrome;
+mod a_raised_window_hidden_behind_another_flashes_through_it;
+mod a_window_let_go_while_pushed_against_another_stays_in_front;
+mod pushing_a_carried_window_through_another_takes_a_deliberate_push_and_keeps_it_behind;
+mod a_window_opened_over_another_stays_in_front_of_it_wherever_it_is_carried;
 mod a_carried_panel_follows_the_cursor_and_the_head;
 mod a_carried_panel_let_go_mid_turn_lands_where_it_would_after_the_turn;
 mod a_carried_panel_swings_about_the_view_s_up_with_the_head_rolled;

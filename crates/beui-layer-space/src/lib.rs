@@ -1,5 +1,6 @@
 pub mod carry;
 pub mod chrome;
+pub mod contact;
 pub mod cursor;
 pub mod floor;
 pub mod head;
@@ -15,7 +16,7 @@ pub mod scale;
 mod space;
 
 pub use space::{
-    Both, CURSOR_LIFT, Composed, Held, KEYBOARD_GAP, LayerTarget, OPEN_DISTANCE, OPEN_GRAB,
+    Both, CURSOR_LIFT, Composed, FLASH_SECONDS, Held, KEYBOARD_GAP, LayerTarget, OPEN_DISTANCE, OPEN_GRAB,
     OPEN_NEARER, OVER_NEARER, Pointer, SKY, Space, ViewTarget,
 };
 
