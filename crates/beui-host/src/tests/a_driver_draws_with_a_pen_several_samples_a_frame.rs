@@ -24,6 +24,7 @@ fn a_driver_draws_with_a_pen_several_samples_a_frame() {
     let document = build_node(move || {
         view! {
             <Interactive
+                every_sample=true
                 on_drag={move |press: PointerPress| {
                     let frame = frames.get_untracked();
                     drags.update(|drags| drags.push((press.pos.x, frame)));

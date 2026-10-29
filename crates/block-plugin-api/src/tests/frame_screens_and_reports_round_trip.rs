@@ -66,7 +66,6 @@ fn frame_screens_and_reports_round_trip() {
                 Pos2::new(0.0, 0.0),
                 Vec2::new(640.0, 400.0),
             )],
-            every_sample: true,
             claims: vec![PressClaim {
                 modifiers: Modifiers {
                     logo: true,

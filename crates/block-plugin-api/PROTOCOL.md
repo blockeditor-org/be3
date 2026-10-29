@@ -57,8 +57,9 @@ One named `*-watch` with a `constructor()` and `next` and nothing else is a
 latest-value watch, which be-ops-bindgen implements `be_ops::Watched` for, so
 an editor follows any of them with `editor.watch::<W>()`.
 Input is one of them: batches for one screen that the plugin has not taken yet
-merge, a run of pointer moves or pixel scrolls folding into its last unless the
-screen asked for every sample, everything else kept in order. A watch answered
+merge by the rules beui queues a frame's input by: each pointer's moves fold into
+its latest unless the screen's window requests ask for every sample, scrolls and
+zooms fold into the last of a run, and everything else is kept in order. A watch answered
 with a list of events has a merge rule that keeps it bounded: show requests keep
 each request once, at its latest place; web-view events fold a title, address or
 failure into one of its own kind just before it and keep at most 256.

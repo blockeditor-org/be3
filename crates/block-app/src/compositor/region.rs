@@ -495,6 +495,7 @@ pub(crate) fn PluginRegion(
     let handles_back = create_memo(move || state.with(|view| view.handles_back));
     let pastes = create_memo(move || state.with(|view| view.pastes.clone()));
     let clipboard_keys = create_memo(move || state.with(|view| view.clipboard_keys));
+    let every_sample = create_memo(move || state.with(|view| view.every_sample));
     let intercepted = create_memo(move || state.with(|view| view.intercepted_keys.clone()));
     let catcher = NodeRef::new();
     let enclosing = use_context::<Enclosing>();
@@ -795,6 +796,7 @@ pub(crate) fn PluginRegion(
                     ime_text={ime_text}
                     pastes={pastes}
                     clipboard_keys={clipboard_keys}
+                    every_sample={every_sample}
                     on_forward={forward}
                     hit_area={hit_area}
                     claims={claims}

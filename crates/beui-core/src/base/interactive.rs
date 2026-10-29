@@ -471,10 +471,17 @@ impl Document {
         };
     }
 
-    pub fn wants_every_sample(&self, window: WindowId) -> bool {
-        self.every_sample_surfaces
-            .iter()
-            .any(|id| self.arena.contains(*id) && self.window_of(*id) == window)
+    pub(crate) fn every_sample_windows(&self) -> Vec<WindowId> {
+        let mut windows = Vec::new();
+        for id in &self.every_sample_surfaces {
+            if self.arena.contains(*id) {
+                let window = self.window_of(*id);
+                if !windows.contains(&window) {
+                    windows.push(window);
+                }
+            }
+        }
+        windows
     }
 
     pub fn drawing_rects(&self, window: WindowId) -> Vec<Rect> {

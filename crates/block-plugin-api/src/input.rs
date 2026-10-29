@@ -1,4 +1,4 @@
-use crate::{Input, InputBatch, ScrollDelta, TimedInput};
+use crate::{Input, InputBatch, TimedInput};
 
 impl InputBatch {
     pub fn new(screen: crate::ScreenId, every_sample: bool) -> Self {
@@ -24,89 +24,21 @@ impl InputBatch {
     }
 
     pub fn push(&mut self, event: impl Into<TimedInput>) {
-        let event = event.into();
-        if let Some(last) = self.events.last_mut()
-            && coalesce_input(&mut last.input, &event.input)
-        {
-            return;
-        }
-        if !self.every_sample
-            && let Some(mover) = mover(&event.input)
-        {
-            self.drop_move_of(mover);
-        }
-        self.events.push(event);
-    }
-
-    fn drop_move_of(&mut self, pointer: Mover) {
-        let predicted = |event: Option<&TimedInput>| {
-            matches!(
-                event,
-                Some(TimedInput {
-                    input: Input::Predicted(_),
-                    ..
-                })
-            )
-        };
-        for index in (0..self.events.len()).rev() {
-            if predicted(self.events.get(index)) {
-                continue;
-            }
-            match mover(&self.events[index].input) {
-                Some(held) if held == pointer => {
-                    self.events.remove(index);
-                    if predicted(self.events.get(index)) {
-                        self.events.remove(index);
-                    }
-                    return;
-                }
-                Some(_) => {}
-                None => return,
-            }
-        }
+        ui_types::input::enqueue(&mut self.events, event.into(), self.every_sample);
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Mover {
-    Mouse,
-    Finger(crate::TouchId),
-    Pen,
-}
-
-fn mover(input: &Input) -> Option<Mover> {
-    match input {
-        Input::PointerMoved(_) => Some(Mover::Mouse),
-        Input::Touch {
-            id,
-            phase: crate::TouchPhase::Move,
-            ..
-        } => Some(Mover::Finger(*id)),
-        Input::Pen {
-            phase: crate::PenPhase::Move,
-            ..
-        } => Some(Mover::Pen),
-        _ => None,
+impl ui_types::input::Queued for TimedInput {
+    fn input(&self) -> Option<&Input> {
+        Some(&self.input)
     }
-}
 
-fn coalesce_input(current: &mut Input, incoming: &Input) -> bool {
-    match (current, incoming) {
-        (Input::Scroll(current), Input::Scroll(incoming)) => match (current, incoming) {
-            (ScrollDelta::Pixels(current), ScrollDelta::Pixels(incoming))
-            | (ScrollDelta::Lines(current), ScrollDelta::Lines(incoming))
-            | (ScrollDelta::Pages(current), ScrollDelta::Pages(incoming)) => {
-                *current += *incoming;
-                true
-            }
-            _ => false,
-        },
-        (Input::Zoom(factor), Input::Zoom(incoming)) => {
-            *factor *= incoming;
-            true
-        }
-        (Input::Modifiers(current), Input::Modifiers(incoming)) if current == incoming => true,
-        _ => false,
+    fn input_mut(&mut self) -> Option<&mut Input> {
+        Some(&mut self.input)
+    }
+
+    fn joins(&self, later: &Self) -> bool {
+        self.over == later.over
     }
 }
 
