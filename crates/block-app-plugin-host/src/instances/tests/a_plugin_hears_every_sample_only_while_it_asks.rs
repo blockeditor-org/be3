@@ -33,17 +33,12 @@ fn a_plugin_hears_every_sample_only_while_it_asks() {
         "only the latest move of a frame is sent"
     );
 
-    instances.set_frame_reports(vec![block_plugin_api::FrameReport {
+    instances.set_windows(vec![ScreenWindow {
         screen,
-        content: Rect::ZERO,
-        painted: Vec::new(),
-        floating: Vec::new(),
-        floating_painted: Vec::new(),
-        scrims: Vec::new(),
-        drawing: Vec::new(),
-        every_sample: true,
-        claims: Vec::new(),
-        description: None,
+        window: WindowRequests {
+            every_sample: true,
+            ..WindowRequests::default()
+        },
     }]);
     let (messages, _) =
         instances.forward(INSTANCE, REGION, &stroke(), &|_, _| beui::Aim::Own, &|_| {

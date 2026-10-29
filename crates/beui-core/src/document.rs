@@ -1432,6 +1432,9 @@ impl Document {
         {
             ctx.set_ime_area(Some(area));
         }
+        for window in self.every_sample_windows() {
+            ctx.want_every_sample(window);
+        }
         let now = self.now;
         self.changes.prune(now);
         self.damage_flashes.prune(now);

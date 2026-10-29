@@ -225,9 +225,11 @@ interface types {
         over: option<screen-id>,
     }
 
-    /// Input for one screen. Batches waiting for the plugin merge: pointer moves
-    /// and pixel scrolls fold into the last of a run unless `every-sample`, and
-    /// everything else stays, in order.
+    /// Input for one screen. Batches waiting for the plugin merge as a frame's
+    /// input does in beui (`ui_types::input::enqueue`): pointer moves fold into
+    /// the latest unless `every-sample`, which the host sets while the screen's
+    /// `window-requests` ask for it, scrolls and zooms fold into the last of a
+    /// run, and everything else stays, in order.
     record input-batch {
         screen: screen-id,
         events: list<timed-input>,
@@ -403,7 +405,6 @@ interface types {
         floating-painted: list<rect>,
         scrims: list<scrim>,
         drawing: list<rect>,
-        every-sample: bool,
         claims: list<press-claim>,
         description: option<description>,
     }

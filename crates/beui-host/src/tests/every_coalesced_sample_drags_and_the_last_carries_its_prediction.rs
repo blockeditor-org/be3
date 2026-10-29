@@ -10,6 +10,7 @@ fn every_coalesced_sample_drags_and_the_last_carries_its_prediction() {
     let document = build_node(move || {
         view! {
             <Interactive
+                every_sample=true
                 on_drag={move |press: PointerPress| drags.update(|drags| drags.push(press))}
             >
                 <Frame width=300.0 height=300.0 />

@@ -283,6 +283,10 @@ interface types {
         pastes: list<paste-kind>,
         clipboard-keys: bool,
         keyboard-toggles: u32,
+        /// Whether the window hears every pointer sample the device reports.
+        /// Otherwise a frame hears each pointer's moves coalesced into its
+        /// latest (`ui_types::input::enqueue`).
+        every-sample: bool,
     }
 
     /// A window of an app, numbered by the app: `WindowId` in Rust, whose

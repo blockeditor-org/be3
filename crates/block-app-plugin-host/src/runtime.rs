@@ -2249,6 +2249,7 @@ pub struct RegionView {
     pub intercepted_keys: Vec<beui::KeyChord>,
     pub pastes: Vec<beui::PasteKind>,
     pub clipboard_keys: bool,
+    pub every_sample: bool,
 }
 
 impl RegionView {
@@ -2276,6 +2277,7 @@ impl RegionView {
             intercepted_keys: Vec::new(),
             pastes: Vec::new(),
             clipboard_keys: false,
+            every_sample: false,
         }
     }
 
@@ -2511,6 +2513,7 @@ fn placed_view(
                 .map(|window| window.pastes.clone())
                 .unwrap_or_default(),
             clipboard_keys: window.is_some_and(|window| window.clipboard_keys),
+            every_sample: window.is_some_and(|window| window.every_sample),
         }
     }
 }

@@ -4,7 +4,11 @@ pub use crate::types::{
 };
 pub use ui_keys::{Key, KeyChord, KeyPress, Modifiers};
 
+pub use queue::{Queued, enqueue};
+
 use geometry::{Pos2, Vec2};
+
+mod queue;
 
 impl Keyboard {
     pub fn shown(self) -> bool {

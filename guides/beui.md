@@ -497,9 +497,13 @@ hooks the higher crates fill in:
   and they would scroll clamped at an end instead of banding. The browser
   reports neither, so a web wheel scroll never stretches or flings. Every pointer sample is an event of its
   own: the web platform pushes each of a `pointermove`'s
-  `getCoalescedEvents()` rather than only the last, and `on_drag` runs once
-  per sample, so a stroke keeps every point the device reported between two
-  frames. After a pressed move it pushes `Input::Predicted` with the last of
+  `getCoalescedEvents()` rather than only the last. The runner queues a
+  frame's input with `ui_types::input::enqueue`, the one set of rules a
+  plugin's host merges its input batches by too: scrolls and zooms fold into
+  the last of a run, a repeated modifiers report is dropped, and each pointer
+  (the mouse, a finger, the pen) is heard once per frame, at its latest move,
+  unless its window asks for every sample. A press, a release or any other
+  event between two moves keeps both, so a click lands where it was made. After a pressed move it pushes `Input::Predicted` with the last of
   `getPredictedEvents()`, where the pointer is expected to be by the next
   frame; the runner attaches it to the move just before it as
   `PointerEvent::predicted`, and the drag it makes carries it as
@@ -517,11 +521,13 @@ hooks the higher crates fill in:
   when it arrives. An event pushed without one, as tests and drive push
   them, happens at the frame clock's `now`, so a test steps time by stepping
   frames. An `Interactive` with `every_sample` (a `Prop<bool>`, set while it
-  needs them, as the canvas's pen does for a stroke) asks for every sample
-  where a host would otherwise coalesce them: `Document::wants_every_sample`
-  is true while one is in the document, and a plugin reports it to its host
-  (`FrameReport::every_sample`). Within beui itself every sample always reaches
-  `on_drag`. `Incoming::logical` marks
+  needs them, as the canvas's pen does for a stroke) asks for every sample:
+  while one is in a window, the document sets `WindowRequests::every_sample`
+  for it (`Context::want_every_sample`), the runner then keeps every move
+  queued for that window and `on_drag` runs once per sample, so a stroke keeps
+  every point the device reported between two frames. A plugin's window
+  requests carry it to its host, whose region asks for every sample from its
+  own runner and keeps every sample in the batches it sends. `Incoming::logical` marks
   input whose pixels are the window's logical ones (physical pixels
   over the scale it last reported: the browser's CSS pixels), so the runner
   converts them with the same scale the frame lays out at and no platform
@@ -3605,7 +3611,7 @@ with its colour). Where `Context::hosts_scrims` (set by the plugin platform), th
 document paints no scrim at all and its host draws `overlay_scrims` between what it
 shows under the window and the overlays' content, so a host's own children under a
 dimming overlay are dimmed with the rest rather than hidden; `drawing_rects(window)`,
-`press_claims(window)` and `wants_every_sample(window)` the nodes in it, and
+and `press_claims(window)` the nodes in it, and
 `measure_node(ctx, node, available)` measures a node with the painter of its
 window. A key listener at `KeyAt::Window` and an action, registered inside a
 `Window`, belong to the hosted window that holds it
