@@ -2334,7 +2334,9 @@ fn DockTreeView(
     let state = dock.state;
     let shape = create_memo(move || state.with(|state| tree_shape(state, tree)));
     let floats = match tree {
-        Tree::Surface(surface) => state.with_untracked(|state| state.window_rect(surface).is_some()),
+        Tree::Surface(surface) => {
+            state.with_untracked(|state| state.window_rect(surface).is_some())
+        }
         Tree::Group(_) => false,
     };
     let area = dock.rect;
