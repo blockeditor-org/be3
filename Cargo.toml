@@ -44,6 +44,7 @@ members = [
     "crates/beui-components-unstyled",
     "crates/beui-core",
     "crates/beui-core-html",
+    "crates/beui-draw",
     "crates/beui-demo",
     "crates/beui-demo-html",
     "crates/beui-dock",

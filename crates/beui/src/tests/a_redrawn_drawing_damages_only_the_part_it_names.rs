@@ -2,9 +2,9 @@ use super::*;
 use crate::base::drawing::DrawingNode;
 use crate::damage::Region;
 use crate::drawing::Drawing;
+use crate::native::{Draw, DrawAt};
 use crate::primitives::*;
 use crate::reactive::*;
-use crate::renderer::{Draw, DrawAt};
 
 struct Blank;
 
@@ -28,7 +28,7 @@ fn a_redrawn_drawing_damages_only_the_part_it_names() {
     });
     let viewport = kind_of::<DrawingNode>(&document, viewport.get());
     let mut harness = Harness::new(document);
-    let drawing = crate::renderer::drawing(Blank);
+    let drawing = crate::native::drawing(Blank);
     let show = |drawing: Drawing, harness: &mut Harness| {
         harness
             .document_mut()
@@ -67,7 +67,7 @@ fn a_redrawn_drawing_damages_only_the_part_it_names() {
         first.translate(origin).union(second.translate(origin))
     );
 
-    show(crate::renderer::drawing(Blank), &mut harness);
+    show(crate::native::drawing(Blank), &mut harness);
     let damage = harness
         .frame(Vec::new())
         .main()

@@ -313,6 +313,7 @@ direction:
 | `beui-inspector` | the inspector, the simulated screen reader and the simulated mouse and keyboard |
 | `beui-dock` | `beui::dock`: the dock, as `dock::unstyled` (the tree, the dragging, the keyboard and the layout state, painting nothing) and `dock::styled` (`Docking` painted with theme tokens) |
 | `beui-keyboard` | `beui::native::keyboard`: the on-screen keyboard, as `keyboard::unstyled` (layouts, tables and the gesture engine) and `keyboard::styled`; the facade installs it on every document |
+| `beui-draw` | `beui::native::{Draw, DrawAt, drawing, painted_drawing}`: the interface a gpu drawing implements, which the renderer runs (see [Draw with the gpu](#draw-with-the-gpu)) |
 | `beui-renderer-wgpu` | the wgpu renderer, its shaders and filters, and presenting to a surface |
 | `beui-platform-winit`, `beui-platform-android`, `beui-platform-web` | each platform's `Platform` and `PlatformServices`: its event loop, window or view, input (the web's through `beui-web-input`), IME, clipboard, file picker and accessibility adapter (winit's is its own `accessibility.rs` over `accesskit_unix`, `accesskit_windows` and `accesskit_macos`, since `accesskit_winit` has no release for winit 0.31) |
 | `beui-platform-drm` | Linux's displays and input devices through DRM/KMS and libinput: a `Platform`, `PlatformServices` and `Renderer` that shows one window per display (see Displays under beui-platform-drm below), each display keeping a retained frame of its window, drawn when the display flips (the app's frames are paced to the flips too, by `pacing.rs`: at most one per flip, none while nothing changes), handing the flip a fence (or, without atomic fences, waiting for it in the event loop) instead of blocking on the GPU; callers run it with `beui::native::run_on` |
@@ -3165,9 +3166,12 @@ gpu resources belong to the `Draw` rather than to the drawing: keep them in an
 `Rc<RefCell<Option<..>>>` the drawing clones, build them on the first `prepare`
 from the format `DrawAt` names, and a headless test - which never builds a
 `Renderer` - never opens a device at all. The `scene_3d` editor is the worked
-example. A crate that draws with the gpu does so behind
-a feature that beui's `render` feature turns on, as beui-components-styled's
-`gpu` does.
+example. `Draw`, `DrawAt`, `drawing` and `painted_drawing` live in
+beui-draw, which holds nothing but them over beui-core and wgpu, so code that
+draws with the gpu never builds against the renderer; apps reach them as
+`beui::native`. A crate under beui that draws with the gpu depends on
+beui-draw behind a feature that beui turns on outside the HTML core, as
+beui-components-styled's `gpu` does.
 
 ## Imports
 

@@ -39,6 +39,7 @@ beui-components-styled = { path = "../beui-components-styled" }
 [target.'cfg(not(beui_html))'.dependencies]
 beui-components-styled = { path = "../beui-components-styled", features = ["gpu"] }
 beui-core = { path = "../beui-core" }
+beui-draw = { path = "../beui-draw" }
 beui-font-freetype = { path = "../beui-font-freetype" }
 beui-inspector = { path = "../beui-inspector" }
 beui-layer-drive = { path = "../beui-layer-drive" }

@@ -8,8 +8,9 @@ use beui_core::drawing::Drawing;
 use beui_core::geometry::{Rect, vec2};
 use beui_core::painting::{Painting, Paints};
 use beui_core::window::WindowId;
+use beui_draw::{Draw, DrawAt};
 use beui_renderer_wgpu::present::GpuSetup;
-use beui_renderer_wgpu::{Draw, DrawAt, Repaint, Repainting, wgpu_color_in};
+use beui_renderer_wgpu::{Repaint, Repainting, wgpu_color_in};
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec3};
 
@@ -321,7 +322,7 @@ impl Compositor {
     }
 
     pub fn drawing(&self, frame: Frame) -> Drawing {
-        beui_renderer_wgpu::painted_drawing(SpaceDraw {
+        beui_draw::painted_drawing(SpaceDraw {
             gpu: self.clone(),
             frame,
         })

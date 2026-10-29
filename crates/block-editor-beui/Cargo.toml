@@ -18,9 +18,6 @@ text-editor-core = { path = "../text-editor-core" }
 uuid = { version = "1", features = ["v4"] }
 workspace-ui-types = { path = "../editors/workspace-ui/types" }
 
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
-
 [dev-dependencies]
 be-model = { path = "../be-model" }
 presentation-types = { path = "../editors/presentation/types" }

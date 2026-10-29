@@ -45,6 +45,7 @@ pub use beui_core::runner::{
 };
 pub use beui_core::touch_cursor;
 pub use beui_core::window::{Resize, WindowHosting, WindowSize};
+pub use beui_draw::{Draw, DrawAt, drawing, painted_drawing};
 #[cfg(not(target_arch = "wasm32"))]
 pub use beui_font_freetype::system::SystemFonts;
 pub use beui_font_freetype::{
@@ -70,10 +71,7 @@ pub use beui_renderer_wgpu::present::read_texture;
 #[cfg(feature = "render")]
 pub use beui_renderer_wgpu::present::{GpuSetup, OpenDevice, OpenGpu, open_vulkan_device};
 #[cfg(feature = "render")]
-pub use beui_renderer_wgpu::{
-    Draw, DrawAt, Renderer, Repaint, Repainting, drawing, painted_drawing, renderer_info,
-    wgpu_color,
-};
+pub use beui_renderer_wgpu::{Renderer, Repaint, Repainting, renderer_info, wgpu_color};
 pub use beui_view::native_api::{core_painter, draw_gpu, wrap_painter};
 pub use embed::Embed;
 

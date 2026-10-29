@@ -56,9 +56,6 @@ use beui_core::{
 #[cfg(not(beui_html))]
 #[cfg(test)]
 use beui_inspector::{self as inspector, mouse_simulation};
-#[cfg(not(beui_html))]
-#[cfg(test)]
-use beui_renderer_wgpu as renderer;
 
 #[cfg(not(beui_html))]
 #[cfg(test)]

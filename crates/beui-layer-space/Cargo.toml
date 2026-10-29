@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 beui-core = { path = "../beui-core" }
+beui-draw = { path = "../beui-draw" }
 beui-font-freetype = { path = "../beui-font-freetype" }
 beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
 beui-types = { path = "../beui-types" }
