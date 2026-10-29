@@ -2375,10 +2375,15 @@ stay in the window. So menus, `ContextMenu` and its submenus, popovers, tooltips
 toolbar and anchored dialogs escape, and modals centred in their region, toasts and banners stay.
 An overlay that is a window of its own never escapes.
 
-An escaping overlay is laid out in its window's own coordinates, as before, but against
-`bounds` mapped back into them (`LayerSpace::area`) instead of the window, so it flips, slides and
-shrinks against the bounds; a blocking scrim still covers only its window. Hit testing, focus,
-trapping, Escape and back are unchanged. It is left out of the window's painting and of the
+An escaping overlay is laid out at full size in host units, whatever `to_host.scale` is: its
+content sits in a zoomed space of its overlay (slot 1, scale `1 / to_host.scale`, translated by
+`-origin / scale`) whose own coordinates are host coordinates, against `bounds`, with its anchor
+mapped through `to_host`, so it flips, slides and shrinks against the bounds and a menu from a
+region shown at half size is as large as any other. An `Edge` sheet fills the bounds, so a `ModalSheet` works out its stops from them. Its rects as `Rects::get`, hit testing and
+accessibility see them are still window coordinates, which `to_host` maps to where it is drawn
+(`Document::escaped_layer_of(node)` answers with the layer and that `to_host`). A blocking scrim
+still covers only its window, in window coordinates. Hit testing, focus, trapping, Escape and back
+are unchanged. It is left out of the window's painting and of the
 window's `overlay_rects`, `overlay_painted_rects`, `floating_rects` and `overlay_scrims`, and
 painted into a paint window of its own. `Document::escaped_layers()` lists them in layer order,
 each after its parent, as `EscapedLayer`s: a stable `id`, `parent` (the escaped layer it is
@@ -2388,8 +2393,8 @@ window, in host coordinates for one nested in a layer; or `Edge(edge)`), `rect`,
 `dismiss_on_outside_press` (dismissable and not inert), `keyboard` (traps focus) and
 `blocks_owner` (blocks everything or its parent). Each frame's `FrameOutput::escaped` carries an
 `EscapedOutput` per layer: that record and a `WindowOutput` painted in host units from the
-layer's top-left at `pixels_per_point = window raster / to_host.scale`, ready for a surface of its
-own; `composite_layers` draws a window and its layers as the host would, which
+layer's top-left at `pixels_per_point = window raster / to_host.scale` (the app window's density,
+since a zoomed window's raster counts its zoom), ready for a surface of its own; `composite_layers` draws a window and its layers as the host would, which
 `DocumentTest::snapshot_layers` paints.
 
 Input that landed on a layer is pushed as `Incoming::layer(id, input)` with host positions; the

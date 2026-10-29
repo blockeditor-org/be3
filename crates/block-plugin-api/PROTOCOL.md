@@ -519,8 +519,10 @@ shrinking it to fit), paints it into a surface it configured itself, and
 commits its rectangle, painted and input (`floating`) rectangles and scrims in
 host coordinates with the frame that drew it; the host only clips it to the
 bounds. The surface holds the layer from its top-left corner at the screen's
-raster divided by `to-host`'s scale, in pixels per host point (the window's
-own density for a region shown at its own size). The host draws layers after
+raster divided by `to-host`'s scale, in pixels per host point: the app window's
+own density, whatever the region's zoom, since the screen's raster already
+counts it. A layer is laid out and drawn at full size in host points, so a menu
+opened in a region shown at half size is as large as any other menu. The host draws layers after
 every region, in the order they opened across every region of the window:
 each one's scrims, then its `painted` rectangles from its surface; it draws
 nothing of a layer outside `painted`, and the report that opens a layer draws

@@ -3,7 +3,10 @@ use std::rc::Rc;
 
 use crate::color::Color;
 use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
-use crate::painter::{Corners, Painter};
+use crate::painter::{Corners, Painter, Zoom};
+use beui_types::layer::LayerSpace;
+
+const ESCAPED: u8 = 1;
 
 use crate::base::frame::{FrameNode, FrameStyle};
 use crate::callback::{Callback, NodeRef};
@@ -169,6 +172,7 @@ pub struct OverlayNode {
     pub(crate) anchor: OverlayAnchor,
     anchored: Option<Rect>,
     pub(crate) anchor_rect: Option<Rect>,
+    escaped: Option<(LayerSpace, Vec2, Zoom)>,
     pinned: Option<Pin>,
     pointer: Option<NodeRef>,
     beak: Option<NodeOf<BeakNode>>,
@@ -193,6 +197,7 @@ impl OverlayNode {
             anchor,
             anchored: None,
             anchor_rect: None,
+            escaped: None,
             pinned: None,
             pointer: None,
             beak: None,
@@ -215,6 +220,15 @@ impl OverlayNode {
 
     pub fn placement(&self) -> Placement {
         self.placement
+    }
+
+    pub(crate) fn escape_zoom(&self) -> Option<(Vec2, Zoom)> {
+        self.escaped.map(|(_, by, zoom)| (by, zoom))
+    }
+
+    fn inner(&self, rect: Rect) -> Rect {
+        self.escaped
+            .map_or(rect, |(space, _, _)| space.to_host.rect(rect))
     }
 
     pub(crate) fn anchor_node(&self) -> Option<NodeId> {
@@ -241,6 +255,7 @@ impl OverlayNode {
         content: NodeId,
         out: &Rects,
     ) {
+        let outer_painter = painter;
         let viewport = doc.viewport_rect();
         let anchored = self.anchor_node().and_then(|id| out.get(&id));
         self.anchored = anchored;
@@ -248,15 +263,48 @@ impl OverlayNode {
             OverlayAnchor::Pinned { rect, .. } => Some(self.pinned_rect(rect, anchored)),
             OverlayAnchor::Node(_) | OverlayAnchor::Point(_) | OverlayAnchor::Rect(_) => anchored,
         };
-        let area = doc
-            .escape_space(self.placement, doc.viewport_window())
-            .map_or(viewport, |space| space.area());
-        let anchor_rect = match &self.anchor {
-            OverlayAnchor::Node(_) => anchored.unwrap_or(area),
-            OverlayAnchor::Pinned { .. } => target.unwrap_or(area),
+        let space = doc.escape_space(self.placement, doc.viewport_window());
+        let outer = space.map_or(viewport, |space| space.area());
+        let window_anchor = match &self.anchor {
+            OverlayAnchor::Node(_) => anchored.unwrap_or(outer),
+            OverlayAnchor::Pinned { .. } => target.unwrap_or(outer),
             OverlayAnchor::Point(pos) => Rect::from_min_size(*pos, Vec2::ZERO),
             OverlayAnchor::Rect(rect) => *rect,
         };
+        self.anchor_rect = Some(window_anchor);
+        let zoomed;
+        let (painter, area) = match space {
+            Some(space) => {
+                let scale = match space.to_host.scale.x {
+                    scale if scale.is_finite() && scale > 0.0 => scale,
+                    _ => 1.0,
+                };
+                let by = -space.to_host.origin.to_vec2() / scale;
+                let zoom = Zoom {
+                    scale: scale.recip(),
+                    raster: scale.recip(),
+                };
+                let host = doc
+                    .laying_out()
+                    .expect("an overlay is laid out as itself");
+                zoomed = doc.enter_zoomed_space(
+                    host,
+                    ESCAPED,
+                    painter,
+                    by,
+                    zoom,
+                    Rect::EVERYTHING,
+                    out,
+                );
+                self.escaped = Some((space, by, zoom));
+                (&zoomed, space.bounds)
+            }
+            None => {
+                self.escaped = None;
+                (painter, viewport)
+            }
+        };
+        let anchor_rect = self.inner(window_anchor);
         let inside = matches!(
             self.placement,
             Placement::InsideTop
@@ -281,11 +329,11 @@ impl OverlayNode {
             true => measured.min(available),
             false => measured,
         };
-        self.anchor_rect = Some(anchor_rect);
         let rect = beui_types::layer::resolve_rect(area, anchor_rect, self.placement, content_size);
         crate::layout::layout(doc, painter, content, rect, out);
         self.stand_off(doc, painter, content, rect, anchor_rect, out);
         self.point_at(doc, painter, anchor_rect, out);
+        let painter = outer_painter;
         if self.policy == LayerPolicy::BlocksParent
             && self.dims
             && let Some(blocked) = anchored
@@ -316,6 +364,7 @@ impl OverlayNode {
         let Some(frame) = self
             .pointer_frame(doc)
             .and_then(|frame| out.get(&frame.id()))
+            .map(|frame| self.inner(frame))
         else {
             return;
         };
@@ -334,7 +383,9 @@ impl OverlayNode {
             return;
         };
         let frame = self.pointer_frame(doc);
-        let placed = frame.and_then(|frame| out.get(&frame.id()));
+        let placed = frame
+            .and_then(|frame| out.get(&frame.id()))
+            .map(|frame| self.inner(frame));
         let style = frame.map_or_else(FrameStyle::default, |frame| {
             doc.arena.get_as::<FrameNode>(frame).style
         });

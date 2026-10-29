@@ -148,7 +148,13 @@ impl Document {
             .map(|escape| escape.id)
     }
 
-    fn painting_bounds(&self, paint: WindowId) -> Rect {
+    fn painting_bounds(
+        &self,
+        paint: WindowId,
+        overlay: NodeOf<OverlayNode>,
+        to_host: HostTransform,
+    ) -> Rect {
+        let scrim = self.overlay_scrim(overlay);
         self.escapes
             .paintings
             .iter()
@@ -157,7 +163,14 @@ impl Document {
                 painting
                     .iter()
                     .fold(Rect::NOTHING, |bounds, (display, at)| {
-                        bounds.union(display.bounds.translate(*at))
+                        let drawn = display.bounds.translate(*at);
+                    if !drawn.is_positive() {
+                        return bounds;
+                    }
+                    bounds.union(match display.node == scrim {
+                        true => to_host.rect(drawn),
+                        false => drawn,
+                    })
                     })
             })
     }
@@ -210,7 +223,7 @@ impl Document {
                 .collect();
             let drawn = painted
                 .iter()
-                .fold(to_host.rect(self.painting_bounds(paint)), |bounds, rect| {
+                .fold(self.painting_bounds(paint, overlay, to_host), |bounds, rect| {
                     bounds.union(*rect)
                 });
             let rect = match node.placement() {
@@ -240,6 +253,24 @@ impl Document {
         escaped
     }
 
+    pub fn escaped_layer_of(&self, node: NodeId) -> Option<(u64, HostTransform)> {
+        let mut current = Some(node);
+        for _ in 0..crate::node::ANCESTOR_LIMIT {
+            let id = current?;
+            if let Some(overlay) = self.arena.kind_of::<OverlayNode>(id)
+                && let Some(escape) = self.escapes.held.iter().find(|escape| escape.overlay == overlay)
+            {
+                let window = self.layers().iter().find(|layer| layer.overlay == Some(overlay))?.window;
+                return Some((escape.id, self.layer_space(window)?.to_host));
+            }
+            if Some(id) == self.root {
+                return None;
+            }
+            current = self.arena.parent(id);
+        }
+        None
+    }
+
     pub(crate) fn publish_escapes(&mut self, ctx: &Context, damaged: &dyn Fn(WindowId) -> bool) {
         let layers = self.escaped_layers();
         let mut outputs = Vec::with_capacity(layers.len());
@@ -266,20 +297,27 @@ impl Document {
                 .map(|(_, painting)| painting.clone())
                 .unwrap_or_default();
             let to_host = space.to_host;
-            let shown: Rc<[Shown]> = painting
-                .iter()
-                .map(|(display, at)| Shown::Display(*at, Rc::clone(display)))
-                .collect();
+            let scrim = self.overlay_scrim(escape.overlay);
             let offset = to_host.origin - layer.rect.min;
             let size = layer.rect.size();
             let scale = to_host.scale.x;
+            let shown: Vec<Shown> = painting
+                .iter()
+                .map(|(display, at)| {
+                    let (offset, scale) = match display.node == scrim {
+                        true => (offset, scale),
+                        false => (-layer.rect.min.to_vec2(), 1.0),
+                    };
+                    Shown::Group(
+                        Group::Transform { offset, scale },
+                        Rc::new([Shown::Display(*at, Rc::clone(display))]),
+                    )
+                })
+                .collect();
             let output = WindowOutput {
                 id: paint,
                 size,
-                layers: Rc::new(vec![Shown::Group(
-                    Group::Transform { offset, scale },
-                    shown,
-                )]),
+                layers: Rc::new(shown),
                 window: WindowState::default(),
                 changed,
                 damage: match changed {

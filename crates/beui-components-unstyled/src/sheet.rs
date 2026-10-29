@@ -20,7 +20,7 @@ use beui_view::types::Direction;
 use beui_view::types::ItemSize;
 use beui_view::types::ScrollPosition;
 use beui_view::types::{BackGesture, CursorIcon, DragGesture, PointerPress, ScrollGesture};
-use beui_view::types::{Rect, vec2};
+use beui_view::types::{Measured, Rect, vec2};
 
 const CLOSE_SHARE: f32 = 0.4;
 const CLOSE_DISTANCE: f32 = 96.0;
@@ -158,6 +158,14 @@ struct Motion {
     on_close: ClickCallback,
 }
 
+fn own_units(measured: Measured) -> Rect {
+    let rect = measured.rect;
+    match rect.height() > 0.0 && measured.size.y > 0.0 {
+        true => rect.scaled(measured.size.y / rect.height()),
+        false => rect,
+    }
+}
+
 fn banding() -> bool {
     motion().animates()
 }
@@ -170,8 +178,8 @@ impl Motion {
     fn laid_out(&self) -> (Option<Rect>, Option<Rect>, ScrollPosition) {
         let node = self.node();
         let slot = self.slot.try_get();
-        let sheet = slot.and_then(|slot| Some(measure(slot).get_untracked()?.rect));
-        let body = node.and_then(|node| Some(measure(node).get_untracked()?.rect));
+        let sheet = slot.and_then(|slot| Some(own_units(measure(slot).get_untracked()?)));
+        let body = node.and_then(|node| Some(own_units(measure(node).get_untracked()?)));
         let position = node
             .and_then(|node| node.scroll_position())
             .unwrap_or_default();

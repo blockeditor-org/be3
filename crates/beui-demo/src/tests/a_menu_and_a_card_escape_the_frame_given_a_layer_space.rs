@@ -57,4 +57,28 @@ fn a_menu_and_a_card_escape_the_frame_given_a_layer_space() {
         "and escapes the frame"
     );
     test.snapshot_layers("a_card_from_a_button_escapes_the_frame_given_a_layer_space");
+
+    let mut test = alone(FRAME, Page::Menus);
+    let zoomed = LayerSpace {
+        to_host: HostTransform {
+            origin: pos2(80.0, 60.0),
+            scale: Vec2::splat(0.5),
+        },
+        ..SPACE
+    };
+    test.context().set_layer_space(WindowId::MAIN, Some(zoomed));
+    test.frame(Vec::new());
+    reveal(&mut test, "demo.actions");
+    let card = test.rect_of("demo.actions");
+    test.click_with(card.center(), PointerButton::Secondary);
+    test.settle();
+    let layers = test.document().escaped_layers();
+    assert_eq!(layers.len(), 1);
+    let card = zoomed.to_host.rect(card);
+    assert!(
+        layers[0].rect.width() > card.width() / 2.0,
+        "the menu of a frame shown at half size is drawn at full size: {:?} beside {card:?}",
+        layers[0].rect
+    );
+    test.snapshot_layers("a_menu_escapes_a_zoomed_out_frame_at_full_size");
 }

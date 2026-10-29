@@ -1609,9 +1609,25 @@ impl Document {
                 false => layer.window,
             };
             self.paint_cache.get_mut().paint_into(into);
+            let zoomed = layer
+                .escapes
+                .then(|| self.arena.get_as::<crate::base::overlay::OverlayNode>(overlay).escape_zoom())
+                .flatten()
+                .map(|(by, zoom)| {
+                    painter.zoomed(
+                        crate::node::SpaceId::inside(overlay.id(), 1),
+                        by,
+                        zoom,
+                        Rect::EVERYTHING,
+                    )
+                });
             for root in [scrim, content, beak].into_iter().flatten() {
                 if self.rects.contains_key(&root) {
-                    paint::paint(self, &painter, &self.rects, root);
+                    let painter = match (&zoomed, Some(root) == scrim) {
+                        (Some(zoomed), false) => zoomed,
+                        _ => &painter,
+                    };
+                    paint::paint(self, painter, &self.rects, root);
                     roots.push((into, root));
                 }
             }
