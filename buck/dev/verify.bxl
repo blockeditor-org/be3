@@ -4,8 +4,8 @@ load("//buck/cargo/html.bzl", "html_libraries")
 # Everything ./scripts/verify and ./scripts/ci build, in one buck2 command: the
 # generated rules and Cargo.lock, the sysroot's lockfile, the autofixes
 # (fix.sh), every test and plugin test, beui checked for Windows
-# (_CROSS_CHECKS), which of crates/bootstrap's binaries scripts/internal/pins
-# does not name (and with --bootstrap those binaries),
+# (_CROSS_CHECKS), for ./scripts/ci which of crates/bootstrap's binaries
+# scripts/internal/pins does not name (and with --bootstrap those binaries),
 # and on request the paint preview renderer; and
 # crates/verify, for the machine that asked (--host, a platform in
 # buck/platforms), which reads the rest afterwards, running crates/local-tools
@@ -170,8 +170,9 @@ def _impl(ctx: bxl.Context):
         ("verify", _host_output(ctx, "root//crates/verify:release", args.host)),
         ("buckify", buckify(ctx, actions)),
         ("sysroot", _output(ctx, "root//buck/sysroot:lock")),
-        ("bootstrap", _bootstrap_unpinned(ctx, actions, args.bootstrap)),
     ]
+    if args.release_bootstrap or args.bootstrap:
+        printed.append(("bootstrap", _bootstrap_unpinned(ctx, actions, args.bootstrap)))
     built = []
     if args.lint:
         printed.extend([("fix", fix) for fix in _rust_fixes(ctx, actions)])
@@ -201,6 +202,10 @@ main = bxl_main(
         "lint": cli_args.bool(False),
         "plugin_tests": cli_args.bool(False),
         "previews": cli_args.bool(False),
+        # crates/bootstrap's release for six platforms, which ./scripts/ci builds
+        # and ./scripts/verify leaves to it. True for a bootstrap older than this
+        # argument, which passes neither.
+        "release_bootstrap": cli_args.bool(True),
         "tests": cli_args.bool(False),
     },
     impl = _impl,

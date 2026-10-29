@@ -14,7 +14,7 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 |---|---|
 | `./scripts/buck run //:check` | rustc's check pass over every first-party target on the platforms the tests build: Linux x86_64 and the plugins' `wasi_guest` |
 | `./scripts/verify` | autofixes, lints, tests and plugin tests; `--check` writes nothing, `--lint`, `--tests`, `--plugin-tests` run one part |
-| `./scripts/ci` | what CI runs: `./scripts/verify`, and `--previews BASE OUT` the paint previews |
+| `./scripts/ci` | what CI runs: `./scripts/verify` and crates/bootstrap's release (guides/bootstrap.md), and `--previews BASE OUT` the paint previews |
 | `./scripts/test adding [--update]` | the tests whose full names, module path included, contain `adding` (or `media::tests`), in every crate that has one, with all their output; it finds each crate's `:test` and runs it on a worker (below) |
 | `./scripts/test //crates/editors/checklist:test [adding] [--update]` | one crate's tests, or those of them whose names contain `adding`; `--update` accepts their paintings |
 | `./scripts/buck run //crates/block-app:native` | the app, with every plugin beside it |
