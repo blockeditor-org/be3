@@ -124,7 +124,7 @@ impl<A: BeuiApp> Parts<A> {
         let host = self.host.clone();
         RenderFn::new(move |_: WindowHandle| {
             let link = docked.then(|| tabs.link(host.clone(), editor, chrome.listed()));
-            tabs.provide_slot(link, docked);
+            tabs.provide_slot(link, docked, &host, editor);
             let custom = Rc::clone(&custom);
             let view: Rc<dyn Fn() -> beui::styled::Root> =
                 Rc::new(move || match custom.borrow_mut().take() {

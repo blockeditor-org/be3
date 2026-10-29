@@ -2791,7 +2791,13 @@ implements it too: a `Docking` that finds no outer dock claims the
 way. block-editor-beui provides one in the frame of an editor whose dock joins
 another plugin's (guides/adding_a_plugin_editor.md), and its `ChildBlock` in a
 tab body claims that tab's `DockJoin` (`use_dock_join()`, `DockJoin::host`,
-`claim`) for the child editor's dock. Such a platform builds the tab bodies
+`claim`) for the child editor's dock. A `Docking` that joins no host instead
+claims the `DockKeeper` context if one is provided above it (one per keeper; a
+dock nested in it joins it and claims none) and hands it a `DockKept`: its own
+layout (`snapshot`'s state, as a memo), the keys of its own tabs and bars, and
+a restore that puts a state in place keeping the tab ids, so the keeper can
+save and restore a standalone dock as it would a joined one (block-editor-beui
+provides one in every editor's frame). Such a platform builds the tab bodies
 itself, and provides `DockTabMenu` and `DockTabControl::hosted(tab, hosted,
 request)` in each body's scope, so `dock_menu` and `use_dock_tab()` work there
 as in a local dock; `DockTabControl::is_hosted` tells such a body apart, and

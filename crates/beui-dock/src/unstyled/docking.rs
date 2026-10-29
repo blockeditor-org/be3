@@ -37,8 +37,8 @@ const MAX_JOINED_DEPTH: usize = 16;
 use super::BarCovers;
 pub use host::{
     DockBarMove, DockBodies, DockDeclaration, DockDeclaredBar, DockDeclaredDialog, DockDeclaredTab,
-    DockDragStage, DockHostEvent, DockHostLink, DockHostSlot, DockHosted, DockJoin, DockRequest,
-    use_dock_join,
+    DockDragStage, DockHostEvent, DockHostLink, DockHostSlot, DockHosted, DockJoin, DockKeeper,
+    DockKept, DockRequest, use_dock_join,
 };
 use host::{Joined, Registry};
 
@@ -494,6 +494,13 @@ impl<K: DockKey> DockingLayout<K> {
                 self.state.set(state);
             }
         }
+        self.restores.update(|restores| *restores += 1);
+    }
+
+    fn keep_state(&self, mut state: DockState) {
+        state.mark_seeded();
+        self.inner().registry.keep_joined();
+        self.state.set(state);
         self.restores.update(|restores| *restores += 1);
     }
 
@@ -1283,6 +1290,20 @@ impl<K: DockKey> Found<K> {
             .collect()
     }
 
+    fn own_keys(&self) -> Vec<(TabId, String)> {
+        let mut keys: Vec<(TabId, String)> = self
+            .tabs
+            .iter()
+            .filter_map(|(tab, entry)| match &entry.kind {
+                EntryKind::Tab { id, .. } => Some((*tab, id.key())),
+                EntryKind::Group { .. } => None,
+            })
+            .chain(self.bars.iter().map(|(bar, (key, _))| (*bar, key.clone())))
+            .collect();
+        keys.sort();
+        keys
+    }
+
     fn declared_dialogs(&self) -> Vec<DockDeclaredDialog> {
         self.dialogs
             .iter()
@@ -1447,6 +1468,10 @@ where
             .and_then(|slot| slot.claim())
             .map(|link| (link, true)),
     };
+    let keeper = match link {
+        Some((_, false)) => None,
+        _ => use_context::<DockKeeper>().and_then(|keeper| keeper.claim()),
+    };
     if let Some((link, nests)) = link {
         let on_close = Callback::new(on_close);
         return view! {
@@ -1470,6 +1495,13 @@ where
             layout.reconcile(&spec, &dialogs, &hosts);
         });
     });
+    if let Some(keep) = keeper {
+        keep(DockKept {
+            layout: create_memo(move || layout.snapshot().state),
+            keys: create_memo(move || found.with(|found| found.own_keys())),
+            restore: Callback::new(move |state: DockState| layout.keep_state(state)),
+        });
+    }
     let dialogs = create_memo(move || {
         let held = found.with(|found| found.dialogs.clone());
         layout.state.with(|state| {

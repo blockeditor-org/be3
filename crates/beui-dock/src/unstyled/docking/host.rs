@@ -149,6 +149,37 @@ impl DockHostSlot {
     }
 }
 
+#[derive(Clone, Copy)]
+pub struct DockKept {
+    pub layout: Memo<DockState>,
+    pub keys: Memo<Vec<(TabId, String)>>,
+    pub restore: Callback<DockState>,
+}
+
+#[derive(Clone)]
+pub struct DockKeeper {
+    keep: Rc<dyn Fn(DockKept)>,
+    claimed: Rc<Cell<bool>>,
+}
+
+impl DockKeeper {
+    pub fn new(keep: impl Fn(DockKept) + 'static) -> Self {
+        Self {
+            keep: Rc::new(keep),
+            claimed: Rc::default(),
+        }
+    }
+
+    pub(crate) fn claim(&self) -> Option<Rc<dyn Fn(DockKept)>> {
+        if self.claimed.replace(true) {
+            return None;
+        }
+        let claimed = Rc::clone(&self.claimed);
+        on_cleanup(move || claimed.set(false));
+        Some(Rc::clone(&self.keep))
+    }
+}
+
 pub trait DockHostLink {
     fn declare(&self, declaration: DockDeclaration);
     fn hosted(&self) -> Memo<Option<DockHosted>>;

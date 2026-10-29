@@ -52,7 +52,14 @@ impl Default for DockedTabs {
 }
 
 impl DockedTabs {
-    pub(crate) fn provide_slot(&self, link: Option<Rc<dyn DockHostLink>>, docked: bool) {
+    pub(crate) fn provide_slot(
+        &self,
+        link: Option<Rc<dyn DockHostLink>>,
+        docked: bool,
+        host: &EditorHost,
+        editor: Editor,
+    ) {
+        provide_context(saved::keeper(host.clone(), editor));
         let slot = DockHostSlot::new(link);
         *self.slot.borrow_mut() = Some(slot.clone());
         self.built.set(Some(docked));
@@ -96,7 +103,7 @@ impl DockedTabs {
             saving: saved::Saving::default(),
         });
         *self.link.borrow_mut() = Some(Rc::clone(&link));
-        saved::keep_layout(&link, editor);
+        saved::keep_joined(&link, editor);
         let menus = link.menus.handle();
         let sizes = link.bar_sizes.read_only();
         let menued = Rc::downgrade(&link);

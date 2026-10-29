@@ -1,11 +1,7 @@
 use super::*;
 use beui::dock::styled::{DockPane, DockTab, Docking, DockingLayout};
 use beui::dock::unstyled::{DockBar, DockBarPlacement as Placement, DockEdge as Edge};
-use block_editor_beui::be_block::{
-    DisplaySettings, DisplaySettingsContent, Root as _, Settings, SettingsContent, SettingsProfile,
-    SettingsProfileContent,
-};
-use block_editor_beui::{BlockInfo, BlockParent};
+use block_editor_beui::be_block::{DisplaySettings, DisplaySettingsContent};
 use block_plugin_api::{
     DockBarPlacement, DockEdge, DockHosted, DockHostedView, DockItem, DockItemKind, DockLayout,
     DockMessage, DockOutside, DockOutsidePane, DockOutsidePlace, DockPane as Pane, DockPlacedBar,
@@ -37,34 +33,6 @@ impl BeuiApp for BarredApp {
             </Root>
         }
     }
-}
-
-fn settings_here(test: &mut BeuiTest<BarredApp>, display: DisplaySettingsContent) -> Uuid {
-    let client = test.host().client_id();
-    let (settings, profile, held) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
-    let store = test.store();
-    store.add_block(BlockInfo::new(
-        settings,
-        Settings::CONTENT_TYPE,
-        BlockParent::Root,
-    ));
-    store.add_block(BlockInfo::new(
-        profile,
-        SettingsProfile::CONTENT_TYPE,
-        BlockParent::Block(settings),
-    ));
-    let mut own = SettingsContent::default();
-    own.apply(&Settings::add_profile(client, profile));
-    store.hold(Some(settings), own);
-    let mut kinds = SettingsProfileContent::default();
-    kinds.apply(&SettingsProfile::set_kind(
-        DisplaySettings::CONTENT_TYPE,
-        held,
-    ));
-    store.hold(Some(profile), kinds);
-    store.hold(Some(held), display);
-    test.run();
-    held
 }
 
 fn barred(display: DisplaySettingsContent) -> (BeuiTest<BarredApp>, Uuid) {
