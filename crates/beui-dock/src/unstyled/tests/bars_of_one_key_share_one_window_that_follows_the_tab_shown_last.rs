@@ -47,10 +47,7 @@ fn bars_of_one_key_share_one_window_that_follows_the_tab_shown_last() {
     );
     assert_eq!(
         state.bar_windows(&key),
-        vec![(
-            "tools".to_owned(),
-            vec![TabId::new(20), TabId::new(21)]
-        )],
+        vec![("tools".to_owned(), vec![TabId::new(20), TabId::new(21)])],
         "the bars of one key share one window"
     );
 

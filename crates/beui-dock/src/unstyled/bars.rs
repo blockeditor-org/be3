@@ -865,7 +865,8 @@ fn DockBarWindow(dock: State, key: String) -> NodeId {
             .map(|(_, bars)| bars)
             .unwrap_or_default()
     });
-    let followed = create_memo(move || bars.with(|bars| state.with(|state| state.followed_bar(bars))));
+    let followed =
+        create_memo(move || bars.with(|bars| state.with(|state| state.followed_bar(bars))));
     let sizes = create_signal(HashMap::<TabId, Vec2>::new());
     let size = create_signal(
         followed

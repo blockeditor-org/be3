@@ -1531,7 +1531,8 @@ where
         let hosts = held.hosts.clone();
         untrack(|| {
             found.set(Rc::new(held));
-            let bar_key = |bar: TabId| shared_key(found.with_untracked(|found| found.bar_key(bar)), bar);
+            let bar_key =
+                |bar: TabId| shared_key(found.with_untracked(|found| found.bar_key(bar)), bar);
             layout.reconcile(&spec, &dialogs, &hosts, &bar_key);
             if declares {
                 declared.set(Some(spec));
