@@ -15,8 +15,12 @@ interface plugin {
         constructor(opening: opening);
 
         /// The user picked command `id` of the menu of the editor's view
-        /// `view` (`shell.menu`), wherever the menu was shown.
-        menu-pick: func(view: view-id, id: string);
+        /// `view` (`shell.menu`), wherever the menu was shown. `anchor`, in
+        /// host coordinates, is what the menu belongs to: the tab that
+        /// shows the view, or the rect a parent placed the editor at when it
+        /// has no tab; `none` when nothing of it is visible. A dialog the
+        /// command opens points at it.
+        menu-pick: func(view: view-id, id: string, anchor: option<rect>);
 
         /// The user ran an action of the bar of a child the editor placed.
         child-bar: func(view: view-id, child: child-id, action: bar-action);

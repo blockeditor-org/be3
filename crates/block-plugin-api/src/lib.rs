@@ -504,6 +504,10 @@ impl HostTransform {
             (point.y - self.origin.y) / self.scale.y,
         )
     }
+
+    pub fn inverse_rect(self, rect: Rect) -> Rect {
+        Rect::from_min_max(self.inverse_point(rect.min), self.inverse_point(rect.max))
+    }
 }
 
 impl HostPanel {

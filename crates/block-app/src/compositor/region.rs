@@ -369,11 +369,11 @@ pub(crate) fn PluginRegion(
                 .collect()
         });
         let children: Vec<ChildId> = placed.iter().map(|(child, _)| *child).collect();
-        for (child, pick) in
+        for (child, pick, anchor) in
             block_app_plugin_host::take_child_menu_picks(&plugin_id.value(), instance, &children)
         {
             if let Some((_, block)) = placed.iter().find(|(placed, _)| *placed == child) {
-                super::editors::pick_frame_menu(*block, pick);
+                super::editors::pick_frame_menu(*block, pick, anchor);
             }
         }
         for drag in block_app_plugin_host::take_block_drags(&plugin_id.value(), instance) {

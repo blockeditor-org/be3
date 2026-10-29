@@ -175,6 +175,9 @@ pub(crate) fn DockingPage() -> NodeId {
             >
                 <AttachedDialogs />
             </Sample>
+            <Sample title="A dialog from a shortcut" code={vec![TabSettings::SOURCE]}>
+                <TabSettings />
+            </Sample>
         </ScrollPage>
     }
 }
@@ -456,6 +459,44 @@ fn FullscreenTab() -> NodeId {
                  Escape or the same button brings it back. Full screen in the tab's \
                  right-click menu shows it the same way."
             </Text>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn TabSettings() -> NodeId {
+    let open = create_signal(false);
+    let tab = use_frame_anchor();
+    Action::new("demo.tab-settings", "Tab settings", move || open.set(true))
+        .shortcut(Chord::ctrl(Key::Period))
+        .register();
+    view! {
+        <List spacing=SECTION_SPACING>
+            <List direction=Direction::Horizontal spacing=ROW_SPACING>
+                <Button
+                    @test_id="demo.tab-settings"
+                    label="Open as Ctrl+. does"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || open.set(true)}
+                />
+            </List>
+            <Text style=TextStyle::CAPTION>
+                "A dialog opened from a shortcut, the palette or a menu another layer drew \
+                 has no control to hang from, so it points at its tab. In a fullscreen tab, \
+                 where no tab shows, it opens at the top of the page without a beak."
+            </Text>
+            <Dialog
+                open={open}
+                title="Tab settings"
+                anchor={create_memo(move || DialogAnchor::Rect(tab.get()))}
+                width={Size::Custom(240.0)}
+                on_dismiss={move || open.set(false)}
+            >
+                <Text @test_id="demo.tab-settings.body" style=TextStyle::CAPTION>
+                    "Settings about this tab."
+                </Text>
+            </Dialog>
         </List>
     }
 }

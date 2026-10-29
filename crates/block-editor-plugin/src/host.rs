@@ -512,6 +512,8 @@ pub struct EditorHost {
     child_menu_picks: Rc<RefCell<Vec<(ChildId, String)>>>,
     chrome: Rc<Cell<Option<bool>>>,
     placed_content: Rc<Cell<Option<Rect>>>,
+    frame_anchor: Rc<Cell<Option<Rect>>>,
+    spec_anchor: Rc<Cell<Option<Option<Rect>>>>,
     copied: Rc<RefCell<Vec<String>>>,
     copied_images: Rc<RefCell<Vec<Vec<u8>>>>,
     paste_requested: Rc<Cell<bool>>,
@@ -1841,7 +1843,25 @@ impl EditorHost {
         self.menus.borrow().clone()
     }
 
-    pub(crate) fn push_menu_pick(&self, view: ViewId, id: String) {
+    pub fn frame_anchor(&self) -> Option<Rect> {
+        self.frame_anchor.get()
+    }
+
+    pub(crate) fn set_frame_anchor(&self, anchor: Option<Rect>) {
+        if self.spec_anchor.replace(Some(anchor)) == Some(anchor) {
+            return;
+        }
+        if self.frame_anchor.replace(anchor) != anchor {
+            self.changed();
+        }
+    }
+
+    pub(crate) fn push_menu_pick(&self, view: ViewId, id: String, anchor: Option<Rect>) {
+        if let Some(anchor) = anchor
+            && self.frame_anchor.replace(Some(anchor)) != Some(anchor)
+        {
+            self.changed();
+        }
         self.menu_picks.borrow_mut().push((view, id));
         match view.is_main() {
             true => self.changed(),
@@ -1917,6 +1937,7 @@ impl EditorHost {
         dialog: Option<DialogFrame>,
         dock_tab: Option<u64>,
         docks: bool,
+        anchor: Option<Rect>,
     ) -> ChildId {
         let view = self.shown_view().unwrap_or(ViewId::MAIN);
         let placed = rect;
@@ -1952,6 +1973,7 @@ impl EditorHost {
                 follows_view,
                 dialog,
                 docks,
+                anchor,
             });
         child
     }

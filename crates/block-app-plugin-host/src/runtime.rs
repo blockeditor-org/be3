@@ -443,8 +443,8 @@ impl Runtime {
         messages.extend(
             super::docks::take_picks(&self.plugin.identity.id)
                 .into_iter()
-                .map(|(owner, view, id)| {
-                    Outbound::Editor(owner, EditorCall::MenuPick { view, id })
+                .map(|(owner, view, id, anchor)| {
+                    Outbound::Editor(owner, EditorCall::MenuPick { view, id, anchor })
                 }),
         );
         messages.extend(
@@ -1622,9 +1622,14 @@ pub fn menu(plugin_id: &str, instance: EditorInstanceId) -> Vec<block_plugin_api
     with(plugin_id, |runtime| runtime.instances.menu(instance)).unwrap_or_default()
 }
 
-pub fn menu_pick(plugin_id: &str, instance: EditorInstanceId, id: String) {
+pub fn menu_pick(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+    id: String,
+    anchor: Option<beui::Rect>,
+) {
     with(plugin_id, |runtime| {
-        let messages = runtime.instances.menu_pick(instance, id);
+        let messages = runtime.instances.menu_pick(instance, id, anchor);
         runtime.send(messages);
     });
 }
@@ -1633,7 +1638,7 @@ pub fn take_child_menu_picks(
     plugin_id: &str,
     instance: EditorInstanceId,
     children: &[block_plugin_api::ChildId],
-) -> Vec<(block_plugin_api::ChildId, String)> {
+) -> Vec<(block_plugin_api::ChildId, String, Option<beui::Rect>)> {
     with(plugin_id, |runtime| {
         runtime.instances.take_child_menu_picks(instance, children)
     })

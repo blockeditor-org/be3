@@ -203,6 +203,7 @@ fn SubregionView(
         on_focus,
         dock_tab,
         docks,
+        beui::dock::unstyled::use_dock_tab(),
     );
     if let Some(link) = link {
         crate::docked::bridge_child_dock(editor, link, state, docked_tab);

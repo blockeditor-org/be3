@@ -297,6 +297,31 @@ impl DockTabControl {
         self.tab
     }
 
+    pub fn handle(&self) -> Option<NodeId> {
+        let dock = self.dock()?;
+        let mut tab = self.tab;
+        let mut seen = Vec::new();
+        loop {
+            let held = dock
+                .handles
+                .with(|handles| handles.get(&tab).and_then(|(node, _)| node.try_get()));
+            if let Some(node) = held {
+                return Some(node);
+            }
+            seen.push(tab);
+            tab = dock
+                .dialog_parent(tab)
+                .filter(|parent| !seen.contains(parent))?;
+        }
+    }
+
+    pub fn anchor(&self) -> Option<Rect> {
+        if self.fullscreen() {
+            return None;
+        }
+        measure(self.handle()?).get().map(|measured| measured.rect)
+    }
+
     pub fn fullscreen(&self) -> bool {
         if let Some(fullscreen) = self.read_hosted(|hosted| hosted.fullscreen == Some(self.tab)) {
             return fullscreen;
@@ -516,6 +541,7 @@ struct State {
     fullscreen_window: NodeRef,
     bars: Stored<RefCell<HashMap<LeafId, TabBar>>>,
     panels: Stored<RefCell<HashMap<TabId, (NodeId, Scope)>>>,
+    handles: Signal<HashMap<TabId, (NodeRef, bool)>>,
     owner: Stored<Option<ScopeContext>>,
     tab: RenderFn<DockTabHandle>,
     content: RenderFn<TabId>,
@@ -685,6 +711,7 @@ impl State {
         let panel = scope.context().run(|| {
             provide_context(DockTabMenu { tab, menu: menus });
             provide_context(control);
+            beui_components_unstyled::provide_frame_anchor(create_memo(move || control.anchor()));
             self.content.call(tab)
         });
         self.panels.value().borrow_mut().insert(tab, (panel, scope));
@@ -1732,6 +1759,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         fullscreen_layer: NodeRef::new(),
         fullscreen_window: NodeRef::new(),
         panels: store(RefCell::default()),
+        handles: create_signal(HashMap::new()),
         owner: store(owner_scope()),
         on_close,
         drag,
@@ -2959,8 +2987,31 @@ fn DockTabView(
         Entry::Tab(tab) => format!("dock.tab.{}", tab.value()),
         Entry::Group(_) => String::new(),
     };
+    let handle = NodeRef::new();
+    let grouped_entry = matches!(entry, Entry::Group(_));
+    let handles = dock.handles;
+    create_effect(move || {
+        let shown = tabs.get();
+        handles.update(|handles| {
+            handles.retain(|tab, (held, _)| *held != handle || shown.contains(tab));
+            for tab in shown {
+                let own = handles
+                    .get(&tab)
+                    .is_some_and(|(held, group)| *held != handle && !group);
+                if !(grouped_entry && own) {
+                    handles.insert(tab, (handle, grouped_entry));
+                }
+            }
+        });
+    });
+    on_cleanup(move || {
+        if handles.is_alive() {
+            handles.update(|handles| handles.retain(|_, (held, _)| *held != handle));
+        }
+    });
     view! {
         <Draggable
+            @node_ref=&handle
             @test_id={tab_test_id}
             payload={DockDragged::Entry(entry)}
             touch_drags={TouchDrags::Along(across)}

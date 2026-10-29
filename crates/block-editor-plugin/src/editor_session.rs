@@ -4,11 +4,11 @@ use block_plugin_api::accesskit::{ActionRequest, NodeId, TreeUpdate};
 use block_plugin_api::guest::{debug::debug, shell};
 use block_plugin_api::ops::guest::{Sender, spawn};
 use block_plugin_api::{
-    AnchoredPlacement, ArtifactDescription, BarAction, ChildId, ChildPlacement, ChildPlacements,
-    ChildStatus, EditorInstanceId, Failure, FrameChrome, FrameCommit, FrameReport, HostView,
-    LayerSpace, MAX_CHILDREN, MAX_COLLECTION_ITEMS, MenuEntry, Occluder, ParentView,
-    ScreenPlacement, ScreenRequest, ScreenWindow, Size, TimedInput, View, ViewId, ViewPlacement,
-    ViewSize, ViewportMetrics, WebViewId,
+    AnchoredPlacement, ArtifactDescription, BarAction, ChildContent, ChildId, ChildPlacement,
+    ChildPlacements, ChildStatus, DockMessage, DockTabPath, EditorInstanceId, Failure, FrameChrome,
+    FrameCommit, FrameReport, HostView, LayerSpace, MAX_CHILDREN, MAX_COLLECTION_ITEMS, MenuEntry,
+    Occluder, ParentView, ScreenPlacement, ScreenRequest, ScreenWindow, Size, TimedInput, View,
+    ViewId, ViewPlacement, ViewSize, ViewportMetrics, WebViewId,
 };
 use block_ui::BlockCatalog;
 use geometry::{Pos2, Rect, Vec2, vec2};
@@ -167,8 +167,42 @@ impl EditorSession {
         }
     }
 
-    pub fn pick_menu(&self, view: ViewId, id: String) {
-        self.host.push_menu_pick(view, id);
+    pub fn pick_menu(&self, view: ViewId, id: String, anchor: Option<Rect>) {
+        let space = self
+            .views
+            .get(&view)
+            .and_then(|state| state.layer_space.as_ref());
+        let anchor = anchor
+            .zip(space)
+            .map(|(rect, space)| space.to_host.inverse_rect(rect));
+        self.host.push_menu_pick(view, id, anchor);
+    }
+
+    fn host_anchor(&self, view: ViewId, anchor: Option<Rect>) -> Option<Rect> {
+        let space = self.views.get(&view)?.layer_space.as_ref()?;
+        Some(space.to_host.rect(anchor?))
+    }
+
+    fn child_anchor(&self, child: ChildId) -> Option<Rect> {
+        self.views.iter().find_map(|(view, state)| {
+            let placed = state.children.iter().find(|placed| placed.child == child)?;
+            self.host_anchor(*view, placed.anchor)
+        })
+    }
+
+    fn dock_tab_anchor(&self, child: ChildId, tab: &DockTabPath) -> Option<Rect> {
+        let mut via = vec![child];
+        via.extend(tab.via.iter().copied());
+        let shown = DockTabPath { via, tab: tab.tab };
+        self.views
+            .iter()
+            .find_map(|(view, state)| {
+                let placed = state.children.iter().find(|placed| {
+                    matches!(&placed.content, ChildContent::DockTab(path) if *path == shown)
+                })?;
+                Some(self.host_anchor(*view, placed.anchor))
+            })
+            .unwrap_or_else(|| self.child_anchor(child))
     }
 
     pub fn dismiss(&self) {
@@ -370,9 +404,13 @@ impl EditorSession {
         commit.windows.extend(self.windows());
         commit.children.extend(self.children());
         commit.window_requests.append(&mut self.asks);
-        commit
-            .docks
-            .extend(self.host.take_dock_messages(self.instance));
+        let mut docks = self.host.take_dock_messages(self.instance);
+        for message in &mut docks {
+            if let DockMessage::Pick(pick) = message {
+                pick.anchor = self.dock_tab_anchor(pick.child.child, &pick.tab);
+            }
+        }
+        commit.docks.extend(docks);
         self.retain_child_statuses();
     }
 
@@ -461,7 +499,8 @@ impl EditorSession {
             self.sent_menus = menus;
         }
         for (child, id) in self.host.take_child_menu_picks() {
-            shell::child_menu_pick(instance, child, id);
+            let anchor = self.child_anchor(child);
+            shell::child_menu_pick(instance, child, id, anchor);
         }
         for text in self.host.take_copied_text() {
             shell::copy_text(instance, text);
@@ -621,7 +660,9 @@ impl EditorSession {
 
     fn frame_reports(&mut self) -> Vec<FrameReport> {
         let mut reports = Vec::new();
-        for state in self.views.values_mut() {
+        let mut views: Vec<_> = self.views.iter_mut().collect();
+        views.sort_by_key(|(view, _)| **view);
+        for (_, state) in views {
             let Some(report) = &state.report else {
                 continue;
             };
@@ -818,6 +859,9 @@ impl EditorSession {
         if frames {
             self.host
                 .set_chrome_shown(context.spec.chrome == FrameChrome::Drawn);
+        }
+        if frames {
+            self.host.set_frame_anchor(context.spec.anchor);
         }
         if view.is_main() {
             self.host.set_placed_content(context.spec.content);

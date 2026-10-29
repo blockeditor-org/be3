@@ -11,6 +11,13 @@ use block_plugin_api::{
 };
 use uuid::Uuid;
 
+pub(super) type Pick = (
+    EditorInstanceId,
+    ViewId,
+    String,
+    Option<block_plugin_api::Rect>,
+);
+
 thread_local! {
     static DOCKS: RefCell<Docks> = RefCell::new(Docks::default());
 }
@@ -52,7 +59,7 @@ pub(super) struct Docks {
     outbox: Vec<(EditorInstanceId, DockUpdate)>,
     bars: Vec<(EditorInstanceId, ViewId, ChildId, BarAction)>,
     menus: HashMap<(EditorInstanceId, ViewId), Vec<MenuItem>>,
-    picks: Vec<(EditorInstanceId, ViewId, String)>,
+    picks: Vec<Pick>,
     changed: HashSet<String>,
 }
 
@@ -73,7 +80,7 @@ impl Docks {
 
     pub(super) fn forget(&mut self, instance: EditorInstanceId) {
         self.menus.retain(|(held, _), _| *held != instance);
-        self.picks.retain(|(held, _, _)| *held != instance);
+        self.picks.retain(|(held, _, _, _)| *held != instance);
         self.blocks.retain(|_, held| *held != instance);
         self.children.remove(&instance);
         self.declared.remove(&instance);
@@ -201,7 +208,8 @@ impl Docks {
                         if let Some(plugin) = self.plugins.get(&owner) {
                             self.changed.insert(plugin.clone());
                         }
-                        self.picks.push((owner, ViewId(tab.tab), pick.id));
+                        self.picks
+                            .push((owner, ViewId(tab.tab), pick.id, pick.anchor));
                     }
                 }
             }
@@ -301,11 +309,11 @@ impl Docks {
         }
     }
 
-    pub(super) fn take_picks(&mut self, plugin: &str) -> Vec<(EditorInstanceId, ViewId, String)> {
+    pub(super) fn take_picks(&mut self, plugin: &str) -> Vec<Pick> {
         let plugins = &self.plugins;
         let (taken, kept) = std::mem::take(&mut self.picks)
             .into_iter()
-            .partition(|(to, _, _)| plugins.get(to).is_some_and(|held| held == plugin));
+            .partition(|(to, _, _, _)| plugins.get(to).is_some_and(|held| held == plugin));
         self.picks = kept;
         taken
     }
@@ -879,7 +887,7 @@ pub(super) fn set_menu(instance: EditorInstanceId, view: ViewId, items: Vec<Menu
     with(|docks| docks.set_menu(instance, view, items));
 }
 
-pub(super) fn take_picks(plugin: &str) -> Vec<(EditorInstanceId, ViewId, String)> {
+pub(super) fn take_picks(plugin: &str) -> Vec<Pick> {
     DOCKS.with(|docks| docks.borrow_mut().take_picks(plugin))
 }
 

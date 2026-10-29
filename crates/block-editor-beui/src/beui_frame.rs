@@ -96,6 +96,8 @@ pub(crate) fn FrameChrome(
     let listed = chrome.listed.handle();
     let content_slot_writer = chrome.content.clone();
     provide_context(PhoneLayout(create_memo(move || bar.get().on_phone)));
+    let anchor = editor.frame_anchor();
+    beui::unstyled::provide_frame_anchor(create_memo(move || anchor.get()));
     let phone = create_memo(move || bar.get().on_phone);
     provide_density(create_memo(move || match phone.get() {
         true => Density::Comfortable,

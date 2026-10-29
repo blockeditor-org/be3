@@ -993,12 +993,13 @@ fn frame_menu(editors: &Editors, block: Uuid) -> Vec<block_plugin_api::MenuEntry
         .unwrap_or_default()
 }
 
-pub(super) fn pick_frame_menu(block: Uuid, pick: String) {
+pub(super) fn pick_frame_menu(block: Uuid, pick: String, anchor: Option<Rect>) {
     let editors = editors();
     let owner = chrome_owner(&editors, block);
+    let anchor = anchor.filter(|_| owner == block);
     editors.with(|open| {
         if let Some(editor) = open.get(&owner) {
-            editor.pick_menu(pick);
+            editor.pick_menu(pick, anchor);
         }
     });
 }
@@ -1358,23 +1359,10 @@ fn BlockFrameView(
     let fits = create_memo(move || chrome.get() == Chrome::Drawn);
     let zoomable = handle.pan_and_zoom;
     let child_view = child_view(block, View::MAIN);
+    let anchor = placed_anchor();
     view! {
         <Camera spec content fits={fits}>|camera: CameraView| {
             let CameraView { view: editor_view, pan_drag, rect } = camera;
-            let frame = create_memo(move || {
-                let origin = rect.get().min;
-                Some(FrameSpec {
-                    chrome: match chrome.get() {
-                        Chrome::Drawn => FrameChrome::Drawn,
-                        Chrome::None => FrameChrome::None,
-                    },
-                    content: content
-                        .get()
-                        .map(|content| content.translate(-origin.to_vec2())),
-                    top_bar: top_bar.get(),
-                    dialog: None,
-                })
-            });
             let placed_zoom = create_memo(move || {
                 if zoomable || !embedded || content.get().is_some() {
                     return 1.0;
@@ -1386,6 +1374,22 @@ fn BlockFrameView(
                     .map_or(1.0, |assigned| {
                         (shown.width() / assigned.x).min(shown.height() / assigned.y)
                     })
+            });
+            let frame = create_memo(move || {
+                let origin = rect.get().min;
+                let zoom = placed_zoom.get().max(f32::EPSILON);
+                Some(FrameSpec {
+                    chrome: match chrome.get() {
+                        Chrome::Drawn => FrameChrome::Drawn,
+                        Chrome::None => FrameChrome::None,
+                    },
+                    content: content
+                        .get()
+                        .map(|content| content.translate(-origin.to_vec2())),
+                    top_bar: top_bar.get(),
+                    dialog: None,
+                    anchor: anchor.get().map(|anchor| anchor.scaled(zoom.recip())),
+                })
             });
             view! {
                 <PluginRegion
@@ -1641,6 +1645,12 @@ fn HostedChild(
             <CanvasItem x={x} y={y} width={width} height={height}>
                 <Layers>
                     <ForEach keys={keys}>|(id, kind, _): (Uuid, Kind, Option<Uuid>)| {
+                        provide_context(PlacedAnchor(create_memo(move || {
+                            child.get().and_then(|child| {
+                                let anchor = child.anchor?;
+                                Some(anchor.translate(-child.rect.min.to_vec2()))
+                            })
+                        })));
                         let reporter = reporter_for(parent, region, key, within);
                         match kind {
                             Kind::Missing | Kind::Unavailable | Kind::NoPicker => view! {
@@ -1761,6 +1771,16 @@ fn HostedChild(
     }
 }
 
+#[derive(Clone, Copy)]
+struct PlacedAnchor(Memo<Option<Rect>>);
+
+fn placed_anchor() -> Memo<Option<Rect>> {
+    match use_context::<PlacedAnchor>() {
+        Some(PlacedAnchor(anchor)) => anchor,
+        None => create_memo(|| None),
+    }
+}
+
 #[component]
 fn DockTabSurface(block: Uuid, tab: u64, reporter: ChildReporter) -> NodeId {
     let editors = editors();
@@ -1798,6 +1818,7 @@ fn DockTabSurface(block: Uuid, tab: u64, reporter: ChildReporter) -> NodeId {
     };
     let child_view = child_view(block, region);
     let on_focus = reporter.focus;
+    let anchor = placed_anchor();
     view! {
         <FrameStack block top_bar=TopBar::Hidden holds={holds}>|stack: Memo<Vec<Uuid>>| {
             let region_editor = region_editor.clone();
@@ -1807,6 +1828,7 @@ fn DockTabSurface(block: Uuid, tab: u64, reporter: ChildReporter) -> NodeId {
                         true => FrameChrome::Drawn,
                         false => FrameChrome::None,
                     },
+                    anchor: anchor.get(),
                     ..FrameSpec::default()
                 })
             });

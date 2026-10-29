@@ -43,7 +43,6 @@ pub enum Placement {
     InsideBottom,
     InsideBottomEnd,
     CenterOn,
-    HangFrom(u16),
     Popover { gap: u16, margin: u16 },
     Edge(LayerEdge),
 }
@@ -57,7 +56,6 @@ impl Placement {
             | Placement::BelowStart
             | Placement::RightStart
             | Placement::CenterOn
-            | Placement::HangFrom(_)
             | Placement::Popover { .. }
             | Placement::Edge(_) => true,
             Placement::At
@@ -207,18 +205,6 @@ pub fn resolve_rect(
             .max(viewport.top());
         return Rect::from_min_size(pos2(x, y), size);
     }
-    if let Placement::HangFrom(gap) = placement {
-        let gap = f32::from(gap);
-        let room = viewport.shrink(gap);
-        let size = content_size.min(room.size()).max(Vec2::ZERO);
-        let x = (anchor_rect.center().x - size.x / 2.0)
-            .min(room.right() - size.x)
-            .max(room.left());
-        let y = (anchor_rect.top() + gap)
-            .min(room.bottom() - size.y)
-            .max(room.top());
-        return Rect::from_min_size(pos2(x, y), size);
-    }
     if let Placement::Popover { gap, margin } = placement {
         let gap = f32::from(gap);
         let centre = anchor_rect.center().x;
@@ -305,7 +291,6 @@ pub fn resolve_rect(
         | Placement::InsideBottom
         | Placement::InsideBottomEnd
         | Placement::CenterOn
-        | Placement::HangFrom(_)
         | Placement::Popover { .. }
         | Placement::Edge(_) => {
             unreachable!("a centred or pinned overlay is placed above")

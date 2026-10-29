@@ -64,6 +64,7 @@ fn frame(session: &mut EditorSession, content: Option<Rect>, top_bar: TopBar) {
                 content,
                 top_bar,
                 dialog: None,
+                anchor: None,
             }),
             windows: false,
             host_place: None,

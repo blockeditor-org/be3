@@ -19,6 +19,7 @@ fn rename_and_app_menu_children_round_trip() {
         follows_view: false,
         dialog: None,
         docks: None,
+        anchor: None,
     };
     let mut message = committed(ChildPlacements {
         instance: EditorInstanceId(3),

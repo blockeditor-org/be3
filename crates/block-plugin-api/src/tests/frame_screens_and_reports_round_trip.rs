@@ -34,6 +34,10 @@ fn frame_screens_and_reports_round_trip() {
             narrow: true,
             bottom_inset: 24.0,
         }),
+        anchor: Some(Rect::from_min_size(
+            Pos2::new(40.0, -28.0),
+            Vec2::new(120.0, 28.0),
+        )),
     });
     round_trips(&vec![request]);
 

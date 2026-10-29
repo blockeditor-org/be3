@@ -202,6 +202,7 @@ impl EditorHost {
                 child: DockChild { instance, child },
                 tab,
                 id,
+                anchor: None,
             }));
         }
         messages

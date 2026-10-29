@@ -527,9 +527,9 @@ impl PluginEditor {
         }
     }
 
-    pub(crate) fn pick_menu(&self, id: String) {
+    pub(crate) fn pick_menu(&self, id: String, anchor: Option<beui::Rect>) {
         if let Some(plugin) = self.plugin() {
-            block_app_plugin_host::menu_pick(&plugin.identity.id, self.instance, id);
+            block_app_plugin_host::menu_pick(&plugin.identity.id, self.instance, id, anchor);
         }
     }
 

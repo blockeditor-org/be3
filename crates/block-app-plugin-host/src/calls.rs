@@ -46,6 +46,7 @@ pub(super) enum EditorCall {
     MenuPick {
         view: ViewId,
         id: String,
+        anchor: Option<beui::Rect>,
     },
     Dismiss,
     ChildBar {

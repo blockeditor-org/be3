@@ -217,6 +217,7 @@ interface shell-types {
 interface shell {
     use types.{block-location, block-pick, child-id, editor-instance-id, size, view-id, web-view-id};
     use be3:shared/ids@0.1.0.{block-id, block-type-id};
+    use be3:ui/types@0.1.0.{rect};
     use shell-types.{
         artifact-description, audio-command, audio-status, bar-action, catalog,
         child-status, dialog-answer, focus, menu-item, shell-command, stopped, view-change,
@@ -267,8 +268,10 @@ interface shell {
     /// The editor asks the host to run an action of its bar.
     run-bar-action: func(instance: editor-instance-id, action: bar-action);
 
-    /// The editor picked a command of a child's menu.
-    child-menu-pick: func(instance: editor-instance-id, child: child-id, id: string);
+    /// The editor picked a command of a child's menu. `anchor`, in host
+    /// coordinates, is what the menu belongs to (the child's tab, or the
+    /// child), which the host passes on as the child's `menu-pick` anchor.
+    child-menu-pick: func(instance: editor-instance-id, child: child-id, id: string, anchor: option<rect>);
 
     copy-text: func(instance: editor-instance-id, text: string);
 

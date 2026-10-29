@@ -1,3 +1,4 @@
+use beui::dock::unstyled::DockTabControl;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::Arc;
@@ -296,6 +297,7 @@ struct ChildRecord {
     zone: u64,
     dock_tab: Option<u64>,
     docks: bool,
+    tab: Option<DockTabControl>,
 }
 
 type Revision = OwnedSignal<u64>;
@@ -408,6 +410,7 @@ impl OwnedEditor {
         let scale = create_signal(1.0_f32);
         let chrome = create_signal(true);
         let placed_content = create_signal(None::<Rect>);
+        let frame_anchor = create_signal(None::<Rect>);
         let editable = create_signal(host.editable());
         let presenting = create_signal(false);
         let drag = create_signal(None::<Drag>);
@@ -432,6 +435,7 @@ impl OwnedEditor {
             scale,
             chrome,
             placed_content,
+            frame_anchor,
             editable,
             presenting,
             drag,
@@ -497,6 +501,7 @@ struct EditorState {
     scale: Signal<f32>,
     chrome: Signal<bool>,
     placed_content: Signal<Option<Rect>>,
+    frame_anchor: Signal<Option<Rect>>,
     editable: Signal<bool>,
     presenting: Signal<bool>,
     drag: Signal<Option<Drag>>,
@@ -875,6 +880,10 @@ impl Editor {
         self.state().placed_content.read_only()
     }
 
+    pub fn frame_anchor(&self) -> ReadSignal<Option<Rect>> {
+        self.state().frame_anchor.read_only()
+    }
+
     pub fn presenting(&self) -> ReadSignal<bool> {
         self.state().presenting.read_only()
     }
@@ -1015,6 +1024,7 @@ impl Editor {
         focus: Callback<()>,
         dock_tab: Option<u64>,
         docks: bool,
+        tab: Option<DockTabControl>,
     ) -> ReadSignal<ChildState> {
         let editor_state = self.state();
         let state = create_signal(ChildState::default());
@@ -1041,6 +1051,7 @@ impl Editor {
                 zone: document_zone(),
                 dock_tab,
                 docks,
+                tab,
             }),
         ));
         let editor = self.0;
@@ -1286,6 +1297,10 @@ impl Editor {
             state
                 .placed_content
                 .set(state.host.placed_content().map(|rect| rect.scaled(ratio)));
+            let anchor = state.host.frame_anchor().map(|rect| rect.scaled(ratio));
+            if state.frame_anchor.get_untracked() != anchor {
+                state.frame_anchor.set(anchor);
+            }
             state.editable.set(state.host.editable());
             state.presenting.set(state.host.presenting());
             state.drag.set(state.host.drag().map(|drag| Drag {
@@ -1432,6 +1447,16 @@ impl Editor {
             Some((_, to_host)) => to_host.rect(rect),
             None => rect.scaled(unscale),
         };
+        let fills_tab =
+            record.own_frame.get_untracked() || matches!(content, SubregionContent::DockTab(_));
+        let anchor = match record.tab.filter(|_| fills_tab) {
+            None => Some(to_placed(rect)),
+            Some(tab) if untrack(|| tab.fullscreen()) => None,
+            Some(tab) => match tab.handle() {
+                Some(handle) => document.node_rect(handle).map(to_placed),
+                None => state.host.frame_anchor(),
+            },
+        };
         let placed = || {
             state.host.place_child(
                 content.wire(),
@@ -1451,6 +1476,7 @@ impl Editor {
                 }),
                 record.dock_tab,
                 record.docks,
+                anchor,
             )
         };
         Some(match escaped {

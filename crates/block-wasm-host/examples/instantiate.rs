@@ -187,6 +187,7 @@ fn screens() -> Vec<ScreenRequest> {
                 content: None,
                 top_bar: block_plugin_api::TopBar::Hidden,
                 dialog: None,
+                anchor: None,
             }),
             metrics: metrics(),
             windows: false,

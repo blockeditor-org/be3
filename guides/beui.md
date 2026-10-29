@@ -2177,27 +2177,36 @@ inside a dialog is an alert of its own, opened over it; a control or row action
 `styled::Dialog` is the two parts together: `DialogFrame`, the outer part, and
 `DialogBody`, the inner part. `DialogFrame` (on `unstyled::Dialog`) picks its presentation from
 its kind, its `size` (`DialogSize::Small`, the default, or `Large`) and its `anchor`
-(`DialogAnchor::None`, the default, `Control(node_ref)` or `Frame`), one rule in
+(`DialogAnchor::None`, the default, `Control(node_ref)` or `Rect(Option<Rect>)`), one rule in
 `dialog_presentation`: an alert is always a centred `DialogCard` in a `Modal` over a scrim; a
 `Dialog` kind whose window is narrower than `SHEET_BELOW` or that a finger opened
 (`touched_by_finger()`, the same rule as `Anchored`'s) is a `ModalSheet`, fitted when small and
 full height when large; otherwise one with no anchor is a centred card as before, a large one
-with an anchor is centred on its frame (`CenterOn`) over a scrim, and a small one is a card with a
-beak hanging from the control that opened it (`Popover`, no scrim), or from the top of its frame
-(`HangFrom`) when it has no control. The control is resolved when the dialog opens with
-`opener_of`: a control inside a menu that has closed, or inside a menu with a trigger, stands for
-what that menu hangs from (its trigger, or the node a `ContextMenu` was opened on), menu after
-menu. Anchored presentations escape a window that has a layer space; centred ones stay.
-Which to pass: a small form about one object, opened from a control, passes `Control` of
-that control (pixel-art's Resize button, database's Filter and display button). Opened from
-a menu row, it fills its `NodeRef` with `focused_node()` in the row's `on_click`, since a
-`MenuItem` is no node (file-tree's Inspect). Opened from a point on a canvas, it passes an
-empty `Frame` in a `CanvasItem` over that point (logic-grid's storage, a calendar slot).
-Opened from an action, which a host-drawn menu, the palette or a shortcut runs, it passes
-`Frame` (text settings, canvas Export). A large form or embedded editor passes
-`size=DialogSize::Large`, with `Frame` when it belongs to a frame (block-shell's Share and
-artifact settings); a host-drawn one with no frame (block-app's Members, Contacts, Agents,
-Unsent edits, the conflict compare) passes no anchor and stays centred. Alerts and
+with an anchor is centred on its frame (`CenterOn`) over a scrim, and a small one is always one
+placement: a card anchored to a rect (`Popover`, no scrim). It draws its beak only when that rect
+is something the user can see: the control that opened it, or the rect it was handed (a tab, a
+card). A control is resolved when the dialog opens with `opener_of`: a control inside a menu that
+has closed, or inside a menu with a trigger, stands for what that menu hangs from (its trigger, or
+the node a `ContextMenu` was opened on), menu after menu. A control that can't be found stands for
+the frame's anchor (`use_frame_anchor()`, below). With nothing visible to point at (`Rect(None)`, or
+a lost control in a frame with no anchor), the card opens under a zero-height rect at the top
+centre of its frame, with no beak. Anchored presentations escape a window that has a layer space;
+centred ones stay.
+`provide_frame_anchor(memo)` / `use_frame_anchor() -> Memo<Option<Rect>>` (unstyled) is where a
+window's frame shows to the user, in the window's points: block-editor-beui provides the editor's
+tab (the handle in the dock's strip that shows it, or the rect a parent placed it at when it has
+no tab, or the anchor of the last menu pick), and `None` when nothing of it is visible, such as a
+fullscreen tab. Which to pass: a small form about one object, opened from a control, passes
+`Control` of that control (pixel-art's Resize button, database's Filter and display button).
+Opened from a menu row, it fills its `NodeRef` with `focused_node()` in the row's `on_click`,
+since a `MenuItem` is no node (file-tree's Inspect). Opened from a point on a canvas, it passes
+`Control` of an empty `Frame` in a `CanvasItem` over that point (logic-grid's storage, a calendar
+slot). Opened from an action, which the frame menu on the tab, the palette or a shortcut runs, it
+passes `Rect` of `use_frame_anchor()` (text settings, canvas Export), so it points at its tab. A
+large form or embedded editor passes `size=DialogSize::Large`, with `Rect` of `use_frame_anchor()`
+when it belongs to a frame (block-shell's Share and artifact settings); a host-drawn one with no
+frame (block-app's Members, Contacts, Agents, Unsent edits, the conflict compare) passes no anchor
+and stays centred. Alerts and
 app-level modals pass neither. It builds its content once, when it first
 opens, and moves it between the card and the sheet with a `Portal` if that changes
 while it is open; it provides the `DialogLayout` (`narrow`, `sheet`, `bottom_inset`)
@@ -2380,7 +2389,7 @@ points to the host's (`host = origin + point * scale`) and `bounds` is where lay
 coordinates. Without one nothing changes: native block-app, tests and standalone apps never set it.
 
 One rule decides what escapes, `Placement::escapes()`: anchored placements (`BelowStart`,
-`RightStart`, `Above`, `Over`, `Around`, `CenterOn`, `HangFrom`, `Popover`) and `Edge(LayerEdge)`,
+`RightStart`, `Above`, `Over`, `Around`, `CenterOn`, `Popover`) and `Edge(LayerEdge)`,
 a sheet attached to an edge of the bounds (`ModalPlacement::Sheet`, which `ModalSheet` uses) do;
 `Center`, `Fill`, `At` (windows, dock windows) and the `Inside*` placements (toasts, `Floating`)
 stay in the window. So menus, `ContextMenu` and its submenus, popovers, tooltips, the selection

@@ -401,11 +401,23 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
                 Placement::Popover { gap, margin },
                 Color::TRANSPARENT,
             ),
-            (true, None) => (
-                OverlayAnchor::Node(anchor),
-                Placement::HangFrom(margin),
-                dims.get(),
-            ),
+            (true, None) => {
+                let top = anchor
+                    .try_get()
+                    .and_then(|node| measure(node).get())
+                    .map_or(Rect::ZERO, |measured| {
+                        let rect = measured.rect;
+                        Rect::from_min_max(rect.min, beui_view::types::pos2(rect.max.x, rect.min.y))
+                    });
+                (
+                    OverlayAnchor::Pinned {
+                        node: anchor,
+                        rect: top,
+                    },
+                    Placement::Popover { gap, margin },
+                    dims.get(),
+                )
+            }
             (false, _) => (
                 OverlayAnchor::Node(anchor),
                 Placement::CenterOn,
@@ -453,7 +465,10 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
                 anchor={at}
                 placement
                 pointer
-                beak={dock.dialog_beak}
+                beak={create_memo(move || match asked_from.get() {
+                    Some(_) => dock.dialog_beak,
+                    None => 0.0,
+                })}
                 scrim
                 policy
                 traps_focus=false

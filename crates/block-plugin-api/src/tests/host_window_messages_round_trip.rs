@@ -60,6 +60,7 @@ fn host_window_messages_round_trip() {
                 follows_view: false,
                 dialog: None,
                 docks: None,
+                anchor: None,
             }],
             occluders: Vec::new(),
         });

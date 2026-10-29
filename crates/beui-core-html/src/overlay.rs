@@ -401,11 +401,6 @@ fn anchored_styles(placement: Placement, name: Option<&str>) -> Vec<(&'static st
             put("bottom", "anchor(bottom)".to_owned());
             put("right", "anchor(right)".to_owned());
         }
-        Placement::HangFrom(gap) => {
-            put("top", format!("calc(anchor(top) + {gap}px)"));
-            put("left", "anchor(center)".to_owned());
-            put("translate", "-50% 0".to_owned());
-        }
         Placement::Popover { gap, margin } => {
             put("position-area", "bottom".to_owned());
             put("position-try-fallbacks", "flip-block".to_owned());

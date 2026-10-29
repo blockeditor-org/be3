@@ -129,7 +129,7 @@ struct Instance {
     view_changes: Vec<ViewChange>,
     bar_actions: Vec<block_plugin_api::BarAction>,
     menus: BTreeMap<ViewId, Vec<block_plugin_api::MenuEntry>>,
-    child_menu_picks: Vec<(ChildId, String)>,
+    child_menu_picks: Vec<(ChildId, String, Option<Rect>)>,
     presenting: bool,
     presented: bool,
     reported_presenting: bool,
@@ -1663,14 +1663,19 @@ impl Instances {
             .unwrap_or_default()
     }
 
-    pub(super) fn menu_pick(&mut self, instance: EditorInstanceId, id: String) -> Vec<Outbound> {
+    pub(super) fn menu_pick(
+        &mut self,
+        instance: EditorInstanceId,
+        id: String,
+        anchor: Option<Rect>,
+    ) -> Vec<Outbound> {
         if !self.entries.contains_key(&instance) {
             return Vec::new();
         }
         let view = entry_menu_holds(self, instance).unwrap_or(ViewId::MAIN);
         vec![Outbound::Editor(
             instance,
-            EditorCall::MenuPick { view, id },
+            EditorCall::MenuPick { view, id, anchor },
         )]
     }
 
@@ -1678,13 +1683,13 @@ impl Instances {
         &mut self,
         instance: EditorInstanceId,
         children: &[ChildId],
-    ) -> Vec<(ChildId, String)> {
+    ) -> Vec<(ChildId, String, Option<Rect>)> {
         let Some(entry) = self.entries.get_mut(&instance) else {
             return Vec::new();
         };
         let (taken, kept) = std::mem::take(&mut entry.child_menu_picks)
             .into_iter()
-            .partition(|(child, _)| children.contains(child));
+            .partition(|(child, _, _)| children.contains(child));
         entry.child_menu_picks = kept;
         taken
     }
@@ -2463,6 +2468,10 @@ impl Instances {
                     }
                 }
             };
+            let anchor = child.anchor.map(|anchor| match layer {
+                Some(_) => anchor.translate(shift),
+                None => host_rect(anchor, origin, scale),
+            });
             let (child_rect, view_rect, child_clip, occluders) = match layer {
                 Some(layer) => {
                     let rect = child.rect.translate(shift);
@@ -2523,6 +2532,7 @@ impl Instances {
                 opacity: child.opacity,
                 dialog: child.dialog,
                 anchored: layer.map(|layer| layer.id),
+                anchor,
             });
         }
         (children, holes)
@@ -3213,7 +3223,9 @@ impl Instances {
                 }
                 Err(_) => return false,
             },
-            ShellCall::ChildMenuPick { child, id, .. } => entry.child_menu_picks.push((child, id)),
+            ShellCall::ChildMenuPick {
+                child, id, anchor, ..
+            } => entry.child_menu_picks.push((child, id, anchor)),
             ShellCall::CopyText { text, .. } => {
                 host::copy_text(text);
                 return false;

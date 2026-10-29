@@ -528,6 +528,17 @@ bar and sends a pick as `dock-message.pick` with the tab's path, which the
 host hands the owner as a `menu-pick` of the tab's view, so the owner knows
 which tab asked (and presents what the command opens, such as its command
 palette, over that tab's body, not in its frame).
+A `menu-pick` carries `anchor`, in host coordinates, what the menu belongs to:
+the tab that shows the view, or the rect a parent placed the editor at when
+it has no tab; a dialog the command opens points at it, and `none` (nothing
+of it visible, as in a fullscreen tab) opens it at the top centre of the
+frame. The root fills it in as `dock-child-pick.anchor` and a placer as
+`child-menu-pick`'s `anchor`, each from its own placement of what it showed
+(`child-placement.anchor`: the tab a child fills, or the child's own rect),
+and the host passes it on unchanged; a pick the host routes to a child that
+took the frame over carries `none`, so that child points at its own rect.
+The same rect reaches a view as `frame-spec.anchor`, in the view's points, so
+a dialog opened from a shortcut or the palette points at the tab too.
 A bar action of a docked child whose dock the host spliced (its frame is not
 shown), such as asking for its details, reaches its placer as a `child-bar` as
 if from its frame.

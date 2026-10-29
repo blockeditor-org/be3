@@ -80,6 +80,7 @@ fn UnlinkDialog(workspace: Workspace) -> NodeId {
 
 #[component]
 fn ArtifactSettingsDialog(workspace: Workspace) -> NodeId {
+    let tab = use_frame_anchor();
     let block = opened(&workspace, |dialog| match dialog {
         OpenDialog::ArtifactSettings(block) => Some(block),
         _ => None,
@@ -119,7 +120,7 @@ fn ArtifactSettingsDialog(workspace: Workspace) -> NodeId {
         <DialogFrame
             open={open}
             size=DialogSize::Large
-            anchor=DialogAnchor::Frame
+            anchor={create_memo(move || DialogAnchor::Rect(tab.get()))}
             on_dismiss={dismiss}
         >|| {
             let height = create_memo(move || Length::Size(Size::Custom(height.get())));
@@ -141,6 +142,7 @@ fn ArtifactSettingsDialog(workspace: Workspace) -> NodeId {
 
 #[component]
 fn ShareDialog(workspace: Workspace) -> NodeId {
+    let tab = use_frame_anchor();
     let state = workspace.share;
     let me = workspace.host().account_id();
     let open = create_memo(move || state.with(Option::is_some));
@@ -281,7 +283,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
             title={title}
             width={Size::Custom(460.0)}
             size=DialogSize::Large
-            anchor=DialogAnchor::Frame
+            anchor={create_memo(move || DialogAnchor::Rect(tab.get()))}
             id="share"
             on_dismiss={move || workspace.close_dialog()}
         >

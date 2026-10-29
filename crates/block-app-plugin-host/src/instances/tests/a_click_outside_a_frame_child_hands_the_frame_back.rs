@@ -30,6 +30,7 @@ fn a_click_outside_a_frame_child_hands_the_frame_back() {
             follows_view: false,
             dialog: None,
             docks: None,
+            anchor: None,
         }],
         occluders: Vec::new(),
     });

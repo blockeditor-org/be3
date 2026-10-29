@@ -133,6 +133,7 @@ pub struct HostChild {
     pub opacity: f32,
     pub dialog: Option<block_plugin_api::DialogFrame>,
     pub anchored: Option<block_plugin_api::ViewId>,
+    pub anchor: Option<Rect>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

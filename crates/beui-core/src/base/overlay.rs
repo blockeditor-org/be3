@@ -175,7 +175,7 @@ pub struct OverlayNode {
     escaped: Option<(LayerSpace, Vec2, Zoom)>,
     pinned: Option<Pin>,
     pointer: Option<NodeRef>,
-    beak: Option<NodeOf<BeakNode>>,
+    beak: NodeOf<BeakNode>,
     placement: Placement,
     pub(crate) policy: LayerPolicy,
     pub(crate) level: LayerLevel,
@@ -185,7 +185,12 @@ pub struct OverlayNode {
 }
 
 impl OverlayNode {
-    fn new(scrim: NodeOf<FrameNode>, anchor: OverlayAnchor, placement: Placement) -> Self {
+    fn new(
+        scrim: NodeOf<FrameNode>,
+        beak: NodeOf<BeakNode>,
+        anchor: OverlayAnchor,
+        placement: Placement,
+    ) -> Self {
         Self {
             content: None,
             window: None,
@@ -200,7 +205,7 @@ impl OverlayNode {
             escaped: None,
             pinned: None,
             pointer: None,
-            beak: None,
+            beak,
             placement,
             policy: LayerPolicy::BlocksAll,
             level: LayerLevel::Normal,
@@ -305,11 +310,6 @@ impl OverlayNode {
         );
         let available = match (inside, self.placement) {
             (true, _) => anchor_rect.intersect(area).size().max(Vec2::ZERO),
-            (false, Placement::HangFrom(gap)) => {
-                let room = area.shrink(f32::from(gap));
-                let top = (anchor_rect.top() + f32::from(gap)).clamp(room.top(), room.bottom());
-                Vec2::new(room.width(), room.bottom() - top).max(Vec2::ZERO)
-            }
             (false, Placement::Popover { margin, .. }) => {
                 area.shrink(f32::from(margin)).size().max(Vec2::ZERO)
             }
@@ -370,9 +370,7 @@ impl OverlayNode {
     }
 
     fn point_at(&self, doc: &mut Document, painter: &Painter, anchor: Rect, out: &Rects) {
-        let Some(beak) = self.beak else {
-            return;
-        };
+        let beak = self.beak;
         let frame = self.pointer_frame(doc);
         let placed = frame
             .and_then(|frame| out.get(&frame.id()))
@@ -493,7 +491,7 @@ impl Element for OverlayNode {
     fn children(&self) -> Vec<NodeId> {
         let mut children = vec![self.scrim.id()];
         children.extend(self.content);
-        children.extend(self.beak.map(NodeOf::id));
+        children.push(self.beak.id());
         children
     }
 
@@ -613,8 +611,13 @@ impl Document {
         placement: Placement,
     ) -> NodeOf<OverlayNode> {
         let scrim = self.create_frame();
+        let beak = self.arena.insert(BeakNode {
+            reach: 0.0,
+            style: FrameStyle::default(),
+            pointing: None,
+        });
         self.arena
-            .insert(OverlayNode::new(scrim, anchor, placement))
+            .insert(OverlayNode::new(scrim, beak, anchor, placement))
     }
 
     pub fn set_overlay_content(&mut self, overlay: NodeOf<OverlayNode>, content: Option<NodeId>) {
@@ -680,29 +683,14 @@ impl Document {
     }
 
     pub fn set_overlay_beak(&mut self, overlay: NodeOf<OverlayNode>, reach: f32) {
-        match self.arena.get_as::<OverlayNode>(overlay).beak {
-            Some(beak) => {
-                if self.arena.get_as::<BeakNode>(beak).reach != reach {
-                    self.arena.paint_mut_as::<BeakNode>(beak).reach = reach;
-                }
-            }
-            None if reach > 0.0 => {
-                let beak = self.arena.insert(BeakNode {
-                    reach,
-                    style: FrameStyle::default(),
-                    pointing: None,
-                });
-                self.arena.get_mut_as::<OverlayNode>(overlay).beak = Some(beak);
-            }
-            None => {}
+        let beak = self.arena.get_as::<OverlayNode>(overlay).beak;
+        if self.arena.get_as::<BeakNode>(beak).reach != reach {
+            self.arena.paint_mut_as::<BeakNode>(beak).reach = reach;
         }
     }
 
     pub fn overlay_beak(&self, overlay: NodeOf<OverlayNode>) -> Option<NodeId> {
-        self.arena
-            .get_as::<OverlayNode>(overlay)
-            .beak
-            .map(NodeOf::id)
+        Some(self.arena.get_as::<OverlayNode>(overlay).beak.id())
     }
 
     pub fn set_overlay_scrim(&mut self, overlay: NodeOf<OverlayNode>, color: impl Into<Color>) {

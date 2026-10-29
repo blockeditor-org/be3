@@ -197,6 +197,13 @@ interface types {
         top-bar: top-bar,
         /// Set when the frame is shown as a dialog.
         dialog: option<dialog-frame>,
+        /// What the frame shows as to the user, in the view's points: the
+        /// tab that shows it, or the rect its parent placed it at when it
+        /// has no tab (`child-placement.anchor`); `none` when nothing of it
+        /// is visible, as in a fullscreen tab. A dialog the editor opens
+        /// with no control of its own, from a shortcut or the palette,
+        /// points at it.
+        anchor: option<rect>,
     }
 
     record viewport-metrics {
@@ -435,6 +442,11 @@ interface types {
         /// child's frame is requested `docked`, and the host splices the
         /// child's dock in place of that tab.
         docks: option<u64>,
+        /// What the child shows as to the user, in the view's points: the
+        /// tab it is shown in, or its own rect when it has no tab; `none`
+        /// when nothing of it is visible (a fullscreen tab). The host passes
+        /// it on as the child's `frame-spec.anchor`.
+        anchor: option<rect>,
     }
 
     /// A rectangle that hides the children placed before it.
@@ -1021,11 +1033,14 @@ interface types {
     }
 
     /// The user picked command `id` of the menu `tab` carries; `tab` is in
-    /// the child's paths, and the host hands the pick to its owner.
+    /// the child's paths, and the host hands the pick to its owner, with
+    /// `anchor`, the tab's rect in host coordinates (`none` while it is not
+    /// shown, as in a fullscreen tab), as its `menu-pick` anchor.
     record dock-child-pick {
         child: dock-child,
         tab: dock-tab-path,
         id: string,
+        anchor: option<rect>,
     }
 
     /// What a plugin's docks say, in a frame. A docked view (one whose

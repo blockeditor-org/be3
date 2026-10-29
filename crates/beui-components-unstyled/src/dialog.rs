@@ -348,21 +348,40 @@ pub enum DialogSize {
     Large,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum DialogAnchor {
     #[default]
     None,
     Control(NodeRef),
-    Frame,
+    Rect(Option<Rect>),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum DialogTarget {
+    Node(NodeId),
+    Rect(Rect),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum DialogPresentation {
     Centred,
-    Anchored(NodeId),
-    HangsFromFrame,
+    Anchored(Option<DialogTarget>),
     OverFrame,
     Sheet { tall: bool },
+}
+
+#[derive(Clone, Copy)]
+pub struct FrameAnchor(pub Memo<Option<Rect>>);
+
+pub fn provide_frame_anchor(rect: Memo<Option<Rect>>) {
+    provide_context(FrameAnchor(rect));
+}
+
+pub fn use_frame_anchor() -> Memo<Option<Rect>> {
+    match use_context::<FrameAnchor>() {
+        Some(FrameAnchor(rect)) => rect,
+        None => create_memo(|| None),
+    }
 }
 
 pub fn dialog_presentation(
@@ -370,6 +389,7 @@ pub fn dialog_presentation(
     size: DialogSize,
     anchor: DialogAnchor,
     opener: Option<NodeId>,
+    frame: Option<Rect>,
     narrow: bool,
 ) -> DialogPresentation {
     match (kind, narrow, anchor, size) {
@@ -379,12 +399,15 @@ pub fn dialog_presentation(
         },
         (DialogKind::Dialog, false, DialogAnchor::None, _) => DialogPresentation::Centred,
         (DialogKind::Dialog, false, _, DialogSize::Large) => DialogPresentation::OverFrame,
-        (DialogKind::Dialog, false, DialogAnchor::Control(_), DialogSize::Small) => match opener {
-            Some(node) => DialogPresentation::Anchored(node),
-            None => DialogPresentation::HangsFromFrame,
-        },
-        (DialogKind::Dialog, false, DialogAnchor::Frame, DialogSize::Small) => {
-            DialogPresentation::HangsFromFrame
+        (DialogKind::Dialog, false, DialogAnchor::Control(_), DialogSize::Small) => {
+            DialogPresentation::Anchored(
+                opener
+                    .map(DialogTarget::Node)
+                    .or(frame.map(DialogTarget::Rect)),
+            )
+        }
+        (DialogKind::Dialog, false, DialogAnchor::Rect(rect), DialogSize::Small) => {
+            DialogPresentation::Anchored(rect.map(DialogTarget::Rect))
         }
     }
 }
@@ -421,7 +444,7 @@ pub fn Dialog(
             let touched_now = untrack(touched_by_finger);
             let found = untrack(|| match asked.get() {
                 DialogAnchor::Control(control) => control.try_get().map(opener_of),
-                DialogAnchor::None | DialogAnchor::Frame => None,
+                DialogAnchor::None | DialogAnchor::Rect(_) => None,
             });
             untrack(|| {
                 touched.set(touched_now);
@@ -430,8 +453,16 @@ pub fn Dialog(
         }
     });
     let narrow = create_memo(move || narrow.get() || narrow_screen.get() || touched.get());
+    let frame_anchor = use_frame_anchor();
     let presentation = create_memo(move || {
-        dialog_presentation(kind, size, anchor.get(), opener.get(), narrow.get())
+        dialog_presentation(
+            kind,
+            size,
+            anchor.get(),
+            opener.get(),
+            frame_anchor.get(),
+            narrow.get(),
+        )
     });
     let sheeted =
         create_memo(move || matches!(presentation.get(), DialogPresentation::Sheet { .. }));
@@ -495,30 +526,35 @@ pub fn Dialog(
     });
     let held = NodeRef::new();
     let frame = create_memo(move || Rect::from_min_size(Pos2::ZERO, viewport.get()));
+    let top = create_memo(move || {
+        let width = viewport.get().x;
+        Rect::from_min_max(Pos2::ZERO, Pos2::new(width, 0.0))
+    });
+    let popover = Placement::Popover {
+        gap: DIALOG_GAP,
+        margin: DIALOG_MARGIN,
+    };
     let placed = create_memo(move || match presentation.get() {
-        DialogPresentation::Anchored(node) => {
+        DialogPresentation::Anchored(Some(DialogTarget::Node(node))) => {
             if held.try_get() != Some(node) {
                 held.fill(node);
             }
-            (
-                OverlayAnchor::Node(held),
-                Placement::Popover {
-                    gap: DIALOG_GAP,
-                    margin: DIALOG_MARGIN,
-                },
-                false,
-            )
+            (OverlayAnchor::Node(held), popover, false, true)
         }
-        DialogPresentation::HangsFromFrame => (
-            OverlayAnchor::Rect(frame.get()),
-            Placement::HangFrom(DIALOG_MARGIN),
-            true,
-        ),
+        DialogPresentation::Anchored(Some(DialogTarget::Rect(rect))) => {
+            (OverlayAnchor::Rect(rect), popover, false, true)
+        }
+        DialogPresentation::Anchored(None) => {
+            (OverlayAnchor::Rect(top.get()), popover, false, false)
+        }
         DialogPresentation::Centred
         | DialogPresentation::OverFrame
-        | DialogPresentation::Sheet { .. } => {
-            (OverlayAnchor::Rect(frame.get()), Placement::CenterOn, true)
-        }
+        | DialogPresentation::Sheet { .. } => (
+            OverlayAnchor::Rect(frame.get()),
+            Placement::CenterOn,
+            true,
+            false,
+        ),
     });
     let at = create_memo(move || placed.get().0);
     let placement = create_memo(move || placed.get().1);
@@ -527,9 +563,9 @@ pub fn Dialog(
         true => dims.get(),
         false => Color::TRANSPARENT,
     });
-    let reach = create_memo(move || match placed.get().1 {
-        Placement::Popover { .. } => beak,
-        _ => 0.0,
+    let reach = create_memo(move || match placed.get().3 {
+        true => beak,
+        false => 0.0,
     });
     view! {
         <List spacing=0.0>

@@ -22,6 +22,7 @@ use crate::geometry::{ResizeHandle, entity_bounds, resize_entities_axis};
 use block_editor_beui::beui::{PenPhase, PointerButton};
 use infinite_canvas_types::CanvasContent;
 
+mod a_card_on_the_canvas_points_its_dialogs_at_itself;
 mod a_direct_editor_entity_draws_the_frame_it_reserves;
 mod a_dock_too_wide_for_the_canvas_scrolls_to_its_last_tools;
 mod a_drag_in_a_label_being_edited_selects_it_and_leaves_the_shape_in_place;

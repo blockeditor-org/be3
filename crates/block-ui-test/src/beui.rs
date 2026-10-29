@@ -317,18 +317,21 @@ impl<A: BeuiApp> BeuiTest<A> {
                 content: None,
                 top_bar: TopBar::Hidden,
                 dialog: None,
+                anchor: None,
             }),
             Kind::Picker => Some(block_plugin_api::FrameSpec {
                 chrome: FrameChrome::None,
                 content: None,
                 top_bar: TopBar::Hidden,
                 dialog: None,
+                anchor: None,
             }),
             Kind::Creation => Some(block_plugin_api::FrameSpec {
                 chrome: FrameChrome::None,
                 content: None,
                 top_bar: TopBar::Hidden,
                 dialog: Some(block_plugin_api::DialogFrame::default()),
+                anchor: None,
             }),
             _ => None,
         };
@@ -512,12 +515,21 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.with_bar(false, TopBar::Phone)
     }
 
+    pub fn in_tab(mut self, tab: Option<Rect>) -> Self {
+        let frame = self.frame.get_or_insert_with(Default::default);
+        frame.anchor = tab;
+        self.place();
+        self.run();
+        self
+    }
+
     fn with_bar(mut self, closable: bool, top_bar: TopBar) -> Self {
         self.frame = Some(block_plugin_api::FrameSpec {
             chrome: FrameChrome::Drawn,
             content: closable.then_some(Rect::from_min_size(Pos2::ZERO, self.size)),
             top_bar,
             dialog: None,
+            anchor: None,
         });
         self.place();
         self.run();
@@ -551,9 +563,13 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn pick_menu(&mut self, id: &str) {
+        self.pick_menu_from(id, None);
+    }
+
+    pub fn pick_menu_from(&mut self, id: &str, anchor: Option<Rect>) {
         self.menu_entry(id);
         let id = id.to_owned();
-        self.call(|editor, connection| editor.menu_pick(connection, ViewId::MAIN, id));
+        self.call(|editor, connection| editor.menu_pick(connection, ViewId::MAIN, id, anchor));
         self.run();
     }
 
