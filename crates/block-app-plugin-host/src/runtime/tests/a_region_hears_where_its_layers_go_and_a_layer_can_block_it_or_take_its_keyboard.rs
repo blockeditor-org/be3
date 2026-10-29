@@ -1,6 +1,6 @@
 use super::*;
 use crate::EditorBlock;
-use block_plugin_api::{AnchoredPlacement, AnchoredView, ViewAnchor, ViewEdge};
+use block_plugin_api::{AnchoredPlacement, ViewAnchor, ViewEdge};
 
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 const REGION: ViewId = ViewId::MAIN;
@@ -25,45 +25,47 @@ fn manifest() -> PluginManifest {
     .expect("the manifest is valid")
 }
 
-fn sheet(blocks_owner: bool, keyboard: bool) -> AnchoredView {
-    let rect = Rect::from_min_size(pos2(0.0, 400.0), vec2(800.0, 200.0));
-    AnchoredView {
-        view: ViewId(1),
-        placement: AnchoredPlacement {
-            parent: ViewId::MAIN,
-            anchor: ViewAnchor::Edge(ViewEdge::Bottom),
-        },
-        rect,
-        surface: 3,
-        painted: vec![rect],
-        floating: vec![rect],
-        scrims: Vec::new(),
+fn sheet(blocks_owner: bool, keyboard: bool) -> AnchoredPlacement {
+    AnchoredPlacement {
+        parent: ViewId::MAIN,
+        anchor: ViewAnchor::Edge(ViewEdge::Bottom),
+        rect: Rect::from_min_size(pos2(0.0, 400.0), vec2(800.0, 200.0)),
         dismiss_on_outside_press: false,
         keyboard,
         blocks_owner,
     }
 }
 
-fn commit(serial: u64, layers: Vec<AnchoredView>) {
+fn commit(serial: u64, sheet: AnchoredPlacement) {
+    let screen = ScreenId::opened(1);
+    let own = Rect::from_min_size(Pos2::ZERO, sheet.rect.size());
     with(PLUGIN, |runtime| {
-        let screen = runtime
-            .instances
-            .screen_id(INSTANCE, REGION)
-            .expect("the region has a screen");
+        runtime.laid_out(block_plugin_api::ScreenLayout {
+            screens: vec![block_plugin_api::ScreenPlacement {
+                screen,
+                instance: INSTANCE,
+                view: ViewId(1),
+                surface: 3,
+                width: 800,
+                height: 200,
+                scale_factor_millis: 1000,
+                raster_millis: 1000,
+            }],
+        });
         runtime.commit(FrameCommit {
             serial,
             sizes: Vec::new(),
             reports: vec![block_plugin_api::FrameReport {
                 screen,
-                content: Some(block_plugin_api::Insets::default()),
-                painted: Vec::new(),
-                floating: Vec::new(),
+                content: None,
+                painted: vec![own],
+                floating: vec![own],
                 floating_painted: Vec::new(),
                 scrims: Vec::new(),
                 drawing: Vec::new(),
                 claims: Vec::new(),
                 description: None,
-                anchored: layers,
+                anchored: Some(sheet),
             }],
             windows: Vec::new(),
             children: Vec::new(),
@@ -153,7 +155,7 @@ fn a_region_hears_where_its_layers_go_and_a_layer_can_block_it_or_take_its_keybo
     assert!(view().layers.is_empty());
     assert!(!view().blocks_owner && !view().wants_keyboard);
 
-    commit(1, vec![sheet(true, false)]);
+    commit(1, sheet(true, false));
     let shown = view();
     assert_eq!(
         shown.layers.len(),
@@ -166,7 +168,7 @@ fn a_region_hears_where_its_layers_go_and_a_layer_can_block_it_or_take_its_keybo
     );
     assert!(!shown.wants_keyboard);
 
-    commit(2, vec![sheet(false, true)]);
+    commit(2, sheet(false, true));
     let shown = view();
     assert!(!shown.blocks_owner);
     assert!(

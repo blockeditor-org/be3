@@ -4,7 +4,7 @@ use block_plugin_api::accesskit::{ActionRequest, NodeId, TreeUpdate};
 use block_plugin_api::guest::{debug::debug, shell};
 use block_plugin_api::ops::guest::{Sender, spawn};
 use block_plugin_api::{
-    AnchoredView, ArtifactDescription, BarAction, ChildId, ChildPlacement, ChildPlacements,
+    AnchoredPlacement, ArtifactDescription, BarAction, ChildId, ChildPlacement, ChildPlacements,
     ChildStatus, EditorInstanceId, Failure, FrameChrome, FrameCommit, FrameReport, HostView,
     LayerSpace, MAX_CHILDREN, MAX_COLLECTION_ITEMS, MenuEntry, Occluder, ParentView,
     ScreenPlacement, ScreenRequest, ScreenWindow, Size, TimedInput, View, ViewId, ViewPlacement,
@@ -103,7 +103,7 @@ struct ViewState {
     view_placement: Option<ViewPlacement>,
     host_place: Option<String>,
     layer_space: Option<LayerSpace>,
-    anchored: Vec<AnchoredSurface>,
+    anchored: Option<AnchoredPlacement>,
 }
 
 fn holds_content_anyway(state: &ViewState) -> bool {
@@ -114,13 +114,6 @@ fn holds_content_anyway(state: &ViewState) -> bool {
                 ViewPlacement::Parent(ParentView::Main) | ViewPlacement::Host(HostView::Display(_))
             )
         )
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct AnchoredSurface {
-    pub(crate) view: ViewId,
-    pub(crate) surface: u32,
-    pub(crate) pixels: [u32; 2],
 }
 
 impl Drop for EditorSession {
@@ -205,6 +198,9 @@ impl EditorSession {
     }
 
     fn open(&mut self, view: ViewId) {
+        if self.view(view).is_anchored() {
+            return;
+        }
         if self.opened.insert(view) {
             let view = self.view(view);
             self.app.open_view(view);
@@ -807,7 +803,9 @@ impl EditorSession {
             state.age = age;
         }
         let context = self.context(view);
-        self.host.begin_view(view);
+        if !context.view.is_anchored() {
+            self.host.begin_view(view);
+        }
         let framed = self
             .views
             .get(&view)
@@ -870,7 +868,17 @@ impl EditorSession {
             artifact.edited |= artifact.draft != draft;
             artifact.draft = draft;
         }
-        let (placed, occluders) = self.host.end_view(view);
+        let (mut placed, mut occluders) = self.host.end_view(view);
+        if let Some(anchored) = self.views.get(&view).and_then(|state| state.anchored) {
+            let from = anchored.rect.min.to_vec2();
+            for child in &mut placed {
+                child.rect = child.rect.translate(-from);
+                child.clip = child.clip.translate(-from);
+            }
+            for occluder in &mut occluders {
+                occluder.rect = occluder.rect.translate(-from);
+            }
+        }
         self.host.set_drag(view, None);
         self.host.set_files(view, None);
         if delivered_drop {
@@ -880,7 +888,6 @@ impl EditorSession {
             self.files = None;
         }
         let screen = self.placement(view).map(|placement| placement.screen);
-        let raster = self.raster(view);
         let content = frame.content.unwrap_or(host);
         self.used(view, content);
         let reported_content = self
@@ -900,23 +907,6 @@ impl EditorSession {
                 .view_placement
                 .unwrap_or(ViewPlacement::Parent(ParentView::Main))
                 .reports();
-            let opened = match reports && state.layer_space.is_some() {
-                true => std::mem::take(&mut frame.anchored),
-                false => Vec::new(),
-            };
-            let density = state
-                .layer_space
-                .as_ref()
-                .map_or(Vec2::splat(raster), |space| {
-                    let scale = space.to_host.scale;
-                    let per = |scale: f32| match scale > 0.0 {
-                        true => raster / scale,
-                        false => raster,
-                    };
-                    vec2(per(scale.x), per(scale.y))
-                });
-            let anchored = surfaced(view, &mut state.anchored, opened, density);
-            frame.anchored.clone_from(&anchored);
             match frame.description.as_mut() {
                 Some(description) => {
                     if let Some(tree) = description.tree.take() {
@@ -948,10 +938,20 @@ impl EditorSession {
                         actions: description.actions.clone(),
                     }
                 }),
-                anchored,
+                anchored: state.anchored,
             });
         }
         frame
+    }
+
+    pub(crate) fn set_anchored(&mut self, view: ViewId, anchored: Option<AnchoredPlacement>) {
+        if let Some(state) = self.views.get_mut(&view) {
+            state.anchored = anchored;
+        }
+    }
+
+    pub(crate) fn close_anchored(&mut self, view: ViewId) {
+        self.host.end_view(view);
     }
 
     fn id(&self, view: ViewId) -> ViewRef {
@@ -964,26 +964,6 @@ impl EditorSession {
     pub(crate) fn painting(&mut self, view: ViewId) -> Option<paint_format::Painting> {
         let id = self.id(view);
         self.module.with_handler(|handler| handler.painting(id))?
-    }
-
-    pub(crate) fn anchored_paintings(
-        &mut self,
-        view: ViewId,
-    ) -> Vec<(ViewId, paint_format::Painting)> {
-        let id = self.id(view);
-        let anchored: Vec<ViewId> = self
-            .anchored_surfaces(view)
-            .iter()
-            .map(|surface| surface.view)
-            .collect();
-        self.module
-            .with_handler(|handler| {
-                anchored
-                    .into_iter()
-                    .filter_map(|shown| Some((shown, handler.anchored_painting(id, shown)?)))
-                    .collect()
-            })
-            .unwrap_or_default()
     }
 
     pub(crate) fn overflows(&mut self, view: ViewId) -> Vec<String> {
@@ -1002,25 +982,6 @@ impl EditorSession {
         let id = self.id(view);
         self.module
             .with_handler(|handler| handler.paint(id, target))
-            .unwrap_or_default()
-    }
-
-    pub(crate) fn anchored_surfaces(&self, view: ViewId) -> &[AnchoredSurface] {
-        self.views
-            .get(&view)
-            .map_or(&[], |state| state.anchored.as_slice())
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    pub(crate) fn paint_anchored(
-        &mut self,
-        view: ViewId,
-        anchored: ViewId,
-        target: &PaintTarget<'_>,
-    ) -> Vec<block_plugin_api::SurfaceRect> {
-        let id = self.id(view);
-        self.module
-            .with_handler(|handler| handler.paint_anchored(id, anchored, target))
             .unwrap_or_default()
     }
 
@@ -1091,47 +1052,6 @@ fn bounded(
             })
             .collect(),
     )
-}
-
-fn surfaced(
-    owner: ViewId,
-    pool: &mut Vec<AnchoredSurface>,
-    opened: Vec<AnchoredView>,
-    density: Vec2,
-) -> Vec<AnchoredView> {
-    let mut kept: Vec<AnchoredView> = Vec::new();
-    for mut anchored in opened.into_iter().take(MAX_COLLECTION_ITEMS) {
-        let listed = |id: ViewId| kept.iter().any(|other| other.view == id);
-        let parent = anchored.placement.parent;
-        let orphan = parent != owner && !listed(parent);
-        if anchored.view == owner || listed(anchored.view) || orphan {
-            continue;
-        }
-        anchored.painted.truncate(MAX_COLLECTION_ITEMS);
-        anchored.floating.truncate(MAX_COLLECTION_ITEMS);
-        anchored.scrims.truncate(MAX_COLLECTION_ITEMS);
-        kept.push(anchored);
-    }
-    let held = std::mem::take(pool);
-    for anchored in &mut kept {
-        anchored.surface = held
-            .iter()
-            .find(|surface| surface.view == anchored.view)
-            .map_or_else(crate::screens::new_surface, |surface| surface.surface);
-        pool.push(AnchoredSurface {
-            view: anchored.view,
-            surface: anchored.surface,
-            pixels: [
-                pixels(anchored.rect.width(), density.x),
-                pixels(anchored.rect.height(), density.y),
-            ],
-        });
-    }
-    kept
-}
-
-fn pixels(points: f32, density: f32) -> u32 {
-    (points * density).ceil().max(1.0) as u32
 }
 
 fn merge_tree(held: &mut Option<TreeUpdate>, update: TreeUpdate) {

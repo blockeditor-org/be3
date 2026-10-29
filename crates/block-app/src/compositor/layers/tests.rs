@@ -8,6 +8,7 @@ fn shown(mount: u64, id: u64, opened: u64, rect: Rect) -> Shown {
             id: ViewId(id),
             parent: None,
             opened,
+            screen: block_plugin_api::ScreenId::opened(id),
             rect,
             bounds: Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0)),
             painted: vec![rect],

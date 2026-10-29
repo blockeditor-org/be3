@@ -27,7 +27,6 @@ fn creation_children_round_trip() {
                 bottom_inset: 0.0,
             }),
             docks: None,
-            anchored: None,
         }],
         occluders: Vec::new(),
     });

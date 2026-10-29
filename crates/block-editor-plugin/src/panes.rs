@@ -16,18 +16,10 @@ pub(crate) struct Panes {
     settling: HashSet<u32>,
 }
 
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct ShownAnchored {
-    pub(crate) placement: ScreenPlacement,
-    pub(crate) anchored: crate::editor_session::AnchoredSurface,
-    pub(crate) fresh: bool,
-}
-
 pub(crate) struct Ran {
     pub(crate) repaint: Option<Duration>,
     pub(crate) animating: bool,
     pub(crate) painting: Vec<ScreenPlacement>,
-    pub(crate) opened: bool,
 }
 
 impl Panes {
@@ -69,7 +61,6 @@ impl Panes {
                 repaint: None,
                 animating,
                 painting,
-                opened: false,
             };
         }
         let shown: Vec<(ScreenPlacement, u32)> = layout
@@ -84,7 +75,7 @@ impl Panes {
             })
             .collect();
         let frames = screens.frame(&shown);
-        for (placement, frame) in layout.screens.iter().zip(frames) {
+        for (placement, frame) in &frames {
             if screens.session(placement.instance).is_none() {
                 continue;
             }
@@ -118,19 +109,10 @@ impl Panes {
                 (false, _) => {}
             }
         }
-        let opened: Vec<ScreenPlacement> = screens
-            .take_opened()
-            .into_iter()
-            .map(|(placement, _)| placement)
-            .collect();
-        if seen {
-            painting.extend(opened.iter().copied());
-        }
         Ran {
             repaint: (repaint < Duration::MAX).then_some(repaint),
             animating,
             painting,
-            opened: !opened.is_empty(),
         }
     }
 
@@ -181,43 +163,6 @@ impl Panes {
             }));
         }
         Ok(damage)
-    }
-}
-
-impl Panes {
-    pub(crate) fn paint_anchored(
-        &mut self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        format: wgpu::TextureFormat,
-        screens: &mut Screens,
-        anchored: &[ShownAnchored],
-    ) -> Result<(), String> {
-        for shown in anchored {
-            let Some(session) = screens.session(shown.placement.instance) else {
-                continue;
-            };
-            let surface = shown.anchored.surface;
-            let texture = block_gpu_guest::acquire_surface_texture(surface)?;
-            let age = block_gpu_guest::surface_age(surface);
-            let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-            if age == 0 {
-                clear(device, queue, &view);
-            }
-            let [width, height] = shown.anchored.pixels;
-            let target = PaintTarget {
-                device,
-                queue,
-                view: &view,
-                format,
-                width,
-                height,
-                age,
-            };
-            session.paint_anchored(shown.placement.view, shown.anchored.view, &target);
-            block_gpu_guest::present_surface(surface);
-        }
-        Ok(())
     }
 }
 

@@ -316,6 +316,21 @@ impl FrameOutput {
         )
     }
 
+    pub fn escaped_accessibility_tree(
+        &self,
+        layer: u64,
+        viewport: crate::geometry::Vec2,
+        origin: crate::geometry::Pos2,
+        to_host: crate::escape::HostTransform,
+    ) -> Option<TreeUpdate> {
+        accessibility::escaped_tree_update(
+            layer,
+            viewport,
+            (to_host.origin - origin, to_host.scale),
+            &self.accessibility,
+        )
+    }
+
     pub fn window_accessibility_tree(
         &self,
         window: WindowId,

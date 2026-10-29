@@ -164,7 +164,6 @@ fn child(rect: Rect, follows_view: bool) -> ChildPlacements {
             follows_view,
             dialog: None,
             docks: None,
-            anchored: None,
         }],
         occluders: Vec::new(),
     }
@@ -322,43 +321,69 @@ fn lay_out(instances: &mut Instances) {
     instances.confirm(serial, &HashSet::new());
 }
 
-fn layer(id: u64, parent: u64, rect: Rect) -> block_plugin_api::AnchoredView {
-    block_plugin_api::AnchoredView {
-        view: ViewId(id),
+struct Layer {
+    id: u64,
+    placement: block_plugin_api::AnchoredPlacement,
+}
+
+fn layer(id: u64, parent: u64, rect: Rect) -> Layer {
+    Layer {
+        id,
         placement: block_plugin_api::AnchoredPlacement {
             parent: ViewId(parent),
             anchor: block_plugin_api::ViewAnchor::Rect(Rect::from_min_size(
                 Pos2::ZERO,
                 vec2(10.0, 10.0),
             )),
+            rect,
+            dismiss_on_outside_press: true,
+            keyboard: false,
+            blocks_owner: false,
         },
-        rect,
-        surface: 7,
-        painted: vec![rect],
-        floating: vec![rect],
-        scrims: Vec::new(),
-        dismiss_on_outside_press: true,
-        keyboard: false,
-        blocks_owner: false,
     }
 }
 
-fn report_layers(instances: &mut Instances, anchored: Vec<block_plugin_api::AnchoredView>) {
-    let screen = instances
-        .screen_id(INSTANCE, REGION)
-        .expect("the region has a screen");
-    instances.set_frame_reports(vec![block_plugin_api::FrameReport {
-        screen,
-        content: Some(block_plugin_api::Insets::default()),
-        painted: Vec::new(),
-        floating: Vec::new(),
-        floating_painted: Vec::new(),
-        scrims: Vec::new(),
-        drawing: Vec::new(),
-        claims: Vec::new(),
-        description: None,
-        anchored,
-    }]);
+fn anchored_screen(id: u64) -> ScreenId {
+    ScreenId::opened(id)
+}
+
+fn report_layers(instances: &mut Instances, layers: Vec<Layer>) {
+    let layout = block_plugin_api::ScreenLayout {
+        screens: layers
+            .iter()
+            .map(|layer| block_plugin_api::ScreenPlacement {
+                screen: anchored_screen(layer.id),
+                instance: INSTANCE,
+                view: ViewId(layer.id),
+                surface: 6 + layer.id as u32,
+                width: 100,
+                height: 100,
+                scale_factor_millis: 1000,
+                raster_millis: 1000,
+            })
+            .collect(),
+    };
+    let reports: Vec<block_plugin_api::FrameReport> = layers
+        .iter()
+        .map(|layer| {
+            let own = Rect::from_min_size(Pos2::ZERO, layer.placement.rect.size());
+            block_plugin_api::FrameReport {
+                screen: anchored_screen(layer.id),
+                content: None,
+                painted: vec![own],
+                floating: vec![own],
+                floating_painted: Vec::new(),
+                scrims: Vec::new(),
+                drawing: Vec::new(),
+                claims: Vec::new(),
+                description: None,
+                anchored: Some(layer.placement),
+            }
+        })
+        .collect();
+    instances.keep_anchored(&layout);
+    instances.adopt_anchored(&reports, &layout);
+    instances.set_frame_reports(reports);
 }
 
 fn shown_rects(instances: &Instances) -> Vec<Rect> {
@@ -371,7 +396,7 @@ fn shown_rects(instances: &Instances) -> Vec<Rect> {
 
 mod a_block_is_named_after_its_content_until_someone_names_it;
 mod a_block_shown_before_its_instance_reports_reaches_it_once_it_does;
-mod a_child_placed_in_a_layer_is_shown_in_host_coordinates_inside_it;
+mod a_child_placed_in_an_anchored_view_is_shown_in_host_coordinates_inside_it;
 mod a_click_outside_a_frame_child_hands_the_frame_back;
 mod a_database_view_given_content_references_its_database;
 mod a_frame_takeover_keeps_the_last_painting_where_it_was;
@@ -406,7 +431,7 @@ mod clearing_a_name_names_the_block_after_its_content_at_once;
 mod closing_an_editor_calls_off_the_gesture_it_left_open;
 mod host_calls_are_taken_by_kind_in_the_order_they_came;
 mod input_is_withheld_from_screens_the_plugin_no_longer_has;
-mod input_on_a_layer_reaches_its_owner_tagged_with_it_in_the_screen_s_coordinates;
+mod input_on_an_anchored_view_reaches_its_own_screen_in_its_own_points;
 mod revision_history_editors_cannot_mutate_any_block;
 mod the_contacts_reach_only_the_shell;
 mod the_view_a_screen_is_given_carries_its_scale;

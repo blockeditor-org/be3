@@ -25,7 +25,6 @@ fn placements(occluders: Vec<Occluder>) -> FrameCommit {
             follows_view: false,
             dialog: None,
             docks: None,
-            anchored: None,
         }],
         occluders,
     })

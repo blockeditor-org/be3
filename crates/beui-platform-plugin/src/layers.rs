@@ -5,14 +5,16 @@ use beui_core::geometry::Pos2;
 use beui_core::input::Input;
 use beui_core::window::WindowId;
 use beui_platform_plugin_api::anchored_view;
+use block_editor_plugin::{Anchored, Frame};
 use block_plugin_api::accessibility::Color;
-use block_plugin_api::{AnchoredPlacement, AnchoredView, Scrim, ViewAnchor, ViewEdge, ViewId};
+use block_plugin_api::{AnchoredPlacement, Scrim, ViewAnchor, ViewEdge, ViewId};
 
 use crate::surface::Surface;
 
 pub(crate) struct Shown {
     pub(crate) escaped: EscapedOutput,
     pub(crate) surface: Surface,
+    pub(crate) changed: bool,
 }
 
 pub(crate) fn set_space(
@@ -33,8 +35,7 @@ pub(crate) fn set_space(
     }
 }
 
-pub(crate) fn follow(held: &mut Vec<Shown>, escaped: &[EscapedOutput], window: WindowId) -> bool {
-    let mut changed = false;
+pub(crate) fn follow(held: &mut Vec<Shown>, escaped: &[EscapedOutput], window: WindowId) {
     let mut next = Vec::new();
     for escaped in escaped
         .iter()
@@ -45,29 +46,25 @@ pub(crate) fn follow(held: &mut Vec<Shown>, escaped: &[EscapedOutput], window: W
             .position(|shown| shown.escaped.layer.id == escaped.layer.id);
         let mut shown = match at {
             Some(at) => held.remove(at),
-            None => {
-                changed = true;
-                Shown {
-                    escaped: escaped.clone(),
-                    surface: Surface::default(),
-                }
-            }
+            None => Shown {
+                escaped: escaped.clone(),
+                surface: Surface::default(),
+                changed: true,
+            },
         };
-        changed |= escaped.output.changed || shown.escaped.layer != escaped.layer;
+        shown.changed |= escaped.output.changed || shown.escaped.layer != escaped.layer;
         shown.surface.note(&escaped.output);
         shown.escaped = escaped.clone();
         next.push(shown);
     }
-    changed |= !held.is_empty();
     *held = next;
-    changed
 }
 
-pub(crate) fn report(held: &[Shown], owner: ViewId, ratio: f32) -> Vec<AnchoredView> {
+pub(crate) fn report(held: &[Shown], owner: ViewId, ratio: f32) -> Vec<Anchored> {
     held.iter()
         .map(|shown| {
             let layer = &shown.escaped.layer;
-            AnchoredView {
+            Anchored {
                 view: anchored_view(layer.id),
                 placement: AnchoredPlacement {
                     parent: layer.parent.map_or(owner, anchored_view),
@@ -78,22 +75,39 @@ pub(crate) fn report(held: &[Shown], owner: ViewId, ratio: f32) -> Vec<AnchoredV
                         }),
                         LayerPlacement::Edge(edge) => ViewAnchor::Edge(edge_of(edge)),
                     },
+                    rect: layer.rect,
+                    dismiss_on_outside_press: layer.dismiss_on_outside_press,
+                    keyboard: layer.keyboard,
+                    blocks_owner: layer.blocks_owner,
                 },
-                rect: layer.rect,
-                surface: 0,
-                painted: layer.painted.clone(),
-                floating: layer.floating.clone(),
-                scrims: layer
-                    .scrims
-                    .iter()
-                    .map(|(rect, color)| scrim(*rect, *color))
-                    .collect(),
-                dismiss_on_outside_press: layer.dismiss_on_outside_press,
-                keyboard: layer.keyboard,
-                blocks_owner: layer.blocks_owner,
             }
         })
         .collect()
+}
+
+pub(crate) fn framed(
+    shown: &mut Shown,
+    description: Option<block_editor_plugin::Description>,
+) -> Frame {
+    let layer = &shown.escaped.layer;
+    let from = layer.rect.min.to_vec2();
+    let own = |rects: &[beui_core::geometry::Rect]| -> Vec<beui_core::geometry::Rect> {
+        rects.iter().map(|rect| rect.translate(-from)).collect()
+    };
+    let changed = std::mem::take(&mut shown.changed) || shown.surface.unpainted();
+    shown.surface.settle();
+    Frame {
+        changed,
+        painted: own(&layer.painted),
+        floating: own(&layer.floating),
+        scrims: layer
+            .scrims
+            .iter()
+            .map(|(rect, color)| scrim(rect.translate(-from), *color))
+            .collect(),
+        description,
+        ..Frame::default()
+    }
 }
 
 fn scrim(rect: beui_core::geometry::Rect, color: Color32) -> Scrim {

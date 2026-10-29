@@ -50,6 +50,16 @@ impl Escapes {
             .map(|escape| escape.paint)
     }
 
+    pub(crate) fn any(&self) -> bool {
+        !self.held.is_empty()
+    }
+
+    pub(crate) fn overlays(&self) -> impl Iterator<Item = (NodeId, u64)> + '_ {
+        self.held
+            .iter()
+            .map(|escape| (escape.overlay.id(), escape.id))
+    }
+
     pub(crate) fn paints_into(&self, window: WindowId) -> bool {
         self.held.iter().any(|escape| escape.paint == window)
     }
@@ -252,6 +262,27 @@ impl Document {
             });
         }
         escaped
+    }
+
+    pub(crate) fn escape_holding(&self, node: NodeId) -> Option<u64> {
+        let mut current = Some(node);
+        for _ in 0..crate::node::ANCESTOR_LIMIT {
+            let id = current?;
+            if let Some(overlay) = self.arena.kind_of::<OverlayNode>(id)
+                && let Some(escape) = self
+                    .escapes
+                    .held
+                    .iter()
+                    .find(|escape| escape.overlay == overlay)
+            {
+                return Some(escape.id);
+            }
+            if Some(id) == self.root {
+                return None;
+            }
+            current = self.arena.parent(id);
+        }
+        None
     }
 
     pub fn escaped_layer_of(&self, node: NodeId) -> Option<(u64, HostTransform)> {

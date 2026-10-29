@@ -140,6 +140,7 @@ pub struct HostLayer {
     pub id: block_plugin_api::ViewId,
     pub parent: Option<block_plugin_api::ViewId>,
     pub opened: u64,
+    pub screen: block_plugin_api::ScreenId,
     pub rect: Rect,
     pub bounds: Rect,
     pub painted: Vec<Rect>,

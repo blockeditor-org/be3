@@ -322,7 +322,7 @@ impl<A: BeuiApp> Shown for Parts<A> {
             ViewPlacement::Parent(ParentView::ArtifactSettings) => self.settings_content(),
             ViewPlacement::Host(HostView::Display(display)) => self.display_content(display),
             ViewPlacement::Dock => self.tab_content(view.id.0),
-            ViewPlacement::Host(HostView::Window) => empty(),
+            ViewPlacement::Host(HostView::Window) | ViewPlacement::Anchored => empty(),
         }
     }
 
@@ -385,7 +385,7 @@ impl<A: BeuiApp> Shown for Parts<A> {
                     editor.begin_frame();
                 }
             }
-            ViewPlacement::Host(_) => {}
+            ViewPlacement::Host(_) | ViewPlacement::Anchored => {}
             ViewPlacement::Parent(ParentView::ArtifactSettings) => {
                 if let (Some(artifacts), Some(settings)) =
                     (views.artifacts.as_ref(), self.host.settings_draft())
@@ -433,6 +433,7 @@ impl<A: BeuiApp> Shown for Parts<A> {
                 }
                 Report::default()
             }
+            ViewPlacement::Anchored => Report::default(),
             ViewPlacement::Host(_) | ViewPlacement::Dock => {
                 if let Some(editor) = self.views.borrow().editor.as_deref() {
                     editor.end_frame(document, window);

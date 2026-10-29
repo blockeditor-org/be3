@@ -125,6 +125,8 @@ impl Embedded {
             windows: Vec::new(),
             window_roots: Vec::new(),
             focus_window: None,
+            escaped: Vec::new(),
+            escaped_roots: Vec::new(),
         }
     }
 

@@ -575,18 +575,12 @@ impl Runtime {
         self.painting = false;
         let mut shared = self.shared.borrow_mut();
         shared.paintings.clear();
-        shared.layer_paintings.clear();
         shared.overflows.clear();
         let Ok(paintings) = beui::native::painting::ScreenPaintings::decode(payload) else {
             return;
         };
         for (screen, painting) in paintings.screens {
             shared.paintings.insert(ScreenId(screen), painting);
-        }
-        for (screen, layer, painting) in paintings.layers {
-            shared
-                .layer_paintings
-                .insert((ScreenId(screen), layer), painting);
         }
         for (screen, overflows) in paintings.overflows {
             shared.overflows.insert(ScreenId(screen), overflows);
@@ -853,6 +847,7 @@ impl Runtime {
         });
         self.backend
             .export(shown.iter().map(|placement| placement.surface).collect());
+        self.instances.keep_anchored(&layout);
         self.layout = layout;
     }
 
@@ -1038,10 +1033,10 @@ impl Runtime {
         if let Some(presented) = presented {
             self.presents.report(presented);
         }
+        self.instances.adopt_anchored(&reports, &self.layout);
         let held = self.held_screens();
         let mut changed = self.instances.confirm(serial, &held);
         changed |= self.instances.set_frame_reports(reports);
-        self.shared.borrow_mut().layer_surfaces = self.instances.layer_surfaces();
         changed |= self.lay(Laid {
             serial,
             sizes,
@@ -2739,15 +2734,9 @@ pub fn region_drawing(
     .flatten()
 }
 
-pub fn layer_blits(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-    region: ViewId,
-    layer: &HostLayer,
-) -> Vec<Blit> {
+pub fn layer_blits(plugin_id: &str, layer: &HostLayer) -> Vec<Blit> {
     with(plugin_id, |runtime| {
-        let screen = runtime.instances.screen_id(instance, region)?;
-        let template = runtime.template(screen, None);
+        let template = runtime.template(layer.screen, None);
         let pixels_per_point = layer.pixels_per_point;
         Some(
             layer
@@ -2764,7 +2753,6 @@ pub fn layer_blits(
                         drawn: None,
                         requested: None,
                         layer: Some(LayerSource {
-                            layer: layer.id.0,
                             surface: layer.surface,
                             bounds: layer.bounds,
                             pixels: Rect::from_min_max(

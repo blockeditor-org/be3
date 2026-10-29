@@ -207,10 +207,8 @@ pub(super) struct Shared {
     pub(super) layout: ScreenLayout,
     pub(super) frames: Vec<Frame>,
     pub(super) paintings: std::collections::HashMap<ScreenId, Painting>,
-    pub(super) layer_paintings: std::collections::HashMap<(ScreenId, u64), Painting>,
     pub(super) overflows: std::collections::HashMap<ScreenId, Vec<String>>,
     pub(super) published: Published,
-    pub(super) layer_surfaces: Vec<u32>,
 }
 
 impl Shared {
@@ -279,7 +277,6 @@ pub struct Blit {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct LayerSource {
-    pub(super) layer: u64,
     pub(super) surface: u32,
     pub(super) pixels: Rect,
     pub(super) bounds: Rect,
@@ -587,7 +584,7 @@ impl Paints for LayersDrawing {
                 continue;
             };
             let shared = blit.shared.borrow();
-            let Some(painting) = shared.layer_paintings.get(&(blit.screen, layer.layer)) else {
+            let Some(painting) = shared.paintings.get(&blit.screen) else {
                 continue;
             };
             let [width, height] = painting.frame.size.map(|side| side.max(1) as f32);
@@ -843,7 +840,6 @@ impl beui::native::Draw for PluginDrawing {
                         .screens
                         .iter()
                         .map(|placement| placement.surface)
-                        .chain(shared.layer_surfaces.iter().copied())
                         .collect();
                     (frames, region, surfaces)
                 };

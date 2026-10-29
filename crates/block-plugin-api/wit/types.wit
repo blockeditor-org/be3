@@ -79,8 +79,9 @@ interface types {
     type editor-instance-id = u64;
 
     /// A screen a plugin draws: one the host asked for, numbered by the host
-    /// below 2^63, or the screen of a window the plugin opened itself
-    /// (`window-open.screen`), numbered by the plugin from 2^63.
+    /// below 2^63, or the screen of a view the plugin created itself (a
+    /// window it opened, `window-open.screen`, or a view it anchored,
+    /// `frame-report.anchored`), numbered by the plugin from 2^63.
     type screen-id = u64;
 
     /// A view of an editor instance: a surface it draws, unique among the
@@ -101,17 +102,17 @@ interface types {
         display(u32),
     }
 
-    /// Who places a view the host asks for: the instance's placer (its main
-    /// view, preview or artifact settings), the root dock (the body of one of
-    /// the instance's own dock tabs, bars or dialogs, or of an empty pane: a
-    /// `dock-tab-path` with no `via` names it by its view), or the host.
-    /// A view can also place itself against its parent view: an
-    /// `anchored-view`, which the instance reports rather than being asked
-    /// for.
+    /// Who places a view: the instance's placer (its main view, preview or
+    /// artifact settings), the root dock (the body of one of the instance's
+    /// own dock tabs, bars or dialogs, or of an empty pane: a `dock-tab-path`
+    /// with no `via` names it by its view), the host, or the view itself,
+    /// `anchored` against its parent view (`frame-report.anchored`), which
+    /// the host never asks for: the instance creates it.
     variant view-placement {
         parent(parent-view),
         dock,
         host(host-view),
+        anchored,
     }
 
     record size {
@@ -274,26 +275,20 @@ interface types {
     /// screen's coordinates. While a press holds it and the pointer is over none
     /// of the plugin's screens, the host sends `pointer-left` and goes on with
     /// positions in this screen's coordinates.
-    ///
-    /// `anchored` names the anchored view of this screen
-    /// (`frame-report.anchored`) the event landed on, which the host
-    /// hit-tests before the screen's own pixels; its positions stay in this
-    /// screen's coordinates, which the plugin maps to host coordinates with
-    /// the `to-host` its anchored views were laid out against.
     record timed-input {
         input: input,
         time-micros: option<u64>,
         over: option<screen-id>,
-        anchored: option<view-id>,
     }
 
     /// Input for one screen. Batches waiting for the plugin merge as a frame's
     /// input does in beui (`ui_types::input::enqueue`): pointer moves fold into
     /// the latest unless `every-sample`, which the host sets while the screen's
     /// `window-requests` ask for it, scrolls and zooms fold into the last of a
-    /// run on the same anchored view, and everything else stays, in order.
-    /// `dismissed` lists the screen's anchored views a press outside them
-    /// closed (`anchored-view.dismiss-on-outside-press`), each heard before
+    /// run, and everything else stays, in order.
+    /// `dismissed` lists the views anchored to this screen's view (and to
+    /// each other) a press outside them closed
+    /// (`anchored-placement.dismiss-on-outside-press`), each heard before
     /// the batch's events;
     /// a batch that dismisses any never merges into the one before it.
     record input-batch {
@@ -440,12 +435,6 @@ interface types {
         /// child's frame is requested `docked`, and the host splices the
         /// child's dock in place of that tab.
         docks: option<u64>,
-        /// The anchored view of this view the child is placed in
-        /// (`anchored-view.view`), or `none` for this view itself. In an
-        /// anchored view, `rect` and `clip` are in host coordinates, like the
-        /// anchored view's, `layer` orders the child against its own pixels,
-        /// and no occluder hides it.
-        anchored: option<view-id>,
     }
 
     /// A rectangle that hides the children placed before it.
@@ -494,35 +483,23 @@ interface types {
         edge(view-edge),
     }
 
-    /// `parent` is the view of the screen that reports it or another of the
-    /// screen's anchored views, as a submenu hangs from its menu.
+    /// How a view the instance anchored places itself: a menu, popover,
+    /// tooltip or sheet, allowed outside its parent's rectangle. `parent` is
+    /// the view it hangs from: one the host asked for with a layer space, or
+    /// another anchored view of the instance, as a submenu hangs from its
+    /// menu. `rect` is where the plugin laid it out, in host coordinates,
+    /// against `layer-space.bounds` of the view the chain hangs from: the
+    /// view's own points are host points from `rect`'s top-left corner.
+    /// With `dismiss-on-outside-press`, a press outside the view's chain (it
+    /// and the views hanging from it) closes the chain: the instance hears
+    /// `input-batch.dismissed`, and the press still reaches what it landed
+    /// on. `keyboard` gives the instance the keyboard while the view is
+    /// open; `blocks-owner` keeps presses on the view the chain hangs from
+    /// from reaching its content.
     record anchored-placement {
         parent: view-id,
         anchor: view-anchor,
-    }
-
-    /// A view the instance places itself, allowed outside its parent's
-    /// rectangle: a menu, popover, tooltip or sheet. The plugin lays it out
-    /// against `layer-space.bounds`, paints it into `surface` (one it
-    /// configured itself, painted from its top-left corner at the screen's
-    /// raster) and commits it with the frame. `rect`, `painted`, `floating`
-    /// and `scrims` are in host coordinates. `painted` is what the view drew,
-    /// `floating` where it takes input (its content and the areas its
-    /// scrims block, clear or not), and `scrims` the dims the host draws
-    /// under it. With `dismiss-on-outside-press`, a press outside the
-    /// view's chain (it and the views hanging from it) closes the chain:
-    /// the owner hears `input-batch.dismissed`, and the press still reaches
-    /// what it landed on. `keyboard` gives the owner the keyboard while the
-    /// view is open; `blocks-owner` keeps presses on the parent screen's
-    /// view from reaching its content.
-    record anchored-view {
-        view: view-id,
-        placement: anchored-placement,
         rect: rect,
-        surface: surface-id,
-        painted: list<rect>,
-        floating: list<rect>,
-        scrims: list<scrim>,
         dismiss-on-outside-press: bool,
         keyboard: bool,
         blocks-owner: bool,
@@ -552,11 +529,11 @@ interface types {
         drawing: list<rect>,
         claims: list<press-claim>,
         description: option<description>,
-        /// The views anchored to the screen's view and to each other,
-        /// replacing the last report's, in the order they opened: each comes
-        /// after its parent. Only a screen requested with `layers` anchors
-        /// any.
-        anchored: list<anchored-view>,
+        /// Set on the report of a screen the plugin opened for a view it
+        /// anchored: how that view hangs, which every report of it repeats.
+        /// The view closes when the plugin's layout no longer lists its
+        /// screen.
+        anchored: option<anchored-placement>,
     }
 
     record screen-window {

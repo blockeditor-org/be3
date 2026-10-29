@@ -95,7 +95,6 @@ impl InputForwarder {
                     input,
                     time_micros: time.map(block_app_base::host::micros_at),
                     over: over.and_then(screen_of),
-                    anchored: None,
                 }),
             }
         }

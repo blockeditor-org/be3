@@ -429,9 +429,15 @@ lists in `views`); `dock`, placed by the root dock as the body of one of the
 instance's own dock tabs, bars or dialogs, or of an empty pane (a
 `dock-tab-path` names that body by its view id); and `host`, a window the
 instance opened or a further display. A view can also place itself against
-its parent view, as a menu hangs from its button: an anchored view, which the
-instance reports in the frame report of the screen it hangs from
-(`frame-report.anchored`) rather than being asked for. The host numbers the
+its parent view, as a menu hangs from its button: an anchored view
+(`anchored`), which the host never asks for. There is one way for an instance
+to create a view, whatever places it: in the frame that creates it, the
+plugin lays the view out, paints it as a screen it numbers itself from 2^63,
+lists that screen in its layout before the commit, and reports it in the
+commit, so a created view costs no frame; how it is placed decides what the
+host does with it: a window (`window-request.open`) the host places and from
+then on asks for, an anchored view (`frame-report.anchored`) the plugin keeps
+placing itself. The host numbers the
 views it asks for other than the main view from the top (the preview 2^63,
 the artifact settings 2^63 + 1, the view on further display `n` 2^63 + 1 + n);
 the instance numbers the views it makes itself, never 0 and below 2^63.
@@ -441,7 +447,7 @@ displays shows the main view on its first display and a view placed by the
 host on each further one, numbered from 1 in the order it lists them. A
 screen request may say the host shows the windows the plugin opens from it
 as windows of its own (`windows`). The plugin then opens each window itself,
-as it anchors a view, so opening one costs no frame: in the frame that opens
+as it creates any view: in the frame that opens
 it, the plugin lays the window out at the size it wants and paints it as a
 screen of its own, which it numbers from 2^63, lists in its layout and
 reports in the same commit as the `window-request` that opens it (`open`,
@@ -565,55 +571,61 @@ with no round trip; the host draws each as a layer above every view. A screen
 request may carry a layer space (`screen-request.layers`): `to-host`, which
 maps the view's points to host coordinates (the app window's logical points)
 at the camera the request lays it out against, and `bounds`, the rectangle in
-host coordinates where its anchored views may go: the app window for a
+host coordinates where views anchored to it may go: the app window for a
 trusted plugin, the plugin's own box for a confined one. A child's bounds
 never exceed its parent's, and a screen requested without a layer space
-anchors no views. Each frame report lists the views anchored to the screen's
-view (`frame-report.anchored`, replacing the last report's), in the order
-they opened, each after its parent: the screen's view, or another anchored
-view for a submenu (`anchored-placement.parent`). The plugin places each one
-itself, anchored to a rectangle in its parent's coordinates or attached to an
-edge of the bounds (`view-anchor`), lays it out against the bounds (flipping, sliding or
-shrinking it to fit), paints it into a surface it configured itself, and
-commits its rectangle, painted and input (`floating`) rectangles and scrims in
-host coordinates with the frame that drew it; the host only clips it to the
-bounds. The surface holds the layer from its top-left corner at the screen's
-raster divided by `to-host`'s scale, in pixels per host point: the app window's
-own density, whatever the view's zoom, since the screen's raster already
-counts it. A layer is laid out and drawn at full size in host points, so a menu
-opened in a view shown at half size is as large as any other menu. The host draws layers after
-every view, in the order they opened across every view of the window:
-each one's scrims, then its `painted` rectangles from its surface; it draws
-nothing of a layer outside `painted`, and the report that opens a layer draws
-it in the same host frame.
-When a view moves, the host moves its layers rigidly by the difference
-between the `to-host` it shows the view at and the one the frame was laid
-out against, so a move alone need not send the plugin a new `to-host`: the
-host may keep sending the origin it sent last while only the origin changes,
-and sends where the view now is with the next input it gives the view; a pan of the view's camera does nothing to them, and the
+anchors no views. An anchored view is a screen like any other, which the
+plugin creates as it creates any view: in the frame that opens it the plugin
+places it, anchored to a rectangle in its parent's coordinates or attached to
+an edge of the bounds (`view-anchor`), lays it out against the bounds
+(flipping, sliding or shrinking it to fit), numbers its screen from 2^63,
+lists that screen in its layout with a surface it configured itself, paints
+it, and commits its report with that frame. The report says how it hangs
+(`frame-report.anchored`: its parent, the view the screen request was for or
+another anchored view of the instance for a submenu, its anchor, and its
+rectangle in host coordinates), and every report of it repeats that; the view
+closes when the plugin's layout no longer lists its screen, and with it the
+views hanging from it. Everything else is the screen's own, in its own points,
+which are host points from its rectangle's top-left corner: what it painted,
+where it takes input (`floating`) and the scrims it dims, its accessibility
+description, which the host places where the view is drawn and leaves out of
+its parent's, and its child placements (`child-placements.view` naming it),
+which the host places in host coordinates, ordered against the view's pixels
+by their `layer`, clipped to the view and its bounds and hidden by no
+occluder; a child's own frame appears one frame after the view that holds it.
+The plugin lays an anchored view out and draws it at full size in host
+points, so a menu opened in a view shown at half size is as large as any
+other menu, at the screen's raster divided by `to-host`'s scale, in pixels per
+host point: the app window's own density, whatever the view's zoom, since the
+screen's raster already counts it. The host draws anchored views after every
+view, in the order they opened across every view of the window: each one's
+scrims, then its `painted` rectangles from its surface; it draws nothing of
+one outside `painted`, and the commit that opens one draws it in the same host
+frame. When the view a chain hangs from moves, the host moves the chain
+rigidly by the difference between the `to-host` it shows that view at and the
+one the frame was laid out against, so a move alone need not send the plugin
+a new `to-host`: the host may keep sending the origin it sent last while only
+the origin changes, and sends where the view now is with the next input it
+gives the view; a pan of the view's camera does nothing to them, and the
 plugin repositions or closes them on its next layout. The host hit-tests
-layers before any view, and input that lands on one reaches its owning
-screen tagged with its view (`timed-input.anchored`), in that screen's own
-coordinates. Layers take input over their `floating`
-rectangles, the one opened last first. A press outside a chain of layers marked
-`dismiss-on-outside-press` (a layer and those hanging from it) closes the
-chain: the owner hears the layers in `input-batch.dismissed`, before the
-batch's events, and the press still reaches whatever it landed on. A press on
-a menu closes only the submenus hanging from it. A layer
-marked `keyboard` gives its owner the keyboard while it is open, and one
-marked `blocks-owner` keeps presses on the owning view from its content.
-A layer's accessibility tree goes in its owner's description, in host
-coordinates. A layer may embed other editors: a child placement naming the
-anchored view (`child-placement.anchored`) is placed in host coordinates, ordered
-against the layer's pixels by its `layer`, clipped to the layer and hidden by
-no occluder; the child's own frame appears one frame after the layer that
-holds it. The host's embedded popups are such children: a block's rename form
-(`child-content.rename`) and the app's menu (`host-panel.app-menu`).
+anchored views before any other view, over their `floating` rectangles, the
+one opened last first, and input that lands on one reaches its own screen in
+its own points; a plugin takes input for any screen it opened itself and
+ignores input for one it has closed since. A press outside a chain of anchored views marked
+`dismiss-on-outside-press` (a view and those hanging from it) closes the
+chain: the instance hears the views in `input-batch.dismissed` of the screen
+the chain hangs from, before that batch's events, and the press still reaches
+whatever it landed on. A press on a menu closes only the submenus hanging
+from it. A view marked `keyboard` gives the instance the keyboard while it is
+open, and one marked `blocks-owner` keeps presses on the view the chain hangs
+from from its content. The host's embedded popups are children of anchored
+views: a block's rename form (`child-content.rename`) and the app's menu
+(`host-panel.app-menu`).
 In the browser, where a plugin draws in a worker of its own, the page gives
-that worker one canvas over the whole app on its first layer and keeps it; the
-worker draws each layer's `painted` rectangles into it where the page says,
-the page clips the canvas to the plugin's bounds, and the canvas of the plugin
-that opened the newest layer is on top.
+that worker one canvas over the whole app on its first anchored view and keeps
+it; the worker draws each anchored view's `painted` rectangles into it where
+the page says, the page clips the canvas to the plugin's bounds, and the
+canvas of the plugin that opened the newest one is on top.
 
 A frame report may also carry press claims: a set of modifiers and a
 rectangle. While every one of those modifiers is held, a pointer press inside

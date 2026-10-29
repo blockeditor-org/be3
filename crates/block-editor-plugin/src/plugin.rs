@@ -3,8 +3,8 @@ use std::time::Duration;
 #[cfg(target_arch = "wasm32")]
 use block_plugin_api::SurfaceRect;
 use block_plugin_api::{
-    AnchoredView, EditorInstanceId, FrameChrome, FrameSpec, LayerSpace, TimedInput, View, ViewId,
-    ViewRef, WindowRequests,
+    AnchoredPlacement, EditorInstanceId, FrameChrome, FrameSpec, LayerSpace, TimedInput, View,
+    ViewId, ViewRef, WindowRequests,
 };
 use geometry::{Rect, Vec2};
 use uuid::Uuid;
@@ -79,30 +79,12 @@ pub trait Regions: std::any::Any {
         None
     }
 
-    fn anchored_painting(
-        &mut self,
-        _region: ViewRef,
-        _anchored: ViewId,
-    ) -> Option<paint_format::Painting> {
-        None
-    }
-
     fn overflows(&mut self, _region: ViewRef) -> Vec<String> {
         Vec::new()
     }
 
     #[cfg(target_arch = "wasm32")]
     fn paint(&mut self, region: ViewRef, target: &PaintTarget<'_>) -> Vec<SurfaceRect>;
-
-    #[cfg(target_arch = "wasm32")]
-    fn paint_anchored(
-        &mut self,
-        _region: ViewRef,
-        _anchored: ViewId,
-        _target: &PaintTarget<'_>,
-    ) -> Vec<SurfaceRect> {
-        Vec::new()
-    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -160,7 +142,13 @@ pub struct Frame {
     pub description: Option<block_plugin_api::Description>,
     pub stopped: Option<block_plugin_api::Stopped>,
     pub asks: Vec<block_plugin_api::WindowRequest>,
-    pub anchored: Vec<AnchoredView>,
+    pub anchored: Vec<Anchored>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Anchored {
+    pub view: ViewId,
+    pub placement: AnchoredPlacement,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

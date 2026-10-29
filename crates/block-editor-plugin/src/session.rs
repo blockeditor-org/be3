@@ -90,7 +90,7 @@ impl ClientSession {
                 Ok(())
             }
             (State::Running, Delivery::Input(input)) => {
-                match self.screens.contains(&input.screen) {
+                match input.screen.is_opened() || self.screens.contains(&input.screen) {
                     true => Ok(()),
                     false => Err(format!(
                         "input arrived for screen {}, which this plugin was not given",

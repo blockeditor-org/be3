@@ -54,7 +54,7 @@ fn row(frame: &Frame, label: &str) -> Option<Rect> {
 }
 
 #[test]
-fn a_regions_menu_escapes_as_a_layer_it_paints_and_takes_input_on() {
+fn a_regions_menu_is_an_anchored_view_it_paints_describes_and_takes_input_on() {
     let _root = RootScope::new();
     let open_at = create_signal(None::<Pos2>);
     let chosen = create_signal(Vec::<usize>::new());
@@ -99,26 +99,32 @@ fn a_regions_menu_escapes_as_a_layer_it_paints_and_takes_input_on() {
     );
     let region = Rect::from_min_size(ORIGIN, vec2(100.0, 60.0));
     assert!(
-        !region.contains_rect(layer.rect),
+        !region.contains_rect(layer.placement.rect),
         "the menu reaches past its region's frame: {:?}",
-        layer.rect
+        layer.placement.rect
+    );
+    let menu = anchored_region(&shown, layer);
+    let framed = one_anchored(&mut surface, &menu);
+    assert!(
+        framed.changed,
+        "the view a frame anchors asks to be painted"
     );
     assert!(
-        frame.changed,
-        "a frame that opens a layer asks to be painted"
+        surface.painting(menu.id()).is_some(),
+        "the anchored view has a painting of its own"
     );
     assert!(
-        surface.anchored_painting(shown.id(), layer.view).is_some(),
-        "the layer has a painting of its own"
+        row(&frame, "Item 2").is_none(),
+        "the menu's rows are not in the region's description"
     );
-
-    let item = row(&frame, "Item 2").expect("the menu's rows are in the region's description");
+    let item = row(&framed, "Item 2").expect("the menu's rows are in its own view's description");
     assert!(
-        layer
+        framed
             .floating
             .iter()
-            .any(|floating| floating.contains(ORIGIN + item.center().to_vec2())),
-        "the row is described where the layer is drawn, once the host places the region: {item:?} in {layer:?}"
+            .any(|floating| floating.contains(item.center())),
+        "the row is described where the view takes input, in its own points: {item:?} in {:?}",
+        framed.floating
     );
     let at = item.center();
     for input in [
@@ -134,11 +140,7 @@ fn a_regions_menu_escapes_as_a_layer_it_paints_and_takes_input_on() {
             pressed: false,
         },
     ] {
-        let event = TimedInput {
-            anchored: Some(layer.view),
-            ..TimedInput::from(input)
-        };
-        surface.input(&shown, &event, None);
+        surface.input(&menu, &TimedInput::from(input), None);
         one(&mut surface, &shown);
     }
     assert_eq!(

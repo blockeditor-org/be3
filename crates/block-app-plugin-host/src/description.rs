@@ -47,11 +47,30 @@ pub fn describe(context: &beui::native::Context) {
                     .is_some_and(ViewPlacement::reports)
             })
             .map(|((instance, region), placed)| {
-                (*instance, *region, placed.rect, placed.clip, placed.zoom)
+                (
+                    *instance,
+                    *region,
+                    placed.rect,
+                    placed.clip,
+                    placed.zoom,
+                    false,
+                )
             })
             .collect();
-        for (instance, region, rect, clip, zoom) in placements {
-            let title = (!super::docks::is_bar(instance, region.0)).then_some(name.as_str());
+        let anchored: Vec<_> = placements
+            .iter()
+            .flat_map(|(instance, region, ..)| {
+                runtime
+                    .instances
+                    .anchored_views(*instance, *region)
+                    .into_iter()
+                    .map(|(view, rect, bounds)| (*instance, view, rect, bounds, 1.0, true))
+            })
+            .collect();
+        for (instance, region, rect, clip, zoom, anchored) in placements.into_iter().chain(anchored)
+        {
+            let title =
+                (!anchored && !super::docks::is_bar(instance, region.0)).then_some(name.as_str());
             let Some(described) = runtime.instances.described(instance, region) else {
                 continue;
             };

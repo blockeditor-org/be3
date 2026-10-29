@@ -72,10 +72,10 @@ pub use shell_types::{
     PreviewImage, ShellCommand, Stopped, TemplateDescriptor, ViewChange, WebViewEvent,
 };
 pub use types::{
-    AnchoredPlacement, AnchoredView, ChildContent, ChildLayer, ChildMode, ChildPlacement,
-    ChildPlacements, DialogFrame, Failure, FontFace, FontRole, Fonts, FrameChrome, FrameCommit,
-    FrameReport, FrameSpec, Hello, HelloAccepted, HostPanel, HostTransform, HostView, InputBatch,
-    Insets, LayerSpace, Occluder, OpenArtifact, OpenBlock, OpenCreation, Opening, PresentedFrame,
+    AnchoredPlacement, ChildContent, ChildLayer, ChildMode, ChildPlacement, ChildPlacements,
+    DialogFrame, Failure, FontFace, FontRole, Fonts, FrameChrome, FrameCommit, FrameReport,
+    FrameSpec, Hello, HelloAccepted, HostPanel, HostTransform, HostView, InputBatch, Insets,
+    LayerSpace, Occluder, OpenArtifact, OpenBlock, OpenCreation, Opening, PresentedFrame,
     PressClaim, ScreenDamage, ScreenLayout, ScreenPlacement, ScreenRequest, ScreenWindow, Scrim,
     Size, SurfaceFormat, SurfaceRect, SurfaceSpec, SurfaceSupport, TimedInput, TopBar, ViewAnchor,
     ViewEdge, ViewPlacement, ViewSize, ViewportMetrics,
@@ -468,6 +468,17 @@ impl View {
     pub fn is_window(self) -> bool {
         self.placement == ViewPlacement::Host(HostView::Window)
     }
+
+    pub const fn anchored(id: ViewId) -> Self {
+        Self {
+            id,
+            placement: ViewPlacement::Anchored,
+        }
+    }
+
+    pub fn is_anchored(self) -> bool {
+        self.placement == ViewPlacement::Anchored
+    }
 }
 
 impl HostTransform {
@@ -634,7 +645,6 @@ impl From<Input> for TimedInput {
             input,
             time_micros: None,
             over: None,
-            anchored: None,
         }
     }
 }
@@ -666,36 +676,7 @@ impl FrameCommit {
             }
         }
         collection(self.docks.len())?;
-        self.docks.iter().try_for_each(DockMessage::validate)?;
-        self.reports.iter().try_for_each(FrameReport::validate)
-    }
-}
-
-impl FrameReport {
-    pub fn validate(&self) -> Result<(), DecodeError> {
-        collection(self.anchored.len())?;
-        for (index, anchored) in self.anchored.iter().enumerate() {
-            let (earlier, rest) = self.anchored.split_at(index);
-            if earlier.iter().any(|other| other.view == anchored.view)
-                || rest
-                    .iter()
-                    .any(|later| later.view == anchored.placement.parent)
-            {
-                return Err(DecodeError::MalformedPayload);
-            }
-            collection(anchored.painted.len())?;
-            collection(anchored.floating.len())?;
-            collection(anchored.scrims.len())?;
-        }
-        Ok(())
-    }
-
-    pub fn anchored_parent(&self, index: usize) -> Option<ViewId> {
-        let parent = self.anchored.get(index)?.placement.parent;
-        self.anchored[..index]
-            .iter()
-            .any(|earlier| earlier.view == parent)
-            .then_some(parent)
+        self.docks.iter().try_for_each(DockMessage::validate)
     }
 }
 

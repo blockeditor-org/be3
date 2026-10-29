@@ -2395,7 +2395,13 @@ region shown at half size is as large as any other. An `Edge` sheet fills the bo
 accessibility see them are still window coordinates, which `to_host` maps to where it is drawn
 (`Document::escaped_layer_of(node)` answers with the layer and that `to_host`). The accessibility
 tree places every space node, this one included, from the space's own transform rather than its
-host node's, so an escaped layer opened from deep in the window is described where its rects are. A blocking scrim
+host node's, so an escaped layer opened from deep in the window is described where its rects are.
+An escaped layer's nodes are left out of its window's tree (`FrameOutput::window_accessibility_tree`)
+and described on their own by `FrameOutput::escaped_accessibility_tree(layer, size, origin, to_host)`,
+rooted at the layer's overlay node and mapped into points from `origin` (the layer's top-left in
+host coordinates), so a platform that shows each layer as a view of its own (the plugin platform's
+anchored views) describes it there; `Fragment::escaped` and `escaped_roots` carry which nodes belong
+to which layer. A blocking scrim
 still covers only its window, in window coordinates. Hit testing, focus, trapping, Escape and back
 are unchanged. It is left out of the window's painting and of the
 window's `overlay_rects`, `overlay_painted_rects`, `floating_rects` and `overlay_scrims`, and

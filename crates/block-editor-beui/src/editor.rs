@@ -1432,8 +1432,7 @@ impl Editor {
             Some((_, to_host)) => to_host.rect(rect),
             None => rect.scaled(unscale),
         };
-        let layer = escaped.map(|(id, _)| beui_platform_plugin_api::anchored_view(id));
-        Some(state.host.in_anchored(layer, || {
+        let placed = || {
             state.host.place_child(
                 content.wire(),
                 to_placed(rect),
@@ -1453,7 +1452,14 @@ impl Editor {
                 record.dock_tab,
                 record.docks,
             )
-        }))
+        };
+        Some(match escaped {
+            Some((id, _)) => state.host.in_view(
+                block_plugin_api::View::anchored(beui_platform_plugin_api::anchored_view(id)),
+                placed,
+            ),
+            None => placed(),
+        })
     }
 }
 

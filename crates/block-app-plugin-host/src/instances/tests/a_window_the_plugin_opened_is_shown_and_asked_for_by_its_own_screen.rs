@@ -42,7 +42,7 @@ fn a_window_the_plugin_opened_is_shown_and_asked_for_by_its_own_screen() {
         drawing: Vec::new(),
         claims: Vec::new(),
         description: None,
-        anchored: Vec::new(),
+        anchored: None,
     };
     instances.set_frame_reports(vec![report.clone()]);
     assert_eq!(

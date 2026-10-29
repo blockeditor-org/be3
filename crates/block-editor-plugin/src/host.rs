@@ -495,7 +495,6 @@ pub struct EditorHost {
     child_dismissals: Rc<RefCell<Vec<ChildId>>>,
     performance: Arc<Mutex<Vec<PerformanceRecord>>>,
     showing: Rc<Cell<Option<block_plugin_api::View>>>,
-    anchored: Rc<Cell<Option<ViewId>>>,
     drops: Rc<RefCell<HashMap<ViewId, ViewDrops>>>,
     children: Rc<RefCell<Children>>,
     child_statuses: Rc<RefCell<HashMap<ChildId, ChildStatus>>>,
@@ -1953,7 +1952,6 @@ impl EditorHost {
                 follows_view,
                 dialog,
                 docks,
-                anchored: self.anchored.get(),
             });
         child
     }
@@ -2094,13 +2092,6 @@ impl EditorHost {
         let held = self.showing.replace(Some(view));
         let done = within();
         self.showing.set(held);
-        done
-    }
-
-    pub fn in_anchored<R>(&self, anchored: Option<ViewId>, within: impl FnOnce() -> R) -> R {
-        let held = self.anchored.replace(anchored);
-        let done = within();
-        self.anchored.set(held);
         done
     }
 

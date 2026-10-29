@@ -372,7 +372,7 @@ fn PluginLayer(mount: u64, id: ViewId, shown: Memo<Vec<Shown>>) -> NodeId {
         let owner = owner(mount)?;
         owner.revision.get();
         let drawn = layer.get().map_or_else(Vec::new, |layer| {
-            block_app_plugin_host::layer_blits(&owner.plugin, owner.instance, owner.region, &layer)
+            block_app_plugin_host::layer_blits(&owner.plugin, &layer)
         });
         let damage = blits
             .borrow()

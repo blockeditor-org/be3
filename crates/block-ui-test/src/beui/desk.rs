@@ -434,7 +434,6 @@ impl<A: BeuiApp> BeuiTest<A> {
             input,
             time_micros: Some(self.clock.as_micros() as u64),
             over,
-            anchored: None,
         });
         let ended = pressed == Some(false) && {
             desk.pressed = None;

@@ -58,8 +58,8 @@ pub use block_plugin_api::{
     WindowOrigin, WindowRequests, WindowsWatch,
 };
 pub use block_plugin_api::{
-    AnchoredPlacement, AnchoredView, HostTransform, HostView, LayerSpace, ParentView, Scrim, View,
-    ViewAnchor, ViewEdge, ViewId, ViewPlacement, ViewRef,
+    AnchoredPlacement, HostTransform, HostView, LayerSpace, ParentView, Scrim, View, ViewAnchor,
+    ViewEdge, ViewId, ViewPlacement, ViewRef,
 };
 pub use block_plugin_api::{
     HostPreferenceSources, Motion, PreferenceLayer, PreferenceSourcesWatch, Preferences, ThemeKind,
@@ -77,7 +77,7 @@ pub use host::{
     SeededContent, SentToPeers, ShowRequest, ShownPresence, StoredHead, Waker,
 };
 pub use module::Module;
-pub use plugin::{Claim, Frame, Instance, Plugin, Region, Regions, SettingsDraft};
+pub use plugin::{Anchored, Claim, Frame, Instance, Plugin, Region, Regions, SettingsDraft};
 #[cfg(target_arch = "wasm32")]
 pub use plugin::{PaintTarget, SurfaceGpu, surface_gpu};
 pub use preferences::host_preferences;

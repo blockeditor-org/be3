@@ -1,23 +1,23 @@
 use std::pin::pin;
 use std::task::{Context, Poll, Waker};
 
-mod a_child_placed_in_a_layer_names_it;
-mod a_layer_is_committed_with_its_surface_in_the_frame_that_opens_it;
-mod a_layers_surface_is_kept_while_it_is_open_and_released_once_it_closes;
-mod a_region_without_a_layer_space_opens_no_layers;
+mod a_child_placed_in_an_anchored_view_is_placed_in_its_own_points;
+mod a_region_without_a_layer_space_anchors_no_views;
 mod a_rejected_shader_is_caught_by_an_error_scope;
 mod a_surface_the_host_does_not_render_runs_its_frames_without_a_gpu;
 mod a_window_is_committed_with_its_own_screen_in_the_frame_that_opens_it;
+mod an_anchored_view_is_a_screen_committed_in_the_frame_that_opens_it;
+mod an_anchored_views_surface_is_kept_while_it_is_open_and_released_once_it_closes;
 mod dismissed_layers_are_heard_before_the_batchs_events;
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use block_plugin_api::{
-    AnchoredPlacement, AnchoredView, ChildContent, ChildLayer, ChildMode, EditorInstanceId,
-    FrameCommit, HelloAccepted, HostTransform, LayerSpace, OpenBlock, Opening, ParentView,
-    ScreenId, ScreenRequest, Size, SurfaceFormat, SurfaceSpec, TimedInput, TopBar, View,
-    ViewAnchor, ViewId, ViewPlacement, ViewRef, ViewportMetrics,
+    AnchoredPlacement, ChildContent, ChildLayer, ChildMode, EditorInstanceId, FrameCommit,
+    HelloAccepted, HostTransform, LayerSpace, OpenBlock, Opening, ParentView, ScreenId,
+    ScreenRequest, Size, SurfaceFormat, SurfaceSpec, TimedInput, TopBar, View, ViewAnchor, ViewId,
+    ViewPlacement, ViewRef, ViewportMetrics,
 };
 use geometry::{Rect, pos2, vec2};
 use uuid::Uuid;
@@ -26,7 +26,7 @@ use crate::editor_session::EditorSession;
 use crate::screens::Screens;
 use crate::wasm::Surfaces;
 use crate::wire::Delivery;
-use crate::{EditorHost, Frame, Instance, Region, Regions};
+use crate::{Anchored, EditorHost, Frame, Instance, Region, Regions};
 
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 const SCREEN: ScreenId = ScreenId(1);
@@ -41,7 +41,7 @@ struct Seen {
 #[derive(Default)]
 struct Shared {
     seen: RefCell<Seen>,
-    open: RefCell<Vec<AnchoredView>>,
+    open: RefCell<Vec<Anchored>>,
     child_in: RefCell<Option<ViewId>>,
     window: RefCell<Option<block_plugin_api::WindowOpen>>,
 }
@@ -71,7 +71,7 @@ struct LayeredRegions {
 
 impl Regions for LayeredRegions {
     fn input(&mut self, _region: &Region, event: &TimedInput, _over: Option<ViewRef>) {
-        let heard = format!("input on {:?}", event.anchored);
+        let heard = format!("input on {:?} at {:?}", _region.view.id, event.input);
         self.shared.seen.borrow_mut().heard.push(heard);
     }
 
@@ -90,8 +90,8 @@ impl Regions for LayeredRegions {
                     .spaces
                     .push(region.layers.clone());
                 if let Some(layer) = *self.shared.child_in.borrow() {
-                    self.host.in_anchored(Some(layer), || {
-                        let rect = Rect::from_min_size(pos2(40.0, 50.0), vec2(30.0, 20.0));
+                    self.host.in_view(View::anchored(layer), || {
+                        let rect = Rect::from_min_size(pos2(230.0, 140.0), vec2(30.0, 20.0));
                         self.host.place_child(
                             ChildContent::Rename([9; 16]),
                             rect,
@@ -128,22 +128,36 @@ impl Regions for LayeredRegions {
             .collect()
     }
 
-    fn paint(
-        &mut self,
-        _region: ViewRef,
-        target: &crate::PaintTarget<'_>,
-    ) -> Vec<block_plugin_api::SurfaceRect> {
-        target.whole()
+    fn frame_opened(&mut self, regions: &[Region]) -> Vec<Frame> {
+        regions
+            .iter()
+            .map(|region| Frame {
+                painted: vec![region.rect],
+                floating: vec![region.rect],
+                ..Frame::default()
+            })
+            .collect()
     }
 
-    fn paint_anchored(
+    fn paint(
         &mut self,
-        _region: ViewRef,
-        layer: ViewId,
+        region: ViewRef,
         target: &crate::PaintTarget<'_>,
     ) -> Vec<block_plugin_api::SurfaceRect> {
-        let size = [target.width, target.height];
-        self.shared.seen.borrow_mut().painted.push((layer, size));
+        if self
+            .shared
+            .open
+            .borrow()
+            .iter()
+            .any(|open| open.view == region.view)
+        {
+            let size = [target.width, target.height];
+            self.shared
+                .seen
+                .borrow_mut()
+                .painted
+                .push((region.view, size));
+        }
         target.whole()
     }
 }
@@ -158,21 +172,17 @@ fn space() -> LayerSpace {
     }
 }
 
-fn layer(id: u64, parent: u64, rect: Rect) -> AnchoredView {
-    AnchoredView {
+fn layer(id: u64, parent: u64, rect: Rect) -> Anchored {
+    Anchored {
         view: ViewId(id),
         placement: AnchoredPlacement {
             parent: ViewId(parent),
             anchor: ViewAnchor::Rect(Rect::from_min_size(pos2(10.0, 10.0), vec2(20.0, 20.0))),
+            rect,
+            dismiss_on_outside_press: true,
+            keyboard: false,
+            blocks_owner: false,
         },
-        rect,
-        surface: 0,
-        painted: vec![rect],
-        floating: vec![rect],
-        scrims: Vec::new(),
-        dismiss_on_outside_press: true,
-        keyboard: false,
-        blocks_owner: false,
     }
 }
 
@@ -247,7 +257,7 @@ impl Rig {
         }
     }
 
-    fn open(&self, layers: Vec<AnchoredView>) {
+    fn open(&self, layers: Vec<Anchored>) {
         *self.shared.open.borrow_mut() = layers;
     }
 
@@ -263,15 +273,32 @@ impl Rig {
     }
 
     fn screen_surface(&self) -> u32 {
-        self.screens.layout().screens[0].surface
+        self.placed(SCREEN).surface
     }
 
-    fn layers(commit: &FrameCommit) -> Vec<AnchoredView> {
+    fn placed(&self, screen: ScreenId) -> block_plugin_api::ScreenPlacement {
+        *self
+            .screens
+            .layout()
+            .placement(screen)
+            .expect("the screen is laid out")
+    }
+
+    fn anchored(commit: &FrameCommit) -> Vec<(ScreenId, AnchoredPlacement)> {
         commit
             .reports
             .iter()
-            .find(|report| report.screen == SCREEN)
-            .map(|report| report.anchored.clone())
-            .unwrap_or_default()
+            .filter_map(|report| Some((report.screen, report.anchored?)))
+            .collect()
+    }
+
+    fn anchored_screens(&self) -> Vec<(ViewId, u32)> {
+        self.screens
+            .layout()
+            .screens
+            .iter()
+            .filter(|placement| placement.screen.is_opened())
+            .map(|placement| (placement.view, placement.surface))
+            .collect()
     }
 }

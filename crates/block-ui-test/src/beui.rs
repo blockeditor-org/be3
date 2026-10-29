@@ -1029,7 +1029,6 @@ impl<A: BeuiApp> BeuiTest<A> {
                         input,
                         time_micros: sampled.then_some(now),
                         over: None,
-                        anchored: None,
                     }
                 })
                 .collect();

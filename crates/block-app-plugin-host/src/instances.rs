@@ -1,12 +1,12 @@
 use beui::native::accessibility::Embedded;
 use beui::{ImeArea, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
-    AccessLevel, ArtifactDescription, AudioCommand, BlockCommand, BlockPick, ChildContent, ChildId,
-    ChildMode, ChildPlacement, ChildPlacements, ChildStatus, DialogStatus, EditorInstanceId,
-    FrameReport, FrameSpec, LayerSpace, MenuEntry, Occluder, OpenArtifact, OpenBlock, OpenCreation,
-    OpenPicker, Opening, PerformanceMeasurement, ScreenId, ScreenLayout, ScreenRequest,
-    ScreenWindow, ShellCommand, Size, Stopped, View, ViewChange, ViewId, ViewPlacement, ViewSize,
-    ViewportMetrics, WebViewEvent, WebViewId,
+    AccessLevel, AnchoredPlacement, ArtifactDescription, AudioCommand, BlockCommand, BlockPick,
+    ChildContent, ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, DialogStatus,
+    EditorInstanceId, FrameReport, FrameSpec, LayerSpace, MenuEntry, Occluder, OpenArtifact,
+    OpenBlock, OpenCreation, OpenPicker, Opening, PerformanceMeasurement, ScreenId, ScreenLayout,
+    ScreenRequest, ScreenWindow, ShellCommand, Size, Stopped, View, ViewChange, ViewId,
+    ViewPlacement, ViewSize, ViewportMetrics, WebViewEvent, WebViewId,
 };
 use block_plugin_api::{
     DescribedAction, HostView, WindowOpen, WindowRequests,
@@ -101,6 +101,7 @@ struct Instance {
     child_dismissals: Vec<ChildId>,
     created: Option<Result<Uuid, String>>,
     screens: HashMap<ViewId, Screen>,
+    anchored: Vec<AnchoredScreen>,
     opened: bool,
     deferred: Vec<Outbound>,
     opens: Vec<OpenRequest>,
@@ -254,6 +255,7 @@ impl Instance {
             child_dismissals: Vec::new(),
             created: None,
             screens: HashMap::new(),
+            anchored: Vec::new(),
             opened: false,
             deferred: Vec::new(),
             opens: Vec::new(),
@@ -561,7 +563,6 @@ struct Screen {
     scales: Sent<f32>,
     spaces: Sent<Option<(LayerSpace, f32)>>,
     fresh_layers: Option<LayerSpace>,
-    opened: HashMap<ViewId, u64>,
     serial: u64,
     kept: Option<ViewportMetrics>,
 }
@@ -591,7 +592,6 @@ impl Screen {
             scales: Sent::default(),
             spaces: Sent::default(),
             fresh_layers: None,
-            opened: HashMap::new(),
             serial: 0,
             kept: None,
         }
@@ -628,37 +628,55 @@ impl Screen {
         Some((now, shift, pixels_per_point))
     }
 
-    fn layers(&self) -> Vec<HostLayer> {
-        let (Some(report), Some(_), Some((space, shift, pixels_per_point))) =
-            (&self.report, self.placement, self.layer_shift())
-        else {
-            return Vec::new();
-        };
-        let bounds = space.bounds;
-        let within = |rects: &[Rect]| -> Vec<Rect> {
-            rects
-                .iter()
-                .map(|rect| rect.translate(shift).intersect(bounds))
-                .filter(|rect| rect.is_positive())
-                .collect()
-        };
-        report
-            .anchored
-            .iter()
-            .enumerate()
-            .map(|(index, layer)| HostLayer {
-                id: layer.view,
-                parent: report.anchored_parent(index),
-                opened: self.opened.get(&layer.view).copied().unwrap_or_default(),
-                rect: layer.rect.translate(shift),
+    fn unplace(&mut self) {
+        self.placement = None;
+        self.request.metrics = viewport_metrics(Vec2::ZERO, Rect::ZERO, 1.0, 1.0);
+    }
+}
+
+struct AnchoredScreen {
+    view: ViewId,
+    root: ViewId,
+    opened: u64,
+    placement: AnchoredPlacement,
+    surface: u32,
+    screen: Screen,
+}
+
+fn host_layers(root: &Screen, anchored: &[AnchoredScreen], region: ViewId) -> Vec<HostLayer> {
+    let (Some(_), Some((space, shift, pixels_per_point))) = (root.placement, root.layer_shift())
+    else {
+        return Vec::new();
+    };
+    let bounds = space.bounds;
+    anchored
+        .iter()
+        .filter(|anchored| anchored.root == region)
+        .filter_map(|anchored| {
+            let report = anchored.screen.report.as_ref()?;
+            let placement = &anchored.placement;
+            let to_host = placement.rect.min.to_vec2() + shift;
+            let within = |rects: &[Rect]| -> Vec<Rect> {
+                rects
+                    .iter()
+                    .map(|rect| rect.translate(to_host).intersect(bounds))
+                    .filter(|rect| rect.is_positive())
+                    .collect()
+            };
+            Some(HostLayer {
+                id: anchored.view,
+                parent: (placement.parent != region).then_some(placement.parent),
+                opened: anchored.opened,
+                screen: anchored.screen.request.screen,
+                rect: placement.rect.translate(shift),
                 bounds,
-                painted: within(&layer.painted),
-                floating: within(&layer.floating),
-                scrims: layer
+                painted: within(&report.painted),
+                floating: within(&report.floating),
+                scrims: report
                     .scrims
                     .iter()
                     .filter_map(|scrim| {
-                        let rect = scrim.rect.translate(shift).intersect(bounds);
+                        let rect = scrim.rect.translate(to_host).intersect(bounds);
                         let color = &scrim.color;
                         rect.is_positive().then(|| {
                             (
@@ -673,19 +691,14 @@ impl Screen {
                         })
                     })
                     .collect(),
-                surface: layer.surface,
+                surface: anchored.surface,
                 pixels_per_point,
-                dismiss_on_outside_press: layer.dismiss_on_outside_press,
-                keyboard: layer.keyboard,
-                blocks_owner: layer.blocks_owner,
+                dismiss_on_outside_press: placement.dismiss_on_outside_press,
+                keyboard: placement.keyboard,
+                blocks_owner: placement.blocks_owner,
             })
-            .collect()
-    }
-
-    fn unplace(&mut self) {
-        self.placement = None;
-        self.request.metrics = viewport_metrics(Vec2::ZERO, Rect::ZERO, 1.0, 1.0);
-    }
+        })
+        .collect()
 }
 
 #[derive(Default, PartialEq)]
@@ -794,7 +807,8 @@ impl Instances {
             }
             match &message {
                 Outbound::Plugin(PluginCall::Input(batch))
-                    if !self.announced.contains(&batch.screen) => {}
+                    if !self.announced.contains(&batch.screen)
+                        && !self.is_anchored_screen(batch.screen) => {}
                 _ => allowed.push(message),
             }
         }
@@ -1290,9 +1304,147 @@ impl Instances {
     pub(super) fn layers(&self, instance: EditorInstanceId, region: ViewId) -> Vec<HostLayer> {
         self.entries
             .get(&instance)
-            .and_then(|entry| entry.screens.get(&region))
-            .map(Screen::layers)
+            .and_then(|entry| {
+                let root = entry.screens.get(&region)?;
+                Some(host_layers(root, &entry.anchored, region))
+            })
             .unwrap_or_default()
+    }
+
+    pub(super) fn adopt_anchored(&mut self, reports: &[FrameReport], layout: &ScreenLayout) {
+        for report in reports {
+            let Some(placement) = report.anchored else {
+                continue;
+            };
+            let Some(placed) = layout.placement(report.screen).copied() else {
+                continue;
+            };
+            let Some(entry) = self.entries.get_mut(&placed.instance) else {
+                continue;
+            };
+            if let Some(held) = entry
+                .anchored
+                .iter_mut()
+                .find(|held| held.screen.request.screen == report.screen)
+            {
+                held.placement = placement;
+                held.surface = placed.surface;
+                continue;
+            }
+            let root = match entry
+                .anchored
+                .iter()
+                .find(|held| held.view == placement.parent)
+            {
+                Some(parent) => parent.root,
+                None if entry.screens.contains_key(&placement.parent) => placement.parent,
+                None => continue,
+            };
+            if placed.view == root
+                || entry.screens.contains_key(&placed.view)
+                || entry.anchored.iter().any(|held| held.view == placed.view)
+            {
+                continue;
+            }
+            let size = placement.rect.size();
+            let opened = LAYERS_OPENED.with(|opened| {
+                opened.set(opened.get() + 1);
+                opened.get()
+            });
+            entry.anchored.push(AnchoredScreen {
+                view: placed.view,
+                root,
+                opened,
+                placement,
+                surface: placed.surface,
+                screen: Screen::new(
+                    ScreenRequest {
+                        screen: report.screen,
+                        instance: placed.instance,
+                        view: placed.view,
+                        placement: ViewPlacement::Anchored,
+                        metrics: viewport_metrics(
+                            size,
+                            Rect::from_min_size(beui::Pos2::ZERO, size),
+                            placed.scale_factor(),
+                            placed.raster(),
+                        ),
+                        frame: None,
+                        windows: false,
+                        host_place: None,
+                        docked: false,
+                        layers: None,
+                    },
+                    0,
+                ),
+            });
+        }
+    }
+
+    pub(super) fn keep_anchored(&mut self, layout: &ScreenLayout) {
+        for (instance, entry) in &mut self.entries {
+            entry.anchored.retain_mut(|held| {
+                let Some(placed) = layout.placement(held.screen.request.screen) else {
+                    return false;
+                };
+                held.surface = placed.surface;
+                placed.instance == *instance && placed.view == held.view
+            });
+            let screens = &entry.screens;
+            let mut kept: Vec<ViewId> = Vec::new();
+            entry.anchored.retain(|held| {
+                let hangs = screens.contains_key(&held.root)
+                    && (held.placement.parent == held.root
+                        || kept.contains(&held.placement.parent));
+                if hangs {
+                    kept.push(held.view);
+                }
+                hangs
+            });
+        }
+    }
+
+    pub(super) fn anchored_views(
+        &self,
+        instance: EditorInstanceId,
+        region: ViewId,
+    ) -> Vec<(ViewId, Rect, Rect)> {
+        self.layers(instance, region)
+            .into_iter()
+            .map(|layer| (layer.id, layer.rect, layer.bounds))
+            .collect()
+    }
+
+    fn is_anchored_screen(&self, screen: ScreenId) -> bool {
+        self.entries.values().any(|entry| {
+            entry
+                .anchored
+                .iter()
+                .any(|held| held.screen.request.screen == screen)
+        })
+    }
+
+    fn any_screen(&self, instance: EditorInstanceId, view: ViewId) -> Option<&Screen> {
+        let entry = self.entries.get(&instance)?;
+        entry.screens.get(&view).or_else(|| {
+            entry
+                .anchored
+                .iter()
+                .find(|held| held.view == view)
+                .map(|held| &held.screen)
+        })
+    }
+
+    fn any_screen_mut(&mut self, instance: EditorInstanceId, view: ViewId) -> Option<&mut Screen> {
+        let entry = self.entries.get_mut(&instance)?;
+        match entry.screens.get_mut(&view) {
+            Some(screen) => Some(screen),
+            None => entry
+                .anchored
+                .iter_mut()
+                .find(|held| held.view == view)
+                .map(|held| &mut held.screen),
+        }
     }
 
     pub(super) fn forward_layer(
@@ -1302,25 +1454,22 @@ impl Instances {
         layer: ViewId,
         input: &beui::ForwardedInput,
     ) -> Vec<Outbound> {
-        let announced = &self.announced;
-        let Some(screen) = self
-            .entries
-            .get_mut(&instance)
-            .and_then(|entry| entry.screens.get_mut(&region))
-            .filter(|screen| announced.contains(&screen.request.screen))
+        let Some(rect) = self
+            .layers(instance, region)
+            .into_iter()
+            .find(|held| held.id == layer)
+            .map(|held| held.rect)
         else {
             return Vec::new();
         };
-        let Some(placement) = screen.placement else {
+        let Some(screen) = self
+            .entries
+            .get_mut(&instance)
+            .and_then(|entry| entry.anchored.iter_mut().find(|held| held.view == layer))
+            .map(|held| &mut held.screen)
+        else {
             return Vec::new();
         };
-        if !screen
-            .report
-            .as_ref()
-            .is_some_and(|report| report.anchored.iter().any(|open| open.view == layer))
-        {
-            return Vec::new();
-        }
         let events = input
             .events
             .iter()
@@ -1334,13 +1483,9 @@ impl Instances {
             .collect();
         let input = beui::ForwardedInput {
             events,
-            rect: placement.rect,
+            rect,
             focused: false,
             ..input.clone()
-        };
-        let zoom = match screen.request.metrics.logical.width > 0.0 {
-            true => placement.rect.width() / screen.request.metrics.logical.width,
-            false => 1.0,
         };
         let every_sample = screen.window.every_sample;
         let id = screen.request.screen;
@@ -1349,21 +1494,13 @@ impl Instances {
             .forward(
                 &input,
                 id,
-                zoom,
+                1.0,
                 every_sample,
                 &|_, _| beui::Aim::Own,
                 &|_| None,
             )
             .into_iter()
-            .map(|call| match call {
-                PluginCall::Input(mut batch) => {
-                    for event in &mut batch.events {
-                        event.anchored = Some(layer);
-                    }
-                    Outbound::from(PluginCall::Input(batch))
-                }
-                call => Outbound::from(call),
-            })
+            .map(Outbound::from)
             .collect()
     }
 
@@ -1382,10 +1519,17 @@ impl Instances {
         else {
             return Vec::new();
         };
-        let open: Vec<ViewId> = screen
-            .report
-            .as_ref()
-            .map(|report| report.anchored.iter().map(|layer| layer.view).collect())
+        let open: Vec<ViewId> = self
+            .entries
+            .get(&instance)
+            .map(|entry| {
+                entry
+                    .anchored
+                    .iter()
+                    .filter(|held| held.root == region)
+                    .map(|held| held.view)
+                    .collect()
+            })
             .unwrap_or_default();
         let dismissed: Vec<ViewId> = dismissed
             .into_iter()
@@ -2111,11 +2255,7 @@ impl Instances {
             children,
             occluders,
         } = placements;
-        let Some(screen) = self
-            .entries
-            .get_mut(&instance)
-            .and_then(|entry| entry.screens.get_mut(&region))
-        else {
+        let Some(screen) = self.any_screen_mut(instance, region) else {
             return false;
         };
         screen.revoked.retain(|child| {
@@ -2139,11 +2279,7 @@ impl Instances {
     }
 
     pub(super) fn only_moves(&self, placements: &ChildPlacements) -> bool {
-        let Some(screen) = self
-            .entries
-            .get(&placements.instance)
-            .and_then(|entry| entry.screens.get(&placements.view))
-        else {
+        let Some(screen) = self.any_screen(placements.instance, placements.view) else {
             return false;
         };
         let current = &screen.children.children;
@@ -2197,7 +2333,7 @@ impl Instances {
         let mut holes = Holes::default();
         let mut live = 0;
         let mut shown_tabs = HashSet::new();
-        let layers = screen.layers();
+        let layers = host_layers(screen, &entry.anchored, region);
         let shift = screen
             .layer_shift()
             .map_or(Vec2::ZERO, |(_, shift, _)| shift);
@@ -2216,14 +2352,25 @@ impl Instances {
                 }
             }
         }
-        for (index, child) in table.children.iter().enumerate() {
-            let layer = match child.anchored {
-                None => None,
-                Some(id) => match layers.iter().find(|layer| layer.id == id) {
-                    Some(layer) => Some(layer),
-                    None => continue,
-                },
-            };
+        let in_layers = entry.anchored.iter().filter_map(|held| {
+            let layer = layers.iter().find(|layer| layer.id == held.view)?;
+            let from = held.placement.rect.min.to_vec2();
+            Some(held.screen.children.children.iter().map(move |child| {
+                let mut child = child.clone();
+                child.rect = child.rect.translate(from);
+                child.clip = child.clip.translate(from);
+                (usize::MAX, child, Some(layer))
+            }))
+        });
+        let placed: Vec<(usize, ChildPlacement, Option<&HostLayer>)> = table
+            .children
+            .iter()
+            .enumerate()
+            .map(|(index, child)| (index, child.clone(), None))
+            .chain(in_layers.flatten())
+            .collect();
+        for (index, child, layer) in placed {
+            let child = &child;
             if self
                 .entries
                 .get(&instance)
@@ -2703,9 +2850,11 @@ impl Instances {
                 .and_then(|description| description.tree.take())
                 .map(beui::accesskit::TreeUpdate::from);
             for entry in self.entries.values_mut() {
+                let anchored = entry.anchored.iter_mut().map(|held| &mut held.screen);
                 if let Some(screen) = entry
                     .screens
                     .values_mut()
+                    .chain(anchored)
                     .find(|screen| screen.request.screen == report.screen)
                 {
                     if let Some(tree) = tree.take() {
@@ -2713,31 +2862,11 @@ impl Instances {
                         changed = true;
                     }
                     changed |= screen.report.as_ref() != Some(&report);
-                    screen
-                        .opened
-                        .retain(|id, _| report.anchored.iter().any(|layer| layer.view == *id));
-                    for layer in &report.anchored {
-                        screen.opened.entry(layer.view).or_insert_with(|| {
-                            LAYERS_OPENED.with(|opened| {
-                                opened.set(opened.get() + 1);
-                                opened.get()
-                            })
-                        });
-                    }
                     screen.report = Some(report.clone());
                 }
             }
         }
         changed
-    }
-
-    pub(super) fn layer_surfaces(&self) -> Vec<u32> {
-        self.entries
-            .values()
-            .flat_map(|entry| entry.screens.values())
-            .filter_map(|screen| screen.report.as_ref())
-            .flat_map(|report| report.anchored.iter().map(|layer| layer.surface))
-            .collect()
     }
 
     pub(super) fn frame_report(
@@ -2758,7 +2887,7 @@ impl Instances {
         instance: EditorInstanceId,
         region: ViewId,
     ) -> Option<Described<'_>> {
-        let screen = self.entries.get_mut(&instance)?.screens.get_mut(&region)?;
+        let screen = self.any_screen_mut(instance, region)?;
         let description = screen.report.as_ref()?.description.as_ref()?;
         Some(Described {
             screen: screen.request.screen,

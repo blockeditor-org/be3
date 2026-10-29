@@ -44,33 +44,27 @@ fn committed(children: ChildPlacements) -> FrameCommit {
     }
 }
 
-fn report(screen: u64, anchored: Vec<AnchoredView>) -> FrameReport {
+fn anchored_report(screen: ScreenId, placement: AnchoredPlacement) -> FrameReport {
+    let size = placement.rect.size();
     FrameReport {
-        screen: ScreenId(screen),
-        content: Some(Insets::default()),
-        painted: Vec::new(),
-        floating: Vec::new(),
+        screen,
+        content: None,
+        painted: vec![Rect::from_min_size(Pos2::ZERO, size)],
+        floating: vec![Rect::from_min_size(Pos2::ZERO, size)],
         floating_painted: Vec::new(),
         scrims: Vec::new(),
         drawing: Vec::new(),
         claims: Vec::new(),
         description: None,
-        anchored,
+        anchored: Some(placement),
     }
 }
 
-fn anchored(id: u64, parent: u64, anchor: ViewAnchor, rect: Rect) -> AnchoredView {
-    AnchoredView {
-        view: ViewId(id),
-        placement: AnchoredPlacement {
-            parent: ViewId(parent),
-            anchor,
-        },
+fn anchored(parent: u64, anchor: ViewAnchor, rect: Rect) -> AnchoredPlacement {
+    AnchoredPlacement {
+        parent: ViewId(parent),
+        anchor,
         rect,
-        surface: 7,
-        painted: vec![rect],
-        floating: vec![rect],
-        scrims: Vec::new(),
         dismiss_on_outside_press: true,
         keyboard: true,
         blocks_owner: false,
@@ -165,7 +159,6 @@ mod pointer_motion_round_trips;
 mod power_messages_round_trip;
 mod preference_messages_round_trip;
 mod rejects_unordered_occluders;
-mod rejects_views_anchored_to_one_not_open_before_them;
 mod rename_and_app_menu_children_round_trip;
 mod touch_input_round_trips;
 mod tray_messages_round_trip;

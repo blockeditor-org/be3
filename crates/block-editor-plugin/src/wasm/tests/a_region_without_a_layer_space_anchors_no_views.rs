@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn a_region_without_a_layer_space_opens_no_layers() {
+fn a_region_without_a_layer_space_anchors_no_views() {
     let mut rig = Rig::new(None);
     rig.open(vec![layer(
         1,
@@ -11,9 +11,9 @@ fn a_region_without_a_layer_space_opens_no_layers() {
     let commit = rig.draw();
     assert_eq!(rig.shared.seen.borrow().spaces, [None]);
     assert!(
-        Rig::layers(&commit).is_empty(),
-        "the layer stays out of the report"
+        Rig::anchored(&commit).is_empty(),
+        "no anchored view is reported"
     );
     assert!(rig.shared.seen.borrow().painted.is_empty());
-    assert!(rig.surfaces.layer_surfaces().is_empty());
+    assert!(rig.anchored_screens().is_empty());
 }

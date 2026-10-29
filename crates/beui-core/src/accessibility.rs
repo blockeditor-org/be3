@@ -19,7 +19,7 @@ use crate::base::text::TextNode;
 use crate::document::Document;
 use crate::geometry::{Pos2, Vec2};
 use crate::input::{Key, KeyPress, Modifiers};
-use crate::node::{Arena, NodeId, NodeMap, Placed, Rects, SPACE_SLOTS, SpaceId};
+use crate::node::{Arena, NodeId, NodeMap, Placed, Rects, SPACE_SLOTS, SpaceId, SpaceTransform};
 use crate::window::WindowId;
 
 mod embedded;
@@ -43,6 +43,8 @@ pub struct Fragment {
     pub windows: Vec<(AccessNodeId, WindowId)>,
     pub window_roots: Vec<(WindowId, AccessNodeId)>,
     pub focus_window: Option<WindowId>,
+    pub escaped: Vec<(AccessNodeId, u64)>,
+    pub escaped_roots: Vec<(u64, AccessNodeId, SpaceTransform)>,
 }
 
 impl Fragment {
@@ -117,11 +119,16 @@ pub fn window_tree_update(
         .filter(|(held, _)| *held == window)
         .map(|(_, root)| *root)
         .collect();
+    let escaped: HashSet<AccessNodeId> = fragments
+        .iter()
+        .flat_map(|fragment| fragment.escaped.iter().map(|(node, _)| *node))
+        .collect();
     let in_window = |fragment: &Fragment, id: AccessNodeId| {
-        fragment
-            .windows
-            .iter()
-            .any(|(node, held)| *node == id && *held == window)
+        !escaped.contains(&id)
+            && fragment
+                .windows
+                .iter()
+                .any(|(node, held)| *node == id && *held == window)
     };
     let mut root = Node::new(Role::Window);
     root.set_label(title);
@@ -137,6 +144,7 @@ pub fn window_tree_update(
         .iter()
         .filter(|fragment| fragment.focus_window == Some(window))
         .find_map(|fragment| fragment.focus)
+        .filter(|focus| !escaped.contains(focus))
         .unwrap_or(WINDOW_NODE);
     let mut nodes = vec![(WINDOW_NODE, root)];
     for fragment in fragments {
@@ -158,6 +166,78 @@ pub fn window_tree_update(
         tree_id: TreeId::ROOT,
         focus,
     }
+}
+
+pub fn escaped_tree_update(
+    layer: u64,
+    viewport: Vec2,
+    to_view: (Vec2, Vec2),
+    fragments: &[Fragment],
+) -> Option<TreeUpdate> {
+    let (to_view, to_view_axes) = to_view;
+    let (root, frame) = fragments.iter().find_map(|fragment| {
+        fragment
+            .escaped_roots
+            .iter()
+            .find(|(held, _, _)| *held == layer)
+            .map(|(_, root, frame)| (*root, *frame))
+    })?;
+    let scale = Vec2::new(to_view_axes.x * frame.scale, to_view_axes.y * frame.scale);
+    let offset = Vec2::new(
+        to_view.x + to_view_axes.x * frame.offset.x,
+        to_view.y + to_view_axes.y * frame.offset.y,
+    );
+    let inverse = |at: f32, offset: f32, scale: f32| match scale.abs() > f32::EPSILON {
+        true => f64::from((at - offset) / scale),
+        false => 0.0,
+    };
+    let mut window = Node::new(Role::Window);
+    window.set_bounds(AccessRect::new(
+        inverse(0.0, offset.x, scale.x),
+        inverse(0.0, offset.y, scale.y),
+        inverse(viewport.x, offset.x, scale.x),
+        inverse(viewport.y, offset.y, scale.y),
+    ));
+    window.set_transform(Affine::new([
+        f64::from(scale.x),
+        0.0,
+        0.0,
+        f64::from(scale.y),
+        f64::from(offset.x),
+        f64::from(offset.y),
+    ]));
+    window.set_children(vec![root]);
+    let inside = |fragment: &Fragment, id: AccessNodeId| {
+        fragment
+            .escaped
+            .iter()
+            .any(|(node, held)| *node == id && *held == layer)
+    };
+    let focus = fragments
+        .iter()
+        .filter_map(|fragment| fragment.focus.filter(|focus| inside(fragment, *focus)))
+        .next()
+        .unwrap_or(WINDOW_NODE);
+    let mut nodes = vec![(WINDOW_NODE, window)];
+    for fragment in fragments {
+        nodes.extend(
+            fragment
+                .nodes
+                .iter()
+                .filter(|(id, _)| inside(fragment, *id))
+                .cloned(),
+        );
+    }
+    Some(TreeUpdate {
+        nodes,
+        tree: Some(Tree {
+            root: WINDOW_NODE,
+            toolkit_name: Some("beui".to_owned()),
+            toolkit_version: Some(env!("CARGO_PKG_VERSION").to_owned()),
+        }),
+        tree_id: TreeId::ROOT,
+        focus,
+    })
 }
 
 #[derive(Default)]
@@ -744,6 +824,7 @@ impl Document {
             ),
             false => (Vec::new(), Vec::new()),
         };
+        let (escaped, escaped_roots) = self.escaped_access(&nodes);
         let focus = self.accessibility_tree.borrow().focus;
         let focus_window = focus
             .and_then(|focus| self.local_key(focus))
@@ -755,7 +836,43 @@ impl Document {
             windows,
             window_roots,
             focus_window,
+            escaped,
+            escaped_roots,
         })
+    }
+
+    #[allow(clippy::type_complexity)]
+    fn escaped_access(
+        &self,
+        nodes: &[(AccessNodeId, Node)],
+    ) -> (
+        Vec<(AccessNodeId, u64)>,
+        Vec<(u64, AccessNodeId, SpaceTransform)>,
+    ) {
+        if !self.escapes.any() {
+            return (Vec::new(), Vec::new());
+        }
+        let escaped = nodes
+            .iter()
+            .filter_map(|(id, _)| {
+                let node = self.local_key(*id)?.node();
+                Some((*id, self.escape_holding(node)?))
+            })
+            .collect();
+        let tree = self.accessibility_tree.borrow();
+        let roots = self
+            .escapes
+            .overlays()
+            .filter_map(|(overlay, layer)| {
+                let entry = tree.entries.get(&overlay)?;
+                Some((
+                    layer,
+                    self.access_node_id(overlay),
+                    self.rects.transform(entry.key.frame),
+                ))
+            })
+            .collect();
+        (escaped, roots)
     }
 
     pub fn accessibility_view(&self) -> Option<AccessibilityView<'_>> {

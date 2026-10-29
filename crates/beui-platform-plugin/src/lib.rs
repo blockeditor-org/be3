@@ -536,15 +536,12 @@ impl ModuleRunner {
         if let Some(output) = &output {
             surface.note(output);
         }
-        let mut changed = surface.unpainted();
+        let changed = surface.unpainted();
         surface.settle();
         let held = self.layers.entry(id).or_default();
-        changed |= match window {
+        match window {
             Some(window) => layers::follow(held, escaped, window),
-            None => !std::mem::take(held).is_empty(),
-        };
-        for shown in held.iter_mut() {
-            shown.surface.settle();
+            None => held.clear(),
         }
         let anchored = layers::report(held, region.view.id, ratio);
         let report = self.views.take_report(id);
@@ -587,6 +584,58 @@ impl ModuleRunner {
             stopped: None,
             asks,
             anchored,
+        }
+    }
+
+    fn owner_of(&self, view: ViewRef) -> Option<ViewRef> {
+        self.layers
+            .iter()
+            .find(|(owner, held)| {
+                owner.instance == view.instance
+                    && held
+                        .iter()
+                        .any(|shown| anchored_view(shown.escaped.layer.id) == view.view)
+            })
+            .map(|(owner, _)| *owner)
+    }
+
+    fn anchored(&mut self, view: ViewRef) -> Option<&mut layers::Shown> {
+        self.layers
+            .iter_mut()
+            .filter(|(owner, _)| owner.instance == view.instance)
+            .flat_map(|(_, held)| held.iter_mut())
+            .find(|shown| anchored_view(shown.escaped.layer.id) == view.view)
+    }
+
+    fn anchored_frame(&mut self, region: &Region) -> Frame {
+        let describe = region.describe.is_some();
+        let output = self.runner.output();
+        let context = self.runner.context();
+        let mut description = None;
+        if describe
+            && let Some(owner) = self.owner_of(region.id())
+            && let Some(window) = self.windows.get(&owner).copied()
+            && let Some(space) = context.layer_space(window)
+            && let Some(output) = output
+            && let Some(shown) = self.layers.get(&owner).and_then(|held| {
+                held.iter()
+                    .find(|shown| anchored_view(shown.escaped.layer.id) == region.view.id)
+            })
+        {
+            let layer = &shown.escaped.layer;
+            description = Some(Description {
+                tree: output.escaped_accessibility_tree(
+                    layer.id,
+                    layer.rect.size(),
+                    layer.rect.min,
+                    space.to_host,
+                ),
+                actions: Vec::new(),
+            });
+        }
+        match self.anchored(region.id()) {
+            Some(shown) => layers::framed(shown, description),
+            None => Frame::default(),
         }
     }
 
@@ -635,7 +684,7 @@ fn placed(mut tree: TreeUpdate, ratio: f32) -> TreeUpdate {
 impl Regions for ModuleRunner {
     fn input(&mut self, region: &Region, event: &TimedInput, over: Option<ViewRef>) {
         let id = region.id();
-        self.active = Some(id);
+        self.active = Some(self.owner_of(id).unwrap_or(id));
         self.services.serve(region.instance);
         let window = self.windows.get(&id).copied();
         if let Input::Focus(focused) = event.input {
@@ -652,8 +701,8 @@ impl Regions for ModuleRunner {
             if was != now {
                 self.runner.push(Incoming::logical(Input::Focus(now)));
             }
-        } else if let Some(anchored) = event.anchored {
-            if let (Some(space), Some(layer)) = (region.layers, anchored_layer(anchored)) {
+        } else if region.view.is_anchored() {
+            if let (Some(space), Some(layer)) = (region.layers, anchored_layer(region.view.id)) {
                 let input = layers::to_host(event.input.clone(), space.to_host);
                 self.runner.push(Incoming::layer(layer, input));
             }
@@ -768,7 +817,7 @@ impl Regions for ModuleRunner {
 
     fn frame_opened(&mut self, regions: &[Region]) -> Vec<Frame> {
         let ratio = self.ratio;
-        for region in regions {
+        for region in regions.iter().filter(|region| !region.view.is_anchored()) {
             let id = region.id();
             let Some(window) = self
                 .floated
@@ -802,11 +851,25 @@ impl Regions for ModuleRunner {
             .unwrap_or_default();
         regions
             .iter()
-            .map(|region| self.framed(region, Vec::new(), None, &escaped, None, false, ratio))
+            .map(|region| match region.view.is_anchored() {
+                true => self.anchored_frame(region),
+                false => self.framed(region, Vec::new(), None, &escaped, None, false, ratio),
+            })
             .collect()
     }
 
     fn painting(&mut self, region: ViewRef) -> Option<beui_core::painting::Painting> {
+        if let Some(shown) = self.anchored(region) {
+            let output = &shown.escaped.output;
+            return beui_core::painting::painting(
+                output,
+                output.size,
+                output.pixels_per_point,
+                beui_core::color::Color32::TRANSPARENT,
+                beui_core::painting::Punches::Erase,
+            )
+            .ok();
+        }
         let surface = self.surfaces.get(&region)?;
         let output = surface.output()?;
         let (width, height) = surface.size;
@@ -828,27 +891,6 @@ impl Regions for ModuleRunner {
         .ok()
     }
 
-    fn anchored_painting(
-        &mut self,
-        region: ViewRef,
-        anchored: ViewId,
-    ) -> Option<beui_core::painting::Painting> {
-        let shown = self
-            .layers
-            .get(&region)?
-            .iter()
-            .find(|shown| anchored_view(shown.escaped.layer.id) == anchored)?;
-        let output = &shown.escaped.output;
-        beui_core::painting::painting(
-            output,
-            output.size,
-            output.pixels_per_point,
-            beui_core::color::Color32::TRANSPARENT,
-            beui_core::painting::Punches::Erase,
-        )
-        .ok()
-    }
-
     fn overflows(&mut self, region: ViewRef) -> Vec<String> {
         let Some(window) = self.windows.get(&region) else {
             return Vec::new();
@@ -862,27 +904,14 @@ impl Regions for ModuleRunner {
 
     #[cfg(target_arch = "wasm32")]
     fn paint(&mut self, region: ViewRef, target: &PaintTarget<'_>) -> Vec<SurfaceRect> {
+        if let Some(shown) = self.anchored(region) {
+            shown.surface.size = (target.width, target.height);
+            return shown.surface.paint(target);
+        }
         self.surfaces
             .get_mut(&region)
             .map(|surface| surface.paint(target))
             .unwrap_or_default()
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    fn paint_anchored(
-        &mut self,
-        region: ViewRef,
-        anchored: ViewId,
-        target: &PaintTarget<'_>,
-    ) -> Vec<SurfaceRect> {
-        let Some(shown) = self.layers.get_mut(&region).and_then(|held| {
-            held.iter_mut()
-                .find(|shown| anchored_view(shown.escaped.layer.id) == anchored)
-        }) else {
-            return Vec::new();
-        };
-        shown.surface.size = (target.width, target.height);
-        shown.surface.paint(target)
     }
 }
 

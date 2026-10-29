@@ -89,7 +89,7 @@ fn frame_screens_and_reports_round_trip() {
                     live: true,
                 }],
             }),
-            anchored: Vec::new(),
+            anchored: None,
         }],
         ..frame(1)
     };

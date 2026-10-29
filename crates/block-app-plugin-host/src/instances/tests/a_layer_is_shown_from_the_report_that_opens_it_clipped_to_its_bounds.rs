@@ -22,12 +22,15 @@ fn a_layer_is_shown_from_the_report_that_opens_it_clipped_to_its_bounds() {
         (vec![clipped], vec![clipped]),
         "what it paints and where it takes input stop at its bounds"
     );
-    assert_eq!(layer.surface, 7);
-    assert_eq!(instances.layer_surfaces(), vec![7]);
+    assert_eq!(
+        (layer.surface, layer.screen),
+        (7, ScreenId::opened(1)),
+        "it is drawn from the screen the plugin opened for it"
+    );
 
     report_layers(&mut instances, Vec::new());
     assert!(
         instances.layers(INSTANCE, REGION).is_empty(),
-        "each report replaces the last one's layers"
+        "a view whose screen leaves the plugin's layout is closed"
     );
 }

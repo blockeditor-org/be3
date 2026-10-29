@@ -7,7 +7,7 @@ fn a_press_outside_a_dismissable_chain_closes_it_and_what_hangs_from_it() {
     let submenu = Rect::from_min_size(pos2(110.0, 60.0), vec2(60.0, 40.0));
     let tooltip = Rect::from_min_size(pos2(300.0, 200.0), vec2(40.0, 20.0));
     let mut kept = layer(3, 0, tooltip);
-    kept.dismiss_on_outside_press = false;
+    kept.placement.dismiss_on_outside_press = false;
     report_layers(
         &mut instances,
         vec![layer(1, 0, menu), layer(2, 1, submenu), kept],

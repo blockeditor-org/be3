@@ -27,7 +27,6 @@ fn child_placements_round_trip() {
                 follows_view: true,
                 dialog: None,
                 docks: None,
-                anchored: None,
             },
             ChildPlacement {
                 child: ChildId(2),
@@ -50,7 +49,6 @@ fn child_placements_round_trip() {
                 follows_view: false,
                 dialog: None,
                 docks: None,
-                anchored: None,
             },
             ChildPlacement {
                 child: ChildId(3),
@@ -73,7 +71,6 @@ fn child_placements_round_trip() {
                 follows_view: false,
                 dialog: None,
                 docks: None,
-                anchored: None,
             },
         ],
         occluders: vec![Occluder {

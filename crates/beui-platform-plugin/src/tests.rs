@@ -21,7 +21,7 @@ mod a_region_lays_out_over_its_whole_rect_not_just_what_shows;
 mod a_region_tells_the_host_it_locks_the_pointer_and_when_it_stops;
 mod a_region_that_loses_the_keyboard_mid_press_keeps_the_press;
 mod a_regions_keyboard_reaches_the_host_with_its_asks;
-mod a_regions_menu_escapes_as_a_layer_it_paints_and_takes_input_on;
+mod a_regions_menu_is_an_anchored_view_it_paints_describes_and_takes_input_on;
 mod a_trackpad_scroll_held_past_the_start_stretches_and_springs_back_when_lifted;
 mod a_window_opened_where_the_host_places_windows_is_the_hosts_own;
 mod a_window_the_app_floats_inside_a_region_stays_in_that_region;
@@ -60,6 +60,31 @@ fn whole(width: f32, height: f32) -> Region {
         Vec2::ZERO,
         [width as u32, height as u32],
     )
+}
+
+fn anchored_region(owner: &Region, anchored: &block_editor_plugin::Anchored) -> Region {
+    let rect = anchored.placement.rect;
+    Region {
+        view: block_editor_plugin::View::anchored(anchored.view),
+        rect: Rect::from_min_size(Pos2::ZERO, rect.size()),
+        visible: Vec2::ZERO,
+        pixels: [rect.width().ceil() as u32, rect.height().ceil() as u32],
+        layers: owner.layers.map(|space| block_editor_plugin::LayerSpace {
+            to_host: block_editor_plugin::HostTransform {
+                origin: rect.min,
+                scale: Vec2::splat(1.0),
+            },
+            bounds: space.bounds,
+        }),
+        ..owner.clone()
+    }
+}
+
+fn one_anchored(surface: &mut ModuleRunner, region: &Region) -> Frame {
+    surface
+        .frame_opened(std::slice::from_ref(region))
+        .pop()
+        .expect("one view framed gets one frame")
 }
 
 fn one(surface: &mut ModuleRunner, region: &Region) -> Frame {

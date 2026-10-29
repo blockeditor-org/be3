@@ -20,7 +20,7 @@ fn press(pos: Pos2) -> beui::Forwarded {
 }
 
 #[test]
-fn input_on_a_layer_reaches_its_owner_tagged_with_it_in_the_screen_s_coordinates() {
+fn input_on_an_anchored_view_reaches_its_own_screen_in_its_own_points() {
     let mut instances = layered(pos2(10.0, 10.0));
     let menu = Rect::from_min_size(pos2(150.0, 50.0), vec2(60.0, 40.0));
     report_layers(&mut instances, vec![layer(3, 0, menu)]);
@@ -38,17 +38,23 @@ fn input_on_a_layer_reaches_its_owner_tagged_with_it_in_the_screen_s_coordinates
     let events: Vec<_> = messages
         .into_iter()
         .filter_map(|message| match message {
-            Outbound::Plugin(PluginCall::Input(batch)) => Some(batch.events),
+            Outbound::Plugin(PluginCall::Input(batch)) => {
+                assert_eq!(
+                    batch.screen,
+                    ScreenId::opened(3),
+                    "input goes to the view's own screen"
+                );
+                Some(batch.events)
+            }
             _ => None,
         })
         .flatten()
         .filter(|event| matches!(event.input, Input::PointerButton { .. }))
         .collect();
     assert_eq!(events.len(), 1);
-    assert_eq!(events[0].anchored, Some(ViewId(3)));
     assert!(
-        matches!(events[0].input, Input::PointerButton { pos, pressed: true, .. } if pos == pos2(150.0, 50.0)),
-        "the press is in the region's own points, not the window's: {:?}",
+        matches!(events[0].input, Input::PointerButton { pos, pressed: true, .. } if pos == pos2(10.0, 10.0)),
+        "the press is in the anchored view's own points: {:?}",
         events[0].input
     );
     assert!(
