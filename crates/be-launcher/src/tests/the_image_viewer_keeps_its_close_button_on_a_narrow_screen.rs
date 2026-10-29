@@ -1,10 +1,11 @@
 use beui::native::WindowSize;
-use beui::native::testing::{Showing, Stepped};
+use beui_host::native::testing::{Showing, Stepped};
 use beui::reactive::*;
-use beui::{Vec2, native::Context, native::FreetypeFonts};
+use beui::{Vec2, native::Context};
+use beui_host::{native::FreetypeFonts};
 
 use crate::viewer::ViewerBar;
-use beui::native::build;
+use beui_host::native::build;
 
 #[test]
 fn the_image_viewer_keeps_its_close_button_on_a_narrow_screen() {

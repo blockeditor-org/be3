@@ -31,10 +31,10 @@ pub(crate) fn read(path: &str) -> Result<Vec<u8>, String> {
 }
 
 #[cfg(target_os = "android")]
-static ASSETS: std::sync::OnceLock<beui::native::AndroidApp> = std::sync::OnceLock::new();
+static ASSETS: std::sync::OnceLock<beui_host::native::AndroidApp> = std::sync::OnceLock::new();
 
 #[cfg(target_os = "android")]
-pub(crate) fn use_assets(app: beui::native::AndroidApp) {
+pub(crate) fn use_assets(app: beui_host::native::AndroidApp) {
     let _ = ASSETS.set(app);
     if let Ok(id) = read(build_id::FILE) {
         let _ = build_id::install_metadata(&String::from_utf8_lossy(&id));

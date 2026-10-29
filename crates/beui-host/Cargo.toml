@@ -1,0 +1,78 @@
+[package]
+name = "beui-host"
+description = "beui with its engine: the renderer, fonts, inspector, drive, the platforms and their runners"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[features]
+default = ["window"]
+window = [
+    "dep:beui-platform-android",
+    "dep:beui-layer-space",
+    "dep:beui-layer-xr",
+    "dep:beui-platform-winit",
+    "dep:pollster",
+    "dep:serde_json",
+]
+web = [
+    "beui-renderer-wgpu/web",
+    "dep:beui-platform-web",
+    "dep:wasm-bindgen",
+    "dep:web-sys",
+]
+
+[dependencies]
+beui = { path = "../beui" }
+beui-core = { path = "../beui-core" }
+beui-font-freetype = { path = "../beui-font-freetype" }
+beui-inspector = { path = "../beui-inspector" }
+beui-keyboard = { path = "../beui-keyboard" }
+beui-layer-drive = { path = "../beui-layer-drive" }
+beui-platform-headless = { path = "../beui-platform-headless" }
+beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
+beui-view = { path = "../beui-view" }
+beui_macros = { path = "../beui-macros" }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+beui-layer-space = { path = "../beui-layer-space", optional = true }
+beui-layer-xr = { path = "../beui-layer-xr", optional = true }
+pollster = { version = "0.4", optional = true }
+serde_json = { version = "1", optional = true }
+
+[target.'cfg(target_os = "android")'.dependencies]
+beui-platform-android = { path = "../beui-platform-android", optional = true }
+
+[target.'cfg(not(any(target_os = "android", target_arch = "wasm32")))'.dependencies]
+beui-platform-winit = { path = "../beui-platform-winit", optional = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+beui-platform-web = { path = "../beui-platform-web", optional = true }
+wasm-bindgen = { version = "0.2", optional = true }
+web-sys = { version = "0.3", optional = true, features = [
+    "CssStyleDeclaration",
+    "Document",
+    "Element",
+    "HtmlCanvasElement",
+    "HtmlElement",
+    "Node",
+    "console",
+] }
+
+[dev-dependencies]
+accesskit = "0.24.1"
+bench = { path = "../bench" }
+raw-window-handle = "0.6"
+reactive = { path = "../reactive" }
+text-editor-core = { path = "../text-editor-core" }
+wgpu = { version = "29", default-features = false }
+
+[lints]
+workspace = true
+
+[[example]]
+name = "survey"
+required-features = ["window"]
+
+[[example]]
+name = "text-bench"

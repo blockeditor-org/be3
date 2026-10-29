@@ -425,7 +425,7 @@ fn open_gpu(node: u64, lost: &Arc<AtomicBool>) -> Result<(wgpu::Device, wgpu::Qu
         trace: wgpu::Trace::Off,
     };
     let (device, queue) =
-        beui::native::open_vulkan_device(&adapter, &descriptor, &DEVICE_EXTENSIONS)
+        beui_host::native::open_vulkan_device(&adapter, &descriptor, &DEVICE_EXTENSIONS)
             .ok_or("the Vulkan device could not be opened")?;
     let flag = lost.clone();
     device.set_device_lost_callback(move |_, message| {

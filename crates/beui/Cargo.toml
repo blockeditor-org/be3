@@ -4,26 +4,6 @@ edition.workspace = true
 version.workspace = true
 license.workspace = true
 
-[features]
-default = ["window"]
-render = ["dep:beui-renderer-wgpu"]
-window = [
-    "render",
-    "dep:beui-platform-android",
-    "dep:beui-layer-space",
-    "dep:beui-layer-xr",
-    "dep:beui-platform-winit",
-    "dep:pollster",
-    "dep:serde_json",
-]
-web = [
-    "render",
-    "beui-renderer-wgpu/web",
-    "dep:beui-platform-web",
-    "dep:wasm-bindgen",
-    "dep:web-sys",
-]
-
 [dependencies]
 accesskit = "0.24.1"
 beui-components-unstyled = { path = "../beui-components-unstyled" }
@@ -40,52 +20,9 @@ beui-components-styled = { path = "../beui-components-styled" }
 beui-components-styled = { path = "../beui-components-styled", features = ["gpu"] }
 beui-core = { path = "../beui-core" }
 beui-draw = { path = "../beui-draw" }
-beui-font-freetype = { path = "../beui-font-freetype" }
-beui-inspector = { path = "../beui-inspector" }
-beui-layer-drive = { path = "../beui-layer-drive" }
-beui-platform-headless = { path = "../beui-platform-headless" }
-beui-renderer-wgpu = { path = "../beui-renderer-wgpu", optional = true }
-
-[target.'cfg(all(not(beui_html), not(target_arch = "wasm32")))'.dependencies]
-beui-layer-space = { path = "../beui-layer-space", optional = true }
-beui-layer-xr = { path = "../beui-layer-xr", optional = true }
-pollster = { version = "0.4", optional = true }
-serde_json = { version = "1", optional = true }
-
-[target.'cfg(all(not(beui_html), target_os = "android"))'.dependencies]
-beui-platform-android = { path = "../beui-platform-android", optional = true }
-
-[target.'cfg(all(not(beui_html), not(any(target_os = "android", target_arch = "wasm32"))))'.dependencies]
-beui-platform-winit = { path = "../beui-platform-winit", optional = true }
-
-[target.'cfg(all(not(beui_html), target_arch = "wasm32"))'.dependencies]
-beui-platform-web = { path = "../beui-platform-web", optional = true }
-wasm-bindgen = { version = "0.2", optional = true }
-web-sys = { version = "0.3", optional = true, features = [
-    "CssStyleDeclaration",
-    "Document",
-    "Element",
-    "HtmlCanvasElement",
-    "HtmlElement",
-    "Node",
-    "console",
-] }
 
 [target.'cfg(beui_html)'.dev-dependencies]
 paint-snapshot = { path = "../paint-snapshot" }
 
-[target.'cfg(not(beui_html))'.dev-dependencies]
-bench = { path = "../bench" }
-raw-window-handle = "0.6"
-text-editor-core = { path = "../text-editor-core" }
-wgpu = { version = "29", default-features = false }
-
 [lints]
 workspace = true
-
-[[example]]
-name = "survey"
-required-features = ["window"]
-
-[[example]]
-name = "text-bench"

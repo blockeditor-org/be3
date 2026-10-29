@@ -7,7 +7,7 @@ mod bench {
 
     use beui::datetime::Date;
     use beui::native::Document;
-    use beui::native::testing::Screen;
+    use beui_host::native::testing::Screen;
     use beui::reactive::view;
     use beui::{
         Input, PointerButton, Pos2, Vec2, WindowId, native::Context, native::Incoming,
@@ -47,7 +47,7 @@ mod bench {
 
     impl Bench {
         fn new(gpu: bool) -> Self {
-            let context: Context = beui::native::context();
+            let context: Context = beui_host::native::context();
             context.stop_clock();
             let space = Rc::new(RefCell::new(Space::new()));
             let mut runner = Runner::new(Launch {
@@ -56,7 +56,7 @@ mod bench {
                     ..RunOptions::default()
                 },
                 context,
-                app: Box::new(beui::native::build(|| {
+                app: Box::new(beui_host::native::build(|| {
                     view! {
                         <DemoRoot today={Date::today()} />
                     }

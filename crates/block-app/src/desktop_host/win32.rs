@@ -114,7 +114,7 @@ pub(crate) fn create() {
 }
 
 pub(crate) fn start(setup: &Setup) {
-    if let Some(gpu) = setup.get::<beui::native::GpuSetup>() {
+    if let Some(gpu) = setup.get::<beui_host::native::GpuSetup>() {
         GPU.set(Some(Gpu {
             device: gpu.device.clone(),
             queue: gpu.queue.clone(),

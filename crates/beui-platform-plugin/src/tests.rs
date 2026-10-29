@@ -12,7 +12,7 @@ use beui_core::node::NodeId;
 use block_editor_plugin::{EditorInstanceId, EditorRegion, FrameSpec, Input, Module};
 
 use super::*;
-use beui::native::build;
+use beui_host::native::build;
 
 mod a_copy_in_a_region_reaches_the_host;
 mod a_region_describes_itself_and_does_what_a_screen_reader_asks;
@@ -182,7 +182,7 @@ fn launched(host: &EditorHost, app: impl App + 'static) -> Box<ModuleRunner> {
     launch(
         host,
         RunOptions::default(),
-        beui::native::context(),
+        beui_host::native::context(),
         Box::new(app),
     )
     .expect("a plugin app starts");

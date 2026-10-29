@@ -10,6 +10,7 @@ use std::task::{Context as TaskContext, Poll, Waker as TaskWaker};
 
 use beui_core::app::{App, SafeArea, Setup, Waker};
 use beui_core::context::{Context, FrameOutput};
+use beui_core::document::Document;
 use beui_core::geometry::{Rect, Vec2, vec2};
 use beui_core::renderer::Loaded;
 use beui_core::runner::{Incoming, Launch, Platform, RunOptions, Runner, Running};
@@ -25,6 +26,7 @@ use block_editor_plugin::{
 #[cfg(target_arch = "wasm32")]
 use block_editor_plugin::{PaintTarget, SurfaceRect};
 
+use beui_host::primitives::Root;
 use beui_platform_plugin_api::{PluginRuntime, RegionsRunner, View, Views};
 use platform::HostPlatform;
 use surface::{ModuleRenderer, Surface};
@@ -94,6 +96,10 @@ impl PluginRuntime for Runtime {
         app: Box<dyn App>,
     ) -> Result<(), Box<dyn Error>> {
         launch(host, options, fonts::context(), app)
+    }
+
+    fn build(&self, root: Box<dyn FnOnce() -> Root>) -> Document {
+        beui_host::native::build(root)
     }
 
     fn context(&self) -> Context {

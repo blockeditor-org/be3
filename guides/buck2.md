@@ -25,8 +25,8 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 | `./scripts/buck run //crates/block-app:web` | the web bundle and `be-server`, on http://127.0.0.1:8080 |
 | `./scripts/buck run //crates/block-app:android -- --install` | the APK, signed with this machine's key, installed and started (`build :android-dist` is the build helper's unsigned template, which it signs with CI's key) |
 | `./scripts/buck run //crates/beui-demo:native` | beui's demo in a window |
-| `./scripts/buck run //crates/beui:example-survey` | a crate example; every example is `example-<name>` |
-| `./scripts/buck run -m release //crates/beui:example-text-bench -- [NAME] [--frames N]` | beui's text benchmarks: per-frame times for resizing wrapped text and labels, editing a paragraph or one span, and typing into a text area; NAME picks the scenarios whose names contain it. Compare a change by running it on the change and on its base |
+| `./scripts/buck run //crates/beui-host:example-survey` | a crate example; every example is `example-<name>` |
+| `./scripts/buck run -m release //crates/beui-host:example-text-bench -- [NAME] [--frames N]` | beui's text benchmarks: per-frame times for resizing wrapped text and labels, editing a paragraph or one span, and typing into a text area; NAME picks the scenarios whose names contain it. Compare a change by running it on the change and on its base |
 | `./scripts/buck run -m release //crates/beui-demo:example-open-bench -- [PAGE]` | times opening each beui-demo page from its catalog row and counts its allocations (guides/performance.md) |
 | `./scripts/buck run //crates/beui-web-demo:web` | beui's demo in a browser, drawn with DOM elements, on http://127.0.0.1:8070 |
 | `./scripts/buck run //crates/paint-review-web:web -- 127.0.0.1:8075 DIR` | the page reviewing a pull request's paintings, serving the `HASH.json` lists and `HASH.png` images in DIR beside it on http://127.0.0.1:8075/site/dev/index.html?changes=HASH |

@@ -4,8 +4,10 @@ use std::error::Error;
 
 use beui_core::app::App;
 use beui_core::context::{Context, FrameOutput};
+use beui_core::document::Document;
 use beui_core::runner::RunOptions;
 use beui_core::window::WindowId;
+use beui_view::primitives::Root;
 use block_editor_plugin::{EditorHost, RegionId, Regions};
 
 pub use views::{Report, View, Views};
@@ -17,6 +19,8 @@ pub trait PluginRuntime {
         options: RunOptions,
         app: Box<dyn App>,
     ) -> Result<(), Box<dyn Error>>;
+
+    fn build(&self, root: Box<dyn FnOnce() -> Root>) -> Document;
 
     fn context(&self) -> Context;
 

@@ -74,7 +74,7 @@ fn a_texture_is_drawn_into_its_rect_and_nowhere_else() {
     }
     queue.submit([encoder.finish()]);
     let read =
-        beui::native::read_texture(&device, &queue, &target).expect("the target is read back");
+        beui_host::native::read_texture(&device, &queue, &target).expect("the target is read back");
     let pixel = |x: usize, y: usize| {
         let at = (y * 8 + x) * 4;
         read.rgba[at..at + 4].to_vec()

@@ -9,7 +9,7 @@ license.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-beui = { path = "../beui", default-features = false }
+beui = { path = "../beui" }
 beui-demo = { path = "../beui-demo" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

@@ -73,7 +73,7 @@ fn windows() -> Option<Windows> {
 }
 
 pub(crate) fn start(setup: &Setup) {
-    let (Some(windows), Some(gpu)) = (windows(), setup.get::<beui::native::GpuSetup>()) else {
+    let (Some(windows), Some(gpu)) = (windows(), setup.get::<beui_host::native::GpuSetup>()) else {
         return;
     };
     let mut server = match Server::new() {
@@ -257,7 +257,7 @@ pub(crate) fn set_keyboard(keyboard: &be_wayland::KeyboardConfig) -> bool {
 }
 
 pub(crate) fn replace_gpu(setup: &Setup) {
-    let Some(gpu) = setup.get::<beui::native::GpuSetup>() else {
+    let Some(gpu) = setup.get::<beui_host::native::GpuSetup>() else {
         return;
     };
     with(|running| {

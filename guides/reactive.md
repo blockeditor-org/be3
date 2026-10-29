@@ -1002,7 +1002,7 @@ auto-height parent does in CSS. A `scroll` measures as nothing, so a percent
 scroll inside an intrinsically measured column collapses; give it a fixed length
 for that case. See
 `crates/beui-demo` for a full example and
-`crates/beui/src/tests/a_reactive_tree_can_nest_builder_calls_without_threading_the_document.rs`
+`crates/beui-host/src/tests/a_reactive_tree_can_nest_builder_calls_without_threading_the_document.rs`
 and `.../a_signal_write_from_a_click_handler_updates_its_bound_text_in_the_same_frame.rs`
 for the behavior they rely on.
 

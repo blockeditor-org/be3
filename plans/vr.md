@@ -70,7 +70,7 @@ The user has deferred these three; do not start them without asking.
 The Android OpenXR loader in the APK, pacing in beui-platform-android, the
 manifest, and the buck APK plumbing. First check whether today's APK runs as a
 2D panel app. Android reads none of the `BEUI_*` variables
-(`from_environment` in `crates/beui/src/window.rs` returns `None` there), so
+(`from_environment` in `crates/beui-host/src/runner.rs` returns `None` there), so
 space cannot be turned on there today.
 
 About 1.5k lines plus build work.
@@ -89,7 +89,7 @@ Each 0.3-1k lines:
 
 The riskiest: wgpu has no WebXR binding, the WebGL route needs an
 `xrCompatible` WebGL2 context, and space must build for wasm and be wired into
-`run_web` (`crates/beui/src/web.rs`, which launches with no layers).
+`run_web` (`crates/beui-host/src/web.rs`, which launches with no layers).
 
 2k lines or more. **(ask)** whether WebXR is in scope.
 

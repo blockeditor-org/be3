@@ -9,7 +9,7 @@ const SECOND: Duration = Duration::from_secs(1);
 fn the_session_idles_after_the_blank_time_and_wakes_on_input() {
     let mut harness = Harness::new();
     harness.compositor().set_blank_after(Some(BLANK));
-    let start = harness.context().now() + beui::native::testing::FRAME_INTERVAL;
+    let start = harness.context().now() + beui_host::native::testing::FRAME_INTERVAL;
     harness.settle();
     let idle = harness.compositor().windows().idle();
 

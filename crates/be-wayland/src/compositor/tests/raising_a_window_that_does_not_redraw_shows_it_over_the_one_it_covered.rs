@@ -31,13 +31,13 @@ fn Stacked(windows: Windows) -> NodeId {
 struct Screen {
     device: wgpu::Device,
     queue: wgpu::Queue,
-    renderer: beui::native::Renderer,
+    renderer: beui_host::native::Renderer,
     target: wgpu::Texture,
 }
 
 impl Screen {
     fn new(device: wgpu::Device, queue: wgpu::Queue) -> Self {
-        let renderer = beui::native::Renderer::new(&device, FORMAT);
+        let renderer = beui_host::native::Renderer::new(&device, FORMAT);
         let target = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("kept screen"),
             size: wgpu::Extent3d {
@@ -61,7 +61,7 @@ impl Screen {
     }
 
     fn frame(&mut self, harness: &mut Harness) {
-        use beui::native::Repainting as _;
+        use beui_host::native::Repainting as _;
         harness.frame(Vec::new());
         let output = harness.output.as_ref().expect("a frame ran");
         let repaint = output.main().repaint(beui::Color32::BLACK);
@@ -74,8 +74,8 @@ impl Screen {
             repaint,
         );
         let load = match repaint {
-            beui::native::Repaint::Region { .. } => wgpu::LoadOp::Load,
-            beui::native::Repaint::Everything => wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+            beui_host::native::Repaint::Region { .. } => wgpu::LoadOp::Load,
+            beui_host::native::Repaint::Everything => wgpu::LoadOp::Clear(wgpu::Color::BLACK),
         };
         let mut encoder = self
             .device

@@ -41,7 +41,7 @@ else, or `--into` on a command that is not input, is an error that says what it 
 
 ## Starting any beui program
 
-beui's run functions (`beui::native::run`, `run_with`, `run_with_device`, `run_on`) read these
+beui's run functions (`beui_host::native::run`, `run_with`, `run_with_device`, `run_on`) read these
 variables (on every platform but Android, which reads none), so a program needs nothing of its
 own to be driven:
 
@@ -53,7 +53,7 @@ own to be driven:
   names separated by commas, the one nearest the platform first: `space` and `drive`; an
   unknown name is an error. Every `drive` named is a tap of one session, named by the layer
   just above it; `drive` twice in a row, or two taps under the same layer, is an error.
-- `BEUI_PLATFORM=headless` runs it on `beui::native::Headless` (crates/beui-platform-headless), which draws
+- `BEUI_PLATFORM=headless` runs it on `beui_host::native::Headless` (crates/beui-platform-headless), which draws
   offscreen with wgpu and needs no display server. `BEUI_HEADLESS_WINDOW=WIDTHxHEIGHT[@SCALE]`
   (1100x720 by default) is its window and `BEUI_HEADLESS_SCREEN=WIDTHxHEIGHT` the screen a
   fullscreen window grows to; either is an error under another platform.
@@ -72,7 +72,7 @@ own to be driven:
   the mouse does, so the click goes to whatever panel or chrome is in front of it. Targets are
   in the app's main window unless a command names another with `in WINDOW` (the other panels);
   the panels' own placement is tested through `Space` and a `Runner` (`InSpace` in
-  crates/beui/src/tests.rs). Space's steering takes keys and motion from below it: `drive --into=space keydown ctrl shift w` walks.
+  crates/beui-host/src/tests.rs). Space's steering takes keys and motion from below it: `drive --into=space keydown ctrl shift w` walks.
   Holding a walking key keeps frames coming, so the command waits out its settle timeout and
   the head walks far; turn with `drive --into=space motion` while Ctrl and Shift are held
   instead. To walk or roll (Q/E) by a set amount, stop the clock and time the hold, with Ctrl

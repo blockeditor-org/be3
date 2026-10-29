@@ -148,13 +148,13 @@ impl beui::native::App for ModuleApp {
             let requested = self.requested.read_only();
             let registry = Rc::clone(&module.registry);
             let views = views.clone();
-            beui::native::build(move || {
+            beui_platform_plugin_api::runtime().build(Box::new(move || {
                 view! {
                     <beui::styled::Root clear_color=ColorRole::None>
                         <ModuleWindows registry requested views />
                     </beui::styled::Root>
                 }
-            })
+            }))
         });
         beui::native::with_reactive_scope(document, || {});
         for view in &shown_views {

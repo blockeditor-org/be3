@@ -10,6 +10,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 be-block = { path = "../be-block" }
 beui = { path = "../beui" }
+beui-host = { path = "../beui-host" }
 comrak = { version = "0.55", default-features = false }
 image = { version = "0.25", default-features = false, features = ["gif", "jpeg", "png", "webp"] }
 serde = { version = "1", features = ["derive"] }

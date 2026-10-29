@@ -1,10 +1,11 @@
 use std::time::Duration;
 
-use beui::native::testing::{Showing, Stepped};
-use beui::{native::Context, native::FreetypeFonts, native::WindowSize, vec2};
+use beui_host::native::testing::{Showing, Stepped};
+use beui::{native::Context, native::WindowSize, vec2};
+use beui_host::{native::FreetypeFonts};
 
 use super::*;
-use beui::native::build;
+use beui_host::native::build;
 
 const SIZE: beui::Vec2 = vec2(640.0, 400.0);
 

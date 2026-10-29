@@ -80,13 +80,13 @@ mod with_middle_click_paste_off_a_selection_stays_its_owners_and_is_offered_to_n
 mod with_middle_click_paste_on_a_selection_is_offered_until_it_is_switched_off;
 
 use beui::native::WindowSize;
-use beui::native::testing::Stepped;
+use beui_host::native::testing::Stepped;
 use beui::styled::*;
 use beui::{Input, Key, Keystroke, NodeId, native::FrameOutput, pos2};
 
 use crate::test_client::{TestClient, TestWindow};
 use crate::view::WindowView;
-use beui::native::build;
+use beui_host::native::build;
 use beui::{LayerLevel, Placement};
 
 const SCREEN: Vec2 = Vec2::new(1000.0, 700.0);
@@ -230,7 +230,7 @@ impl Harness {
     ) -> Self {
         let (shell, client) = Self::shell(gpu, view);
         Self {
-            stepped: Stepped::new(beui::native::context(), shell, Self::screen(), None),
+            stepped: Stepped::new(beui_host::native::context(), shell, Self::screen(), None),
             client,
             output: None,
         }
@@ -239,10 +239,10 @@ impl Harness {
     fn in_space(view: impl FnOnce(Windows) -> NodeId) -> Self {
         let (device, queue) = crate::test_client::vulkan_device();
         let (shell, client) = Self::shell(Some((device.clone(), queue.clone())), view);
-        let context = beui::native::context();
+        let context = beui_host::native::context();
         let mut setup = beui::native::Setup::new(Waker::new(|| {}));
         setup.provide(context.clone());
-        setup.provide(beui::native::GpuSetup {
+        setup.provide(beui_host::native::GpuSetup {
             device,
             queue,
             format: wgpu::TextureFormat::Bgra8Unorm,
@@ -311,7 +311,7 @@ impl Harness {
     }
 
     fn frame_at(&mut self, at: std::time::Instant) {
-        let next = self.context().now() + beui::native::testing::FRAME_INTERVAL;
+        let next = self.context().now() + beui_host::native::testing::FRAME_INTERVAL;
         self.context().advance_clock(at - next);
         self.frame(Vec::new());
     }
@@ -430,7 +430,7 @@ impl Harness {
 struct Painter {
     device: wgpu::Device,
     queue: wgpu::Queue,
-    renderer: beui::native::Renderer,
+    renderer: beui_host::native::Renderer,
     view: wgpu::TextureView,
 }
 
@@ -454,13 +454,13 @@ impl Painter {
         Self {
             device: device.clone(),
             queue: queue.clone(),
-            renderer: beui::native::Renderer::new(device, format),
+            renderer: beui_host::native::Renderer::new(device, format),
             view: target.create_view(&wgpu::TextureViewDescriptor::default()),
         }
     }
 
     fn paint(&mut self, harness: &Harness) {
-        use beui::native::Repainting as _;
+        use beui_host::native::Repainting as _;
         let output = harness.output.as_ref().expect("a frame ran");
         let repaint = output.main().repaint(beui::Color32::BLACK);
         self.renderer.prepare(

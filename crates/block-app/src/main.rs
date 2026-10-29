@@ -146,13 +146,13 @@ fn run_shell(
     session: bool,
 ) -> Result<(), Box<dyn Error>> {
     if session {
-        return beui::native::run_on(Box::new(beui_platform_drm::Drm), options, shell);
+        return beui_host::native::run_on(Box::new(beui_platform_drm::Drm), options, shell);
     }
-    let open_device = beui::native::OpenDevice {
+    let open_device = beui_host::native::OpenDevice {
         extensions: &be_dmabuf::DEVICE_EXTENSIONS,
         gpu: None,
     };
-    beui::native::run_with_device(options, open_device, shell)
+    beui_host::native::run_with_device(options, open_device, shell)
 }
 
 #[cfg(windows)]
@@ -161,11 +161,11 @@ fn run_shell(
     shell: Shell,
     _session: bool,
 ) -> Result<(), Box<dyn Error>> {
-    let open_device = beui::native::OpenDevice {
+    let open_device = beui_host::native::OpenDevice {
         extensions: &be_win32_capture::DEVICE_EXTENSIONS,
         gpu: None,
     };
-    beui::native::run_with_device(options, open_device, shell)
+    beui_host::native::run_with_device(options, open_device, shell)
 }
 
 #[cfg(all(
@@ -179,7 +179,7 @@ fn run_shell(
     shell: Shell,
     _session: bool,
 ) -> Result<(), Box<dyn Error>> {
-    beui::native::run_with(options, shell)
+    beui_host::native::run_with(options, shell)
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -210,21 +210,21 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
     }
     let mut layers: Vec<Box<dyn beui::native::Layer>> = Vec::new();
     if let Some(inbox) = automation()? {
-        layers.push(Box::new(beui::native::drive::Drive::new(inbox)));
+        layers.push(Box::new(beui_host::native::drive::Drive::new(inbox)));
     }
-    beui::native::run_web(&canvas_id, options, layers, Shell::new(app))
+    beui_host::native::run_web(&canvas_id, options, layers, Shell::new(app))
         .await
         .map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))
 }
 
 #[cfg(target_arch = "wasm32")]
 thread_local! {
-    static AUTOMATION: std::cell::RefCell<Option<beui::native::drive::Inbox>> =
+    static AUTOMATION: std::cell::RefCell<Option<beui_host::native::drive::Inbox>> =
         const { std::cell::RefCell::new(None) };
 }
 
 #[cfg(target_arch = "wasm32")]
-fn automation() -> Result<Option<beui::native::drive::Inbox>, wasm_bindgen::JsValue> {
+fn automation() -> Result<Option<beui_host::native::drive::Inbox>, wasm_bindgen::JsValue> {
     let location = web_sys::window()
         .map(|window| window.location())
         .ok_or("no browser window is available")?;
@@ -247,7 +247,7 @@ pub async fn automate(
 ) -> Result<String, wasm_bindgen::JsValue> {
     use wasm_bindgen::JsCast;
     let inbox = automation()?.ok_or("the page was not opened with ?automation")?;
-    let answered = beui::native::drive::ask(&inbox, words);
+    let answered = beui_host::native::drive::ask(&inbox, words);
     let canceller = answered.canceller();
     let late = wasm_bindgen::closure::Closure::once_into_js(move || {
         canceller.cancel(format!(
@@ -262,12 +262,12 @@ pub async fn automate(
             timeout_milliseconds,
         )?;
     match answered.await {
-        beui::native::drive::Reply::Text(text) => Ok(text),
-        beui::native::drive::Reply::Error(error) => Err(error.into()),
-        beui::native::drive::Reply::Image { .. } => {
+        beui_host::native::drive::Reply::Text(text) => Ok(text),
+        beui_host::native::drive::Reply::Error(error) => Err(error.into()),
+        beui_host::native::drive::Reply::Image { .. } => {
             Err("the browser takes screenshots itself: use drive shot".into())
         }
-        beui::native::drive::Reply::Painting(_) => {
+        beui_host::native::drive::Reply::Painting(_) => {
             Err("the web build does not answer paint; run the app natively".into())
         }
     }
@@ -276,7 +276,7 @@ pub async fn automate(
 // unsafe(ffi)
 #[cfg(target_os = "android")]
 #[unsafe(no_mangle)]
-fn android_main(app: beui::native::AndroidApp) {
+fn android_main(app: beui_host::native::AndroidApp) {
     editors::plugin::discovery::use_assets(app.clone());
     panic_guard::install();
     let storage_root = app.internal_data_path();
@@ -284,7 +284,7 @@ fn android_main(app: beui::native::AndroidApp) {
     let exit_code = match BlockApp::new(storage_root)
         .map_err(|error| error.to_string())
         .and_then(|block_app| {
-            beui::native::run_with(options, Shell::new(block_app))
+            beui_host::native::run_with(options, Shell::new(block_app))
                 .map_err(|error| error.to_string())
         }) {
         Ok(()) => 0,
@@ -306,7 +306,7 @@ struct Shell {
 impl Shell {
     fn new(app: BlockApp) -> Self {
         let mut view = None;
-        let mut document = beui::native::build(|| {
+        let mut document = beui_host::native::build(|| {
             compositor::install();
             desktop_host::create();
             surfaces::create_handles();

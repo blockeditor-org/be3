@@ -1,6 +1,6 @@
 use super::*;
 use beui::PointerButton;
-use beui::native::testing::Target;
+use beui_host::native::testing::Target;
 
 fn open_tab_menu(test: &mut DocumentTest) {
     let grip = test.rect_of("dock.grip.catalog");

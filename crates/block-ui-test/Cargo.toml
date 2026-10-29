@@ -7,7 +7,8 @@ license.workspace = true
 [dependencies]
 be-session = { path = "../be-session" }
 be-store = { path = "../be-store" }
-beui = { path = "../beui", default-features = false }
+beui = { path = "../beui" }
+beui-host = { path = "../beui-host", default-features = false }
 beui-core = { path = "../beui-core" }
 beui-platform-plugin = { path = "../beui-platform-plugin" }
 block-editor-beui = { path = "../block-editor-beui" }

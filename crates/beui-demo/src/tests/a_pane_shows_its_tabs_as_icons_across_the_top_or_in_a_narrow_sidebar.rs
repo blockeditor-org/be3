@@ -1,6 +1,6 @@
 use super::*;
 use beui::PointerButton;
-use beui::native::testing::Target;
+use beui_host::native::testing::Target;
 
 fn choose(test: &mut DocumentTest, grip: &str, item: &str) {
     test.click_with(grip, PointerButton::Secondary);

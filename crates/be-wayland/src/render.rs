@@ -547,7 +547,7 @@ impl Paints for WindowDraw {
                 continue;
             }
             let Some(capture) =
-                beui::native::read_texture(&self.gpu.device, &self.gpu.queue, &texture.texture)
+                beui_host::native::read_texture(&self.gpu.device, &self.gpu.queue, &texture.texture)
             else {
                 continue;
             };

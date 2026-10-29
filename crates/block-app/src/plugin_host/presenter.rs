@@ -771,7 +771,7 @@ struct Presenter {
 }
 
 pub(super) fn install(setup: &beui::native::Setup) -> Availability {
-    let Some(gpu) = setup.get::<beui::native::GpuSetup>() else {
+    let Some(gpu) = setup.get::<beui_host::native::GpuSetup>() else {
         return Availability(Ok(()));
     };
     let regions = RegionLayout::new(&gpu.device);

@@ -897,6 +897,7 @@ version = "0.1.0"
 dependencies = [
  "be-block",
  "beui",
+ "beui-host",
  "block-ui-test",
  "comrak",
  "image",
@@ -1141,6 +1142,7 @@ version = "0.1.0"
 dependencies = [
  "be-dmabuf",
  "beui",
+ "beui-host",
  "beui-layer-space",
  "bytemuck",
  "gvdb",
@@ -1189,34 +1191,16 @@ name = "beui"
 version = "0.1.0"
 dependencies = [
  "accesskit",
- "bench",
  "beui-components-styled",
  "beui-components-unstyled",
  "beui-core",
  "beui-dock",
  "beui-draw",
- "beui-font-freetype",
- "beui-inspector",
  "beui-keyboard",
- "beui-layer-drive",
- "beui-layer-space",
- "beui-layer-xr",
- "beui-platform-android",
- "beui-platform-headless",
- "beui-platform-web",
- "beui-platform-winit",
- "beui-renderer-wgpu",
  "beui-view",
  "beui_macros",
  "paint-snapshot",
- "pollster",
- "raw-window-handle",
  "reactive",
- "serde_json",
- "text-editor-core",
- "wasm-bindgen",
- "web-sys",
- "wgpu",
 ]
 
 [[package]]
@@ -1296,6 +1280,7 @@ dependencies = [
  "bench",
  "beui",
  "beui-core",
+ "beui-host",
  "beui-inspector",
  "beui-layer-space",
  "beui-renderer-wgpu",
@@ -1373,6 +1358,37 @@ dependencies = [
  "be-model",
  "block-type-guest",
  "uuid",
+]
+
+[[package]]
+name = "beui-host"
+version = "0.1.0"
+dependencies = [
+ "accesskit",
+ "bench",
+ "beui",
+ "beui-core",
+ "beui-font-freetype",
+ "beui-inspector",
+ "beui-keyboard",
+ "beui-layer-drive",
+ "beui-layer-space",
+ "beui-layer-xr",
+ "beui-platform-android",
+ "beui-platform-headless",
+ "beui-platform-web",
+ "beui-platform-winit",
+ "beui-renderer-wgpu",
+ "beui-view",
+ "beui_macros",
+ "pollster",
+ "raw-window-handle",
+ "reactive",
+ "serde_json",
+ "text-editor-core",
+ "wasm-bindgen",
+ "web-sys",
+ "wgpu",
 ]
 
 [[package]]
@@ -1491,6 +1507,7 @@ dependencies = [
  "be-dmabuf",
  "beui",
  "beui-core",
+ "beui-host",
  "bytemuck",
  "rustix 1.1.4",
  "smithay",
@@ -1516,6 +1533,7 @@ dependencies = [
  "beui",
  "beui-core",
  "beui-font-freetype",
+ "beui-host",
  "beui-platform-plugin-api",
  "beui-renderer-wgpu",
  "block-editor-plugin",
@@ -1528,6 +1546,7 @@ name = "beui-platform-plugin-api"
 version = "0.1.0"
 dependencies = [
  "beui-core",
+ "beui-view",
  "block-editor-plugin",
  "uuid",
 ]
@@ -1585,6 +1604,7 @@ version = "0.1.0"
 dependencies = [
  "be-drive",
  "beui",
+ "beui-host",
  "beui-html",
  "beui-layer-drive",
  "wasi-threads",
@@ -1633,6 +1653,7 @@ version = "0.1.0"
 dependencies = [
  "beui",
  "beui-demo",
+ "beui-host",
  "wasi-threads",
  "wasm-bindgen",
  "wasm-bindgen-futures",
@@ -1757,6 +1778,7 @@ name = "block-accounts-ui"
 version = "0.1.0"
 dependencies = [
  "beui",
+ "beui-host",
  "paint-snapshot",
 ]
 
@@ -1786,6 +1808,7 @@ dependencies = [
  "be-win32-capture",
  "be-win32-input",
  "beui",
+ "beui-host",
  "beui-platform-drm",
  "block-accounts-ui",
  "block-editor-plugin",
@@ -2106,6 +2129,7 @@ dependencies = [
  "be-store",
  "beui",
  "beui-core",
+ "beui-host",
  "beui-platform-plugin",
  "block-editor-beui",
  "block-plugin-api",
@@ -6014,6 +6038,7 @@ name = "paint-review"
 version = "0.1.0"
 dependencies = [
  "beui",
+ "beui-host",
  "block-ui-test",
  "paint-review-manifest",
 ]
@@ -6030,6 +6055,7 @@ name = "paint-review-web"
 version = "0.1.0"
 dependencies = [
  "beui",
+ "beui-host",
  "image",
  "js-sys",
  "paint-review",
@@ -6311,6 +6337,7 @@ name = "pixel_ray_tracer"
 version = "0.1.0"
 dependencies = [
  "beui",
+ "beui-host",
  "block-editor-beui",
  "block-ui-test",
  "pixel-ray-tracer-types",

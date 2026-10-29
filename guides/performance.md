@@ -68,7 +68,7 @@ suite's `programs` (crates/bench/BUCK). Each can also run alone, with
   pointer between them every frame for 60 frames, after 60 frames of moving it a pixel
   over one icon. In October 2026 a switch's `frame` was about 4 ms, as the moves' are,
   after 32 ms while the cursor sprite built a new `Renderer` for every icon.
-- `//crates/beui:example-text-bench -- [NAME]` times resizing and editing text.
+- `//crates/beui-host:example-text-bench -- [NAME]` times resizing and editing text.
 - Both beui benches run their frames through the real `Runner`, with no drive layer (so no
   accessibility dump) and the clock stopped, and push their inputs as a platform would. A
   frame's time is `Runner::frame`'s, so it includes the intake and the window bookkeeping

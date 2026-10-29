@@ -23,7 +23,7 @@ const ONE_CORE_MODULES: [(&str, &str, &str); 4] = [
     (
         "crates/beui/src/lib.rs",
         "native",
-        "the native runtime: apps, platforms, runners, documents, renderers, fonts and the native-only escapes",
+        "the native document: apps, documents, painting, gpu drawings and the native-only escapes; beui-host, which only the native core builds, adds the engine to it",
     ),
     (
         "crates/beui/src/lib.rs",

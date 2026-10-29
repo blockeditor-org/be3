@@ -6,7 +6,8 @@ license.workspace = true
 
 [dependencies]
 be-dmabuf = { path = "../be-dmabuf" }
-beui = { path = "../beui", default-features = false, features = ["render"] }
+beui = { path = "../beui" }
+beui-host = { path = "../beui-host", default-features = false }
 beui-core = { path = "../beui-core" }
 bytemuck = { version = "1", features = ["derive"] }
 rustix = { version = "1", features = ["event"] }

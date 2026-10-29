@@ -1,9 +1,10 @@
 use beui::native::WindowSize;
-use beui::native::testing::{Showing, Stepped};
-use beui::{native::Context, native::FreetypeFonts};
+use beui_host::native::testing::{Showing, Stepped};
+use beui::{native::Context};
+use beui_host::{native::FreetypeFonts};
 
 use super::*;
-use beui::native::build;
+use beui_host::native::build;
 
 const SIZE: Vec2 = vec2(1100.0, 720.0);
 

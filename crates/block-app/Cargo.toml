@@ -50,7 +50,7 @@ be-protocol = { path = "../be-protocol" }
 be-store = { path = "../be-store" }
 be-session = { path = "../be-session" }
 be-vcs = { path = "../be-vcs" }
-beui = { path = "../beui", default-features = false, features = ["render"] }
+beui = { path = "../beui" }
 block-accounts-ui = { path = "../block-accounts-ui" }
 block-guest-abi = { path = "../block-guest-abi" }
 block-guest-host = { path = "../block-guest-host" }
@@ -86,7 +86,7 @@ sqlite-schema = { path = "../sqlite-schema" }
 # The wasmtime plugin host, which runs every plugin on every platform but the
 # browser. The browser runs the same wasm in a worker of its own.
 be-server = { path = "../be-server" }
-beui = { path = "../beui", features = ["window"] }
+beui-host = { path = "../beui-host" }
 block-wasm-host = { path = "../block-wasm-host" }
 directories-next = "2"
 tokio = { version = "1", features = ["net", "rt", "rt-multi-thread", "sync", "time"] }
@@ -166,7 +166,7 @@ ndk-context = "0.1"
 zip = { version = "8", default-features = false, features = ["deflate"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-beui = { path = "../beui", default-features = false, features = ["web"] }
+beui-host = { path = "../beui-host", default-features = false, features = ["web"] }
 js-sys = "0.3"
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"

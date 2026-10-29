@@ -99,7 +99,7 @@ node has that test id, which is usually a node that was never given one, or one 
 list has not built; shown() and label() ask about one without clicking it.
 
 run() hands the editor what was queued since the last one, frame by frame. Its gestures are
-drive's, built by the same `beui::native::drive::gestures::Gestures` (guides/running/drive.md),
+drive's, built by the same `beui_host::native::drive::gestures::Gestures` (guides/running/drive.md),
 so an editor test presses, types and touches as drive and the app tests do: the pointer spends
 a frame arriving where a click, a press or a drag starts before it presses, a click or a key
 then arrives in one frame, a key carries the text it types and a chord presses its modifiers

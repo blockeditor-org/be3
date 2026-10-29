@@ -9,7 +9,7 @@ it to the SDK when it loads it, on wasmtime and in the browser alike, from the s
 
 `crates/block-plugin-sdk` is a crate that depends on what the plugins have in common: beui,
 block-editor-beui, beui-platform-plugin (the runtime block-editor-beui reaches through a symbol
-rather than a dependency), block-editor-plugin, serde, serde_json and uuid, and through them
+rather than a dependency, which brings beui-host: the renderer, fonts and inspector), block-editor-plugin, serde, serde_json and uuid, and through them
 everything underneath. All of it is linked into the SDK whole and exported, since the SDK cannot
 know what a plugin it has not seen will use. A crate only one or two plugins use stays in those
 plugins. To move one into the SDK, add it to the crate's `Cargo.toml` (and its `lib.rs`) and

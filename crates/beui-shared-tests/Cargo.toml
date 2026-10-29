@@ -13,10 +13,10 @@ name = "beui-shared-tests"
 path = "src/main.rs"
 
 [dependencies]
-beui = { path = "../beui", default-features = false }
+beui = { path = "../beui" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-beui = { path = "../beui" }
+beui-host = { path = "../beui-host" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 beui-html = { path = "../beui-html" }

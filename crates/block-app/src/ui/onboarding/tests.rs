@@ -1,11 +1,12 @@
 use std::time::Duration;
 
 use beui::native::WindowSize;
-use beui::native::testing::{Showing, Stepped};
-use beui::{Input, PointerButton, native::Context, native::FreetypeFonts, vec2};
+use beui_host::native::testing::{Showing, Stepped};
+use beui::{Input, PointerButton, native::Context, vec2};
+use beui_host::{native::FreetypeFonts};
 
 use super::*;
-use beui::native::build;
+use beui_host::native::build;
 
 fn painting(
     name: &str,

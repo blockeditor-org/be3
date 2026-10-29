@@ -1,7 +1,7 @@
 use super::*;
 use beui::PointerButton;
 use beui::dock::unstyled::DockingSnapshot;
-use beui::native::testing::Target;
+use beui_host::native::testing::Target;
 use beui::native::with_reactive_scope;
 use std::cell::Cell;
 

@@ -2,7 +2,7 @@ use std::path::Path;
 use std::sync::OnceLock;
 use std::time::Duration;
 
-use beui::native::AndroidApp;
+use beui_host::native::AndroidApp;
 use jni::errors::Error as JniError;
 use jni::objects::{JClass, JObject, JString, JValue};
 use jni::refs::Reference;
@@ -30,7 +30,7 @@ fn android_main(app: AndroidApp) {
             std::process::exit(1);
         }
     };
-    let code = match beui::native::run_with(options, launcher) {
+    let code = match beui_host::native::run_with(options, launcher) {
         Ok(()) => 0,
         Err(error) => {
             eprintln!("The launcher stopped: {error}");

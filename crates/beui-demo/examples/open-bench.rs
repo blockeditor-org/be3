@@ -46,7 +46,7 @@ mod bench {
 
     use beui::datetime::Date;
     use beui::native::Document;
-    use beui::native::testing::Screen;
+    use beui_host::native::testing::Screen;
     use beui::reactive::view;
     use beui::{
         Color32, Input, PointerButton, Pos2, Rect, ScrollDelta, Vec2, native::Context,
@@ -159,7 +159,7 @@ mod bench {
                     ..RunOptions::default()
                 },
                 context,
-                app: Box::new(beui::native::build(|| {
+                app: Box::new(beui_host::native::build(|| {
                     view! {
                         <DemoRoot today={Date::today()} />
                     }
@@ -375,7 +375,7 @@ mod bench {
 
     pub fn main() {
         let filter = std::env::args().nth(1);
-        let context = beui::native::context();
+        let context = beui_host::native::context();
         context.stop_clock();
         let started = Instant::now();
         let gpu = std::env::var_os("GPU").map(|_| {
