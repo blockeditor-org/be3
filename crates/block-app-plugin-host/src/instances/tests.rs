@@ -391,6 +391,7 @@ mod a_restarted_plugin_is_sent_its_content_and_blocks_again;
 mod a_restarted_plugin_no_longer_shows_its_regions_stopped;
 mod a_tap_intercepted_for_a_plugin_reaches_it_unless_it_has_the_keyboard;
 mod a_watched_value_reaches_an_instance_watching_it_again_after_a_restart;
+mod a_window_the_plugin_opened_is_shown_and_asked_for_by_its_own_screen;
 mod a_zoomed_region_is_shown_at_the_zoom_its_frame_was_painted_at;
 mod after_the_first_snapshot_an_editor_is_sent_operations;
 mod an_editor_can_read_and_edit_a_block_it_watches;
@@ -408,7 +409,6 @@ mod input_on_a_layer_reaches_its_owner_tagged_with_it_in_the_screen_s_coordinate
 mod revision_history_editors_cannot_mutate_any_block;
 mod the_contacts_reach_only_the_shell;
 mod the_view_a_screen_is_given_carries_its_scale;
-mod a_window_the_plugin_opened_is_shown_and_asked_for_by_its_own_screen;
 
 fn resize(instances: &mut Instances, size: Vec2, scale_factor: f32) {
     let role = InstanceRole::Editor(

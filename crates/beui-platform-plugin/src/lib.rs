@@ -753,7 +753,15 @@ impl Regions for ModuleRunner {
             .into_iter()
             .map(|(region, asks)| {
                 let wait = frame.wait().filter(|_| keyboard == Some(region.id()));
-                self.framed(region, asks, keyboard, &escaped, wait, frame.animating, ratio)
+                self.framed(
+                    region,
+                    asks,
+                    keyboard,
+                    &escaped,
+                    wait,
+                    frame.animating,
+                    ratio,
+                )
             })
             .collect()
     }

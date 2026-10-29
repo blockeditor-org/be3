@@ -48,7 +48,10 @@ fn a_window_is_committed_with_its_own_screen_in_the_frame_that_opens_it() {
         "the runtime sends the host the layout with the window before the commit"
     );
     assert!(
-        commit.reports.iter().any(|report| report.screen == open.screen),
+        commit
+            .reports
+            .iter()
+            .any(|report| report.screen == open.screen),
         "the window is reported in the commit that opens it"
     );
     let damage = commit.presented.expect("the frame presented").damage;

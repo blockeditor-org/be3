@@ -2628,9 +2628,11 @@ impl Instances {
         let Some(entry) = self.entries.get_mut(&instance) else {
             return;
         };
-        if entry.screens.get(&open.view).is_some_and(|screen| {
-            screen.request.screen == open.screen || screen.mounted > 0
-        }) {
+        if entry
+            .screens
+            .get(&open.view)
+            .is_some_and(|screen| screen.request.screen == open.screen || screen.mounted > 0)
+        {
             return;
         }
         let size = vec2(open.size.width, open.size.height);

@@ -975,7 +975,13 @@ fn DesktopWindows(editor: RegionEditor, state: Memo<RegionView>, rect: Memo<Rect
                 );
                 view! {
                     <CanvasItem x={x} y={y} width={width} height={height}>
-                        <PluginRegion editor region child_view opens_at={Some(opens_at)} on_focus={Callback::new(|()| {})} />
+                        <PluginRegion
+                            editor
+                            region
+                            child_view
+                            opens_at={Some(opens_at)}
+                            on_focus={Callback::new(|()| {})}
+                        />
                     </CanvasItem>
                 }
             }</ForEach>
