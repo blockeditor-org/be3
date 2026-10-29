@@ -455,9 +455,6 @@ pub fn use_dock_tab() -> Option<DockTabControl> {
 #[derive(Clone, Copy)]
 struct ShowsThrough(Memo<bool>);
 
-/// While `shows` is true, every dock built below shows what is drawn under it: none of its panes on the main surface,
-/// nor a stacked dock, fills behind its tabs, as if each showed a `see_through` tab. An editor keeping to a card
-/// of its parent's while it holds the parent's frame provides it, so the parent shows around the card.
 pub fn provide_dock_shows_through(shows: Memo<bool>) {
     provide_context(ShowsThrough(shows));
 }
