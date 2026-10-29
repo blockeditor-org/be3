@@ -46,13 +46,14 @@ def _outputs(ctx, kind: str, universe: str) -> list[Artifact]:
 
 # rustc's check pass over beui for the platforms the build server's tests do not
 # run on, so that beui-layer-xr's OpenXR and the rest of beui's native stack keep
-# compiling there: Windows, where the first headset is.
+# compiling there: Windows, where the first headset is. And over block-app for
+# the web, whose wasi code nothing else compiles before a deploy.
 _CROSS_CHECKS = {
     "root//crates/be-win32-capture:be-win32-capture": ["windows_x86_64"],
     "root//crates/be-win32-input:be-win32-input": ["windows_x86_64"],
     "root//crates/be-win32:be-win32": ["windows_x86_64"],
     "root//crates/beui:beui": ["windows_x86_64"],
-    "root//crates/block-app:block-app": ["windows_x86_64"],
+    "root//crates/block-app:block-app": ["wasi", "windows_x86_64"],
 }
 
 # And over every library planned for beui's HTML core on its platforms

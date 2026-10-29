@@ -12,7 +12,7 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 
 | Command | What it does |
 |---|---|
-| `./scripts/buck run //:check` | rustc's check pass over every first-party target, host and wasm |
+| `./scripts/buck run //:check` | rustc's check pass over every first-party target on the platforms the tests build: Linux x86_64 and the plugins' `wasi_guest` |
 | `./scripts/verify` | autofixes, lints, tests and plugin tests; `--check` writes nothing, `--lint`, `--tests`, `--plugin-tests` run one part |
 | `./scripts/ci` | what CI runs: `./scripts/verify`, and `--previews BASE OUT` the paint previews |
 | `./scripts/test adding [--update]` | the tests whose full names, module path included, contain `adding` (or `media::tests`), in every crate that has one, with all their output; it finds each crate's `:test` and runs it on a worker (below) |
@@ -327,8 +327,7 @@ with `RUSTFLAGS="--cfg beui_html"`; cargo evaluates
 each core links (beui-view takes `beui-core` only under
 `cfg(not(beui_html))`), and `defs.bzl` passes `--cfg beui_html` to every
 first-party rustc on those platforms. `buck/cargo/html.bzl` lists the
-libraries in those plans, and `//:check` and `./scripts/verify` check each on
-its platform; a test or program that runs on the host's HTML core names its
+libraries in those plans, and `./scripts/verify` checks each on its platform; a test or program that runs on the host's HTML core names its
 platform as `default_target_platform`, as beui-view's `:html-test` does, and a
 browser module transitions its library to `wasi_html` with `wasi_html_module`
 (`buck/wasm/defs.bzl`). Code chooses a core with
@@ -413,10 +412,16 @@ extension ships: the toolchain's panics on this workspace.
   of an absolute path. A dependent's link otherwise fails with E0460, "found
   possibly newer version of crate". `third-party/rust/fixups.bzl` overlays the
   third-party crates that did (witx, wasmtime's `bindgen!`).
-- **Plugins compile at opt-level 0** outside a release build, while their
-  dependencies keep the plugin profile's 2 (`editor()` and `plugin_tests()` in
-  `buck/wasm/defs.bzl`), and test modules are precompiled with Cranelift's
-  optimizations off (`--quick`): a change under beui recompiles every plugin.
+- **Plugins compile at opt-level 0** outside a release build, the workspace
+  crates under them for wasm at 1 (`_wasm_dev` in `buck/cargo/defs.bzl`), and
+  only third-party crates at the plugin profile's 2, which their cache hides
+  (`editor()` and `plugin_tests()` in `buck/wasm/defs.bzl`); test modules are
+  precompiled with Cranelift's optimizations off (`--quick`). A change under
+  beui recompiles all of them, and at 2 that was a third of the CPU a change to
+  `geometry` cost `./scripts/verify`.
+- **Parallel frontend.** Every workspace rustc runs with `-Zthreads=8`
+  (`_rustc_flags` in `buck/cargo/defs.bzl`): the crates under beui are a chain
+  each of whose typechecks waits on the one before, which this shortens.
 - **The key.** A server answers a call with a wrong or missing key or token
   with `UNAUTHENTICATED`, which buck2 reports as failing to reach it.
 - **Downloads.** Every `http_archive` has `size_bytes` as well as `sha256`;
@@ -442,8 +447,10 @@ extension ships: the toolchain's panics on this workspace.
   core's libraries. It neither typechecks other configurations (Android, the
   web's wasm32, host wasi, release copies) nor runs clippy: each was a second
   compile of every target, which doubled what a change cost. `//:check`
-  still typechecks every configuration, and code behind `cfg(windows)` or
-  `cfg(target_os = "macos")` is first compiled by `./scripts/deploy`.
+  typechecks less: only `linux_x86_64` and `wasi_guest`
+  (`buck/dev/workspace.bxl`), so an agent's check is a third of the actions it
+  was. Code behind `cfg(windows)` or `cfg(target_os = "macos")` outside beui is
+  first compiled by `./scripts/deploy`.
 - **Clippy** is still in the toolchain:
   `./scripts/buck bxl //buck/dev/workspace.bxl:subtarget -- --subtarget clippy.txt`
   runs it over every target and prints where each target's findings are.
