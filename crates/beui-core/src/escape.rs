@@ -164,13 +164,13 @@ impl Document {
                     .iter()
                     .fold(Rect::NOTHING, |bounds, (display, at)| {
                         let drawn = display.bounds.translate(*at);
-                    if !drawn.is_positive() {
-                        return bounds;
-                    }
-                    bounds.union(match display.node == scrim {
-                        true => to_host.rect(drawn),
-                        false => drawn,
-                    })
+                        if !drawn.is_positive() {
+                            return bounds;
+                        }
+                        bounds.union(match display.node == scrim {
+                            true => to_host.rect(drawn),
+                            false => drawn,
+                        })
                     })
             })
     }
@@ -221,11 +221,10 @@ impl Document {
                 .map(|(rect, color)| (to_host.rect(rect), color))
                 .into_iter()
                 .collect();
-            let drawn = painted
-                .iter()
-                .fold(self.painting_bounds(paint, overlay, to_host), |bounds, rect| {
-                    bounds.union(*rect)
-                });
+            let drawn = painted.iter().fold(
+                self.painting_bounds(paint, overlay, to_host),
+                |bounds, rect| bounds.union(*rect),
+            );
             let rect = match node.placement() {
                 Placement::Edge(_) => space.bounds,
                 _ => drawn.intersect(space.bounds),
@@ -258,9 +257,17 @@ impl Document {
         for _ in 0..crate::node::ANCESTOR_LIMIT {
             let id = current?;
             if let Some(overlay) = self.arena.kind_of::<OverlayNode>(id)
-                && let Some(escape) = self.escapes.held.iter().find(|escape| escape.overlay == overlay)
+                && let Some(escape) = self
+                    .escapes
+                    .held
+                    .iter()
+                    .find(|escape| escape.overlay == overlay)
             {
-                let window = self.layers().iter().find(|layer| layer.overlay == Some(overlay))?.window;
+                let window = self
+                    .layers()
+                    .iter()
+                    .find(|layer| layer.overlay == Some(overlay))?
+                    .window;
                 return Some((escape.id, self.layer_space(window)?.to_host));
             }
             if Some(id) == self.root {

@@ -284,18 +284,9 @@ impl OverlayNode {
                     scale: scale.recip(),
                     raster: scale.recip(),
                 };
-                let host = doc
-                    .laying_out()
-                    .expect("an overlay is laid out as itself");
-                zoomed = doc.enter_zoomed_space(
-                    host,
-                    ESCAPED,
-                    painter,
-                    by,
-                    zoom,
-                    Rect::EVERYTHING,
-                    out,
-                );
+                let host = doc.laying_out().expect("an overlay is laid out as itself");
+                zoomed =
+                    doc.enter_zoomed_space(host, ESCAPED, painter, by, zoom, Rect::EVERYTHING, out);
                 self.escaped = Some((space, by, zoom));
                 (&zoomed, space.bounds)
             }

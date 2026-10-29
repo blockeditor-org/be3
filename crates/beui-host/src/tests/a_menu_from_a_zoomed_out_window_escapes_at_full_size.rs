@@ -97,5 +97,9 @@ fn a_menu_from_a_zoomed_out_window_escapes_at_full_size() {
         harness.runner().push(Incoming::layer(layer.id, input));
         harness.frame(Vec::new());
     }
-    assert_eq!(chosen.get_untracked(), vec![2], "a press on the full-size row chooses it");
+    assert_eq!(
+        chosen.get_untracked(),
+        vec![2],
+        "a press on the full-size row chooses it"
+    );
 }

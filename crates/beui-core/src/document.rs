@@ -1611,7 +1611,11 @@ impl Document {
             self.paint_cache.get_mut().paint_into(into);
             let zoomed = layer
                 .escapes
-                .then(|| self.arena.get_as::<crate::base::overlay::OverlayNode>(overlay).escape_zoom())
+                .then(|| {
+                    self.arena
+                        .get_as::<crate::base::overlay::OverlayNode>(overlay)
+                        .escape_zoom()
+                })
                 .flatten()
                 .map(|(by, zoom)| {
                     painter.zoomed(
