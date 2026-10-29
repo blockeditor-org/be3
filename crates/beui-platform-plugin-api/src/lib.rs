@@ -2,12 +2,12 @@ mod views;
 
 use std::error::Error;
 
+use beui::styled::Root;
 use beui_core::app::App;
 use beui_core::context::{Context, FrameOutput};
 use beui_core::document::Document;
 use beui_core::runner::RunOptions;
 use beui_core::window::WindowId;
-use beui::styled::Root;
 use block_editor_plugin::{EditorHost, RegionId, Regions};
 
 pub use views::{Report, View, Views};
