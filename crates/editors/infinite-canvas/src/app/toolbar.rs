@@ -1,8 +1,8 @@
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::reactive::*;
-use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::dock::styled::{DockBarGrip, DockingLayout, use_dock_bar};
 use block_editor_beui::beui::dock::unstyled::{DockBarPlacement, DockEdge};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::sheet_open;
 use infinite_canvas_types::CanvasProfile;
 
@@ -115,9 +115,7 @@ pub(crate) fn ToolBar(state: CanvasState, open: Memo<bool>, size: Signal<Vec2>) 
     view! {
         <Frame padding={padding}>
             <List spacing=Space::None>
-                <ShowKeepAlive condition={open}>
-                    {content.call(())}
-                </ShowKeepAlive>
+                <ShowKeepAlive condition={open}>{content.call(())}</ShowKeepAlive>
             </List>
         </Frame>
     }
@@ -169,7 +167,10 @@ pub(crate) fn SelectionDock(
                 bottom: away,
                 ..sides
             },
-            DockEdge::Left => Padding { left: away, ..sides },
+            DockEdge::Left => Padding {
+                left: away,
+                ..sides
+            },
             DockEdge::Right => Padding {
                 right: away,
                 ..sides
@@ -196,7 +197,9 @@ pub(crate) fn ZoomPill(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
     let scale = state.editor().scale();
     let readout = create_memo(move || format!("{:.0}%", scale.get() * 100.0));
     let reset = actions.zoom_reset.clone();
-    let content = Render::new(move |()| {
+    let content = RenderFn::new(move |()| {
+        let actions = actions.clone();
+        let reset = reset.clone();
         view! {
             <Frame padding=PILL_MARGIN>
                 <ToolPill @test_id={"infinite-canvas.zoom-pill"}>
@@ -226,8 +229,7 @@ pub(crate) fn ZoomPill(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
                 </ToolPill>
             </Frame>
         }
-    })
-    .once();
+    });
     view! {
         <Floating anchor={anchor} edge=Edge::TopEnd open={open} keep_alive=true>
             {content.call(())}

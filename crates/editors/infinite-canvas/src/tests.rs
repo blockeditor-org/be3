@@ -142,6 +142,9 @@ mod the_preview_shows_the_first_frame;
 mod the_style_popover_fits_a_phone_above_the_dock;
 mod the_style_popover_restyles_the_selection;
 mod the_text_tool_writes_its_box_while_it_is_dragged;
+mod the_tool_bar_docked_along_the_bottom_takes_room_from_the_stage;
+mod the_tool_bar_moved_to_the_left_stands_its_tools_in_a_column;
+mod the_tool_bar_pops_out_of_the_canvas_into_a_window;
 mod the_transform_fields_edit_the_selected_entity;
 mod turned_text_is_drawn_turned_as_it_is_exported;
 mod turning_touch_off_in_the_dock_keeps_fingers_off_the_canvas;
@@ -413,7 +416,3 @@ fn sync(from: &mut BeuiTest<CanvasApp>, to: &mut BeuiTest<CanvasApp>) {
     }
     to.run();
 }
-
-mod the_tool_bar_moved_to_the_left_stands_its_tools_in_a_column;
-mod the_tool_bar_docked_along_the_bottom_takes_room_from_the_stage;
-mod the_tool_bar_pops_out_of_the_canvas_into_a_window;

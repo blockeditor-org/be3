@@ -18,11 +18,7 @@ pub fn ToolPill(
     view! {
         <Frame fill=ColorRole::SurfaceRaised border={Border::DEFAULT} radius=Radius::Full>
             <List direction={direction} spacing=Space::None>
-                <Scroll
-                    @sizing={ItemSize::Intrinsic.shrink(1.0)}
-                    direction={direction}
-                    fit=true
-                >
+                <Scroll @sizing={ItemSize::Intrinsic.shrink(1.0)} direction={direction} fit=true>
                     <Frame padding=Space::Xs>
                         <List
                             @node_ref=&row

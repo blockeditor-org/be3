@@ -84,12 +84,12 @@ pub use types::{
     SurfaceSupport, TimedInput, TopBar, ViewportMetrics,
 };
 pub use types::{
-    DockBar, DockBarMove, DockBarPlace, DockBarPlacement, DockBarWindow, DockChild, DockCover, DockChildClose,
-    DockChildHosted, DockChildPick, DockDeclaration, DockDeclare, DockDialog, DockDirection,
-    DockDragStage, DockEdge, DockFullscreen, DockGroup, DockHome, DockHosted, DockItem,
-    DockItemKind, DockLayout, DockMessage, DockOutside, DockOutsidePane, DockOutsidePlace,
-    DockPane, DockPlace, DockPlacedBar, DockRegionRequest, DockRequest, DockSplit, DockTab,
-    DockTabPath, DockTree, DockWindow,
+    DockBar, DockBarMove, DockBarPlace, DockBarPlacement, DockBarWindow, DockChild, DockChildClose,
+    DockChildHosted, DockChildPick, DockCover, DockDeclaration, DockDeclare, DockDialog,
+    DockDirection, DockDragStage, DockEdge, DockFullscreen, DockGroup, DockHome, DockHosted,
+    DockItem, DockItemKind, DockLayout, DockMessage, DockOutside, DockOutsidePane,
+    DockOutsidePlace, DockPane, DockPlace, DockPlacedBar, DockRegionRequest, DockRequest,
+    DockSplit, DockTab, DockTabPath, DockTree, DockWindow,
 };
 pub use types::{MenuCheck, MenuCommand, MenuHeading, MenuItem, MenuItemKind, MenuPin};
 pub use types::{

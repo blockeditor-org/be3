@@ -841,7 +841,11 @@ impl Document {
             .iter()
             .filter(|(node, _)| self.arena.contains(**node) && self.window_of(**node) == window)
             .filter_map(|(node, rects)| Some((self.node_rect(*node)?, rects)))
-            .flat_map(|(at, rects)| rects.iter().map(move |rect| rect.translate(at.min.to_vec2())))
+            .flat_map(|(at, rects)| {
+                rects
+                    .iter()
+                    .map(move |rect| rect.translate(at.min.to_vec2()))
+            })
             .filter(|rect| rect.is_positive())
             .collect()
     }

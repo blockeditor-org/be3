@@ -20,10 +20,7 @@ fn the_tool_bar_moved_to_the_left_stands_its_tools_in_a_column() {
     );
     let top = editor.rect_of("infinite-canvas.dock.tool.Select");
     let below = editor.rect_of("infinite-canvas.dock.tool.Pen");
-    assert!(
-        top.bottom() <= below.top(),
-        "its tools run down the side"
-    );
+    assert!(top.bottom() <= below.top(), "its tools run down the side");
 
     editor.click(format!("infinite-canvas.entity.{}", rectangle.id));
     editor.run();

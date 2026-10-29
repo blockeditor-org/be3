@@ -34,13 +34,13 @@ use beui_components_unstyled::DialogLayout;
 use beui_components_unstyled::menu_popup::MenuStyle;
 const MAX_JOINED_DEPTH: usize = 16;
 
+use super::BarCovers;
 pub use host::{
     DockBarMove, DockBodies, DockDeclaration, DockDeclaredBar, DockDeclaredDialog, DockDeclaredTab,
     DockDragStage, DockHostEvent, DockHostLink, DockHostSlot, DockHosted, DockJoin, DockRequest,
     use_dock_join,
 };
 use host::{Joined, Registry};
-use super::BarCovers;
 
 pub trait DockKey: Clone + Eq + Hash + 'static {
     fn key(&self) -> String;
