@@ -5,7 +5,7 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
-beui = { path = "../beui", default-features = false }
+beui = { path = "../beui" }
 block-editor-beui = { path = "../block-editor-beui" }
 block-ui-database = { path = "../block-ui-database" }
 database-types = { path = "../editors/database/types" }

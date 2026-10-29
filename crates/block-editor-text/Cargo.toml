@@ -6,7 +6,7 @@ license.workspace = true
 
 [dependencies]
 be-block = { path = "../be-block" }
-beui = { path = "../beui", default-features = false }
+beui = { path = "../beui" }
 block-editor-plugin = { path = "../block-editor-plugin" }
 serde = { version = "1", features = ["derive"] }
 text-editor-core = { path = "../text-editor-core" }
