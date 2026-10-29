@@ -48,7 +48,7 @@ One `Dialog`, presented by kind and size, with an optional anchor:
 5. Program dialogs (Wayland/X): windows centred on their parent. Unchanged.
 6. Command palette: top-centred overlay. Unchanged.
 
-Anchor fallback: the control that opened it; if that was a menu row that has closed, the menu's trigger; if a shortcut or the palette opened it, hang from the top of the owning frame; if nothing owns it, centre over the window. `DockDialog`'s presentation policy moves into this shared `Dialog`.
+Anchor fallback: the control that opened it; if that was a menu row that has closed, the thing the menu was opened on (a context menu's target, a dropdown's button); if the command came from a menu another layer drew (the frame menu on the tab bar) or from a shortcut or the palette, the editor's tab, whose rectangle in host coordinates the root dock fills in on menu picks (`dock-update.pick`, the child-menu pick) and on request; for a child with no tab, the rect its parent placed it at; if none of those is visible (a fullscreen tab), a zero-height rect at the top centre of the owning frame. A small dialog is always one placement, anchored to a rect; it draws its beak only when the anchor is something the user can see (control, row, tab), not the synthesized top-centre one, so `HangFrom` and `DialogAnchor::Frame` go. Large dialogs stay centred on their frame and app-level modals over the window. On phones, sheets. `DockDialog`'s presentation policy moves into this shared `Dialog` (workstream I, after B4 and D2).
 
 ### Web (workstream G)
 
@@ -75,6 +75,6 @@ Each plugin worker gets one overlay canvas covering the app viewport, above the 
 | 1 | B1 host (block-app compositor, routing, dismissal) · B2 plugin runtime (layer surfaces, commit, input) · B3 beui (layer space, escaping overlays, `Dialog` anchor and presentation) · D1 then E1 |
 | 2 | B4 integration, app tests, accessibility, `drive`, delete Overlay windows and `overlays_in_windows` · D2 bars across plugins |
 | 3 | C picker, rename, app menu · F dock dialogs as owner-drawn layers · G web · D3 canvas toolbar · E2 settings · H dialog call sites |
-| 4 | D4 shared window · cleanup of dead mechanisms · guides (PROTOCOL.md, adding_a_plugin_editor.md, beui.md, pan_and_zoom.md, desktop guides) |
+| 4 | I tab anchors and one small-dialog placement (with F) · D4 shared window · cleanup of dead mechanisms · guides (PROTOCOL.md, adding_a_plugin_editor.md, beui.md, pan_and_zoom.md, desktop guides) |
 
 File ownership, to keep parallel agents apart: B1 `crates/block-app/src/compositor/*`, `plugin_host/runtime.rs`, `plugin_host/instances.rs`; B2 `crates/block-editor-plugin`, `crates/block-gpu-guest`, `crates/beui-platform-plugin`; B3 `crates/beui-core`, `crates/beui-view`, `crates/beui-types`, `crates/beui-components-*`; D1 and E1 `crates/beui-dock`; G `crates/beui-platform-web`, `crates/block-app/src/plugin_host/web`.
