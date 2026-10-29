@@ -22,6 +22,7 @@ pub(crate) struct RowTools {
     pub(crate) picker: Picker,
     pub(crate) exporter: Exporter,
     pub(crate) inspect: Signal<Option<Inspection>>,
+    pub(crate) inspected_from: NodeRef,
     pub(crate) zoom: Zoom,
     pub(crate) renaming: Renaming,
 }
@@ -179,6 +180,7 @@ fn BlockMenu<F: Fn() + 'static>(
         picker,
         exporter,
         inspect,
+        inspected_from,
         renaming,
         ..
     } = tools;
@@ -282,6 +284,9 @@ fn BlockMenu<F: Fn() + 'static>(
     };
     let inspecting = move || {
         if let Some((_, shown)) = shown() {
+            if let Some(row) = focused_node() {
+                inspected_from.fill(row);
+            }
             inspect.set(shown.inspection);
         }
     };

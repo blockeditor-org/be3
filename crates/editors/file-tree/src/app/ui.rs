@@ -43,12 +43,14 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
     let exported = exporter.error();
     let held: Held = store(std::cell::Cell::new(None));
     let inspecting = create_signal(None::<Inspection>);
+    let inspected_from = NodeRef::new();
     let tools = RowTools {
         editor,
         tree,
         picker,
         exporter,
         inspect: inspecting,
+        inspected_from,
         zoom,
         renaming,
     };
@@ -279,7 +281,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                     </Frame>
                 </BackSlide>
             </Frame>
-            <Inspector inspecting={inspecting} />
+            <Inspector inspecting={inspecting} opened_from={inspected_from} />
         </List>
     }
 }
@@ -320,7 +322,7 @@ fn PhoneTitle(
 }
 
 #[component]
-fn Inspector(inspecting: Signal<Option<Inspection>>) -> NodeId {
+fn Inspector(inspecting: Signal<Option<Inspection>>, opened_from: NodeRef) -> NodeId {
     let open = create_memo(move || inspecting.get().is_some());
     let field = |read: fn(&Inspection) -> &String| {
         create_memo(move || {
@@ -342,6 +344,7 @@ fn Inspector(inspecting: Signal<Option<Inspection>>) -> NodeId {
             open={open}
             title="Inspect"
             width=INSPECT_WIDTH
+            anchor={DialogAnchor::Control(opened_from)}
             id="file-tree.inspect"
             on_dismiss={dismiss}
         >

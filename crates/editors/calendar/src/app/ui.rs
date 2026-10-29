@@ -19,6 +19,26 @@ const INTRINSIC_WIDTH: f32 = 880.0;
 const MONTH_HEIGHT: f32 = 600.0;
 const TIMELINE_HEIGHT: f32 = 660.0;
 
+#[derive(Clone, Copy)]
+pub(crate) struct FormOpener(NodeRef);
+
+impl FormOpener {
+    pub(crate) fn opened_from(self, control: NodeRef) {
+        if let Some(node) = control.try_get() {
+            self.0.fill(node);
+        }
+    }
+}
+
+pub(crate) fn use_form_opener() -> impl Fn(NodeRef) + Copy + 'static {
+    let opener = use_context::<FormOpener>();
+    move |control: NodeRef| {
+        if let Some(opener) = opener {
+            opener.opened_from(control);
+        }
+    }
+}
+
 #[component]
 pub fn CalendarEditor(editor: Editor) -> NodeId {
     let calendar = editor.block_content::<CalendarContent>();
@@ -31,6 +51,9 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
     let mode = create_signal(CalendarView::default());
     let anchor = create_signal(today_days_since_epoch());
     let form = create_signal(None::<EventForm>);
+    let opener = FormOpener(NodeRef::new());
+    provide_context(opener);
+    let add_button = NodeRef::new();
 
     create_effect(move || {
         let height = match mode.get() {
@@ -56,6 +79,7 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
     };
     let today = move || anchor.set(today_days_since_epoch());
     let add = move || {
+        opener.opened_from(add_button);
         form.set(Some(EventForm::new_at(anchor.get_untracked(), 9)));
     };
 
@@ -135,6 +159,7 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
                     label="Event"
                     variant=ButtonVariant::Primary
                     disabled={read_only}
+                    @node_ref={&add_button}
                     @test_id={"calendar.add-event"}
                     on_click={add}
                 />
@@ -176,7 +201,7 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
                     }</Dynamic>
                 </List>
             </Frame>
-            <EventDialog form={form} read_only={read_only} on_operate={operate} />
+            <EventDialog form={form} read_only={read_only} opener={opener} on_operate={operate} />
         </List>
     }
 }
@@ -185,6 +210,7 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
 fn EventDialog(
     form: Signal<Option<EventForm>>,
     read_only: block_editor_beui::beui::reactive::Memo<bool>,
+    opener: FormOpener,
     on_operate: block_editor_beui::beui::reactive::Callback<FormAction>,
 ) -> NodeId {
     let open = create_memo(move || form.get().is_some());
@@ -258,6 +284,7 @@ fn EventDialog(
             open={open}
             title={title}
             id="calendar.form"
+            anchor={DialogAnchor::Control(opener.0)}
             actions={vec![
                 DialogAction::destructive("Delete", delete).shown(editing).named("delete"),
                 DialogAction::cancel("Cancel"),

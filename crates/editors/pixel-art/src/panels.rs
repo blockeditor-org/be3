@@ -136,6 +136,7 @@ pub(crate) fn TopBar(
                 glyph=ICON_SCALING
                 label="Resize"
                 disabled={read_only}
+                @node_ref={&tools.resize_button}
                 @test_id={"pixel-art.resize"}
                 on_click={resize}
             />
@@ -403,6 +404,7 @@ pub(crate) fn Dialogs(tools: Tools, size: Memo<(u16, u16)>) -> NodeId {
             <styled::Dialog
                 open={resizing}
                 title="Resize pixel art"
+                anchor={DialogAnchor::Control(tools.resize_button)}
                 id="pixel-art.resize"
                 actions={vec![
                     DialogAction::cancel("Cancel"),

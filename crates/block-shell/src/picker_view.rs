@@ -505,6 +505,7 @@ fn CentredSurface(picker: Picker, held: Memo<Option<Pick>>) -> NodeId {
             open={open}
             width={Size::Custom(SURFACE_SIZE.x)}
             narrow=true
+            size=DialogSize::Large
             on_dismiss={close}
         >|| {
             let layout = use_context::<DialogLayout>();

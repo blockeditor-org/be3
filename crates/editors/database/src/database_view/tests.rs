@@ -17,6 +17,7 @@ use crate::database_view::sort::{BlockLabels, compare_database_values};
 
 mod a_blocked_row_lists_its_blockers_and_they_list_it_as_blocking;
 mod a_filter_hides_the_rows_it_rejects;
+mod filter_and_display_hangs_from_its_button_and_is_a_sheet_on_a_phone;
 mod a_list_groups_rows_by_status_and_folds_the_closed_ones;
 mod a_list_shows_each_row_by_its_short_id_and_opens_it_beside_the_list;
 mod a_list_waits_for_the_rows_its_relations_name;

@@ -5,6 +5,7 @@ use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, PointerPress, Vec2};
 use block_ui::datetime::civil_from_days;
 
+use super::ui::use_form_opener;
 use super::model::{
     SECONDS_PER_DAY, Shown, WEEKDAY_ABBR, assign_lanes, events_on, today_days_since_epoch,
     weekday_from_days,
@@ -97,16 +98,24 @@ fn Grid(
     let keys = create_memo(move || {
         placed.with(|placed| placed.iter().map(|item| item.key).collect::<Vec<_>>())
     });
+    let picked_held = create_signal((0usize, 0u8));
+    let picked = picked_held.read_only();
+    let slot_marker = NodeRef::new();
+    let opened_from = use_form_opener();
     let slot = move |at: block_editor_beui::beui::Pos2| {
         let x = at.x - GUTTER;
         if x < 0.0 {
             return;
         }
-        let column = (x / column_width.get_untracked()).floor() as i64;
+        let column = ((x / column_width.get_untracked()).floor() as usize).min(days - 1);
         let hour = (at.y / HOUR_HEIGHT).floor().clamp(0.0, 23.0) as u8;
-        let day = first_day.get_untracked() + column.min(days as i64 - 1);
+        let day = first_day.get_untracked() + column as i64;
+        picked_held.set((column, hour));
+        opened_from(slot_marker);
         on_pick_slot.call((day, hour));
     };
+    let slot_x = create_memo(move || GUTTER + picked.get().0 as f32 * column_width.get());
+    let slot_y = create_memo(move || f32::from(picked.get().1) * HOUR_HEIGHT);
     let built = view! {
         <Frame height={Size::Custom(CONTENT_HEIGHT)}>
             <Interactive on_click_at={move |press: PointerPress| slot(press.local)}>
@@ -139,6 +148,9 @@ fn Grid(
                             </CanvasItem>
                         }
                     }</ForEach>
+                    <CanvasItem x={slot_x} y={slot_y} width={column_width} height=HOUR_HEIGHT>
+                        <Frame @node_ref={&slot_marker} />
+                    </CanvasItem>
                     <ForEach keys={keys}>|key: (ObjectId, i64)| {
                         let item = item_of(placed, key);
                         view! {
@@ -172,14 +184,17 @@ fn EventBlock(item: Memo<Option<Placed>>, on_pick: Callback<Shown>) -> CanvasIte
     let element_test_id = item.get_untracked().map_or_else(String::new, |item| {
         format!("calendar.event.{}", item.event.id)
     });
+    let opened_from = use_form_opener();
+    let block = NodeRef::new();
     let open = move || {
         if let Some(item) = item.get_untracked() {
+            opened_from(block);
             on_pick.call(item.event);
         }
     };
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>
-            <Frame fill=ColorRole::Accent radius=Radius::Xs>
+            <Frame @node_ref={&block} fill=ColorRole::Accent radius=Radius::Xs>
                 <ListRow @test_id={element_test_id} on_click={open} on_activate={open}>
                     <Text style=TextStyle::CAPTION color=TextColor::OnAccent>{title}</Text>
                 </ListRow>

@@ -29,7 +29,12 @@ pub(crate) fn EditorMenu(state: State) -> NodeId {
     let text_view = create_memo(move || !hex.get());
     let hex_view = create_memo(move || hex.get());
     view! {
-        <Dialog open={settings} title="Text settings" on_dismiss={move || settings.set(false)}>
+        <Dialog
+            open={settings}
+            title="Text settings"
+            anchor=DialogAnchor::Frame
+            on_dismiss={move || settings.set(false)}
+        >
             <List spacing=SETTINGS_SPACING>
                 <Show condition={text_view}>
                     <TextSettings state={state} />

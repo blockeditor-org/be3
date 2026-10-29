@@ -7,7 +7,7 @@ use beui::{CursorIcon, KeyPress, NodeId, PointerPress, Rect};
 use block_editor_beui::{Editor, LoadingPane, Side, Sidebar, Toolbar};
 
 use super::hotbar_ui::{HOTBAR_WIDTH, Hotbar, ToolSettings};
-use super::panels::Panels;
+use super::panels::{Panels, StorageDialog};
 use super::session::Session;
 use super::*;
 use crate::renderer::GridScene;
@@ -46,6 +46,7 @@ pub(super) fn LogicGridView(editor: Editor) -> NodeId {
                             <Panels session={session} />
                         </Sidebar>
                     </List>
+                    <StorageDialog session={session} />
                 </List>
             </Show>
         </List>
@@ -258,6 +259,7 @@ fn GridCanvas(session: Session) -> NodeId {
                                     <GridLabel label={label} zoom={zoom} />
                                 }
                             }</ForEach>
+                            <ConfiguredStorage session={session} />
                         </Canvas>
                     </CanvasItem>
                 </Canvas>
@@ -271,6 +273,28 @@ fn GridCanvas(session: Session) -> NodeId {
         }
     });
     built
+}
+
+#[component]
+fn ConfiguredStorage(session: Session) -> CanvasItem {
+    let bounds = create_memo(move || {
+        session.read(|model| {
+            let component = model.grid.component(model.configured_storage?)?;
+            let size = component.size()?;
+            let left = component.position.x as f32;
+            let top = component.position.y as f32;
+            Some([left, top, size.width as f32, size.height as f32])
+        })
+    });
+    let x = create_memo(move || bounds.get().map_or(0.0, |bounds| bounds[0]));
+    let y = create_memo(move || bounds.get().map_or(0.0, |bounds| bounds[1]));
+    let width = create_memo(move || bounds.get().map_or(0.0, |bounds| bounds[2]));
+    let height = create_memo(move || bounds.get().map_or(0.0, |bounds| bounds[3]));
+    view! {
+        <CanvasItem x={x} y={y} width={width} height={height}>
+            <Frame @node_ref={&session.configured_at} />
+        </CanvasItem>
+    }
 }
 
 #[component]
