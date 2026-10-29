@@ -2217,9 +2217,7 @@ the card's sides with a `Scroll` or `Tree` whose `bleed` is `Bleed::DIALOG`), an
 pinned footer; it reads `narrow` and `bottom_inset` (how much of its bottom is covered,
 which its padding keeps the footer above) from the `DialogLayout` it is in. Code that places
 its own body uses the parts: block-app's keep-changes prompt is a `DialogCard` with a
-`DialogBody` in a centred `Modal`, the dock's Rename card and the
-block picker's stages are a `DialogBody` in a `DockDialog` (which provides a
-`DialogLayout` that is narrow while the dock is stacked and the card a sheet), and a
+`DialogBody` in a centred `Modal`, and a
 plugin opened as a dialog draws a `DialogBody` that block-editor-beui hands a
 `DialogLayout` from its frame's `dialog`. A sheet is fitted to the screen beui's on-screen
 keyboard leaves, so its footer stays above it.
@@ -2914,46 +2912,15 @@ dialogs), its label shows a dot (`DockTabHandle::waiting`, styled
 `dock.tab.<tab>.waiting`): the tab is waiting on a choice, which matters most
 once another tab is shown in its place and hides the dialog.
 
-`presentation=DockDialogPresentation::Card` (rather than the default `Window`)
-shows the same dialog as a card floating from its tab: always modal, it is
-centred on the parent's panel a small gap under its tab bar
-(`Placement::HangFrom`, Docking's `dialog_margin`) and keeps the `size` it asks
-for even where the pane is narrower, reaching over the panes beside it; it is
-only kept that margin inside the window, and shrinks only where the window is
-too small (the body is `Extent::at_most(size)`): in a short window it shrinks
-under its tab bar first, and rises over the bar, hiding the tab's waiting dot,
-only when even its smallest size does not fit below it. Its scrim (Docking's
-`dialog_scrim`) dims that panel alone: a `BlocksParent` overlay with a visible
-scrim lays it over the node it blocks. A `BlocksParent` layer occludes the node
-it blocks and its content (`Document::layer_covers`), dimmed or not, so the card
-draws over other panes and takes the presses it covers there, a plugin's host
-routes presses on the blocked panel to the dock rather than to an editor shown
-in it, and the rest of those panes, the tab bar and other tabs stay live. A
-press on the blocked panel calls the card's attention, or
-closes it through `on_close` with `dismiss_on_outside_press` (any modal
-`DockDialog` takes it; a press on another pane never closes one). It has no
-title bar: its content draws its own header and close button (styled: the
-dialog card's raised surface, `Radius::Lg` on every corner, the dialog outline
-that shows focus and attention, kept `dialog::MARGIN`
-from the tab bar and the window's edges). Its layer hangs from the panel, so it
-follows the tab into another pane or a window.
-
-Given an `anchor`, the rect in document coordinates of the control that asked
-for it, a card is a popover instead: it hangs `Placement::Popover` from that rect
-pinned to the parent's panel (`OverlayAnchor::Pinned`), Docking's `dialog_gap`
-off it and `dialog_margin` inside the window, so it keeps its place on the tab
-when the pane moves or resizes and follows the tab into another pane or window.
-It is not dimmed: the panel is blocked all the same, so a press on it closes the
-card or calls its attention as above. The chrome names the frame to point from
-with the handle's `pointer` (styled: the card's frame, whose beak points at the
-control's middle from the side the card opened on). Everything else - modal to
-its tab, hidden with it, the waiting dot, the keyboard, the sheet in a stacked
-dock - is the card's. In a stacked dock it is
-`dialog_sheet` instead (styled: a `ModalSheet`), whose body fills the sheet's
-width as every sheet's does rather than keeping the card's `size`, and the same
-body moves between the two through `Portal`s, so nothing in it is rebuilt. A dialog's
-body is built once when it is declared and kept while its tab is hidden,
-whichever presentation it has.
+A `DockDialog` is only ever a window or a modal (`dismiss_on_outside_press` lets a
+press on the blocked panel close a modal one instead of calling its attention).
+A small form that points at a control or at its tab is no dock dialog: it is
+the shared `Dialog` (above), which escapes its pane as a layer of its own
+(and, in a plugin, an anchored view of its owner) and finds its tab through
+`use_frame_anchor()`, which the dock provides in every tab body
+(`DockTabControl::anchor()`: the tab's entry in its strip, none while the tab
+is fullscreen; `DockTabControl::handle()` is that entry's node). A dialog's
+body is built once when it is declared and kept while its tab is hidden.
 
 A `DockBar`, declared beside the dock's other children like a `DockDialog`, is a
 tool bar that belongs to a tab: `<DockBar id parent placement>body</DockBar>`

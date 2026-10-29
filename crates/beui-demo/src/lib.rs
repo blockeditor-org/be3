@@ -7,9 +7,9 @@ use beui::Overflow;
 use beui::datetime::{Date, DateTime, HourCycle, Time};
 use beui::dock::styled::{DockBarGrip, Docking};
 use beui::dock::unstyled::{
-    DockBar, DockBarPlacement, DockDialog, DockDialogPresentation, DockDocument, DockDocumentBody,
-    DockDocumentTabs, DockDocuments, DockEdge, DockOpened, DockPane, DockSlot, DockSplit, DockTab,
-    DockTabControl, DockingLayout, TabId, dock_menu, use_dock_bar, use_dock_tab,
+    DockBar, DockBarPlacement, DockDialog, DockDocument, DockDocumentBody, DockDocumentTabs,
+    DockDocuments, DockEdge, DockOpened, DockPane, DockSlot, DockSplit, DockTab, DockTabControl,
+    DockingLayout, TabId, dock_menu, use_dock_bar, use_dock_tab,
 };
 use beui::icons::Glyph;
 use beui::icons::{
@@ -39,7 +39,7 @@ use rich_text::RichTextPage;
 use sample::{Sample, ScrollPage};
 use std::rc::Rc;
 use std::sync::Arc;
-use styled_pages::{AttachedCard, AttachedDialog};
+use styled_pages::AttachedDialog;
 use styled_pages::{
     ButtonsPage, CanvasPage, ChoicesPage, ColorsPage, DockBarsPage, DockingPage, EditorPage,
     InputsPage, LabelledSwitch, LayoutPage, MenusPage, NestedDocksPage, OverlaysPage, PickersPage,
@@ -63,7 +63,6 @@ const CATALOG: TabId = TabId::new(1);
 const DIALOG_TABS: u64 = 1 << 40;
 const DIALOG_SIZE: beui::Vec2 = beui::Vec2::new(460.0, 120.0);
 const NESTED_DIALOG_INSET: beui::Vec2 = beui::Vec2::new(56.0, 16.0);
-const CARD_SIZE: beui::Vec2 = beui::Vec2::new(440.0, 300.0);
 const PAGE_SHARE: f32 = 0.76;
 const SHELL_PADDING: Space = Space::Md;
 const TOOLBAR_SPACING: Space = Space::Md;
@@ -389,40 +388,18 @@ struct DemoDialog {
     id: TabId,
     parent: TabId,
     modal: bool,
-    card: bool,
-    anchor: Option<[u32; 4]>,
     depth: u8,
 }
 
 impl DemoDialog {
     fn size(self) -> beui::Vec2 {
-        match self.card {
-            true => CARD_SIZE,
-            false => DIALOG_SIZE - NESTED_DIALOG_INSET * f32::from(self.depth),
-        }
-    }
-
-    fn anchor(self) -> Option<Rect> {
-        self.anchor.map(|[left, top, right, bottom]| {
-            Rect::from_min_max(
-                beui::pos2(f32::from_bits(left), f32::from_bits(top)),
-                beui::pos2(f32::from_bits(right), f32::from_bits(bottom)),
-            )
-        })
-    }
-
-    fn presentation(self) -> DockDialogPresentation {
-        match self.card {
-            true => DockDialogPresentation::Card,
-            false => DockDialogPresentation::Window,
-        }
+        DIALOG_SIZE - NESTED_DIALOG_INSET * f32::from(self.depth)
     }
 
     fn title(self) -> &'static str {
-        match (self.card, self.modal) {
-            (true, _) => "Card",
-            (false, true) => "Modal dialog",
-            (false, false) => "Dialog",
+        match self.modal {
+            true => "Modal dialog",
+            false => "Dialog",
         }
     }
 }
@@ -443,16 +420,6 @@ impl DemoDialogs {
     }
 
     fn open(&self, parent: TabId, modal: bool) {
-        self.add(parent, modal, false, None);
-    }
-
-    fn open_card(&self, parent: TabId, anchor: Option<Rect>) {
-        self.add(parent, true, true, anchor);
-    }
-
-    fn add(&self, parent: TabId, modal: bool, card: bool, anchor: Option<Rect>) {
-        let anchor =
-            anchor.map(|rect| [rect.min.x, rect.min.y, rect.max.x, rect.max.y].map(f32::to_bits));
         let id = TabId::new(self.next.with(|next| next.replace(next.get() + 1)));
         self.open.update(|open| {
             let depth = open
@@ -463,8 +430,6 @@ impl DemoDialogs {
                 id,
                 parent,
                 modal,
-                card,
-                anchor,
                 depth,
             });
         });
@@ -655,31 +620,16 @@ fn DemoShell() -> NodeId {
                         id={dialog.id}
                         parent={dialog.parent}
                         modal={dialog.modal}
-                        presentation={dialog.presentation()}
-                        anchor={dialog.anchor()}
-                        dismiss_on_outside_press={dialog.card}
                         title={dialog.title()}
                         icon=ICON_EXTERNAL_LINK
                         size={dialog.size()}
                         on_close={move || dialogs.close(dialog.id)}
                     >
-                        <DemoDialogBody dialog />
+                        <AttachedDialog modal={dialog.modal} />
                     </DockDialog>
                 </ForEach>
             </Docking>
         </List>
-    }
-}
-
-#[component]
-fn DemoDialogBody(dialog: DemoDialog) -> NodeId {
-    match dialog.card {
-        true => view! {
-            <AttachedCard />
-        },
-        false => view! {
-            <AttachedDialog modal={dialog.modal} />
-        },
     }
 }
 

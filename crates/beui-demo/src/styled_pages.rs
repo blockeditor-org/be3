@@ -6,7 +6,7 @@ use beui::icons::{
     ICON_A_LARGE_SMALL, ICON_CIRCLE, ICON_CIRCLE_CHECK, ICON_CLOCK, ICON_COPY_PLUS, ICON_FILE_UP,
     ICON_FOLDER, ICON_IMAGE, ICON_INFO, ICON_PAPERCLIP, ICON_PLUS, ICON_QUOTE, ICON_SAVE,
     ICON_SQUARE, ICON_STAR, ICON_TABLE, ICON_TEXT_ALIGN_START, ICON_TRIANGLE, ICON_TRIANGLE_ALERT,
-    ICON_UNDO_2, ICON_WIFI, ICON_X, ICON_ZOOM_IN, ICON_ZOOM_OUT,
+    ICON_UNDO_2, ICON_WIFI, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
 use beui::keyboard::styled::SoftwareKeyboard;
 use beui::{Align, CanvasView, Extent};
@@ -171,7 +171,7 @@ pub(crate) fn DockingPage() -> NodeId {
             </Sample>
             <Sample
                 title="Dialogs attached to a tab"
-                code={vec![AttachedDialogs::SOURCE, AttachedDialog::SOURCE, AttachedCard::SOURCE]}
+                code={vec![AttachedDialogs::SOURCE, AttachedDialog::SOURCE, PointingCard::SOURCE]}
             >
                 <AttachedDialogs />
             </Sample>
@@ -188,11 +188,7 @@ fn AttachedDialogs() -> NodeId {
     let dialogs = use_context::<DemoDialogs>();
     let tab = use_dock_tab().map(|control| control.tab());
     let pointing = NodeRef::new();
-    let open_card = move |anchor: Option<Rect>| {
-        if let (Some(dialogs), Some(tab)) = (dialogs.as_ref(), tab) {
-            dialogs.open_card(tab, anchor);
-        }
-    };
+    let card = create_signal(false);
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal wrap=true spacing=ROW_SPACING>
@@ -217,23 +213,14 @@ fn AttachedDialogs() -> NodeId {
                     }}
                 />
                 <Button
-                    @test_id="demo.dialog.card"
-                    label="Open a card"
-                    variant=ButtonVariant::Secondary
-                    on_click={move || open_card(None)}
-                />
-                <Button
                     @test_id="demo.dialog.pointing"
                     @node_ref=&pointing
                     label="Open a card from here"
                     variant=ButtonVariant::Secondary
-                    on_click={move || {
-                        open_card(pointing.try_get().and_then(|button| {
-                            Some(measure(button).get_untracked()?.rect)
-                        }))
-                    }}
+                    on_click={move || card.set(true)}
                 />
             </List>
+            <PointingCard open={card} control={pointing} />
             <Text style=TextStyle::CAPTION>
                 "A dialog hangs from the tab that opened it: it floats in the middle of \
                  that tab, hides when another tab is shown in its place and comes back with it, \
@@ -241,17 +228,11 @@ fn AttachedDialogs() -> NodeId {
                  for its tab until it closes, and the focus goes back to the tab when it does."
             </Text>
             <Text style=TextStyle::CAPTION>
-                "A card floats just under the tab bar, centred on the tab but free to \
-                 reach past its pane, dims the tab and waits for a choice, with a dot on the tab \
-                 meanwhile. Pressing the dimmed tab closes it. Other tabs and panes stay usable, \
-                 and the card keeps what was done in it while another tab is shown. On a phone it \
-                 is a sheet from the bottom of the screen."
-            </Text>
-            <Text style=TextStyle::CAPTION>
-                "A card opened from a control points at it instead, like a popover: it \
-                 opens under the control, or above it where there is no room below, and leaves \
-                 the tab undimmed. Pressing elsewhere on the tab closes it, and it keeps its \
-                 place on the tab when the pane is moved or resized."
+                "A small form opened from a control is no dialog of the dock: it is the \
+                 shared Dialog, a card pointing at the control, under it or above it where \
+                 there is no room below, which leaves the tab undimmed and escapes its pane. \
+                 Pressing elsewhere closes it. On a phone it is a sheet from the bottom of the \
+                 screen."
             </Text>
         </List>
     }
@@ -301,55 +282,33 @@ pub(crate) fn AttachedDialog(modal: bool) -> NodeId {
 
 #[sample]
 #[component]
-pub(crate) fn AttachedCard() -> NodeId {
-    let dialogs = use_context::<DemoDialogs>();
-    let tab = use_dock_tab().map(|control| control.tab());
-    let id = tab.map_or(0, TabId::value);
+fn PointingCard(open: Signal<bool>, control: NodeRef) -> NodeId {
     let presses = create_signal(0_u32);
     let label = create_memo(move || match presses.get() {
         0 => "Press me".to_owned(),
         count => format!("Pressed {count} times"),
     });
-    let close = move || {
-        if let (Some(dialogs), Some(tab)) = (dialogs.as_ref(), tab) {
-            dialogs.close(tab);
-        }
-    };
     view! {
-        <List spacing=Space::None>
-            <Frame padding=PAGE_PADDING>
-                <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                    <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0)>
-                        "Choose something"
-                    </Text>
-                    <Button
-                        icon_only=true
-                        @test_id={format!("demo.card.{id}.close")}
-                        glyph=ICON_X
-                        label="Close"
-                        variant=ButtonVariant::Ghost
-                        on_click={close}
-                    />
-                </List>
-            </Frame>
-            <Separator />
-            <Scroll @sizing=ItemSize::Percent(100.0)>
-                <Frame padding=PAGE_PADDING>
-                    <List spacing=SECTION_SPACING>
-                        <Text>
-                            "Only the tab under this card waits for it. Show another tab \
-                             and come back: the count below is kept."
-                        </Text>
-                        <Button
-                            @test_id={format!("demo.card.{id}.count")}
-                            label={label}
-                            variant=ButtonVariant::Secondary
-                            on_click={move || presses.update(|presses| *presses += 1)}
-                        />
-                    </List>
-                </Frame>
-            </Scroll>
-        </List>
+        <Dialog
+            open={open}
+            title="Choose something"
+            anchor={DialogAnchor::Control(control)}
+            width={Size::Custom(520.0)}
+            on_dismiss={move || open.set(false)}
+        >
+            <List @test_id="demo.pointing.card" spacing=SECTION_SPACING>
+                <Text>
+                    "A card opened from a control points at it and dims nothing. \
+                     Pressing anywhere outside it closes it."
+                </Text>
+                <Button
+                    @test_id="demo.pointing.count"
+                    label={label}
+                    variant=ButtonVariant::Secondary
+                    on_click={move || presses.update(|presses| *presses += 1)}
+                />
+            </List>
+        </Dialog>
     }
 }
 

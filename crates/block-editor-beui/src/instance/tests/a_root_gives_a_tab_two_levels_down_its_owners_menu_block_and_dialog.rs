@@ -79,9 +79,7 @@ fn a_root_gives_a_tab_two_levels_down_its_owners_menu_block_and_dialog() {
             height: 90.0,
         },
         modal: false,
-        card: false,
         dismiss_on_outside_press: false,
-        anchor: None,
         closable: true,
     });
     let mut middle = one("middle", 6, &[]);

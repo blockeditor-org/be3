@@ -53,8 +53,8 @@ use beui_view::window::{Window, WindowHandle, opens_windows, use_window};
 pub(crate) use bars::BarCovers;
 use bars::{BarPanels, DockBarTargets, DockBarWindows, DockBarred};
 pub use bars::{DockBarControl, DockBarTargetHandle, use_dock_bar};
+pub use dialog::DockDialogHandle;
 use dialog::{DialogParts, DockDialogs};
-pub use dialog::{DockDialogHandle, DockDialogPresentation, DockSheetHandle};
 pub use docking::{
     DockBar, DockBarMove, DockBodies, DockDeclaration, DockDeclaredBar, DockDeclaredDialog,
     DockDeclaredTab, DockDialog, DockDragStage, DockEntry, DockGroup, DockHostEvent, DockHostLink,
@@ -576,11 +576,6 @@ struct State {
     dialogs: Memo<Vec<(TabId, TabId)>>,
     dialog: Func<TabId, Option<DialogParts>>,
     dialog_chrome: RenderFn<DockDialogHandle>,
-    dialog_sheet: Option<RenderFn<DockSheetHandle>>,
-    dialog_scrim: Memo<Color>,
-    dialog_margin: u16,
-    dialog_gap: u16,
-    dialog_beak: f32,
     dialog_outset: Vec2,
     dialog_frames: Stored<RefCell<HashMap<TabId, NodeRef>>>,
     dialog_bodies: Stored<RefCell<HashMap<TabId, NodeRef>>>,
@@ -1683,11 +1678,6 @@ pub(crate) struct DockConfig {
     pub(crate) dialogs: Memo<Vec<(TabId, TabId)>>,
     pub(crate) dialog: Func<TabId, Option<DialogParts>>,
     pub(crate) dialog_chrome: Option<RenderFn<DockDialogHandle>>,
-    pub(crate) dialog_sheet: Option<RenderFn<DockSheetHandle>>,
-    pub(crate) dialog_scrim: Memo<Color>,
-    pub(crate) dialog_margin: u16,
-    pub(crate) dialog_gap: u16,
-    pub(crate) dialog_beak: f32,
     pub(crate) dialog_outset: Vec2,
     pub(crate) bar_margin: f32,
     pub(crate) covers: Signal<BarCovers>,
@@ -1738,11 +1728,6 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         dialogs,
         dialog,
         dialog_chrome,
-        dialog_sheet,
-        dialog_scrim,
-        dialog_margin,
-        dialog_gap,
-        dialog_beak,
         dialog_outset,
         bar_margin,
         bar_target,
@@ -1796,11 +1781,6 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         dialog,
         dialog_chrome: dialog_chrome
             .unwrap_or_else(|| RenderFn::new(|handle: DockDialogHandle| handle.body)),
-        dialog_sheet,
-        dialog_scrim,
-        dialog_margin,
-        dialog_gap,
-        dialog_beak,
         dialog_outset,
         dialog_frames: store(RefCell::default()),
         dialog_bodies: store(RefCell::default()),

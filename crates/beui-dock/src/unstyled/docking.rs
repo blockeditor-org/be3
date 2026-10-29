@@ -19,7 +19,7 @@ use beui_view::types::Modifiers;
 use beui_view::types::{Rect, Vec2};
 use serde::{Deserialize, Serialize};
 
-use super::dialog::{DialogParts, DockDialogHandle, DockDialogPresentation, DockSheetHandle};
+use super::dialog::{DialogParts, DockDialogHandle};
 use super::state::{
     DockBarPlacement, DockEdge, DockFullscreen, DockSpec, DockSpecBar, DockSpecEntry, DockSpecNode,
     DockSpecPane, DockSpecWindow, joined_host, joined_key, joined_prefix,
@@ -207,28 +207,23 @@ pub fn DockDialog<K>(
     #[prop(default = None)] icon: Prop<Option<Glyph>>,
     size: Prop<Vec2>,
     #[prop(default = false)] modal: Prop<bool>,
-    #[prop(default = DockDialogPresentation::Window)] presentation: DockDialogPresentation,
     #[prop(default = false)] dismiss_on_outside_press: Prop<bool>,
-    #[prop(default = None)] anchor: Prop<Option<Rect>>,
     on_close: Option<ClickCallback>,
     #[prop(children)] content: RenderFn<()>,
 ) -> DockNode<K>
 where
     K: DockKey,
 {
-    let card = presentation == DockDialogPresentation::Card;
     DockNode {
         kind: NodeKind::Dialog {
             id,
             parent,
             parts: DialogParts {
-                presentation,
                 title: create_memo(move || title.get()),
                 icon: create_memo(move || icon.get()),
                 size: create_memo(move || size.get()),
-                modal: create_memo(move || card || modal.get()),
+                modal: create_memo(move || modal.get()),
                 dismiss_on_outside_press: create_memo(move || dismiss_on_outside_press.get()),
-                anchor: create_memo(move || anchor.get().filter(|_| card)),
                 on_close,
                 content,
             },
@@ -925,21 +920,11 @@ impl<K: DockKey> DockingLayout<K> {
                 create_memo(move || described.with(read))
             };
             let parts = DialogParts {
-                presentation: declared.presentation,
                 title: create_memo(move || described.with(|described| described.title.clone())),
                 icon: create_memo(move || described.with(|described| described.icon)),
                 size: create_memo(move || described.with(|described| described.size)),
-                modal: read(|described| {
-                    described.modal || described.presentation == DockDialogPresentation::Card
-                }),
+                modal: read(|described| described.modal),
                 dismiss_on_outside_press: read(|described| described.dismiss_on_outside_press),
-                anchor: create_memo(move || {
-                    described.with(|described| {
-                        described
-                            .anchor
-                            .filter(|_| described.presentation == DockDialogPresentation::Card)
-                    })
-                }),
                 on_close: closable.then(|| ClickCallback::new(move || closing.close(inner))),
                 content: RenderFn::new(move |()| {
                     let place = stored
@@ -1353,9 +1338,7 @@ impl<K: DockKey> Found<K> {
                     icon: parts.icon.get(),
                     size: parts.size.get(),
                     modal: parts.modal.get(),
-                    presentation: parts.presentation,
                     dismiss_on_outside_press: parts.dismiss_on_outside_press.get(),
-                    anchor: parts.anchor.get(),
                     closable: parts.on_close.is_some(),
                 })
             })
@@ -1449,11 +1432,6 @@ pub fn Docking<K>(
     switcher: Option<RenderFn<DockSwitcherHandle>>,
     switch: Option<RenderFn<DockSwitchHandle>>,
     dialog_chrome: Option<RenderFn<DockDialogHandle>>,
-    dialog_sheet: Option<RenderFn<DockSheetHandle>>,
-    dialog_scrim: Prop<Color>,
-    #[prop(default = 0)] dialog_margin: u16,
-    #[prop(default = 0)] dialog_gap: u16,
-    #[prop(default = 0.0)] dialog_beak: f32,
     #[prop(default = Vec2::ZERO)] dialog_outset: Vec2,
     #[prop(default = 0.0)] bar_margin: f32,
     bar_target: Option<RenderFn<DockBarTargetHandle>>,
@@ -1749,11 +1727,6 @@ where
                 dialogs,
                 dialog,
                 dialog_chrome,
-                dialog_sheet,
-                dialog_scrim: create_memo(move || dialog_scrim.get()),
-                dialog_margin,
-                dialog_gap,
-                dialog_beak,
                 dialog_outset,
                 bar_margin,
                 bar_target,

@@ -5,11 +5,11 @@ use std::rc::{Rc, Weak};
 use beui::NodeId;
 use beui::dock::unstyled::{
     DockBarControl, DockBarMove, DockBarPlacement, DockBodies, DockDeclaration, DockDeclaredBar,
-    DockDeclaredDialog, DockDeclaredTab, DockDialogPresentation, DockDragStage, DockEdge,
-    DockHostEvent, DockHostLink, DockHostSlot, DockHosted, DockMapping, DockMode, DockOutside,
-    DockOutsidePlace, DockPlain, DockPlainBar, DockPlainEntry, DockPlainHome, DockPlainNode,
-    DockPlainPlace, DockPlainWindow, DockRequest, DockSpec, DockSpecEntry, DockSpecNode,
-    DockSpecPane, DockSpecWindow, DockState, TabId,
+    DockDeclaredDialog, DockDeclaredTab, DockDragStage, DockEdge, DockHostEvent, DockHostLink,
+    DockHostSlot, DockHosted, DockMapping, DockMode, DockOutside, DockOutsidePlace, DockPlain,
+    DockPlainBar, DockPlainEntry, DockPlainHome, DockPlainNode, DockPlainPlace, DockPlainWindow,
+    DockRequest, DockSpec, DockSpecEntry, DockSpecNode, DockSpecPane, DockSpecWindow, DockState,
+    TabId,
 };
 use beui::dock::unstyled::{DockMenus, DockTabControl, DockTabMenu, dock_menu};
 use beui::icons::Glyph;
@@ -1082,9 +1082,7 @@ pub(crate) fn declaration_to_api(
                         height: dialog.size.y,
                     },
                     modal: dialog.modal,
-                    card: dialog.presentation == DockDialogPresentation::Card,
                     dismiss_on_outside_press: dialog.dismiss_on_outside_press,
-                    anchor: dialog.anchor,
                     closable: dialog.closable,
                 })
             })
@@ -1198,12 +1196,7 @@ fn declaration_from_api(
             icon: Glyph::from_codepoint(&dialog.glyph),
             size: beui::vec2(dialog.size.width, dialog.size.height),
             modal: dialog.modal,
-            presentation: match dialog.card {
-                true => DockDialogPresentation::Card,
-                false => DockDialogPresentation::Window,
-            },
             dismiss_on_outside_press: dialog.dismiss_on_outside_press,
-            anchor: dialog.anchor,
             closable: dialog.closable,
         })
         .collect();

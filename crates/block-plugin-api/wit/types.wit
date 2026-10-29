@@ -835,10 +835,10 @@ interface types {
     }
 
     /// A dialog of the dock, which the root presents as it presents its own,
-    /// over `parent` (a tab of the tree or another dialog): a window, or a
-    /// `card` hung from the parent's place (from `anchor`, in the points of
-    /// the view showing the parent's body, if any), modal when `modal`.
-    /// Its body is the owner's view `tab`, which is no tab of
+    /// over `parent` (a tab of the tree or another dialog): a window, modal
+    /// when `modal`. A popover-style dialog (a card pointing at a control or
+    /// a tab) is no dock dialog: its owner draws it as an anchored view of
+    /// its own. Its body is the owner's view `tab`, which is no tab of
     /// the tree; closing it reaches the owner as a `close` of `tab`.
     record dock-dialog {
         tab: dock-tab-path,
@@ -847,9 +847,7 @@ interface types {
         glyph: string,
         size: size,
         modal: bool,
-        card: bool,
         dismiss-on-outside-press: bool,
-        anchor: option<rect>,
         closable: bool,
     }
 

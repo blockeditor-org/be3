@@ -9,7 +9,6 @@ use beui_view::types::Image;
 use beui_view::types::icons::Glyph;
 use beui_view::types::{Pos2, Rect, Vec2};
 
-use super::super::dialog::DockDialogPresentation;
 use super::super::state::{
     DockBarPlacement, DockFullscreen, DockMapping, DockSpec, DockState, TabId, joined_host,
     joined_key, joined_prefix,
@@ -64,9 +63,7 @@ pub struct DockDeclaredDialog {
     pub icon: Option<Glyph>,
     pub size: Vec2,
     pub modal: bool,
-    pub presentation: DockDialogPresentation,
     pub dismiss_on_outside_press: bool,
-    pub anchor: Option<Rect>,
     pub closable: bool,
 }
 

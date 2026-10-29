@@ -413,7 +413,6 @@ impl DockDeclaration {
             if !size.iter().all(|side| side.is_finite() && *side >= 0.0) {
                 return Err(DecodeError::MalformedPayload);
             }
-            dialog.anchor.map_or(Ok(()), finite)?;
             if held.contains(&dialog.tab) || !bodies.insert(&dialog.tab) {
                 return Err(DecodeError::MalformedPayload);
             }

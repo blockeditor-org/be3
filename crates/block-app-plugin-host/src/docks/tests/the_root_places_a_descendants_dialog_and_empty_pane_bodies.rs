@@ -15,9 +15,7 @@ fn the_root_places_a_descendants_dialog_and_empty_pane_bodies() {
             height: 100.0,
         },
         modal: false,
-        card: false,
         dismiss_on_outside_press: false,
-        anchor: None,
         closable: true,
     });
     if let DockItemKind::Pane(pane) = &mut inner.tree.items[0].kind {

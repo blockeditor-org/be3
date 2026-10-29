@@ -4,20 +4,19 @@ mod stack;
 mod switch;
 
 use beui_components_styled::frame::{Border, ColorRole, Frame, Radius, focus_border};
-use beui_components_styled::sheet::ModalSheet;
 use beui_macros::{component, view};
 
 use crate::unstyled as dock;
 pub use crate::unstyled::{
-    DockApi, DockBar, DockBarControl, DockBarPlacement, DockDialog, DockDialogPresentation,
-    DockDocument, DockDocumentBody, DockDocumentTabs, DockDocuments, DockEdge, DockEntry, DockMode,
-    DockNode, DockPane, DockSlot, DockSplit, DockTab, DockWindow, DockingLayout, DockingSnapshot,
-    TabId, dock_menu, use_dock_bar, use_dock_tab,
+    DockApi, DockBar, DockBarControl, DockBarPlacement, DockDialog, DockDocument, DockDocumentBody,
+    DockDocumentTabs, DockDocuments, DockEdge, DockEntry, DockMode, DockNode, DockPane, DockSlot,
+    DockSplit, DockTab, DockWindow, DockingLayout, DockingSnapshot, TabId, dock_menu, use_dock_bar,
+    use_dock_tab,
 };
 use crate::unstyled::{
     DockAwayHandle, DockBarHandle, DockBarTargetHandle, DockChromeHandle, DockDialogHandle,
-    DockDragged, DockGripHandle, DockKey, DockPreviewHandle, DockSheetHandle, DockSplitterHandle,
-    DockStackHandle, DockSwitchHandle, DockSwitcherHandle, DockTabHandle, Entry,
+    DockDragged, DockGripHandle, DockKey, DockPreviewHandle, DockSplitterHandle, DockStackHandle,
+    DockSwitchHandle, DockSwitcherHandle, DockTabHandle, Entry,
 };
 use beui_components_styled::List;
 use beui_components_styled::action_bar::{ActionBar, ActionLabels};
@@ -100,7 +99,6 @@ where
 {
     let mode = layout.mode();
     let theme = use_theme();
-    let dialog_scrim = create_memo(move || ColorRole::Scrim.resolve(&theme));
     let back_shade = create_memo(move || ColorRole::ScrimSoft.resolve(&theme));
     let through = dock::dock_shows_through();
     let fill = create_memo(move || match mode.get() {
@@ -140,15 +138,8 @@ where
                 <DockSwitchPanel handle />
             }}
             dialog_chrome={move |handle: DockDialogHandle| view! {
-                <DockDialogFace handle />
+                <DockWindowFace handle />
             }}
-            dialog_sheet={move |handle: DockSheetHandle| view! {
-                <DockDialogSheet handle />
-            }}
-            dialog_scrim={dialog_scrim}
-            dialog_margin=CARD_MARGIN
-            dialog_gap=CARD_GAP
-            dialog_beak=POINTER_REACH
             dialog_outset=DIALOG_CHROME
             tab={move |handle: DockTabHandle| view! {
                 <DockTabFace handle />
@@ -497,28 +488,6 @@ fn DockChromeFace(handle: DockChromeHandle) -> NodeId {
     }
 }
 
-#[component]
-fn DockDialogFace(handle: DockDialogHandle) -> NodeId {
-    match handle.presentation {
-        DockDialogPresentation::Window => view! {
-            <DockWindowFace handle />
-        },
-        DockDialogPresentation::Card => view! {
-            <DockCardFace handle />
-        },
-    }
-}
-
-#[component]
-fn DockDialogSheet(handle: DockSheetHandle) -> NodeId {
-    let DockSheetHandle {
-        open, close, body, ..
-    } = handle;
-    view! {
-        <ModalSheet open fit=true on_close={close}>{body}</ModalSheet>
-    }
-}
-
 fn dialog_outline(focused: Memo<bool>, attention: Memo<bool>) -> Memo<Option<Border>> {
     create_memo(move || {
         let color = match (attention.get(), focused.get()) {
@@ -528,20 +497,6 @@ fn dialog_outline(focused: Memo<bool>, attention: Memo<bool>) -> Memo<Option<Bor
         };
         Some(Border::new(color).width(CHROME_STROKE))
     })
-}
-
-#[component]
-fn DockCardFace(handle: DockDialogHandle) -> NodeId {
-    let DockDialogHandle {
-        focused,
-        attention,
-        pointer,
-        body,
-        ..
-    } = handle;
-    view! {
-        <DockCard focused attention={create_memo(move || attention.get())} pointer>{body}</DockCard>
-    }
 }
 
 pub const CARD_INSET: f32 = POINTER_REACH + CHROME_PADDING.px();
