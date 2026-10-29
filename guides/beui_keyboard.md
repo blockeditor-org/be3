@@ -299,7 +299,7 @@ event whatever holds the press, which a drag between Wayland windows needs),
 it, `Forwarded::Focus` when it gains or loses the focus, and the keys, text,
 IME and file drops meant for it (`Forwarded::Input`). The host knows nothing
 of the editor behind it beyond turning those into its own protocol
-(`plugin_host::forward_region` for a plugin, `be_wayland::Compositor` for a
+(`block_app_plugin_host::forward_region` for a plugin, `be_wayland::Compositor` for a
 window) and keeps no capture or hover of its own, so press capture, hover,
 claims, overlays, focus, intercepting actions and the lock apply to both by
 the same rules. For a surface that runs beui or takes its input,

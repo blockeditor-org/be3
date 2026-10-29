@@ -2,7 +2,7 @@
 
 Every block in the app lives in the `be-*` crates: `be-store`, `be-commit`,
 `be-session`, `be-graph`, `be-protocol`, `be-model`, `be-block`, `be-vcs`,
-`be-client` and `be-server`. The app is a peer of its own (`crates/block-app/src/be.rs` and
+`be-client` and `be-server`. The app is a peer of its own (`crates/block-app-stack/src/lib.rs` and
 `be/`), the server is `be-server`, and every editor keeps its content here.
 
 To add a block type, read `guides/adding_a_block.md` first; it is the short
@@ -496,7 +496,7 @@ leaving, makes its first seal a reload for the same reason.
 A merge that conflicts first writes the owner's unsaved side as a commit of its
 own (`Command::Stash`), so the merge commit has both sides as parents and neither
 is lost, and reports a `be_types_host::Conflict` to its host. block-app keeps
-it per block (`be::conflicts`) and shows a notice on the block whose "See both
+it per block (`block_app_stack::conflicts`) and shows a notice on the block whose "See both
 versions" previews the two sides as revision previews; keeping the merge or
 restoring one side clears it. A session message
 or operation this version cannot decode marks the session incompatible. On a
@@ -827,12 +827,12 @@ undone.
   one that was adopted into it, keeps its own id as its local id. The host
   translates every block id that crosses the plugin protocol for an instance
   whose block is inside a checkout (`Instances::translate`, over
-  the `BlockIds` of what crosses, in plugin_host/calls.rs), and the peer resolves the references it
+  the `BlockIds` of what crosses, in block-app-plugin-host/src/calls.rs), and the peer resolves the references it
   publishes the same way (`Peer::set_resolver`), so neither content nor editors
   know about checkouts. Resolution looks in the instance's own checkout first
   and falls back to the block with that id, which is how a reference out of the
   tree keeps working.
-- `crates/block-app/src/be/version.rs` runs the operations in the worker:
+- `crates/block-app-stack/src/version.rs` runs the operations in the worker:
   adopting a block into a new checkout, saving a change, making a checkout,
   switching, branching, combining a branch, bringing the branch's changes in
   (`be_vcs::merge` over the trees, then each content type's `Merge::merge3`
@@ -860,7 +860,7 @@ verification messages are printed in the server log. Deployments also configure
 
 `--addr` (or `--address`) defaults to `127.0.0.1:9090` and `--data-dir` to
 `be-server-data`. The desktop app does not need a server of its own for a local
-account: it embeds be-server (`crates/block-app/src/platform/native.rs`) on an
+account: it embeds be-server (`crates/block-app-stack/src/embedded_server.rs`) on an
 ephemeral port with a data directory under the app's, and signs in to it like
 any other server. An account on another server connects to that server's URL
 instead, and the web build always does (`./scripts/buck run
@@ -871,7 +871,11 @@ Tests start their own server on an ephemeral port; see `Harness` in
 `crates/be-client/src/tests.rs` and `crates/be-server/src/tests.rs`. The app's
 own tests do the same through the embedded server, register an account and
 create an organization, and then start the app's peer against it the way the app
-does: `Harness` in `crates/block-app/src/be/tests.rs`.
+does: `Harness` in `crates/block-app-stack/src/tests.rs`. The crates above the
+stack (the plugin host, block-app) test against it through `block-app-testing`'s
+`Harness`, which turns on block-app-stack's `testing` feature and serves the
+first-party types in process (`block_app_stack::testing::serve_in_process`), as
+the stack's own tests do under `cfg(test)`.
 
 ## How the app hosts content
 
@@ -887,17 +891,17 @@ and the app runs one instance of per plugin, staged beside the plugin as
 `NAME.wasm` with its `.cwasm` and its SHA-256 (`NAME.sha256`, the tag of its
 sessions); and `host_types::registrations()`, the settings types, the
 repository and the checkout, which the app reads itself and runs in process
-(`be::types::HostTypes`). What a type is called, its icon, color, child edits and
+(`block_app_stack::types::HostTypes`). What a type is called, its icon, color, child edits and
 press come from the manifest that declares it, or for the host's own types from
-`be::host_block_types`: discovery (`editors/plugin/discovery.rs`, `block_type`)
+`block_app_stack::host_block_types`: discovery (`editors/plugin/discovery.rs`, `block_type`)
 holds that catalog, so a type is known before its module's `start` lists it, and
 refuses a plugin that declares a type someone else already has or edits one
-nobody declares. `be::provided` is whether some module will hold a content type,
+nobody declares. `block_app_stack::provided` is whether some module will hold a content type,
 which is what the plugin host checks before following a block's content.
-The registry (`be_types_host::modules`, re-exported by `be/types.rs`, which
+The registry (`be_types_host::modules`, re-exported by `block-app-stack/src/types.rs`, which
 lists the app's module sources) holds the types each module's `start` lists, with every type's blank
-content and its description asked for once at start, answers `be::kind_of` and
-`be::is_known` (frozen, schema fingerprint, blank, which module). Everything else
+content and its description asked for once at start, answers `block_app_stack::kind_of` and
+`block_app_stack::is_known` (frozen, schema fingerprint, blank, which module). Everything else
 about a type, merging, describing, validating bytes, is a request to its module,
 which the worker awaits without blocking (`Replicas::merge`, `describe`). A block
 whose content type no module has has no content in the app.
@@ -909,21 +913,21 @@ what an older build saved. Every save stamps the derived `SCHEMA` key with
 `schema_fingerprint::<C>()`, a hash of `BlockContent::schema()`: be-model's
 `Kind::describe` for a document, and `blob N` for a blob, whose kind bumps
 `BlobKind::SCHEMA` when its header changes in a way old headers would be read
-wrongly. `be::staleness` calls an unfrozen block stale when its replica could
+wrongly. `block_app_stack::staleness` calls an unfrozen block stale when its replica could
 not read it (`Status::unreadable`, kept in `Shared::unreadable`) or its stamp is another schema's; a block
 with no stamp is not stale. A stale block's frame shows `StaleNotice`
 (`surfaces::StaleBlock`, with the notice in `surfaces/notices.rs`) instead of its editor: Reset publishes the type's
-default content (`be::reset`), Delete deletes it as the shell would, and Try
-anyway shows the editor for the rest of the session (`be::try_anyway`). A block
-the app holds itself (`be::hold`: settings, the shell's session) is reset by
+default content (`block_app_stack::reset`), Delete deletes it as the shell would, and Try
+anyway shows the editor for the rest of the session (`block_app_stack::try_anyway`). A block
+the app holds itself (`block_app_stack::hold`: settings, the shell's session) is reset by
 the worker without asking, with a notice, since the app needs it to work: it
 publishes the type's blank content and opens the replica again. The
 app deletes `plugin-cache/` whenever its build id changes; it keeps
 `be-objects/` (objects are content-addressed and frozen) and the refs database.
 
-`crates/block-app/src/be/worker.rs` is the peer's loop and
+`crates/block-app-stack/src/worker.rs` is the peer's loop and
 `be_types_host::Replicas` (shared with `be`, guides/type_modules.md "Hosts";
-`be/replicas.rs` is the app's `Host`, where reports land in `Shared`) the host
+`block-app-stack/src/replicas.rs` is the app's `Host`, where reports land in `Shared`) the host
 half of every open block's replica: it opens a replica (joins the session,
 watches the block, constructs the `replica` with the head and calls `head-moved` for
 a later one), answers its calls with the real primitives (`read`, `publish` through
@@ -936,12 +940,12 @@ runs on a thread of its own (`PureHost::spawn`), on the web in a web worker
 waits on one, since every call a module makes and every IO answer is an event in its loop.
 A module that stops (a panic, or a step past `STEP_TIMEOUT`) is started again,
 and every replica it held is opened again from its last head, with the editors
-attached and the messages relayed since its last seal replayed. `be/native.rs` runs the loop on a thread of its own with a `FileStore` under it,
-and `be/web.rs` runs it in a web worker of its own with the same `FileStore`,
+attached and the messages relayed since its last seal replayed. `block-app-stack/src/native.rs` runs the loop on a thread of its own with a `FileStore` under it,
+and `block-app-stack/src/web.rs` runs it in a web worker of its own with the same `FileStore`,
 whose directory is in the origin private file system (guides/running/web.md).
 
 The app holds one connection per signed-in account and server, in
-`crates/block-app/src/link.rs`, and keeps it until it closes. Sign-in hands its
+`crates/block-app-stack/src/link.rs`, and keeps it until it closes. Sign-in hands its
 connection over (`link::adopt`); the account requests in `accounts.rs` and the
 worker's `Peer` borrow it (`link::signed_in`), which reconnects and
 authenticates again only once it has closed. Natively it runs on a runtime of
@@ -967,7 +971,7 @@ listings and `read_contents` answer from it on `ClientError::Disconnected`, and
 `open` reads the local head first while it has unpublished commits.
 
 The app keeps one refs database per device, `be-refs.sqlite3` beside
-`be-objects/` in the data directory (`be::refs_in`, `/block` on the web). The worker builds its `Peer` once per workspace: with
+`be-objects/` in the data directory (`block_app_stack::refs_in`, `/block` on the web). The worker builds its `Peer` once per workspace: with
 `Peer::cached` when the database already holds a session for that server,
 account and workspace, so the graph, listings and open blocks come up with no
 network, and otherwise with `Peer::signed_in` on the first connection. Every
@@ -1017,7 +1021,7 @@ unsent area, and a refs record that no longer decodes is skipped on load.
 ### The graph mirror
 
 The app keeps a mirror of the part of the server's graph something in the app
-is looking at, in `be/graph.rs`: a `Node` per block with its content type,
+is looking at, in `block-app-stack/src/graph.rs`: a `Node` per block with its content type,
 author, parent, access, references, unsealed `BlockMetadata` and whether no key
 it holds opens it (`locked`). A block the account may only know exists has no
 author or parent, so `Roots`, `Detached`, `Shared` and `Children` never list
@@ -1025,8 +1029,8 @@ it; it is reached only through what references it (`ReadBlock` answers it with
 that much), and is never `locked`. The app never lists the whole organization.
 `Query` (`Roots`, `Detached`, `Shared`, `Children`, `References`, `Backrefs`,
 `Parents`, `Block`, and the host's own `Subtree`) is how everything in the app
-asks the mirror a question, and `be::graph_revision` says when to ask again.
-Whoever asks first says what it wants with `be::want(owner, queries)`: each
+asks the mirror a question, and `block_app_stack::graph_revision` says when to ask again.
+Whoever asks first says what it wants with `block_app_stack::want(owner, queries)`: each
 plugin instance its `blocks-watch` queries, its own block's `Parents` and the
 blocks whose content it watches (`Owner::Editor`); the worker the parents of
 every open block and of every revision preview's source (`Owner::Open`) and the
@@ -1052,7 +1056,7 @@ empties it from the mirror; the worker sends `Unlist` for it, ahead of that
 round's new listings, so the server stops announcing it. A block already held
 is asked for on its own all the same, so the server keeps announcing it once
 the listing that brought it is gone, but its query is ready at once. A query is answered only once its listings have
-loaded (`be::ready`), so an editor never sees a folder as empty while it
+loaded (`block_app_stack::ready`), so an editor never sees a folder as empty while it
 loads. The server's `BlockChanged` and `BlockRemoved` events keep what is
 listed current: a block is kept only while a listing holds it (a new child of a
 listed folder joins that listing, one that moves out leaves it), and news of a
@@ -1063,7 +1067,7 @@ listing) and drops anything older, so an announcement the worker reads late
 never undoes a newer reply. `Shared` is the account's entry points: blocks it
 can view whose parent it cannot.
 
-A change made here - `be::create`, `be::set_parent`, `be::define` - is
+A change made here - `block_app_stack::create`, `block_app_stack::set_parent`, `block_app_stack::define` - is
 applied to the mirror straight away, so the file tree and every editor see it in
 the next frame, and counts as pending for that block. While a block has a
 pending change the mirror ignores the server's echoes for it, which would
@@ -1120,8 +1124,8 @@ the next build that knows them.
 commit of the current content with the new metadata, which a live session then
 catches up with like any other publish from outside it; a block with no content
 yet takes it through `SetMetadata`, which the server refuses once the block has
-a head. In the app, `be::define` (and `be::set_name`, the `NAME` key) applies
-the change to the mirror at once and sends it. `be::describe_implicitly` keeps
+a head. In the app, `block_app_stack::define` (and `block_app_stack::set_name`, the `NAME` key) applies
+the change to the mirror at once and sends it. `block_app_stack::describe_implicitly` keeps
 the derived metadata of an open block current in the mirror as its content
 changes (`Graph::derive`), until the save that publishes it.
 
@@ -1211,7 +1215,7 @@ without depending on the crate itself.
 
 A plugin asks about the graph with a `blocks-watch` resource per `BlockQuery`,
 whose `next` the host answers from its mirror with the query's `BlockInfo`s, or why
-it could not list them, whenever the answer changes (`plugin_host/graph.rs`); an
+it could not list them, whenever the answer changes (`block-app-stack/src/plugin_graph.rs`); an
 editor watches a query while anything holds its `BlockList`, and the session drops
 the resource when nothing does. A `BlockInfo`
 carries the block's type, author, parent (`BlockLocation`: `Root`, `Detached` or
@@ -1242,12 +1246,12 @@ above it saying so. Anything may ask the host to bring one back with
 `EditorHost::restore_block` (`block-command::restore`): the host finds the
 block at the top of its chain and lists it in its parent again when that parent
 is live, editable and can add a child; a block with no parent goes back where
-the `DELETED_FROM` metadata key says it was deleted from (which `be::set_parent`
+the `DELETED_FROM` metadata key says it was deleted from (which `block_app_stack::set_parent`
 records when it detaches a block, as deleting a top-level block does, and clears
 when it gives it a parent again), and otherwise into My files. It changes the graph with
 `create-block(block, block-type, parent, defined, content)`, `set-parent` and
 `define`, which the host takes only when the account may edit the block and the
-parent it names, and hands to `be::create`, `be::set_parent` and `be::define`. They
+parent it names, and hands to `block_app_stack::create`, `block_app_stack::set_parent` and `block_app_stack::define`. They
 are sync calls that carry no answer: the plugin chooses a new block's id itself, so
 it can use the block before the host has seen it. On the plugin side these are `editor.watch_blocks(query)` and
 the `Blocks` handle from `editor.blocks()`.
@@ -1260,7 +1264,7 @@ commit, before any later command for that block runs. With no content the
 worker writes the type's blank content, which its type module made when it started
 (`Kind::blank`), so a host or plugin that makes a block of a type whose format
 it does not own names only the type's id: `Blocks::create_with(type, None, ..)`
-for the file tree's New workspace, `be::create(.., None)` for My files and a new
+for the file tree's New workspace, `block_app_stack::create(.., None)` for My files and a new
 session's view. `Creation::create` and
 `Blocks::create` make a block this way, Detached unless a parent is named;
 the host sets the parent of a block made in a creation dialog once it has the
@@ -1304,11 +1308,11 @@ commit and chunks (those that fit in half a frame, and none for a head the
 client says it already holds), and anything left out is fetched afterwards, so
 a tree costs one round trip, not three per block.
 host-services' `import-blocks(parent)`, the picker's "Import a file…", has the
-host pick any file. Anything but a `.block` file goes to `be::import_file`, which
+host pick any file. Anything but a `.block` file goes to `block_app_stack::import_file`, which
 turns it into one block the way `be sync` turns a new file into one (guides/sync.md:
 the first type that `claims` it, an image for a `.png`, a file block for an
 `.epub`, its content `from-file`, named after the file) and creates it with
-`be::create`. A `.block` file is `be::import`ed: every block gets a new id, old ids in the content bytes and references are
+`block_app_stack::create`. A `.block` file is `block_app_stack::import`ed: every block gets a new id, old ids in the content bytes and references are
 swapped for the new ones, and each block is created and given its bytes as its first commit. The
 answer names the outermost block. The tree is in the mirror
 at once and uploads in the background, as a task beside the worker's loop
@@ -1334,14 +1338,14 @@ places in, since moving a tree into another workspace rekeys every block in it.
 
 Moving a block into a container, deleting a child or replacing it with a copy
 asks the container's content to change. `PluginEditor` sends that to
-`be::change_child`, which opens the container's replica if nothing has and sends
+`block_app_stack::change_child`, which opens the container's replica if nothing has and sends
 it `Change::Child`; the content type answers with `Root::child_edit`, which
 turns a `be_block::ChildChange` into an ordinary edit: a presentation adds or
 drops a slide, a database clears or rewrites the cells that link the block, a
 hotbar unpins or repoints a component. `change_child` answers `None` only for a
 content type no module has.
 
-Duplicating a block is `be::duplicate`: it adds the copy to the mirror with the
+Duplicating a block is `block_app_stack::duplicate`: it adds the copy to the mirror with the
 source's type, references and metadata (without its artifact source), and the
 worker copies what the source's replica shows (its `content`), or its head
 when it is not open, into the copy's id before anything opens the copy.
@@ -1393,9 +1397,9 @@ a block never picks up a rotation it only inherits, and `SettingsSync::commit` a
 them to their layers and layers the result again. It writes
 those edits into the block too, holding them until its content is loaded and reading
 the block with them on top until a revision holds them.
-`be::hold` opens a
+`block_app_stack::hold` opens a
 block for the app and keeps it open when the last editor showing it closes,
-because `be::close` leaves a held block alone. Nothing releases a held block
+because `block_app_stack::close` leaves a held block alone. Nothing releases a held block
 before the stack stops, which is when the organization changes.
 
 Undo lives in the block's replica, not in an editor, because it is the one place that
@@ -1404,7 +1408,7 @@ type registered with `undo` in `be_block_types!` gets a replica that keeps an un
 redo stack (`be_block::history::History`): every operation an editor sends records a step, a step sent
 within 750 ms of the last one, by the time the host ticks the module with (the
 frame clock's instant each relayed frame is stamped with), may be absorbed into
-it, and `be::undo` and `be::redo` send the replica `Change::Undo` and `Redo`.
+it, and `block_app_stack::undo` and `block_app_stack::redo` send the replica `Change::Undo` and `Redo`.
 An editor groups the edits of one gesture into one step, however long it takes, with
 `FromEditor::Gesture` (`Gesture::Begin`, `Commit`, `Cancel`; on the plugin side
 `ContentProjection::begin_gesture`, `commit_gesture`, `cancel_gesture`): every edit from
@@ -1755,17 +1759,17 @@ they keep their order. The wait
 before each attempt doubles from 0.5 s to at most 30 s with each failure in a
 row, randomly shortened by up to half so that clients a server dropped together
 do not come back together (`reconnect_delay`), and starts over once a connection
-succeeds. `be::retry_now()` cuts the wait short: the app calls it whenever its
+succeeds. `block_app_stack::retry_now()` cuts the wait short: the app calls it whenever its
 window gains focus, and it is the hook for network-change and foreground
-events. `be::stop` never waits on the server: it closes the connection
+events. `block_app_stack::stop` never waits on the server: it closes the connection
 (`Connection::close`, through `Shared.connection`), so whatever the worker was
 waiting on fails at once, and the worker keeps what the open replicas hold as
 local commits before it ends. It returns without waiting for the worker; the
 next stack's worker waits for it on its own thread (the web serialises stacks
-the same way), and `be::stop_and_wait` waits for it where the process is about
+the same way), and `block_app_stack::stop_and_wait` waits for it where the process is about
 to end or its files to go.
 
-`be::status()` reports `connected`, `syncing` (the outbox is being drained),
+`block_app_stack::status()` reports `connected`, `syncing` (the outbox is being drained),
 `waiting` (outbox operations: local commits and queued graph changes not yet on
 the server), `unsent` (blocks set aside in the unsent area), `conflicts` and
 `conflicted` (blocks a merge left conflicting), `kept` (outbox operations, safe
@@ -1778,7 +1782,7 @@ zero; what waits in the outbox is kept and sent later. A type module's error
 
 ### Reaching the server
 
-The app talks to be-server directly. `crates/block-app/src/accounts.rs` is the
+The app talks to be-server directly. `crates/block-app-stack/src/accounts.rs` is the
 account client: it connects to `{server}/api/be` (be-server accepts the
 websocket on any path, so the suffix only matters behind a proxy that routes on
 it), registers, logs in and out, lists and creates organizations, and invites and
@@ -1921,7 +1925,7 @@ account-level cryptography, `be_store::Keyring` the content keys, and
   and a `Peer` sets it from its secret when the account has none. A device keeps
   the secret itself (`AppStateStore::identity`), and an account whose device
   lacks it, or holds one the server's public key does not match, opens on the
-  unlock screen (`crates/block-app/src/keys.rs`, `ui/keys.rs`): the phrase, or
+  unlock screen (`crates/block-app-stack/src/keys.rs`, `ui/keys.rs`): the phrase, or
   a pairing code. A new phrase (the organization menu's New recovery phrase)
   must reseal every row sealed to the account by itself or a verified contact
   (others are dropped), and everything the account sealed for itself (contact

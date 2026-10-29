@@ -8,6 +8,15 @@ that build on it. VISION.md says why each part exists.
 - The block stack (`be-*`), beui (`beui*`), block-app, and the plugin API and
   SDK (`block-*`), with the vocabulary beui and the protocol share (`ui-types`,
   and below it, with no geometry, `ui-keys` and `ui-preferences`).
+- block-app is the binary on top of its parts, each a crate of its own so they
+  build in parallel: `block-app-base` (the frame host, notices, the panic guard,
+  platform requests, app state and the watches the host publishes; no beui),
+  `block-app-services` (Linux's D-Bus services: media, notifications, the tray,
+  Wi-Fi; no beui), `block-app-stack` (the app's block stack peer, accounts,
+  links, keys and plugin discovery; no beui), `block-app-plugin-host` (the
+  runtime every plugin runs in), and `block-app-desktop` (the Linux and Windows
+  desktop hosts, input remaps and programs). `block-app-testing` is the stack
+  harness the crates above it test with.
 - `lucide`: the icon set beui and the block catalog draw from.
 - `ghostty-vt`, `terminal-emulator` and `terminal-view`: the terminal emulator's
   bindings, the emulator read back as terminal lines (the terminal host and

@@ -251,7 +251,7 @@ session left, with every step that can overlap running at once. What keeps it th
   the background (`resume_organization` in crates/block-app/src/main.rs). If the list
   no longer has it, the app falls back to the organization list.
 - The plugins whose editors were open are kept in app state too, and are started, with
-  the shell's plugin, on the first frame (`plugin_host::warm`), before the shell asks
+  the shell's plugin, on the first frame (`block_app_plugin_host::warm`), before the shell asks
   for them. A plugin with no editors open idles once it has loaded.
 - The host prefetches the content of an editor's references (up to four) as soon as its
   block's node is known, so a database view's database loads beside the view.
