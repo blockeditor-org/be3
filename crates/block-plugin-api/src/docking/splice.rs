@@ -122,15 +122,17 @@ impl Mapping<'_> {
         }
     }
 
-    fn home(&self, home: &DockHome) -> Option<DockHome> {
-        let place = match &home.place {
+    fn place(&self, place: &DockPlace) -> DockPlace {
+        match place {
             DockPlace::Area(key) => DockPlace::Area((self.key)(key)),
             DockPlace::Group(key) => DockPlace::Group((self.key)(key)),
-        };
+        }
+    }
+
+    fn home(&self, home: &DockHome) -> Option<DockHome> {
         Some(DockHome {
             tab: (self.tab)(&home.tab)?,
-            place,
-            pinned: home.pinned,
+            place: self.place(&home.place),
         })
     }
 
@@ -168,6 +170,14 @@ impl Mapping<'_> {
                         tab: (self.tab)(&outside.tab)?,
                         place: outside.place.clone(),
                     })
+                })
+                .collect(),
+            unlocked: layout
+                .unlocked
+                .iter()
+                .map(|place| self.place(place))
+                .filter(|place| match place {
+                    DockPlace::Area(key) | DockPlace::Group(key) => !key.is_empty(),
                 })
                 .collect(),
         }

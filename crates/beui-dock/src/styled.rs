@@ -46,7 +46,8 @@ use beui_view::types::Modifiers;
 use beui_view::types::Sides;
 use beui_view::types::TextAlign;
 use beui_view::types::icons::{
-    ICON_APP_WINDOW, ICON_GRIP_HORIZONTAL, ICON_GRIP_VERTICAL, ICON_MAXIMIZE, ICON_MINIMIZE, ICON_X,
+    ICON_APP_WINDOW, ICON_GRIP_HORIZONTAL, ICON_GRIP_VERTICAL, ICON_LOCK, ICON_MAXIMIZE, ICON_MINIMIZE,
+    ICON_X,
 };
 use stack::{DockStackBar, DockSwitcher};
 use switch::DockSwitchPanel;
@@ -169,6 +170,9 @@ where
             bar_margin={BAR_MARGIN.px()}
             bar_target={move |handle: DockBarTargetHandle| view! {
                 <DockBarTargetFace handle />
+            }}
+            refused={move || view! {
+                <DockDropRefused />
             }}
             preview={move |handle: DockPreviewHandle| {
                 let DockPreviewHandle { dragged, title, icon } = handle;
@@ -943,15 +947,21 @@ fn DockClose(
 
 #[component]
 fn DockGrip(handle: DockGripHandle) -> NodeId {
-    let DockGripHandle { focused, .. } = handle;
+    let DockGripHandle {
+        focused, locked, ..
+    } = handle;
     let color = create_memo(move || match focused.get() {
         true => TextColor::Muted,
         false => TextColor::Faint,
     });
+    let glyph = create_memo(move || match locked.get() {
+        true => Some(ICON_LOCK),
+        false => Some(ICON_GRIP_VERTICAL),
+    });
     view! {
         <Frame width=GRIP_WIDTH height=TAB_HEIGHT align=Align::Center>
             <Text size=TextSize::Sm color={color} align=TextAlign::Center>
-                <Icon glyph=ICON_GRIP_VERTICAL />
+                <Icon glyph />
             </Text>
         </Frame>
     }
@@ -1064,6 +1074,25 @@ fn DockDropHighlight() -> NodeId {
         <Layers>
             <Frame fill=ColorRole::Accent radius=Radius::Md opacity=DROP_OPACITY />
             <Frame @test_id={"dock.drop"} border={Border::FOCUS} radius=Radius::Md />
+        </Layers>
+    }
+}
+
+#[component]
+fn DockDropRefused() -> NodeId {
+    view! {
+        <Layers>
+            <Frame fill=ColorRole::Surface radius=Radius::Md opacity=DROP_OPACITY />
+            <Frame
+                @test_id={"dock.refused"}
+                border={Border::DEFAULT}
+                radius=Radius::Md
+                align=Align::Center
+            >
+                <Text size=TextSize::Lg color=TextColor::Muted>
+                    <Icon glyph=ICON_LOCK />
+                </Text>
+            </Frame>
         </Layers>
     }
 }

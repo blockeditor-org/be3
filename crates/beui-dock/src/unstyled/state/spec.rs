@@ -320,6 +320,8 @@ impl DockState {
         self.invalidate();
         self.groups.clear();
         self.homes.clear();
+        self.unlocked.clear();
+        self.unlocked_keys.clear();
         self.recent.clear();
         self.history.clear();
         self.surfaces.retain(|surface| surface.id == main);
@@ -453,13 +455,13 @@ impl DockState {
             pinned,
             key: Some(key.to_owned()),
         });
+        self.unpark_lock(group);
         if pinned {
             for tab in self.group_tabs(group) {
                 self.homes.retain(|home| home.tab != tab);
                 self.homes.push(Home {
                     tab,
                     place: DockHome::Group(group),
-                    pinned: true,
                     within: None,
                 });
             }
@@ -733,7 +735,6 @@ impl DockState {
                             self.homes.push(Home {
                                 tab: *tab,
                                 place: DockHome::Group(group),
-                                pinned: true,
                                 within: None,
                             });
                         }
@@ -799,11 +800,18 @@ impl DockState {
             DockHome::Group(_) => true,
             DockHome::Area(area) => declared_in.get(&home.tab) == Some(&area.as_str()),
         });
+        self.unlocked.retain(|place| match place {
+            DockHome::Area(area) => areas.contains(area.as_str()),
+            DockHome::Group(_) => true,
+        });
+        let mut arrived = Vec::new();
         for (tab, area) in &declared {
             if !self.contains(*tab) || matches!(self.home(*tab), Some(DockHome::Area(_))) {
                 continue;
             }
-            let pinned = self.home(*tab).is_none() || self.is_tab_pinned(*tab);
+            if self.home(*tab).is_none() || self.is_tab_locked(*tab) {
+                arrived.push(*tab);
+            }
             let within = match self.home(*tab) {
                 Some(DockHome::Group(group)) => Some(group),
                 _ => self
@@ -814,13 +822,12 @@ impl DockState {
             self.homes.push(Home {
                 tab: *tab,
                 place: DockHome::Area(area.clone()),
-                pinned,
                 within,
             });
         }
         for (tab, area) in declared {
-            if !self.is_tab_pinned(tab)
-                || self.home(tab) != Some(DockHome::Area(area.clone()))
+            if !arrived.contains(&tab)
+                || !self.is_locked(&DockHome::Area(area.clone()))
                 || self.at_home(tab)
             {
                 continue;

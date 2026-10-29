@@ -179,6 +179,7 @@ fn hosted_tabs(
                 homes: Vec::new(),
                 bars: Vec::new(),
                 outside: Vec::new(),
+                unlocked: Vec::new(),
             },
             tabs: own(tabs),
             focused: focused.map(DockTabPath::own),

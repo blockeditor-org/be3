@@ -69,6 +69,7 @@ fn a_layout_kept_while_joined_comes_back_in_a_standalone_dock() {
                     focus: None,
                 },
                 homes: Vec::new(),
+                unlocked: Vec::new(),
                 bars: vec![DockPlacedBar {
                     bar: DockTabPath::own(bar),
                     owner: DockTabPath::own(stage),

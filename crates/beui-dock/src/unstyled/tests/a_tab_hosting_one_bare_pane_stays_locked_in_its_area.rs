@@ -7,7 +7,7 @@ fn a_tab_hosting_one_bare_pane_stays_locked_in_its_area() {
     let declared = sidebar_and_editors(&[1], &[2]);
     state.reconcile(&declared);
     assert!(
-        state.is_tab_pinned(TabId::new(2)),
+        state.is_tab_locked(TabId::new(2)),
         "an editor starts locked in its area"
     );
 
@@ -47,12 +47,29 @@ fn a_tab_hosting_one_bare_pane_stays_locked_in_its_area() {
         "its pane's bar carries the menu of the bare pane's tab"
     );
     assert!(
-        state.is_tab_pinned(TabId::new(2)) && state.at_home(TabId::new(2)),
+        state.is_tab_locked(TabId::new(2)),
         "and keeps that tab locked where it was"
     );
-    state.set_tab_pinned(TabId::new(2), false);
+    let files = DockDrop::Pane {
+        leaf: leaf_of(&state, 1),
+    };
     assert!(
-        !state.is_tab_pinned(TabId::new(2)),
+        !state.admits(Entry::Group(group), files),
+        "so the group it stands as stays in that tab's area"
+    );
+    let place = state.lock_of(leaf).expect("its pane is in a locked place");
+    assert_eq!(
+        state.home(TabId::new(2)),
+        Some(place.clone()),
+        "its pane's grip locks the place of the tab it stands for"
+    );
+    state.set_locked(place, false);
+    assert!(
+        !state.is_tab_locked(TabId::new(2)),
         "unlocking it unlocks the group's place"
+    );
+    assert!(
+        state.admits(Entry::Group(group), files),
+        "and lets the group leave"
     );
 }

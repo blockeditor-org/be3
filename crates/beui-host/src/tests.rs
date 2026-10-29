@@ -2087,8 +2087,18 @@ pub(crate) fn nested_dock() -> (Document, NestedDock) {
     )
 }
 
+pub(crate) fn pick_dock_grip_menu(harness: &mut Harness, dock: NodeId, grip: &str, row: &str) {
+    let node = harness.find(grip);
+    pick_menu_of(harness, dock, node, grip, row);
+}
+
 pub(crate) fn pick_dock_tab_menu(harness: &mut Harness, dock: NodeId, title: &str, row: &str) {
-    let pos = harness.center(dock_tab(harness.document(), dock, title));
+    let node = dock_tab(harness.document(), dock, title);
+    pick_menu_of(harness, dock, node, title, row);
+}
+
+fn pick_menu_of(harness: &mut Harness, dock: NodeId, node: NodeId, name: &str, row: &str) {
+    let pos = harness.center(node);
     harness.frame(vec![Input::PointerMoved(pos)]);
     harness.frame(vec![Input::PointerButton {
         pos,
@@ -2097,7 +2107,7 @@ pub(crate) fn pick_dock_tab_menu(harness: &mut Harness, dock: NodeId, title: &st
     }]);
     harness.frame(Vec::new());
     let found = text_within(harness.document(), dock, row)
-        .unwrap_or_else(|| panic!("the menu of {title} offers {row}"));
+        .unwrap_or_else(|| panic!("the menu of {name} offers {row}"));
     harness.click(harness.center(found));
     harness.frame(Vec::new());
 }

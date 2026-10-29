@@ -80,6 +80,7 @@ fn hosted(stage: u64, bar: u64, placement: DockBarPlacement) -> DockUpdate {
                     focus: None,
                 },
                 homes: Vec::new(),
+                unlocked: Vec::new(),
                 bars: vec![DockPlacedBar {
                     bar: DockTabPath::own(bar),
                     owner: DockTabPath::own(stage),

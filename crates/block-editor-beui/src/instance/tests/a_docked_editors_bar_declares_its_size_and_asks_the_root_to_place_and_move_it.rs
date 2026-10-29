@@ -36,6 +36,7 @@ fn hosted(bar: u64, placement: DockBarPlacement) -> DockUpdate {
                     focus: Some(stage.clone()),
                 },
                 homes: Vec::new(),
+                unlocked: Vec::new(),
                 bars: vec![DockPlacedBar {
                     bar: DockTabPath::own(bar),
                     owner: stage.clone(),

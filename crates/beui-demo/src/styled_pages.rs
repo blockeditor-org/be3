@@ -140,7 +140,8 @@ pub(crate) fn DockingPage() -> NodeId {
                         "A page picked in Components takes the place of the page shown, in \
                          the same tab. Hold Ctrl (Cmd on a Mac) while picking one to open it in a \
                          tab of its own instead. The Components pane is locked: its tab stays \
-                         in it until its right-click menu frees it."
+                         in it and other tabs stay out until Locked is unticked in its grip's \
+                         right-click menu."
                     </Text>
                     <Text style=TextStyle::CAPTION>
                         "A dock narrower than a phone's width stacks its panes: one tab fills it, and the bar goes back or switches tabs."
@@ -4244,12 +4245,12 @@ pub(crate) fn NestedDocksPage() -> NodeId {
                 <DockPane id="views">
                     <DockTab id=2u64 title="Preview" icon=beui::icons::ICON_EYE>
                         <NestedNote
-                            text="Right-click a tab here and pick Unlock to drag it anywhere in the demo's dock. Lock it again once it is back in the group."
+                            text="Right-click this pane's grip and untick Locked to drag these tabs anywhere in the demo's dock. Tick it again to hold the tabs that are back in the group."
                         />
                     </DockTab>
                     <DockTab id=3u64 title="Notes" icon=beui::icons::ICON_STICKY_NOTE>
                         <NestedNote
-                            text="The Outline pane is locked, so its tab stays in its area inside the group."
+                            text="The Outline pane is a locked area: its tab stays in it and the group's other tabs stay out, until the area or their group is unlocked from a grip."
                         />
                     </DockTab>
                 </DockPane>

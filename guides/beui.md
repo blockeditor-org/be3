@@ -2672,7 +2672,8 @@ anywhere on it that is not a tab drags the window. Right-clicking a grip moves
 that pane's tabs into a sidebar beside its body (`DockState::set_vertical`),
 whose edge drags or arrows to a new width (`set_sidebar_width`); a window in
 that mode has no title bar, only the sidebar with the grip and the close button
-at its top. The grip's menu also closes every tab in the pane, offers the
+at its top. The grip's menu also closes every tab in the pane, ticks
+"Locked" for the lock the pane is in (below), offers the
 menu of the tab the pane shows below its own rows, and turns on icons only (`set_icons_only`, or
 `icons_only` on a `DockPane`): `DockTabHandle::icons_only` asks the tab face for
 its icon alone, which the styled dock draws as a square with the title in a
@@ -2724,32 +2725,40 @@ A pinned group is one the tree never tidies away: `insert_pinned_group` puts
 one in a tab bar, and it stays a group while it holds one tab or none, cannot be
 ungrouped or closed from its menu, and admits only the tabs whose home it is -
 the tabs it was given - so dragging any other tab onto it or into it does
-nothing. Its tabs are pinned to it as well: one can be rearranged anywhere
-inside the group, and the group can be moved with all of them, but a pinned
-tab cannot be dragged, popped or carried out of it with its pane. "Unpin from
-group" on a tab's menu (`set_tab_pinned`) lets it go, it may come back later,
-and "Pin to group" pins it again once it is back. A drag that the state would
-refuse (`admits`, `admits_leaf`) shows no drop marker, and letting go there
-does nothing. `unpin` makes the whole group an ordinary group again. `tree` reads a surface's or a group's layout
+nothing, locked or not. While it is locked its tabs are held in it as well: one
+can be rearranged anywhere inside the group, and the group can be moved with all
+of them, but a held tab cannot be dragged, popped or carried out of it with its
+pane. A drag that the state would refuse (`admits`, `admits_leaf`) shows no drop
+marker; over a pane it shows the `refused` face instead (the styled dock's is a
+lock), and letting go does nothing. `unpin` makes the whole group an ordinary group again. `tree` reads a surface's or a group's layout
 out as a `DockTree`, which names tabs but no leaf, split or group ids, so it can
 be compared, sent elsewhere and rebuilt: `from_tree` makes a state out of one
 and `set_tree` replaces a tree in place, moving in any of its tabs that were
 elsewhere and keeping the focused tab focused. `group_title` names a group in
 its tab.
 
-A `locked` pane makes an area: the pane and every pane split off it, including
-the groups inside them (`area_of(leaf)` names a leaf's area, the locked pane's
-`id`). Every tab declared in the pane, including tabs a `ForEach` adds later, is
-locked to that area, as a pinned group's tabs are to it: it can move, split and
-group anywhere inside the area, which grows with its splits and shrinks back as
-they empty, but a drop outside it is refused and it cannot float. Tabs that are
-not locked go anywhere, into an area too. `DockState::home(tab)` answers a
-`DockHome`: `Group(id)` for a pinned group's tab, `Area(id)` for a locked one.
-The tab menu's pin item reads "Unlock" and "Lock" for such a tab (Lock is
-disabled until the tab is back in its area, and is never done for it), and
-"Pop out into a window" is disabled while a tab is locked or pinned. Seeding,
-reconciling and `restore` move any locked tab found outside its area back into
-it. A stacked dock ignores locks and keeps them for when it tiles again.
+A `locked` pane makes an area: the pane and every pane split off it for a tab
+that lives there, including the groups inside them (`area_of(leaf)` names a
+leaf's area, the locked pane's `id`). Every tab declared in the pane, including
+tabs a `ForEach` adds later, lives in that area: `DockState::home(tab)` answers
+a `DockHome`, `Area(id)` for an area's tab and `Group(id)` for a pinned group's.
+An area or pinned group is locked unless the user unlocked it
+(`is_locked(place)`, `set_locked(place, locked)`); the lock belongs to the
+place, not its tabs, and the grip of each pane in it shows a lock and ticks
+"Locked" in its menu, which toggles the innermost place the pane is in
+(`lock_of(leaf)`). While its place is locked, a tab that is at home is held
+there (`is_tab_locked`): it can move, split and group anywhere inside, the area
+growing with its splits and shrinking back as they empty, but a drop outside is
+refused and it cannot float. A locked area also keeps out every tab that lives
+elsewhere and is held, or lives nowhere: only its own tabs and tabs of an
+unlocked place go in, and a pane split off it for one of those is not part of
+it. A group's tab inside another area of its group is not at home. A tab away
+from home is free, so locking a place again holds only the tabs in it, and a
+tab dropped back home is held again. "Pop out into a window" is disabled while
+a tab is held. Seeding and reconciling move a tab that has just been given an
+area as its home into it while the area is locked; `plain` and `restore` keep
+the homes and the unlocked places. A stacked dock ignores locks and keeps them
+for when it tiles again.
 
 A `Docking` built inside a `DockTab` of another `Docking` joins it rather than
 docking on its own (the first one in that tab does, found through a context
@@ -2758,9 +2767,14 @@ children declare in a pinned group keyed `joined:<tab>` in place of that tab
 (titled, iconed and closed as the tab), with its pane, split and group keys
 prefixed `joined:<tab>/`, so its locked panes stay areas inside the group (a
 tab declared in a locked pane has that area as its home, inside a pinned group
-too), and its `DockWindow`s become windows of the outer dock. Its tabs are
-locked to the group: "Unlock" lets one go anywhere in the outer dock, "Lock"
-works once it is back. The outer dock places their bodies, built in a scope
+too), and its `DockWindow`s become windows of the outer dock. Its tabs live in
+the group: unlocking it from a grip of its panes lets them go anywhere in the
+outer dock. A group of one bare pane stands for its hosting tab instead
+(`stands_for(group)`, `hosted_by(tab)`, `standing_tabs(entry)`): its tab wears
+the host's title, icon and close, its menu is the bare tab's followed by the
+host's (`menu_tab(leaf)`), and the hosting tab keeps its home, so the group is
+held by the host's place like the tab itself and the grip of the pane it sits in
+locks and unlocks it. The outer dock places their bodies, built in a scope
 under the inner `Docking` with the outer dock's `use_dock_tab()` and
 `dock_menu`, so they survive moving; switching, back history, fullscreen and
 the stacked mode are the outer dock's and cover them like its own tabs. The

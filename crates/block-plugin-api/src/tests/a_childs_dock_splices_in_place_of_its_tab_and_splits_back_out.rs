@@ -23,6 +23,7 @@ fn a_childs_dock_splices_in_place_of_its_tab_and_splits_back_out() {
             homes: Vec::new(),
             bars: Vec::new(),
             outside: Vec::new(),
+            unlocked: Vec::new(),
         },
         tabs: spliced.tabs.iter().map(|tab| tab.tab.clone()).collect(),
         focused: Some(side.clone()),

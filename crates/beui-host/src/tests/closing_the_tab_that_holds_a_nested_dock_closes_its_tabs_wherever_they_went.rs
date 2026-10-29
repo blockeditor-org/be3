@@ -8,7 +8,12 @@ fn closing_the_tab_that_holds_a_nested_dock_closes_its_tabs_wherever_they_went()
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
-    pick_dock_tab_menu(&mut harness, nested.node, "Inner 10", "Unlock");
+    pick_dock_grip_menu(
+        &mut harness,
+        nested.node,
+        "dock.grip.joined:2/inner",
+        "Locked",
+    );
     let from = harness.center(dock_tab(harness.document(), nested.node, "Inner 10"));
     harness.drag(from, pos2(WIDE_VIEWPORT.x * 0.15, WIDE_VIEWPORT.y / 2.0));
     harness.frame(Vec::new());

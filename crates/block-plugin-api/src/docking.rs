@@ -497,7 +497,9 @@ impl DockLayout {
         collection(self.bars.len())?;
         self.bars.iter().try_for_each(DockPlacedBar::validate)?;
         collection(self.outside.len())?;
-        self.outside.iter().try_for_each(DockOutside::validate)
+        self.outside.iter().try_for_each(DockOutside::validate)?;
+        collection(self.unlocked.len())?;
+        self.unlocked.iter().try_for_each(DockPlace::validate)
     }
 }
 
@@ -542,7 +544,13 @@ impl DockOutside {
 impl DockHome {
     fn validate(&self) -> Result<(), DecodeError> {
         self.tab.validate()?;
-        match &self.place {
+        self.place.validate()
+    }
+}
+
+impl DockPlace {
+    fn validate(&self) -> Result<(), DecodeError> {
+        match self {
             DockPlace::Area(key) | DockPlace::Group(key) => string(key),
         }
     }

@@ -14,6 +14,7 @@ pub struct DockPlain {
     pub homes: Vec<DockPlainHome>,
     pub bars: Vec<DockPlainBar>,
     pub outside: Vec<DockOutside>,
+    pub unlocked: Vec<DockPlainPlace>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -66,7 +67,6 @@ pub enum DockPlainEntry {
 pub struct DockPlainHome {
     pub tab: TabId,
     pub place: DockPlainPlace,
-    pub pinned: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -99,16 +99,9 @@ impl DockState {
             .homes
             .iter()
             .filter_map(|home| {
-                let place = match &home.place {
-                    DockHome::Area(area) => DockPlainPlace::Area(area.clone()),
-                    DockHome::Group(group) => {
-                        DockPlainPlace::Group(self.group(*group)?.key.clone()?)
-                    }
-                };
                 Some(DockPlainHome {
                     tab: home.tab,
-                    place,
-                    pinned: home.pinned,
+                    place: self.plain_place(&home.place)?,
                 })
             })
             .collect();
@@ -122,7 +115,32 @@ impl DockState {
             })
             .collect();
         plain.outside = self.outside.clone();
+        plain.unlocked = self
+            .unlocked
+            .iter()
+            .filter_map(|place| self.plain_place(place))
+            .chain(
+                self.unlocked_keys
+                    .iter()
+                    .cloned()
+                    .map(DockPlainPlace::Group),
+            )
+            .collect();
         plain
+    }
+
+    fn plain_place(&self, place: &DockHome) -> Option<DockPlainPlace> {
+        match place {
+            DockHome::Area(area) => Some(DockPlainPlace::Area(area.clone())),
+            DockHome::Group(group) => Some(DockPlainPlace::Group(self.group(*group)?.key.clone()?)),
+        }
+    }
+
+    fn place_of_plain(&self, place: &DockPlainPlace) -> Option<DockHome> {
+        match place {
+            DockPlainPlace::Area(area) => Some(DockHome::Area(area.clone())),
+            DockPlainPlace::Group(key) => self.group_by_key(key).map(DockHome::Group),
+        }
     }
 
     fn plain_node(&self, node: &Node) -> DockPlainNode {
@@ -185,18 +203,13 @@ impl DockState {
         }
         state.invalidate();
         for home in &plain.homes {
-            let place = match &home.place {
-                DockPlainPlace::Area(area) => DockHome::Area(area.clone()),
-                DockPlainPlace::Group(key) => match state.group_by_key(key) {
-                    Some(group) => DockHome::Group(group),
-                    None => continue,
-                },
+            let Some(place) = state.place_of_plain(&home.place) else {
+                continue;
             };
             if state.contains(home.tab) {
                 state.homes.push(Home {
                     tab: home.tab,
                     place,
-                    pinned: home.pinned,
                     within: None,
                 });
             }
@@ -211,6 +224,16 @@ impl DockState {
             })
             .collect();
         state.outside = plain.outside.clone();
+        for place in &plain.unlocked {
+            match state.place_of_plain(place) {
+                Some(place) => state.unlocked.push(place),
+                None => {
+                    if let DockPlainPlace::Group(key) = place {
+                        state.unlocked_keys.push(key.clone());
+                    }
+                }
+            }
+        }
         state.focus = plain
             .focus
             .and_then(|tab| state.find(tab))

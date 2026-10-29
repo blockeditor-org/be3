@@ -20,7 +20,7 @@ fn a_subtree_names_where_its_moved_out_tabs_went_and_grafting_puts_them_back() {
     );
     state.reconcile(&spec(main.clone()));
     let group = state.find_group("nested").expect("the group is open");
-    state.set_tab_pinned(TabId::new(12), false);
+    state.set_locked(DockHome::Group(group), false);
     let right = leaf_of(&state, 2);
     state.drop_tab(
         TabId::new(12),
@@ -72,7 +72,7 @@ fn a_subtree_names_where_its_moved_out_tabs_went_and_grafting_puts_them_back() {
         "grafting puts the moved-out tab back in the pane it was in"
     );
     assert!(
-        !fresh.is_tab_pinned(TabId::new(12)),
+        !fresh.is_tab_locked(TabId::new(12)),
         "and leaves it unlocked"
     );
     assert_eq!(fresh.group_tabs(group), vec![TabId::new(11)]);

@@ -1,6 +1,6 @@
 use super::*;
 use beui::PointerButton;
-use beui::dock::unstyled::DockingSnapshot;
+use beui::dock::unstyled::{DockHome, DockingSnapshot};
 use beui::native::with_reactive_scope;
 use beui_host::native::testing::Target;
 use std::cell::Cell;
@@ -12,6 +12,7 @@ thread_local! {
 }
 
 const BAR_Y: f32 = 20.0;
+const GROUP_GRIP: &str = "dock.grip.joined:1/inner";
 const SIZE: Vec2 = Vec2::new(900.0, 500.0);
 
 #[component]
@@ -67,40 +68,6 @@ fn nested(restored: Option<DockingSnapshot<u64>>) -> DocumentTest {
     test
 }
 
-fn text_x(test: &DocumentTest, text: &str) -> f32 {
-    let document = test.document();
-    let root = document.root().expect("the test built a root");
-    find_text(document, root, text)
-        .and_then(|node| document.node_rect(node))
-        .unwrap_or_else(|| panic!("{text} is shown"))
-        .center()
-        .x
-}
-
-fn find_text(document: &Document, id: NodeId, text: &str) -> Option<NodeId> {
-    let here = document.node_rect(id).is_some()
-        && document
-            .arena
-            .kind_of(id)
-            .is_some_and(|node| document.text(node) == text);
-    if here {
-        return Some(id);
-    }
-    document
-        .children(id)
-        .into_iter()
-        .find_map(|child| find_text(document, child, text))
-}
-
-fn menu_shows(test: &DocumentTest, text: &str) -> bool {
-    let document = test.document();
-    document
-        .layers()
-        .iter()
-        .filter_map(|layer| layer.content)
-        .any(|content| showing(document, content, text) > 0)
-}
-
 #[test]
 fn a_nested_dock_saved_with_a_tab_moved_out_comes_back_once_it_joins_again() {
     let mut test = nested(None);
@@ -108,9 +75,9 @@ fn a_nested_dock_saved_with_a_tab_moved_out_comes_back_once_it_joins_again() {
         text_x(&test, "Beta") < SIZE.x / 2.0,
         "the inner tabs join the outer dock where the host tab was"
     );
-    test.click_with(Target::text("Beta"), PointerButton::Secondary);
+    test.click_with(GROUP_GRIP, PointerButton::Secondary);
     test.frame(Vec::new());
-    test.click(Target::text("Unlock"));
+    test.click(Target::text("MenuItemCheckBox \"Locked\""));
     test.frame(Vec::new());
     let bar = pos2(text_x(&test, "Other") + 60.0, BAR_Y);
     test.drag(Target::text("Beta"), Target::point(bar));
@@ -166,10 +133,12 @@ fn a_nested_dock_saved_with_a_tab_moved_out_comes_back_once_it_joins_again() {
     reopened.frame(Vec::new());
     let focused = with_reactive_scope(reopened.document_mut(), || layout.focused());
     assert_eq!(focused, Some(1), "showing the host tab shows its group");
-    reopened.click_with(beta, PointerButton::Secondary);
-    reopened.frame(Vec::new());
+    let state = with_reactive_scope(reopened.document_mut(), || layout.state().get_untracked());
+    let group = state
+        .find_group("joined:1")
+        .expect("the inner dock joined again");
     assert!(
-        menu_shows(&reopened, "Lock"),
-        "the moved tab is still unlocked and can lock again once home"
+        !state.is_locked(&DockHome::Group(group)),
+        "the group comes back unlocked"
     );
 }

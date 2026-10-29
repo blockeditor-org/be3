@@ -173,6 +173,7 @@ pub struct DockGripHandle {
     pub floating: bool,
     pub vertical: bool,
     pub focused: Memo<bool>,
+    pub locked: Memo<bool>,
 }
 
 pub struct DockStackHandle {
@@ -479,6 +480,7 @@ struct Drag {
     target: Option<DockDrop>,
     bar_target: Option<DockBarPlacement>,
     highlight: Option<Rect>,
+    refused: Option<(LeafId, Rect)>,
 }
 
 #[derive(Clone, Copy)]
@@ -525,6 +527,7 @@ struct State {
     splitter: RenderFn<DockSplitterHandle>,
     grip: RenderFn<DockGripHandle>,
     highlight: RenderFn<()>,
+    refused: RenderFn<()>,
     preview: RenderFn<DockPreviewHandle>,
     stack: Option<RenderFn<DockStackHandle>>,
     switcher: Option<RenderFn<DockSwitcherHandle>>,
@@ -889,6 +892,15 @@ impl State {
         });
     }
 
+    fn toggle_lock(&self, leaf: LeafId) {
+        self.edit(|state| {
+            if let Some(place) = state.lock_of(leaf) {
+                let locked = state.is_locked(&place);
+                state.set_locked(place, !locked);
+            }
+        });
+    }
+
     fn icons_only(&self, leaf: Option<LeafId>) -> Memo<bool> {
         let state = self.state;
         create_memo(move || leaf.is_some_and(|leaf| state.with(|state| state.is_icons_only(leaf))))
@@ -1165,6 +1177,7 @@ impl State {
             target: None,
             bar_target: None,
             highlight: None,
+            refused: None,
         }));
     }
 
@@ -1184,12 +1197,13 @@ impl State {
             }
             return;
         }
-        let (target, highlight) = match point {
-            Some(point) => self.admitted(point, drag.dragged),
-            None => (None, None),
+        let (target, highlight, refused) = match point {
+            Some(point) => self.judged(point, drag.dragged),
+            None => (None, None, None),
         };
         drag.target = target;
         drag.highlight = highlight;
+        drag.refused = refused;
         self.drag.set(Some(drag));
     }
 
@@ -1214,18 +1228,35 @@ impl State {
     }
 
     fn admitted(&self, point: DragPoint, dragged: DockDragged) -> (Option<DockDrop>, Option<Rect>) {
+        let (target, highlight, _) = self.judged(point, dragged);
+        (target, highlight)
+    }
+
+    fn judged(
+        &self,
+        point: DragPoint,
+        dragged: DockDragged,
+    ) -> (Option<DockDrop>, Option<Rect>, Option<(LeafId, Rect)>) {
         let (target, highlight) = self.resolve(point, dragged);
-        let refused = target.is_some_and(|target| {
-            self.state.with_untracked(|state| match dragged {
-                DockDragged::Entry(entry) => !state.admits(entry, target),
-                DockDragged::Pane(leaf) => !state.admits_leaf(leaf, target),
-                DockDragged::Bar(_) => true,
-            })
-        });
-        match refused {
-            true => (None, None),
-            false => (target, highlight),
+        let Some(target) = target else {
+            return (None, highlight, None);
+        };
+        let state = self.state.get_untracked();
+        let admitted = match dragged {
+            DockDragged::Entry(entry) => state.admits(entry, target),
+            DockDragged::Pane(leaf) => state.admits_leaf(leaf, target),
+            DockDragged::Bar(_) => false,
+        };
+        if admitted {
+            return (Some(target), highlight, None);
         }
+        let refused = target.leaf().and_then(|leaf| {
+            let tree = state.tree_of(leaf)?;
+            let area = self.pane_rect(tree)?;
+            let rect = layout_tree(&state, tree, area, self.thickness).leaf_rect(leaf)?;
+            Some((leaf, rect))
+        });
+        (None, None, refused)
     }
 
     fn resolve(&self, point: DragPoint, dragged: DockDragged) -> (Option<DockDrop>, Option<Rect>) {
@@ -1602,6 +1633,7 @@ pub(crate) struct DockConfig {
     pub(crate) splitter: Option<RenderFn<DockSplitterHandle>>,
     pub(crate) grip: Option<RenderFn<DockGripHandle>>,
     pub(crate) highlight: Option<RenderFn<()>>,
+    pub(crate) refused: Option<RenderFn<()>>,
     pub(crate) preview: Option<RenderFn<DockPreviewHandle>>,
     pub(crate) stack: Option<RenderFn<DockStackHandle>>,
     pub(crate) switcher: Option<RenderFn<DockSwitcherHandle>>,
@@ -1655,6 +1687,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         splitter,
         grip,
         highlight,
+        refused,
         preview,
         stack,
         switcher,
@@ -1798,6 +1831,13 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
             })
         }),
         highlight: highlight.unwrap_or_else(|| {
+            RenderFn::new(|()| {
+                view! {
+                    <Frame />
+                }
+            })
+        }),
+        refused: refused.unwrap_or_else(|| {
             RenderFn::new(|()| {
                 view! {
                     <Frame />
@@ -2405,6 +2445,13 @@ fn DockTreeView(
                     dock={dock}
                     surface={marked_surface.unwrap_or_else(|| unreachable!())}
                     origin={pane_origin}
+                    refused=false
+                />
+                <DockDropMarker
+                    dock={dock}
+                    surface={marked_surface.unwrap_or_else(|| unreachable!())}
+                    origin={pane_origin}
+                    refused=true
                 />
             </Show>
         </Canvas>
@@ -2447,20 +2494,27 @@ fn DockDropMarker(
     dock: State,
     surface: SurfaceId,
     origin: Memo<Pos2>,
+    refused: bool,
 ) -> DynamicSegment<CanvasItem> {
     let marker = create_memo(move || {
         let state = dock.state.get_untracked();
         let drag = dock.drag.get()?;
-        let leaf = drag.target?.leaf()?;
+        let (leaf, rect) = match refused {
+            true => drag.refused?,
+            false => (drag.target?.leaf()?, drag.highlight?),
+        };
         if state.surface_of(leaf) != Some(surface) {
             return None;
         }
-        let highlight = drag.highlight?;
         Some(Rect::from_min_size(
-            highlight.min - origin.get().to_vec2(),
-            highlight.size(),
+            rect.min - origin.get().to_vec2(),
+            rect.size(),
         ))
     });
+    let face = match refused {
+        true => dock.refused,
+        false => dock.highlight,
+    };
     let shown = create_memo(move || marker.get().is_some());
     let rect = create_memo(move || marker.get().unwrap_or(Rect::ZERO));
     let x = create_memo(move || rect.get().min.x);
@@ -2469,9 +2523,7 @@ fn DockDropMarker(
     let height = create_memo(move || rect.get().height());
     view! {
         <Show condition={shown}>
-            <CanvasItem x={x} y={y} width={width} height={height}>
-                {dock.highlight.call(())}
-            </CanvasItem>
+            <CanvasItem x={x} y={y} width={width} height={height}>{face.call(())}</CanvasItem>
         </Show>
     }
 }
@@ -2585,10 +2637,15 @@ fn DockPaneGrip(
     focused: Memo<bool>,
     pane: GripPane,
 ) -> NodeId {
+    let state = dock.state;
+    let lock = create_memo(move || {
+        state.with(|state| state.lock_of(leaf).map(|place| state.is_locked(&place)))
+    });
     let face = dock.grip.call(DockGripHandle {
         floating: false,
         vertical,
         focused,
+        locked: create_memo(move || lock.get() == Some(true)),
     });
     let menu = dock.menu;
     let title = create_memo(move || dock.dragged_title(DockDragged::Pane(leaf)));
@@ -2616,8 +2673,10 @@ fn DockPaneGrip(
                 vertical
                 icons_only={dock.icons_only(Some(leaf))}
                 pane
+                lock
                 toggle={move || dock.toggle_vertical(leaf)}
                 toggle_icons={move || dock.toggle_icons_only(leaf)}
+                toggle_lock={move || dock.toggle_lock(leaf)}
             >
                 {face}
             </GripMenu>
@@ -2827,29 +2886,6 @@ fn DockTabView(
         Entry::Tab(_) => false,
     };
     let standing = create_memo(move || dock.standing_tab(entry));
-    let held = create_memo(move || match standing.get() {
-        Some(tab) => state.with(|state| {
-            let pinned = state.is_tab_pinned(tab);
-            (pinned || state.at_home(tab)).then_some(pinned)
-        }),
-        None => None,
-    });
-    let locks = create_memo(move || match standing.get() {
-        Some(tab) => match state.with(|state| state.home(tab)) {
-            Some(DockHome::Area(_)) => true,
-            Some(DockHome::Group(group)) => dock.group_host.call(group).is_some(),
-            None => false,
-        },
-        None => false,
-    });
-    let toggle_held = ClickCallback::new(move || {
-        if let Some(tab) = standing.get_untracked() {
-            dock.edit(|state| {
-                let pinned = state.is_tab_pinned(tab);
-                state.set_tab_pinned(tab, !pinned);
-            });
-        }
-    });
     let floating = dock.state.with_untracked(|state| {
         !state.is_nested(leaf)
             && state
@@ -2942,8 +2978,6 @@ fn DockTabView(
                 anchored
                 pinned
                 has_next
-                held
-                locks
                 closable
                 fullscreen
                 close={close}
@@ -2951,7 +2985,6 @@ fn DockTabView(
                 group={group}
                 split={split}
                 ungroup={ungroup}
-                toggle_held={toggle_held}
                 toggle_fullscreen={toggle_fullscreen}
             >
                 {face}
@@ -2968,8 +3001,6 @@ fn TabMenu(
     anchored: Memo<bool>,
     pinned: bool,
     has_next: Memo<bool>,
-    held: Memo<Option<bool>>,
-    locks: Memo<bool>,
     closable: Memo<bool>,
     fullscreen: Memo<Option<bool>>,
     close: ClickCallback,
@@ -2977,7 +3008,6 @@ fn TabMenu(
     group: ClickCallback,
     split: ClickCallback,
     ungroup: ClickCallback,
-    toggle_held: ClickCallback,
     toggle_fullscreen: ClickCallback,
     children: Child,
 ) -> NodeId {
@@ -2986,14 +3016,7 @@ fn TabMenu(
         Some(true) => "Leave full screen".to_owned(),
         Some(false) | None => "Full screen".to_owned(),
     });
-    let stuck = create_memo(move || floating || anchored.get() || held.get() == Some(true));
-    let homeless = create_memo(move || held.get().is_none());
-    let pin_label = create_memo(move || match (locks.get(), held.get()) {
-        (true, Some(true)) => "Unlock".to_owned(),
-        (true, Some(false) | None) => "Lock".to_owned(),
-        (false, Some(true)) => "Unpin from group".to_owned(),
-        (false, Some(false) | None) => "Pin to group".to_owned(),
-    });
+    let stuck = create_memo(move || floating || anchored.get());
     let alone = create_memo(move || !has_next.get());
     let unclosable = create_memo(move || !closable.get());
     let (group_label, split_label, close_label) = match grouped {
@@ -3012,9 +3035,6 @@ fn TabMenu(
                 <MenuItem label={group_label} disabled={alone} />
                 <MenuItem label={split_label} disabled={alone} />
                 <MenuItem label={close_label} disabled={unclosable} />
-                <Show condition={!grouped}>
-                    <MenuItem label={pin_label} disabled={homeless} />
-                </Show>
                 <Show condition={grouped}>
                     <MenuItem label="Ungroup" disabled={pinned} />
                 </Show>
@@ -3028,8 +3048,7 @@ fn TabMenu(
                 Some(2) => split.call(),
                 Some(3) => close.call(),
                 Some(4) if grouped => ungroup.call(),
-                Some(4) => toggle_held.call(),
-                Some(5) => toggle_fullscreen.call(),
+                Some(4 | 5) => toggle_fullscreen.call(),
                 _ => {}
             }}
         >
@@ -3059,8 +3078,10 @@ fn GripMenu(
     vertical: bool,
     icons_only: Memo<bool>,
     pane: GripPane,
+    lock: Memo<Option<bool>>,
     toggle: ClickCallback,
     toggle_icons: ClickCallback,
+    toggle_lock: ClickCallback,
     children: Child,
 ) -> NodeId {
     let label = match vertical {
@@ -3068,6 +3089,7 @@ fn GripMenu(
         false => "Show tabs in a sidebar",
     };
     let checked = create_memo(move || Some(icons_only.get()));
+    let lockable = create_memo(move || lock.get().is_some());
     let GripPane {
         menu: tab_menu,
         closable,
@@ -3088,12 +3110,16 @@ fn GripMenu(
                 <MenuItem label />
                 <MenuItem label="Icons only" checked />
                 <MenuItem label="Close all tabs" disabled={unclosable} />
+                <Show condition={lockable}>
+                    <MenuItem label="Locked" checked={lock} />
+                </Show>
                 <MenuNodes nodes={tab_menu} />
             }}
             on_select={move |path: Vec<usize>| match path.first() {
                 Some(0) => toggle.call(),
                 Some(1) => toggle_icons.call(),
                 Some(2) => close.call(),
+                Some(3) => toggle_lock.call(),
                 _ => {}
             }}
         >
@@ -3532,6 +3558,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                                 floating: true,
                                                                 vertical,
                                                                 focused,
+                                                                locked: create_memo(|| false),
                                                             });
                                                             let grip_face = view! {
                                                                 <GripMenu
@@ -3544,11 +3571,13 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                                             dock.toggle_vertical(leaf);
                                                                         }
                                                                     }}
+                                                                    lock={create_memo(|| None)}
                                                                     toggle_icons={move || {
                                                                         if let Some(leaf) = hoisted {
                                                                             dock.toggle_icons_only(leaf);
                                                                         }
                                                                     }}
+                                                                    toggle_lock={|| {}}
                                                                 >
                                                                     {grip_face}
                                                                 </GripMenu>
@@ -3618,7 +3647,18 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                     </List>
                                                 </Interactive>
                                             </CanvasItem>
-                                            <DockDropMarker dock={dock} surface origin={origin} />
+                                            <DockDropMarker
+                                                dock={dock}
+                                                surface
+                                                origin={origin}
+                                                refused=false
+                                            />
+                                            <DockDropMarker
+                                                dock={dock}
+                                                surface
+                                                origin={origin}
+                                                refused=true
+                                            />
                                         </Canvas>
                                     </Frame>
                                 </CanvasItem>

@@ -69,7 +69,7 @@ mod text_breaks_end_lines_and_breaking_anywhere_fills_them;
 mod text_in_a_drawing_lands_where_a_text_node_puts_it;
 mod the_action_bar_sample_pins_what_fits_and_offers_the_rest;
 mod the_arrow_keys_move_across_a_menu_grid_and_on_to_the_rows_below;
-mod the_catalog_is_locked_to_its_pane_until_unlocked_from_its_menu;
+mod the_catalog_is_locked_to_its_pane_until_unlocked_from_its_grip;
 mod the_catalog_shows_a_page_in_place_of_the_one_shown_unless_ctrl_is_held;
 mod the_code_of_a_sample_can_be_selected;
 mod the_command_palette_ticks_what_a_menu_ticks;
@@ -83,6 +83,7 @@ mod the_inspector_paints_with_the_styled_components;
 mod the_launcher_sample_narrows_its_programs_as_a_name_is_typed;
 mod the_message_toast_sample_offers_its_actions;
 mod the_nested_dock_pops_out_into_a_window_from_its_tabs_menu;
+mod the_nested_docks_outline_keeps_the_other_tabs_out_until_their_group_is_unlocked;
 mod the_on_screen_keyboard_opens_along_the_foot_of_its_fields_window;
 mod the_on_screen_keyboard_opens_for_a_field_and_shows_what_its_modes_type;
 mod the_overlay_sample_closes_on_escape_and_a_click_outside;
@@ -232,6 +233,40 @@ fn paint_every_page(size: Vec2, suffix: &str) {
         };
         test.snapshot(&name);
     }
+}
+
+fn text_x(test: &DocumentTest, text: &str) -> f32 {
+    let document = test.document();
+    let root = document.root().expect("the test built a root");
+    find_text(document, root, text)
+        .and_then(|node| document.node_rect(node))
+        .unwrap_or_else(|| panic!("{text} is shown"))
+        .center()
+        .x
+}
+
+fn find_text(document: &Document, id: NodeId, text: &str) -> Option<NodeId> {
+    let here = document.node_rect(id).is_some()
+        && document
+            .arena
+            .kind_of(id)
+            .is_some_and(|node| document.text(node) == text);
+    if here {
+        return Some(id);
+    }
+    document
+        .children(id)
+        .into_iter()
+        .find_map(|child| find_text(document, child, text))
+}
+
+fn menu_shows(test: &DocumentTest, text: &str) -> bool {
+    let document = test.document();
+    document
+        .layers()
+        .iter()
+        .filter_map(|layer| layer.content)
+        .any(|content| showing(document, content, text) > 0)
 }
 
 fn showing(document: &Document, id: NodeId, text: &str) -> usize {
