@@ -1148,7 +1148,11 @@ impl Space {
         let Some(before) = self.panel(resize.window).copied() else {
             return;
         };
-        let after = Panel { pose, size, ..before };
+        let after = Panel {
+            pose,
+            size,
+            ..before
+        };
         if !self.fits(&before, &after) {
             return;
         }
@@ -1304,10 +1308,8 @@ impl Space {
         let step = |index: usize| index as f32 / (FLASH_SAMPLES - 1) as f32;
         (0..FLASH_SAMPLES).any(|row| {
             (0..FLASH_SAMPLES).any(|column| {
-                let point = panel.world(pos2(
-                    panel.size.x * step(column),
-                    panel.size.y * step(row),
-                ));
+                let point =
+                    panel.world(pos2(panel.size.x * step(column), panel.size.y * step(row)));
                 let toward = self.toward(point);
                 pick(&framed, toward).is_some_and(|hit| {
                     hit.window != window && hit.distance < point.distance(toward.origin) - 1e-3
@@ -1615,7 +1617,7 @@ impl Space {
         let (head, now) = (self.head, self.clock);
         let mut panel = self.panel(carry.window).copied()?;
         carry.place(&head, &mut panel, now);
-        carry.settle(head.position, &mut panel, &self.panels);
+        carry.settle(&head, &mut panel, &self.panels, now);
         let placed = self.panel_mut(carry.window)?;
         *placed = panel;
         Some(panel)

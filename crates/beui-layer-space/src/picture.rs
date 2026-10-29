@@ -319,7 +319,12 @@ impl Out {
         let mut triangles = Vec::new();
         for index in 0..SEGMENTS {
             let (u, next) = (along(index), along(index + 1));
-            let corners = [world(u, 0.0), world(next, 0.0), world(next, 1.0), world(u, 1.0)];
+            let corners = [
+                world(u, 0.0),
+                world(next, 0.0),
+                world(next, 1.0),
+                world(u, 1.0),
+            ];
             if let [Some(a), Some(b), Some(c), Some(d)] = corners.map(screen) {
                 quad(
                     &mut triangles,
@@ -340,7 +345,8 @@ impl Out {
             let (Some(from), Some(to)) = (screen(pair[0]), screen(pair[1])) else {
                 continue;
             };
-            let Some(side) = screen(pair[0] + frame.right * OUTLINE_WIDTH * pair[0].distance(frame.eye))
+            let Some(side) =
+                screen(pair[0] + frame.right * OUTLINE_WIDTH * pair[0].distance(frame.eye))
             else {
                 continue;
             };

@@ -173,7 +173,14 @@ impl Carry {
             .map(|(_, side)| *side)
     }
 
-    pub fn settle(&mut self, eye: Vec3, panel: &mut Panel, others: &[Panel]) {
+    pub fn settle(
+        &mut self,
+        head: &Head,
+        panel: &mut Panel,
+        others: &[Panel],
+        now: Option<Instant>,
+    ) {
+        let eye = self.ray(head).origin;
         let grab = panel.pose.position + panel.pose.rotation * self.grab;
         let asked = grab.distance(eye).max(1e-3);
         let along = (grab - eye) / asked;
@@ -186,7 +193,6 @@ impl Carry {
             })
             .collect();
         let was = self.at.map_or(0.0, |at| at.distance(eye) - asked);
-        eprintln!("settle asked {asked} was {was} spans {spans:?} sides {:?} push {}", self.sides, self.push);
         self.sides
             .retain(|(window, _)| spans.iter().any(|(other, ..)| other == window));
         for (window, lo, hi) in &spans {
@@ -273,8 +279,9 @@ impl Carry {
             ghost
         });
         self.ghost = pushed;
-        panel.pose.position += along * (origin + moved - asked);
-        self.at = Some(eye + along * (origin + moved));
+        let at = eye + along * (origin + moved);
+        self.place_at(head, panel, at, now);
+        self.at = Some(at);
     }
 
     fn range(&self, spans: &[(WindowId, f32, f32)], origin: f32, shift: f32) -> (f32, f32) {
@@ -290,13 +297,7 @@ impl Carry {
         (lower, upper)
     }
 
-    fn free(
-        &mut self,
-        spans: &[(WindowId, f32, f32)],
-        origin: f32,
-        shift: f32,
-        was: f32,
-    ) -> f32 {
+    fn free(&mut self, spans: &[(WindowId, f32, f32)], origin: f32, shift: f32, was: f32) -> f32 {
         let (lower, upper) = (NEAREST - origin, FARTHEST - origin);
         let inside = |at: f32| {
             spans
@@ -331,7 +332,10 @@ impl Carry {
     }
 
     pub fn place(&self, head: &Head, panel: &mut Panel, now: Option<Instant>) {
-        let grab = self.ray(head).at(self.distance);
+        self.place_at(head, panel, self.ray(head).at(self.distance), now);
+    }
+
+    fn place_at(&self, head: &Head, panel: &mut Panel, grab: Vec3, now: Option<Instant>) {
         let carried = head.rotation() * self.rotation;
         panel.pose.rotation = facing(head.position, grab, self.grab, head.up())
             .map_or(carried, |target| self.turn.toward(carried, target, now));

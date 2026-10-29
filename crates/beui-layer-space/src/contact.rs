@@ -39,7 +39,9 @@ pub fn span(moving: &Panel, other: &Panel, along: Vec3) -> Option<(f32, f32)> {
 }
 
 pub fn touching(moving: &Panel, other: &Panel, eye: Vec3) -> bool {
-    span(moving, other, moving.pose.position - eye).is_some_and(|(lo, hi)| lo < 0.0 && hi > 0.0)
+    let give = CLEARANCE / 2.0;
+    span(moving, other, moving.pose.position - eye)
+        .is_some_and(|(lo, hi)| lo + give < 0.0 && hi - give > 0.0)
 }
 
 pub fn newly_touching(before: &Panel, after: &Panel, others: &[Panel], eye: Vec3) -> bool {

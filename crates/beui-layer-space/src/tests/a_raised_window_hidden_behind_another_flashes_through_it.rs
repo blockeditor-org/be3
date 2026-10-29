@@ -19,12 +19,19 @@ fn a_raised_window_hidden_behind_another_flashes_through_it() {
     assert_eq!(space.focused(), Some(WindowId::MAIN));
 
     space.request(&WindowRequest::Raise(WindowId::MAIN));
-    assert!(space.outlines().is_empty(), "the focused window needs no finding");
+    assert!(
+        space.outlines().is_empty(),
+        "the focused window needs no finding"
+    );
     space.request(&WindowRequest::Raise(hidden));
     let outlines = space.outlines();
     assert_eq!(outlines.len(), 1, "a raised window behind another flashes");
     assert_eq!(outlines[0].strength, 1.0);
-    assert_eq!(space.panel(hidden).unwrap().pose, panel(WindowId::MAIN, ahead(1.6)).pose, "and stays where it is");
+    assert_eq!(
+        space.panel(hidden).unwrap().pose,
+        panel(WindowId::MAIN, ahead(1.6)).pose,
+        "and stays where it is"
+    );
     let windows = [
         window(&context, WindowId::MAIN, PLATFORM, "Main"),
         window(&context, hidden, SMALL, "Hidden"),
@@ -38,7 +45,10 @@ fn a_raised_window_hidden_behind_another_flashes_through_it() {
 
     send(&mut space, later(now, FLASH_SECONDS / 2.0), []);
     let strength = space.outlines()[0].strength;
-    assert!(strength > 0.0 && strength < 1.0, "the flash fades: {strength}");
+    assert!(
+        strength > 0.0 && strength < 1.0,
+        "the flash fades: {strength}"
+    );
     send(&mut space, later(now, FLASH_SECONDS * 1.1), []);
     assert!(space.outlines().is_empty() && !space.flashing());
 }

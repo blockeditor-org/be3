@@ -23,7 +23,7 @@ fn a_window_opened_over_another_stays_in_front_of_it_wherever_it_is_carried() {
     let popped = carry_popped_out(&mut space, now);
     let now = later(now, TURN_SECONDS);
     for step in 1..=8 {
-        let to = centre() + vec2(40.0 * step as f32, 18.0 * step as f32);
+        let to = centre() + vec2(30.0 * step as f32, 12.0 * step as f32);
         send(&mut space, now, [Input::PointerMoved(to)]);
         let carried = space.panel(popped).unwrap();
         assert!(
@@ -36,7 +36,7 @@ fn a_window_opened_over_another_stays_in_front_of_it_wherever_it_is_carried() {
         );
         assert!(nearer(&space, popped, WindowId::MAIN), "step {step}");
     }
-    let to = centre() + vec2(320.0, 144.0);
+    let to = centre() + vec2(240.0, 96.0);
     send(&mut space, now, [button(to, false)]);
     assert_eq!(space.mouse.carry, None);
     assert!(nearer(&space, popped, WindowId::MAIN), "and stays there");

@@ -38,10 +38,17 @@ fn pushing_a_carried_window_through_another_takes_a_deliberate_push_and_keeps_it
 
     send(&mut space, now, [scroll(1.0)]);
     assert_eq!(side(&space), Some(Side::Front));
-    assert!(clear(&space, popped), "a line farther rests it against the main panel");
+    assert!(
+        clear(&space, popped),
+        "a line farther rests it against the main panel"
+    );
     send(&mut space, now, [scroll(1.0)]);
     assert!(ghosted(&space), "pushing on shows where it is being pushed");
-    assert_eq!(side(&space), Some(Side::Front), "but it does not go through yet");
+    assert_eq!(
+        side(&space),
+        Some(Side::Front),
+        "but it does not go through yet"
+    );
     assert!(clear(&space, popped) && !behind(&space, popped));
     let windows = [
         window(&context, WindowId::MAIN, PLATFORM, "Main"),
@@ -55,7 +62,11 @@ fn pushing_a_carried_window_through_another_takes_a_deliberate_push_and_keeps_it
     );
 
     send(&mut space, now, [scroll(PUSH_LINES)]);
-    assert_eq!(side(&space), Some(Side::Behind), "a deliberate push goes through");
+    assert_eq!(
+        side(&space),
+        Some(Side::Behind),
+        "a deliberate push goes through"
+    );
     assert!(!ghosted(&space));
     assert!(clear(&space, popped) && behind(&space, popped));
 
@@ -63,16 +74,36 @@ fn pushing_a_carried_window_through_another_takes_a_deliberate_push_and_keeps_it
         let to = centre() + vec2(-45.0 * step as f32, 20.0 * step as f32);
         send(&mut space, now, [Input::PointerMoved(to)]);
         assert_eq!(side(&space), Some(Side::Behind), "step {step}");
-        assert!(clear(&space, popped), "dragged behind it never clips, step {step}");
+        assert!(
+            clear(&space, popped),
+            "dragged behind it never clips, step {step}"
+        );
         assert!(behind(&space, popped), "step {step}");
     }
 
     send(&mut space, now, [scroll(-1.0)]);
     assert_eq!(side(&space), Some(Side::Behind));
     send(&mut space, now, [scroll(-1.0)]);
-    assert!(ghosted(&space), "pulling it nearer pushes against the main panel from behind");
+    assert!(
+        ghosted(&space),
+        "pulling it nearer pushes against the main panel from behind"
+    );
     assert_eq!(side(&space), Some(Side::Behind));
-    send(&mut space, now, [scroll(-PUSH_LINES)]);
-    assert_eq!(side(&space), Some(Side::Front), "and a deliberate pull brings it back in front");
+    send(&mut space, now, [scroll(-PUSH_LINES / 2.0)]);
+    assert_eq!(
+        side(&space),
+        Some(Side::Behind),
+        "a short pull is not enough"
+    );
+    let mut pulled = PUSH_LINES / 2.0;
+    while side(&space) == Some(Side::Behind) && pulled < 20.0 {
+        send(&mut space, now, [scroll(-0.25)]);
+        pulled += 0.25;
+    }
+    assert_eq!(
+        side(&space),
+        Some(Side::Front),
+        "but a deliberate pull brings it back in front: {pulled}"
+    );
     assert!(clear(&space, popped) && !behind(&space, popped));
 }
