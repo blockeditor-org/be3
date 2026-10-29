@@ -390,9 +390,6 @@ impl Docks {
         framed
     }
 
-    /// The child that took `instance`'s frame over, when its bars join in
-    /// place of `instance`'s: `instance` joins the root, and the child took
-    /// over a dock tab of its or `instance` is itself joined as bars only.
     fn frame_record(&self, instance: EditorInstanceId) -> Option<(ChildId, Placed)> {
         if !self.joins(instance) {
             return None;
@@ -727,10 +724,7 @@ impl Docks {
                     let declaration = self.spliced(inner, depth + 1);
                     let host = (record.tab != ViewId::MAIN.0).then_some(record.tab);
                     Some(hosted.frame_child(child, host, &|bar| {
-                        declaration
-                            .as_ref()?
-                            .bar(bar)
-                            .map(|bar| bar.owner.clone())
+                        declaration.as_ref()?.bar(bar).map(|bar| bar.owner.clone())
                     }))
                 }
                 (Some(hosted), false) => self
@@ -742,10 +736,6 @@ impl Docks {
         }
     }
 
-    /// Remembers where each of `instance`'s own bars is while the root
-    /// shows it, and keeps the bars a child that took its frame over hides
-    /// in its hosted layout where they were, so the instance sees no change
-    /// (and saves none) and they come back there.
     fn park(&mut self, instance: EditorInstanceId, own: &mut DockHosted) {
         self.shown_bars.retain(|(held, _)| *held != instance);
         for bar in &own.layout.bars {

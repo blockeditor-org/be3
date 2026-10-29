@@ -109,14 +109,20 @@ fn a_frame_childs_bars_take_the_place_of_its_placers_and_give_it_back() {
          and its placer's bars go"
     );
     let delivered = docks.delivered.get(&(ROOT, OUTER_CHILD)).unwrap();
-    assert!(delivered.tab(&path(&[FRAME_CHILD], 7)).is_none(), "its tabs stay out");
+    assert!(
+        delivered.tab(&path(&[FRAME_CHILD], 7)).is_none(),
+        "its tabs stay out"
+    );
     assert_eq!(
         docks.resolve(ROOT, &path(&[OUTER_CHILD, FRAME_CHILD], 8)),
         Some((FRAMER_BLOCK, 8)),
         "the root places its bar's body"
     );
 
-    let cover = Rect::from_min_size(Pos2::new(0.0, 0.0), block_plugin_api::Vec2::new(48.0, 300.0));
+    let cover = Rect::from_min_size(
+        Pos2::new(0.0, 0.0),
+        block_plugin_api::Vec2::new(48.0, 300.0),
+    );
     root_hosts(
         &mut docks,
         vec![DockPlacedBar {
@@ -193,7 +199,10 @@ fn a_frame_childs_bars_take_the_place_of_its_placers_and_give_it_back() {
         updates(&mut docks, "framer")
             .iter()
             .any(|(to, update)| *to == FRAMER
-                && matches!(update, DockUpdate::Hosted(DockHostedView { hosted: None, .. }))),
+                && matches!(
+                    update,
+                    DockUpdate::Hosted(DockHostedView { hosted: None, .. })
+                )),
         "and the child draws its bars itself again"
     );
 }

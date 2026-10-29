@@ -26,7 +26,11 @@ fn a_frame_childs_bars_splice_in_place_of_its_parents_and_split_back_out() {
     spliced.bars.push(bar(9, "tags", 1, DockEdge::Top));
     spliced.splice_bars(Some(2), child, &prefix, &inner);
     assert_eq!(spliced.validate(), Ok(()));
-    assert_eq!(spliced.tabs, declaration().tabs, "the child's tabs stay out");
+    assert_eq!(
+        spliced.tabs,
+        declaration().tabs,
+        "the child's tabs stay out"
+    );
     let tools = DockTabPath::own(7).through(child);
     let keys: Vec<(&DockTabPath, &str, &DockTabPath)> = spliced
         .bars

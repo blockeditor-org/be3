@@ -650,10 +650,11 @@ impl<K: DockKey> DockingLayout<K> {
 
     pub fn bar_placement(&self, key: &K) -> Option<DockBarPlacement> {
         let bar = self.tab_of(key)?;
-        let hosted = self
-            .inner()
-            .bars_hosted
-            .with(|hosted| hosted.as_ref().map(|hosted| hosted.state.bar_placement(bar)));
+        let hosted = self.inner().bars_hosted.with(|hosted| {
+            hosted
+                .as_ref()
+                .map(|hosted| hosted.state.bar_placement(bar))
+        });
         match hosted {
             Some(placement) => placement,
             None => self.state.with(|state| state.bar_placement(bar)),
@@ -1779,11 +1780,10 @@ fn join_bars<K: DockKey>(
     });
     let declaring = Rc::clone(&link);
     create_effect(move || {
-        let Some(spec) = declared.get() else {
+        let Some(spec) = declared.get().filter(|spec| !spec.bars.is_empty()) else {
             return;
         };
-        let declaration = layout.declaration(spec, found);
-        untrack(|| declaring.declare(declaration));
+        untrack(|| declaring.declare(layout.declaration(spec, found)));
     });
     let body = RenderFn::new(move |bar: TabId| {
         let body = found.with_untracked(|found| found.bars.get(&bar).map(|(_, body)| *body));

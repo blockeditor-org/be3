@@ -343,7 +343,11 @@ impl ProtocolLink {
         };
         let declared = declaration_to_api(declaration, &own_path, &empty, &size);
         let views: Vec<ViewId> = match self.docked {
-            true => declared.tabs.iter().map(|tab| ViewId(tab.tab.tab)).collect(),
+            true => declared
+                .tabs
+                .iter()
+                .map(|tab| ViewId(tab.tab.tab))
+                .collect(),
             false => Vec::new(),
         };
         for view in &views {

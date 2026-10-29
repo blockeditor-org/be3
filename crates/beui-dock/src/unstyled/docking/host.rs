@@ -135,8 +135,6 @@ impl DockHostSlot {
         }
     }
 
-    /// A slot whose dock draws its own tabs and declares only its bars to
-    /// the link, which places them elsewhere while it hosts them.
     pub fn bars(link: Rc<dyn DockHostLink>) -> Self {
         Self {
             bars: true,

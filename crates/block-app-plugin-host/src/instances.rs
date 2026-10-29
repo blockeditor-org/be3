@@ -2594,20 +2594,28 @@ impl Instances {
                     && !screen.revoked.contains(&child.child)
                     && child.rect.is_positive()
             })
-            .find_map(|child| Some((view, child.child, Uuid::from_bytes(child.content.block_id()?))))
+            .find_map(|child| {
+                Some((
+                    view,
+                    child.child,
+                    Uuid::from_bytes(child.content.block_id()?),
+                ))
+            })
     }
 
-    pub(super) fn frame_children(&self) -> Vec<(EditorInstanceId, Option<super::docks::DockedChild>)> {
+    pub(super) fn frame_children(
+        &self,
+    ) -> Vec<(EditorInstanceId, Option<super::docks::DockedChild>)> {
         self.entries
             .keys()
             .map(|instance| {
-                let framed = self
-                    .framing(*instance)
-                    .map(|(view, child, block)| super::docks::DockedChild {
-                        child,
-                        tab: view.0,
-                        block,
-                    });
+                let framed =
+                    self.framing(*instance)
+                        .map(|(view, child, block)| super::docks::DockedChild {
+                            child,
+                            tab: view.0,
+                            block,
+                        });
                 (*instance, framed)
             })
             .collect()

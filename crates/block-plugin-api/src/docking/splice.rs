@@ -316,12 +316,6 @@ impl DockDeclaration {
         Ok(true)
     }
 
-    /// Splices only the bars of a child that took this dock's frame over,
-    /// in place of this dock's own bars: with `host` set, the bars owned by
-    /// that tab go and the child's bars join that tab's pane; with `host`
-    /// unset (this dock is itself spliced as bars only), every bar of this
-    /// dock goes and the child's keep their owners, for the level above to
-    /// give them its tab. The child's tabs and dialogs stay out.
     pub fn splice_bars(
         &mut self,
         host: Option<u64>,
@@ -334,13 +328,15 @@ impl DockDeclaration {
             Some(host) => self.bars.retain(|bar| bar.owner != *host),
             None => self.bars.clear(),
         }
-        self.bars.extend(inner.bars.iter().map(|bar| DockBar {
-            tab: bar.tab.clone().through(child),
-            key: prefixed(prefix, &bar.key),
-            owner: host
-                .clone()
-                .unwrap_or_else(|| bar.owner.clone().through(child)),
-            ..bar.clone()
+        self.bars.extend(inner.bars.iter().map(|bar| {
+            DockBar {
+                tab: bar.tab.clone().through(child),
+                key: prefixed(prefix, &bar.key),
+                owner: host
+                    .clone()
+                    .unwrap_or_else(|| bar.owner.clone().through(child)),
+                ..bar.clone()
+            }
         }));
     }
 }
@@ -441,10 +437,6 @@ impl DockHosted {
         })
     }
 
-    /// What a child that took this dock's frame over hosts: its bars where
-    /// this layout has them, each owned again by the child's own tab that
-    /// `owner` names for it, and the covers of the tab whose frame it took
-    /// (of every tab when `host` is unset) on each of those tabs.
     pub fn frame_child(
         &self,
         child: ChildId,
