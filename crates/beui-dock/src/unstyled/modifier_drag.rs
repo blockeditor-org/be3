@@ -105,7 +105,7 @@ impl State {
                     start,
                     direction.main(moved),
                 );
-                self.edit(|state| state.set_split_fraction(split, fraction));
+                self.drag_edit(move |state| state.set_split_fraction(split, fraction));
             }
             Resize::Window {
                 surface,
@@ -113,7 +113,7 @@ impl State {
                 start,
             } => {
                 let resized = grip.resized(start, moved);
-                self.edit(|state| state.set_window_rect(surface, resized));
+                self.drag_edit(move |state| state.set_window_rect(surface, resized));
             }
         }
     }
