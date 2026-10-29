@@ -17,7 +17,8 @@ How a coordinating agent splits a large task across subagents on one Claude Code
 
 - Memory is the tightest limit. The VM has 15G and each worktree runs its own buck2 daemon of about 1.5G, and verify runs got OOM-killed with six worktrees building at once. Five concurrent agents is about the most that fits, and each must run `./scripts/buck kill` in its worktree when it finishes. The coordinator should kill its own idle daemon too.
 - Disk is a fixed allowance of about 39G. A worktree's `buck-out` can reach 11G after verify. Delete `buck-out` when space runs low: everything is cached on the build server. Run `./scripts/buck kill` first, or buck2 reports a stale working directory.
-- Never run `pkill -x buck2` or any other command that kills processes by name across the machine: it kills every agent's build.
+- Never run `pkill -x buck2` or any other command that kills processes by name across the machine: it kills every agent's build. `pkill -x block-app` likewise kills every agent's app.
+- Every worktree's `:dev` uses the same `~/.cache/be3/dev` (data, drive socket, `env` file) unless `BE_DRIVE_DIR` says otherwise, so by default one headless app runs on the VM for all agents: starting `:dev` from one worktree restarts the app another agent is driving, and `--fresh` or `--stop` deletes or stops it. Give each agent that drives the app its own short `BE_DRIVE_DIR` (`/tmp/be3-<task>`) in its prompt, and have it source that directory's `env`.
 - When the account's usage limit is reached, or the container restarts, every agent stops at once. Resume each one by messaging it (after the limit resets); its worktree and transcript survive. A restart kills background builds and buck2 daemons, so tell resumed agents to rerun theirs, and check each worktree's state (`git status`, `git log`) before trusting what its agent last reported.
 
 ## The build server
