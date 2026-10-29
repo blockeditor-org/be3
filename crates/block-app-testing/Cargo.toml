@@ -1,0 +1,18 @@
+[package]
+name = "block-app-testing"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+be-client = { path = "../be-client" }
+be-keys = { path = "../be-keys" }
+be-server = { path = "../be-server" }
+block-app-stack = { path = "../block-app-stack", features = ["testing"] }
+build-id = { path = "../build-id" }
+first-party-types = { path = "../first-party-types" }
+tokio = { version = "1", features = ["rt"] }
+uuid = { version = "1", features = ["v4"] }
+
+[lints]
+workspace = true

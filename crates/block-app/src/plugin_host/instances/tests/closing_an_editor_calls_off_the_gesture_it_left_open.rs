@@ -7,7 +7,7 @@ use block_type_guest::editor::Gesture;
 use counter_types::{Counter, CounterContent};
 
 fn counted(block: Uuid, expected: i64) {
-    crate::be::wait_for(Duration::from_secs(20), |shared| {
+    block_app_stack::wait_for(Duration::from_secs(20), |shared| {
         let held = shared.blocks.get(&block)?;
         let counter = CounterContent::decode(held.bytes()).ok()?;
         (counter.root().value() == expected).then_some(())
@@ -17,11 +17,11 @@ fn counted(block: Uuid, expected: i64) {
 
 #[test]
 fn closing_an_editor_calls_off_the_gesture_it_left_open() {
-    let harness = crate::be::Harness::start();
+    let harness = block_app_testing::Harness::start();
     harness.connect();
     let own = Uuid::new_v4();
     let watched = Uuid::new_v4();
-    crate::be::create(
+    block_app_stack::create(
         watched,
         CounterContent::CONTENT_TYPE,
         be_graph::BlockParent::Root,
@@ -54,7 +54,7 @@ fn closing_an_editor_calls_off_the_gesture_it_left_open() {
     counted(watched, 5);
 
     assert!(instances.remove(INSTANCE));
-    crate::be::flush();
-    crate::be::open(watched, CounterContent::CONTENT_TYPE);
+    block_app_stack::flush();
+    block_app_stack::open(watched, CounterContent::CONTENT_TYPE);
     counted(watched, 2);
 }

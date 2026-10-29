@@ -7,7 +7,7 @@ use block_type_guest::editor::EditorOperation;
 use counter_types::{Counter, CounterContent};
 
 fn counted(block: Uuid, expected: i64) {
-    crate::be::wait_for(Duration::from_secs(20), |shared| {
+    block_app_stack::wait_for(Duration::from_secs(20), |shared| {
         let held = shared.blocks.get(&block)?;
         let counter = <CounterContent as be_block::BlockContent>::decode(held.bytes()).ok()?;
         (counter.root().value() == expected).then_some(())
@@ -26,10 +26,10 @@ fn operations(sent: &[ToEditor]) -> Vec<EditorOperation> {
 
 #[test]
 fn after_the_first_snapshot_an_editor_is_sent_operations() {
-    let harness = crate::be::Harness::start();
+    let harness = block_app_testing::Harness::start();
     harness.connect();
     let block = Uuid::new_v4();
-    crate::be::create(
+    block_app_stack::create(
         block,
         CounterContent::CONTENT_TYPE,
         be_graph::BlockParent::Root,
@@ -64,7 +64,7 @@ fn after_the_first_snapshot_an_editor_is_sent_operations() {
     );
 
     let elsewhere = CounterContent::encode_operation(&Counter::add(5));
-    crate::be::operate(block, elsewhere.clone());
+    block_app_stack::operate(block, elsewhere.clone());
     counted(block, 7);
     let sent = replica_sent_until(&mut instances, block, |sent| !operations(sent).is_empty());
     assert_eq!(

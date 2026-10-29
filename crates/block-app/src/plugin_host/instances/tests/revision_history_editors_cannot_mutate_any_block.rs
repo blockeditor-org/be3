@@ -8,35 +8,35 @@ use counter_types::CounterContent;
 
 #[test]
 fn revision_history_editors_cannot_mutate_any_block() {
-    let harness = crate::be::Harness::start();
+    let harness = block_app_testing::Harness::start();
     harness.connect();
     let block = Uuid::new_v4();
-    crate::be::hold(block, CounterContent::CONTENT_TYPE);
-    crate::be::operate(
+    block_app_stack::hold(block, CounterContent::CONTENT_TYPE);
+    block_app_stack::operate(
         block,
         CounterContent::encode_operation(&counter_types::Counter::add(1)),
     );
-    crate::be::flush();
-    let head = crate::be::wait_for(std::time::Duration::from_secs(20), |shared| {
+    block_app_stack::flush();
+    let head = block_app_stack::wait_for(std::time::Duration::from_secs(20), |shared| {
         shared.graph.get(block).and_then(|node| node.head)
     })
     .expect("the saved counter has a head");
     let (send, receive) = std::sync::mpsc::channel();
-    crate::be::revisions::request(
+    block_app_stack::revisions::request(
         block,
-        crate::be::revisions::Asked::Preview(*head.hash().as_bytes()),
+        block_app_stack::revisions::Asked::Preview(*head.hash().as_bytes()),
         move |reply| {
             send.send(reply).unwrap();
         },
     );
-    let crate::be::revisions::Answered::Previewed(Ok(preview)) = receive
+    let block_app_stack::revisions::Answered::Previewed(Ok(preview)) = receive
         .recv_timeout(std::time::Duration::from_secs(20))
         .unwrap()
     else {
         panic!("preview opens");
     };
     let mut instances = placed_on(preview, CounterContent::CONTENT_TYPE);
-    let before = crate::be::content(block).unwrap().bytes().to_vec();
+    let before = block_app_stack::content(block).unwrap().bytes().to_vec();
     for target in [block, preview] {
         assert!(!to_replica(
             &mut instances,
@@ -75,20 +75,20 @@ fn revision_history_editors_cannot_mutate_any_block() {
         );
     }
     let child = Uuid::new_v4();
-    crate::be::open(child, CounterContent::CONTENT_TYPE);
-    crate::be::operate(
+    block_app_stack::open(child, CounterContent::CONTENT_TYPE);
+    block_app_stack::operate(
         child,
         CounterContent::encode_operation(&counter_types::Counter::add(7)),
     );
-    crate::be::flush();
-    crate::be::close(child);
-    crate::be::wait_for(std::time::Duration::from_secs(20), |shared| {
+    block_app_stack::flush();
+    block_app_stack::close(child);
+    block_app_stack::wait_for(std::time::Duration::from_secs(20), |shared| {
         (!shared.blocks.contains_key(&child)).then_some(())
     })
     .expect("the child's live session closes");
-    let descendant = crate::be::revisions::alias(preview, child);
-    crate::be::open(descendant, CounterContent::CONTENT_TYPE);
-    crate::be::wait_for(std::time::Duration::from_secs(20), |shared| {
+    let descendant = block_app_stack::revisions::alias(preview, child);
+    block_app_stack::open(descendant, CounterContent::CONTENT_TYPE);
+    block_app_stack::wait_for(std::time::Duration::from_secs(20), |shared| {
         shared
             .revision_previews
             .get(&descendant)
@@ -97,17 +97,17 @@ fn revision_history_editors_cannot_mutate_any_block() {
             .map(|_| ())
     })
     .expect("the child loads as a read-only preview");
-    assert_eq!(crate::be::revisions::source(descendant), Some(child));
-    assert!(!crate::be::access(descendant).can_edit());
+    assert_eq!(block_app_stack::revisions::source(descendant), Some(child));
+    assert!(!block_app_stack::access(descendant).can_edit());
     assert_eq!(
-        CounterContent::decode(crate::be::content(descendant).unwrap().bytes())
+        CounterContent::decode(block_app_stack::content(descendant).unwrap().bytes())
             .unwrap()
             .root()
             .value(),
         7
     );
     assert!(
-        crate::be::content(child).is_none(),
+        block_app_stack::content(child).is_none(),
         "a nested preview never joins a live session"
     );
     let mut nested = placed_on(descendant, CounterContent::CONTENT_TYPE);
@@ -118,8 +118,8 @@ fn revision_history_editors_cannot_mutate_any_block() {
             &counter_types::Counter::add(99)
         ))
     ));
-    crate::be::flush();
-    assert_eq!(crate::be::content(block).unwrap().bytes().to_vec(), before);
-    crate::be::revisions::release(preview);
-    crate::be::revisions::collect_released();
+    block_app_stack::flush();
+    assert_eq!(block_app_stack::content(block).unwrap().bytes().to_vec(), before);
+    block_app_stack::revisions::release(preview);
+    block_app_stack::revisions::collect_released(|_| {});
 }

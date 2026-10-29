@@ -10,11 +10,8 @@ use uuid::Uuid;
 
 use super::{Instances, allowed};
 use block_app_base::{host, platform::http::{self, AbortFlag, Aborted}};
-use crate::{
-    be::revisions,
-    editors::plugin::discovery,
-    plugin_host::wire::Service,
-};
+use block_app_stack::{discovery, revisions};
+use crate::plugin_host::wire::Service;
 
 type Visit<'a> = dyn FnMut(&mut [u8; 16]) + 'a;
 
@@ -165,12 +162,12 @@ impl Instances {
         let scope = self.entries.get(&instance).and_then(|entry| {
             let block = entry.role.block()?.id;
             let source = revisions::source(block).unwrap_or(block);
-            crate::be::with_graph(|graph| graph.scope_of(source)).flatten()
+            block_app_stack::with_graph(|graph| graph.scope_of(source)).flatten()
         });
         let Some(scope) = scope else {
             return;
         };
-        crate::be::with_graph(|graph| {
+        block_app_stack::with_graph(|graph| {
             ids(&mut |id| {
                 let block = Uuid::from_bytes(*id);
                 let translated = match inward {
@@ -274,7 +271,7 @@ impl Instances {
                     return self.answer_now(reply, refused);
                 }
                 let answering = self.answering(instance, reply);
-                crate::be::export(block, move |exported| match exported {
+                block_app_stack::export(block, move |exported| match exported {
                     Ok(_) if answering.withdrawn() => {}
                     Ok((name, data)) => {
                         let file = SavedFile {
@@ -293,7 +290,7 @@ impl Instances {
                     return self.answer_now(reply, Err(Failure::Denied));
                 }
                 let answering = self.answering(instance, reply);
-                crate::be::plain_file(block, move |read| {
+                block_app_stack::plain_file(block, move |read| {
                     answering.send_or_fail(read.map(|file| SavedFile {
                         name: file.name.unwrap_or_default(),
                         mime_type: file.media_type,
@@ -302,7 +299,7 @@ impl Instances {
                 });
             }
             Call::ImportBlocks { reply, parent } => {
-                let parent = super::super::graph::parent_of(parent);
+                let parent = block_app_stack::plugin_graph::parent_of(parent);
                 if parent.block().is_some_and(|parent| !self.editable(parent)) {
                     return self.answer_now(reply, Err(Failure::Denied));
                 }
@@ -324,10 +321,10 @@ impl Instances {
                             if be_block::plain::extension(&file.name)
                                 == be_client::transfer::EXTENSION =>
                         {
-                            answering.imported(imported(crate::be::import(&file.data, parent)));
+                            answering.imported(imported(block_app_stack::import(&file.data, parent)));
                         }
                         Ok(Some(file)) => {
-                            crate::be::import_file(file.name, file.data, parent, move |file| {
+                            block_app_stack::import_file(file.name, file.data, parent, move |file| {
                                 if !answering.withdrawn() {
                                     answering.imported(imported(file));
                                 }
@@ -344,19 +341,19 @@ impl Instances {
                 parent,
             } => {
                 let source = Uuid::from_bytes(source);
-                let parent = super::super::graph::parent_of(parent);
+                let parent = block_app_stack::plugin_graph::parent_of(parent);
                 if !self.can_view(source)
                     || parent.block().is_some_and(|parent| !self.editable(parent))
                 {
                     return self.answer_now(reply, Err(Failure::Denied));
                 }
                 let answering = self.answering(instance, reply);
-                crate::be::export(source, move |exported| {
+                block_app_stack::export(source, move |exported| {
                     if answering.withdrawn() {
                         return;
                     }
                     answering.imported(exported.and_then(|(_, bytes)| {
-                        crate::be::import(&bytes, parent).map(|(block, block_type)| {
+                        block_app_stack::import(&bytes, parent).map(|(block, block_type)| {
                             Some(ImportedBlock {
                                 block_id: block.into_bytes(),
                                 block_type: block_type.into_bytes(),
@@ -367,18 +364,18 @@ impl Instances {
             }
             Call::ListAccess { reply, block } => {
                 let answering = self.answering(instance, reply);
-                crate::be::list_access(Uuid::from_bytes(block), move |listed| {
-                    answering.listed(super::super::graph::grants_of(listed));
+                block_app_stack::list_access(Uuid::from_bytes(block), move |listed| {
+                    answering.listed(block_app_stack::plugin_graph::grants_of(listed));
                 });
             }
             Call::SetAccess {
                 block,
                 account,
                 access,
-            } => crate::be::set_access(
+            } => block_app_stack::set_access(
                 Uuid::from_bytes(block),
                 Uuid::from_bytes(account),
-                super::super::graph::access_of(access),
+                block_app_stack::plugin_graph::access_of(access),
             ),
             Call::MakeContactLink {
                 reply,
@@ -388,9 +385,9 @@ impl Instances {
                 let answering = self.answering(instance, reply);
                 let offer = (
                     Uuid::from_bytes(block),
-                    super::super::graph::access_of(access),
+                    block_app_stack::plugin_graph::access_of(access),
                 );
-                crate::be::make_contact_link(Some(offer), move |made| answering.send_or_fail(made));
+                block_app_stack::make_contact_link(Some(offer), move |made| answering.send_or_fail(made));
             }
             Call::Fetch { reply, url } => {
                 if !allowed(&url, &self.network) {

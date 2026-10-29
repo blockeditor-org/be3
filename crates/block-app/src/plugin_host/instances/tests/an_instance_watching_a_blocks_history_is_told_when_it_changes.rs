@@ -13,7 +13,7 @@ fn histories(instances: &mut Instances, watch: OpId) -> Vec<BlockHistory> {
 
 #[test]
 fn an_instance_watching_a_blocks_history_is_told_when_it_changes() {
-    let harness = crate::be::Harness::start();
+    let harness = block_app_testing::Harness::start();
     harness.connect();
     let block = Uuid::new_v4();
     let mut instances = placed();
@@ -30,14 +30,14 @@ fn an_instance_watching_a_blocks_history_is_told_when_it_changes() {
     assert_eq!(histories(&mut instances, watch), [nothing]);
     assert!(histories(&mut instances, watch).is_empty());
 
-    crate::be::open(block, CalendarContent::CONTENT_TYPE);
-    crate::be::operate(
+    block_app_stack::open(block, CalendarContent::CONTENT_TYPE);
+    block_app_stack::operate(
         block,
         CalendarContent::encode_operation(
             &Calendar::add(&CalendarEvent::new("Standup", 540, 555)).1,
         ),
     );
-    crate::be::wait_for(Duration::from_secs(20), |shared| {
+    block_app_stack::wait_for(Duration::from_secs(20), |shared| {
         shared
             .histories
             .get(&block)
@@ -49,7 +49,7 @@ fn an_instance_watching_a_blocks_history_is_told_when_it_changes() {
     assert_eq!(
         histories(&mut instances, watch),
         [BlockHistory {
-            head: crate::be::node(block)
+            head: block_app_stack::node(block)
                 .and_then(|node| node.head)
                 .map(|head| *head.hash().as_bytes()),
             can_undo: true,

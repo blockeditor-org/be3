@@ -74,9 +74,9 @@ impl Instance {
     }
 
     pub(super) fn history(&self, block: Uuid) -> BlockHistory {
-        let history = crate::be::history(block);
+        let history = block_app_stack::history(block);
         BlockHistory {
-            head: crate::be::node(block)
+            head: block_app_stack::node(block)
                 .and_then(|node| node.head)
                 .map(|head| *head.hash().as_bytes()),
             can_undo: history.can_undo,
@@ -86,21 +86,21 @@ impl Instance {
 }
 
 impl Instances {
-    pub(super) fn scope(&self, instance: EditorInstanceId) -> Option<crate::be::Scope> {
+    pub(super) fn scope(&self, instance: EditorInstanceId) -> Option<block_app_stack::Scope> {
         let block = self.entries.get(&instance)?.role.block()?.id;
-        let source = crate::be::revisions::source(block).unwrap_or(block);
-        crate::be::with_graph(|graph| graph.scope_of(source)).flatten()
+        let source = block_app_stack::revisions::source(block).unwrap_or(block);
+        block_app_stack::with_graph(|graph| graph.scope_of(source)).flatten()
     }
 
     pub(super) fn translated(
-        scope: Option<crate::be::Scope>,
+        scope: Option<block_app_stack::Scope>,
         inward: bool,
         visit: impl FnOnce(&mut Translate<'_>),
     ) {
         let Some(scope) = scope else {
             return;
         };
-        crate::be::with_graph(|graph| {
+        block_app_stack::with_graph(|graph| {
             visit(&mut |role, id| {
                 let block = Uuid::from_bytes(*id);
                 let translated = match inward {
@@ -126,7 +126,7 @@ impl Instances {
             .entries
             .get(&instance)
             .and_then(|entry| entry.role.block())
-            .is_some_and(|block| crate::be::revisions::source(block.id).is_some());
+            .is_some_and(|block| block_app_stack::revisions::source(block.id).is_some());
         if preview && call.changes() {
             return false;
         }
@@ -167,7 +167,7 @@ impl Instances {
                 {
                     return false;
                 }
-                crate::be::version(block, command);
+                block_app_stack::version(block, command);
                 true
             }
             Call::ReplaceContent {
@@ -177,8 +177,8 @@ impl Instances {
             } => {
                 let block = Uuid::from_bytes(block);
                 let content_type = Uuid::from_bytes(content_type);
-                if crate::be::is_known(content_type) && self.editable(block) {
-                    crate::be::replace(block, content_type, bytes);
+                if block_app_stack::is_known(content_type) && self.editable(block) {
+                    block_app_stack::replace(block, content_type, bytes);
                 }
                 false
             }
@@ -193,8 +193,8 @@ impl Instances {
                     .entries
                     .get(&instance)
                     .is_some_and(|entry| entry.holds(block));
-                if holds && crate::be::is_known(content_type) {
-                    crate::be::seed(block, content_type, bytes);
+                if holds && block_app_stack::is_known(content_type) {
+                    block_app_stack::seed(block, content_type, bytes);
                 }
                 false
             }
@@ -205,21 +205,21 @@ impl Instances {
                 defined,
                 content,
             } => {
-                let parent = super::super::graph::parent_of(parent);
+                let parent = block_app_stack::plugin_graph::parent_of(parent);
                 if parent.block().is_some_and(|parent| !self.editable(parent)) {
                     return false;
                 }
                 let block = Uuid::from_bytes(block);
-                if crate::be::node(block).is_some() {
+                if block_app_stack::node(block).is_some() {
                     return false;
                 }
-                let mut defined = super::super::graph::entries_of(defined);
+                let mut defined = block_app_stack::plugin_graph::entries_of(defined);
                 defined.remove(&be_block::LOCAL_ID.id);
                 let metadata = be_block::BlockMetadata {
                     defined,
                     ..be_block::BlockMetadata::default()
                 };
-                crate::be::create(
+                block_app_stack::create(
                     block,
                     Uuid::from_bytes(block_type),
                     parent,
@@ -230,13 +230,13 @@ impl Instances {
             }
             Call::SetParent { block, parent } => {
                 let block = Uuid::from_bytes(block);
-                let parent = super::super::graph::parent_of(parent);
+                let parent = block_app_stack::plugin_graph::parent_of(parent);
                 if !self.editable(block)
                     || parent.block().is_some_and(|parent| !self.editable(parent))
                 {
                     return false;
                 }
-                crate::be::set_parent(block, parent);
+                block_app_stack::set_parent(block, parent);
                 true
             }
             Call::Define { block, key, value } => {
@@ -245,7 +245,7 @@ impl Instances {
                 if !self.editable(block) || key == be_block::LOCAL_ID.id {
                     return false;
                 }
-                crate::be::define(block, vec![(key, value)]);
+                block_app_stack::define(block, vec![(key, value)]);
                 true
             }
             Call::ReplicaNew {
@@ -329,7 +329,7 @@ impl Instances {
         block: Uuid,
         content_type: Uuid,
     ) -> bool {
-        let allowed = crate::be::provided(content_type) && crate::be::may_load(block);
+        let allowed = block_app_stack::provided(content_type) && block_app_stack::may_load(block);
         let Some(entry) = self.entries.get_mut(&instance) else {
             return false;
         };

@@ -66,7 +66,7 @@ fn a_conflicted_block_offers_both_versions() {
 
     let mut dialog = shown(move || {
         let comparison = create_memo(move || {
-            Some(crate::be::conflicts::Comparison {
+            Some(block_app_stack::conflicts::Comparison {
                 block,
                 ours: Some(Err(
                     "This version is still loading from this device.".to_owned()

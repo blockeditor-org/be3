@@ -14,7 +14,7 @@ use block_plugin_api::{RemapState, RemapsWatch};
 use uuid::Uuid;
 
 use block_app_base::app_state::AppStateStore;
-use crate::editors::plugin::discovery;
+use block_app_stack::discovery;
 use loader::{Loader, Step, Wanted};
 
 mod loader;
@@ -196,14 +196,14 @@ fn read_chosen() {
     let Some(block) = STATE.with_borrow(|state| state.chosen) else {
         return;
     };
-    crate::be::hold(block, InputRemapper::CONTENT_TYPE);
-    let Some(revision) = crate::be::content_revision(block) else {
+    block_app_stack::hold(block, InputRemapper::CONTENT_TYPE);
+    let Some(revision) = block_app_stack::content_revision(block) else {
         return;
     };
     if STATE.with_borrow(|state| state.seen == Some(revision)) {
         return;
     }
-    let Some(content) = crate::be::content(block) else {
+    let Some(content) = block_app_stack::content(block) else {
         return;
     };
     STATE.with_borrow_mut(|state| state.seen = Some(revision));

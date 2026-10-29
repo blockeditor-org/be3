@@ -170,7 +170,7 @@ fn child(rect: Rect, follows_view: bool) -> ChildPlacements {
 }
 
 fn next_screens(instances: &mut Instances) -> NextScreens {
-    instances.touch(&crate::be::take_touched());
+    instances.touch(&block_app_stack::take_touched());
     instances.next_screens(PASS)
 }
 
@@ -246,7 +246,7 @@ fn from_replica(instances: &mut Instances, block: Uuid) -> Vec<ToEditor> {
     let mut frames = Vec::new();
     instances.relay(|op, frame| {
         if Some(op) == replica {
-            frames.extend(crate::be::unframe(frame).and_then(|bytes| ToEditor::decode(&bytes)));
+            frames.extend(block_app_stack::unframe(frame).and_then(|bytes| ToEditor::decode(&bytes)));
         }
         true
     });
@@ -274,7 +274,7 @@ fn replica_sent_until(
             std::time::Instant::now() < deadline,
             "the replica never sent what was expected: {sent:?}"
         );
-        crate::be::wait_for(std::time::Duration::from_millis(100), |shared| {
+        block_app_stack::wait_for(std::time::Duration::from_millis(100), |shared| {
             shared.editor_frames.contains_key(&INSTANCE.0).then_some(())
         });
     }

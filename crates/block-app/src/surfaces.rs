@@ -205,18 +205,18 @@ pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
 }
 
 #[component]
-pub(crate) fn StaleBlock(block: Uuid, block_type: Uuid, stale: crate::be::Stale) -> NodeId {
-    let can_try = matches!(stale, crate::be::Stale::Reshaped);
+pub(crate) fn StaleBlock(block: Uuid, block_type: Uuid, stale: block_app_stack::Stale) -> NodeId {
+    let can_try = matches!(stale, block_app_stack::Stale::Reshaped);
     let detail = match stale {
-        crate::be::Stale::Unreadable(error) => {
+        block_app_stack::Stale::Unreadable(error) => {
             format!("This build cannot read what another build saved here: {error}")
         }
-        crate::be::Stale::Reshaped => {
+        block_app_stack::Stale::Reshaped => {
             "Another build saved this block in a shape this build may read wrongly.".to_owned()
         }
     };
     let delete = move || {
-        let source = crate::be::node(block).and_then(|node| node.parent).map_or(
+        let source = block_app_stack::node(block).and_then(|node| node.parent).map_or(
             BlockLocation::Detached,
             |parent| match parent {
                 be_graph::BlockParent::Root => BlockLocation::Root,
@@ -241,9 +241,9 @@ pub(crate) fn StaleBlock(block: Uuid, block_type: Uuid, stale: crate::be::Stale)
                 title="Saved by another build"
                 detail={detail}
                 can_try
-                on_reset={move || crate::be::reset(block)}
+                on_reset={move || block_app_stack::reset(block)}
                 on_delete={delete}
-                on_try={move || crate::be::try_anyway(block)}
+                on_try={move || block_app_stack::try_anyway(block)}
             />
         </Frame>
     }
@@ -278,13 +278,13 @@ pub(crate) fn ConflictNotice(block: Uuid, count: usize) -> NodeId {
                         @test_id={format!("conflict.{block}.compare")}
                         label="See both versions"
                         variant=ButtonVariant::Secondary
-                        on_click={move || crate::be::conflicts::compare(block)}
+                        on_click={move || block_app_stack::conflicts::compare(block)}
                     />
                     <Button
                         @test_id={format!("conflict.{block}.dismiss")}
                         label="Keep merged"
                         variant=ButtonVariant::Ghost
-                        on_click={move || crate::be::conflicts::dismiss(block)}
+                        on_click={move || block_app_stack::conflicts::dismiss(block)}
                     />
                 </List>
             </Frame>

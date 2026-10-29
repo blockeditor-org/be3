@@ -10,7 +10,6 @@ use std::sync::{
 };
 use uuid::Uuid;
 
-pub(crate) mod discovery;
 
 use super::{
     ArtifactSession, ArtifactStatus, DirectEditorCapabilities, DirectEditorInteraction,
@@ -418,7 +417,7 @@ impl PluginEditor {
         let Some(plugin) = self.plugin() else {
             return self.change_child(replace);
         };
-        if !discovery::block_type(self.block_type)
+        if !block_app_stack::discovery::block_type(self.block_type)
             .is_some_and(|block_type| block_type.children.replace)
         {
             return None;
@@ -431,7 +430,7 @@ impl PluginEditor {
     }
 
     fn change_child(&self, change: be_block::ChildChange) -> Option<bool> {
-        crate::be::change_child(self.id, self.block_type, change)
+        block_app_stack::change_child(self.id, self.block_type, change)
     }
 
     pub(crate) fn render_aspect_ratio(&self) -> Option<f32> {

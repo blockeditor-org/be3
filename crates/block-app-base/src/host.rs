@@ -22,6 +22,16 @@ pub fn install_waker(waker: impl Fn() + Send + Sync + 'static) {
     let _ = WAKER.set(Box::new(waker));
 }
 
+static CLOCK: OnceLock<fn() -> Instant> = OnceLock::new();
+
+pub fn install_clock(clock: fn() -> Instant) {
+    let _ = CLOCK.set(clock);
+}
+
+pub fn clock() -> Instant {
+    CLOCK.get().map_or_else(Instant::now, |clock| clock())
+}
+
 pub fn wake() {
     if let Some(waker) = WAKER.get() {
         waker();

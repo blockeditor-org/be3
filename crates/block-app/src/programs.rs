@@ -135,7 +135,7 @@ pub(crate) fn show(block: Uuid, block_type: Uuid, editor: Uuid, parent: Uuid) {
         desktop_host::close(window);
     }
     if replaced.is_some() {
-        crate::compositor::changed();
+        block_app_base::host::changed();
     }
 }
 
@@ -165,7 +165,7 @@ pub(crate) fn reopen(block: Uuid) {
             session.stage = Stage::Wanted;
         }
     });
-    crate::compositor::changed();
+    block_app_base::host::changed();
 }
 
 pub(crate) fn close(closed: Uuid) {
@@ -292,7 +292,7 @@ impl Programs {
                     .collect();
             });
             set_editors(descriptors(&openers));
-            crate::compositor::changed();
+            block_app_base::host::changed();
         }
         self.step_sessions();
     }
@@ -315,7 +315,7 @@ impl Programs {
         });
         for block in wanted {
             let sender = self.read.0.clone();
-            crate::be::plain_file(block, move |read| {
+            block_app_stack::plain_file(block, move |read| {
                 let _ = sender.send((block, read));
             });
             changed = true;
@@ -330,7 +330,7 @@ impl Programs {
         changed |= self.bind_windows();
         self.write_back_touched();
         if changed {
-            crate::compositor::changed();
+            block_app_base::host::changed();
         }
     }
 
@@ -353,7 +353,7 @@ impl Programs {
         let stage = match read.and_then(|file| files::place(files, block, &file)) {
             Ok(placed) => {
                 if let Some((name, bytes)) = placed.taken_back {
-                    crate::be::from_file(block, block_type, name, bytes);
+                    block_app_stack::from_file(block, block_type, name, bytes);
                 }
                 #[cfg(target_os = "linux")]
                 self.watch
@@ -512,7 +512,7 @@ impl Programs {
         let Some((name, bytes, stamp)) = files::changed(&disk) else {
             return;
         };
-        crate::be::from_file(block, block_type, name, bytes);
+        block_app_stack::from_file(block, block_type, name, bytes);
         if let Err(error) = files::record(&disk.path, stamp) {
             eprintln!(
                 "block-app: what was taken back from {} was not recorded: {error}",

@@ -7,7 +7,7 @@ use block_plugin_api::StoredHead;
 use counter_types::{Counter, CounterContent};
 
 fn saved_head(block: Uuid, after: Option<be_commit::CommitId>) -> be_commit::CommitId {
-    crate::be::wait_for(Duration::from_secs(20), |shared| {
+    block_app_stack::wait_for(Duration::from_secs(20), |shared| {
         shared
             .graph
             .get(block)
@@ -19,7 +19,7 @@ fn saved_head(block: Uuid, after: Option<be_commit::CommitId>) -> be_commit::Com
 
 fn heads(instances: &mut Instances, watch: OpId) -> Vec<Result<Option<StoredHead>, String>> {
     next_screens(instances);
-    crate::be::flush();
+    block_app_stack::flush();
     instances.pending();
     answered(instances, watch).into_iter().collect()
 }
@@ -32,23 +32,23 @@ fn stored(head: &Result<Option<StoredHead>, String>) -> (i64, [u8; 32]) {
 }
 
 fn add(block: Uuid, by: i64) {
-    crate::be::operate(block, CounterContent::encode_operation(&Counter::add(by)));
-    crate::be::flush();
+    block_app_stack::operate(block, CounterContent::encode_operation(&Counter::add(by)));
+    block_app_stack::flush();
 }
 
 #[test]
 fn an_instance_watching_a_blocks_head_is_sent_its_stored_bytes() {
-    let harness = crate::be::Harness::start();
+    let harness = block_app_testing::Harness::start();
     harness.connect();
     let block = Uuid::new_v4();
-    crate::be::create(
+    block_app_stack::create(
         block,
         CounterContent::CONTENT_TYPE,
         be_graph::BlockParent::Root,
         be_block::BlockMetadata::default(),
         None,
     );
-    crate::be::open(block, CounterContent::CONTENT_TYPE);
+    block_app_stack::open(block, CounterContent::CONTENT_TYPE);
     add(block, 4);
     let first = saved_head(block, None);
     let mut instances = placed();

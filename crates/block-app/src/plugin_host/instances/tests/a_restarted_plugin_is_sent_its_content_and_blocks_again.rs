@@ -25,7 +25,7 @@ fn sent_once(instances: &mut Instances, block: Uuid, watch: OpId) -> Vec<Sent> {
 
 fn sent(instances: &mut Instances, block: Uuid, watch: OpId) -> Vec<Sent> {
     let mut sent = sent_once(instances, block, watch);
-    crate::be::wait_for(Duration::from_secs(20), |shared| {
+    block_app_stack::wait_for(Duration::from_secs(20), |shared| {
         (shared.blocks.contains_key(&block) && !shared.editor_frames.is_empty()).then_some(())
     });
     sent.extend(sent_once(instances, block, watch));
@@ -35,10 +35,10 @@ fn sent(instances: &mut Instances, block: Uuid, watch: OpId) -> Vec<Sent> {
 
 #[test]
 fn a_restarted_plugin_is_sent_its_content_and_blocks_again() {
-    let harness = crate::be::Harness::start();
+    let harness = block_app_testing::Harness::start();
     harness.connect();
     let block = Uuid::new_v4();
-    crate::be::create(
+    block_app_stack::create(
         block,
         CounterContent::CONTENT_TYPE,
         be_graph::BlockParent::Root,

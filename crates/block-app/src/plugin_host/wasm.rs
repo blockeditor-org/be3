@@ -5,7 +5,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::editors::plugin::discovery;
+use block_app_stack::discovery;
 
 use block_guest_host::{
     Presented, Produced,

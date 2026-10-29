@@ -1366,7 +1366,7 @@ pub(crate) fn poll() {
             }
         }
     }
-    let touched = crate::be::take_touched();
+    let touched = block_app_stack::take_touched();
     HOST.with(|host| {
         let mut host = host.borrow_mut();
         for runtime in host.runtimes.values_mut() {

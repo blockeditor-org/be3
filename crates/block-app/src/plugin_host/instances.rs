@@ -169,17 +169,17 @@ impl ContentLink {
     }
 
     fn describe(&mut self, block: Uuid) {
-        if !crate::be::access(block).can_edit() {
+        if !block_app_stack::access(block).can_edit() {
             return;
         }
-        let Some(derived) = crate::be::describe_block(block) else {
+        let Some(derived) = block_app_stack::describe_block(block) else {
             return;
         };
         if self.described.as_ref() == Some(&derived) {
             return;
         }
         self.described = Some(derived.clone());
-        crate::be::describe_implicitly(block, derived);
+        block_app_stack::describe_implicitly(block, derived);
     }
 
     fn detach(&mut self, instance: EditorInstanceId, block: Uuid, shown: &[Uuid]) {
@@ -197,9 +197,9 @@ impl ContentLink {
             });
         }
         for goodbye in goodbyes {
-            crate::be::from_editor(block, instance.0, &block_type_api::encode_frame(&goodbye));
+            block_app_stack::from_editor(block, instance.0, &block_type_api::encode_frame(&goodbye));
         }
-        crate::be::detach(block, instance.0);
+        block_app_stack::detach(block, instance.0);
     }
 }
 
@@ -304,12 +304,12 @@ impl Instance {
 }
 
 fn own_content_type(block: EditorBlock) -> Option<Uuid> {
-    crate::be::provided(block.block_type).then_some(block.block_type)
+    block_app_stack::provided(block.block_type).then_some(block.block_type)
 }
 
 impl Instance {
-    fn offer_blocks(&mut self, scope: Option<crate::be::Scope>) {
-        let revision = crate::be::graph_revision();
+    fn offer_blocks(&mut self, scope: Option<block_app_stack::Scope>) {
+        let revision = block_app_stack::graph_revision();
         if self.blocks_seen == Some(revision) {
             return;
         }
@@ -322,10 +322,10 @@ impl Instance {
             })
             .collect();
         for query in queries {
-            let graph_query = super::graph::query_of(query);
-            let mut answer = match crate::be::ready(graph_query) {
-                true => Ok(super::graph::answer(query)),
-                false => match crate::be::failure(graph_query) {
+            let graph_query = block_app_stack::plugin_graph::query_of(query);
+            let mut answer = match block_app_stack::ready(graph_query) {
+                true => Ok(block_app_stack::plugin_graph::answer(query)),
+                false => match block_app_stack::failure(graph_query) {
                     Some(error) => Err(error),
                     None => continue,
                 },
@@ -341,21 +341,21 @@ impl Instance {
         }
     }
 
-    fn wants(&self) -> Vec<crate::be::Query> {
-        let mut wants: Vec<crate::be::Query> = self
+    fn wants(&self) -> Vec<block_app_stack::Query> {
+        let mut wants: Vec<block_app_stack::Query> = self
             .watching()
             .filter_map(|watched| match watched {
-                Subject::Blocks(query) => Some(super::graph::query_of(query)),
+                Subject::Blocks(query) => Some(block_app_stack::plugin_graph::query_of(query)),
                 _ => None,
             })
             .collect();
         if let Some(block) = self.role.block() {
-            wants.push(crate::be::Query::Parents(block.id));
+            wants.push(block_app_stack::Query::Parents(block.id));
         }
         wants.extend(
             self.watched
                 .keys()
-                .map(|block| crate::be::Query::Block(*block)),
+                .map(|block| block_app_stack::Query::Block(*block)),
         );
         wants
     }
@@ -365,9 +365,9 @@ impl Instance {
             return;
         }
         if let InstanceRole::Editor(_, block) = self.role
-            && crate::be::is_versioned(block.block_type)
+            && block_app_stack::is_versioned(block.block_type)
             && let Some((revision, status)) =
-                crate::be::version_since(block.id, block.block_type, self.version_sent)
+                block_app_stack::version_since(block.id, block.block_type, self.version_sent)
         {
             self.version_sent = Some(revision);
             self.offer(Subject::Version, &status);
@@ -405,10 +405,10 @@ impl Instance {
             let Some(attached) = link.attached else {
                 continue;
             };
-            let editable = crate::be::access(block).can_edit();
+            let editable = block_app_stack::access(block).can_edit();
             if attached != editable {
                 link.attached = Some(editable);
-                crate::be::attach(block, link.content_type, instance.0, editable);
+                block_app_stack::attach(block, link.content_type, instance.0, editable);
             }
         }
     }
@@ -420,7 +420,7 @@ impl Instance {
     ) {
         let mut blocked = HashSet::new();
         let mut kept = Vec::new();
-        for (block, frame) in crate::be::take_editor_frames(instance.0) {
+        for (block, frame) in block_app_stack::take_editor_frames(instance.0) {
             if blocked.contains(&block) {
                 kept.push((block, frame));
                 continue;
@@ -433,7 +433,7 @@ impl Instance {
                 }
             }
         }
-        crate::be::keep_editor_frames(instance.0, kept);
+        block_app_stack::keep_editor_frames(instance.0, kept);
         let own = self.role.block().map(|block| block.id);
         let previews: Vec<Uuid> = self
             .content
@@ -444,7 +444,7 @@ impl Instance {
             .map(|(block, _)| block)
             .collect();
         for block in previews {
-            let Some(frame) = crate::be::snapshot_frame(block) else {
+            let Some(frame) = block_app_stack::snapshot_frame(block) else {
                 continue;
             };
             if self.relay_frame(block, &frame, send)
@@ -478,7 +478,7 @@ impl Instance {
 
     fn follows(&self, block: Uuid) -> bool {
         self.role.block().is_some_and(|own| {
-            own.id == block || crate::be::revisions::source(own.id) == Some(block)
+            own.id == block || block_app_stack::revisions::source(own.id) == Some(block)
         }) || self.watched.contains_key(&block)
             || self
                 .watching()
@@ -506,7 +506,7 @@ impl Instance {
         if self
             .role
             .block()
-            .is_some_and(|block| crate::be::revisions::source(block.id).is_some())
+            .is_some_and(|block| block_app_stack::revisions::source(block.id).is_some())
         {
             return;
         }
@@ -614,15 +614,15 @@ impl Instances {
         if !carries {
             return;
         }
-        let mut scopes: HashMap<EditorInstanceId, Option<crate::be::Scope>> = HashMap::new();
+        let mut scopes: HashMap<EditorInstanceId, Option<block_app_stack::Scope>> = HashMap::new();
         message.visit_block_ids(&mut |instance, _, _| {
             scopes.entry(instance).or_insert_with(|| {
                 let block = self.entries.get(&instance)?.role.block()?.id;
-                let source = crate::be::revisions::source(block).unwrap_or(block);
-                crate::be::with_graph(|graph| graph.scope_of(source)).flatten()
+                let source = block_app_stack::revisions::source(block).unwrap_or(block);
+                block_app_stack::with_graph(|graph| graph.scope_of(source)).flatten()
             });
         });
-        crate::be::with_graph(|graph| {
+        block_app_stack::with_graph(|graph| {
             message.visit_block_ids(&mut |instance, role, id| {
                 let scope = scopes.get(&instance).copied().flatten();
                 let Some(scope) = scope else {
@@ -703,7 +703,7 @@ impl Instances {
             return false;
         };
         self.owners.retain(|_, owner| *owner != instance);
-        crate::be::want(crate::be::Owner::Editor(instance.0), Vec::new());
+        block_app_stack::want(block_app_stack::Owner::Editor(instance.0), Vec::new());
         let mut entry = entry;
         let shown: Vec<(Uuid, Uuid)> = entry.shown.iter().copied().collect();
         let shown_on = |block: Uuid| -> Vec<Uuid> {
@@ -722,22 +722,22 @@ impl Instances {
             link.detach(instance, *block, &shown_on(*block));
         }
         for preview in &entry.revision_previews {
-            crate::be::revisions::release(*preview);
+            block_app_stack::revisions::release(*preview);
         }
         entry.opened
     }
 
     fn editable(&self, block: Uuid) -> bool {
-        crate::be::access(block).can_edit()
+        block_app_stack::access(block).can_edit()
     }
 
     fn replica_frame(&mut self, instance: EditorInstanceId, block: Uuid, frame: Vec<u8>) -> bool {
         let editable = self.editable(block);
-        let viewable = crate::be::may_load(block);
+        let viewable = block_app_stack::may_load(block);
         let Some(entry) = self.entries.get_mut(&instance) else {
             return false;
         };
-        let message = crate::be::unframe(&frame).and_then(|bytes| FromEditor::decode(&bytes));
+        let message = block_app_stack::unframe(&frame).and_then(|bytes| FromEditor::decode(&bytes));
         if let Some(FromEditor::ShowPresence { kind, value }) = &message {
             match value.is_some() {
                 true => entry.shown.insert((block, *kind)),
@@ -753,8 +753,8 @@ impl Instances {
             _ => {}
         }
         let resend = matches!(message, Some(FromEditor::Resend));
-        if let Some(source) = crate::be::revisions::source(block) {
-            crate::be::revisions::load(block, source, link.content_type);
+        if let Some(source) = block_app_stack::revisions::source(block) {
+            block_app_stack::revisions::load(block, source, link.content_type);
             if resend {
                 link.awaiting_preview = true;
             }
@@ -766,19 +766,19 @@ impl Instances {
         let attaching = link.attached.is_none();
         if link.attached != Some(editable) {
             link.attached = Some(editable);
-            crate::be::attach(block, link.content_type, instance.0, editable);
+            block_app_stack::attach(block, link.content_type, instance.0, editable);
         }
-        if resend && crate::be::snapshot_frame(block).is_some() {
+        if resend && block_app_stack::snapshot_frame(block).is_some() {
             link.awaiting_preview = true;
         }
         if !(resend && attaching) {
-            crate::be::from_editor(block, instance.0, &frame);
+            block_app_stack::from_editor(block, instance.0, &frame);
         }
         true
     }
 
     fn can_view(&self, block: Uuid) -> bool {
-        crate::be::access(block).can_view()
+        block_app_stack::access(block).can_view()
     }
 
     fn connect(&mut self, client_id: Uuid) {
@@ -902,7 +902,7 @@ impl Instances {
                     mounted
                         && link.attached.is_some()
                         && !link.delivered
-                        && crate::be::may_load(block.id)
+                        && block_app_stack::may_load(block.id)
                 }
                 _ => false,
             }
@@ -928,7 +928,7 @@ impl Instances {
                 let revision = entry
                     .role
                     .block()
-                    .is_some_and(|block| crate::be::revisions::source(block.id).is_some());
+                    .is_some_and(|block| block_app_stack::revisions::source(block.id).is_some());
                 let children = entry
                     .screens
                     .values()
@@ -1444,11 +1444,11 @@ impl Instances {
             .connection
             .as_ref()
             .map(|connection| connection.client_id)
-            .map(|client_id| (client_id, crate::be::identity().unwrap_or_default()));
+            .map(|client_id| (client_id, block_app_stack::identity().unwrap_or_default()));
         let mut instances: Vec<_> = self.entries.keys().copied().collect();
         instances.sort_by_key(|instance| instance.0);
         let focus = self.focus.clone();
-        let graph = crate::be::graph_revision();
+        let graph = block_app_stack::graph_revision();
         let graph_moved = self.graph_seen.replace(graph) != Some(graph);
         let mut opened = Vec::new();
         let mut screens = Vec::new();
@@ -1477,7 +1477,7 @@ impl Instances {
             let Some(entry) = self.entries.get_mut(&instance) else {
                 continue;
             };
-            crate::be::want(crate::be::Owner::Editor(instance.0), entry.wants());
+            block_app_stack::want(block_app_stack::Owner::Editor(instance.0), entry.wants());
             let docked = super::docks::docked(instance);
             let mut regions: Vec<_> = entry
                 .screens
@@ -1522,7 +1522,7 @@ impl Instances {
                         organization_id,
                         client_id,
                         editable: {
-                            let editable = crate::be::access(block.id).can_edit();
+                            let editable = block_app_stack::access(block.id).can_edit();
                             entry.reported_editable = Some(editable);
                             editable
                         },
@@ -1589,7 +1589,7 @@ impl Instances {
             if let InstanceRole::Editor(_, block) = entry.role
                 && (stale || graph_moved)
             {
-                let editable = crate::be::access(block.id).can_edit();
+                let editable = block_app_stack::access(block.id).can_edit();
                 if entry.reported_editable != Some(editable) {
                     entry.reported_editable = Some(editable);
                     opened.push(Outbound::Editor(
@@ -1972,7 +1972,7 @@ impl Instances {
                 .entries
                 .get(&instance)
                 .and_then(|entry| entry.role.block())
-                .is_some_and(|block| crate::be::revisions::source(block.id).is_some())
+                .is_some_and(|block| block_app_stack::revisions::source(block.id).is_some())
                 && !matches!(
                     child.content,
                     ChildContent::Block { .. } | ChildContent::WebView(_)
@@ -1994,7 +1994,7 @@ impl Instances {
                         .map_or_else(
                             || Uuid::from_bytes(*block_id),
                             |parent| {
-                                crate::be::revisions::alias(parent.id, Uuid::from_bytes(*block_id))
+                                block_app_stack::revisions::alias(parent.id, Uuid::from_bytes(*block_id))
                             },
                         ),
                     block_type: Uuid::from_bytes(*block_type),
@@ -2002,7 +2002,7 @@ impl Instances {
                         .entries
                         .get(&instance)
                         .and_then(|entry| entry.role.block())
-                        .is_some_and(|parent| crate::be::revisions::source(parent.id).is_some())
+                        .is_some_and(|parent| block_app_stack::revisions::source(parent.id).is_some())
                     {
                         None
                     } else {
@@ -2657,7 +2657,7 @@ impl Instances {
         let preview = entry
             .role
             .block()
-            .is_some_and(|block| crate::be::revisions::source(block.id).is_some());
+            .is_some_and(|block| block_app_stack::revisions::source(block.id).is_some());
         !preview && entry.published.call(called)
     }
 
@@ -2669,7 +2669,7 @@ impl Instances {
             .entries
             .get(&instance)
             .and_then(|entry| entry.role.block())
-            .is_some_and(|block| crate::be::revisions::source(block.id).is_some());
+            .is_some_and(|block| block_app_stack::revisions::source(block.id).is_some());
         if preview
             && !matches!(
                 &call,
@@ -2790,7 +2790,7 @@ impl Instances {
                 ..
             } => entry.child_commits.push(ChildCommit {
                 child,
-                parent: super::graph::parent_of(parent),
+                parent: block_app_stack::plugin_graph::parent_of(parent),
                 name,
             }),
             ShellCall::ArtifactDescribed { description, .. } => {

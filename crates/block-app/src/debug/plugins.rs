@@ -32,7 +32,7 @@ pub(super) fn view() -> PluginsView {
 }
 
 fn discovered(lines: &mut Vec<Line>) {
-    let discovered = crate::editors::plugin::discovery::plugins();
+    let discovered = block_app_stack::discovery::plugins();
     push(
         lines,
         LineStyle::Heading,

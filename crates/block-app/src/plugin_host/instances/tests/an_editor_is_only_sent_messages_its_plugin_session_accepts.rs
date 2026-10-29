@@ -26,7 +26,7 @@ fn opened_first(opened: &mut HashSet<EditorInstanceId>, sent: &[Outbound]) {
 
 #[test]
 fn an_editor_is_only_sent_messages_its_plugin_session_accepts() {
-    let harness = crate::be::Harness::start();
+    let harness = block_app_testing::Harness::start();
     harness.connect();
     let block = Uuid::new_v4();
     let block_type = CounterContent::CONTENT_TYPE;
@@ -40,11 +40,11 @@ fn an_editor_is_only_sent_messages_its_plugin_session_accepts() {
     );
     opened_first(&mut open, &opened);
     to_replica(&mut instances, block, &FromEditor::Resend);
-    crate::be::wait_for(Duration::from_secs(20), |shared| {
+    block_app_stack::wait_for(Duration::from_secs(20), |shared| {
         shared.blocks.contains_key(&block).then_some(())
     })
     .expect("the new stack never held the block's content");
-    crate::be::wait_for(Duration::from_secs(20), |shared| {
+    block_app_stack::wait_for(Duration::from_secs(20), |shared| {
         shared.editor_frames.contains_key(&INSTANCE.0).then_some(())
     })
     .expect("the replica never answered the editor");

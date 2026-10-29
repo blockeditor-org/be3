@@ -119,7 +119,7 @@ pub(crate) fn account_row(
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct AddAccountView {
-    pub(crate) browser: Option<crate::accounts::BrowserLogin>,
+    pub(crate) browser: Option<block_app_stack::accounts::BrowserLogin>,
     pub(crate) open: bool,
     pub(crate) generation: u64,
     pub(crate) pending: bool,
@@ -327,8 +327,8 @@ pub(crate) struct AppView {
     pub(crate) add_account: AddAccountView,
     pub(crate) account: AccountRow,
     pub(crate) organizations: OrganizationsView,
-    pub(crate) recovery: crate::keys::RecoveryView,
-    pub(crate) unlock: crate::keys::UnlockView,
+    pub(crate) recovery: block_app_stack::keys::RecoveryView,
+    pub(crate) unlock: block_app_stack::keys::UnlockView,
     pub(crate) pairing: Vec<PairingRow>,
     pub(crate) reauth: Option<ReauthView>,
     pub(crate) status: StatusView,

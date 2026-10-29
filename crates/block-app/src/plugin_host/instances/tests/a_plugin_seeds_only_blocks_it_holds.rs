@@ -19,8 +19,8 @@ fn seed(instances: &mut Instances, block: Uuid) {
 }
 
 fn opened_at(block: Uuid) -> i64 {
-    crate::be::open(block, CounterContent::CONTENT_TYPE);
-    crate::be::wait_for(Duration::from_secs(20), |shared| {
+    block_app_stack::open(block, CounterContent::CONTENT_TYPE);
+    block_app_stack::wait_for(Duration::from_secs(20), |shared| {
         let held = shared.blocks.get(&block)?;
         CounterContent::decode(held.bytes())
             .ok()
@@ -31,7 +31,7 @@ fn opened_at(block: Uuid) -> i64 {
 
 #[test]
 fn a_plugin_seeds_only_blocks_it_holds() {
-    let harness = crate::be::Harness::start();
+    let harness = block_app_testing::Harness::start();
     harness.connect();
     let own = Uuid::new_v4();
     let stranger = Uuid::new_v4();
@@ -40,7 +40,7 @@ fn a_plugin_seeds_only_blocks_it_holds() {
     seed(&mut instances, stranger);
     seed(&mut instances, own);
     instances.next_screens(PASS);
-    crate::be::flush();
+    block_app_stack::flush();
 
     assert_eq!(opened_at(own), 5);
     assert_eq!(opened_at(stranger), 0);

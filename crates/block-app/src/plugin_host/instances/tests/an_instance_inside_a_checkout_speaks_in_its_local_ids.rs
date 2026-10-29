@@ -24,18 +24,18 @@ fn info(block: Uuid, parent: Uuid, references: Vec<Uuid>) -> BlockInfo {
 
 #[test]
 fn an_instance_inside_a_checkout_speaks_in_its_local_ids() {
-    let harness = crate::be::Harness::start();
+    let harness = block_app_testing::Harness::start();
     harness.connect();
     let (checkout, local, elsewhere) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
     let copy = masked(local, scope_mask(checkout));
-    crate::be::create(
+    block_app_stack::create(
         checkout,
         CheckoutContent::CONTENT_TYPE,
         BlockParent::Root,
         BlockMetadata::default(),
         None,
     );
-    crate::be::create(
+    block_app_stack::create(
         copy,
         TextContent::CONTENT_TYPE,
         BlockParent::Block(checkout),
@@ -46,7 +46,7 @@ fn an_instance_inside_a_checkout_speaks_in_its_local_ids() {
         },
         None,
     );
-    crate::be::create(
+    block_app_stack::create(
         elsewhere,
         TextContent::CONTENT_TYPE,
         BlockParent::Root,

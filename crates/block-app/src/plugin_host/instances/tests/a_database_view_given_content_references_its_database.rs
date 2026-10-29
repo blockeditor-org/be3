@@ -23,35 +23,35 @@ fn database_in(bytes: &[u8]) -> Option<Uuid> {
 
 #[test]
 fn a_database_view_given_content_references_its_database() {
-    let harness = crate::be::Harness::start();
+    let harness = block_app_testing::Harness::start();
     harness.connect();
     let view = Uuid::new_v4();
     let (database, other) = (Uuid::new_v4(), Uuid::new_v4());
     let mut instances = placed_on(view, DatabaseViewContent::CONTENT_TYPE);
 
     seed(&mut instances, view, database);
-    crate::be::flush();
+    block_app_stack::flush();
     to_replica(
         &mut instances,
         view,
         &block_type_guest::editor::FromEditor::Resend,
     );
     instances.next_screens(PASS);
-    crate::be::wait_for(Duration::from_secs(20), |shared| {
+    block_app_stack::wait_for(Duration::from_secs(20), |shared| {
         let held = shared.blocks.get(&view)?;
         (database_in(held.bytes()) == Some(database)).then_some(())
     })
     .expect("the view never took the content it was given");
 
-    crate::be::flush();
-    crate::be::wait_for(Duration::from_secs(20), |shared| {
+    block_app_stack::flush();
+    block_app_stack::wait_for(Duration::from_secs(20), |shared| {
         let node = shared.graph.get(view)?;
         (node.references == [database]).then_some(())
     })
     .expect("the graph never learned what the view references");
 
     seed(&mut instances, view, other);
-    crate::be::flush();
-    let held = crate::be::content(view).expect("the view is still open");
+    block_app_stack::flush();
+    let held = block_app_stack::content(view).expect("the view is still open");
     assert_eq!(database_in(held.bytes()), Some(database));
 }

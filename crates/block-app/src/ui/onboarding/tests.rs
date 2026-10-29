@@ -10,7 +10,7 @@ use beui_host::native::build;
 
 fn painting(
     name: &str,
-    browser: Option<crate::accounts::BrowserLogin>,
+    browser: Option<block_app_stack::accounts::BrowserLogin>,
     error: Option<String>,
     select_default: bool,
 ) {
@@ -19,7 +19,7 @@ fn painting(
 
 fn painting_sized(
     name: &str,
-    browser: Option<crate::accounts::BrowserLogin>,
+    browser: Option<block_app_stack::accounts::BrowserLogin>,
     error: Option<String>,
     select_default: bool,
     size: beui::Vec2,

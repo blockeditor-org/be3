@@ -1,24 +1,16 @@
 use reactive::Set;
-mod accounts;
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
 mod arguments;
-mod be;
 mod compositor;
 mod contacts;
 mod debug;
 mod desktop_host;
 mod display;
 mod editors;
-#[cfg(not(target_arch = "wasm32"))]
-mod embedded_server;
 mod frame;
 mod input;
-mod invite_link;
-mod keys;
-mod link;
 mod local_settings;
 mod members;
-mod offline_choice;
 mod plugin_host;
 mod programs;
 mod remap;
@@ -44,6 +36,9 @@ use accounts::{AccountError, Session};
 #[cfg(target_os = "linux")]
 use block_app_services::{media, notifications, tray, wifi};
 use block_app_base::{app_state, host, notices, panic_guard, performance, platform};
+use block_app_stack::{accounts, invite_link, keys, offline_choice};
+#[cfg(not(target_arch = "wasm32"))]
+use block_app_stack::embedded_server;
 use app_state::{AppStateStore, SavedAccount, ServerLocation};
 use be_block::{DisplaySettings, InputSettings, Root, WORKSPACE_EDITOR};
 use be_graph::{Access, BlockParent};
@@ -176,7 +171,7 @@ fn run_shell(
 pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
     wasi_threads::initialize_main_thread();
     panic_guard::install();
-    editors::plugin::discovery::load().await;
+    block_app_stack::discovery::load().await;
     let mut app =
         BlockApp::new().map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))?;
     let options = run_options();
@@ -266,7 +261,21 @@ pub async fn automate(
 #[cfg(target_os = "android")]
 #[unsafe(no_mangle)]
 fn android_main(app: beui_host::native::AndroidApp) {
-    editors::plugin::discovery::use_assets(app.clone());
+    let assets = app.clone();
+    block_app_stack::discovery::use_assets(move |path| {
+        use std::io::Read;
+        let name = std::ffi::CString::new(path)
+            .map_err(|_| "the asset path is not a C string".to_owned())?;
+        let mut asset = assets
+            .asset_manager()
+            .open(&name)
+            .ok_or("no such asset")?;
+        let mut bytes = Vec::new();
+        asset
+            .read_to_end(&mut bytes)
+            .map_err(|error| error.to_string())?;
+        Ok(bytes)
+    });
     panic_guard::install();
     let storage_root = app.internal_data_path();
     let options = run_options();
@@ -325,6 +334,7 @@ impl beui::native::App for Shell {
     fn setup(&mut self, setup: &beui::native::Setup) {
         let waker = setup.waker.clone();
         host::install_waker(move || waker.wake());
+        host::install_clock(beui::reactive::now);
         plugin_host::install(setup);
         desktop_host::start(setup);
         input::start(setup);
@@ -356,7 +366,7 @@ impl beui::native::App for Shell {
         let started = std::time::Instant::now();
         frame::begin(context);
         if context.hurried() {
-            be::seal_owed();
+            block_app_stack::seal_owed();
         }
         if context.input(|input| {
             input
@@ -364,7 +374,7 @@ impl beui::native::App for Shell {
                 .iter()
                 .any(|event| matches!(event, beui::Event::Focus(true)))
         }) {
-            be::retry_now();
+            block_app_stack::retry_now();
             self.app.retry_organizations();
         }
         desktop_host::before(context, rect, &mut self.document);
@@ -455,10 +465,10 @@ impl beui::native::App for Shell {
 
     fn lifecycle(&mut self, change: beui::native::Lifecycle) {
         match change {
-            beui::native::Lifecycle::Background => be::backgrounded(),
+            beui::native::Lifecycle::Background => block_app_stack::backgrounded(),
             beui::native::Lifecycle::Foreground
             | beui::native::Lifecycle::Focused
-            | beui::native::Lifecycle::NetworkChanged => be::retry_now(),
+            | beui::native::Lifecycle::NetworkChanged => block_app_stack::retry_now(),
         }
     }
 
@@ -473,8 +483,8 @@ impl beui::native::App for Shell {
             self.app.tray = None;
             self.app.desktop = None;
         }
-        be::flush();
-        be::stop_and_wait();
+        block_app_stack::flush();
+        block_app_stack::stop_and_wait();
     }
 }
 
@@ -1015,7 +1025,7 @@ impl BlockApp {
             || !self.pending_transfers.is_empty()
             || !self.pending_copies.is_empty()
             || (self.dev_workspace && self.organization.is_none())
-            || be::busy()
+            || block_app_stack::busy()
     }
 
     #[cfg(not(target_os = "android"))]
@@ -1313,7 +1323,7 @@ impl BlockApp {
                         .await
                         .map(OrganizationResult::Joined)
                 }
-                OrganizationOperation::Invite(email, role) => be::invite(email, role)
+                OrganizationOperation::Invite(email, role) => block_app_stack::invite(email, role)
                     .await
                     .map(OrganizationResult::Invited)
                     .map_err(|message| AccountError {
@@ -1326,7 +1336,7 @@ impl BlockApp {
                         .map(|agents| OrganizationResult::Agents(Some(agents), None))
                 }
                 OrganizationOperation::CreateAgent(organization, name) => {
-                    let created = be::create_agent(name)
+                    let created = block_app_stack::create_agent(name)
                         .await
                         .map_err(|message| AccountError {
                             message,
@@ -1595,7 +1605,7 @@ impl BlockApp {
         self.resumed = false;
         self.focus_reports.clear();
         self.artifact_watches.clear();
-        be::stop();
+        block_app_stack::stop();
         self.block_types.clear();
         self.registry = Rc::new(EditorRegistry::new());
         self.editors.reset(Rc::clone(&self.registry));
@@ -1656,7 +1666,7 @@ impl BlockApp {
     }
 
     fn workspace_cache(&self) -> Option<be_client::RefsDb> {
-        be::refs_in(&self.data_dir).ok()
+        block_app_stack::refs_in(&self.data_dir).ok()
     }
 
     fn retry_organizations(&mut self) {
@@ -1671,7 +1681,7 @@ impl BlockApp {
     }
 
     fn notice_reconnect(&mut self) {
-        let connected = be::status().connected;
+        let connected = block_app_stack::status().connected;
         if connected && !self.be_connected {
             self.retry_organizations();
         }
@@ -1696,7 +1706,7 @@ impl BlockApp {
         };
         self.focus_reports.clear();
         self.artifact_watches.clear();
-        be::stop();
+        block_app_stack::stop();
         self.block_types.clear();
         self.registry = Rc::new(EditorRegistry::new());
         self.editors.reset(Rc::clone(&self.registry));
@@ -1748,7 +1758,7 @@ impl BlockApp {
     }
 
     fn close_requested(&mut self) -> bool {
-        if be::flush() == 0 || self.allow_close {
+        if block_app_stack::flush() == 0 || self.allow_close {
             return true;
         }
         self.pending_destructive_action = Some(PendingDestructiveAction::Close);
@@ -1773,7 +1783,7 @@ impl BlockApp {
 
     fn block_type_of(&self, id: Uuid) -> Option<Uuid> {
         self.block_types.get(&id).copied().or_else(|| {
-            be::node(id)
+            block_app_stack::node(id)
                 .map(|node| node.content_type)
                 .or_else(|| self.with_editor(id, |editor| editor.block_type()))
         })
@@ -1806,7 +1816,7 @@ impl BlockApp {
             return;
         }
         if !linked {
-            be::placing(child, true);
+            block_app_stack::placing(child, true);
         }
         self.pending_transfers.push(PendingTransfer {
             child,
@@ -1818,7 +1828,7 @@ impl BlockApp {
     }
 
     fn set_block_parent(&mut self, id: Uuid, parent: BlockParent) {
-        be::set_parent(id, parent);
+        block_app_stack::set_parent(id, parent);
     }
 
     fn queue_move(
@@ -1845,7 +1855,7 @@ impl BlockApp {
             return;
         }
         if source == SidebarDragSource::Orphaned && !is_reference {
-            be::placing(child, true);
+            block_app_stack::placing(child, true);
         }
         self.pending_transfers.push(PendingTransfer {
             child,
@@ -1857,19 +1867,19 @@ impl BlockApp {
     }
 
     fn restore(&mut self, id: Uuid) {
-        let Some(root) = be::with_graph(|graph| graph.deleted_root(id)).flatten() else {
+        let Some(root) = block_app_stack::with_graph(|graph| graph.deleted_root(id)).flatten() else {
             return;
         };
-        let Some(node) = be::node(root) else {
+        let Some(node) = block_app_stack::node(root) else {
             return;
         };
         let usable = |parent: Uuid| {
-            be::node(parent).is_some_and(|parent| parent.access.can_edit())
-                && be::with_graph(|graph| graph.deleted_root(parent).is_none()).unwrap_or(false)
+            block_app_stack::node(parent).is_some_and(|parent| parent.access.can_edit())
+                && block_app_stack::with_graph(|graph| graph.deleted_root(parent).is_none()).unwrap_or(false)
         };
         let addable = |parent: Uuid| {
-            be::node(parent)
-                .and_then(|parent| editors::plugin::discovery::block_type(parent.content_type))
+            block_app_stack::node(parent)
+                .and_then(|parent| block_app_stack::discovery::block_type(parent.content_type))
                 .is_some_and(|block_type| block_type.children.add)
         };
         if let Some(BlockParent::Block(parent)) = node.parent
@@ -1885,7 +1895,7 @@ impl BlockApp {
         };
         let destination = match from {
             Some(be_block::DeletedFrom::Root) if addable(root) => {
-                be::set_parent(root, BlockParent::Root);
+                block_app_stack::set_parent(root, BlockParent::Root);
                 return;
             }
             Some(be_block::DeletedFrom::Block(parent)) if usable(parent) && addable(parent) => {
@@ -1898,9 +1908,9 @@ impl BlockApp {
                 }
             }
         };
-        let listed = be::node(destination).is_some_and(|parent| parent.references.contains(&root));
+        let listed = block_app_stack::node(destination).is_some_and(|parent| parent.references.contains(&root));
         match listed {
-            true => be::set_parent(root, BlockParent::Block(destination)),
+            true => block_app_stack::set_parent(root, BlockParent::Block(destination)),
             false => self.queue_move(
                 root,
                 node.content_type,
@@ -1943,7 +1953,7 @@ impl BlockApp {
                 let ready = match transfer.source {
                     None | Some(SidebarDragSource::Orphaned) => Some(true),
                     Some(SidebarDragSource::Root) => {
-                        be::set_parent(transfer.child, BlockParent::Detached);
+                        block_app_stack::set_parent(transfer.child, BlockParent::Detached);
                         Some(true)
                     }
                     Some(SidebarDragSource::Block(source)) => self
@@ -1970,7 +1980,7 @@ impl BlockApp {
                 self.set_block_parent(transfer.child, parent);
             }
             if !matches!(transfer.parent_after, Some(BlockParent::Block(_))) {
-                be::placing(transfer.child, false);
+                block_app_stack::placing(transfer.child, false);
             }
         }
     }
@@ -2000,7 +2010,7 @@ impl BlockApp {
                     self.pending_copies.push(copy);
                     continue;
                 }
-                let Some((copy_id, block_type)) = be::duplicate(copy.source) else {
+                let Some((copy_id, block_type)) = block_app_stack::duplicate(copy.source) else {
                     self.pending_copies.push(copy);
                     continue;
                 };
@@ -2074,7 +2084,7 @@ impl BlockApp {
             self.stop_shell();
         }
         let shell_editor = self.root_settings.session_editor(id)?;
-        let view_type = be::node(id)?.content_type;
+        let view_type = block_app_stack::node(id)?.content_type;
         self.block_types.insert(id, view_type);
         let open_as = self
             .editors
@@ -2593,8 +2603,8 @@ impl BlockApp {
 
     fn handle_block_command(&mut self, id: Uuid, command: BlockCommand) {
         match command {
-            BlockCommand::Undo if self.editor_access(id).can_edit() => be::undo(id),
-            BlockCommand::Redo if self.editor_access(id).can_edit() => be::redo(id),
+            BlockCommand::Undo if self.editor_access(id).can_edit() => block_app_stack::undo(id),
+            BlockCommand::Redo if self.editor_access(id).can_edit() => block_app_stack::redo(id),
             BlockCommand::Undo | BlockCommand::Redo => {}
             BlockCommand::Unlink { container } => {
                 self.queue_copy(id, Uuid::from_bytes(container));
@@ -2727,7 +2737,7 @@ impl BlockApp {
         #[cfg(target_os = "linux")]
         self.run_notifications();
         if !self.signed_in {
-            be::stop();
+            block_app_stack::stop();
             performance::end_frame();
             return;
         }
@@ -2741,13 +2751,13 @@ impl BlockApp {
         }
         self.poll_keys();
         if self.organization.is_none() {
-            be::stop();
+            block_app_stack::stop();
             self.load_organizations_if_needed();
             performance::end_frame();
             return;
         }
         if self.locked() {
-            be::stop();
+            block_app_stack::stop();
             if !self.organizations_loaded {
                 self.load_organizations_if_needed();
             }
@@ -2762,7 +2772,7 @@ impl BlockApp {
         let ready = self
             .organization
             .as_ref()
-            .is_some_and(|organization| be::installed_for(self.account.id, organization.id));
+            .is_some_and(|organization| block_app_stack::installed_for(self.account.id, organization.id));
         self.contacts
             .poll(&accounts::link_base(&self.server_url), ready);
         self.contacts.publish();
@@ -2795,7 +2805,7 @@ impl BlockApp {
         }
         let shell = self.root_settings.shell();
         let in_use = self.app_state.warm_plugins().unwrap_or_default();
-        for manifest in editors::plugin::discovery::manifests() {
+        for manifest in block_app_stack::discovery::manifests() {
             let edits_shell = manifest
                 .editors
                 .iter()
@@ -2829,7 +2839,7 @@ impl BlockApp {
         let Some(identity) = self.identity else {
             return;
         };
-        if be::installed_for(self.account.id, organization) {
+        if block_app_stack::installed_for(self.account.id, organization) {
             return;
         }
         let link_base = if self.server_url == self.local_server_url {
@@ -2839,7 +2849,7 @@ impl BlockApp {
         };
         block_app_base::watches::publish::<block_plugin_api::LinkBaseWatch>(&link_base);
         self.publish_administrator();
-        be::start(be::Config {
+        block_app_stack::start(block_app_stack::Config {
             server_url: self.server_url.clone(),
             token: self.account.token.clone(),
             account: self.account.id,
@@ -2864,15 +2874,15 @@ impl BlockApp {
     fn sync_local_settings(&mut self) {
         if self.root_settings.loaded() {
             let settings = &self.root_settings;
+            let company = self
+                .organization
+                .as_ref()
+                .filter(|organization| organization.kind == be_protocol::OrganizationKind::Company)
+                .map(|organization| organization.id);
             offline_choice::publish(
-                settings,
-                self.client_id,
-                self.organization.as_ref().map(|organization| {
-                    (
-                        organization.id,
-                        organization.kind == be_protocol::OrganizationKind::Company,
-                    )
-                }),
+                &settings.offline_settings(self.client_id, company),
+                settings.workspaces(),
+                company.is_none(),
             );
             self.input
                 .set_layers(settings.layers(InputSettings::CONTENT_TYPE, self.client_id));
@@ -3044,7 +3054,7 @@ impl BlockApp {
                 self.invite_link = None;
             }
             UiCommand::SwitchOrganization => {
-                if be::flush() == 0 {
+                if block_app_stack::flush() == 0 {
                     self.scheduled_organization_list = true;
                 } else {
                     self.pending_destructive_action =
@@ -3056,11 +3066,11 @@ impl BlockApp {
                 self.unsent_open = open;
                 self.discarding_unsent = None;
             }
-            UiCommand::RestoreUnsent(block) => be::restore_unsent(block),
+            UiCommand::RestoreUnsent(block) => block_app_stack::restore_unsent(block),
             UiCommand::DiscardUnsent(block) => self.discarding_unsent = Some(block),
             UiCommand::ConfirmDiscardUnsent => {
                 if let Some(block) = self.discarding_unsent.take() {
-                    be::discard_unsent(block);
+                    block_app_stack::discard_unsent(block);
                 }
             }
             UiCommand::CancelDiscardUnsent => self.discarding_unsent = None,
@@ -3152,7 +3162,7 @@ impl BlockApp {
             UiCommand::CancelDiscard => self.pending_destructive_action = None,
             UiCommand::ConfirmLeave => {
                 if let Some(block) = self.leaving.take() {
-                    be::leave(block);
+                    block_app_stack::leave(block);
                 }
             }
             UiCommand::CancelLeave => self.leaving = None,
@@ -3187,8 +3197,8 @@ impl BlockApp {
             UiCommand::CancelPairing => self.keys.cancel_pairing(),
             UiCommand::NewRecoveryPhrase => self.keys.replace_recovery(),
             UiCommand::CancelRecovery => self.keys.cancel_replacing(),
-            UiCommand::ApprovePairing(from, code) => be::approve_pairing(from, code),
-            UiCommand::DismissPairing(from) => be::dismiss_pairing(from),
+            UiCommand::ApprovePairing(from, code) => block_app_stack::approve_pairing(from, code),
+            UiCommand::DismissPairing(from) => block_app_stack::dismiss_pairing(from),
         }
     }
 
@@ -3204,7 +3214,7 @@ impl BlockApp {
             (None, true, Some(_)) if self.choosing_session => ui::Screen::Sessions,
             (None, true, Some(_)) => ui::Screen::Organization,
         };
-        let be_status = be::status();
+        let be_status = block_app_stack::status();
         let sync = match screen {
             ui::Screen::Organization => sync_state(&be_status),
             _ => ui::SyncState::Saved,
@@ -3269,7 +3279,7 @@ impl BlockApp {
             recovery: self.keys.recovery_view(),
             unlock: self.keys.unlock_view(&self.account.name),
             pairing: match screen {
-                ui::Screen::Organization => be::pairing_requests()
+                ui::Screen::Organization => block_app_stack::pairing_requests()
                     .into_iter()
                     .map(|request| ui::PairingRow {
                         from: request.from,
@@ -3347,7 +3357,7 @@ impl BlockApp {
                     organization.kind == be_protocol::OrganizationKind::Company
                         && organization.role == OrganizationRole::Administrator
                 }),
-                escrow_warning: be::escrow_warning().map(str::to_owned),
+                escrow_warning: block_app_stack::escrow_warning().map(str::to_owned),
             },
             agents: self.agents_open.then(|| ui::AgentsView {
                 organization: organization_name.clone(),
@@ -3380,7 +3390,7 @@ impl BlockApp {
             }),
             about: self.about_open,
             unsent: self.unsent_open.then(|| ui::UnsentView {
-                rows: be::unsent()
+                rows: block_app_stack::unsent()
                     .into_iter()
                     .map(|unsent| ui::UnsentRow {
                         block: unsent.block,
@@ -3408,8 +3418,8 @@ impl BlockApp {
 
     #[cfg(not(target_arch = "wasm32"))]
     fn restart(&mut self) {
-        be::flush();
-        be::stop();
+        block_app_stack::flush();
+        block_app_stack::stop();
         match Self::new(Some(self.data_dir.clone())) {
             Ok(mut fresh) => {
                 fresh.root_settings = RootSettings::new(self.root_settings.shell());
@@ -3429,8 +3439,8 @@ impl BlockApp {
 
     #[cfg(target_arch = "wasm32")]
     fn restart(&mut self) {
-        be::flush();
-        be::stop();
+        block_app_stack::flush();
+        block_app_stack::stop();
         match Self::new() {
             Ok(fresh) => *self = fresh,
             Err(error) => self.error = Some(error.to_string()),
@@ -3451,7 +3461,7 @@ impl BlockApp {
 
     #[cfg(not(target_arch = "wasm32"))]
     fn delete_server_database(&mut self) {
-        be::stop_and_wait();
+        block_app_stack::stop_and_wait();
         self.embedded_server = None;
         let path = self.data_dir.join("server");
         if let Err(error) = std::fs::remove_dir_all(&path)
@@ -3464,7 +3474,7 @@ impl BlockApp {
     }
 }
 
-fn sync_state(status: &be::Status) -> ui::SyncState {
+fn sync_state(status: &block_app_stack::Status) -> ui::SyncState {
     match (&status.error, status.connected) {
         (_, false) if status.connecting => ui::SyncState::Connecting,
         (_, false) => ui::SyncState::Offline {
@@ -3497,11 +3507,11 @@ fn discard_view(action: &PendingDestructiveAction) -> ui::DiscardView {
 }
 
 fn artifact_of(id: Uuid) -> Option<be_block::Artifact> {
-    be::node(id)?.metadata.get(&be_block::ARTIFACT)
+    block_app_stack::node(id)?.metadata.get(&be_block::ARTIFACT)
 }
 
 fn set_artifact(id: Uuid, artifact: Option<be_block::Artifact>) {
-    be::define(id, vec![be_block::ARTIFACT.definition(artifact.as_ref())]);
+    block_app_stack::define(id, vec![be_block::ARTIFACT.definition(artifact.as_ref())]);
 }
 
 fn drag_source(location: BlockLocation) -> SidebarDragSource {

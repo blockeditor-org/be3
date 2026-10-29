@@ -71,6 +71,8 @@ members = [
     "crates/block-app",
     "crates/block-app-base",
     "crates/block-app-services",
+    "crates/block-app-stack",
+    "crates/block-app-testing",
     "crates/block-editor-beui",
     "crates/block-editor-database",
     "crates/block-editor-plugin",

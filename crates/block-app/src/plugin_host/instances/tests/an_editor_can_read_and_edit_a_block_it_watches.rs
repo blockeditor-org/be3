@@ -7,7 +7,7 @@ use block_type_guest::editor::EditorOperation;
 use counter_types::{Counter, CounterContent};
 
 fn counted(block: Uuid, expected: i64) {
-    crate::be::wait_for(Duration::from_secs(20), |shared| {
+    block_app_stack::wait_for(Duration::from_secs(20), |shared| {
         let held = shared.blocks.get(&block)?;
         let counter = CounterContent::decode(held.bytes()).ok()?;
         (counter.root().value() == expected).then_some(())
@@ -17,11 +17,11 @@ fn counted(block: Uuid, expected: i64) {
 
 #[test]
 fn an_editor_can_read_and_edit_a_block_it_watches() {
-    let harness = crate::be::Harness::start();
+    let harness = block_app_testing::Harness::start();
     harness.connect();
     let own = Uuid::new_v4();
     let other = Uuid::new_v4();
-    crate::be::create(
+    block_app_stack::create(
         other,
         CounterContent::CONTENT_TYPE,
         be_graph::BlockParent::Root,
@@ -59,9 +59,9 @@ fn an_editor_can_read_and_edit_a_block_it_watches() {
 
     instances.ended(watched);
     instances.ended(unknown);
-    crate::be::wait_for(Duration::from_secs(20), |shared| {
+    block_app_stack::wait_for(Duration::from_secs(20), |shared| {
         (!shared.blocks.contains_key(&other)).then_some(())
     })
     .expect("the watched block was never closed");
-    assert!(crate::be::content(own).is_some());
+    assert!(block_app_stack::content(own).is_some());
 }

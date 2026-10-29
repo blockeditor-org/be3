@@ -3,7 +3,7 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 use be_keys::{ContactCard, InviteCode};
 use uuid::Uuid;
 
-use crate::invite_link::InviteLink;
+use block_app_stack::invite_link::InviteLink;
 use crate::ui::{ContactRow, ContactsView};
 
 enum Reply {
@@ -67,7 +67,7 @@ impl Contacts {
         self.busy = true;
         self.error = None;
         self.link = None;
-        crate::be::make_contact_link(None, move |made| {
+        block_app_stack::make_contact_link(None, move |made| {
             let _ = sender.send(Reply::Link(made));
             block_app_base::host::wake();
         });
@@ -99,7 +99,7 @@ impl Contacts {
         let code = link.code.clone();
         self.busy = true;
         self.error = None;
-        crate::be::open_contact_link(link.code, move |opened| {
+        block_app_stack::open_contact_link(link.code, move |opened| {
             let _ = sender.send(Reply::Opened(code, opened));
             block_app_base::host::wake();
         });
@@ -111,7 +111,7 @@ impl Contacts {
         };
         let sender = self.replies.0.clone();
         self.busy = true;
-        crate::be::accept_contact_link(offered.code, move |accepted| {
+        block_app_stack::accept_contact_link(offered.code, move |accepted| {
             let _ = sender.send(Reply::Accepted(accepted));
             block_app_base::host::wake();
         });
@@ -131,17 +131,17 @@ impl Contacts {
 
     pub(crate) fn confirm_remove(&mut self) {
         if let Some(account) = self.removing.take() {
-            crate::be::remove_contact(account);
+            block_app_stack::remove_contact(account);
         }
     }
 
     pub(crate) fn publish(&mut self) {
-        let seen = Some((crate::be::identity(), crate::be::contacts_revision()));
+        let seen = Some((block_app_stack::identity(), block_app_stack::contacts_revision()));
         if self.published == seen {
             return;
         }
         self.published = seen;
-        let contacts: Vec<block_plugin_api::HostContact> = crate::be::contacts()
+        let contacts: Vec<block_plugin_api::HostContact> = block_app_stack::contacts()
             .into_iter()
             .map(|contact| block_plugin_api::HostContact {
                 account: contact.account.into_bytes(),
@@ -174,7 +174,7 @@ impl Contacts {
         if !self.open {
             return None;
         }
-        let contacts = crate::be::contacts();
+        let contacts = block_app_stack::contacts();
         let removing = self.removing.and_then(|account| {
             contacts
                 .iter()

@@ -91,7 +91,7 @@ pub(crate) fn release_revisions(ids: &[Uuid]) {
             editors.forget_parent(*id);
         }
         drop(removed);
-        super::changed();
+        block_app_base::host::changed();
     }
 }
 
@@ -139,7 +139,7 @@ impl Editors {
         state.settings_children.borrow_mut().clear();
         state.settings_shown.borrow_mut().clear();
         state.simulated.borrow_mut().clear();
-        super::changed();
+        block_app_base::host::changed();
     }
 
     pub(crate) fn simulated(&self, id: Uuid) -> Option<Access> {
@@ -165,7 +165,7 @@ impl Editors {
     pub(crate) fn with_simulated<R>(&self, act: impl FnOnce(&mut HashMap<Uuid, Access>) -> R) -> R {
         let state = self.0.value();
         let result = act(&mut state.simulated.borrow_mut());
-        super::changed();
+        block_app_base::host::changed();
         result
     }
 
@@ -299,7 +299,7 @@ impl Editors {
             }
         }
         if dismissed {
-            super::changed();
+            block_app_base::host::changed();
         }
     }
 
@@ -371,7 +371,7 @@ impl Editors {
             return;
         }
         *state.settings_status.borrow_mut() = status;
-        super::changed();
+        block_app_base::host::changed();
     }
 
     fn settings_status(&self, block: Uuid) -> Option<(f32, DialogStatus)> {
@@ -447,9 +447,9 @@ impl Editors {
                 None => CreationProgress::Options,
                 Some(commit) => match child.creation.create() {
                     Ok(Some(block)) => {
-                        crate::be::set_parent(block, commit.parent);
+                        block_app_stack::set_parent(block, commit.parent);
                         if let Some(name) = commit.name.clone() {
-                            crate::be::name_when_created(block, name);
+                            block_app_stack::name_when_created(block, name);
                         }
                         CreationProgress::Created(block.into_bytes())
                     }
@@ -466,7 +466,7 @@ impl Editors {
             }
         }
         if changed {
-            super::changed();
+            block_app_base::host::changed();
         }
     }
 
@@ -663,7 +663,7 @@ pub(crate) fn ConflictSurface() -> NodeId {
     let any = super::any();
     let comparison = create_memo(move || {
         any.get();
-        crate::be::conflicts::comparing()
+        block_app_stack::conflicts::comparing()
     });
     view! {
         <ConflictDialog comparison />
@@ -671,7 +671,7 @@ pub(crate) fn ConflictSurface() -> NodeId {
 }
 
 #[component]
-fn ConflictDialog(comparison: Memo<Option<crate::be::conflicts::Comparison>>) -> NodeId {
+fn ConflictDialog(comparison: Memo<Option<block_app_stack::conflicts::Comparison>>) -> NodeId {
     let open = create_memo(move || comparison.with(Option::is_some));
     let error = create_memo(move || {
         comparison
@@ -689,12 +689,12 @@ fn ConflictDialog(comparison: Memo<Option<crate::be::conflicts::Comparison>>) ->
             actions={vec![
                 DialogAction::primary("Keep merged", move || {
                     if let Some(comparison) = comparison.get_untracked() {
-                        crate::be::conflicts::dismiss(comparison.block);
+                        block_app_stack::conflicts::dismiss(comparison.block);
                     }
                 }),
                 DialogAction::cancel("Close"),
             ]}
-            on_dismiss={crate::be::conflicts::stop_comparing}
+            on_dismiss={block_app_stack::conflicts::stop_comparing}
         >
             <List spacing=Space::Lg>
                 <Text style=TextStyle::CAPTION>
@@ -704,12 +704,12 @@ fn ConflictDialog(comparison: Memo<Option<crate::be::conflicts::Comparison>>) ->
                     <ConflictSide
                         @sizing=ItemSize::Percent(50.0)
                         comparison
-                        side=crate::be::conflicts::Side::Ours
+                        side=block_app_stack::conflicts::Side::Ours
                     />
                     <ConflictSide
                         @sizing=ItemSize::Percent(50.0)
                         comparison
-                        side=crate::be::conflicts::Side::Theirs
+                        side=block_app_stack::conflicts::Side::Theirs
                     />
                 </List>
                 <Show condition={failed}>
@@ -722,10 +722,10 @@ fn ConflictDialog(comparison: Memo<Option<crate::be::conflicts::Comparison>>) ->
 
 #[component]
 fn ConflictSide(
-    comparison: Memo<Option<crate::be::conflicts::Comparison>>,
-    side: crate::be::conflicts::Side,
+    comparison: Memo<Option<block_app_stack::conflicts::Comparison>>,
+    side: block_app_stack::conflicts::Side,
 ) -> NodeId {
-    use crate::be::conflicts::Side;
+    use block_app_stack::conflicts::Side;
     let title = match side {
         Side::Ours => "On this device",
         Side::Theirs => "From another device",
@@ -785,7 +785,7 @@ fn ConflictSide(
                     disabled={create_memo(move || !ready.get())}
                     on_click={move || {
                         if let Some(block) = block.get_untracked() {
-                            crate::be::conflicts::keep(block, side);
+                            block_app_stack::conflicts::keep(block, side);
                         }
                     }}
                 />
@@ -797,7 +797,7 @@ fn ConflictSide(
 #[component]
 fn ConflictPreview(preview: Uuid) -> NodeId {
     let editors = editors();
-    if let Some(node) = crate::be::node(preview) {
+    if let Some(node) = block_app_stack::node(preview) {
         editors.ensure(preview, node.content_type, None, None, preview);
     }
     provide_context(Nesting {
@@ -1156,7 +1156,7 @@ enum Resolution {
     Missing,
     Locked,
     Unsupported(Uuid),
-    Stale(Uuid, crate::be::Stale),
+    Stale(Uuid, block_app_stack::Stale),
     Ready { region: RegionKey, access: Access },
 }
 
@@ -1258,10 +1258,10 @@ fn BlockFrameBody(
         let Some(handle) = editors.handle(block) else {
             return Resolution::Missing;
         };
-        if crate::be::locked(block) {
+        if block_app_stack::locked(block) {
             return Resolution::Locked;
         }
-        if let Some(stale) = crate::be::staleness(block) {
+        if let Some(stale) = block_app_stack::staleness(block) {
             return Resolution::Stale(handle.block_type, stale);
         }
         match region_key(&editors, block, false) {
@@ -1272,7 +1272,7 @@ fn BlockFrameBody(
     let conflicted = create_memo(move || {
         any.get();
         match resolution.get() {
-            Resolution::Ready { .. } => crate::be::conflicts::conflicted(block)
+            Resolution::Ready { .. } => block_app_stack::conflicts::conflicted(block)
                 .map(|conflicted| conflicted.count)
                 .into_iter()
                 .collect::<Vec<_>>(),
@@ -1762,7 +1762,7 @@ fn HostedChild(
                 editor,
             }) => (block_id, block_type, view_block, editor),
         };
-        if crate::be::revisions::released(id) {
+        if block_app_stack::revisions::released(id) {
             return Kind::Unavailable;
         }
         if nesting.above.with(|above| above.contains(&id)) {
@@ -2098,7 +2098,7 @@ fn status_of(editors: &Editors, child: &HostChild, available: bool) -> HostChild
         interaction,
         capabilities,
         resize,
-        error: crate::be::revisions::error(block)
+        error: block_app_stack::revisions::error(block)
             .or_else(|| (!available).then(|| CHILD_UNAVAILABLE.to_owned())),
         creation: None,
         preview: ChildPreview::Hosted,

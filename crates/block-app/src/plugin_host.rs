@@ -14,7 +14,6 @@ mod calls;
 mod description;
 mod docks;
 mod fonts;
-pub(crate) mod graph;
 mod heads;
 mod input;
 mod instances;

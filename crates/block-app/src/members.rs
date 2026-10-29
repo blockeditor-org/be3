@@ -42,7 +42,7 @@ impl Members {
         self.open = true;
         self.error = None;
         self.busy = true;
-        crate::be::list_members(self.answer());
+        block_app_stack::list_members(self.answer());
     }
 
     pub(crate) fn close(&mut self) {
@@ -52,7 +52,7 @@ impl Members {
     pub(crate) fn set_role(&mut self, account: Uuid, role: OrganizationRole) {
         self.busy = true;
         self.error = None;
-        crate::be::set_role(account, role, self.answer());
+        block_app_stack::set_role(account, role, self.answer());
     }
 
     pub(crate) fn ask_remove(&mut self, account: Uuid) {
@@ -67,7 +67,7 @@ impl Members {
         if let Some(account) = self.removing.take() {
             self.busy = true;
             self.error = None;
-            crate::be::remove_member(account, self.answer());
+            block_app_stack::remove_member(account, self.answer());
         }
     }
 

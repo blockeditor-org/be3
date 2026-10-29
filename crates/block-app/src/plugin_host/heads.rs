@@ -73,7 +73,7 @@ impl Heads {
     ) {
         for (block, requested) in &mut self.requested {
             let block = *block;
-            let Some(node) = crate::be::node(block) else {
+            let Some(node) = block_app_stack::node(block) else {
                 continue;
             };
             if !node.access.can_view() || *requested == Some(node.head) {
@@ -86,7 +86,7 @@ impl Heads {
             };
             let sender = reads.sender.clone();
             let content_type = node.content_type.into_bytes();
-            crate::be::read_head(block, commit, move |read| {
+            block_app_stack::read_head(block, commit, move |read| {
                 let _ = sender.send(HeadRead {
                     epoch,
                     instance,

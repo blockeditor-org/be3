@@ -69,7 +69,7 @@ fn refused(outcome: &Outcome) -> bool {
 
 #[test]
 fn a_plugin_s_calls_are_served_in_the_order_it_made_them() {
-    let harness = crate::be::Harness::start();
+    let harness = block_app_testing::Harness::start();
     harness.connect();
     let plugin = block_plugin_manifest::manifest_from_json(
         r#"{
@@ -119,7 +119,7 @@ fn a_plugin_s_calls_are_served_in_the_order_it_made_them() {
     runtime.taking_in = false;
     runtime.hear(heard);
     assert!(
-        crate::be::node(fresh).is_none() && !crate::be::access(fresh).can_view(),
+        block_app_stack::node(fresh).is_none() && !block_app_stack::access(fresh).can_view(),
         "calls heard while a frame is drawn wait for the next one, and a read served now would be refused"
     );
     let answered = carry(runtime.backend.wire_mut().take_outbound(), &mut guest);
@@ -131,7 +131,7 @@ fn a_plugin_s_calls_are_served_in_the_order_it_made_them() {
     runtime.taking_in = true;
     runtime.hear(Vec::new());
     assert!(
-        crate::be::access(fresh).can_view(),
+        block_app_stack::access(fresh).can_view(),
         "the block was created first"
     );
     let answered = carry(runtime.backend.wire_mut().take_outbound(), &mut guest);

@@ -22,8 +22,8 @@ fn sent(instances: &mut Instances, watch: OpId) -> Vec<Sent> {
         .collect()
 }
 
-fn loaded(query: crate::be::Query) {
-    crate::be::wait_for(Duration::from_secs(20), |shared| {
+fn loaded(query: block_app_stack::Query) {
+    block_app_stack::wait_for(Duration::from_secs(20), |shared| {
         shared.graph.ready(query).then_some(())
     })
     .expect("the listing never loaded");
@@ -31,10 +31,10 @@ fn loaded(query: crate::be::Query) {
 
 #[test]
 fn a_listing_the_host_could_not_load_reaches_the_plugin_as_failed() {
-    let harness = crate::be::Harness::start();
+    let harness = block_app_testing::Harness::start();
     harness.connect();
     let folder = Uuid::new_v4();
-    crate::be::create(
+    block_app_stack::create(
         folder,
         CounterContent::CONTENT_TYPE,
         be_graph::BlockParent::Root,
@@ -46,12 +46,12 @@ fn a_listing_the_host_could_not_load_reaches_the_plugin_as_failed() {
         resource: wire::BlocksWatch(op),
         query: BlockQuery::Children(folder.into_bytes()),
     });
-    let children = crate::be::Query::Children(folder);
+    let children = block_app_stack::Query::Children(folder);
     sent(&mut instances, watch);
     loaded(children);
     assert_eq!(sent(&mut instances, watch), [Sent::Blocks]);
 
-    crate::be::fail_listings(children, "Couldn't load what's inside this block");
+    block_app_stack::fail_listings(children, "Couldn't load what's inside this block");
     assert_eq!(
         sent(&mut instances, watch),
         [Sent::Failed(
@@ -64,7 +64,7 @@ fn a_listing_the_host_could_not_load_reaches_the_plugin_as_failed() {
         "a failure is sent once"
     );
 
-    crate::be::refetch(children);
+    block_app_stack::refetch(children);
     loaded(children);
     assert_eq!(
         sent(&mut instances, watch),

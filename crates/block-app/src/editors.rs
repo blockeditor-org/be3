@@ -68,7 +68,7 @@ pub enum DirectEditorResize {
 }
 
 pub fn editor_access_ceiling(id: Uuid) -> Access {
-    let Some(node) = crate::be::node(id) else {
+    let Some(node) = block_app_stack::node(id) else {
         return Access::Manage;
     };
     match node.metadata.contains(&be_block::ARTIFACT) {
@@ -175,14 +175,14 @@ pub struct EditorRegistry {
 
 impl EditorRegistry {
     pub fn new() -> Self {
-        Self::from_manifests(plugin::discovery::manifests())
+        Self::from_manifests(block_app_stack::discovery::manifests())
     }
 
     pub(crate) fn from_manifests(manifests: Vec<Arc<PluginManifest>>) -> Self {
         let mut registry = Self {
             editors: Vec::new(),
             templates: Vec::new(),
-            types: plugin::discovery::block_types(&manifests),
+            types: block_app_stack::discovery::block_types(&manifests),
             plugin_block_types: Arc::default(),
         };
         for manifest in manifests {
