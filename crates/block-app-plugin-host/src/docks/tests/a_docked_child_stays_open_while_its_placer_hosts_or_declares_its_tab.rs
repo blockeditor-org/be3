@@ -39,6 +39,12 @@ fn a_docked_child_stays_open_while_its_placer_hosts_or_declares_its_tab() {
     );
 
     host(&mut docks, None);
+    assert!(
+        docks.docked(OUTER),
+        "it stays while the root lays out the tab it hosted it in"
+    );
+    docks.placed(ROOT, &[], None);
+    docks.placed(ROOT, &[], None);
     assert!(!docks.docked(OUTER));
     assert_eq!(
         updates(&mut docks, "shell"),

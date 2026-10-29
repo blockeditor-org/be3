@@ -40,6 +40,7 @@ pub(super) fn dock_layout_key(block_type: uuid::Uuid) -> String {
 
 pub(super) fn keep_joined(link: &Rc<ProtocolLink>, editor: Editor) {
     let declares = link.declares.read_only();
+    let declaring = link.declaring.read_only();
     let pushed = link.pushed;
     keep_layout(
         Rc::downgrade(link),
@@ -49,7 +50,7 @@ pub(super) fn keep_joined(link: &Rc<ProtocolLink>, editor: Editor) {
             pushed.get();
             declares.get();
         },
-        create_memo(move || declares.get() > 0),
+        create_memo(move || declaring.get()),
     );
 }
 
@@ -91,17 +92,22 @@ fn keep_layout<T: Kept + 'static>(
     let saved = settings.value(&setting);
     let following = Weak::clone(&kept);
     create_effect(move || {
-        if !ready.get() || !declared.get() {
+        if !ready.get() {
+            return;
+        }
+        let Some(kept) = following.upgrade() else {
+            return;
+        };
+        if !declared.get() {
+            kept.saving().seen.replace(None);
             return;
         }
         let saved = saved.get();
-        if let Some(kept) = following.upgrade() {
-            untrack(|| follow_saved(&*kept, saved));
-        }
+        untrack(|| follow_saved(&*kept, saved));
     });
     create_effect(move || {
         changed();
-        if !ready.get() {
+        if !ready.get() || !declared.get() {
             return;
         }
         let Some(kept) = kept.upgrade() else {

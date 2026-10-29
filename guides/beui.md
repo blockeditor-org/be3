@@ -2825,7 +2825,11 @@ covers, and reads and places bars there (`DockingLayout::bar_placement`,
 joining one where the editor's dock joins another plugin's, a bars one
 otherwise (guides/adding_a_plugin_editor.md), and its `ChildBlock` in a
 tab body claims that tab's `DockJoin` (`use_dock_join()`, `DockJoin::host`,
-`claim`) for the child editor's dock. A `Docking` that joins no host instead
+`claim`) for the child editor's dock. A link's `withdraw` takes back only the
+declaration: the bodies `place` gave and the `listen` callback stay with the
+link until the scope that claimed it ends, so a dock that stops declaring and
+declares again (a child editor whose `Docking` is torn down and built again) is
+hosted again with the same bodies. A `Docking` that joins no host instead
 claims the `DockKeeper` context if one is provided above it (one per keeper; a
 dock nested in it joins it and claims none) and hands it a `DockKept`: its own
 layout (`snapshot`'s state, as a memo), the keys of its own tabs and bars, and

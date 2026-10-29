@@ -49,10 +49,6 @@ pub fn PresentationView(editor: Editor) -> NodeId {
         true => editor.content(&docked_stage),
         false => editor.content(&bare_stage),
     });
-    let staged = create_memo(move || match docked.get() {
-        true => slides.selected().get(),
-        false => None,
-    });
     let background = create_memo(move || match presenting.get() {
         true => ColorRole::Custom(PRESENTING.into()),
         false => ColorRole::Background,
@@ -63,14 +59,14 @@ pub fn PresentationView(editor: Editor) -> NodeId {
         <Interactive focusable=true focused={presenting} on_key={keys}>
             <Frame fill={background}>
                 <Layers>
-                    <ShowKeepAlive condition={docked}>
+                    <Show condition={docked}>
                         <DeckDock
                             editor={editor}
                             slides={slides}
                             stage={docked_stage}
-                            selected={staged}
+                            selected={slides.selected()}
                         />
-                    </ShowKeepAlive>
+                    </Show>
                     <Show condition={bare}>
                         <List spacing=Space::None>
                             <Stage
@@ -100,7 +96,7 @@ fn DeckDock(
     editor: Editor,
     slides: Slides,
     stage: NodeRef,
-    selected: Memo<Option<Uuid>>,
+    selected: ReadSignal<Option<Uuid>>,
 ) -> NodeId {
     let layout = DockingLayout::<&'static str>::new();
     view! {

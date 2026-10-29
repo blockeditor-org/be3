@@ -143,6 +143,16 @@ impl EditorHost {
         self.docks.borrow().used
     }
 
+    pub(crate) fn hosting_children(&self) -> Vec<ChildId> {
+        self.docks
+            .borrow()
+            .hosting
+            .iter()
+            .filter(|(_, hosted)| hosted.is_some())
+            .map(|(child, _)| *child)
+            .collect()
+    }
+
     pub(crate) fn mark_docks_used(&self) {
         self.docks.borrow_mut().used = true;
     }

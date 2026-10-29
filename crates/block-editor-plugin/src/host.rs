@@ -2127,13 +2127,18 @@ impl EditorHost {
     }
 
     pub(crate) fn end_view(&self, view: ViewId) -> (Vec<ChildPlacement>, Vec<Occluder>) {
+        let hosting = self.hosting_children();
         let mut children = self.children.borrow_mut();
         let placing = children.placing.remove(&view).unwrap_or_default();
         let gone: Vec<ChildKey> = children
             .identities
-            .keys()
-            .filter(|key| children.placed_in(key.0, view) && !placing.used.contains(key))
-            .cloned()
+            .iter()
+            .filter(|(key, child)| {
+                children.placed_in(key.0, view)
+                    && !placing.used.contains(key)
+                    && !hosting.contains(child)
+            })
+            .map(|(key, _)| key.clone())
             .collect();
         for key in gone {
             children.identities.remove(&key);

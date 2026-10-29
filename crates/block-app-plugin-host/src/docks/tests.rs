@@ -177,6 +177,7 @@ fn host(docks: &mut Docks, hosted: Option<DockHosted>) {
 mod a_closed_instance_withdraws_its_dock_from_the_root;
 mod a_descendants_bar_is_placed_by_the_root_and_its_moves_reach_it;
 mod a_docked_child_stays_open_while_its_placer_hosts_or_declares_its_tab;
+mod a_docked_child_the_root_stops_hosting_stays_docked_until_the_root_places_it;
 mod a_docked_child_that_declares_nothing_stays_a_plain_child;
 mod a_frame_childs_bars_take_the_place_of_its_placers_and_give_it_back;
 mod a_nested_dock_reaches_the_root_spliced_into_its_placers;

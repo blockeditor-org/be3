@@ -100,6 +100,7 @@ impl DockedTabs {
             pushed: editor.pushed(Pushed::Docks),
             tabs: Rc::downgrade(self),
             bodies: RefCell::default(),
+            placings: Cell::new(0),
             panels: RefCell::default(),
             menus: OwnedSignal::new(DockMenus::new()),
             frame,
@@ -109,6 +110,7 @@ impl DockedTabs {
             asking: self.asking.handle(),
             bar_sizes: OwnedSignal::new(HashMap::new()),
             declares: OwnedSignal::new(0),
+            declaring: OwnedSignal::new(false),
             saving: saved::Saving::default(),
             menued: RefCell::default(),
         });
@@ -256,6 +258,7 @@ struct ProtocolLink {
     pushed: ReadSignal<u64>,
     tabs: Weak<DockedTabs>,
     bodies: RefCell<Option<DockBodies>>,
+    placings: Cell<u64>,
     panels: RefCell<HashMap<TabId, Panel>>,
     menus: OwnedSignal<DockMenus>,
     frame: Memo<Vec<MenuNode>>,
@@ -265,6 +268,7 @@ struct ProtocolLink {
     asking: Signal<Option<TabId>>,
     bar_sizes: OwnedSignal<HashMap<TabId, beui::Vec2>>,
     declares: OwnedSignal<u64>,
+    declaring: OwnedSignal<bool>,
     saving: saved::Saving,
     menued: RefCell<Vec<ViewId>>,
 }
@@ -527,6 +531,9 @@ impl DockHostLink for ProtocolLink {
         *self.declared.borrow_mut() = Some(declaration);
         self.send();
         self.declares.update(|declares| *declares += 1);
+        if !self.declaring.get_untracked() {
+            self.declaring.set(true);
+        }
     }
 
     fn hosted(&self) -> Memo<Option<DockHosted>> {
@@ -561,7 +568,15 @@ impl DockHostLink for ProtocolLink {
     }
 
     fn place(&self, bodies: DockBodies) {
+        let placed = self.placings.get() + 1;
+        self.placings.set(placed);
         *self.bodies.borrow_mut() = Some(bodies);
+        let leaving = Weak::clone(&self.this);
+        on_cleanup(move || {
+            if let Some(link) = leaving.upgrade() {
+                link.unplace(placed);
+            }
+        });
         let hosted = self.hosted();
         self.watched.set(Some(hosted));
         let this = Weak::clone(&self.this);
@@ -586,6 +601,17 @@ impl DockHostLink for ProtocolLink {
     fn withdraw(&self) {
         self.declared.borrow_mut().take();
         self.host.declare_dock(self.view, None);
+        if self.declaring.get_untracked() {
+            self.declaring.set(false);
+        }
+    }
+}
+
+impl ProtocolLink {
+    fn unplace(&self, placed: u64) {
+        if self.placings.get() != placed {
+            return;
+        }
         self.bodies.borrow_mut().take();
         let panels = std::mem::take(&mut *self.panels.borrow_mut());
         drop(panels);

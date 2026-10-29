@@ -27,5 +27,17 @@ fn presenting_a_deck_fills_the_screen_until_escape() {
     app.key("Escape");
     app.gone("#presentation.playback");
     assert!(!fullscreen(&mut app), "stopping leaves fullscreen");
+    app.wait("#presentation.filmstrip");
+    app.wait("#infinite-canvas.dock");
+    app.run(&["settle"]);
+    assert_eq!(
+        app.count("#presentation.toolbar "),
+        1,
+        "the deck's dock is hosted again, toolbar and all"
+    );
+    assert!(
+        app.shown("Slide 1 of 1"),
+        "and its toolbar shows the deck again"
+    );
     app.close();
 }

@@ -394,10 +394,13 @@ impl DockJoin {
         if self.claimed.replace(true) {
             return None;
         }
-        Some(Rc::new(JoinedLink {
+        let link = Rc::new(JoinedLink {
             join: self.clone(),
             joined: Rc::new(Joined::default()),
-        }))
+        });
+        let held = Rc::clone(&link);
+        on_cleanup(move || held.release());
+        Some(link)
     }
 }
 
@@ -573,9 +576,16 @@ impl DockHostLink for JoinedLink {
                 joins.remove(&host);
             }
         }
+        registry.bump();
+    }
+}
+
+impl JoinedLink {
+    fn release(&self) {
+        self.withdraw();
+        *self.joined.declaration.borrow_mut() = None;
         *self.joined.events.borrow_mut() = None;
         *self.joined.bodies.borrow_mut() = None;
         self.join.claimed.set(false);
-        registry.bump();
     }
 }

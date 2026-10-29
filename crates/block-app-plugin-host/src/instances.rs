@@ -1027,6 +1027,12 @@ impl Instances {
         })
     }
 
+    pub(super) fn on_screen(&self, instance: EditorInstanceId) -> bool {
+        self.entries
+            .get(&instance)
+            .is_some_and(|entry| entry.screens.values().any(|screen| screen.mounted > 0))
+    }
+
     pub(super) fn docked_children(
         &self,
     ) -> Vec<(EditorInstanceId, Vec<super::docks::DockedChild>)> {

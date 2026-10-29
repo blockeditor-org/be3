@@ -931,10 +931,16 @@ impl Runtime {
             self.instances.frame_children().into_iter().collect();
         for (placer, children) in self.instances.docked_children() {
             let frame = framed.remove(&placer).flatten();
-            super::docks::placed(placer, &children, frame);
+            match self.instances.on_screen(placer) {
+                true => super::docks::placed(placer, &children, frame),
+                false => super::docks::offscreen(placer),
+            }
         }
         for (placer, frame) in framed {
-            super::docks::placed(placer, &[], frame);
+            match self.instances.on_screen(placer) {
+                true => super::docks::placed(placer, &[], frame),
+                false => super::docks::offscreen(placer),
+            }
         }
     }
 
@@ -1027,7 +1033,6 @@ impl Runtime {
             window_requests,
             docks,
         } = commit;
-        super::docks::heard(&self.plugin.identity.id, docks);
         for request in &window_requests {
             if let WindowRequest::Open(open) = request {
                 self.instances.adopt_window(open, &self.layout);
@@ -1049,6 +1054,7 @@ impl Runtime {
             windows,
             children,
         });
+        super::docks::heard(&self.plugin.identity.id, docks);
         changed
     }
 

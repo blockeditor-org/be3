@@ -41,7 +41,10 @@ struct Placed {
 enum Hosting {
     Awaited,
     Hosted,
+    Released { reports: u8 },
 }
+
+const RELEASED_REPORTS: u8 = 2;
 
 #[derive(Default)]
 pub(super) struct Docks {
@@ -53,6 +56,7 @@ pub(super) struct Docks {
     delivered: HashMap<(EditorInstanceId, ChildId), DockDeclaration>,
     hosted: HashMap<EditorInstanceId, DockHosted>,
     docked: HashSet<EditorInstanceId>,
+    offscreen: HashSet<EditorInstanceId>,
     framed: HashSet<EditorInstanceId>,
     parked: HashMap<(EditorInstanceId, u64), DockBarPlacement>,
     shown_bars: HashSet<(EditorInstanceId, u64)>,
@@ -83,6 +87,7 @@ impl Docks {
         self.picks.retain(|(held, _, _, _)| *held != instance);
         self.blocks.retain(|_, held| *held != instance);
         self.children.remove(&instance);
+        self.offscreen.remove(&instance);
         self.declared.remove(&instance);
         self.hosted.remove(&instance);
         self.hosting.retain(|(root, _), _| *root != instance);
@@ -118,8 +123,8 @@ impl Docks {
         placed: &[DockedChild],
         framed: Option<DockedChild>,
     ) {
+        let mut changed = self.offscreen.remove(&placer);
         let held = self.children.entry(placer).or_default();
-        let mut changed = false;
         let before = held.len();
         held.retain(|child, record| {
             !record.frame || framed.is_some_and(|framed| framed.child == *child)
@@ -129,6 +134,14 @@ impl Docks {
             let now = placed.iter().any(|docked| docked.child == *child);
             changed |= record.placed != now;
             record.placed = now;
+            let key = (placer, *child);
+            if let Some(Hosting::Released { reports }) = self.hosting.get_mut(&key) {
+                *reports = reports.saturating_sub(1);
+                if now || *reports == 0 {
+                    self.hosting.remove(&key);
+                    changed = true;
+                }
+            }
         }
         for docked in placed {
             let record = Placed {
@@ -156,6 +169,12 @@ impl Docks {
             self.children.remove(&placer);
         }
         if changed {
+            self.refresh();
+        }
+    }
+
+    pub(super) fn offscreen(&mut self, placer: EditorInstanceId) {
+        if self.offscreen.insert(placer) {
             self.refresh();
         }
     }
@@ -421,7 +440,7 @@ impl Docks {
         child: ChildId,
         record: &Placed,
     ) -> bool {
-        if record.placed {
+        if record.placed || self.offscreen.contains(&placer) {
             return true;
         }
         match docked.contains(&placer) {
@@ -530,9 +549,13 @@ impl Docks {
                 continue;
             }
             self.delivered.insert((root, child), declaration.clone());
-            self.hosting
+            let hosting = self
+                .hosting
                 .entry((root, child))
                 .or_insert(Hosting::Awaited);
+            if matches!(hosting, Hosting::Released { .. }) {
+                *hosting = Hosting::Awaited;
+            }
             self.send(
                 root,
                 DockUpdate::Child(DockDeclaredChild {
@@ -675,7 +698,12 @@ impl Docks {
                 self.hosting.insert((root, child), Hosting::Hosted);
             }
             false => {
-                self.hosting.remove(&(root, child));
+                self.hosting.insert(
+                    (root, child),
+                    Hosting::Released {
+                        reports: RELEASED_REPORTS,
+                    },
+                );
             }
         }
         if let Some(instance) = self.instance_of(root, &record) {
@@ -851,6 +879,10 @@ pub(super) fn placed(
     framed: Option<DockedChild>,
 ) {
     with(|docks| docks.placed(placer, children, framed));
+}
+
+pub(super) fn offscreen(placer: EditorInstanceId) {
+    with(|docks| docks.offscreen(placer));
 }
 
 pub(super) fn heard(plugin: &str, messages: Vec<DockMessage>) {
