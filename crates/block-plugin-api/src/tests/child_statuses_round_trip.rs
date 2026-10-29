@@ -5,7 +5,7 @@ fn child_statuses_round_trip() {
     let statuses = vec![
         ChildStatus {
             instance: EditorInstanceId(4),
-            region: EditorRegion::Frame,
+            view: ViewId::MAIN,
             child: ChildId(1),
             available: true,
             intrinsic: Some(Size {
@@ -45,7 +45,7 @@ fn child_statuses_round_trip() {
         },
         ChildStatus {
             instance: EditorInstanceId(4),
-            region: EditorRegion::Frame,
+            view: ViewId::MAIN,
             child: ChildId(2),
             available: false,
             intrinsic: None,

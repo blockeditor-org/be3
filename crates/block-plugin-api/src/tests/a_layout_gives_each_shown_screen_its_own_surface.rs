@@ -5,7 +5,7 @@ fn a_layout_gives_each_shown_screen_its_own_surface() {
     let screens = [
         screen(1, 1, 100, 200, 2.0),
         screen(2, 2, 0, 0, 1.0),
-        region_screen(EditorRegion::Preview, 3, 1, 400, 30, 1.0),
+        view_screen(View::PREVIEW, 3, 1, 400, 30, 1.0),
     ];
     let layout = ScreenLayout::placed(&screens, |screen| screen.0 as u32 * 10);
     assert_eq!(
@@ -14,7 +14,7 @@ fn a_layout_gives_each_shown_screen_its_own_surface() {
             ScreenPlacement {
                 screen: ScreenId(1),
                 instance: EditorInstanceId(1),
-                region: EditorRegion::Frame,
+                view: ViewId::MAIN,
                 surface: 10,
                 width: 100,
                 height: 200,
@@ -24,7 +24,7 @@ fn a_layout_gives_each_shown_screen_its_own_surface() {
             ScreenPlacement {
                 screen: ScreenId(3),
                 instance: EditorInstanceId(1),
-                region: EditorRegion::Preview,
+                view: ViewId::PREVIEW,
                 surface: 30,
                 width: 400,
                 height: 30,

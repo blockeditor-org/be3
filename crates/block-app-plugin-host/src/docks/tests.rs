@@ -1,7 +1,7 @@
 use super::*;
 use block_plugin_api::{
     DockChildClose, DockChildHosted, DockDeclare, DockItem, DockItemKind, DockLayout, DockPane,
-    DockRegionRequest, DockTab, DockTree, RegionRef,
+    DockTab, DockTree, DockViewRequest, ViewRef,
 };
 
 const ROOT: EditorInstanceId = EditorInstanceId(1);
@@ -67,9 +67,9 @@ fn inner() -> DockDeclaration {
 
 fn declare(instance: EditorInstanceId, declaration: Option<DockDeclaration>) -> DockMessage {
     DockMessage::Declare(DockDeclare {
-        region: RegionRef {
+        view: ViewRef {
             instance,
-            region: EditorRegion::Frame,
+            view: ViewId::MAIN,
         },
         declaration,
     })

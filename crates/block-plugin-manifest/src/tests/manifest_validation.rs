@@ -20,7 +20,7 @@ fn manifest_validation() {
         interaction: InteractionMode::Live,
         capabilities: EditorCapabilities::default(),
         resize: ResizeMode::Both,
-        regions: vec![EditorRegion::Frame, EditorRegion::Preview],
+        views: vec![ParentView::Main, ParentView::Preview],
         accepts: Vec::new(),
     };
     let manifest = PluginManifest {
@@ -38,12 +38,12 @@ fn manifest_validation() {
     assert_eq!(manifest.validate(), Ok(()));
 
     let mut invalid = manifest.clone();
-    invalid.editors[0].regions.push(EditorRegion::Preview);
-    assert_eq!(invalid.validate(), Err(ManifestError::InvalidRegions));
+    invalid.editors[0].views.push(ParentView::Preview);
+    assert_eq!(invalid.validate(), Err(ManifestError::InvalidViews));
 
     let mut invalid = manifest.clone();
-    invalid.editors[0].regions = vec![EditorRegion::Preview];
-    assert_eq!(invalid.validate(), Err(ManifestError::InvalidRegions));
+    invalid.editors[0].views = vec![ParentView::Preview];
+    assert_eq!(invalid.validate(), Err(ManifestError::InvalidViews));
 
     let mut invalid = manifest.clone();
     invalid.editors.clear();

@@ -8,8 +8,8 @@ use block_editor_beui::be_block::{LiveEdit, Merge};
 use block_editor_beui::headless::{Adopted, HeadlessPlugin};
 use block_editor_beui::{
     Artifacts, BeuiApp, ChildPlacement, ChildStatus, Creation, EditorHost, EditorInstanceId,
-    EditorRegion, Occluder, OwnedEditor, PeerPresence, SeededContent, ShownPresence, ViewChange,
-    WebViewCommand, WebViewId,
+    Occluder, OwnedEditor, PeerPresence, SeededContent, ShownPresence, ViewChange, WebViewCommand,
+    WebViewId,
 };
 use block_plugin_api::Opening;
 use block_plugin_api::embed::blocks::Call as BlocksCall;
@@ -19,8 +19,8 @@ use block_plugin_api::ops::{Connection, Incoming, Side};
 use block_plugin_api::{
     BarAction, BlockTypeDescriptor, Catalog, ChildId, FitArea, FrameChrome, FrameCommit,
     FrameReport, HelloAccepted, InputBatch, MenuCommand, MenuEntry, OpenArtifact, OpenBlock,
-    OpenCreation, ScreenId, ScreenRequest, SurfaceFormat, SurfaceSpec, TimedInput, TopBar,
-    ViewportMetrics,
+    OpenCreation, ScreenId, ScreenRequest, SurfaceFormat, SurfaceSpec, TimedInput, TopBar, View,
+    ViewId, ViewportMetrics,
 };
 use block_plugin_api::{
     embed::host_services::Call,
@@ -415,7 +415,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     fn place(&mut self) {
-        let region = self.region();
+        let shown = self.view();
         let raster = self.raster.unwrap_or(self.scale_factor);
         let metrics = ViewportMetrics {
             logical: block_plugin_api::Size {
@@ -432,11 +432,12 @@ impl<A: BeuiApp> BeuiTest<A> {
             vec![ScreenRequest {
                 screen: SCREEN,
                 instance: INSTANCE,
-                region,
+                view: shown.id,
+                placement: shown.placement,
                 metrics,
                 frame: self.frame,
                 windows: false,
-                placement: None,
+                host_place: None,
                 docked: self.docked,
                 layers: None,
             }]
@@ -604,9 +605,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn child_bar(&mut self, child: ChildId, action: BarAction) {
-        self.call(|editor, connection| {
-            editor.child_bar(connection, EditorRegion::Frame, child, action)
-        });
+        self.call(|editor, connection| editor.child_bar(connection, ViewId::MAIN, child, action));
     }
 
     pub fn set_view(&mut self, view: Rect, scale: f32) {
@@ -628,7 +627,7 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn drag_block(&mut self, position: Pos2, block_id: Uuid, block_type: Uuid, dropped: bool) {
         let drag = block_plugin_api::shell_types::DragOver {
-            region: self.region(),
+            view: self.view().id,
             pos: position,
             block_id: block_id.into_bytes(),
             block_type: block_type.into_bytes(),
@@ -894,10 +893,10 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn available_children(&mut self) {
-        let region = self.region();
+        let view = self.view().id;
         self.report_children(|placement| ChildStatus {
             instance: INSTANCE,
-            region,
+            view,
             child: placement.child,
             available: true,
             intrinsic: None,
@@ -1030,7 +1029,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                         input,
                         time_micros: sampled.then_some(now),
                         over: None,
-                        layer: None,
+                        anchored: None,
                     }
                 })
                 .collect();
@@ -1097,12 +1096,12 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     fn committed(&mut self, commit: FrameCommit) {
         self.docks.extend(commit.docks);
-        let region = self.region();
+        let view = self.view().id;
         let asked = commit.window_requests;
         if let Some(placements) = commit
             .children
             .into_iter()
-            .filter(|placements| placements.region == region)
+            .filter(|placements| placements.view == view)
             .last()
         {
             self.children = placements.children;
@@ -1119,7 +1118,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             .windows
             .into_iter()
             .find(|window| window.screen == SCREEN)
-            .filter(|_| self.region() == EditorRegion::Frame)
+            .filter(|_| self.view().is_main())
         {
             self.window = window.window;
         }
@@ -1376,14 +1375,14 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn answer_picker(&mut self, pick: block_editor_beui::BlockPick) {
-        let region = self.region();
+        let view = self.view().id;
         let picker = self
             .placed_picker()
             .expect("the editor placed a picker to answer")
             .child;
         self.report_children(|placement| ChildStatus {
             instance: INSTANCE,
-            region,
+            view,
             child: placement.child,
             available: true,
             intrinsic: None,
@@ -1404,7 +1403,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn show_picker(&mut self, intrinsic: Vec2, card: bool) {
-        let region = self.region();
+        let view = self.view().id;
         let picker = self
             .placed_picker()
             .expect("the editor placed a picker to show")
@@ -1413,7 +1412,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             let shown = placement.child == picker;
             ChildStatus {
                 instance: INSTANCE,
-                region,
+                view,
                 child: placement.child,
                 available: true,
                 intrinsic: shown.then_some(block_plugin_api::Size {
@@ -1666,11 +1665,11 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.intrinsic
     }
 
-    fn region(&self) -> EditorRegion {
+    fn view(&self) -> View {
         match self.kind {
-            Kind::Preview(_) => EditorRegion::Preview,
-            Kind::Settings => EditorRegion::ArtifactSettings,
-            Kind::Frame(_) | Kind::Creation | Kind::Picker => EditorRegion::Frame,
+            Kind::Preview(_) => View::PREVIEW,
+            Kind::Settings => View::ARTIFACT_SETTINGS,
+            Kind::Frame(_) | Kind::Creation | Kind::Picker => View::MAIN,
         }
     }
 

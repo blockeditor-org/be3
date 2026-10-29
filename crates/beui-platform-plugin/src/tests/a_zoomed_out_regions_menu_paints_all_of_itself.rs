@@ -41,14 +41,14 @@ fn a_zoomed_out_regions_menu_paints_all_of_itself() {
     one(&mut surface, &shown);
     open_at.set(Some(pos2(40.0, 40.0)));
     let frame = one(&mut surface, &shown);
-    let layer = &frame.layers[0];
+    let layer = &frame.anchored[0];
     assert_eq!(
         layer.painted,
         vec![layer.rect],
         "the host draws all of the menu, its outline included"
     );
     let painting = surface
-        .layer_painting(shown.id(), layer.id)
+        .anchored_painting(shown.id(), layer.view)
         .expect("the layer is painted");
     assert_eq!(
         painting.frame.size,

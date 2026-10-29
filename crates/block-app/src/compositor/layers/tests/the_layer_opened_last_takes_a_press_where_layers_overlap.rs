@@ -9,9 +9,9 @@ fn the_layer_opened_last_takes_a_press_where_layers_overlap() {
 
     assert_eq!(
         topmost(&layers, pos2(175.0, 175.0)),
-        Some((2, LayerId(1))),
+        Some((2, ViewId(1))),
         "where they overlap, the layer opened later is hit first, whichever region opened it"
     );
-    assert_eq!(topmost(&layers, pos2(120.0, 120.0)), Some((1, LayerId(1))));
+    assert_eq!(topmost(&layers, pos2(120.0, 120.0)), Some((1, ViewId(1))));
     assert_eq!(topmost(&layers, pos2(10.0, 10.0)), None);
 }

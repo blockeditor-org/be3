@@ -14,7 +14,9 @@ use beui::{
     NodeId, OverlayAnchor, Placement, PointerButton, PointerEvent, PointerId, PointerPhase, Pos2,
     Rect, Vec2, WindowId, WindowPlacement, WindowReport, WindowRole, native::Region, pos2,
 };
-use block_plugin_api::{ChildId, EditorInstanceId, EditorRegion, FrameSpec};
+use block_plugin_api::{
+    ChildId, EditorInstanceId, FrameSpec, HostView, ParentView, View, ViewId, ViewPlacement,
+};
 use block_plugin_manifest::PluginManifest;
 use uuid::Uuid;
 
@@ -181,7 +183,7 @@ fn next_mount() -> u64 {
 #[component]
 pub(crate) fn PluginRegion(
     editor: RegionEditor,
-    region: EditorRegion,
+    region: View,
     #[prop(default = None)] frame: Prop<Option<FrameSpec>>,
     #[prop(default = None)] view: Prop<Option<EditorView>>,
     #[prop(default = 1.0)] zoom: Prop<f32>,
@@ -196,21 +198,23 @@ pub(crate) fn PluginRegion(
 ) -> NodeId {
     let instance = editor.instance;
     let place = super::desktop::place();
-    let windowing = ((matches!(region, EditorRegion::Frame | EditorRegion::Tab(_)) && !offscreen)
+    let windowing = ((matches!(
+        region.placement,
+        ViewPlacement::Parent(ParentView::Main) | ViewPlacement::Dock
+    ) && !offscreen)
         || nests_windows)
         .then(|| editor.clone());
     let plugin_id = editor.plugin_id().to_owned();
-    let floated_key = match region {
-        EditorRegion::Window(window) => Some(super::desktop::FloatedKey {
-            plugin: plugin_id.clone(),
-            instance,
-            window,
-        }),
-        _ => None,
-    };
+    let floated_key = region.is_window().then(|| super::desktop::FloatedKey {
+        plugin: plugin_id.clone(),
+        instance,
+        window: region.id,
+    });
     let shell = super::shell();
-    let shows_desktop = matches!(region, EditorRegion::Frame | EditorRegion::Display(_))
-        && matches!(editor.role, InstanceRole::Editor(id, block) if id == be_block::DESKTOP_EDITOR && shell.get_untracked() == Some(block.id));
+    let shows_desktop = matches!(
+        region.placement,
+        ViewPlacement::Parent(ParentView::Main) | ViewPlacement::Host(HostView::Display(_))
+    ) && matches!(editor.role, InstanceRole::Editor(id, block) if id == be_block::DESKTOP_EDITOR && shell.get_untracked() == Some(block.id));
     let hosts_windows = shows_desktop || floated_key.is_some();
     let primary = match (&floated_key, place) {
         (Some(key), Some(place)) => super::desktop::owns(place, key.clone()),
@@ -220,12 +224,12 @@ pub(crate) fn PluginRegion(
     let floated_placement = floated_key.clone().map(super::desktop::placement_memo);
     let desktop_editor = store(editor.clone());
     let name = editor.plugin.identity.name.clone();
-    let crash_id = format!("{plugin_id}.{}.{region:?}.crashed", instance.0);
+    let crash_id = format!("{plugin_id}.{}.{}.crashed", instance.0, region.id.0);
     let plugin_id = store(plugin_id);
     let block = editor.role.block().map(|block| block.id);
     let outer = use_context::<Presented>();
     let presented = create_memo(move || {
-        region != EditorRegion::Preview && outer.is_some_and(|Presented(within)| within.get())
+        !region.is_preview() && outer.is_some_and(|Presented(within)| within.get())
     });
     let any = super::any();
     let presenting = create_memo(move || {
@@ -246,11 +250,13 @@ pub(crate) fn PluginRegion(
         client_id: editor.client_id,
         role: editor.role,
         instance,
-        region,
+        view: region,
     });
     let mount = next_mount();
+    super::desktop::show_view(&plugin_id.value(), instance, region);
     on_cleanup(move || {
-        block_app_plugin_host::unmount_region(&plugin_id.value(), instance, region, mount)
+        block_app_plugin_host::unmount_region(&plugin_id.value(), instance, region.id, mount);
+        super::desktop::hide_view(&plugin_id.value(), instance, region.id);
     });
     create_effect(move || {
         let presented = presented.get();
@@ -281,7 +287,7 @@ pub(crate) fn PluginRegion(
         Some(placement) => block_app_plugin_host::place_region(
             &plugin_id.value(),
             instance,
-            region,
+            region.id,
             mount,
             RegionPlacement {
                 rect: placement.rect,
@@ -291,13 +297,15 @@ pub(crate) fn PluginRegion(
                 windows: hosts_windows || windowed,
                 placement: stored_key
                     .with(|key| key.as_ref().and_then(super::desktop::placement_of)),
-                layer_bounds: (layered && !offscreen && region != EditorRegion::Preview)
+                layer_bounds: (layered && !offscreen && !region.is_preview())
                     .then(|| layer_bounds.get_untracked()),
             },
             frame.get_untracked(),
             view.get_untracked(),
         ),
-        None => block_app_plugin_host::unplace_region(&plugin_id.value(), instance, region, mount),
+        None => {
+            block_app_plugin_host::unplace_region(&plugin_id.value(), instance, region.id, mount)
+        }
     });
     let slot = EmbedSlot::new();
     slot.on_place(move |placement| {
@@ -317,16 +325,18 @@ pub(crate) fn PluginRegion(
         let origin = create_memo(move || place.map_or(Pos2::ZERO, |place| place.display.get().min));
         create_effect(move || {
             let origin = origin.get();
-            untrack(|| super::desktop::note_origin(&plugin_id.value(), instance, region, origin));
+            untrack(|| {
+                super::desktop::note_origin(&plugin_id.value(), instance, region.id, origin)
+            });
         });
-        on_cleanup(move || super::desktop::forget_origin(&plugin_id.value(), instance, region));
+        on_cleanup(move || super::desktop::forget_origin(&plugin_id.value(), instance, region.id));
     }
     let state = create_memo(move || {
         revision.get();
         block_app_plugin_host::region_view(
             &editor.plugin,
             instance,
-            region,
+            region.id,
             placed.with(Cell::get),
             view.get(),
         )
@@ -364,15 +374,15 @@ pub(crate) fn PluginRegion(
     create_effect(move || {
         tick.get();
         let statuses = super::desktop::merged_statuses(
-            (plugin_id.value().to_string(), instance, region),
+            (plugin_id.value().to_string(), instance, region.id),
             mount,
             Some(super::editors::statuses(&reports)),
         );
-        block_app_plugin_host::report_children(&plugin_id.value(), instance, region, statuses);
+        block_app_plugin_host::report_children(&plugin_id.value(), instance, region.id, statuses);
     });
     on_cleanup(move || {
         super::desktop::merged_statuses(
-            (plugin_id.value().to_string(), instance, region),
+            (plugin_id.value().to_string(), instance, region.id),
             mount,
             None,
         );
@@ -392,7 +402,7 @@ pub(crate) fn PluginRegion(
     });
     let placed = create_memo(move || {
         revision.get();
-        block_app_plugin_host::region_placed(&plugin_id.value(), instance, region)
+        block_app_plugin_host::region_placed(&plugin_id.value(), instance, region.id)
     });
     let drawing = |floating: bool| {
         let shown = create_memo(move || {
@@ -459,7 +469,7 @@ pub(crate) fn PluginRegion(
                     block_app_plugin_host::region_damage(
                         &plugin_id.value(),
                         instance,
-                        region,
+                        region.id,
                         view,
                         &pieces,
                         rotation,
@@ -491,7 +501,7 @@ pub(crate) fn PluginRegion(
                 block_app_plugin_host::region_drawing(
                     &plugin_id.value(),
                     instance,
-                    region,
+                    region.id,
                     view,
                     &pieces,
                     rotation,
@@ -516,12 +526,10 @@ pub(crate) fn PluginRegion(
     let catcher = NodeRef::new();
     let enclosing = use_context::<Enclosing>();
     provide_context(Enclosing(catcher));
-    super::intercept::intercept_keys(plugin_id, instance, region, intercepted, move || {
+    super::intercept::intercept_keys(plugin_id, instance, region.id, intercepted, move || {
         primary.get_untracked()
             && (hosts_windows
-                || (region == EditorRegion::Frame
-                    && block.is_some()
-                    && shell.get_untracked() == block))
+                || (region.is_main() && block.is_some() && shell.get_untracked() == block))
     });
     take_keyboard(state, &catcher, primary);
     focus_when_presenting(presenting, presented, &catcher, primary);
@@ -539,7 +547,7 @@ pub(crate) fn PluginRegion(
                     super::desktop::Catcher {
                         plugin: plugin_id.value().to_string(),
                         instance,
-                        region,
+                        region: region.id,
                         zoom,
                         rect,
                         parent: enclosing.and_then(|Enclosing(parent)| parent.try_get()),
@@ -557,7 +565,7 @@ pub(crate) fn PluginRegion(
         mount,
         plugin: plugin_id.value().to_string(),
         instance,
-        region,
+        region: region.id,
         window,
         state,
         revision,
@@ -587,8 +595,7 @@ pub(crate) fn PluginRegion(
     let ime_text = create_memo(move || {
         state.with(|view| view.ime.as_ref().and_then(|area| area.text.clone()))
     });
-    let loading =
-        create_memo(move || region == EditorRegion::Frame && state.with(|view| view.loading));
+    let loading = create_memo(move || region.is_main() && state.with(|view| view.loading));
     let failure = create_memo(move || {
         state.with(|view| {
             view.error.as_ref().map(|(text, restart)| Failure {
@@ -634,7 +641,7 @@ pub(crate) fn PluginRegion(
             block_app_plugin_host::forward_region(
                 &plugin_id.value(),
                 instance,
-                region,
+                region.id,
                 &input,
                 &aim,
                 &target,
@@ -654,7 +661,7 @@ pub(crate) fn PluginRegion(
                     block_app_plugin_host::forward_region(
                         &plugin_id.value(),
                         instance,
-                        region,
+                        region.id,
                         &cancel,
                         &|_, _| beui::Aim::Own,
                         &|_| None,
@@ -664,7 +671,7 @@ pub(crate) fn PluginRegion(
         });
     }
     let back = move |gesture: beui::BackGesture| {
-        block_app_plugin_host::back_region(&plugin_id.value(), instance, region, gesture);
+        block_app_plugin_host::back_region(&plugin_id.value(), instance, region.id, gesture);
     };
     let occluded = occlusion();
     let beyond = move |local: Pos2| {
@@ -672,7 +679,7 @@ pub(crate) fn PluginRegion(
             return false;
         };
         let size = state.with_untracked(|view| view.rect.size());
-        region == EditorRegion::Frame
+        region.is_main()
             && !placed.contains(local)
             && block_app_plugin_host::frame_rects(&plugin_id.value(), instance).is_some_and(
                 |frame| {
@@ -706,14 +713,20 @@ pub(crate) fn PluginRegion(
         let over = over
             .filter(|(_, point)| taken(*point))
             .map(|(drag, point)| (drag, point.pos));
-        block_app_plugin_host::drag_over_region(&plugin_id.value(), instance, region, over, false);
+        block_app_plugin_host::drag_over_region(
+            &plugin_id.value(),
+            instance,
+            region.id,
+            over,
+            false,
+        );
     };
     let dropped = move |(drag, point): (BlockDrag, DragPoint)| {
         if taken(point) {
             block_app_plugin_host::drag_over_region(
                 &plugin_id.value(),
                 instance,
-                region,
+                region.id,
                 Some((drag, point.pos)),
                 true,
             );
@@ -723,7 +736,7 @@ pub(crate) fn PluginRegion(
         if state.with_untracked(|view| view.layers.iter().any(|layer| layer.takes(pos))) {
             return;
         }
-        block_app_plugin_host::pressed_outside_region(&plugin_id.value(), instance, region);
+        block_app_plugin_host::pressed_outside_region(&plugin_id.value(), instance, region.id);
     };
     let hit_area = create_memo(move || {
         if passive.get() {
@@ -731,7 +744,7 @@ pub(crate) fn PluginRegion(
         }
         revision.get();
         let content = frame.get().and_then(|frame| frame.content);
-        let beyond = match (region == EditorRegion::Frame, content) {
+        let beyond = match (region.is_main(), content) {
             (true, Some(placed)) => block_app_plugin_host::frame_rects(
                 &plugin_id.value(),
                 instance,
@@ -925,7 +938,7 @@ fn DesktopWindows(editor: RegionEditor, state: Memo<RegionView>, rect: Memo<Rect
     let editor = store(editor);
     view! {
         <Canvas>
-            <ForEach keys={keys}>|window: u64| {
+            <ForEach keys={keys}>|window: ViewId| {
                 let editor = editor.with(Clone::clone);
                 let key = super::desktop::FloatedKey {
                     plugin: editor.plugin_id().to_owned(),
@@ -942,7 +955,7 @@ fn DesktopWindows(editor: RegionEditor, state: Memo<RegionView>, rect: Memo<Rect
                 let y = create_memo(move || local.get().min.y);
                 let width = create_memo(move || local.get().width());
                 let height = create_memo(move || local.get().height());
-                let region = EditorRegion::Window(window);
+                let region = View::window(window);
                 let child_view = super::editors::child_view(
                     block.unwrap_or_else(|| super::editors::hosted_parent(editor.instance)),
                     region,
@@ -958,14 +971,14 @@ fn DesktopWindows(editor: RegionEditor, state: Memo<RegionView>, rect: Memo<Rect
 }
 
 #[component]
-fn OverlaidWindows(editor: RegionEditor, region: EditorRegion) -> NodeId {
+fn OverlaidWindows(editor: RegionEditor, region: View) -> NodeId {
     let block = editor.role.block().map(|block| block.id);
     let keys = super::desktop::overlaid(editor.plugin_id().to_owned(), editor.instance, region);
     let viewport = use_viewport_size();
     let editor = store(editor);
     view! {
         <Layers>
-            <ForEach keys={keys}>|window: u64| {
+            <ForEach keys={keys}>|window: ViewId| {
                 let editor = editor.with(Clone::clone);
                 let key = super::desktop::FloatedKey {
                     plugin: editor.plugin_id().to_owned(),
@@ -993,7 +1006,7 @@ fn OverlaidWindows(editor: RegionEditor, region: EditorRegion) -> NodeId {
                 let anchor = create_memo(move || OverlayAnchor::Point(shown.get().min));
                 let width = create_memo(move || Size::Custom(shown.get().width()));
                 let height = create_memo(move || Size::Custom(shown.get().height()));
-                let region = EditorRegion::Window(window);
+                let region = View::window(window);
                 let child_view = super::editors::child_view(
                     block.unwrap_or_else(|| super::editors::hosted_parent(editor.instance)),
                     region,
@@ -1027,42 +1040,40 @@ fn OverlaidWindows(editor: RegionEditor, region: EditorRegion) -> NodeId {
 }
 
 #[component]
-fn PanelWindows(editor: RegionEditor, region: EditorRegion, rect: Memo<Rect>) -> NodeId {
+fn PanelWindows(editor: RegionEditor, region: View, rect: Memo<Rect>) -> NodeId {
     let instance = editor.instance;
     let plugin = editor.plugin_id().to_owned();
     let block = editor.role.block().map(|block| block.id);
     let keys = super::desktop::panels(plugin.clone(), instance, region);
     let plugin = store(plugin);
     let editor = store(editor);
-    let hosted: Stored<RefCell<HashMap<u64, WindowId>>> = store(RefCell::default());
+    let hosted: Stored<RefCell<HashMap<ViewId, WindowId>>> = store(RefCell::default());
     let within = use_window().map_or(WindowId::MAIN, |handle| handle.id);
     let placed = move |placement: block_plugin_api::WindowPlacement| match placement {
         block_plugin_api::WindowPlacement::AtPointer => WindowPlacement::AtPointer,
         block_plugin_api::WindowPlacement::Host(placement) => {
             WindowPlacement::Host(beui::HostPlacement(placement))
         }
-        block_plugin_api::WindowPlacement::Over(over) => match over.region.region {
-            EditorRegion::Window(window) => {
-                match hosted.with(|hosted| hosted.borrow().get(&window).copied()) {
-                    Some(window) => WindowPlacement::Over {
-                        window,
-                        at: over.at,
-                    },
-                    None => WindowPlacement::AtPointer,
+        block_plugin_api::WindowPlacement::Over(over) => {
+            let opener = over.view.view;
+            match hosted.with(|hosted| hosted.borrow().get(&opener).copied()) {
+                Some(window) => WindowPlacement::Over {
+                    window,
+                    at: over.at,
+                },
+                None if opener == region.id && over.view.instance == instance => {
+                    WindowPlacement::Over {
+                        window: within,
+                        at: over.at + rect.get_untracked().min.to_vec2(),
+                    }
                 }
+                None => WindowPlacement::AtPointer,
             }
-            opener if opener == region && over.region.instance == instance => {
-                WindowPlacement::Over {
-                    window: within,
-                    at: over.at + rect.get_untracked().min.to_vec2(),
-                }
-            }
-            _ => WindowPlacement::AtPointer,
-        },
+        }
     };
     view! {
         <Layers>
-            <ForEach keys={keys}>|window: u64| {
+            <ForEach keys={keys}>|window: ViewId| {
                 let id = WindowId::next();
                 hosted.with(|hosted| hosted.borrow_mut().insert(window, id));
                 on_cleanup(move || {
@@ -1091,7 +1102,7 @@ fn PanelWindows(editor: RegionEditor, region: EditorRegion, rect: Memo<Rect>) ->
                     WindowReport::Closed(_) => super::desktop::dismiss(&reported),
                     _ => {}
                 };
-                let region = EditorRegion::Window(window);
+                let region = View::window(window);
                 let child_view = super::editors::child_view(
                     block.unwrap_or_else(|| super::editors::hosted_parent(instance)),
                     region,
@@ -1183,7 +1194,7 @@ fn focus_when_asked(
     revision: beui::reactive::ReadSignal<u64>,
     plugin_id: Stored<String>,
     instance: EditorInstanceId,
-    region: EditorRegion,
+    region: View,
     catcher: &NodeRef,
     primary: Memo<bool>,
 ) {
@@ -1194,7 +1205,7 @@ fn focus_when_asked(
             if !primary.get() {
                 return;
             }
-            if !block_app_plugin_host::take_focus_request(&plugin_id.value(), instance, region) {
+            if !block_app_plugin_host::take_focus_request(&plugin_id.value(), instance, region.id) {
                 return;
             }
             if let Some(node) = catcher.try_get() {
@@ -1321,7 +1332,7 @@ fn RegionChildren(
         state.with(|view| {
             view.children
                 .iter()
-                .filter(|child| child.in_layer.is_none())
+                .filter(|child| child.anchored.is_none())
                 .filter(|child| (child.is_below() && !child.frame_owner) == below)
                 .map(|child| child.child)
                 .collect::<Vec<ChildId>>()

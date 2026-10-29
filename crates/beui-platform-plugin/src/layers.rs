@@ -4,8 +4,9 @@ use beui_core::escape::{HostTransform, LayerEdge, LayerPlacement, LayerSpace};
 use beui_core::geometry::Pos2;
 use beui_core::input::Input;
 use beui_core::window::WindowId;
+use beui_platform_plugin_api::anchored_view;
 use block_plugin_api::accessibility::Color;
-use block_plugin_api::{Layer, LayerId, LayerParent, Scrim};
+use block_plugin_api::{AnchoredPlacement, AnchoredView, Scrim, ViewAnchor, ViewEdge, ViewId};
 
 use crate::surface::Surface;
 
@@ -62,24 +63,21 @@ pub(crate) fn follow(held: &mut Vec<Shown>, escaped: &[EscapedOutput], window: W
     changed
 }
 
-pub(crate) fn report(held: &[Shown], ratio: f32) -> Vec<Layer> {
+pub(crate) fn report(held: &[Shown], owner: ViewId, ratio: f32) -> Vec<AnchoredView> {
     held.iter()
         .map(|shown| {
             let layer = &shown.escaped.layer;
-            let parent = layer.parent.map(LayerId);
-            Layer {
-                id: LayerId(layer.id),
-                parent: parent.map_or(LayerParent::Region, LayerParent::Layer),
-                placement: match layer.placement {
-                    LayerPlacement::Anchored(rect) => {
-                        block_plugin_api::LayerPlacement::Anchored(match parent {
+            AnchoredView {
+                view: anchored_view(layer.id),
+                placement: AnchoredPlacement {
+                    parent: layer.parent.map_or(owner, anchored_view),
+                    anchor: match layer.placement {
+                        LayerPlacement::Anchored(rect) => ViewAnchor::Rect(match layer.parent {
                             Some(_) => rect,
                             None => rect.scaled(ratio.recip()),
-                        })
-                    }
-                    LayerPlacement::Edge(edge) => {
-                        block_plugin_api::LayerPlacement::Edge(edge_of(edge))
-                    }
+                        }),
+                        LayerPlacement::Edge(edge) => ViewAnchor::Edge(edge_of(edge)),
+                    },
                 },
                 rect: layer.rect,
                 surface: 0,
@@ -111,12 +109,12 @@ fn scrim(rect: beui_core::geometry::Rect, color: Color32) -> Scrim {
     }
 }
 
-fn edge_of(edge: LayerEdge) -> block_plugin_api::LayerEdge {
+fn edge_of(edge: LayerEdge) -> ViewEdge {
     match edge {
-        LayerEdge::Top => block_plugin_api::LayerEdge::Top,
-        LayerEdge::Bottom => block_plugin_api::LayerEdge::Bottom,
-        LayerEdge::Left => block_plugin_api::LayerEdge::Left,
-        LayerEdge::Right => block_plugin_api::LayerEdge::Right,
+        LayerEdge::Top => ViewEdge::Top,
+        LayerEdge::Bottom => ViewEdge::Bottom,
+        LayerEdge::Left => ViewEdge::Left,
+        LayerEdge::Right => ViewEdge::Right,
     }
 }
 

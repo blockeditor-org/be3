@@ -11,7 +11,7 @@ fn a_manifest_grants_only_extensions_the_host_knows() {
                 "id": "378d6c68-d52a-4781-addb-fde9a8aff2e2",
                 "display_name": "Desktop",
                 "icon": "x",
-                "regions": ["Frame"]
+                "views": ["Main"]
             }
         },
         "entry_point": "desktop.wasm",

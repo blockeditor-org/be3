@@ -1,6 +1,6 @@
 use block_plugin_api::{
-    Catalog, DebugTemplate, EditorInstanceId, EditorRegion, FrameCommit, Opening, ScreenId,
-    ScreenLayout, ScreenPlacement, ScreenRequest, SurfaceSpec, TemplateCategory,
+    Catalog, DebugTemplate, EditorInstanceId, FrameCommit, Opening, ScreenId, ScreenLayout,
+    ScreenPlacement, ScreenRequest, SurfaceSpec, TemplateCategory, ViewId, ViewRef,
 };
 use block_ui::{BlockCatalog, BlockTypeEntry, EditorEntry, TemplateEntry};
 use lucide::Glyph;
@@ -97,7 +97,7 @@ impl Screens {
         let mut begun = Vec::new();
         for (index, (placement, age)) in shown.iter().enumerate() {
             if let Some(session) = self.sessions.get_mut(&placement.instance) {
-                begun.push((index, session.begin(placement.region, *age)));
+                begun.push((index, session.begin(placement.view, *age)));
             }
         }
         let regions: Vec<Region> = begun.iter().map(|(_, region)| region.clone()).collect();
@@ -109,7 +109,7 @@ impl Screens {
         let mut framed = vec![Frame::default(); shown.len()];
         for ((index, region), frame) in begun.into_iter().zip(frames) {
             if let Some(session) = self.sessions.get_mut(&region.instance) {
-                framed[index] = session.finish(region.region, frame);
+                framed[index] = session.finish(region.view.id, frame);
                 self.ran(region.instance);
             }
         }
@@ -192,17 +192,17 @@ impl Screens {
             let Some(session) = self.sessions.get_mut(&placement.instance) else {
                 continue;
             };
-            let overflows = session.overflows(placement.region);
+            let overflows = session.overflows(placement.view);
             if !overflows.is_empty() {
                 paintings.overflows.push((placement.screen.0, overflows));
             }
-            if let Some(painting) = session.painting(placement.region) {
+            if let Some(painting) = session.painting(placement.view) {
                 paintings.screens.push((placement.screen.0, painting));
                 if paintings.encode().len() > block_plugin_api::MAX_BLOB_BYTES {
                     paintings.screens.pop();
                 }
             }
-            for (layer, painting) in session.layer_paintings(placement.region) {
+            for (layer, painting) in session.anchored_paintings(placement.view) {
                 paintings
                     .layers
                     .push((placement.screen.0, layer.0, painting));
@@ -296,15 +296,14 @@ impl Screens {
                     return false;
                 };
                 if !batch.dismissed.is_empty() {
-                    session.dismiss_layers(region, &batch.dismissed);
+                    session.dismiss_anchored(region, &batch.dismissed);
                 }
                 for event in &batch.events {
                     let over = event.over.and_then(|over| {
-                        let (instance, region) = self
-                            .layout
-                            .placement(over)
-                            .map(|placement| (placement.instance, placement.region))?;
-                        Some(crate::RegionId { instance, region })
+                        self.layout.placement(over).map(|placement| ViewRef {
+                            instance: placement.instance,
+                            view: placement.view,
+                        })
                     });
                     session.input(region, event, over);
                 }
@@ -443,10 +442,10 @@ impl Screens {
         self.sessions.get_mut(&instance)
     }
 
-    fn screen(&self, screen: ScreenId) -> Option<(EditorInstanceId, EditorRegion)> {
+    fn screen(&self, screen: ScreenId) -> Option<(EditorInstanceId, ViewId)> {
         self.layout
             .placement(screen)
-            .map(|placement| (placement.instance, placement.region))
+            .map(|placement| (placement.instance, placement.view))
     }
 
     fn relayout(&mut self) {

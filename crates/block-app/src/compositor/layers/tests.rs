@@ -1,13 +1,12 @@
 use super::*;
 use beui::{PointerButton, PointerEvent, PointerId, pos2, vec2};
-use block_plugin_api::LayerParent;
 
 fn shown(mount: u64, id: u64, opened: u64, rect: Rect) -> Shown {
     Shown {
         mount,
         layer: HostLayer {
-            id: LayerId(id),
-            parent: LayerParent::Region,
+            id: ViewId(id),
+            parent: None,
             opened,
             rect,
             bounds: Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0)),

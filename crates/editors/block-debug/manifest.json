@@ -8,8 +8,8 @@
       "edits": "any",
       "display_name": "Debug view",
       "icon": "\ue36a",
-      "regions": [
-        "Frame"
+      "views": [
+        "Main"
       ]
     }
   },

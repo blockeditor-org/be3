@@ -9,8 +9,8 @@
       "icon": "\ue125",
       "interaction": "Live",
       "resize": "None",
-      "regions": [
-        "Frame"
+      "views": [
+        "Main"
       ]
     }
   },

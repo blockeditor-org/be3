@@ -5,7 +5,7 @@ fn a_region_without_a_layer_space_opens_no_layers() {
     let mut rig = Rig::new(None);
     rig.open(vec![layer(
         1,
-        LayerParent::Region,
+        0,
         Rect::from_min_size(pos2(0.0, 0.0), vec2(10.0, 10.0)),
     )]);
     let commit = rig.draw();

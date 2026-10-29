@@ -24,7 +24,7 @@ fn a_pick_from_a_tabs_menu_reaches_the_owner_two_levels_down() {
         [(
             INNER,
             DockUpdate::Pick(DockPickedTab {
-                region: EditorRegion::Frame,
+                view: ViewId::MAIN,
                 tab: path(&[], 5),
                 id: "editor.palette".to_owned(),
             })
@@ -38,7 +38,7 @@ fn a_pick_from_a_tabs_menu_reaches_the_owner_two_levels_down() {
         [(
             OUTER,
             DockUpdate::Pick(DockPickedTab {
-                region: EditorRegion::Frame,
+                view: ViewId::MAIN,
                 tab: path(&[], 1),
                 id: "editor.palette".to_owned(),
             })

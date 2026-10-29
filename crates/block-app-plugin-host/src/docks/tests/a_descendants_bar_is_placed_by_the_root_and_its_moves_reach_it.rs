@@ -45,10 +45,10 @@ fn a_descendants_bar_is_placed_by_the_root_and_its_moves_reach_it() {
     };
     docks.heard(
         "inner",
-        vec![DockMessage::Request(DockRegionRequest {
-            region: RegionRef {
+        vec![DockMessage::Request(DockViewRequest {
+            view: ViewRef {
                 instance: INNER,
-                region: EditorRegion::Frame,
+                view: ViewId::MAIN,
             },
             request: moved(path(&[], 9)),
         })],

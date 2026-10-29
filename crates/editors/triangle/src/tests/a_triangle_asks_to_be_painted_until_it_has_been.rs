@@ -6,7 +6,7 @@ fn a_triangle_asks_to_be_painted_until_it_has_been() {
     let module = Module::default();
     host.join_module(&module);
     let mut triangle = Triangle::new(host.clone());
-    triangle.open_region(EditorRegion::Frame);
+    triangle.open_view(View::MAIN);
     let mut handler = module
         .take_handler()
         .expect("the triangle handles the region it was asked to open");

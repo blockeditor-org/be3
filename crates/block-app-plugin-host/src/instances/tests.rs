@@ -8,7 +8,7 @@ use block_plugin_api::ops::OpId;
 use block_type_guest::editor::{FromEditor, ToEditor};
 
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
-const REGION: EditorRegion = EditorRegion::Frame;
+const REGION: ViewId = ViewId::MAIN;
 const PASS: u64 = 1;
 const SIZE: Vec2 = vec2(100.0, 100.0);
 
@@ -30,7 +30,7 @@ fn placed_on(block: Uuid, block_type: Uuid) -> Instances {
     );
     instances.report(
         INSTANCE,
-        REGION,
+        View::MAIN,
         Uuid::nil(),
         role,
         &block_types,
@@ -142,7 +142,7 @@ fn configure(instances: &mut Instances) -> Option<PluginCall> {
 fn child(rect: Rect, follows_view: bool) -> ChildPlacements {
     ChildPlacements {
         instance: INSTANCE,
-        region: REGION,
+        view: REGION,
         children: vec![ChildPlacement {
             child: ChildId(1),
             content: ChildContent::Block {
@@ -164,7 +164,7 @@ fn child(rect: Rect, follows_view: bool) -> ChildPlacements {
             follows_view,
             dialog: None,
             docks: None,
-            in_layer: None,
+            anchored: None,
         }],
         occluders: Vec::new(),
     }
@@ -322,14 +322,16 @@ fn lay_out(instances: &mut Instances) {
     instances.confirm(serial, &HashSet::new());
 }
 
-fn layer(id: u64, parent: block_plugin_api::LayerParent, rect: Rect) -> block_plugin_api::Layer {
-    block_plugin_api::Layer {
-        id: LayerId(id),
-        parent,
-        placement: block_plugin_api::LayerPlacement::Anchored(Rect::from_min_size(
-            Pos2::ZERO,
-            vec2(10.0, 10.0),
-        )),
+fn layer(id: u64, parent: u64, rect: Rect) -> block_plugin_api::AnchoredView {
+    block_plugin_api::AnchoredView {
+        view: ViewId(id),
+        placement: block_plugin_api::AnchoredPlacement {
+            parent: ViewId(parent),
+            anchor: block_plugin_api::ViewAnchor::Rect(Rect::from_min_size(
+                Pos2::ZERO,
+                vec2(10.0, 10.0),
+            )),
+        },
         rect,
         surface: 7,
         painted: vec![rect],
@@ -341,7 +343,7 @@ fn layer(id: u64, parent: block_plugin_api::LayerParent, rect: Rect) -> block_pl
     }
 }
 
-fn report_layers(instances: &mut Instances, layers: Vec<block_plugin_api::Layer>) {
+fn report_layers(instances: &mut Instances, anchored: Vec<block_plugin_api::AnchoredView>) {
     let screen = instances
         .screen_id(INSTANCE, REGION)
         .expect("the region has a screen");
@@ -355,7 +357,7 @@ fn report_layers(instances: &mut Instances, layers: Vec<block_plugin_api::Layer>
         drawing: Vec::new(),
         claims: Vec::new(),
         description: None,
-        layers,
+        anchored,
     }]);
 }
 
@@ -418,7 +420,7 @@ fn resize(instances: &mut Instances, size: Vec2, scale_factor: f32) {
     );
     instances.report(
         INSTANCE,
-        REGION,
+        View::MAIN,
         Uuid::nil(),
         role,
         &Arc::new(crate::PluginCatalog::default()),

@@ -88,13 +88,13 @@ A hidden window shown again opens at its default place, not where it was.
 The host shows each display in a window of its own (under `--session`, guides/desktop/linux.md,
 Displays). The desktop is one space in points: the displays side by side along their bottom edges. Each
 display's window shows its own region of the shell, macOS-like: the first display the shell's
-frame (`ui::Root`'s `MainSurface`), each further one a `display(n)` region of the same instance
+main view (`ui::Root`'s `MainSurface`), each further one a display view (`HostView::Display(n)`) of the same instance
 (`ui::SecondaryDisplay` mounts `compositor::ShellDisplay`, n being the display's place in the
 list from 1), each at its display's size and scale. The shell's windows are the host's own,
 placed in the desktop's points: the shell's regions say the host shows the windows the plugin
 opens from them (`windows` in the screen request, set for the shell's frame and display regions
 and for the windows themselves; guides/adding_a_plugin_editor.md), so every `Window` the shell
-opens, each of the desktop plugin's dock windows, becomes a `window(w)` region that block-app keeps
+opens, each of the desktop plugin's dock windows, becomes a window view (`HostView::Window`) that block-app keeps
 in `compositor/desktop.rs`: a list of `Floated` windows, each its rect in desktop points, in
 stacking order. A press on one raises it, and so does the plugin's `raise` window request,
 which the dock sends when a window takes the focus (a press on a program's content focuses the

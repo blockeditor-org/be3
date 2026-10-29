@@ -1,8 +1,8 @@
 use std::{cell::RefCell, collections::VecDeque, future::Future, rc::Rc};
 
 use block_plugin_api::{
-    BarAction, ChildId, EditorInstanceId, EditorRegion, Fonts, FrameCommit, Hello, HelloAccepted,
-    InputBatch, Opening, Preferences, Rect, ScreenId, ScreenRequest, ShellDialog, Size,
+    BarAction, ChildId, EditorInstanceId, Fonts, FrameCommit, Hello, HelloAccepted, InputBatch,
+    Opening, Preferences, Rect, ScreenId, ScreenRequest, ShellDialog, Size, ViewId,
     guest::{
         debug::debug,
         exports::{
@@ -253,13 +253,13 @@ impl GuestEditor for OpenEditor {
         self.wire.call(self.instance, |session| session.dismiss());
     }
 
-    fn child_bar(&self, _region: EditorRegion, child: ChildId, action: BarAction) {
+    fn child_bar(&self, _view: ViewId, child: ChildId, action: BarAction) {
         self.wire.call(self.instance, move |session| {
             session.child_bar_action(child, action)
         });
     }
 
-    fn child_focused(&self, _region: EditorRegion, child: ChildId) {
+    fn child_focused(&self, _view: ViewId, child: ChildId) {
         self.wire
             .call(self.instance, move |session| session.child_focused(child));
     }
@@ -305,7 +305,7 @@ impl GuestEditor for OpenEditor {
     fn drag_over(&self, drag: DragOver) {
         self.wire.call(self.instance, move |session| {
             session.set_drag(Some((
-                drag.region,
+                drag.view,
                 crate::host::BlockDrag {
                     position: drag.pos,
                     block_id: uuid::Uuid::from_bytes(drag.block_id),
@@ -324,7 +324,7 @@ impl GuestEditor for OpenEditor {
     fn file_drop(&self, drop: FileDrop) {
         self.wire.call(self.instance, move |session| {
             session.set_files(Some((
-                drop.region,
+                drop.view,
                 crate::host::FileDrop {
                     position: drop.pos,
                     files: drop

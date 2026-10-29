@@ -3,7 +3,7 @@ use std::cell::Cell;
 use beui::accesskit::Action;
 use beui::native::accessibility::Fragment;
 use beui::{ActionGroup, ActionInfo};
-use block_plugin_api::{EditorRegion, ScreenId};
+use block_plugin_api::{ScreenId, ViewPlacement};
 
 use super::runtime;
 
@@ -40,14 +40,11 @@ pub fn describe(context: &beui::native::Context) {
         let placements: Vec<_> = runtime
             .placements
             .iter()
-            .filter(|((_, region), _)| {
-                matches!(
-                    region,
-                    EditorRegion::Frame
-                        | EditorRegion::Display(_)
-                        | EditorRegion::Window(_)
-                        | EditorRegion::Tab(_)
-                )
+            .filter(|((instance, view), _)| {
+                runtime
+                    .instances
+                    .view_placement(*instance, *view)
+                    .is_some_and(ViewPlacement::reports)
             })
             .map(|((instance, region), placed)| {
                 (*instance, *region, placed.rect, placed.clip, placed.zoom)

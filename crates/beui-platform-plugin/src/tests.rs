@@ -9,7 +9,7 @@ use beui_core::document::Document;
 use beui_core::geometry::{Pos2, pos2};
 use beui_core::input::Event;
 use beui_core::node::NodeId;
-use block_editor_plugin::{EditorInstanceId, EditorRegion, FrameSpec, Input, Module};
+use block_editor_plugin::{EditorInstanceId, FrameSpec, Input, Module};
 
 use super::*;
 use beui_host::native::build;
@@ -35,7 +35,7 @@ const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 fn region(size: Vec2, visible: Vec2, pixels: [u32; 2]) -> Region {
     Region {
         instance: INSTANCE,
-        region: EditorRegion::Frame,
+        view: block_editor_plugin::View::MAIN,
         block: None,
         rect: Rect::from_min_size(Pos2::ZERO, size),
         visible,
@@ -48,7 +48,7 @@ fn region(size: Vec2, visible: Vec2, pixels: [u32; 2]) -> Region {
         seen: true,
         windows: false,
         docked: false,
-        placement: None,
+        host_place: None,
         layers: None,
     }
 }
@@ -68,7 +68,7 @@ fn one(surface: &mut ModuleRunner, region: &Region) -> Frame {
         .expect("one region framed gets one frame")
 }
 
-type Content = Rc<dyn Fn(RegionId) -> NodeId>;
+type Content = Rc<dyn Fn(ViewRef) -> NodeId>;
 type Hook = Box<dyn FnMut(&Context)>;
 
 struct Windowed {
@@ -80,7 +80,7 @@ struct Windowed {
 }
 
 impl Windowed {
-    fn new(content: impl Fn(RegionId) -> NodeId + 'static) -> Self {
+    fn new(content: impl Fn(ViewRef) -> NodeId + 'static) -> Self {
         Self {
             content: Rc::new(content),
             hook: None,
@@ -132,15 +132,15 @@ impl App for Windowed {
                     requested.with(|views| {
                         views
                             .iter()
+                            .filter(|view| view.placement != ViewPlacement::Host(HostView::Window))
                             .map(|view| view.id)
-                            .filter(|id| !matches!(id.region, EditorRegion::Window(_)))
                             .collect::<Vec<_>>()
                     })
                 });
                 view! {
                     <styled::Root>
                         <styled::List spacing=styled::Space::None>
-                            <ForEach keys>|id: RegionId|
+                            <ForEach keys>|id: ViewRef|
                                 <Shown
                                     id
                                     requested
@@ -163,7 +163,7 @@ impl App for Windowed {
 }
 
 #[component]
-fn Shown(id: RegionId, requested: ReadSignal<Vec<View>>, views: Views, content: Content) -> NodeId {
+fn Shown(id: ViewRef, requested: ReadSignal<Vec<View>>, views: Views, content: Content) -> NodeId {
     let size = create_memo(move || {
         requested.with(|views| {
             views

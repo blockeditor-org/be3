@@ -57,7 +57,7 @@ fn barred() -> DockDeclaration {
 fn body(session: &EditorSession, child: ChildId, tab: u64) -> Rect {
     let path = DockTabPath::own(tab).through(child);
     session
-        .placed_children(EditorRegion::Frame)
+        .placed_children(ViewId::MAIN)
         .iter()
         .find(|placed| placed.content == ChildContent::DockTab(path.clone()))
         .map(|placed| placed.rect)
@@ -72,7 +72,7 @@ fn ask(session: &mut EditorSession, child: ChildId, request: DockRequest) {
             owner: Vec::new(),
             request,
         })]);
-    show_docked(session, &[(EditorRegion::Frame, 6)], false);
+    show_docked(session, &[(View::MAIN, 6)], false);
 }
 
 fn placement() -> Option<Placement> {
@@ -90,7 +90,7 @@ fn placement() -> Option<Placement> {
 #[test]
 fn a_root_draws_a_joined_editors_bar_and_moves_it_as_the_editor_asks() {
     let mut session = docked_session();
-    show_docked(&mut session, &[(EditorRegion::Frame, 6)], false);
+    show_docked(&mut session, &[(View::MAIN, 6)], false);
     let layout = LAYOUT
         .with(std::cell::Cell::get)
         .expect("the app made its layout");
@@ -99,7 +99,7 @@ fn a_root_draws_a_joined_editors_bar_and_moves_it_as_the_editor_asks() {
         beui::dock::unstyled::DockMode::Tiled,
         "a wide frame tiles its dock, so bars can be dragged"
     );
-    let child = session.placed_children(EditorRegion::Frame)[0].child;
+    let child = session.placed_children(ViewId::MAIN)[0].child;
     dock_messages(&mut session);
     session
         .host()
@@ -107,8 +107,8 @@ fn a_root_draws_a_joined_editors_bar_and_moves_it_as_the_editor_asks() {
             child,
             declaration: Some(barred()),
         })]);
-    show_docked(&mut session, &[(EditorRegion::Frame, 6)], false);
-    show_docked(&mut session, &[(EditorRegion::Frame, 6)], false);
+    show_docked(&mut session, &[(View::MAIN, 6)], false);
+    show_docked(&mut session, &[(View::MAIN, 6)], false);
 
     assert_eq!(placement(), Some(Placement::Over(Edge::Top)));
     let bar = body(&session, child, 9);

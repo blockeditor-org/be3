@@ -8,7 +8,7 @@ use beui::reactive::*;
 use beui::styled::*;
 use beui::{Forwarded, ForwardedInput, NodeId, PointerPhase, Pos2, Rect, WindowId};
 use block_app_plugin_host::{HostChild, HostLayer, LayerBlits, RegionView};
-use block_plugin_api::{ChildId, EditorInstanceId, EditorRegion, LayerId};
+use block_plugin_api::{ChildId, EditorInstanceId, ViewId};
 
 use super::region::ChildView;
 
@@ -23,7 +23,7 @@ pub(crate) struct LayerOwner {
     pub(crate) mount: u64,
     pub(crate) plugin: String,
     pub(crate) instance: EditorInstanceId,
-    pub(crate) region: EditorRegion,
+    pub(crate) region: ViewId,
     pub(crate) window: WindowId,
     pub(crate) state: Memo<RegionView>,
     pub(crate) revision: ReadSignal<u64>,
@@ -131,7 +131,7 @@ fn topmost(shown: &[Shown], pos: Pos2) -> Option<Target> {
         .map(|shown| (shown.mount, shown.layer.id))
 }
 
-fn taken(shown: &[Shown], holes: &[(u64, LayerId, Rect)]) -> beui::HitRegion {
+fn taken(shown: &[Shown], holes: &[(u64, ViewId, Rect)]) -> beui::HitRegion {
     shown.iter().fold(beui::HitRegion::new(), |takes, shown| {
         let takes = shown
             .layer
@@ -145,7 +145,7 @@ fn taken(shown: &[Shown], holes: &[(u64, LayerId, Rect)]) -> beui::HitRegion {
     })
 }
 
-type Target = (u64, LayerId);
+type Target = (u64, ViewId);
 
 fn route(
     input: &ForwardedInput,
@@ -261,7 +261,7 @@ pub(crate) fn PluginLayers() -> NodeId {
         shown.with_untracked(|shown| forward(input, shown, &pressing));
     };
     let hit_area = create_memo(move || {
-        let holes: Vec<(u64, LayerId, Rect)> = owners
+        let holes: Vec<(u64, ViewId, Rect)> = owners
             .get()
             .into_iter()
             .filter_map(owner)
@@ -273,7 +273,7 @@ pub(crate) fn PluginLayers() -> NodeId {
                         .filter_map(|child| {
                             Some((
                                 owner.mount,
-                                child.in_layer?,
+                                child.anchored?,
                                 child.rect.intersect(child.clip),
                             ))
                         })
@@ -291,7 +291,7 @@ pub(crate) fn PluginLayers() -> NodeId {
     let watched = create_memo(move || shown.with(|shown| !shown.is_empty()));
     view! {
         <Layers>
-            <ForEach keys={keys}>|(mount, id): (u64, LayerId)|
+            <ForEach keys={keys}>|(mount, id): (u64, ViewId)|
                 <PluginLayer mount id shown />
             </ForEach>
             <Interactive hit_area={hit_area} on_forward={on_forward} press_focus=false />
@@ -310,7 +310,7 @@ pub(crate) fn PluginLayers() -> NodeId {
 }
 
 #[component]
-fn PluginLayer(mount: u64, id: LayerId, shown: Memo<Vec<Shown>>) -> NodeId {
+fn PluginLayer(mount: u64, id: ViewId, shown: Memo<Vec<Shown>>) -> NodeId {
     let layer = create_memo(move || {
         shown.with(|shown| {
             shown
@@ -343,7 +343,7 @@ fn PluginLayer(mount: u64, id: LayerId, shown: Memo<Vec<Shown>>) -> NodeId {
         owner.state.with(|view| {
             view.children
                 .iter()
-                .filter(|child| child.in_layer == Some(id))
+                .filter(|child| child.anchored == Some(id))
                 .map(|child| (child.child, child.is_below()))
                 .collect::<Vec<_>>()
         })

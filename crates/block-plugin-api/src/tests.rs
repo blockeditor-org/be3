@@ -44,7 +44,7 @@ fn committed(children: ChildPlacements) -> FrameCommit {
     }
 }
 
-fn report(screen: u64, layers: Vec<Layer>) -> FrameReport {
+fn report(screen: u64, anchored: Vec<AnchoredView>) -> FrameReport {
     FrameReport {
         screen: ScreenId(screen),
         content: Insets::default(),
@@ -55,15 +55,17 @@ fn report(screen: u64, layers: Vec<Layer>) -> FrameReport {
         drawing: Vec::new(),
         claims: Vec::new(),
         description: None,
-        layers,
+        anchored,
     }
 }
 
-fn layer(id: u64, parent: LayerParent, placement: LayerPlacement, rect: Rect) -> Layer {
-    Layer {
-        id: LayerId(id),
-        parent,
-        placement,
+fn anchored(id: u64, parent: u64, anchor: ViewAnchor, rect: Rect) -> AnchoredView {
+    AnchoredView {
+        view: ViewId(id),
+        placement: AnchoredPlacement {
+            parent: ViewId(parent),
+            anchor,
+        },
         rect,
         surface: 7,
         painted: vec![rect],
@@ -82,8 +84,8 @@ fn screen(
     pixel_height: u32,
     scale_factor: f32,
 ) -> ScreenRequest {
-    region_screen(
-        EditorRegion::Frame,
+    view_screen(
+        View::MAIN,
         screen,
         instance,
         pixel_width,
@@ -92,8 +94,8 @@ fn screen(
     )
 }
 
-fn region_screen(
-    region: EditorRegion,
+fn view_screen(
+    view: View,
     screen: u64,
     instance: u64,
     pixel_width: u32,
@@ -103,7 +105,8 @@ fn region_screen(
     ScreenRequest {
         screen: ScreenId(screen),
         instance: EditorInstanceId(instance),
-        region,
+        view: view.id,
+        placement: view.placement,
         frame: None,
         metrics: ViewportMetrics {
             logical: Size {
@@ -117,7 +120,7 @@ fn region_screen(
             raster: scale_factor,
         },
         windows: false,
-        placement: None,
+        host_place: None,
         docked: false,
         layers: None,
     }
@@ -138,6 +141,7 @@ mod a_show_request_already_waiting_moves_to_the_end;
 mod a_watch_answers_its_next_with_the_latest_change;
 mod an_artifact_settings_child_round_trips;
 mod an_intercepted_key_round_trips;
+mod anchored_views_and_their_children_round_trip;
 mod artifact_messages_round_trip;
 mod block_types_round_trip;
 mod child_placements_round_trip;
@@ -153,7 +157,6 @@ mod host_panel_messages_round_trip;
 mod host_window_messages_round_trip;
 mod ime_messages_round_trip;
 mod insets_give_the_content_area_of_a_region_resized_since_they_were_reported;
-mod layers_and_their_children_round_trip;
 mod media_messages_round_trip;
 mod menus_and_their_picks_round_trip;
 mod notification_messages_round_trip;
@@ -161,12 +164,12 @@ mod open_messages_round_trip;
 mod pointer_motion_round_trips;
 mod power_messages_round_trip;
 mod preference_messages_round_trip;
-mod region_sizes_round_trip;
-mod rejects_layers_hung_from_one_not_open_before_them;
 mod rejects_unordered_occluders;
+mod rejects_views_anchored_to_one_not_open_before_them;
 mod rename_and_app_menu_children_round_trip;
 mod touch_input_round_trips;
 mod tray_messages_round_trip;
+mod view_sizes_round_trip;
 mod web_view_events_waiting_for_the_editor_fold_and_stay_bounded;
 mod wifi_messages_round_trip;
 mod window_requests_round_trip;

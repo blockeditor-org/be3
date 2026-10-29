@@ -41,7 +41,7 @@ impl ui_types::input::Queued for TimedInput {
     }
 
     fn joins(&self, later: &Self) -> bool {
-        self.over == later.over && self.layer == later.layer
+        self.over == later.over && self.anchored == later.anchored
     }
 }
 

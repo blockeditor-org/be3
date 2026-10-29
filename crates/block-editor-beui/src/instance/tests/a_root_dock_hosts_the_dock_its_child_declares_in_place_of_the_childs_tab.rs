@@ -45,8 +45,8 @@ fn inner() -> DockDeclaration {
 #[test]
 fn a_root_dock_hosts_the_dock_its_child_declares_in_place_of_the_childs_tab() {
     let mut session = docked_session();
-    show_docked(&mut session, &[(EditorRegion::Frame, 0)], false);
-    let child = session.placed_children(EditorRegion::Frame)[0].child;
+    show_docked(&mut session, &[(View::MAIN, 0)], false);
+    let child = session.placed_children(ViewId::MAIN)[0].child;
     dock_messages(&mut session);
 
     session
@@ -55,8 +55,8 @@ fn a_root_dock_hosts_the_dock_its_child_declares_in_place_of_the_childs_tab() {
             child,
             declaration: Some(inner()),
         })]);
-    show_docked(&mut session, &[(EditorRegion::Frame, 0)], false);
-    show_docked(&mut session, &[(EditorRegion::Frame, 0)], false);
+    show_docked(&mut session, &[(View::MAIN, 0)], false);
+    show_docked(&mut session, &[(View::MAIN, 0)], false);
 
     let layout = LAYOUT
         .with(std::cell::Cell::get)
@@ -75,7 +75,7 @@ fn a_root_dock_hosts_the_dock_its_child_declares_in_place_of_the_childs_tab() {
     assert_eq!(hosted.tabs, [DockTabPath::own(5)]);
     assert_eq!(hosted.visible, [DockTabPath::own(5)]);
     let bodies: Vec<_> = session
-        .placed_children(EditorRegion::Frame)
+        .placed_children(ViewId::MAIN)
         .iter()
         .filter_map(|placed| match &placed.content {
             ChildContent::DockTab(tab) => Some(tab.clone()),

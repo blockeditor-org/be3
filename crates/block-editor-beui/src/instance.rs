@@ -9,7 +9,10 @@ use beui::native::Document;
 use beui::reactive::RenderFn;
 use beui::styled::WindowHandle;
 use beui_platform_plugin_api::{Report, View};
-use block_editor_plugin::{Artifact, EditorHost, EditorInstanceId, EditorRegion, Instance};
+use block_editor_plugin::{
+    Artifact, EditorHost, EditorInstanceId, HostView, Instance, ParentView, View as ShownView,
+    ViewPlacement,
+};
 use uuid::Uuid;
 
 use crate::beui_frame::{self, BeuiFrame, FrameBar, FrameChrome};
@@ -308,20 +311,20 @@ impl<A: BeuiApp> Shown for Parts<A> {
         self.docked.key(docked)
     }
 
-    fn content(&self, region: EditorRegion, docked: bool) -> RenderFn<WindowHandle> {
-        match region {
-            EditorRegion::Frame => self.frame_content(docked),
-            EditorRegion::Preview => self.preview_content(),
-            EditorRegion::ArtifactSettings => self.settings_content(),
-            EditorRegion::Display(display) => self.display_content(display),
-            EditorRegion::Tab(tab) => self.tab_content(tab),
-            EditorRegion::Window(_) => empty(),
+    fn content(&self, view: ShownView, docked: bool) -> RenderFn<WindowHandle> {
+        match view.placement {
+            ViewPlacement::Parent(ParentView::Main) => self.frame_content(docked),
+            ViewPlacement::Parent(ParentView::Preview) => self.preview_content(),
+            ViewPlacement::Parent(ParentView::ArtifactSettings) => self.settings_content(),
+            ViewPlacement::Host(HostView::Display(display)) => self.display_content(display),
+            ViewPlacement::Dock => self.tab_content(view.id.0),
+            ViewPlacement::Host(HostView::Window) => empty(),
         }
     }
 
-    fn window_id(&self, region: EditorRegion) -> Option<WindowId> {
-        match region {
-            EditorRegion::Tab(tab) => Some(self.docked.window_id(tab)),
+    fn window_id(&self, view: ShownView) -> Option<WindowId> {
+        match view.placement {
+            ViewPlacement::Dock => Some(self.docked.window_id(view.id.0)),
             _ => None,
         }
     }
@@ -339,14 +342,14 @@ impl<A: BeuiApp> Shown for Parts<A> {
             pixels_per_point: context.pixels_per_point(),
         });
         let views = self.views.borrow();
-        match view.id.region {
-            EditorRegion::Frame if views.creating => {
+        match view.placement {
+            ViewPlacement::Parent(ParentView::Main) if views.creating => {
                 steer(document, self.dialog_control.get(), &self.host, view);
                 if let Some(creation) = &views.creation {
                     creation.begin_frame();
                 }
             }
-            EditorRegion::Frame => {
+            ViewPlacement::Parent(ParentView::Main) => {
                 let spec = &view.spec;
                 views.chrome.bar().set(FrameBar {
                     shown: view.chrome_drawn() && (spec.top_bar.shown() || spec.content.is_some()),
@@ -368,18 +371,18 @@ impl<A: BeuiApp> Shown for Parts<A> {
                     editor.begin_frame();
                 }
             }
-            EditorRegion::Preview => {
+            ViewPlacement::Parent(ParentView::Preview) => {
                 if let Some(editor) = views.preview.as_deref() {
                     editor.begin_frame();
                 }
             }
-            EditorRegion::Tab(_) => {
+            ViewPlacement::Dock => {
                 if let Some(editor) = views.editor.as_deref() {
                     editor.begin_frame();
                 }
             }
-            EditorRegion::Display(_) | EditorRegion::Window(_) => {}
-            EditorRegion::ArtifactSettings => {
+            ViewPlacement::Host(_) => {}
+            ViewPlacement::Parent(ParentView::ArtifactSettings) => {
                 if let (Some(artifacts), Some(settings)) =
                     (views.artifacts.as_ref(), self.host.settings_draft())
                 {
@@ -400,8 +403,8 @@ impl<A: BeuiApp> Shown for Parts<A> {
         window: WindowId,
     ) -> Report {
         let creating = self.views.borrow().creating;
-        match view.id.region {
-            EditorRegion::Frame if creating => {
+        match view.placement {
+            ViewPlacement::Parent(ParentView::Main) if creating => {
                 if let Some(creation) = &self.views.borrow().creation {
                     creation.children().end_frame(document, window);
                 }
@@ -413,26 +416,26 @@ impl<A: BeuiApp> Shown for Parts<A> {
                     ..Report::default()
                 }
             }
-            EditorRegion::Frame => {
+            ViewPlacement::Parent(ParentView::Main) => {
                 let (report, exit) = self.frame_report(view, context, document, window);
                 if exit {
                     self.host.leave_frame();
                 }
                 report
             }
-            EditorRegion::Preview => {
+            ViewPlacement::Parent(ParentView::Preview) => {
                 if let Some(editor) = self.views.borrow().preview.as_deref() {
                     editor.end_frame(document, window);
                 }
                 Report::default()
             }
-            EditorRegion::Display(_) | EditorRegion::Window(_) | EditorRegion::Tab(_) => {
+            ViewPlacement::Host(_) | ViewPlacement::Dock => {
                 if let Some(editor) = self.views.borrow().editor.as_deref() {
                     editor.end_frame(document, window);
                 }
                 Self::window_report(view.size, document, window)
             }
-            EditorRegion::ArtifactSettings => {
+            ViewPlacement::Parent(ParentView::ArtifactSettings) => {
                 if let Some(artifacts) = self.views.borrow().artifacts.as_ref() {
                     let draft = artifacts
                         .take_settings_edit()
@@ -619,7 +622,7 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
         editor.replace_child(old, new)
     }
 
-    fn open_region(&mut self, _region: EditorRegion) {
+    fn open_view(&mut self, _view: ShownView) {
         if self.shown.is_some() {
             return;
         }

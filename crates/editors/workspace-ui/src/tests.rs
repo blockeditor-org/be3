@@ -504,7 +504,7 @@ fn report_creation_dialog<A: block_editor_beui::BeuiApp>(
         .test
         .report_children(|placement| block_editor_beui::ChildStatus {
             instance: block_editor_beui::EditorInstanceId(0),
-            region: block_editor_beui::EditorRegion::Frame,
+            view: block_editor_beui::ViewId::MAIN,
             child: placement.child,
             available: true,
             intrinsic: None,

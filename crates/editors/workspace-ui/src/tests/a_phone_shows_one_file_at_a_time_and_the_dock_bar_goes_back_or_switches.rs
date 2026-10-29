@@ -1,6 +1,6 @@
 use block_editor_beui::{
-    BarAction, ChildStatus, EditorCapabilities, EditorInstanceId, EditorRegion, InteractionMode,
-    MenuCommand, MenuEntry, ResizeMode, TopBar,
+    BarAction, ChildStatus, EditorCapabilities, EditorInstanceId, InteractionMode, MenuCommand,
+    MenuEntry, ResizeMode, TopBar, ViewId,
 };
 
 use super::*;
@@ -110,7 +110,7 @@ fn a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches() {
         .child;
     fixture.test.report_children(|placement| ChildStatus {
         instance: placement_instance(),
-        region: EditorRegion::Frame,
+        view: ViewId::MAIN,
         child: placement.child,
         available: true,
         intrinsic: None,

@@ -16,7 +16,7 @@ fn editor(name: &str, edits: Edits) -> EditorManifest {
         interaction: Default::default(),
         capabilities: Default::default(),
         resize: Default::default(),
-        regions: Vec::new(),
+        views: Vec::new(),
         accepts: Vec::new(),
     }
 }

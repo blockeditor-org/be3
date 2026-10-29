@@ -1,6 +1,6 @@
 use block_editor_beui::{
-    ChildStatus, EditorCapabilities, EditorInstanceId, EditorRegion, InteractionMode, MenuCommand,
-    MenuEntry, MenuPin, ResizeMode, ShellDialog,
+    ChildStatus, EditorCapabilities, EditorInstanceId, InteractionMode, MenuCommand, MenuEntry,
+    MenuPin, ResizeMode, ShellDialog, ViewId,
 };
 
 use super::*;
@@ -22,7 +22,7 @@ fn on_a_phone_tapping_a_files_name_opens_its_rename_sheet() {
         .child;
     fixture.test.report_children(|placement| ChildStatus {
         instance: EditorInstanceId(0),
-        region: EditorRegion::Frame,
+        view: ViewId::MAIN,
         child: placement.child,
         available: true,
         intrinsic: None,

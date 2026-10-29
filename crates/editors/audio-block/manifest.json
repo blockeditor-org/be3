@@ -13,8 +13,8 @@
           "dialog": true
         }
       },
-      "regions": [
-        "Frame"
+      "views": [
+        "Main"
       ]
     }
   },

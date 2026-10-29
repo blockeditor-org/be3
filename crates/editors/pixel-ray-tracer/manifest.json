@@ -18,8 +18,8 @@
         "pan_and_zoom": true
       },
       "resize": "None",
-      "regions": [
-        "Frame",
+      "views": [
+        "Main",
         "Preview"
       ]
     }

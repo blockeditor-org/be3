@@ -13,7 +13,7 @@ fn every_region_is_a_window_painted_in_the_frame_that_first_asks_for_it() {
     );
     let frame = whole(40.0, 30.0);
     let mut preview = whole(20.0, 10.0);
-    preview.region = EditorRegion::Preview;
+    preview.view = block_editor_plugin::View::PREVIEW;
 
     let first = surface.frame(std::slice::from_ref(&frame));
     assert!(

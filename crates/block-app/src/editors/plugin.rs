@@ -1,7 +1,7 @@
 use beui::{Vec2, vec2};
 use block_plugin_api::{
-    DialogAnswer, DialogStatus, EditorCapabilities, EditorInstanceId, EditorRegion, FrameSpec,
-    HostPanel, InteractionMode, ResizeMode,
+    DialogAnswer, DialogStatus, EditorCapabilities, EditorInstanceId, FrameSpec, HostPanel,
+    InteractionMode, ParentView, ResizeMode, View, ViewId,
 };
 use block_plugin_manifest::{EditorManifest, PluginManifest};
 use std::sync::{
@@ -71,7 +71,7 @@ impl PluginCreation {
                 block_types: Arc::clone(registry.plugin_block_types()),
                 client_id,
             },
-            region: EditorRegion::Frame,
+            region: View::MAIN,
             frame: Some(FrameSpec::default()),
         }
     }
@@ -107,7 +107,7 @@ impl PluginPicker {
                 block_types: Arc::clone(registry.plugin_block_types()),
                 client_id,
             },
-            region: EditorRegion::Frame,
+            region: View::MAIN,
             frame: Some(FrameSpec::default()),
         }
     }
@@ -200,7 +200,7 @@ impl PendingCreation for PluginCreation {
             block_app_plugin_host::region_size(
                 &self.plugin.identity.id,
                 self.instance,
-                EditorRegion::Frame,
+                ViewId::MAIN,
             )
             .map_or(CREATION_DIALOG_HEIGHT, |size| size.y.max(1.0))
         })
@@ -373,9 +373,9 @@ impl PluginEditor {
             .is_some_and(|editor| editor.accepts(request))
     }
 
-    pub(crate) fn has_region(&self, region: EditorRegion) -> bool {
+    pub(crate) fn has_view(&self, view: ParentView) -> bool {
         self.manifest()
-            .is_some_and(|editor| editor.regions.contains(&region))
+            .is_some_and(|editor| editor.views.contains(&view))
     }
 
     pub(crate) fn stop_presenting_now(&mut self) {
@@ -642,7 +642,7 @@ impl ArtifactSession for PluginArtifact {
                 block_types: Arc::clone(registry.plugin_block_types()),
                 client_id: self.client_id,
             },
-            region: EditorRegion::ArtifactSettings,
+            region: View::ARTIFACT_SETTINGS,
             frame: None,
         }
     }
@@ -655,7 +655,7 @@ impl ArtifactSession for PluginArtifact {
         block_app_plugin_host::region_size(
             &self.plugin.identity.id,
             self.instance,
-            EditorRegion::ArtifactSettings,
+            ViewId::ARTIFACT_SETTINGS,
         )
         .map_or(ARTIFACT_SETTINGS_HEIGHT, |size| size.y.max(1.0))
     }

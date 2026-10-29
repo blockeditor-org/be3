@@ -60,10 +60,7 @@ impl crate::BeuiApp for WindowedApp {
     }
 }
 
-fn show_windowed(
-    session: &mut EditorSession,
-    screens: &[(EditorRegion, u64)],
-) -> Vec<WindowRequest> {
+fn show_windowed(session: &mut EditorSession, screens: &[(View, u64)]) -> Vec<WindowRequest> {
     let (placements, requests): (Vec<_>, Vec<_>) = screens
         .iter()
         .map(|(region, screen)| {
@@ -73,7 +70,7 @@ fn show_windowed(
         })
         .unzip();
     session.place(&placements, &requests);
-    let framed: Vec<_> = screens.iter().map(|(region, _)| (*region, 0)).collect();
+    let framed: Vec<_> = screens.iter().map(|(shown, _)| (shown.id, 0)).collect();
     let mut asked = Vec::new();
     for _ in 0..2 {
         session.frame(&framed);
@@ -95,12 +92,12 @@ fn show_windowed(
     asked
 }
 
-fn opened_over(asked: &[WindowRequest]) -> Vec<(EditorRegion, EditorRegion)> {
+fn opened_over(asked: &[WindowRequest]) -> Vec<(ViewId, ViewId)> {
     asked
         .iter()
         .filter_map(|request| match request {
             WindowRequest::Open(open) => match &open.placement {
-                WindowPlacement::Over(over) => Some((open.opener.region, over.region.region)),
+                WindowPlacement::Over(over) => Some((open.opener.view, over.view.view)),
                 _ => None,
             },
             _ => None,
@@ -112,19 +109,16 @@ fn opened_over(asked: &[WindowRequest]) -> Vec<(EditorRegion, EditorRegion)> {
 fn a_window_opened_in_a_docked_tab_body_opens_over_that_tab() {
     VIEWPORT.with(|held| held.set(beui::Vec2::ZERO));
     let mut session = session::<WindowedApp>(Uuid::new_v4());
-    show_windowed(&mut session, &[(EditorRegion::Frame, 0)]);
+    show_windowed(&mut session, &[(View::MAIN, 0)]);
     session
         .host()
         .receive_dock_updates(vec![hosted_tabs(&[1, 2], &[1], Some(1))]);
-    show_windowed(&mut session, &[(EditorRegion::Frame, 0)]);
+    show_windowed(&mut session, &[(View::MAIN, 0)]);
 
-    let asked = show_windowed(
-        &mut session,
-        &[(EditorRegion::Frame, 0), (EditorRegion::Tab(1), 2)],
-    );
+    let asked = show_windowed(&mut session, &[(View::MAIN, 0), (View::dock(ViewId(1)), 2)]);
     assert_eq!(
         opened_over(&asked),
-        [(EditorRegion::Tab(1), EditorRegion::Tab(1))],
+        [(ViewId(1), ViewId(1))],
         "a window placed over its own window opens over the tab, not the undrawn frame"
     );
     assert_eq!(
@@ -133,11 +127,8 @@ fn a_window_opened_in_a_docked_tab_body_opens_over_that_tab() {
         "the viewport of a tab body is its tab's"
     );
 
-    show_windowed(&mut session, &[(EditorRegion::Frame, 0)]);
-    let asked = show_windowed(
-        &mut session,
-        &[(EditorRegion::Frame, 0), (EditorRegion::Tab(1), 3)],
-    );
+    show_windowed(&mut session, &[(View::MAIN, 0)]);
+    let asked = show_windowed(&mut session, &[(View::MAIN, 0), (View::dock(ViewId(1)), 3)]);
     assert_eq!(
         VIEWPORT.with(std::cell::Cell::get),
         beui::vec2(700.0, 300.0),
@@ -146,7 +137,7 @@ fn a_window_opened_in_a_docked_tab_body_opens_over_that_tab() {
     assert!(
         opened_over(&asked)
             .iter()
-            .all(|opened| *opened == (EditorRegion::Tab(1), EditorRegion::Tab(1))),
+            .all(|opened| *opened == (ViewId(1), ViewId(1))),
         "{asked:?}"
     );
 }

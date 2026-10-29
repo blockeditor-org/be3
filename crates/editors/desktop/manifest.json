@@ -9,8 +9,8 @@
       "icon": "\ue11d",
       "interaction": "Live",
       "resize": "None",
-      "regions": [
-        "Frame"
+      "views": [
+        "Main"
       ],
       "accepts": [
         "show_block",

@@ -1407,8 +1407,8 @@ impl Editor {
             Some((_, to_host)) => to_host.rect(rect),
             None => rect.scaled(unscale),
         };
-        let layer = escaped.map(|(id, _)| block_plugin_api::LayerId(id));
-        Some(state.host.in_layer(layer, || {
+        let layer = escaped.map(|(id, _)| beui_platform_plugin_api::anchored_view(id));
+        Some(state.host.in_anchored(layer, || {
             state.host.place_child(
                 content.wire(),
                 to_placed(rect),

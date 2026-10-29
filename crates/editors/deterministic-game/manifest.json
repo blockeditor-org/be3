@@ -21,8 +21,8 @@
         "pan": "OneFinger"
       },
       "resize": "Both",
-      "regions": [
-        "Frame"
+      "views": [
+        "Main"
       ]
     },
     "module": {
@@ -35,8 +35,8 @@
           "dialog": true
         }
       },
-      "regions": [
-        "Frame"
+      "views": [
+        "Main"
       ]
     }
   },

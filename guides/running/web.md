@@ -99,7 +99,7 @@ plugin draws leaves its worker; the page hands the worker canvases instead:
   in the order of each plugin's newest layer. Scrims are drawn by the app
   canvas, below every overlay. Input still lands on the app canvas, which
   routes it to layers and dismisses them as natively.
-- An in-layer child placed above its layer's pixels shows under them on the web,
+- A child placed in an anchored view, above its pixels, shows under them on the web,
   since its screen canvas is behind `#block`.
 
 Screens and layers are placed from what the app canvas drew in its last frame,

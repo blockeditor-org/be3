@@ -11,8 +11,8 @@
       "templates": {
         "main": {}
       },
-      "regions": [
-        "Frame"
+      "views": [
+        "Main"
       ]
     },
     "checkout": {
@@ -20,8 +20,8 @@
       "edits": "6be37c5e-0a1d-4f6e-9c20-636b6f750001",
       "display_name": "Checkout",
       "icon": "\ue125",
-      "regions": [
-        "Frame"
+      "views": [
+        "Main"
       ]
     }
   },

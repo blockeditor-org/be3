@@ -86,7 +86,7 @@ impl ProtocolLink {
     }
 
     fn encoded(&self) -> Option<String> {
-        let hosted = self.host.dock_hosted(self.region)?;
+        let hosted = self.host.dock_hosted(self.view)?;
         let mut layout = hosted.layout;
         layout.tree.focus = None;
         serde_json::to_string(&SavedDock {

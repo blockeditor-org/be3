@@ -2,8 +2,8 @@ use block_editor_plugin::wgpu;
 use std::collections::HashMap;
 
 use block_editor_plugin::{
-    BlockParent, EditorHost, EditorRegion, Frame, Instance, PaintTarget, Plugin, Region, RegionId,
-    Regions, SurfaceRect, TimedInput,
+    BlockParent, EditorHost, Frame, Instance, PaintTarget, Plugin, Region, Regions, SurfaceRect,
+    TimedInput, View, ViewRef,
 };
 use triangle_types::TriangleContent;
 use uuid::Uuid;
@@ -28,7 +28,7 @@ impl Triangle {
 
 #[derive(Default)]
 pub(crate) struct TriangleRegions {
-    painted: HashMap<RegionId, bool>,
+    painted: HashMap<ViewRef, bool>,
     pipeline: Option<(wgpu::TextureFormat, wgpu::RenderPipeline)>,
 }
 
@@ -42,7 +42,7 @@ impl Instance for Triangle {
             .create(&TriangleContent::default(), BlockParent::Detached))
     }
 
-    fn open_region(&mut self, _region: EditorRegion) {
+    fn open_view(&mut self, _view: View) {
         if !self.host.handles_regions() {
             self.host
                 .handle_regions(Box::new(TriangleRegions::default()));
@@ -51,7 +51,7 @@ impl Instance for Triangle {
 }
 
 impl Regions for TriangleRegions {
-    fn input(&mut self, _region: &Region, _event: &TimedInput, _over: Option<RegionId>) {}
+    fn input(&mut self, _region: &Region, _event: &TimedInput, _over: Option<ViewRef>) {}
 
     fn frame(&mut self, regions: &[Region]) -> Vec<Frame> {
         self.painted
@@ -66,7 +66,7 @@ impl Regions for TriangleRegions {
             .collect()
     }
 
-    fn paint(&mut self, region: RegionId, target: &PaintTarget<'_>) -> Vec<SurfaceRect> {
+    fn paint(&mut self, region: ViewRef, target: &PaintTarget<'_>) -> Vec<SurfaceRect> {
         let (width, height) = (target.width, target.height);
         let side = width.min(height);
         if side == 0 {

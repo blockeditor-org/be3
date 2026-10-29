@@ -64,8 +64,8 @@ fn one(key: &str, tab: u64, menu: &[&str]) -> DockDeclaration {
 #[test]
 fn a_root_gives_a_tab_two_levels_down_its_owners_menu_block_and_dialog() {
     let mut session = docked_session();
-    show_docked(&mut session, &[(EditorRegion::Frame, 0)], false);
-    let child = session.placed_children(EditorRegion::Frame)[0].child;
+    show_docked(&mut session, &[(View::MAIN, 0)], false);
+    let child = session.placed_children(ViewId::MAIN)[0].child;
     dock_messages(&mut session);
 
     let mut deep = one("deep", 7, &["deep.act"]);
@@ -94,7 +94,7 @@ fn a_root_gives_a_tab_two_levels_down_its_owners_menu_block_and_dialog() {
             declaration: Some(middle),
         })]);
     for _ in 0..3 {
-        show_docked(&mut session, &[(EditorRegion::Frame, 0)], false);
+        show_docked(&mut session, &[(View::MAIN, 0)], false);
     }
 
     let deep_tab = DockTabPath {
@@ -131,7 +131,7 @@ fn a_root_gives_a_tab_two_levels_down_its_owners_menu_block_and_dialog() {
     );
 
     let bodies: Vec<_> = session
-        .placed_children(EditorRegion::Frame)
+        .placed_children(ViewId::MAIN)
         .iter()
         .filter_map(|placed| match &placed.content {
             ChildContent::DockTab(tab) => Some(tab.clone()),

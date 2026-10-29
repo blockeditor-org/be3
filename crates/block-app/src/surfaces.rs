@@ -4,7 +4,7 @@ use beui::reactive::*;
 use beui::styled::*;
 use beui::{Align, NodeId};
 use block_plugin_api::{
-    BlockCommand, BlockLocation, DialogFrame, EditorInstanceId, EditorRegion, FrameSpec,
+    BlockCommand, BlockLocation, DialogFrame, EditorInstanceId, FrameSpec, View,
 };
 use uuid::Uuid;
 
@@ -25,12 +25,12 @@ const HOSTING: [SurfaceId; 1] = [SurfaceId::ArtifactSettings];
 #[derive(Clone)]
 pub(crate) struct HostedRegion {
     pub(crate) editor: RegionEditor,
-    pub(crate) region: EditorRegion,
+    pub(crate) region: View,
     pub(crate) frame: Option<FrameSpec>,
 }
 
 impl HostedRegion {
-    pub(crate) fn key(&self) -> (EditorInstanceId, EditorRegion) {
+    pub(crate) fn key(&self) -> (EditorInstanceId, View) {
         (self.editor.instance, self.region)
     }
 }
@@ -123,7 +123,7 @@ pub(crate) fn HostedSurface(
     });
     view! {
         <Layers>
-            <ForEach keys={keys}>|_key: (EditorInstanceId, EditorRegion)| {
+            <ForEach keys={keys}>|_key: (EditorInstanceId, View)| {
                 let Some(hosted) = region.get_untracked() else {
                     return view! {
                         <Frame />

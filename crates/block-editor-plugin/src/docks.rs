@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use block_plugin_api::{
     ChildId, DockChild, DockChildClose, DockChildHosted, DockChildPick, DockDeclaration,
-    DockDeclare, DockHosted, DockMessage, DockRegionRequest, DockRequest, DockTabPath, DockUpdate,
-    EditorInstanceId, EditorRegion, RegionRef,
+    DockDeclare, DockHosted, DockMessage, DockRequest, DockTabPath, DockUpdate, DockViewRequest,
+    EditorInstanceId, ViewId, ViewRef,
 };
 
 use crate::EditorHost;
@@ -12,46 +12,46 @@ use crate::host::Pushed;
 #[derive(Default)]
 pub(crate) struct Docks {
     used: bool,
-    declared: HashMap<EditorRegion, Option<DockDeclaration>>,
-    sent: HashMap<EditorRegion, Option<DockDeclaration>>,
-    requests: Vec<(EditorRegion, DockRequest)>,
+    declared: HashMap<ViewId, Option<DockDeclaration>>,
+    sent: HashMap<ViewId, Option<DockDeclaration>>,
+    requests: Vec<(ViewId, DockRequest)>,
     hosting: HashMap<ChildId, Option<DockHosted>>,
     hosted_sent: HashMap<ChildId, Option<DockHosted>>,
     closing: Vec<(ChildId, DockTabPath)>,
     picking: Vec<(ChildId, DockTabPath, String)>,
-    hosted: HashMap<EditorRegion, DockHosted>,
-    closed: Vec<(EditorRegion, DockTabPath)>,
-    picked: Vec<(EditorRegion, DockTabPath, String)>,
+    hosted: HashMap<ViewId, DockHosted>,
+    closed: Vec<(ViewId, DockTabPath)>,
+    picked: Vec<(ViewId, DockTabPath, String)>,
     children: HashMap<ChildId, DockDeclaration>,
     child_requests: Vec<(ChildId, Vec<ChildId>, DockRequest)>,
 }
 
 impl EditorHost {
-    pub fn declare_dock(&self, region: EditorRegion, declaration: Option<DockDeclaration>) {
+    pub fn declare_dock(&self, view: ViewId, declaration: Option<DockDeclaration>) {
         let mut docks = self.docks.borrow_mut();
         docks.used = true;
-        docks.declared.insert(region, declaration);
+        docks.declared.insert(view, declaration);
         drop(docks);
         self.changed_docks();
     }
 
-    pub fn request_dock(&self, region: EditorRegion, request: DockRequest) {
+    pub fn request_dock(&self, view: ViewId, request: DockRequest) {
         let mut docks = self.docks.borrow_mut();
         docks.used = true;
-        docks.requests.push((region, request));
+        docks.requests.push((view, request));
         drop(docks);
         self.changed_docks();
     }
 
-    pub fn dock_hosted(&self, region: EditorRegion) -> Option<DockHosted> {
-        self.docks.borrow().hosted.get(&region).cloned()
+    pub fn dock_hosted(&self, view: ViewId) -> Option<DockHosted> {
+        self.docks.borrow().hosted.get(&view).cloned()
     }
 
-    pub fn take_dock_closes(&self, region: EditorRegion) -> Vec<DockTabPath> {
+    pub fn take_dock_closes(&self, view: ViewId) -> Vec<DockTabPath> {
         let mut docks = self.docks.borrow_mut();
         let mut taken = Vec::new();
         docks.closed.retain(|(held, tab)| {
-            let here = *held == region;
+            let here = *held == view;
             if here {
                 taken.push(tab.clone());
             }
@@ -60,11 +60,11 @@ impl EditorHost {
         taken
     }
 
-    pub fn take_dock_picks(&self, region: EditorRegion) -> Vec<(DockTabPath, String)> {
+    pub fn take_dock_picks(&self, view: ViewId) -> Vec<(DockTabPath, String)> {
         let mut docks = self.docks.borrow_mut();
         let mut taken = Vec::new();
         docks.picked.retain(|(held, tab, id)| {
-            let here = *held == region;
+            let here = *held == view;
             if here {
                 taken.push((tab.clone(), id.clone()));
             }
@@ -126,14 +126,14 @@ impl EditorHost {
             match update {
                 DockUpdate::Hosted(hosted) => match hosted.hosted {
                     Some(held) => {
-                        docks.hosted.insert(hosted.region, held);
+                        docks.hosted.insert(hosted.view, held);
                     }
                     None => {
-                        docks.hosted.remove(&hosted.region);
+                        docks.hosted.remove(&hosted.view);
                     }
                 },
-                DockUpdate::Close(close) => docks.closed.push((close.region, close.tab)),
-                DockUpdate::Pick(pick) => docks.picked.push((pick.region, pick.tab, pick.id)),
+                DockUpdate::Close(close) => docks.closed.push((close.view, close.tab)),
+                DockUpdate::Pick(pick) => docks.picked.push((pick.view, pick.tab, pick.id)),
                 DockUpdate::Child(child) => match child.declaration {
                     Some(declaration) => {
                         docks.children.insert(child.child, declaration);
@@ -167,25 +167,25 @@ impl EditorHost {
         let docks = &mut *docks;
         let mut messages = Vec::new();
         let mut declared: Vec<_> = docks.declared.iter().collect();
-        declared.sort_by_key(|(region, _)| format!("{region:?}"));
-        for (region, declaration) in declared {
-            if docks.sent.get(region) == Some(declaration)
-                || (declaration.is_none() && !docks.sent.contains_key(region))
+        declared.sort_by_key(|(view, _)| **view);
+        for (view, declaration) in declared {
+            if docks.sent.get(view) == Some(declaration)
+                || (declaration.is_none() && !docks.sent.contains_key(view))
             {
                 continue;
             }
-            docks.sent.insert(*region, declaration.clone());
+            docks.sent.insert(*view, declaration.clone());
             messages.push(DockMessage::Declare(DockDeclare {
-                region: RegionRef {
+                view: ViewRef {
                     instance,
-                    region: *region,
+                    view: *view,
                 },
                 declaration: declaration.clone(),
             }));
         }
-        for (region, request) in docks.requests.drain(..) {
-            messages.push(DockMessage::Request(DockRegionRequest {
-                region: RegionRef { instance, region },
+        for (view, request) in docks.requests.drain(..) {
+            messages.push(DockMessage::Request(DockViewRequest {
+                view: ViewRef { instance, view },
                 request,
             }));
         }

@@ -173,7 +173,7 @@ opaque settings the host stores on it. The instance answers with the block the
 artifact was generated from and a short description of what the settings
 produce, or with why they cannot be read, and repeats that answer whenever the
 settings change. The host sends the settings again whenever it changes them
-itself; the instance's settings region edits its own copy and reports every
+itself; the instance's settings view edits its own copy and reports every
 edit, which the host stores on the artifact only once the user applies it. A
 regeneration request carries the settings to rebuild from and is answered
 exactly once, after the instance has written the artifact through its own
@@ -198,16 +198,16 @@ it is busy, the last error, the branches, the working change and what it
 changed since its parent, whether the branch has moved past that parent, the
 history, and the operation log.
 
-An editor instance may ask for the cursor shown over one of its regions,
+An editor instance may ask for the cursor shown over one of its views,
 which only the host can put on the window. The request names what the cursor
 means rather than any one toolkit's spelling of it, is sent only when the
-cursor changes, and is honoured only while the pointer is over that region.
+cursor changes, and is honoured only while the pointer is over that view.
 
 An editor instance may report the area its text input occupies and where its
-caret sits inside it, in the region's own logical coordinates, which is what an
+caret sits inside it, in the view's own logical coordinates, which is what an
 operating system's input method needs to place its candidate window. Only the
 host can tell the window that, and it maps the area through the placement it
-last drew the region at. The host sends the composition back the other way, as
+last drew the view at. The host sends the composition back the other way, as
 input events of their own alongside the text it already delivers: an input
 method turning on, the text being composed, the text it settled on, and its
 turning off again.
@@ -338,7 +338,7 @@ which the manifest's resize mode allows - is told the size it was given, in
 its own points. Only an editor whose block records its size answers by
 writing it; the rest ignore it and keep reporting the size they want.
 
-Files the user drags onto a region reach the instance the way a dragged block
+Files the user drags onto a view reach the instance the way a dragged block
 does: while they are only hovering the instance is told where they are and
 nothing else, and on the drop it is told the same position along with each
 file's name and the bytes the host read. Only the host can read a file on
@@ -412,39 +412,56 @@ its display name, the codepoint of the host's icon font, and which of the
 host's structural edits - adding, deleting and replacing a child - blocks of
 that type accept.
 
-The host reports a block dragged over an editor instance's region in that
+The host reports a block dragged over an editor instance's view in that
 screen's own logical coordinates, once per frame while it hovers, once more
 when it is let go, and reports that the drag has moved off the instance again.
 An instance answers with whether it would take the block, which only decides
 the cursor the host shows; a drop is delivered whether or not it was accepted.
 
-An instance is shown through screens of five kinds: a frame, a preview, an
-artifact-settings region, a display and a window. A host that shows a desktop
-on several displays shows the frame on its first display and a `display(n)`
-region on each further one, numbered from 1 in the order it lists them. A screen
-request may say the host shows the windows the plugin opens from it as windows
-of its own (`windows`): the plugin then asks for each with a `window-request`
-in its frame (`open`, naming the region it opens from and a placement: at the
-pointer, at a point of a region, or where a `placement` the host gave says,
-and its role, which a host showing windows in space reads to never focus a
-keyboard or a popup, and with which an `overlay` window, the plugin's menus and
-tooltips over the region it is placed over, stays in front of that region and
-takes only the presses its frame says it paints; then `begin-move` and `begin-resize`, which hand the pointer to the host until
-the press is let go, `resize` and `close`), and the host shows it as a
-`window(w)` screen of that instance, whose size, scale and `placement` are the
-host's answer, whose focus arrives as input, and whose going away closes it.
-block-app says `windows` for every frame it shows and, where it opens no windows
-of its own, draws each one over its own window at the point asked for, moved
-back inside it, or shrunk to the room below that point when there is enough.
-Without `windows` the plugin draws its windows inside the screen. A frame is the whole rectangle an editor is
+An instance draws its views: each a surface of its own, named by a `view-id`
+unique among the instance's views, and placed by exactly one placer, which
+the view's `view-placement` names. View 0 is the instance's main view, the
+frame it is edited in. The host asks for every view another placer places
+with a screen request (`screen-request.view` and `placement`) and sizes it:
+`parent`, placed by the instance's placer as part of where the block is (its
+main view, its preview, its artifact settings, the `parent-view`s a manifest
+lists in `views`); `dock`, placed by the root dock as the body of one of the
+instance's own dock tabs, bars or dialogs, or of an empty pane (a
+`dock-tab-path` names that body by its view id); and `host`, a window the
+instance opened or a further display. A view can also place itself against
+its parent view, as a menu hangs from its button: an anchored view, which the
+instance reports in the frame report of the screen it hangs from
+(`frame-report.anchored`) rather than being asked for. The host numbers the
+views it asks for other than the main view from the top (the preview 2^63,
+the artifact settings 2^63 + 1, the view on further display `n` 2^63 + 1 + n);
+the instance numbers the views it makes itself, never 0 and below 2^63.
+Screens, frame reports, child placements, input, child statuses and
+`view-stopped` all name a view. A host that shows a desktop on several
+displays shows the main view on its first display and a view placed by the
+host on each further one, numbered from 1 in the order it lists them. A
+screen request may say the host shows the windows the plugin opens from it
+as windows of its own (`windows`): the plugin then asks for each with a
+`window-request` in its frame (`open`, naming the view the window will be, the
+view it opens from and a placement: at the pointer, at a point of a view, or
+where a `host-place` the host gave says, and its role, which a host showing
+windows in space reads to never focus a keyboard or a popup; then
+`begin-move` and `begin-resize`, which hand the pointer to the host until the
+press is let go, `raise`, `resize` and `close`, each naming the window's
+view), and the host shows it as that view, placed by the host, whose size,
+scale and `host-place` are the host's answer, whose focus arrives as input,
+and whose going away closes it. block-app says `windows` for every main view
+it shows and, where it opens no windows of its own, draws each one over its
+own window at the point asked for, moved back inside it, or shrunk to the room
+below that point when there is enough. Without `windows` the plugin draws its
+windows inside the screen. The main view is the whole rectangle an editor is
 edited in, and an instance has at most one; the plugin lays its own toolbar
 row, sidebars and content out inside it, in one pass of one context. The host
 says, per frame, whether the instance owns the chrome bands this frame, where
-its content goes inside the frame, and the trail of editors it sits under. An
-instance told it owns no chrome draws its content alone: that is an editor
-embedded in another one, a creation dialog, or an instance presenting. An
-instance told it owns the chrome and given no content rectangle fills its own
-content band, which is what a tab of its own means.
+its content goes inside the main view, and the trail of editors it sits
+under. An instance told it owns no chrome draws its content alone: that is an
+editor embedded in another one, a creation dialog, or an instance presenting.
+An instance told it owns the chrome and given no content rectangle fills its
+own content band, which is what a tab of its own means.
 
 Docks cross plugins the way windows do: one root dock, the outermost, holds
 the only dock state and draws every tab bar, splitter and drag; a dock nested
@@ -467,7 +484,8 @@ splits what the root hosts back down (`DockHosted::own`, `DockHosted::child`),
 so each docked instance hears only its own tabs (`dock-update.hosted`, a
 spliced child's group again the tab it was placed in) and its own closes. The
 root places a descendant's tab body as a child showing `child-content.dock-tab`
-with the full path, and the host shows the owner's `tab(t)` region there,
+with the full path, and the host shows the owner's view of that body there,
+placed by the dock,
 only for tabs the owner's `dock-hosted.visible` lists, and for the bodies a
 declaration names that are no tabs: a `dock-dialog`'s (which the root presents
 as it presents its own dialogs, over the dialog's parent, closing it with a
@@ -513,41 +531,42 @@ floating rectangles, so a menu opened by an editor underneath still falls over
 the frame above it. The two passes are cut into disjoint rectangles, so no
 pixel is blended twice.
 
-Layers carry what points back to where it came from (menus and their
+Anchored views carry what points back to where it came from (menus and their
 submenus, popovers, tooltips, the selection toolbar, small dialogs opened from
-a control) and sheets attached to an edge out of the region that opened them,
-with no round trip. A screen request may carry a layer space
-(`screen-request.layers`): `to-host`, which maps the region's points to host
-coordinates (the app window's logical points) at the view the request lays it
-out against, and `bounds`, the rectangle in host coordinates where its layers
-may go: the app window for a trusted plugin, the plugin's own box for a
-confined one. A child's bounds never exceed its parent's, and a screen
-requested without a layer space opens no layers. Each frame report lists the
-region's open layers (`frame-report.layers`, replacing the last report's), in
-the order they opened, each after its parent: the region, or another layer for
-a submenu (`layer-parent`). The plugin places each one itself, anchored to a
-rectangle in its parent's coordinates or attached to an edge of the bounds
-(`layer-placement`), lays it out against the bounds (flipping, sliding or
+a control) and sheets attached to an edge out of the view that opened them,
+with no round trip; the host draws each as a layer above every view. A screen
+request may carry a layer space (`screen-request.layers`): `to-host`, which
+maps the view's points to host coordinates (the app window's logical points)
+at the camera the request lays it out against, and `bounds`, the rectangle in
+host coordinates where its anchored views may go: the app window for a
+trusted plugin, the plugin's own box for a confined one. A child's bounds
+never exceed its parent's, and a screen requested without a layer space
+anchors no views. Each frame report lists the views anchored to the screen's
+view (`frame-report.anchored`, replacing the last report's), in the order
+they opened, each after its parent: the screen's view, or another anchored
+view for a submenu (`anchored-placement.parent`). The plugin places each one
+itself, anchored to a rectangle in its parent's coordinates or attached to an
+edge of the bounds (`view-anchor`), lays it out against the bounds (flipping, sliding or
 shrinking it to fit), paints it into a surface it configured itself, and
 commits its rectangle, painted and input (`floating`) rectangles and scrims in
 host coordinates with the frame that drew it; the host only clips it to the
 bounds. The surface holds the layer from its top-left corner at the screen's
 raster divided by `to-host`'s scale, in pixels per host point: the app window's
-own density, whatever the region's zoom, since the screen's raster already
+own density, whatever the view's zoom, since the screen's raster already
 counts it. A layer is laid out and drawn at full size in host points, so a menu
-opened in a region shown at half size is as large as any other menu. The host draws layers after
-every region, in the order they opened across every region of the window:
+opened in a view shown at half size is as large as any other menu. The host draws layers after
+every view, in the order they opened across every view of the window:
 each one's scrims, then its `painted` rectangles from its surface; it draws
 nothing of a layer outside `painted`, and the report that opens a layer draws
 it in the same host frame.
-When a region moves, the host moves its layers rigidly by the difference
-between the `to-host` it shows the region at and the one the frame was laid
+When a view moves, the host moves its layers rigidly by the difference
+between the `to-host` it shows the view at and the one the frame was laid
 out against, so a move alone need not send the plugin a new `to-host`: the
 host may keep sending the origin it sent last while only the origin changes,
-and sends where the region now is with the next input it gives the region; a pan of the region's camera does nothing to them, and the
+and sends where the view now is with the next input it gives the view; a pan of the view's camera does nothing to them, and the
 plugin repositions or closes them on its next layout. The host hit-tests
-layers before any region, and input that lands on one reaches its owning
-screen tagged with its id (`timed-input.layer`), in that screen's own
+layers before any view, and input that lands on one reaches its owning
+screen tagged with its view (`timed-input.anchored`), in that screen's own
 coordinates. Layers take input over their `floating`
 rectangles, the one opened last first. A press outside a chain of layers marked
 `dismiss-on-outside-press` (a layer and those hanging from it) closes the
@@ -555,10 +574,10 @@ chain: the owner hears the layers in `input-batch.dismissed`, before the
 batch's events, and the press still reaches whatever it landed on. A press on
 a menu closes only the submenus hanging from it. A layer
 marked `keyboard` gives its owner the keyboard while it is open, and one
-marked `blocks-owner` keeps presses on the owning region from its content.
+marked `blocks-owner` keeps presses on the owning view from its content.
 A layer's accessibility tree goes in its owner's description, in host
 coordinates. A layer may embed other editors: a child placement naming the
-layer (`child-placement.in-layer`) is placed in host coordinates, ordered
+anchored view (`child-placement.anchored`) is placed in host coordinates, ordered
 against the layer's pixels by its `layer`, clipped to the layer and hidden by
 no occluder; the child's own frame appears one frame after the layer that
 holds it. The host's embedded popups are such children: a block's rename form
@@ -634,13 +653,13 @@ A child placed below is cut out of the instance's own surface, which is
 cleared transparent, so the host composites the child's editor under the
 instance and anything the instance draws after the child covers it again. A
 child placed above composites against the instance's pixels instead and cannot
-be drawn over. The host draws the children below a region, then the region,
+be drawn over. The host draws the children below a view, then the view,
 then the children above it. A painting is never stretched: the host shows each
-frame at the size it was painted, from the region's top-left corner, so while
-a region is resizing ahead of the plugin the painting is cropped or falls
+frame at the size it was painted, from the view's top-left corner, so while
+a view is resizing ahead of the plugin the painting is cropped or falls
 short at the right and bottom, and the children, occluders and input method
 area that frame carried are placed in its own coordinates from that corner,
-unscaled. Only a zoom the host renders a region at - a pixel density sent with
+unscaled. Only a zoom the host renders a view at - a pixel density sent with
 its screen - scales them, and then by the one sent at the frame's serial. A
 child the placement says follows the view is moved from the view sent at that
 serial to the one the host is showing, so a child keeps up with a pan the
@@ -708,7 +727,7 @@ it, whether it is being given input, whether its own editor is live or only
 previewed until it is asked for, which of rotation, aspect ratio and pan-and-zoom
 it allows, how it may be resized, and why it is unavailable when it is. A block
 already open above the instance is refused, so an editor cannot be nested inside
-itself. The host bounds how many children of one region it will run as editors and
+itself. The host bounds how many children of one view it will run as editors and
 falls back to preview rendering for the rest.
 
 A placement may also carry the size the parent is giving the child, which the
@@ -737,7 +756,7 @@ input go to the innermost active editor, and the cursor comes from the
 innermost editor the pointer is over. Promotion to active is the user's, so
 the host takes it away again when the user presses Escape or clicks outside
 the child. A live child is the instance's own content rather than something
-the user promoted - the whole of what the region shows - so it is given input
+the user promoted - the whole of what the view shows - so it is given input
 from the moment it is placed and the host never takes that away.
 
 An editor instance chooses a block by placing a picker as a child
@@ -797,7 +816,7 @@ which of the states it sent the frame was built from. The host keeps the
 states it sent by serial and forgets each once a frame names a later one.
 
 A frame is one commit of everything a plugin laid out together: the serial,
-the size each region used, its frame report, its window requests - cursor,
+the size each view used, its frame report, its window requests - cursor,
 input method area, intercepted keys and the rest - and its child placements
 and occluders, along with how long it wants to wait before being drawn again
 and the surfaces it presented. Each part is present only for a screen it
@@ -822,7 +841,7 @@ process can run. A request left unanswered for a second is asked again. A
 plugin the host is not drawing is asked for nothing.
 
 The host shows whatever the plugin has committed by the time it finishes
-building its own frame. Which surface each region is drawn from is settled then
+building its own frame. Which surface each view is drawn from is settled then
 as well, against the layout that arrived with the frame being shown, so a
 plugin that republishes its layout mid-frame is never drawn through the
 placements of the one before it.

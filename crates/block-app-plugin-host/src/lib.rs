@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use beui::{Rect, Vec2};
 use block_plugin_api::{
-    ChildId, ChildLayer, ChildMode, EditorCapabilities, EditorInstanceId, EditorRegion,
-    InteractionMode, ResizeMode, ScreenId,
+    ChildId, ChildLayer, ChildMode, EditorCapabilities, EditorInstanceId, InteractionMode,
+    ResizeMode, ScreenId, ViewId,
 };
 use block_plugin_manifest::PluginManifest;
 use uuid::Uuid;
@@ -132,13 +132,13 @@ pub struct HostChild {
     pub rotation: f32,
     pub opacity: f32,
     pub dialog: Option<block_plugin_api::DialogFrame>,
-    pub in_layer: Option<block_plugin_api::LayerId>,
+    pub anchored: Option<block_plugin_api::ViewId>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct HostLayer {
-    pub id: block_plugin_api::LayerId,
-    pub parent: block_plugin_api::LayerParent,
+    pub id: block_plugin_api::ViewId,
+    pub parent: Option<block_plugin_api::ViewId>,
     pub opened: u64,
     pub rect: Rect,
     pub bounds: Rect,
@@ -158,11 +158,11 @@ impl HostLayer {
     }
 }
 
-pub fn dismissed_by_press(layers: &[HostLayer], pos: beui::Pos2) -> Vec<block_plugin_api::LayerId> {
-    let below = |root: block_plugin_api::LayerId| {
+pub fn dismissed_by_press(layers: &[HostLayer], pos: beui::Pos2) -> Vec<block_plugin_api::ViewId> {
+    let below = |root: block_plugin_api::ViewId| {
         let mut chain = vec![root];
         for layer in layers {
-            if let block_plugin_api::LayerParent::Layer(parent) = layer.parent
+            if let Some(parent) = layer.parent
                 && chain.contains(&parent)
                 && !chain.contains(&layer.id)
             {
@@ -357,7 +357,7 @@ pub struct ArtifactStatus {
 
 pub struct ScreenStatus {
     pub screen: ScreenId,
-    pub region: EditorRegion,
+    pub view: ViewId,
     pub logical: Vec2,
     pub pixels: [u32; 2],
     pub scale_factor: f32,

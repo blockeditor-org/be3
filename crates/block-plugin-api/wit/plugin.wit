@@ -2,8 +2,7 @@ package be3:plugin@0.1.0;
 
 /// What an editor plugin offers its host.
 interface plugin {
-    use be3:manifest/types@0.1.0.{editor-region};
-    use types.{child-id, frame-commit, opening, screen-id, screen-request, size};
+    use types.{child-id, frame-commit, opening, screen-id, screen-request, size, view-id};
     use be3:shared/ids@0.1.0.{block-id};
     use accessibility.{action-request};
     use shell-types.{bar-action, drag-over, file-drop, focus};
@@ -19,10 +18,10 @@ interface plugin {
         menu-pick: func(id: string);
 
         /// The user ran an action of the bar of a child the editor placed.
-        child-bar: func(region: editor-region, child: child-id, action: bar-action);
+        child-bar: func(view: view-id, child: child-id, action: bar-action);
 
         /// The user focused a child the editor placed.
-        child-focused: func(region: editor-region, child: child-id);
+        child-focused: func(view: view-id, child: child-id);
 
         /// Whether the user may edit what the editor shows.
         set-editable: func(editable: bool);

@@ -23,10 +23,10 @@ be_ops_bindgen::generate!({
         "host-window-id": crate::HostWindowId,
         "child-id": crate::ChildId,
         "web-view-id": crate::WebViewId,
-        "layer-id": crate::LayerId,
+        "view-id": crate::ViewId,
     },
     copy: [
-        "uuid", "hash", "host-window-id", "editor-instance-id", "screen-id", "child-id", "web-view-id", "layer-id",
+        "uuid", "hash", "host-window-id", "editor-instance-id", "screen-id", "child-id", "web-view-id", "view-id",
     ],
     default: [
         "frame-chrome", "top-bar", "frame-spec", "size", "fonts", "screen-layout",
@@ -62,7 +62,7 @@ pub use blocks::{
 };
 pub use debug::debug::{DebugTemplate, PerformanceMeasurement};
 pub use dock::{
-    DockChildRequest, DockClosedTab, DockDeclaredChild, DockHostedRegion, DockPickedTab, DockUpdate,
+    DockChildRequest, DockClosedTab, DockDeclaredChild, DockHostedView, DockPickedTab, DockUpdate,
 };
 pub use guest::dock::DockWatch;
 pub use host_services::{AccessGrant, AccessListing, ImportedBlock, Revision, ShellDialog};
@@ -73,27 +73,27 @@ pub use shell_types::{
     CreationProgress, DialogAnswer, DialogStatus, DroppedFile, EditorDescriptor, FitArea,
     PreviewImage, ShellCommand, Stopped, TemplateDescriptor, ViewChange, WebViewEvent,
 };
-pub use types::{BlockFilter, BlockLocation, BlockPick, OpenPicker, PickedBlock};
 pub use types::{
-    ChildContent, ChildLayer, ChildMode, ChildPlacement, ChildPlacements, DialogFrame, Failure,
-    FontFace, FontRole, Fonts, FrameChrome, FrameCommit, FrameReport, FrameSpec, Hello,
-    HelloAccepted, HostPanel, HostTransform, InputBatch, Insets, Layer, LayerEdge, LayerParent,
-    LayerPlacement, LayerSpace, Occluder, OpenArtifact, OpenBlock, OpenCreation, Opening,
-    PresentedFrame, PressClaim, RegionSize, ScreenDamage, ScreenLayout, ScreenPlacement,
-    ScreenRequest, ScreenWindow, Scrim, Size, SurfaceFormat, SurfaceRect, SurfaceSpec,
-    SurfaceSupport, TimedInput, TopBar, ViewportMetrics,
+    AnchoredPlacement, AnchoredView, ChildContent, ChildLayer, ChildMode, ChildPlacement,
+    ChildPlacements, DialogFrame, Failure, FontFace, FontRole, Fonts, FrameChrome, FrameCommit,
+    FrameReport, FrameSpec, Hello, HelloAccepted, HostPanel, HostTransform, HostView, InputBatch,
+    Insets, LayerSpace, Occluder, OpenArtifact, OpenBlock, OpenCreation, Opening, PresentedFrame,
+    PressClaim, ScreenDamage, ScreenLayout, ScreenPlacement, ScreenRequest, ScreenWindow, Scrim,
+    Size, SurfaceFormat, SurfaceRect, SurfaceSpec, SurfaceSupport, TimedInput, TopBar, ViewAnchor,
+    ViewEdge, ViewPlacement, ViewSize, ViewportMetrics,
 };
+pub use types::{BlockFilter, BlockLocation, BlockPick, OpenPicker, PickedBlock};
 pub use types::{
     DockBar, DockBarMove, DockBarPlace, DockBarPlacement, DockBarWindow, DockChild, DockChildClose,
     DockChildHosted, DockChildPick, DockCover, DockDeclaration, DockDeclare, DockDialog,
     DockDirection, DockDragStage, DockEdge, DockFullscreen, DockGroup, DockHome, DockHosted,
     DockItem, DockItemKind, DockLayout, DockMessage, DockOutside, DockOutsidePane,
-    DockOutsidePlace, DockPane, DockPlace, DockPlacedBar, DockRegionRequest, DockRequest,
-    DockSplit, DockTab, DockTabPath, DockTree, DockWindow,
+    DockOutsidePlace, DockPane, DockPlace, DockPlacedBar, DockRequest, DockSplit, DockTab,
+    DockTabPath, DockTree, DockViewRequest, DockWindow,
 };
 pub use types::{MenuCheck, MenuCommand, MenuHeading, MenuItem, MenuItemKind, MenuPin};
 pub use types::{
-    RegionRef, WindowEdge, WindowOpen, WindowOver, WindowPlacement, WindowRequest, WindowResize,
+    ViewRef, WindowEdge, WindowOpen, WindowOver, WindowPlacement, WindowRequest, WindowResize,
     WindowResizeBegin,
 };
 
@@ -144,8 +144,8 @@ mod watch;
 pub use block_ids::BlockIdRole;
 use block_plugin_manifest::extension_of;
 pub use block_plugin_manifest::{
-    BlockTypeDescriptor, ChildOperations, EditorCapabilities, EditorRegion, Edits, InteractionMode,
-    MAX_STRING_BYTES, PanMode, PluginIdentity, Press, ResizeMode, TemplateCategory,
+    BlockTypeDescriptor, ChildOperations, EditorCapabilities, Edits, InteractionMode,
+    MAX_STRING_BYTES, PanMode, ParentView, PluginIdentity, Press, ResizeMode, TemplateCategory,
 };
 pub use docking::{
     DockEntry, DockFloating, DockNode, DockNodes, MAX_DOCK_DEPTH, MAX_DOCK_NESTING, dock_prefix,
@@ -330,7 +330,7 @@ impl ScreenLayout {
                 .map(|request| ScreenPlacement {
                     screen: request.screen,
                     instance: request.instance,
-                    region: request.region,
+                    view: request.view,
                     surface: surface(request.screen),
                     width: request.metrics.pixel_width,
                     height: request.metrics.pixel_height,
@@ -362,8 +362,103 @@ pub struct ChildId(pub u64);
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct WebViewId(pub u32);
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct LayerId(pub u64);
+#[derive(
+    Clone, Copy, Debug, Default, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
+)]
+pub struct ViewId(pub u64);
+
+impl ViewId {
+    pub const MAIN: Self = Self(0);
+    const REQUESTED: u64 = 1 << 63;
+    pub const PREVIEW: Self = Self(Self::REQUESTED);
+    pub const ARTIFACT_SETTINGS: Self = Self(Self::REQUESTED + 1);
+
+    pub const fn display(display: u32) -> Self {
+        Self(Self::REQUESTED + 1 + display as u64)
+    }
+
+    pub fn is_main(self) -> bool {
+        self == Self::MAIN
+    }
+}
+
+impl ViewPlacement {
+    pub fn reports(self) -> bool {
+        !matches!(
+            self,
+            Self::Parent(ParentView::Preview | ParentView::ArtifactSettings)
+        )
+    }
+}
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct View {
+    pub id: ViewId,
+    pub placement: ViewPlacement,
+}
+
+impl View {
+    pub const MAIN: Self = Self::parent(ParentView::Main);
+    pub const PREVIEW: Self = Self::parent(ParentView::Preview);
+    pub const ARTIFACT_SETTINGS: Self = Self::parent(ParentView::ArtifactSettings);
+
+    pub const fn parent(view: ParentView) -> Self {
+        Self {
+            id: match view {
+                ParentView::Main => ViewId::MAIN,
+                ParentView::Preview => ViewId::PREVIEW,
+                ParentView::ArtifactSettings => ViewId::ARTIFACT_SETTINGS,
+            },
+            placement: ViewPlacement::Parent(view),
+        }
+    }
+
+    pub const fn display(display: u32) -> Self {
+        Self {
+            id: ViewId::display(display),
+            placement: ViewPlacement::Host(HostView::Display(display)),
+        }
+    }
+
+    pub const fn window(id: ViewId) -> Self {
+        Self {
+            id,
+            placement: ViewPlacement::Host(HostView::Window),
+        }
+    }
+
+    pub const fn dock(id: ViewId) -> Self {
+        Self {
+            id,
+            placement: ViewPlacement::Dock,
+        }
+    }
+
+    pub fn requested(id: ViewId) -> Option<Self> {
+        match id {
+            ViewId::MAIN => Some(Self::MAIN),
+            ViewId::PREVIEW => Some(Self::PREVIEW),
+            ViewId::ARTIFACT_SETTINGS => Some(Self::ARTIFACT_SETTINGS),
+            ViewId(raw) => {
+                let display = raw.checked_sub(ViewId::ARTIFACT_SETTINGS.0)?;
+                let display = u32::try_from(display).ok().filter(|display| *display > 0)?;
+                Some(Self::display(display))
+            }
+        }
+    }
+
+    pub fn is_main(self) -> bool {
+        self.id.is_main()
+    }
+
+    pub fn is_preview(self) -> bool {
+        self.placement == ViewPlacement::Parent(ParentView::Preview)
+    }
+
+    pub fn is_window(self) -> bool {
+        self.placement == ViewPlacement::Host(HostView::Window)
+    }
+}
 
 impl HostTransform {
     pub const IDENTITY: Self = Self {
@@ -529,7 +624,7 @@ impl From<Input> for TimedInput {
             input,
             time_micros: None,
             over: None,
-            layer: None,
+            anchored: None,
         }
     }
 }
@@ -568,22 +663,29 @@ impl FrameCommit {
 
 impl FrameReport {
     pub fn validate(&self) -> Result<(), DecodeError> {
-        collection(self.layers.len())?;
-        for (index, layer) in self.layers.iter().enumerate() {
-            let earlier = &self.layers[..index];
-            if earlier.iter().any(|other| other.id == layer.id) {
-                return Err(DecodeError::MalformedPayload);
-            }
-            if let LayerParent::Layer(parent) = layer.parent
-                && !earlier.iter().any(|other| other.id == parent)
+        collection(self.anchored.len())?;
+        for (index, anchored) in self.anchored.iter().enumerate() {
+            let (earlier, rest) = self.anchored.split_at(index);
+            if earlier.iter().any(|other| other.view == anchored.view)
+                || rest
+                    .iter()
+                    .any(|later| later.view == anchored.placement.parent)
             {
                 return Err(DecodeError::MalformedPayload);
             }
-            collection(layer.painted.len())?;
-            collection(layer.floating.len())?;
-            collection(layer.scrims.len())?;
+            collection(anchored.painted.len())?;
+            collection(anchored.floating.len())?;
+            collection(anchored.scrims.len())?;
         }
         Ok(())
+    }
+
+    pub fn anchored_parent(&self, index: usize) -> Option<ViewId> {
+        let parent = self.anchored.get(index)?.placement.parent;
+        self.anchored[..index]
+            .iter()
+            .any(|earlier| earlier.view == parent)
+            .then_some(parent)
     }
 }
 

@@ -20,8 +20,8 @@ pub use document::{
     EditorDocument, InOrder, ManifestDocument, TemplateDocument, manifest_from_json,
 };
 pub use types::{
-    BlockTypeDescriptor, ChildOperations, EditorCapabilities, EditorRegion, Edits, InteractionMode,
-    PanMode, PluginIdentity, Press, ResizeMode, TemplateCategory,
+    BlockTypeDescriptor, ChildOperations, EditorCapabilities, Edits, InteractionMode, PanMode,
+    ParentView, PluginIdentity, Press, ResizeMode, TemplateCategory,
 };
 
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
@@ -71,7 +71,7 @@ pub struct EditorManifest {
     pub interaction: InteractionMode,
     pub capabilities: EditorCapabilities,
     pub resize: ResizeMode,
-    pub regions: Vec<EditorRegion>,
+    pub views: Vec<ParentView>,
     pub accepts: Vec<ShellRequest>,
 }
 
@@ -147,8 +147,8 @@ impl ResizeMode {
     }
 }
 
-impl EditorRegion {
-    pub const ALL: [Self; 3] = [Self::Frame, Self::Preview, Self::ArtifactSettings];
+impl ParentView {
+    pub const ALL: [Self; 3] = [Self::Main, Self::Preview, Self::ArtifactSettings];
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -159,7 +159,7 @@ pub enum ManifestError {
     InvalidIdentity,
     InvalidBlockType,
     InvalidEditorId,
-    InvalidRegions,
+    InvalidViews,
     InvalidNetworkHost,
     UnknownExtension,
     NoEditors,
@@ -180,8 +180,8 @@ impl fmt::Display for ManifestError {
             Self::InvalidIdentity => formatter.write_str("the plugin id is not a plain identifier"),
             Self::InvalidBlockType => formatter.write_str("the block type is not a uuid"),
             Self::InvalidEditorId => formatter.write_str("the editor id is not a uuid"),
-            Self::InvalidRegions => {
-                formatter.write_str("the regions must include the frame exactly once")
+            Self::InvalidViews => {
+                formatter.write_str("the views must include the main view exactly once")
             }
             Self::InvalidNetworkHost => {
                 formatter.write_str("a network host is not a plain host name")
@@ -279,12 +279,12 @@ impl EditorManifest {
         manifest_string("editor name", &self.name)?;
         manifest_string("display name", &self.display_name)?;
         manifest_string("icon", &self.icon)?;
-        if !self.regions.contains(&EditorRegion::Frame)
-            || EditorRegion::ALL
+        if !self.views.contains(&ParentView::Main)
+            || ParentView::ALL
                 .iter()
-                .any(|region| self.regions.iter().filter(|it| *it == region).count() > 1)
+                .any(|view| self.views.iter().filter(|it| *it == view).count() > 1)
         {
-            return Err(ManifestError::InvalidRegions);
+            return Err(ManifestError::InvalidViews);
         }
         if self.edits == Edits::Nothing && !self.templates.is_empty() {
             return Err(ManifestError::ServiceWithTemplates);

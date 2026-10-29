@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn layers_and_their_children_round_trip() {
+fn anchored_views_and_their_children_round_trip() {
     let mut request = screen(1, 2, 640, 480, 2.0);
     request.layers = Some(LayerSpace {
         to_host: HostTransform {
@@ -15,12 +15,7 @@ fn layers_and_their_children_round_trip() {
     let menu = Rect::from_min_size(Pos2::new(210.0, 120.0), Vec2::new(180.0, 240.0));
     let submenu = Rect::from_min_size(Pos2::new(390.0, 160.0), Vec2::new(160.0, 120.0));
     let sheet = Rect::from_min_size(Pos2::new(0.0, 500.0), Vec2::new(1280.0, 300.0));
-    let mut popover = layer(
-        3,
-        LayerParent::Region,
-        LayerPlacement::Edge(LayerEdge::Bottom),
-        sheet,
-    );
+    let mut popover = anchored(3, 0, ViewAnchor::Edge(ViewEdge::Bottom), sheet);
     popover.scrims = vec![Scrim {
         rect: Rect::from_min_size(Pos2::ZERO, Vec2::new(1280.0, 800.0)),
         color: crate::accessibility::Color {
@@ -35,19 +30,19 @@ fn layers_and_their_children_round_trip() {
         reports: vec![report(
             1,
             vec![
-                layer(
+                anchored(
                     1,
-                    LayerParent::Region,
-                    LayerPlacement::Anchored(Rect::from_min_size(
+                    0,
+                    ViewAnchor::Rect(Rect::from_min_size(
                         Pos2::new(10.0, 10.0),
                         Vec2::new(24.0, 24.0),
                     )),
                     menu,
                 ),
-                layer(
+                anchored(
                     2,
-                    LayerParent::Layer(LayerId(1)),
-                    LayerPlacement::Anchored(Rect::from_min_size(
+                    1,
+                    ViewAnchor::Rect(Rect::from_min_size(
                         Pos2::new(210.0, 160.0),
                         Vec2::new(180.0, 28.0),
                     )),
@@ -58,7 +53,7 @@ fn layers_and_their_children_round_trip() {
         )],
         children: vec![ChildPlacements {
             instance: EditorInstanceId(2),
-            region: EditorRegion::Frame,
+            view: ViewId::MAIN,
             children: vec![ChildPlacement {
                 child: ChildId(4),
                 content: ChildContent::Picker {
@@ -79,7 +74,7 @@ fn layers_and_their_children_round_trip() {
                 follows_view: false,
                 dialog: None,
                 docks: None,
-                in_layer: Some(LayerId(3)),
+                anchored: Some(ViewId(3)),
             }],
             occluders: Vec::new(),
         }],
@@ -91,10 +86,10 @@ fn layers_and_their_children_round_trip() {
     round_trips(&InputBatch {
         screen: ScreenId(1),
         events: vec![TimedInput {
-            layer: Some(LayerId(2)),
+            anchored: Some(ViewId(2)),
             ..Input::PointerMoved(Pos2::new(200.0, 90.0)).into()
         }],
         every_sample: false,
-        dismissed: vec![LayerId(3)],
+        dismissed: vec![ViewId(3)],
     });
 }

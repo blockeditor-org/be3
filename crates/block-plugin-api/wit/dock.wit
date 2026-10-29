@@ -4,21 +4,20 @@ package be3:plugin@0.1.0;
 /// the docks of the children it placed. What the instance says back travels
 /// in its frames, as `dock-message`s.
 interface dock {
-    use be3:manifest/types@0.1.0.{editor-region};
-    use types.{child-id, dock-declaration, dock-hosted, dock-request, dock-tab-path, editor-instance-id};
+    use types.{child-id, dock-declaration, dock-hosted, dock-request, dock-tab-path, editor-instance-id, view-id};
 
-    record dock-hosted-region {
-        region: editor-region,
+    record dock-hosted-view {
+        view: view-id,
         hosted: option<dock-hosted>,
     }
 
     record dock-closed-tab {
-        region: editor-region,
+        view: view-id,
         tab: dock-tab-path,
     }
 
     record dock-picked-tab {
-        region: editor-region,
+        view: view-id,
         tab: dock-tab-path,
         id: string,
     }
@@ -37,7 +36,7 @@ interface dock {
         request: dock-request,
     }
 
-    /// For a docked region of the instance: what the root shows of its own
+    /// For a docked view of the instance: what the root shows of its own
     /// tabs (`none` until the root hosts it, and again once it lets go), the
     /// user closing one of them, and the user picking command `id` of the
     /// menu one of them carries. For the root, of each docked child it
@@ -45,7 +44,7 @@ interface dock {
     /// in (`none` once it withdrew it or closed), and what the child or a
     /// descendant asks of the dock.
     variant dock-update {
-        hosted(dock-hosted-region),
+        hosted(dock-hosted-view),
         close(dock-closed-tab),
         pick(dock-picked-tab),
         child(dock-declared-child),
@@ -53,7 +52,7 @@ interface dock {
     }
 
     /// The dock updates of an instance. `next` answers with every update
-    /// since the last answer, in order, except that a `hosted` for a region
+    /// since the last answer, in order, except that a `hosted` for a view
     /// or a `child` for a child replaces one still waiting, at the end.
     resource dock-watch {
         constructor(instance: editor-instance-id);

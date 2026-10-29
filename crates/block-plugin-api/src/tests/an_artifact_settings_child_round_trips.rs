@@ -4,7 +4,7 @@ use super::*;
 fn an_artifact_settings_child_round_trips() {
     let message = committed(ChildPlacements {
         instance: EditorInstanceId(1),
-        region: EditorRegion::Frame,
+        view: ViewId::MAIN,
         children: vec![ChildPlacement {
             child: ChildId(6),
             content: ChildContent::ArtifactSettings { block_id: [3; 16] },
@@ -21,7 +21,7 @@ fn an_artifact_settings_child_round_trips() {
             follows_view: false,
             dialog: None,
             docks: None,
-            in_layer: None,
+            anchored: None,
         }],
         occluders: Vec::new(),
     });

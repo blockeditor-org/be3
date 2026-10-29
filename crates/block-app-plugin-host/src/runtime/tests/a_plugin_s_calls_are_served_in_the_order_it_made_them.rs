@@ -24,7 +24,7 @@ fn opened(runtime: &mut Runtime, guest: &mut Connection) -> OpId {
     let size = vec2(100.0, 100.0);
     runtime.instances.report(
         INSTANCE,
-        EditorRegion::Frame,
+        View::MAIN,
         Uuid::nil(),
         InstanceRole::Editor(
             Uuid::nil(),
@@ -81,7 +81,7 @@ fn a_plugin_s_calls_are_served_in_the_order_it_made_them() {
                 "edits": "00000000-0000-4000-8000-0000000000c4",
                 "display_name": "Ordered",
                 "icon": "x",
-                "regions": ["Frame"]
+                "views": ["Main"]
             }},
             "entry_point": "test.ordered.wasm"
         }"#,

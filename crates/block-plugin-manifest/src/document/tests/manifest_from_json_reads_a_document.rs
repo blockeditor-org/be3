@@ -24,6 +24,6 @@ fn manifest_from_json_reads_a_document() {
         )
     );
     assert_eq!(editor.icon, "\u{e0ef}");
-    assert_eq!(editor.regions, vec![EditorRegion::Frame]);
+    assert_eq!(editor.views, vec![ParentView::Main]);
     assert_eq!(manifest.entry_point, "counter.wasm");
 }

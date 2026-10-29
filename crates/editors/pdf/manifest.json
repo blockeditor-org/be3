@@ -21,8 +21,8 @@
         "pan": "OneFinger"
       },
       "resize": "None",
-      "regions": [
-        "Frame",
+      "views": [
+        "Main",
         "Preview"
       ]
     }

@@ -54,7 +54,7 @@ fn declared(session: &mut EditorSession) -> Option<block_plugin_api::DockDeclara
 #[test]
 fn a_docked_editors_nested_dock_and_dialog_join_its_declaration() {
     let mut session = session::<NestingApp>(Uuid::new_v4());
-    show_docked(&mut session, &[(EditorRegion::Frame, 0)], true);
+    show_docked(&mut session, &[(View::MAIN, 0)], true);
     let first = declared(&mut session).expect("the docked editor declares its dock");
     let dialog = first
         .dialog(&DockTabPath::own(3))
@@ -65,7 +65,7 @@ fn a_docked_editors_nested_dock_and_dialog_join_its_declaration() {
     session
         .host()
         .receive_dock_updates(vec![hosted_tabs(&[1, 2], &[1], Some(1))]);
-    let shown = [(EditorRegion::Frame, 0), (EditorRegion::Tab(1), 1)];
+    let shown = [(View::MAIN, 0), (View::dock(ViewId(1)), 1)];
     for _ in 0..3 {
         show_docked(&mut session, &shown, true);
     }

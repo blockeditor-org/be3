@@ -5,9 +5,9 @@ fn a_dock_declaration_round_trips_and_nests() {
     let declaration = declaration();
     let message = FrameCommit {
         docks: vec![DockMessage::Declare(DockDeclare {
-            region: RegionRef {
+            view: ViewRef {
                 instance: EditorInstanceId(1),
-                region: EditorRegion::Frame,
+                view: ViewId::MAIN,
             },
             declaration: Some(declaration.clone()),
         })],
@@ -32,9 +32,9 @@ fn a_dock_declaration_round_trips_and_nests() {
         .unwrap();
     let foreign = FrameCommit {
         docks: vec![DockMessage::Declare(DockDeclare {
-            region: RegionRef {
+            view: ViewRef {
                 instance: EditorInstanceId(1),
-                region: EditorRegion::Frame,
+                view: ViewId::MAIN,
             },
             declaration: Some(spliced),
         })],

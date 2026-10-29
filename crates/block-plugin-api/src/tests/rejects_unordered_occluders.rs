@@ -3,7 +3,7 @@ use super::*;
 fn placements(occluders: Vec<Occluder>) -> FrameCommit {
     committed(ChildPlacements {
         instance: EditorInstanceId(1),
-        region: EditorRegion::Frame,
+        view: ViewId::MAIN,
         children: vec![ChildPlacement {
             child: ChildId(1),
             content: ChildContent::Block {
@@ -25,7 +25,7 @@ fn placements(occluders: Vec<Occluder>) -> FrameCommit {
             follows_view: false,
             dialog: None,
             docks: None,
-            in_layer: None,
+            anchored: None,
         }],
         occluders,
     })

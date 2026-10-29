@@ -1,6 +1,6 @@
 use beui_core::accesskit::Role;
 use beui_core::input::PointerButton;
-use block_editor_plugin::{HostTransform, LayerParent, LayerPlacement, LayerSpace, TimedInput};
+use block_editor_plugin::{HostTransform, LayerSpace, TimedInput, ViewAnchor};
 
 use super::*;
 
@@ -85,16 +85,16 @@ fn a_regions_menu_escapes_as_a_layer_it_paints_and_takes_input_on() {
     );
     let shown = spaced();
     one(&mut surface, &shown);
-    assert!(one(&mut surface, &shown).layers.is_empty());
+    assert!(one(&mut surface, &shown).anchored.is_empty());
 
     open_at.set(Some(pos2(90.0, 50.0)));
     let frame = one(&mut surface, &shown);
-    let [layer] = frame.layers.as_slice() else {
-        panic!("the open menu is one layer: {:?}", frame.layers);
+    let [layer] = frame.anchored.as_slice() else {
+        panic!("the open menu is one layer: {:?}", frame.anchored);
     };
-    assert_eq!(layer.parent, LayerParent::Region);
+    assert_eq!(layer.placement.parent, ViewId::MAIN);
     assert!(
-        matches!(layer.placement, LayerPlacement::Anchored(_)),
+        matches!(layer.placement.anchor, ViewAnchor::Rect(_)),
         "a context menu is anchored to its press"
     );
     let region = Rect::from_min_size(ORIGIN, vec2(100.0, 60.0));
@@ -108,7 +108,7 @@ fn a_regions_menu_escapes_as_a_layer_it_paints_and_takes_input_on() {
         "a frame that opens a layer asks to be painted"
     );
     assert!(
-        surface.layer_painting(shown.id(), layer.id).is_some(),
+        surface.anchored_painting(shown.id(), layer.view).is_some(),
         "the layer has a painting of its own"
     );
 
@@ -135,7 +135,7 @@ fn a_regions_menu_escapes_as_a_layer_it_paints_and_takes_input_on() {
         },
     ] {
         let event = TimedInput {
-            layer: Some(layer.id),
+            anchored: Some(layer.view),
             ..TimedInput::from(input)
         };
         surface.input(&shown, &event, None);
@@ -147,16 +147,16 @@ fn a_regions_menu_escapes_as_a_layer_it_paints_and_takes_input_on() {
         "a press on the layer's row chooses it"
     );
     assert!(
-        one(&mut surface, &shown).layers.is_empty(),
+        one(&mut surface, &shown).anchored.is_empty(),
         "and closes the menu"
     );
 
     open_at.set(Some(pos2(90.0, 50.0)));
-    let opened = one(&mut surface, &shown).layers;
+    let opened = one(&mut surface, &shown).anchored;
     assert_eq!(opened.len(), 1);
-    surface.dismiss_layers(&shown, &[opened[0].id]);
+    surface.dismiss_anchored(&shown, &[opened[0].view]);
     assert!(
-        one(&mut surface, &shown).layers.is_empty(),
+        one(&mut surface, &shown).anchored.is_empty(),
         "a dismissal from the host closes the layer"
     );
     assert_eq!(open_at.get_untracked(), None);

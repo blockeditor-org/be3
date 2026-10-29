@@ -1,11 +1,12 @@
 use block_plugin_api::{
-    EditorInstanceId, EditorRegion, FrameCommit, HelloAccepted, OpenBlock, Opening, ScreenId,
-    ScreenRequest, Size, SurfaceFormat, SurfaceSpec, TimedInput, ViewportMetrics,
+    EditorInstanceId, FrameCommit, HelloAccepted, OpenBlock, Opening, ParentView, ScreenId,
+    ScreenRequest, Size, SurfaceFormat, SurfaceSpec, TimedInput, ViewId, ViewPlacement, ViewRef,
+    ViewportMetrics,
 };
 use uuid::Uuid;
 
 use crate::headless::HeadlessPlugin;
-use crate::{EditorHost, Frame, Instance, Region, RegionId, Regions, Waker};
+use crate::{EditorHost, Frame, Instance, Region, Regions, Waker};
 
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 const SCREEN: ScreenId = ScreenId(1);
@@ -15,7 +16,7 @@ struct Still(EditorHost);
 impl Instance for Still {
     fn connect(&mut self, _block_id: Uuid) {}
 
-    fn open_region(&mut self, _region: EditorRegion) {
+    fn open_view(&mut self, _view: block_plugin_api::View) {
         if !self.0.handles_regions() {
             self.0.handle_regions(Box::new(StillRegions));
         }
@@ -25,7 +26,7 @@ impl Instance for Still {
 struct StillRegions;
 
 impl Regions for StillRegions {
-    fn input(&mut self, _region: &Region, _event: &TimedInput, _over: Option<RegionId>) {}
+    fn input(&mut self, _region: &Region, _event: &TimedInput, _over: Option<ViewRef>) {}
 
     fn frame(&mut self, regions: &[Region]) -> Vec<Frame> {
         regions
@@ -40,7 +41,7 @@ impl Regions for StillRegions {
     #[cfg(target_arch = "wasm32")]
     fn paint(
         &mut self,
-        _region: crate::RegionId,
+        _region: ViewRef,
         target: &crate::PaintTarget<'_>,
     ) -> Vec<block_plugin_api::SurfaceRect> {
         target.whole()
@@ -52,7 +53,8 @@ fn configure(plugin: &mut HeadlessPlugin, height: f32, serial: u64) {
         .screens(vec![ScreenRequest {
             screen: SCREEN,
             instance: INSTANCE,
-            region: EditorRegion::Frame,
+            view: ViewId::MAIN,
+            placement: ViewPlacement::Parent(ParentView::Main),
             frame: None,
             metrics: ViewportMetrics {
                 logical: Size {
@@ -66,7 +68,7 @@ fn configure(plugin: &mut HeadlessPlugin, height: f32, serial: u64) {
                 raster: 1.0,
             },
             windows: false,
-            placement: None,
+            host_place: None,
             docked: false,
             layers: None,
         }])

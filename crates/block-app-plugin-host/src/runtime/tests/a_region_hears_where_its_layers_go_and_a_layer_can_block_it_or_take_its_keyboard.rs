@@ -1,9 +1,9 @@
 use super::*;
 use crate::EditorBlock;
-use block_plugin_api::{Layer, LayerParent, LayerPlacement};
+use block_plugin_api::{AnchoredPlacement, AnchoredView, ViewAnchor, ViewEdge};
 
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
-const REGION: EditorRegion = EditorRegion::Frame;
+const REGION: ViewId = ViewId::MAIN;
 const PLUGIN: &str = "test.layered";
 
 fn manifest() -> PluginManifest {
@@ -17,7 +17,7 @@ fn manifest() -> PluginManifest {
                 "edits": "00000000-0000-4000-8000-0000000000d1",
                 "display_name": "Layered",
                 "icon": "x",
-                "regions": ["Frame"]
+                "views": ["Main"]
             }},
             "entry_point": "test.layered.wasm"
         }"#,
@@ -25,12 +25,14 @@ fn manifest() -> PluginManifest {
     .expect("the manifest is valid")
 }
 
-fn sheet(blocks_owner: bool, keyboard: bool) -> Layer {
+fn sheet(blocks_owner: bool, keyboard: bool) -> AnchoredView {
     let rect = Rect::from_min_size(pos2(0.0, 400.0), vec2(800.0, 200.0));
-    Layer {
-        id: LayerId(1),
-        parent: LayerParent::Region,
-        placement: LayerPlacement::Edge(block_plugin_api::LayerEdge::Bottom),
+    AnchoredView {
+        view: ViewId(1),
+        placement: AnchoredPlacement {
+            parent: ViewId::MAIN,
+            anchor: ViewAnchor::Edge(ViewEdge::Bottom),
+        },
         rect,
         surface: 3,
         painted: vec![rect],
@@ -42,7 +44,7 @@ fn sheet(blocks_owner: bool, keyboard: bool) -> Layer {
     }
 }
 
-fn commit(serial: u64, layers: Vec<Layer>) {
+fn commit(serial: u64, layers: Vec<AnchoredView>) {
     with(PLUGIN, |runtime| {
         let screen = runtime
             .instances
@@ -61,7 +63,7 @@ fn commit(serial: u64, layers: Vec<Layer>) {
                 drawing: Vec::new(),
                 claims: Vec::new(),
                 description: None,
-                layers,
+                anchored: layers,
             }],
             windows: Vec::new(),
             children: Vec::new(),
@@ -94,7 +96,7 @@ fn a_region_hears_where_its_layers_go_and_a_layer_can_block_it_or_take_its_keybo
     with(PLUGIN, |runtime| {
         runtime.instances.mount(
             INSTANCE,
-            REGION,
+            View::MAIN,
             Uuid::nil(),
             role,
             &Arc::new(crate::PluginCatalog::default()),
@@ -126,7 +128,7 @@ fn a_region_hears_where_its_layers_go_and_a_layer_can_block_it_or_take_its_keybo
             .next_screens(0)
             .screens
             .into_iter()
-            .find(|request| request.region == REGION)
+            .find(|request| request.view == REGION)
             .and_then(|request| request.layers)
     })
     .flatten();

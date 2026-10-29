@@ -4,10 +4,7 @@ use super::*;
 fn a_moved_region_moves_its_layers_with_it_and_a_pan_does_not() {
     let mut instances = layered(pos2(10.0, 10.0));
     let menu = Rect::from_min_size(pos2(50.0, 50.0), vec2(60.0, 40.0));
-    report_layers(
-        &mut instances,
-        vec![layer(1, block_plugin_api::LayerParent::Region, menu)],
-    );
+    report_layers(&mut instances, vec![layer(1, 0, menu)]);
 
     instances.set_view(
         INSTANCE,
@@ -32,10 +29,7 @@ fn a_moved_region_moves_its_layers_with_it_and_a_pan_does_not() {
     );
 
     lay_out(&mut instances);
-    report_layers(
-        &mut instances,
-        vec![layer(1, block_plugin_api::LayerParent::Region, menu)],
-    );
+    report_layers(&mut instances, vec![layer(1, 0, menu)]);
     assert_eq!(
         shown_rects(&instances),
         vec![moved],
@@ -47,10 +41,7 @@ fn a_moved_region_moves_its_layers_with_it_and_a_pan_does_not() {
         "input to the region sends it where it now is"
     );
     lay_out(&mut instances);
-    report_layers(
-        &mut instances,
-        vec![layer(1, block_plugin_api::LayerParent::Region, moved)],
-    );
+    report_layers(&mut instances, vec![layer(1, 0, moved)]);
     assert_eq!(
         shown_rects(&instances),
         vec![moved],

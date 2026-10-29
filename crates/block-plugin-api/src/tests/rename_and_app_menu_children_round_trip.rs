@@ -19,11 +19,11 @@ fn rename_and_app_menu_children_round_trip() {
         follows_view: false,
         dialog: None,
         docks: None,
-        in_layer: Some(LayerId(child)),
+        anchored: Some(ViewId(child)),
     };
     let mut message = committed(ChildPlacements {
         instance: EditorInstanceId(3),
-        region: EditorRegion::Frame,
+        view: ViewId::MAIN,
         children: vec![
             child(1, ChildContent::Rename([1; 16])),
             child(2, ChildContent::Host(HostPanel::AppMenu)),

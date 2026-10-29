@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 use block_plugin_api::{FrameCommit, PresentedFrame, ScreenLayout, SurfaceFormat, SurfaceSpec};
 
 use crate::{
-    panes::{Panes, ShownLayer},
+    panes::{Panes, ShownAnchored},
     screens::Screens,
 };
 
@@ -125,7 +125,7 @@ impl Surfaces {
         let animating = ran.animating;
         let layers = self.place_layers(screens);
         let seen = crate::screens::seen();
-        let layers: Vec<ShownLayer> = layers
+        let layers: Vec<ShownAnchored> = layers
             .into_iter()
             .filter(|layer| {
                 (layer.fresh && seen)
@@ -151,7 +151,7 @@ impl Surfaces {
                 self.fresh.remove(&surface);
             }
             self.panes
-                .paint_layers(&gpu.device, &gpu.queue, *format, screens, &layers)?;
+                .paint_anchored(&gpu.device, &gpu.queue, *format, screens, &layers)?;
             let sequence = PRESENTS.with(|presents| {
                 presents.set(presents.get() + 1);
                 presents.get()
@@ -174,16 +174,16 @@ impl Surfaces {
         surfaces
     }
 
-    fn place_layers(&mut self, screens: &Screens) -> Vec<ShownLayer> {
+    fn place_layers(&mut self, screens: &Screens) -> Vec<ShownAnchored> {
         let mut shown = Vec::new();
         for placement in &self.layout.screens {
             let Some(session) = screens.get(placement.instance) else {
                 continue;
             };
-            for layer in session.layer_surfaces(placement.region) {
-                shown.push(ShownLayer {
+            for layer in session.anchored_surfaces(placement.view) {
+                shown.push(ShownAnchored {
                     placement: *placement,
-                    layer: *layer,
+                    anchored: *layer,
                     fresh: false,
                 });
             }
@@ -193,19 +193,20 @@ impl Surfaces {
         };
         let format = *format;
         self.layers.retain(|surface, _| {
-            let open = shown.iter().any(|layer| layer.layer.surface == *surface);
+            let open = shown.iter().any(|layer| layer.anchored.surface == *surface);
             if !open {
                 block_gpu_guest::release_surface(*surface);
             }
             open
         });
         for layer in &mut shown {
-            let [width, height] = layer.layer.pixels;
-            if self.layers.get(&layer.layer.surface) == Some(&layer.layer.pixels) {
+            let [width, height] = layer.anchored.pixels;
+            if self.layers.get(&layer.anchored.surface) == Some(&layer.anchored.pixels) {
                 continue;
             }
-            block_gpu_guest::configure_surface(layer.layer.surface, width, height, format);
-            self.layers.insert(layer.layer.surface, layer.layer.pixels);
+            block_gpu_guest::configure_surface(layer.anchored.surface, width, height, format);
+            self.layers
+                .insert(layer.anchored.surface, layer.anchored.pixels);
             layer.fresh = true;
         }
         shown

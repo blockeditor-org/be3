@@ -7,9 +7,9 @@ use block_editor_beui::be_block::{
 };
 use block_editor_beui::{BlockInfo, BlockParent};
 use block_plugin_api::{
-    DockBarPlacement, DockEdge, DockHosted, DockHostedRegion, DockItem, DockItemKind, DockLayout,
+    DockBarPlacement, DockEdge, DockHosted, DockHostedView, DockItem, DockItemKind, DockLayout,
     DockMessage, DockOutside, DockOutsidePane, DockOutsidePlace, DockPane as Pane, DockPlacedBar,
-    DockRequest, DockTabPath, DockTree, DockUpdate, EditorRegion,
+    DockRequest, DockTabPath, DockTree, DockUpdate, ViewId,
 };
 
 const BARRED_TYPE: Uuid = Uuid::from_u128(0x0b42);
@@ -90,8 +90,8 @@ fn ids(test: &mut BeuiTest<BarredApp>) -> (u64, u64) {
 }
 
 fn hosted(stage: u64, bar: u64, placement: DockBarPlacement) -> DockUpdate {
-    DockUpdate::Hosted(DockHostedRegion {
-        region: EditorRegion::Frame,
+    DockUpdate::Hosted(DockHostedView {
+        view: ViewId::MAIN,
         hosted: Some(DockHosted {
             layout: DockLayout {
                 tree: DockTree {

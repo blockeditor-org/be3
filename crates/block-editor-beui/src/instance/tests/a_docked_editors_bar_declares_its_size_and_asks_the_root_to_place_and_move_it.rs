@@ -2,14 +2,14 @@ use super::*;
 use beui::dock::unstyled::{DockBarPlacement as Placement, DockEdge as Edge};
 use block_plugin_api::{
     DockBarMove, DockBarPlace, DockBarPlacement, DockDragStage, DockEdge, DockHosted,
-    DockHostedRegion, DockItem, DockItemKind, DockLayout, DockMessage, DockPane, DockPlacedBar,
+    DockHostedView, DockItem, DockItemKind, DockLayout, DockMessage, DockPane, DockPlacedBar,
     DockRequest, DockTabPath, DockTree, DockUpdate,
 };
 
 fn hosted(bar: u64, placement: DockBarPlacement) -> DockUpdate {
     let stage = DockTabPath::own(1);
-    DockUpdate::Hosted(DockHostedRegion {
-        region: EditorRegion::Frame,
+    DockUpdate::Hosted(DockHostedView {
+        view: ViewId::MAIN,
         hosted: Some(DockHosted {
             layout: DockLayout {
                 tree: DockTree {
@@ -83,7 +83,7 @@ fn requests(session: &mut EditorSession) -> Vec<DockRequest> {
 #[test]
 fn a_docked_editors_bar_declares_its_size_and_asks_the_root_to_place_and_move_it() {
     let mut session = barred_session();
-    show_docked(&mut session, &[(EditorRegion::Frame, 0)], true);
+    show_docked(&mut session, &[(View::MAIN, 0)], true);
     let declaration = dock_messages(&mut session)
         .into_iter()
         .find_map(|message| match message {
@@ -107,7 +107,7 @@ fn a_docked_editors_bar_declares_its_size_and_asks_the_root_to_place_and_move_it
     session
         .host()
         .receive_dock_updates(vec![hosted(id, DockBarPlacement::Beside(DockEdge::Right))]);
-    let shown = [(EditorRegion::Frame, 0), (EditorRegion::Tab(id), 1)];
+    let shown = [(View::MAIN, 0), (View::dock(ViewId(id)), 1)];
     show_docked(&mut session, &shown, true);
     show_docked(&mut session, &shown, true);
 

@@ -13,10 +13,10 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use block_plugin_api::{
-    ChildContent, ChildLayer, ChildMode, EditorInstanceId, EditorRegion, FrameCommit,
-    HelloAccepted, HostTransform, Layer, LayerId, LayerParent, LayerPlacement, LayerSpace,
-    OpenBlock, Opening, ScreenId, ScreenRequest, Size, SurfaceFormat, SurfaceSpec, TimedInput,
-    TopBar, ViewportMetrics,
+    AnchoredPlacement, AnchoredView, ChildContent, ChildLayer, ChildMode, EditorInstanceId,
+    FrameCommit, HelloAccepted, HostTransform, LayerSpace, OpenBlock, Opening, ParentView,
+    ScreenId, ScreenRequest, Size, SurfaceFormat, SurfaceSpec, TimedInput, TopBar, View,
+    ViewAnchor, ViewId, ViewPlacement, ViewRef, ViewportMetrics,
 };
 use geometry::{Rect, pos2, vec2};
 use uuid::Uuid;
@@ -25,7 +25,7 @@ use crate::editor_session::EditorSession;
 use crate::screens::Screens;
 use crate::wasm::Surfaces;
 use crate::wire::Delivery;
-use crate::{EditorHost, Frame, Instance, Region, RegionId, Regions};
+use crate::{EditorHost, Frame, Instance, Region, Regions};
 
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 const SCREEN: ScreenId = ScreenId(1);
@@ -33,15 +33,15 @@ const SCREEN: ScreenId = ScreenId(1);
 #[derive(Default)]
 struct Seen {
     spaces: Vec<Option<LayerSpace>>,
-    painted: Vec<(LayerId, [u32; 2])>,
+    painted: Vec<(ViewId, [u32; 2])>,
     heard: Vec<String>,
 }
 
 #[derive(Default)]
 struct Shared {
     seen: RefCell<Seen>,
-    open: RefCell<Vec<Layer>>,
-    child_in: RefCell<Option<LayerId>>,
+    open: RefCell<Vec<AnchoredView>>,
+    child_in: RefCell<Option<ViewId>>,
 }
 
 struct Layered {
@@ -52,7 +52,7 @@ struct Layered {
 impl Instance for Layered {
     fn connect(&mut self, _block_id: Uuid) {}
 
-    fn open_region(&mut self, _region: EditorRegion) {
+    fn open_view(&mut self, _view: View) {
         if !self.host.handles_regions() {
             self.host.handle_regions(Box::new(LayeredRegions {
                 host: self.host.clone(),
@@ -68,13 +68,13 @@ struct LayeredRegions {
 }
 
 impl Regions for LayeredRegions {
-    fn input(&mut self, _region: &Region, event: &TimedInput, _over: Option<RegionId>) {
-        let heard = format!("input on {:?}", event.layer);
+    fn input(&mut self, _region: &Region, event: &TimedInput, _over: Option<ViewRef>) {
+        let heard = format!("input on {:?}", event.anchored);
         self.shared.seen.borrow_mut().heard.push(heard);
     }
 
-    fn dismiss_layers(&mut self, _region: &Region, layers: &[LayerId]) {
-        let heard = format!("dismissed {layers:?}");
+    fn dismiss_anchored(&mut self, _region: &Region, views: &[ViewId]) {
+        let heard = format!("dismissed {views:?}");
         self.shared.seen.borrow_mut().heard.push(heard);
     }
 
@@ -88,7 +88,7 @@ impl Regions for LayeredRegions {
                     .spaces
                     .push(region.layers.clone());
                 if let Some(layer) = *self.shared.child_in.borrow() {
-                    self.host.in_layer(Some(layer), || {
+                    self.host.in_anchored(Some(layer), || {
                         let rect = Rect::from_min_size(pos2(40.0, 50.0), vec2(30.0, 20.0));
                         self.host.place_child(
                             ChildContent::Rename([9; 16]),
@@ -111,7 +111,7 @@ impl Regions for LayeredRegions {
                 Frame {
                     changed: true,
                     painted: vec![region.rect],
-                    layers: self.shared.open.borrow().clone(),
+                    anchored: self.shared.open.borrow().clone(),
                     ..Frame::default()
                 }
             })
@@ -120,16 +120,16 @@ impl Regions for LayeredRegions {
 
     fn paint(
         &mut self,
-        _region: RegionId,
+        _region: ViewRef,
         target: &crate::PaintTarget<'_>,
     ) -> Vec<block_plugin_api::SurfaceRect> {
         target.whole()
     }
 
-    fn paint_layer(
+    fn paint_anchored(
         &mut self,
-        _region: RegionId,
-        layer: LayerId,
+        _region: ViewRef,
+        layer: ViewId,
         target: &crate::PaintTarget<'_>,
     ) -> Vec<block_plugin_api::SurfaceRect> {
         let size = [target.width, target.height];
@@ -148,14 +148,13 @@ fn space() -> LayerSpace {
     }
 }
 
-fn layer(id: u64, parent: LayerParent, rect: Rect) -> Layer {
-    Layer {
-        id: LayerId(id),
-        parent,
-        placement: LayerPlacement::Anchored(Rect::from_min_size(
-            pos2(10.0, 10.0),
-            vec2(20.0, 20.0),
-        )),
+fn layer(id: u64, parent: u64, rect: Rect) -> AnchoredView {
+    AnchoredView {
+        view: ViewId(id),
+        placement: AnchoredPlacement {
+            parent: ViewId(parent),
+            anchor: ViewAnchor::Rect(Rect::from_min_size(pos2(10.0, 10.0), vec2(20.0, 20.0))),
+        },
         rect,
         surface: 0,
         painted: vec![rect],
@@ -199,7 +198,8 @@ impl Rig {
         let requests = vec![ScreenRequest {
             screen: SCREEN,
             instance: INSTANCE,
-            region: EditorRegion::Frame,
+            view: ViewId::MAIN,
+            placement: ViewPlacement::Parent(ParentView::Main),
             frame: None,
             metrics: ViewportMetrics {
                 logical: Size {
@@ -213,7 +213,7 @@ impl Rig {
                 raster: 2.0,
             },
             windows: false,
-            placement: None,
+            host_place: None,
             docked: false,
             layers,
         }];
@@ -237,7 +237,7 @@ impl Rig {
         }
     }
 
-    fn open(&self, layers: Vec<Layer>) {
+    fn open(&self, layers: Vec<AnchoredView>) {
         *self.shared.open.borrow_mut() = layers;
     }
 
@@ -256,12 +256,12 @@ impl Rig {
         self.screens.layout().screens[0].surface
     }
 
-    fn layers(commit: &FrameCommit) -> Vec<Layer> {
+    fn layers(commit: &FrameCommit) -> Vec<AnchoredView> {
         commit
             .reports
             .iter()
             .find(|report| report.screen == SCREEN)
-            .map(|report| report.layers.clone())
+            .map(|report| report.anchored.clone())
             .unwrap_or_default()
     }
 }

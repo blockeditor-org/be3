@@ -1,4 +1,4 @@
-use block_plugin_api::{EditorInstanceId, EditorRegion};
+use block_plugin_api::{EditorInstanceId, ViewId};
 
 use super::*;
 mod a_frame_published_after_its_damage_was_read_is_redrawn_next;

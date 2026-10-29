@@ -267,8 +267,8 @@ impl EditorRegistry {
             .editor(editor.id.into_bytes())
             .is_some_and(|manifest| {
                 manifest
-                    .regions
-                    .contains(&block_plugin_api::EditorRegion::ArtifactSettings)
+                    .views
+                    .contains(&block_plugin_api::ParentView::ArtifactSettings)
             });
         match generates {
             true => Ok(Box::new(plugin::PluginArtifact::new(

@@ -1,7 +1,7 @@
 use super::*;
 use block_plugin_api::{
-    EditorRegion, HelloAccepted, InputBatch, OpenBlock, Opening, ScreenRequest, SurfaceFormat,
-    SurfaceSpec, ViewportMetrics,
+    HelloAccepted, InputBatch, OpenBlock, Opening, ParentView, ScreenRequest, SurfaceFormat,
+    SurfaceSpec, ViewId, ViewPlacement, ViewportMetrics,
 };
 
 fn accepted(surface: Option<SurfaceSpec>) -> Delivery {
@@ -47,7 +47,8 @@ fn screen(screen: ScreenId, instance: EditorInstanceId) -> ScreenRequest {
     ScreenRequest {
         screen,
         instance,
-        region: EditorRegion::Frame,
+        view: ViewId::MAIN,
+        placement: ViewPlacement::Parent(ParentView::Main),
         frame: None,
         metrics: ViewportMetrics {
             logical: block_plugin_api::Size {
@@ -61,7 +62,7 @@ fn screen(screen: ScreenId, instance: EditorInstanceId) -> ScreenRequest {
             raster: 1.0,
         },
         windows: false,
-        placement: None,
+        host_place: None,
         docked: false,
         layers: None,
     }

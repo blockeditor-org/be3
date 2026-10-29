@@ -11,8 +11,8 @@
       "templates": {
         "main": {}
       },
-      "regions": [
-        "Frame"
+      "views": [
+        "Main"
       ]
     }
   },

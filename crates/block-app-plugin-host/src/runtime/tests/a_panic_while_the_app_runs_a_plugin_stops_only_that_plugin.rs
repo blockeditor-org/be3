@@ -11,7 +11,7 @@ fn manifest(id: &str, name: &str, block_type: &str) -> PluginManifest {
                 "edits": "{block_type}",
                 "display_name": "{name}",
                 "icon": "x",
-                "regions": ["Frame"]
+                "views": ["Main"]
             }}}},
             "entry_point": "{id}.wasm"
         }}"#
@@ -71,13 +71,7 @@ fn a_panic_while_the_app_runs_a_plugin_stops_only_that_plugin() {
         Some("The app failed while running it: the host lost track of a screen"),
         "the report is the plugin's whole error"
     );
-    let view = region_view(
-        &crashing,
-        EditorInstanceId(1),
-        EditorRegion::Frame,
-        None,
-        None,
-    );
+    let view = region_view(&crashing, EditorInstanceId(1), ViewId::MAIN, None, None);
     assert_eq!(
         view.error,
         Some((

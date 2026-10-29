@@ -2,8 +2,8 @@ use super::*;
 use block_editor_plugin::editor_session::EditorSession;
 use block_editor_plugin::{Plugin, Waker};
 use block_plugin_api::{
-    EditorInstanceId, FrameChrome, FrameSpec, Rect, ScreenId, ScreenPlacement, ScreenRequest,
-    TopBar, ViewportMetrics,
+    EditorInstanceId, FrameChrome, FrameSpec, ParentView, Rect, ScreenId, ScreenPlacement,
+    ScreenRequest, TopBar, View, ViewId, ViewPlacement, ViewportMetrics,
 };
 
 mod a_child_block_asks_the_host_for_the_frame_it_will_own;
@@ -36,7 +36,7 @@ fn frame(session: &mut EditorSession, content: Option<Rect>, top_bar: TopBar) {
         &[ScreenPlacement {
             screen: ScreenId(0),
             instance: EditorInstanceId(0),
-            region: EditorRegion::Frame,
+            view: ViewId::MAIN,
             surface: 1,
             width: 800,
             height: 600,
@@ -46,7 +46,8 @@ fn frame(session: &mut EditorSession, content: Option<Rect>, top_bar: TopBar) {
         &[ScreenRequest {
             screen: ScreenId(0),
             instance: EditorInstanceId(0),
-            region: EditorRegion::Frame,
+            view: ViewId::MAIN,
+            placement: ViewPlacement::Parent(ParentView::Main),
             metrics: ViewportMetrics {
                 logical: block_plugin_api::Size {
                     width: 800.0,
@@ -65,23 +66,19 @@ fn frame(session: &mut EditorSession, content: Option<Rect>, top_bar: TopBar) {
                 dialog: None,
             }),
             windows: false,
-            placement: None,
+            host_place: None,
             docked: false,
             layers: None,
         }],
     );
 }
 
-fn dock_screen(
-    region: EditorRegion,
-    screen: u64,
-    docked: bool,
-) -> (ScreenPlacement, ScreenRequest) {
+fn dock_screen(shown: View, screen: u64, docked: bool) -> (ScreenPlacement, ScreenRequest) {
     let width = 400 + 100 * screen as u32;
     let placement = ScreenPlacement {
         screen: ScreenId(screen),
         instance: EditorInstanceId(0),
-        region,
+        view: shown.id,
         surface: screen as u32 + 1,
         width,
         height: 300,
@@ -91,7 +88,8 @@ fn dock_screen(
     let request = ScreenRequest {
         screen: ScreenId(screen),
         instance: EditorInstanceId(0),
-        region,
+        view: shown.id,
+        placement: shown.placement,
         metrics: ViewportMetrics {
             logical: block_plugin_api::Size {
                 width: width as f32,
@@ -103,22 +101,22 @@ fn dock_screen(
             scale_factor: 1.0,
             raster: 1.0,
         },
-        frame: (region == EditorRegion::Frame).then(FrameSpec::default),
+        frame: shown.is_main().then(FrameSpec::default),
         windows: false,
-        placement: None,
-        docked: docked && region == EditorRegion::Frame,
+        host_place: None,
+        docked: docked && shown.is_main(),
         layers: None,
     };
     (placement, request)
 }
 
-fn show_docked(session: &mut EditorSession, screens: &[(EditorRegion, u64)], docked: bool) {
+fn show_docked(session: &mut EditorSession, screens: &[(View, u64)], docked: bool) {
     let (placements, requests): (Vec<_>, Vec<_>) = screens
         .iter()
-        .map(|(region, screen)| dock_screen(*region, *screen, docked))
+        .map(|(shown, screen)| dock_screen(*shown, *screen, docked))
         .unzip();
     session.place(&placements, &requests);
-    let framed: Vec<_> = screens.iter().map(|(region, _)| (*region, 0)).collect();
+    let framed: Vec<_> = screens.iter().map(|(shown, _)| (shown.id, 0)).collect();
     session.frame(&framed);
     session.frame(&framed);
 }
@@ -146,7 +144,7 @@ fn hosted_tabs(
     focused: Option<u64>,
 ) -> block_plugin_api::DockUpdate {
     use block_plugin_api::{
-        DockHosted, DockHostedRegion, DockItem, DockItemKind, DockLayout, DockPane, DockTabPath,
+        DockHosted, DockHostedView, DockItem, DockItemKind, DockLayout, DockPane, DockTabPath,
         DockTree, DockUpdate,
     };
     let mut items = vec![DockItem {
@@ -170,8 +168,8 @@ fn hosted_tabs(
         kind: DockItemKind::Tab(DockTabPath::own(*tab)),
     }));
     let own = |tabs: &[u64]| tabs.iter().copied().map(DockTabPath::own).collect();
-    DockUpdate::Hosted(DockHostedRegion {
-        region: EditorRegion::Frame,
+    DockUpdate::Hosted(DockHostedView {
+        view: ViewId::MAIN,
         hosted: Some(DockHosted {
             layout: DockLayout {
                 tree: DockTree {

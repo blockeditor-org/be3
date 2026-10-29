@@ -5,8 +5,8 @@ use std::{
 
 use block_plugin_api::{
     BarAction, ChildId, DockChild, DockChildRequest, DockClosedTab, DockDeclaration,
-    DockDeclaredChild, DockHosted, DockHostedRegion, DockMessage, DockPickedTab, DockRequest,
-    DockTabPath, DockUpdate, EditorInstanceId, EditorRegion, MAX_DOCK_NESTING, dock_prefix,
+    DockDeclaredChild, DockHosted, DockHostedView, DockMessage, DockPickedTab, DockRequest,
+    DockTabPath, DockUpdate, EditorInstanceId, MAX_DOCK_NESTING, ViewId, dock_prefix,
 };
 use uuid::Uuid;
 
@@ -127,9 +127,8 @@ impl Docks {
         for message in messages {
             match message {
                 DockMessage::Declare(declare) => {
-                    let instance = declare.region.instance;
-                    if declare.region.region != EditorRegion::Frame || !self.owns(plugin, instance)
-                    {
+                    let instance = declare.view.instance;
+                    if declare.view.view != ViewId::MAIN || !self.owns(plugin, instance) {
                         continue;
                     }
                     match declare.declaration {
@@ -139,8 +138,8 @@ impl Docks {
                     self.refresh();
                 }
                 DockMessage::Request(request) => {
-                    let instance = request.region.instance;
-                    if request.region.region == EditorRegion::Frame && self.owns(plugin, instance) {
+                    let instance = request.view.instance;
+                    if request.view.view == ViewId::MAIN && self.owns(plugin, instance) {
                         self.request(instance, request.request);
                     }
                 }
@@ -156,7 +155,7 @@ impl Docks {
                         self.send(
                             owner,
                             DockUpdate::Close(DockClosedTab {
-                                region: EditorRegion::Frame,
+                                view: ViewId::MAIN,
                                 tab,
                             }),
                         );
@@ -169,7 +168,7 @@ impl Docks {
                         self.send(
                             owner,
                             DockUpdate::Pick(DockPickedTab {
-                                region: EditorRegion::Frame,
+                                view: ViewId::MAIN,
                                 tab,
                                 id: pick.id,
                             }),
@@ -361,8 +360,8 @@ impl Docks {
             self.hosted.remove(&instance);
             self.send(
                 instance,
-                DockUpdate::Hosted(DockHostedRegion {
-                    region: EditorRegion::Frame,
+                DockUpdate::Hosted(DockHostedView {
+                    view: ViewId::MAIN,
                     hosted: None,
                 }),
             );
@@ -528,8 +527,8 @@ impl Docks {
             };
             self.send(
                 instance,
-                DockUpdate::Hosted(DockHostedRegion {
-                    region: EditorRegion::Frame,
+                DockUpdate::Hosted(DockHostedView {
+                    view: ViewId::MAIN,
                     hosted: own,
                 }),
             );

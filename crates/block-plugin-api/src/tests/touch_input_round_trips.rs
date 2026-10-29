@@ -18,7 +18,7 @@ fn touch_input_round_trips() {
             },
             time_micros: Some(1_234_567),
             over: Some(ScreenId(4)),
-            layer: Some(LayerId(2)),
+            anchored: Some(ViewId(2)),
         }],
     };
 

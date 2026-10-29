@@ -4,12 +4,13 @@ use std::rc::Rc;
 
 use beui_core::geometry::{Rect, Vec2};
 use beui_core::window::{HostPlacement, WindowPlacement};
-use block_editor_plugin::{Claim, FrameSpec, RegionId};
+use block_editor_plugin::{Claim, FrameSpec, ViewId, ViewPlacement, ViewRef};
 use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct View {
-    pub id: RegionId,
+    pub id: ViewRef,
+    pub placement: ViewPlacement,
     pub block: Option<Uuid>,
     pub size: Vec2,
     pub scale_factor: f32,
@@ -19,6 +20,13 @@ pub struct View {
 }
 
 impl View {
+    pub fn view(&self) -> block_editor_plugin::View {
+        block_editor_plugin::View {
+            id: self.id.view,
+            placement: self.placement,
+        }
+    }
+
     pub fn chrome_drawn(&self) -> bool {
         self.spec.chrome == block_editor_plugin::FrameChrome::Drawn
     }
@@ -39,8 +47,8 @@ pub struct Report {
 struct Shared {
     views: RefCell<Vec<View>>,
     watchers: RefCell<Vec<Rc<dyn Fn()>>>,
-    reports: RefCell<HashMap<RegionId, Report>>,
-    floated: RefCell<Vec<(RegionId, beui_core::window::WindowId)>>,
+    reports: RefCell<HashMap<ViewRef, Report>>,
+    floated: RefCell<Vec<(ViewRef, beui_core::window::WindowId)>>,
 }
 
 #[derive(Clone, Default)]
@@ -51,7 +59,7 @@ impl Views {
         self.0.views.borrow().clone()
     }
 
-    pub fn view(&self, id: RegionId) -> Option<View> {
+    pub fn view(&self, id: ViewRef) -> Option<View> {
         self.0
             .views
             .borrow()
@@ -64,19 +72,19 @@ impl Views {
         self.0.watchers.borrow_mut().push(Rc::new(watcher));
     }
 
-    pub fn placement(&self, id: RegionId) -> WindowPlacement {
+    pub fn placement(&self, id: ViewRef) -> WindowPlacement {
         WindowPlacement::Host(placement_of(id))
     }
 
-    pub fn floated(&self) -> Vec<(RegionId, beui_core::window::WindowId)> {
+    pub fn floated(&self) -> Vec<(ViewRef, beui_core::window::WindowId)> {
         self.0.floated.borrow().clone()
     }
 
-    pub fn set_floated(&self, floated: Vec<(RegionId, beui_core::window::WindowId)>) {
+    pub fn set_floated(&self, floated: Vec<(ViewRef, beui_core::window::WindowId)>) {
         *self.0.floated.borrow_mut() = floated;
     }
 
-    pub fn report(&self, id: RegionId, report: Report) {
+    pub fn report(&self, id: ViewRef, report: Report) {
         self.0.reports.borrow_mut().insert(id, report);
     }
 
@@ -91,11 +99,11 @@ impl Views {
         }
     }
 
-    pub fn take_report(&self, id: RegionId) -> Report {
+    pub fn take_report(&self, id: ViewRef) -> Report {
         self.0.reports.borrow_mut().remove(&id).unwrap_or_default()
     }
 
-    pub fn placed(&self, placement: &HostPlacement) -> Option<RegionId> {
+    pub fn placed(&self, placement: &HostPlacement) -> Option<ViewRef> {
         self.0
             .views
             .borrow()
@@ -105,6 +113,21 @@ impl Views {
     }
 }
 
-fn placement_of(id: RegionId) -> HostPlacement {
-    HostPlacement(format!("plugin view {} {:?}", id.instance.0, id.region))
+fn placement_of(id: ViewRef) -> HostPlacement {
+    HostPlacement(format!("plugin view {} {}", id.instance.0, id.view.0))
+}
+
+const WINDOW_VIEWS: u64 = 1 << 61;
+const ANCHORED_VIEWS: u64 = 1 << 60;
+
+pub fn window_view(window: beui_core::window::WindowId) -> ViewId {
+    ViewId(WINDOW_VIEWS | window.raw())
+}
+
+pub fn anchored_view(layer: u64) -> ViewId {
+    ViewId(ANCHORED_VIEWS | layer)
+}
+
+pub fn anchored_layer(view: ViewId) -> Option<u64> {
+    (view.0 & !(ANCHORED_VIEWS - 1) == ANCHORED_VIEWS).then_some(view.0 & (ANCHORED_VIEWS - 1))
 }

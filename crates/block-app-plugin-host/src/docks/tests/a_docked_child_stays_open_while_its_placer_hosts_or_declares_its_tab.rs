@@ -21,8 +21,8 @@ fn a_docked_child_stays_open_while_its_placer_hosts_or_declares_its_tab() {
         updates(&mut docks, "inner"),
         [(
             INNER,
-            DockUpdate::Hosted(DockHostedRegion {
-                region: EditorRegion::Frame,
+            DockUpdate::Hosted(DockHostedView {
+                view: ViewId::MAIN,
                 hosted: None,
             })
         )]

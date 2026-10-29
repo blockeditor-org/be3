@@ -3,9 +3,9 @@ use beui::{ImeArea, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
     AccessLevel, ArtifactDescription, AudioCommand, BlockCommand, BlockPick, ChildContent, ChildId,
     ChildMode, ChildPlacement, ChildPlacements, ChildStatus, DialogStatus, EditorInstanceId,
-    EditorRegion, FrameReport, FrameSpec, LayerId, LayerSpace, MenuEntry, Occluder, OpenArtifact,
-    OpenBlock, OpenCreation, OpenPicker, Opening, PerformanceMeasurement, RegionSize, ScreenId,
-    ScreenLayout, ScreenRequest, ScreenWindow, ShellCommand, Size, Stopped, ViewChange,
+    FrameReport, FrameSpec, LayerSpace, MenuEntry, Occluder, OpenArtifact, OpenBlock, OpenCreation,
+    OpenPicker, Opening, PerformanceMeasurement, ScreenId, ScreenLayout, ScreenRequest,
+    ScreenWindow, ShellCommand, Size, Stopped, View, ViewChange, ViewId, ViewPlacement, ViewSize,
     ViewportMetrics, WebViewEvent, WebViewId,
 };
 use block_plugin_api::{
@@ -100,7 +100,7 @@ struct Instance {
     dialog: DialogStatus,
     child_dismissals: Vec<ChildId>,
     created: Option<Result<Uuid, String>>,
-    screens: HashMap<EditorRegion, Screen>,
+    screens: HashMap<ViewId, Screen>,
     opened: bool,
     deferred: Vec<Outbound>,
     opens: Vec<OpenRequest>,
@@ -561,7 +561,7 @@ struct Screen {
     scales: Sent<f32>,
     spaces: Sent<Option<(LayerSpace, f32)>>,
     fresh_layers: Option<LayerSpace>,
-    opened: HashMap<LayerId, u64>,
+    opened: HashMap<ViewId, u64>,
     serial: u64,
     kept: Option<ViewportMetrics>,
 }
@@ -613,12 +613,13 @@ impl Screen {
                 .collect()
         };
         report
-            .layers
+            .anchored
             .iter()
-            .map(|layer| HostLayer {
-                id: layer.id,
-                parent: layer.parent.clone(),
-                opened: self.opened.get(&layer.id).copied().unwrap_or_default(),
+            .enumerate()
+            .map(|(index, layer)| HostLayer {
+                id: layer.view,
+                parent: report.anchored_parent(index),
+                opened: self.opened.get(&layer.view).copied().unwrap_or_default(),
                 rect: layer.rect.translate(shift),
                 bounds,
                 painted: within(&layer.painted),
@@ -868,7 +869,7 @@ impl Instances {
     pub(super) fn report(
         &mut self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        shown: View,
         client_id: Uuid,
         role: InstanceRole,
         block_types: &Arc<crate::PluginCatalog>,
@@ -892,7 +893,7 @@ impl Instances {
             }
         }
         let next_screen = &mut self.next_screen;
-        let screen = entry.screens.entry(region).or_insert_with(|| {
+        let screen = entry.screens.entry(shown.id).or_insert_with(|| {
             *next_screen += 1;
             Screen {
                 input: InputForwarder::default(),
@@ -900,11 +901,12 @@ impl Instances {
                 request: ScreenRequest {
                     screen: ScreenId(*next_screen),
                     instance,
-                    region,
+                    view: shown.id,
+                    placement: shown.placement,
                     metrics: viewport_metrics(size, visible, scale_factor, scale_factor),
                     frame,
                     windows: false,
-                    placement: None,
+                    host_place: None,
                     docked: false,
                     layers: None,
                 },
@@ -941,14 +943,14 @@ impl Instances {
     pub(super) fn mount(
         &mut self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        shown: View,
         client_id: Uuid,
         role: InstanceRole,
         block_types: &Arc<crate::PluginCatalog>,
     ) {
         self.report(
             instance,
-            region,
+            shown,
             client_id,
             role,
             block_types,
@@ -958,12 +960,12 @@ impl Instances {
             1.0,
             0,
         );
-        if let Some(screen) = self.screen_mut(instance, region) {
+        if let Some(screen) = self.screen_mut(instance, shown.id) {
             screen.mounted += 1;
         }
     }
 
-    pub(super) fn unmount(&mut self, instance: EditorInstanceId, region: EditorRegion) {
+    pub(super) fn unmount(&mut self, instance: EditorInstanceId, region: ViewId) {
         if let Some(screen) = self.screen_mut(instance, region) {
             screen.mounted = screen.mounted.saturating_sub(1);
             if screen.mounted == 0 {
@@ -972,7 +974,7 @@ impl Instances {
         }
     }
 
-    pub(super) fn unplace(&mut self, instance: EditorInstanceId, region: EditorRegion) {
+    pub(super) fn unplace(&mut self, instance: EditorInstanceId, region: ViewId) {
         if let Some(screen) = self.screen_mut(instance, region) {
             screen.unplace();
         }
@@ -998,7 +1000,7 @@ impl Instances {
             entry.screens.values().any(|screen| screen.mounted > 0)
                 || entry
                     .screens
-                    .get(&EditorRegion::Frame)
+                    .get(&ViewId::MAIN)
                     .is_some_and(|screen| screen.kept.is_some() && super::docks::docked(*instance))
         })
     }
@@ -1037,14 +1039,14 @@ impl Instances {
     pub(super) fn place_mounted(
         &mut self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
         frame: Option<FrameSpec>,
         size: Vec2,
         visible: Rect,
         scale_factor: f32,
         raster: f32,
         windows: bool,
-        placement: Option<String>,
+        host_place: Option<String>,
         layers: Option<LayerSpace>,
     ) {
         let Some(screen) = self.screen_mut(instance, region) else {
@@ -1055,26 +1057,22 @@ impl Instances {
             screen.request.layers = layers;
         }
         let metrics = viewport_metrics(size, visible, scale_factor, raster);
-        if region == EditorRegion::Frame && metrics.pixel_width > 0 && metrics.pixel_height > 0 {
+        if region == ViewId::MAIN && metrics.pixel_width > 0 && metrics.pixel_height > 0 {
             screen.kept = Some(metrics);
         }
         if screen.request.metrics != metrics
             || screen.request.frame != frame
             || screen.request.windows != windows
-            || screen.request.placement != placement
+            || screen.request.host_place != host_place
         {
             screen.request.metrics = metrics;
             screen.request.frame = frame;
             screen.request.windows = windows;
-            screen.request.placement = placement;
+            screen.request.host_place = host_place;
         }
     }
 
-    pub(super) fn refresh_layers(
-        &mut self,
-        instance: EditorInstanceId,
-        region: EditorRegion,
-    ) -> bool {
+    pub(super) fn refresh_layers(&mut self, instance: EditorInstanceId, region: ViewId) -> bool {
         let Some(screen) = self.screen_mut(instance, region) else {
             return false;
         };
@@ -1084,11 +1082,7 @@ impl Instances {
         changed
     }
 
-    pub(super) fn stopped(
-        &self,
-        instance: EditorInstanceId,
-        region: EditorRegion,
-    ) -> Option<&Stopped> {
+    pub(super) fn stopped(&self, instance: EditorInstanceId, region: ViewId) -> Option<&Stopped> {
         self.entries
             .get(&instance)?
             .screens
@@ -1100,16 +1094,12 @@ impl Instances {
     pub(super) fn placement(
         &self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
     ) -> Option<Placement> {
         self.entries.get(&instance)?.screens.get(&region)?.placement
     }
 
-    pub(super) fn screen_id(
-        &self,
-        instance: EditorInstanceId,
-        region: EditorRegion,
-    ) -> Option<ScreenId> {
+    pub(super) fn screen_id(&self, instance: EditorInstanceId, region: ViewId) -> Option<ScreenId> {
         Some(
             self.entries
                 .get(&instance)?
@@ -1123,7 +1113,7 @@ impl Instances {
     pub(super) fn back(
         &mut self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
         gesture: beui::BackGesture,
     ) -> Vec<PluginCall> {
         let announced = &self.announced;
@@ -1146,7 +1136,7 @@ impl Instances {
     pub(super) fn intercepted(
         &mut self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
         press: Option<beui::KeyPress>,
         modifiers: beui::Modifiers,
     ) -> Vec<PluginCall> {
@@ -1174,7 +1164,7 @@ impl Instances {
     pub(super) fn intercepted_tap(
         &mut self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
         key: beui::Key,
     ) -> Vec<PluginCall> {
         let announced = &self.announced;
@@ -1198,18 +1188,29 @@ impl Instances {
         })]
     }
 
-    pub(super) fn mounted(&self, instance: EditorInstanceId, region: EditorRegion) -> bool {
+    pub(super) fn mounted(&self, instance: EditorInstanceId, region: ViewId) -> bool {
         self.entries
             .get(&instance)
             .and_then(|entry| entry.screens.get(&region))
             .is_some_and(|screen| screen.mounted > 0)
     }
 
-    fn screen_mut(
-        &mut self,
+    pub(super) fn view_placement(
+        &self,
         instance: EditorInstanceId,
-        region: EditorRegion,
-    ) -> Option<&mut Screen> {
+        view: ViewId,
+    ) -> Option<ViewPlacement> {
+        Some(
+            self.entries
+                .get(&instance)?
+                .screens
+                .get(&view)?
+                .request
+                .placement,
+        )
+    }
+
+    fn screen_mut(&mut self, instance: EditorInstanceId, region: ViewId) -> Option<&mut Screen> {
         self.entries
             .get_mut(&instance)
             .and_then(|entry| entry.screens.get_mut(&region))
@@ -1218,12 +1219,12 @@ impl Instances {
     pub(super) fn forward(
         &mut self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
         input: &beui::ForwardedInput,
         aim: &dyn Fn(Option<beui::Over>, beui::Pos2) -> beui::Aim,
-        target: &dyn Fn(beui::NodeId) -> Option<(EditorInstanceId, EditorRegion)>,
+        target: &dyn Fn(beui::NodeId) -> Option<(EditorInstanceId, ViewId)>,
     ) -> (Vec<Outbound>, bool) {
-        let screens: Vec<(EditorInstanceId, EditorRegion, ScreenId)> = self
+        let screens: Vec<(EditorInstanceId, ViewId, ScreenId)> = self
             .entries
             .iter()
             .flat_map(|(instance, entry)| {
@@ -1279,11 +1280,7 @@ impl Instances {
         (messages, revoked)
     }
 
-    pub(super) fn layers(
-        &self,
-        instance: EditorInstanceId,
-        region: EditorRegion,
-    ) -> Vec<HostLayer> {
+    pub(super) fn layers(&self, instance: EditorInstanceId, region: ViewId) -> Vec<HostLayer> {
         self.entries
             .get(&instance)
             .and_then(|entry| entry.screens.get(&region))
@@ -1294,8 +1291,8 @@ impl Instances {
     pub(super) fn forward_layer(
         &mut self,
         instance: EditorInstanceId,
-        region: EditorRegion,
-        layer: LayerId,
+        region: ViewId,
+        layer: ViewId,
         input: &beui::ForwardedInput,
     ) -> Vec<Outbound> {
         let announced = &self.announced;
@@ -1313,7 +1310,7 @@ impl Instances {
         if !screen
             .report
             .as_ref()
-            .is_some_and(|report| report.layers.iter().any(|open| open.id == layer))
+            .is_some_and(|report| report.anchored.iter().any(|open| open.view == layer))
         {
             return Vec::new();
         }
@@ -1354,7 +1351,7 @@ impl Instances {
             .map(|call| match call {
                 PluginCall::Input(mut batch) => {
                     for event in &mut batch.events {
-                        event.layer = Some(layer);
+                        event.anchored = Some(layer);
                     }
                     Outbound::from(PluginCall::Input(batch))
                 }
@@ -1366,8 +1363,8 @@ impl Instances {
     pub(super) fn dismiss_layers(
         &mut self,
         instance: EditorInstanceId,
-        region: EditorRegion,
-        dismissed: Vec<LayerId>,
+        region: ViewId,
+        dismissed: Vec<ViewId>,
     ) -> Vec<Outbound> {
         let announced = &self.announced;
         let Some(screen) = self
@@ -1378,12 +1375,12 @@ impl Instances {
         else {
             return Vec::new();
         };
-        let open: Vec<LayerId> = screen
+        let open: Vec<ViewId> = screen
             .report
             .as_ref()
-            .map(|report| report.layers.iter().map(|layer| layer.id).collect())
+            .map(|report| report.anchored.iter().map(|layer| layer.view).collect())
             .unwrap_or_default();
-        let dismissed: Vec<LayerId> = dismissed
+        let dismissed: Vec<ViewId> = dismissed
             .into_iter()
             .filter(|id| open.contains(id))
             .collect();
@@ -1400,7 +1397,7 @@ impl Instances {
         ))]
     }
 
-    pub(super) fn hold(&mut self, instance: EditorInstanceId, region: EditorRegion) {
+    pub(super) fn hold(&mut self, instance: EditorInstanceId, region: ViewId) {
         if let Some(screen) = self
             .entries
             .get_mut(&instance)
@@ -1413,7 +1410,7 @@ impl Instances {
     pub(super) fn held(
         &mut self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
         rect: Option<Rect>,
         clip: Rect,
         drawn: Option<((u32, u32), f32)>,
@@ -1710,7 +1707,7 @@ impl Instances {
                     let shown = (screen.mounted > 0 || screen.last_seen >= pass)
                         && screen.request.metrics.pixel_width > 0
                         && screen.request.metrics.pixel_height > 0;
-                    let frame = screen.request.region == EditorRegion::Frame;
+                    let frame = screen.request.view.is_main();
                     let mut request = screen.request.clone();
                     request.docked = frame && docked;
                     match (shown, screen.kept) {
@@ -1983,7 +1980,7 @@ impl Instances {
         }
     }
 
-    pub(super) fn set_region_sizes(&mut self, sizes: Vec<RegionSize>) -> bool {
+    pub(super) fn set_region_sizes(&mut self, sizes: Vec<ViewSize>) -> bool {
         let mut changed = false;
         for size in sizes {
             if let Some(screen) = self.screen_by_id(size.screen) {
@@ -2009,7 +2006,7 @@ impl Instances {
     pub(super) fn drag(
         &mut self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
         event: Option<BlockDragEvent>,
     ) -> Vec<Outbound> {
         let Some(entry) = self.entries.get_mut(&instance) else {
@@ -2027,7 +2024,7 @@ impl Instances {
                 vec![Outbound::Editor(
                     instance,
                     EditorCall::DragOver(block_plugin_api::shell_types::DragOver {
-                        region,
+                        view: region,
                         pos: event.position,
                         block_id: event.drag.block_id.into_bytes(),
                         block_type: event.drag.block_type.into_bytes(),
@@ -2047,7 +2044,7 @@ impl Instances {
     pub(super) fn file_drop(
         &mut self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
         event: Option<FileDropEvent>,
     ) -> Vec<Outbound> {
         let Some(entry) = self.entries.get_mut(&instance) else {
@@ -2062,7 +2059,7 @@ impl Instances {
                 vec![Outbound::Editor(
                     instance,
                     EditorCall::FileDrop(block_plugin_api::shell_types::FileDrop {
-                        region,
+                        view: region,
                         pos: event.position,
                         files: event.files,
                         dropped: event.dropped,
@@ -2077,7 +2074,7 @@ impl Instances {
         }
     }
 
-    pub(super) fn dragging(&self, instance: EditorInstanceId, region: EditorRegion) -> bool {
+    pub(super) fn dragging(&self, instance: EditorInstanceId, region: ViewId) -> bool {
         self.entries
             .get(&instance)
             .and_then(|entry| entry.screens.get(&region))
@@ -2093,7 +2090,7 @@ impl Instances {
     pub(super) fn set_children(&mut self, placements: ChildPlacements) -> bool {
         let ChildPlacements {
             instance,
-            region,
+            view: region,
             children,
             occluders,
         } = placements;
@@ -2128,7 +2125,7 @@ impl Instances {
         let Some(screen) = self
             .entries
             .get(&placements.instance)
-            .and_then(|entry| entry.screens.get(&placements.region))
+            .and_then(|entry| entry.screens.get(&placements.view))
         else {
             return false;
         };
@@ -2159,7 +2156,7 @@ impl Instances {
     pub(super) fn host_children(
         &self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
         rect: Rect,
         clip: Rect,
         view: Option<EditorView>,
@@ -2178,7 +2175,7 @@ impl Instances {
             .views
             .at(screen.serial)
             .copied()
-            .filter(|_| region == EditorRegion::Frame);
+            .filter(|_| region == ViewId::MAIN);
         let mut children = Vec::new();
         let mut holes = Holes::default();
         let mut live = 0;
@@ -2203,7 +2200,7 @@ impl Instances {
             }
         }
         for (index, child) in table.children.iter().enumerate() {
-            let layer = match child.in_layer {
+            let layer = match child.anchored {
                 None => None,
                 Some(id) => match layers.iter().find(|layer| layer.id == id) {
                     Some(layer) => Some(layer),
@@ -2286,7 +2283,7 @@ impl Instances {
                 continue;
             }
             let requested = match (region, child.mode) {
-                (EditorRegion::Preview, _) => ChildMode::Preview,
+                (ViewId::PREVIEW, _) => ChildMode::Preview,
                 (_, ChildMode::Active) if screen.revoked.contains(&child.child) => {
                     ChildMode::Passive
                 }
@@ -2361,17 +2358,13 @@ impl Instances {
                 rotation: child.rotation,
                 opacity: child.opacity,
                 dialog: child.dialog,
-                in_layer: layer.map(|layer| layer.id),
+                anchored: layer.map(|layer| layer.id),
             });
         }
         (children, holes)
     }
 
-    pub(super) fn revoke_active(
-        &mut self,
-        instance: EditorInstanceId,
-        region: EditorRegion,
-    ) -> bool {
+    pub(super) fn revoke_active(&mut self, instance: EditorInstanceId, region: ViewId) -> bool {
         let Some(screen) = self
             .entries
             .get_mut(&instance)
@@ -2395,11 +2388,7 @@ impl Instances {
     }
 
     pub(super) fn frame_child(&self, instance: EditorInstanceId) -> Option<Uuid> {
-        let screen = self
-            .entries
-            .get(&instance)?
-            .screens
-            .get(&EditorRegion::Frame)?;
+        let screen = self.entries.get(&instance)?.screens.get(&ViewId::MAIN)?;
         screen
             .children
             .children
@@ -2419,7 +2408,7 @@ impl Instances {
         let Some(screen) = self
             .entries
             .get_mut(&instance)
-            .and_then(|entry| entry.screens.get_mut(&EditorRegion::Frame))
+            .and_then(|entry| entry.screens.get_mut(&ViewId::MAIN))
         else {
             return;
         };
@@ -2433,7 +2422,7 @@ impl Instances {
     pub(super) fn set_child_statuses(
         &mut self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
         statuses: Vec<HostChildStatus>,
     ) -> Vec<Outbound> {
         let Some(screen) = self
@@ -2448,7 +2437,7 @@ impl Instances {
         for status in statuses {
             let status = ChildStatus {
                 instance,
-                region,
+                view: region,
                 child: status.child,
                 available: status.available,
                 intrinsic: status.intrinsic.map(|size| Size {
@@ -2529,7 +2518,7 @@ impl Instances {
                             });
                         super::ScreenStatus {
                             screen: screen.request.screen,
-                            region: screen.request.region,
+                            view: screen.request.view,
                             logical: vec2(metrics.logical.width, metrics.logical.height),
                             pixels: [metrics.pixel_width, metrics.pixel_height],
                             scale_factor: metrics.scale_factor,
@@ -2617,11 +2606,7 @@ impl Instances {
         self.entries.get(&instance)?.intrinsic
     }
 
-    pub(super) fn region_size(
-        &self,
-        instance: EditorInstanceId,
-        region: EditorRegion,
-    ) -> Option<Vec2> {
+    pub(super) fn region_size(&self, instance: EditorInstanceId, region: ViewId) -> Option<Vec2> {
         self.entries.get(&instance)?.screens.get(&region)?.used
     }
 
@@ -2646,9 +2631,9 @@ impl Instances {
                     changed |= screen.report.as_ref() != Some(&report);
                     screen
                         .opened
-                        .retain(|id, _| report.layers.iter().any(|layer| layer.id == *id));
-                    for layer in &report.layers {
-                        screen.opened.entry(layer.id).or_insert_with(|| {
+                        .retain(|id, _| report.anchored.iter().any(|layer| layer.view == *id));
+                    for layer in &report.anchored {
+                        screen.opened.entry(layer.view).or_insert_with(|| {
                             LAYERS_OPENED.with(|opened| {
                                 opened.set(opened.get() + 1);
                                 opened.get()
@@ -2667,14 +2652,14 @@ impl Instances {
             .values()
             .flat_map(|entry| entry.screens.values())
             .filter_map(|screen| screen.report.as_ref())
-            .flat_map(|report| report.layers.iter().map(|layer| layer.surface))
+            .flat_map(|report| report.anchored.iter().map(|layer| layer.surface))
             .collect()
     }
 
     pub(super) fn frame_report(
         &self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
     ) -> Option<&FrameReport> {
         self.entries
             .get(&instance)?
@@ -2687,7 +2672,7 @@ impl Instances {
     pub(super) fn described(
         &mut self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
     ) -> Option<Described<'_>> {
         let screen = self.entries.get_mut(&instance)?.screens.get_mut(&region)?;
         let description = screen.report.as_ref()?.description.as_ref()?;
@@ -2712,7 +2697,7 @@ impl Instances {
     pub(super) fn take_focus_request(
         &mut self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
     ) -> bool {
         self.entries
             .get_mut(&instance)
@@ -2756,7 +2741,7 @@ impl Instances {
     pub(super) fn child_bar_actions(
         &mut self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
         actions: Vec<(ChildId, block_plugin_api::BarAction)>,
     ) -> Vec<Outbound> {
         actions
@@ -2765,7 +2750,7 @@ impl Instances {
                 Outbound::Editor(
                     instance,
                     EditorCall::ChildBar {
-                        region,
+                        view: region,
                         child,
                         action,
                     },
@@ -2823,7 +2808,7 @@ impl Instances {
     pub(super) fn ime(
         &self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
         rect: Rect,
     ) -> Option<ImeArea> {
         let screen = self.entries.get(&instance)?.screens.get(&region)?;
@@ -2841,7 +2826,7 @@ impl Instances {
     pub(super) fn window(
         &self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
     ) -> Option<&WindowRequests> {
         let screen = self.entries.get(&instance)?.screens.get(&region)?;
         Some(&screen.window)
@@ -2850,7 +2835,7 @@ impl Instances {
     pub(super) fn cursor(
         &self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
     ) -> Option<beui::CursorIcon> {
         let screen = self.entries.get(&instance)?.screens.get(&region)?;
         Some(screen.window.cursor)
@@ -2864,7 +2849,7 @@ impl Instances {
     pub(super) fn place(
         &mut self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
         placement: Placement,
     ) {
         if let Some(screen) = self
@@ -2959,7 +2944,7 @@ impl Instances {
                     | ShellCall::WebViewNew { .. }
                     | ShellCall::Focused { .. }
                     | ShellCall::ChangeView { .. }
-                    | ShellCall::RegionStopped { .. }
+                    | ShellCall::ViewStopped { .. }
                     | ShellCall::CopyText { .. }
                     | ShellCall::CopyImage { .. }
             )
@@ -3023,10 +3008,8 @@ impl Instances {
                 .shell_commands
                 .push((Uuid::from_bytes(block), command)),
             ShellCall::LeaveFrame { .. } => entry.leaving = true,
-            ShellCall::RegionStopped {
-                region, stopped, ..
-            } => {
-                let Some(screen) = entry.screens.get_mut(&region) else {
+            ShellCall::ViewStopped { view, stopped, .. } => {
+                let Some(screen) = entry.screens.get_mut(&view) else {
                     return false;
                 };
                 screen.stopped = Some(stopped);

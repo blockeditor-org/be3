@@ -13,8 +13,8 @@ use beui::{
 };
 use block_plugin_api::{
     BarAction, ChildId, ChildMode, ChildPreview, CreationProgress, DialogFrame, DialogStatus,
-    EditorInstanceId, EditorRegion, FitArea, FrameChrome, FrameSpec, HostPanel, HostWindowId,
-    PanMode, TopBar, ViewChange,
+    EditorInstanceId, FitArea, FrameChrome, FrameSpec, HostPanel, HostWindowId, PanMode,
+    ParentView, TopBar, View, ViewChange, ViewId,
 };
 use uuid::Uuid;
 
@@ -50,7 +50,7 @@ pub(crate) struct State {
     settings_status: RefCell<Option<(Uuid, f32, DialogStatus)>>,
 }
 
-pub(crate) type CreationKey = (Uuid, EditorRegion, ChildId);
+pub(crate) type CreationKey = (Uuid, View, ChildId);
 
 struct CreationChild {
     creation: Box<dyn PendingCreation>,
@@ -510,7 +510,7 @@ impl Handle {
             pan_and_zoom: capabilities.supports_pan_and_zoom,
             max_zoom: capabilities.max_zoom,
             pan: capabilities.pan,
-            preview: editor.has_region(EditorRegion::Preview),
+            preview: editor.has_view(ParentView::Preview),
         }
     }
 
@@ -591,7 +591,7 @@ pub(crate) fn ShellDisplay(shell: Memo<Option<Uuid>>, display: u32) -> NodeId {
             <ForEach keys={keys}>|block: Uuid| {
                 provide_context(Nesting::root());
                 view! {
-                    <BlockRegion block region={EditorRegion::Display(display)} />
+                    <BlockRegion block region={View::display(display)} />
                 }
             }</ForEach>
         </Layers>
@@ -844,7 +844,7 @@ fn stop_on_escape(overlay: NodeRef) {
 }
 
 #[component]
-fn BlockRegion(block: Uuid, region: EditorRegion) -> NodeId {
+fn BlockRegion(block: Uuid, region: View) -> NodeId {
     let editors = editors();
     let nesting = use_context::<Nesting>().unwrap_or_else(Nesting::root);
     provide_context(nesting.within(block, nesting.access));
@@ -1384,7 +1384,7 @@ fn BlockFrameView(
     let framed = create_memo(move || content.get().is_some());
     create_effect(move || {
         let _ = framed.get();
-        block_app_plugin_host::hold(&plugin_id.value(), instance, EditorRegion::Frame);
+        block_app_plugin_host::hold(&plugin_id.value(), instance, ViewId::MAIN);
     });
     let revision = super::listen(&plugin_id.value());
     let rect_held = create_signal(Rect::ZERO);
@@ -1613,7 +1613,7 @@ fn BlockFrameView(
                 (shown.width() / assigned.x).min(shown.height() / assigned.y)
             })
     });
-    let child_view = child_view(block, EditorRegion::Frame);
+    let child_view = child_view(block, View::MAIN);
     let built = view! {
         <Interactive
             on_wheel={beui::unstyled::gestures::first_of([
@@ -1625,7 +1625,7 @@ fn BlockFrameView(
         >
             <PluginRegion
                 editor={region_editor}
-                region=EditorRegion::Frame
+                region=View::MAIN
                 frame={frame}
                 view={editor_view}
                 zoom={placed_zoom}
@@ -1645,7 +1645,7 @@ fn BlockFrameView(
     built
 }
 
-pub(super) fn child_view(parent: Uuid, region: EditorRegion) -> ChildView {
+pub(super) fn child_view(parent: Uuid, region: View) -> ChildView {
     store(Box::new(
         move |key: ChildId, child: Memo<Option<HostChild>>, rect: Memo<Rect>| {
             view! {
@@ -1680,7 +1680,7 @@ pub(crate) fn hosted_parent(instance: EditorInstanceId) -> Uuid {
 #[component]
 fn HostedChild(
     parent: Uuid,
-    region: EditorRegion,
+    region: View,
     key: ChildId,
     child: Memo<Option<HostChild>>,
     rect: Memo<Rect>,
@@ -2016,7 +2016,7 @@ fn DockTabSurface(block: Uuid, tab: u64, reporter: ChildReporter) -> NodeId {
     };
     provide_context(FocusedWithin(reporter.focus));
     provide_context(nesting.within(block, editors.access(block, nesting.access)));
-    let region = EditorRegion::Tab(tab);
+    let region = View::dock(ViewId(tab));
     let child_view = child_view(block, region);
     view! {
         <PluginRegion editor={region_editor} region child_view on_focus={reporter.focus} />
@@ -2116,12 +2116,7 @@ fn status_of(editors: &Editors, child: &HostChild, available: bool) -> HostChild
     }
 }
 
-fn reporter_for(
-    parent: Uuid,
-    region: EditorRegion,
-    key: ChildId,
-    within: Callback<()>,
-) -> ChildReporter {
+fn reporter_for(parent: Uuid, region: View, key: ChildId, within: Callback<()>) -> ChildReporter {
     let report_to = editors().handle(parent);
     let on_bar_action = report_to.clone().and_then(|parent| {
         let plugin_id = parent.plugin_id()?.to_owned();
@@ -2129,7 +2124,7 @@ fn reporter_for(
             block_app_plugin_host::report_child_bars(
                 &plugin_id,
                 parent.instance,
-                region,
+                region.id,
                 vec![(key, action)],
             );
         }))
@@ -2140,7 +2135,7 @@ fn reporter_for(
     let instance = report_to.map(|parent| parent.instance);
     let on_focus = Callback::new(move |()| {
         if let (Some(plugin_id), Some(instance)) = (&plugin_id, instance) {
-            block_app_plugin_host::report_child_focus(plugin_id, instance, region, key);
+            block_app_plugin_host::report_child_focus(plugin_id, instance, region.id, key);
         }
         within.call(());
     });
@@ -2160,7 +2155,7 @@ fn BlockPreview(block: Uuid) -> NodeId {
             .into_iter()
             .collect::<Vec<_>>()
     });
-    let child_view = child_view(block, EditorRegion::Preview);
+    let child_view = child_view(block, View::PREVIEW);
     view! {
         <Layers>
             <ForEach keys={keys}>|_key: RegionKey| {
@@ -2172,7 +2167,7 @@ fn BlockPreview(block: Uuid) -> NodeId {
                 view! {
                     <PluginRegion
                         editor={region_editor}
-                        region=EditorRegion::Preview
+                        region=View::PREVIEW
                         offscreen=true
                         child_view
                     />

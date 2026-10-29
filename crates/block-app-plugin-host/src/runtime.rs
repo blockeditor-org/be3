@@ -9,10 +9,10 @@ use std::{
 use beui::native::EmbedPlacement;
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
-    ArtifactDescription, BlockPick, ChildPlacements, ChildPreview, EditorInstanceId, EditorRegion,
-    FrameCommit, FrameSpec, HostPanel, HostTransform, LayerId, LayerSpace, Opening, PresentedFrame,
-    PreviewImage, RegionSize, ScreenDamage, ScreenId, ScreenLayout, ScreenPlacement, ScreenRequest,
-    ScreenWindow, SurfaceFormat, SurfaceSpec, ViewChange,
+    ArtifactDescription, BlockPick, ChildPlacements, ChildPreview, EditorInstanceId, FrameCommit,
+    FrameSpec, HostPanel, HostTransform, LayerSpace, Opening, PresentedFrame, PreviewImage,
+    ScreenDamage, ScreenId, ScreenLayout, ScreenPlacement, ScreenRequest, ScreenWindow,
+    SurfaceFormat, SurfaceSpec, View, ViewChange, ViewId, ViewSize,
 };
 use block_plugin_manifest::PluginManifest;
 use uuid::Uuid;
@@ -157,8 +157,8 @@ pub(super) struct Runtime {
     fonts_sent: bool,
     described: bool,
     painting: bool,
-    pub(super) placements: HashMap<(EditorInstanceId, EditorRegion), Placed>,
-    offers: HashMap<(EditorInstanceId, EditorRegion), Vec<Offer>>,
+    pub(super) placements: HashMap<(EditorInstanceId, ViewId), Placed>,
+    offers: HashMap<(EditorInstanceId, ViewId), Vec<Offer>>,
     fallbacks: super::fonts::Fallbacks,
     presents: Presents,
     frames: u64,
@@ -211,7 +211,7 @@ impl From<Heard> for Answer {
 
 struct Laid {
     serial: u64,
-    sizes: Vec<RegionSize>,
+    sizes: Vec<ViewSize>,
     windows: Vec<ScreenWindow>,
     children: Vec<ChildPlacements>,
 }
@@ -226,9 +226,11 @@ impl Laid {
             .iter()
             .map(|size| size.screen)
             .chain(self.windows.iter().map(|window| window.screen))
-            .chain(self.children.iter().filter_map(|placements| {
-                instances.screen_id(placements.instance, placements.region)
-            }))
+            .chain(
+                self.children.iter().filter_map(|placements| {
+                    instances.screen_id(placements.instance, placements.view)
+                }),
+            )
             .collect()
     }
 }
@@ -418,7 +420,7 @@ impl Runtime {
         self.update(messages);
     }
 
-    fn refresh_layers(&mut self, instance: EditorInstanceId, region: EditorRegion) {
+    fn refresh_layers(&mut self, instance: EditorInstanceId, region: ViewId) {
         if self.instances.refresh_layers(instance, region) {
             self.update(Vec::new());
         }
@@ -445,7 +447,7 @@ impl Runtime {
                     Outbound::Editor(
                         placer,
                         EditorCall::ChildBar {
-                            region: EditorRegion::Frame,
+                            view: ViewId::MAIN,
                             child,
                             action,
                         },
@@ -806,7 +808,7 @@ impl Runtime {
             .layout
             .screens
             .iter()
-            .filter(|placement| placement.region == EditorRegion::Preview)
+            .filter(|placement| placement.view == ViewId::PREVIEW)
             .copied()
             .collect();
         if shown.is_empty() {
@@ -834,7 +836,7 @@ impl Runtime {
         let shown: Vec<ScreenPlacement> = layout
             .screens
             .iter()
-            .filter(|placement| placement.region == EditorRegion::Preview)
+            .filter(|placement| placement.view == ViewId::PREVIEW)
             .copied()
             .collect();
         previews::keep(&self.plugin.identity.id, |instance, screen| {
@@ -866,15 +868,16 @@ impl Runtime {
     fn split(&self, commit: FrameCommit) -> (FrameCommit, Option<Laid>) {
         let mut commit = commit;
         self.instances.translate(&mut commit, true);
-        let (moving, coming) = std::mem::take(&mut commit.children)
-            .into_iter()
-            .partition(|placements| {
-                !self.held.iter().any(|held| {
+        let (moving, coming) =
+            std::mem::take(&mut commit.children)
+                .into_iter()
+                .partition(|placements| {
+                    !self.held.iter().any(|held| {
                     matches!(held, Answer::Laid(laid) if laid.children.iter().any(|earlier| {
-                        (earlier.instance, earlier.region) == (placements.instance, placements.region)
+                        (earlier.instance, earlier.view) == (placements.instance, placements.view)
                     }))
                 }) && self.instances.only_moves(placements)
-            });
+                });
         commit.children = moving;
         let later = Laid {
             serial: commit.serial,
@@ -1186,7 +1189,7 @@ impl HostFrame {
 pub fn report_child_bars(
     plugin_id: &str,
     instance: EditorInstanceId,
-    region: EditorRegion,
+    region: ViewId,
     actions: Vec<(block_plugin_api::ChildId, block_plugin_api::BarAction)>,
 ) {
     if actions.is_empty() {
@@ -1203,13 +1206,16 @@ pub fn report_child_bars(
 pub fn report_child_focus(
     plugin_id: &str,
     instance: EditorInstanceId,
-    region: EditorRegion,
+    region: ViewId,
     child: block_plugin_api::ChildId,
 ) {
     with(plugin_id, |runtime| {
         runtime.send(vec![Outbound::Editor(
             instance,
-            EditorCall::ChildFocused { region, child },
+            EditorCall::ChildFocused {
+                view: region,
+                child,
+            },
         )]);
     });
 }
@@ -1221,7 +1227,7 @@ pub fn preview_image(plugin_id: &str, instance: EditorInstanceId) -> Option<Prev
 pub fn report_children(
     plugin_id: &str,
     instance: EditorInstanceId,
-    region: EditorRegion,
+    region: ViewId,
     statuses: Vec<HostChildStatus>,
 ) {
     with(plugin_id, |runtime| {
@@ -1268,13 +1274,13 @@ pub struct FramePlacement {
 }
 
 pub fn frame_placement(plugin_id: &str, instance: EditorInstanceId) -> Option<FramePlacement> {
-    region_placement(plugin_id, instance, EditorRegion::Frame)
+    region_placement(plugin_id, instance, ViewId::MAIN)
 }
 
 pub fn region_placement(
     plugin_id: &str,
     instance: EditorInstanceId,
-    region: EditorRegion,
+    region: ViewId,
 ) -> Option<FramePlacement> {
     with(plugin_id, |runtime| {
         runtime
@@ -1707,11 +1713,7 @@ pub fn take_artifact_outcome(
     .flatten()
 }
 
-pub fn region_size(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-    region: EditorRegion,
-) -> Option<Vec2> {
+pub fn region_size(plugin_id: &str, instance: EditorInstanceId, region: ViewId) -> Option<Vec2> {
     with(plugin_id, |runtime| {
         runtime.instances.region_size(instance, region)
     })
@@ -1773,7 +1775,7 @@ pub fn take_leaving(plugin_id: &str, instance: EditorInstanceId) -> bool {
     .unwrap_or_default()
 }
 
-pub fn hold(plugin_id: &str, instance: EditorInstanceId, region: EditorRegion) {
+pub fn hold(plugin_id: &str, instance: EditorInstanceId, region: ViewId) {
     with(plugin_id, |runtime| {
         runtime.instances.hold(instance, region)
     });
@@ -1783,7 +1785,7 @@ pub fn frame_rects(plugin_id: &str, instance: EditorInstanceId) -> Option<HostFr
     with(plugin_id, |runtime| {
         runtime
             .instances
-            .frame_report(instance, EditorRegion::Frame)
+            .frame_report(instance, ViewId::MAIN)
             .map(|report| HostFrame {
                 insets: report.content,
                 floating: report.floating.clone(),
@@ -1972,7 +1974,7 @@ pub struct RegionSlot<'a> {
     pub client_id: Uuid,
     pub role: InstanceRole,
     pub instance: EditorInstanceId,
-    pub region: EditorRegion,
+    pub view: View,
 }
 
 pub fn mount_region(slot: RegionSlot<'_>) {
@@ -1982,7 +1984,7 @@ pub fn mount_region(slot: RegionSlot<'_>) {
         client_id,
         role,
         instance,
-        region,
+        view,
     } = slot;
     HOST.with(|host| {
         let mut host = host.borrow_mut();
@@ -2003,7 +2005,7 @@ pub fn mount_region(slot: RegionSlot<'_>) {
             );
             runtime
                 .instances
-                .mount(instance, region, client_id, role, block_types);
+                .mount(instance, view, client_id, role, block_types);
             runtime.release_reported();
         });
         mark(&plugin.identity.id);
@@ -2011,12 +2013,7 @@ pub fn mount_region(slot: RegionSlot<'_>) {
     host::request_repaint();
 }
 
-pub fn unmount_region(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-    region: EditorRegion,
-    mount: u64,
-) {
+pub fn unmount_region(plugin_id: &str, instance: EditorInstanceId, region: ViewId, mount: u64) {
     with(plugin_id, |runtime| {
         runtime.instances.unmount(instance, region);
         withdraw(runtime, instance, region, mount);
@@ -2026,12 +2023,7 @@ pub fn unmount_region(
     host::request_repaint();
 }
 
-pub fn unplace_region(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-    region: EditorRegion,
-    mount: u64,
-) {
+pub fn unplace_region(plugin_id: &str, instance: EditorInstanceId, region: ViewId, mount: u64) {
     with(plugin_id, |runtime| {
         withdraw(runtime, instance, region, mount);
         runtime.report_docked();
@@ -2040,7 +2032,7 @@ pub fn unplace_region(
     host::request_repaint();
 }
 
-fn withdraw(runtime: &mut Runtime, instance: EditorInstanceId, region: EditorRegion, mount: u64) {
+fn withdraw(runtime: &mut Runtime, instance: EditorInstanceId, region: ViewId, mount: u64) {
     let key = (instance, region);
     let remaining = runtime.offers.get_mut(&key).map_or(0, |offers| {
         offers.retain(|offer| offer.mount != mount);
@@ -2077,7 +2069,7 @@ pub(super) struct Offer {
 pub fn place_region(
     plugin_id: &str,
     instance: EditorInstanceId,
-    region: EditorRegion,
+    region: ViewId,
     mount: u64,
     placement: RegionPlacement,
     frame: Option<FrameSpec>,
@@ -2104,7 +2096,7 @@ pub fn place_region(
     host::request_repaint();
 }
 
-fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: EditorRegion) {
+fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: ViewId) {
     let Some(offers) = runtime.offers.get(&(instance, region)) else {
         return;
     };
@@ -2113,7 +2105,7 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: Edito
         return;
     };
     let shown = match region {
-        EditorRegion::Preview => Some(UNIT),
+        ViewId::PREVIEW => Some(UNIT),
         _ => offers
             .iter()
             .filter_map(|offer| {
@@ -2141,7 +2133,7 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: Edito
         rect, clip, zoom, ..
     } = chosen.placement;
     runtime.placed = host::pass();
-    let zoom = match zoom.is_finite() && zoom > 0.0 && region != EditorRegion::Preview {
+    let zoom = match zoom.is_finite() && zoom > 0.0 && region != ViewId::PREVIEW {
         true => zoom,
         false => 1.0,
     };
@@ -2155,7 +2147,7 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: Edito
         },
     );
     let (size, scale_factor) = match region {
-        EditorRegion::Preview => (
+        ViewId::PREVIEW => (
             rect.size(),
             preview_scale(rect.size(), host::pixels_per_point()),
         ),
@@ -2163,12 +2155,12 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: Edito
     };
     let raster = match (raster, region) {
         (None, _) => scale_factor,
-        (Some(raster), EditorRegion::Preview) => preview_scale(rect.size(), scale_factor * raster),
+        (Some(raster), ViewId::PREVIEW) => preview_scale(rect.size(), scale_factor * raster),
         (Some(raster), _) => scale_factor * raster,
     };
     let visible = shown.map_or(Rect::ZERO, |source| scale_rect(source, size));
     let layers = layer_bounds
-        .filter(|_| region != EditorRegion::Preview)
+        .filter(|_| region != ViewId::PREVIEW)
         .map(|bounds| LayerSpace {
             to_host: HostTransform {
                 origin: rect.min,
@@ -2209,8 +2201,8 @@ fn ratio_of(shown: f32, logical: f32) -> f32 {
 pub fn forward_layer(
     plugin_id: &str,
     instance: EditorInstanceId,
-    region: EditorRegion,
-    layer: LayerId,
+    region: ViewId,
+    layer: ViewId,
     input: &beui::ForwardedInput,
 ) {
     with(plugin_id, |runtime| {
@@ -2227,8 +2219,8 @@ pub fn forward_layer(
 pub fn dismiss_layers(
     plugin_id: &str,
     instance: EditorInstanceId,
-    region: EditorRegion,
-    dismissed: Vec<LayerId>,
+    region: ViewId,
+    dismissed: Vec<ViewId>,
 ) {
     with(plugin_id, |runtime| {
         let messages = runtime
@@ -2243,10 +2235,10 @@ pub fn dismiss_layers(
 pub fn forward_region(
     plugin_id: &str,
     instance: EditorInstanceId,
-    region: EditorRegion,
+    region: ViewId,
     input: &beui::ForwardedInput,
     aim: &dyn Fn(Option<beui::Over>, beui::Pos2) -> beui::Aim,
-    target: &dyn Fn(beui::NodeId) -> Option<(EditorInstanceId, EditorRegion)>,
+    target: &dyn Fn(beui::NodeId) -> Option<(EditorInstanceId, ViewId)>,
 ) {
     with(plugin_id, |runtime| {
         runtime.refresh_layers(instance, region);
@@ -2261,7 +2253,7 @@ pub fn forward_region(
     });
 }
 
-pub fn pressed_outside_region(plugin_id: &str, instance: EditorInstanceId, region: EditorRegion) {
+pub fn pressed_outside_region(plugin_id: &str, instance: EditorInstanceId, region: ViewId) {
     with(plugin_id, |runtime| {
         if runtime.instances.revoke_active(instance, region) {
             mark(plugin_id);
@@ -2272,7 +2264,7 @@ pub fn pressed_outside_region(plugin_id: &str, instance: EditorInstanceId, regio
 pub fn back_region(
     plugin_id: &str,
     instance: EditorInstanceId,
-    region: EditorRegion,
+    region: ViewId,
     gesture: beui::BackGesture,
 ) {
     with(plugin_id, |runtime| {
@@ -2286,7 +2278,7 @@ pub fn back_region(
 pub fn intercept_region(
     plugin_id: &str,
     instance: EditorInstanceId,
-    region: EditorRegion,
+    region: ViewId,
     press: Option<beui::KeyPress>,
     modifiers: beui::Modifiers,
 ) {
@@ -2300,12 +2292,7 @@ pub fn intercept_region(
     host::request_repaint();
 }
 
-pub fn intercept_tap(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-    region: EditorRegion,
-    key: beui::Key,
-) {
+pub fn intercept_tap(plugin_id: &str, instance: EditorInstanceId, region: ViewId, key: beui::Key) {
     with(plugin_id, |runtime| {
         let messages = runtime.instances.intercepted_tap(instance, region, key);
         runtime.pacing.needed |= !messages.is_empty();
@@ -2417,7 +2404,7 @@ fn pieces_of(rect: Rect, visible: Rect, textured: Rect, shown: &[Rect]) -> Vec<P
 pub fn region_view(
     plugin: &PluginManifest,
     instance: EditorInstanceId,
-    region: EditorRegion,
+    region: ViewId,
     own: Option<EmbedPlacement>,
     view: Option<EditorView>,
 ) -> RegionView {
@@ -2444,7 +2431,7 @@ pub fn region_view(
 fn placed_view(
     runtime: &mut Runtime,
     instance: EditorInstanceId,
-    region: EditorRegion,
+    region: ViewId,
     own: Option<EmbedPlacement>,
     view: Option<EditorView>,
 ) -> RegionView {
@@ -2619,11 +2606,7 @@ pub fn frames(plugin_id: &str) -> u64 {
     with(plugin_id, |runtime| runtime.frames).unwrap_or_default()
 }
 
-pub fn take_focus_request(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-    region: EditorRegion,
-) -> bool {
+pub fn take_focus_request(plugin_id: &str, instance: EditorInstanceId, region: ViewId) -> bool {
     with(plugin_id, |runtime| {
         runtime.instances.take_focus_request(instance, region)
     })
@@ -2660,7 +2643,7 @@ pub fn take_region_actions(
 }
 
 fn in_host(runtime: &Runtime, instance: EditorInstanceId, anchor: Rect) -> Option<Rect> {
-    let placed = runtime.placements.get(&(instance, EditorRegion::Frame))?;
+    let placed = runtime.placements.get(&(instance, ViewId::MAIN))?;
     let rect = Rect::from_min_size(
         placed.rect.min + anchor.min.to_vec2() * placed.zoom,
         anchor.size().max(Vec2::ZERO) * placed.zoom,
@@ -2681,7 +2664,7 @@ pub fn take_block_drags(plugin_id: &str, instance: EditorInstanceId) -> Vec<Bloc
 pub fn drag_over_region(
     plugin_id: &str,
     instance: EditorInstanceId,
-    region: EditorRegion,
+    region: ViewId,
     over: Option<(BlockDrag, Pos2)>,
     dropped: bool,
 ) {
@@ -2708,7 +2691,7 @@ pub fn drag_over_region(
 pub fn region_drawing(
     plugin_id: &str,
     instance: EditorInstanceId,
-    region: EditorRegion,
+    region: ViewId,
     view: &RegionView,
     pieces: &[Piece],
     rotation: f32,
@@ -2736,7 +2719,7 @@ pub fn region_drawing(
 pub fn layer_blits(
     plugin_id: &str,
     instance: EditorInstanceId,
-    region: EditorRegion,
+    region: ViewId,
     layer: &HostLayer,
 ) -> Vec<Blit> {
     with(plugin_id, |runtime| {
@@ -2783,7 +2766,7 @@ pub fn layers_drawing(blits: LayerBlits) -> beui::native::Drawing {
 pub fn region_placed(
     plugin_id: &str,
     instance: EditorInstanceId,
-    region: EditorRegion,
+    region: ViewId,
 ) -> Option<[u32; 3]> {
     with(plugin_id, |runtime| {
         let screen = runtime.instances.screen_id(instance, region)?;
@@ -2798,7 +2781,7 @@ pub fn region_placed(
 pub fn region_damage(
     plugin_id: &str,
     instance: EditorInstanceId,
-    region: EditorRegion,
+    region: ViewId,
     view: &RegionView,
     pieces: &[Piece],
     rotation: f32,

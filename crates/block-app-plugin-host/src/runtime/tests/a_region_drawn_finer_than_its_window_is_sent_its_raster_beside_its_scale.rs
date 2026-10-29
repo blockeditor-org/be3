@@ -2,7 +2,7 @@ use super::*;
 use crate::EditorBlock;
 
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
-const REGION: EditorRegion = EditorRegion::Frame;
+const REGION: ViewId = ViewId::MAIN;
 const PLUGIN: &str = "test.rastered";
 
 fn manifest() -> PluginManifest {
@@ -16,7 +16,7 @@ fn manifest() -> PluginManifest {
                 "edits": "00000000-0000-4000-8000-0000000000d1",
                 "display_name": "Rastered",
                 "icon": "x",
-                "regions": ["Frame"]
+                "views": ["Main"]
             }},
             "entry_point": "test.rastered.wasm"
         }"#,
@@ -31,7 +31,7 @@ fn sent() -> Option<(Vec2, [u32; 2], f32, f32)> {
             .statuses(&runtime.layout, 0)
             .into_iter()
             .flat_map(|instance| instance.screens)
-            .find(|screen| screen.region == REGION)
+            .find(|screen| screen.view == REGION)
             .map(|screen| {
                 (
                     screen.logical,
@@ -64,7 +64,7 @@ fn a_region_drawn_finer_than_its_window_is_sent_its_raster_beside_its_scale() {
     with(PLUGIN, |runtime| {
         runtime.instances.mount(
             INSTANCE,
-            REGION,
+            View::MAIN,
             Uuid::nil(),
             role,
             &Arc::new(crate::PluginCatalog::default()),

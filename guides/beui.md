@@ -5170,7 +5170,7 @@ A plugin's frame can open windows (a dock's floating window, the desktop plugin'
 Outside space and the desktop shell a `Window` is an overlay inside its
 region's window. Where the host shows windows as its own (the screen request's
 `windows`, `Region::windows`; guides/adding_a_plugin_editor.md), each becomes a
-`EditorRegion::Window(w)` region. block-app keeps every such window in
+view placed by the host (`HostView::Window`). block-app keeps every such window in
 `compositor/desktop.rs` (`Floated`): on the desktop shell it draws them on the
 displays (`DesktopWindows`), and under space, where it says `windows` for every
 frame region (`host::opens_windows()`), each is a `Panel`: a beui `Window` of

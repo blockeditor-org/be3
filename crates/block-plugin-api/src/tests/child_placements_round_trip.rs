@@ -4,7 +4,7 @@ use super::*;
 fn child_placements_round_trip() {
     let message = committed(ChildPlacements {
         instance: EditorInstanceId(4),
-        region: EditorRegion::Frame,
+        view: ViewId::MAIN,
         children: vec![
             ChildPlacement {
                 child: ChildId(1),
@@ -27,7 +27,7 @@ fn child_placements_round_trip() {
                 follows_view: true,
                 dialog: None,
                 docks: None,
-                in_layer: None,
+                anchored: None,
             },
             ChildPlacement {
                 child: ChildId(2),
@@ -50,7 +50,7 @@ fn child_placements_round_trip() {
                 follows_view: false,
                 dialog: None,
                 docks: None,
-                in_layer: None,
+                anchored: None,
             },
             ChildPlacement {
                 child: ChildId(3),
@@ -73,7 +73,7 @@ fn child_placements_round_trip() {
                 follows_view: false,
                 dialog: None,
                 docks: None,
-                in_layer: None,
+                anchored: None,
             },
         ],
         occluders: vec![Occluder {

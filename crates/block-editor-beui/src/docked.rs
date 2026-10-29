@@ -15,7 +15,7 @@ use beui::dock::unstyled::{DockMenus, DockTabControl, DockTabMenu, dock_menu};
 use beui::icons::Glyph;
 use beui::reactive::*;
 use beui::styled::WindowHandle;
-use block_editor_plugin::{EditorHost, EditorRegion, Pushed, RegionId};
+use block_editor_plugin::{EditorHost, Pushed, ViewId, ViewRef};
 use block_plugin_api as api;
 use block_plugin_api::{ChildId, DockTabPath};
 use uuid::Uuid;
@@ -80,7 +80,7 @@ impl DockedTabs {
         let link = Rc::new_cyclic(|this| ProtocolLink {
             this: Weak::clone(this),
             host,
-            region: EditorRegion::Frame,
+            view: ViewId::MAIN,
             pushed: editor.pushed(Pushed::Docks),
             tabs: Rc::downgrade(self),
             bodies: RefCell::default(),
@@ -117,7 +117,7 @@ impl DockedTabs {
         let picks = link.host.clone();
         create_effect(move || {
             pushed.get();
-            let taken = untrack(|| picks.take_dock_picks(EditorRegion::Frame));
+            let taken = untrack(|| picks.take_dock_picks(ViewId::MAIN));
             if let Some(link) = picking.upgrade() {
                 for (tab, id) in taken {
                     if let Some(tab) = own(&tab) {
@@ -172,9 +172,9 @@ impl DockedTabs {
             .or(hosted.focused)
             .filter(|tab| hosted.visible.contains(tab))
             .or_else(|| hosted.visible.first().copied())?;
-        crate::module::Module::of(host)?.window(RegionId {
+        crate::module::Module::of(host)?.window(ViewRef {
             instance: host.instance()?,
-            region: EditorRegion::Tab(tab.value()),
+            view: ViewId(tab.value()),
         })
     }
 
@@ -217,7 +217,7 @@ struct Panel {
 struct ProtocolLink {
     this: Weak<ProtocolLink>,
     host: EditorHost,
-    region: EditorRegion,
+    view: ViewId,
     pushed: ReadSignal<u64>,
     tabs: Weak<DockedTabs>,
     bodies: RefCell<Option<DockBodies>>,
@@ -306,7 +306,7 @@ impl ProtocolLink {
             }
         };
         self.host.declare_dock(
-            self.region,
+            self.view,
             Some(declaration_to_api(
                 declaration,
                 &own_path,
@@ -487,28 +487,28 @@ impl DockHostLink for ProtocolLink {
 
     fn hosted(&self) -> Memo<Option<DockHosted>> {
         let host = self.host.clone();
-        let region = self.region;
+        let view = self.view;
         let pushed = self.pushed;
         create_memo(move || {
             pushed.get();
-            let hosted = host.dock_hosted(region)?;
+            let hosted = host.dock_hosted(view)?;
             Some(hosted_from_api(&hosted, &mut |path| own(path)))
         })
     }
 
     fn request(&self, request: DockRequest) {
         if let Some(request) = request_to_api(&request, &own_path) {
-            self.host.request_dock(self.region, request);
+            self.host.request_dock(self.view, request);
         }
     }
 
     fn listen(&self, events: Callback<DockHostEvent>) {
         let host = self.host.clone();
-        let region = self.region;
+        let view = self.view;
         let pushed = self.pushed;
         create_effect(move || {
             pushed.get();
-            for tab in untrack(|| host.take_dock_closes(region)) {
+            for tab in untrack(|| host.take_dock_closes(view)) {
                 if let Some(tab) = own(&tab) {
                     untrack(|| events.call(DockHostEvent::Close(tab)));
                 }
@@ -541,7 +541,7 @@ impl DockHostLink for ProtocolLink {
 
     fn withdraw(&self) {
         self.declared.borrow_mut().take();
-        self.host.declare_dock(self.region, None);
+        self.host.declare_dock(self.view, None);
         self.bodies.borrow_mut().take();
         let panels = std::mem::take(&mut *self.panels.borrow_mut());
         drop(panels);

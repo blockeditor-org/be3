@@ -37,11 +37,11 @@ fn a_focused_beui_childs_reported_content_is_its_own_canvas_not_the_whole_view()
         TopBar::Shown,
     );
 
-    session.run(EditorRegion::Frame, 0);
-    session.run(EditorRegion::Frame, 0);
+    session.run(ViewId::MAIN, 0);
+    session.run(ViewId::MAIN, 0);
 
     let report = session
-        .report(EditorRegion::Frame)
+        .report(ViewId::MAIN)
         .expect("the frame region reports its content rect");
 
     assert!(

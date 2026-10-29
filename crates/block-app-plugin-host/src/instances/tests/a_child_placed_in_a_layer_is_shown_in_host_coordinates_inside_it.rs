@@ -1,19 +1,18 @@
 use super::*;
-use block_plugin_api::LayerParent;
 
 #[test]
 fn a_child_placed_in_a_layer_is_shown_in_host_coordinates_inside_it() {
     let mut instances = layered(pos2(10.0, 10.0));
     let card = Rect::from_min_size(pos2(200.0, 100.0), vec2(120.0, 90.0));
-    report_layers(&mut instances, vec![layer(1, LayerParent::Region, card)]);
+    report_layers(&mut instances, vec![layer(1, 0, card)]);
     let picker = Rect::from_min_size(pos2(210.0, 110.0), vec2(200.0, 60.0));
     let mut placements = child(picker, false);
-    placements.children[0].in_layer = Some(LayerId(1));
+    placements.children[0].anchored = Some(ViewId(1));
     placements.children[0].mode = ChildMode::Active;
     placements.children[0].clip = picker;
     let mut stray = placements.children[0].clone();
     stray.child = ChildId(2);
-    stray.in_layer = Some(LayerId(9));
+    stray.anchored = Some(ViewId(9));
     placements.children.push(stray);
     instances.set_children(placements);
 
@@ -26,7 +25,7 @@ fn a_child_placed_in_a_layer_is_shown_in_host_coordinates_inside_it() {
         "a child naming a layer the region does not have open is left out"
     );
     let shown = &children[0];
-    assert_eq!(shown.in_layer, Some(LayerId(1)));
+    assert_eq!(shown.anchored, Some(ViewId(1)));
     assert_eq!(
         shown.rect, picker,
         "its rect is already in host coordinates"

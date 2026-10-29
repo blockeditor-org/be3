@@ -1,17 +1,17 @@
 use super::*;
 
 #[test]
-fn region_sizes_round_trip() {
+fn view_sizes_round_trip() {
     let message = FrameCommit {
         sizes: vec![
-            RegionSize {
+            ViewSize {
                 screen: ScreenId(1),
                 logical: Size {
                     width: 400.0,
                     height: 24.5,
                 },
             },
-            RegionSize {
+            ViewSize {
                 screen: ScreenId(2),
                 logical: Size {
                     width: 200.0,

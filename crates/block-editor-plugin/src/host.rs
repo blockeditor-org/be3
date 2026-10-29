@@ -14,10 +14,10 @@ use block_plugin_api::guest::host_services;
 use block_plugin_api::{
     AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioSource, AudioStatus, BarAction,
     BlockCommand, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement,
-    ChildStatus, DialogAnswer, DialogFrame, EditorInstanceId, EditorRegion, Failure, FilePick,
-    FileSave, FitArea, HostPanel, HostWindowId, MenuEntry, Occluder, PerformanceMeasurement,
-    Revision, ShellCommand, ShellDialog, Size, ViewChange, Watched, WebViewCommand, WebViewEvent,
-    WebViewId,
+    ChildStatus, DialogAnswer, DialogFrame, EditorInstanceId, Failure, FilePick, FileSave, FitArea,
+    HostPanel, HostView, HostWindowId, MenuEntry, Occluder, ParentView, PerformanceMeasurement,
+    Revision, ShellCommand, ShellDialog, Size, ViewChange, ViewId, ViewPlacement, Watched,
+    WebViewCommand, WebViewEvent, WebViewId,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
 use block_type_guest::editor::{EditorOperation, FromEditor, Snapshot, ToEditor};
@@ -322,7 +322,7 @@ impl Identity {
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 enum ChildScope {
-    Region(EditorRegion),
+    View(ViewId),
     DockTab(u64),
 }
 
@@ -338,27 +338,22 @@ struct Placing {
 
 #[derive(Default)]
 struct Children {
-    placing: HashMap<EditorRegion, Placing>,
+    placing: HashMap<ViewId, Placing>,
     identities: HashMap<ChildKey, ChildId>,
-    tab_regions: HashMap<u64, EditorRegion>,
+    tab_views: HashMap<u64, ViewId>,
     next: u64,
 }
 
 impl Children {
-    fn identify(
-        &mut self,
-        region: EditorRegion,
-        dock_tab: Option<u64>,
-        identity: Identity,
-    ) -> ChildId {
+    fn identify(&mut self, view: ViewId, dock_tab: Option<u64>, identity: Identity) -> ChildId {
         let scope = match dock_tab {
             Some(tab) => {
-                self.tab_regions.insert(tab, region);
+                self.tab_views.insert(tab, view);
                 ChildScope::DockTab(tab)
             }
-            None => ChildScope::Region(region),
+            None => ChildScope::View(view),
         };
-        let placing = self.placing.entry(region).or_default();
+        let placing = self.placing.entry(view).or_default();
         let ordinal = {
             let ordinal = placing
                 .ordinals
@@ -378,20 +373,20 @@ impl Children {
                 child
             }
         };
-        self.placing.entry(region).or_default().used.push(key);
+        self.placing.entry(view).or_default().used.push(key);
         child
     }
 
-    fn placed_in(&self, scope: ChildScope, region: EditorRegion) -> bool {
+    fn placed_in(&self, scope: ChildScope, view: ViewId) -> bool {
         match scope {
-            ChildScope::Region(held) => held == region,
-            ChildScope::DockTab(tab) => self.tab_regions.get(&tab) == Some(&region),
+            ChildScope::View(held) => held == view,
+            ChildScope::DockTab(tab) => self.tab_views.get(&tab) == Some(&view),
         }
     }
 }
 
 #[derive(Default)]
-struct RegionDrops {
+struct ViewDrops {
     drag: Option<BlockDrag>,
     files: Option<FileDrop>,
     content: Option<Rect>,
@@ -499,9 +494,9 @@ pub struct EditorHost {
     dismiss_requested: Rc<Cell<bool>>,
     child_dismissals: Rc<RefCell<Vec<ChildId>>>,
     performance: Arc<Mutex<Vec<PerformanceRecord>>>,
-    region: Rc<Cell<Option<EditorRegion>>>,
-    layer: Rc<Cell<Option<block_plugin_api::LayerId>>>,
-    drops: Rc<RefCell<HashMap<EditorRegion, RegionDrops>>>,
+    showing: Rc<Cell<Option<block_plugin_api::View>>>,
+    anchored: Rc<Cell<Option<ViewId>>>,
+    drops: Rc<RefCell<HashMap<ViewId, ViewDrops>>>,
     children: Rc<RefCell<Children>>,
     child_statuses: Rc<RefCell<HashMap<ChildId, ChildStatus>>>,
     audio_commands: Rc<RefCell<Vec<AudioCommand>>>,
@@ -522,7 +517,7 @@ pub struct EditorHost {
     copied_images: Rc<RefCell<Vec<Vec<u8>>>>,
     paste_requested: Rc<Cell<bool>>,
     leaving: Rc<Cell<bool>>,
-    next_frame: Rc<RefCell<HashMap<Option<EditorRegion>, Duration>>>,
+    next_frame: Rc<RefCell<HashMap<Option<ViewId>, Duration>>>,
     content_updates: Rc<RefCell<HashMap<Option<Uuid>, Vec<ToEditor>>>>,
     followed: Rc<RefCell<HashMap<Option<Uuid>, usize>>>,
     asked: Rc<RefCell<HashSet<Option<Uuid>>>>,
@@ -1444,10 +1439,12 @@ impl EditorHost {
     }
 
     fn framed_view(&self) -> Option<View> {
-        let region = self.region.get();
+        let shown = self.showing.get().map(|shown| shown.placement);
         matches!(
-            region,
-            None | Some(EditorRegion::Frame | EditorRegion::Display(_))
+            shown,
+            None | Some(
+                ViewPlacement::Parent(ParentView::Main) | ViewPlacement::Host(HostView::Display(_))
+            )
         )
         .then(|| self.view.get())
         .flatten()
@@ -1478,17 +1475,21 @@ impl EditorHost {
     }
 
     pub fn drag(&self) -> Option<BlockDrag> {
-        let region = self.region.get()?;
-        self.drops.borrow().get(&region)?.drag
+        let view = self.shown_view()?;
+        self.drops.borrow().get(&view)?.drag
     }
 
     pub fn files(&self) -> Option<FileDrop> {
-        let region = self.region.get()?;
-        self.drops.borrow().get(&region)?.files.clone()
+        let view = self.shown_view()?;
+        self.drops.borrow().get(&view)?.files.clone()
     }
 
-    pub(crate) fn set_files(&self, region: EditorRegion, drop: Option<FileDrop>) {
-        self.drops.borrow_mut().entry(region).or_default().files = drop;
+    fn shown_view(&self) -> Option<ViewId> {
+        self.showing.get().map(|shown| shown.id)
+    }
+
+    pub(crate) fn set_files(&self, view: ViewId, drop: Option<FileDrop>) {
+        self.drops.borrow_mut().entry(view).or_default().files = drop;
         self.changed();
     }
 
@@ -1705,13 +1706,13 @@ impl EditorHost {
 
     pub fn request_frame_in(&self, delay: Duration) {
         let mut next = self.next_frame.borrow_mut();
-        let held = next.entry(self.region.get()).or_insert(delay);
+        let held = next.entry(self.shown_view()).or_insert(delay);
         *held = (*held).min(delay);
     }
 
-    pub fn take_frame_request(&self, region: EditorRegion) -> Option<Duration> {
+    pub fn take_frame_request(&self, view: ViewId) -> Option<Duration> {
         let mut next = self.next_frame.borrow_mut();
-        let own = next.remove(&Some(region));
+        let own = next.remove(&Some(view));
         let any = next.remove(&None);
         own.into_iter().chain(any).min()
     }
@@ -1861,9 +1862,9 @@ impl EditorHost {
     }
 
     pub fn occlude(&self, rect: Rect) {
-        let region = self.region.get().unwrap_or(EditorRegion::Frame);
+        let view = self.shown_view().unwrap_or(ViewId::MAIN);
         let mut children = self.children.borrow_mut();
-        let placing = children.placing.entry(region).or_default();
+        let placing = children.placing.entry(view).or_default();
         let after = placing.placements.len() as u32;
         placing.occluders.push(Occluder { after, rect });
     }
@@ -1885,7 +1886,7 @@ impl EditorHost {
         dock_tab: Option<u64>,
         docks: bool,
     ) -> ChildId {
-        let region = self.region.get().unwrap_or(EditorRegion::Frame);
+        let view = self.shown_view().unwrap_or(ViewId::MAIN);
         let placed = rect;
         let clip =
             clip.intersect(geometry::Rotation::new(placed.center(), rotation).bounds(placed));
@@ -1894,10 +1895,10 @@ impl EditorHost {
             self.mark_docks_used();
         }
         let mut children = self.children.borrow_mut();
-        let child = children.identify(region, dock_tab, Identity::of(&content));
+        let child = children.identify(view, dock_tab, Identity::of(&content));
         children
             .placing
-            .entry(region)
+            .entry(view)
             .or_default()
             .placements
             .push(ChildPlacement {
@@ -1919,7 +1920,7 @@ impl EditorHost {
                 follows_view,
                 dialog,
                 docks,
-                in_layer: self.layer.get(),
+                anchored: self.anchored.get(),
             });
         child
     }
@@ -2035,20 +2036,20 @@ impl EditorHost {
     }
 
     pub fn report_content(&self, rect: Rect) {
-        let region = self.region.get().unwrap_or(EditorRegion::Frame);
-        self.drops.borrow_mut().entry(region).or_default().content = Some(rect);
+        let view = self.shown_view().unwrap_or(ViewId::MAIN);
+        self.drops.borrow_mut().entry(view).or_default().content = Some(rect);
     }
 
-    pub(crate) fn take_content(&self, region: EditorRegion) -> Option<Rect> {
-        self.drops.borrow_mut().get_mut(&region)?.content.take()
+    pub(crate) fn take_content(&self, view: ViewId) -> Option<Rect> {
+        self.drops.borrow_mut().get_mut(&view)?.content.take()
     }
 
     pub fn take_view_changes(&self) -> Vec<ViewChange> {
         std::mem::take(&mut self.view_changes.borrow_mut())
     }
 
-    pub(crate) fn set_drag(&self, region: EditorRegion, drag: Option<BlockDrag>) {
-        self.drops.borrow_mut().entry(region).or_default().drag = drag;
+    pub(crate) fn set_drag(&self, view: ViewId, drag: Option<BlockDrag>) {
+        self.drops.borrow_mut().entry(view).or_default().drag = drag;
         self.changed();
     }
 
@@ -2056,38 +2057,34 @@ impl EditorHost {
         self.drag_accepted.take()
     }
 
-    pub fn in_region<R>(&self, region: EditorRegion, within: impl FnOnce() -> R) -> R {
-        let held = self.region.replace(Some(region));
+    pub fn in_view<R>(&self, view: block_plugin_api::View, within: impl FnOnce() -> R) -> R {
+        let held = self.showing.replace(Some(view));
         let done = within();
-        self.region.set(held);
+        self.showing.set(held);
         done
     }
 
-    pub fn in_layer<R>(
-        &self,
-        layer: Option<block_plugin_api::LayerId>,
-        within: impl FnOnce() -> R,
-    ) -> R {
-        let held = self.layer.replace(layer);
+    pub fn in_anchored<R>(&self, anchored: Option<ViewId>, within: impl FnOnce() -> R) -> R {
+        let held = self.anchored.replace(anchored);
         let done = within();
-        self.layer.set(held);
+        self.anchored.set(held);
         done
     }
 
-    pub(crate) fn begin_region(&self, region: EditorRegion) {
+    pub(crate) fn begin_view(&self, view: ViewId) {
         self.children
             .borrow_mut()
             .placing
-            .insert(region, Placing::default());
+            .insert(view, Placing::default());
     }
 
-    pub(crate) fn end_region(&self, region: EditorRegion) -> (Vec<ChildPlacement>, Vec<Occluder>) {
+    pub(crate) fn end_view(&self, view: ViewId) -> (Vec<ChildPlacement>, Vec<Occluder>) {
         let mut children = self.children.borrow_mut();
-        let placing = children.placing.remove(&region).unwrap_or_default();
+        let placing = children.placing.remove(&view).unwrap_or_default();
         let gone: Vec<ChildKey> = children
             .identities
             .keys()
-            .filter(|key| children.placed_in(key.0, region) && !placing.used.contains(key))
+            .filter(|key| children.placed_in(key.0, view) && !placing.used.contains(key))
             .cloned()
             .collect();
         for key in gone {

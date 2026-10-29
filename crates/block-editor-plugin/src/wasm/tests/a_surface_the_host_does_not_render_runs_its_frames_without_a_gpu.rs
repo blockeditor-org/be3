@@ -1,6 +1,6 @@
 use block_plugin_api::{
-    EditorInstanceId, EditorRegion, HelloAccepted, OpenBlock, Opening, ScreenId, ScreenRequest,
-    Size, SurfaceFormat, SurfaceSpec, TimedInput, ViewportMetrics,
+    EditorInstanceId, HelloAccepted, OpenBlock, Opening, ParentView, ScreenId, ScreenRequest, Size,
+    SurfaceFormat, SurfaceSpec, TimedInput, ViewId, ViewPlacement, ViewRef, ViewportMetrics,
 };
 use uuid::Uuid;
 
@@ -8,7 +8,7 @@ use crate::editor_session::EditorSession;
 use crate::screens::Screens;
 use crate::wasm::Surfaces;
 use crate::wire::Delivery;
-use crate::{EditorHost, Frame, Instance, Region, RegionId, Regions, Waker};
+use crate::{EditorHost, Frame, Instance, Region, Regions, Waker};
 
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 
@@ -17,7 +17,7 @@ struct Unpainted(EditorHost);
 impl Instance for Unpainted {
     fn connect(&mut self, _block_id: Uuid) {}
 
-    fn open_region(&mut self, _region: EditorRegion) {
+    fn open_view(&mut self, _view: block_plugin_api::View) {
         if !self.0.handles_regions() {
             self.0.handle_regions(Box::new(UnpaintedRegions));
         }
@@ -27,7 +27,7 @@ impl Instance for Unpainted {
 struct UnpaintedRegions;
 
 impl Regions for UnpaintedRegions {
-    fn input(&mut self, _region: &Region, _event: &TimedInput, _over: Option<RegionId>) {}
+    fn input(&mut self, _region: &Region, _event: &TimedInput, _over: Option<ViewRef>) {}
 
     fn frame(&mut self, regions: &[Region]) -> Vec<Frame> {
         regions
@@ -42,7 +42,7 @@ impl Regions for UnpaintedRegions {
 
     fn paint(
         &mut self,
-        _region: crate::RegionId,
+        _region: ViewRef,
         _target: &crate::PaintTarget<'_>,
     ) -> Vec<block_plugin_api::SurfaceRect> {
         panic!("a surface the host does not render was painted")
@@ -81,7 +81,8 @@ fn a_surface_the_host_does_not_render_runs_its_frames_without_a_gpu() {
         Delivery::Screens(vec![ScreenRequest {
             screen: ScreenId(1),
             instance: INSTANCE,
-            region: EditorRegion::Frame,
+            view: ViewId::MAIN,
+            placement: ViewPlacement::Parent(ParentView::Main),
             frame: None,
             metrics: ViewportMetrics {
                 logical: Size {
@@ -95,7 +96,7 @@ fn a_surface_the_host_does_not_render_runs_its_frames_without_a_gpu() {
                 raster: 1.0,
             },
             windows: false,
-            placement: None,
+            host_place: None,
             docked: false,
             layers: None,
         }]),

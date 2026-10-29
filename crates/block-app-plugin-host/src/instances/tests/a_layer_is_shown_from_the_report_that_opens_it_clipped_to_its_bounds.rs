@@ -6,10 +6,7 @@ fn a_layer_is_shown_from_the_report_that_opens_it_clipped_to_its_bounds() {
     assert!(instances.layers(INSTANCE, REGION).is_empty());
 
     let menu = Rect::from_min_size(pos2(350.0, 40.0), vec2(100.0, 80.0));
-    report_layers(
-        &mut instances,
-        vec![layer(1, block_plugin_api::LayerParent::Region, menu)],
-    );
+    report_layers(&mut instances, vec![layer(1, 0, menu)]);
 
     let shown = instances.layers(INSTANCE, REGION);
     assert_eq!(shown.len(), 1, "the report that opens a layer shows it");

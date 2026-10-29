@@ -1,4 +1,4 @@
-use block_plugin_api::{EditorInstanceId, EditorRegion, ScreenDamage, SurfaceRect};
+use block_plugin_api::{EditorInstanceId, ScreenDamage, SurfaceRect, ViewId};
 use block_plugin_api::{ScreenLayout, ScreenPlacement};
 use std::collections::HashSet;
 use std::time::Duration;
@@ -17,9 +17,9 @@ pub(crate) struct Panes {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct ShownLayer {
+pub(crate) struct ShownAnchored {
     pub(crate) placement: ScreenPlacement,
-    pub(crate) layer: crate::editor_session::LayerSurface,
+    pub(crate) anchored: crate::editor_session::AnchoredSurface,
     pub(crate) fresh: bool,
 }
 
@@ -102,10 +102,10 @@ impl Panes {
                 self.repainting.insert(placement.instance);
                 continue;
             }
-            let shown = seen || placement.region == EditorRegion::Preview;
+            let shown = seen || placement.view == ViewId::PREVIEW;
             match (changed, shown) {
                 (true, true) => {
-                    if placement.region == EditorRegion::Preview {
+                    if placement.view == ViewId::PREVIEW {
                         self.previews.painted(placement.surface, now, fresh);
                     }
                     painting.push(*placement);
@@ -124,8 +124,8 @@ impl Panes {
     }
 
     fn cooling(&self, placement: &ScreenPlacement, now: Duration) -> Option<Duration> {
-        match placement.region {
-            EditorRegion::Preview => self.previews.wait(placement.surface, now),
+        match placement.view {
+            ViewId::PREVIEW => self.previews.wait(placement.surface, now),
             _ => None,
         }
     }
@@ -158,7 +158,7 @@ impl Panes {
                 height: placement.height,
                 age,
             };
-            let drawn = session.paint(placement.region, &target);
+            let drawn = session.paint(placement.view, &target);
             block_gpu_guest::present_surface(placement.surface);
             let drawn = match age {
                 0 => target.whole(),
@@ -174,26 +174,26 @@ impl Panes {
 }
 
 impl Panes {
-    pub(crate) fn paint_layers(
+    pub(crate) fn paint_anchored(
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         format: wgpu::TextureFormat,
         screens: &mut Screens,
-        layers: &[ShownLayer],
+        anchored: &[ShownAnchored],
     ) -> Result<(), String> {
-        for shown in layers {
+        for shown in anchored {
             let Some(session) = screens.session(shown.placement.instance) else {
                 continue;
             };
-            let surface = shown.layer.surface;
+            let surface = shown.anchored.surface;
             let texture = block_gpu_guest::acquire_surface_texture(surface)?;
             let age = block_gpu_guest::surface_age(surface);
             let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
             if age == 0 {
                 clear(device, queue, &view);
             }
-            let [width, height] = shown.layer.pixels;
+            let [width, height] = shown.anchored.pixels;
             let target = PaintTarget {
                 device,
                 queue,
@@ -203,7 +203,7 @@ impl Panes {
                 height,
                 age,
             };
-            session.paint_layer(shown.placement.region, shown.layer.layer, &target);
+            session.paint_anchored(shown.placement.view, shown.anchored.view, &target);
             block_gpu_guest::present_surface(surface);
         }
         Ok(())

@@ -640,7 +640,7 @@ impl DockUpdate {
     pub fn queue(updates: &mut Vec<Self>, update: Self) {
         match &update {
             Self::Hosted(hosted) => updates.retain(
-                |waiting| !matches!(waiting, Self::Hosted(held) if held.region == hosted.region),
+                |waiting| !matches!(waiting, Self::Hosted(held) if held.view == hosted.view),
             ),
             Self::Child(child) => updates.retain(
                 |waiting| !matches!(waiting, Self::Child(held) if held.child == child.child),

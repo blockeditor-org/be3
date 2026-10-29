@@ -1,5 +1,5 @@
 use beui::{Input, NodeId, PointerButton, Pos2, Rect, Vec2, pos2, vec2};
-use block_editor_beui::{BeuiApp, EditorRegion};
+use block_editor_beui::{BeuiApp, View, ViewId};
 use block_plugin_api::{
     InputBatch, ScreenId, ScreenRequest, TimedInput, ViewportMetrics, WindowEdge, WindowPlacement,
     WindowRequest,
@@ -20,7 +20,7 @@ struct Display {
 
 #[derive(Clone, Debug)]
 struct Hosted {
-    window: u64,
+    window: ViewId,
     screen: ScreenId,
     rect: Rect,
 }
@@ -36,8 +36,8 @@ pub(crate) struct Desk {
     displays: Vec<Display>,
     windows: Vec<Hosted>,
     next_screen: u64,
-    gesture: Option<(u64, Gesture)>,
-    pressed: Option<(ScreenId, Pos2, Option<(u64, Rect)>)>,
+    gesture: Option<(ViewId, Gesture)>,
+    pressed: Option<(ScreenId, Pos2, Option<(ViewId, Rect)>)>,
     pointer: Pos2,
     outside: bool,
 }
@@ -89,19 +89,18 @@ impl Desk {
             .unwrap_or(Pos2::ZERO)
     }
 
-    fn region_screen(&self, region: EditorRegion) -> Option<ScreenId> {
-        match region {
-            EditorRegion::Frame => Some(SCREEN),
-            EditorRegion::Display(index) => self
-                .displays
-                .get(index as usize)
-                .map(|display| display.screen),
-            EditorRegion::Window(window) => self
+    fn view_screen(&self, view: ViewId) -> Option<ScreenId> {
+        if view.is_main() {
+            return Some(SCREEN);
+        }
+        let display = (1..self.displays.len()).find(|index| ViewId::display(*index as u32) == view);
+        match display {
+            Some(index) => Some(self.displays[index].screen),
+            None => self
                 .windows
                 .iter()
-                .find(|held| held.window == window)
+                .find(|held| held.window == view)
                 .map(|held| held.screen),
-            _ => None,
         }
     }
 
@@ -135,31 +134,37 @@ impl Desk {
             .displays
             .iter()
             .enumerate()
-            .map(|(index, display)| ScreenRequest {
+            .map(|(index, display)| {
+                let shown = match index {
+                    0 => View::MAIN,
+                    index => View::display(index as u32),
+                };
+                (index, display, shown)
+            })
+            .map(|(index, display, shown)| ScreenRequest {
                 screen: display.screen,
                 instance: INSTANCE,
-                region: match index {
-                    0 => EditorRegion::Frame,
-                    index => EditorRegion::Display(index as u32),
-                },
+                view: shown.id,
+                placement: shown.placement,
                 metrics: metrics(display.rect.size(), display.scale),
                 frame: match index {
                     0 => frame,
                     _ => None,
                 },
                 windows: true,
-                placement: None,
+                host_place: None,
                 docked: false,
                 layers: None,
             });
         let windows = self.windows.iter().map(|window| ScreenRequest {
             screen: window.screen,
             instance: INSTANCE,
-            region: EditorRegion::Window(window.window),
+            view: window.window,
+            placement: View::window(window.window).placement,
             metrics: metrics(window.rect.size(), self.owner(window.rect).scale),
             frame: None,
             windows: true,
-            placement: Some(placement(window.rect)),
+            host_place: Some(placement(window.rect)),
             docked: false,
             layers: None,
         });
@@ -167,13 +172,14 @@ impl Desk {
     }
 
     fn ask(&mut self, request: WindowRequest) {
-        let find =
-            |windows: &[Hosted], window: u64| windows.iter().position(|held| held.window == window);
+        let find = |windows: &[Hosted], window: ViewId| {
+            windows.iter().position(|held| held.window == window)
+        };
         match request {
             WindowRequest::Open(open) => {
                 let origin = match open.placement {
                     WindowPlacement::Over(over) => {
-                        let screen = self.region_screen(over.region.region);
+                        let screen = self.view_screen(over.view.view);
                         screen.map_or(Pos2::ZERO, |screen| self.origin(screen)) + over.at.to_vec2()
                     }
                     WindowPlacement::Host(placement) => {
@@ -182,12 +188,12 @@ impl Desk {
                     WindowPlacement::AtPointer => self.pointer - OPEN_GRAB,
                 };
                 let rect = Rect::from_min_size(origin, vec2(open.size.width, open.size.height));
-                match find(&self.windows, open.window) {
+                match find(&self.windows, open.view) {
                     Some(index) => self.windows[index].rect = rect,
                     None => {
                         self.next_screen += 1;
                         self.windows.push(Hosted {
-                            window: open.window,
+                            window: open.view,
                             screen: ScreenId(self.next_screen),
                             rect,
                         });
@@ -202,10 +208,10 @@ impl Desk {
                 }
             }
             WindowRequest::BeginResize(resize) => {
-                self.gesture = Some((resize.window, Gesture::Resize(resize.edge)));
+                self.gesture = Some((resize.view, Gesture::Resize(resize.edge)));
             }
             WindowRequest::Resize(resize) => {
-                if let Some(index) = find(&self.windows, resize.window) {
+                if let Some(index) = find(&self.windows, resize.view) {
                     let held = &mut self.windows[index];
                     held.rect = Rect::from_min_size(
                         held.rect.min,
@@ -422,7 +428,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             input,
             time_micros: Some(self.clock.as_micros() as u64),
             over,
-            layer: None,
+            anchored: None,
         });
         let ended = pressed == Some(false) && {
             desk.pressed = None;

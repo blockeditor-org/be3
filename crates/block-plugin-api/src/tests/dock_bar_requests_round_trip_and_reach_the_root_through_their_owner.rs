@@ -2,9 +2,9 @@ use super::*;
 
 #[test]
 fn dock_bar_requests_round_trip_and_reach_the_root_through_their_owner() {
-    let region = RegionRef {
+    let view = ViewRef {
         instance: EditorInstanceId(1),
-        region: EditorRegion::Frame,
+        view: ViewId::MAIN,
     };
     let requests = [
         DockRequest::PlaceBar(DockBarPlace {
@@ -30,8 +30,8 @@ fn dock_bar_requests_round_trip_and_reach_the_root_through_their_owner() {
         docks: requests
             .iter()
             .map(|request| {
-                DockMessage::Request(DockRegionRequest {
-                    region,
+                DockMessage::Request(DockViewRequest {
+                    view,
                     request: request.clone(),
                 })
             })

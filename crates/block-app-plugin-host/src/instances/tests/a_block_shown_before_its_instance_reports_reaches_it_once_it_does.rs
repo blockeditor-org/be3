@@ -5,7 +5,7 @@ fn report(instances: &mut Instances) {
     let block_types = Arc::new(crate::PluginCatalog::default());
     instances.report(
         INSTANCE,
-        REGION,
+        View::MAIN,
         Uuid::nil(),
         InstanceRole::Editor(
             Uuid::nil(),

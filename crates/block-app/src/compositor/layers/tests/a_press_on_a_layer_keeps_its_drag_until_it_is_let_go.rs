@@ -18,7 +18,7 @@ fn a_press_on_a_layer_keeps_its_drag_until_it_is_let_go() {
     );
     assert_eq!(
         targets(&runs),
-        vec![(1, LayerId(1))],
+        vec![(1, ViewId(1))],
         "the whole press goes to the layer it began on"
     );
     assert!(runs[0].2, "the run holds a press, so its owner takes focus");
@@ -31,7 +31,7 @@ fn a_press_on_a_layer_keeps_its_drag_until_it_is_let_go() {
     );
     assert_eq!(
         targets(&runs),
-        vec![(1, LayerId(2))],
+        vec![(1, ViewId(2))],
         "once let go, the pointer reaches the layer it is over"
     );
     assert!(!runs[0].2);

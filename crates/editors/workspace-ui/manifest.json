@@ -9,8 +9,8 @@
       "icon": "\ue0ff",
       "interaction": "Live",
       "resize": "None",
-      "regions": [
-        "Frame"
+      "views": [
+        "Main"
       ],
       "accepts": [
         "show_block",
@@ -25,8 +25,8 @@
       "icon": "\ue0ff",
       "interaction": "Live",
       "resize": "None",
-      "regions": [
-        "Frame"
+      "views": [
+        "Main"
       ],
       "accepts": [
         "pick"

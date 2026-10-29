@@ -31,8 +31,8 @@
       },
       "interaction": "Playback",
       "resize": "Both",
-      "regions": [
-        "Frame",
+      "views": [
+        "Main",
         "Preview"
       ]
     }

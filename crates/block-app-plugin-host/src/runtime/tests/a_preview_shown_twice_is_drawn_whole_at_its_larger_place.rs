@@ -2,7 +2,7 @@ use super::*;
 use crate::EditorBlock;
 
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
-const REGION: EditorRegion = EditorRegion::Preview;
+const REGION: ViewId = ViewId::PREVIEW;
 
 fn manifest() -> PluginManifest {
     block_plugin_manifest::manifest_from_json(
@@ -15,7 +15,7 @@ fn manifest() -> PluginManifest {
                 "edits": "00000000-0000-4000-8000-0000000000d1",
                 "display_name": "Previewed",
                 "icon": "x",
-                "regions": ["Frame", "Preview"]
+                "views": ["Main", "Preview"]
             }},
             "entry_point": "test.previewed.wasm"
         }"#,
@@ -77,7 +77,7 @@ fn a_preview_shown_twice_is_drawn_whole_at_its_larger_place() {
         with("test.previewed", |runtime| {
             runtime
                 .instances
-                .mount(INSTANCE, REGION, Uuid::nil(), role, &block_types)
+                .mount(INSTANCE, View::PREVIEW, Uuid::nil(), role, &block_types)
         });
     }
     let large = Rect::from_min_size(pos2(100.0, 100.0), vec2(300.0, 200.0));
