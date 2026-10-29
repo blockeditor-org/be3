@@ -83,6 +83,7 @@ impl Platform for PluginPlatform {
                 asks: Vec::new(),
                 layers: HashMap::new(),
                 placements: HashMap::new(),
+                ratio: 1.0,
             };
             self.host.handle_regions(Box::new(handler));
             Ok(())
@@ -167,6 +168,7 @@ struct ModuleRunner {
     asks: Vec<(ViewRef, block_plugin_api::WindowRequest)>,
     layers: HashMap<ViewRef, Vec<layers::Shown>>,
     placements: HashMap<ViewRef, ViewPlacement>,
+    ratio: f32,
 }
 
 struct Floated {
@@ -358,6 +360,7 @@ impl ModuleRunner {
                     opener,
                     Ask::Open(block_plugin_api::WindowOpen {
                         view: window_view(window),
+                        screen: block_plugin_api::ScreenId(0),
                         opener,
                         placement,
                         size: to_region(size),
@@ -513,6 +516,80 @@ impl ModuleRunner {
         Description { tree, actions }
     }
 
+    #[allow(clippy::too_many_arguments)]
+    fn framed(
+        &mut self,
+        region: &Region,
+        asks: Vec<block_plugin_api::WindowRequest>,
+        keyboard: Option<ViewRef>,
+        escaped: &[beui_core::context::EscapedOutput],
+        repaint_after: Option<std::time::Duration>,
+        animating: bool,
+        ratio: f32,
+    ) -> Frame {
+        let id = region.id();
+        let window = self.windows.get(&id).copied();
+        let output = window
+            .and_then(|window| self.runner.output()?.window(window))
+            .cloned();
+        let surface = self.surfaces.entry(id).or_default();
+        if let Some(output) = &output {
+            surface.note(output);
+        }
+        let mut changed = surface.unpainted();
+        surface.settle();
+        let held = self.layers.entry(id).or_default();
+        changed |= match window {
+            Some(window) => layers::follow(held, escaped, window),
+            None => !std::mem::take(held).is_empty(),
+        };
+        for shown in held.iter_mut() {
+            shown.surface.settle();
+        }
+        let anchored = layers::report(held, region.view.id, ratio);
+        let report = self.views.take_report(id);
+        let to_region = |rect: Rect| rect.scaled(ratio.recip());
+        Frame {
+            changed,
+            repaint_after,
+            animating,
+            content: report.content.map(to_region),
+            painted: report.painted.into_iter().map(to_region).collect(),
+            floating: report.floating.into_iter().map(to_region).collect(),
+            floating_painted: report.floating_painted.into_iter().map(to_region).collect(),
+            scrims: report
+                .scrims
+                .into_iter()
+                .map(|(rect, color)| {
+                    let [red, green, blue, alpha] = color.to_array();
+                    block_plugin_api::Scrim {
+                        rect: to_region(rect),
+                        color: block_plugin_api::accessibility::Color {
+                            red,
+                            green,
+                            blue,
+                            alpha,
+                        },
+                    }
+                })
+                .collect(),
+            drawing: report.drawing.into_iter().map(to_region).collect(),
+            claims: report
+                .claims
+                .into_iter()
+                .map(|claim| Claim {
+                    modifiers: claim.modifiers,
+                    rect: to_region(claim.rect),
+                })
+                .collect(),
+            window: self.requests(id, keyboard, ratio),
+            description: region.describe.map(|_| self.describe(id, region, ratio)),
+            stopped: None,
+            asks,
+            anchored,
+        }
+    }
+
     fn stopped(&self, regions: &[Region]) -> Vec<Frame> {
         let stopped = self.runner.exited().then(|| match self.runner.failure() {
             Some(failure) => block_plugin_api::Stopped::Failed(failure.to_owned()),
@@ -620,6 +697,7 @@ impl Regions for ModuleRunner {
             .reports()
             .system_preferences(block_editor_plugin::host_preferences().into());
         let ratio = self.ratio(regions);
+        self.ratio = ratio;
         let hosting = match regions.iter().any(|region| region.windows) {
             true => WindowHosting::Any,
             false => WindowHosting::Placed,
@@ -674,68 +752,49 @@ impl Regions for ModuleRunner {
             .collect::<Vec<_>>()
             .into_iter()
             .map(|(region, asks)| {
-                let id = region.id();
-                let window = self.windows.get(&id).copied();
-                let output = window
-                    .and_then(|window| self.runner.output()?.window(window))
-                    .cloned();
-                let surface = self.surfaces.entry(id).or_default();
-                if let Some(output) = &output {
-                    surface.note(output);
-                }
-                let mut changed = surface.unpainted();
-                surface.settle();
-                let held = self.layers.entry(id).or_default();
-                changed |= match window {
-                    Some(window) => layers::follow(held, &escaped, window),
-                    None => !std::mem::take(held).is_empty(),
-                };
-                for shown in held.iter_mut() {
-                    shown.surface.settle();
-                }
-                let anchored = layers::report(held, region.view.id, ratio);
-                let report = self.views.take_report(id);
-                let to_region = |rect: Rect| rect.scaled(ratio.recip());
-                Frame {
-                    changed,
-                    repaint_after: frame.wait().filter(|_| keyboard == Some(id)),
-                    animating: frame.animating,
-                    content: report.content.map(to_region),
-                    painted: report.painted.into_iter().map(to_region).collect(),
-                    floating: report.floating.into_iter().map(to_region).collect(),
-                    floating_painted: report.floating_painted.into_iter().map(to_region).collect(),
-                    scrims: report
-                        .scrims
-                        .into_iter()
-                        .map(|(rect, color)| {
-                            let [red, green, blue, alpha] = color.to_array();
-                            block_plugin_api::Scrim {
-                                rect: to_region(rect),
-                                color: block_plugin_api::accessibility::Color {
-                                    red,
-                                    green,
-                                    blue,
-                                    alpha,
-                                },
-                            }
-                        })
-                        .collect(),
-                    drawing: report.drawing.into_iter().map(to_region).collect(),
-                    claims: report
-                        .claims
-                        .into_iter()
-                        .map(|claim| Claim {
-                            modifiers: claim.modifiers,
-                            rect: to_region(claim.rect),
-                        })
-                        .collect(),
-                    window: self.requests(id, keyboard, ratio),
-                    description: region.describe.map(|_| self.describe(id, region, ratio)),
-                    stopped: None,
-                    asks,
-                    anchored,
-                }
+                let wait = frame.wait().filter(|_| keyboard == Some(region.id()));
+                self.framed(region, asks, keyboard, &escaped, wait, frame.animating, ratio)
             })
+            .collect()
+    }
+
+    fn frame_opened(&mut self, regions: &[Region]) -> Vec<Frame> {
+        let ratio = self.ratio;
+        for region in regions {
+            let id = region.id();
+            let Some(window) = self
+                .floated
+                .iter()
+                .find(|(_, floated)| floated.region == id)
+                .map(|(window, _)| *window)
+            else {
+                continue;
+            };
+            if let Some(floated) = self.floated.get_mut(&window) {
+                floated.shown = true;
+            }
+            self.windows.insert(id, window);
+            self.placements.insert(id, region.view.placement);
+            let surface = self.surfaces.entry(id).or_default();
+            surface.size = (region.pixels[0], region.pixels[1]);
+            surface.age = region.age;
+            surface.visible = region.visible * ratio;
+        }
+        self.views.set_floated(
+            self.floated
+                .iter()
+                .filter(|(_, floated)| floated.shown)
+                .map(|(window, floated)| (floated.region, *window))
+                .collect(),
+        );
+        let escaped = self
+            .runner
+            .output()
+            .map(|output| output.escaped.clone())
+            .unwrap_or_default();
+        regions
+            .iter()
+            .map(|region| self.framed(region, Vec::new(), None, &escaped, None, false, ratio))
             .collect()
     }
 

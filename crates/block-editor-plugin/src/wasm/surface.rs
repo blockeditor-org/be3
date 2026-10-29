@@ -46,6 +46,7 @@ pub(crate) struct Surfaces {
     layout: ScreenLayout,
     fresh: HashSet<u32>,
     layers: HashMap<u32, [u32; 2]>,
+    relaid: bool,
 }
 
 impl Surfaces {
@@ -66,11 +67,16 @@ impl Surfaces {
             layout: ScreenLayout::default(),
             fresh: HashSet::new(),
             layers: HashMap::new(),
+            relaid: false,
         })
     }
 
     pub(crate) fn layout(&self) -> &ScreenLayout {
         &self.layout
+    }
+
+    pub(crate) fn take_relaid(&mut self) -> bool {
+        std::mem::take(&mut self.relaid)
     }
 
     pub(crate) fn place(&mut self, layout: ScreenLayout) {
@@ -123,6 +129,10 @@ impl Surfaces {
         );
         let repaint = ran.repaint;
         let animating = ran.animating;
+        if ran.opened {
+            self.place(screens.layout().clone());
+            self.relaid = true;
+        }
         let layers = self.place_layers(screens);
         let seen = crate::screens::seen();
         let layers: Vec<ShownAnchored> = layers

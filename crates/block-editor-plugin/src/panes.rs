@@ -27,6 +27,7 @@ pub(crate) struct Ran {
     pub(crate) repaint: Option<Duration>,
     pub(crate) animating: bool,
     pub(crate) painting: Vec<ScreenPlacement>,
+    pub(crate) opened: bool,
 }
 
 impl Panes {
@@ -68,6 +69,7 @@ impl Panes {
                 repaint: None,
                 animating,
                 painting,
+                opened: false,
             };
         }
         let shown: Vec<(ScreenPlacement, u32)> = layout
@@ -116,10 +118,19 @@ impl Panes {
                 (false, _) => {}
             }
         }
+        let opened: Vec<ScreenPlacement> = screens
+            .take_opened()
+            .into_iter()
+            .map(|(placement, _)| placement)
+            .collect();
+        if seen {
+            painting.extend(opened.iter().copied());
+        }
         Ran {
             repaint: (repaint < Duration::MAX).then_some(repaint),
             animating,
             painting,
+            opened: !opened.is_empty(),
         }
     }
 

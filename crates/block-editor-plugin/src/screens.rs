@@ -1,6 +1,7 @@
 use block_plugin_api::{
-    Catalog, DebugTemplate, EditorInstanceId, FrameCommit, Opening, ScreenId, ScreenLayout,
-    ScreenPlacement, ScreenRequest, SurfaceSpec, TemplateCategory, ViewId, ViewRef,
+    Catalog, DebugTemplate, EditorInstanceId, FrameCommit, HostView, Opening, Pos2, ScreenId,
+    ScreenLayout, ScreenPlacement, ScreenRequest, Size, SurfaceSpec, TemplateCategory, ViewId,
+    ViewPlacement, ViewRef, ViewportMetrics, WindowRequest,
 };
 use block_ui::{BlockCatalog, BlockTypeEntry, EditorEntry, TemplateEntry};
 use lucide::Glyph;
@@ -25,6 +26,9 @@ pub(crate) struct Screens {
     apps: Vec<(Uuid, Opener)>,
     waker: Waker,
     requests: Vec<ScreenRequest>,
+    opened: Vec<ScreenRequest>,
+    next_opened: u64,
+    framed_opened: Vec<(ScreenPlacement, Frame)>,
     layout: ScreenLayout,
     block_types: Rc<BlockCatalog>,
     catalog: Catalog,
@@ -63,6 +67,9 @@ impl Screens {
             apps,
             waker,
             requests: Vec::new(),
+            opened: Vec::new(),
+            next_opened: 0,
+            framed_opened: Vec::new(),
             layout: ScreenLayout::default(),
             block_types: Rc::new(BlockCatalog::default()),
             catalog: Catalog::default(),
@@ -107,13 +114,90 @@ impl Screens {
             .unwrap_or_default();
         frames.resize_with(regions.len(), Frame::default);
         let mut framed = vec![Frame::default(); shown.len()];
-        for ((index, region), frame) in begun.into_iter().zip(frames) {
+        let mut opened = Vec::new();
+        for ((index, region), mut frame) in begun.into_iter().zip(frames) {
+            self.open_windows(&region, &mut frame.asks, &mut opened);
             if let Some(session) = self.sessions.get_mut(&region.instance) {
                 framed[index] = session.finish(region.view.id, frame);
                 self.ran(region.instance);
             }
         }
+        if !opened.is_empty() {
+            self.frame_opened(opened);
+        }
         framed
+    }
+
+    pub(crate) fn take_opened(&mut self) -> Vec<(ScreenPlacement, Frame)> {
+        std::mem::take(&mut self.framed_opened)
+    }
+
+    fn open_windows(
+        &mut self,
+        region: &Region,
+        asks: &mut [WindowRequest],
+        opened: &mut Vec<ScreenRequest>,
+    ) {
+        let instance = region.instance;
+        for ask in asks {
+            match ask {
+                WindowRequest::Open(open) => {
+                    let held = self
+                        .layout
+                        .screens
+                        .iter()
+                        .map(|placement| (placement.instance, placement.view, placement.screen))
+                        .chain(
+                            opened
+                                .iter()
+                                .map(|request| (request.instance, request.view, request.screen)),
+                        )
+                        .find(|(held, view, _)| *held == instance && *view == open.view);
+                    if let Some((_, _, screen)) = held {
+                        open.screen = screen;
+                        continue;
+                    }
+                    self.next_opened += 1;
+                    open.screen = ScreenId::opened(self.next_opened);
+                    opened.push(opened_window(region, open.view, open.screen, open.size));
+                }
+                WindowRequest::Close(view) => {
+                    let view = *view;
+                    self.opened
+                        .retain(|held| (held.instance, held.view) != (instance, view));
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn frame_opened(&mut self, opened: Vec<ScreenRequest>) {
+        let screens: Vec<ScreenId> = opened.iter().map(|request| request.screen).collect();
+        self.opened.extend(opened);
+        self.relayout();
+        let mut begun = Vec::new();
+        for screen in screens {
+            let Some(placement) = self.layout.placement(screen).copied() else {
+                continue;
+            };
+            if let Some(session) = self.sessions.get_mut(&placement.instance) {
+                begun.push((placement, session.begin(placement.view, 0)));
+            }
+        }
+        let regions: Vec<Region> = begun.iter().map(|(_, region)| region.clone()).collect();
+        let mut frames = self
+            .module
+            .with_handler(|handler| handler.frame_opened(&regions))
+            .unwrap_or_default();
+        frames.resize_with(regions.len(), Frame::default);
+        for ((placement, region), mut frame) in begun.into_iter().zip(frames) {
+            frame.changed = true;
+            if let Some(session) = self.sessions.get_mut(&region.instance) {
+                let frame = session.finish(region.view.id, frame);
+                self.framed_opened.push((placement, frame));
+                self.ran(region.instance);
+            }
+        }
     }
 
     pub(crate) fn module(&self) -> &Module {
@@ -282,9 +366,15 @@ impl Screens {
             Delivery::Close(instance) => {
                 self.sessions.remove(&instance);
                 self.requests.retain(|request| request.instance != instance);
+                self.opened.retain(|request| request.instance != instance);
                 self.relayout();
             }
             Delivery::Screens(screens) => {
+                self.opened.retain(|opened| {
+                    !screens.iter().any(|request| {
+                        (request.instance, request.view) == (opened.instance, opened.view)
+                    })
+                });
                 self.requests = screens;
                 self.relayout();
             }
@@ -448,9 +538,25 @@ impl Screens {
             .map(|placement| (placement.instance, placement.view))
     }
 
+    fn requested(&self) -> Vec<ScreenRequest> {
+        let mut requested = self.requests.clone();
+        requested.extend(
+            self.opened
+                .iter()
+                .filter(|opened| {
+                    !self.requests.iter().any(|request| {
+                        (request.instance, request.view) == (opened.instance, opened.view)
+                    })
+                })
+                .cloned(),
+        );
+        requested
+    }
+
     fn relayout(&mut self) {
         let previous = std::mem::take(&mut self.layout);
-        self.layout = ScreenLayout::placed(&self.requests, |screen| {
+        let requests = self.requested();
+        self.layout = ScreenLayout::placed(&requests, |screen| {
             previous
                 .placement(screen)
                 .map_or_else(new_surface, |placement| placement.surface)
@@ -465,7 +571,7 @@ impl Screens {
         for (instance, session) in &mut self.sessions {
             session.place(
                 placements.get(instance).map_or(&[], Vec::as_slice),
-                &self.requests,
+                &requests,
             );
         }
     }
@@ -518,6 +624,44 @@ fn catalog(catalog: &Catalog, debug: &[DebugTemplate]) -> BlockCatalog {
         icon: Glyph::from_codepoint(&editor.icon_codepoint),
         extensions: editor.extensions.clone(),
     }))
+}
+
+const LARGEST_WINDOW: f32 = 16384.0;
+
+fn opened_window(region: &Region, view: ViewId, screen: ScreenId, size: Size) -> ScreenRequest {
+    let side = |points: f32| match points.is_finite() {
+        true => points.clamp(1.0, LARGEST_WINDOW),
+        false => 1.0,
+    };
+    let (width, height) = (side(size.width), side(size.height));
+    let scale_factor = match region.scale_factor.is_finite() && region.scale_factor > 0.0 {
+        true => region.scale_factor,
+        false => 1.0,
+    };
+    let raster = match region.raster.is_finite() && region.raster > 0.0 {
+        true => region.raster,
+        false => scale_factor,
+    };
+    let pixels = |points: f32| ((points * raster).round() as u32).max(1);
+    ScreenRequest {
+        screen,
+        instance: region.instance,
+        view,
+        placement: ViewPlacement::Host(HostView::Window),
+        metrics: ViewportMetrics {
+            logical: Size { width, height },
+            visible: Pos2::ZERO,
+            pixel_width: pixels(width),
+            pixel_height: pixels(height),
+            scale_factor,
+            raster,
+        },
+        frame: None,
+        windows: true,
+        host_place: None,
+        docked: false,
+        layers: None,
+    }
 }
 
 static NEXT_SURFACE: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);

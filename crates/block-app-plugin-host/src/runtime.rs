@@ -12,7 +12,7 @@ use block_plugin_api::{
     ArtifactDescription, BlockPick, ChildPlacements, ChildPreview, EditorInstanceId, FrameCommit,
     FrameSpec, HostPanel, HostTransform, LayerSpace, Opening, PresentedFrame, PreviewImage,
     ScreenDamage, ScreenId, ScreenLayout, ScreenPlacement, ScreenRequest, ScreenWindow,
-    SurfaceFormat, SurfaceSpec, View, ViewChange, ViewId, ViewSize,
+    SurfaceFormat, SurfaceSpec, View, ViewChange, ViewId, ViewSize, WindowRequest,
 };
 use block_plugin_manifest::PluginManifest;
 use uuid::Uuid;
@@ -1020,6 +1020,11 @@ impl Runtime {
             docks,
         } = commit;
         super::docks::heard(&self.plugin.identity.id, docks);
+        for request in &window_requests {
+            if let WindowRequest::Open(open) = request {
+                self.instances.adopt_window(open, &self.layout);
+            }
+        }
         super::request_windows(&self.plugin.identity.id, window_requests);
         self.pacing.animating = animating;
         self.await_next_frame(repaint_after_micros);

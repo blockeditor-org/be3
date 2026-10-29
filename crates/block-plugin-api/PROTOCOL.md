@@ -440,19 +440,26 @@ Screens, frame reports, child placements, input, child statuses and
 displays shows the main view on its first display and a view placed by the
 host on each further one, numbered from 1 in the order it lists them. A
 screen request may say the host shows the windows the plugin opens from it
-as windows of its own (`windows`): the plugin then asks for each with a
-`window-request` in its frame (`open`, naming the view the window will be, the
-view it opens from and a placement: at the pointer, at a point of a view, or
-where a `host-place` the host gave says, and its role, which a host showing
-windows in space reads to never focus a keyboard or a popup; then
-`begin-move` and `begin-resize`, which hand the pointer to the host until the
-press is let go, `raise`, `resize` and `close`, each naming the window's
-view), and the host shows it as that view, placed by the host, whose size,
-scale and `host-place` are the host's answer, whose focus arrives as input,
-and whose going away closes it. block-app says `windows` for every main view
-it shows and, where it opens no windows of its own, draws each one over its
-own window at the point asked for, moved back inside it, or shrunk to the room
-below that point when there is enough. Without `windows` the plugin draws its
+as windows of its own (`windows`). The plugin then opens each window itself,
+as it anchors a view, so opening one costs no frame: in the frame that opens
+it, the plugin lays the window out at the size it wants and paints it as a
+screen of its own, which it numbers from 2^63, lists in its layout and
+reports in the same commit as the `window-request` that opens it (`open`,
+naming the view the window will be, that screen, the view it opens from and
+a placement: at the pointer, at a point of a view, or where a `host-place` the
+host gave says, and its role, which a host showing windows in space reads to
+never focus a keyboard or a popup). The host shows the window from that
+screen in the frame that commits it, where the placement says, moved back
+inside its bounds, and from then on asks for the view with that same screen,
+placed by the host, whose size, scale and `host-place` are the host's answer,
+whose focus arrives as input, and whose going away closes it; the plugin
+draws the screen as it opened it until the host's screens name it or it
+closes the window. The other requests, `begin-move` and `begin-resize`, which
+hand the pointer to the host until the press is let go, `raise`, `resize`
+and `close`, each name the window's view. block-app says `windows` for every
+main view it shows and, where it opens no windows of its own, draws each one
+over its own window at the point asked for, moved back inside it, or shrunk
+to the room below that point when there is enough. Without `windows` the plugin draws its
 windows inside the screen. The main view is the whole rectangle an editor is
 edited in, and an instance has at most one; the plugin lays its own toolbar
 row, sidebars and content out inside it, in one pass of one context. The host

@@ -9,7 +9,7 @@ use block_plugin_api::{
     ViewportMetrics, WebViewEvent, WebViewId,
 };
 use block_plugin_api::{
-    DescribedAction, WindowRequests,
+    DescribedAction, HostView, WindowOpen, WindowRequests,
     embed::{debug::debug::Call as DebugCall, shell::Call as ShellCall},
 };
 use block_type_guest::editor::{FromEditor, Gesture};
@@ -567,6 +567,36 @@ struct Screen {
 }
 
 impl Screen {
+    fn new(request: ScreenRequest, pass: u64) -> Self {
+        Self {
+            input: InputForwarder::default(),
+            placement: None,
+            request,
+            last_seen: pass,
+            mounted: 0,
+            presented: None,
+            holding: false,
+            used: None,
+            report: None,
+            accessibility: Embedded::new(beui::native::accessibility::next_document_id()),
+            focus_requested: false,
+            dragging: false,
+            file_dropping: false,
+            window: WindowRequests::default(),
+            stopped: None,
+            children: ChildTable::default(),
+            reported_statuses: HashMap::new(),
+            revoked: HashSet::new(),
+            frame_revoked: HashSet::new(),
+            scales: Sent::default(),
+            spaces: Sent::default(),
+            fresh_layers: None,
+            opened: HashMap::new(),
+            serial: 0,
+            kept: None,
+        }
+    }
+
     fn shown_scale(&self, rect: Rect) -> Vec2 {
         let metrics = &self.request.metrics;
         let painted = self
@@ -895,10 +925,8 @@ impl Instances {
         let next_screen = &mut self.next_screen;
         let screen = entry.screens.entry(shown.id).or_insert_with(|| {
             *next_screen += 1;
-            Screen {
-                input: InputForwarder::default(),
-                placement: None,
-                request: ScreenRequest {
+            Screen::new(
+                ScreenRequest {
                     screen: ScreenId(*next_screen),
                     instance,
                     view: shown.id,
@@ -910,29 +938,8 @@ impl Instances {
                     docked: false,
                     layers: None,
                 },
-                last_seen: pass,
-                mounted: 0,
-                presented: None,
-                holding: false,
-                used: None,
-                report: None,
-                accessibility: Embedded::new(beui::native::accessibility::next_document_id()),
-                focus_requested: false,
-                dragging: false,
-                file_dropping: false,
-                window: WindowRequests::default(),
-                stopped: None,
-                children: ChildTable::default(),
-                reported_statuses: HashMap::new(),
-                revoked: HashSet::new(),
-                frame_revoked: HashSet::new(),
-                scales: Sent::default(),
-                spaces: Sent::default(),
-                fresh_layers: None,
-                opened: HashMap::new(),
-                serial: 0,
-                kept: None,
-            }
+                pass,
+            )
         });
         screen.request.metrics = viewport_metrics(size, visible, scale_factor, scale_factor);
         screen.request.frame = frame;
@@ -2608,6 +2615,44 @@ impl Instances {
 
     pub(super) fn region_size(&self, instance: EditorInstanceId, region: ViewId) -> Option<Vec2> {
         self.entries.get(&instance)?.screens.get(&region)?.used
+    }
+
+    pub(super) fn adopt_window(&mut self, open: &WindowOpen, layout: &ScreenLayout) {
+        let instance = open.opener.instance;
+        let Some(placed) = layout
+            .placement(open.screen)
+            .filter(|placed| placed.instance == instance && placed.view == open.view)
+        else {
+            return;
+        };
+        let Some(entry) = self.entries.get_mut(&instance) else {
+            return;
+        };
+        if entry.screens.get(&open.view).is_some_and(|screen| {
+            screen.request.screen == open.screen || screen.mounted > 0
+        }) {
+            return;
+        }
+        let size = vec2(open.size.width, open.size.height);
+        let shown = Rect::from_min_size(beui::Pos2::ZERO, size);
+        entry.screens.insert(
+            open.view,
+            Screen::new(
+                ScreenRequest {
+                    screen: open.screen,
+                    instance,
+                    view: open.view,
+                    placement: ViewPlacement::Host(HostView::Window),
+                    metrics: viewport_metrics(size, shown, placed.scale_factor(), placed.raster()),
+                    frame: None,
+                    windows: true,
+                    host_place: None,
+                    docked: false,
+                    layers: None,
+                },
+                0,
+            ),
+        );
     }
 
     pub(super) fn set_frame_reports(&mut self, reports: Vec<FrameReport>) -> bool {

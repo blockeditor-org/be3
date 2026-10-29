@@ -71,6 +71,10 @@ pub trait Regions: std::any::Any {
 
     fn frame(&mut self, regions: &[Region]) -> Vec<Frame>;
 
+    fn frame_opened(&mut self, regions: &[Region]) -> Vec<Frame> {
+        regions.iter().map(|_| Frame::default()).collect()
+    }
+
     fn painting(&mut self, _region: ViewRef) -> Option<paint_format::Painting> {
         None
     }

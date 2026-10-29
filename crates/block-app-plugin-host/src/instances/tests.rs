@@ -408,6 +408,7 @@ mod input_on_a_layer_reaches_its_owner_tagged_with_it_in_the_screen_s_coordinate
 mod revision_history_editors_cannot_mutate_any_block;
 mod the_contacts_reach_only_the_shell;
 mod the_view_a_screen_is_given_carries_its_scale;
+mod a_window_the_plugin_opened_is_shown_and_asked_for_by_its_own_screen;
 
 fn resize(instances: &mut Instances, size: Vec2, scale_factor: f32) {
     let role = InstanceRole::Editor(

@@ -191,10 +191,16 @@ impl Desk {
                 match find(&self.windows, open.view) {
                     Some(index) => self.windows[index].rect = rect,
                     None => {
-                        self.next_screen += 1;
+                        let screen = match open.screen.is_opened() {
+                            true => open.screen,
+                            false => {
+                                self.next_screen += 1;
+                                ScreenId(self.next_screen)
+                            }
+                        };
                         self.windows.push(Hosted {
                             window: open.view,
-                            screen: ScreenId(self.next_screen),
+                            screen,
                             rect,
                         });
                     }

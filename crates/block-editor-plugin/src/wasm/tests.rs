@@ -7,6 +7,7 @@ mod a_layers_surface_is_kept_while_it_is_open_and_released_once_it_closes;
 mod a_region_without_a_layer_space_opens_no_layers;
 mod a_rejected_shader_is_caught_by_an_error_scope;
 mod a_surface_the_host_does_not_render_runs_its_frames_without_a_gpu;
+mod a_window_is_committed_with_its_own_screen_in_the_frame_that_opens_it;
 mod dismissed_layers_are_heard_before_the_batchs_events;
 
 use std::cell::RefCell;
@@ -42,6 +43,7 @@ struct Shared {
     seen: RefCell<Seen>,
     open: RefCell<Vec<AnchoredView>>,
     child_in: RefCell<Option<ViewId>>,
+    window: RefCell<Option<block_plugin_api::WindowOpen>>,
 }
 
 struct Layered {
@@ -112,6 +114,14 @@ impl Regions for LayeredRegions {
                     changed: true,
                     painted: vec![region.rect],
                     anchored: self.shared.open.borrow().clone(),
+                    asks: self
+                        .shared
+                        .window
+                        .borrow_mut()
+                        .take()
+                        .map(block_plugin_api::WindowRequest::Open)
+                        .into_iter()
+                        .collect(),
                     ..Frame::default()
                 }
             })

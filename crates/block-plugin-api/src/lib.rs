@@ -206,6 +206,18 @@ pub struct EditorInstanceId(pub u64);
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct ScreenId(pub u64);
 
+impl ScreenId {
+    const OPENED: u64 = 1 << 63;
+
+    pub const fn opened(index: u64) -> Self {
+        Self(Self::OPENED | index)
+    }
+
+    pub fn is_opened(self) -> bool {
+        self.0 & Self::OPENED != 0
+    }
+}
+
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct HostWindowId(pub u64);
 

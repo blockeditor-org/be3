@@ -12,6 +12,7 @@ fn open(window: u64, opener: View) -> WindowRequest {
     };
     WindowRequest::Open(WindowOpen {
         view: ViewId(window),
+        screen: block_plugin_api::ScreenId::opened(window),
         opener,
         placement: WindowPlacement::Over(WindowOver {
             view: opener,

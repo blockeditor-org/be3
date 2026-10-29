@@ -119,12 +119,15 @@ impl HeadlessPlugin {
             .map(|placement| (*placement, 0))
             .collect();
         let screens = &mut self.screens;
-        let frames = self.executor.enter(|| screens.frame(&shown));
+        let (frames, opened) = self
+            .executor
+            .enter(|| (screens.frame(&shown), screens.take_opened()));
         self.drawn = true;
         layout
             .screens
             .into_iter()
             .zip(frames)
+            .chain(opened)
             .filter(|(placement, _)| self.screens.get(placement.instance).is_some())
             .collect()
     }

@@ -70,6 +70,7 @@ fn a_window_shows_on_the_display_holding_most_of_it_and_on_both_while_it_is_move
         PLUGIN,
         vec![WindowRequest::Open(WindowOpen {
             view: ViewId(7),
+            screen: block_plugin_api::ScreenId::opened(7),
             opener: ViewRef {
                 instance: INSTANCE,
                 view: ViewId::MAIN,

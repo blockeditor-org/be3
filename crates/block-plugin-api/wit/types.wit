@@ -78,7 +78,9 @@ interface types {
     /// An open editor instance, numbered by the host.
     type editor-instance-id = u64;
 
-    /// A screen the host asked a plugin to draw, numbered by the host.
+    /// A screen a plugin draws: one the host asked for, numbered by the host
+    /// below 2^63, or the screen of a window the plugin opened itself
+    /// (`window-open.screen`), numbered by the plugin from 2^63.
     type screen-id = u64;
 
     /// A view of an editor instance: a surface it draws, unique among the
@@ -594,10 +596,15 @@ interface types {
         host(string),
     }
 
-    /// `role` says what the window is for, as beui's own windows do: a host
-    /// that shows windows in space never focuses a keyboard or a popup.
+    /// A window the instance opens as a view of its own: `view`, laid out at
+    /// `size` and painted in the same commit as `screen`, a screen the plugin
+    /// numbered itself and lists in its layout, so the host shows the window
+    /// in the frame that opens it. `role` says what the window is for, as
+    /// beui's own windows do: a host that shows windows in space never
+    /// focuses a keyboard or a popup.
     record window-open {
         view: view-id,
+        screen: screen-id,
         opener: view-ref,
         placement: window-placement,
         size: size,
@@ -626,7 +633,8 @@ interface types {
     }
 
     /// What the plugin asks of the host about a window it shows: to open it
-    /// (as a view of the instance it opened from, which the host places),
+    /// (as a view of the instance it opened from, which the host places and
+    /// shows from the screen the plugin opened it with),
     /// move or resize it with the pointer as a window manager does, raise it
     /// in front of the plugin's others, give it another size, or close it.
     /// The host answers through the window's screen: its size and scale, its

@@ -193,6 +193,7 @@ pub(crate) fn PluginRegion(
     #[prop(default = None)] pan_drag: Option<PanDrag>,
     #[prop(default = false)] offscreen: bool,
     #[prop(default = false)] nests_windows: bool,
+    #[prop(default = None)] opens_at: Option<Memo<Rect>>,
     on_focus: Callback<()>,
     child_view: ChildView,
 ) -> NodeId {
@@ -312,6 +313,17 @@ pub(crate) fn PluginRegion(
         placed.with(|placed| placed.set(placement));
         placer.call(placement);
     });
+    if let Some(at) = opens_at.map(|at| at.get_untracked())
+        && at.is_positive()
+    {
+        let placement = EmbedPlacement {
+            rect: at,
+            clip: at,
+            raster: 1.0,
+        };
+        placed.with(|placed| placed.set(Some(placement)));
+        placer.call(Some(placement));
+    }
     create_effect(move || {
         let _ = frame.get();
         let _ = view.get();
@@ -955,6 +967,7 @@ fn DesktopWindows(editor: RegionEditor, state: Memo<RegionView>, rect: Memo<Rect
                 let y = create_memo(move || local.get().min.y);
                 let width = create_memo(move || local.get().width());
                 let height = create_memo(move || local.get().height());
+                let opens_at = create_memo(move || local.get().translate(rect.get().min.to_vec2()));
                 let region = View::window(window);
                 let child_view = super::editors::child_view(
                     block.unwrap_or_else(|| super::editors::hosted_parent(editor.instance)),
@@ -962,7 +975,7 @@ fn DesktopWindows(editor: RegionEditor, state: Memo<RegionView>, rect: Memo<Rect
                 );
                 view! {
                     <CanvasItem x={x} y={y} width={width} height={height}>
-                        <PluginRegion editor region child_view on_focus={Callback::new(|()| {})} />
+                        <PluginRegion editor region child_view opens_at={Some(opens_at)} on_focus={Callback::new(|()| {})} />
                     </CanvasItem>
                 }
             }</ForEach>
@@ -1028,6 +1041,7 @@ fn OverlaidWindows(editor: RegionEditor, region: View) -> NodeId {
                                 editor={held.with(Clone::clone)}
                                 region
                                 nests_windows=true
+                                opens_at={Some(shown)}
                                 child_view
                                 on_focus={Callback::new(|()| {})}
                             />
