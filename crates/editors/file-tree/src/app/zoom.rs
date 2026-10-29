@@ -1,7 +1,7 @@
 use beui::Overflow;
+use block_editor_beui::be_block::ViewState;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
-use workspace_ui_types::ViewState;
 
 use block_editor_beui::Editor;
 use block_editor_beui::beui::NodeId;

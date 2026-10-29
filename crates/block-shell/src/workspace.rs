@@ -3,12 +3,12 @@ use block_editor_beui::be_block::{
     BlockContent, BlockMetadata, FILES_EDITOR, Home, PREFERRED_EDITOR, Recents, VIEW_EDITOR,
     WORKSPACE_TYPE,
 };
+use block_editor_beui::be_block::{EditorView, EditorViewContent, ViewState};
 use block_editor_beui::desktop;
 use settings_types::EditorSettings;
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
-use workspace_ui_types::{EditorView, EditorViewContent, ViewState};
 
 use block_editor_beui::beui::dock::styled::{
     DockDialog, DockEntry, DockNode, DockPane, DockTab, DockWindow, DockingLayout, TabId,

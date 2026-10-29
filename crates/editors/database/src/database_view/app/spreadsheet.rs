@@ -5,7 +5,7 @@ use block_editor_beui::beui::icons::{
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{Color32, Key, KeyPress, NodeId, TextAlign};
-use block_editor_beui::block_ui::database::cell_text;
+use block_ui_database::cell_text;
 use database_types::database::{DatabaseColor, DatabaseValue};
 use database_types::database_schema::{DatabaseField, DatabaseFieldType};
 use database_types::database_view::{DatabaseView, DatabaseViewSort, SortDirection};

@@ -1,5 +1,4 @@
 use lucide::Glyph;
-pub mod database;
 pub mod datetime;
 #[cfg(test)]
 mod tests;

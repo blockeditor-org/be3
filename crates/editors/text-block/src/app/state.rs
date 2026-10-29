@@ -7,11 +7,11 @@ use beui::reactive::*;
 use beui::styled::TextAreaState;
 use beui::{Rect, Vec2};
 use block_editor_beui::BlockQuery;
-use block_editor_beui::SharedCaret;
 use block_editor_beui::be_block::presence::pick_free_color;
-use block_editor_beui::live_text::Synced;
 use block_editor_beui::{BlockList, Blocks};
 use block_editor_beui::{ChildState, ContentProjection, Editor, EditorHost, LinkBaseWatch};
+use block_editor_text::SharedCaret;
+use block_editor_text::live_text::Synced;
 use text_editor_core::{EditorCommand, TextLanguage};
 use uuid::Uuid;
 

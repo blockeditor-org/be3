@@ -17,11 +17,12 @@ use block_editor_beui::beui::native::with_document;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{Pos2, Rect, Thumbhash, Vec2, pos2};
 use block_editor_beui::block_ui::BlockLabel;
-use block_editor_beui::database::DatabaseBlockPickRequest;
 use block_editor_beui::{
     BlockFilter, ChildState, Drag, Editor, FileDrop, InteractionMode, ResizeMode,
 };
-use block_editor_beui::{BlockParent, BlockQuery, SharedCaret};
+use block_editor_beui::{BlockParent, BlockQuery};
+use block_editor_database::DatabaseBlockPickRequest;
+use block_editor_text::SharedCaret;
 use database_types::database::DatabaseValue;
 use infinite_canvas_types::CanvasContent;
 use infinite_canvas_types::{

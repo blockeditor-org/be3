@@ -3,7 +3,6 @@ use be_commit::MergeResult;
 use uuid::Uuid;
 
 mod a_block_added_to_a_folder_by_both_sides_is_listed_once;
-mod a_deleted_child_of_a_view_is_blanked_in_the_state_that_referenced_it;
 mod a_folder_lists_each_block_once_and_follows_its_children;
 mod folders_and_workspaces_read_every_register_without_any_one_field;
 mod folders_and_workspaces_saved_before_they_were_frozen_still_load;

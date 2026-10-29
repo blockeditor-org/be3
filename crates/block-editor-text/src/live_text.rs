@@ -2,12 +2,12 @@ use std::marker::PhantomData;
 use std::ops::Range;
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
-use be_block::Root;
-use be_block::be_model::marks::Rich;
-use be_block::be_model::{
+use block_editor_beui::be_block::Root;
+use block_editor_beui::be_block::be_model::marks::Rich;
+use block_editor_beui::be_block::be_model::{
     Change, Document as Content, Edit, FieldRef, ObjectId, RichText, Text, Value,
 };
-use block_editor_plugin::{ContentProjection, EditorHost, Projected, Waker};
+use block_editor_beui::block_editor_plugin::{ContentProjection, EditorHost, Projected, Waker};
 use text_editor_core::{
     ChangeLog, CursorPosition, Document, DocumentEdit, DocumentRead, Formats, Pos, SeqOp,
     TextChange, TextIndentation, TextLanguage, TextRun, anchor_in, anchor_index_in, changed,

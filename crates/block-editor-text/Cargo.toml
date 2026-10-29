@@ -1,0 +1,18 @@
+[package]
+name = "block-editor-text"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+beui = { path = "../beui", default-features = false }
+block-editor-beui = { path = "../block-editor-beui" }
+serde = { version = "1", features = ["derive"] }
+text-editor-core = { path = "../text-editor-core" }
+uuid = "1"
+
+[dev-dependencies]
+be-model = { path = "../be-model" }
+
+[lints]
+workspace = true

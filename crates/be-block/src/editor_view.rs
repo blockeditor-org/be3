@@ -2,7 +2,7 @@ use be_model::{Document, Edit, LatestMap, Model, ObjectId, Stamp};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
-use be_block::{ChildChange, Root, VIEW_TYPE};
+use crate::{ChildChange, Root, VIEW_TYPE};
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 pub struct EditorView {

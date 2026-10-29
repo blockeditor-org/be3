@@ -1,9 +1,9 @@
+use block_editor_beui::be_block::ViewState;
 use block_editor_beui::beui::icons::Glyph;
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
-use workspace_ui_types::ViewState;
 
 use block_editor_beui::be_block::SETTINGS;
 use block_editor_beui::be_block::metadata::ICON_COLOR;
@@ -14,9 +14,9 @@ use block_editor_beui::beui::icons::{
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::block_ui::{BlockTypes, Press};
 pub(crate) use block_editor_beui::sections::{own_system, shared_with_me, workspaces};
-use block_editor_beui::tags::{ShownTag, tags_of};
 use block_editor_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use block_editor_beui::{Editor, label_glyph};
+use block_editor_database::tags::{ShownTag, tags_of};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

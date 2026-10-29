@@ -1,7 +1,13 @@
-use super::*;
-use crate::{EditorView, ViewState};
-use be_block::{ChildChange, Root};
+use crate::{ChildChange, EditorView, LiveEdit, Root, ViewState};
 use uuid::Uuid;
+
+fn edited<C: LiveEdit + Clone>(start: &C, edits: impl IntoIterator<Item = C::Op>) -> C {
+    let mut content = start.clone();
+    for edit in edits {
+        content.apply(&edit);
+    }
+    content
+}
 
 #[test]
 fn a_deleted_child_of_a_view_is_blanked_in_the_state_that_referenced_it() {

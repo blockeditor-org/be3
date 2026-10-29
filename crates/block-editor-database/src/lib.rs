@@ -6,8 +6,9 @@ use beui::icons::ICON_X;
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{Color32, NodeId};
-pub use block_ui::database::ValueLabels;
-use block_ui::database::{DatabaseValueChange, block_reference_text, field_type_label};
+use block_editor_beui::be_block;
+pub use block_ui_database::ValueLabels;
+use block_ui_database::{DatabaseValueChange, block_reference_text, field_type_label};
 use database_types::database::{
     Database, DatabaseColor, DatabaseContent, DatabaseValue, Inverse, RowRef, inverses_of, short_id,
 };
@@ -18,6 +19,7 @@ use database_types::database_schema::{
 use uuid::Uuid;
 
 mod choice;
+pub mod tags;
 
 use beui::{Align, Direction, ItemSize};
 pub use choice::{
@@ -34,7 +36,7 @@ pub type RowValues = BTreeMap<Uuid, DatabaseValue>;
 pub struct DatabaseBlockPickRequest {
     pub field_id: Uuid,
     pub block_type: Option<Uuid>,
-    pub anchor: crate::PickAnchor,
+    pub anchor: block_editor_beui::PickAnchor,
 }
 
 #[component]
@@ -516,7 +518,7 @@ fn BlockValue(
         on_pick.call(DatabaseBlockPickRequest {
             field_id: field.id,
             block_type: field.block_options.block_type,
-            anchor: crate::PickAnchor::Node(button),
+            anchor: block_editor_beui::PickAnchor::Node(button),
         });
     };
     view! {
@@ -731,11 +733,11 @@ fn LinksValue(
 }
 
 pub fn watch_inverses(
-    editor: crate::Editor,
+    editor: block_editor_beui::Editor,
     database: Memo<Option<Uuid>>,
 ) -> Memo<Option<Vec<Inverse>>> {
     let found = create_signal(None::<Vec<Inverse>>);
-    let watched: std::cell::RefCell<Option<(Uuid, crate::BlockList)>> =
+    let watched: std::cell::RefCell<Option<(Uuid, block_editor_beui::BlockList)>> =
         std::cell::RefCell::new(None);
     create_binding(move || {
         let Some(target) = database.get() else {
@@ -745,7 +747,9 @@ pub fn watch_inverses(
         if held.as_ref().is_none_or(|(id, _)| *id != target) {
             *held = Some((
                 target,
-                editor.blocks().watch(crate::BlockQuery::Backrefs(target)),
+                editor
+                    .blocks()
+                    .watch(block_editor_beui::BlockQuery::Backrefs(target)),
             ));
         }
         let Some((_, backrefs)) = held.as_ref().filter(|(_, list)| list.read().is_ok()) else {
@@ -760,7 +764,7 @@ pub fn watch_inverses(
                     && info.access.can_view()
             })
             .filter_map(|info| match info.parent {
-                Some(crate::BlockParent::Block(parent)) => Some(parent),
+                Some(block_editor_beui::BlockParent::Block(parent)) => Some(parent),
                 _ => None,
             })
             .collect();
@@ -793,14 +797,16 @@ pub fn watch_inverses(
 }
 
 fn settled<C>(
-    editor: crate::Editor,
+    editor: block_editor_beui::Editor,
     block: Uuid,
-    content: crate::ContentProjection<C>,
+    content: block_editor_beui::ContentProjection<C>,
 ) -> Memo<bool>
 where
     C: be_block::LiveEdit + Clone + Default,
 {
-    let found = editor.blocks().watch(crate::BlockQuery::Block(block));
+    let found = editor
+        .blocks()
+        .watch(block_editor_beui::BlockQuery::Block(block));
     create_memo(move || {
         content.ready().is_ok()
             || found
@@ -810,7 +816,7 @@ where
 }
 
 fn source_inverses(
-    editor: crate::Editor,
+    editor: block_editor_beui::Editor,
     target: Uuid,
     source: Uuid,
 ) -> ReadSignal<Option<Vec<Inverse>>> {
@@ -868,7 +874,10 @@ pub struct RowLabels {
     pub unreachable: Memo<std::collections::BTreeSet<Uuid>>,
 }
 
-pub fn watch_row_labels(editor: crate::Editor, databases: Memo<Vec<Uuid>>) -> RowLabels {
+pub fn watch_row_labels(
+    editor: block_editor_beui::Editor,
+    databases: Memo<Vec<Uuid>>,
+) -> RowLabels {
     let found = create_signal(None::<(Vec<Uuid>, BTreeMap<RowRef, String>)>);
     create_binding(move || {
         let wanted = databases.get();
@@ -925,7 +934,7 @@ pub fn watch_row_labels(editor: crate::Editor, databases: Memo<Vec<Uuid>>) -> Ro
     }
 }
 
-fn row_titles(editor: crate::Editor, database: Uuid) -> ReadSignal<Option<RowTitles>> {
+fn row_titles(editor: block_editor_beui::Editor, database: Uuid) -> ReadSignal<Option<RowTitles>> {
     let content = editor.content_of::<DatabaseContent>(database);
     let content_settled = settled(editor, database, content);
     let schema_id = content.field(be_block::ObjectId::ROOT, Database::SCHEMA);
@@ -1050,8 +1059,8 @@ fn forward<T: 'static>(callback: Callback<T>) -> impl Fn(T) + 'static {
     move |value| callback.call(value)
 }
 
-pub fn create_database(creation: &crate::Creation) -> Uuid {
-    use crate::BlockParent;
+pub fn create_database(creation: &block_editor_beui::Creation) -> Uuid {
+    use block_editor_beui::BlockParent;
     use database_types::database_schema::DatabaseSchema;
 
     let blocks = creation.blocks();

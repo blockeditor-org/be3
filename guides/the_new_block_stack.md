@@ -1264,7 +1264,7 @@ session's view. `Creation::create` and
 `Blocks::create` make a block this way, Detached unless a parent is named;
 the host sets the parent of a block made in a creation dialog once it has the
 id. Creating a database makes two blocks this way:
-`block_editor_beui::database::create_database` creates a schema with a Name
+`block_editor_database::create_database` creates a schema with a Name
 field and a database pointing at it, and makes the schema a child of the
 database, so the graph is right before any editor opens it.
 
@@ -1650,8 +1650,8 @@ anyone reads to know which editor opens the view (the host's
 session list) or that a block is a view at all (the host skips `DELETED_FROM` for
 one, and a block's places leave out the views that show it). A view made before
 the key, which names no editor, opens as a session in the shell asking and as a
-tab in its content's default editor. The content is workspace-ui's `EditorView`
-type (`workspace_ui_types::EditorView { content, state }`, its id
+tab in its content's default editor. The content is the `EditorView` type workspace-ui's type module serves
+(`be_block::EditorView { content, state }`, its id
 `be_block::VIEW_TYPE`, which the host names only to create a session): the block
 it shows (none for the file tree or workspace-ui itself), and a `LatestMap` of
 opaque `ViewState { bytes, refs }` the editor owns. `refs` are the blocks an
@@ -2095,7 +2095,7 @@ built on it (guides/terminal.md).
 
 The text editor cannot hand its state to a projection: `text_editor_core`
 wants a `Document` that hands out positions, so a cursor stays on its
-character while other people type. `block_editor_beui::live_text::LiveText`
+character while other people type. `block_editor_text::live_text::LiveText`
 is that document for any `Text` or `RichText` field of any block, and it is
 the only one: the text editor and anything else that edits text in place
 (a canvas text shape or label) mount the editor on one. Each projection
@@ -2115,7 +2115,7 @@ place, and takes in the whole field otherwise, which is a no-op when nothing
 in it changed. Undo is the host's (`Document::step`), so it leaves other
 people's typing and formatting alone.
 A caret in a live text travels as presence through
-`block_editor_beui::SharedCaret` (its anchor and focus as `Position`s, which
+`block_editor_text::SharedCaret` (its anchor and focus as `Position`s, which
 every copy of the field resolves to the same place): `SharedCaret::of(area)`
 reads it, and `remote_carets(area, carets)` turns peers' carets into the
 `remote_cursors` a `TextArea` draws. The text editor's `TextCursor` and the

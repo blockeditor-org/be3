@@ -9,7 +9,6 @@ pub mod beui_frame;
 mod block_link;
 mod child;
 mod chrome;
-pub mod database;
 mod dialog;
 mod dock;
 mod docked;
@@ -19,7 +18,6 @@ mod fitting;
 pub mod headless;
 mod instance;
 mod layered_settings;
-pub mod live_text;
 mod loading;
 mod module;
 mod picking;
@@ -27,8 +25,6 @@ mod preview;
 mod related_content;
 mod rotation;
 pub mod sections;
-mod shared_caret;
-pub mod tags;
 pub mod version_control;
 
 use be_block::presence::PresenceColor;
@@ -54,7 +50,6 @@ pub use loading::{FailedPane, Loaded, LoadingPane};
 pub use picking::PickAnchor;
 pub use related_content::RelatedContent;
 pub use rotation::RotationPicker;
-pub use shared_caret::{SharedCaret, remote_carets};
 pub use version_control::{VersionHistory, VersionSteps, short_id};
 
 #[beui::reactive::component]

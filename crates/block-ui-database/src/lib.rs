@@ -6,7 +6,7 @@ use database_types::{
 };
 use uuid::Uuid;
 
-use crate::{
+use block_ui::{
     BlockLabel,
     datetime::{format_datetime_utc, parse_datetime_utc},
 };
@@ -32,7 +32,7 @@ impl ValueLabels {
 
     pub fn row(&self, link: &RowRef) -> String {
         if self.unreachable.contains(&link.database) {
-            return crate::Reach::NoAccess
+            return block_ui::Reach::NoAccess
                 .label()
                 .unwrap_or_default()
                 .to_owned();

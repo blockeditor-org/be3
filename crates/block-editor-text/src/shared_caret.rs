@@ -1,8 +1,8 @@
-use be_block::presence::PresenceColor;
+use block_editor_beui::be_block::presence::PresenceColor;
+use block_editor_beui::presence_color;
 use serde::{Deserialize, Serialize};
 use text_editor_core::Position;
 
-use crate::presence_color;
 use beui::styled::{RemoteTextCursor, TextAreaState};
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]

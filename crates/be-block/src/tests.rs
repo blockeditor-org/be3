@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 mod a_block_link_is_found_by_its_fragment_whatever_its_host;
 mod a_checkout_copy_answers_to_its_local_id_only_in_its_own_scope;
+mod a_deleted_child_of_a_view_is_blanked_in_the_state_that_referenced_it;
 mod a_device_class_is_detected_and_brings_its_own_defaults;
 mod a_device_uses_the_settings_profile_and_session_it_picked;
 mod a_profile_layers_its_settings_over_the_defaults;
