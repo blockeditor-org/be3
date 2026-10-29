@@ -65,7 +65,7 @@ Each plugin worker gets one overlay canvas covering the app viewport, above the 
 ### Dock layouts saved layer by layer (workstream E)
 
 - A layer's snapshot includes where its moved-out entries are (a bar's edge or popped-out rect relative to the owner's frame); the root's snapshot stops saving joined subtrees and keeps only the hosting tab.
-- The canvas saves its layer's snapshot in `LayeredSettings` (this device), restores it behind `Loading` before declaring, writes on change, and every open canvas restores when it changes. The workspace keeps saving its own layout in its `EditorView`.
+- block-editor-beui saves the layout of every editor whose dock joins another plugin's in `DisplaySettings.docks` through `LayeredSettings` (this device), keyed by block type, restores it once the settings are ready and the dock has declared, writes on change, and every open instance follows (no per-editor code). The workspace keeps saving its own layout in its `EditorView`.
 
 ## Workstreams and waves
 
