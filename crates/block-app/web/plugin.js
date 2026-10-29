@@ -270,6 +270,7 @@ export async function boot(shimUrl, moduleUrl, wake, direct) {
         collect: () => frames.collect(),
         show: (id, canvas, surface) => shimModule.show(id, canvas, surface),
         forget: (id) => shimModule.forget(id),
+        layers: (canvas, width, height, pieces) => shimModule.layers(canvas, width, height, pieces),
         paint: () => shimModule.paint(),
         exportSurfaces: (surfaces) => shimModule.export_surfaces(Uint32Array.from(surfaces)),
         exported: () => shimModule.exported(),

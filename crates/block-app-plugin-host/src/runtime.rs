@@ -1107,8 +1107,15 @@ impl Runtime {
 }
 
 #[cfg(target_arch = "wasm32")]
-pub fn place_screens(blits: &[Blit], scale: f32, background: beui::color::Color32) {
+pub fn place_screens(
+    blits: &[Blit],
+    viewport: beui::Vec2,
+    pixels_per_point: f32,
+    scale: f32,
+    background: beui::color::Color32,
+) {
     super::web::set_background(background);
+    let mut layers = super::web::overlays(blits, viewport, pixels_per_point, scale);
     let mut placed = HashMap::<u32, Vec<super::web::Placement>>::new();
     for (order, blit) in blits.iter().enumerate() {
         if let Some(placement) = super::web::placement(blit, order, scale) {
@@ -1118,7 +1125,9 @@ pub fn place_screens(blits: &[Blit], scale: f32, background: beui::color::Color3
     HOST.with(|host| {
         for runtime in host.borrow_mut().runtimes.values_mut() {
             let placements = placed.remove(&runtime.surface).unwrap_or_default();
-            runtime.backend.place(placements);
+            runtime
+                .backend
+                .place(placements, layers.remove(&runtime.surface));
         }
     });
 }
@@ -2733,6 +2742,7 @@ pub fn layer_blits(
                         requested: None,
                         layer: Some(LayerSource {
                             surface: layer.surface,
+                            bounds: layer.bounds,
                             pixels: Rect::from_min_max(
                                 Pos2::ZERO + from * pixels_per_point,
                                 Pos2::ZERO + to * pixels_per_point,

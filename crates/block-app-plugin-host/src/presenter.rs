@@ -280,6 +280,7 @@ pub struct Blit {
 pub(super) struct LayerSource {
     pub(super) surface: u32,
     pub(super) pixels: Rect,
+    pub(super) bounds: Rect,
 }
 
 impl PartialEq for Blit {
@@ -505,6 +506,8 @@ impl RegionDrawing {
 pub type LayerBlits = Rc<RefCell<Vec<Blit>>>;
 
 pub struct LayersDrawing {
+    #[cfg(target_arch = "wasm32")]
+    id: u64,
     blits: LayerBlits,
     drawing: PluginDrawing,
 }
@@ -512,9 +515,19 @@ pub struct LayersDrawing {
 impl LayersDrawing {
     pub(super) fn new(blits: LayerBlits) -> Self {
         Self {
+            #[cfg(target_arch = "wasm32")]
+            id: next_drawing(),
             blits,
             drawing: PluginDrawing::new(Vec::new()),
         }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl Drop for LayersDrawing {
+    fn drop(&mut self) {
+        SHOWN.with(|shown| shown.borrow_mut().remove(&self.id));
+        block_app_base::host::wake();
     }
 }
 
@@ -528,7 +541,7 @@ impl beui::native::Draw for LayersDrawing {
     ) {
         let scale = at.pixels_per_point.max(f32::EPSILON);
         let offset = vec2(at.rect[0] / scale, at.rect[1] / scale);
-        *self.drawing.blits.borrow_mut() = self
+        let blits: Vec<Blit> = self
             .blits
             .borrow()
             .iter()
@@ -540,10 +553,17 @@ impl beui::native::Draw for LayersDrawing {
                         corners,
                         opacity: blit.quad.opacity,
                     },
+                    layer: blit.layer.map(|layer| LayerSource {
+                        bounds: layer.bounds.translate(offset),
+                        ..layer
+                    }),
                     ..blit.clone()
                 }
             })
             .collect();
+        #[cfg(target_arch = "wasm32")]
+        record_shown(self.id, &blits);
+        *self.drawing.blits.borrow_mut() = blits;
         self.drawing.prepare(device, queue, encoder, at);
     }
 

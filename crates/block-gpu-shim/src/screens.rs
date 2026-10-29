@@ -22,7 +22,9 @@ pub(crate) struct Screens {
     pipeline_layout: wgpu::PipelineLayout,
     shader: wgpu::ShaderModule,
     pipelines: HashMap<wgpu::TextureFormat, wgpu::RenderPipeline>,
+    layers: Layers,
     shown: HashMap<u32, Shown>,
+    overlay: Option<Overlay>,
     exports: HashMap<u32, Option<Target>>,
     exported: Vec<(u32, ImageBitmap)>,
 }
@@ -31,6 +33,32 @@ struct Shown {
     surface: u32,
     stale: bool,
     target: Target,
+}
+
+struct Layers {
+    layout: wgpu::BindGroupLayout,
+    pipeline_layout: wgpu::PipelineLayout,
+    shader: wgpu::ShaderModule,
+    pipelines: HashMap<wgpu::TextureFormat, wgpu::RenderPipeline>,
+}
+
+struct Overlay {
+    target: Target,
+    size: [u32; 2],
+    pieces: Vec<Piece>,
+    stale: bool,
+}
+
+struct Piece {
+    surface: u32,
+    target: [f32; 4],
+    source: [f32; 4],
+}
+
+struct Draw {
+    pipeline: wgpu::RenderPipeline,
+    group: wgpu::BindGroup,
+    within: Option<[u32; 4]>,
 }
 
 enum Target {
@@ -97,6 +125,7 @@ impl Screens {
             immediate_size: 0,
         });
         let shader = device.create_shader_module(wgpu::include_wgsl!("screen.wgsl"));
+        let layers = Layers::new(&device);
         let screens = Self {
             instance,
             adapter,
@@ -107,7 +136,9 @@ impl Screens {
             pipeline_layout,
             shader,
             pipelines: HashMap::new(),
+            layers,
             shown: HashMap::new(),
+            overlay: None,
             exports: HashMap::new(),
             exported: Vec::new(),
         };
@@ -138,6 +169,36 @@ impl Screens {
             shown.surface = surface;
             shown.stale = true;
         }
+        Ok(())
+    }
+
+    pub(crate) fn layers(
+        &mut self,
+        canvas: Option<OffscreenCanvas>,
+        size: [u32; 2],
+        pieces: &[f32],
+    ) -> Result<(), String> {
+        if let Some(canvas) = canvas {
+            self.overlay = Some(Overlay {
+                target: self.target(canvas)?,
+                size,
+                pieces: Vec::new(),
+                stale: true,
+            });
+        }
+        let Some(overlay) = &mut self.overlay else {
+            return Ok(());
+        };
+        overlay.size = size;
+        overlay.pieces = pieces
+            .chunks_exact(9)
+            .map(|piece| Piece {
+                surface: piece[0] as u32,
+                target: [piece[1], piece[2], piece[3], piece[4]],
+                source: [piece[5], piece[6], piece[7], piece[8]],
+            })
+            .collect();
+        overlay.stale = true;
         Ok(())
     }
 
@@ -268,6 +329,14 @@ impl Screens {
                 shown.stale = true;
             }
         }
+        if let Some(overlay) = &mut self.overlay
+            && overlay
+                .pieces
+                .iter()
+                .any(|piece| surfaces.contains(&piece.surface))
+        {
+            overlay.stale = true;
+        }
     }
 
     pub(crate) fn paint<'a>(
@@ -286,27 +355,94 @@ impl Screens {
             }
         }
         self.shown = shown;
+        if let Some(mut overlay) = self.overlay.take() {
+            if overlay.stale {
+                overlay.stale = false;
+                if let Err(error) = self.paint_overlay(&mut overlay, &surface) {
+                    result = Err(error);
+                }
+            }
+            self.overlay = Some(overlay);
+        }
         result
+    }
+
+    fn paint_overlay<'a>(
+        &mut self,
+        overlay: &mut Overlay,
+        surface: &impl Fn(u32) -> Option<(&'a wgpu::Texture, u64)>,
+    ) -> Result<(), String> {
+        let shown: Vec<(&Piece, &wgpu::Texture)> = overlay
+            .pieces
+            .iter()
+            .filter_map(|piece| Some((piece, surface(piece.surface)?.0)))
+            .collect();
+        let source = shown.first().map_or(wgpu::TextureFormat::Rgba8Unorm, |(_, texture)| {
+            texture.format()
+        });
+        let [width, height] = overlay.size;
+        self.render(&mut overlay.target, source, overlay.size, |screens, format| {
+            let pipeline = screens.layers.pipeline(&screens.device, format);
+            shown
+                .iter()
+                .filter_map(|(piece, texture)| {
+                    let [left, top, right, bottom] = piece.target;
+                    let x = left.max(0.0).floor() as u32;
+                    let y = top.max(0.0).floor() as u32;
+                    let right = (right.ceil().max(0.0) as u32).min(width);
+                    let bottom = (bottom.ceil().max(0.0) as u32).min(height);
+                    (right > x && bottom > y).then(|| Draw {
+                        pipeline: pipeline.clone(),
+                        group: screens.layers.group(&screens.device, texture, piece),
+                        within: Some([x, y, right - x, bottom - y]),
+                    })
+                })
+                .collect()
+        })
     }
 
     fn show_texture(&mut self, texture: &wgpu::Texture, target: &mut Target) -> Result<(), String> {
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         let size = [texture.width(), texture.height()];
+        self.render(target, texture.format(), size, |screens, format| {
+            let group = screens
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("plugin screen"),
+                    layout: &screens.layout,
+                    entries: &[wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(&view),
+                    }],
+                });
+            vec![Draw {
+                pipeline: screens.pipeline(format),
+                group,
+                within: None,
+            }]
+        })
+    }
+
+    fn render(
+        &mut self,
+        target: &mut Target,
+        source: wgpu::TextureFormat,
+        size: [u32; 2],
+        draws: impl FnOnce(&mut Self, wgpu::TextureFormat) -> Vec<Draw>,
+    ) -> Result<(), String> {
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("plugin screen"),
             });
         let frame = match target {
-            Target::Surface(painted) => {
-                self.draw(&mut encoder, &view, texture.format(), painted, size)
-            }
+            Target::Surface(painted) => self.draw(&mut encoder, source, painted, size, draws),
             Target::Copied { .. } => {
                 let mut atlas = self
                     .atlas
                     .take()
                     .ok_or("a copied plugin screen has no atlas to copy from")?;
-                let drawn = self.draw(&mut encoder, &view, texture.format(), &mut atlas, size);
+                let drawn = self.draw(&mut encoder, source, &mut atlas, size, draws);
                 self.atlas = Some(atlas);
                 drawn
             }
@@ -324,10 +460,10 @@ impl Screens {
     fn draw(
         &mut self,
         encoder: &mut wgpu::CommandEncoder,
-        view: &wgpu::TextureView,
         source: wgpu::TextureFormat,
         painted: &mut Painted,
         size: [u32; 2],
+        draws: impl FnOnce(&mut Self, wgpu::TextureFormat) -> Vec<Draw>,
     ) -> Result<Option<wgpu::SurfaceTexture>, String> {
         if size[0] == 0 || size[1] == 0 {
             return Ok(None);
@@ -346,15 +482,7 @@ impl Screens {
             format: Some(format),
             ..Default::default()
         });
-        let group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("plugin screen"),
-            layout: &self.layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: wgpu::BindingResource::TextureView(view),
-            }],
-        });
-        let pipeline = self.pipeline(format);
+        let draws = draws(self, format);
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("plugin screen"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -371,9 +499,15 @@ impl Screens {
             occlusion_query_set: None,
             multiview_mask: None,
         });
-        pass.set_pipeline(&pipeline);
-        pass.set_bind_group(0, &group, &[]);
-        pass.draw(0..3, 0..1);
+        for draw in &draws {
+            if let Some([x, y, width, height]) = draw.within {
+                pass.set_viewport(x as f32, y as f32, width as f32, height as f32, 0.0, 1.0);
+                pass.set_scissor_rect(x, y, width, height);
+            }
+            pass.set_pipeline(&draw.pipeline);
+            pass.set_bind_group(0, &draw.group, &[]);
+            pass.draw(0..3, 0..1);
+        }
         drop(pass);
         Ok(Some(frame))
     }
@@ -408,6 +542,112 @@ impl Screens {
                         multiview_mask: None,
                         cache: None,
                     })
+            })
+            .clone()
+    }
+}
+
+impl Layers {
+    fn new(device: &wgpu::Device) -> Self {
+        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("plugin layer layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        });
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("plugin layer pipeline layout"),
+            bind_group_layouts: &[Some(&layout)],
+            immediate_size: 0,
+        });
+        Self {
+            layout,
+            pipeline_layout,
+            shader: device.create_shader_module(wgpu::include_wgsl!("layer.wgsl")),
+            pipelines: HashMap::new(),
+        }
+    }
+
+    fn group(&self, device: &wgpu::Device, texture: &wgpu::Texture, piece: &Piece) -> wgpu::BindGroup {
+        let values: Vec<u8> = piece
+            .target
+            .iter()
+            .chain(&piece.source)
+            .flat_map(|value| value.to_le_bytes())
+            .collect();
+        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("plugin layer piece"),
+            size: values.len() as u64,
+            usage: wgpu::BufferUsages::UNIFORM,
+            mapped_at_creation: true,
+        });
+        buffer.slice(..).get_mapped_range_mut().copy_from_slice(&values);
+        buffer.unmap();
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("plugin layer piece"),
+            layout: &self.layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: buffer.as_entire_binding(),
+                },
+            ],
+        })
+    }
+
+    fn pipeline(&mut self, device: &wgpu::Device, format: wgpu::TextureFormat) -> wgpu::RenderPipeline {
+        self.pipelines
+            .entry(format)
+            .or_insert_with(|| {
+                device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                    label: Some("plugin layer pipeline"),
+                    layout: Some(&self.pipeline_layout),
+                    vertex: wgpu::VertexState {
+                        module: &self.shader,
+                        entry_point: Some("layer_vertex"),
+                        compilation_options: Default::default(),
+                        buffers: &[],
+                    },
+                    primitive: Default::default(),
+                    depth_stencil: None,
+                    multisample: Default::default(),
+                    fragment: Some(wgpu::FragmentState {
+                        module: &self.shader,
+                        entry_point: Some("layer_fragment"),
+                        compilation_options: Default::default(),
+                        targets: &[Some(wgpu::ColorTargetState {
+                            format,
+                            blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+                            write_mask: wgpu::ColorWrites::ALL,
+                        })],
+                    }),
+                    multiview_mask: None,
+                    cache: None,
+                })
             })
             .clone()
     }

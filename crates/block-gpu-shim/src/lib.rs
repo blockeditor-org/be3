@@ -81,6 +81,18 @@ pub fn show(id: u32, canvas: JsValue, surface: u32) {
 }
 
 #[wasm_bindgen]
+pub fn layers(canvas: JsValue, width: u32, height: u32, pieces: Vec<f32>) {
+    with(
+        |shim| {
+            let canvas = canvas.dyn_into::<web_sys::OffscreenCanvas>().ok();
+            let placed = shim.screens.layers(canvas, [width, height], &pieces);
+            shim.fail(placed);
+        },
+        (),
+    );
+}
+
+#[wasm_bindgen]
 pub fn forget(id: u32) {
     with(|shim| shim.screens.forget(id), ());
 }
