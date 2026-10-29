@@ -14,8 +14,9 @@ interface plugin {
     resource editor {
         constructor(opening: opening);
 
-        /// The user picked a command of the editor's menu.
-        menu-pick: func(id: string);
+        /// The user picked command `id` of the menu of the editor's view
+        /// `view` (`shell.menu`), wherever the menu was shown.
+        menu-pick: func(view: view-id, id: string);
 
         /// The user ran an action of the bar of a child the editor placed.
         child-bar: func(view: view-id, child: child-id, action: bar-action);

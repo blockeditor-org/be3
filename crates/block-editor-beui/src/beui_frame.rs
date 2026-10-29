@@ -438,7 +438,7 @@ pub(crate) fn FrameMenu(
         let entries = menu_entries(&menu);
         *published.borrow_mut() = menu.clone();
         untrack(|| listed.set(menu));
-        host.set_menu(entries);
+        host.set_menu(block_editor_plugin::ViewId::MAIN, entries);
     });
     view! {
         <List spacing=Space::None />

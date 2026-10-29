@@ -825,8 +825,10 @@ interface types {
         title: string,
         glyph: string,
         closable: bool,
-        /// The tab's own menu, which the root shows on the tab's bar; a pick
-        /// reaches the tab's owner as a `dock-update.pick` of the tab.
+        /// The menu of the tab's view (`shell.menu` of that view), which the
+        /// root shows on the tab's bar. The host fills it in as it splices a
+        /// declaration; a declaring instance leaves it empty. A pick reaches
+        /// the owner as its `menu-pick` of that view.
         menu: list<menu-item>,
     }
 

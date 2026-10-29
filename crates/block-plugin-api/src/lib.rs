@@ -61,9 +61,7 @@ pub use blocks::{
     VersionCommit, VersionOperation, VersionStatus,
 };
 pub use debug::debug::{DebugTemplate, PerformanceMeasurement};
-pub use dock::{
-    DockChildRequest, DockClosedTab, DockDeclaredChild, DockHostedView, DockPickedTab, DockUpdate,
-};
+pub use dock::{DockChildRequest, DockClosedTab, DockDeclaredChild, DockHostedView, DockUpdate};
 pub use guest::dock::DockWatch;
 pub use host_services::{AccessGrant, AccessListing, ImportedBlock, Revision, ShellDialog};
 pub use shared::access::AccessLevel;

@@ -553,7 +553,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     pub fn pick_menu(&mut self, id: &str) {
         self.menu_entry(id);
         let id = id.to_owned();
-        self.call(|editor, connection| editor.menu_pick(connection, id));
+        self.call(|editor, connection| editor.menu_pick(connection, ViewId::MAIN, id));
         self.run();
     }
 
@@ -1303,7 +1303,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                 continue;
             }
             match &call {
-                ShellCall::Menu { items, .. } => {
+                ShellCall::Menu { view, items, .. } if view.is_main() => {
                     self.menu = MenuEntry::nest(items.clone()).unwrap_or_else(|error| {
                         panic!("the plugin sent a menu it may not: {error}")
                     });

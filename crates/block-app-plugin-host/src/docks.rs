@@ -5,8 +5,8 @@ use std::{
 
 use block_plugin_api::{
     BarAction, ChildId, DockChild, DockChildRequest, DockClosedTab, DockDeclaration,
-    DockDeclaredChild, DockHosted, DockHostedView, DockMessage, DockPickedTab, DockRequest,
-    DockTabPath, DockUpdate, EditorInstanceId, MAX_DOCK_NESTING, ViewId, dock_prefix,
+    DockDeclaredChild, DockHosted, DockHostedView, DockMessage, DockRequest, DockTabPath,
+    DockUpdate, EditorInstanceId, MAX_DOCK_NESTING, MenuItem, ViewId, dock_prefix,
 };
 use uuid::Uuid;
 
@@ -46,6 +46,8 @@ pub(super) struct Docks {
     docked: HashSet<EditorInstanceId>,
     outbox: Vec<(EditorInstanceId, DockUpdate)>,
     bars: Vec<(EditorInstanceId, ChildId, BarAction)>,
+    menus: HashMap<(EditorInstanceId, ViewId), Vec<MenuItem>>,
+    picks: Vec<(EditorInstanceId, ViewId, String)>,
     changed: HashSet<String>,
 }
 
@@ -65,6 +67,8 @@ impl Docks {
     }
 
     pub(super) fn forget(&mut self, instance: EditorInstanceId) {
+        self.menus.retain(|(held, _), _| *held != instance);
+        self.picks.retain(|(held, _, _)| *held != instance);
         self.blocks.retain(|_, held| *held != instance);
         self.children.remove(&instance);
         self.declared.remove(&instance);
@@ -165,14 +169,10 @@ impl Docks {
                     if self.owns(plugin, pick.child.instance)
                         && let Some((owner, tab)) = self.owner(pick.child, pick.tab)
                     {
-                        self.send(
-                            owner,
-                            DockUpdate::Pick(DockPickedTab {
-                                view: ViewId::MAIN,
-                                tab,
-                                id: pick.id,
-                            }),
-                        );
+                        if let Some(plugin) = self.plugins.get(&owner) {
+                            self.changed.insert(plugin.clone());
+                        }
+                        self.picks.push((owner, ViewId(tab.tab), pick.id));
                     }
                 }
             }
@@ -242,6 +242,38 @@ impl Docks {
             .into_iter()
             .partition(|(to, _, _)| plugins.get(to).is_some_and(|held| held == plugin));
         self.bars = kept;
+        taken
+    }
+
+    pub(super) fn set_menu(
+        &mut self,
+        instance: EditorInstanceId,
+        view: ViewId,
+        items: Vec<MenuItem>,
+    ) {
+        let key = (instance, view);
+        if self
+            .menus
+            .get(&key)
+            .map_or(items.is_empty(), |held| *held == items)
+        {
+            return;
+        }
+        match items.is_empty() {
+            true => self.menus.remove(&key),
+            false => self.menus.insert(key, items),
+        };
+        if self.declared.contains_key(&instance) {
+            self.refresh();
+        }
+    }
+
+    pub(super) fn take_picks(&mut self, plugin: &str) -> Vec<(EditorInstanceId, ViewId, String)> {
+        let plugins = &self.plugins;
+        let (taken, kept) = std::mem::take(&mut self.picks)
+            .into_iter()
+            .partition(|(to, _, _)| plugins.get(to).is_some_and(|held| held == plugin));
+        self.picks = kept;
         taken
     }
 
@@ -424,6 +456,15 @@ impl Docks {
             return None;
         }
         let mut declaration = self.declared.get(&instance)?.clone();
+        for tab in &mut declaration.tabs {
+            if tab.tab.via.is_empty() {
+                tab.menu = self
+                    .menus
+                    .get(&(instance, ViewId(tab.tab.tab)))
+                    .cloned()
+                    .unwrap_or_default();
+            }
+        }
         for (child, record) in self.children.get(&instance).into_iter().flatten() {
             let Some(inner) = self
                 .instance_of(instance, record)
@@ -625,6 +666,14 @@ pub(super) fn bar(instance: EditorInstanceId, action: BarAction) -> bool {
 
 pub(super) fn take_bars(plugin: &str) -> Vec<(EditorInstanceId, ChildId, BarAction)> {
     DOCKS.with(|docks| docks.borrow_mut().take_bars(plugin))
+}
+
+pub(super) fn set_menu(instance: EditorInstanceId, view: ViewId, items: Vec<MenuItem>) {
+    with(|docks| docks.set_menu(instance, view, items));
+}
+
+pub(super) fn take_picks(plugin: &str) -> Vec<(EditorInstanceId, ViewId, String)> {
+    DOCKS.with(|docks| docks.borrow_mut().take_picks(plugin))
 }
 
 pub(super) fn take(plugin: &str) -> Vec<(EditorInstanceId, DockUpdate)> {

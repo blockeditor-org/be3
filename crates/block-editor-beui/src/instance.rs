@@ -362,7 +362,7 @@ impl<A: BeuiApp> Shown for Parts<A> {
                     on_phone: spec.top_bar.phone(),
                     docked: view.docked,
                 });
-                let picks = self.host.take_menu_picks();
+                let picks = self.host.take_menu_picks(block_editor_plugin::ViewId::MAIN);
                 if !picks.is_empty() {
                     let menu = views.chrome.menu();
                     beui::native::with_reactive_scope(document, || {

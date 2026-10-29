@@ -256,8 +256,13 @@ interface shell {
         next: async func() -> catalog;
     }
 
-    /// The editor's menu, replacing the one it sent before.
-    menu: func(instance: editor-instance-id, items: list<menu-item>);
+    /// The menu of one of the editor's views, replacing the one it sent for
+    /// that view before. The menu of the view that holds the editor's
+    /// content is its frame's (a placer reads it as `child-status.menu`);
+    /// a dock view's is its tab's, which the host gives the root as that
+    /// tab's `dock-tab.menu`. A pick from any of them arrives as the
+    /// editor's `menu-pick` of that view.
+    menu: func(instance: editor-instance-id, view: view-id, items: list<menu-item>);
 
     /// The editor asks the host to run an action of its bar.
     run-bar-action: func(instance: editor-instance-id, action: bar-action);

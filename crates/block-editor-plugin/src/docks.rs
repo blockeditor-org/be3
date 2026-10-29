@@ -21,7 +21,6 @@ pub(crate) struct Docks {
     picking: Vec<(ChildId, DockTabPath, String)>,
     hosted: HashMap<ViewId, DockHosted>,
     closed: Vec<(ViewId, DockTabPath)>,
-    picked: Vec<(ViewId, DockTabPath, String)>,
     children: HashMap<ChildId, DockDeclaration>,
     child_requests: Vec<(ChildId, Vec<ChildId>, DockRequest)>,
 }
@@ -54,19 +53,6 @@ impl EditorHost {
             let here = *held == view;
             if here {
                 taken.push(tab.clone());
-            }
-            !here
-        });
-        taken
-    }
-
-    pub fn take_dock_picks(&self, view: ViewId) -> Vec<(DockTabPath, String)> {
-        let mut docks = self.docks.borrow_mut();
-        let mut taken = Vec::new();
-        docks.picked.retain(|(held, tab, id)| {
-            let here = *held == view;
-            if here {
-                taken.push((tab.clone(), id.clone()));
             }
             !here
         });
@@ -133,7 +119,6 @@ impl EditorHost {
                     }
                 },
                 DockUpdate::Close(close) => docks.closed.push((close.view, close.tab)),
-                DockUpdate::Pick(pick) => docks.picked.push((pick.view, pick.tab, pick.id)),
                 DockUpdate::Child(child) => match child.declaration {
                     Some(declaration) => {
                         docks.children.insert(child.child, declaration);

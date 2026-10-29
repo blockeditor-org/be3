@@ -105,6 +105,7 @@ impl DockedTabs {
             bar_sizes: OwnedSignal::new(HashMap::new()),
             declares: OwnedSignal::new(0),
             saving: saved::Saving::default(),
+            menued: RefCell::default(),
         });
         *self.link.borrow_mut() = Some(Rc::clone(&link));
         saved::keep_joined(&link, editor);
@@ -128,12 +129,10 @@ impl DockedTabs {
         let picks = link.host.clone();
         create_effect(move || {
             pushed.get();
-            let taken = untrack(|| picks.take_dock_picks(ViewId::MAIN));
+            let taken = untrack(|| picks.take_view_menu_picks());
             if let Some(link) = picking.upgrade() {
-                for (tab, id) in taken {
-                    if let Some(tab) = own(&tab) {
-                        untrack(|| link.pick(tab, &id));
-                    }
+                for (view, id) in taken {
+                    untrack(|| link.pick(TabId::new(view.0), &id));
                 }
             }
         });
@@ -149,6 +148,11 @@ impl DockedTabs {
                 .as_ref()
                 .is_some_and(|link| Weak::ptr_eq(&Rc::downgrade(link), &held));
             if mine {
+                if let Some(link) = held.upgrade() {
+                    for view in link.menued.take() {
+                        link.host.set_menu(view, Vec::new());
+                    }
+                }
                 tabs.link.borrow_mut().take();
                 tabs.bump();
             }
@@ -251,6 +255,7 @@ struct ProtocolLink {
     bar_sizes: OwnedSignal<HashMap<TabId, beui::Vec2>>,
     declares: OwnedSignal<u64>,
     saving: saved::Saving,
+    menued: RefCell<Vec<ViewId>>,
 }
 
 impl ProtocolLink {
@@ -307,7 +312,7 @@ impl ProtocolLink {
                 nodes.push(MenuNode::Separator);
             }
             nodes.extend(frame.iter().cloned());
-            api::MenuEntry::flatten(&crate::beui_frame::menu_entries(&nodes))
+            crate::beui_frame::menu_entries(&nodes)
         };
         let empty = |pane: &DockSpecPane| {
             pane.keep
@@ -325,16 +330,21 @@ impl ProtocolLink {
                 height: size.y,
             }
         };
-        self.host.declare_dock(
-            self.view,
-            Some(declaration_to_api(
-                declaration,
-                &own_path,
-                &menu,
-                &empty,
-                &size,
-            )),
-        );
+        let declared = declaration_to_api(declaration, &own_path, &empty, &size);
+        let views: Vec<ViewId> = declared
+            .tabs
+            .iter()
+            .map(|tab| ViewId(tab.tab.tab))
+            .collect();
+        for view in &views {
+            self.host.set_menu(*view, menu(TabId::new(view.0)));
+        }
+        for gone in self.menued.replace(views.clone()) {
+            if !views.contains(&gone) {
+                self.host.set_menu(gone, Vec::new());
+            }
+        }
+        self.host.declare_dock(self.view, Some(declared));
     }
 
     fn bump(&self) {
@@ -1142,7 +1152,6 @@ fn spec_node(node: &DockSpecNode, path: PathOf<'_>, empty: EmptyOf<'_>) -> api::
 pub(crate) fn declaration_to_api(
     declaration: &DockDeclaration,
     path: PathOf<'_>,
-    menu: &dyn Fn(TabId) -> Vec<api::MenuItem>,
     empty: EmptyOf<'_>,
     size: &dyn Fn(TabId) -> api::Size,
 ) -> api::DockDeclaration {
@@ -1179,7 +1188,7 @@ pub(crate) fn declaration_to_api(
                         .map(|icon| icon.as_str().to_owned())
                         .unwrap_or_default(),
                     closable: tab.closable,
-                    menu: menu(tab.tab),
+                    menu: Vec::new(),
                 })
             })
             .collect(),

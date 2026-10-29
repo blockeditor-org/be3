@@ -14,7 +14,7 @@ use block_plugin_api::{
 };
 use block_type_guest::editor::{FromEditor, Gesture};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     sync::Arc,
 };
 use uuid::Uuid;
@@ -127,7 +127,7 @@ struct Instance {
     views: Sent<EditorView>,
     view_changes: Vec<ViewChange>,
     bar_actions: Vec<block_plugin_api::BarAction>,
-    menu: Vec<block_plugin_api::MenuEntry>,
+    menus: BTreeMap<ViewId, Vec<block_plugin_api::MenuEntry>>,
     child_menu_picks: Vec<(ChildId, String)>,
     presenting: bool,
     presented: bool,
@@ -280,7 +280,7 @@ impl Instance {
             views: Sent::default(),
             view_changes: Vec::new(),
             bar_actions: Vec::new(),
-            menu: Vec::new(),
+            menus: BTreeMap::new(),
             child_menu_picks: Vec::new(),
             presenting: false,
             presented: false,
@@ -1509,7 +1509,13 @@ impl Instances {
     pub(super) fn menu(&self, instance: EditorInstanceId) -> Vec<block_plugin_api::MenuEntry> {
         self.entries
             .get(&instance)
-            .map(|entry| entry.menu.clone())
+            .and_then(|entry| {
+                entry
+                    .menus
+                    .get(&self.content_view(instance))
+                    .or_else(|| entry.menus.get(&ViewId::MAIN))
+                    .cloned()
+            })
             .unwrap_or_default()
     }
 
@@ -1517,7 +1523,11 @@ impl Instances {
         if !self.entries.contains_key(&instance) {
             return Vec::new();
         }
-        vec![Outbound::Editor(instance, EditorCall::MenuPick(id))]
+        let view = entry_menu_holds(self, instance).unwrap_or(ViewId::MAIN);
+        vec![Outbound::Editor(
+            instance,
+            EditorCall::MenuPick { view, id },
+        )]
     }
 
     pub(super) fn take_child_menu_picks(
@@ -3037,8 +3047,14 @@ impl Instances {
                     entry.bar_actions.push(action);
                 }
             }
-            ShellCall::Menu { items, .. } => match MenuEntry::nest(items) {
-                Ok(menu) => entry.menu = menu,
+            ShellCall::Menu { view, items, .. } => match MenuEntry::nest(items.clone()) {
+                Ok(menu) => {
+                    match menu.is_empty() {
+                        true => entry.menus.remove(&view),
+                        false => entry.menus.insert(view, menu),
+                    };
+                    super::docks::set_menu(instance, view, items);
+                }
                 Err(_) => return false,
             },
             ShellCall::ChildMenuPick { child, id, .. } => entry.child_menu_picks.push((child, id)),
@@ -3434,3 +3450,13 @@ fn only_moved(sent: Option<LayerSpace>, now: Option<LayerSpace>) -> bool {
 
 #[cfg(test)]
 mod tests;
+
+fn entry_menu_holds(instances: &Instances, instance: EditorInstanceId) -> Option<ViewId> {
+    let view = instances.content_view(instance);
+    instances
+        .entries
+        .get(&instance)?
+        .menus
+        .contains_key(&view)
+        .then_some(view)
+}

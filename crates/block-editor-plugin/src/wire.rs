@@ -244,9 +244,9 @@ impl Guest for Exports {
 }
 
 impl GuestEditor for OpenEditor {
-    fn menu_pick(&self, id: String) {
+    fn menu_pick(&self, view: block_plugin_api::ViewId, id: String) {
         self.wire
-            .call(self.instance, move |session| session.pick_menu(id));
+            .call(self.instance, move |session| session.pick_menu(view, id));
     }
 
     fn dismiss(&self) {

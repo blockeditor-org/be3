@@ -508,8 +508,8 @@ pub struct EditorHost {
     child_bars: Rc<RefCell<HashMap<ChildId, Vec<BarAction>>>>,
     child_focuses: Rc<RefCell<HashSet<ChildId>>>,
     bar_actions: Rc<RefCell<Vec<BarAction>>>,
-    menu: Rc<RefCell<Vec<MenuEntry>>>,
-    menu_picks: Rc<RefCell<Vec<String>>>,
+    menus: Rc<RefCell<std::collections::BTreeMap<ViewId, Vec<MenuEntry>>>>,
+    menu_picks: Rc<RefCell<Vec<(ViewId, String)>>>,
     child_menu_picks: Rc<RefCell<Vec<(ChildId, String)>>>,
     chrome: Rc<Cell<Option<bool>>>,
     placed_content: Rc<Cell<Option<Rect>>>,
@@ -1822,25 +1822,56 @@ impl EditorHost {
         std::mem::take(&mut self.bar_actions.borrow_mut())
     }
 
-    pub fn set_menu(&self, entries: Vec<MenuEntry>) {
-        if *self.menu.borrow() == entries {
+    pub fn set_menu(&self, view: ViewId, entries: Vec<MenuEntry>) {
+        let mut menus = self.menus.borrow_mut();
+        if menus
+            .get(&view)
+            .map_or(entries.is_empty(), |held| *held == entries)
+        {
             return;
         }
-        *self.menu.borrow_mut() = entries;
+        match entries.is_empty() {
+            true => menus.remove(&view),
+            false => menus.insert(view, entries),
+        };
+        drop(menus);
         self.changed();
     }
 
-    pub(crate) fn menu(&self) -> Vec<MenuEntry> {
-        self.menu.borrow().clone()
+    pub(crate) fn menus(&self) -> std::collections::BTreeMap<ViewId, Vec<MenuEntry>> {
+        self.menus.borrow().clone()
     }
 
-    pub(crate) fn push_menu_pick(&self, id: String) {
-        self.menu_picks.borrow_mut().push(id);
-        self.changed();
+    pub(crate) fn push_menu_pick(&self, view: ViewId, id: String) {
+        self.menu_picks.borrow_mut().push((view, id));
+        match view.is_main() {
+            true => self.changed(),
+            false => self.push(Pushed::Docks),
+        }
     }
 
-    pub fn take_menu_picks(&self) -> Vec<String> {
-        std::mem::take(&mut self.menu_picks.borrow_mut())
+    pub fn take_menu_picks(&self, view: ViewId) -> Vec<String> {
+        let mut taken = Vec::new();
+        self.menu_picks.borrow_mut().retain(|(held, id)| {
+            let here = *held == view;
+            if here {
+                taken.push(id.clone());
+            }
+            !here
+        });
+        taken
+    }
+
+    pub fn take_view_menu_picks(&self) -> Vec<(ViewId, String)> {
+        let mut taken = Vec::new();
+        self.menu_picks.borrow_mut().retain(|(held, id)| {
+            let here = !held.is_main();
+            if here {
+                taken.push((*held, id.clone()));
+            }
+            !here
+        });
+        taken
     }
 
     pub fn pick_child_menu(&self, child: ChildId, id: String) {

@@ -43,7 +43,10 @@ pub(super) enum PluginCall {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum EditorCall {
-    MenuPick(String),
+    MenuPick {
+        view: ViewId,
+        id: String,
+    },
     Dismiss,
     ChildBar {
         view: ViewId,

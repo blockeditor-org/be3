@@ -20,29 +20,16 @@ fn a_pick_from_a_tabs_menu_reaches_the_owner_two_levels_down() {
 
     docks.heard("shell", vec![pick(path(&[INNER_CHILD], 5))]);
     assert_eq!(
-        updates(&mut docks, "inner"),
-        [(
-            INNER,
-            DockUpdate::Pick(DockPickedTab {
-                view: ViewId::MAIN,
-                tab: path(&[], 5),
-                id: "editor.palette".to_owned(),
-            })
-        )]
+        docks.take_picks("inner"),
+        [(INNER, ViewId(5), "editor.palette".to_owned())],
+        "as a pick of the menu of the tab's view"
     );
-    assert!(updates(&mut docks, "outer").is_empty());
+    assert!(docks.take_picks("outer").is_empty());
 
     docks.heard("shell", vec![pick(path(&[], 1))]);
     assert_eq!(
-        updates(&mut docks, "outer"),
-        [(
-            OUTER,
-            DockUpdate::Pick(DockPickedTab {
-                view: ViewId::MAIN,
-                tab: path(&[], 1),
-                id: "editor.palette".to_owned(),
-            })
-        )]
+        docks.take_picks("outer"),
+        [(OUTER, ViewId(1), "editor.palette".to_owned())]
     );
-    assert!(updates(&mut docks, "inner").is_empty());
+    assert!(docks.take_picks("inner").is_empty());
 }

@@ -513,13 +513,15 @@ layout, since the root saves only the tab it hosts in place of the group. The ho
 child open while its placer places it or, once the child declares a dock, still
 declares the tab it was placed in (for the root, from the declaration it hears until it lets go with a `host`
 of `none`), requesting its frame at its last size without drawing it; a tab closes
-when its owner stops declaring it. Each `dock-tab` carries the menu its owner
-gives that tab (`menu`, the same `menu-item`s as a frame's menu, the owner's
-frame menu included), which the root shows on the tab's bar, whatever level
-the tab's owner is at; the root sends a pick as `dock-message.pick` with the
-tab's path, and the host hands it to the owner as `dock-update.pick` of its
-own tab, so the owner knows which tab asked (and presents what the command
-opens, such as its command palette, over that tab's body, not in its frame).
+when its owner stops declaring it. Every view has its own menu: an instance
+sends `shell.menu` for a view, and a pick from it, wherever it was shown,
+arrives as its `menu-pick` of that view. The host gives the root each
+spliced tab's menu as that `dock-tab`'s `menu` (a declaring instance leaves it
+empty), whatever level the tab's owner is at; the root shows it on the tab's
+bar and sends a pick as `dock-message.pick` with the tab's path, which the
+host hands the owner as a `menu-pick` of the tab's view, so the owner knows
+which tab asked (and presents what the command opens, such as its command
+palette, over that tab's body, not in its frame).
 A bar action of a docked child whose dock the host spliced (its frame is not
 shown), such as asking for its details, reaches its placer as a `child-bar` as
 if from its frame.
@@ -536,8 +538,9 @@ view holding the content is requested with one; the chrome of a docked main
 view counts for nothing). A child placed in a dock tab's body with
 `own-frame` joins the dock (`child-placement.docks`); a child placed anywhere
 else, such as a card on a canvas, draws its dock itself. A docked editor's
-tab carries its menu: its frame menu, or the menu of the child that took its
-frame over. A root showing a joined group of one bare pane in place of the tab
+tab view's menu is its frame menu, or the menu of the child that took its
+frame over, after the tab's own items; the menu a placer reads as
+`child-status.menu` is the menu of the view holding the child's content. A root showing a joined group of one bare pane in place of the tab
 that hosts it shows that group as the tab: the tab's title, icon, lock and
 close, and the bare pane's tab's menu followed by the hosting tab's.
 

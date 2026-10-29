@@ -42,7 +42,7 @@ pub struct EditorSession {
     intrinsic: Option<Vec2>,
     aspect_ratio: Option<f32>,
     artifact: Option<ArtifactState>,
-    sent_menu: Vec<MenuEntry>,
+    sent_menus: std::collections::BTreeMap<ViewId, Vec<MenuEntry>>,
     sent_card: bool,
     audio_watched: bool,
     docks_watched: bool,
@@ -164,7 +164,7 @@ impl EditorSession {
             intrinsic: None,
             aspect_ratio: None,
             artifact: None,
-            sent_menu: Vec::new(),
+            sent_menus: std::collections::BTreeMap::new(),
             sent_card: false,
             audio_watched: false,
             docks_watched: false,
@@ -174,8 +174,8 @@ impl EditorSession {
         }
     }
 
-    pub fn pick_menu(&self, id: String) {
-        self.host.push_menu_pick(id);
+    pub fn pick_menu(&self, view: ViewId, id: String) {
+        self.host.push_menu_pick(view, id);
     }
 
     pub fn dismiss(&self) {
@@ -450,10 +450,19 @@ impl EditorSession {
         for action in self.host.take_bar_actions() {
             shell::run_bar_action(instance, action);
         }
-        let menu = self.host.menu();
-        if self.sent_menu != menu {
-            shell::menu(instance, MenuEntry::flatten(&menu));
-            self.sent_menu = menu;
+        let menus = self.host.menus();
+        if self.sent_menus != menus {
+            for (view, menu) in &menus {
+                if self.sent_menus.get(view) != Some(menu) {
+                    shell::menu(instance, *view, MenuEntry::flatten(menu));
+                }
+            }
+            for view in self.sent_menus.keys() {
+                if !menus.contains_key(view) {
+                    shell::menu(instance, *view, Vec::new());
+                }
+            }
+            self.sent_menus = menus;
         }
         for (child, id) in self.host.take_child_menu_picks() {
             shell::child_menu_pick(instance, child, id);

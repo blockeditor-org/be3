@@ -441,6 +441,13 @@ impl Runtime {
                 .map(|(instance, update)| Outbound::Editor(instance, EditorCall::Dock(update))),
         );
         messages.extend(
+            super::docks::take_picks(&self.plugin.identity.id)
+                .into_iter()
+                .map(|(owner, view, id)| {
+                    Outbound::Editor(owner, EditorCall::MenuPick { view, id })
+                }),
+        );
+        messages.extend(
             super::docks::take_bars(&self.plugin.identity.id)
                 .into_iter()
                 .map(|(placer, child, action)| {

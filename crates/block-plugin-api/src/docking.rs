@@ -618,10 +618,6 @@ impl DockUpdate {
         match self {
             Self::Hosted(hosted) => hosted.hosted.as_ref().map_or(Ok(()), DockHosted::validate),
             Self::Close(close) => close.tab.validate(),
-            Self::Pick(pick) => {
-                pick.tab.validate()?;
-                string(&pick.id)
-            }
             Self::Child(child) => child
                 .declaration
                 .as_ref()
@@ -645,7 +641,7 @@ impl DockUpdate {
             Self::Child(child) => updates.retain(
                 |waiting| !matches!(waiting, Self::Child(held) if held.child == child.child),
             ),
-            Self::Close(_) | Self::Pick(_) | Self::ChildRequest(_) => {}
+            Self::Close(_) | Self::ChildRequest(_) => {}
         }
         updates.push(update);
     }

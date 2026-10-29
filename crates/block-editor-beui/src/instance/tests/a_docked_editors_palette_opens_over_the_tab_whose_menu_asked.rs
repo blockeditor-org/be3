@@ -1,5 +1,4 @@
 use super::*;
-use block_plugin_api::{DockPickedTab, DockTabPath, DockUpdate};
 
 #[test]
 fn a_docked_editors_palette_opens_over_the_tab_whose_menu_asked() {
@@ -11,13 +10,7 @@ fn a_docked_editors_palette_opens_over_the_tab_whose_menu_asked() {
     let shown = [(View::MAIN, 0), (View::dock(ViewId(2)), 1)];
     show_docked(&mut session, &shown, true);
 
-    session
-        .host()
-        .receive_dock_updates(vec![DockUpdate::Pick(DockPickedTab {
-            view: ViewId::MAIN,
-            tab: DockTabPath::own(2),
-            id: "editor.palette".to_owned(),
-        })]);
+    session.pick_menu(ViewId(2), "editor.palette".to_owned());
     show_docked(&mut session, &shown, true);
     show_docked(&mut session, &shown, true);
 
