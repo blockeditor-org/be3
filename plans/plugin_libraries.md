@@ -2,14 +2,14 @@
 
 Today every plugin is linked against exactly one shared module, the plugin SDK
 (`crates/block-plugin-sdk`, guides/plugin_sdk.md), and that SDK holds beui. A
-plugin that does not use beui, such as `crates/editors/triangle`, or a
-third-party plugin written with another UI framework, still loads all of it, and
-cannot bring a library of its own that the SDK would share. This plan has three
-parts:
+plugin that does not use beui, such as `crates/editors/triangle`, still loads
+all of it, a plugin cannot share a library of its own with other plugins, and
+a plugin written in another language still has to take Rust's conventions.
+This plan has three parts:
 
-1. Dynamic linking of any set of shared libraries, so the SDK becomes a root
-   runtime plus libraries (gpu, block-editor-plugin, beui, ...) and a plugin
-   names the ones it needs.
+1. Dynamic linking of any set of shared libraries, none of them special: a
+   plugin names the libraries it needs (for Rust plugins, base and beui), or
+   none and is one module written against the raw plugin interface.
 2. A written policy for the plugin GPU API, and filling the gaps in
    `block-gpu-guest` that it implies.
 3. Moving the framework-neutral parts of the beui editor stack below beui, so a
@@ -19,7 +19,11 @@ parts:
 Not in this plan: an egui (or any other framework's) adapter. Every feature in
 the docking and overlay APIs would have to be built twice, and those APIs are
 still changing. Revisit once they settle. The work here should leave an adapter
-as a single new crate on top of the block-editor-plugin library.
+as a single new crate on top of the base library.
+
+Also not in this plan: third-party plugins, and publishing libraries for them
+to build against. That comes after the plugin APIs stabilize, the interface is
+hardened and permission prompts exist.
 
 Not implemented yet. Items marked **(ask)** need a decision from the user during
 the work.
@@ -71,57 +75,107 @@ the work.
 
 ## 1. Shared libraries
 
-### The model
+### Requirements
 
-- **A root module, the runtime**: std, alloc, the global allocator, the panic
-  runtime, wasi-libc, libc++ and libc++abi, the forced C math and libc
-  functions. Each of these must exist once per process. The root owns memory,
-  `malloc`, the stack and the function table, as the SDK does today.
-- **Libraries**: position-independent shared modules, linked with
-  `--export-all`, each naming the libraries it needs. A plugin is a library that
-  also exports the guest ABI (`plugin_start`, `plugin_step`, ...).
-- **Identity**: a library's identity is the SHA-256 of its module, and the
-  module names its needed libraries' identities, so one hash pins its whole
-  closure. Staged as `lib-<sha256>.wasm` (and `.cwasm`), checked as SDKs are
-  today.
-- **Metadata**: `be3.sdk` becomes `be3.lib`: the libraries needed, the crates
-  and archives the library contains, and its thread-local symbols.
+- **No library is special.** The loader owns what the SDK owns for the process
+  today: the memory, the function table, the stack pointer, each thread's
+  thread-local blocks, and where each module's static data goes. A library
+  brings code and data, and possibly an allocator, and nothing else. A Rust
+  plugin links the Rust libraries because it chose to, not because the host
+  needs them.
+- **A plugin may link no library at all.** The raw plugin interface is enough:
+  block-guest-abi's exports (`plugin_start`, `plugin_step`,
+  `plugin_shutdown`) and `be3_host` imports, the plugin's WIT world
+  (`crates/block-plugin-api/wit`, postcard frames as in guides/type_modules.md)
+  and the `be3:gpu` imports. A triangle written in Zig, C or WAT loads as one
+  module, without Rust, without wasi-libc's conventions, and without threads or
+  WASI unless it uses them.
+- Today an editor guest has to export `plugin_initialize_tls`, which
+  block-editor-plugin's `platform_entry!` defines for Rust's thread-locals, and
+  import a shared `env.memory` (`block-wasm-host/src/lib.rs` around lines 473
+  and 602). Both become part of the linked-module convention below, not of the
+  plugin interface. A standalone plugin imports or exports whichever memory it
+  likes, and shared memory is needed only by a plugin that spawns threads.
 
-### First libraries
+### Two kinds of plugin module
+
+- **Standalone**: a plain wasm module with no `dylink.0` section and no
+  libraries. The host instantiates it as it is, answering `be3_host`, the
+  plugin world and `be3:gpu`, plus WASI and `wasi:thread-spawn` if it imports
+  them.
+- **Linked**: a position-independent shared module (`dylink.0`) whose `be3.lib`
+  section names the libraries it needs. Every library is such a module too,
+  linked with `--export-all`.
+
+A plugin is either kind; a library is always linked. Building the same Rust
+plugin both ways (all its crates linked into it, or against libraries) is a
+build flag, not a code change.
+
+### Identity and metadata
+
+- A library's identity is the SHA-256 of its module. The module names the
+  identities of the libraries it needs, so one hash pins its whole closure.
+  Staged as `lib-<sha256>.wasm` (and `.cwasm`), and checked by both hosts as
+  SDKs are today.
+- `be3.sdk` becomes `be3.lib`, written into every linked module: the libraries
+  it needs, the crates and archives it contains, and its thread-local symbols.
+
+### What the loader owns
+
+- **Memory and static data.** The loader creates the memory (shared when any
+  module in the closure may spawn threads) and places every module's static
+  image itself, from the sizes and alignments in `dylink.0`, before any code
+  runs. Today the plugin's image comes from the SDK's `malloc`; with no special
+  module there is no `malloc` to ask yet. The images sit at the bottom; the
+  rest of memory is the heap, handed to the closure's one allocator through
+  `__heap_base` and `__heap_end` as wasi-libc's dlmalloc expects. Two
+  allocators in one closure are refused by the crate-ownership rule below.
+- **The table.** The loader creates it and gives each module its slots.
+- **The stack.** One `__stack_pointer` global the loader creates, shared by
+  every module of a thread, over a stack the loader places for the first
+  thread.
+- **Thread-local blocks.** One block per module per thread, allocated by the
+  loader from its sizes and alignments. Today wasi-libc's `pthread_create`
+  allocates a new thread's stack and the SDK's block; with several modules, the
+  loader allocates the other modules' blocks when the thread starts and frees
+  them when it ends, from a region it manages. The spike below settles how.
+
+### Libraries for Rust plugins
 
 Coarse, since each library costs a fetch, a compile per worker in the browser
 and an instantiation per thread:
 
 | Library | Holds |
 |---|---|
-| runtime (root) | std, allocator, wasi-libc, libc++ |
-| gpu | wgpu with the custom backend, block-gpu-guest |
-| editor | block-editor-plugin, block-plugin-api, reactive, geometry, serde, serde_json, uuid |
+| base | std, alloc, the allocator, the panic runtime, wasi-libc, libc++ and libc++abi (whole), the forced C math and libc functions, wgpu with the custom backend (block-gpu-guest), be-ops, block-plugin-api, block-editor-plugin, reactive, geometry, serde, postcard, serde_json, uuid |
 | beui | beui and everything under it, beui-platform-plugin, block-editor-beui, FreeType, HarfBuzz |
 
-Triangle links runtime, gpu and editor. Every beui editor links all four.
-**(ask)** whether serde, serde_json and uuid belong in editor or in a separate
-small library.
+serde, postcard and uuid go in base: block-plugin-api and be-ops encode every
+frame with postcard over serde, and block ids are uuids. Triangle links base;
+every beui editor links base and beui. Split base further only when a module
+needs part of it, for example a type module that wants std without wgpu.
 
 ### Rules the linker enforces
 
-- **Each crate and each C library lives in exactly one library of a plugin's
+- **Each crate and each C library lives in exactly one module of a plugin's
   closure.** Two copies of `reactive` would give two reactive runtimes, which
   fails silently. Buck computes a library's crates as its dependency closure
   minus the closures of the libraries it needs; `wasm-link` refuses a closure
-  in which two libraries share a crate or an archive, naming it.
-- **Every import resolves to exactly one export in the module's closure.** A
-  missing symbol fails the link with its name, as today; a symbol two libraries
-  define fails too.
+  in which two modules share a crate or an archive, naming it.
+- **Every import resolves to exactly one export in the module's closure**, or
+  to the host. A missing symbol fails the link with its name, as today; a
+  symbol two libraries define fails too.
 - **Constructors run in dependency order.**
 
 ### Thread-locals (do this first, as a spike)
 
 The current scheme cannot extend past a chain. In a chain, each library's
 thread-locals would follow those of the libraries below it, all inside the
-root's reserve, which becomes a hard cap on everything above the root. In a
-diamond (a plugin needs A and B, both need gpu), A and B are linked separately,
-both place their thread-locals right after gpu's, and they overlap.
+lowest module's reserve, which becomes a hard cap on everything above it. In a
+diamond (a plugin needs A and B, both need base), A and B are linked
+separately, both place their thread-locals right after base's, and they
+overlap. Base and beui alone are a chain, but the first library a few plugins
+share (pdfium, for example) makes a diamond.
 
 The target: each module has its own thread-local block and `__tls_base`, and an
 access to another module's thread-local goes through a slot the loader fills,
@@ -137,64 +191,62 @@ The open question is how to make the code use that slot:
   (`R_WASM_MEMORY_ADDR_TLS_SLEB` and friends) against an undefined symbol into
   a `GOT.tls` global read.
 
-Spike: a root, two libraries that both need a third, and a plugin needing both;
-a generic in the plugin reaching a thread-local in each library; a spawned
-thread doing the same; on wasmtime and in the browser. If neither route works,
-**(ask)** whether to ship chains only, with a larger reserve, and refuse
-diamonds at link time.
+Spike: two libraries that both need a third, and a plugin needing both; a
+generic in the plugin reaching a thread-local in each library; a spawned thread
+doing the same, with the loader allocating its blocks; on wasmtime and in the
+browser. If neither route works, **(ask)** whether to ship chains only, with a
+larger reserve, and refuse diamonds at link time.
 
 ### Loading
 
 `wasm-dylink`'s plan becomes a list of modules in dependency order, each with
-its memory, table slots, imports (resolved against its closure), GOT entries,
-data relocations and thread-local layout. `dylink.rs` and `dylink.js` loop over
-it. A spawned thread instantiates the whole list again. Natively the host keeps
-one compiled module per identity per engine; in the browser, cache compiled
-modules across workers if the platform allows it.
+its static image address, table slots, imports (resolved against its closure),
+GOT entries, data relocations and thread-local layout; a standalone plugin is a
+list of one with nothing to relocate. `dylink.rs` and `dylink.js` loop over it.
+A spawned thread instantiates the whole list again. Natively the host keeps one
+compiled module per identity per engine; in the browser, cache compiled modules
+across workers if the platform allows it.
 
 ### Build rules
 
 - `wasm_library(libraries = [...])` in `buck/wasm/defs.bzl` replaces
-  `plugin_sdk()`; the root gets its own rule or flag.
-- `editor(libraries = [...])` replaces the hard-coded `PLUGIN_SDK`. Pick a
-  default (all four) so existing editors' BUCK files need no change, and have
-  triangle name runtime, gpu and editor.
+  `plugin_sdk()`.
+- `editor(libraries = [...])` replaces the hard-coded `PLUGIN_SDK`.
+  `libraries = []` builds a standalone module. Default to base and beui so
+  existing editors' BUCK files need no change; triangle names base.
 - `buck/app/stage.sh` stages every library in every staged plugin's closure.
 - `./scripts/buck run //:buckify` keeps working: a library's Cargo.toml lists
   its crates as today's `block-plugin-sdk/Cargo.toml` does.
 
-### Third-party plugins
-
-To compile a Rust plugin against a library, rustc needs that library's exact
-rlibs and metadata, not just its `.wasm`. A published library is a bundle: the
-module, its rlibs and rmeta, its `be3.lib`, and the toolchain identity. Publish
-the bundles from CI next to `bootstrap` (guides/bootstrap.md). **(ask)** where
-third-party plugins fetch them from, and whether a plugin package may ship
-libraries of its own (C libraries, its own Rust crates) for the host to share
-between plugins that name the same identity.
-
 ### Performance
 
-Code moved out of the root becomes position-independent and reaches its
-globals through the GOT. Measure the beui library against today's SDK with
-`app-bench` (guides/performance.md) before landing the split, and record the
-result in the PR.
+Every library is now a position-independent shared module, including the code
+that today sits in the SDK's own link, and reaches its globals through the GOT.
+Measure base and beui against today's SDK with `app-bench`
+(guides/performance.md) before landing the split, and record the result in the
+PR.
 
 ### Tests
 
+- A standalone guest in WAT, in block-wasm-host's tests, that exports no
+  `plugin_initialize_tls`, has its own non-shared memory, and paints through
+  `be3:gpu`, on both hosts.
+- Triangle built standalone (`libraries = []`) and against base, both loading
+  and painting the same.
 - The diamond from the spike, on both hosts, kept as a test.
-- A link that puts one crate in two libraries fails, naming the crate.
+- A link that puts one crate in two modules fails, naming the crate.
 - A missing symbol fails the link, naming it and the module that imports it.
 - A library whose `.wasm` does not hash to its name is refused by both hosts.
-- Triangle loads without the beui library staged.
-- `//crates/app-tests:test` passes with the four libraries.
+- `//crates/app-tests:test` passes with base and beui.
 
 ### Guides
 
 Rewrite guides/plugin_sdk.md around libraries (its title, "What is in it",
-"Identity", "How the links are made", "Thread-locals", "Loading"), and update
-the mentions of "the plugin SDK" in guides/adding_a_plugin_editor.md and
-guides/buck2.md.
+"Identity", "How the links are made", "Thread-locals", "Loading"). Its "Guests
+without the SDK" section becomes the raw plugin interface: everything a
+standalone plugin in any language imports and exports, and which of it is
+optional. Update the mentions of "the plugin SDK" in
+guides/adding_a_plugin_editor.md and guides/buck2.md.
 
 ## 2. The plugin GPU API
 
@@ -291,10 +343,12 @@ the same change that would let a second framework use them.
    chains.
 2. GPU policy in the guide, the messages, and forwarding features and limits
    (part 2). Independent of everything else; can run in parallel.
-3. `be3.lib`, the closure checks and the N-module plan in `wasm-link` and
-   `wasm-dylink`; both loaders; the build rules. One SDK still, now described as
-   a root and one library, to land the machinery without moving code.
-4. Split into runtime, gpu, editor and beui. Measure. Move triangle off beui.
-5. Fill the GPU gaps, one group per PR.
-6. Editor state and the region driver (part 3), except docks and overlays.
-7. Publishing library bundles for third parties.
+3. Standalone plugins: the loader owns memory, table, stack and thread-local
+   blocks, `plugin_initialize_tls` and shared memory become optional, and the
+   WAT guest and standalone triangle tests pass.
+4. `be3.lib`, the closure checks and the N-module plan in `wasm-link` and
+   `wasm-dylink`; both loaders; the build rules. Today's SDK becomes one
+   library, to land the machinery without moving code.
+5. Split it into base and beui. Measure. Move triangle onto base alone.
+6. Fill the GPU gaps, one group per PR.
+7. Editor state and the region driver (part 3), except docks and overlays.
