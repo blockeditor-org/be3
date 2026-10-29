@@ -47,6 +47,7 @@ fn region(size: Vec2, visible: Vec2, pixels: [u32; 2]) -> Region {
         windows: false,
         docked: false,
         placement: None,
+        layers: None,
     }
 }
 

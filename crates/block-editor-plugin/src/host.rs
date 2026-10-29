@@ -500,6 +500,7 @@ pub struct EditorHost {
     child_dismissals: Rc<RefCell<Vec<ChildId>>>,
     performance: Arc<Mutex<Vec<PerformanceRecord>>>,
     region: Rc<Cell<Option<EditorRegion>>>,
+    layer: Rc<Cell<Option<block_plugin_api::LayerId>>>,
     drops: Rc<RefCell<HashMap<EditorRegion, RegionDrops>>>,
     children: Rc<RefCell<Children>>,
     child_statuses: Rc<RefCell<HashMap<ChildId, ChildStatus>>>,
@@ -1918,7 +1919,7 @@ impl EditorHost {
                 follows_view,
                 dialog,
                 docks,
-                in_layer: None,
+                in_layer: self.layer.get(),
             });
         child
     }
@@ -2059,6 +2060,17 @@ impl EditorHost {
         let held = self.region.replace(Some(region));
         let done = within();
         self.region.set(held);
+        done
+    }
+
+    pub fn in_layer<R>(
+        &self,
+        layer: Option<block_plugin_api::LayerId>,
+        within: impl FnOnce() -> R,
+    ) -> R {
+        let held = self.layer.replace(layer);
+        let done = within();
+        self.layer.set(held);
         done
     }
 

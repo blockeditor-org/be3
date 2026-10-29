@@ -1,9 +1,12 @@
 use std::cell::{Cell, RefCell};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use block_plugin_api::{FrameCommit, PresentedFrame, ScreenLayout, SurfaceFormat, SurfaceSpec};
 
-use crate::{panes::Panes, screens::Screens};
+use crate::{
+    panes::{Panes, ShownLayer},
+    screens::Screens,
+};
 
 thread_local! {
     static GPU: RefCell<Option<Gpu>> = const { RefCell::new(None) };
@@ -42,6 +45,7 @@ pub(crate) struct Surfaces {
     panes: Panes,
     layout: ScreenLayout,
     fresh: HashSet<u32>,
+    layers: HashMap<u32, [u32; 2]>,
 }
 
 impl Surfaces {
@@ -61,6 +65,7 @@ impl Surfaces {
             panes: Panes::default(),
             layout: ScreenLayout::default(),
             fresh: HashSet::new(),
+            layers: HashMap::new(),
         })
     }
 
@@ -104,6 +109,9 @@ impl Surfaces {
 
     pub(crate) fn render(&mut self, screens: &mut Screens) -> Result<Option<FrameCommit>, String> {
         if self.layout.is_empty() {
+            for (surface, _) in self.layers.drain() {
+                block_gpu_guest::release_surface(surface);
+            }
             return Ok(None);
         }
         let ran = self.panes.run(
@@ -115,9 +123,21 @@ impl Surfaces {
         );
         let repaint = ran.repaint;
         let animating = ran.animating;
+        let layers = self.place_layers(screens);
+        let seen = crate::screens::seen();
+        let layers: Vec<ShownLayer> = layers
+            .into_iter()
+            .filter(|layer| {
+                (layer.fresh && seen)
+                    || ran
+                        .painting
+                        .iter()
+                        .any(|placement| placement.screen == layer.placement.screen)
+            })
+            .collect();
         let mut presented = None;
         if let Some((gpu, format)) = &self.gpu
-            && !ran.painting.is_empty()
+            && !(ran.painting.is_empty() && layers.is_empty())
         {
             let painted: Vec<u32> = ran
                 .painting
@@ -130,6 +150,8 @@ impl Surfaces {
             for surface in painted {
                 self.fresh.remove(&surface);
             }
+            self.panes
+                .paint_layers(&gpu.device, &gpu.queue, *format, screens, &layers)?;
             let sequence = PRESENTS.with(|presents| {
                 presents.set(presents.get() + 1);
                 presents.get()
@@ -141,6 +163,52 @@ impl Surfaces {
         commit.animating = animating;
         commit.presented = presented;
         Ok(Some(commit))
+    }
+}
+
+impl Surfaces {
+    #[cfg(test)]
+    pub(crate) fn layer_surfaces(&self) -> Vec<u32> {
+        let mut surfaces: Vec<u32> = self.layers.keys().copied().collect();
+        surfaces.sort_unstable();
+        surfaces
+    }
+
+    fn place_layers(&mut self, screens: &Screens) -> Vec<ShownLayer> {
+        let mut shown = Vec::new();
+        for placement in &self.layout.screens {
+            let Some(session) = screens.get(placement.instance) else {
+                continue;
+            };
+            for layer in session.layer_surfaces(placement.region) {
+                shown.push(ShownLayer {
+                    placement: *placement,
+                    layer: *layer,
+                    fresh: false,
+                });
+            }
+        }
+        let Some((_, format)) = &self.gpu else {
+            return shown;
+        };
+        let format = *format;
+        self.layers.retain(|surface, _| {
+            let open = shown.iter().any(|layer| layer.layer.surface == *surface);
+            if !open {
+                block_gpu_guest::release_surface(*surface);
+            }
+            open
+        });
+        for layer in &mut shown {
+            let [width, height] = layer.layer.pixels;
+            if self.layers.get(&layer.layer.surface) == Some(&layer.layer.pixels) {
+                continue;
+            }
+            block_gpu_guest::configure_surface(layer.layer.surface, width, height, format);
+            self.layers.insert(layer.layer.surface, layer.layer.pixels);
+            layer.fresh = true;
+        }
+        shown
     }
 }
 

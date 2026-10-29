@@ -700,6 +700,7 @@ impl Regions for ModuleRunner {
                     description: region.describe.map(|_| self.describe(id, region, ratio)),
                     stopped: None,
                     asks,
+                    layers: Vec::new(),
                 }
             })
             .collect()

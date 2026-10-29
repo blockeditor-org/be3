@@ -16,6 +16,13 @@ pub(crate) struct Panes {
     settling: HashSet<u32>,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ShownLayer {
+    pub(crate) placement: ScreenPlacement,
+    pub(crate) layer: crate::editor_session::LayerSurface,
+    pub(crate) fresh: bool,
+}
+
 pub(crate) struct Ran {
     pub(crate) repaint: Option<Duration>,
     pub(crate) animating: bool,
@@ -163,6 +170,43 @@ impl Panes {
             }));
         }
         Ok(damage)
+    }
+}
+
+impl Panes {
+    pub(crate) fn paint_layers(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        format: wgpu::TextureFormat,
+        screens: &mut Screens,
+        layers: &[ShownLayer],
+    ) -> Result<(), String> {
+        for shown in layers {
+            let Some(session) = screens.session(shown.placement.instance) else {
+                continue;
+            };
+            let surface = shown.layer.surface;
+            let texture = block_gpu_guest::acquire_surface_texture(surface)?;
+            let age = block_gpu_guest::surface_age(surface);
+            let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+            if age == 0 {
+                clear(device, queue, &view);
+            }
+            let [width, height] = shown.layer.pixels;
+            let target = PaintTarget {
+                device,
+                queue,
+                view: &view,
+                format,
+                width,
+                height,
+                age,
+            };
+            session.paint_layer(shown.placement.region, shown.layer.layer, &target);
+            block_gpu_guest::present_surface(surface);
+        }
+        Ok(())
     }
 }
 

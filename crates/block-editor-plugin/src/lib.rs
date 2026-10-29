@@ -60,6 +60,9 @@ pub use block_plugin_api::{
 pub use block_plugin_api::{
     HostPreferenceSources, Motion, PreferenceLayer, PreferenceSourcesWatch, Preferences, ThemeKind,
 };
+pub use block_plugin_api::{
+    HostTransform, Layer, LayerEdge, LayerId, LayerParent, LayerPlacement, LayerSpace, Scrim,
+};
 pub use block_type_guest::editor::{EditorOperation, FromEditor, ToEditor};
 pub use block_ui;
 pub use clock::{frame_time, instant_at, pin_wall_clock, utc_offset, wall_clock};

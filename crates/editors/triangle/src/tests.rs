@@ -27,5 +27,6 @@ fn region() -> Region {
         windows: false,
         docked: false,
         placement: None,
+        layers: None,
     }
 }

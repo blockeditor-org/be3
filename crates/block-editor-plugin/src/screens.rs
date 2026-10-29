@@ -30,7 +30,6 @@ pub(crate) struct Screens {
     catalog: Catalog,
     debug_templates: Vec<DebugTemplate>,
     surface: Option<SurfaceSpec>,
-    next_surface: u32,
     dirty: Arc<Mutex<HashSet<EditorInstanceId>>>,
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     everything: bool,
@@ -69,7 +68,6 @@ impl Screens {
             catalog: Catalog::default(),
             debug_templates: Vec::new(),
             surface: None,
-            next_surface: 0,
             dirty: Arc::default(),
             everything: true,
             reporting: HashSet::new(),
@@ -289,6 +287,9 @@ impl Screens {
                 let Some(session) = self.sessions.get_mut(&instance) else {
                     return false;
                 };
+                if !batch.dismissed.is_empty() {
+                    session.dismiss_layers(region, &batch.dismissed);
+                }
                 for event in &batch.events {
                     let over = event.over.and_then(|over| {
                         let (instance, region) = self
@@ -442,15 +443,10 @@ impl Screens {
 
     fn relayout(&mut self) {
         let previous = std::mem::take(&mut self.layout);
-        let next = &mut self.next_surface;
         self.layout = ScreenLayout::placed(&self.requests, |screen| {
             previous
                 .placement(screen)
-                .map(|placement| placement.surface)
-                .unwrap_or_else(|| {
-                    *next += 1;
-                    *next
-                })
+                .map_or_else(new_surface, |placement| placement.surface)
         });
         let mut placements: HashMap<EditorInstanceId, Vec<_>> = HashMap::new();
         for placement in &self.layout.screens {
@@ -515,6 +511,12 @@ fn catalog(catalog: &Catalog, debug: &[DebugTemplate]) -> BlockCatalog {
         icon: Glyph::from_codepoint(&editor.icon_codepoint),
         extensions: editor.extensions.clone(),
     }))
+}
+
+static NEXT_SURFACE: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
+
+pub(crate) fn new_surface() -> u32 {
+    NEXT_SURFACE.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
 
 static DESCRIBE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);

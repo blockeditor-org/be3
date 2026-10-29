@@ -5,9 +5,9 @@ use block_plugin_api::guest::{debug::debug, shell};
 use block_plugin_api::ops::guest::{Sender, spawn};
 use block_plugin_api::{
     ArtifactDescription, BarAction, ChildId, ChildPlacement, ChildPlacements, ChildStatus,
-    EditorInstanceId, EditorRegion, Failure, FrameChrome, FrameCommit, FrameReport, MAX_CHILDREN,
-    MAX_COLLECTION_ITEMS, MenuEntry, Occluder, RegionSize, ScreenPlacement, ScreenRequest,
-    ScreenWindow, Size, TimedInput, ViewportMetrics, WebViewId,
+    EditorInstanceId, EditorRegion, Failure, FrameChrome, FrameCommit, FrameReport, Layer, LayerId,
+    LayerParent, LayerSpace, MAX_CHILDREN, MAX_COLLECTION_ITEMS, MenuEntry, Occluder, RegionSize,
+    ScreenPlacement, ScreenRequest, ScreenWindow, Size, TimedInput, ViewportMetrics, WebViewId,
 };
 use block_ui::BlockCatalog;
 use geometry::{Pos2, Rect, Vec2, vec2};
@@ -99,6 +99,15 @@ struct RegionState {
     windows: bool,
     docked: bool,
     placement_value: Option<String>,
+    layer_space: Option<LayerSpace>,
+    layers: Vec<LayerSurface>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct LayerSurface {
+    pub(crate) layer: LayerId,
+    pub(crate) surface: u32,
+    pub(crate) pixels: [u32; 2],
 }
 
 impl Drop for EditorSession {
@@ -332,6 +341,7 @@ impl EditorSession {
             state.windows = request.windows;
             state.docked = request.docked;
             state.placement_value.clone_from(&request.placement);
+            state.layer_space.clone_from(&request.layers);
         }
     }
 
@@ -741,6 +751,7 @@ impl EditorSession {
             windows: state.is_some_and(|state| state.windows),
             docked: state.is_some_and(|state| state.docked),
             placement: state.and_then(|state| state.placement_value.clone()),
+            layers: state.and_then(|state| state.layer_space.clone()),
         }
     }
 
@@ -833,6 +844,7 @@ impl EditorSession {
             self.files = None;
         }
         let screen = self.placement(region).map(|placement| placement.screen);
+        let raster = self.raster(region);
         let content = frame.content.unwrap_or(host);
         self.used(region, content);
         let reported_content = self
@@ -852,6 +864,23 @@ impl EditorSession {
                     | EditorRegion::Window(_)
                     | EditorRegion::Tab(_)
             );
+            let opened = match reports && state.layer_space.is_some() {
+                true => std::mem::take(&mut frame.layers),
+                false => Vec::new(),
+            };
+            let density = state
+                .layer_space
+                .as_ref()
+                .map_or(Vec2::splat(raster), |space| {
+                    let scale = space.to_host.scale;
+                    let per = |scale: f32| match scale > 0.0 {
+                        true => raster / scale,
+                        false => raster,
+                    };
+                    vec2(per(scale.x), per(scale.y))
+                });
+            let layers = surfaced(&mut state.layers, opened, density);
+            frame.layers.clone_from(&layers);
             match frame.description.as_mut() {
                 Some(description) => {
                     if let Some(tree) = description.tree.take() {
@@ -883,7 +912,7 @@ impl EditorSession {
                         actions: description.actions.clone(),
                     }
                 }),
-                layers: Vec::new(),
+                layers,
             });
         }
         frame
@@ -918,6 +947,33 @@ impl EditorSession {
         self.module
             .with_handler(|handler| handler.paint(id, target))
             .unwrap_or_default()
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    pub(crate) fn layer_surfaces(&self, region: EditorRegion) -> &[LayerSurface] {
+        self.regions
+            .get(&region)
+            .map_or(&[], |state| state.layers.as_slice())
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn paint_layer(
+        &mut self,
+        region: EditorRegion,
+        layer: LayerId,
+        target: &PaintTarget<'_>,
+    ) -> Vec<block_plugin_api::SurfaceRect> {
+        let id = self.id(region);
+        self.module
+            .with_handler(|handler| handler.paint_layer(id, layer, target))
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn dismiss_layers(&mut self, region: EditorRegion, layers: &[LayerId]) {
+        self.open(region);
+        let context = self.context(region);
+        self.module
+            .with_handler(|handler| handler.dismiss_layers(&context, layers));
     }
 
     pub(crate) fn input(
@@ -985,6 +1041,41 @@ fn bounded(
             })
             .collect(),
     )
+}
+
+fn surfaced(pool: &mut Vec<LayerSurface>, opened: Vec<Layer>, density: Vec2) -> Vec<Layer> {
+    let mut layers: Vec<Layer> = Vec::new();
+    for mut layer in opened.into_iter().take(MAX_COLLECTION_ITEMS) {
+        let listed = |id: LayerId| layers.iter().any(|other| other.id == id);
+        let orphan = matches!(layer.parent, LayerParent::Layer(parent) if !listed(parent));
+        if listed(layer.id) || orphan {
+            continue;
+        }
+        layer.painted.truncate(MAX_COLLECTION_ITEMS);
+        layer.floating.truncate(MAX_COLLECTION_ITEMS);
+        layer.scrims.truncate(MAX_COLLECTION_ITEMS);
+        layers.push(layer);
+    }
+    let held = std::mem::take(pool);
+    for layer in &mut layers {
+        layer.surface = held
+            .iter()
+            .find(|surface| surface.layer == layer.id)
+            .map_or_else(crate::screens::new_surface, |surface| surface.surface);
+        pool.push(LayerSurface {
+            layer: layer.id,
+            surface: layer.surface,
+            pixels: [
+                pixels(layer.rect.width(), density.x),
+                pixels(layer.rect.height(), density.y),
+            ],
+        });
+    }
+    layers
+}
+
+fn pixels(points: f32, density: f32) -> u32 {
+    (points * density).ceil().max(1.0) as u32
 }
 
 fn merge_tree(held: &mut Option<TreeUpdate>, update: TreeUpdate) {

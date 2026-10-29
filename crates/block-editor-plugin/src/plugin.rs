@@ -3,7 +3,8 @@ use std::time::Duration;
 #[cfg(target_arch = "wasm32")]
 use block_plugin_api::SurfaceRect;
 use block_plugin_api::{
-    EditorInstanceId, EditorRegion, FrameChrome, FrameSpec, TimedInput, WindowRequests,
+    EditorInstanceId, EditorRegion, FrameChrome, FrameSpec, Layer, LayerId, LayerSpace, TimedInput,
+    WindowRequests,
 };
 use geometry::{Rect, Vec2};
 use uuid::Uuid;
@@ -63,6 +64,8 @@ pub struct RegionId {
 pub trait Regions: std::any::Any {
     fn input(&mut self, region: &Region, event: &TimedInput, over: Option<RegionId>);
 
+    fn dismiss_layers(&mut self, _region: &Region, _layers: &[LayerId]) {}
+
     fn run_action(&mut self, _region: &Region, _id: &str) {}
 
     fn node_action(
@@ -84,6 +87,16 @@ pub trait Regions: std::any::Any {
 
     #[cfg(target_arch = "wasm32")]
     fn paint(&mut self, region: RegionId, target: &PaintTarget<'_>) -> Vec<SurfaceRect>;
+
+    #[cfg(target_arch = "wasm32")]
+    fn paint_layer(
+        &mut self,
+        _region: RegionId,
+        _layer: LayerId,
+        _target: &PaintTarget<'_>,
+    ) -> Vec<SurfaceRect> {
+        Vec::new()
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -109,6 +122,7 @@ pub struct Region {
     pub windows: bool,
     pub docked: bool,
     pub placement: Option<String>,
+    pub layers: Option<LayerSpace>,
 }
 
 impl Region {
@@ -141,6 +155,7 @@ pub struct Frame {
     pub description: Option<block_plugin_api::Description>,
     pub stopped: Option<block_plugin_api::Stopped>,
     pub asks: Vec<block_plugin_api::WindowRequest>,
+    pub layers: Vec<Layer>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

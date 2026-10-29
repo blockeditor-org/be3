@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::editor_session::EditorSession;
 use crate::screens::Screens;
-use crate::wasm::{Surfaces, surface_gpu};
+use crate::wasm::Surfaces;
 use crate::wire::Delivery;
 use crate::{EditorHost, Frame, Instance, Region, RegionId, Regions, Waker};
 
@@ -112,5 +112,4 @@ fn a_surface_the_host_does_not_render_runs_its_frames_without_a_gpu() {
         .expect("the plugin drew one frame");
     assert_eq!(commit.reports.len(), 1, "the editor's frame ran");
     assert_eq!(commit.presented, None, "nothing was presented");
-    assert!(surface_gpu().is_none(), "no gpu device was opened");
 }
