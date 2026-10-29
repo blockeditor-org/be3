@@ -53,7 +53,7 @@ fn a_stacked_dock_shows_any_locked_tab_and_tiles_again_with_its_locks() {
     let state = layout.state().get_untracked();
     for tab in [1, 10, 11] {
         assert!(
-            state.is_tab_pinned(TabId::new(tab)) && state.at_home(TabId::new(tab)),
+            state.is_tab_locked(TabId::new(tab)),
             "tab {tab} tiles again locked in its area"
         );
     }

@@ -93,6 +93,9 @@ impl DockState {
             .is_some_and(|focus| self.within(focus, Tree::Group(group)));
         let holder = self.holder(group).filter(|_| !self.contains(tab));
         let nested = self.nested_groups(Tree::Group(group));
+        for parked in std::iter::once(group).chain(nested.iter().copied()) {
+            self.park_lock(parked);
+        }
         self.invalidate();
         self.groups
             .retain(|candidate| candidate.id != group && !nested.contains(&candidate.id));
@@ -185,11 +188,18 @@ impl DockState {
                 out.homes.push(Home {
                     tab,
                     place,
-                    pinned: home.pinned,
                     within: None,
                 });
             }
         }
+        out.unlocked = self
+            .unlocked
+            .iter()
+            .filter_map(|place| match place {
+                DockHome::Area(area) => (map.key)(area).map(DockHome::Area),
+                DockHome::Group(group) => copied.groups.get(group).copied().map(DockHome::Group),
+            })
+            .collect();
         out.seeded = true;
         out
     }
@@ -255,7 +265,6 @@ impl DockState {
             self.groups
                 .retain(|candidate| candidate.id != orphan && !inner.contains(&candidate.id));
         }
-        let kept = self.homes.clone();
         let tabs: Vec<TabId> = arriving.iter().map(|(_, tab)| *tab).collect();
         self.homes.retain(|home| !tabs.contains(&home.tab));
         for (inner, tab) in arriving {
@@ -267,23 +276,37 @@ impl DockState {
                 DockHome::Area(area) => (map.key)(area).map(DockHome::Area),
                 DockHome::Group(held) => copied.groups.get(held).copied().map(DockHome::Group),
             });
-            let home = match (place, given) {
-                (Some(place), Some(given)) => Home {
+            let home = match place {
+                Some(place) => Home {
                     tab,
                     place,
-                    pinned: given.pinned,
                     within: Some(group),
                 },
-                _ => Home {
+                None => Home {
                     tab,
                     place: DockHome::Group(group),
-                    pinned: !kept.iter().any(|home| {
-                        home.tab == tab && home.place == DockHome::Group(group) && !home.pinned
-                    }),
                     within: None,
                 },
             };
             self.homes.push(home);
+        }
+        let unlocked: Vec<DockHome> = from
+            .unlocked
+            .iter()
+            .filter_map(|place| match place {
+                DockHome::Area(area) => (map.key)(area).map(DockHome::Area),
+                DockHome::Group(held) => copied.groups.get(held).copied().map(DockHome::Group),
+            })
+            .collect();
+        let inner: HashSet<String> = std::iter::once(group)
+            .chain(self.nested_groups(Tree::Group(group)))
+            .flat_map(|tree| self.tree_leaves(Tree::Group(tree)))
+            .filter_map(|leaf| self.leaf(leaf)?.area.clone())
+            .collect();
+        self.unlocked
+            .retain(|place| !matches!(place, DockHome::Area(area) if inner.contains(area)));
+        for place in unlocked {
+            self.set_locked(place, false);
         }
         self.normalize();
         let refocus = from

@@ -427,7 +427,6 @@ pub enum DockHome {
 struct Home {
     tab: TabId,
     place: DockHome,
-    pinned: bool,
     #[serde(default)]
     within: Option<GroupId>,
 }
@@ -503,6 +502,10 @@ pub struct DockState {
     surfaces: Vec<Surface>,
     groups: Vec<Group>,
     homes: Vec<Home>,
+    #[serde(default)]
+    unlocked: Vec<DockHome>,
+    #[serde(default)]
+    unlocked_keys: Vec<String>,
     focus: Option<LeafId>,
     recent: Vec<TabId>,
     history: Vec<DockVisit>,
@@ -532,6 +535,8 @@ impl DockState {
             surfaces: Vec::new(),
             groups: Vec::new(),
             homes: Vec::new(),
+            unlocked: Vec::new(),
+            unlocked_keys: Vec::new(),
             focus: None,
             recent: Vec::new(),
             history: Vec::new(),
@@ -1073,8 +1078,19 @@ impl DockState {
         share: f32,
         entries: Vec<Entry>,
     ) -> Option<LeafId> {
+        let area = self
+            .leaf(leaf)
+            .and_then(|leaf| leaf.area.clone())
+            .filter(|area| {
+                let home = Some(DockHome::Area(area.clone()));
+                entries.iter().any(|entry| {
+                    self.entry_tabs(*entry)
+                        .into_iter()
+                        .any(|tab| self.home(tab) == home)
+                })
+            });
         let mut added = self.new_leaf(entries);
-        added.area = self.leaf(leaf).and_then(|leaf| leaf.area.clone());
+        added.area = area;
         let id = self.split_off(leaf, side, share, added, None)?;
         self.focus(id);
         Some(id)
@@ -1639,8 +1655,40 @@ impl DockState {
             .map(|home| home.place.clone())
     }
 
-    pub fn is_tab_pinned(&self, tab: TabId) -> bool {
-        self.homes.iter().any(|home| home.tab == tab && home.pinned)
+    pub fn is_locked(&self, place: &DockHome) -> bool {
+        !self.unlocked.contains(place)
+    }
+
+    pub fn set_locked(&mut self, place: DockHome, locked: bool) {
+        self.unlocked.retain(|held| *held != place);
+        if !locked {
+            self.unlocked.push(place);
+        }
+    }
+
+    fn park_lock(&mut self, group: GroupId) {
+        let place = DockHome::Group(group);
+        if !self.is_locked(&place)
+            && let Some(key) = self.group(group).and_then(|group| group.key.clone())
+        {
+            self.unlocked_keys.push(key);
+        }
+        self.unlocked.retain(|held| *held != place);
+    }
+
+    fn unpark_lock(&mut self, group: GroupId) {
+        let Some(key) = self.group(group).and_then(|group| group.key.clone()) else {
+            return;
+        };
+        if self.unlocked_keys.contains(&key) {
+            self.unlocked_keys.retain(|held| *held != key);
+            self.set_locked(DockHome::Group(group), false);
+        }
+    }
+
+    pub fn is_tab_locked(&self, tab: TabId) -> bool {
+        self.home(tab)
+            .is_some_and(|home| self.is_locked(&home) && self.at_home(tab))
     }
 
     pub fn at_home(&self, tab: TabId) -> bool {
@@ -1651,17 +1699,29 @@ impl DockState {
 
     fn is_home(&self, leaf: LeafId, home: &DockHome) -> bool {
         match home {
-            DockHome::Group(group) => self.contains_leaf(Entry::Group(*group), leaf),
+            DockHome::Group(group) => {
+                self.contains_leaf(Entry::Group(*group), leaf)
+                    && self
+                        .area_leaf(leaf)
+                        .is_none_or(|area| !self.contains_leaf(Entry::Group(*group), area))
+            }
             DockHome::Area(area) => self.area_of(leaf) == Some(area.as_str()),
         }
     }
 
-    pub fn set_tab_pinned(&mut self, tab: TabId, pinned: bool) {
-        if pinned && !self.at_home(tab) {
-            return;
-        }
-        if let Some(home) = self.homes.iter_mut().find(|home| home.tab == tab) {
-            home.pinned = pinned;
+    pub fn lock_of(&self, leaf: LeafId) -> Option<DockHome> {
+        let mut leaf = leaf;
+        loop {
+            if let Some(area) = &self.leaf(leaf)?.area {
+                return Some(DockHome::Area(area.clone()));
+            }
+            match self.tree_of(leaf)? {
+                Tree::Surface(_) => return None,
+                Tree::Group(group) if self.is_pinned(group) => {
+                    return Some(DockHome::Group(group));
+                }
+                Tree::Group(group) => leaf = self.holder(group)?.0,
+            }
         }
     }
 
@@ -1725,14 +1785,10 @@ impl DockState {
         };
         let tabs = self.entry_tabs(entry);
         let held = tabs.iter().any(|tab| {
-            let Some(home) = self
-                .homes
-                .iter()
-                .find(|home| home.tab == *tab && home.pinned)
-            else {
+            let Some(home) = self.home(*tab).filter(|_| self.is_tab_locked(*tab)) else {
                 return false;
             };
-            match &home.place {
+            match &home {
                 DockHome::Group(group) => {
                     entry != Entry::Group(*group) && !self.lands_in(target, *group)
                 }
@@ -1741,14 +1797,11 @@ impl DockState {
                         .locate(Entry::Tab(*tab))
                         .and_then(|(leaf, _)| self.area_leaf(leaf))
                         .is_some_and(|area| self.contains_leaf(entry, area));
-                    !carried
-                        && !target
-                            .leaf()
-                            .is_some_and(|leaf| self.is_home(leaf, &home.place))
+                    !carried && !target.leaf().is_some_and(|leaf| self.is_home(leaf, &home))
                 }
             }
         });
-        if held {
+        if held || self.keeps_out(entry, &tabs, target) {
             return false;
         }
         let Some(destination) = destination else {
@@ -1759,6 +1812,49 @@ impl DockState {
         }
         tabs.into_iter()
             .all(|tab| self.home_group(tab) == Some(destination))
+    }
+
+    fn keeps_out(&self, entry: Entry, tabs: &[TabId], target: DockDrop) -> bool {
+        let Some(area) = target.leaf().and_then(|leaf| self.area_of(leaf)) else {
+            return false;
+        };
+        if !self.is_locked(&DockHome::Area(area.to_owned()))
+            || self
+                .locate(entry)
+                .is_some_and(|(leaf, _)| self.area_of(leaf) == Some(area))
+        {
+            return false;
+        }
+        let outsiders: Vec<TabId> = tabs
+            .iter()
+            .copied()
+            .filter(|tab| !self.carries_home(entry, *tab))
+            .collect();
+        outsiders.is_empty()
+            || outsiders.into_iter().any(|tab| match self.home(tab) {
+                Some(DockHome::Area(home)) if home == area => false,
+                Some(_) => self.is_tab_locked(tab),
+                None => true,
+            })
+    }
+
+    fn carries_home(&self, entry: Entry, tab: TabId) -> bool {
+        let Entry::Group(carried) = entry else {
+            return false;
+        };
+        match self.home(tab) {
+            Some(DockHome::Group(group)) => {
+                group == carried
+                    || self
+                        .holder(group)
+                        .is_some_and(|(leaf, _)| self.contains_leaf(entry, leaf))
+            }
+            Some(DockHome::Area(_)) => self
+                .locate(Entry::Tab(tab))
+                .and_then(|(leaf, _)| self.area_leaf(leaf))
+                .is_some_and(|area| self.contains_leaf(entry, area)),
+            None => false,
+        }
     }
 
     pub fn is_see_through(&self, tab: TabId) -> bool {
@@ -1825,6 +1921,8 @@ impl DockState {
         pinned.pinned = false;
         self.homes
             .retain(|home| home.place != DockHome::Group(group));
+        self.unlocked
+            .retain(|place| *place != DockHome::Group(group));
         self.normalize();
         self.settle_focus();
     }
@@ -1894,14 +1992,10 @@ impl DockState {
         if let Tree::Group(group) = tree
             && self.is_pinned(group)
         {
-            let kept = self.homes.clone();
             self.homes.retain(|home| !incoming.contains(&home.tab));
             self.homes.extend(incoming.iter().map(|tab| Home {
                 tab: *tab,
                 place: DockHome::Group(group),
-                pinned: !kept.iter().any(|home| {
-                    home.tab == *tab && home.place == DockHome::Group(group) && !home.pinned
-                }),
                 within: None,
             }));
         }

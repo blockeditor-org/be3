@@ -40,7 +40,7 @@ fn a_locked_pane_inside_a_pinned_group_keeps_its_tabs_in_its_area() {
     );
 
     let main = leaf_of(&state, 1);
-    state.set_tab_pinned(TabId::new(10), false);
+    state.set_locked(DockHome::Area("locked".to_owned()), false);
     state.drop_tab(TabId::new(10), DockDrop::Pane { leaf: main });
     assert_eq!(leaf_of(&state, 10), main, "unlocked, it leaves the group");
 

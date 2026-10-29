@@ -708,13 +708,15 @@ interface types {
     record dock-home {
         tab: dock-tab-path,
         place: dock-place,
-        pinned: bool,
     }
 
     /// A dock as its holder holds it, which it hands back to `restore`.
+    /// `unlocked` names the areas and pinned groups the user unlocked: their
+    /// tabs may leave and, for an area, other tabs may come in.
     record dock-layout {
         tree: dock-tree,
         homes: list<dock-home>,
+        unlocked: list<dock-place>,
     }
 
     /// What the root shows of a docked dock, in the declaring instance's own

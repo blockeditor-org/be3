@@ -858,13 +858,21 @@ fn rekeyed(plain: &DockPlain, key: &dyn Fn(&str) -> String) -> DockPlain {
             .iter()
             .map(|home| DockPlainHome {
                 tab: home.tab,
-                place: match &home.place {
-                    DockPlainPlace::Area(area) => DockPlainPlace::Area(key(area)),
-                    DockPlainPlace::Group(group) => DockPlainPlace::Group(key(group)),
-                },
-                pinned: home.pinned,
+                place: rekeyed_place(&home.place, key),
             })
             .collect(),
+        unlocked: plain
+            .unlocked
+            .iter()
+            .map(|place| rekeyed_place(place, key))
+            .collect(),
+    }
+}
+
+fn rekeyed_place(place: &DockPlainPlace, key: &dyn Fn(&str) -> String) -> DockPlainPlace {
+    match place {
+        DockPlainPlace::Area(area) => DockPlainPlace::Area(key(area)),
+        DockPlainPlace::Group(group) => DockPlainPlace::Group(key(group)),
     }
 }
 
@@ -1239,14 +1247,25 @@ fn plain_to_layout(plain: &DockPlain, path: PathOf<'_>) -> api::DockLayout {
             .filter_map(|home| {
                 Some(api::DockHome {
                     tab: path(home.tab)?,
-                    place: match &home.place {
-                        DockPlainPlace::Area(area) => api::DockPlace::Area(area.clone()),
-                        DockPlainPlace::Group(group) => api::DockPlace::Group(group.clone()),
-                    },
-                    pinned: home.pinned,
+                    place: api_place(&home.place),
                 })
             })
             .collect(),
+        unlocked: plain.unlocked.iter().map(api_place).collect(),
+    }
+}
+
+fn api_place(place: &DockPlainPlace) -> api::DockPlace {
+    match place {
+        DockPlainPlace::Area(area) => api::DockPlace::Area(area.clone()),
+        DockPlainPlace::Group(group) => api::DockPlace::Group(group.clone()),
+    }
+}
+
+fn plain_place(place: &api::DockPlace) -> DockPlainPlace {
+    match place {
+        api::DockPlace::Area(area) => DockPlainPlace::Area(area.clone()),
+        api::DockPlace::Group(group) => DockPlainPlace::Group(group.clone()),
     }
 }
 
@@ -1318,14 +1337,11 @@ fn layout_to_plain(layout: &api::DockLayout, tab: TabOf<'_>) -> DockPlain {
             .filter_map(|home| {
                 Some(DockPlainHome {
                     tab: tab(&home.tab)?,
-                    place: match &home.place {
-                        api::DockPlace::Area(area) => DockPlainPlace::Area(area.clone()),
-                        api::DockPlace::Group(group) => DockPlainPlace::Group(group.clone()),
-                    },
-                    pinned: home.pinned,
+                    place: plain_place(&home.place),
                 })
             })
             .collect(),
+        unlocked: layout.unlocked.iter().map(plain_place).collect(),
     }
 }
 

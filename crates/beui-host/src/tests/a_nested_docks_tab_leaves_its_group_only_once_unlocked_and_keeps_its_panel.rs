@@ -23,7 +23,12 @@ fn a_nested_docks_tab_leaves_its_group_only_once_unlocked_and_keeps_its_panel() 
         "a locked inner tab stays in its group"
     );
 
-    pick_dock_tab_menu(&mut harness, nested.node, "Inner 10", "Unlock");
+    pick_dock_grip_menu(
+        &mut harness,
+        nested.node,
+        "dock.grip.joined:2/inner",
+        "Locked",
+    );
     let from = harness.center(dock_tab(harness.document(), nested.node, "Inner 10"));
     harness.drag(from, into_side);
     harness.frame(Vec::new());

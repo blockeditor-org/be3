@@ -8,7 +8,7 @@ fn a_locked_tab_dropped_outside_its_area_stays_put() {
     let editors = leaf_of(&state, 10);
     assert_eq!(state.area_of(files), Some("files"));
     assert_eq!(state.area_of(editors), Some("editors"));
-    assert!(state.is_tab_pinned(TabId::new(1)));
+    assert!(state.is_tab_locked(TabId::new(1)));
     assert_eq!(
         state.home(TabId::new(1)),
         Some(DockHome::Area("files".to_owned()))
