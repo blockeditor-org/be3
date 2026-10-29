@@ -122,6 +122,7 @@ pub struct DockHostSlot {
     link: Option<Rc<dyn DockHostLink>>,
     claimed: Rc<Cell<bool>>,
     asked: Rc<Cell<bool>>,
+    bars: bool,
 }
 
 impl DockHostSlot {
@@ -130,7 +131,21 @@ impl DockHostSlot {
             link,
             claimed: Rc::default(),
             asked: Rc::default(),
+            bars: false,
         }
+    }
+
+    /// A slot whose dock draws its own tabs and declares only its bars to
+    /// the link, which places them elsewhere while it hosts them.
+    pub fn bars(link: Rc<dyn DockHostLink>) -> Self {
+        Self {
+            bars: true,
+            ..Self::new(Some(link))
+        }
+    }
+
+    pub fn joins_bars(&self) -> bool {
+        self.bars
     }
 
     pub fn asked(&self) -> bool {

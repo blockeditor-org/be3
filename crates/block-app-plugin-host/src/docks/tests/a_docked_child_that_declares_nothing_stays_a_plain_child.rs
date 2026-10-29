@@ -13,6 +13,7 @@ fn a_docked_child_that_declares_nothing_stays_a_plain_child() {
             tab: 100,
             block: OUTER_BLOCK,
         }],
+        None,
     );
     docks.heard("outer", vec![declare(OUTER, Some(outer()))]);
     docks.placed(
@@ -22,6 +23,7 @@ fn a_docked_child_that_declares_nothing_stays_a_plain_child() {
             tab: 2,
             block: INNER_BLOCK,
         }],
+        None,
     );
     assert!(docks.docked(INNER));
     assert_eq!(
@@ -40,7 +42,7 @@ fn a_docked_child_that_declares_nothing_stays_a_plain_child() {
         None
     );
 
-    docks.placed(OUTER, &[]);
+    docks.placed(OUTER, &[], None);
     assert!(!docks.docked(INNER));
     assert!(docks.docked(OUTER));
 }

@@ -315,6 +315,34 @@ impl DockDeclaration {
         }));
         Ok(true)
     }
+
+    /// Splices only the bars of a child that took this dock's frame over,
+    /// in place of this dock's own bars: with `host` set, the bars owned by
+    /// that tab go and the child's bars join that tab's pane; with `host`
+    /// unset (this dock is itself spliced as bars only), every bar of this
+    /// dock goes and the child's keep their owners, for the level above to
+    /// give them its tab. The child's tabs and dialogs stay out.
+    pub fn splice_bars(
+        &mut self,
+        host: Option<u64>,
+        child: ChildId,
+        prefix: &str,
+        inner: &DockDeclaration,
+    ) {
+        let host = host.map(DockTabPath::own);
+        match &host {
+            Some(host) => self.bars.retain(|bar| bar.owner != *host),
+            None => self.bars.clear(),
+        }
+        self.bars.extend(inner.bars.iter().map(|bar| DockBar {
+            tab: bar.tab.clone().through(child),
+            key: prefixed(prefix, &bar.key),
+            owner: host
+                .clone()
+                .unwrap_or_else(|| bar.owner.clone().through(child)),
+            ..bar.clone()
+        }));
+    }
 }
 
 impl DockLayout {
@@ -411,6 +439,65 @@ impl DockHosted {
                 .cloned()
                 .collect(),
         })
+    }
+
+    /// What a child that took this dock's frame over hosts: its bars where
+    /// this layout has them, each owned again by the child's own tab that
+    /// `owner` names for it, and the covers of the tab whose frame it took
+    /// (of every tab when `host` is unset) on each of those tabs.
+    pub fn frame_child(
+        &self,
+        child: ChildId,
+        host: Option<u64>,
+        owner: &dyn Fn(&DockTabPath) -> Option<DockTabPath>,
+    ) -> DockHosted {
+        let bars: Vec<DockPlacedBar> = self
+            .layout
+            .bars
+            .iter()
+            .filter_map(|bar| {
+                let tab = bar.bar.within(child)?;
+                Some(DockPlacedBar {
+                    owner: owner(&tab)?,
+                    bar: tab,
+                    placement: bar.placement.clone(),
+                })
+            })
+            .collect();
+        let mut owners: Vec<DockTabPath> = Vec::new();
+        for bar in &bars {
+            if !owners.contains(&bar.owner) {
+                owners.push(bar.owner.clone());
+            }
+        }
+        let covered = host.map(DockTabPath::own);
+        let covers = self
+            .covers
+            .iter()
+            .filter(|cover| covered.as_ref().is_none_or(|host| cover.tab == *host))
+            .flat_map(|cover| {
+                owners.iter().map(|tab| DockCover {
+                    tab: tab.clone(),
+                    rect: cover.rect,
+                })
+            })
+            .collect();
+        DockHosted {
+            layout: DockLayout {
+                tree: DockTree::flatten(&DockNodes::default(), None),
+                homes: Vec::new(),
+                bars,
+                outside: Vec::new(),
+                unlocked: Vec::new(),
+            },
+            tabs: Vec::new(),
+            focused: None,
+            shown: None,
+            visible: Vec::new(),
+            fullscreen: None,
+            stacked: self.stacked,
+            covers,
+        }
     }
 
     pub fn child(&self, child: ChildId, prefix: &str) -> Result<Option<DockHosted>, DecodeError> {

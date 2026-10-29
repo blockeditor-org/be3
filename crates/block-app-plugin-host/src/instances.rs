@@ -2577,6 +2577,10 @@ impl Instances {
     }
 
     pub(super) fn frame_child(&self, instance: EditorInstanceId) -> Option<Uuid> {
+        self.framing(instance).map(|(_, _, block)| block)
+    }
+
+    fn framing(&self, instance: EditorInstanceId) -> Option<(ViewId, ChildId, Uuid)> {
         let view = self.content_view(instance);
         let screen = self.entries.get(&instance)?.screens.get(&view)?;
         screen
@@ -2590,8 +2594,23 @@ impl Instances {
                     && !screen.revoked.contains(&child.child)
                     && child.rect.is_positive()
             })
-            .find_map(|child| child.content.block_id())
-            .map(Uuid::from_bytes)
+            .find_map(|child| Some((view, child.child, Uuid::from_bytes(child.content.block_id()?))))
+    }
+
+    pub(super) fn frame_children(&self) -> Vec<(EditorInstanceId, Option<super::docks::DockedChild>)> {
+        self.entries
+            .keys()
+            .map(|instance| {
+                let framed = self
+                    .framing(*instance)
+                    .map(|(view, child, block)| super::docks::DockedChild {
+                        child,
+                        tab: view.0,
+                        block,
+                    });
+                (*instance, framed)
+            })
+            .collect()
     }
 
     pub(super) fn revoke_frame_child(&mut self, instance: EditorInstanceId) {

@@ -927,8 +927,14 @@ impl Runtime {
     }
 
     fn report_docked(&self) {
+        let mut framed: std::collections::HashMap<_, _> =
+            self.instances.frame_children().into_iter().collect();
         for (placer, children) in self.instances.docked_children() {
-            super::docks::placed(placer, &children);
+            let frame = framed.remove(&placer).flatten();
+            super::docks::placed(placer, &children, frame);
+        }
+        for (placer, frame) in framed {
+            super::docks::placed(placer, &[], frame);
         }
     }
 
@@ -1775,6 +1781,7 @@ pub fn frame_child(plugin_id: &str, instance: EditorInstanceId) -> Option<Uuid> 
 pub fn revoke_frame_child(plugin_id: &str, instance: EditorInstanceId) {
     with(plugin_id, |runtime| {
         runtime.instances.revoke_frame_child(instance);
+        runtime.report_docked();
     });
     mark(plugin_id);
 }

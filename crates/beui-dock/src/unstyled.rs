@@ -555,6 +555,7 @@ struct State {
     bar_grab: StoredCell<(Vec2, Vec2)>,
     bar_margin: f32,
     covers: Signal<BarCovers>,
+    bars_away: Memo<bool>,
     bar_target: RenderFn<DockBarTargetHandle>,
     dragged_edits: Stored<RefCell<Vec<Box<dyn FnOnce(&mut DockState)>>>>,
 }
@@ -1650,6 +1651,7 @@ pub(crate) struct DockConfig {
     pub(crate) bar_margin: f32,
     pub(crate) covers: Signal<BarCovers>,
     pub(crate) bar_target: Option<RenderFn<DockBarTargetHandle>>,
+    pub(crate) bars_away: Memo<bool>,
 }
 
 #[component]
@@ -1704,6 +1706,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         bar_margin,
         bar_target,
         covers,
+        bars_away,
     } = config;
     let dock_rect_held = create_signal(Rect::ZERO);
     let dock_rect = dock_rect_held.read_only();
@@ -1770,6 +1773,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         bar_grab: StoredCell::new((Vec2::ZERO, Vec2::ZERO)),
         bar_margin,
         covers,
+        bars_away,
         bar_target: bar_target.unwrap_or_else(|| {
             RenderFn::new(|_| {
                 view! {

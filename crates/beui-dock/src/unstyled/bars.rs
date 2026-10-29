@@ -485,8 +485,9 @@ impl State {
         wanted: impl Fn(DockBarPlacement) -> bool + 'static,
     ) -> Memo<Vec<TabId>> {
         let state = self.state;
+        let away = self.bars_away;
         create_memo(move || {
-            let Some(tab) = tab.get() else {
+            let Some(tab) = tab.get().filter(|_| !away.get()) else {
                 return Vec::new();
             };
             let mut bars: Vec<TabId> = state.with(|state| {
@@ -801,7 +802,11 @@ fn DockBarFloat(dock: State, tab: Memo<Option<TabId>>, edge: DockEdge, stacked: 
 #[component]
 pub(super) fn DockBarWindows(dock: State) -> NodeId {
     let state = dock.state;
+    let away = dock.bars_away;
     let bars = create_memo(move || {
+        if away.get() {
+            return Vec::new();
+        }
         state.with(|state| {
             state
                 .bars()

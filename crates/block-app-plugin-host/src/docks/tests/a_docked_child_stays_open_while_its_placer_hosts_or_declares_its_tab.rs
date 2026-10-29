@@ -3,8 +3,8 @@ use super::*;
 #[test]
 fn a_docked_child_stays_open_while_its_placer_hosts_or_declares_its_tab() {
     let mut docks = nested();
-    docks.placed(ROOT, &[]);
-    docks.placed(OUTER, &[]);
+    docks.placed(ROOT, &[], None);
+    docks.placed(OUTER, &[], None);
     assert!(docks.docked(OUTER));
     assert!(docks.docked(INNER));
     host(&mut docks, Some(hosted_by_root()));

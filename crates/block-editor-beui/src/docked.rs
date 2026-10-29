@@ -54,13 +54,16 @@ impl Default for DockedTabs {
 impl DockedTabs {
     pub(crate) fn provide_slot(
         &self,
-        link: Option<Rc<dyn DockHostLink>>,
+        link: Rc<dyn DockHostLink>,
         docked: bool,
         host: &EditorHost,
         editor: Editor,
     ) {
         provide_context(saved::keeper(host.clone(), editor));
-        let slot = DockHostSlot::new(link);
+        let slot = match docked {
+            true => DockHostSlot::new(Some(link)),
+            false => DockHostSlot::bars(link),
+        };
         *self.slot.borrow_mut() = Some(slot.clone());
         self.built.set(Some(docked));
         provide_context(slot);
@@ -83,6 +86,7 @@ impl DockedTabs {
         host: EditorHost,
         editor: Editor,
         frame: ReadSignal<Vec<MenuNode>>,
+        docked: bool,
     ) -> Rc<dyn DockHostLink> {
         let frame = create_memo(move || match editor.frame_child_menu() {
             Some(child) => child.get(),
@@ -92,6 +96,7 @@ impl DockedTabs {
             this: Weak::clone(this),
             host,
             view: ViewId::MAIN,
+            docked,
             pushed: editor.pushed(Pushed::Docks),
             tabs: Rc::downgrade(self),
             bodies: RefCell::default(),
@@ -108,7 +113,9 @@ impl DockedTabs {
             menued: RefCell::default(),
         });
         *self.link.borrow_mut() = Some(Rc::clone(&link));
-        saved::keep_joined(&link, editor);
+        if docked {
+            saved::keep_joined(&link, editor);
+        }
         let menus = link.menus.handle();
         let sizes = link.bar_sizes.read_only();
         let menued = Rc::downgrade(&link);
@@ -129,6 +136,9 @@ impl DockedTabs {
         let picks = link.host.clone();
         create_effect(move || {
             pushed.get();
+            if !docked {
+                return;
+            }
             let taken = untrack(|| picks.take_view_menu_picks());
             if let Some(link) = picking.upgrade() {
                 for (view, id) in taken {
@@ -242,6 +252,7 @@ struct ProtocolLink {
     this: Weak<ProtocolLink>,
     host: EditorHost,
     view: ViewId,
+    docked: bool,
     pushed: ReadSignal<u64>,
     tabs: Weak<DockedTabs>,
     bodies: RefCell<Option<DockBodies>>,
@@ -331,11 +342,10 @@ impl ProtocolLink {
             }
         };
         let declared = declaration_to_api(declaration, &own_path, &empty, &size);
-        let views: Vec<ViewId> = declared
-            .tabs
-            .iter()
-            .map(|tab| ViewId(tab.tab.tab))
-            .collect();
+        let views: Vec<ViewId> = match self.docked {
+            true => declared.tabs.iter().map(|tab| ViewId(tab.tab.tab)).collect(),
+            false => Vec::new(),
+        };
         for view in &views {
             self.host.set_menu(*view, menu(TabId::new(view.0)));
         }
