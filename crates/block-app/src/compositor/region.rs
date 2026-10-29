@@ -14,7 +14,8 @@ use beui::{
     NodeId, OverlayAnchor, Placement, PointerButton, PointerEvent, PointerId, PointerPhase, Pos2,
     Rect, Vec2, WindowId, WindowPlacement, WindowReport, WindowRole, native::Region, pos2,
 };
-use block_plugin_api::{ChildId, EditorInstanceId, EditorRegion, FrameSpec, PluginManifest};
+use block_plugin_api::{ChildId, EditorInstanceId, EditorRegion, FrameSpec};
+use block_plugin_manifest::PluginManifest;
 use uuid::Uuid;
 
 use crate::host::HostItem;

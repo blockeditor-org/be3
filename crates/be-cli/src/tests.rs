@@ -60,7 +60,7 @@ fn manifests() {
             .join("manifest.json");
         let document = std::fs::read_to_string(&path).expect("the manifest is readable");
         plugins.push(crate::plugins::Plugin {
-            manifest: block_plugin_api::manifest_from_json(&document)
+            manifest: block_plugin_manifest::manifest_from_json(&document)
                 .unwrap_or_else(|error| panic!("{}: {error}", path.display())),
             module: &[],
         });

@@ -3,8 +3,9 @@ use std::sync::Arc;
 use beui::{Rect, Vec2};
 use block_plugin_api::{
     ChildId, ChildLayer, ChildMode, EditorCapabilities, EditorInstanceId, EditorRegion,
-    InteractionMode, PluginManifest, ResizeMode, ScreenId,
+    InteractionMode, ResizeMode, ScreenId,
 };
+use block_plugin_manifest::PluginManifest;
 use uuid::Uuid;
 
 mod audio;

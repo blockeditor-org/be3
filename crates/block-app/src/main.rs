@@ -61,8 +61,9 @@ use be_graph::{Access, BlockParent};
 use be_protocol::{Organization, OrganizationInvitation, OrganizationRole};
 use beui::native::Document;
 use block_plugin_api::{
-    AccessLevel, ArtifactAction, BlockCommand, BlockLocation, HostPanel, ShellDialog, ShellRequest,
+    AccessLevel, ArtifactAction, BlockCommand, BlockLocation, HostPanel, ShellDialog,
 };
+use block_plugin_manifest::ShellRequest;
 use editors::{
     ArtifactSession, ArtifactStatus, BlockOpen, EditorAction, EditorRegistry, PluginEditor,
     SidebarDragSource, plugin::InstanceSource,

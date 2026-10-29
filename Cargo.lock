@@ -750,7 +750,7 @@ dependencies = [
  "be-store",
  "be-sync",
  "be-types-host",
- "block-plugin-api",
+ "block-plugin-manifest",
  "block-type-api",
  "block-type-guest",
  "block-ui-database",
@@ -1792,6 +1792,7 @@ dependencies = [
  "block-guest-abi",
  "block-guest-host",
  "block-plugin-api",
+ "block-plugin-manifest",
  "block-type-api",
  "block-type-guest",
  "block-ui-test",
@@ -1894,6 +1895,7 @@ dependencies = [
  "block-gpu-guest",
  "block-guest-abi",
  "block-plugin-api",
+ "block-plugin-manifest",
  "block-type-guest",
  "block-ui",
  "checklist-types",
@@ -2000,12 +2002,23 @@ dependencies = [
  "be-ops",
  "be-ops-bindgen",
  "block-gpu-abi",
+ "block-plugin-manifest",
  "serde",
  "serde_bytes",
  "serde_json",
  "ui-keys",
  "ui-preferences",
  "ui-types",
+ "uuid",
+]
+
+[[package]]
+name = "block-plugin-manifest"
+version = "0.1.0"
+dependencies = [
+ "be-ops-bindgen",
+ "serde",
+ "serde_json",
  "uuid",
 ]
 

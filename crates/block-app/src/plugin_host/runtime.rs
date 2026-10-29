@@ -10,10 +10,11 @@ use beui::native::EmbedPlacement;
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
     ArtifactDescription, BlockPick, ChildPlacements, ChildPreview, EditorInstanceId, EditorRegion,
-    FrameCommit, FrameSpec, HostPanel, Opening, PluginManifest, PresentedFrame, PreviewImage,
-    RegionSize, ScreenDamage, ScreenId, ScreenLayout, ScreenPlacement, ScreenRequest, ScreenWindow,
+    FrameCommit, FrameSpec, HostPanel, Opening, PresentedFrame, PreviewImage, RegionSize,
+    ScreenDamage, ScreenId, ScreenLayout, ScreenPlacement, ScreenRequest, ScreenWindow,
     SurfaceFormat, SurfaceSpec, ViewChange, Watched,
 };
+use block_plugin_manifest::PluginManifest;
 use uuid::Uuid;
 
 use crate::host;

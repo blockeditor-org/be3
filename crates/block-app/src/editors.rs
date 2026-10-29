@@ -3,7 +3,8 @@ pub(crate) mod plugin;
 use std::{collections::HashMap, sync::Arc};
 
 use be_graph::Access;
-use block_plugin_api::{EditorManifest, Edits, PluginManifest, ShellRequest, TemplateCategory};
+use block_plugin_api::{Edits, TemplateCategory};
+use block_plugin_manifest::{EditorManifest, PluginManifest, ShellRequest};
 use uuid::Uuid;
 
 use crate::surfaces::HostedRegion;

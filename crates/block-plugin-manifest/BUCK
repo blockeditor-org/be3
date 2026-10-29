@@ -1,0 +1,25 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test", "editor_packages")
+
+WIT = {
+    "foreign_resources": {"//crates/be-ops:wit": "crates/be-ops"},
+    "resources": glob(["wit/*.wit"]),
+}
+
+cargo_library(**WIT)
+
+# every_editor_manifest_parses reads each editor's manifest.json from
+# EDITOR_MANIFESTS, a directory of <editor>/manifest.json, so that the
+# manifests are inputs of the test like any other and it runs on a worker.
+filegroup(
+    name = "editor-manifests",
+    srcs = {"{}/manifest.json".format(package.split("/")[-1]): "//{}:manifest".format(package) for package in editor_packages()},
+    visibility = ["//crates/be-cli:"],
+)
+
+cargo_test(env = {"EDITOR_MANIFESTS": "$(location :editor-manifests)"}, **WIT)
+
+filegroup(
+    name = "wit",
+    srcs = glob(["wit/*.wit"]),
+    visibility = ["PUBLIC"],
+)

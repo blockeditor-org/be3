@@ -2,6 +2,7 @@ package be3:plugin@0.1.0;
 
 /// What the host and an editor plugin share.
 interface types {
+    use be3:manifest/types@0.1.0.{plugin-identity, editor-region};
     use accessibility.{color, description};
     use be3:ui/types@0.1.0.{
         key-chord, modifiers, pos2, rect, input, window-requests, window-role,
@@ -85,12 +86,6 @@ interface types {
         height: f32,
     }
 
-    record plugin-identity {
-        id: string,
-        name: string,
-        version: string,
-    }
-
     enum surface-support {
         none,
         texture,
@@ -136,23 +131,6 @@ interface types {
     record fonts {
         replace: bool,
         faces: list<font-face>,
-    }
-
-    /// Where an instance is shown. `display(n)` is a further display of a host
-    /// that shows the frame on its first display and one region on each of
-    /// the others, numbered from 1 in the order the host lists its displays.
-    /// `window(w)` is a window the plugin asked for with
-    /// `window-request.open` and the host shows as one of its own.
-    /// `tab(t)` is the body of the instance's own dock tab `t` (a
-    /// `dock-tab-path` with no `via`), which the dock that hosts the
-    /// instance's dock shows: see `dock-message`.
-    variant editor-region {
-        frame,
-        preview,
-        artifact-settings,
-        display(u32),
-        window(u64),
-        tab(u64),
     }
 
     enum frame-chrome {
@@ -265,7 +243,6 @@ interface types {
         modifiers: modifiers,
         rect: rect,
     }
-
 
     /// A panel of the host's own that an editor can show or place.
     enum host-panel {

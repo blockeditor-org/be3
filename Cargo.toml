@@ -78,6 +78,7 @@ members = [
     "crates/block-guest-echo",
     "crates/block-guest-host",
     "crates/block-plugin-api",
+    "crates/block-plugin-manifest",
     "crates/block-plugin-sdk",
     "crates/block-shell",
     "crates/block-type-api",

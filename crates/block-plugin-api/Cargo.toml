@@ -8,6 +8,7 @@ license.workspace = true
 accesskit = { version = "0.24.1", features = ["serde"] }
 be-ops = { path = "../be-ops" }
 block-gpu-abi = { path = "../block-gpu-abi" }
+block-plugin-manifest = { path = "../block-plugin-manifest" }
 be-ops-bindgen = { path = "../be-ops-bindgen" }
 serde = { version = "1", features = ["derive"] }
 serde_bytes = "0.11"

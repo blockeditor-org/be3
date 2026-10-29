@@ -3,7 +3,8 @@ use std::{
     sync::{Arc, atomic::AtomicBool},
 };
 
-use block_plugin_api::{PluginManifest, ScreenDamage};
+use block_plugin_api::ScreenDamage;
+use block_plugin_manifest::PluginManifest;
 
 mod canvases;
 pub(super) mod presenter;

@@ -4,7 +4,8 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use block_plugin_api::{BlockTypeDescriptor, PluginManifest};
+use block_plugin_api::BlockTypeDescriptor;
+use block_plugin_manifest::PluginManifest;
 use uuid::Uuid;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -64,7 +65,7 @@ impl Plugins {
     }
 
     fn add(&mut self, source: &str, document: &str) {
-        let manifest = match block_plugin_api::manifest_from_json(document) {
+        let manifest = match block_plugin_manifest::manifest_from_json(document) {
             Ok(manifest) => manifest,
             Err(error) => {
                 self.errors.push(format!("{source}: {error}"));

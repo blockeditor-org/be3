@@ -1,6 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
-use block_plugin_api::{HelloAccepted, PluginManifest, ScreenDamage, ops::Outcome};
+use block_plugin_api::{HelloAccepted, ScreenDamage, ops::Outcome};
+use block_plugin_manifest::PluginManifest;
 
 use super::calls::{Heard, Outbound};
 use super::wire::Wire;

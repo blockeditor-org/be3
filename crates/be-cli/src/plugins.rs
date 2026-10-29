@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::OnceLock};
 
-use block_plugin_api::{PluginManifest, manifest_from_json};
+use block_plugin_manifest::{PluginManifest, manifest_from_json};
 use uuid::Uuid;
 
 pub struct Plugin {

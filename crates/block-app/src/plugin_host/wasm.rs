@@ -11,7 +11,7 @@ use block_guest_host::{
     Presented, Produced,
     thread::{self, Runnable, Spawn, Threaded},
 };
-use block_plugin_api::PluginManifest;
+use block_plugin_manifest::PluginManifest;
 use block_wasm_host::{Host, Plugin};
 
 use super::{

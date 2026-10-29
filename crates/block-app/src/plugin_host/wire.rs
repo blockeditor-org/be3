@@ -369,7 +369,7 @@ impl Wire {
     }
 
     fn refusal(&self, interface: &str) -> Option<OpError> {
-        let extension = block_plugin_api::extension_of(interface)?;
+        let extension = block_plugin_manifest::extension_of(interface)?;
         if !self.extensions.iter().any(|granted| granted == extension) {
             return Some(OpError::Denied);
         }

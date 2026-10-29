@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
-use block_plugin_api::{EditorManifest, Edits, PluginIdentity, PluginManifest};
+use block_plugin_api::{Edits, PluginIdentity};
+use block_plugin_manifest::{EditorManifest, PluginManifest};
 
 use super::*;
 

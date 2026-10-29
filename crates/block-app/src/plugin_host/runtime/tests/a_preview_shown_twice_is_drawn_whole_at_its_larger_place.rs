@@ -5,7 +5,7 @@ const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 const REGION: EditorRegion = EditorRegion::Preview;
 
 fn manifest() -> PluginManifest {
-    block_plugin_api::manifest_from_json(
+    block_plugin_manifest::manifest_from_json(
         r#"{
             "id": "test.previewed",
             "name": "Previewed",

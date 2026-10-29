@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_failed_plugin_session_is_reported_as_a_crash() {
-    let plugin = block_plugin_api::manifest_from_json(
+    let plugin = block_plugin_manifest::manifest_from_json(
         r#"{
             "id": "test.failing",
             "name": "Failing",

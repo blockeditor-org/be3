@@ -1,0 +1,102 @@
+package be3:manifest@0.1.0;
+
+/// What a plugin's manifest declares of its editors and block types, which the
+/// plugin protocol (`be3:plugin`) carries too. The Rust in
+/// `block-plugin-manifest` is generated from this.
+interface types {
+    use be3:shared/ids@0.1.0.{block-type-id};
+
+    /// How an editor takes input where it is shown.
+    enum interaction-mode {
+        live,
+        preview,
+        playback,
+    }
+
+    enum pan-mode {
+        two-finger,
+        none,
+        one-finger,
+    }
+
+    record editor-capabilities {
+        rotation: bool,
+        preserve-aspect-ratio: bool,
+        pan-and-zoom: bool,
+        max-zoom: option<u32>,
+        pan: pan-mode,
+    }
+
+    enum resize-mode {
+        both,
+        none,
+        horizontal,
+        vertical,
+    }
+
+    record child-operations {
+        add: bool,
+        delete: bool,
+        replace: bool,
+    }
+
+    /// What pressing a block in a container does.
+    enum press {
+        open,
+        zoom,
+    }
+
+    /// A colour's red, green and blue.
+    type rgb = tuple<u8, u8, u8>;
+
+    record block-type-descriptor {
+        block-type: block-type-id,
+        display-name: string,
+        color: option<rgb>,
+        icon-codepoint: string,
+        children: child-operations,
+        press: press,
+        plain-file: bool,
+    }
+
+    /// Where a picker lists a template: among every block, among the ones
+    /// offered first, or as a template to start from.
+    enum template-category {
+        regular,
+        important,
+        template,
+    }
+
+    variant edits {
+        %type(block-type-id),
+        any,
+        nothing,
+    }
+
+    record plugin-identity {
+        id: string,
+        name: string,
+        version: string,
+    }
+
+    /// Where an instance is shown. `display(n)` is a further display of a host
+    /// that shows the frame on its first display and one region on each of
+    /// the others, numbered from 1 in the order the host lists its displays.
+    /// `window(w)` is a window the plugin asked for with
+    /// `window-request.open` and the host shows as one of its own.
+    /// `tab(t)` is the body of the instance's own dock tab `t` (a
+    /// `dock-tab-path` with no `via`), which the dock that hosts the
+    /// instance's dock shows: see `dock-message`.
+    variant editor-region {
+        frame,
+        preview,
+        artifact-settings,
+        display(u32),
+        window(u64),
+        tab(u64),
+    }
+}
+
+world manifest {
+    import types;
+}

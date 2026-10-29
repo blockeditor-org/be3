@@ -488,7 +488,7 @@ impl Editors {
 #[derive(Clone)]
 struct Handle {
     block_type: Uuid,
-    plugin: Option<std::sync::Arc<block_plugin_api::PluginManifest>>,
+    plugin: Option<std::sync::Arc<block_plugin_manifest::PluginManifest>>,
     instance: block_plugin_api::EditorInstanceId,
     role: plugin_host::InstanceRole,
     pan_and_zoom: bool,

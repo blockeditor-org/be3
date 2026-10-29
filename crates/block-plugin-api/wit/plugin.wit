@@ -2,7 +2,8 @@ package be3:plugin@0.1.0;
 
 /// What an editor plugin offers its host.
 interface plugin {
-    use types.{child-id, editor-region, frame-commit, opening, screen-id, screen-request, size};
+    use be3:manifest/types@0.1.0.{editor-region};
+    use types.{child-id, frame-commit, opening, screen-id, screen-request, size};
     use be3:shared/ids@0.1.0.{block-id};
     use accessibility.{action-request};
     use shell-types.{bar-action, drag-over, file-drop, focus};

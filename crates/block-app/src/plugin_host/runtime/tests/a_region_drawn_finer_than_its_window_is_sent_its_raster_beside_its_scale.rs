@@ -6,7 +6,7 @@ const REGION: EditorRegion = EditorRegion::Frame;
 const PLUGIN: &str = "test.rastered";
 
 fn manifest() -> PluginManifest {
-    block_plugin_api::manifest_from_json(
+    block_plugin_manifest::manifest_from_json(
         r#"{
             "id": "test.rastered",
             "name": "Rastered",

@@ -1,9 +1,10 @@
 use std::{collections::HashMap, sync::Arc};
 
 use block_plugin_api::{
-    ContactsWatch, EditorInstanceId, Watched as _, extension_of,
+    ContactsWatch, EditorInstanceId, Watched as _,
     ops::{Called, MethodId, Watching},
 };
+use block_plugin_manifest::extension_of;
 
 use super::calls::{EditorCall, Outbound};
 

@@ -87,7 +87,7 @@ A template whose block cannot exist until the user has chosen something (the fil
 
 3. Write the manifest
 
-manifest.json is the plugin's single source of truth: the plugin reads its own identity out of it and the host reads everything else. Nothing in block-app is touched to add a plugin.
+manifest.json is the plugin's single source of truth: the plugin reads its own identity out of it and the host reads everything else. Both read it with crates/block-plugin-manifest (`manifest_from_json`), which also checks it, as `be` does for the type modules it bundles. Nothing in block-app is touched to add a plugin.
 
 ```json
 {

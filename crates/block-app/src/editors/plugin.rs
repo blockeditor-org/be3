@@ -1,8 +1,9 @@
 use beui::{Vec2, vec2};
 use block_plugin_api::{
-    DialogAnswer, DialogStatus, EditorCapabilities, EditorInstanceId, EditorManifest, EditorRegion,
-    FrameSpec, HostPanel, InteractionMode, PluginManifest, ResizeMode,
+    DialogAnswer, DialogStatus, EditorCapabilities, EditorInstanceId, EditorRegion, FrameSpec,
+    HostPanel, InteractionMode, ResizeMode,
 };
+use block_plugin_manifest::{EditorManifest, PluginManifest};
 use std::sync::{
     Arc,
     atomic::{AtomicU64, Ordering},
@@ -371,7 +372,7 @@ impl PluginEditor {
         )
     }
 
-    pub(crate) fn accepts(&self, request: block_plugin_api::ShellRequest) -> bool {
+    pub(crate) fn accepts(&self, request: block_plugin_manifest::ShellRequest) -> bool {
         self.manifest()
             .is_some_and(|editor| editor.accepts(request))
     }

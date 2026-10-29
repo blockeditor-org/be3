@@ -55,6 +55,7 @@ block-accounts-ui = { path = "../block-accounts-ui" }
 block-guest-abi = { path = "../block-guest-abi" }
 block-guest-host = { path = "../block-guest-host" }
 block-plugin-api = { path = "../block-plugin-api" }
+block-plugin-manifest = { path = "../block-plugin-manifest" }
 # Block types run as type modules: the replica library for the types the app
 # applies itself, which run in process, and the protocol of every module.
 block-type-api = { path = "../block-type-api" }

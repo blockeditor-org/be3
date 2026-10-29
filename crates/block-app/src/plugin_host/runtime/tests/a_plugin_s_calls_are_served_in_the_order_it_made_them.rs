@@ -71,7 +71,7 @@ fn refused(outcome: &Outcome) -> bool {
 fn a_plugin_s_calls_are_served_in_the_order_it_made_them() {
     let harness = crate::be::Harness::start();
     harness.connect();
-    let plugin = block_plugin_api::manifest_from_json(
+    let plugin = block_plugin_manifest::manifest_from_json(
         r#"{
             "id": "test.ordered",
             "name": "Ordered",

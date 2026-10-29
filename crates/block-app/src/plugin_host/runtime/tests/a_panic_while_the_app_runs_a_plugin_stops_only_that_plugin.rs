@@ -1,7 +1,7 @@
 use super::*;
 
 fn manifest(id: &str, name: &str, block_type: &str) -> PluginManifest {
-    block_plugin_api::manifest_from_json(&format!(
+    block_plugin_manifest::manifest_from_json(&format!(
         r#"{{
             "id": "{id}",
             "name": "{name}",
