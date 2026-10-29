@@ -101,6 +101,7 @@ pub struct Workspace {
 
 impl Workspace {
     pub fn new(editor: Editor, with_files: bool, keeps_windows: bool) -> Self {
+        provide_context(beui::dock::unstyled::DockKeeper::none());
         let tabs = create_signal(Tabs::new());
         let views = create_signal(HashMap::new());
         let titles = create_signal(HashMap::new());

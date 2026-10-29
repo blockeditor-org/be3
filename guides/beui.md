@@ -2797,7 +2797,8 @@ dock nested in it joins it and claims none) and hands it a `DockKept`: its own
 layout (`snapshot`'s state, as a memo), the keys of its own tabs and bars, and
 a restore that puts a state in place keeping the tab ids, so the keeper can
 save and restore a standalone dock as it would a joined one (block-editor-beui
-provides one in every editor's frame). Such a platform builds the tab bodies
+provides one in every editor's frame). An owner that saves its dock itself
+provides `DockKeeper::none()` above it, as block-shell's `Workspace::new` does. Such a platform builds the tab bodies
 itself, and provides `DockTabMenu` and `DockTabControl::hosted(tab, hosted,
 request)` in each body's scope, so `dock_menu` and `use_dock_tab()` work there
 as in a local dock; `DockTabControl::is_hosted` tells such a body apart, and

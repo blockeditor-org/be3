@@ -58,9 +58,9 @@ pub use dialog::{DockDialogHandle, DockDialogPresentation, DockSheetHandle};
 pub use docking::{
     DockBar, DockBarMove, DockBodies, DockDeclaration, DockDeclaredBar, DockDeclaredDialog,
     DockDeclaredTab, DockDialog, DockDragStage, DockEntry, DockGroup, DockHostEvent, DockHostLink,
-    DockHostSlot, DockHosted, DockJoin, DockKeeper, DockKept, DockKey, DockNode, DockPane, DockRequest, DockSplit,
-    DockTab, DockWindow, Docking, DockingLayout, DockingSnapshot, OwnedDockingLayout,
-    use_dock_join,
+    DockHostSlot, DockHosted, DockJoin, DockKeeper, DockKept, DockKey, DockNode, DockPane,
+    DockRequest, DockSplit, DockTab, DockWindow, Docking, DockingLayout, DockingSnapshot,
+    OwnedDockingLayout, use_dock_join,
 };
 pub use documents::{
     DockDocument, DockDocumentBody, DockDocumentTabs, DockDocuments, DockOpened, DockSlot,

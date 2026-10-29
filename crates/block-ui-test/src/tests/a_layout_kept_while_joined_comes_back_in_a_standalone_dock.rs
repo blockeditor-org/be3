@@ -1,5 +1,4 @@
 use super::*;
-use std::collections::HashMap;
 use beui::dock::styled::{DockBarPlacement as Placement, DockEdge as Edge};
 use beui::dock::unstyled::DockOutsidePlace as Outside;
 use block_plugin_api::{
@@ -7,6 +6,7 @@ use block_plugin_api::{
     DockMessage, DockOutside, DockOutsidePlace, DockPane, DockPlacedBar, DockTabPath, DockTree,
     DockUpdate, Rect, ViewId,
 };
+use std::collections::HashMap;
 
 fn declared(test: &mut BeuiTest<StandaloneApp>) -> HashMap<String, u64> {
     let declaration = test
@@ -112,7 +112,10 @@ fn a_layout_kept_while_joined_comes_back_in_a_standalone_dock() {
         "a tab moved out into a window while joined opens in a window of its own"
     );
     assert!(
-        plain.outside.iter().all(|outside| !matches!(outside.place, Outside::Window { .. })),
+        plain
+            .outside
+            .iter()
+            .all(|outside| !matches!(outside.place, Outside::Window { .. })),
         "the window is no longer kept as outside the dock"
     );
     let main = format!("{:?}", plain.main);

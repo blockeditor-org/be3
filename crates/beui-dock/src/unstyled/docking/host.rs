@@ -158,14 +158,21 @@ pub struct DockKept {
 
 #[derive(Clone)]
 pub struct DockKeeper {
-    keep: Rc<dyn Fn(DockKept)>,
+    keep: Option<Rc<dyn Fn(DockKept)>>,
     claimed: Rc<Cell<bool>>,
 }
 
 impl DockKeeper {
     pub fn new(keep: impl Fn(DockKept) + 'static) -> Self {
         Self {
-            keep: Rc::new(keep),
+            keep: Some(Rc::new(keep)),
+            claimed: Rc::default(),
+        }
+    }
+
+    pub fn none() -> Self {
+        Self {
+            keep: None,
             claimed: Rc::default(),
         }
     }
@@ -176,7 +183,7 @@ impl DockKeeper {
         }
         let claimed = Rc::clone(&self.claimed);
         on_cleanup(move || claimed.set(false));
-        Some(Rc::clone(&self.keep))
+        self.keep.clone()
     }
 }
 

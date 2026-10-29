@@ -8,20 +8,20 @@ use block_editor_beui::{
 use uuid::Uuid;
 
 use crate::BeuiTest;
+use block_editor_beui::be_block::{DisplaySettings, Root as _};
 use block_editor_beui::be_block::{
     DisplaySettingsContent, Settings, SettingsContent, SettingsProfile, SettingsProfileContent,
 };
-use block_editor_beui::be_block::{DisplaySettings, Root as _};
 use block_editor_beui::{BlockInfo, BlockParent};
 
 mod a_child_block_hears_what_its_childs_bar_asked_for;
 mod a_child_block_reports_its_placement_and_follows_its_status;
 mod a_floating_overlay_covers_only_the_children_painted_beneath_it;
 mod a_joined_docks_layout_is_kept_on_this_device_and_every_instance_follows_it;
-mod a_plugin_timer_runs_on_the_tests_clock;
-mod a_standalone_docks_layout_is_kept_on_this_device_and_every_instance_follows_it;
 mod a_layout_kept_while_joined_comes_back_in_a_standalone_dock;
+mod a_plugin_timer_runs_on_the_tests_clock;
 mod a_shortcut_on_punctuation_reaches_the_editor;
+mod a_standalone_docks_layout_is_kept_on_this_device_and_every_instance_follows_it;
 mod ctrl_z_in_a_text_field_is_left_to_the_field;
 mod ctrl_z_undoes_a_block_that_owns_its_frame_without_a_top_bar;
 mod ctrl_z_undoes_the_block_through_the_frames_undo;
@@ -155,8 +155,8 @@ struct StandaloneApp;
 impl BeuiApp for StandaloneApp {
     #[component]
     fn View(editor: Editor) -> Root {
-        use beui::dock::styled::{DockPane, DockSplit, DockTab, Docking, DockingLayout};
         use beui::dock::styled::{DockBar, DockBarPlacement, DockEdge};
+        use beui::dock::styled::{DockPane, DockSplit, DockTab, Docking, DockingLayout};
         let _ = editor;
         let layout = DockingLayout::<u64>::new();
         STANDALONE_LAYOUTS.with(|layouts| layouts.borrow_mut().push(layout));
@@ -187,7 +187,11 @@ impl BeuiApp for StandaloneApp {
 fn standalone(
     display: DisplaySettingsContent,
     docked: bool,
-) -> (BeuiTest<StandaloneApp>, Uuid, beui::dock::styled::DockingLayout<u64>) {
+) -> (
+    BeuiTest<StandaloneApp>,
+    Uuid,
+    beui::dock::styled::DockingLayout<u64>,
+) {
     let host = EditorHost::default();
     host.set_editable(true);
     host.set_block_type(STANDALONE_TYPE);
