@@ -10,6 +10,7 @@ be-ops-bindgen = { path = "../be-ops-bindgen" }
 geometry = { path = "../geometry" }
 serde = { version = "1", features = ["derive", "rc"] }
 serde_bytes = "0.11"
+ui-keys = { path = "../ui-keys" }
 ui-preferences = { path = "../ui-preferences" }
 
 [lints]

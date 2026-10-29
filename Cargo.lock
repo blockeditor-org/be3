@@ -1973,6 +1973,7 @@ dependencies = [
  "serde",
  "serde_bytes",
  "serde_json",
+ "ui-keys",
  "ui-preferences",
  "ui-types",
  "uuid",
@@ -7948,7 +7949,7 @@ dependencies = [
  "be-model",
  "block-type-guest",
  "serde",
- "ui-types",
+ "ui-keys",
  "uuid",
 ]
 
@@ -8511,6 +8512,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "ui-keys"
+version = "0.1.0"
+dependencies = [
+ "be-ops-bindgen",
+ "serde",
+]
+
+[[package]]
 name = "ui-preferences"
 version = "0.1.0"
 dependencies = [
@@ -8526,6 +8535,7 @@ dependencies = [
  "geometry",
  "serde",
  "serde_bytes",
+ "ui-keys",
  "ui-preferences",
 ]
 

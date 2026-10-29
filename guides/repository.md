@@ -6,7 +6,8 @@ that build on it. VISION.md says why each part exists.
 ## The product
 
 - The block stack (`be-*`), beui (`beui*`), block-app, and the plugin API and
-  SDK (`block-*`).
+  SDK (`block-*`), with the vocabulary beui and the protocol share (`ui-types`,
+  and below it, with no geometry, `ui-keys` and `ui-preferences`).
 - `lucide`: the icon set beui and the block catalog draw from.
 - `ghostty-vt`, `terminal-emulator` and `terminal-view`: the terminal emulator's
   bindings, the emulator read back as terminal lines (the terminal host and

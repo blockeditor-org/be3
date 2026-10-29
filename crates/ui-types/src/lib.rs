@@ -3,6 +3,10 @@ pub use geometry;
 be_ops_bindgen::generate!({
     path: "wit",
     world: "ui",
+    deps: ["../ui-keys/wit"],
+    uses: {
+        "be3:keys/types@0.1.0": ::ui_keys::types,
+    },
     with: {
         "vec2": geometry::Vec2,
         "pos2": geometry::Pos2,
@@ -14,7 +18,7 @@ be_ops_bindgen::generate!({
     },
     copy: ["vec2", "pos2", "rect", "size", "window-id"],
     default: [
-        "file-filter", "modifiers", "back-edge", "ime-text", "cursor-icon", "pen", "keystroke",
+        "file-filter", "back-edge", "ime-text", "cursor-icon", "pen", "keystroke",
         "window-requests", "window-role",
     ],
     inline: [

@@ -2,10 +2,13 @@ package be3:ui@0.1.0;
 
 /// The vocabulary beui and the plugin protocol share. The Rust in `ui-types` is
 /// generated from this, so these shapes are what every program serializes.
-/// The preferences and the display and pointer settings are `be3:preferences`
-/// (`ui-preferences`), which settings blocks store. None of them is frozen
+/// Keys and modifiers are `be3:keys` (`ui-keys`), and the preferences and the
+/// display and pointer settings `be3:preferences` (`ui-preferences`), which
+/// settings blocks store; neither has geometry. None of them is frozen
 /// (guides/frozen_formats.md), so a shape may change like any other.
 interface types {
+    use be3:keys/types@0.1.0.{key, key-chord, key-press, modifiers};
+
     record vec2 {
         x: f32,
         y: f32,
@@ -62,131 +65,6 @@ interface types {
         saved,
         cancelled,
         failed(string),
-    }
-
-    enum key {
-        arrow-down,
-        arrow-left,
-        arrow-right,
-        arrow-up,
-        backspace,
-        bracket-left,
-        bracket-right,
-        delete,
-        end,
-        enter,
-        escape,
-        home,
-        minus,
-        page-down,
-        page-up,
-        plus,
-        space,
-        tab,
-        zero,
-        one,
-        two,
-        three,
-        four,
-        five,
-        six,
-        seven,
-        eight,
-        nine,
-        backtick,
-        a,
-        b,
-        c,
-        d,
-        e,
-        f,
-        g,
-        h,
-        i,
-        j,
-        k,
-        l,
-        m,
-        n,
-        o,
-        p,
-        q,
-        r,
-        s,
-        t,
-        u,
-        v,
-        w,
-        x,
-        y,
-        z,
-        insert,
-        comma,
-        period,
-        slash,
-        backslash,
-        semicolon,
-        quote,
-        browser-back,
-        f1,
-        f2,
-        f3,
-        f4,
-        f5,
-        f6,
-        f7,
-        f8,
-        f9,
-        f10,
-        f11,
-        f12,
-        f13,
-        f14,
-        f15,
-        f16,
-        f17,
-        f18,
-        f19,
-        f20,
-        f21,
-        f22,
-        f23,
-        f24,
-        volume-up,
-        volume-down,
-        volume-mute,
-        mic-mute,
-        brightness-up,
-        brightness-down,
-        media-play-pause,
-        media-next,
-        media-previous,
-        media-stop,
-        shift,
-        ctrl,
-        alt,
-        logo,
-        unidentified,
-    }
-
-    record modifiers {
-        alt: bool,
-        ctrl: bool,
-        shift: bool,
-        logo: bool,
-    }
-
-    record key-press {
-        key: key,
-        pressed: bool,
-        repeat: bool,
-        modifiers: modifiers,
-    }
-
-    record key-chord {
-        key: key,
-        modifiers: modifiers,
-        tap: bool,
     }
 
     variant pointer-button {

@@ -4,7 +4,7 @@ use be_model::{Document, List, Model};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-pub use ui_types::{Key, Modifiers};
+pub use ui_keys::{Key, Modifiers};
 
 use be_block::Root;
 use be_block::presence::{ChannelKind, PresenceKind};

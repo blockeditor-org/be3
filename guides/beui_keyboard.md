@@ -139,7 +139,8 @@ is never reported. `Key` also has the volume, mic mute, brightness and media
 transport keys, mapped wherever the platform reports them. `Key`, `Modifiers`,
 `KeyChord` and the rest of the input vocabulary (pointer buttons, touch, pen and
 back phases, IME events, `CursorIcon`, pastes and picked files, and the raw
-`Input` a platform produces) live in the framework-free `ui-types` crate, which
+`Input` a platform produces) live in the framework-free `ui-types` crate (the keys
+themselves in `ui-keys`, which it re-exports), which
 the plugin protocol (`block-plugin-api`) uses too, so nothing converts between a
 host's events and a plugin's. A host passes a key on to a plugin as the platform
 reported it, physical key and text included, so the plugin's runner sees what the

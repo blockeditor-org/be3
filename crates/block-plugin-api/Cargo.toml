@@ -12,6 +12,7 @@ be-ops-bindgen = { path = "../be-ops-bindgen" }
 serde = { version = "1", features = ["derive"] }
 serde_bytes = "0.11"
 serde_json = "1"
+ui-keys = { path = "../ui-keys" }
 ui-preferences = { path = "../ui-preferences" }
 ui-types = { path = "../ui-types" }
 uuid = "1"

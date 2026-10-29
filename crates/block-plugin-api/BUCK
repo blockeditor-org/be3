@@ -4,6 +4,7 @@ WIT = {
     "foreign_resources": {
         "//crates/be-ops:wit": "crates/be-ops",
         "//crates/block-gpu-abi:wit": "crates/block-gpu-abi",
+        "//crates/ui-keys:wit": "crates/ui-keys",
         "//crates/ui-preferences:wit": "crates/ui-preferences",
         "//crates/ui-types:wit": "crates/ui-types",
     },

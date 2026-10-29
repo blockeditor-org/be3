@@ -1,4 +1,4 @@
-use super::{Key, Modifiers};
+use crate::{Key, Modifiers};
 
 impl Key {
     pub fn meta(apple: bool) -> Self {
