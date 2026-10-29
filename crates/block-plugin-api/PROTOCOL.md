@@ -552,7 +552,15 @@ whether the instance's chrome is drawn through that view's `frame` (a dock
 view holding the content is requested with one; the chrome of a docked main
 view counts for nothing). A child placed in a dock tab's body with
 `own-frame` joins the dock (`child-placement.docks`); a child placed anywhere
-else, such as a card on a canvas, draws its dock itself. A docked editor's
+else, such as a card on a canvas, draws its dock itself. A main view that is
+not docked still declares its dock, and a child that takes over the frame of
+a docked instance's tab keeps its stage there, drawn over that tab's content,
+while its bars join that tab's pane in place of the instance's own bars,
+which the root stops showing until the child lets the frame go
+(`DockDeclaration::splice_bars`); the host says so with a `hosted` of only its
+bars (`DockHosted::frame_child`), and the child draws its bars itself again
+when that turns `none`. A child of such a child that takes its frame over
+replaces its bars the same way. A docked editor's
 tab view's menu is its frame menu, or the menu of the child that took its
 frame over, after the tab's own items; the menu a placer reads as
 `child-status.menu` is the menu of the view holding the child's content. A root showing a joined group of one bare pane in place of the tab

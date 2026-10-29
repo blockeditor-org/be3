@@ -2808,8 +2808,15 @@ dock is joined keeps that dock's layout as it is. The seam is `docking/host.rs`'
 `outside` included; `DockTree` keeps a pane's `bare` too), and a platform
 implements it too: a `Docking` that finds no outer dock claims the
 `DockHostSlot` context if one is provided above it, and joins that host the same
-way. block-editor-beui provides one in the frame of an editor whose dock joins
-another plugin's (guides/adding_a_plugin_editor.md), and its `ChildBlock` in a
+way. A slot made with `DockHostSlot::bars(link)` (`joins_bars`) is joined by
+bars only: its `Docking` stays standalone, drawing its tabs and keeping its
+layout, but declares itself to the link, places only its bar bodies through
+`DockBodies`, and while the link's `hosted` is `Some` draws none of its bars
+(the dock's `bars_away`), keeps its tab bodies clear of that hosted state's
+covers, and reads and places bars there (`DockingLayout::bar_placement`,
+`place_bar`). block-editor-beui provides a slot in every editor's frame: a
+joining one where the editor's dock joins another plugin's, a bars one
+otherwise (guides/adding_a_plugin_editor.md), and its `ChildBlock` in a
 tab body claims that tab's `DockJoin` (`use_dock_join()`, `DockJoin::host`,
 `claim`) for the child editor's dock. A `Docking` that joins no host instead
 claims the `DockKeeper` context if one is provided above it (one per keeper; a
