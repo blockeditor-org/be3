@@ -46,11 +46,7 @@ async fn open(server_url: &str, clock: &Clock) -> Result<Arc<Connection>, Client
     }
 }
 
-pub async fn signed_in(
-    server_url: &str,
-    token: &str,
-    clock: &Clock,
-) -> Result<Link, ClientError> {
+pub async fn signed_in(server_url: &str, token: &str, clock: &Clock) -> Result<Link, ClientError> {
     let socket = be_client::socket_url(server_url);
     let mut held = HELD.lock().await;
     held.retain(|held| !held.link.connection.is_closed());
@@ -83,12 +79,7 @@ pub async fn signed_in(
     Ok(link)
 }
 
-pub async fn adopt(
-    server_url: &str,
-    token: &str,
-    account: Uuid,
-    connection: Arc<Connection>,
-) {
+pub async fn adopt(server_url: &str, token: &str, account: Uuid, connection: Arc<Connection>) {
     let socket = be_client::socket_url(server_url);
     let mut held = HELD.lock().await;
     held.retain(|held| held.socket != socket || held.token != token);

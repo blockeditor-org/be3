@@ -9,9 +9,12 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use super::{Instances, allowed};
-use block_app_base::{host, platform::http::{self, AbortFlag, Aborted}};
-use block_app_stack::{discovery, revisions};
 use crate::wire::Service;
+use block_app_base::{
+    host,
+    platform::http::{self, AbortFlag, Aborted},
+};
+use block_app_stack::{discovery, revisions};
 
 type Visit<'a> = dyn FnMut(&mut [u8; 16]) + 'a;
 
@@ -321,14 +324,20 @@ impl Instances {
                             if be_block::plain::extension(&file.name)
                                 == be_client::transfer::EXTENSION =>
                         {
-                            answering.imported(imported(block_app_stack::import(&file.data, parent)));
+                            answering
+                                .imported(imported(block_app_stack::import(&file.data, parent)));
                         }
                         Ok(Some(file)) => {
-                            block_app_stack::import_file(file.name, file.data, parent, move |file| {
-                                if !answering.withdrawn() {
-                                    answering.imported(imported(file));
-                                }
-                            });
+                            block_app_stack::import_file(
+                                file.name,
+                                file.data,
+                                parent,
+                                move |file| {
+                                    if !answering.withdrawn() {
+                                        answering.imported(imported(file));
+                                    }
+                                },
+                            );
                         }
                         Ok(None) => answering.imported(Ok(None)),
                         Err(error) => answering.imported(Err(error)),
@@ -387,7 +396,9 @@ impl Instances {
                     Uuid::from_bytes(block),
                     block_app_stack::plugin_graph::access_of(access),
                 );
-                block_app_stack::make_contact_link(Some(offer), move |made| answering.send_or_fail(made));
+                block_app_stack::make_contact_link(Some(offer), move |made| {
+                    answering.send_or_fail(made)
+                });
             }
             Call::Fetch { reply, url } => {
                 if !allowed(&url, &self.network) {

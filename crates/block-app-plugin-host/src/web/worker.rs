@@ -190,10 +190,7 @@ impl WorkerChannel {
         let _ = self.worker.post_message(&message);
     }
 
-    pub fn place(
-        &mut self,
-        placements: Vec<Placement>,
-    ) -> Result<(), String> {
+    pub fn place(&mut self, placements: Vec<Placement>) -> Result<(), String> {
         let mut canvases = std::mem::take(&mut self.canvases);
         let placed = canvases.place(self, placements);
         self.canvases = canvases;

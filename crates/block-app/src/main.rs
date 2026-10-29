@@ -29,25 +29,25 @@ use std::{
 use std::path::Path;
 
 use accounts::{AccountError, Session};
-#[cfg(target_os = "linux")]
-use block_app_services::{media, notifications, tray, wifi};
-use block_app_base::{app_state, host, notices, panic_guard, performance, platform};
-use block_app_stack::{accounts, invite_link, keys, offline_choice};
-#[cfg(not(target_arch = "wasm32"))]
-use block_app_stack::embedded_server;
 use app_state::{AppStateStore, SavedAccount, ServerLocation};
 use be_block::{DisplaySettings, InputSettings, Root, WORKSPACE_EDITOR};
 use be_graph::{Access, BlockParent};
 use be_protocol::{Organization, OrganizationInvitation, OrganizationRole};
 use beui::native::Document;
+use block_app_base::{app_state, host, notices, panic_guard, performance, platform};
+use block_app_plugin_host::{BlockOpen, EditorAction};
+#[cfg(target_os = "linux")]
+use block_app_services::{media, notifications, tray, wifi};
+#[cfg(not(target_arch = "wasm32"))]
+use block_app_stack::embedded_server;
+use block_app_stack::{accounts, invite_link, keys, offline_choice};
 use block_plugin_api::{
     AccessLevel, ArtifactAction, BlockCommand, BlockLocation, HostPanel, ShellDialog,
 };
 use block_plugin_manifest::ShellRequest;
-use block_app_plugin_host::{BlockOpen, EditorAction};
 use editors::{
-    ArtifactSession, ArtifactStatus, EditorRegistry, PluginEditor,
-    SidebarDragSource, plugin::InstanceSource,
+    ArtifactSession, ArtifactStatus, EditorRegistry, PluginEditor, SidebarDragSource,
+    plugin::InstanceSource,
 };
 use invite_link::InviteLink;
 use local_settings::SettingsSync;
@@ -263,10 +263,7 @@ fn android_main(app: beui_host::native::AndroidApp) {
         use std::io::Read;
         let name = std::ffi::CString::new(path)
             .map_err(|_| "the asset path is not a C string".to_owned())?;
-        let mut asset = assets
-            .asset_manager()
-            .open(&name)
-            .ok_or("no such asset")?;
+        let mut asset = assets.asset_manager().open(&name).ok_or("no such asset")?;
         let mut bytes = Vec::new();
         asset
             .read_to_end(&mut bytes)
@@ -345,10 +342,14 @@ impl beui::native::App for Shell {
             session::export_environment(block_app_desktop::desktop_host::environment());
         }
         display::start(setup);
-        block_app_desktop::remap::load_cached(self.app.app_state.remapper().unwrap_or_else(|error| {
-            eprintln!("block-app: the input remapper kept for this session was not read: {error}");
-            None
-        }));
+        block_app_desktop::remap::load_cached(self.app.app_state.remapper().unwrap_or_else(
+            |error| {
+                eprintln!(
+                    "block-app: the input remapper kept for this session was not read: {error}"
+                );
+                None
+            },
+        ));
         self.app.input.boot(&self.app.app_state);
         self.app.display.boot(&self.app.app_state);
         display::boot(&self.app.app_state);
@@ -970,7 +971,8 @@ impl BlockApp {
     fn run_media(&mut self) {
         let requests = block_app_base::watches::take_calls(block_plugin_api::requested::media);
         if self.media.is_none()
-            && (!requests.is_empty() || block_app_base::watches::watched::<block_plugin_api::MediaWatch>())
+            && (!requests.is_empty()
+                || block_app_base::watches::watched::<block_plugin_api::MediaWatch>())
         {
             self.media = Some(media::Media::start());
             block_app_base::watches::publish::<block_plugin_api::MediaWatch>(
@@ -992,7 +994,8 @@ impl BlockApp {
     fn run_wifi(&mut self) {
         let requests = block_app_base::watches::take_calls(block_plugin_api::requested::wifi);
         if self.wifi.is_none()
-            && (!requests.is_empty() || block_app_base::watches::watched::<block_plugin_api::WifiWatch>())
+            && (!requests.is_empty()
+                || block_app_base::watches::watched::<block_plugin_api::WifiWatch>())
         {
             self.wifi = Some(wifi::Wifi::start());
             block_app_base::watches::publish::<block_plugin_api::WifiWatch>(
@@ -1864,7 +1867,8 @@ impl BlockApp {
     }
 
     fn restore(&mut self, id: Uuid) {
-        let Some(root) = block_app_stack::with_graph(|graph| graph.deleted_root(id)).flatten() else {
+        let Some(root) = block_app_stack::with_graph(|graph| graph.deleted_root(id)).flatten()
+        else {
             return;
         };
         let Some(node) = block_app_stack::node(root) else {
@@ -1872,7 +1876,8 @@ impl BlockApp {
         };
         let usable = |parent: Uuid| {
             block_app_stack::node(parent).is_some_and(|parent| parent.access.can_edit())
-                && block_app_stack::with_graph(|graph| graph.deleted_root(parent).is_none()).unwrap_or(false)
+                && block_app_stack::with_graph(|graph| graph.deleted_root(parent).is_none())
+                    .unwrap_or(false)
         };
         let addable = |parent: Uuid| {
             block_app_stack::node(parent)
@@ -1905,7 +1910,8 @@ impl BlockApp {
                 }
             }
         };
-        let listed = block_app_stack::node(destination).is_some_and(|parent| parent.references.contains(&root));
+        let listed = block_app_stack::node(destination)
+            .is_some_and(|parent| parent.references.contains(&root));
         match listed {
             true => block_app_stack::set_parent(root, BlockParent::Block(destination)),
             false => self.queue_move(
@@ -2283,16 +2289,27 @@ impl BlockApp {
             );
         }
         let hidden = block_app_desktop::programs::bound_windows();
-        if Some((block_app_desktop::desktop_host::revision(), hidden.clone())) != self.windows_sent {
-            block_app_base::watches::publish::<block_plugin_api::WindowsWatch>(&block_app_desktop::desktop_host::listed(&hidden));
+        if Some((block_app_desktop::desktop_host::revision(), hidden.clone())) != self.windows_sent
+        {
+            block_app_base::watches::publish::<block_plugin_api::WindowsWatch>(
+                &block_app_desktop::desktop_host::listed(&hidden),
+            );
             self.windows_sent = Some((block_app_desktop::desktop_host::revision(), hidden));
         }
         for action in block_app_base::watches::take_calls(block_plugin_api::requested::window) {
             match action {
-                block_plugin_api::WindowAction::Focus(window) => block_app_desktop::desktop_host::focus(window),
-                block_plugin_api::WindowAction::Close(window) => block_app_desktop::desktop_host::close(window),
-                block_plugin_api::WindowAction::Show(window) => block_app_desktop::desktop_host::show(window),
-                block_plugin_api::WindowAction::Hide(window) => block_app_desktop::desktop_host::hide(window),
+                block_plugin_api::WindowAction::Focus(window) => {
+                    block_app_desktop::desktop_host::focus(window)
+                }
+                block_plugin_api::WindowAction::Close(window) => {
+                    block_app_desktop::desktop_host::close(window)
+                }
+                block_plugin_api::WindowAction::Show(window) => {
+                    block_app_desktop::desktop_host::show(window)
+                }
+                block_plugin_api::WindowAction::Hide(window) => {
+                    block_app_desktop::desktop_host::hide(window)
+                }
                 block_plugin_api::WindowAction::Fullscreen { window, fullscreen } => {
                     block_app_desktop::desktop_host::fullscreen(window, fullscreen);
                 }
@@ -2766,10 +2783,9 @@ impl BlockApp {
         self.programs.frame();
         self.sync_be_stack();
         self.notice_reconnect();
-        let ready = self
-            .organization
-            .as_ref()
-            .is_some_and(|organization| block_app_stack::installed_for(self.account.id, organization.id));
+        let ready = self.organization.as_ref().is_some_and(|organization| {
+            block_app_stack::installed_for(self.account.id, organization.id)
+        });
         self.contacts
             .poll(&accounts::link_base(&self.server_url), ready);
         self.contacts.publish();

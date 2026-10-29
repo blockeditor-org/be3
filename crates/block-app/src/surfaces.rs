@@ -15,7 +15,6 @@ mod notices;
 
 pub(crate) use notices::{CrashNotice, StaleNotice};
 
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub(crate) enum SurfaceId {
     ArtifactSettings,
@@ -149,7 +148,6 @@ pub(crate) fn HostedSurface(
     }
 }
 
-
 #[component]
 pub(crate) fn StaleBlock(block: Uuid, block_type: Uuid, stale: block_app_stack::Stale) -> NodeId {
     let can_try = matches!(stale, block_app_stack::Stale::Reshaped);
@@ -162,14 +160,13 @@ pub(crate) fn StaleBlock(block: Uuid, block_type: Uuid, stale: block_app_stack::
         }
     };
     let delete = move || {
-        let source = block_app_stack::node(block).and_then(|node| node.parent).map_or(
-            BlockLocation::Detached,
-            |parent| match parent {
+        let source = block_app_stack::node(block)
+            .and_then(|node| node.parent)
+            .map_or(BlockLocation::Detached, |parent| match parent {
                 be_graph::BlockParent::Root => BlockLocation::Root,
                 be_graph::BlockParent::Detached => BlockLocation::Detached,
                 be_graph::BlockParent::Block(parent) => BlockLocation::Block(parent.into_bytes()),
-            },
-        );
+            });
         crate::compositor::act(
             None,
             block_app_plugin_host::EditorAction::Command {

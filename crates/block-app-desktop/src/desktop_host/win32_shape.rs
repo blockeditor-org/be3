@@ -79,12 +79,7 @@ impl Shaping {
             .map_or_else(|| frame_size(entry), |sizing| sizing.own)
     }
 
-    pub fn placed(
-        &mut self,
-        snapshot: &Snapshot,
-        id: EntryId,
-        size: Vec2,
-    ) -> Option<Pixels> {
+    pub fn placed(&mut self, snapshot: &Snapshot, id: EntryId, size: Vec2) -> Option<Pixels> {
         let entry = snapshot.entry(id)?;
         if entry.kind != EntryKind::Window
             || entry.minimized

@@ -10,16 +10,15 @@ use std::sync::{
 };
 use uuid::Uuid;
 
-
 use super::{
     ArtifactSession, ArtifactStatus, DirectEditorCapabilities, DirectEditorInteraction,
     DirectEditorResize, EditorRegistry, FocusReport, PendingCreation,
 };
+use crate::{compositor::RegionEditor, surfaces::HostedRegion};
 use block_app_base::host;
 use block_app_plugin_host::{
     ArtifactSlot, ArtifactState, CreationSlot, CreationState, EditorBlock, InstanceRole,
 };
-use crate::{compositor::RegionEditor, surfaces::HostedRegion};
 
 static NEXT_INSTANCE: AtomicU64 = AtomicU64::new(1);
 
@@ -178,8 +177,9 @@ impl PendingCreation for PluginCreation {
     }
 
     fn dialog(&self) -> DialogStatus {
-        let mut status = block_app_plugin_host::dialog_status(&self.plugin.identity.id, self.instance)
-            .unwrap_or_default();
+        let mut status =
+            block_app_plugin_host::dialog_status(&self.plugin.identity.id, self.instance)
+                .unwrap_or_default();
         if self.dismissed && status.answer.is_none() {
             status.answer = Some(DialogAnswer::Dismissed);
         }
@@ -666,8 +666,9 @@ impl ArtifactSession for PluginArtifact {
     }
 
     fn dialog(&self) -> DialogStatus {
-        let mut status = block_app_plugin_host::dialog_status(&self.plugin.identity.id, self.instance)
-            .unwrap_or_default();
+        let mut status =
+            block_app_plugin_host::dialog_status(&self.plugin.identity.id, self.instance)
+                .unwrap_or_default();
         if self.dismissed && status.answer.is_none() {
             status.answer = Some(DialogAnswer::Dismissed);
         }

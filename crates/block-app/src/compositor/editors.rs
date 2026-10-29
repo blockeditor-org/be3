@@ -25,11 +25,11 @@ use crate::editors::plugin::{InstanceSource, PluginPicker};
 use crate::editors::{
     Chrome, EditorRegistry, PendingCreation, PluginEditor, editor_access_ceiling,
 };
-use block_app_desktop::host_item::{HostItem, HostItemFace};
-use block_app_plugin_host::{ChildCommit, EditorView, HostChild, HostChildStatus, HostContent};
 use crate::surfaces::{ConflictNotice, HostedRegion, HostedSurface, StaleBlock, SurfaceId};
 use crate::ui::HostPanelSurface;
 use beui::{Align, Direction, ItemSize, Placement};
+use block_app_desktop::host_item::{HostItem, HostItemFace};
+use block_app_plugin_host::{ChildCommit, EditorView, HostChild, HostChildStatus, HostContent};
 
 const MIN_ZOOM: f32 = 1.0 / 64.0;
 const MAX_ZOOM: f32 = 32.0;
@@ -394,7 +394,11 @@ impl Editors {
             .collect()
     }
 
-    fn ensure_picker(&self, key: CreationKey, request: block_app_plugin_host::PickerRequest) -> bool {
+    fn ensure_picker(
+        &self,
+        key: CreationKey,
+        request: block_app_plugin_host::PickerRequest,
+    ) -> bool {
         let state = self.0.value();
         if state.pickers.borrow().contains_key(&key) {
             return true;
@@ -1404,8 +1408,8 @@ fn BlockFrameView(
     let content_size = create_memo(move || {
         revision.get();
         let size = viewport_rect.get().size().max(Vec2::splat(1.0));
-        let intrinsic =
-            block_app_plugin_host::intrinsic_size(&plugin_id.value(), instance).unwrap_or(vec2(420.0, 240.0));
+        let intrinsic = block_app_plugin_host::intrinsic_size(&plugin_id.value(), instance)
+            .unwrap_or(vec2(420.0, 240.0));
         vec2(size.x.max(intrinsic.x), size.y.max(intrinsic.y))
     });
     let content_rect = create_memo(move || {
@@ -1686,19 +1690,21 @@ fn HostedChild(
     let tab = use_context::<TabContext>();
     let any = super::any();
     let inherited = block_app_desktop::occlusion::occlusion();
-    provide_context(block_app_desktop::occlusion::Occlusion(create_memo(move || {
-        let mut rects = inherited
-            .as_ref()
-            .map(|inherited| inherited.get())
-            .unwrap_or_default();
-        rects.extend(child.with(|child| {
-            child
+    provide_context(block_app_desktop::occlusion::Occlusion(create_memo(
+        move || {
+            let mut rects = inherited
                 .as_ref()
-                .map(|child| child.occluders.clone())
-                .unwrap_or_default()
-        }));
-        rects
-    })));
+                .map(|inherited| inherited.get())
+                .unwrap_or_default();
+            rects.extend(child.with(|child| {
+                child
+                    .as_ref()
+                    .map(|child| child.occluders.clone())
+                    .unwrap_or_default()
+            }));
+            rects
+        },
+    )));
     let content = create_memo(move || child.get().map(|child| child.content));
     let creation_key: CreationKey = (parent, region, key);
     on_cleanup(move || {

@@ -12,8 +12,7 @@ pub const ELEVATED: &str = "This window runs as administrator, so Block can't co
 pub const SECURE_DESKTOP: &str =
     "Windows is asking for permission on the secure desktop. Take off the headset to answer it.";
 
-pub const OFF_SCREEN: &str =
-    "Off screen: drag the window by its title bar to reach this part";
+pub const OFF_SCREEN: &str = "Off screen: drag the window by its title bar to reach this part";
 pub const PRESS_SLOP: f32 = 6.0;
 const FALLBACK_BACK: &str = "Alt+Tab";
 
@@ -361,12 +360,7 @@ pub fn popup_rect(frame: Rect, popup: Rect, panel: Vec2) -> block_plugin_api::Re
     )
 }
 
-pub fn popup_point(
-    frame: Rect,
-    popup: Rect,
-    shown: Vec2,
-    local: block_plugin_api::Pos2,
-) -> Point {
+pub fn popup_point(frame: Rect, popup: Rect, shown: Vec2, local: block_plugin_api::Pos2) -> Point {
     let at = frame_point(popup, shown, local);
     Point::new(popup.left - frame.left + at.x, popup.top - frame.top + at.y)
 }

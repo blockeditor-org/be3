@@ -27,7 +27,10 @@ fn a_new_profile_takes_this_devices_class_and_its_defaults() {
     let harness = block_app_testing::Harness::start();
     harness.connect();
     block_app_stack::wait_for(PATIENCE, |shared| {
-        shared.graph.ready(block_app_stack::Query::Roots).then_some(())
+        shared
+            .graph
+            .ready(block_app_stack::Query::Roots)
+            .then_some(())
     })
     .expect("the graph never loaded");
 

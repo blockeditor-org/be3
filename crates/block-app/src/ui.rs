@@ -16,13 +16,12 @@ use beui::{ItemSize, NodeId};
 use block_plugin_api::HostPanel;
 use uuid::Uuid;
 
-use block_app_base::app_state::{SavedAccount, ServerLocation};
 use crate::compositor::ShellDisplay;
+use block_app_base::app_state::{SavedAccount, ServerLocation};
 use block_app_desktop::desktop_host::WindowActions;
 
 pub(crate) use debug::{
-    DebugCommand, DebugView, HostPanelSurface, Line, LineStyle, PluginsView,
-    RuntimeView,
+    DebugCommand, DebugView, HostPanelSurface, Line, LineStyle, PluginsView, RuntimeView,
 };
 
 thread_local! {

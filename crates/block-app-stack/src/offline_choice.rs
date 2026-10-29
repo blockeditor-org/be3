@@ -26,11 +26,7 @@ pub fn choice(workspace: Uuid) -> OfflineChoice {
     }
 }
 
-pub fn publish(
-    resolution: &Resolution<OfflineSettings>,
-    workspaces: Vec<Uuid>,
-    personal: bool,
-) {
+pub fn publish(resolution: &Resolution<OfflineSettings>, workspaces: Vec<Uuid>, personal: bool) {
     let choices = Choices {
         workspaces: workspaces
             .into_iter()

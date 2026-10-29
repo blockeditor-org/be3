@@ -268,9 +268,12 @@ impl Harness {
             display_name: profile.display_name,
             token,
         };
-        let server =
-            embedded_server::start_embedded_server_at("127.0.0.1:0", directory.join("server"), lease)
-                .expect("the embedded block server starts");
+        let server = embedded_server::start_embedded_server_at(
+            "127.0.0.1:0",
+            directory.join("server"),
+            lease,
+        )
+        .expect("the embedded block server starts");
         let url = server.url.clone();
         let managed = url.clone();
         let (account, token, organization) = runtime.block_on(async {
@@ -311,8 +314,12 @@ impl Harness {
 
     fn start_server(&mut self, address: &str) {
         self.server = Some(
-            embedded_server::start_embedded_server_at(address, self.directory.join("server"), self.lease)
-                .expect("the embedded block server starts again"),
+            embedded_server::start_embedded_server_at(
+                address,
+                self.directory.join("server"),
+                self.lease,
+            )
+            .expect("the embedded block server starts again"),
         );
     }
 

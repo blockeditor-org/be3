@@ -13,10 +13,10 @@ use std::time::Duration;
 use block_plugin_api::{PowerAction, PowerAvailability};
 
 use block_app_base::host::{WakingSender, waking_channel};
+use block_app_base::password::Password;
 pub(crate) use environment::export as export_environment;
 pub(crate) use install::install;
 use lock::{Authenticate, Lock, Verdict};
-use block_app_base::password::Password;
 pub(crate) use lock::{LockState, Trigger};
 pub(crate) use log::start_log;
 use logind::{Logind, LogindEvent};

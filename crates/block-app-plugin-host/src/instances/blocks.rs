@@ -440,11 +440,7 @@ impl Instances {
         std::mem::take(&mut self.accepted)
     }
 
-    pub fn show_panel(
-        &mut self,
-        instance: EditorInstanceId,
-        panel: block_plugin_api::HostPanel,
-    ) {
+    pub fn show_panel(&mut self, instance: EditorInstanceId, panel: block_plugin_api::HostPanel) {
         if let Some(entry) = self.entries.get_mut(&instance) {
             ShowRequest::queue(&mut entry.shows, ShowRequest::Panel(panel));
         }

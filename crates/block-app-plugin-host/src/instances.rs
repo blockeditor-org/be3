@@ -197,7 +197,11 @@ impl ContentLink {
             });
         }
         for goodbye in goodbyes {
-            block_app_stack::from_editor(block, instance.0, &block_type_api::encode_frame(&goodbye));
+            block_app_stack::from_editor(
+                block,
+                instance.0,
+                &block_type_api::encode_frame(&goodbye),
+            );
         }
         block_app_stack::detach(block, instance.0);
     }
@@ -1994,7 +1998,10 @@ impl Instances {
                         .map_or_else(
                             || Uuid::from_bytes(*block_id),
                             |parent| {
-                                block_app_stack::revisions::alias(parent.id, Uuid::from_bytes(*block_id))
+                                block_app_stack::revisions::alias(
+                                    parent.id,
+                                    Uuid::from_bytes(*block_id),
+                                )
                             },
                         ),
                     block_type: Uuid::from_bytes(*block_type),
@@ -2002,8 +2009,9 @@ impl Instances {
                         .entries
                         .get(&instance)
                         .and_then(|entry| entry.role.block())
-                        .is_some_and(|parent| block_app_stack::revisions::source(parent.id).is_some())
-                    {
+                        .is_some_and(|parent| {
+                            block_app_stack::revisions::source(parent.id).is_some()
+                        }) {
                         None
                     } else {
                         view_block.map(Uuid::from_bytes)

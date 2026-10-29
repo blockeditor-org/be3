@@ -148,9 +148,7 @@ fn library_offset(line: &str) -> Option<String> {
     Some(format!("({name}+{:#x})", address - info.dli_fbase as usize))
 }
 
-pub async fn contain_task(
-    task: impl std::future::Future<Output = ()>,
-) -> Result<(), String> {
+pub async fn contain_task(task: impl std::future::Future<Output = ()>) -> Result<(), String> {
     let mut task = std::pin::pin!(task);
     std::future::poll_fn(|context| match contain(|| task.as_mut().poll(context)) {
         Ok(polled) => polled.map(Ok),

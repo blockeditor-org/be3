@@ -282,7 +282,9 @@ fn take_fetched() {
     let bytes = match read {
         Ok(bytes) => bytes,
         Err(error) => {
-            block_app_base::notices::report(format!("The input remapper could not be read: {error}"));
+            block_app_base::notices::report(format!(
+                "The input remapper could not be read: {error}"
+            ));
             return;
         }
     };
@@ -312,7 +314,9 @@ fn install(wanted: &Wanted, module: &[u8]) -> bool {
     let mut remapper = match Remapper::new(module) {
         Ok(remapper) => remapper,
         Err(error) => {
-            block_app_base::notices::report(format!("The input remapper could not be loaded: {error}"));
+            block_app_base::notices::report(format!(
+                "The input remapper could not be loaded: {error}"
+            ));
             return false;
         }
     };

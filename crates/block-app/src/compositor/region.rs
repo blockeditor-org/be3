@@ -18,16 +18,16 @@ use block_plugin_api::{ChildId, EditorInstanceId, EditorRegion, FrameSpec};
 use block_plugin_manifest::PluginManifest;
 use uuid::Uuid;
 
+use crate::surfaces::CrashNotice;
+use beui::native::draw_gpu;
+use beui::reactive::toggle_keyboard;
 use block_app_desktop::host_item::HostItem;
+use block_app_desktop::host_item::HostItemFace;
+use block_app_desktop::occlusion::{Occlusion, occlusion};
 use block_app_plugin_host::{
     self, BlockDrag, EditorView, HostChild, InstanceRole, Piece, RegionPlacement, RegionSlot,
     RegionView,
 };
-use crate::surfaces::CrashNotice;
-use block_app_desktop::host_item::HostItemFace;
-use block_app_desktop::occlusion::{Occlusion, occlusion};
-use beui::native::draw_gpu;
-use beui::reactive::toggle_keyboard;
 
 #[derive(Clone, Debug, PartialEq)]
 struct Failure {
@@ -248,7 +248,9 @@ pub(crate) fn PluginRegion(
         region,
     });
     let mount = next_mount();
-    on_cleanup(move || block_app_plugin_host::unmount_region(&plugin_id.value(), instance, region, mount));
+    on_cleanup(move || {
+        block_app_plugin_host::unmount_region(&plugin_id.value(), instance, region, mount)
+    });
     create_effect(move || {
         let presented = presented.get();
         untrack(|| block_app_plugin_host::set_presented(&plugin_id.value(), instance, presented));
@@ -401,7 +403,14 @@ pub(crate) fn PluginRegion(
             )
         });
         let held: Rc<
-            RefCell<Option<(DrawingKey, beui::native::Drawing, u64, block_app_plugin_host::Pieces)>>,
+            RefCell<
+                Option<(
+                    DrawingKey,
+                    beui::native::Drawing,
+                    u64,
+                    block_app_plugin_host::Pieces,
+                )>,
+            >,
         > = Rc::new(RefCell::new(None));
         let drawn = create_memo(move || {
             let (_, rotation, opacity, pieces, _, placed) = shown.get();
@@ -634,13 +643,15 @@ pub(crate) fn PluginRegion(
         };
         region == EditorRegion::Frame
             && !placed.contains(local)
-            && block_app_plugin_host::frame_rects(&plugin_id.value(), instance).is_some_and(|frame| {
-                frame.content.contains(local)
-                    && !frame
-                        .floating
-                        .iter()
-                        .any(|floating| floating.contains(local))
-            })
+            && block_app_plugin_host::frame_rects(&plugin_id.value(), instance).is_some_and(
+                |frame| {
+                    frame.content.contains(local)
+                        && !frame
+                            .floating
+                            .iter()
+                            .any(|floating| floating.contains(local))
+                },
+            )
     };
     let takes = move |local: Pos2| {
         !passive.get_untracked()
@@ -685,13 +696,16 @@ pub(crate) fn PluginRegion(
         revision.get();
         let content = frame.get().and_then(|frame| frame.content);
         let beyond = match (region == EditorRegion::Frame, content) {
-            (true, Some(placed)) => block_app_plugin_host::frame_rects(&plugin_id.value(), instance)
-                .map_or_else(beui::HitRegion::new, |frame| {
-                    frame.floating.iter().fold(
-                        beui::HitRegion::rect(frame.content).without(placed),
-                        |beyond, floating| beyond.without(*floating),
-                    )
-                }),
+            (true, Some(placed)) => block_app_plugin_host::frame_rects(
+                &plugin_id.value(),
+                instance,
+            )
+            .map_or_else(beui::HitRegion::new, |frame| {
+                frame.floating.iter().fold(
+                    beui::HitRegion::rect(frame.content).without(placed),
+                    |beyond, floating| beyond.without(*floating),
+                )
+            }),
             _ => beui::HitRegion::new(),
         };
         let occluders = occluded.map(|occluded| occluded.get()).unwrap_or_default();
@@ -1218,7 +1232,9 @@ fn Notices(loading: Memo<bool>, failure: Memo<Option<Failure>>, id: String) -> N
     let reloadable = create_memo(move || restart.get().is_some());
     let reload = move || {
         if let Some(plugin) = restart.get_untracked() {
-            block_app_base::host::push_command(block_app_base::host::HostCommand::RestartPlugin(plugin));
+            block_app_base::host::push_command(block_app_base::host::HostCommand::RestartPlugin(
+                plugin,
+            ));
         }
     };
     let loading_item = create_memo(|| HostItem::Notice {

@@ -119,7 +119,10 @@ fn revision_history_editors_cannot_mutate_any_block() {
         ))
     ));
     block_app_stack::flush();
-    assert_eq!(block_app_stack::content(block).unwrap().bytes().to_vec(), before);
+    assert_eq!(
+        block_app_stack::content(block).unwrap().bytes().to_vec(),
+        before
+    );
     block_app_stack::revisions::release(preview);
     block_app_stack::revisions::collect_released(|_| {});
 }

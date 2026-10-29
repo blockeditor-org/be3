@@ -68,9 +68,7 @@ pub fn describe(context: &beui::native::Context) {
                 })
                 .collect();
             let overlay = match region {
-                EditorRegion::Window(window) => {
-                    super::is_overlay(&plugin, instance, window)
-                }
+                EditorRegion::Window(window) => super::is_overlay(&plugin, instance, window),
                 _ => false,
             };
             let fragment = described.tree.fragment(

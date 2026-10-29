@@ -30,10 +30,7 @@ fn describe(error: &JsValue) -> String {
         .unwrap_or_else(|| format!("{error:?}"))
 }
 
-pub async fn run(
-    url: String,
-    headers: Vec<(&'static str, String)>,
-) -> Result<Vec<u8>, String> {
+pub async fn run(url: String, headers: Vec<(&'static str, String)>) -> Result<Vec<u8>, String> {
     fetching(url, headers, None).await
 }
 

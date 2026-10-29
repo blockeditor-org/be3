@@ -623,7 +623,10 @@ impl Runtime {
             return;
         }
         let first = error.lines().next().unwrap_or_default();
-        block_app_base::notices::report_with(format!("{} stopped: {first}", self.name()), error.clone());
+        block_app_base::notices::report_with(
+            format!("{} stopped: {first}", self.name()),
+            error.clone(),
+        );
         self.error = Some(error);
         let _ = block_app_base::panic_guard::contain(|| self.backend.shutdown());
         previews::forget(&self.plugin.identity.id);
@@ -1219,10 +1222,7 @@ pub fn take_child_dismissals(
     .unwrap_or_default()
 }
 
-pub fn take_child_commits(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-) -> Vec<super::ChildCommit> {
+pub fn take_child_commits(plugin_id: &str, instance: EditorInstanceId) -> Vec<super::ChildCommit> {
     with(plugin_id, |runtime| {
         runtime.instances.take_child_commits(instance)
     })
@@ -1235,10 +1235,7 @@ pub struct FramePlacement {
     pub zoom: f32,
 }
 
-pub fn frame_placement(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-) -> Option<FramePlacement> {
+pub fn frame_placement(plugin_id: &str, instance: EditorInstanceId) -> Option<FramePlacement> {
     region_placement(plugin_id, instance, EditorRegion::Frame)
 }
 
@@ -1559,20 +1556,14 @@ pub fn take_focus_report(plugin_id: &str, instance: EditorInstanceId) -> Option<
     .flatten()
 }
 
-pub fn take_artifact_watch(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-) -> Option<Vec<Uuid>> {
+pub fn take_artifact_watch(plugin_id: &str, instance: EditorInstanceId) -> Option<Vec<Uuid>> {
     with(plugin_id, |runtime| {
         runtime.instances.take_artifact_watch(instance)
     })
     .flatten()
 }
 
-pub fn menu(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-) -> Vec<block_plugin_api::MenuEntry> {
+pub fn menu(plugin_id: &str, instance: EditorInstanceId) -> Vec<block_plugin_api::MenuEntry> {
     with(plugin_id, |runtime| runtime.instances.menu(instance)).unwrap_or_default()
 }
 
@@ -1613,11 +1604,7 @@ pub fn show_panel(plugin_id: &str, instance: EditorInstanceId, panel: HostPanel)
     });
 }
 
-pub fn show_block(
-    plugin: &PluginManifest,
-    instance: EditorInstanceId,
-    open: crate::BlockOpen,
-) {
+pub fn show_block(plugin: &PluginManifest, instance: EditorInstanceId, open: crate::BlockOpen) {
     HOST.with(|host| {
         let mut host = host.borrow_mut();
         let Ok(runtime) = host.runtime(plugin) else {
@@ -1729,10 +1716,7 @@ pub fn commit_creation(plugin_id: &str, instance: EditorInstanceId) {
     });
 }
 
-pub fn take_created(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-) -> Option<Result<Uuid, String>> {
+pub fn take_created(plugin_id: &str, instance: EditorInstanceId) -> Option<Result<Uuid, String>> {
     with(plugin_id, |runtime| {
         runtime.instances.take_created(instance)
     })
@@ -2188,11 +2172,7 @@ pub fn forward_region(
     });
 }
 
-pub fn pressed_outside_region(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-    region: EditorRegion,
-) {
+pub fn pressed_outside_region(plugin_id: &str, instance: EditorInstanceId, region: EditorRegion) {
     with(plugin_id, |runtime| {
         if runtime.instances.revoke_active(instance, region) {
             mark(plugin_id);

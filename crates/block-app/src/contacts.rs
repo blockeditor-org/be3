@@ -3,8 +3,8 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 use be_keys::{ContactCard, InviteCode};
 use uuid::Uuid;
 
-use block_app_stack::invite_link::InviteLink;
 use crate::ui::{ContactRow, ContactsView};
+use block_app_stack::invite_link::InviteLink;
 
 enum Reply {
     Link(Result<String, String>),
@@ -136,7 +136,10 @@ impl Contacts {
     }
 
     pub(crate) fn publish(&mut self) {
-        let seen = Some((block_app_stack::identity(), block_app_stack::contacts_revision()));
+        let seen = Some((
+            block_app_stack::identity(),
+            block_app_stack::contacts_revision(),
+        ));
         if self.published == seen {
             return;
         }

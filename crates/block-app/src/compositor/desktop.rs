@@ -243,7 +243,8 @@ pub(crate) fn apply() {
             WindowRequest::Open(open) => {
                 let size = vec2(open.size.width.max(1.0), open.size.height.max(1.0));
                 let held = find(&windows, open.window);
-                let panel = (block_app_base::host::opens_windows() && open.role != WindowRole::Overlay)
+                let panel = (block_app_base::host::opens_windows()
+                    && open.role != WindowRole::Overlay)
                     .then(|| Panel {
                         opened: open.placement.clone(),
                         role: open.role,

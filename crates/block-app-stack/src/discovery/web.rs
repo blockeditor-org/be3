@@ -1,7 +1,8 @@
 use super::Plugins;
 
 pub async fn load() {
-    let plugins = super::discover(|path| block_app_base::platform::http::get(path, Vec::new())).await;
+    let plugins =
+        super::discover(|path| block_app_base::platform::http::get(path, Vec::new())).await;
     super::install(plugins);
 }
 

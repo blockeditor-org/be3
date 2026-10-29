@@ -246,7 +246,8 @@ fn from_replica(instances: &mut Instances, block: Uuid) -> Vec<ToEditor> {
     let mut frames = Vec::new();
     instances.relay(|op, frame| {
         if Some(op) == replica {
-            frames.extend(block_app_stack::unframe(frame).and_then(|bytes| ToEditor::decode(&bytes)));
+            frames
+                .extend(block_app_stack::unframe(frame).and_then(|bytes| ToEditor::decode(&bytes)));
         }
         true
     });

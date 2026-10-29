@@ -1057,7 +1057,9 @@ impl Programs {
             .cloned()
         else {
             eprintln!("block-app: no program {key} is installed");
-            block_app_base::notices::report(format!("{key} could not be opened: it is not installed"));
+            block_app_base::notices::report(format!(
+                "{key} could not be opened: it is not installed"
+            ));
             return false;
         };
         if !running() {
@@ -1082,7 +1084,8 @@ pub fn frame() {
         block_app_base::watches::publish::<block_plugin_api::PowerWatch>(&available);
         available
     });
-    if let Some(action) = block_app_base::watches::take_calls(block_plugin_api::requested::power).pop()
+    if let Some(action) =
+        block_app_base::watches::take_calls(block_plugin_api::requested::power).pop()
         && available.allows(action)
     {
         request_power(action);

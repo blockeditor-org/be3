@@ -4,8 +4,8 @@ use beui::Vec2;
 use block_plugin_api::{EditorCapabilities, EditorRegion};
 use block_plugin_manifest::PluginManifest;
 
-use block_app_plugin_host::{InstanceStatus, RuntimeStatus, ScreenStatus};
 use crate::ui::{Line, LineStyle, PluginsView, RuntimeView};
+use block_app_plugin_host::{InstanceStatus, RuntimeStatus, ScreenStatus};
 
 fn push(lines: &mut Vec<Line>, style: LineStyle, indent: u8, text: impl Into<String>) {
     lines.push(Line {

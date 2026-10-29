@@ -7,8 +7,8 @@ use block_plugin_api::{Edits, TemplateCategory};
 use block_plugin_manifest::{EditorManifest, PluginManifest, ShellRequest};
 use uuid::Uuid;
 
-use block_app_plugin_host::PluginCatalog;
 use crate::surfaces::HostedRegion;
+use block_app_plugin_host::PluginCatalog;
 
 pub(crate) use self::plugin::PluginEditor;
 

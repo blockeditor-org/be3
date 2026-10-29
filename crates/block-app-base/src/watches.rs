@@ -56,7 +56,8 @@ pub fn published() -> Vec<(MethodId, Arc<Vec<u8>>)> {
 }
 
 pub fn watched<W: Watched>() -> bool {
-    HOST.with(Cell::get).is_some_and(|host| host.watched(W::OPEN))
+    HOST.with(Cell::get)
+        .is_some_and(|host| host.watched(W::OPEN))
 }
 
 pub fn take_calls<C>(accept: impl Fn(&Called) -> Option<C>) -> Vec<C> {

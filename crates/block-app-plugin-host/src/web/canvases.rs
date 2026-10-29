@@ -15,11 +15,7 @@ pub struct Placement {
     style: String,
 }
 
-pub fn placement(
-    blit: &Blit,
-    order: usize,
-    scale: f32,
-) -> Option<Placement> {
+pub fn placement(blit: &Blit, order: usize, scale: f32) -> Option<Placement> {
     let shared = blit.shared.borrow();
     let placement = shared.layout.placement(blit.screen)?;
     if placement.width == 0

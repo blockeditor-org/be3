@@ -11,7 +11,6 @@ use be_block::{
 use be_graph::BlockParent;
 use uuid::Uuid;
 
-
 pub(crate) const SESSION_TYPES: [(Uuid, &str); 2] = [
     (WORKSPACE_EDITOR, "Workspace UI"),
     (DESKTOP_EDITOR, "Desktop"),
@@ -164,7 +163,8 @@ impl RootSettings {
 
     fn created_files(&self) -> Option<Uuid> {
         self.created_files.filter(|block| {
-            block_app_stack::node(*block).is_none_or(|node| node.parent != Some(BlockParent::Detached))
+            block_app_stack::node(*block)
+                .is_none_or(|node| node.parent != Some(BlockParent::Detached))
         })
     }
 
@@ -172,7 +172,10 @@ impl RootSettings {
         if self.my_files().is_none()
             && block_app_stack::ready(block_app_stack::Query::Roots)
             && let Some((account, organization)) = block_app_stack::identity()
-            && block_app_stack::ready(block_app_stack::Query::Block(be_block::my_files(organization, account)))
+            && block_app_stack::ready(block_app_stack::Query::Block(be_block::my_files(
+                organization,
+                account,
+            )))
         {
             let block = be_block::my_files(organization, account);
             if let Some(deleted) = block_app_stack::node(block) {
@@ -257,10 +260,14 @@ impl RootSettings {
         let block = organization.map(organization_settings);
         block_app_stack::want(
             block_app_stack::Owner::Organization,
-            block.into_iter().map(block_app_stack::Query::Block).collect(),
+            block
+                .into_iter()
+                .map(block_app_stack::Query::Block)
+                .collect(),
         );
-        let held =
-            block.filter(|block| block_app_stack::node(*block).is_some_and(|node| node.access.can_view()));
+        let held = block.filter(|block| {
+            block_app_stack::node(*block).is_some_and(|node| node.access.can_view())
+        });
         let held = held.and_then(|block| {
             let mut cache = self.cache.borrow_mut();
             Cache::read(&mut cache.settings, block, Settings::CONTENT_TYPE, || {

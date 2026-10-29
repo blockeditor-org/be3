@@ -5,8 +5,8 @@ use be_block::be_model::Edit;
 use be_block::display_settings::DisplayMode;
 use be_block::{DisplaySettings, SettingsLayer};
 
-use block_app_base::app_state::{AppStateError, AppStateStore};
 use crate::local_settings::{LayerContents, LocalSettings};
+use block_app_base::app_state::{AppStateError, AppStateStore};
 
 mod guard;
 pub(crate) mod shown;

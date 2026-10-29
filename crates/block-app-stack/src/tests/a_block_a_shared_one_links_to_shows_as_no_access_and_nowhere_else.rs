@@ -93,8 +93,7 @@ fn a_block_a_shared_one_links_to_shows_as_no_access_and_nowhere_else() {
     );
     assert!(query(Query::Shared).iter().any(|node| node.id == shared));
 
-    let info =
-        block_editor_plugin::BlockInfo::decode(crate::plugin_graph::info_of(&node, false));
+    let info = block_editor_plugin::BlockInfo::decode(crate::plugin_graph::info_of(&node, false));
     assert!(info.no_access() && !info.locked);
     assert_eq!(info.reach(), block_editor_plugin::block_ui::Reach::NoAccess);
 }

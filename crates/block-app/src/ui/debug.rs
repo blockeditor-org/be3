@@ -1,8 +1,8 @@
 use beui::NodeId;
-use block_app_base::performance::PerformanceRow;
 use beui::Overflow;
 use beui::reactive::*;
 use beui::styled::*;
+use block_app_base::performance::PerformanceRow;
 use block_plugin_api::HostPanel;
 
 use super::{UiCommand, send};

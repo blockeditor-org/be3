@@ -4,7 +4,6 @@ use beui::reactive::*;
 use beui::{KeyChord, KeyEvent, KeyInput, Modifiers};
 use block_plugin_api::{EditorInstanceId, EditorRegion};
 
-
 pub(super) fn intercept_keys(
     plugin_id: Stored<String>,
     instance: EditorInstanceId,

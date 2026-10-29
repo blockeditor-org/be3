@@ -39,31 +39,31 @@ pub use instances::EditorView;
 pub use pieces::uncovered as uncovered_pieces;
 pub use presenter::Piece;
 pub use presenter::Pieces;
-pub use windows::{
-    forget_windows, is_overlay, request_windows, serve_overlays, take_window_requests,
-};
 #[cfg(target_arch = "wasm32")]
 pub use presenter::shown as shown_blits;
 #[cfg(target_arch = "wasm32")]
 pub use runtime::place_screens;
 pub use runtime::{
-    artifact, artifact_draft, aspect_ratio, assigned_size, busy, card, close,
-    commit_creation, crash, creation, dialog_status, dismiss, drawing, flush, forget_dialog_answer,
-    frame_child, frame_placement, frame_rects, hold, in_use, install, intrinsic_size, kill, menu,
-    menu_pick, picked, poll, present, presenting, preview_image,  reanchor, record_pacing,
-    regenerate_artifact, region_placement, region_size, replace_child, replace_gpu,
-    report_child_bars, report_child_focus, report_children, request_painting, resized,
-    revoke_frame_child, running, set_artifact_states, set_focus, set_presence_visible,
-    set_presented, set_shell, settle, show_block, show_dialog, show_panel, start_frames,
-    take_artifact_outcome, take_artifact_watch, take_bar_actions,  take_child_commits,
-    take_child_dismissals, take_child_menu_picks, take_crashed, take_created, take_focus_report,
-    take_leaving, take_steps, take_view_changes, warm,
-};
-pub use runtime::{
     RegionPlacement, RegionSlot, RegionView, back_region, drag_over_region, forward_region, frames,
     intercept_region, intercept_tap, mount_region, place_region, pressed_outside_region,
     region_damage, region_drawing, region_placed, region_published, region_view, take_block_drags,
     take_changed, take_focus_request, take_region_actions, unmount_region, unplace_region,
+};
+pub use runtime::{
+    artifact, artifact_draft, aspect_ratio, assigned_size, busy, card, close, commit_creation,
+    crash, creation, dialog_status, dismiss, drawing, flush, forget_dialog_answer, frame_child,
+    frame_placement, frame_rects, hold, in_use, install, intrinsic_size, kill, menu, menu_pick,
+    picked, poll, present, presenting, preview_image, reanchor, record_pacing, regenerate_artifact,
+    region_placement, region_size, replace_child, replace_gpu, report_child_bars,
+    report_child_focus, report_children, request_painting, resized, revoke_frame_child, running,
+    set_artifact_states, set_focus, set_presence_visible, set_presented, set_shell, settle,
+    show_block, show_dialog, show_panel, start_frames, take_artifact_outcome, take_artifact_watch,
+    take_bar_actions, take_child_commits, take_child_dismissals, take_child_menu_picks,
+    take_crashed, take_created, take_focus_report, take_leaving, take_steps, take_view_changes,
+    warm,
+};
+pub use windows::{
+    forget_windows, is_overlay, request_windows, serve_overlays, take_window_requests,
 };
 
 #[cfg(not(target_arch = "wasm32"))]

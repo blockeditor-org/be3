@@ -16,13 +16,13 @@ mod graph;
 pub mod invite_link;
 pub mod keys;
 pub mod link;
+mod nudge;
 pub mod offline_choice;
 pub mod plugin_graph;
-#[cfg(feature = "testing")]
-pub mod testing;
-mod nudge;
 mod replicas;
 pub mod revisions;
+#[cfg(feature = "testing")]
+pub mod testing;
 pub mod types;
 mod version;
 mod worker;
@@ -415,7 +415,11 @@ pub fn is_versioned(content_type: Uuid) -> bool {
 }
 
 pub fn operate(block: Uuid, operation: Vec<u8>) {
-    send(Command::Operate(block, operation, block_app_base::host::clock()));
+    send(Command::Operate(
+        block,
+        operation,
+        block_app_base::host::clock(),
+    ));
 }
 
 pub fn attach(block: Uuid, content_type: Uuid, editor: u64, editable: bool) {
@@ -775,10 +779,7 @@ pub fn backgrounded() {
 }
 
 #[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
-pub fn wait_for<T>(
-    timeout: std::time::Duration,
-    read: impl Fn(&Shared) -> Option<T>,
-) -> Option<T> {
+pub fn wait_for<T>(timeout: std::time::Duration, read: impl Fn(&Shared) -> Option<T>) -> Option<T> {
     let (shared, changed) = stack()
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
@@ -1105,10 +1106,7 @@ pub fn remove_member(account: Uuid, reply: MembersReply) {
     }));
 }
 
-pub async fn invite(
-    email: String,
-    role: be_protocol::OrganizationRole,
-) -> Result<String, String> {
+pub async fn invite(email: String, role: be_protocol::OrganizationRole) -> Result<String, String> {
     let (reply, made) = tokio::sync::oneshot::channel();
     send(Command::Invite {
         email,
@@ -1120,9 +1118,7 @@ pub async fn invite(
     made.await.unwrap_or_else(|_| Err(NOT_OPEN.to_owned()))
 }
 
-pub async fn create_agent(
-    name: String,
-) -> Result<crate::accounts::AgentCredentials, String> {
+pub async fn create_agent(name: String) -> Result<crate::accounts::AgentCredentials, String> {
     let (reply, made) = tokio::sync::oneshot::channel();
     send(Command::CreateAgent {
         name,
