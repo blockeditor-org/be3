@@ -157,7 +157,7 @@ pub(crate) fn release(root: Uuid) {
             shared.released_previews.push(*id);
         }
     });
-    crate::host::wake();
+    block_app_base::host::wake();
 }
 
 pub(crate) fn collect_released() {

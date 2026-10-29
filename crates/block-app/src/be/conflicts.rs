@@ -51,7 +51,7 @@ pub(crate) fn dismiss(block: Uuid) {
             shared.touch(block);
         }
     });
-    crate::host::wake();
+    block_app_base::host::wake();
 }
 
 pub(crate) fn comparing() -> Option<Comparison> {
@@ -82,7 +82,7 @@ pub(crate) fn compare(block: Uuid) {
             move |reply| previewed(block, side, reply),
         );
     }
-    crate::host::wake();
+    block_app_base::host::wake();
 }
 
 fn previewed(block: Uuid, side: Side, reply: super::revisions::Answered) {
@@ -108,7 +108,7 @@ fn previewed(block: Uuid, side: Side, reply: super::revisions::Answered) {
     if !kept && let Ok(preview) = shown {
         super::revisions::release(preview);
     }
-    crate::host::wake();
+    block_app_base::host::wake();
 }
 
 pub(crate) fn stop_comparing() {
@@ -155,7 +155,7 @@ pub(crate) fn keep(block: Uuid, side: Side) {
                         shared.stale_revision += 1;
                     }
                 });
-                crate::host::wake();
+                block_app_base::host::wake();
             }
             _ => {}
         },

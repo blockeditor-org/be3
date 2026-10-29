@@ -531,7 +531,7 @@ fn record_shown(id: u64, blits: &[Blit]) {
         moved
     });
     if moved {
-        crate::host::wake();
+        block_app_base::host::wake();
     }
 }
 
@@ -539,7 +539,7 @@ fn record_shown(id: u64, blits: &[Blit]) {
 impl Drop for RegionDrawing {
     fn drop(&mut self) {
         SHOWN.with(|shown| shown.borrow_mut().remove(&self.id));
-        crate::host::wake();
+        block_app_base::host::wake();
     }
 }
 

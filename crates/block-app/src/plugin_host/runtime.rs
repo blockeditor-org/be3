@@ -12,12 +12,12 @@ use block_plugin_api::{
     ArtifactDescription, BlockPick, ChildPlacements, ChildPreview, EditorInstanceId, EditorRegion,
     FrameCommit, FrameSpec, HostPanel, Opening, PresentedFrame, PreviewImage, RegionSize,
     ScreenDamage, ScreenId, ScreenLayout, ScreenPlacement, ScreenRequest, ScreenWindow,
-    SurfaceFormat, SurfaceSpec, ViewChange, Watched,
+    SurfaceFormat, SurfaceSpec, ViewChange,
 };
 use block_plugin_manifest::PluginManifest;
 use uuid::Uuid;
 
-use crate::host;
+use block_app_base::host;
 
 use super::{
     ArtifactSlot, ArtifactState, CreationSlot, CreationState, HostChild, HostChildStatus,
@@ -36,7 +36,7 @@ const UNIT: Rect = Rect::from_min_max(Pos2::ZERO, pos2(1.0, 1.0));
 const FRAME_TIMEOUT: Duration = Duration::from_secs(1);
 const FRAME_BUDGET: Duration = Duration::from_millis(8);
 const STOPPED_CLOCK_FRAME_BUDGET: Duration = Duration::from_secs(10);
-pub(crate) const PACING: &str = "Frame pacing";
+use block_app_base::performance::PACING;
 const REMEMBERED_PRESENTS: usize = 16;
 
 thread_local! {
@@ -59,13 +59,13 @@ struct Host {
     over_budget: u64,
     runtimes: HashMap<String, Runtime>,
     focus: Focus,
-    published: HashMap<block_plugin_api::ops::MethodId, Arc<Vec<u8>>>,
     shell: Option<(String, EditorInstanceId)>,
     grabbed: bool,
 }
 
 impl Host {
     fn new() -> Self {
+        block_app_base::watches::serve(&Watches);
         Self {
             availability: Availability::missing(),
             deadline: None,
@@ -73,7 +73,6 @@ impl Host {
             over_budget: 0,
             runtimes: HashMap::new(),
             focus: Focus::default(),
-            published: HashMap::new(),
             shell: None,
             grabbed: false,
         }
@@ -85,7 +84,6 @@ impl Host {
         }
         let surface = self.surface_for(&plugin.identity.id);
         let focus = self.focus.clone();
-        let published = &self.published;
         let shell = self
             .shell
             .as_ref()
@@ -96,8 +94,8 @@ impl Host {
             .entry(plugin.identity.id.clone())
             .or_insert_with(|| {
                 let mut runtime = Runtime::new(plugin, surface);
-                for (open, value) in published {
-                    runtime.instances.publish(*open, Arc::clone(value));
+                for (open, value) in block_app_base::watches::published() {
+                    runtime.instances.publish(open, value);
                 }
                 runtime.instances.set_shell(shell);
                 runtime
@@ -409,7 +407,7 @@ impl Runtime {
             self.preferences = preferences;
             messages.push(PluginCall::Preferences(preferences).into());
         }
-        let utc_offset = crate::platform::utc_offset();
+        let utc_offset = block_app_base::platform::utc_offset();
         if self.session.running() && self.utc_offset != Some(utc_offset) {
             self.utc_offset = Some(utc_offset);
             messages.push(PluginCall::UtcOffset(utc_offset).into());
@@ -611,7 +609,7 @@ impl Runtime {
     }
 
     fn contain<R: Default>(&mut self, act: impl FnOnce(&mut Self) -> R) -> R {
-        match crate::panic_guard::contain(|| act(self)) {
+        match block_app_base::panic_guard::contain(|| act(self)) {
             Ok(done) => done,
             Err(panic) => {
                 self.crashed(format!("The app failed while running it: {panic}"));
@@ -625,9 +623,9 @@ impl Runtime {
             return;
         }
         let first = error.lines().next().unwrap_or_default();
-        crate::notices::report_with(format!("{} stopped: {first}", self.name()), error.clone());
+        block_app_base::notices::report_with(format!("{} stopped: {first}", self.name()), error.clone());
         self.error = Some(error);
-        let _ = crate::panic_guard::contain(|| self.backend.shutdown());
+        let _ = block_app_base::panic_guard::contain(|| self.backend.shutdown());
         previews::forget(&self.plugin.identity.id);
         CRASHED.with(|crashed| crashed.borrow_mut().push(self.plugin.identity.id.clone()));
         crate::compositor::forget_windows(&self.plugin.identity.id);
@@ -720,7 +718,7 @@ impl Runtime {
                 ("GPU calls", took.gpu),
                 ("submit", took.submit),
             ] {
-                crate::performance::record_group_duration(
+                block_app_base::performance::record_group_duration(
                     PACING,
                     &format!("{id} {name}"),
                     duration,
@@ -736,7 +734,7 @@ impl Runtime {
                 frame.set_damage(self.presents.damage_through(frame.presents()));
                 self.shared.borrow_mut().publish(&self.layout, Some(frame));
                 self.frames += 1;
-                crate::performance::record_group_count(
+                block_app_base::performance::record_group_count(
                     PACING,
                     &format!("{} frames", self.plugin.identity.id),
                     self.frames,
@@ -1387,7 +1385,7 @@ pub(crate) fn poll() {
             .any(|runtime| runtime.instances.grabbing());
         if host.grabbed != grabbed {
             host.grabbed = grabbed;
-            crate::host::set_grab(grabbed);
+            block_app_base::host::set_grab(grabbed);
         }
     });
 }
@@ -1467,8 +1465,8 @@ pub(crate) fn record_pacing() {
         let mut host = host.borrow_mut();
         (std::mem::take(&mut host.waited), host.over_budget)
     });
-    crate::performance::record_group_duration(PACING, "Waiting on plugins", waited);
-    crate::performance::record_group_count(PACING, "Frames over budget", over_budget);
+    block_app_base::performance::record_group_duration(PACING, "Waiting on plugins", waited);
+    block_app_base::performance::record_group_count(PACING, "Frames over budget", over_budget);
 }
 
 pub(crate) fn flush() {
@@ -1495,51 +1493,41 @@ pub(crate) fn set_focus(block: Option<(Uuid, Uuid)>, via: Vec<Uuid>) {
     });
 }
 
-pub(crate) fn publish<W: Watched>(value: &W::Value) {
-    let bytes = block_plugin_api::ops::encode(value);
-    HOST.with(|host| {
-        let mut host = host.borrow_mut();
-        if host
-            .published
-            .get(&W::OPEN)
-            .is_some_and(|published| **published == bytes)
-        {
-            return;
-        }
-        let value = Arc::new(bytes);
-        host.published.insert(W::OPEN, Arc::clone(&value));
-        for (plugin_id, runtime) in &mut host.runtimes {
-            if runtime.instances.publish(W::OPEN, Arc::clone(&value)) {
-                runtime.pacing.needed = true;
-                mark(plugin_id);
-                host::request_repaint();
+struct Watches;
+
+impl block_app_base::watches::WatchHost for Watches {
+    fn published(&self, open: block_plugin_api::ops::MethodId, value: Arc<Vec<u8>>) {
+        HOST.with(|host| {
+            let mut host = host.borrow_mut();
+            for (plugin_id, runtime) in &mut host.runtimes {
+                if runtime.instances.publish(open, Arc::clone(&value)) {
+                    runtime.pacing.needed = true;
+                    mark(plugin_id);
+                    host::request_repaint();
+                }
             }
-        }
-    });
-}
+        });
+    }
 
-#[cfg(target_os = "linux")]
-pub(crate) fn watched<W: Watched>() -> bool {
-    HOST.with(|host| {
-        host.borrow()
-            .runtimes
-            .values()
-            .any(|runtime| runtime.instances.watches_published(W::OPEN))
-    })
-}
+    fn watched(&self, open: block_plugin_api::ops::MethodId) -> bool {
+        HOST.with(|host| {
+            host.borrow()
+                .runtimes
+                .values()
+                .any(|runtime| runtime.instances.watches_published(open))
+        })
+    }
 
-pub(crate) fn take_calls<C>(
-    accept: impl Fn(&block_plugin_api::ops::Called) -> Option<C>,
-) -> Vec<C> {
-    HOST.with(|host| {
-        let mut host = host.borrow_mut();
-        let mut runtimes: Vec<_> = host.runtimes.iter_mut().collect();
-        runtimes.sort_by_key(|(left, _)| *left);
-        runtimes
-            .into_iter()
-            .flat_map(|(_, runtime)| runtime.instances.take_calls(&accept))
-            .collect()
-    })
+    fn take_calls(&self, accept: &mut dyn FnMut(&block_plugin_api::ops::Called) -> bool) {
+        HOST.with(|host| {
+            let mut host = host.borrow_mut();
+            let mut runtimes: Vec<_> = host.runtimes.iter_mut().collect();
+            runtimes.sort_by_key(|(left, _)| *left);
+            for (_, runtime) in runtimes {
+                runtime.instances.take_calls(accept);
+            }
+        });
+    }
 }
 
 pub(crate) fn set_shell(shell: Option<(&str, EditorInstanceId)>) {

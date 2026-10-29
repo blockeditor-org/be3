@@ -74,10 +74,10 @@ pub(super) fn spawn(
     let channel = thread::spawn(
         Spawn {
             name: format!("plugin {}", plugin.identity.id),
-            wake: Arc::new(crate::host::wake),
+            wake: Arc::new(block_app_base::host::wake),
             waiting,
             interrupt: Box::new(move || interrupter.interrupt()),
-            contain: |run| crate::panic_guard::contain(run),
+            contain: |run| block_app_base::panic_guard::contain(run),
         },
         move |wake| {
             let plugin = host.load_from(&module, discovery::read)?;

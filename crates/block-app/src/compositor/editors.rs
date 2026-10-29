@@ -25,7 +25,7 @@ use crate::editors::plugin::{InstanceSource, PluginPicker};
 use crate::editors::{
     Chrome, EditorRegistry, PendingCreation, PluginEditor, editor_access_ceiling,
 };
-use crate::host::HostItem;
+use crate::surfaces::HostItem;
 use crate::plugin_host::{self, ChildCommit, EditorView, HostChild, HostChildStatus, HostContent};
 use crate::surfaces::{
     ConflictNotice, HostItemFace, HostedRegion, HostedSurface, StaleBlock, SurfaceId,
@@ -632,9 +632,9 @@ pub(crate) fn PresentingSurface() -> NodeId {
             <Layers>
                 <ForEach keys={keys}>|block: Uuid| {
                     provide_context(Nesting::root());
-                    crate::host::set_fullscreen(true);
+                    block_app_base::host::set_fullscreen(true);
                     on_cleanup(move || {
-                        crate::host::set_fullscreen(false);
+                        block_app_base::host::set_fullscreen(false);
                         editors.with(|open| {
                             if let Some(editor) = open.get_mut(&block) {
                                 editor.stop_presenting_now();
@@ -903,7 +903,7 @@ fn TabFrame(
             depth => stack[depth - 2],
         };
         revoke_frame_child(&editors, parent);
-        crate::host::request_repaint();
+        block_app_base::host::request_repaint();
     });
     provide_context(TabContext {
         stack,

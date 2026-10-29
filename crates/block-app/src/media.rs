@@ -60,7 +60,7 @@ pub(crate) struct Media {
 
 impl Media {
     pub(crate) fn start() -> Self {
-        let (sender, events) = crate::host::waking_channel();
+        let (sender, events) = block_app_base::host::waking_channel();
         let backends = Backends {
             audio: Rc::new(audio::PulseAudio::start(sender.clone())),
             backlight: Rc::new(backlight::LogindBacklight::start(sender)),

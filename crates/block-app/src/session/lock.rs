@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-pub(crate) use crate::password::Password;
+use block_app_base::password::Password;
 
 pub(crate) const FREE_ATTEMPTS: u32 = 3;
 pub(crate) const FIRST_WAIT: Duration = Duration::from_secs(5);

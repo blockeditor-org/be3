@@ -18,7 +18,7 @@ use block_plugin_api::{ChildId, EditorInstanceId, EditorRegion, FrameSpec};
 use block_plugin_manifest::PluginManifest;
 use uuid::Uuid;
 
-use crate::host::HostItem;
+use crate::surfaces::HostItem;
 use crate::plugin_host::{
     self, BlockDrag, EditorView, HostChild, InstanceRole, Piece, RegionPlacement, RegionSlot,
     RegionView,
@@ -1223,7 +1223,7 @@ fn Notices(loading: Memo<bool>, failure: Memo<Option<Failure>>, id: String) -> N
     let reloadable = create_memo(move || restart.get().is_some());
     let reload = move || {
         if let Some(plugin) = restart.get_untracked() {
-            crate::host::push_command(crate::host::HostCommand::RestartPlugin(plugin));
+            block_app_base::host::push_command(block_app_base::host::HostCommand::RestartPlugin(plugin));
         }
     };
     let loading_item = create_memo(|| HostItem::Notice {

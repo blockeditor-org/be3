@@ -8,7 +8,7 @@ async fn browser_approval_finishes_the_apps_login() {
         .register("browser@example.com", "Browser", "correct horse battery")
         .await
         .unwrap();
-    let server = crate::platform::start_embedded_server(directory.clone()).unwrap();
+    let server = crate::embedded_server::start_embedded_server(directory.clone()).unwrap();
     let url = server.url.clone();
     let auth = format!("{url}/auth");
     let (notify, notified) = tokio::sync::oneshot::channel();

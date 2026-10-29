@@ -9,7 +9,7 @@ use zbus::proxy::SignalStream;
 use zbus::zvariant::{OwnedFd, OwnedObjectPath};
 
 use super::power::{LogindAbilities, LogindCall};
-use crate::host::{WakingSender, waking_channel};
+use block_app_base::host::{WakingSender, waking_channel};
 
 const DESTINATION: &str = "org.freedesktop.login1";
 const PATH: &str = "/org/freedesktop/login1";

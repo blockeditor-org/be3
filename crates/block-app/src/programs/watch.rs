@@ -13,7 +13,7 @@ pub(crate) struct Watch {
 
 impl Watch {
     pub(crate) fn new() -> Self {
-        let (sender, touched) = crate::host::waking_channel();
+        let (sender, touched) = block_app_base::host::waking_channel();
         let watcher = notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
             if let Ok(event) = event
                 && (event.kind.is_modify() || event.kind.is_create())

@@ -12,7 +12,7 @@ thread_local! {
     static CONTAINING: Cell<u32> = const { Cell::new(0) };
 }
 
-pub(crate) fn install() {
+pub fn install() {
     std::panic::set_hook(Box::new(hook));
 }
 
@@ -39,20 +39,30 @@ fn hook(info: &std::panic::PanicHookInfo<'_>) {
     *lock(&LAST_PANIC) = Some(report);
 }
 
-pub(crate) fn contain<R>(run: impl FnOnce() -> R) -> Result<R, String> {
+pub fn contain<R>(run: impl FnOnce() -> R) -> Result<R, String> {
     CONTAINING.with(|depth| depth.set(depth.get() + 1));
     let ran = catch_unwind(AssertUnwindSafe(run));
     CONTAINING.with(|depth| depth.set(depth.get() - 1));
-    ran.map_err(|payload| beui_host::native::panic_message(&*payload))
+    ran.map_err(|payload| panic_message(&*payload))
 }
 
-#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
-pub(crate) fn summary(report: &str) -> &str {
+fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
+    match (
+        payload.downcast_ref::<&str>(),
+        payload.downcast_ref::<String>(),
+    ) {
+        (Some(message), _) => (*message).to_owned(),
+        (None, Some(message)) => message.clone(),
+        (None, None) => "a panic without a message".to_owned(),
+    }
+}
+
+pub fn summary(report: &str) -> &str {
     report.split("\n\n").next().unwrap_or(report)
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-pub(crate) fn report_in(data_dir: &std::path::Path) {
+pub fn report_in(data_dir: &std::path::Path) {
     let path = data_dir.join("last-panic.txt");
     if let Ok(report) = std::fs::read_to_string(&path) {
         lock(&PREVIOUS_PANIC).get_or_insert(report);
@@ -60,11 +70,11 @@ pub(crate) fn report_in(data_dir: &std::path::Path) {
     *lock(&REPORT_FILE) = Some(path);
 }
 
-pub(crate) fn take() -> Option<String> {
+pub fn take() -> Option<String> {
     lock(&LAST_PANIC).take()
 }
 
-pub(crate) fn take_previous() -> Option<String> {
+pub fn take_previous() -> Option<String> {
     let report = lock(&PREVIOUS_PANIC).take()?;
     forget();
     Some(report)
@@ -74,14 +84,14 @@ pub(crate) fn take_previous() -> Option<String> {
     any(not(target_os = "linux"), target_arch = "wasm32"),
     allow(dead_code, unused_variables)
 )]
-pub(crate) fn persist(report: &str) {
+pub fn persist(report: &str) {
     #[cfg(not(target_arch = "wasm32"))]
     if let Some(path) = &*lock(&REPORT_FILE) {
         let _ = std::fs::write(path, report);
     }
 }
 
-pub(crate) fn forget() {
+pub fn forget() {
     #[cfg(not(target_arch = "wasm32"))]
     if let Some(path) = &*lock(&REPORT_FILE) {
         let _ = std::fs::remove_file(path);
@@ -138,8 +148,7 @@ fn library_offset(line: &str) -> Option<String> {
     Some(format!("({name}+{:#x})", address - info.dli_fbase as usize))
 }
 
-#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
-pub(crate) async fn contain_task(
+pub async fn contain_task(
     task: impl std::future::Future<Output = ()>,
 ) -> Result<(), String> {
     let mut task = std::pin::pin!(task);

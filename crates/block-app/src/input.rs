@@ -1,6 +1,6 @@
 use be_block::InputSettings;
 
-use crate::app_state::{AppStateError, AppStateStore};
+use block_app_base::app_state::{AppStateError, AppStateStore};
 use crate::local_settings::LocalSettings;
 
 #[cfg(target_os = "linux")]

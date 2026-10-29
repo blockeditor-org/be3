@@ -70,7 +70,7 @@ fn a_block_another_build_saved_is_offered_for_reset_and_a_held_one_is_reset() {
     hold(held, CounterContent::CONTENT_TYPE);
     wait_for_count(held, 0);
     assert!(
-        crate::notices::shown()
+        block_app_base::notices::shown()
             .iter()
             .any(|notice| notice.message.contains("were reset")),
         "resetting a held block said nothing"

@@ -104,7 +104,7 @@ impl AppStateStore {
         }
     }
 
-    pub(crate) fn placeholder() -> Self {
+    pub fn placeholder() -> Self {
         Self::with_connection(Connection::open_in_memory().expect("in-memory sqlite always opens"))
             .ok()
             .expect("in-memory sqlite always initializes")
@@ -342,7 +342,6 @@ impl AppStateStore {
         Ok(content)
     }
 
-    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     pub fn set_remapper(&self, content: Option<&[u8]>) -> Result<(), AppStateError> {
         match content {
             Some(content) => self.connection.execute(

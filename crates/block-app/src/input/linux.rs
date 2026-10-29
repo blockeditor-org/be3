@@ -14,7 +14,7 @@ pub(crate) fn start(setup: &beui::native::Setup) {
     let control = setup.get::<InputControl>().cloned();
     if let Some(control) = &control {
         control.on_devices(|devices| {
-            crate::plugin_host::publish::<block_plugin_api::InputDevicesWatch>(
+            block_app_base::watches::publish::<block_plugin_api::InputDevicesWatch>(
                 &devices.iter().map(host_device).collect(),
             );
         });

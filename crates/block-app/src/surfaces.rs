@@ -9,12 +9,24 @@ use block_plugin_api::{
 use uuid::Uuid;
 
 use crate::compositor::{ChildView, PluginRegion, RegionEditor, ShellSurface};
-use crate::host::HostItem;
 use beui::{Align2, Direction};
 
 mod notices;
 
 pub(crate) use notices::{CrashNotice, StaleNotice};
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum HostItem {
+    Notice {
+        text: String,
+        busy: bool,
+        icon: Option<beui::icons::Glyph>,
+    },
+    Unsupported {
+        block: Uuid,
+        block_type: Uuid,
+    },
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub(crate) enum SurfaceId {

@@ -1844,6 +1844,7 @@ dependencies = [
  "beui-host",
  "beui-platform-drm",
  "block-accounts-ui",
+ "block-app-base",
  "block-editor-plugin",
  "block-guest-abi",
  "block-guest-host",
@@ -1895,6 +1896,31 @@ dependencies = [
  "workspace-ui-types",
  "zbus",
  "zip",
+]
+
+[[package]]
+name = "block-app-base"
+version = "0.1.0"
+dependencies = [
+ "be-protocol",
+ "block-plugin-api",
+ "build-id",
+ "jni 0.22.4",
+ "js-sys",
+ "libc",
+ "ndk-context",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sqlite-schema",
+ "tokio",
+ "ui-types",
+ "ureq",
+ "uuid",
+ "wasi-threads",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]

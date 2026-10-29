@@ -1,6 +1,6 @@
 use std::{future::Future, sync::mpsc::Receiver};
 
-pub(crate) fn spawn_request<T>(future: impl Future<Output = T> + 'static) -> Receiver<T>
+pub fn spawn_request<T>(future: impl Future<Output = T> + 'static) -> Receiver<T>
 where
     T: 'static,
 {

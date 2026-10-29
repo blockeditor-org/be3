@@ -5,7 +5,8 @@ use block_plugin_manifest::PluginManifest;
 
 use super::calls::{Heard, Outbound};
 use super::wire::Wire;
-use crate::{editors::plugin::discovery, host};
+use crate::editors::plugin::discovery;
+use block_app_base::host;
 use block_guest_host::Worker;
 pub(super) use block_guest_host::{Deadline, StepTime};
 

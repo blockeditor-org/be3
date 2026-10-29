@@ -26,7 +26,7 @@ impl be_types_host::Host for Shared {
     }
 
     fn wake() {
-        crate::host::wake();
+        block_app_base::host::wake();
     }
 
     fn record(shared: &Arc<Mutex<Self>>, error: ClientError) {
@@ -62,7 +62,7 @@ impl be_types_host::Host for Shared {
     }
 
     fn reset_notice() {
-        crate::notices::report(
+        block_app_base::notices::report(
             "Some of this device's settings were saved by another build of Block, so they were reset."
                 .to_owned(),
         );
@@ -210,7 +210,7 @@ fn to_editor(shared: &Arc<Mutex<Shared>>, block: Uuid, editor: EditorId, bytes: 
         .or_default()
         .push((block, frame(bytes)));
     drop(held);
-    crate::host::wake();
+    block_app_base::host::wake();
 }
 
 fn frame(mut bytes: Vec<u8>) -> Vec<u8> {

@@ -577,7 +577,7 @@ fn with<R>(act: impl FnOnce(&mut Docks) -> R) -> R {
         for plugin in changed {
             super::runtime::mark(&plugin);
         }
-        crate::host::request_repaint();
+        block_app_base::host::request_repaint();
     }
     result
 }

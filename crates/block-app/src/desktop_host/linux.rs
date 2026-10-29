@@ -80,7 +80,7 @@ pub(crate) fn start(setup: &Setup) {
         Ok(server) => server,
         Err(error) => {
             eprintln!("block-app: the Wayland server did not start: {error}");
-            crate::notices::report(format!(
+            block_app_base::notices::report(format!(
                 "Programs cannot be run, since the Wayland server did not start: {error}"
             ));
             return;
@@ -93,7 +93,7 @@ pub(crate) fn start(setup: &Setup) {
         }
     }
     let mut compositor = Compositor::new(server, windows);
-    compositor.on_failure(crate::notices::report);
+    compositor.on_failure(block_app_base::notices::report);
     let defaults = be_block::DisplaySettings::default();
     compositor.set_blank_after(defaults.screen_off().after());
     compositor.set_lock_after(defaults.lock_time());
@@ -280,7 +280,7 @@ pub(crate) fn revision() -> u64 {
 
 fn set_shown(window: HostWindowId, shown: bool) {
     if SHOWN.with(|kept| kept.borrow_mut().set(window, shown)) {
-        crate::host::wake();
+        block_app_base::host::wake();
     }
 }
 
@@ -356,7 +356,7 @@ pub(crate) fn close(window: HostWindowId) {
         windows.close(id);
         if let Some(dialog) = windows.blocked_by(id) {
             windows.activate(dialog);
-            crate::host::wake();
+            block_app_base::host::wake();
         }
     }
 }
@@ -364,14 +364,14 @@ pub(crate) fn close(window: HostWindowId) {
 pub(crate) fn fullscreen(window: HostWindowId, fullscreen: bool) {
     if let Some(windows) = windows() {
         windows.request_fullscreen(WindowId(window.0), fullscreen);
-        crate::host::wake();
+        block_app_base::host::wake();
     }
 }
 
 pub(crate) fn focus(window: HostWindowId) {
     if let Some(windows) = windows() {
         windows.activate(WindowId(window.0));
-        crate::host::wake();
+        block_app_base::host::wake();
     }
 }
 
@@ -380,7 +380,7 @@ pub(crate) fn launch(command: String) -> bool {
         return false;
     };
     windows.launch(command);
-    crate::host::wake();
+    block_app_base::host::wake();
     true
 }
 
@@ -396,7 +396,7 @@ pub(crate) fn exec(arguments: Vec<String>, launch: Option<u64>) -> bool {
         working_dir: None,
         tag: tag(None, launch, None),
     });
-    crate::host::wake();
+    block_app_base::host::wake();
     true
 }
 
@@ -439,7 +439,7 @@ impl Programs {
             self.rescan = Some(pixels);
             return;
         }
-        let (sender, receiver) = crate::host::waking_channel();
+        let (sender, receiver) = block_app_base::host::waking_channel();
         self.scanning = Some(receiver);
         let spawned = std::thread::Builder::new()
             .name("programs".to_owned())
@@ -585,7 +585,7 @@ impl Programs {
         let Some(entry) = self.entries.iter().find(|entry| entry.id == key) else {
             eprintln!("block-app: no program {key} is installed");
             let problem = format!("{key} could not be opened: it is not installed");
-            crate::notices::report(problem.clone());
+            block_app_base::notices::report(problem.clone());
             return Err(problem);
         };
         let path = file.map(|(path, _)| path.to_string_lossy().into_owned());
@@ -594,7 +594,7 @@ impl Programs {
             Err(error) => {
                 eprintln!("block-app: {} did not start: {error}", entry.name);
                 let problem = format!("{} did not start: {error}", entry.name);
-                crate::notices::report(problem.clone());
+                block_app_base::notices::report(problem.clone());
                 return Err(problem);
             }
         };
@@ -606,7 +606,7 @@ impl Programs {
             working_dir: entry.working_dir.clone(),
             tag: tag(Some(entry.id.clone()), launch, file.map(|(_, block)| block)),
         });
-        crate::host::wake();
+        block_app_base::host::wake();
         Ok(())
     }
 }

@@ -6,7 +6,7 @@ use counter_types::{Counter, CounterContent};
 use uuid::Uuid;
 
 use super::*;
-use crate::platform;
+use crate::embedded_server;
 
 mod a_block_a_shared_one_links_to_shows_as_no_access_and_nowhere_else;
 mod a_block_another_build_saved_is_offered_for_reset_and_a_held_one_is_reset;
@@ -164,7 +164,7 @@ const QUIET: Duration = Duration::from_secs(2);
 
 pub(crate) struct Harness {
     directory: PathBuf,
-    server: Option<platform::EmbeddedServer>,
+    server: Option<embedded_server::EmbeddedServer>,
     url: String,
     account: Uuid,
     token: String,
@@ -269,7 +269,7 @@ impl Harness {
             token,
         };
         let server =
-            platform::start_embedded_server_at("127.0.0.1:0", directory.join("server"), lease)
+            embedded_server::start_embedded_server_at("127.0.0.1:0", directory.join("server"), lease)
                 .expect("the embedded block server starts");
         let url = server.url.clone();
         let managed = url.clone();
@@ -311,7 +311,7 @@ impl Harness {
 
     fn start_server(&mut self, address: &str) {
         self.server = Some(
-            platform::start_embedded_server_at(address, self.directory.join("server"), self.lease)
+            embedded_server::start_embedded_server_at(address, self.directory.join("server"), self.lease)
                 .expect("the embedded block server starts again"),
         );
     }

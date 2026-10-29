@@ -9,7 +9,7 @@ use block_accounts_ui::{AccountDetails, Column, ErrorText};
 use uuid::Uuid;
 
 use super::{AccountForm, AppViewStore, ErrorAction, OrganizationsState, UiCommand, send};
-use crate::platform;
+use block_app_base::platform;
 use crate::root_settings::{SESSION_TYPES, session_type_name};
 use beui::{Align, Direction, ItemSize};
 

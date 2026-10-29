@@ -1,7 +1,7 @@
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 
-pub(crate) fn fetch(
+pub fn fetch(
     url: String,
     headers: Vec<(&'static str, String)>,
     aborted: super::Aborted,
@@ -30,7 +30,7 @@ fn describe(error: &JsValue) -> String {
         .unwrap_or_else(|| format!("{error:?}"))
 }
 
-pub(crate) async fn run(
+pub async fn run(
     url: String,
     headers: Vec<(&'static str, String)>,
 ) -> Result<Vec<u8>, String> {

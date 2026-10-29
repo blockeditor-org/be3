@@ -17,7 +17,7 @@ use zbus::zvariant::OwnedValue;
 
 use super::hints;
 use super::inbox::Ids;
-use crate::host::WakingSender;
+use block_app_base::host::WakingSender;
 
 const NAME: &str = "org.freedesktop.Notifications";
 const PATH: &str = "/org/freedesktop/Notifications";

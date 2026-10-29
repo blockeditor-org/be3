@@ -1,13 +1,12 @@
 #[derive(Clone)]
-pub(crate) struct Password(String);
+pub struct Password(String);
 
 impl Password {
-    pub(crate) fn new(typed: String) -> Self {
+    pub fn new(typed: String) -> Self {
         Self(typed)
     }
 
-    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
-    pub(crate) fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &str {
         &self.0
     }
 }

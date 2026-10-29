@@ -93,7 +93,7 @@ impl InputForwarder {
                 }
                 input => batch.push(TimedInput {
                     input,
-                    time_micros: time.map(crate::host::micros_at),
+                    time_micros: time.map(block_app_base::host::micros_at),
                     over: over.and_then(screen_of),
                 }),
             }

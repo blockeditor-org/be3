@@ -4,7 +4,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use zbus::Proxy;
 
 use super::{Backlight, MediaEvent};
-use crate::host::WakingSender;
+use block_app_base::host::WakingSender;
 
 const DEVICES: &str = "/sys/class/backlight";
 const DESTINATION: &str = "org.freedesktop.login1";

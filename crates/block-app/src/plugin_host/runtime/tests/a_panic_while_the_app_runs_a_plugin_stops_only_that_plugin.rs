@@ -55,23 +55,19 @@ fn a_panic_while_the_app_runs_a_plugin_stops_only_that_plugin() {
         Some(None),
         "the other plugin keeps running"
     );
-    let toast = crate::notices::shown()
+    let notice = block_app_base::notices::shown()
         .into_iter()
-        .find(|toast| {
-            toast.message
+        .find(|notice| {
+            notice.message
                 == "Crashing stopped: The app failed while running it: the host lost track of a screen"
         })
-        .expect("the crash is reported as a toast");
+        .expect("the crash is reported as a notice");
     assert!(
-        toast.danger
-            && toast
-                .actions
-                .iter()
-                .any(|action| action.key == crate::notices::COPY_REPORT),
-        "the toast is an error, which stays until dismissed, and offers its report to copy"
+        notice.report.is_some(),
+        "the notice offers its report to copy"
     );
     assert_eq!(
-        crate::notices::report_of(toast.id).as_deref(),
+        block_app_base::notices::report_of(notice.id).as_deref(),
         Some("The app failed while running it: the host lost track of a screen"),
         "the report is the plugin's whole error"
     );

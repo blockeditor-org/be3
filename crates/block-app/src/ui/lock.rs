@@ -11,7 +11,7 @@ use beui::{Key, NodeId};
 use block_plugin_api::PowerAction;
 
 use super::{AppViewStore, UiCommand, send};
-use crate::password::Password;
+use block_app_base::password::Password;
 use beui::{Align, Align2, Direction};
 
 const SECONDS_PER_MINUTE: u64 = 60;
@@ -44,7 +44,7 @@ fn clock() -> ReadSignal<DateTime> {
     let unix = beui::reactive::wall_clock;
     let shown = move || {
         let seconds =
-            i64::try_from(unix().as_secs()).unwrap_or(0) + i64::from(crate::platform::utc_offset());
+            i64::try_from(unix().as_secs()).unwrap_or(0) + i64::from(block_app_base::platform::utc_offset());
         DateTime::from_unix(seconds)
     };
     let until_next_minute = move || {

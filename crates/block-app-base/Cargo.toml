@@ -1,0 +1,48 @@
+[package]
+name = "block-app-base"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-protocol = { path = "../be-protocol" }
+block-plugin-api = { path = "../block-plugin-api" }
+build-id = { path = "../build-id" }
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sqlite-schema = { path = "../sqlite-schema" }
+ui-types = { path = "../ui-types" }
+uuid = { version = "1", features = ["serde", "v4", "v7"] }
+wasi-threads = { path = "../wasi-threads" }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio = { version = "1", features = ["rt", "rt-multi-thread"] }
+ureq = { version = "2", features = ["gzip"] }
+
+[target.'cfg(all(unix, not(target_os = "android"), not(target_arch = "wasm32")))'.dependencies]
+libc = "0.2"
+
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.22"
+libc = "0.2"
+ndk-context = "0.1"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+js-sys = "0.3"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = [
+    "AbortController",
+    "AbortSignal",
+    "Headers",
+    "Request",
+    "RequestInit",
+    "Response",
+    "Window",
+    "WorkerGlobalScope",
+    "console",
+] }
+
+[lints]
+workspace = true

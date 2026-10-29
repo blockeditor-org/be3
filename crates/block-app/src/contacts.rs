@@ -69,7 +69,7 @@ impl Contacts {
         self.link = None;
         crate::be::make_contact_link(None, move |made| {
             let _ = sender.send(Reply::Link(made));
-            crate::host::wake();
+            block_app_base::host::wake();
         });
     }
 
@@ -101,7 +101,7 @@ impl Contacts {
         self.error = None;
         crate::be::open_contact_link(link.code, move |opened| {
             let _ = sender.send(Reply::Opened(code, opened));
-            crate::host::wake();
+            block_app_base::host::wake();
         });
     }
 
@@ -113,7 +113,7 @@ impl Contacts {
         self.busy = true;
         crate::be::accept_contact_link(offered.code, move |accepted| {
             let _ = sender.send(Reply::Accepted(accepted));
-            crate::host::wake();
+            block_app_base::host::wake();
         });
     }
 
@@ -150,7 +150,7 @@ impl Contacts {
                 verified: contact.public.is_some(),
             })
             .collect();
-        crate::plugin_host::publish::<block_plugin_api::ContactsWatch>(&contacts);
+        block_app_base::watches::publish::<block_plugin_api::ContactsWatch>(&contacts);
     }
 
     pub(crate) fn poll(&mut self, base: &str, ready: bool) {

@@ -6,7 +6,7 @@ fn a_repeated_notice_carries_the_latest_report() {
     report_with(message.clone(), "the first crash".to_owned());
     report_with(message.clone(), "the second crash".to_owned());
 
-    let toasts: Vec<Toast> = shown()
+    let toasts: Vec<Notice> = shown()
         .into_iter()
         .filter(|toast| toast.message == message)
         .collect();

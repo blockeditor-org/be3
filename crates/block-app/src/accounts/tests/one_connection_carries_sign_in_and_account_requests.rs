@@ -3,7 +3,7 @@ use super::*;
 async fn one_connection_carries_sign_in_and_account_requests() {
     build_id::install("test");
     let directory = std::env::temp_dir().join(format!("block-app-one-link-{}", Uuid::new_v4()));
-    let server = crate::platform::start_embedded_server(directory.clone()).unwrap();
+    let server = crate::embedded_server::start_embedded_server(directory.clone()).unwrap();
     let target = server.url.split_once("://").unwrap().1.to_owned();
     let relay = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}", relay.local_addr().unwrap());

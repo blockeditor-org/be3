@@ -11,7 +11,7 @@ use std::sync::mpsc::Receiver;
 use block_plugin_api::{EditorDescriptor, Edits, HostWindowId, ProgramAction, ProgramsWatch};
 use uuid::Uuid;
 
-use crate::{desktop_host, plugin_host};
+use crate::desktop_host;
 
 use files::OnDisk;
 
@@ -47,7 +47,7 @@ fn set_editors(listed: Vec<EditorDescriptor>) {
     if held.1 != listed {
         held.0 += 1;
         held.1 = listed;
-        crate::host::wake();
+        block_app_base::host::wake();
     }
 }
 
@@ -225,7 +225,7 @@ pub(crate) struct Programs {
     offered: bool,
     listed_editors: bool,
     files: Option<PathBuf>,
-    read: (crate::host::WakingSender<Read>, Receiver<Read>),
+    read: (block_app_base::host::WakingSender<Read>, Receiver<Read>),
     #[cfg(target_os = "linux")]
     watch: Option<watch::Watch>,
 }
@@ -237,7 +237,7 @@ impl Default for Programs {
             offered: false,
             listed_editors: false,
             files: None,
-            read: crate::host::waking_channel(),
+            read: block_app_base::host::waking_channel(),
             #[cfg(target_os = "linux")]
             watch: None,
         }
@@ -251,7 +251,7 @@ impl Programs {
     }
 
     pub(crate) fn frame(&mut self) {
-        for action in plugin_host::take_calls(block_plugin_api::requested::program) {
+        for action in block_app_base::watches::take_calls(block_plugin_api::requested::program) {
             match action {
                 ProgramAction::List { icon_size } if desktop_host::running() => {
                     self.programs
@@ -275,7 +275,7 @@ impl Programs {
             self.programs.scan(WAITING_ICON_SIZE);
         }
         if self.programs.receive() || offering {
-            plugin_host::publish::<ProgramsWatch>(&self.programs.listed());
+            block_app_base::watches::publish::<ProgramsWatch>(&self.programs.listed());
         }
         if self.programs.scanned() && !self.listed_editors {
             self.listed_editors = true;

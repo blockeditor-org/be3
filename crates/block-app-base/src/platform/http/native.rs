@@ -2,7 +2,7 @@ use std::{io::Read, thread, time::Duration};
 
 const TIMEOUT: Duration = Duration::from_secs(30);
 
-pub(crate) fn fetch(
+pub fn fetch(
     url: String,
     headers: Vec<(&'static str, String)>,
     aborted: super::Aborted,

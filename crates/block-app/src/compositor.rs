@@ -77,7 +77,7 @@ pub(crate) fn any() -> ReadSignal<u64> {
 
 pub(crate) fn changed() {
     CHANGED.with(|changed| changed.set(true));
-    crate::host::request_repaint();
+    block_app_base::host::request_repaint();
 }
 
 pub(crate) fn listen(plugin_id: &str) -> ReadSignal<u64> {
@@ -120,7 +120,7 @@ pub(crate) fn notify() {
 pub(crate) fn notify_after_layout() {
     if notify_plugins() {
         OWED.with(|owed| owed.set(true));
-        crate::host::request_repaint();
+        block_app_base::host::request_repaint();
     }
 }
 
@@ -155,7 +155,7 @@ fn notify_plugins() -> bool {
 
 pub(crate) fn act(from: Option<uuid::Uuid>, action: EditorAction) {
     ACTIONS.with(|actions| actions.borrow_mut().push((from, action)));
-    crate::host::request_repaint();
+    block_app_base::host::request_repaint();
 }
 
 pub(crate) fn take_actions() -> Vec<(Option<uuid::Uuid>, EditorAction)> {

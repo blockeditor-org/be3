@@ -3,7 +3,7 @@ use beui::styled::*;
 use beui::{Align, Align2, Extent, NodeId, Rect, TextAlign};
 
 use super::win32_map::{OFF_SCREEN, SECURE_DESKTOP};
-use crate::host::HostItem;
+use crate::surfaces::HostItem;
 use crate::surfaces::HostItemFace;
 
 #[component]

@@ -100,7 +100,7 @@ fn watcher() -> Option<Arc<Watcher>> {
 
 fn changed() {
     CHANGES.set(CHANGES.get() + 1);
-    crate::host::wake();
+    block_app_base::host::wake();
 }
 
 fn snapshot() -> Arc<Snapshot> {
@@ -133,11 +133,11 @@ fn spawn() {
     if HOST.with_borrow(Option::is_some) {
         return;
     }
-    let watcher = match Watcher::spawn(crate::host::wake) {
+    let watcher = match Watcher::spawn(block_app_base::host::wake) {
         Ok(watcher) => Arc::new(watcher),
         Err(error) => {
             eprintln!("block-app: the Windows windows are not watched: {error}");
-            crate::notices::report(format!(
+            block_app_base::notices::report(format!(
                 "Windows' windows and displays cannot be shown, since watching them did not start: {error}"
             ));
             return;
@@ -171,7 +171,7 @@ fn hotkey_refused(error: &be_win32::HotkeyError) {
         "block-app: the shortcut back to Block, {}, was not registered: {error}",
         Hotkey::DEFAULT
     );
-    crate::notices::report(format!(
+    block_app_base::notices::report(format!(
         "{} cannot bring Block back from a Windows window: {error}",
         Hotkey::DEFAULT
     ));
@@ -242,7 +242,7 @@ fn device() -> Option<Device> {
                     })
                     .map_err(|error| {
                         eprintln!("block-app: Windows cannot be captured: {error}");
-                        crate::notices::report(format!(
+                        block_app_base::notices::report(format!(
                             "Windows' windows and displays cannot be drawn: {error}"
                         ));
                     })
@@ -256,7 +256,7 @@ fn device() -> Option<Device> {
 
 fn start_capture(target: Target) -> Result<Capture, String> {
     let device = device().ok_or_else(|| "there is no GPU to draw it with".to_owned())?;
-    Capture::start(&device, target, |_| crate::host::wake())
+    Capture::start(&device, target, |_| block_app_base::host::wake())
 }
 
 pub(crate) fn before(_context: &Context, rect: Rect, document: &mut Document) {
@@ -293,12 +293,12 @@ pub(crate) fn before(_context: &Context, rect: Rect, document: &mut Document) {
     });
     if newly_secure == Some(true) {
         eprintln!("block-app: Windows switched to the secure desktop");
-        crate::notices::report(win32_map::SECURE_DESKTOP.to_owned());
+        block_app_base::notices::report(win32_map::SECURE_DESKTOP.to_owned());
     }
     for event in &events {
         log_event(&snapshot, event);
         if *event == FocusEvent::HostForegroundRefused {
-            crate::notices::report(HOST_FOREGROUND_REFUSED.to_owned());
+            block_app_base::notices::report(HOST_FOREGROUND_REFUSED.to_owned());
         }
     }
     let frames = CAPTURES.with_borrow_mut(|captures| {
@@ -339,7 +339,7 @@ pub(crate) fn before(_context: &Context, rect: Rect, document: &mut Document) {
                     },
                 };
                 if let Some(notice) = notice {
-                    crate::notices::report(notice);
+                    block_app_base::notices::report(notice);
                 }
                 frames.extend(captured.users.iter().map(|(_, drawing)| (*drawing, None)));
                 return false;
@@ -547,7 +547,7 @@ fn spawn_launch(work: impl FnOnce() -> std::io::Result<be_win32::Launch> + Send 
             Ok(launch) => watcher.launched(launch),
             Err(error) => {
                 eprintln!("block-app: the program did not start: {error}");
-                crate::notices::report(format!("The program did not start: {error}"));
+                block_app_base::notices::report(format!("The program did not start: {error}"));
             }
         });
     if let Err(error) = spawned {
@@ -583,7 +583,7 @@ fn acquire(source: Source, drawing: Signal<Option<Drawing>>) -> Option<u64> {
         if let Some(captured) = captures.get_mut(&source) {
             captured.users.push((user, drawing));
             captured.drawn = 0;
-            crate::host::wake();
+            block_app_base::host::wake();
             return true;
         }
         false
@@ -621,7 +621,7 @@ fn acquire(source: Source, drawing: Signal<Option<Drawing>>) -> Option<u64> {
                 describe(target, &entry.title)
             );
             if DEVICE.with_borrow(Option::is_some) && matches!(source, Source::Entry(_)) {
-                crate::notices::report(format!(
+                block_app_base::notices::report(format!(
                     "{} cannot be drawn: {error}",
                     match entry.title.is_empty() {
                         true => "A window",
@@ -958,7 +958,7 @@ impl Programs {
             self.rescan = Some(pixels);
             return;
         }
-        let (sender, receiver) = crate::host::waking_channel();
+        let (sender, receiver) = block_app_base::host::waking_channel();
         self.scanning = Some(receiver);
         let spawned = std::thread::Builder::new()
             .name("programs".to_owned())
@@ -1057,7 +1057,7 @@ impl Programs {
             .cloned()
         else {
             eprintln!("block-app: no program {key} is installed");
-            crate::notices::report(format!("{key} could not be opened: it is not installed"));
+            block_app_base::notices::report(format!("{key} could not be opened: it is not installed"));
             return false;
         };
         if !running() {
@@ -1079,10 +1079,10 @@ pub(crate) fn frame() {
     let available = POWER.get().unwrap_or_else(|| {
         let available = win32_map::power_availability(be_win32::power_availability());
         POWER.set(Some(available));
-        crate::plugin_host::publish::<block_plugin_api::PowerWatch>(&available);
+        block_app_base::watches::publish::<block_plugin_api::PowerWatch>(&available);
         available
     });
-    if let Some(action) = crate::plugin_host::take_calls(block_plugin_api::requested::power).pop()
+    if let Some(action) = block_app_base::watches::take_calls(block_plugin_api::requested::power).pop()
         && available.allows(action)
     {
         request_power(action);
@@ -1096,7 +1096,7 @@ fn request_power(action: block_plugin_api::PowerAction) {
         .spawn(move || {
             if let Err(error) = be_win32::request_power(action) {
                 eprintln!("block-app: Windows did not {action:?}: {error}");
-                crate::notices::report(format!("Windows refused to {action:?}: {error}"));
+                block_app_base::notices::report(format!("Windows refused to {action:?}: {error}"));
             }
         });
     if let Err(error) = spawned {

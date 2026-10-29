@@ -1,27 +1,6 @@
-use std::{
-    error::Error, future::Future, net::TcpListener as StdTcpListener, path::PathBuf,
-    sync::mpsc::Receiver, thread,
-};
+use std::{error::Error, net::TcpListener as StdTcpListener, path::PathBuf, thread};
 
 use tokio::net::TcpListener;
-
-pub(crate) fn spawn_request<T>(future: impl Future<Output = T> + Send + 'static) -> Receiver<T>
-where
-    T: Send + 'static,
-{
-    let (sender, receiver) = crate::host::waking_channel();
-    thread::Builder::new()
-        .name("block-app-request".into())
-        .spawn(move || {
-            let result = match tokio::runtime::Runtime::new() {
-                Ok(runtime) => runtime.block_on(future),
-                Err(error) => panic!("failed to start a request runtime: {error}"),
-            };
-            let _ = sender.send(result);
-        })
-        .unwrap_or_else(|error| panic!("failed to start request: {error}"));
-    receiver
-}
 
 pub(crate) struct EmbeddedServer {
     pub(crate) url: String,

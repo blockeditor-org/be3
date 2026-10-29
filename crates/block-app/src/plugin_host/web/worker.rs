@@ -306,7 +306,7 @@ fn listen(
         let event = match kind.as_str() {
             "wake" => {
                 inbox.borrow_mut().woken = true;
-                crate::host::wake();
+                block_app_base::host::wake();
                 return;
             }
             "ready" => Event::Ready(produced(&data)),
@@ -324,7 +324,7 @@ fn listen(
         held.events.push_back(event);
         drop(held);
         if block_guest_host::wakes(quiet, &waiting) {
-            crate::host::wake();
+            block_app_base::host::wake();
         }
     }) as Box<dyn FnMut(web_sys::MessageEvent)>);
     worker.set_onmessage(Some(onmessage.as_ref().unchecked_ref()));

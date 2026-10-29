@@ -1,4 +1,4 @@
-pub(crate) fn open_browser(url: &str) -> Result<(), String> {
+pub fn open_browser(url: &str) -> Result<(), String> {
     if !url.starts_with("https://") && !url.starts_with("http://") {
         return Err("The browser link must use HTTP or HTTPS.".into());
     }

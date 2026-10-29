@@ -23,7 +23,7 @@ pub(crate) struct Wifi {
 
 impl Wifi {
     pub(crate) fn start() -> Self {
-        let (sender, reports) = crate::host::waking_channel();
+        let (sender, reports) = block_app_base::host::waking_channel();
         let backend = network_manager::NetworkManager::start(sender);
         Self::with(Rc::new(backend), reports)
     }

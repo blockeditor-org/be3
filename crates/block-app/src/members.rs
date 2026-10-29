@@ -34,7 +34,7 @@ impl Members {
         let sender = self.replies.0.clone();
         Box::new(move |reply| {
             let _ = sender.send(reply);
-            crate::host::wake();
+            block_app_base::host::wake();
         })
     }
 

@@ -49,20 +49,20 @@ fn host_calls_are_taken_by_kind_in_the_order_they_came() {
     ));
 
     assert_eq!(
-        instances.take_calls(&requested::media),
+        take(&mut instances, requested::media),
         media.to_vec(),
         "each kind of call is taken by its own reader, in the order it was made"
     );
-    assert!(instances.take_calls(&requested::media).is_empty());
+    assert!(take(&mut instances, requested::media).is_empty());
     assert_eq!(
-        instances.take_calls(&requested::power),
+        take(&mut instances, requested::power),
         vec![PowerAction::Suspend]
     );
     assert_eq!(
-        instances.take_calls(&requested::notification_report),
+        take(&mut instances, requested::notification_report),
         vec![notification]
     );
-    assert_eq!(instances.take_calls(&requested::window), vec![close]);
+    assert_eq!(take(&mut instances, requested::window), vec![close]);
 
     while host_call::<MediaWatch, _>(&mut instances, "request", &MediaRequest::ToggleMute) {}
     let focus = WindowAction::Focus(HostWindowId(4));
@@ -70,10 +70,25 @@ fn host_calls_are_taken_by_kind_in_the_order_they_came() {
         host_call::<WindowsWatch, _>(&mut instances, "request", &focus),
         "a full queue of one kind of call leaves room for the others"
     );
-    assert_eq!(instances.take_calls(&requested::window), vec![focus]);
+    assert_eq!(take(&mut instances, requested::window), vec![focus]);
     assert_eq!(
-        instances.take_calls(&requested::media).len(),
+        take(&mut instances, requested::media).len(),
         crate::plugin_host::published::MAX_CALLS,
         "calls nobody takes are held only up to a limit"
     );
+}
+
+fn take<C>(
+    instances: &mut Instances,
+    accept: impl Fn(&block_plugin_api::ops::Called) -> Option<C>,
+) -> Vec<C> {
+    let mut taken = Vec::new();
+    instances.take_calls(&mut |called| match accept(called) {
+        Some(call) => {
+            taken.push(call);
+            true
+        }
+        None => false,
+    });
+    taken
 }

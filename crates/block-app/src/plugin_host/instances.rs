@@ -29,7 +29,7 @@ use super::{
     published::{Published, Watched},
     sent::Sent,
 };
-use crate::{host, performance};
+use block_app_base::{host, performance};
 
 mod services;
 
@@ -3001,21 +3001,17 @@ impl Instances {
             .any(|(instance, entry)| entry.published.watches(open, self.shell == Some(*instance)))
     }
 
-    pub(super) fn take_calls<C>(
+    pub(super) fn take_calls(
         &mut self,
-        accept: &impl Fn(&block_plugin_api::ops::Called) -> Option<C>,
-    ) -> Vec<C> {
+        accept: &mut dyn FnMut(&block_plugin_api::ops::Called) -> bool,
+    ) {
         let mut instances: Vec<_> = self.entries.keys().copied().collect();
         instances.sort_by_key(|instance| instance.0);
-        instances
-            .into_iter()
-            .flat_map(|instance| {
-                self.entries
-                    .get_mut(&instance)
-                    .map(|entry| entry.published.take_calls(accept))
-                    .unwrap_or_default()
-            })
-            .collect()
+        for instance in instances {
+            if let Some(entry) = self.entries.get_mut(&instance) {
+                entry.published.take_calls(accept);
+            }
+        }
     }
 
     pub(super) fn set_shell(&mut self, shell: Option<EditorInstanceId>) -> bool {

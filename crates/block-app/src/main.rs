@@ -1,6 +1,5 @@
 use reactive::Set;
 mod accounts;
-mod app_state;
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
 mod arguments;
 mod be;
@@ -12,7 +11,9 @@ mod debug;
 mod desktop_host;
 mod display;
 mod editors;
-mod host;
+#[cfg(not(target_arch = "wasm32"))]
+mod embedded_server;
+mod frame;
 mod input;
 mod invite_link;
 mod keys;
@@ -21,14 +22,9 @@ mod local_settings;
 #[cfg(target_os = "linux")]
 mod media;
 mod members;
-mod notices;
 #[cfg(target_os = "linux")]
 mod notifications;
 mod offline_choice;
-mod panic_guard;
-mod password;
-mod performance;
-mod platform;
 mod plugin_host;
 mod programs;
 mod remap;
@@ -55,6 +51,7 @@ use std::{
 use std::path::Path;
 
 use accounts::{AccountError, Session};
+use block_app_base::{app_state, host, notices, panic_guard, performance, platform};
 use app_state::{AppStateStore, SavedAccount, ServerLocation};
 use be_block::{DisplaySettings, InputSettings, Root, WORKSPACE_EDITOR};
 use be_graph::{Access, BlockParent};
@@ -334,7 +331,8 @@ impl Shell {
 
 impl beui::native::App for Shell {
     fn setup(&mut self, setup: &beui::native::Setup) {
-        host::install_waker(setup.waker.clone());
+        let waker = setup.waker.clone();
+        host::install_waker(move || waker.wake());
         plugin_host::install(setup);
         desktop_host::start(setup);
         input::start(setup);
@@ -364,7 +362,7 @@ impl beui::native::App for Shell {
 
     fn update(&mut self, context: &beui::native::Context, rect: beui::Rect) {
         let started = std::time::Instant::now();
-        host::begin(context);
+        frame::begin(context);
         if context.hurried() {
             be::seal_owed();
         }
@@ -424,8 +422,17 @@ impl beui::native::App for Shell {
             }
             context.request_repaint();
         }
-        host::end(context);
-        performance::record_update(started, &self.document.performance().latest.timings);
+        frame::end(context);
+        let timings = self.document.performance().latest.timings;
+        performance::record_update(
+            started,
+            &performance::UpdateTimings {
+                interaction: timings.interaction,
+                layout: timings.layout,
+                paint: timings.paint,
+                accessibility: timings.accessibility,
+            },
+        );
         plugin_host::record_pacing();
     }
 
@@ -558,7 +565,7 @@ struct BlockApp {
     allow_close: bool,
     data_dir: PathBuf,
     #[cfg(not(target_arch = "wasm32"))]
-    embedded_server: Option<platform::EmbeddedServer>,
+    embedded_server: Option<embedded_server::EmbeddedServer>,
     error: Option<String>,
     pending_error_action: Option<ErrorAction>,
     inspector_requested: Option<bool>,
@@ -691,7 +698,7 @@ impl BlockApp {
         forget_caches_of_other_builds(&data_dir)?;
         panic_guard::report_in(&data_dir);
         plugin_host::cache_in(data_dir.join("plugin-cache"));
-        let embedded_server = platform::start_embedded_server(data_dir.join("server"))?;
+        let embedded_server = embedded_server::start_embedded_server(data_dir.join("server"))?;
         let url = embedded_server.url.clone();
         let app_state = AppStateStore::open(data_dir.join("app.sqlite3"))?;
         let mut app = Self::with_state(app_state, url)?;
@@ -871,7 +878,7 @@ impl BlockApp {
 
     #[cfg(target_os = "linux")]
     fn take_power_request(&mut self) {
-        let request = plugin_host::take_calls(block_plugin_api::requested::power).pop();
+        let request = block_app_base::watches::take_calls(block_plugin_api::requested::power).pop();
         if let Some(action) = request
             && self
                 .published_power
@@ -916,7 +923,7 @@ impl BlockApp {
         let locked = lock.locked();
         desktop_host::set_locked(locked);
         remap::set_locked(locked);
-        plugin_host::publish::<block_plugin_api::ScreenLockedWatch>(&locked);
+        block_app_base::watches::publish::<block_plugin_api::ScreenLockedWatch>(&locked);
         if locked {
             self.app_menu = None;
         }
@@ -928,7 +935,7 @@ impl BlockApp {
         availability.lock = !locked;
         if self.published_power != Some(availability) {
             self.published_power = Some(availability);
-            plugin_host::publish::<block_plugin_api::PowerWatch>(&availability);
+            block_app_base::watches::publish::<block_plugin_api::PowerWatch>(&availability);
         }
     }
 
@@ -962,12 +969,12 @@ impl BlockApp {
 
     #[cfg(target_os = "linux")]
     fn run_media(&mut self) {
-        let requests = plugin_host::take_calls(block_plugin_api::requested::media);
+        let requests = block_app_base::watches::take_calls(block_plugin_api::requested::media);
         if self.media.is_none()
-            && (!requests.is_empty() || plugin_host::watched::<block_plugin_api::MediaWatch>())
+            && (!requests.is_empty() || block_app_base::watches::watched::<block_plugin_api::MediaWatch>())
         {
             self.media = Some(media::Media::start());
-            plugin_host::publish::<block_plugin_api::MediaWatch>(
+            block_app_base::watches::publish::<block_plugin_api::MediaWatch>(
                 &block_plugin_api::MediaLevels::default(),
             );
         }
@@ -978,18 +985,18 @@ impl BlockApp {
             media.request(request);
         }
         if let Some(levels) = media.frame() {
-            plugin_host::publish::<block_plugin_api::MediaWatch>(&levels);
+            block_app_base::watches::publish::<block_plugin_api::MediaWatch>(&levels);
         }
     }
 
     #[cfg(target_os = "linux")]
     fn run_wifi(&mut self) {
-        let requests = plugin_host::take_calls(block_plugin_api::requested::wifi);
+        let requests = block_app_base::watches::take_calls(block_plugin_api::requested::wifi);
         if self.wifi.is_none()
-            && (!requests.is_empty() || plugin_host::watched::<block_plugin_api::WifiWatch>())
+            && (!requests.is_empty() || block_app_base::watches::watched::<block_plugin_api::WifiWatch>())
         {
             self.wifi = Some(wifi::Wifi::start());
-            plugin_host::publish::<block_plugin_api::WifiWatch>(
+            block_app_base::watches::publish::<block_plugin_api::WifiWatch>(
                 &block_plugin_api::WifiStatus::default(),
             );
         }
@@ -1000,7 +1007,7 @@ impl BlockApp {
             wifi.request(request);
         }
         if let Some(status) = wifi.frame() {
-            plugin_host::publish::<block_plugin_api::WifiWatch>(&status);
+            block_app_base::watches::publish::<block_plugin_api::WifiWatch>(&status);
         }
     }
 
@@ -2278,10 +2285,10 @@ impl BlockApp {
         }
         let hidden = programs::bound_windows();
         if Some((desktop_host::revision(), hidden.clone())) != self.windows_sent {
-            plugin_host::publish::<block_plugin_api::WindowsWatch>(&desktop_host::listed(&hidden));
+            block_app_base::watches::publish::<block_plugin_api::WindowsWatch>(&desktop_host::listed(&hidden));
             self.windows_sent = Some((desktop_host::revision(), hidden));
         }
-        for action in plugin_host::take_calls(block_plugin_api::requested::window) {
+        for action in block_app_base::watches::take_calls(block_plugin_api::requested::window) {
             match action {
                 block_plugin_api::WindowAction::Focus(window) => desktop_host::focus(window),
                 block_plugin_api::WindowAction::Close(window) => desktop_host::close(window),
@@ -2838,7 +2845,7 @@ impl BlockApp {
         } else {
             accounts::link_base(&self.server_url)
         };
-        plugin_host::publish::<block_plugin_api::LinkBaseWatch>(&link_base);
+        block_app_base::watches::publish::<block_plugin_api::LinkBaseWatch>(&link_base);
         self.publish_administrator();
         be::start(be::Config {
             server_url: self.server_url.clone(),
@@ -2854,7 +2861,7 @@ impl BlockApp {
     }
 
     fn publish_administrator(&self) {
-        plugin_host::publish::<block_plugin_api::AdministratorWatch>(
+        block_app_base::watches::publish::<block_plugin_api::AdministratorWatch>(
             &self.organization.as_ref().is_some_and(|organization| {
                 organization.kind == be_protocol::OrganizationKind::Company
                     && organization.role == OrganizationRole::Administrator
@@ -3398,7 +3405,7 @@ impl BlockApp {
                 .editors
                 .with(|open| open.values().any(PluginEditor::presenting_now)),
             debug: debug::view(),
-            toasts: notices::shown(),
+            toasts: ui::notice_toasts(),
             keep_display: self.display_round,
             #[cfg(target_os = "linux")]
             lock: self.lock_view(),

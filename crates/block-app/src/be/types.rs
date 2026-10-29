@@ -160,7 +160,7 @@ async fn staged_tag(module: &str) -> Result<block_type_api::SessionTag, String> 
     #[cfg(not(target_arch = "wasm32"))]
     let read = crate::editors::plugin::discovery::read(&name);
     #[cfg(target_arch = "wasm32")]
-    let read = crate::platform::http::get(name.clone(), Vec::new()).await;
+    let read = block_app_base::platform::http::get(name.clone(), Vec::new()).await;
     let hex = String::from_utf8(read?).map_err(|error| error.to_string())?;
     let hash = be_store::Hash::from_hex(hex.trim()).ok_or(format!("{name} holds no hash"))?;
     Ok(block_type_api::SessionTag(*hash.as_bytes()))

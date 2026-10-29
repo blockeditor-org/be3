@@ -16,9 +16,9 @@ use super::{
     ArtifactSession, ArtifactStatus, DirectEditorCapabilities, DirectEditorInteraction,
     DirectEditorResize, EditorRegistry, FocusReport, PendingCreation,
 };
+use block_app_base::host;
 use crate::{
     compositor::RegionEditor,
-    host,
     plugin_host::{
         ArtifactSlot, ArtifactState, CreationSlot, CreationState, EditorBlock, InstanceRole,
     },

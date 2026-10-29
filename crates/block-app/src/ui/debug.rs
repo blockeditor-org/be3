@@ -1,4 +1,5 @@
 use beui::NodeId;
+use block_app_base::performance::PerformanceRow;
 use beui::Overflow;
 use beui::reactive::*;
 use beui::styled::*;
@@ -27,15 +28,6 @@ pub(crate) struct Line {
     pub(crate) text: String,
     pub(crate) style: LineStyle,
     pub(crate) indent: u8,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct PerformanceRow {
-    pub(crate) heading: bool,
-    pub(crate) name: String,
-    pub(crate) current: String,
-    pub(crate) average: String,
-    pub(crate) peak: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]

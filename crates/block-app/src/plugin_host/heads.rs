@@ -4,7 +4,7 @@ use be_commit::CommitId;
 use block_plugin_api::{EditorInstanceId, StoredHead};
 use uuid::Uuid;
 
-use crate::host;
+use block_app_base::host;
 
 pub(super) type Head = Result<Option<StoredHead>, String>;
 

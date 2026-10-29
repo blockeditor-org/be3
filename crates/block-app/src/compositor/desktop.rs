@@ -148,12 +148,12 @@ pub(crate) fn request(plugin: &str, requests: Vec<WindowRequest>) {
                 .map(|request| (plugin.to_owned(), request)),
         )
     });
-    crate::host::request_repaint();
+    block_app_base::host::request_repaint();
 }
 
 pub(crate) fn forget(plugin: &str) {
     FORGOTTEN.with(|forgotten| forgotten.borrow_mut().push(plugin.to_owned()));
-    crate::host::request_repaint();
+    block_app_base::host::request_repaint();
 }
 
 pub(crate) fn note_origin(
@@ -264,7 +264,7 @@ pub(crate) fn apply() {
             WindowRequest::Open(open) => {
                 let size = vec2(open.size.width.max(1.0), open.size.height.max(1.0));
                 let held = find(&windows, open.window);
-                let panel = (crate::host::opens_windows() && open.role != WindowRole::Overlay)
+                let panel = (block_app_base::host::opens_windows() && open.role != WindowRole::Overlay)
                     .then(|| Panel {
                         opened: open.placement.clone(),
                         role: open.role,

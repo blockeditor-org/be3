@@ -24,8 +24,8 @@ pub(crate) fn spawn(task: impl Future<Output = ()> + Send + 'static) {
     });
     EXECUTOR
         .spawn(async move {
-            if let Err(panic) = crate::panic_guard::contain_task(task).await {
-                crate::notices::report(format!("A part of the desktop stopped: {panic}"));
+            if let Err(panic) = block_app_base::panic_guard::contain_task(task).await {
+                block_app_base::notices::report(format!("A part of the desktop stopped: {panic}"));
             }
         })
         .detach();

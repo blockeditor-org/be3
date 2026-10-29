@@ -19,7 +19,7 @@ pub(crate) struct Notifications {
 
 impl Notifications {
     pub(crate) fn start() -> Self {
-        let (sender, requests) = crate::host::waking_channel();
+        let (sender, requests) = block_app_base::host::waking_channel();
         let (signals, heard) = unbounded_channel();
         let ids = Arc::new(Mutex::new(Ids::default()));
         crate::dbus::spawn(server::run(sender, heard, Arc::clone(&ids)));
@@ -33,13 +33,13 @@ impl Notifications {
 
     pub(crate) fn frame(&mut self) {
         let reports =
-            crate::plugin_host::take_calls(block_plugin_api::requested::notification_report);
+            block_app_base::watches::take_calls(block_plugin_api::requested::notification_report);
         let (changed, signals) = self.inbox.frame(&self.requests, reports);
         for signal in signals {
             let _ = self.signals.send(signal);
         }
         if changed || !std::mem::replace(&mut self.offered, true) {
-            crate::plugin_host::publish::<block_plugin_api::NotificationsWatch>(
+            block_app_base::watches::publish::<block_plugin_api::NotificationsWatch>(
                 &self.inbox.published(),
             );
         }

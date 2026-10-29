@@ -2,7 +2,7 @@ use be_block::be_model::{Document, Edit};
 use be_block::{BlockContent, Layered, Layers, LiveEdit, Root, SettingsLayer, layered};
 use uuid::Uuid;
 
-use crate::app_state::{AppStateError, AppStateStore};
+use block_app_base::app_state::{AppStateError, AppStateStore};
 use crate::be;
 
 pub(crate) trait LocalSettings: Root + Clone + Default + PartialEq {

@@ -13,7 +13,7 @@ use beui_platform_drm::{InputControl, InputFilter, RawInput};
 use block_plugin_api::{RemapState, RemapsWatch};
 use uuid::Uuid;
 
-use crate::app_state::AppStateStore;
+use block_app_base::app_state::AppStateStore;
 use crate::editors::plugin::discovery;
 use loader::{Loader, Step, Wanted};
 
@@ -91,7 +91,7 @@ impl Filter {
             .map(Remapper::take_problems)
             .unwrap_or_default();
         for problem in problems {
-            crate::notices::report(problem);
+            block_app_base::notices::report(problem);
         }
     }
 }
@@ -187,7 +187,7 @@ pub(crate) fn frame(store: &AppStateStore) {
         (state.published != Some(value)).then_some(value)
     });
     if let Some(value) = shown {
-        crate::plugin_host::publish::<RemapsWatch>(&value);
+        block_app_base::watches::publish::<RemapsWatch>(&value);
         STATE.with_borrow_mut(|state| state.published = Some(value));
     }
 }
@@ -247,7 +247,7 @@ fn want(wanted: Option<Wanted>) {
 
 fn fetch(plugin: String, module: String) {
     if !offers_remapper(&plugin) {
-        crate::notices::report(format!(
+        block_app_base::notices::report(format!(
             "The input remaps name {plugin}, which is not a plugin that remaps input here."
         ));
         return;
@@ -258,7 +258,7 @@ fn fetch(plugin: String, module: String) {
         if let Ok(mut slot) = fetched.lock() {
             *slot = Some((plugin, module, read));
         }
-        crate::host::wake();
+        block_app_base::host::wake();
     });
 }
 
@@ -282,7 +282,7 @@ fn take_fetched() {
     let bytes = match read {
         Ok(bytes) => bytes,
         Err(error) => {
-            crate::notices::report(format!("The input remapper could not be read: {error}"));
+            block_app_base::notices::report(format!("The input remapper could not be read: {error}"));
             return;
         }
     };
@@ -312,7 +312,7 @@ fn install(wanted: &Wanted, module: &[u8]) -> bool {
     let mut remapper = match Remapper::new(module) {
         Ok(remapper) => remapper,
         Err(error) => {
-            crate::notices::report(format!("The input remapper could not be loaded: {error}"));
+            block_app_base::notices::report(format!("The input remapper could not be loaded: {error}"));
             return false;
         }
     };

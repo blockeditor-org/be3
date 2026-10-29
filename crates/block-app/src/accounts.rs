@@ -434,9 +434,9 @@ pub(crate) async fn pair(
         .map_err(|_| wrong())
 }
 
-pub(crate) fn authorize(saved: &[crate::app_state::SavedAccount]) {
+pub(crate) fn authorize(saved: &[block_app_base::app_state::SavedAccount]) {
     for account in saved {
-        if let crate::app_state::ServerLocation::Remote(url) = &account.server {
+        if let block_app_base::app_state::ServerLocation::Remote(url) = &account.server {
             be_client::authorize(url, account.authorization.clone());
         }
     }

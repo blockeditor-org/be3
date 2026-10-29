@@ -18,7 +18,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use block_plugin_api::{AudioOutput, MediaLevel};
 
 use super::{Audio, AudioRequest, AudioState, MediaEvent};
-use crate::host::WakingSender;
+use block_app_base::host::WakingSender;
 
 const LONGEST_FRAME: usize = 16 << 20;
 

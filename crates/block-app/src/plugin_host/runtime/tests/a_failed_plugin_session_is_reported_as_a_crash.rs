@@ -37,9 +37,9 @@ fn a_failed_plugin_session_is_reported_as_a_crash() {
         "the host hears that it stopped, as it does of a panic"
     );
     assert!(
-        crate::notices::shown()
+        block_app_base::notices::shown()
             .iter()
-            .any(|toast| toast.danger && toast.message.starts_with("Failing stopped: ")),
+            .any(|notice| notice.message.starts_with("Failing stopped: ")),
         "and the person is told"
     );
     assert!(take_crashed().is_empty(), "each stop is heard once");

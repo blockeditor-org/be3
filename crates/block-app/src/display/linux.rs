@@ -21,7 +21,7 @@ pub(crate) fn start(setup: &beui::native::Setup) {
             MONITORS.with(|held| *held.borrow_mut() = monitors.to_vec());
             publish();
             super::set_screens(monitors.iter().map(screen).collect());
-            crate::host::wake();
+            block_app_base::host::wake();
         });
     }
     if let Some(displays) = setup.get::<Displays>().cloned() {
@@ -49,7 +49,7 @@ pub(crate) fn start(setup: &beui::native::Setup) {
     CONTROL.with(|slot| *slot.borrow_mut() = control);
     let epaper = setup.get::<Epaper>().cloned();
     if epaper.is_some() {
-        crate::plugin_host::publish::<block_plugin_api::EpaperWatch>(&true);
+        block_app_base::watches::publish::<block_plugin_api::EpaperWatch>(&true);
     }
     EPAPER.with(|slot| *slot.borrow_mut() = epaper);
 }
@@ -66,7 +66,7 @@ pub(crate) fn stop() {
 }
 
 pub(crate) fn run_epaper() {
-    let requests = crate::plugin_host::take_calls(block_plugin_api::requested::epaper_refresh);
+    let requests = block_app_base::watches::take_calls(block_plugin_api::requested::epaper_refresh);
     if requests.is_empty() {
         return;
     }
@@ -128,7 +128,7 @@ fn publish() {
                 .collect::<Vec<_>>()
         })
     });
-    crate::plugin_host::publish::<block_plugin_api::DisplaysWatch>(&displays);
+    block_app_base::watches::publish::<block_plugin_api::DisplaysWatch>(&displays);
 }
 
 fn host_display(monitor: &Monitor, shown: Option<&Display>) -> HostDisplay {

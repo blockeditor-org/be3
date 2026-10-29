@@ -2,7 +2,7 @@ use be_keys::{RecoveryPhrase, RecoverySecret};
 use uuid::Uuid;
 
 use crate::accounts::{self, AccountError, Keys};
-use crate::platform;
+use block_app_base::platform;
 
 #[derive(Default)]
 pub(crate) struct KeyState {

@@ -12,11 +12,12 @@ use std::time::Duration;
 
 use block_plugin_api::{PowerAction, PowerAvailability};
 
-use crate::host::{WakingSender, waking_channel};
+use block_app_base::host::{WakingSender, waking_channel};
 pub(crate) use environment::export as export_environment;
 pub(crate) use install::install;
 use lock::{Authenticate, Lock, Verdict};
-pub(crate) use lock::{LockState, Password, Trigger};
+use block_app_base::password::Password;
+pub(crate) use lock::{LockState, Trigger};
 pub(crate) use log::start_log;
 use logind::{Logind, LogindEvent};
 use power::{LogindCall, Power, SessionControl};
@@ -59,7 +60,7 @@ impl ScreenLock {
     pub(crate) fn lock(&mut self, trigger: Trigger) {
         if self.lock.lock(trigger) {
             crate::desktop_host::set_locked(true);
-            crate::host::request_repaint();
+            block_app_base::host::request_repaint();
         }
     }
 
@@ -70,19 +71,19 @@ impl ScreenLock {
     pub(crate) fn submit(&mut self, password: Password) {
         if let Some(wait) = self
             .lock
-            .submit(password, crate::host::now(), &mut self.pam)
+            .submit(password, block_app_base::host::now(), &mut self.pam)
         {
-            crate::host::request_repaint_after(until_next_second(wait));
+            block_app_base::host::request_repaint_after(until_next_second(wait));
         }
     }
 
     pub(crate) fn frame(&mut self) {
-        let now = crate::host::now();
+        let now = block_app_base::host::now();
         for (attempt, verdict) in self.pam.answers.try_iter().collect::<Vec<_>>() {
             self.lock.answered(attempt, verdict, now);
         }
         if let Some(wait) = self.lock.wait(now) {
-            crate::host::request_repaint_after(until_next_second(wait));
+            block_app_base::host::request_repaint_after(until_next_second(wait));
         }
     }
 
@@ -98,7 +99,7 @@ impl ScreenLock {
     }
 
     pub(crate) fn state(&self) -> LockState {
-        self.lock.state(crate::host::now())
+        self.lock.state(block_app_base::host::now())
     }
 
     pub(crate) fn user(&self) -> &str {
@@ -147,7 +148,7 @@ impl Authenticate for Pam {
         let spawned = std::thread::Builder::new()
             .name("authenticate".to_owned())
             .spawn(move || {
-                let checked = crate::panic_guard::contain(|| {
+                let checked = block_app_base::panic_guard::contain(|| {
                     pam::authenticate(service, &user, password.as_str())
                 });
                 let verdict = checked.unwrap_or_else(|_| {
@@ -195,7 +196,7 @@ impl DesktopSession {
     }
 
     pub(crate) fn frame(&mut self, context: &beui::native::Context, lock: &mut ScreenLock) {
-        let now = crate::host::now();
+        let now = block_app_base::host::now();
         let mut control = Live {
             logind: &self.logind,
             context,
@@ -211,7 +212,7 @@ impl DesktopSession {
                     }
                     self.sleep
                         .prepare(starting, &mut lock.lock, &mut Inhibitor(&self.logind));
-                    crate::host::request_repaint();
+                    block_app_base::host::request_repaint();
                 }
                 LogindEvent::Lock => lock.lock(Trigger::Logind),
             }
@@ -221,12 +222,12 @@ impl DesktopSession {
             .take()
             .and_then(|action| self.power.request(action, now, &mut control));
         if let Some(wait) = self.power.frame(now, &mut control).or(wait) {
-            crate::host::request_repaint_after(wait);
+            block_app_base::host::request_repaint_after(wait);
         }
         if self.sleep.waiting() {
             match lock.shown() {
                 true => self.sleep.shown(&mut Inhibitor(&self.logind)),
-                false => crate::host::request_repaint(),
+                false => block_app_base::host::request_repaint(),
             }
         }
         let locked = lock.locked();
@@ -267,7 +268,7 @@ impl SessionControl for Live<'_> {
         for window in crate::desktop_host::listed(&[]) {
             crate::desktop_host::close(window.id);
         }
-        crate::host::wake();
+        block_app_base::host::wake();
     }
 
     fn exit(&mut self) {
@@ -275,6 +276,6 @@ impl SessionControl for Live<'_> {
     }
 
     fn report(&mut self, problem: String) {
-        crate::notices::report(problem);
+        block_app_base::notices::report(problem);
     }
 }

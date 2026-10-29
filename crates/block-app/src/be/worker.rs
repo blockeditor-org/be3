@@ -457,7 +457,7 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
 ) {
     let mut replicas = Replicas::new(Modules::new(types::sources().await, config.clock.clone()));
     replicas.modules.ready().await;
-    crate::host::wake();
+    block_app_base::host::wake();
     let started = match cached(&config, &make_store) {
         Some(peer) => Some((peer, None)),
         None => first_connect(&config, &make_store, &mut nudged, &shared, &changed).await,
@@ -544,7 +544,7 @@ async fn first_connect<S: Fn() -> Result<Store, String>>(
             Err(error) => fail(shared, error),
         }
         changed.notify_all();
-        crate::host::wake();
+        block_app_base::host::wake();
         let delay = reconnect_delay(failures, jitter());
         failures = failures.saturating_add(1);
         let waited = config.clock.sleep(delay);
@@ -699,7 +699,7 @@ impl Session<'_> {
                     .await;
                 report(peer, shared);
                 self.changed.notify_all();
-                crate::host::wake();
+                block_app_base::host::wake();
             }
         }
         let mut flushes = Vec::new();
@@ -835,7 +835,7 @@ impl Session<'_> {
                     for command in self.uploads.runnable() {
                         applied |= ran.run(command).await;
                     }
-                    crate::host::wake();
+                    block_app_base::host::wake();
                     applied
                 }
                 Woken::Event(event) => {
@@ -915,7 +915,7 @@ impl Session<'_> {
             );
             self.changed.notify_all();
             if moved || was_typing != typing {
-                crate::host::wake();
+                block_app_base::host::wake();
             }
         }
     }
@@ -972,7 +972,7 @@ impl Session<'_> {
         }
         shared_offline(self.shared);
         self.changed.notify_all();
-        crate::host::wake();
+        block_app_base::host::wake();
     }
 
     async fn arrive(&mut self, open: Opened) {
@@ -990,7 +990,7 @@ impl Session<'_> {
             held.error = None;
         }
         self.changed.notify_all();
-        crate::host::wake();
+        block_app_base::host::wake();
         self.drained_at = self.config.clock.now();
         self.tasks.0.sync(peer, shared);
         want_open(shared, &self.wanted.blocks());
@@ -1021,7 +1021,7 @@ impl Session<'_> {
             .await;
         report(peer, shared);
         self.changed.notify_all();
-        crate::host::wake();
+        block_app_base::host::wake();
     }
 }
 
@@ -1073,7 +1073,7 @@ fn set_draining(shared: &Arc<Mutex<Shared>>, draining: bool) {
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .draining = draining;
-    crate::host::wake();
+    block_app_base::host::wake();
 }
 
 pub(super) fn expired_unsent(
@@ -1307,7 +1307,7 @@ fn refuse_offline(command: Command, shared: &Arc<Mutex<Shared>>) -> Option<Comma
         }
         command => return Some(command),
     }
-    crate::host::wake();
+    block_app_base::host::wake();
     None
 }
 
@@ -1336,7 +1336,7 @@ impl Ran<'_> {
                         .await
                         .map_err(|error| error.to_string()),
                 );
-                crate::host::wake();
+                block_app_base::host::wake();
                 false
             }
             Command::CreateAgent { name, reply } => {
@@ -1345,7 +1345,7 @@ impl Ran<'_> {
                     self.tasks.sync_contacts(self.peer, self.shared).await;
                 }
                 reply(created.map_err(|error| error.to_string()));
-                crate::host::wake();
+                block_app_base::host::wake();
                 false
             }
             command => {
@@ -1373,7 +1373,7 @@ impl Ran<'_> {
             (held.unsealed, held.owing) = self.replicas.counts();
             held.typing = !self.replicas.modules.settled();
         }
-        crate::host::wake();
+        block_app_base::host::wake();
     }
 }
 
@@ -1394,7 +1394,7 @@ fn asked_to_pair(shared: &Arc<Mutex<Shared>>, from: u64, payload: &[u8]) {
         held.pairing.remove(0);
     }
     drop(held);
-    crate::host::wake();
+    block_app_base::host::wake();
 }
 
 async fn approve_pairing(
@@ -1472,7 +1472,7 @@ async fn sync_contacts(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
         Err(error) => record(shared, error),
     }
     tend(peer, shared).await;
-    crate::host::wake();
+    block_app_base::host::wake();
 }
 
 async fn tend(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
@@ -1486,7 +1486,7 @@ async fn tend(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
         .keys()
         .escrow_warning()
         .map(be_client::EscrowWarning::message);
-    crate::host::wake();
+    block_app_base::host::wake();
 }
 
 async fn members(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, command: MembersCommand) {
@@ -1507,7 +1507,7 @@ async fn members(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, command: 
         Err(error) => Err(error),
     };
     reply(listed.map_err(|error| error.to_string()));
-    crate::host::wake();
+    block_app_base::host::wake();
 }
 
 async fn invite(
@@ -1649,7 +1649,7 @@ async fn contact(
             }
         }
     }
-    crate::host::wake();
+    block_app_base::host::wake();
 }
 
 pub(super) fn set_locked(shared: &Arc<Mutex<Shared>>, block: Uuid, locked: bool) {
@@ -1662,7 +1662,7 @@ pub(super) fn set_locked(shared: &Arc<Mutex<Shared>>, block: Uuid, locked: bool)
         held.stale_revision += 1;
         held.touch(block);
         drop(held);
-        crate::host::wake();
+        block_app_base::host::wake();
     }
 }
 
@@ -1676,7 +1676,7 @@ pub(super) fn set_unreadable(shared: &Arc<Mutex<Shared>>, block: Uuid, error: Op
         held.stale_revision += 1;
         held.touch(block);
         drop(held);
-        crate::host::wake();
+        block_app_base::host::wake();
     }
 }
 
@@ -1739,7 +1739,7 @@ async fn apply(
             if let Err(error) = approve_pairing(peer, shared, from, &code).await {
                 record(shared, error);
             }
-            crate::host::wake();
+            block_app_base::host::wake();
             false
         }
         Command::DismissPairing(from) => {
@@ -1748,12 +1748,12 @@ async fn apply(
                 .unwrap_or_else(PoisonError::into_inner)
                 .pairing
                 .retain(|request| request.from != from);
-            crate::host::wake();
+            block_app_base::host::wake();
             false
         }
         Command::Version { block, command } => {
             set_busy(shared, block, true, None);
-            crate::host::wake();
+            block_app_base::host::wake();
             replicas.seal_all(ctx).await;
             let outcome = versions
                 .run(
@@ -1793,7 +1793,7 @@ async fn apply(
             held.unsent = peer.unsent();
             held.stale_revision += 1;
             drop(held);
-            crate::host::wake();
+            block_app_base::host::wake();
             true
         }
         Command::Revision {
@@ -2129,7 +2129,7 @@ async fn apply(
                 .await
                 .map_err(|error| error.to_string());
             reply(listed);
-            crate::host::wake();
+            block_app_base::host::wake();
             false
         }
         Command::ReadHead { commit, reply, .. } => {
@@ -2139,24 +2139,24 @@ async fn apply(
             }
             .await;
             reply(read.map_err(|error| error.to_string()));
-            crate::host::wake();
+            block_app_base::host::wake();
             false
         }
         Command::Export { block, reply } => {
             let exported = export(peer, replicas, shared, block).await;
             reply(exported.map_err(|error| error.to_string()));
-            crate::host::wake();
+            block_app_base::host::wake();
             false
         }
         Command::PlainFile { block, reply } => {
             reply(plain_file(peer, replicas, shared, block).await);
-            crate::host::wake();
+            block_app_base::host::wake();
             false
         }
         Command::Import(_) => false,
         Command::ContentOfFile { name, bytes, reply } => {
             reply(replicas.from_file(ctx, &name, bytes).await);
-            crate::host::wake();
+            block_app_base::host::wake();
             false
         }
         Command::Flush(done) => {

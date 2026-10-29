@@ -11,7 +11,7 @@ use block_plugin_api::{WifiLink, WifiRequest, WifiStatus};
 
 use super::Backend;
 use super::model::{self, AccessPoint, Attempts, Outcome, Plan};
-use crate::host::WakingSender;
+use block_app_base::host::WakingSender;
 
 pub(crate) const SERVICE: &str = "org.freedesktop.NetworkManager";
 pub(crate) const PATH: &str = "/org/freedesktop/NetworkManager";

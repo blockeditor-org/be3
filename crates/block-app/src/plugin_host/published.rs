@@ -84,16 +84,8 @@ impl Watched {
         }
     }
 
-    pub(super) fn take_calls<C>(&mut self, accept: &impl Fn(&Called) -> Option<C>) -> Vec<C> {
-        let mut taken = Vec::new();
-        self.calls.retain(|called| match accept(called) {
-            Some(call) => {
-                taken.push(call);
-                false
-            }
-            None => true,
-        });
-        taken
+    pub(super) fn take_calls(&mut self, accept: &mut dyn FnMut(&Called) -> bool) {
+        self.calls.retain(|called| !accept(called));
     }
 
     pub(super) fn report(

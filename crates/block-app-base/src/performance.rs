@@ -4,10 +4,24 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::ui::PerformanceRow;
-
 const SAMPLE_CAPACITY: usize = 120;
-const PACING: &str = crate::plugin_host::PACING;
+pub const PACING: &str = "Frame pacing";
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct PerformanceRow {
+    pub heading: bool,
+    pub name: String,
+    pub current: String,
+    pub average: String,
+    pub peak: String,
+}
+
+pub struct UpdateTimings {
+    pub interaction: Duration,
+    pub layout: Duration,
+    pub paint: Duration,
+    pub accessibility: Duration,
+}
 
 #[derive(Clone)]
 enum Value {
@@ -60,7 +74,7 @@ pub fn end_frame() {
     }
 }
 
-pub fn record_update(started: Instant, document: &beui::native::PerformanceTimings) {
+pub fn record_update(started: Instant, document: &UpdateTimings) {
     const CONTINUOUS: Duration = Duration::from_millis(100);
     let (previous, ended) = {
         let mut state = state();
