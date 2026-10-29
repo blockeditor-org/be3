@@ -7,7 +7,7 @@ use block_plugin_api::{
     EditorInstanceId, EditorRegion, WindowEdge, WindowPlacement, WindowRequest, WindowRole,
 };
 
-use crate::plugin_host::HostChildStatus;
+use block_app_plugin_host::HostChildStatus;
 
 const OPEN_GRAB: Vec2 = vec2(24.0, 16.0);
 const SMALLEST: Vec2 = vec2(96.0, 64.0);
@@ -101,9 +101,7 @@ type StatusKey = (String, EditorInstanceId, EditorRegion);
 thread_local! {
     static FLOATED: Cell<Option<Signal<Vec<Floated>>>> = const { Cell::new(None) };
     static GESTURE: Cell<Option<Signal<Option<Gesture>>>> = const { Cell::new(None) };
-    static PENDING: RefCell<Vec<(String, WindowRequest)>> = const { RefCell::new(Vec::new()) };
     static PRESSED: RefCell<Option<(FloatedKey, Pos2, Rect)>> = const { RefCell::new(None) };
-    static FORGOTTEN: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
     static POINTER: Cell<Pos2> = const { Cell::new(Pos2::ZERO) };
     static ORIGINS: RefCell<HashMap<(String, EditorInstanceId, EditorRegion), Pos2>> =
         RefCell::new(HashMap::new());
@@ -113,6 +111,7 @@ thread_local! {
 }
 
 pub(crate) fn install() {
+    block_app_plugin_host::serve_overlays(is_overlay);
     FLOATED.set(Some(create_signal(Vec::new())));
     GESTURE.set(Some(create_signal(None)));
 }
@@ -135,25 +134,6 @@ pub(crate) fn floated() -> ReadSignal<Vec<Floated>> {
 
 pub(crate) fn place() -> Option<DesktopPlace> {
     use_context::<DesktopPlace>()
-}
-
-pub(crate) fn request(plugin: &str, requests: Vec<WindowRequest>) {
-    if requests.is_empty() {
-        return;
-    }
-    PENDING.with(|pending| {
-        pending.borrow_mut().extend(
-            requests
-                .into_iter()
-                .map(|request| (plugin.to_owned(), request)),
-        )
-    });
-    crate::host::request_repaint();
-}
-
-pub(crate) fn forget(plugin: &str) {
-    FORGOTTEN.with(|forgotten| forgotten.borrow_mut().push(plugin.to_owned()));
-    crate::host::request_repaint();
 }
 
 pub(crate) fn note_origin(
@@ -240,8 +220,7 @@ pub(crate) fn aim(
 }
 
 pub(crate) fn apply() {
-    let pending = PENDING.with(|pending| std::mem::take(&mut *pending.borrow_mut()));
-    let forgotten = FORGOTTEN.with(|forgotten| std::mem::take(&mut *forgotten.borrow_mut()));
+    let (pending, forgotten) = block_app_plugin_host::take_window_requests();
     if (pending.is_empty() && forgotten.is_empty()) || FLOATED.get().is_none() {
         return;
     }
@@ -264,7 +243,8 @@ pub(crate) fn apply() {
             WindowRequest::Open(open) => {
                 let size = vec2(open.size.width.max(1.0), open.size.height.max(1.0));
                 let held = find(&windows, open.window);
-                let panel = (crate::host::opens_windows() && open.role != WindowRole::Overlay)
+                let panel = (block_app_base::host::opens_windows()
+                    && open.role != WindowRole::Overlay)
                     .then(|| Panel {
                         opened: open.placement.clone(),
                         role: open.role,
@@ -426,7 +406,7 @@ fn point_in(
     if let Some(origin) = desktop {
         return origin + at.to_vec2();
     }
-    match crate::plugin_host::region_placement(plugin, instance, region) {
+    match block_app_plugin_host::region_placement(plugin, instance, region) {
         Some(placed) if placed.zoom.is_finite() && placed.zoom > 0.0 => {
             placed.rect.min + at.to_vec2() * placed.zoom
         }
@@ -545,7 +525,7 @@ pub(crate) fn role_of(key: FloatedKey) -> Memo<WindowRole> {
     })
 }
 
-pub(crate) fn is_overlay(plugin: &str, instance: EditorInstanceId, window: u64) -> bool {
+fn is_overlay(plugin: &str, instance: EditorInstanceId, window: u64) -> bool {
     FLOATED.get().is_some()
         && floated_signal().with_untracked(|held| {
             held.iter().any(|held| {

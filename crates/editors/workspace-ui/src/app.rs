@@ -1,5 +1,5 @@
+use block_editor_beui::be_block::EditorViewContent;
 use std::cell::Cell;
-use workspace_ui_types::EditorViewContent;
 
 use beui::{Align, ItemSize};
 use block_editor_beui::be_block::{BlockContent, FILES_EDITOR, SettingsContent};

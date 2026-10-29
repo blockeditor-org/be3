@@ -3,11 +3,9 @@ use std::time::Duration;
 
 use beui::native::Document;
 use beui::native::WindowSize;
-use beui::native::testing::{Showing, Stepped, Target};
-use beui::{
-    Color32, Rect, Vec2, native::Context, native::FontLibrary, native::FrameOutput,
-    native::FreetypeFonts,
-};
+use beui::{Color32, Rect, Vec2, native::Context, native::FrameOutput};
+use beui_host::native::testing::{Showing, Stepped, Target};
+use beui_host::{native::FontLibrary, native::FreetypeFonts};
 
 use crate::beui::capture;
 use crate::overflow;

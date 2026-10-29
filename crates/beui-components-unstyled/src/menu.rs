@@ -327,10 +327,11 @@ pub(crate) fn MenuList(
         glyphs: {
             let items = items.clone();
             create_memo(move || {
-                items
-                    .items()
-                    .iter()
-                    .any(|item| item.is_row() && item.glyph.get().is_some())
+                title.is_some()
+                    || items.items().iter().any(|item| {
+                        item.is_row()
+                            && (item.glyph.get().is_some() || item.checked.get().is_some())
+                    })
             })
         },
         spacing,
@@ -647,12 +648,13 @@ fn MenuTile(
         watch_hover(state, at, handle.hovered);
         row.call(item_handle(MenuRowKind::Tile, &face, &handle))
     };
+    let accessibility = row_accessibility(&item);
     let chosen = item.clone();
     let built = view! {
         <unstyled::Button
             @node_ref=&button
             label={item.label}
-            role=Role::MenuItem
+            accessibility
             disabled={item.disabled}
             tab_stop={focused.memo(at)}
             focused={focused.memo(at)}

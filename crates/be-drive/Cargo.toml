@@ -12,7 +12,7 @@ name = "be-drive"
 path = "src/main.rs"
 
 [dependencies]
-beui-core = { path = "../beui-core" }
+beui-runner = { path = "../beui-runner" }
 beui-layer-drive = { path = "../beui-layer-drive" }
 image = { version = "0.25", default-features = false, features = ["png"] }
 libc = "0.2"

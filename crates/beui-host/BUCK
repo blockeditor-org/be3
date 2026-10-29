@@ -1,0 +1,18 @@
+load("@root//buck/cargo:defs.bzl", "cargo_example", "cargo_library", "cargo_test")
+
+cargo_library()
+
+# Most tests paint without a GPU; those that draw (space under drive) go
+# through a real graphics adapter, which on a worker is lavapipe.
+cargo_test(
+    env = {
+        "LD_LIBRARY_PATH": "$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu",
+        "VK_ICD_FILENAMES": "$(location //buck/sysroot:lavapipe_icd.json)",
+    },
+)
+
+# The examples: `./scripts/buck run //crates/beui-host:example-<example>`.
+
+cargo_example("survey")
+
+cargo_example("text-bench")

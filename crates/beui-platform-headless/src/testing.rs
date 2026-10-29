@@ -16,14 +16,14 @@ pub use beui_core::document::delay_measurement;
 use beui_core::geometry::{Pos2, Rect, Vec2};
 use beui_core::input::typing;
 use beui_core::input::{Input, Key, Modifiers, PointerButton, TouchPhase};
-use beui_core::renderer::{Loaded, Renderer};
-use beui_core::runner::{
-    Incoming, Launch, Layer, LayerFrame, PlatformServices, RunOptions, Runner, Shown,
-};
 use beui_core::window::{
     HostPlacement, Resize, WindowId, WindowPlacement, WindowReport, WindowRequest, WindowSize,
 };
 use beui_layer_drive::{Drive, Inbox, Reply, ask};
+use beui_runner::renderer::{Loaded, Renderer};
+use beui_runner::{
+    Incoming, Launch, Layer, LayerFrame, PlatformServices, RunOptions, Runner, Shown,
+};
 
 use crate::Simulation;
 
@@ -149,7 +149,7 @@ pub struct Windows {
     pub open: Vec<HostedWindow>,
     pub requests: Vec<WindowRequest>,
     pub outputs: Vec<WindowOutput>,
-    pub controllers: Vec<beui_core::runner::Controller>,
+    pub controllers: Vec<beui_runner::Controller>,
     reports: Vec<WindowReport>,
     main: Option<Vec2>,
 }

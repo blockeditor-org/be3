@@ -23,7 +23,7 @@ pub(crate) fn TextSurface(state: State) -> NodeId {
     let remote_cursors = create_memo(move || {
         cursors.get();
         let remote = state.remote_cursors.get();
-        block_editor_beui::remote_carets(
+        block_editor_text::remote_carets(
             state.text,
             remote
                 .into_iter()

@@ -85,11 +85,27 @@ def _core_flags():
     })
 
 # Cargo.toml's [profile.dev.package] settings for the crate and the core's cfg,
-# ahead of the flags its BUCK file passes.
+# ahead of the flags its BUCK file passes. rustc's frontend runs on eight
+# threads: the crates under beui are a chain, each typechecked only once the
+# one below it is, and that chain is most of what a change to one of them
+# waits on.
 def _rustc_flags(crate, kwargs):
     if "srcs" in kwargs:
         fail("Rust sources are inferred; srcs is not supported")
-    return dev_only(crate.get("profile_flags", [])) + _core_flags() + kwargs.pop("rustc_flags", [])
+    return ["-Zthreads=8"] + _wasm_dev() + dev_only(crate.get("profile_flags", [])) + _core_flags() + kwargs.pop("rustc_flags", [])
+
+# Workspace crates built for wasm outside a release build, at opt-level 1 rather
+# than the plugin profile's 2: a change under beui recompiles each of them for
+# the plugins, and at 2 that took a third of the CPU ./scripts/verify spent on a
+# change to geometry, for modules no slower to precompile or test.
+def _wasm_dev():
+    return select({
+        "DEFAULT": select({
+            "DEFAULT": [],
+            "prelude//cpu:wasm32": ["-Copt-level=1"],
+        }),
+        "root//buck/constraints:release": [],
+    })
 
 # The crate's library, named after the package. Another build of it, such as
 # one for a fuzz target, takes a name and extra_features.
@@ -118,7 +134,8 @@ def cargo_library(name = None, extra_deps = [], extra_features = [], extra_srcs 
 #
 # A test whose env names LD_LIBRARY_PATH is a library_path_test around the
 # test harness, built as a binary, since Namespace's workers replace an
-# action's LD_LIBRARY_PATH with their own.
+# action's LD_LIBRARY_PATH with their own. Its compile never takes the
+# variable: a sysroot's libc in it would load into the compiler.
 def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apart = False, run_env = {}, resources = [], foreign_resources = {}, **kwargs):
     crate = _crate()
     library = crate["library"]
@@ -134,11 +151,12 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apa
         mapped_srcs = cargo_manifest_sources(resources, foreign_resources),
         srcs = cargo_test_sources(),
     )
+    compile_env = {key: value for key, value in env.items() if key != "LD_LIBRARY_PATH"}
     if paints:
         paintings = native.glob(["snapshots/*.paint"])
         native.rust_binary(
             name = name + "-harness",
-            env = _env(crate, library["crate"], env),
+            env = _env(crate, library["crate"], compile_env),
             rustc_flags = rustc_flags + ["--test"],
             target_compatible_with = kwargs.get("target_compatible_with", []),
             **common,
@@ -160,7 +178,6 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apa
             )
         return
     if "LD_LIBRARY_PATH" in env:
-        compile_env = {key: value for key, value in env.items() if key != "LD_LIBRARY_PATH"}
         native.rust_binary(
             name = name + "-harness",
             env = _env(crate, library["crate"], compile_env),
@@ -365,7 +382,7 @@ def cargo_binary(bin = None, name = None, extra_deps = [], env = {}, **kwargs):
     )
 
 # One of the crate's examples, as a binary, named example-<example>:
-# `./scripts/buck run //crates/beui:example-survey`. It is built the way cargo
+# `./scripts/buck run //crates/beui-host:example-survey`. It is built the way cargo
 # builds it, with the library and the dev-dependencies.
 def cargo_example(example, extra_deps = [], env = {}, **kwargs):
     crate = _crate()

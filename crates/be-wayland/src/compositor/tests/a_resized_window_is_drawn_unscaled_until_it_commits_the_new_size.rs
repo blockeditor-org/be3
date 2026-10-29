@@ -29,7 +29,7 @@ fn Pane(windows: Windows) -> NodeId {
 struct Screen {
     device: wgpu::Device,
     queue: wgpu::Queue,
-    renderer: beui::native::Renderer,
+    renderer: beui_host::native::Renderer,
     target: wgpu::Texture,
 }
 
@@ -38,7 +38,7 @@ const BACKGROUND: [u8; 4] = [0, 0, 0, 255];
 
 impl Screen {
     fn new(device: wgpu::Device, queue: wgpu::Queue) -> Self {
-        let renderer = beui::native::Renderer::new(&device, FORMAT);
+        let renderer = beui_host::native::Renderer::new(&device, FORMAT);
         let target = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("screen"),
             size: wgpu::Extent3d {
@@ -62,7 +62,7 @@ impl Screen {
     }
 
     fn paint(&mut self, harness: &Harness) -> Vec<u8> {
-        use beui::native::Repainting as _;
+        use beui_host::native::Repainting as _;
         let output = harness.output.as_ref().expect("a frame ran");
         let repaint = output.main().repaint(beui::Color32::BLACK);
         self.renderer.prepare(

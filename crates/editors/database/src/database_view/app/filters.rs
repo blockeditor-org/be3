@@ -6,10 +6,8 @@ use block_editor_beui::beui::icons::{ICON_LIST_FILTER, ICON_PLUS, ICON_X};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::popover::PANEL_PADDING;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::block_ui::database::{
-    DatabaseValueChange, ValueLabels, database_value_text,
-};
-use block_editor_beui::database::{ChoiceMark, DatabaseBlockPickRequest, DatabaseValueEditor};
+use block_editor_database::{ChoiceMark, DatabaseBlockPickRequest, DatabaseValueEditor};
+use block_ui_database::{DatabaseValueChange, ValueLabels, database_value_text};
 use database_types::database::{DatabaseColor, DatabaseValue};
 use database_types::database_schema::{DatabaseEnumOption, DatabaseField, DatabaseFieldType};
 use database_types::database_view::{DatabaseView, FilterCondition, ViewFilter};

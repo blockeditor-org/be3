@@ -16,17 +16,38 @@ use beui::{ItemSize, NodeId};
 use block_plugin_api::HostPanel;
 use uuid::Uuid;
 
-use crate::app_state::{SavedAccount, ServerLocation};
 use crate::compositor::ShellDisplay;
-use crate::desktop_host::WindowActions;
+use block_app_base::app_state::{SavedAccount, ServerLocation};
+use block_app_desktop::desktop_host::WindowActions;
 
 pub(crate) use debug::{
-    DebugCommand, DebugView, HostPanelSurface, Line, LineStyle, PerformanceRow, PluginsView,
-    RuntimeView,
+    DebugCommand, DebugView, HostPanelSurface, Line, LineStyle, PluginsView, RuntimeView,
 };
 
 thread_local! {
     static COMMANDS: RefCell<Vec<UiCommand>> = const { RefCell::new(Vec::new()) };
+}
+
+const COPY_REPORT: &str = "copy-report";
+
+pub(crate) fn notice_toasts() -> Vec<Toast> {
+    block_app_base::notices::shown()
+        .into_iter()
+        .map(|notice| Toast {
+            id: notice.id,
+            message: notice.message,
+            danger: true,
+            actions: notice
+                .report
+                .iter()
+                .map(|_| ToastAction {
+                    key: COPY_REPORT.to_owned(),
+                    label: "Copy report".to_owned(),
+                })
+                .collect(),
+            ..Toast::default()
+        })
+        .collect()
 }
 
 pub(crate) fn send(command: UiCommand) {
@@ -97,7 +118,7 @@ pub(crate) fn account_row(
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct AddAccountView {
-    pub(crate) browser: Option<crate::accounts::BrowserLogin>,
+    pub(crate) browser: Option<block_app_stack::accounts::BrowserLogin>,
     pub(crate) open: bool,
     pub(crate) generation: u64,
     pub(crate) pending: bool,
@@ -305,8 +326,8 @@ pub(crate) struct AppView {
     pub(crate) add_account: AddAccountView,
     pub(crate) account: AccountRow,
     pub(crate) organizations: OrganizationsView,
-    pub(crate) recovery: crate::keys::RecoveryView,
-    pub(crate) unlock: crate::keys::UnlockView,
+    pub(crate) recovery: block_app_stack::keys::RecoveryView,
+    pub(crate) unlock: block_app_stack::keys::UnlockView,
     pub(crate) pairing: Vec<PairingRow>,
     pub(crate) reauth: Option<ReauthView>,
     pub(crate) status: StatusView,
@@ -412,7 +433,7 @@ pub(crate) enum UiCommand {
     RevertDisplay(u64),
     LockScreen,
     #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
-    Unlock(crate::password::Password),
+    Unlock(block_app_base::password::Password),
     #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     LockPower(block_plugin_api::PowerAction),
 }
@@ -612,8 +633,8 @@ fn DisplayChrome(view: AppViewStore, area: NodeRef, primary: bool) -> NodeId {
                     id => send(UiCommand::DismissToast(id)),
                 }}
                 on_action={move |(id, key): (u64, String)| {
-                    if key == crate::notices::COPY_REPORT
-                        && let Some(report) = crate::notices::report_of(id)
+                    if key == COPY_REPORT
+                        && let Some(report) = block_app_base::notices::report_of(id)
                     {
                         copy_text(report);
                     }

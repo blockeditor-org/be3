@@ -3,7 +3,6 @@ use std::cell::{Ref, RefMut};
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use beui_platform_plugin::ModuleRunner;
 use block_editor_plugin::headless::HeadlessPlugin as Core;
 use block_editor_plugin::{Instance, RegionId};
 use block_plugin_api::{EditorInstanceId, ScreenLayout, ScreenPlacement};
@@ -74,7 +73,7 @@ impl std::ops::DerefMut for HeadlessPlugin {
 
 impl HeadlessPlugin {
     pub fn new(id: &str, name: &str, version: &str) -> Self {
-        crate::fonts::use_fonts(beui::native::FontLibrary::bundled());
+        beui_platform_plugin_api::runtime().use_bundled_fonts();
         let core = Core::new(id, name, version);
         let module = core.module().local(Module::default);
         Self {
@@ -105,7 +104,7 @@ impl HeadlessPlugin {
             .core
             .module()
             .with_handler(|handler| {
-                let runner = ModuleRunner::of(handler)?;
+                let runner = beui_platform_plugin_api::runtime().runner(handler)?;
                 runner.context().set_hosts_scrims(false);
                 let windows: Vec<(ScreenPlacement, beui::WindowId)> = placements
                     .into_iter()

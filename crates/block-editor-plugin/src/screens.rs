@@ -1,5 +1,5 @@
 use block_plugin_api::{
-    Catalog, DebugTemplate, EditorInstanceId, EditorRegion, Edits, FrameCommit, Opening, ScreenId,
+    Catalog, DebugTemplate, EditorInstanceId, EditorRegion, FrameCommit, Opening, ScreenId,
     ScreenLayout, ScreenPlacement, ScreenRequest, SurfaceSpec, TemplateCategory,
 };
 use block_ui::{BlockCatalog, BlockTypeEntry, EditorEntry, TemplateEntry};
@@ -476,15 +476,8 @@ fn catalog(catalog: &Catalog, debug: &[DebugTemplate]) -> BlockCatalog {
                 display_name: descriptor.display_name.clone(),
                 color: descriptor.color,
                 icon: Glyph::from_codepoint(&descriptor.icon_codepoint),
-                child_edits: block_ui::ChildEdits {
-                    add: descriptor.children.add,
-                    delete: descriptor.children.delete,
-                    replace: descriptor.children.replace,
-                },
-                press: match descriptor.press {
-                    block_plugin_api::Press::Open => block_ui::Press::Open,
-                    block_plugin_api::Press::Zoom => block_ui::Press::Zoom,
-                },
+                children: descriptor.children,
+                press: descriptor.press,
                 plain_file: descriptor.plain_file,
             },
         )
@@ -517,11 +510,7 @@ fn catalog(catalog: &Catalog, debug: &[DebugTemplate]) -> BlockCatalog {
     }))
     .with_editors(catalog.editors.iter().map(|editor| EditorEntry {
         editor: Uuid::from_bytes(editor.editor),
-        edits: match editor.edits {
-            Edits::Type(block_type) => block_ui::Edits::Type(Uuid::from_bytes(block_type)),
-            Edits::Any => block_ui::Edits::Any,
-            Edits::Nothing => block_ui::Edits::Nothing,
-        },
+        edits: editor.edits,
         name: editor.name.clone(),
         icon: Glyph::from_codepoint(&editor.icon_codepoint),
         extensions: editor.extensions.clone(),

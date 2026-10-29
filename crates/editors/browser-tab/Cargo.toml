@@ -8,7 +8,7 @@ license.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-beui = { path = "../../beui", default-features = false, features = ["render"] }
+beui = { path = "../../beui" }
 block-editor-beui = { path = "../../block-editor-beui" }
 browser-tab-types = { path = "types" }
 uuid = "1"

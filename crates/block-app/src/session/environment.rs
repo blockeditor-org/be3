@@ -10,8 +10,8 @@ pub(crate) fn export(variables: Vec<(String, String)>) {
     if variables.is_empty() {
         return;
     }
-    crate::dbus::spawn(async move {
-        let Some(bus) = crate::dbus::session().await else {
+    block_app_services::dbus::spawn(async move {
+        let Some(bus) = block_app_services::dbus::session().await else {
             return;
         };
         let activation: HashMap<&str, &str> = variables

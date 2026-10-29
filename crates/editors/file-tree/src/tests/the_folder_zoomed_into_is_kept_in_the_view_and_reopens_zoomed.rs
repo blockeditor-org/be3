@@ -1,6 +1,6 @@
 use block_editor_beui::be_block::BlockContent;
+use block_editor_beui::be_block::EditorView;
 use block_editor_beui::{BlockInfo, BlockParent, BlockQuery};
-use workspace_ui_types::EditorView;
 use workspace_ui_types::FolderContent;
 
 use super::*;

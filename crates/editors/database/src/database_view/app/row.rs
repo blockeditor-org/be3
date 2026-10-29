@@ -7,10 +7,10 @@ use block_editor_beui::beui::icons::{
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{BackGesture, NodeId};
-use block_editor_beui::block_ui::database::DatabaseValueChange;
-use block_editor_beui::database::DatabaseBlockPickRequest;
-use block_editor_beui::database::{ChoiceMark, DatabaseValueEditor};
 use block_editor_beui::{ChildBlock, ChildMode, ChildTarget, narrow_chrome};
+use block_editor_database::DatabaseBlockPickRequest;
+use block_editor_database::{ChoiceMark, DatabaseValueEditor};
+use block_ui_database::DatabaseValueChange;
 use database_types::database::{DatabaseValue, RowRef, short_id};
 use database_types::database_schema::{DatabaseField, DatabaseFieldType};
 use uuid::Uuid;

@@ -9,21 +9,23 @@ name = "demo"
 path = "src/main.rs"
 
 [dependencies]
-beui = { path = "../beui", default-features = false }
+beui = { path = "../beui" }
 beui_macros = { path = "../beui-macros" }
 text-editor-core = { path = "../text-editor-core" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-beui = { path = "../beui" }
+beui-host = { path = "../beui-host" }
 
 [dev-dependencies]
 bench = { path = "../bench" }
+beui-host = { path = "../beui-host", default-features = false }
 beui-inspector = { path = "../beui-inspector" }
 block-ui-test = { path = "../block-ui-test" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 beui-layer-space = { path = "../beui-layer-space" }
 beui-core = { path = "../beui-core" }
+beui-runner = { path = "../beui-runner" }
 beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
 pollster = "0.4"
 

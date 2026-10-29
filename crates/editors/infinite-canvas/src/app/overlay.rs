@@ -188,7 +188,7 @@ impl Overlay {
             (None, None) => {}
         }
         for selection in &self.selections {
-            let color = block_editor_beui::presence_color(selection.color);
+            let color = block_editor_text::presence_color(selection.color);
             let corners = selection
                 .frame
                 .corners()
@@ -279,7 +279,7 @@ impl Live {
             let Some(pointer) = cursor.pointer else {
                 continue;
             };
-            let color = block_editor_beui::presence_color(cursor.color);
+            let color = block_editor_text::presence_color(cursor.color);
             let tip = self.camera.at(pointer);
             let inward = Vec2::new(0.4, 1.0);
             let length = inward.length();

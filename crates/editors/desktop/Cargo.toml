@@ -8,12 +8,11 @@ license.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-beui = { path = "../../beui", default-features = false, features = ["render"] }
+beui = { path = "../../beui" }
 block-editor-beui = { path = "../../block-editor-beui" }
 calendar-types = { path = "../calendar/types" }
 block-shell = { path = "../../block-shell" }
 uuid = { version = "1", features = ["v4"] }
-workspace-ui-types = { path = "../workspace-ui/types" }
 
 [dev-dependencies]
 block-plugin-api = { path = "../../block-plugin-api" }

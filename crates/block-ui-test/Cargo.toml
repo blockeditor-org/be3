@@ -7,13 +7,14 @@ license.workspace = true
 [dependencies]
 be-session = { path = "../be-session" }
 be-store = { path = "../be-store" }
-beui = { path = "../beui", default-features = false }
+beui = { path = "../beui" }
+beui-host = { path = "../beui-host", default-features = false }
 beui-core = { path = "../beui-core" }
+beui-platform-plugin = { path = "../beui-platform-plugin" }
 block-editor-beui = { path = "../block-editor-beui" }
 block-plugin-api = { path = "../block-plugin-api" }
 block-type-guest = { path = "../block-type-guest" }
 host-types = { path = "../host-types" }
-workspace-ui-types = { path = "../editors/workspace-ui/types" }
 paint-snapshot = { path = "../paint-snapshot" }
 serde = "1"
 uuid = "1"

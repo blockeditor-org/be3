@@ -54,15 +54,15 @@ pub async fn run_review(root_id: String) -> Result<(), JsValue> {
         });
     });
 
-    let options = beui::native::RunOptions::default();
-    beui::native::run_web(&root_id, options, Vec::new(), app)
+    let options = beui_host::native::RunOptions::default();
+    beui_host::native::run_web(&root_id, options, Vec::new(), app)
         .await
         .map_err(|error| JsValue::from_str(&error.to_string()))
 }
 
 #[wasm_bindgen]
 pub fn accessibility_tree() -> Option<String> {
-    beui::native::accessibility_tree()
+    beui_host::native::accessibility_tree()
 }
 
 fn is_hash(text: &str) -> bool {

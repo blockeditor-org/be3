@@ -5,8 +5,10 @@ use uuid::Uuid;
 use crate::Root;
 use crate::setting::Setting;
 use crate::settings::Layered;
-pub use ui_types::pointer::{MAX_POINTER_SPEED, MIN_POINTER_SPEED};
-pub use ui_types::{InputDevice, PointerSetting, PointerSettings, PointerSpeed};
+pub use ui_preferences::{
+    InputDevice, MAX_POINTER_SPEED, MIN_POINTER_SPEED, PointerSetting, PointerSettings,
+    PointerSpeed,
+};
 
 pub const MIN_REPEAT_DELAY: u32 = 150;
 pub const MAX_REPEAT_DELAY: u32 = 2000;

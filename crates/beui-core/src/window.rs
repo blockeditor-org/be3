@@ -142,19 +142,19 @@ impl WindowReports {
         self.0.preferences.set(Some(preferences));
     }
 
-    pub(crate) fn take_system_preferences(&self) -> Option<crate::preferences::PreferenceLayer> {
+    pub fn take_system_preferences(&self) -> Option<crate::preferences::PreferenceLayer> {
         self.0.preferences.take()
     }
 
-    pub(crate) fn take_keyboard(&self) -> Option<bool> {
+    pub fn take_keyboard(&self) -> Option<bool> {
         self.0.keyboard.take()
     }
 
-    pub(crate) fn take_touchscreen(&self) -> Option<bool> {
+    pub fn take_touchscreen(&self) -> Option<bool> {
         self.0.touchscreen.take()
     }
 
-    pub(crate) fn pending(&self) -> bool {
+    pub fn pending(&self) -> bool {
         self.0.fullscreen.get().is_some()
             || self.0.size.get().is_some()
             || self.0.scale.get().is_some()
@@ -163,15 +163,15 @@ impl WindowReports {
             || self.0.preferences.get().is_some()
     }
 
-    pub(crate) fn take_fullscreen(&self) -> Option<bool> {
+    pub fn take_fullscreen(&self) -> Option<bool> {
         self.0.fullscreen.take()
     }
 
-    pub(crate) fn take_size(&self) -> Option<(u32, u32)> {
+    pub fn take_size(&self) -> Option<(u32, u32)> {
         self.0.size.take()
     }
 
-    pub(crate) fn take_scale(&self) -> Option<f32> {
+    pub fn take_scale(&self) -> Option<f32> {
         self.0.scale.take()
     }
 }

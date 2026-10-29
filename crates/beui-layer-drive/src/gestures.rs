@@ -4,7 +4,7 @@ use beui_core::input::{
     BackEdge, BackGesture, ImeEvent, Input, Key, Modifiers, Pen, PenPhase, PointerButton,
     ScrollDelta, TouchId, TouchPhase,
 };
-use beui_core::runner::SCROLL_LINE as WHEEL_LINE;
+use beui_runner::SCROLL_LINE as WHEEL_LINE;
 
 pub type Frames = Vec<Vec<Input>>;
 

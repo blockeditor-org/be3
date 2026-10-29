@@ -11,10 +11,10 @@ use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{Color32, NodeId, Rect};
 use block_editor_beui::block_ui::BlockTypes;
-use block_editor_beui::tags::{ShownTag, TagChip};
 use block_editor_beui::{
     AdministratorWatch, BlockFilter, Drag, Editor, Toolbar, node_anchor, phone_layout,
 };
+use block_editor_database::tags::{ShownTag, TagChip};
 use uuid::Uuid;
 
 use super::export::{Export, ExportFormat, Exporter};

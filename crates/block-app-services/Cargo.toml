@@ -1,0 +1,24 @@
+[package]
+name = "block-app-services"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+async-executor = "1"
+async-io = "2"
+async-lock = "3"
+be-wayland = { path = "../be-wayland" }
+beui-types = { path = "../beui-types" }
+block-app-base = { path = "../block-app-base" }
+block-plugin-api = { path = "../block-plugin-api" }
+futures-util = { version = "0.3", features = ["io"] }
+image = { version = "0.25", default-features = false, features = ["bmp", "gif", "ico", "jpeg", "png", "pnm", "tga", "tiff", "webp"] }
+pulseaudio = "0.3"
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1", features = ["sync"] }
+uuid = { version = "1", features = ["serde", "v4", "v7"] }
+zbus = { version = "5", default-features = false, features = ["async-io"] }
+
+[lints]
+workspace = true

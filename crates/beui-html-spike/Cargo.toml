@@ -13,7 +13,7 @@ name = "beui-html-spike"
 path = "src/main.rs"
 
 [dependencies]
-beui = { path = "../beui", default-features = false }
+beui = { path = "../beui" }
 block-accounts-ui = { path = "../block-accounts-ui" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

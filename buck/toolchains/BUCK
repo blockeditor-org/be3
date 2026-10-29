@@ -188,8 +188,9 @@ pinned_rust_toolchain(
     # cranelift is far slower at an unoptimised module; the opt level is also what
     # tells build scripts OPT_LEVEL. rustc turns debug assertions and overflow
     # checks off above opt-level 0, so wasm names them, as the plugin profile
-    # inherits them from dev. editor() in buck/wasm/defs.bzl compiles a
-    # plugin's own crate at 0 all the same, outside a release build.
+    # inherits them from dev. Outside a release build, buck/cargo/defs.bzl
+    # compiles workspace crates for wasm at 1 and editor() in
+    # buck/wasm/defs.bzl a plugin's own crate at 0.
     # buck/constraints:release, which `-m release` adds, is cargo's release
     # profile.
     rustc_flags = select({

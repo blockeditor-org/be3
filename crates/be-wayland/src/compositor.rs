@@ -295,7 +295,7 @@ impl Compositor {
         if let Some(dir) = &launch.working_dir {
             process.current_dir(dir);
         }
-        for variable in beui::native::environment::VARIABLES {
+        for variable in beui_host::native::environment::VARIABLES {
             process.env_remove(variable);
         }
         process

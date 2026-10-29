@@ -91,7 +91,7 @@ interface windows {
 
 /// The pointing devices and the input remaps of the session.
 interface input {
-    use be3:ui/types@0.1.0.{input-device, pointer-settings};
+    use be3:preferences/types@0.1.0.{input-device, pointer-settings};
 
     record host-input-device {
         device: input-device,
@@ -119,7 +119,8 @@ interface input {
 
 /// The displays connected to the session.
 interface displays {
-    use be3:ui/types@0.1.0.{display-mode, rect, rotation};
+    use be3:ui/types@0.1.0.{rect};
+    use be3:preferences/types@0.1.0.{display-mode, rotation};
 
     /// `rect` is where the display shows the desktop, in points, and `scale` its pixels per point.
     record host-display {

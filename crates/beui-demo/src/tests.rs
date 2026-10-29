@@ -1,6 +1,7 @@
 use beui::datetime::Date;
-use beui::native::{Document, build};
+use beui::native::Document;
 use beui::{Input, NodeId, Pos2, Vec2, pos2};
+use beui_host::native::build;
 use block_ui_test::DocumentTest;
 
 use super::*;
@@ -24,6 +25,7 @@ mod a_list_leaves_no_gap_for_a_hidden_frame;
 mod a_long_menu_page_scrolls_to_the_row_the_keyboard_is_on;
 mod a_long_press_on_the_code_of_a_sample_shows_its_selection_toolbar;
 mod a_long_sheet_fades_its_content_and_bounces_as_a_panel;
+mod a_menu_grid_ticks_the_layout_last_picked;
 mod a_menu_page_opens_in_place_of_the_menu_and_its_tree_follows_the_arrow_keys;
 mod a_menu_page_opens_in_place_of_the_menu_in_a_sheet;
 mod a_menu_widens_to_show_a_long_label_and_its_shortcut;

@@ -7,12 +7,12 @@ fn unsent_edits_can_be_restored_or_discarded() {
     let first = uuid::Uuid::from_u128(1);
     shown
         .stepped
-        .click(beui::native::testing::Target::id(format!(
+        .click(beui_host::native::testing::Target::id(format!(
             "app.unsent.restore.{first}"
         )));
     shown
         .stepped
-        .click(beui::native::testing::Target::id(format!(
+        .click(beui_host::native::testing::Target::id(format!(
             "app.unsent.discard.{first}"
         )));
     let commands = crate::ui::take_commands();
@@ -30,7 +30,7 @@ fn unsent_edits_can_be_restored_or_discarded() {
     let second = uuid::Uuid::from_u128(2);
     shown
         .stepped
-        .click(beui::native::testing::Target::id(format!(
+        .click(beui_host::native::testing::Target::id(format!(
             "app.unsent.restore.{second}"
         )));
     assert!(

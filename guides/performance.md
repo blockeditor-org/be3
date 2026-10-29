@@ -68,7 +68,7 @@ suite's `programs` (crates/bench/BUCK). Each can also run alone, with
   pointer between them every frame for 60 frames, after 60 frames of moving it a pixel
   over one icon. In October 2026 a switch's `frame` was about 4 ms, as the moves' are,
   after 32 ms while the cursor sprite built a new `Renderer` for every icon.
-- `//crates/beui:example-text-bench -- [NAME]` times resizing and editing text.
+- `//crates/beui-host:example-text-bench -- [NAME]` times resizing and editing text.
 - Both beui benches run their frames through the real `Runner`, with no drive layer (so no
   accessibility dump) and the clock stopped, and push their inputs as a platform would. A
   frame's time is `Runner::frame`'s, so it includes the intake and the window bookkeeping
@@ -251,7 +251,7 @@ session left, with every step that can overlap running at once. What keeps it th
   the background (`resume_organization` in crates/block-app/src/main.rs). If the list
   no longer has it, the app falls back to the organization list.
 - The plugins whose editors were open are kept in app state too, and are started, with
-  the shell's plugin, on the first frame (`plugin_host::warm`), before the shell asks
+  the shell's plugin, on the first frame (`block_app_plugin_host::warm`), before the shell asks
   for them. A plugin with no editors open idles once it has loaded.
 - The host prefetches the content of an editor's references (up to four) as soon as its
   block's node is known, so a database view's database loads beside the view.

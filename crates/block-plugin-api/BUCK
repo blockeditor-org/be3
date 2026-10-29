@@ -1,9 +1,12 @@
-load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test", "editor_packages")
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
 
 WIT = {
     "foreign_resources": {
         "//crates/be-ops:wit": "crates/be-ops",
         "//crates/block-gpu-abi:wit": "crates/block-gpu-abi",
+        "//crates/block-plugin-manifest:wit": "crates/block-plugin-manifest",
+        "//crates/ui-keys:wit": "crates/ui-keys",
+        "//crates/ui-preferences:wit": "crates/ui-preferences",
         "//crates/ui-types:wit": "crates/ui-types",
     },
     "resources": glob(["wit/*.wit", "wit/deps/**/*.wit"]),
@@ -11,13 +14,4 @@ WIT = {
 
 cargo_library(**WIT)
 
-# every_editor_manifest_parses reads each editor's manifest.json from
-# EDITOR_MANIFESTS, a directory of <editor>/manifest.json, so that the
-# manifests are inputs of the test like any other and it runs on a worker.
-filegroup(
-    name = "editor-manifests",
-    srcs = {"{}/manifest.json".format(package.split("/")[-1]): "//{}:manifest".format(package) for package in editor_packages()},
-    visibility = ["//crates/be-cli:"],
-)
-
-cargo_test(env = {"EDITOR_MANIFESTS": "$(location :editor-manifests)"}, **WIT)
+cargo_test(**WIT)

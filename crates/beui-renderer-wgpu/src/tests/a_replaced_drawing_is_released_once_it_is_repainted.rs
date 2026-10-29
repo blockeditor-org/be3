@@ -31,7 +31,7 @@ impl Drop for Held {
 fn a_replaced_drawing_is_released_once_it_is_repainted() {
     let first = Rc::new(Cell::new(false));
     let setter: Rc<RefCell<Option<Signal<Option<beui_core::drawing::Drawing>>>>> = Rc::default();
-    let initial = crate::drawing(Held(first.clone()));
+    let initial = beui_draw::drawing(Held(first.clone()));
     let mut document = build({
         let setter = setter.clone();
         move || {
@@ -55,7 +55,7 @@ fn a_replaced_drawing_is_released_once_it_is_repainted() {
     );
 
     let second = Rc::new(Cell::new(false));
-    let next = crate::drawing(Held(second.clone()));
+    let next = beui_draw::drawing(Held(second.clone()));
     setter
         .borrow()
         .as_ref()

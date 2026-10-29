@@ -1,7 +1,7 @@
 use block_editor_beui::be_block::BlockContent;
+use block_editor_beui::be_block::EditorView;
 use block_editor_beui::{BlockInfo, BlockParent, EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
-use workspace_ui_types::EditorView;
 use workspace_ui_types::WorkspaceContent;
 
 use super::*;

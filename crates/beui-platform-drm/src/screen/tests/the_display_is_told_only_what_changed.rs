@@ -25,7 +25,7 @@ fn paint(context: &beui::native::Context, square: bool) -> beui::native::WindowO
 fn the_display_is_told_only_what_changed() {
     let (device, queue) = vulkan_device();
     let gpu = Gpu::new(device, queue, FORMAT);
-    let context = beui::native::context();
+    let context = beui_host::native::context();
     let mut screen = Screen::new(&gpu, (WIDTH, HEIGHT), Rotation::Normal);
     screen.rect = Rect::from_min_size(pos2(0.0, 0.0), vec2(32.0, 24.0));
     let target = target(&gpu);

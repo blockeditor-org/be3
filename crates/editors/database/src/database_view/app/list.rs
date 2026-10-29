@@ -4,9 +4,9 @@ use block_editor_beui::beui::icons::{ICON_CHEVRON_DOWN, ICON_FILE_TEXT, ICON_LIN
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, TextAlign};
-use block_editor_beui::block_ui::database::cell_text;
-use block_editor_beui::database::{ChoiceMark, use_choice_colors};
 use block_editor_beui::narrow_chrome;
+use block_editor_database::{ChoiceMark, use_choice_colors};
+use block_ui_database::cell_text;
 use database_types::database::{DatabaseRow, DatabaseValue, short_id};
 use database_types::database_schema::{
     ChoiceIcon, DatabaseEnumOption, DatabaseField, DatabaseFieldType,

@@ -6,9 +6,12 @@ use std::fmt;
 be_ops_bindgen::generate!({
     path: "wit",
     world: "editor-plugin",
-    deps: ["../ui-types/wit", "../be-ops/wit", "../block-gpu-abi/wit"],
+    deps: ["../ui-keys/wit", "../ui-preferences/wit", "../ui-types/wit", "../be-ops/wit", "../block-gpu-abi/wit", "../block-plugin-manifest/wit"],
     uses: {
+        "be3:manifest/types@0.1.0": ::block_plugin_manifest::types,
         "be3:ui/types@0.1.0": ::ui_types::types,
+        "be3:preferences/types@0.1.0": ::ui_preferences::types,
+        "be3:keys/types@0.1.0": ::ui_keys::types,
         "be3:gpu/device@0.1.0": ::block_gpu_abi::device,
     },
     local: ["be3:gpu/device@0.1.0"],
@@ -20,18 +23,16 @@ be_ops_bindgen::generate!({
         "host-window-id": crate::HostWindowId,
         "child-id": crate::ChildId,
         "web-view-id": crate::WebViewId,
-        "rgb": [u8; 3],
     },
     copy: [
-        "uuid", "hash", "host-window-id", "editor-instance-id", "screen-id", "child-id", "web-view-id", "rgb",
+        "uuid", "hash", "host-window-id", "editor-instance-id", "screen-id", "child-id", "web-view-id",
     ],
     default: [
         "frame-chrome", "top-bar", "frame-spec", "size", "fonts", "screen-layout",
         "block-metadata", "artifact-state", "version-status",
         "menu-command", "menu-check", "menu-pin", "menu-heading", "block-filter", "child-preview",
-        "catalog", "audio-status", "child-layer", "child-mode", "interaction-mode", "pan-mode",
-        "editor-capabilities", "resize-mode", "child-operations", "press", "template-category",
-        "host-preference-sources", "host-contact", "host-image", "window-origin", "remap-state",
+        "catalog", "audio-status", "child-layer", "child-mode", "host-preference-sources",
+        "host-contact", "host-image", "window-origin", "remap-state",
         "power-availability", "media-level", "audio-output", "media-levels", "wifi-security",
         "wifi-network", "wifi-link", "wifi-status", "incoming-notification", "notification-inbox",
         "notification-report", "host-program", "tray-toggle", "tray-menu-item", "host-tray-item",
@@ -47,7 +48,6 @@ be_ops_bindgen::generate!({
         "window-fullscreen", "wifi-connect", "notification-closed", "notification-action-invoked",
         "program-list", "program-launch", "program-exec", "tray-scroll", "tray-menu-chosen",
     ],
-    lenient: ["editor-capabilities", "child-operations"],
     ordered: ["child-content", "dock-tab-path", "block-filter"],
     own_debug: ["font-face"],
 });
@@ -66,23 +66,20 @@ pub use dock::{
 pub use guest::dock::DockWatch;
 pub use host_services::{AccessGrant, AccessListing, ImportedBlock, Revision, ShellDialog};
 pub use shared::access::AccessLevel;
+pub use shell_types::ChildStatus;
 pub use shell_types::{
     ArtifactDescription, AudioCommand, AudioSource, AudioStatus, BarAction, Catalog, ChildPreview,
     CreationProgress, DialogAnswer, DialogStatus, DroppedFile, EditorDescriptor, FitArea,
     PreviewImage, ShellCommand, Stopped, TemplateDescriptor, ViewChange, WebViewEvent,
 };
-pub use shell_types::{
-    BlockTypeDescriptor, ChildOperations, ChildStatus, EditorCapabilities, Edits, InteractionMode,
-    PanMode, Press, ResizeMode, TemplateCategory,
-};
 pub use types::{BlockFilter, BlockLocation, BlockPick, OpenPicker, PickedBlock};
 pub use types::{
-    ChildContent, ChildLayer, ChildMode, ChildPlacement, ChildPlacements, DialogFrame,
-    EditorRegion, Failure, FontFace, FontRole, Fonts, FrameChrome, FrameCommit, FrameReport,
-    FrameSpec, Hello, HelloAccepted, HostPanel, InputBatch, Occluder, OpenArtifact, OpenBlock,
-    OpenCreation, Opening, PluginIdentity, PresentedFrame, PressClaim, RegionSize, ScreenDamage,
-    ScreenLayout, ScreenPlacement, ScreenRequest, ScreenWindow, Scrim, Size, SurfaceFormat,
-    SurfaceRect, SurfaceSpec, SurfaceSupport, TimedInput, TopBar, ViewportMetrics,
+    ChildContent, ChildLayer, ChildMode, ChildPlacement, ChildPlacements, DialogFrame, Failure,
+    FontFace, FontRole, Fonts, FrameChrome, FrameCommit, FrameReport, FrameSpec, Hello,
+    HelloAccepted, HostPanel, InputBatch, Occluder, OpenArtifact, OpenBlock, OpenCreation, Opening,
+    PresentedFrame, PressClaim, RegionSize, ScreenDamage, ScreenLayout, ScreenPlacement,
+    ScreenRequest, ScreenWindow, Scrim, Size, SurfaceFormat, SurfaceRect, SurfaceSpec,
+    SurfaceSupport, TimedInput, TopBar, ViewportMetrics,
 };
 pub use types::{
     DockChild, DockChildClose, DockChildHosted, DockChildPick, DockDeclaration, DockDeclare,
@@ -136,18 +133,19 @@ mod block_ids;
 mod desktop_types;
 mod docking;
 mod input;
-mod manifest;
 mod nesting;
 mod opening;
 pub mod requested;
 mod watch;
 pub use block_ids::BlockIdRole;
+use block_plugin_manifest::extension_of;
+pub use block_plugin_manifest::{
+    BlockTypeDescriptor, ChildOperations, EditorCapabilities, EditorRegion, Edits, InteractionMode,
+    MAX_STRING_BYTES, PanMode, PluginIdentity, Press, ResizeMode, TemplateCategory,
+};
 pub use docking::{
     DockEntry, DockFloating, DockNode, DockNodes, MAX_DOCK_DEPTH, MAX_DOCK_NESTING, dock_prefix,
     dock_prefix_block,
-};
-pub use manifest::{
-    EditorDocument, InOrder, ManifestDocument, TemplateDocument, manifest_from_json,
 };
 pub use ui_types::geometry::{Pos2, Rect, Vec2};
 pub use ui_types::{
@@ -163,7 +161,6 @@ pub use ui_types::{ImeArea, WindowRequests, WindowRole};
 pub use watch::{Encoded, WAITING_WEB_VIEW_EVENTS, Watch};
 
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
-pub const MAX_STRING_BYTES: usize = 16 * 1024;
 pub const MAX_MENU_DEPTH: usize = 8;
 pub const MAX_TEXT_BYTES: usize = 64 * 1024 * 1024;
 pub const MAX_BLOB_BYTES: usize = 64 * 1024 * 1024;
@@ -397,298 +394,10 @@ impl ChildPlacements {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PluginManifest {
-    pub identity: PluginIdentity,
-    pub editors: Vec<EditorManifest>,
-    pub block_types: Vec<BlockTypeManifest>,
-    pub entry_point: String,
-    pub network: Vec<String>,
-    pub extensions: Vec<String>,
-}
-
-pub const EXTENSIONS: &[&str] = &["be3:desktop"];
-
 pub fn is_published(interface: &str) -> bool {
     interface == AdministratorWatch::INTERFACE
         || interface == ContactsWatch::INTERFACE
         || extension_of(interface).is_some()
-}
-
-pub fn extension_of(interface: &str) -> Option<&'static str> {
-    let package = interface.split_once('/')?.0;
-    EXTENSIONS
-        .iter()
-        .copied()
-        .find(|extension| *extension == package)
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct BlockTypeManifest {
-    pub name: String,
-    pub descriptor: BlockTypeDescriptor,
-    pub module: String,
-    pub exported_whole: bool,
-}
-
-impl BlockTypeManifest {
-    pub fn content_type(&self) -> [u8; 16] {
-        self.descriptor.block_type
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct EditorManifest {
-    pub id: [u8; 16],
-    pub name: String,
-    pub edits: Edits,
-    pub display_name: String,
-    pub icon: String,
-    pub templates: Vec<TemplateManifest>,
-    pub interaction: InteractionMode,
-    pub capabilities: EditorCapabilities,
-    pub resize: ResizeMode,
-    pub regions: Vec<EditorRegion>,
-    pub accepts: Vec<ShellRequest>,
-}
-
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ShellRequest {
-    ShowBlock,
-    Pick,
-    Dialog,
-    Panel,
-    Window,
-}
-
-impl ShellRequest {
-    pub const ROUTED: [Self; 4] = [Self::ShowBlock, Self::Dialog, Self::Panel, Self::Window];
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TemplateManifest {
-    pub id: String,
-    pub name: String,
-    pub icon: String,
-    pub category: TemplateCategory,
-    pub debug: bool,
-    pub dialog: bool,
-    pub block_type: [u8; 16],
-}
-
-impl PluginManifest {
-    pub fn grants(&self, extension: &str) -> bool {
-        self.extensions.iter().any(|granted| granted == extension)
-    }
-
-    pub fn editor(&self, id: [u8; 16]) -> Option<&EditorManifest> {
-        self.editors.iter().find(|editor| editor.id == id)
-    }
-
-    pub fn type_module(&self) -> Option<&str> {
-        self.block_types
-            .first()
-            .map(|block_type| block_type.module.as_str())
-    }
-}
-
-impl Edits {
-    pub const ANY_NAME: &str = "any";
-
-    pub fn block_type(self) -> Option<[u8; 16]> {
-        match self {
-            Self::Type(block_type) => Some(block_type),
-            Self::Any | Self::Nothing => None,
-        }
-    }
-}
-
-impl EditorManifest {
-    pub fn template(&self, id: &str) -> Option<&TemplateManifest> {
-        self.templates.iter().find(|template| template.id == id)
-    }
-
-    pub fn accepts(&self, request: ShellRequest) -> bool {
-        self.accepts.contains(&request)
-    }
-}
-
-impl ResizeMode {
-    pub fn horizontal(self) -> bool {
-        matches!(self, Self::Horizontal | Self::Both)
-    }
-
-    pub fn vertical(self) -> bool {
-        matches!(self, Self::Vertical | Self::Both)
-    }
-}
-
-impl EditorRegion {
-    pub const ALL: [Self; 3] = [Self::Frame, Self::Preview, Self::ArtifactSettings];
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ManifestError {
-    Malformed(String),
-    Empty(&'static str),
-    TooLong(&'static str),
-    InvalidIdentity,
-    InvalidBlockType,
-    InvalidEditorId,
-    InvalidRegions,
-    InvalidNetworkHost,
-    UnknownExtension,
-    NoEditors,
-    DuplicateEditor,
-    DuplicateBlockType,
-    SeveralTypeModules,
-    DuplicateTemplate,
-    TemplateWithoutBlockType,
-    ServiceWithTemplates,
-}
-
-impl fmt::Display for ManifestError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Malformed(error) => write!(formatter, "the manifest could not be read: {error}"),
-            Self::Empty(field) => write!(formatter, "{field} is empty"),
-            Self::TooLong(field) => write!(formatter, "{field} is too long"),
-            Self::InvalidIdentity => formatter.write_str("the plugin id is not a plain identifier"),
-            Self::InvalidBlockType => formatter.write_str("the block type is not a uuid"),
-            Self::InvalidEditorId => formatter.write_str("the editor id is not a uuid"),
-            Self::InvalidRegions => {
-                formatter.write_str("the regions must include the frame exactly once")
-            }
-            Self::InvalidNetworkHost => {
-                formatter.write_str("a network host is not a plain host name")
-            }
-            Self::UnknownExtension => {
-                formatter.write_str("an extension is not one the host knows, or is named twice")
-            }
-            Self::NoEditors => {
-                formatter.write_str("the plugin declares no editors and no block types")
-            }
-            Self::DuplicateBlockType => {
-                formatter.write_str("two block types are declared with the same id or name")
-            }
-            Self::SeveralTypeModules => {
-                formatter.write_str("the block types name more than one type module")
-            }
-            Self::DuplicateEditor => {
-                formatter.write_str("two editors are declared with the same id or name")
-            }
-            Self::TemplateWithoutBlockType => formatter.write_str(
-                "a template of an editor that edits no one block type names no block type",
-            ),
-            Self::DuplicateTemplate => {
-                formatter.write_str("an editor declares the same template twice")
-            }
-            Self::ServiceWithTemplates => formatter.write_str(
-                "an editor that edits no block is part of the shell and declares no templates",
-            ),
-        }
-    }
-}
-
-impl PluginManifest {
-    pub fn validate(&self) -> Result<(), ManifestError> {
-        manifest_string("plugin id", &self.identity.id)?;
-        manifest_string("plugin name", &self.identity.name)?;
-        manifest_string("plugin version", &self.identity.version)?;
-        if !self
-            .identity
-            .id
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_'))
-        {
-            return Err(ManifestError::InvalidIdentity);
-        }
-        if self.editors.is_empty() && self.block_types.is_empty() {
-            return Err(ManifestError::NoEditors);
-        }
-        for (index, block_type) in self.block_types.iter().enumerate() {
-            if self.block_types[..index].iter().any(|other| {
-                other.content_type() == block_type.content_type() || other.name == block_type.name
-            }) {
-                return Err(ManifestError::DuplicateBlockType);
-            }
-            manifest_string("block type name", &block_type.name)?;
-            manifest_string("display name", &block_type.descriptor.display_name)?;
-            manifest_string("icon", &block_type.descriptor.icon_codepoint)?;
-            manifest_string("type module", &block_type.module)?;
-            if self.type_module() != Some(block_type.module.as_str()) {
-                return Err(ManifestError::SeveralTypeModules);
-            }
-        }
-        for (index, editor) in self.editors.iter().enumerate() {
-            if self.editors[..index]
-                .iter()
-                .any(|other| other.id == editor.id || other.name == editor.name)
-            {
-                return Err(ManifestError::DuplicateEditor);
-            }
-            editor.validate()?;
-        }
-        manifest_string("entry point", &self.entry_point)?;
-        for host in &self.network {
-            manifest_string("network host", host)?;
-            if !host
-                .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-'))
-            {
-                return Err(ManifestError::InvalidNetworkHost);
-            }
-        }
-        for (index, extension) in self.extensions.iter().enumerate() {
-            if !EXTENSIONS.contains(&extension.as_str())
-                || self.extensions[..index].contains(extension)
-            {
-                return Err(ManifestError::UnknownExtension);
-            }
-        }
-        Ok(())
-    }
-}
-
-impl EditorManifest {
-    fn validate(&self) -> Result<(), ManifestError> {
-        manifest_string("editor name", &self.name)?;
-        manifest_string("display name", &self.display_name)?;
-        manifest_string("icon", &self.icon)?;
-        if !self.regions.contains(&EditorRegion::Frame)
-            || EditorRegion::ALL
-                .iter()
-                .any(|region| self.regions.iter().filter(|it| *it == region).count() > 1)
-        {
-            return Err(ManifestError::InvalidRegions);
-        }
-        if self.edits == Edits::Nothing && !self.templates.is_empty() {
-            return Err(ManifestError::ServiceWithTemplates);
-        }
-        for (index, template) in self.templates.iter().enumerate() {
-            manifest_string("template id", &template.id)?;
-            manifest_string("template name", &template.name)?;
-            manifest_string("template icon", &template.icon)?;
-            if self.templates[..index]
-                .iter()
-                .any(|other| other.id == template.id)
-            {
-                return Err(ManifestError::DuplicateTemplate);
-            }
-        }
-        Ok(())
-    }
-}
-
-fn manifest_string(field: &'static str, value: &str) -> Result<(), ManifestError> {
-    if value.is_empty() {
-        Err(ManifestError::Empty(field))
-    } else if value.len() > MAX_STRING_BYTES {
-        Err(ManifestError::TooLong(field))
-    } else {
-        Ok(())
-    }
 }
 
 pub use blocks::MetadataEntries;

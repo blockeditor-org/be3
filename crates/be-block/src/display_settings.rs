@@ -7,7 +7,7 @@ use uuid::Uuid;
 use crate::Root;
 use crate::setting::Setting;
 use crate::settings::Layered;
-pub use ui_types::{CanvasTouch, DisplayMode, Motion, PreferenceLayer, Rotation, ThemeKind};
+pub use ui_preferences::{CanvasTouch, DisplayMode, Motion, PreferenceLayer, Rotation, ThemeKind};
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub enum ScreenOff {

@@ -6,7 +6,7 @@ cargo_library()
 # The tests name block types from the editors' manifests, as be does from the
 # bundle it carries.
 cargo_test(
-    env = {"EDITOR_MANIFESTS": "$(location //crates/block-plugin-api:editor-manifests)"},
+    env = {"EDITOR_MANIFESTS": "$(location //crates/block-plugin-manifest:editor-manifests)"},
 )
 
 # be carries every plugin's manifest and type module in its executable, so a

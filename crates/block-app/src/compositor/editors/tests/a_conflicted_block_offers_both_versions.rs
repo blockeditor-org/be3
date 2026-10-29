@@ -1,9 +1,10 @@
+use beui::native::Context;
 use beui::native::WindowSize;
-use beui::native::testing::{Showing, Stepped};
-use beui::{native::Context, native::FreetypeFonts};
+use beui_host::native::FreetypeFonts;
+use beui_host::native::testing::{Showing, Stepped};
 
 use super::*;
-use beui::native::build;
+use beui_host::native::build;
 
 const SIZE: Vec2 = vec2(1100.0, 720.0);
 
@@ -65,7 +66,7 @@ fn a_conflicted_block_offers_both_versions() {
 
     let mut dialog = shown(move || {
         let comparison = create_memo(move || {
-            Some(crate::be::conflicts::Comparison {
+            Some(block_app_stack::conflicts::Comparison {
                 block,
                 ours: Some(Err(
                     "This version is still loading from this device.".to_owned()
