@@ -345,7 +345,12 @@ impl ProtocolLink {
                 height: size.y,
             }
         };
-        let declared = declaration_to_api(declaration, &own_path, &empty, &size);
+        let block_type = self.host.block_type();
+        let kind = |kind: &str| match block_type {
+            Some(block_type) => format!("{}/{kind}", block_type.simple()),
+            None => kind.to_owned(),
+        };
+        let declared = declaration_to_api(declaration, &own_path, &empty, &size, &kind);
         let views: Vec<ViewId> = match self.docked {
             true => declared
                 .tabs
@@ -1053,6 +1058,7 @@ pub(crate) fn declaration_to_api(
     path: PathOf<'_>,
     empty: EmptyOf<'_>,
     size: &dyn Fn(TabId) -> api::Size,
+    kind: &dyn Fn(&str) -> String,
 ) -> api::DockDeclaration {
     let spec = &declaration.spec;
     let nodes = api::DockNodes {
@@ -1120,6 +1126,7 @@ pub(crate) fn declaration_to_api(
                 Some(api::DockBar {
                     tab: path(bar.tab)?,
                     key: bar.key.clone(),
+                    kind: kind(&bar.kind),
                     owner: path(bar.owner)?,
                     placement: placement_to_api(bar.placement),
                     size: size(bar.tab),
@@ -1232,6 +1239,7 @@ fn declaration_from_api(
         .map(|bar| DockDeclaredBar {
             tab: paths.tab(&bar.tab),
             key: bar.key.clone(),
+            kind: bar.kind.clone(),
             owner: paths.tab(&bar.owner),
             placement: placement_from_api(&bar.placement),
         })

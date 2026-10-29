@@ -876,19 +876,20 @@ impl<K: DockKey> DockingLayout<K> {
         spec.bars
             .iter()
             .filter_map(|bar| {
-                let key = match found.bars.get(&bar.bar) {
-                    Some((key, _)) => key.clone(),
+                let (key, kind) = match found.bars.get(&bar.bar) {
+                    Some((key, _)) => (key.clone(), key.clone()),
                     None => {
                         let (joined, held) = found.foreign.get(&bar.bar)?;
                         let declaration = joined.declaration.borrow();
                         let declared = declaration.as_ref()?.bar(*held)?;
                         let (host, _) = inner.registry.foreign.borrow().inner(bar.bar)?;
-                        self.path(host, &declared.key)?
+                        (self.path(host, &declared.key)?, declared.kind.clone())
                     }
                 };
                 Some(DockDeclaredBar {
                     tab: bar.bar,
                     key,
+                    kind,
                     owner: bar.owner,
                     placement: bar.placement,
                 })
@@ -1321,8 +1322,7 @@ impl<K: DockKey> Found<K> {
         }
         let (joined, inner) = self.foreign.get(&bar)?;
         let declaration = joined.declaration.borrow();
-        let key = &declaration.as_ref()?.bar(*inner)?.key;
-        Some(key.rsplit('/').next().unwrap_or(key).to_owned())
+        Some(declaration.as_ref()?.bar(*inner)?.kind.clone())
     }
 
     fn own_keys(&self) -> Vec<(TabId, String)> {

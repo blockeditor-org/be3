@@ -427,6 +427,7 @@ impl DockDeclaration {
         for bar in &self.bars {
             bar.validate()?;
             string(&bar.key)?;
+            string(&bar.kind)?;
             let size = [bar.size.width, bar.size.height];
             if !size.iter().all(|side| side.is_finite() && *side >= 0.0)
                 || bar.key.is_empty()

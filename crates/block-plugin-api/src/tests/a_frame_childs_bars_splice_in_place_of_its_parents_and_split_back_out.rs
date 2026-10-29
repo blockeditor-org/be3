@@ -4,6 +4,7 @@ fn bar(tab: u64, key: &str, owner: u64, edge: DockEdge) -> DockBar {
     DockBar {
         tab: DockTabPath::own(tab),
         key: key.into(),
+        kind: format!("canvas/{key}"),
         owner: DockTabPath::own(owner),
         placement: DockBarPlacement::Over(edge),
         size: Size {

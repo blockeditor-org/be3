@@ -7,6 +7,7 @@ fn a_hosting_tabs_bar_is_lent_to_the_dock_that_joins_in_its_place() {
     let toolbar = DockBar {
         tab: DockTabPath::own(8),
         key: "toolbar".into(),
+        kind: "canvas/toolbar".to_owned(),
         owner: DockTabPath::own(3),
         placement: DockBarPlacement::Beside(DockEdge::Top),
         size: Size {

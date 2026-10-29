@@ -513,7 +513,10 @@ the layout says where each bar is (`dock-layout.bars`). Its owner draws the
 grip too: placing it is a `place-bar` request, and dragging it a run of
 `move-bar` requests with the pointer in the bar body's own points (`move`,
 then `drop` or `cancel`), which the root carries as a drag of its own, showing
-where the bar would land. A `bare` pane shows its one tab with no tab bar. A
+where the bar would land. A bar's `kind` (`{block type}/{key}`, set by the
+declaring editor and passed on unchanged by the host) says which bars are one
+bar of different tabs: the root places every bar of a kind the same way and
+shows the popped-out ones in one window. A `bare` pane shows its one tab with no tab bar. A
 layout also names where each tab moved out of the declaration's group went
 (`dock-layout.outside`: a pane of the root's by key and index, or a window of
 its own), so a `restore` puts them back; each docked instance saves its own

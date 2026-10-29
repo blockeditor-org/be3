@@ -11,6 +11,7 @@ fn bar(tab: u64, owner: u64, placement: DockBarPlacement) -> DockBar {
     DockBar {
         tab: path(&[], tab),
         key: "tools".to_owned(),
+        kind: "canvas/tools".to_owned(),
         owner: path(&[], owner),
         placement,
         size: Size {

@@ -41,6 +41,7 @@ impl DockDeclaration {
 pub struct DockDeclaredBar {
     pub tab: TabId,
     pub key: String,
+    pub kind: String,
     pub owner: TabId,
     pub placement: DockBarPlacement,
 }

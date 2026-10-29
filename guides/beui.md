@@ -2975,9 +2975,12 @@ bar (a local control ignores it). `DockingLayout::place_bar` of a joined dock
 asks the root the same way.
 
 A dock that joins none (the root, or a standalone dock) places bars by key: a
-bar's key is its own `DockBar` id's `key()` (for a joined bar, the last `/`
-segment of its declared key, so every canvas's `tools` bar shares one, whichever
-editor or plugin declared it). Placing, dragging, popping out or docking back
+bar's key is its own `DockBar` id's `key()`, and for a joined bar the `kind` it
+was declared with (`DockDeclaredBar::kind`: in-process, the declaring dock's own
+`key()`; across plugins, block-editor-beui declares `{block type}/{key}`, as
+saved layouts are keyed `{block type}/frame`). So every canvas's `tools` bar
+shares one, whichever plugin instance declared it, while another editor's
+`tools` bar does not. Placing, dragging, popping out or docking back
 one bar places every bar of its key the same way (`DockState::share_bar_placement`),
 and a bar that arrives later takes the placement of the bars of its key already
 there (`adopt_bar_placements`), so popping out one canvas's tool bar pops out

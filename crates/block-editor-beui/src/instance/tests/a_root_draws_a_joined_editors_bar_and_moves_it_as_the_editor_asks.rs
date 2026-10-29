@@ -44,6 +44,7 @@ fn barred() -> DockDeclaration {
         bars: vec![DockBar {
             tab: DockTabPath::own(9),
             key: "tools".to_owned(),
+            kind: "canvas/tools".to_owned(),
             owner: DockTabPath::own(5),
             placement: DockBarPlacement::Over(DockEdge::Top),
             size: Size {

@@ -879,10 +879,15 @@ interface types {
     /// Its body is the owner's view `tab`, which is no tab of
     /// the tree, laid out along its placement's edge; `size` is that body's
     /// size as its owner last laid it out, which the root gives it. `key`
-    /// names it for good, as a tab's does.
+    /// names it for good, as a tab's does. `kind` says which bars are the
+    /// same bar of different tabs: the declaring editor's block type and the
+    /// bar's own key (`{block type}/{key}`), which the host passes on
+    /// unchanged. The root places every bar of one kind the same way and
+    /// shows the popped-out ones in one window.
     record dock-bar {
         tab: dock-tab-path,
         key: string,
+        kind: string,
         owner: dock-tab-path,
         placement: dock-bar-placement,
         size: size,

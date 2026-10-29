@@ -10,6 +10,7 @@ fn a_descendants_bar_is_placed_by_the_root_and_its_moves_reach_it() {
     inner.bars.push(DockBar {
         tab: path(&[], 9),
         key: "tools".to_owned(),
+        kind: "canvas/tools".to_owned(),
         owner: path(&[], 5),
         placement: DockBarPlacement::Over(DockEdge::Bottom),
         size: Size {

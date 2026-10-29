@@ -8,6 +8,7 @@ fn barred() -> DockDeclaration {
     declaration.bars.push(DockBar {
         tab: DockTabPath::own(7),
         key: "tools".into(),
+        kind: "canvas/tools".to_owned(),
         owner: DockTabPath::own(4),
         placement: DockBarPlacement::Over(DockEdge::Top),
         size: Size {
