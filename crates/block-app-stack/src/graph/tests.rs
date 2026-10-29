@@ -1,5 +1,6 @@
 use super::*;
 
+mod a_block_placed_in_another_is_listed_as_its_reference_before_the_server_hears_of_it;
 mod a_block_s_children_leave_out_what_its_metadata_points_to;
 mod a_block_under_a_deleted_one_is_deleted_with_it;
 mod a_blocks_references_are_listed_in_one_request;

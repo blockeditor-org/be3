@@ -295,7 +295,7 @@ plugin is starting, owes a frame, holds unanswered input or has yet to answer a 
 an editor on screen waits for its block's content, while a plugin's change arrived after the
 frame's layout and is shown only by the next, while an account or organization request is
 pending, and while the block store has commands to carry out, edits it owes a seal (which a
-driven app asks for at once unless `hurry` is off, below) or is
+driven app asks for at once unless `hurry` is off, below) or sealed edits it is still sending, or is
 still loading the organization's graph, and never while it shows its error screen. `drive --no-settle COMMAND` answers after the frame that took the input
 instead, to see the app part way through something, such as a plugin still loading. Work the
 app cannot see, such as a server push, is waited for with `drive wait TEXT` or `drive gone

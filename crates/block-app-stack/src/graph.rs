@@ -240,11 +240,16 @@ impl Graph {
         };
         listed.fetch = Fetch::Loaded;
         listed.members = nodes.iter().map(|node| node.id).collect();
+        let described = match listing {
+            Listing::References(block) => self.referenced.contains_key(&block),
+            _ => false,
+        };
         listed.members.extend(
             self.nodes
                 .values()
                 .filter(|node| {
-                    self.pending.contains_key(&node.id)
+                    described
+                        || self.pending.contains_key(&node.id)
                         || self
                             .heard
                             .get(&node.id)
@@ -346,6 +351,7 @@ impl Graph {
 
     pub fn covers(&self, block: Uuid) -> bool {
         self.pending.contains_key(&block)
+            || self.placing.contains(&block)
             || self
                 .listings
                 .values()
@@ -436,6 +442,13 @@ impl Graph {
                 self.revision += 1;
                 self.relist(Listing::References(block));
             }
+        }
+        if let Some(listed) = self.listings.get_mut(&Listing::References(block)) {
+            listed.members.extend(
+                references
+                    .iter()
+                    .filter(|reference| self.nodes.contains_key(reference)),
+            );
         }
         self.placed(block, &references);
         self.referenced.insert(block, references);

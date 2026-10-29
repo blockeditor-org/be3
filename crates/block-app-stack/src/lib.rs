@@ -759,6 +759,7 @@ pub fn busy() -> bool {
     with_shared(|shared| {
         shared.pending > 0
             || shared.typing
+            || shared.draining
             || shared.uploading > 0
             || shared.owing > 0
             || shared.graph.fetching()
