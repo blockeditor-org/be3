@@ -2344,11 +2344,7 @@ impl Instances {
         let table = &screen.children;
         let origin = rect.min.to_vec2();
         let scale = screen.shown_scale(rect);
-        let laid_view = entry
-            .views
-            .at(screen.serial)
-            .copied()
-            .filter(|_| region == ViewId::MAIN);
+        let laid_view = entry.views.at(screen.serial).copied();
         let mut children = Vec::new();
         let mut holes = Holes::default();
         let mut live = 0;
