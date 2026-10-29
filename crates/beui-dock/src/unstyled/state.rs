@@ -49,6 +49,18 @@ pub struct SplitId(u64);
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct SurfaceId(u64);
 
+impl LeafId {
+    pub(crate) fn raw(self) -> u64 {
+        self.0
+    }
+}
+
+impl SplitId {
+    pub(crate) fn raw(self) -> u64 {
+        self.0
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct GroupId(u64);
 
@@ -2118,28 +2130,96 @@ pub fn layout_surface(
 }
 
 pub fn layout_tree(state: &DockState, tree: Tree, area: Rect, thickness: f32) -> DockLayout {
-    let mut layout = DockLayout::default();
-    if let Some(root) = state.root(tree) {
-        place(root, area, thickness, &mut layout);
-    }
-    layout
+    tree_shape(state, tree).map_or_else(DockLayout::default, |shape| shape.layout(area, thickness))
 }
 
-fn place(node: &Node, area: Rect, thickness: f32, out: &mut DockLayout) {
-    match node {
-        Node::Leaf(leaf) => out.leaves.push((leaf.id, area)),
-        Node::Split(split) => {
-            let fraction = shown_fraction(area, split.direction, split.fraction, thickness);
-            let (first, handle, second) = divide(area, split.direction, fraction, thickness);
-            out.splitters.push(DockSplitter {
+pub fn tree_shape(state: &DockState, tree: Tree) -> Option<DockShape> {
+    state.root(tree).map(DockShape::of)
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum DockShape {
+    Leaf(LeafId),
+    Split {
+        id: SplitId,
+        direction: Direction,
+        fraction: f32,
+        first: Box<DockShape>,
+        second: Box<DockShape>,
+    },
+}
+
+impl DockShape {
+    fn of(node: &Node) -> Self {
+        match node {
+            Node::Leaf(leaf) => Self::Leaf(leaf.id),
+            Node::Split(split) => Self::Split {
                 id: split.id,
                 direction: split.direction,
-                handle,
-                area,
+                fraction: split.fraction,
+                first: Box::new(Self::of(&split.first)),
+                second: Box::new(Self::of(&split.second)),
+            },
+        }
+    }
+
+    pub fn leaves(&self) -> Vec<LeafId> {
+        let mut out = Vec::new();
+        self.walk(&mut |shape| {
+            if let Self::Leaf(leaf) = shape {
+                out.push(*leaf);
+            }
+        });
+        out
+    }
+
+    pub fn splits(&self) -> Vec<SplitId> {
+        let mut out = Vec::new();
+        self.walk(&mut |shape| {
+            if let Self::Split { id, .. } = shape {
+                out.push(*id);
+            }
+        });
+        out
+    }
+
+    fn walk(&self, visit: &mut impl FnMut(&Self)) {
+        visit(self);
+        if let Self::Split { first, second, .. } = self {
+            first.walk(visit);
+            second.walk(visit);
+        }
+    }
+
+    pub fn layout(&self, area: Rect, thickness: f32) -> DockLayout {
+        let mut layout = DockLayout::default();
+        self.place(area, thickness, &mut layout);
+        layout
+    }
+
+    fn place(&self, area: Rect, thickness: f32, out: &mut DockLayout) {
+        match self {
+            Self::Leaf(leaf) => out.leaves.push((*leaf, area)),
+            Self::Split {
+                id,
+                direction,
                 fraction,
-            });
-            place(&split.first, first, thickness, out);
-            place(&split.second, second, thickness, out);
+                first,
+                second,
+            } => {
+                let fraction = shown_fraction(area, *direction, *fraction, thickness);
+                let (first_area, handle, second_area) =
+                    divide(area, *direction, fraction, thickness);
+                out.splitters.push(DockSplitter {
+                    id: *id,
+                    direction: *direction,
+                    handle,
+                    area,
+                    fraction,
+                });
+                first.place(first_area, thickness, out);
+                second.place(second_area, thickness, out);
+            }
         }
     }
 }

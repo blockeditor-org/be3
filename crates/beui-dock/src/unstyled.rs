@@ -46,7 +46,7 @@ use beui_view::types::Placement;
 use beui_view::types::window::{WindowEdge, WindowId, WindowPlacement, WindowReport};
 use beui_view::types::{Area, Claim, HitRegion, TouchDrags};
 use beui_view::types::{CursorIcon, Key, KeyPress, Modifiers, PointerPress};
-use beui_view::types::{Direction, ItemSize};
+use beui_view::types::{CanvasArrangement, Direction, ItemSize};
 use beui_view::types::{Pos2, Rect, Vec2, pos2, vec2};
 use beui_view::window::{Window, WindowHandle, opens_windows, use_window};
 
@@ -76,7 +76,7 @@ pub use state::{
     DockTreeEntry, DockVisit, Entry, GroupId, LeafId, Side, SplitId, SurfaceId, TabId, TabPosition,
     Tree, layout_surface, layout_tree,
 };
-use state::{FLOATING_SIZE, MIN_WINDOW_SIZE, fraction_moved};
+use state::{DockShape, FLOATING_SIZE, MIN_WINDOW_SIZE, fraction_moved, tree_shape};
 pub use state::{MIN_PANE_LENGTH, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH};
 use switch::DockSwitchView;
 pub use switch::{DockSwitchHandle, DockSwitchRowHandle};
@@ -2329,33 +2329,17 @@ fn DockTreeView(
         });
     });
     let placement_held = create_signal(None::<Measured>);
-    let placed = create_memo(move || placement_held.get().is_some());
-    let size = create_memo(move || placement_held.get().map_or(Vec2::ZERO, |held| held.size));
     let thickness = dock.thickness;
+    let reach = dock.reach;
     let state = dock.state;
-    let layout = create_memo(move || {
-        let area = Rect::from_min_size(Pos2::ZERO, size.get());
-        state.with(|state| layout_tree(state, tree, area, thickness))
-    });
-    let leaves = create_memo(move || match placed.get() {
-        true => layout.with(|layout| {
-            layout
-                .leaves
-                .iter()
-                .map(|(leaf, _)| *leaf)
-                .collect::<Vec<_>>()
-        }),
-        false => Vec::new(),
-    });
-    let splits = create_memo(move || match placed.get() {
-        true => layout.with(|layout| {
-            layout
-                .splitters
-                .iter()
-                .map(|splitter| splitter.id)
-                .collect::<Vec<_>>()
-        }),
-        false => Vec::new(),
+    let shape = create_memo(move || state.with(|state| tree_shape(state, tree)));
+    let leaves = create_memo(move || shape.with(|shape| shape.as_ref().map(DockShape::leaves).unwrap_or_default()));
+    let splits = create_memo(move || shape.with(|shape| shape.as_ref().map(DockShape::splits).unwrap_or_default()));
+    let arrangement = create_memo(move || {
+        let shape = shape.get()?;
+        Some(CanvasArrangement::new(move |size| {
+            arranged(&shape, Rect::from_min_size(Pos2::ZERO, size), thickness, reach)
+        }))
     });
     let hoisted = hoisted.get_untracked();
     let marked_surface = match tree {
@@ -2370,43 +2354,20 @@ fn DockTreeView(
             .map_or(Pos2::ZERO, |held| held.rect.min)
     });
     let built = view! {
-        <Canvas @node_ref=&canvas>
+        <Canvas @node_ref=&canvas arrangement>
             <ForEach keys={leaves}>|leaf: LeafId| {
                 let dock = dock;
-                let layout = layout;
-                let rect = create_memo(move || {
-                    layout.with(|layout| layout.leaf_rect(leaf)).unwrap_or(Rect::ZERO)
-                });
-                let x = create_memo(move || rect.get().min.x);
-                let y = create_memo(move || rect.get().min.y);
-                let width = create_memo(move || rect.get().width());
-                let height = create_memo(move || rect.get().height());
                 let hoisted = hoisted == Some(leaf);
                 view! {
-                    <CanvasItem x={x} y={y} width={width} height={height}>
+                    <CanvasItem arranged={leaf_key(leaf)}>
                         <DockPanelView dock tree leaf hoisted />
                     </CanvasItem>
                 }
             }</ForEach>
             <ForEach keys={splits}>|split: SplitId| {
                 let dock = dock;
-                let layout = layout;
-                let reach = dock.reach;
-                let rect = create_memo(move || {
-                    layout.with(|layout| layout.splitter(split)).map_or(Rect::ZERO, |splitter| {
-                        let outset = match splitter.direction {
-                            Direction::Horizontal => vec2(reach, 0.0),
-                            Direction::Vertical => vec2(0.0, reach),
-                        };
-                        splitter.handle.expand2(outset)
-                    })
-                });
-                let x = create_memo(move || rect.get().min.x);
-                let y = create_memo(move || rect.get().min.y);
-                let width = create_memo(move || rect.get().width());
-                let height = create_memo(move || rect.get().height());
                 view! {
-                    <CanvasItem x={x} y={y} width={width} height={height}>
+                    <CanvasItem arranged={split_key(split)}>
                         <DockSplitterView dock tree split />
                     </CanvasItem>
                 }
@@ -2427,6 +2388,30 @@ fn DockTreeView(
         }
     });
     built
+}
+
+fn leaf_key(leaf: LeafId) -> u64 {
+    leaf.raw() * 2
+}
+
+fn split_key(split: SplitId) -> u64 {
+    split.raw() * 2 + 1
+}
+
+fn arranged(shape: &DockShape, area: Rect, thickness: f32, reach: f32) -> Vec<(u64, Rect)> {
+    let layout = shape.layout(area, thickness);
+    let leaves = layout
+        .leaves
+        .iter()
+        .map(|(leaf, rect)| (leaf_key(*leaf), *rect));
+    let splits = layout.splitters.iter().map(|splitter| {
+        let outset = match splitter.direction {
+            Direction::Horizontal => vec2(reach, 0.0),
+            Direction::Vertical => vec2(0.0, reach),
+        };
+        (split_key(splitter.id), splitter.handle.expand2(outset))
+    });
+    leaves.chain(splits).collect()
 }
 
 #[component]

@@ -5,6 +5,7 @@ use crate::reactive::Get;
 use crate::reactive::NodeId;
 use crate::reactive::Prop;
 use crate::reactive::create_binding;
+use crate::types::CanvasArrangement;
 use crate::types::CanvasView;
 use crate::types::Vec2;
 use crate::types::tree::CanvasItem;
@@ -20,6 +21,7 @@ pub(crate) fn canvas(
     width: Prop<f32>,
     height: Prop<f32>,
     scrolls_across: bool,
+    arrangement: Prop<Option<CanvasArrangement>>,
     on_reveal: Callback<Vec2>,
     children: Children<CanvasItem>,
 ) -> NodeId {
@@ -50,7 +52,9 @@ pub(crate) fn canvas(
         );
     });
     let state = beui_core_html::canvas::canvas(canvas, shown, on_reveal);
+    let arranging = std::rc::Rc::clone(&state);
     bind(view, move |view| state.set_view(view));
+    bind(arrangement, move |arrangement| arranging.set_arrangement(arrangement));
     children.mount(host::<CanvasKind>(shown));
     canvas
 }
@@ -60,6 +64,7 @@ pub(crate) fn canvas_item(
     y: Prop<f32>,
     width: Prop<f32>,
     height: Prop<f32>,
+    arranged: Option<u64>,
     clip: Prop<bool>,
     pointer: Prop<bool>,
     scales: Prop<bool>,
@@ -74,9 +79,34 @@ pub(crate) fn canvas_item(
         Some("minmax(0, 1fr) / minmax(0, 1fr)".to_owned()),
     );
     beui_core_html::canvas::item(item);
+    beui_core_html::canvas::set_item_arranged(item, arranged);
     if let Some(child) = children {
         append(item, child);
     }
+    if arranged.is_none() {
+        place_item(item, x, y, width, height, scales);
+    }
+    bind(clip, move |clip| {
+        beui_core_html::canvas::set_item_clip(item, clip)
+    });
+    bind(pointer, move |pointer| {
+        set_style(
+            item,
+            "pointer-events",
+            (!pointer).then(|| "none".to_owned()),
+        );
+    });
+    CanvasItem::new(item, ())
+}
+
+fn place_item(
+    item: NodeId,
+    x: Prop<f32>,
+    y: Prop<f32>,
+    width: Prop<f32>,
+    height: Prop<f32>,
+    scales: Prop<bool>,
+) {
     bind(x, move |x| set_style(item, "left", Some(scale_property(x))));
     bind(y, move |y| set_style(item, "top", Some(scale_property(y))));
     create_binding(move || {
@@ -94,15 +124,4 @@ pub(crate) fn canvas_item(
         );
         set_style(item, "transform-origin", scales.then(|| "0 0".to_owned()));
     });
-    bind(clip, move |clip| {
-        beui_core_html::canvas::set_item_clip(item, clip)
-    });
-    bind(pointer, move |pointer| {
-        set_style(
-            item,
-            "pointer-events",
-            (!pointer).then(|| "none".to_owned()),
-        );
-    });
-    CanvasItem::new(item, ())
 }

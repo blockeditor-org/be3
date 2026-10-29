@@ -4916,7 +4916,17 @@ unplaced. `Measured::rect` is in the window's coordinates, the space
 any zoom, for content that builds from its own size, so a `Container` in a
 zoomed `CanvasItem scales=true` answers the same at every zoom. Each node has one signal per function, made on the first call and
 dropped with the node, so a handler may call `measure(node).get_untracked()`
-as often as it likes. `TextGeometrySignal` reads like a `ReadSignal` (it is
+as often as it likes. A measured size arrives after the layout that made it, so
+children placed from their parent's measured size lag a layout behind (a frame
+with delayed measurement). Children whose rects are a function of the space
+they are given are placed in the layout pass itself instead: a `Canvas` given
+an `arrangement` (`CanvasArrangement::new(|size| Vec<(u64, Rect)>)`, a pure
+function of the canvas's laid-out size, compared by identity, so a memo hands a
+new one when what it places changes) calls it each time it is laid out and puts
+every `CanvasItem arranged=KEY` at the rect returned for KEY (empty if none),
+ignoring its x, y, width and height. The HTML core runs it from the canvas's
+measured size. beui-dock's tiled panes and splitters are placed this way.
+`TextGeometrySignal` reads like a `ReadSignal` (it is
 `Get<Option<TextGeometry>>` over the core's own signal). `TextGeometry` is a
 `Text`'s last layout (a snapshot natively, read from the DOM on HTML):
 `bounds()`, `caret_rect(index, width)`, `index_at(pos)`, `inline_at(pos)`,

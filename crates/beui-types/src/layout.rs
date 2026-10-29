@@ -553,6 +553,31 @@ into_prop_via!(Sides, f32, Sides::all);
 into_prop_via!(Corners, f32, Corners::all);
 into_prop_via!(Align2, Align, Align2::all);
 
+#[derive(Clone)]
+pub struct CanvasArrangement(std::rc::Rc<dyn Fn(Vec2) -> Vec<(u64, Rect)>>);
+
+impl CanvasArrangement {
+    pub fn new(arrange: impl Fn(Vec2) -> Vec<(u64, Rect)> + 'static) -> Self {
+        Self(std::rc::Rc::new(arrange))
+    }
+
+    pub fn arrange(&self, size: Vec2) -> Vec<(u64, Rect)> {
+        (self.0)(size)
+    }
+}
+
+impl PartialEq for CanvasArrangement {
+    fn eq(&self, other: &Self) -> bool {
+        std::rc::Rc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+impl std::fmt::Debug for CanvasArrangement {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("CanvasArrangement")
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct CanvasView {
     pub origin: Pos2,

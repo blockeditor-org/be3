@@ -54,7 +54,7 @@ pub use layer::{
     LayerSpace, OverlayAnchor, Placement,
 };
 pub use layout::{
-    Align, Align2, CanvasView, Corners, Direction, Extent, ItemSize, Justify, Measured, Outline,
+    Align, Align2, CanvasArrangement, CanvasView, Corners, Direction, Extent, ItemSize, Justify, Measured, Outline,
     ScrollPosition, Sides, Sizing, Track,
 };
 pub use node::{BuildsNode, ImeCursor, NodeId, NodeRef};

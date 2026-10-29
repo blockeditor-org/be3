@@ -7,7 +7,7 @@ use crate::reactive::create_effect;
 use crate::reactive::create_memo;
 use crate::reactive::create_timer;
 use crate::types::tree::CanvasItem;
-use beui_core::base::canvas::CanvasView;
+use beui_core::base::canvas::{CanvasArrangement, CanvasView};
 use beui_core::current::with_document;
 use beui_core::document::Document;
 use beui_core::geometry::Rect;
@@ -23,6 +23,7 @@ pub(crate) fn canvas(
     width: Prop<f32>,
     height: Prop<f32>,
     scrolls_across: bool,
+    arrangement: Prop<Option<CanvasArrangement>>,
     on_reveal: Callback<Vec2>,
     children: Children<CanvasItem>,
 ) -> NodeId {
@@ -51,6 +52,10 @@ pub(crate) fn canvas(
         }
     });
     create_effect(move || {
+        let arrangement = arrangement.get();
+        with_document(|document| document.set_canvas_arrangement(canvas, arrangement));
+    });
+    create_effect(move || {
         let size = Vec2::new(width.get(), height.get());
         with_document(|document| document.set_canvas_size(canvas, size));
     });
@@ -62,6 +67,7 @@ pub(crate) fn canvas_item(
     y: Prop<f32>,
     width: Prop<f32>,
     height: Prop<f32>,
+    arranged: Option<u64>,
     clip: Prop<bool>,
     pointer: Prop<bool>,
     scales: Prop<bool>,
@@ -72,13 +78,16 @@ pub(crate) fn canvas_item(
         if let Some(child) = children {
             document.set_canvas_item_child(item, child);
         }
+        document.set_canvas_item_arranged(item, arranged);
         item
     });
-    create_effect(move || {
-        let rect =
-            Rect::from_min_size(pos2(x.get(), y.get()), Vec2::new(width.get(), height.get()));
-        with_document(|document| document.set_canvas_item_rect(item, rect));
-    });
+    if arranged.is_none() {
+        create_effect(move || {
+            let rect =
+                Rect::from_min_size(pos2(x.get(), y.get()), Vec2::new(width.get(), height.get()));
+            with_document(|document| document.set_canvas_item_rect(item, rect));
+        });
+    }
     create_effect(move || {
         let clip = clip.get();
         with_document(|document| document.set_canvas_item_clip(item, clip))

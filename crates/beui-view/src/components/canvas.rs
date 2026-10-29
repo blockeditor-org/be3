@@ -3,6 +3,7 @@ use crate::reactive::Child;
 use crate::reactive::Children;
 use crate::reactive::NodeId;
 use crate::reactive::Prop;
+use crate::types::CanvasArrangement;
 use crate::types::CanvasView;
 use crate::types::Vec2;
 pub use crate::types::tree::CanvasItem;
@@ -14,22 +15,34 @@ pub fn Canvas(
     #[prop(default = 0.0)] width: Prop<f32>,
     #[prop(default = 0.0)] height: Prop<f32>,
     #[prop(default = false)] scrolls_across: bool,
+    #[prop(default = None)] arrangement: Prop<Option<CanvasArrangement>>,
     on_reveal: Callback<Vec2>,
     children: Children<CanvasItem>,
 ) -> NodeId {
-    crate::core::canvas(view, width, height, scrolls_across, on_reveal, children)
+    crate::core::canvas(
+        view,
+        width,
+        height,
+        scrolls_across,
+        arrangement,
+        on_reveal,
+        children,
+    )
 }
 
 #[component]
 pub fn CanvasItem(
-    x: Prop<f32>,
-    y: Prop<f32>,
-    width: Prop<f32>,
-    height: Prop<f32>,
+    #[prop(default = 0.0)] x: Prop<f32>,
+    #[prop(default = 0.0)] y: Prop<f32>,
+    #[prop(default = 0.0)] width: Prop<f32>,
+    #[prop(default = 0.0)] height: Prop<f32>,
+    #[prop(default = None)] arranged: Option<u64>,
     #[prop(default = true)] clip: Prop<bool>,
     #[prop(default = true)] pointer: Prop<bool>,
     #[prop(default = false)] scales: Prop<bool>,
     children: Option<Child>,
 ) -> CanvasItem {
-    crate::core::canvas_item(x, y, width, height, clip, pointer, scales, children)
+    crate::core::canvas_item(
+        x, y, width, height, arranged, clip, pointer, scales, children,
+    )
 }
