@@ -2583,10 +2583,12 @@ fn RenameDialog() -> NodeId {
         name.set(typed.get_untracked().trim().to_owned());
         dialog.set(false);
     };
+    let opener = NodeRef::new();
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Button
+                    @node_ref=&opener
                     @test_id={"demo.rename.open"}
                     label="Rename…"
                     variant=ButtonVariant::Secondary
@@ -2601,6 +2603,7 @@ fn RenameDialog() -> NodeId {
                 open={dialog}
                 title="Rename"
                 width=DIALOG_WIDTH
+                anchor={DialogAnchor::Control(opener)}
                 id="demo.rename"
                 actions={vec![
                     DialogAction::cancel("Cancel"),

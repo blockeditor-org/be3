@@ -194,8 +194,8 @@ impl Document {
                 .collect();
             let content = layer.content.and_then(|content| self.node_rect(content));
             let floating = match layer.policy {
-                LayerPolicy::Pass => content.map(|rect| to_host.rect(rect)).into_iter().collect(),
-                _ => Vec::new(),
+                LayerPolicy::Inert => Vec::new(),
+                _ => content.map(|rect| to_host.rect(rect)).into_iter().collect(),
             };
             let scrims = self
                 .layer_scrim(layer)

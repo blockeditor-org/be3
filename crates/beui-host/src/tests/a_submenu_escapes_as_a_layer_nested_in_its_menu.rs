@@ -58,4 +58,16 @@ fn a_submenu_escapes_as_a_layer_nested_in_its_menu() {
         layers[1].rect.left() >= layers[0].rect.left(),
         "the submenu opens beside the menu"
     );
+
+    assert!(
+        layers.iter().all(|layer| !layer.floating.is_empty()),
+        "a press can land on either menu"
+    );
+
+    harness.context().dismiss_layer(layers[0].id);
+    harness.frame(Vec::new());
+    assert!(
+        harness.document().escaped_layers().is_empty(),
+        "dismissing the menu closes its submenu with it"
+    );
 }

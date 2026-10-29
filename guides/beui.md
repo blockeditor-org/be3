@@ -2174,11 +2174,19 @@ inside a dialog is an alert of its own, opened over it; a control or row action
 (a member's role, share's Add) stays in the content.
 
 `styled::Dialog` is the two parts together: `DialogFrame`, the outer part, and
-`DialogBody`, the inner part. `DialogFrame` (on `unstyled::Dialog`) is a centred
-`DialogCard` in a `Modal`, or, for a `Dialog` kind when its window is
-narrower than `SHEET_BELOW` or the press that opened it was a finger's
-(`touched_by_finger()`, the same rule as `Anchored`'s), a fitted
-`ModalSheet`; an alert is always a card. It builds its content once, when it first
+`DialogBody`, the inner part. `DialogFrame` (on `unstyled::Dialog`) picks its presentation from
+its kind, its `size` (`DialogSize::Small`, the default, or `Large`) and its `anchor`
+(`DialogAnchor::None`, the default, `Control(node_ref)` or `Frame`), one rule in
+`dialog_presentation`: an alert is always a centred `DialogCard` in a `Modal` over a scrim; a
+`Dialog` kind whose window is narrower than `SHEET_BELOW` or that a finger opened
+(`touched_by_finger()`, the same rule as `Anchored`'s) is a `ModalSheet`, fitted when small and
+full height when large; otherwise one with no anchor is a centred card as before, a large one
+with an anchor is centred on its frame (`CenterOn`) over a scrim, and a small one is a card with a
+beak hanging from the control that opened it (`Popover`, no scrim), or from the top of its frame
+(`HangFrom`) when it has no control. The control is resolved when the dialog opens with
+`opener_of`: a control inside a menu that has closed, or inside a menu with a trigger, stands for
+what that menu hangs from (its trigger, or the node a `ContextMenu` was opened on), menu after
+menu. Anchored presentations escape a window that has a layer space; centred ones stay. It builds its content once, when it first
 opens, and moves it between the card and the sheet with a `Portal` if that changes
 while it is open; it provides the `DialogLayout` (`narrow`, `sheet`, `bottom_inset`)
 to what it holds. `DialogBody` is the title row, the content in a fitted `Scroll` with
@@ -2351,6 +2359,45 @@ block-app's keep-changes prompt and lock screen are one card in a `Modal` that
 fills (or centres in) its window; block-app puts one in each display's window.
 The desktop plugin's `LevelOsd` is one card in an inert `Fill` overlay, shown in each
 display's region.
+
+### Layers that escape their window
+
+A window given a layer space (`Context::set_layer_space(window, Some(LayerSpace { to_host, bounds }))`,
+`beui_types::layer`) lets its anchored overlays out of its rectangle. `to_host` maps the window's
+points to the host's (`host = origin + point * scale`) and `bounds` is where layers may go, in host
+coordinates. Without one nothing changes: native block-app, tests and standalone apps never set it.
+
+One rule decides what escapes, `Placement::escapes()`: anchored placements (`BelowStart`,
+`RightStart`, `Above`, `Over`, `Around`, `CenterOn`, `HangFrom`, `Popover`) and `Edge(LayerEdge)`,
+a sheet attached to an edge of the bounds (`ModalPlacement::Sheet`, which `ModalSheet` uses) do;
+`Center`, `Fill`, `At` (windows, dock windows) and the `Inside*` placements (toasts, `Floating`)
+stay in the window. So menus, `ContextMenu` and its submenus, popovers, tooltips, the selection
+toolbar and anchored dialogs escape, and modals centred in their region, toasts and banners stay.
+An overlay that is a window of its own never escapes.
+
+An escaping overlay is laid out in its window's own coordinates, as before, but against
+`bounds` mapped back into them (`LayerSpace::area`) instead of the window, so it flips, slides and
+shrinks against the bounds; a blocking scrim still covers only its window. Hit testing, focus,
+trapping, Escape and back are unchanged. It is left out of the window's painting and of the
+window's `overlay_rects`, `overlay_painted_rects`, `floating_rects` and `overlay_scrims`, and
+painted into a paint window of its own. `Document::escaped_layers()` lists them in layer order,
+each after its parent, as `EscapedLayer`s: a stable `id`, `parent` (the escaped layer it is
+nested in, for submenus), `placement` (`Anchored(rect)` in window points for a layer of the
+window, in host coordinates for one nested in a layer; or `Edge(edge)`), `rect`, `painted`,
+`floating` (the content of every layer that takes input) and `scrims` in host coordinates, and
+`dismiss_on_outside_press` (dismissable and not inert), `keyboard` (traps focus) and
+`blocks_owner` (blocks everything or its parent). Each frame's `FrameOutput::escaped` carries an
+`EscapedOutput` per layer: that record and a `WindowOutput` painted in host units from the
+layer's top-left at `pixels_per_point = window raster / to_host.scale`, ready for a surface of its
+own; `composite_layers` draws a window and its layers as the host would, which
+`DocumentTest::snapshot_layers` paints.
+
+Input that landed on a layer is pushed as `Incoming::layer(id, input)` with host positions; the
+runner maps it into the owning window and it is hit-tested there like any other.
+`Context::dismiss_layer(id)` asks the layer to close as a press outside does
+(`Dismiss::OutsidePress`), and its nested layers close with it. It is heard after the frame's
+input, and not at all if that input already asked the layer to close or closed it, so a press on a
+popover's trigger toggles it closed once.
 
 ### Docking and windows
 

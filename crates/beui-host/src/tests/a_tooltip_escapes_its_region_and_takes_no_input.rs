@@ -48,7 +48,11 @@ fn a_tooltip_escapes_its_region_and_takes_no_input() {
         layer.rect
     );
     assert!(
-        !layer.dismiss_on_outside_press && !layer.keyboard && !layer.blocks_owner,
+        !layer.dismiss_on_outside_press
+            && !layer.keyboard
+            && !layer.blocks_owner
+            && layer.floating.is_empty()
+            && !layer.painted.is_empty(),
         "a tooltip takes no input: {layer:?}"
     );
 }
