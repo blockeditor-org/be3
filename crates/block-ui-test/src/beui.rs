@@ -114,6 +114,8 @@ pub struct BeuiTest<A: BeuiApp> {
     completed:
         std::collections::HashMap<block_plugin_api::ops::OpId, block_plugin_api::ops::Outcome>,
     menu: Vec<MenuEntry>,
+    docked: bool,
+    docks: Vec<block_plugin_api::DockMessage>,
     output: Option<beui::native::FrameOutput>,
     shown_window: Option<beui::WindowId>,
     drew: bool,
@@ -358,6 +360,8 @@ impl<A: BeuiApp> BeuiTest<A> {
             debug_templates: block_plugin_api::Watch::default(),
             completed: std::collections::HashMap::new(),
             menu: Vec::new(),
+            docked: false,
+            docks: Vec::new(),
             output: None,
             shown_window: None,
             drew: false,
@@ -433,7 +437,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                 frame: self.frame,
                 windows: false,
                 placement: None,
-                docked: false,
+                docked: self.docked,
                 layers: None,
             }]
         });
@@ -631,6 +635,22 @@ impl<A: BeuiApp> BeuiTest<A> {
             dropped,
         };
         self.call(|editor, connection| editor.drag_over(connection, drag));
+    }
+
+    pub fn docked(mut self) -> Self {
+        self.docked = true;
+        self.place();
+        self.run();
+        self
+    }
+
+    pub fn take_dock_messages(&mut self) -> Vec<block_plugin_api::DockMessage> {
+        std::mem::take(&mut self.docks)
+    }
+
+    pub fn receive_dock_updates(&mut self, updates: Vec<block_plugin_api::DockUpdate>) {
+        self.host.receive_dock_updates(updates);
+        self.run();
     }
 
     pub fn with_size(mut self, size: Vec2) -> Self {
@@ -1076,6 +1096,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     fn committed(&mut self, commit: FrameCommit) {
+        self.docks.extend(commit.docks);
         let region = self.region();
         let asked = commit.window_requests;
         if let Some(placements) = commit

@@ -71,6 +71,7 @@ pub struct DisplaySettings {
     pub motion: Option<Motion>,
     pub canvas_touch: Option<CanvasTouch>,
     pub keyboard_percent: Option<u32>,
+    pub docks: Map<String, String>,
 }
 
 impl DisplaySettings {
@@ -200,6 +201,27 @@ impl DisplaySettings {
 }
 
 impl DisplaySettings {
+    pub fn dock_layout(&self, id: &str) -> Option<String> {
+        self.docks.get(id).cloned()
+    }
+
+    pub fn set_dock_layout(id: &str, layout: Option<String>) -> Edit {
+        Self::DOCKS
+            .put(ObjectId::ROOT, &id.to_owned(), layout.as_ref())
+            .into()
+    }
+
+    pub fn dock_layout_setting(id: &str) -> Setting<Self, String> {
+        let (read, write) = (id.to_owned(), id.to_owned());
+        Setting::new(
+            format!("dock.{id}"),
+            "Dock layout",
+            move |settings: &Self| settings.dock_layout(&read),
+            move |_, layout| Self::set_dock_layout(&write, layout),
+        )
+        .only_on_this_device(true)
+    }
+
     pub fn keyed_by_connector(id: &str) -> bool {
         !id.contains('|')
     }
@@ -330,6 +352,12 @@ impl Layered for DisplaySettings {
             motion: self.motion.or(lower.motion),
             canvas_touch: self.canvas_touch.or(lower.canvas_touch),
             keyboard_percent: self.keyboard_percent.or(lower.keyboard_percent),
+            docks: lower
+                .docks
+                .iter()
+                .chain(self.docks.iter())
+                .map(|(id, layout)| (id.clone(), layout.clone()))
+                .collect(),
         }
     }
 }

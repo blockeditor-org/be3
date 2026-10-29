@@ -23,6 +23,8 @@ use uuid::Uuid;
 use crate::child::{ChildDockTab, MenuMirror, MenuPicks};
 use crate::{Editor, Subregion};
 
+mod saved;
+
 const EMPTY_BODIES: u64 = 1 << 62;
 const BAR_ROOM: f32 = 4096.0;
 const UNMEASURED_BAR: beui::Vec2 = beui::vec2(40.0, 40.0);
@@ -90,8 +92,11 @@ impl DockedTabs {
             empties: RefCell::default(),
             asking: self.asking.handle(),
             bar_sizes: OwnedSignal::new(HashMap::new()),
+            declares: OwnedSignal::new(0),
+            saving: saved::Saving::default(),
         });
         *self.link.borrow_mut() = Some(Rc::clone(&link));
+        saved::keep_layout(&link, editor);
         let menus = link.menus.handle();
         let sizes = link.bar_sizes.read_only();
         let menued = Rc::downgrade(&link);
@@ -224,6 +229,8 @@ struct ProtocolLink {
     empties: RefCell<HashMap<String, u64>>,
     asking: Signal<Option<TabId>>,
     bar_sizes: OwnedSignal<HashMap<TabId, beui::Vec2>>,
+    declares: OwnedSignal<u64>,
+    saving: saved::Saving,
 }
 
 impl ProtocolLink {
@@ -463,6 +470,7 @@ impl DockHostLink for ProtocolLink {
     fn declare(&self, declaration: DockDeclaration) {
         *self.declared.borrow_mut() = Some(declaration);
         self.send();
+        self.declares.update(|declares| *declares += 1);
     }
 
     fn hosted(&self) -> Memo<Option<DockHosted>> {

@@ -2781,7 +2781,8 @@ as its hosting tab (`focused`, `shown`), `show` of the hosting tab shows its
 group, and `contains` holds it while the group stands. Each layer saves its own layout: the outer
 `snapshot` keeps only the hosting tab, leaving out every inner tab and bar,
 in the group or moved out, so the inner dock's owner saves the inner
-`snapshot` and restores it before or after it joins (a restore made before it
+`snapshot` (block-editor-beui does this itself for a dock that joins another
+plugin's, guides/adding_a_plugin_editor.md) and restores it before or after it joins (a restore made before it
 joins is grafted in once the group stands). An outer `restore` while an inner
 dock is joined keeps that dock's layout as it is. The seam is `docking/host.rs`'s
 `DockHostLink`, plain data both ways (`DockDeclaration`, `DockHosted`,
