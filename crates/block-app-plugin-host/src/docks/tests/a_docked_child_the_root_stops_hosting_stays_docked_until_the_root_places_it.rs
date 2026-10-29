@@ -39,5 +39,8 @@ fn a_docked_child_the_root_stops_hosting_stays_docked_until_the_root_places_it()
     docks.heard("outer", vec![declare(OUTER, Some(outer()))]);
     assert!(docks.docked(OUTER));
     docks.placed(ROOT, &placed_outer(), None);
-    assert!(docks.docked(OUTER), "and it is docked when the root shows again");
+    assert!(
+        docks.docked(OUTER),
+        "and it is docked when the root shows again"
+    );
 }
