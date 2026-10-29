@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_drawing_paints_between_the_shapes_around_it() {
-    let drawing = crate::drawing(Green::default());
+    let drawing = beui_draw::drawing(Green::default());
     let scene = Rect::from_min_max(pos2(8.0, 8.0), pos2(56.0, 56.0));
     let over = Rect::from_min_max(pos2(40.0, 40.0), pos2(56.0, 56.0));
     let capture = capture(Color32::TRANSPARENT, |painter| {

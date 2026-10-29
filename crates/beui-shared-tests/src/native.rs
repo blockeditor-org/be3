@@ -1,7 +1,7 @@
 use beui::native::Document;
-use beui::native::build;
 use beui::reactive::view;
 use beui::{Rect, native::Context};
+use beui_host::native::build;
 
 use crate::Fixture;
 

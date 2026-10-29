@@ -13,7 +13,7 @@ be-commit = { path = "../../../be-commit", default-features = false }
 be-model = { path = "../../../be-model" }
 block-type-guest = { path = "../../../block-type-guest" }
 serde = { version = "1", features = ["derive"] }
-ui-types = { path = "../../../ui-types" }
+ui-keys = { path = "../../../ui-keys" }
 uuid = "1"
 
 [features]

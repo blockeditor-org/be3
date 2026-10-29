@@ -85,11 +85,27 @@ def _core_flags():
     })
 
 # Cargo.toml's [profile.dev.package] settings for the crate and the core's cfg,
-# ahead of the flags its BUCK file passes.
+# ahead of the flags its BUCK file passes. rustc's frontend runs on eight
+# threads: the crates under beui are a chain, each typechecked only once the
+# one below it is, and that chain is most of what a change to one of them
+# waits on.
 def _rustc_flags(crate, kwargs):
     if "srcs" in kwargs:
         fail("Rust sources are inferred; srcs is not supported")
-    return dev_only(crate.get("profile_flags", [])) + _core_flags() + kwargs.pop("rustc_flags", [])
+    return ["-Zthreads=8"] + _wasm_dev() + dev_only(crate.get("profile_flags", [])) + _core_flags() + kwargs.pop("rustc_flags", [])
+
+# Workspace crates built for wasm outside a release build, at opt-level 1 rather
+# than the plugin profile's 2: a change under beui recompiles each of them for
+# the plugins, and at 2 that took a third of the CPU ./scripts/verify spent on a
+# change to geometry, for modules no slower to precompile or test.
+def _wasm_dev():
+    return select({
+        "DEFAULT": select({
+            "DEFAULT": [],
+            "prelude//cpu:wasm32": ["-Copt-level=1"],
+        }),
+        "root//buck/constraints:release": [],
+    })
 
 # The crate's library, named after the package. Another build of it, such as
 # one for a fuzz target, takes a name and extra_features.
@@ -366,7 +382,7 @@ def cargo_binary(bin = None, name = None, extra_deps = [], env = {}, **kwargs):
     )
 
 # One of the crate's examples, as a binary, named example-<example>:
-# `./scripts/buck run //crates/beui:example-survey`. It is built the way cargo
+# `./scripts/buck run //crates/beui-host:example-survey`. It is built the way cargo
 # builds it, with the library and the dev-dependencies.
 def cargo_example(example, extra_deps = [], env = {}, **kwargs):
     crate = _crate()

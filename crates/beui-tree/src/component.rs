@@ -37,7 +37,7 @@ impl ComponentInfo {
         self.module
             .split("::")
             .next()
-            .is_some_and(|name| name.starts_with("beui_"))
+            .is_some_and(|name| name.starts_with("beui_") && name != "beui_host")
     }
 }
 

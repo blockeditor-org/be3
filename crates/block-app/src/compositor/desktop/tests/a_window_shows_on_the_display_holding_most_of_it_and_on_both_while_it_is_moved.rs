@@ -66,7 +66,7 @@ fn a_window_shows_on_the_display_holding_most_of_it_and_on_both_while_it_is_move
     let on_left = shown_on(place(left, &[left, right]), PLUGIN.to_owned(), INSTANCE);
     let on_right = shown_on(place(right, &[left, right]), PLUGIN.to_owned(), INSTANCE);
     note_origin(PLUGIN, INSTANCE, EditorRegion::Frame, left.min);
-    request(
+    block_app_plugin_host::request_windows(
         PLUGIN,
         vec![WindowRequest::Open(WindowOpen {
             window: 7,
@@ -108,7 +108,7 @@ fn a_window_shows_on_the_display_holding_most_of_it_and_on_both_while_it_is_move
         ),
         origin,
     );
-    request(PLUGIN, vec![WindowRequest::BeginMove(7)]);
+    block_app_plugin_host::request_windows(PLUGIN, vec![WindowRequest::BeginMove(7)]);
     apply();
     follow(&key, mouse(PointerPhase::Move, pos2(700.0, 110.0)), origin);
     assert_eq!(

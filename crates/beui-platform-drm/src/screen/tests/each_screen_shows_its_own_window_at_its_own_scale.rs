@@ -5,7 +5,7 @@ const BLUE: [u8; 4] = [255, 0, 0, 255];
 const WHITE: [u8; 4] = [255, 255, 255, 255];
 
 fn filled(size: Vec2, color: Color32) -> beui::native::WindowOutput {
-    let context = beui::native::context();
+    let context = beui_host::native::context();
     let output = context.run(|context| {
         context.painter().rect_filled(
             Rect::from_min_size(pos2(0.0, 0.0), vec2(size.x / 2.0, size.y)),

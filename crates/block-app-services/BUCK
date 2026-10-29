@@ -1,0 +1,14 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
+
+cargo_library()
+
+# The tray's and Wi-Fi's tests run a private D-Bus bus with the test runtime's
+# daemon, which loads its libraries from the sysroot.
+test_environment = {
+    "BE3_DBUS_DAEMON": "$(location //buck/sysroot:amd64-test)/usr/bin/dbus-daemon",
+    "LD_LIBRARY_PATH": "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu:$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu",
+}
+
+cargo_test(
+    env = test_environment,
+)

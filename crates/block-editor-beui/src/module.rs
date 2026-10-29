@@ -6,7 +6,7 @@ use beui::WindowId;
 use beui::native::Document;
 use beui::reactive::*;
 use beui::styled::*;
-use beui_platform_plugin::{Report, View, Views};
+use beui_platform_plugin_api::{Report, View, Views};
 use block_editor_plugin::{EditorHost, EditorInstanceId, EditorRegion, RegionId};
 
 pub(crate) trait Shown {
@@ -82,17 +82,13 @@ impl Module {
         if self.launched.replace(true) {
             return;
         }
-        let options = beui::native::RunOptions {
-            accessibility_tree: keeps_accessibility,
-            ..beui::native::RunOptions::default()
-        };
         let app = ModuleApp {
             module: Rc::clone(self),
             views: None,
             requested: OwnedSignal::new(Vec::new()),
         };
         if let Err(error) =
-            beui_platform_plugin::launch(host, options, crate::fonts::context(), app)
+            beui_platform_plugin_api::runtime().launch(host, keeps_accessibility, Box::new(app))
         {
             panic!("the plugin's beui app could not start: {error}");
         }
@@ -149,13 +145,13 @@ impl beui::native::App for ModuleApp {
             let requested = self.requested.read_only();
             let registry = Rc::clone(&module.registry);
             let views = views.clone();
-            beui::native::build(move || {
+            beui_platform_plugin_api::runtime().build(Box::new(move || {
                 view! {
                     <beui::styled::Root clear_color=ColorRole::None>
                         <ModuleWindows registry requested views />
                     </beui::styled::Root>
                 }
-            })
+            }))
         });
         beui::native::with_reactive_scope(document, || {});
         for view in &shown_views {

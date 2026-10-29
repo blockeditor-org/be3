@@ -15,7 +15,7 @@ pub(crate) fn picture(image: PreviewImage, rotation: f32, opacity: f32) -> Drawi
     });
     #[cfg(target_arch = "wasm32")]
     {
-        let draw: Rc<dyn beui_renderer_wgpu::Draw> =
+        let draw: Rc<dyn beui::native::Draw> =
             Rc::new(gpu::PictureDraw::new(image, rotation, opacity));
         Drawing::painted(draw, paints)
     }

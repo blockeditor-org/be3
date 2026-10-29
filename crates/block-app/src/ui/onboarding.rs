@@ -9,9 +9,9 @@ use block_accounts_ui::{AccountDetails, Column, ErrorText};
 use uuid::Uuid;
 
 use super::{AccountForm, AppViewStore, ErrorAction, OrganizationsState, UiCommand, send};
-use crate::platform;
 use crate::root_settings::{SESSION_TYPES, session_type_name};
 use beui::{Align, Direction, ItemSize};
+use block_app_base::platform;
 
 #[component]
 pub(super) fn ErrorScreen(view: AppViewStore) -> NodeId {

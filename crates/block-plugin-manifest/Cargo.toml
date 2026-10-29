@@ -1,0 +1,15 @@
+[package]
+name = "block-plugin-manifest"
+description = "A plugin's manifest: the editors and block types it declares, read from its manifest.json and checked, with no geometry or GUI types"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-ops-bindgen = { path = "../be-ops-bindgen" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = "1"
+
+[lints]
+workspace = true

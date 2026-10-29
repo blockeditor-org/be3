@@ -1,27 +1,23 @@
 use beui::{Vec2, vec2};
 use block_plugin_api::{
-    DialogAnswer, DialogStatus, EditorCapabilities, EditorInstanceId, EditorManifest, EditorRegion,
-    FrameSpec, HostPanel, InteractionMode, PluginManifest, ResizeMode,
+    DialogAnswer, DialogStatus, EditorCapabilities, EditorInstanceId, EditorRegion, FrameSpec,
+    HostPanel, InteractionMode, ResizeMode,
 };
+use block_plugin_manifest::{EditorManifest, PluginManifest};
 use std::sync::{
     Arc,
     atomic::{AtomicU64, Ordering},
 };
 use uuid::Uuid;
 
-pub(crate) mod discovery;
-
 use super::{
     ArtifactSession, ArtifactStatus, DirectEditorCapabilities, DirectEditorInteraction,
     DirectEditorResize, EditorRegistry, FocusReport, PendingCreation,
 };
-use crate::{
-    compositor::RegionEditor,
-    host,
-    plugin_host::{
-        ArtifactSlot, ArtifactState, CreationSlot, CreationState, EditorBlock, InstanceRole,
-    },
-    surfaces::HostedRegion,
+use crate::{compositor::RegionEditor, surfaces::HostedRegion};
+use block_app_base::host;
+use block_app_plugin_host::{
+    ArtifactSlot, ArtifactState, CreationSlot, CreationState, EditorBlock, InstanceRole,
 };
 
 static NEXT_INSTANCE: AtomicU64 = AtomicU64::new(1);
@@ -91,10 +87,10 @@ impl PluginPicker {
     pub(crate) fn new(
         plugin: Arc<PluginManifest>,
         editor: Uuid,
-        request: crate::plugin_host::PickerRequest,
+        request: block_app_plugin_host::PickerRequest,
     ) -> Self {
         let instance = next_instance();
-        crate::plugin_host::ask_picker(instance, request);
+        block_app_plugin_host::ask_picker(instance, request);
         Self {
             plugin,
             editor,
@@ -124,29 +120,29 @@ impl PluginPicker {
     }
 
     pub(crate) fn picked(&self) -> Option<block_plugin_api::BlockPick> {
-        crate::plugin_host::picked(&self.plugin.identity.id, self.instance)
+        block_app_plugin_host::picked(&self.plugin.identity.id, self.instance)
     }
 
     pub(crate) fn intrinsic(&self) -> Option<Vec2> {
-        crate::plugin_host::intrinsic_size(&self.plugin.identity.id, self.instance)
+        block_app_plugin_host::intrinsic_size(&self.plugin.identity.id, self.instance)
     }
 
     pub(crate) fn card(&self) -> bool {
-        crate::plugin_host::card(&self.plugin.identity.id, self.instance)
+        block_app_plugin_host::card(&self.plugin.identity.id, self.instance)
     }
 }
 
 impl Drop for PluginPicker {
     fn drop(&mut self) {
-        crate::plugin_host::close(&self.plugin.identity.id, self.instance);
-        crate::plugin_host::forget_picker(self.instance);
+        block_app_plugin_host::close(&self.plugin.identity.id, self.instance);
+        block_app_plugin_host::forget_picker(self.instance);
     }
 }
 
 impl Drop for PluginCreation {
     fn drop(&mut self) {
         if self.opened {
-            crate::plugin_host::close(&self.plugin.identity.id, self.instance);
+            block_app_plugin_host::close(&self.plugin.identity.id, self.instance);
         }
     }
 }
@@ -171,7 +167,7 @@ impl PendingCreation for PluginCreation {
             }
             return;
         }
-        self.state = crate::plugin_host::creation(CreationSlot {
+        self.state = block_app_plugin_host::creation(CreationSlot {
             plugin: &self.plugin,
             block_types: registry.plugin_block_types(),
             client_id,
@@ -181,8 +177,9 @@ impl PendingCreation for PluginCreation {
     }
 
     fn dialog(&self) -> DialogStatus {
-        let mut status = crate::plugin_host::dialog_status(&self.plugin.identity.id, self.instance)
-            .unwrap_or_default();
+        let mut status =
+            block_app_plugin_host::dialog_status(&self.plugin.identity.id, self.instance)
+                .unwrap_or_default();
         if self.dismissed && status.answer.is_none() {
             status.answer = Some(DialogAnswer::Dismissed);
         }
@@ -190,9 +187,9 @@ impl PendingCreation for PluginCreation {
     }
 
     fn dismiss(&mut self) {
-        match crate::plugin_host::dialog_status(&self.plugin.identity.id, self.instance) {
+        match block_app_plugin_host::dialog_status(&self.plugin.identity.id, self.instance) {
             Some(status) if status.handles_dismiss => {
-                crate::plugin_host::dismiss(&self.plugin.identity.id, self.instance);
+                block_app_plugin_host::dismiss(&self.plugin.identity.id, self.instance);
             }
             _ => self.dismissed = true,
         }
@@ -200,7 +197,7 @@ impl PendingCreation for PluginCreation {
 
     fn height(&self) -> Option<f32> {
         self.target.dialog.then(|| {
-            crate::plugin_host::region_size(
+            block_app_plugin_host::region_size(
                 &self.plugin.identity.id,
                 self.instance,
                 EditorRegion::Frame,
@@ -222,9 +219,9 @@ impl PendingCreation for PluginCreation {
         }
         if !self.committed {
             self.committed = true;
-            crate::plugin_host::commit_creation(&self.plugin.identity.id, self.instance);
+            block_app_plugin_host::commit_creation(&self.plugin.identity.id, self.instance);
         }
-        match crate::plugin_host::take_created(&self.plugin.identity.id, self.instance) {
+        match block_app_plugin_host::take_created(&self.plugin.identity.id, self.instance) {
             None => Ok(None),
             Some(Ok(block_id)) => Ok(Some(block_id)),
             Some(Err(error)) => {
@@ -306,13 +303,13 @@ impl PluginEditor {
         }
         self.presence_active = active;
         if let Some(plugin) = self.plugin() {
-            crate::plugin_host::set_presence_visible(&plugin.identity.id, self.instance, active);
+            block_app_plugin_host::set_presence_visible(&plugin.identity.id, self.instance, active);
         }
     }
 
     fn presenting(&self) -> bool {
         self.plugin().is_some_and(|plugin| {
-            crate::plugin_host::presenting(&plugin.identity.id, self.instance)
+            block_app_plugin_host::presenting(&plugin.identity.id, self.instance)
         })
     }
 
@@ -324,7 +321,7 @@ impl PluginEditor {
             return;
         }
         if self.presenting() {
-            crate::plugin_host::present(&plugin.identity.id, self.instance, false);
+            block_app_plugin_host::present(&plugin.identity.id, self.instance, false);
             host::request_repaint();
         }
     }
@@ -340,7 +337,7 @@ impl PluginEditor {
     fn close(&mut self) {
         self.opened = false;
         if let Some(plugin) = self.plugin() {
-            crate::plugin_host::close(&plugin.identity.id, self.instance);
+            block_app_plugin_host::close(&plugin.identity.id, self.instance);
         }
     }
 
@@ -371,7 +368,7 @@ impl PluginEditor {
         )
     }
 
-    pub(crate) fn accepts(&self, request: block_plugin_api::ShellRequest) -> bool {
+    pub(crate) fn accepts(&self, request: block_plugin_manifest::ShellRequest) -> bool {
         self.manifest()
             .is_some_and(|editor| editor.accepts(request))
     }
@@ -417,12 +414,12 @@ impl PluginEditor {
         let Some(plugin) = self.plugin() else {
             return self.change_child(replace);
         };
-        if !discovery::block_type(self.block_type)
+        if !block_app_stack::discovery::block_type(self.block_type)
             .is_some_and(|block_type| block_type.children.replace)
         {
             return None;
         }
-        match crate::plugin_host::replace_child(&plugin.identity.id, self.instance, old, new) {
+        match block_app_plugin_host::replace_child(&plugin.identity.id, self.instance, old, new) {
             Some(true) => Some(true),
             Some(false) => self.change_child(replace),
             None => None,
@@ -430,12 +427,12 @@ impl PluginEditor {
     }
 
     fn change_child(&self, change: be_block::ChildChange) -> Option<bool> {
-        crate::be::change_child(self.id, self.block_type, change)
+        block_app_stack::change_child(self.id, self.block_type, change)
     }
 
     pub(crate) fn render_aspect_ratio(&self) -> Option<f32> {
         let plugin = self.plugin()?;
-        crate::plugin_host::aspect_ratio(&plugin.identity.id, self.instance)
+        block_app_plugin_host::aspect_ratio(&plugin.identity.id, self.instance)
     }
 
     pub(crate) fn direct_editor_capabilities(&self) -> DirectEditorCapabilities {
@@ -477,32 +474,32 @@ impl PluginEditor {
             return Some(UNSUPPORTED_EDITOR_SIZE);
         };
         Some(
-            crate::plugin_host::intrinsic_size(&plugin.identity.id, self.instance)
+            block_app_plugin_host::intrinsic_size(&plugin.identity.id, self.instance)
                 .unwrap_or_else(|| vec2(420.0, 240.0)),
         )
     }
 
-    pub(crate) fn show_block(&self, open: super::BlockOpen) {
+    pub(crate) fn show_block(&self, open: block_app_plugin_host::BlockOpen) {
         let Some(plugin) = self.plugin() else {
             return;
         };
-        crate::plugin_host::show_block(plugin, self.instance, open);
+        block_app_plugin_host::show_block(plugin, self.instance, open);
     }
 
     pub(crate) fn show_dialog(&self, id: Uuid, dialog: block_plugin_api::ShellDialog) {
         if let Some(plugin) = self.plugin() {
-            crate::plugin_host::show_dialog(&plugin.identity.id, self.instance, id, dialog);
+            block_app_plugin_host::show_dialog(&plugin.identity.id, self.instance, id, dialog);
         }
     }
 
     pub(crate) fn show_panel(&self, panel: HostPanel) {
         if let Some(plugin) = self.plugin() {
-            crate::plugin_host::show_panel(&plugin.identity.id, self.instance, panel);
+            block_app_plugin_host::show_panel(&plugin.identity.id, self.instance, panel);
         }
     }
 
     pub(crate) fn claim_shell(&self) {
-        crate::plugin_host::set_shell(
+        block_app_plugin_host::set_shell(
             self.plugin()
                 .map(|plugin| (plugin.identity.id.as_str(), self.instance)),
         );
@@ -510,7 +507,7 @@ impl PluginEditor {
 
     pub(crate) fn take_focus_report(&self) -> Option<FocusReport> {
         let plugin = self.plugin()?;
-        crate::plugin_host::take_focus_report(&plugin.identity.id, self.instance).map(|focus| {
+        block_app_plugin_host::take_focus_report(&plugin.identity.id, self.instance).map(|focus| {
             FocusReport {
                 block: focus.block,
                 via: focus.via,
@@ -520,19 +517,19 @@ impl PluginEditor {
 
     pub(crate) fn take_artifact_watch(&self) -> Option<Vec<Uuid>> {
         let plugin = self.plugin()?;
-        crate::plugin_host::take_artifact_watch(&plugin.identity.id, self.instance)
+        block_app_plugin_host::take_artifact_watch(&plugin.identity.id, self.instance)
     }
 
     pub(crate) fn menu(&self) -> Vec<block_plugin_api::MenuEntry> {
         match self.plugin() {
-            Some(plugin) => crate::plugin_host::menu(&plugin.identity.id, self.instance),
+            Some(plugin) => block_app_plugin_host::menu(&plugin.identity.id, self.instance),
             None => Vec::new(),
         }
     }
 
     pub(crate) fn pick_menu(&self, id: String) {
         if let Some(plugin) = self.plugin() {
-            crate::plugin_host::menu_pick(&plugin.identity.id, self.instance, id);
+            block_app_plugin_host::menu_pick(&plugin.identity.id, self.instance, id);
         }
     }
 
@@ -540,7 +537,7 @@ impl PluginEditor {
         let Some(plugin) = self.plugin() else {
             return;
         };
-        crate::plugin_host::set_artifact_states(&plugin.identity.id, self.instance, states);
+        block_app_plugin_host::set_artifact_states(&plugin.identity.id, self.instance, states);
     }
 
     pub(crate) fn tab_closed(&mut self) {
@@ -603,7 +600,7 @@ impl PluginArtifact {
 impl Drop for PluginArtifact {
     fn drop(&mut self) {
         if self.opened {
-            crate::plugin_host::close(&self.plugin.identity.id, self.instance);
+            block_app_plugin_host::close(&self.plugin.identity.id, self.instance);
         }
     }
 }
@@ -611,7 +608,7 @@ impl Drop for PluginArtifact {
 impl ArtifactSession for PluginArtifact {
     fn poll(&mut self, registry: &EditorRegistry, data: &[u8]) -> ArtifactStatus {
         self.opened = true;
-        let state = crate::plugin_host::artifact(ArtifactSlot {
+        let state = block_app_plugin_host::artifact(ArtifactSlot {
             plugin: &self.plugin,
             block_types: registry.plugin_block_types(),
             client_id: self.client_id,
@@ -623,7 +620,7 @@ impl ArtifactSession for PluginArtifact {
             resync: std::mem::take(&mut self.resync),
         });
         if let Some(outcome) =
-            crate::plugin_host::take_artifact_outcome(&self.plugin.identity.id, self.instance)
+            block_app_plugin_host::take_artifact_outcome(&self.plugin.identity.id, self.instance)
         {
             self.regenerating = false;
             self.outcome = Some(outcome);
@@ -651,11 +648,11 @@ impl ArtifactSession for PluginArtifact {
     }
 
     fn take_draft(&mut self) -> Option<Vec<u8>> {
-        crate::plugin_host::artifact_draft(&self.plugin.identity.id, self.instance)
+        block_app_plugin_host::artifact_draft(&self.plugin.identity.id, self.instance)
     }
 
     fn settings_height(&self) -> f32 {
-        crate::plugin_host::region_size(
+        block_app_plugin_host::region_size(
             &self.plugin.identity.id,
             self.instance,
             EditorRegion::ArtifactSettings,
@@ -669,8 +666,9 @@ impl ArtifactSession for PluginArtifact {
     }
 
     fn dialog(&self) -> DialogStatus {
-        let mut status = crate::plugin_host::dialog_status(&self.plugin.identity.id, self.instance)
-            .unwrap_or_default();
+        let mut status =
+            block_app_plugin_host::dialog_status(&self.plugin.identity.id, self.instance)
+                .unwrap_or_default();
         if self.dismissed && status.answer.is_none() {
             status.answer = Some(DialogAnswer::Dismissed);
         }
@@ -678,9 +676,9 @@ impl ArtifactSession for PluginArtifact {
     }
 
     fn dismiss(&mut self) {
-        match crate::plugin_host::dialog_status(&self.plugin.identity.id, self.instance) {
+        match block_app_plugin_host::dialog_status(&self.plugin.identity.id, self.instance) {
             Some(status) if status.handles_dismiss => {
-                crate::plugin_host::dismiss(&self.plugin.identity.id, self.instance);
+                block_app_plugin_host::dismiss(&self.plugin.identity.id, self.instance);
             }
             _ => self.dismissed = true,
         }
@@ -688,13 +686,13 @@ impl ArtifactSession for PluginArtifact {
 
     fn close_dialog(&mut self) {
         self.dismissed = false;
-        crate::plugin_host::forget_dialog_answer(&self.plugin.identity.id, self.instance);
+        block_app_plugin_host::forget_dialog_answer(&self.plugin.identity.id, self.instance);
     }
 
     fn regenerate(&mut self, data: &[u8]) {
         self.outcome = None;
         self.regenerating = true;
-        crate::plugin_host::regenerate_artifact(&self.plugin.identity.id, self.instance, data);
+        block_app_plugin_host::regenerate_artifact(&self.plugin.identity.id, self.instance, data);
     }
 
     fn take_outcome(&mut self) -> Option<Result<(), String>> {

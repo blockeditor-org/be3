@@ -71,7 +71,11 @@ operations ("ops") of the be-ops kernel, which can be awaited and canceled.
   `path` is read at `CARGO_MANIFEST_DIR`, so the crate passes the files to buck as
   `resources` (guides/buck2.md), and WIT of another crate's package as
   `foreign_resources` (`{"//crates/ui-types:wit": "crates/ui-types"}`) named in
-  `deps: ["../ui-types/wit"]`. It emits a module per interface with its types
+  `deps: ["../ui-types/wit"]`, each package after the ones it uses (block-plugin-api
+  lists `../ui-keys/wit` and `../ui-preferences/wit` before `../ui-types/wit`). A
+  type another interface `use`s resolves to the interface that defines it, so a crate
+  needs a `uses` entry for that interface too even when its WIT reaches the type
+  through another package. It emits a module per interface with its types
   (records as structs, variants and enums as enums, flags, `list<u8>` as `Vec<u8>`
   with serde_bytes), deriving `Copy`, `Eq`, `Hash` and `Ord` where every field allows
   (no floats, nothing owned). The options, each a list of WIT type names unless said:

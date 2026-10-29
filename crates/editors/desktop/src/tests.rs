@@ -16,10 +16,10 @@ use block_editor_beui::{
     WindowsWatch,
 };
 
+use block_editor_beui::be_block::{EditorView, EditorViewContent};
 use block_shell::{KeptWindow, saved_windows};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
-use workspace_ui_types::{EditorView, EditorViewContent};
 
 use crate::app::DesktopApp;
 use crate::app::media::{BINDINGS, BRIGHTNESS_STEP, VOLUME_STEP};

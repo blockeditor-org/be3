@@ -546,9 +546,11 @@ impl Paints for WindowDraw {
             {
                 continue;
             }
-            let Some(capture) =
-                beui::native::read_texture(&self.gpu.device, &self.gpu.queue, &texture.texture)
-            else {
+            let Some(capture) = beui_host::native::read_texture(
+                &self.gpu.device,
+                &self.gpu.queue,
+                &texture.texture,
+            ) else {
                 continue;
             };
             let key = std::ptr::from_ref(texture.as_ref()) as u64;

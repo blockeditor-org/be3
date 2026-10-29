@@ -1,4 +1,4 @@
-use workspace_ui_types::ViewState;
+use block_editor_beui::be_block::ViewState;
 
 use super::*;
 

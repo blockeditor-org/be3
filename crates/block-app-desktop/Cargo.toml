@@ -1,0 +1,43 @@
+[package]
+name = "block-app-desktop"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-block = { path = "../be-block" }
+be-types-host = { path = "../be-types-host" }
+beui = { path = "../beui" }
+beui-host = { path = "../beui-host", default-features = false }
+block-app-base = { path = "../block-app-base" }
+block-app-stack = { path = "../block-app-stack" }
+block-plugin-api = { path = "../block-plugin-api" }
+bytemuck = { version = "1.24.0", features = ["derive"] }
+image = { version = "0.25", default-features = false, features = ["bmp", "gif", "ico", "jpeg", "png", "pnm", "tga", "tiff", "webp"] }
+uuid = { version = "1", features = ["serde", "v4", "v7"] }
+wgpu = { version = "29", default-features = false }
+
+# Linux runs the app as a Wayland compositor, and --session runs it on the
+# displays and input devices themselves rather than in a window.
+[target.'cfg(target_os = "linux")'.dependencies]
+be-remap-host = { path = "../remap/host" }
+be-wayland = { path = "../be-wayland" }
+beui-platform-drm = { path = "../beui-platform-drm" }
+# Files a block is written to for a program to open are watched, so what the
+# program saves is taken back into the block.
+notify = "8"
+
+# Windows's monitors and windows are captured onto the app's own Vulkan device.
+[target.'cfg(windows)'.dependencies]
+be-win32 = { path = "../be-win32" }
+be-win32-capture = { path = "../be-win32-capture" }
+be-win32-input = { path = "../be-win32-input" }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+# The Windows host's mapping to the desktop's types, tested everywhere.
+be-win32 = { path = "../be-win32" }
+paint-snapshot = { path = "../paint-snapshot" }
+pollster = "0.4"
+
+[lints]
+workspace = true

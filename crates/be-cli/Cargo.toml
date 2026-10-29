@@ -19,10 +19,10 @@ be-protocol = { path = "../be-protocol" }
 be-store = { path = "../be-store" }
 be-sync = { path = "../be-sync" }
 be-types-host = { path = "../be-types-host" }
-block-plugin-api = { path = "../block-plugin-api" }
+block-plugin-manifest = { path = "../block-plugin-manifest" }
 block-type-api = { path = "../block-type-api" }
 block-type-guest = { path = "../block-type-guest" }
-block-ui = { path = "../block-ui" }
+block-ui-database = { path = "../block-ui-database" }
 build-id = { path = "../build-id" }
 database-types = { path = "../editors/database/types" }
 futures-util = "0.3"

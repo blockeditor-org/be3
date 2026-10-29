@@ -3,7 +3,7 @@ use super::*;
 const PATIENCE: Duration = Duration::from_secs(20);
 
 fn arrived(block: Uuid) {
-    be::wait_for(PATIENCE, |shared| {
+    block_app_stack::wait_for(PATIENCE, |shared| {
         shared.blocks.contains_key(&block).then_some(())
     })
     .expect("the new stack never held the block");
@@ -12,22 +12,25 @@ fn arrived(block: Uuid) {
 fn new_profile(class: DeviceClass) -> (RootSettings, Uuid) {
     let mut settings = RootSettings::new(WORKSPACE_EDITOR);
     let block = settings.ensure().expect("the settings are made");
-    be::hold(block, SettingsContent::CONTENT_TYPE);
+    block_app_stack::hold(block, SettingsContent::CONTENT_TYPE);
     arrived(block);
     let profile = settings
         .ensure_profile(Uuid::new_v4(), class)
         .expect("a profile is made");
-    be::hold(profile, SettingsProfileContent::CONTENT_TYPE);
+    block_app_stack::hold(profile, SettingsProfileContent::CONTENT_TYPE);
     arrived(profile);
     (settings, profile)
 }
 
 #[test]
 fn a_new_profile_takes_this_devices_class_and_its_defaults() {
-    let harness = be::Harness::start();
+    let harness = block_app_testing::Harness::start();
     harness.connect();
-    be::wait_for(PATIENCE, |shared| {
-        shared.graph.ready(be::Query::Roots).then_some(())
+    block_app_stack::wait_for(PATIENCE, |shared| {
+        shared
+            .graph
+            .ready(block_app_stack::Query::Roots)
+            .then_some(())
     })
     .expect("the graph never loaded");
 
@@ -43,7 +46,7 @@ fn a_new_profile_takes_this_devices_class_and_its_defaults() {
     let display = held
         .kind(DisplaySettingsContent::CONTENT_TYPE)
         .expect("the profile keeps display settings of its own");
-    be::hold(display, DisplaySettingsContent::CONTENT_TYPE);
+    block_app_stack::hold(display, DisplaySettingsContent::CONTENT_TYPE);
     arrived(display);
     let kept = decode::<DisplaySettingsContent>(display)
         .expect("the display settings have content")

@@ -154,7 +154,7 @@ fn name(&self) -> Option<String> {
 }
 ```
 
-Every save records this as the block's `INTRINSIC_NAME` metadata, and the app shows it while an editor has the block open (`be::describe_implicitly`). A name someone set by hand (`NAME`) takes precedence. Anything else the content can say about itself that others want before it loads goes in `BlockContent::describe`, under a `MetaKey::derived` key. Leave `name` at its default, `None`, and the UI falls back to the type's display name.
+Every save records this as the block's `INTRINSIC_NAME` metadata, and the app shows it while an editor has the block open (`block_app_stack::describe_implicitly`). A name someone set by hand (`NAME`) takes precedence. Anything else the content can say about itself that others want before it loads goes in `BlockContent::describe`, under a `MetaKey::derived` key. Leave `name` at its default, `None`, and the UI falls back to the type's display name.
 
 ## 6. Children
 
@@ -170,7 +170,7 @@ fn child_edit(&self, change: ChildChange) -> Option<Edit> {
 }
 ```
 
-The app calls it through `be::change_child`, which the block's replica turns into an edit (`Change::Child`), so the editor is not asked. An empty `Edit` is the answer for a child already in the requested state. `crates/editors/presentation/types/src/presentation.rs` and be-block's `folder.rs` and `hotbar.rs` are the examples. An editor whose references live inside content it does not model this way - the text editor's block URLs - answers `Editor::on_replace_child` instead. The type's manifest entry says which of these edits it accepts (`children`, below).
+The app calls it through `block_app_stack::change_child`, which the block's replica turns into an edit (`Change::Child`), so the editor is not asked. An empty `Edit` is the answer for a child already in the requested state. `crates/editors/presentation/types/src/presentation.rs` and be-block's `folder.rs` and `hotbar.rs` are the examples. An editor whose references live inside content it does not model this way - the text editor's block URLs - answers `Editor::on_replace_child` instead. The type's manifest entry says which of these edits it accepts (`children`, below).
 
 ## 7. Undo
 

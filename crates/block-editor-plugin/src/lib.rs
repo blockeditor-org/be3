@@ -153,8 +153,8 @@ pub mod __private {
         Editor::start(started, waker, outbound)
     }
 
-    pub fn parsed(manifest: &str) -> block_plugin_api::PluginManifest {
-        block_plugin_api::manifest_from_json(manifest)
+    pub fn parsed(manifest: &str) -> block_plugin_manifest::PluginManifest {
+        block_plugin_manifest::manifest_from_json(manifest)
             .unwrap_or_else(|error| panic!("this plugin's manifest is invalid: {error}"))
     }
 }

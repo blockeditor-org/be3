@@ -6,6 +6,7 @@ fn rasters(surface: &ModuleRunner, region: &Region) -> (f32, Vec<f32>) {
         .window(region.id())
         .expect("the region is a window of the app");
     let output = surface
+        .runner
         .output()
         .and_then(|output| output.window(window))
         .expect("the region's window painted");

@@ -120,12 +120,13 @@ func ensure(listen, upstream, version, logPath string, connections int) {
 
 func serve(listen, upstream, version string, connections int) {
 	transport := &http.Transport{
-		Proxy:              http.ProxyFromEnvironment,
-		ForceAttemptHTTP2:  true,
-		MaxConnsPerHost:    connections,
-		MaxIdleConns:       connections,
-		IdleConnTimeout:    90 * time.Second,
-		DisableCompression: true,
+		Proxy:               http.ProxyFromEnvironment,
+		ForceAttemptHTTP2:   true,
+		MaxConnsPerHost:     connections,
+		MaxIdleConns:        connections,
+		MaxIdleConnsPerHost: connections,
+		IdleConnTimeout:     90 * time.Second,
+		DisableCompression:  true,
 	}
 
 	listener, err := net.Listen("tcp", listen)

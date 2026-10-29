@@ -1,10 +1,11 @@
+use block_editor_beui::be_block::ViewState;
 use block_editor_beui::beui::icons::Glyph;
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
-use workspace_ui_types::ViewState;
 
+use block_editor_beui::Press;
 use block_editor_beui::be_block::SETTINGS;
 use block_editor_beui::be_block::metadata::ICON_COLOR;
 use block_editor_beui::be_block::{BlockContent, HomeContent, SettingsContent};
@@ -12,11 +13,11 @@ use block_editor_beui::beui::icons::{
     ICON_BOXES, ICON_DATABASE, ICON_PIN, ICON_ROTATE_CCW_CLOCK, ICON_USERS, named,
 };
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::block_ui::{BlockTypes, Press};
+use block_editor_beui::block_ui::BlockTypes;
 pub(crate) use block_editor_beui::sections::{own_system, shared_with_me, workspaces};
-use block_editor_beui::tags::{ShownTag, tags_of};
 use block_editor_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use block_editor_beui::{Editor, label_glyph};
+use block_editor_database::tags::{ShownTag, tags_of};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -811,7 +812,7 @@ pub(crate) fn describe(
     );
     let access = client.access(reference.id);
     let can_edit = access.can_edit();
-    let can_add = types.child_edits(reference.block_type).add && can_edit;
+    let can_add = types.child_operations(reference.block_type).add && can_edit;
     let can_delete = source != BlockParent::Detached
         && can_move_out_of(
             client,
@@ -954,7 +955,7 @@ pub(crate) fn can_move_out_of(
         BlockParent::Block(id) => {
             block_types
                 .get(&id)
-                .is_some_and(|block_type| types.child_edits(*block_type).delete)
+                .is_some_and(|block_type| types.child_operations(*block_type).delete)
                 && client.access(id).can_edit()
         }
     };
@@ -971,7 +972,7 @@ pub(crate) fn unlink_permission(
         .and_then(|id| Some((id, *block_types.get(&id)?)))
         .ok_or(Pending::Loading);
     match held {
-        Ok((_, block_type)) if !types.child_edits(block_type).replace => {
+        Ok((_, block_type)) if !types.child_operations(block_type).replace => {
             Err("This container doesn't support replacing a reference")
         }
         Ok((container, _)) if !client.access(container).can_edit() => {

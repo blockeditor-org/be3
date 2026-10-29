@@ -237,7 +237,7 @@ fn exec(socket: &Path, arguments: &[String], timeout: Duration) -> Result<(), St
         .args(arguments)
         .env_remove("WAYLAND_DISPLAY")
         .env_remove("DISPLAY");
-    for variable in beui_core::runner::environment::VARIABLES {
+    for variable in beui_runner::environment::VARIABLES {
         command.env_remove(variable);
     }
     let error = command.envs(environment).exec();

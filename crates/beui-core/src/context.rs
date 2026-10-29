@@ -588,7 +588,7 @@ impl Context {
         self.inner.now.set(now);
     }
 
-    pub(crate) fn frame_time(&self) -> Instant {
+    pub fn frame_time(&self) -> Instant {
         self.inner.clock.get().unwrap_or_else(Instant::now)
     }
 
@@ -818,7 +818,7 @@ impl Context {
         self.run_with(Vec::new(), self.frame_time(), frame)
     }
 
-    pub(crate) fn run_with(
+    pub fn run_with(
         &self,
         events: Vec<Event>,
         now: Instant,

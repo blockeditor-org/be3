@@ -9,7 +9,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 audio-block-types = { path = "types" }
-beui = { path = "../../beui", default-features = false, features = ["render"] }
+beui = { path = "../../beui" }
 block-editor-beui = { path = "../../block-editor-beui" }
 uuid = "1"
 

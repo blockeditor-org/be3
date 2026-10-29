@@ -39,7 +39,7 @@ fn the_status_says_whether_changes_are_saved_syncing_offline_or_failed() {
         if offline {
             shown
                 .stepped
-                .click(beui::native::testing::Target::id("app.menu.unsent"));
+                .click(beui_host::native::testing::Target::id("app.menu.unsent"));
             assert!(
                 crate::ui::take_commands()
                     .iter()

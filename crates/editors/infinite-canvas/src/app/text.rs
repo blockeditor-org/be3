@@ -8,8 +8,8 @@ use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{
     Color32, Key, KeyAt, KeyPhase, NodeId, Rect, TextAlign, Vec2, native::line_height, pos2,
 };
-use block_editor_beui::live_text::{FieldOf, LiveText, Synced};
-use block_editor_beui::{SharedCaret, remote_carets};
+use block_editor_text::live_text::{FieldOf, LiveText, Synced};
+use block_editor_text::{SharedCaret, remote_carets};
 use infinite_canvas_types::{
     Canvas, CanvasEntity, CanvasPoint, CanvasShape, CanvasTextAlign, CanvasTextStyle,
     CanvasTextVerticalAlign, CanvasTextWeight, Entity,

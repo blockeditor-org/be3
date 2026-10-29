@@ -10,8 +10,7 @@ use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{
     Color32, FontFamily, FontId, Image, LineCap, LineJoin, NodeId, Path, PathElement, Pos2, Rect,
-    Stroke, TextAlign, TextLayout, Vec2, native::Context, native::FreetypeFonts,
-    native::line_height, pos2, reactive::Painter,
+    Stroke, TextAlign, TextLayout, Vec2, native::line_height, pos2, reactive::Painter,
 };
 use block_editor_beui::{FileSave, SavedFile};
 use infinite_canvas_types::{CanvasEntity, CanvasPoint, CanvasShape, CanvasTextWeight};
@@ -367,7 +366,7 @@ pub(crate) fn png(
         .iter()
         .filter_map(|(block, file)| Some((*block, decode(&file.data)?)))
         .collect();
-    let context = Context::new(FreetypeFonts::new(block_editor_beui::fonts::fonts()));
+    let context = block_editor_beui::context();
     context.set_pixels_per_point(scale);
     let output = context.run(|context| {
         let whole = Rect::from_min_size(Pos2::ZERO, size);
@@ -590,7 +589,7 @@ pub(crate) fn svg(scene: &Scene, options: ExportOptions, images: &Images) -> Str
             paint("fill", scene.background)
         ));
     }
-    let context = Context::new(FreetypeFonts::new(block_editor_beui::fonts::fonts()));
+    let context = block_editor_beui::context();
     context.run(|context| {
         let painter = wrap_painter(&context.painter());
         for entity in &scene.entities {

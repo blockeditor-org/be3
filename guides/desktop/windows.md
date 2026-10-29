@@ -48,9 +48,9 @@ machine; Wine has no Windows.Graphics.Capture.
 
 ## In block-app
 
-`crates/block-app/src/desktop_host.rs` is the host facade; on Windows it is `desktop_host/win32.rs`, with
+`crates/block-app-desktop/src/desktop_host.rs` is the host facade; on Windows it is `desktop_host/win32.rs`, with
 the mapping to `be3:desktop`'s types in `desktop_host/win32_map.rs` (tested on Linux).
-`plugin_host/published.rs` offers `windows`, `programs` and `power` there; the other interfaces,
+`block-app-plugin-host/src/published.rs` offers `windows`, `programs` and `power` there; the other interfaces,
 `displays` among them (it describes the displays the shell is drawn on, and on Windows that is
 block-app's one window), stay unsupported, so the shell hides what they back.
 

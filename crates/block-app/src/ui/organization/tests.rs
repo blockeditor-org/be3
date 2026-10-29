@@ -1,10 +1,11 @@
 use beui::native::WindowSize;
-use beui::native::testing::{Showing, Stepped};
-use beui::{Rect, native::Context, native::FreetypeFonts, pos2, vec2};
+use beui::{Rect, native::Context, pos2, vec2};
+use beui_host::native::FreetypeFonts;
+use beui_host::native::testing::{Showing, Stepped};
 
 use super::*;
 use crate::ui::{AppView, UnsentRow, UnsentView};
-use beui::native::build;
+use beui_host::native::build;
 
 const SIZE: beui::Vec2 = vec2(720.0, 640.0);
 

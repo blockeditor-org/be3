@@ -1,12 +1,12 @@
 use std::cmp::Ordering;
 
-use block_editor_beui::block_ui::database::block_reference_text;
+use block_ui_database::block_reference_text;
 use database_types::database::{DatabaseRow, DatabaseValue};
 use database_types::database_schema::{DatabaseField, DatabaseFieldType};
 use database_types::database_view::{DatabaseViewSort, SortDirection, ViewFilter};
 use uuid::Uuid;
 
-pub type BlockLabels = block_editor_beui::block_ui::database::ValueLabels;
+pub type BlockLabels = block_ui_database::ValueLabels;
 
 pub const ROW_HEADER_WIDTH: f32 = 44.0;
 pub const ROW_HEIGHT: f32 = 28.0;
