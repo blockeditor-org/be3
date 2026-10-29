@@ -80,6 +80,7 @@ pub struct EditorManifest {
 pub enum ShellRequest {
     ShowBlock,
     Pick,
+    Rename,
     Dialog,
     Panel,
     Window,

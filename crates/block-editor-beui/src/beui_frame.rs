@@ -123,6 +123,7 @@ pub(crate) fn FrameChrome(
         palette.get();
         docked.presenting(&host)
     });
+    provide_context(crate::popover::PopoverWindow(shown_in));
     let escaping = exit_writer.clone();
     on_key(KeyAt::Window, KeyPhase::Bubble, move |event| {
         let escaped = event
@@ -345,7 +346,7 @@ fn frame_actions(
         .enabled(can(|state| state.can_redo))
         .register(),
         rename: Action::new("editor.rename", "Rename", move || {
-            editor.host().rename_block(id, None)
+            editor.rename_block(id, crate::PickAnchor::Centre)
         })
         .glyph(ICON_PENCIL_LINE)
         .pin(Pin::Title)

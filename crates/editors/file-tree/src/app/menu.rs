@@ -388,9 +388,7 @@ fn Appearance(editor: Editor, picker: Picker, row: Memo<Option<Row>>) -> MenuIte
         if let Some(shown) = row.get_untracked().filter(|row| row.can_edit)
             && let Some(id) = shown.id
         {
-            editor
-                .host()
-                .rename_block(id, picker.row_anchor(&shown.key));
+            editor.rename_block(id, picker.row_anchor(&shown.key));
         }
     };
     view! {

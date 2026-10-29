@@ -1,15 +1,13 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use beui::dock::styled::{
-    CARD_GAP, CARD_INSET, CARD_MARGIN, CARD_POINTER, DockCard, PointerSide, Pointing,
-};
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{NodeId, Pos2, Rect, Vec2, WindowPlacement, WindowReport, WindowRole};
+use beui::{NodeId, Rect, Vec2};
 use block_editor_plugin::{BlockFilter, BlockParent, BlockPick, Failure, PickedBlock};
 
-use crate::{ChildLayer, ChildMode, ChildState, Editor, Subregion, SubregionContent, node_anchor};
+use crate::popover::{ChildPopover, Face, Popovers, Shown};
+use crate::{ChildState, Editor, SubregionContent};
 
 const UNSIZED: Vec2 = Vec2::new(256.0, 320.0);
 
@@ -42,16 +40,6 @@ impl From<NodeRef> for PickAnchor {
 impl From<&NodeRef> for PickAnchor {
     fn from(node: &NodeRef) -> Self {
         Self::Node(*node)
-    }
-}
-
-impl PickAnchor {
-    fn rect(self) -> Option<Rect> {
-        match self {
-            Self::Centre => None,
-            Self::Rect(rect) => Some(rect),
-            Self::Node(node) => node_anchor(&node),
-        }
     }
 }
 
@@ -131,6 +119,7 @@ pub(crate) fn Pickers(editor: Editor) -> NodeId {
                     },
                 }
             }</ForEach>
+            <Popovers editor />
         </Layers>
     }
 }
@@ -142,195 +131,54 @@ fn PickerPopover(editor: Editor, picking: Picking) -> NodeId {
     let content = SubregionContent::Picker {
         filter: picking.0.filter.clone(),
         parent: picking.0.parent,
-        touch: sheet,
+        touch: false,
     };
-    let size = create_signal(None::<Vec2>);
+    let size = create_signal(LAST_SIZE.with(Cell::get));
     let card = create_signal(false);
-    let child = move || {
-        let content = content.clone();
-        view! {
-            <Subregion
-                editor
-                placed={Some(content)}
-                mode=ChildMode::Live
-                layer=ChildLayer::Above
-                punch=false
-                @test_id={"picker.child"}
-                on_state={move |state: ChildState| {
-                    let wanted = state.intrinsic_size.filter(|size| size.x > 0.0 && size.y > 0.0);
-                    if size.get_untracked() != wanted {
-                        size.set(wanted);
-                    }
-                    let carded = state.card && !sheet;
-                    if card.get_untracked() != carded {
-                        card.set(carded);
-                    }
-                    if let Some(error) = state.error.clone() {
-                        return editor.finish_pick(serial, Err(Failure::Failed(error)));
-                    }
-                    if let Some(answer) = state.picked {
-                        editor.finish_pick(serial, answer);
-                    }
-                }}
-            />
+    let face = create_memo(move || match card.get() {
+        true => Face::Card,
+        false => Face::Bare,
+    });
+    let shown = create_memo(move || size.get());
+    let on_state = Callback::new(move |state: ChildState| {
+        let wanted = state
+            .intrinsic_size
+            .filter(|size| size.x > 0.0 && size.y > 0.0);
+        if let Some(wanted) = wanted
+            && size.get_untracked() != wanted
+        {
+            LAST_SIZE.with(|last| last.set(wanted));
+            size.set(wanted);
         }
-    };
-    let anchor = picking.0.anchor.rect();
-    let own = use_window();
-    let viewport = use_viewport_size();
-    let content_size = create_memo(move || size.get().unwrap_or(UNSIZED));
-    let window = match picking.0.anchor {
-        PickAnchor::Node(node) => node.try_get().map(window_of),
-        _ => None,
-    }
-    .or(own.map(|handle| handle.id));
-    let area = create_memo(move || {
-        let shown = Rect::from_min_size(Pos2::ZERO, viewport.get());
-        window
-            .filter(|window| own.is_none_or(|own| own.id != *window))
-            .and_then(|window| {
-                beui::native::try_with_document(|document| {
-                    document
-                        .context()?
-                        .layer_space(window)
-                        .map(|space| space.area())
-                })
-                .flatten()
-            })
-            .unwrap_or(shown)
-    });
-    let hung = create_memo(move || match (sheet, card.get()) {
-        (true, _) => Hung {
-            window: Rect::from_min_size(Pos2::ZERO, viewport.get()),
-            pointing: None,
-        },
-        (false, true) => card_hung(anchor, content_size.get(), area.get()),
-        (false, false) => Hung {
-            window: Rect::from_min_size(
-                hang(anchor, content_size.get(), area.get()),
-                content_size.get(),
-            ),
-            pointing: None,
-        },
-    });
-    let role = create_memo(move || match sheet || card.get() {
-        true => WindowRole::Normal,
-        false => WindowRole::Popup,
-    });
-    let shown = create_memo(move || hung.get().window.size());
-    let at = create_memo(move || hung.get().window.min);
-    let placement = create_memo(move || match window {
-        Some(window) => WindowPlacement::Over {
-            window,
-            at: at.get(),
-        },
-        None => WindowPlacement::AtPointer,
+        let carded = state.card && !sheet;
+        if card.get_untracked() != carded {
+            card.set(carded);
+        }
+        if let Some(error) = state.error.clone() {
+            return editor.finish_pick(serial, Err(Failure::Failed(error)));
+        }
+        if let Some(answer) = state.picked {
+            editor.finish_pick(serial, answer);
+        }
     });
     view! {
-        <Window
-            id={None}
-            size={shown}
-            at
-            placement
-            role
-            on_report={move |report: WindowReport| {
-                if matches!(report, WindowReport::Closed(_))
-                    && role.get_untracked() == WindowRole::Popup
-                {
-                    editor.finish_pick(serial, Ok(None));
-                }
+        <ChildPopover
+            editor
+            content
+            anchor={picking.0.anchor}
+            shown={match sheet {
+                true => Shown::Sheet,
+                false => Shown::Anchored,
             }}
-        >|handle: WindowHandle| {
-            let node = child();
-            let shown_size = create_memo(move || match card.get() {
-                true => content_size.get(),
-                false => handle.size.get(),
-            });
-            let card_width = create_memo(move || Size::Custom(shown_size.get().x));
-            let card_height = create_memo(move || Size::Custom(shown_size.get().y));
-            let carded = create_memo(move || card.get());
-            let inset = create_memo(move || match card.get() {
-                true => Padding::all(Space::Custom(CARD_INSET)),
-                false => Padding::ZERO,
-            });
-            let pointing = create_memo(move || hung.get().pointing);
-            let pointer = NodeRef::new();
-            let outside = move |_: Pos2| {
-                if !sheet {
-                    editor.finish_pick(serial, Ok(None));
-                }
-            };
-            view! {
-                <Root clear_color=ColorRole::None>
-                    <Interactive on_press_outside={outside}>
-                        <Layers>
-                            <Show condition={carded}>
-                                <DockCard pointing pointer>
-                                    <Frame width=card_width height=card_height />
-                                </DockCard>
-                            </Show>
-                            <Frame padding={inset}>
-                                <Frame width=card_width height=card_height>{node}</Frame>
-                            </Frame>
-                        </Layers>
-                    </Interactive>
-                </Root>
-            }
-            .child()
-        }</Window>
+            face
+            size={shown}
+            testing="picker.child"
+            on_state
+            on_dismiss={move || editor.finish_pick(serial, Ok(None))}
+        />
     }
 }
 
-#[derive(Clone, Copy, PartialEq)]
-struct Hung {
-    window: Rect,
-    pointing: Option<Pointing>,
-}
-
-fn card_hung(anchor: Option<Rect>, content: Vec2, area: Rect) -> Hung {
-    let margin = f32::from(CARD_MARGIN);
-    let face = content + Vec2::splat(2.0 * CARD_INSET);
-    let Some(anchor) = anchor else {
-        return Hung {
-            window: Rect::from_min_size(hang(None, face, area), face),
-            pointing: None,
-        };
-    };
-    let reach = f32::from(CARD_GAP) - CARD_POINTER;
-    let x = (anchor.center().x - face.x / 2.0)
-        .min(area.max.x - face.x - margin)
-        .max(
-            (area.min.x + margin)
-                .min(area.max.x - face.x)
-                .max(area.min.x),
-        );
-    let below = anchor.max.y + reach + face.y <= area.max.y - margin;
-    let above = anchor.min.y - reach - face.y >= area.min.y + margin;
-    let (y, side) = match (below, above) {
-        (false, true) => (anchor.min.y - reach - face.y, PointerSide::Bottom),
-        _ => (anchor.max.y + reach, PointerSide::Top),
-    };
-    Hung {
-        window: Rect::from_min_size(Pos2::new(x, y), face),
-        pointing: Some(Pointing {
-            side,
-            at: anchor.center().x - x - CARD_POINTER,
-        }),
-    }
-}
-
-fn hang(anchor: Option<Rect>, size: Vec2, area: Rect) -> Pos2 {
-    let Some(anchor) = anchor else {
-        return Pos2::new(
-            area.min.x + ((area.width() - size.x) / 2.0).max(0.0),
-            area.min.y + ((area.height() - size.y) / 2.0).max(0.0),
-        );
-    };
-    let below = anchor.max.y + size.y <= area.max.y;
-    let above = anchor.min.y - size.y >= area.min.y;
-    let y = match (below, above) {
-        (false, true) => anchor.min.y - size.y,
-        _ => anchor.max.y,
-    };
-    Pos2::new(anchor.min.x.max(area.min.x), y)
+thread_local! {
+    static LAST_SIZE: Cell<Vec2> = const { Cell::new(UNSIZED) };
 }

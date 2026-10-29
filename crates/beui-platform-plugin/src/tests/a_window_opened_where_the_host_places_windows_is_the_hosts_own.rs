@@ -43,12 +43,7 @@ fn a_window_opened_where_the_host_places_windows_is_the_hosts_own() {
     });
     let opened = opened.expect("the window is asked of the host");
     assert_eq!(
-        (
-            opened.opener.view,
-            opened.placement.clone(),
-            opened.size,
-            opened.role
-        ),
+        (opened.opener.view, opened.placement.clone(), opened.size,),
         (
             ViewId::MAIN,
             block_plugin_api::WindowPlacement::AtPointer,
@@ -56,7 +51,6 @@ fn a_window_opened_where_the_host_places_windows_is_the_hosts_own() {
                 width: 200.0,
                 height: 100.0
             },
-            block_plugin_api::WindowRole::Normal
         ),
         "from the region it was opened in, at the pointer, at its size, with its role"
     );

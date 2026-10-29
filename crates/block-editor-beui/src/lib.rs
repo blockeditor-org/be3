@@ -20,6 +20,7 @@ mod layered_settings;
 mod loading;
 mod module;
 mod picking;
+mod popover;
 mod preview;
 mod related_content;
 mod rotation;

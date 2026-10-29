@@ -1,7 +1,8 @@
 use block_editor_beui::be_block::metadata::{ICON, ICON_COLOR};
+use block_editor_beui::beui::Key;
 use block_editor_beui::beui::icons::ICON_FILE_TEXT;
 use block_editor_beui::{
-    BlockInfo, BlockParent, BlockTypeDescriptor, Catalog, ChildOperations, ShellCommand,
+    BlockInfo, BlockParent, BlockTypeDescriptor, Catalog, ChildContent, ChildOperations,
 };
 
 use super::*;
@@ -34,25 +35,17 @@ fn icon_and_color_asks_the_host_from_the_row_and_the_row_shows_what_is_chosen() 
     fixture.test.snapshot("block_icons_inherit_the_type_color");
 
     fixture.choose(block, "Icon and color…");
-    let asked: Vec<_> = fixture
+    fixture.settle();
+    let form = fixture
         .test
-        .take_shell_commands()
-        .into_iter()
-        .filter_map(|(id, command)| match command {
-            ShellCommand::Rename { anchor } => Some((id, anchor)),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(
-        asked.len(),
-        1,
-        "choosing Icon and color asks the host for its rename card once"
-    );
-    assert_eq!(asked[0].0, block, "for the row's block");
-    assert!(
-        asked[0].1.is_some_and(|anchor| anchor.width() > 0.0),
-        "from the row, so the card points at it"
-    );
+        .placed(|content| *content == ChildContent::Rename(block.into_bytes()))
+        .expect("choosing Icon and color places the form renaming the row's block");
+    assert!(form.rect.width() > 0.0, "in a card hung from the row");
+    fixture
+        .test
+        .snapshot("icon_and_color_hangs_a_rename_card_from_its_row");
+    fixture.test.key(Key::Escape, Modifiers::NONE);
+    fixture.settle();
 
     listed.metadata.insert(&ICON, &"star".to_owned());
     listed.metadata.insert(&ICON_COLOR, &[203, 91, 125]);

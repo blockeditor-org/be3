@@ -11,8 +11,8 @@ fn a_popup_in_space_closes_on_a_press_in_another_panel() {
     app.run(&["--into=space", "click", "Tab \"Settings\""]);
     app.gone("#picker.more");
     assert!(
-        app.shown("Tab \"Files\" selected"),
-        "the press that closes the add menu goes no further, so the Files tab stays selected"
+        app.shown("Tab \"Settings\" selected"),
+        "the press that closes the add menu goes on to the tab it landed on"
     );
     app.close();
 }

@@ -450,6 +450,7 @@ pub struct EditorHost {
     shown_panels: Rc<RefCell<Vec<HostPanel>>>,
     watches: Rc<RefCell<Watches>>,
     picker: Rc<RefCell<Option<PickerRequest>>>,
+    renaming: Rc<Cell<Option<Uuid>>>,
     picked: Rc<RefCell<Option<BlockPick>>>,
     card: Rc<Cell<bool>>,
     dialog_requests: Rc<RefCell<Vec<(Uuid, ShellDialog)>>>,
@@ -620,6 +621,15 @@ impl EditorHost {
 
     pub fn show_dialog(&self, block_id: Uuid, dialog: ShellDialog) {
         self.dialog_requests.borrow_mut().push((block_id, dialog));
+        self.push(Pushed::Shows);
+    }
+
+    pub fn renaming(&self) -> Option<Uuid> {
+        self.renaming.get()
+    }
+
+    pub(crate) fn set_renaming(&self, block: Uuid) {
+        self.renaming.set(Some(block));
         self.push(Pushed::Shows);
     }
 
@@ -943,14 +953,6 @@ impl EditorHost {
 
     pub fn leave_block(&self, block_id: Uuid) {
         self.shell_command(block_id, ShellCommand::Leave);
-    }
-
-    pub fn show_app_menu(&self, block_id: Uuid, anchor: Option<Rect>) {
-        self.shell_command(block_id, ShellCommand::AppMenu { anchor });
-    }
-
-    pub fn rename_block(&self, block_id: Uuid, anchor: Option<Rect>) {
-        self.shell_command(block_id, ShellCommand::Rename { anchor });
     }
 
     pub fn unlink_block(&self, block_id: Uuid, container: Uuid) {

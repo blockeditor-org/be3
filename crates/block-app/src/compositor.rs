@@ -15,7 +15,7 @@ use block_app_plugin_host::EditorAction;
 
 pub(crate) use desktop::DesktopPlace;
 pub(crate) use editors::{
-    ConflictSurface, OwnedEditors, PresentingSurface, ShellDisplay, ShellSurface,
+    ConflictSurface, OwnedEditors, PanelReport, PresentingSurface, ShellDisplay, ShellSurface,
 };
 pub(crate) use layers::PluginLayers;
 pub(crate) use region::{ChildView, PluginRegion, RegionEditor};

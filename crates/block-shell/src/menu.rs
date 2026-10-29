@@ -120,7 +120,7 @@ pub(crate) fn apply(
                 );
             }
         }
-        Action::Rename => workspace.open_rename(reference.id, anchor, None),
+        Action::Rename => workspace.open_rename(reference.id, anchor),
         Action::Share => workspace.open_dialog(OpenDialog::Share(reference.id)),
         Action::Unlink => {
             if let Some(BlockParent::Block(container)) = permissions.source {

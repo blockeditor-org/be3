@@ -534,6 +534,13 @@ impl Screens {
                 open.organization_id,
                 open.client_id,
             ),
+            Opening::Rename(open) => (
+                open.instance,
+                open.editor,
+                open.account_id,
+                open.organization_id,
+                open.client_id,
+            ),
         };
         let session = self.open(instance, Uuid::from_bytes(editor));
         session.set_block_types(block_types);
@@ -555,6 +562,7 @@ impl Screens {
                 parent: crate::graph::BlockParent::decode(open.parent),
                 touch: open.touch,
             }),
+            Opening::Rename(open) => session.connect_rename(Uuid::from_bytes(open.block_id)),
             Opening::Artifact(open) => session.connect_artifact(
                 crate::Artifact {
                     block_id: Uuid::from_bytes(open.block_id),

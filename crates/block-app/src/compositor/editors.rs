@@ -393,13 +393,13 @@ impl Editors {
     fn ensure_picker(
         &self,
         key: CreationKey,
-        request: block_app_plugin_host::PickerRequest,
+        make: impl FnOnce(&EditorRegistry) -> Option<PluginPicker>,
     ) -> bool {
         let state = self.0.value();
         if state.pickers.borrow().contains_key(&key) {
             return true;
         }
-        let Some(picker) = self.registry().picker(request) else {
+        let Some(picker) = make(&self.registry()) else {
             return false;
         };
         state.pickers.borrow_mut().insert(key, picker);
@@ -421,11 +421,21 @@ impl Editors {
     fn picker_status(
         &self,
         key: &CreationKey,
-    ) -> Option<(Option<block_plugin_api::BlockPick>, Option<Vec2>, bool)> {
+    ) -> Option<(
+        Option<block_plugin_api::BlockPick>,
+        Option<Vec2>,
+        bool,
+        DialogStatus,
+    )> {
         let state = self.0.value();
         let pickers = state.pickers.borrow();
         let picker = pickers.get(key)?;
-        Some((picker.picked(), picker.intrinsic(), picker.card()))
+        Some((
+            picker.picked(),
+            picker.intrinsic(),
+            picker.card(),
+            picker.dialog(),
+        ))
     }
 
     pub(crate) fn step_creations(&self) {
@@ -1436,6 +1446,12 @@ enum Kind {
     NoPicker,
 }
 
+#[derive(Clone, Copy)]
+pub(crate) struct PanelReport {
+    pub(crate) done: Signal<bool>,
+    pub(crate) size: Signal<Option<Vec2>>,
+}
+
 pub(crate) fn hosted_parent(instance: EditorInstanceId) -> Uuid {
     Uuid::from_u64_pair(0x686f_7374_6564_0000, instance.0)
 }
@@ -1469,6 +1485,11 @@ fn HostedChild(
         },
     )));
     let content = create_memo(move || child.get().map(|child| child.content));
+    let panel = PanelReport {
+        done: create_signal(false),
+        size: create_signal(None),
+    };
+    provide_context(panel);
     let creation_key: CreationKey = (parent, region, key);
     on_cleanup(move || {
         editors.forget_creation(&creation_key);
@@ -1517,9 +1538,18 @@ fn HostedChild(
                     parent,
                     touch,
                 };
-                return match editors.ensure_picker(creation_key, request) {
+                return match editors
+                    .ensure_picker(creation_key, |registry| registry.picker(request))
+                {
                     true => Kind::Picker,
                     false => Kind::NoPicker,
+                };
+            }
+            Some(HostContent::Rename(block)) => {
+                return match editors.ensure_picker(creation_key, |registry| registry.rename(block))
+                {
+                    true => Kind::Picker,
+                    false => Kind::Unavailable,
                 };
             }
             Some(HostContent::Block {
@@ -1585,10 +1615,19 @@ fn HostedChild(
             if kind.get() == Kind::NoPicker {
                 status.error = Some(NO_PICKER.to_owned());
             }
-            if let Some((picked, intrinsic, card)) = editors.picker_status(&creation_key) {
+            if let Some((picked, intrinsic, card, dialog)) = editors.picker_status(&creation_key) {
                 status.picked = picked;
                 status.card = card;
                 status.intrinsic = intrinsic;
+                status.dialog = dialog;
+            }
+            if let Kind::Panel(_) = kind.get() {
+                if let Some(size) = panel.size.get() {
+                    status.intrinsic = Some(size);
+                }
+                if panel.done.get() {
+                    status.dialog.answer = Some(block_plugin_api::DialogAnswer::Accepted);
+                }
             }
             if let Kind::ArtifactSettings(block) = kind.get()
                 && let Some((height, dialog)) = editors.settings_status(block)

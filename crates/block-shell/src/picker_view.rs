@@ -8,7 +8,7 @@ use block_editor_beui::beui::styled::*;
 
 use block_editor_beui::beui::{
     BackGesture, Color, Color32, Dismiss, LayerPolicy, NodeId, OverlayAnchor, Placement, Pos2,
-    Rect, TextAlign, Vec2,
+    TextAlign, Vec2,
 };
 use block_editor_beui::block_ui::TemplateEntry;
 use block_editor_beui::{
@@ -145,8 +145,8 @@ fn PickerMenu(
     view! {
         <MenuPopup
             items
-            anchor={OverlayAnchor::Rect(Rect::ZERO)}
-            placement=Placement::BelowStart
+            anchor={OverlayAnchor::Point(Pos2::ZERO)}
+            placement=Placement::Fill
             open
             sheet
             overlay
@@ -176,7 +176,7 @@ fn PickerCard(picker: Picker, held: Memo<Option<Pick>>) -> NodeId {
                 }
             }}
         >
-            <Frame>
+            <Frame fill=ColorRole::SurfaceRaised>
                 <PickerSurface picker />
             </Frame>
         </Overlay>

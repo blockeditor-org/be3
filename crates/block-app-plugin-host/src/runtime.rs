@@ -1290,10 +1290,6 @@ pub struct FramePlacement {
     pub zoom: f32,
 }
 
-pub fn frame_placement(plugin_id: &str, instance: EditorInstanceId) -> Option<FramePlacement> {
-    region_placement(plugin_id, instance, ViewId::MAIN)
-}
-
 pub fn region_placement(
     plugin_id: &str,
     instance: EditorInstanceId,
@@ -1309,18 +1305,6 @@ pub fn region_placement(
             })
     })
     .flatten()
-}
-
-pub fn reanchor(anchor: Rect, from: FramePlacement, to: FramePlacement) -> Option<Rect> {
-    let scale = from.zoom / to.zoom;
-    let moved = Rect::from_min_size(
-        Pos2::ZERO + (from.rect.min + anchor.min.to_vec2() * from.zoom - to.rect.min) / to.zoom,
-        anchor.size().max(Vec2::ZERO) * scale,
-    );
-    [moved.min.x, moved.min.y, moved.max.x, moved.max.y]
-        .iter()
-        .all(|value| value.is_finite())
-        .then_some(moved)
 }
 
 fn scale_rect(rect: Rect, size: Vec2) -> Rect {
@@ -2030,7 +2014,8 @@ pub fn mount_region(slot: RegionSlot<'_>) {
                     InstanceRole::Editor(_, block) => Some(block.id),
                     InstanceRole::Creation(..)
                     | InstanceRole::Artifact(..)
-                    | InstanceRole::Picker(_) => None,
+                    | InstanceRole::Picker(_)
+                    | InstanceRole::Rename(..) => None,
                 },
             );
             runtime
@@ -2657,12 +2642,7 @@ pub fn take_region_actions(
             actions.push(EditorAction::Command { id, command });
         }
         for (id, command) in runtime.instances.take_shell_commands(instance) {
-            actions.push(match command {
-                block_plugin_api::ShellCommand::AppMenu { anchor } => EditorAction::AppMenu {
-                    at: anchor.and_then(|anchor| in_host(runtime, instance, anchor)),
-                },
-                command => EditorAction::Shell { id, command },
-            });
+            actions.push(EditorAction::Shell { id, command });
         }
         for (id, access) in runtime.instances.take_simulated_access(instance) {
             actions.push(EditorAction::SimulateAccess { id, access });
@@ -2670,18 +2650,6 @@ pub fn take_region_actions(
         actions
     })
     .unwrap_or_default()
-}
-
-fn in_host(runtime: &Runtime, instance: EditorInstanceId, anchor: Rect) -> Option<Rect> {
-    let placed = runtime.placements.get(&(instance, ViewId::MAIN))?;
-    let rect = Rect::from_min_size(
-        placed.rect.min + anchor.min.to_vec2() * placed.zoom,
-        anchor.size().max(Vec2::ZERO) * placed.zoom,
-    );
-    [rect.min.x, rect.min.y, rect.max.x, rect.max.y]
-        .iter()
-        .all(|value| value.is_finite())
-        .then_some(rect)
 }
 
 pub fn take_block_drags(plugin_id: &str, instance: EditorInstanceId) -> Vec<BlockDrag> {

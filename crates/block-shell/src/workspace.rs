@@ -30,7 +30,6 @@ use super::dialogs::OpenDialog;
 use super::host_panel::{HostPanelView, panel_icon, panel_tab, panel_window, tab_panel};
 use super::kept::{self, Kept, KeptWindow};
 use super::panel::BlockPanel;
-use super::rename::{RenameAnchor, Renaming};
 use super::saved::{self, LAYOUT, TITLES};
 use super::share::{Share, ShareAction};
 use super::tab::TabItem;
@@ -86,7 +85,6 @@ pub struct Workspace {
     pub(crate) phone: Signal<bool>,
     pub(crate) sheet: Signal<PhoneSheet>,
     pub(crate) dialog: Signal<Option<OpenDialog>>,
-    renaming: Signal<Option<Renaming>>,
     pub(crate) share: Signal<Option<Share>>,
     entries: Memo<Vec<HostWindow>>,
     windows: Memo<Vec<HostWindow>>,
@@ -112,7 +110,6 @@ impl Workspace {
         let phone = create_signal(false);
         let sheet = create_signal(PhoneSheet::Closed);
         let dialog = create_signal(None);
-        let renaming = create_signal(None);
         let share = create_signal(None);
         let panels = create_signal(Vec::new());
         let entries = editor.watch::<WindowsWatch>();
@@ -151,7 +148,6 @@ impl Workspace {
             sheet,
             default_editors,
             dialog,
-            renaming,
             share,
             entries,
             windows,
@@ -409,9 +405,6 @@ impl Workspace {
     fn show_requested(&self) {
         for (block, dialog) in self.host().take_dialog_requests() {
             match dialog {
-                ShellDialog::Rename { anchor, within } => {
-                    self.open_rename(block, anchor, within.map(Uuid::from_bytes));
-                }
                 ShellDialog::Share => self.open_dialog(OpenDialog::Share(block)),
             }
         }
@@ -454,35 +447,8 @@ impl Workspace {
         self.dialog.set(Some(dialog));
     }
 
-    pub(crate) fn open_rename(&self, block: Uuid, rect: Option<Rect>, within: Option<Uuid>) {
-        let tab = within
-            .or(Some(block))
-            .and_then(|within| self.tab_of_block(within))
-            .or_else(|| self.state.value().layout.focused());
-        self.renaming.set(Some(Renaming {
-            block,
-            anchor: RenameAnchor { rect, tab },
-        }));
-    }
-
-    pub fn rename_dialogs(&self) -> Memo<Vec<(Uuid, TabId)>> {
-        let renaming = self.renaming;
-        create_memo(move || {
-            renaming
-                .get()
-                .and_then(|shown| Some((shown.block, shown.anchor.tab?)))
-                .into_iter()
-                .collect()
-        })
-    }
-
-    pub fn rename_anchor(&self) -> Option<RenameAnchor> {
-        self.renaming
-            .with_untracked(|shown| shown.map(|shown| shown.anchor))
-    }
-
-    pub(crate) fn close_rename(&self) {
-        self.renaming.set(None);
+    pub(crate) fn open_rename(&self, block: Uuid, anchor: Option<Rect>) {
+        self.editor.rename_block(block, anchor);
     }
 
     pub(crate) fn close_dialog(&self) {
@@ -513,12 +479,6 @@ impl Workspace {
             task.cancel();
         }
         self.share.set(None);
-    }
-
-    pub(crate) fn rename(&self, block: Uuid, name: &str) {
-        let name = name.trim().to_owned();
-        self.blocks()
-            .set_name(block, (!name.is_empty()).then_some(name));
     }
 
     pub(crate) fn share_action(&self, action: ShareAction) {
@@ -982,13 +942,6 @@ impl Workspace {
         }
     }
 
-    pub(crate) fn tab_of_block(&self, id: Uuid) -> Option<TabId> {
-        match self.files.get_untracked() == Some(id) {
-            true => Some(FILES),
-            false => self.tab_showing(id),
-        }
-    }
-
     pub(crate) fn tab_showing(&self, id: Uuid) -> Option<TabId> {
         self.tabs.with_untracked(|tabs| {
             tabs.iter()
@@ -1159,7 +1112,7 @@ impl Workspace {
                 }
                 workspace.open(TabItem::new(picked.id(), block_type), Some(container));
                 if !picked.linked {
-                    workspace.open_rename(picked.id(), None, None);
+                    workspace.open_rename(picked.id(), None);
                 }
             },
         );

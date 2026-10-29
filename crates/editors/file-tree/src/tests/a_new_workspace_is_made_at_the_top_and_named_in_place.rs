@@ -41,11 +41,10 @@ fn a_new_workspace_is_made_at_the_top_and_named_in_place() {
         "Enter names the workspace"
     );
     assert!(
-        !fixture
+        fixture
             .test
-            .take_shell_commands()
-            .iter()
-            .any(|(_, command)| matches!(command, block_editor_beui::ShellCommand::Rename { .. })),
-        "the host's rename dialog is not asked for"
+            .placed(|content| matches!(content, block_editor_beui::ChildContent::Rename(_)))
+            .is_none(),
+        "no rename form is placed"
     );
 }

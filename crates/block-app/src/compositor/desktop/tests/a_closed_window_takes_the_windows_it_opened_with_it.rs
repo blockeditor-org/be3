@@ -2,7 +2,7 @@ use block_plugin_api::{Size, ViewRef, WindowOpen, WindowOver};
 
 use super::*;
 
-const PLUGIN: &str = "test.popups";
+const PLUGIN: &str = "test.windows";
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 
 fn open(window: u64, opener: View) -> WindowRequest {
@@ -22,12 +22,11 @@ fn open(window: u64, opener: View) -> WindowRequest {
             width: 80.0,
             height: 40.0,
         },
-        role: WindowRole::Popup,
     })
 }
 
 #[test]
-fn a_popup_holds_its_own_popups_and_takes_them_when_dismissed() {
+fn a_closed_window_takes_the_windows_it_opened_with_it() {
     let _root = beui::reactive::RootScope::new();
     install();
     let frame = overlaid(PLUGIN.to_owned(), INSTANCE, View::MAIN);
@@ -47,7 +46,7 @@ fn a_popup_holds_its_own_popups_and_takes_them_when_dismissed() {
     assert_eq!(
         first.get_untracked(),
         [ViewId(2)],
-        "a popup's own popup shows inside it"
+        "a window's own window shows inside it"
     );
     assert_eq!(second.get_untracked(), [ViewId(3)]);
 
@@ -59,7 +58,7 @@ fn a_popup_holds_its_own_popups_and_takes_them_when_dismissed() {
     assert_eq!(
         frame.get_untracked(),
         [ViewId(1), ViewId(4)],
-        "dismissing a popup's own popup leaves the popup open"
+        "closing a window's own window leaves the window open"
     );
     assert!(second.get_untracked().is_empty());
     assert!(

@@ -20,7 +20,6 @@ fn open(window: u64, opener: View, at: Pos2) -> WindowRequest {
             width: 100.0,
             height: 50.0,
         },
-        role: WindowRole::Popup,
     })
 }
 

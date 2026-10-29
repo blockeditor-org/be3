@@ -29,7 +29,6 @@ fn a_window_the_plugin_opened_is_shown_and_asked_for_by_its_own_screen() {
             width: 200.0,
             height: 100.0,
         },
-        role: block_plugin_api::WindowRole::Normal,
     };
     instances.adopt_window(&open, &layout);
     let report = FrameReport {

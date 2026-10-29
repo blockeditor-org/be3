@@ -54,15 +54,14 @@ pub use runtime::{
 pub use runtime::{
     artifact, artifact_draft, aspect_ratio, assigned_size, busy, card, close, commit_creation,
     content_view, crash, creation, dialog_status, dismiss, drawing, flush, forget_dialog_answer,
-    frame_child, frame_placement, frame_rects, hold, in_use, install, intrinsic_size, kill, menu,
-    menu_pick, picked, poll, present, presenting, preview_image, reanchor, record_pacing,
-    regenerate_artifact, region_placement, region_size, replace_child, replace_gpu,
-    report_child_bars, report_child_focus, report_children, request_painting, resized,
-    revoke_frame_child, running, set_artifact_states, set_focus, set_presence_visible,
-    set_presented, set_shell, settle, show_block, show_dialog, show_panel, start_frames,
-    take_artifact_outcome, take_artifact_watch, take_bar_actions, take_child_commits,
-    take_child_dismissals, take_child_menu_picks, take_crashed, take_created, take_focus_report,
-    take_leaving, take_steps, take_view_changes, warm,
+    frame_child, frame_rects, hold, in_use, install, intrinsic_size, kill, menu, menu_pick, picked,
+    poll, present, presenting, preview_image, record_pacing, regenerate_artifact, region_placement,
+    region_size, replace_child, replace_gpu, report_child_bars, report_child_focus,
+    report_children, request_painting, resized, revoke_frame_child, running, set_artifact_states,
+    set_focus, set_presence_visible, set_presented, set_shell, settle, show_block, show_dialog,
+    show_panel, start_frames, take_artifact_outcome, take_artifact_watch, take_bar_actions,
+    take_child_commits, take_child_dismissals, take_child_menu_picks, take_crashed, take_created,
+    take_focus_report, take_leaving, take_steps, take_view_changes, warm,
 };
 pub use windows::{forget_windows, request_windows, take_window_requests};
 
@@ -103,9 +102,6 @@ pub enum EditorAction {
     SimulateAccess {
         id: Uuid,
         access: block_plugin_api::AccessLevel,
-    },
-    AppMenu {
-        at: Option<Rect>,
     },
 }
 
@@ -218,6 +214,7 @@ pub enum HostContent {
         parent: block_plugin_api::BlockLocation,
         touch: bool,
     },
+    Rename(Uuid),
 }
 
 impl HostContent {
@@ -229,7 +226,8 @@ impl HostContent {
             | Self::Creation { .. }
             | Self::ArtifactSettings(_)
             | Self::DockTab { .. }
-            | Self::Picker { .. } => None,
+            | Self::Picker { .. }
+            | Self::Rename(_) => None,
         }
     }
 
@@ -241,7 +239,8 @@ impl HostContent {
             | Self::Creation { .. }
             | Self::ArtifactSettings(_)
             | Self::DockTab { .. }
-            | Self::Picker { .. } => None,
+            | Self::Picker { .. }
+            | Self::Rename(_) => None,
         }
     }
 }
@@ -408,13 +407,14 @@ pub enum InstanceRole {
     Creation(Uuid, &'static str),
     Artifact(Uuid, EditorBlock, Uuid),
     Picker(Uuid),
+    Rename(Uuid, Uuid),
 }
 
 impl InstanceRole {
     pub fn block(self) -> Option<EditorBlock> {
         match self {
             Self::Editor(_, block) | Self::Artifact(_, block, _) => Some(block),
-            Self::Creation(..) | Self::Picker(..) => None,
+            Self::Creation(..) | Self::Picker(..) | Self::Rename(..) => None,
         }
     }
 }

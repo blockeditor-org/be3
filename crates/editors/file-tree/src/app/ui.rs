@@ -114,13 +114,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         tree.expand(focused.via.iter().rev().copied());
     };
     let (desktop_menu, phone_menu) = (NodeRef::new(), NodeRef::new());
-    let app_menu = move |button: NodeRef| {
-        move || {
-            editor
-                .host()
-                .show_app_menu(editor.block_id(), node_anchor(&button))
-        }
-    };
+    let app_menu = move |button: NodeRef| move || editor.show_app_menu(button);
     let new_workspace = move || new_workspace(editor, renaming);
     let picked = picker.error();
     let failure = create_memo(move || picked.get().or_else(|| exported.get()));

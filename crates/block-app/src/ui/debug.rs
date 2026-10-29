@@ -1,3 +1,4 @@
+use super::organization::AppMenuPanel;
 use beui::NodeId;
 use beui::Overflow;
 use beui::reactive::*;
@@ -55,6 +56,11 @@ pub(crate) struct DebugPanels(pub(crate) Memo<DebugView>);
 
 #[component]
 pub(crate) fn HostPanelSurface(panel: HostPanel) -> NodeId {
+    if panel == HostPanel::AppMenu {
+        return view! {
+            <AppMenuPanel />
+        };
+    }
     crate::debug::panel_shown(panel);
     on_cleanup(move || crate::debug::panel_hidden(panel));
     let provided = use_context::<DebugPanels>();

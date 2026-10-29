@@ -303,6 +303,20 @@ impl EditorRegistry {
         ))
     }
 
+    pub(crate) fn rename(&self, block: Uuid) -> Option<plugin::PluginPicker> {
+        let editor = self.editors.iter().find(|editor| {
+            editor
+                .manifest
+                .editor(editor.id.into_bytes())
+                .is_some_and(|manifest| manifest.accepts.contains(&ShellRequest::Rename))
+        })?;
+        Some(plugin::PluginPicker::rename(
+            Arc::clone(&editor.manifest),
+            editor.id,
+            block,
+        ))
+    }
+
     pub(crate) fn create(
         &self,
         editor: Uuid,

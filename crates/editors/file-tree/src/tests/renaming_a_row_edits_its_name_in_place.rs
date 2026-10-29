@@ -1,5 +1,5 @@
 use block_editor_beui::beui::Key;
-use block_editor_beui::{BlockInfo, BlockParent, ShellCommand};
+use block_editor_beui::{BlockInfo, BlockParent, ChildContent};
 
 use super::*;
 
@@ -58,11 +58,10 @@ fn renaming_a_row_edits_its_name_in_place() {
         "clicking away keeps what was typed"
     );
     assert!(
-        !fixture
+        fixture
             .test
-            .take_shell_commands()
-            .iter()
-            .any(|(_, command)| matches!(command, ShellCommand::Rename { .. })),
-        "the host's rename dialog is never asked for"
+            .placed(|content| matches!(content, ChildContent::Rename(_)))
+            .is_none(),
+        "no rename form is placed"
     );
 }

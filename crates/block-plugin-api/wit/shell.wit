@@ -186,23 +186,14 @@ interface shell-types {
         failed(string),
     }
 
-    record rename-command {
-        anchor: option<rect>,
-    }
-
-    record app-menu-command {
-        anchor: option<rect>,
-    }
-
     /// What an editor asks of the app around it for a block it draws: to share
-    /// it, leave it, rename it (hung from `anchor`), close the editor, or show
-    /// the app's menu.
+    /// it, leave it, or close the editor. An editor renames a block or shows
+    /// the app's menu by placing a `child-content.rename` or
+    /// `host(app-menu)` child in a view it anchored.
     variant shell-command {
         share,
         leave,
-        rename(rename-command),
         close-editor,
-        app-menu(app-menu-command),
     }
 
     /// The block an editor's focus is in, and the blocks it is shown through.

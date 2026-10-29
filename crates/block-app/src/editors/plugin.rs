@@ -79,7 +79,7 @@ impl PluginCreation {
 
 pub(crate) struct PluginPicker {
     plugin: Arc<PluginManifest>,
-    editor: Uuid,
+    role: InstanceRole,
     instance: EditorInstanceId,
 }
 
@@ -93,8 +93,16 @@ impl PluginPicker {
         block_app_plugin_host::ask_picker(instance, request);
         Self {
             plugin,
-            editor,
+            role: InstanceRole::Picker(editor),
             instance,
+        }
+    }
+
+    pub(crate) fn rename(plugin: Arc<PluginManifest>, editor: Uuid, block: Uuid) -> Self {
+        Self {
+            plugin,
+            role: InstanceRole::Rename(editor, block),
+            instance: next_instance(),
         }
     }
 
@@ -102,7 +110,7 @@ impl PluginPicker {
         HostedRegion {
             editor: RegionEditor {
                 plugin: Arc::clone(&self.plugin),
-                role: InstanceRole::Picker(self.editor),
+                role: self.role,
                 instance: self.instance,
                 block_types: Arc::clone(registry.plugin_block_types()),
                 client_id,
@@ -129,6 +137,11 @@ impl PluginPicker {
 
     pub(crate) fn card(&self) -> bool {
         block_app_plugin_host::card(&self.plugin.identity.id, self.instance)
+    }
+
+    pub(crate) fn dialog(&self) -> DialogStatus {
+        block_app_plugin_host::dialog_status(&self.plugin.identity.id, self.instance)
+            .unwrap_or_default()
     }
 }
 

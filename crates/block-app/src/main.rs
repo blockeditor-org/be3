@@ -561,7 +561,6 @@ struct BlockApp {
     unsent_open: bool,
     discarding_unsent: Option<Uuid>,
     programs: block_app_desktop::programs::Programs,
-    app_menu: Option<ui::AppMenuView>,
     pending_destructive_action: Option<PendingDestructiveAction>,
     leaving: Option<Uuid>,
     allow_close: bool,
@@ -821,7 +820,6 @@ impl BlockApp {
             unsent_open: false,
             discarding_unsent: None,
             programs: block_app_desktop::programs::Programs::default(),
-            app_menu: None,
             pending_destructive_action: None,
             leaving: None,
             allow_close: false,
@@ -926,9 +924,6 @@ impl BlockApp {
         block_app_desktop::desktop_host::set_locked(locked);
         block_app_desktop::remap::set_locked(locked);
         block_app_base::watches::publish::<block_plugin_api::ScreenLockedWatch>(&locked);
-        if locked {
-            self.app_menu = None;
-        }
         let mut availability = self
             .desktop
             .as_ref()
@@ -1721,7 +1716,6 @@ impl BlockApp {
         self.about_open = false;
         self.unsent_open = false;
         self.discarding_unsent = None;
-        self.app_menu = None;
         self.pending_destructive_action = None;
         self.allow_close = false;
         self.organization = None;
@@ -2154,54 +2148,10 @@ impl BlockApp {
         ))
     }
 
-    fn child_within(&self, ancestor: Uuid, block: Uuid) -> Option<Uuid> {
-        let mut visited = HashSet::new();
-        let mut current = block;
-        while visited.insert(current) {
-            let parent = self.editors.parent_of(current)?;
-            if parent == ancestor {
-                return Some(current);
-            }
-            current = parent;
-        }
-        None
-    }
-
     fn show_dialog(&mut self, from: Option<Uuid>, id: Uuid, dialog: ShellDialog) {
         if let Some(handler) = self.handler_for(from, ShellRequest::Dialog) {
             self.with_editor(handler, |handler| handler.show_dialog(id, dialog));
         }
-    }
-
-    fn show_rename(
-        &mut self,
-        from: Option<Uuid>,
-        id: Uuid,
-        anchor: Option<block_plugin_api::Rect>,
-    ) {
-        let Some(handler) = self.handler_for(from, ShellRequest::Dialog) else {
-            return;
-        };
-        let source = from.and_then(|from| self.with_editor(from, |editor| editor.source()));
-        let target = self.with_editor(handler, |editor| editor.source());
-        let anchor = (|| {
-            let (source, target) = (source.flatten()?, target.flatten()?);
-            block_app_plugin_host::reanchor(
-                anchor?,
-                block_app_plugin_host::frame_placement(&source.plugin_id, source.instance)?,
-                block_app_plugin_host::frame_placement(&target.plugin_id, target.instance)?,
-            )
-        })();
-        let within = from.and_then(|from| self.child_within(handler, from));
-        self.with_editor(handler, |handler| {
-            handler.show_dialog(
-                id,
-                ShellDialog::Rename {
-                    anchor,
-                    within: within.map(Uuid::into_bytes),
-                },
-            );
-        });
     }
 
     fn show_panel(&mut self, panel: HostPanel) {
@@ -2574,13 +2524,7 @@ impl BlockApp {
             EditorAction::Command { id, command } => self.handle_block_command(id, command),
             EditorAction::Shell { id, command } => self.handle_shell_command(from, id, command),
             EditorAction::SimulateAccess { id, access } => self.simulate_access(id, access),
-            EditorAction::AppMenu { at } => self.open_app_menu(at),
         }
-    }
-
-    fn open_app_menu(&mut self, at: Option<beui::Rect>) {
-        let opened = self.app_menu.as_ref().map_or(0, |menu| menu.opened) + 1;
-        self.app_menu = Some(ui::AppMenuView { opened, at });
     }
 
     fn handle_shell_command(
@@ -2593,9 +2537,7 @@ impl BlockApp {
         match command {
             ShellCommand::Share => self.show_dialog(from, id, ShellDialog::Share),
             ShellCommand::Leave => self.leaving = Some(id),
-            ShellCommand::Rename { anchor } => self.show_rename(from, id, anchor),
             ShellCommand::CloseEditor => self.close_editor(id),
-            ShellCommand::AppMenu { .. } => self.open_app_menu(None),
         }
     }
 
@@ -3089,8 +3031,6 @@ impl BlockApp {
                 }
             }
             UiCommand::CancelDiscardUnsent => self.discarding_unsent = None,
-            UiCommand::AppMenu(false) => self.app_menu = None,
-            UiCommand::AppMenu(true) => self.open_app_menu(None),
             UiCommand::DismissToast(id) => notices::dismiss(id),
             UiCommand::KeepDisplay(round) => self.answer_display(round, true),
             UiCommand::RevertDisplay(round) => self.answer_display(round, false),
@@ -3415,7 +3355,6 @@ impl BlockApp {
                     .collect(),
                 discarding: self.discarding_unsent,
             }),
-            app_menu: self.app_menu.clone(),
             discard: self.pending_destructive_action.as_ref().map(discard_view),
             leaving: self.leaving.is_some(),
             presenting: self

@@ -110,6 +110,23 @@ pub fn MenuPopup(
     }
 }
 
+#[component]
+pub fn MenuRows(
+    items: Children<MenuItem>,
+    #[prop(default = Size::Menu)] min_width: Prop<Size>,
+    #[prop(default = false)] active: Prop<bool>,
+    on_select: Callback<Vec<usize>>,
+) -> NodeId {
+    view! {
+        <unstyled::MenuRows
+            items={items.into_run()}
+            menu={sized_menu_style(min_width.get_untracked())}
+            active
+            on_select={on_select}
+        />
+    }
+}
+
 pub fn menu_style() -> MenuStyle {
     sized_menu_style(Size::Menu)
 }

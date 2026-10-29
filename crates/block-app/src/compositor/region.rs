@@ -12,7 +12,7 @@ use beui::styled::*;
 use beui::{
     Align, CursorIcon, Dismiss, Forwarded, ForwardedInput, ImeCursor, LayerPolicy, Modifiers,
     NodeId, OverlayAnchor, Placement, PointerButton, PointerEvent, PointerId, PointerPhase, Pos2,
-    Rect, Vec2, WindowId, WindowPlacement, WindowReport, WindowRole, native::Region, pos2,
+    Rect, Vec2, WindowId, WindowPlacement, WindowReport, native::Region, pos2,
 };
 use block_plugin_api::{
     ChildId, EditorInstanceId, FrameSpec, HostView, ParentView, View, ViewId, ViewPlacement,
@@ -272,7 +272,6 @@ pub(crate) fn PluginRegion(
     let placed = store(Cell::new(None::<EmbedPlacement>));
     let window = super::layers::host_window();
     let parent_bounds = use_context::<super::layers::LayerBounds>();
-    let layered = use_context::<super::layers::NoLayers>().is_none();
     let viewport = use_viewport_size();
     let layer_bounds = create_memo(move || {
         let parent = parent_bounds.map_or_else(
@@ -298,7 +297,7 @@ pub(crate) fn PluginRegion(
                 windows: hosts_windows || windowed,
                 placement: stored_key
                     .with(|key| key.as_ref().and_then(super::desktop::placement_of)),
-                layer_bounds: (layered && !offscreen && !region.is_preview())
+                layer_bounds: (!offscreen && !region.is_preview())
                     .then(|| layer_bounds.get_untracked()),
             },
             frame.get_untracked(),
@@ -579,6 +578,7 @@ pub(crate) fn PluginRegion(
         instance,
         region: region.id,
         window,
+        host: super::layers::layer_host(),
         state,
         revision,
         child_view,
@@ -989,6 +989,10 @@ fn DesktopWindows(editor: RegionEditor, state: Memo<RegionView>, rect: Memo<Rect
     }
 }
 
+thread_local! {
+    static NEXT_LAYER_HOST: Cell<u64> = const { Cell::new(0) };
+}
+
 #[component]
 fn OverlaidWindows(editor: RegionEditor, region: View) -> NodeId {
     let block = editor.role.block().map(|block| block.id);
@@ -1004,19 +1008,7 @@ fn OverlaidWindows(editor: RegionEditor, region: View) -> NodeId {
                     instance: editor.instance,
                     window,
                 };
-                let asked = super::desktop::rect_of(key.clone());
-                let role = super::desktop::role_of(key.clone());
-                let popup = create_memo(move || role.get() == WindowRole::Popup);
-                let policy = create_memo(move || match popup.get() {
-                    true => LayerPolicy::BlocksAll,
-                    false => LayerPolicy::Pass,
-                });
-                let dismissed = store(key);
-                let dismiss = move |reason: Dismiss| {
-                    if matches!(reason, Dismiss::OutsidePress | Dismiss::WithParent) {
-                        dismissed.with(super::desktop::dismiss);
-                    }
-                };
+                let asked = super::desktop::rect_of(key);
                 let shown = create_memo(move || {
                     asked
                         .get()
@@ -1025,34 +1017,60 @@ fn OverlaidWindows(editor: RegionEditor, region: View) -> NodeId {
                 let anchor = create_memo(move || OverlayAnchor::Point(shown.get().min));
                 let width = create_memo(move || Size::Custom(shown.get().width()));
                 let height = create_memo(move || Size::Custom(shown.get().height()));
+                let whole_width = create_memo(move || Size::Custom(viewport.get().x));
+                let whole_height = create_memo(move || Size::Custom(viewport.get().y));
                 let region = View::window(window);
                 let child_view = super::editors::child_view(
                     block.unwrap_or_else(|| super::editors::hosted_parent(editor.instance)),
                     region,
                 );
                 let held = store(editor);
-                provide_context(super::layers::NoLayers);
+                let host = Some(super::layers::LayerHost(NEXT_LAYER_HOST.with(|next| {
+                    next.set(next.get() + 1);
+                    next.get()
+                })));
+                let window = {
+                    provide_context(host.expect("just made"));
+                    view! {
+                        <Overlay
+                            anchor
+                            placement=Placement::At
+                            policy=LayerPolicy::Pass
+                            traps_focus=false
+                            open=true
+                            dismissable=false
+                            on_dismiss={|_: Dismiss| {}}
+                        >
+                            <Frame width height>
+                                <PluginRegion
+                                    editor={held.with(Clone::clone)}
+                                    region
+                                    nests_windows=true
+                                    opens_at={Some(shown)}
+                                    child_view
+                                    on_focus={Callback::new(|()| {})}
+                                />
+                            </Frame>
+                        </Overlay>
+                    }
+                };
                 view! {
-                    <Overlay
-                        anchor
-                        placement=Placement::At
-                        policy
-                        traps_focus=false
-                        open=true
-                        dismissable={popup}
-                        on_dismiss={dismiss}
-                    >
-                        <Frame width height>
-                            <PluginRegion
-                                editor={held.with(Clone::clone)}
-                                region
-                                nests_windows=true
-                                opens_at={Some(shown)}
-                                child_view
-                                on_focus={Callback::new(|()| {})}
-                            />
-                        </Frame>
-                    </Overlay>
+                    <Layers>
+                        {window}
+                        <Overlay
+                            anchor={OverlayAnchor::Point(Pos2::ZERO)}
+                            placement=Placement::At
+                            policy=LayerPolicy::Pass
+                            traps_focus=false
+                            open=true
+                            dismissable=false
+                            on_dismiss={|_: Dismiss| {}}
+                        >
+                            <Frame width=whole_width height=whole_height>
+                                <PluginLayers host />
+                            </Frame>
+                        </Overlay>
+                    </Layers>
                 }
             }</ForEach>
         </Layers>
@@ -1107,13 +1125,12 @@ fn PanelWindows(editor: RegionEditor, region: View, rect: Memo<Rect>) -> NodeId 
                 let panel = super::desktop::panel_of(key.clone());
                 let size = create_memo(move || panel.with(|panel| panel.as_ref().map_or(Vec2::ZERO, |(size, _)| *size)));
                 let opened = create_memo(move || {
-                    panel.with(|panel| panel.as_ref().map(|(_, panel)| (panel.opened.clone(), panel.role)))
+                    panel.with(|panel| panel.as_ref().map(|(_, panel)| panel.opened.clone()))
                 });
                 let placement = create_memo(move || match opened.get() {
-                    Some((opened, _)) => placed(opened),
+                    Some(opened) => placed(opened),
                     None => WindowPlacement::AtPointer,
                 });
-                let role = create_memo(move || opened.get().map_or(WindowRole::Normal, |(_, role)| role));
                 let reported = key.clone();
                 let report = move |report: WindowReport| match report {
                     WindowReport::Placed { placement, .. } => {
@@ -1128,13 +1145,7 @@ fn PanelWindows(editor: RegionEditor, region: View, rect: Memo<Rect>) -> NodeId 
                     region,
                 );
                 view! {
-                    <Window
-                        id={Some(id)}
-                        size
-                        placement
-                        role
-                        on_report={report}
-                    >|handle: WindowHandle| {
+                    <Window id={Some(id)} size placement on_report={report}>|handle: WindowHandle| {
                         follow_panel_asks(panel, handle);
                         let hosted = create_memo(move || handle.is_window());
                         view! {

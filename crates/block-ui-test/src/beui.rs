@@ -171,6 +171,7 @@ enum Kind {
     Creation,
     Settings,
     Picker,
+    Rename(Uuid),
 }
 
 impl<A: BeuiApp> BeuiTest<A> {
@@ -218,6 +219,21 @@ impl<A: BeuiApp> BeuiTest<A> {
         beside.store.forget_answers();
         SHARED_STORE.with(|shared| *shared.borrow_mut() = Some(beside.store.clone()));
         let mut test = Self::picker(host, request);
+        if let Some(catalog) = beside.shown_catalog.clone() {
+            test.catalog(catalog);
+        }
+        test
+    }
+
+    pub fn rename_beside<B: BeuiApp>(beside: &BeuiTest<B>, host: EditorHost, block: Uuid) -> Self {
+        beside.store.forget_answers();
+        SHARED_STORE.with(|shared| *shared.borrow_mut() = Some(beside.store.clone()));
+        let editor = OwnedEditor::new(host, Uuid::nil());
+        let mut test = Self::open(
+            Kind::Rename(block),
+            Adopted::Editor(editor, None),
+            Vec::new(),
+        );
         if let Some(catalog) = beside.shown_catalog.clone() {
             test.catalog(catalog);
         }
@@ -299,6 +315,14 @@ impl<A: BeuiApp> BeuiTest<A> {
                     client_id,
                 })
             }
+            Kind::Rename(block) => Opening::Rename(block_plugin_api::OpenRename {
+                instance: INSTANCE,
+                editor: ADOPTED_EDITOR,
+                block_id: block.into_bytes(),
+                account_id,
+                organization_id,
+                client_id,
+            }),
             Kind::Settings => Opening::Artifact(OpenArtifact {
                 instance: INSTANCE,
                 editor: ADOPTED_EDITOR,
@@ -319,7 +343,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                 dialog: None,
                 anchor: None,
             }),
-            Kind::Picker => Some(block_plugin_api::FrameSpec {
+            Kind::Picker | Kind::Rename(_) => Some(block_plugin_api::FrameSpec {
                 chrome: FrameChrome::None,
                 content: None,
                 top_bar: TopBar::Hidden,
@@ -453,7 +477,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     pub fn block_id(&self) -> Option<Uuid> {
         match self.kind {
             Kind::Frame(block) | Kind::Preview(block) => Some(block),
-            Kind::Creation | Kind::Settings | Kind::Picker => None,
+            Kind::Creation | Kind::Settings | Kind::Picker | Kind::Rename(_) => None,
         }
     }
 
@@ -1378,14 +1402,16 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn placed_picker(&self) -> Option<ChildPlacement> {
+        self.placed(|content| matches!(content, block_plugin_api::ChildContent::Picker { .. }))
+    }
+
+    pub fn placed(
+        &self,
+        which: impl Fn(&block_plugin_api::ChildContent) -> bool,
+    ) -> Option<ChildPlacement> {
         self.children
             .iter()
-            .find(|placement| {
-                matches!(
-                    placement.content,
-                    block_plugin_api::ChildContent::Picker { .. }
-                )
-            })
+            .find(|placement| which(&placement.content))
             .cloned()
     }
 
@@ -1684,7 +1710,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         match self.kind {
             Kind::Preview(_) => View::PREVIEW,
             Kind::Settings => View::ARTIFACT_SETTINGS,
-            Kind::Frame(_) | Kind::Creation | Kind::Picker => View::MAIN,
+            Kind::Frame(_) | Kind::Creation | Kind::Picker | Kind::Rename(_) => View::MAIN,
         }
     }
 

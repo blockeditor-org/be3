@@ -45,7 +45,7 @@ the screens and their configure, `draw`, whose answer is the frame,
 description, and shutdown. What an editor asks for a block it draws goes two ways: `blocks.act` with a
 `block-command` changes the block (undo, redo, its artifact, unlink, delete,
 move, place, restore), and `shell.act` with a `shell-command` asks the app
-around it (share, leave, rename, close the editor, the app menu). Shapes shared by several
+around it (share, leave, close the editor). Shapes shared by several
 interfaces are in `types.wit` and `accessibility.wit`, which mirrors AccessKit.
 
 Every call a plugin makes about an editor instance is made under that editor's
@@ -280,10 +280,10 @@ whatever the pointer moves over, so a block dragged out of one editor may be
 dropped into another. The drag ends with the pointer, and is not answered.
 
 An editor instance may ask the host to act on one of the blocks it draws: to
-share or rename it, to replace an occurrence of it inside a named container
+share it, to replace an occurrence of it inside a named container
 with a copy of its own, to take it out of where it is listed, to move it from
 there into another block, or to place it under one. These are structural edits
-an instance cannot make for itself, and the ask to share or rename, which the
+an instance cannot make for itself, and the ask to share, which the
 host passes to the instance that draws the window to show its own dialog for;
 each names where the block is listed - the root, the blocks with
 no parent, or a container - and whether it is listed there as a reference
@@ -453,8 +453,8 @@ screen of its own, which it numbers from 2^63, lists in its layout and
 reports in the same commit as the `window-request` that opens it (`open`,
 naming the view the window will be, that screen, the view it opens from and
 a placement: at the pointer, at a point of a view, or where a `host-place` the
-host gave says, and its role, which a host showing windows in space reads to
-never focus a keyboard or a popup). The host shows the window from that
+host gave says). A window is always a window of its own; what points back to
+where it came from (a menu, a picker, a popover) is an anchored view. The host shows the window from that
 screen in the frame that commits it, where the placement says, moved back
 inside its bounds, and from then on asks for the view with that same screen,
 placed by the host, whose size, scale and `host-place` are the host's answer,
@@ -647,9 +647,19 @@ the chain hangs from, before that batch's events, and the press still reaches
 whatever it landed on. A press on a menu closes only the submenus hanging
 from it. A view marked `keyboard` gives the instance the keyboard while it is
 open, and one marked `blocks-owner` keeps presses on the view the chain hangs
-from from its content. The host's embedded popups are children of anchored
-views: a block's rename form (`child-content.rename`) and the app's menu
-(`host-panel.app-menu`).
+from from its content.
+
+A popup that embeds another editor is an anchored view holding a child
+(`child-placements.view` naming the anchored view): the instance that asks
+lays the view out, draws its card and beak if it has one, and places the child
+in it, whose own pixels appear one frame after the view. That is how an
+instance asks for a block (the picker, below), renames one
+(`child-content.rename`, run in the editor whose manifest accepts `rename`,
+opened as `opening.rename`, which says it is done with `close-dialog`,
+arriving as the child's `child-status.dialog`) and shows the app's menu
+(`host-panel.app-menu`, which the host draws and reports done the same way,
+its size as the child's intrinsic size). A press outside the view closes it
+and removes the child, which closes the editor in it.
 In the browser, where a plugin draws in a worker of its own, the page gives
 that worker one canvas over the whole app on its first anchored view and keeps
 it; the worker draws each anchored view's `painted` rectangles into it where
@@ -835,9 +845,12 @@ any, the blocks never to offer, whether the picker opens on the templates the
 host offers, and where to place what it makes - the location new blocks are
 made in when the filter places none, and whether to lay the picker out for
 touch, as sheets filling the child's rectangle, rather than as a menu and a
-card sized to their content. The instance sizes and places the child itself,
-in its own coordinates, as a popover from the control that asked, usually in
-a window of its own so it can reach past its frame. The host runs the child in
+card sized to their content. The instance places the child in an anchored
+view (above) hung from the control that asked, sized to the picker's last
+reported intrinsic size, or one attached to the bottom edge of its bounds
+filling them for touch; it frames the child with its card and beak while the
+picker says it shows a card (`shell.show-card`), and a press outside the view
+answers the pick with none. The host runs the child in
 the editor whose manifest accepts `pick` (the workspace's `picker`), opened as
 `opening::picker`; that editor reads the block graph for itself, so the
 instance that asked never sees what the picker browses. The picker reports the

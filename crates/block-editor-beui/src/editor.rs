@@ -185,6 +185,7 @@ pub enum SubregionContent {
         touch: bool,
     },
     DockTab(block_plugin_api::DockTabPath),
+    Rename(Uuid),
 }
 
 impl From<ChildTarget> for SubregionContent {
@@ -222,6 +223,7 @@ impl SubregionContent {
                 touch: *touch,
             },
             Self::DockTab(tab) => ChildContent::DockTab(tab.clone()),
+            Self::Rename(block) => ChildContent::Rename(block.into_bytes()),
         }
     }
 }
@@ -422,6 +424,7 @@ impl OwnedEditor {
         let placed = create_signal(Rect::ZERO);
         let frame_children = create_signal(Vec::<(u64, Memo<Vec<MenuNode>>)>::new());
         let picking = create_signal(None::<crate::picking::Picking>);
+        let popped = create_signal(None::<crate::popover::Popped>);
         let pushed = Mirror::new(&host);
         let state = OwnedStored::new(EditorState {
             _scope: owner.into_scope(),
@@ -454,6 +457,7 @@ impl OwnedEditor {
             children: RefCell::new(Vec::new()),
             next_child: Cell::new(0),
             picking,
+            popped,
             next_pick: Cell::new(0),
             fitted: Cell::new(None),
             seen: Cell::new(None),
@@ -520,6 +524,7 @@ struct EditorState {
     children: RefCell<Vec<(u64, Rc<ChildRecord>)>>,
     next_child: Cell<u64>,
     picking: Signal<Option<crate::picking::Picking>>,
+    popped: Signal<Option<crate::popover::Popped>>,
     next_pick: Cell<u64>,
     fitted: Cell<Option<NodeRef>>,
     seen: Cell<Option<(u64, f32)>>,
@@ -968,6 +973,38 @@ impl Editor {
         )));
     }
 
+    pub fn rename_block(&self, block: Uuid, anchor: impl Into<crate::PickAnchor>) {
+        self.pop(crate::popover::Asked::Rename(block), anchor.into());
+    }
+
+    pub fn show_app_menu(&self, anchor: impl Into<crate::PickAnchor>) {
+        self.pop(crate::popover::Asked::AppMenu, anchor.into());
+    }
+
+    fn pop(&self, asked: crate::popover::Asked, anchor: crate::PickAnchor) {
+        let state = self.state();
+        let serial = state.next_pick.get() + 1;
+        state.next_pick.set(serial);
+        let touch = beui::native::try_with_document(|document| document.touched()).unwrap_or(false);
+        state.popped.set(Some(crate::popover::Popped {
+            serial,
+            asked,
+            anchor,
+            touch,
+        }));
+    }
+
+    pub(crate) fn popped(&self) -> ReadSignal<Option<crate::popover::Popped>> {
+        self.state().popped.read_only()
+    }
+
+    pub(crate) fn close_popped(&self, serial: u64) {
+        let popped = self.state().popped;
+        if popped.with_untracked(|popped| popped.is_some_and(|popped| popped.serial == serial)) {
+            popped.set(None);
+        }
+    }
+
     pub(crate) fn frame_child_menu(&self) -> Option<Memo<Vec<MenuNode>>> {
         self.state()
             .frame_children
@@ -988,6 +1025,25 @@ impl Editor {
             None if present => held.update(|held| held.retain(|(at, _)| *at != key)),
             _ => {}
         }
+    }
+
+    pub(crate) fn content_window(&self) -> Option<beui::WindowId> {
+        let node = self
+            .state()
+            .content
+            .borrow()
+            .as_ref()
+            .and_then(|(node, _)| node.try_get());
+        try_with_document(|document| {
+            node.map(|node| document.window_of(node))
+                .or_else(|| {
+                    use_context::<crate::popover::PopoverWindow>()?
+                        .0
+                        .get_untracked()
+                })
+                .or_else(|| document.focused_node().map(|node| document.window_of(node)))
+        })
+        .flatten()
     }
 
     pub(crate) fn picking(&self) -> ReadSignal<Option<crate::picking::Picking>> {

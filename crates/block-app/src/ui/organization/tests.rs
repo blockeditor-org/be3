@@ -1,5 +1,5 @@
 use beui::native::WindowSize;
-use beui::{Rect, native::Context, pos2, vec2};
+use beui::{native::Context, vec2};
 use beui_host::native::FreetypeFonts;
 use beui_host::native::testing::{Showing, Stepped};
 
@@ -24,14 +24,8 @@ impl Shown {
         };
         Self::start(move || {
             let status = create_memo(move || status.clone());
-            let menu = create_memo(|| {
-                Some(AppMenuView {
-                    opened: 1,
-                    at: Some(Rect::from_min_size(pos2(16.0, 16.0), vec2(32.0, 32.0))),
-                })
-            });
             view! {
-                <AppMenu status menu={menu} />
+                <AppMenu status pick={Callback::new(send)} report={None} />
             }
         })
     }

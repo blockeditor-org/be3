@@ -317,7 +317,7 @@ impl ModuleRunner {
                 window,
                 placement,
                 size,
-                role,
+                ..
             } => {
                 let opener = match &placement {
                     WindowPlacement::Over { window, .. } => self.region_of(*window),
@@ -364,7 +364,6 @@ impl ModuleRunner {
                         opener,
                         placement,
                         size: to_region(size),
-                        role,
                     }),
                 ));
             }

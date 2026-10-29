@@ -76,6 +76,7 @@ impl Opening {
                 }
                 location(&mut open.parent, &mut existing);
             }
+            Self::Rename(open) => existing(&mut open.block_id),
             Self::Creation(_) => {}
         }
     }

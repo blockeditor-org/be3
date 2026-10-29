@@ -1773,6 +1773,9 @@ pub(crate) fn MenusPage() -> NodeId {
             <Sample title="Menu opened by a model" code={vec![HeldMenu::SOURCE]}>
                 <HeldMenu />
             </Sample>
+            <Sample title="A menu in place" code={vec![MenuInPlace::SOURCE]}>
+                <MenuInPlace />
+            </Sample>
             <Sample title="Picture menu buttons" code={vec![TrayIcons::SOURCE, badge::SOURCE]}>
                 <TrayIcons />
             </Sample>
@@ -2378,6 +2381,35 @@ fn HeldMenu() -> NodeId {
             />
             <Text style=TextStyle::CAPTION>
                 "The menu shows while a signal says so, at whatever node or point it is anchored to, and reports Escape or a press outside so the owner can close it. A lead is a few words before the label."
+            </Text>
+            <Text style=TextStyle::CAPTION>{chosen}</Text>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn MenuInPlace() -> NodeId {
+    let chosen = create_signal("Nothing chosen yet".to_owned());
+    view! {
+        <List spacing=SECTION_SPACING>
+            <Frame align={beui::Align2::START}>
+                <MenuRows
+                    @test_id="demo.menu-rows"
+                    min_width={Size::Custom(240.0)}
+                    on_select={move |path: Vec<usize>| {
+                        let shape = ["Circle", "Square", "Star"][path.first().copied().unwrap_or_default()];
+                        chosen.set(format!("Chose {shape}"));
+                    }}
+                    items={view! {
+                        <MenuItem label="Circle" />
+                        <MenuItem label="Square" />
+                        <MenuItem label="Star" separated=true />
+                    }}
+                />
+            </Frame>
+            <Text style=TextStyle::CAPTION>
+                "A menu's rows drawn in place, in their panel, with no popup around them: for a menu something else places, such as a host's menu in a view another editor anchored."
             </Text>
             <Text style=TextStyle::CAPTION>{chosen}</Text>
         </List>

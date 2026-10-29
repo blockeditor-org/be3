@@ -15,8 +15,12 @@ use super::region::ChildView;
 #[derive(Clone, Copy)]
 pub(crate) struct LayerBounds(pub(crate) Memo<Rect>);
 
-#[derive(Clone, Copy)]
-pub(crate) struct NoLayers;
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) struct LayerHost(pub(crate) u64);
+
+pub(crate) fn layer_host() -> Option<LayerHost> {
+    use_context::<LayerHost>()
+}
 
 #[derive(Clone)]
 pub(crate) struct LayerOwner {
@@ -25,6 +29,7 @@ pub(crate) struct LayerOwner {
     pub(crate) instance: EditorInstanceId,
     pub(crate) region: ViewId,
     pub(crate) window: WindowId,
+    pub(crate) host: Option<LayerHost>,
     pub(crate) state: Memo<RegionView>,
     pub(crate) revision: ReadSignal<u64>,
     pub(crate) child_view: ChildView,
@@ -74,12 +79,13 @@ fn owner(mount: u64) -> Option<LayerOwner> {
     })
 }
 
-fn owners_in(window: WindowId) -> Vec<LayerOwner> {
+fn owners_in(window: WindowId, host: Option<LayerHost>) -> Vec<LayerOwner> {
     OWNERS.with(|owners| {
         owners
             .borrow()
             .iter()
-            .filter(|owner| owner.window == window && owner.state.is_alive())
+            .filter(|owner| owner.window == window && owner.host == host)
+            .filter(|owner| owner.state.is_alive())
             .cloned()
             .collect()
     })
@@ -219,8 +225,8 @@ fn focus_owner(owner: &LayerOwner) {
     });
 }
 
-fn dismiss_outside(window: WindowId, pos: Pos2) {
-    for owner in owners_in(window) {
+fn dismiss_outside(window: WindowId, host: Option<LayerHost>, pos: Pos2) {
+    for owner in owners_in(window, host) {
         let layers = owner.state.with_untracked(|view| view.layers.clone());
         let dismissed = block_app_plugin_host::dismissed_by_press(&layers, pos);
         if !dismissed.is_empty() {
@@ -235,11 +241,11 @@ fn dismiss_outside(window: WindowId, pos: Pos2) {
 }
 
 #[component]
-pub(crate) fn PluginLayers() -> NodeId {
+pub(crate) fn PluginLayers(#[prop(default = None)] host: Option<LayerHost>) -> NodeId {
     let window = host_window();
     let owners = create_memo(move || {
         watch_owners();
-        owners_in(window)
+        owners_in(window, host)
             .into_iter()
             .map(|owner| owner.mount)
             .collect::<Vec<u64>>()
@@ -300,7 +306,7 @@ pub(crate) fn PluginLayers() -> NodeId {
                     <CanvasItem x=0.0 y=0.0 width=0.0 height=0.0>
                         <Interactive
                             hit_area={beui::Area::Nowhere}
-                            on_press_outside={move |pos: Pos2| dismiss_outside(window, pos)}
+                            on_press_outside={move |pos: Pos2| dismiss_outside(window, host, pos)}
                         />
                     </CanvasItem>
                 </Canvas>

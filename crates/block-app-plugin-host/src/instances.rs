@@ -4,9 +4,9 @@ use block_plugin_api::{
     AccessLevel, AnchoredPlacement, ArtifactDescription, AudioCommand, BlockCommand, BlockPick,
     ChildContent, ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, DialogStatus,
     EditorInstanceId, FrameReport, FrameSpec, LayerSpace, MenuEntry, Occluder, OpenArtifact,
-    OpenBlock, OpenCreation, OpenPicker, Opening, PerformanceMeasurement, ScreenId, ScreenLayout,
-    ScreenRequest, ScreenWindow, ShellCommand, Size, Stopped, View, ViewChange, ViewId,
-    ViewPlacement, ViewSize, ViewportMetrics, WebViewEvent, WebViewId,
+    OpenBlock, OpenCreation, OpenPicker, OpenRename, Opening, PerformanceMeasurement, ScreenId,
+    ScreenLayout, ScreenRequest, ScreenWindow, ShellCommand, Size, Stopped, View, ViewChange,
+    ViewId, ViewPlacement, ViewSize, ViewportMetrics, WebViewEvent, WebViewId,
 };
 use block_plugin_api::{
     DescribedAction, HostView, WindowOpen, WindowRequests,
@@ -305,7 +305,8 @@ impl Instance {
                 InstanceRole::Editor(_, block) => own_content_type(block).map(ContentLink::new),
                 InstanceRole::Creation(..)
                 | InstanceRole::Artifact(..)
-                | InstanceRole::Picker(..) => None,
+                | InstanceRole::Picker(..)
+                | InstanceRole::Rename(..) => None,
             },
         }
     }
@@ -1927,6 +1928,14 @@ impl Instances {
                             client_id,
                         })
                     }
+                    InstanceRole::Rename(editor, block) => Opening::Rename(OpenRename {
+                        instance,
+                        editor: editor.into_bytes(),
+                        block_id: block.into_bytes(),
+                        account_id,
+                        organization_id,
+                        client_id,
+                    }),
                     InstanceRole::Creation(editor, template) => Opening::Creation(OpenCreation {
                         instance,
                         editor: editor.into_bytes(),
@@ -2446,7 +2455,8 @@ impl Instances {
                     parent: *parent,
                     touch: *touch,
                 },
-                ChildContent::WebView(_) | ChildContent::Rename(_) => continue,
+                ChildContent::Rename(block) => super::HostContent::Rename(Uuid::from_bytes(*block)),
+                ChildContent::WebView(_) => continue,
             };
             if !child.rect.is_positive() {
                 continue;
@@ -2767,6 +2777,7 @@ impl Instances {
                         InstanceRole::Editor(..) => "editor",
                         InstanceRole::Creation(..) => "creation",
                         InstanceRole::Picker(..) => "picker",
+                        InstanceRole::Rename(..) => "rename",
                         InstanceRole::Artifact(..) => "artifact",
                     },
                     opened: entry.opened,
@@ -3493,14 +3504,6 @@ impl Instances {
     ) -> Vec<Outbound> {
         if !self.entries.contains_key(&instance) {
             return Vec::new();
-        }
-        let mut dialog = dialog;
-        if let block_plugin_api::ShellDialog::Rename {
-            within: Some(within),
-            ..
-        } = &mut dialog
-        {
-            *within = self.local(instance, *within);
         }
         let block = self.local(instance, block.into_bytes());
         vec![Outbound::Editor(

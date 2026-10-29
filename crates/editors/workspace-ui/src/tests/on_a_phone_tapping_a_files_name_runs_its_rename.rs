@@ -1,12 +1,12 @@
 use block_editor_beui::{
     ChildStatus, EditorCapabilities, EditorInstanceId, InteractionMode, MenuCommand, MenuEntry,
-    MenuPin, ResizeMode, ShellDialog, ViewId,
+    MenuPin, ResizeMode, ViewId,
 };
 
 use super::*;
 
 #[test]
-fn on_a_phone_tapping_a_files_name_opens_its_rename_sheet() {
+fn on_a_phone_tapping_a_files_name_runs_its_rename() {
     let (mut fixture, notes) = editor_sized(Some(Vec2::new(390.0, 800.0)));
     fixture.test.catalog(catalog());
     let mut info = block_editor_beui::BlockInfo::new(notes, SHOWN_TYPE, BlockParent::Root);
@@ -61,19 +61,4 @@ fn on_a_phone_tapping_a_files_name_opens_its_rename_sheet() {
         [(child, "editor.rename".to_owned())],
         "tapping the name runs the block's rename"
     );
-
-    fixture.test.show_dialog(
-        notes,
-        ShellDialog::Rename {
-            anchor: None,
-            within: Some(notes.into_bytes()),
-        },
-    );
-    fixture.settle();
-    fixture.test.settle();
-    assert!(
-        fixture.test.shown("rename.name") && fixture.test.shown("rename.color.pink"),
-        "the name, color and icon are chosen in one sheet"
-    );
-    fixture.test.snapshot("a_phone_renames_a_file_in_a_sheet");
 }

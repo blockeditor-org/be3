@@ -1,18 +1,15 @@
 use block_editor_beui::be_block::metadata::{ICON, ICON_COLOR, MATERIAL_ICON, MAX_NAME_BYTES};
-use block_editor_beui::beui::dock::styled::{DockDialog, DockDialogPresentation, DockNode, TabId};
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{ALL, ICON_SEARCH, named};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::{Color32, NodeId, TextAlign, Vec2};
+use block_editor_beui::beui::{Color32, Key, KeyAt, KeyPhase, NodeId, TextAlign};
 use block_editor_beui::block_ui::BlockTypes;
+use block_editor_beui::{BlockQuery, DialogAnswer, Editor};
 use uuid::Uuid;
 
-use super::workspace::Workspace;
 use beui::{Align, Align2, Direction, ItemSize};
 
-pub(crate) const RENAME: TabId = TabId::new((1 << 39) + 2);
-const SIZE: Vec2 = Vec2::new(392.0, 620.0);
 const SPACING: Space = Space::Md;
 const COLUMNS: usize = 8;
 const TILE: Size = Size::Xl;
@@ -30,18 +27,6 @@ pub(crate) const COLORS: [(&str, [u8; 3]); 8] = [
     ("Gold", [172, 145, 47]),
     ("Gray", NEUTRAL),
 ];
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct RenameAnchor {
-    pub rect: Option<block_editor_beui::beui::Rect>,
-    pub tab: Option<TabId>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct Renaming {
-    pub(crate) block: Uuid,
-    pub(crate) anchor: RenameAnchor,
-}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum Tile {
@@ -79,50 +64,62 @@ pub(crate) fn matching(search: &str) -> Vec<&'static str> {
 }
 
 #[component]
-pub fn RenameDialog(workspace: Workspace, block: Uuid, tab: TabId) -> DockNode<TabId> {
-    let anchor = workspace.rename_anchor().and_then(|anchor| anchor.rect);
-    let initial = untrack(|| {
-        workspace
-            .info(block)
-            .map(|info| workspace.label(info.id, info.block_type).name)
-            .unwrap_or_default()
+pub fn RenameView(editor: Editor, block: Uuid) -> NodeId {
+    let watched = editor.blocks().watch(BlockQuery::Block(block));
+    let blocks = editor.blocks();
+    let info = store(move || {
+        watched
+            .read()
+            .ok()
+            .and_then(|list| list.into_iter().next())
+            .or_else(|| blocks.info(block))
     });
+    let named = create_memo(move || {
+        info.with(|info| info())
+            .map(|info| info.label(editor.block_types().as_ref()).name)
+    });
+    let initial = untrack(|| named.get()).unwrap_or_default();
+    let known = create_memo(move || named.with(Option::is_some));
     let name = create_signal(initial.clone());
     let invalid = create_memo(move || name.with(|name| name.len() > MAX_NAME_BYTES));
-    let done = Callback::new(move |()| {
-        let chosen = name.get_untracked();
-        if chosen != initial && !invalid.get_untracked() {
-            workspace.rename(block, &chosen);
+    let written = std::rc::Rc::new(std::cell::RefCell::new(initial));
+    let edited = std::rc::Rc::new(std::cell::Cell::new(false));
+    let (synced, typed) = (std::rc::Rc::clone(&written), std::rc::Rc::clone(&edited));
+    create_effect(move || {
+        let Some(known) = named.get() else {
+            return;
+        };
+        if !typed.get() && *synced.borrow() != known {
+            synced.replace(known.clone());
+            untrack(|| name.set(known));
         }
-        workspace.close_rename();
     });
-    view! {
-        <DockDialog
-            id=RENAME
-            parent={tab}
-            title="Rename"
-            size=SIZE
-            presentation=DockDialogPresentation::Card
-            anchor
-            dismiss_on_outside_press=true
-            on_close={move || done.call(())}
-        >
-            <RenameBody workspace block name invalid done />
-        </DockDialog>
-    }
-}
-
-#[component]
-fn RenameBody(
-    workspace: Workspace,
-    block: Uuid,
-    name: Signal<String>,
-    invalid: Memo<bool>,
-    done: Callback<()>,
-) -> NodeId {
+    create_effect(move || {
+        let chosen = name.get();
+        if *written.borrow() != chosen && !untrack(|| invalid.get()) {
+            edited.set(true);
+            written.replace(chosen.clone());
+            untrack(|| rename(editor, block, &chosen));
+        }
+    });
+    let host = editor.host();
+    let accept = Callback::new({
+        let host = host.clone();
+        move |()| host.close_dialog(DialogAnswer::Accepted)
+    });
+    let dismiss = Callback::new(move |()| host.close_dialog(DialogAnswer::Dismissed));
+    on_key(KeyAt::Window, KeyPhase::Capture, move |event| {
+        let escaped = event
+            .press()
+            .is_some_and(|press| press.pressed && press.key == Key::Escape);
+        if escaped {
+            dismiss.call(());
+        }
+        escaped
+    });
     let look = create_memo(move || {
-        let types = workspace.types();
-        let info = workspace.info(block);
+        let types = editor.block_types();
+        let info = info.with(|info| info());
         let block_type = info.as_ref().map(|info| info.block_type);
         Look {
             icon: info
@@ -137,6 +134,29 @@ fn RenameBody(
             type_color: block_type.and_then(|block_type| types.color(block_type)),
         }
     });
+    view! {
+        <RenameBody editor block look name known invalid accept dismiss />
+    }
+}
+
+fn rename(editor: Editor, block: Uuid, name: &str) {
+    let name = name.trim().to_owned();
+    editor
+        .blocks()
+        .set_name(block, (!name.is_empty()).then_some(name));
+}
+
+#[component]
+fn RenameBody(
+    editor: Editor,
+    block: Uuid,
+    look: Memo<Look>,
+    name: Signal<String>,
+    known: Memo<bool>,
+    invalid: Memo<bool>,
+    accept: Callback<()>,
+    dismiss: Callback<()>,
+) -> NodeId {
     let previewed = create_signal(None::<Color32>);
     let shown = create_memo(move || {
         let look = look.get();
@@ -145,12 +165,12 @@ fn RenameBody(
             .or_else(|| look.color.or(look.type_color).map(rgb))
     });
     let set_icon = Callback::new(move |icon: Option<&'static str>| {
-        let blocks = workspace.blocks();
+        let blocks = editor.blocks();
         blocks.define(block, ICON.definition(icon.map(str::to_owned).as_ref()));
         blocks.define(block, MATERIAL_ICON.definition(None));
     });
     let set_color = Callback::new(move |color: Option<[u8; 3]>| {
-        workspace
+        editor
             .blocks()
             .define(block, ICON_COLOR.definition(color.as_ref()));
     });
@@ -193,7 +213,7 @@ fn RenameBody(
     let row_size = create_memo(move || tile.get() + gap.get());
     let field = NodeRef::new();
     let built = view! {
-        <DialogBody title="Rename" id="rename" scrolls=false on_dismiss={move || done.call(())}>
+        <DialogBody title="Rename" id="rename" scrolls=false on_dismiss={move || dismiss.call(())}>
             <List spacing=SPACING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <Frame
@@ -214,7 +234,7 @@ fn RenameBody(
                         value={name}
                         label="Name"
                         select_on_focus=true
-                        on_submit={move |_: String| done.call(())}
+                        on_submit={move |_: String| accept.call(())}
                     />
                 </List>
                 <Show condition={invalid}>
@@ -272,9 +292,15 @@ fn RenameBody(
             </Scroll>
         </DialogBody>
     };
-    if let Some(node) = field.try_get() {
-        node.focus_into();
-    }
+    let focused = std::cell::Cell::new(false);
+    create_effect(move || {
+        if known.get()
+            && !focused.replace(true)
+            && let Some(node) = field.try_get()
+        {
+            node.focus_into();
+        }
+    });
     built
 }
 

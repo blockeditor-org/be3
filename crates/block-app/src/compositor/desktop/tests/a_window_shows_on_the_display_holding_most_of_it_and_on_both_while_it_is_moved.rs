@@ -86,7 +86,6 @@ fn a_window_shows_on_the_display_holding_most_of_it_and_on_both_while_it_is_move
                 width: 300.0,
                 height: 200.0,
             },
-            role: block_plugin_api::WindowRole::Normal,
         })],
     );
     apply();

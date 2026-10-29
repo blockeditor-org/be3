@@ -151,3 +151,25 @@ pub fn MenuPopup(
         }</Anchored>
     }
 }
+
+#[component]
+pub fn MenuRows(
+    items: Run<MenuItem>,
+    menu: MenuStyle,
+    #[prop(default = false)] active: Prop<bool>,
+    on_select: Callback<Vec<usize>>,
+) -> NodeId {
+    let (row, panel) = menu.parts();
+    let spacing = menu.spacing();
+    let list = view! {
+        <MenuList
+            items
+            spacing
+            row
+            panel
+            active
+            on_select={move |(path, _): (Vec<usize>, MenuThen)| on_select.call(path)}
+        />
+    };
+    panel.call(list)
+}

@@ -5,7 +5,7 @@ interface types {
     use be3:manifest/types@0.1.0.{plugin-identity, parent-view};
     use accessibility.{color, description};
     use be3:ui/types@0.1.0.{
-        key-chord, modifiers, pos2, rect, vec2, input, window-requests, window-role,
+        key-chord, modifiers, pos2, rect, vec2, input, window-requests,
     };
     use be3:preferences/types@0.1.0.{preferences};
 
@@ -416,8 +416,10 @@ interface types {
         /// one child. Only the root of a dock places one.
         dock-tab(dock-tab-path),
         picker(picker-child),
-        /// A form renaming a block, which the host draws in an editor of its
-        /// own and an editor places in a view it anchored.
+        /// A form renaming a block: the host runs it in the editor whose
+        /// manifest accepts `rename` (opened with `opening.rename`), which an
+        /// editor places in a view it anchored. The form says it is done with
+        /// `close-dialog`, which arrives as the child's `child-status.dialog`.
         rename(block-id),
     }
 
@@ -592,16 +594,15 @@ interface types {
     /// A window the instance opens as a view of its own: `view`, laid out at
     /// `size` and painted in the same commit as `screen`, a screen the plugin
     /// numbered itself and lists in its layout, so the host shows the window
-    /// in the frame that opens it. `role` says what the window is for, as
-    /// beui's own windows do: a host that shows windows in space never
-    /// focuses a keyboard or a popup.
+    /// in the frame that opens it. A window is always a window of its own:
+    /// what points back to where it came from (a menu, a picker, a popover)
+    /// is an anchored view.
     record window-open {
         view: view-id,
         screen: screen-id,
         opener: view-ref,
         placement: window-placement,
         size: size,
-        role: window-role,
     }
 
     enum window-edge {
@@ -704,13 +705,25 @@ interface types {
         client-id: installation-id,
     }
 
+    /// A form renaming a block another editor placed as a child
+    /// (`child-content.rename`).
+    record open-rename {
+        instance: editor-instance-id,
+        editor: editor-id,
+        block-id: block-id,
+        account-id: account-id,
+        organization-id: organization-id,
+        client-id: installation-id,
+    }
+
     /// How an editor instance opens: on a block, as a creation dialog, on an
-    /// artifact's settings, or as a picker.
+    /// artifact's settings, as a picker, or as a form renaming a block.
     variant opening {
         block(open-block),
         creation(open-creation),
         artifact(open-artifact),
         picker(open-picker),
+        rename(open-rename),
     }
 
     // Docking across plugins. A docked view declares its own tree; the

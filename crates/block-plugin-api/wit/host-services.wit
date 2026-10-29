@@ -10,17 +10,11 @@ interface host-services {
     use be3:shared/ids@0.1.0.{account-id, block-id, block-type-id, commit-id};
     use be3:shared/access@0.1.0.{access-level};
     use types.{block-location, failure};
-    use be3:ui/types@0.1.0.{rect, file-filter, file-pick, saved-file, file-save};
-
-    record rename-dialog {
-        anchor: option<rect>,
-        within: option<block-id>,
-    }
+    use be3:ui/types@0.1.0.{file-filter, file-pick, saved-file, file-save};
 
     /// A dialog of the instance that draws the window, asked for a block:
-    /// renaming it (hung from `anchor` in the block `within`'s tab) or sharing it.
+    /// sharing it.
     variant shell-dialog {
-        rename(rename-dialog),
         share,
     }
 

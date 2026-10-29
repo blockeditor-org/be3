@@ -40,11 +40,10 @@ be_ops_bindgen::generate!({
         "dialog-status", "dialog-frame", "window-kind", "insets",
     ],
     inline: [
-        "rename-command", "artifact-command", "unlink-command",
-        "delete-command", "move-command", "place-command", "app-menu-command", "adopt-command",
+        "artifact-command", "unlink-command",
+        "delete-command", "move-command", "place-command", "adopt-command",
         "finish-command", "branch-command", "create-branch-command", "resolve-command",
         "undo-operation-command", "performance-duration", "performance-count", "view-zoom",
-        "rename-dialog",
         "block-child", "creation-child", "artifact-settings-child", "picker-child",
         "window-fullscreen", "wifi-connect", "notification-closed", "notification-action-invoked",
         "program-list", "program-launch", "program-exec", "tray-scroll", "tray-menu-chosen",
@@ -80,7 +79,7 @@ pub use types::{
     Size, SurfaceFormat, SurfaceRect, SurfaceSpec, SurfaceSupport, TimedInput, TopBar, ViewAnchor,
     ViewEdge, ViewPlacement, ViewSize, ViewportMetrics,
 };
-pub use types::{BlockFilter, BlockLocation, BlockPick, OpenPicker, PickedBlock};
+pub use types::{BlockFilter, BlockLocation, BlockPick, OpenPicker, OpenRename, PickedBlock};
 pub use types::{
     DockBar, DockBarMove, DockBarPlace, DockBarPlacement, DockBarWindow, DockChild, DockChildClose,
     DockChildHosted, DockChildPick, DockCover, DockDeclaration, DockDeclare, DockDialog,
@@ -159,7 +158,7 @@ pub use ui_types::{
     CanvasTouch, DisplayMode, InputDevice, Motion, PointerSettings, PointerSpeed, PreferenceLayer,
     Preferences, Rotation, ThemeKind,
 };
-pub use ui_types::{ImeArea, WindowRequests, WindowRole};
+pub use ui_types::{ImeArea, WindowRequests};
 pub use watch::{Encoded, WAITING_WEB_VIEW_EVENTS, Watch};
 
 pub const MAX_COLLECTION_ITEMS: usize = 1024;

@@ -335,6 +335,12 @@ impl EditorSession {
         self.app.connect(Uuid::nil());
     }
 
+    pub(crate) fn connect_rename(&mut self, block: Uuid) {
+        self.host.set_editable(true);
+        self.host.set_renaming(block);
+        self.app.connect(Uuid::nil());
+    }
+
     pub(crate) fn connect_creation(&mut self, template: String) {
         self.host.set_editable(true);
         self.app.connect_creation(template);

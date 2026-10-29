@@ -5,7 +5,7 @@ use beui::reactive::*;
 use beui::{Forwarded, ForwardedInput, NodeId, PointerPhase, Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
     EditorInstanceId, HostView, ParentView, View, ViewId, ViewPlacement, WindowEdge,
-    WindowPlacement, WindowRequest, WindowRole,
+    WindowPlacement, WindowRequest,
 };
 
 use block_app_plugin_host::HostChildStatus;
@@ -42,14 +42,12 @@ pub(crate) struct Floated {
     pub(crate) rect: Rect,
     pub(crate) panel: Option<Panel>,
     pub(crate) anchor: View,
-    pub(crate) role: WindowRole,
     pub(crate) parent: Option<ViewId>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Panel {
     pub(crate) opened: WindowPlacement,
-    pub(crate) role: WindowRole,
     pub(crate) placed: Option<String>,
     pub(crate) moves: u32,
     pub(crate) resizes: (u32, WindowEdge),
@@ -278,7 +276,6 @@ pub(crate) fn apply() {
                 let held = find(&windows, open.view);
                 let panel = block_app_base::host::opens_windows().then(|| Panel {
                     opened: open.placement.clone(),
-                    role: open.role,
                     placed: None,
                     moves: 0,
                     resizes: (0, WindowEdge::BottomRight),
@@ -319,7 +316,6 @@ pub(crate) fn apply() {
                     rect: Rect::from_min_size(origin, size),
                     panel,
                     anchor,
-                    role: open.role,
                     parent: opener.map(|opener| opener.key.window),
                 };
                 match held {
@@ -539,17 +535,6 @@ pub(crate) fn panel_placed(key: &FloatedKey, placement: String) {
             panel.placed = Some(placement);
         }
     });
-}
-
-pub(crate) fn role_of(key: FloatedKey) -> Memo<WindowRole> {
-    let floated = floated();
-    create_memo(move || {
-        floated.with(|held| {
-            held.iter()
-                .find(|window| window.key == key)
-                .map_or(WindowRole::Normal, |window| window.role)
-        })
-    })
 }
 
 pub(crate) fn dismiss(key: &FloatedKey) {

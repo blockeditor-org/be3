@@ -31,6 +31,19 @@
       "accepts": [
         "pick"
       ]
+    },
+    "rename": {
+      "id": "1f0c6a52-7d0e-4b8e-9a3c-5e2b8d4f7a61",
+      "display_name": "Rename",
+      "icon": "\ue0ff",
+      "interaction": "Live",
+      "resize": "None",
+      "views": [
+        "Main"
+      ],
+      "accepts": [
+        "rename"
+      ]
     }
   },
   "block_types": {
