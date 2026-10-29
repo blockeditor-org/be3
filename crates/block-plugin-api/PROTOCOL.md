@@ -492,7 +492,8 @@ declaration into its placer's in place of that tab, as a pinned group
 child's block id (`dock_prefix`, `DockDeclaration::splice`), up to the root,
 the instance whose own frame is not docked: only the root hears its docked
 children's declarations (`dock-update.child`) and requests
-(`child-request`), and hosts them (`dock-message.host`, `close`). The host
+(`child-request`, whose request already names its tabs through every child in
+`owner`), and hosts them (`dock-message.host`, `close`). The host
 splits what the root hosts back down (`DockHosted::own`, `DockHosted::child`),
 so each docked instance hears only its own tabs (`dock-update.hosted`, a
 spliced child's group again the tab it was placed in) and its own closes. The
