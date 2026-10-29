@@ -21,8 +21,14 @@ fn a_pinned_group_only_takes_the_tabs_that_live_in_it() {
         vec![TabId::new(10)],
         "a tab from outside is refused"
     );
+    state.set_locked(DockHome::Group(group), false);
+    state.drop_tab(TabId::new(1), DockDrop::Pane { leaf: inner });
+    assert_eq!(
+        state.group_tabs(group),
+        vec![TabId::new(10)],
+        "unlocked too: a pinned group holds only its own tabs"
+    );
 
-    state.set_tab_pinned(TabId::new(10), false);
     state.drop_tab(
         TabId::new(10),
         DockDrop::Window {
@@ -32,7 +38,7 @@ fn a_pinned_group_only_takes_the_tabs_that_live_in_it() {
 
     assert!(
         state.group_tabs(group).is_empty(),
-        "its own tab can leave once it is unpinned"
+        "its own tab can leave once the group is unlocked"
     );
     assert_eq!(state.windows().len(), 1);
 

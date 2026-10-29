@@ -24,8 +24,8 @@ fn a_window_tab_is_locked_to_the_blocks_area_like_a_block_tab() {
         "a program window's tab stays in the blocks area"
     );
 
-    open_tab_menu(&mut fixture, "Terminal");
-    fixture.click_text("Unlock");
+    open_grip_menu(&mut fixture, "editors");
+    fixture.click_text("Locked");
     fixture.drag_text("Terminal", BELOW_SIDEBAR);
     assert_eq!(
         window_in_sidebar(&fixture, 7),

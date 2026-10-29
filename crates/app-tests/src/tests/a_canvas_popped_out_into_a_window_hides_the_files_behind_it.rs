@@ -5,8 +5,8 @@ fn a_canvas_popped_out_into_a_window_hides_the_files_behind_it() {
     let mut app = AppTest::start();
     add_to_my_files(&mut app, "Canvas");
     app.wait("Pane \"Canvas\"");
-    app.run(&["click", "Tab \"Canvas\"", "right"]);
-    app.run(&["click", "MenuItem \"Unlock\""]);
+    app.run(&["click", "#dock.grip.editors", "right"]);
+    app.run(&["click", "MenuItemCheckBox \"Locked\""]);
     app.run(&["click", "Tab \"Canvas\"", "right"]);
     app.run(&["click", "MenuItem \"Pop out into a window\""]);
     app.wait("Tab \"Canvas\"");

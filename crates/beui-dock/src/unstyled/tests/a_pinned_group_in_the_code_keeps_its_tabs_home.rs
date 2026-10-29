@@ -22,8 +22,8 @@ fn a_pinned_group_in_the_code_keeps_its_tabs_home() {
     };
     assert!(state.is_pinned(group), "the group is pinned as declared");
     assert!(
-        state.is_tab_pinned(TabId::new(2)),
-        "the tabs of a pinned group are pinned to it"
+        state.is_tab_locked(TabId::new(2)),
+        "the tabs of a pinned group are locked to it"
     );
     assert_eq!(state.group_key(group), Some("tools"));
 }

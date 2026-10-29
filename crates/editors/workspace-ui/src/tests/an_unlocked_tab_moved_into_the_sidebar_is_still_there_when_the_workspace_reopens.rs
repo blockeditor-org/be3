@@ -4,8 +4,8 @@ use super::*;
 fn an_unlocked_tab_moved_into_the_sidebar_is_still_there_when_the_workspace_reopens() {
     let (fixture, _) = profiled_sized(Some(WIDE), None);
     let (mut fixture, places) = with_two_blocks(fixture);
-    open_tab_menu(&mut fixture, "Minutes");
-    fixture.click_text("Unlock");
+    open_grip_menu(&mut fixture, "editors");
+    fixture.click_text("Locked");
     fixture.drag_text("Minutes", BELOW_SIDEBAR);
     assert_eq!(placed_in_sidebar(&fixture, places.minutes), Some(true));
 

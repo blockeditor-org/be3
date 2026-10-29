@@ -466,14 +466,22 @@ impl DockLayout {
     pub fn validate(&self) -> Result<(), DecodeError> {
         self.tree.nest()?;
         collection(self.homes.len())?;
-        self.homes.iter().try_for_each(DockHome::validate)
+        self.homes.iter().try_for_each(DockHome::validate)?;
+        collection(self.unlocked.len())?;
+        self.unlocked.iter().try_for_each(DockPlace::validate)
     }
 }
 
 impl DockHome {
     fn validate(&self) -> Result<(), DecodeError> {
         self.tab.validate()?;
-        match &self.place {
+        self.place.validate()
+    }
+}
+
+impl DockPlace {
+    fn validate(&self) -> Result<(), DecodeError> {
+        match self {
             DockPlace::Area(key) | DockPlace::Group(key) => string(key),
         }
     }
