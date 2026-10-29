@@ -329,7 +329,8 @@ pub(crate) fn MenuList(
             create_memo(move || {
                 title.is_some()
                     || items.items().iter().any(|item| {
-                        item.is_row() && (item.glyph.get().is_some() || item.checked.get().is_some())
+                        item.is_row()
+                            && (item.glyph.get().is_some() || item.checked.get().is_some())
                     })
             })
         },
