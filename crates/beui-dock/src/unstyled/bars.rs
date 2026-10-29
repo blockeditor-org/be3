@@ -391,7 +391,10 @@ impl State {
             return (None, None);
         }
         let (grab, size) = self.bar_grab.get();
-        if let Some((body, pane)) = self.bar_areas(bar).filter(|(_, pane)| pane.contains(point.pos)) {
+        if let Some((body, pane)) = self
+            .bar_areas(bar)
+            .filter(|(_, pane)| pane.contains(point.pos))
+        {
             let (edge, distance) = nearest_edge(pane, point.pos);
             let beside = reach(pane, body, edge);
             let band = band(body);

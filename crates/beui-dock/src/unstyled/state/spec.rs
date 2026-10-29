@@ -300,9 +300,10 @@ impl DockState {
             if self.bars.iter().any(|held| held.bar == declared.bar) {
                 continue;
             }
-            let after = spec.bars[..index].iter().rev().find_map(|earlier| {
-                self.bars.iter().position(|held| held.bar == earlier.bar)
-            });
+            let after = spec.bars[..index]
+                .iter()
+                .rev()
+                .find_map(|earlier| self.bars.iter().position(|held| held.bar == earlier.bar));
             self.bars.insert(
                 after.map_or(0, |at| at + 1),
                 Bar {

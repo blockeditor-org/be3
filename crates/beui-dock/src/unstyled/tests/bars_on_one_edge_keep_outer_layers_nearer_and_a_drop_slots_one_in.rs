@@ -76,12 +76,22 @@ fn bars_on_one_edge_keep_outer_layers_nearer_and_a_drop_slots_one_in() {
         tabs(&[21, 20, 31, 30]),
         "a hosted bar dropped first goes first among its own layer's bars"
     );
-    state.place_bar_at(TabId::new(20), DockBarPlacement::Beside(DockEdge::Bottom), 0);
-    state.place_bar_at(TabId::new(30), DockBarPlacement::Beside(DockEdge::Bottom), 0);
+    state.place_bar_at(
+        TabId::new(20),
+        DockBarPlacement::Beside(DockEdge::Bottom),
+        0,
+    );
+    state.place_bar_at(
+        TabId::new(30),
+        DockBarPlacement::Beside(DockEdge::Bottom),
+        0,
+    );
     let bottom: Vec<TabId> = state
         .pane_bars(TabId::new(10))
         .into_iter()
-        .filter(|held| state.bar_placement(*held) == Some(DockBarPlacement::Beside(DockEdge::Bottom)))
+        .filter(|held| {
+            state.bar_placement(*held) == Some(DockBarPlacement::Beside(DockEdge::Bottom))
+        })
         .collect();
     assert_eq!(
         bottom,

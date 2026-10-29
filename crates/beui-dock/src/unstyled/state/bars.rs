@@ -134,7 +134,8 @@ impl DockState {
     }
 
     pub fn bar_depth(&self, bar: TabId) -> Option<usize> {
-        self.owner_pane(self.bar_owner(bar)?).map(|(_, depth)| depth)
+        self.owner_pane(self.bar_owner(bar)?)
+            .map(|(_, depth)| depth)
     }
 
     pub fn pane_bars(&self, tab: TabId) -> Vec<TabId> {
@@ -198,7 +199,10 @@ impl DockState {
             Entry::Tab(tab) => Some((tab, 0)),
             Entry::Group(inner) => {
                 let (tab, depth) = self.first_pane_tab(inner, nested + 1)?;
-                let hosted = self.group(inner).and_then(|held| held.key.as_deref()).and_then(joined_host);
+                let hosted = self
+                    .group(inner)
+                    .and_then(|held| held.key.as_deref())
+                    .and_then(joined_host);
                 Some((tab, depth + usize::from(hosted.is_some())))
             }
         }
