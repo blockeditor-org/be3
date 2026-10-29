@@ -6,7 +6,10 @@ fn a_tab_hosting_one_bare_pane_stays_locked_in_its_area() {
     let mut state = DockState::default();
     let declared = sidebar_and_editors(&[1], &[2]);
     state.reconcile(&declared);
-    assert!(state.is_tab_pinned(TabId::new(2)), "an editor starts locked in its area");
+    assert!(
+        state.is_tab_pinned(TabId::new(2)),
+        "an editor starts locked in its area"
+    );
 
     let mut bare = pane_spec("joined:2/canvas");
     bare.entries = vec![DockSpecEntry::Tab(TabId::new(10))];
@@ -35,7 +38,9 @@ fn a_tab_hosting_one_bare_pane_stays_locked_in_its_area() {
         Some(TabId::new(2)),
         "a group of one bare pane stands for the tab that hosts it"
     );
-    let (leaf, _) = state.locate(Entry::Group(group)).expect("the group is placed");
+    let (leaf, _) = state
+        .locate(Entry::Group(group))
+        .expect("the group is placed");
     assert_eq!(
         state.menu_tab(leaf),
         Some(TabId::new(10)),
@@ -46,5 +51,8 @@ fn a_tab_hosting_one_bare_pane_stays_locked_in_its_area() {
         "and keeps that tab locked where it was"
     );
     state.set_tab_pinned(TabId::new(2), false);
-    assert!(!state.is_tab_pinned(TabId::new(2)), "unlocking it unlocks the group's place");
+    assert!(
+        !state.is_tab_pinned(TabId::new(2)),
+        "unlocking it unlocks the group's place"
+    );
 }

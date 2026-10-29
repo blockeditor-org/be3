@@ -190,7 +190,10 @@ fn PickerPopover(editor: Editor, picking: Picking) -> NodeId {
             .filter(|window| own.is_none_or(|own| own.id != *window))
             .and_then(|window| {
                 beui::native::try_with_document(|document| {
-                    document.context()?.layer_space(window).map(|space| space.area())
+                    document
+                        .context()?
+                        .layer_space(window)
+                        .map(|space| space.area())
                 })
                 .flatten()
             })
@@ -296,7 +299,11 @@ fn card_hung(anchor: Option<Rect>, content: Vec2, area: Rect) -> Hung {
     let reach = f32::from(CARD_GAP) - CARD_POINTER;
     let x = (anchor.center().x - face.x / 2.0)
         .min(area.max.x - face.x - margin)
-        .max((area.min.x + margin).min(area.max.x - face.x).max(area.min.x));
+        .max(
+            (area.min.x + margin)
+                .min(area.max.x - face.x)
+                .max(area.min.x),
+        );
     let below = anchor.max.y + reach + face.y <= area.max.y - margin;
     let above = anchor.min.y - reach - face.y >= area.min.y + margin;
     let (y, side) = match (below, above) {

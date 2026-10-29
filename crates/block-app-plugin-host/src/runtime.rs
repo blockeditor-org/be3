@@ -1804,7 +1804,10 @@ pub fn frame_rects(plugin_id: &str, instance: EditorInstanceId, view: ViewId) ->
 }
 
 pub fn content_view(plugin_id: &str, instance: EditorInstanceId) -> ViewId {
-    with(plugin_id, |runtime| runtime.instances.content_view(instance)).unwrap_or(ViewId::MAIN)
+    with(plugin_id, |runtime| {
+        runtime.instances.content_view(instance)
+    })
+    .unwrap_or(ViewId::MAIN)
 }
 
 pub fn presenting(plugin_id: &str, instance: EditorInstanceId) -> bool {

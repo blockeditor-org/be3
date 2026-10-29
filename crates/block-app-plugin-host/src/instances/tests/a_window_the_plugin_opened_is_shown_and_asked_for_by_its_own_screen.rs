@@ -34,7 +34,7 @@ fn a_window_the_plugin_opened_is_shown_and_asked_for_by_its_own_screen() {
     instances.adopt_window(&open, &layout);
     let report = FrameReport {
         screen,
-        content: block_plugin_api::Insets::default(),
+        content: Some(block_plugin_api::Insets::default()),
         painted: vec![Rect::from_min_size(Pos2::ZERO, vec2(200.0, 100.0))],
         floating: Vec::new(),
         floating_painted: Vec::new(),

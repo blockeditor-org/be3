@@ -693,8 +693,8 @@ pub(crate) fn PluginRegion(
         let size = state.with_untracked(|view| view.rect.size());
         region.is_main()
             && !placed.contains(local)
-            && block_app_plugin_host::frame_rects(&plugin_id.value(), instance, region.id).is_some_and(
-                |frame| {
+            && block_app_plugin_host::frame_rects(&plugin_id.value(), instance, region.id)
+                .is_some_and(|frame| {
                     frame
                         .content(Rect::from_min_size(Pos2::ZERO, size))
                         .contains(local)
@@ -702,8 +702,7 @@ pub(crate) fn PluginRegion(
                             .floating
                             .iter()
                             .any(|floating| floating.contains(local))
-                },
-            )
+                })
     };
     let takes = move |local: Pos2| {
         !passive.get_untracked()
@@ -757,19 +756,19 @@ pub(crate) fn PluginRegion(
         revision.get();
         let content = frame.get().and_then(|frame| frame.content);
         let beyond = match (region.is_main(), content) {
-            (true, Some(placed)) => block_app_plugin_host::frame_rects(
-                &plugin_id.value(),
-                instance,
-                region.id,
-            )
-            .map_or_else(beui::HitRegion::new, |frame| {
-                let size = state.with(|view| view.rect.size());
-                frame.floating.iter().fold(
-                    beui::HitRegion::rect(frame.content(Rect::from_min_size(Pos2::ZERO, size)))
-                        .without(placed),
-                    |beyond, floating| beyond.without(*floating),
-                )
-            }),
+            (true, Some(placed)) => {
+                block_app_plugin_host::frame_rects(&plugin_id.value(), instance, region.id)
+                    .map_or_else(beui::HitRegion::new, |frame| {
+                        let size = state.with(|view| view.rect.size());
+                        frame.floating.iter().fold(
+                            beui::HitRegion::rect(
+                                frame.content(Rect::from_min_size(Pos2::ZERO, size)),
+                            )
+                            .without(placed),
+                            |beyond, floating| beyond.without(*floating),
+                        )
+                    })
+            }
             _ => beui::HitRegion::new(),
         };
         let occluders = occluded.map(|occluded| occluded.get()).unwrap_or_default();

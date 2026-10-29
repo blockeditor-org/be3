@@ -8,13 +8,11 @@ use be_graph::Access;
 use beui::native::with_document;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{
-    Color32, Dismiss, Key, KeyEvent, NodeId, Pos2, Rect, Vec2, vec2,
-};
+use beui::{Color32, Dismiss, Key, KeyEvent, NodeId, Pos2, Rect, Vec2, vec2};
 use block_plugin_api::{
     BarAction, ChildId, ChildMode, ChildPreview, CreationProgress, DialogFrame, DialogStatus,
-    EditorInstanceId, FrameChrome, FrameSpec, HostPanel, HostWindowId, PanMode,
-    ParentView, TopBar, View, ViewId,
+    EditorInstanceId, FrameChrome, FrameSpec, HostPanel, HostWindowId, PanMode, ParentView, TopBar,
+    View, ViewId,
 };
 use uuid::Uuid;
 

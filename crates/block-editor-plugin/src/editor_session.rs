@@ -5,10 +5,10 @@ use block_plugin_api::guest::{debug::debug, shell};
 use block_plugin_api::ops::guest::{Sender, spawn};
 use block_plugin_api::{
     AnchoredView, ArtifactDescription, BarAction, ChildId, ChildPlacement, ChildPlacements,
-    ChildStatus, EditorInstanceId, Failure, FrameChrome, FrameCommit, FrameReport, HostView, LayerSpace,
-    MAX_CHILDREN, MAX_COLLECTION_ITEMS, MenuEntry, Occluder, ParentView, ScreenPlacement,
-    ScreenRequest, ScreenWindow, Size, TimedInput, View, ViewId, ViewPlacement, ViewSize,
-    ViewportMetrics, WebViewId,
+    ChildStatus, EditorInstanceId, Failure, FrameChrome, FrameCommit, FrameReport, HostView,
+    LayerSpace, MAX_CHILDREN, MAX_COLLECTION_ITEMS, MenuEntry, Occluder, ParentView,
+    ScreenPlacement, ScreenRequest, ScreenWindow, Size, TimedInput, View, ViewId, ViewPlacement,
+    ViewSize, ViewportMetrics, WebViewId,
 };
 use block_ui::BlockCatalog;
 use geometry::{Pos2, Rect, Vec2, vec2};
@@ -799,7 +799,10 @@ impl EditorSession {
         }
         let context = self.context(view);
         self.host.begin_view(view);
-        let framed = self.views.get(&view).is_some_and(|state| state.frame.is_some());
+        let framed = self
+            .views
+            .get(&view)
+            .is_some_and(|state| state.frame.is_some());
         let frames = match context.view.placement {
             ViewPlacement::Parent(ParentView::Main) => !context.docked,
             ViewPlacement::Dock => framed,
