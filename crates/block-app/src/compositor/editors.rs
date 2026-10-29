@@ -18,18 +18,16 @@ use block_plugin_api::{
 };
 use uuid::Uuid;
 
-use crate::desktop_host::WindowSurface;
+use block_app_desktop::desktop_host::WindowSurface;
 
 use super::region::{ChildView, PanDrag, PluginRegion, RegionEditor};
 use crate::editors::plugin::{InstanceSource, PluginPicker};
 use crate::editors::{
     Chrome, EditorRegistry, PendingCreation, PluginEditor, editor_access_ceiling,
 };
-use crate::surfaces::HostItem;
+use block_app_desktop::host_item::{HostItem, HostItemFace};
 use block_app_plugin_host::{ChildCommit, EditorView, HostChild, HostChildStatus, HostContent};
-use crate::surfaces::{
-    ConflictNotice, HostItemFace, HostedRegion, HostedSurface, StaleBlock, SurfaceId,
-};
+use crate::surfaces::{ConflictNotice, HostedRegion, HostedSurface, StaleBlock, SurfaceId};
 use crate::ui::HostPanelSurface;
 use beui::{Align, Direction, ItemSize, Placement};
 
@@ -1165,19 +1163,19 @@ fn ProgramSurface(block: Uuid) -> NodeId {
     let any = super::any();
     let shown = create_memo(move || {
         any.get();
-        crate::programs::shown(block)
+        block_app_desktop::programs::shown(block)
     });
     view! {
         <Layers>
-            <Dynamic value={shown}>|shown: Option<crate::programs::Shown>| {
+            <Dynamic value={shown}>|shown: Option<block_app_desktop::programs::Shown>| {
                 match shown {
-                    Some(crate::programs::Shown::Window(window)) => view! {
+                    Some(block_app_desktop::programs::Shown::Window(window)) => view! {
                         <WindowSurface window={window} />
                     },
-                    Some(crate::programs::Shown::Closed(name)) => view! {
+                    Some(block_app_desktop::programs::Shown::Closed(name)) => view! {
                         <ProgramClosed name block />
                     },
-                    Some(crate::programs::Shown::Failed(problem)) => view! {
+                    Some(block_app_desktop::programs::Shown::Failed(problem)) => view! {
                         <Notice
                             item={HostItem::Notice {
                                 text: problem,
@@ -1186,7 +1184,7 @@ fn ProgramSurface(block: Uuid) -> NodeId {
                             }}
                         />
                     },
-                    Some(crate::programs::Shown::Opening(name)) => view! {
+                    Some(block_app_desktop::programs::Shown::Opening(name)) => view! {
                         <Notice
                             item={HostItem::Notice {
                                 text: format!("Opening in {name}…"),
@@ -1219,7 +1217,7 @@ fn ProgramClosed(name: String, block: Uuid) -> NodeId {
                     label="Open again"
                     variant=ButtonVariant::Primary
                     @test_id={"program.reopen"}
-                    on_click={move || crate::programs::reopen(block)}
+                    on_click={move || block_app_desktop::programs::reopen(block)}
                 />
             </List>
         </Frame>
@@ -1687,8 +1685,8 @@ fn HostedChild(
     let nesting = use_context::<Nesting>().unwrap_or_else(Nesting::root);
     let tab = use_context::<TabContext>();
     let any = super::any();
-    let inherited = super::region::occlusion();
-    provide_context(super::region::Occlusion(create_memo(move || {
+    let inherited = block_app_desktop::occlusion::occlusion();
+    provide_context(block_app_desktop::occlusion::Occlusion(create_memo(move || {
         let mut rects = inherited
             .as_ref()
             .map(|inherited| inherited.get())
@@ -1768,8 +1766,8 @@ fn HostedChild(
         if nesting.above.with(|above| above.contains(&id)) {
             return Kind::Unavailable;
         }
-        if let Some(program) = editor.filter(|editor| crate::programs::opens(*editor)) {
-            crate::programs::show(id, block_type, program, parent);
+        if let Some(program) = editor.filter(|editor| block_app_desktop::programs::opens(*editor)) {
+            block_app_desktop::programs::show(id, block_type, program, parent);
             return Kind::Program(id);
         }
         editors.ensure(id, block_type, view_block, editor, parent);

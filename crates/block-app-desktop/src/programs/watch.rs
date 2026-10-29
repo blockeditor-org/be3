@@ -5,14 +5,14 @@ use std::sync::mpsc::Receiver;
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use uuid::Uuid;
 
-pub(crate) struct Watch {
+pub struct Watch {
     watcher: Option<RecommendedWatcher>,
     touched: Receiver<PathBuf>,
     watched: HashMap<PathBuf, PathBuf>,
 }
 
 impl Watch {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         let (sender, touched) = block_app_base::host::waking_channel();
         let watcher = notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
             if let Ok(event) = event
@@ -37,7 +37,7 @@ impl Watch {
         }
     }
 
-    pub(crate) fn add(&mut self, file: &Path) {
+    pub fn add(&mut self, file: &Path) {
         let Some(dir) = file.parent() else {
             return;
         };
@@ -55,7 +55,7 @@ impl Watch {
         }
     }
 
-    pub(crate) fn forget(&mut self, block: Uuid) {
+    pub fn forget(&mut self, block: Uuid) {
         let block = block.to_string();
         let gone: Vec<PathBuf> = self
             .watched
@@ -72,7 +72,7 @@ impl Watch {
         }
     }
 
-    pub(crate) fn take(&mut self) -> HashSet<PathBuf> {
+    pub fn take(&mut self) -> HashSet<PathBuf> {
         let mut touched = HashSet::new();
         while let Ok(path) = self.touched.try_recv() {
             if self.watched.contains_key(&path) {

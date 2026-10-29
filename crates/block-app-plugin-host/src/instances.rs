@@ -1453,7 +1453,7 @@ impl Instances {
         let mut opened = Vec::new();
         let mut screens = Vec::new();
         self.relaying.clear();
-        let (programs, program_editors) = super::program_editors();
+        let (programs, program_editors) = block_app_base::program_editors::listed();
         let sent = (be_types_host::plain_forms_revision(), programs);
         if self.sent_block_types != Some(sent)
             && let Some(block_types) = &self.block_types

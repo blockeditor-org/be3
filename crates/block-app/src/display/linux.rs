@@ -83,8 +83,8 @@ pub(crate) fn apply(settings: &DisplaySettings) {
             control.set(config(settings));
         }
     });
-    crate::desktop_host::set_blank_after(settings.screen_off().after());
-    crate::desktop_host::set_lock_after(settings.lock_time());
+    block_app_desktop::desktop_host::set_blank_after(settings.screen_off().after());
+    block_app_desktop::desktop_host::set_lock_after(settings.lock_time());
 }
 
 fn config(settings: &DisplaySettings) -> DisplayConfig {

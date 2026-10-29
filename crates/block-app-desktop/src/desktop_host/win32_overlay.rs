@@ -3,8 +3,8 @@ use beui::styled::*;
 use beui::{Align, Align2, Extent, NodeId, Rect, TextAlign};
 
 use super::win32_map::{OFF_SCREEN, SECURE_DESKTOP};
-use crate::surfaces::HostItem;
-use crate::surfaces::HostItemFace;
+use crate::host_item::HostItem;
+use crate::host_item::HostItemFace;
 
 #[component]
 fn OffScreenPart(part: Memo<Rect>, labelled: bool) -> NodeId {
@@ -51,7 +51,7 @@ fn OffScreenPart(part: Memo<Rect>, labelled: bool) -> NodeId {
 }
 
 #[component]
-pub(crate) fn EntryOverlay(secure: Memo<bool>, off_screen: Memo<Vec<Rect>>) -> NodeId {
+pub fn EntryOverlay(secure: Memo<bool>, off_screen: Memo<Vec<Rect>>) -> NodeId {
     let dim = create_memo(move || match secure.get() {
         true => ColorRole::Dim,
         false => ColorRole::None,

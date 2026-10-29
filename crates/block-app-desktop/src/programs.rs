@@ -17,7 +17,7 @@ use files::OnDisk;
 const PROGRAM_EDITORS: u64 = u64::from_be_bytes(*b"program\0");
 const WAITING_ICON_SIZE: u32 = 64;
 
-pub(crate) fn editor_id(program: &str) -> Uuid {
+pub fn editor_id(program: &str) -> Uuid {
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
     for byte in program.bytes() {
         hash ^= u64::from(byte);
@@ -26,7 +26,7 @@ pub(crate) fn editor_id(program: &str) -> Uuid {
     Uuid::from_u64_pair(PROGRAM_EDITORS, hash)
 }
 
-pub(crate) fn is_program(editor: Uuid) -> bool {
+pub fn is_program(editor: Uuid) -> bool {
     editor.as_u64_pair().0 == PROGRAM_EDITORS
 }
 
@@ -44,7 +44,7 @@ fn descriptors(openers: &[desktop_host::Opener]) -> Vec<EditorDescriptor> {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) enum Shown {
+pub enum Shown {
     Opening(String),
     Window(HostWindowId),
     Closed(String),
@@ -85,11 +85,11 @@ fn with<R>(act: impl FnOnce(&mut Sessions) -> R) -> R {
     SESSIONS.with(|sessions| act(&mut sessions.borrow_mut()))
 }
 
-pub(crate) fn opens(editor: Uuid) -> bool {
+pub fn opens(editor: Uuid) -> bool {
     is_program(editor) && with(|sessions| sessions.names.contains_key(&editor))
 }
 
-pub(crate) fn show(block: Uuid, block_type: Uuid, editor: Uuid, parent: Uuid) {
+pub fn show(block: Uuid, block_type: Uuid, editor: Uuid, parent: Uuid) {
     let replaced = with(|sessions| {
         if let Some(session) = sessions.open.get_mut(&block)
             && session.editor == editor
@@ -118,7 +118,7 @@ pub(crate) fn show(block: Uuid, block_type: Uuid, editor: Uuid, parent: Uuid) {
     }
 }
 
-pub(crate) fn shown(block: Uuid) -> Option<Shown> {
+pub fn shown(block: Uuid) -> Option<Shown> {
     with(|sessions| {
         let session = sessions.open.get(&block)?;
         let name = sessions
@@ -136,7 +136,7 @@ pub(crate) fn shown(block: Uuid) -> Option<Shown> {
     })
 }
 
-pub(crate) fn reopen(block: Uuid) {
+pub fn reopen(block: Uuid) {
     with(|sessions| {
         if let Some(session) = sessions.open.get_mut(&block)
             && matches!(session.stage, Stage::Closed | Stage::Failed(_))
@@ -147,7 +147,7 @@ pub(crate) fn reopen(block: Uuid) {
     block_app_base::host::changed();
 }
 
-pub(crate) fn close(closed: Uuid) {
+pub fn close(closed: Uuid) {
     let windows = with(|sessions| {
         let inside: Vec<Uuid> = sessions
             .open
@@ -178,7 +178,7 @@ pub(crate) fn close(closed: Uuid) {
     }
 }
 
-pub(crate) fn bound_windows() -> Vec<HostWindowId> {
+pub fn bound_windows() -> Vec<HostWindowId> {
     with(|sessions| {
         let mut bound: Vec<HostWindowId> = sessions
             .open
@@ -199,7 +199,7 @@ fn window_of(stage: &Stage) -> Option<HostWindowId> {
 
 type Read = (Uuid, Result<be_types_host::PlainFile, String>);
 
-pub(crate) struct Programs {
+pub struct Programs {
     programs: desktop_host::Programs,
     offered: bool,
     listed_editors: bool,
@@ -225,11 +225,11 @@ impl Default for Programs {
 
 impl Programs {
     #[cfg(not(target_arch = "wasm32"))]
-    pub(crate) fn keep_files_in(&mut self, files: PathBuf) {
+    pub fn keep_files_in(&mut self, files: PathBuf) {
         self.files = Some(files);
     }
 
-    pub(crate) fn frame(&mut self) {
+    pub fn frame(&mut self) {
         for action in block_app_base::watches::take_calls(block_plugin_api::requested::program) {
             match action {
                 ProgramAction::List { icon_size } if desktop_host::running() => {
@@ -270,7 +270,7 @@ impl Programs {
                     })
                     .collect();
             });
-            block_app_plugin_host::set_program_editors(descriptors(&openers));
+            block_app_base::program_editors::set(descriptors(&openers));
             block_app_base::host::changed();
         }
         self.step_sessions();

@@ -59,7 +59,7 @@ impl ScreenLock {
 
     pub(crate) fn lock(&mut self, trigger: Trigger) {
         if self.lock.lock(trigger) {
-            crate::desktop_host::set_locked(true);
+            block_app_desktop::desktop_host::set_locked(true);
             block_app_base::host::request_repaint();
         }
     }
@@ -261,12 +261,12 @@ impl SessionControl for Live<'_> {
     }
 
     fn windows(&self) -> usize {
-        crate::desktop_host::listed(&[]).len()
+        block_app_desktop::desktop_host::listed(&[]).len()
     }
 
     fn close_windows(&mut self) {
-        for window in crate::desktop_host::listed(&[]) {
-            crate::desktop_host::close(window.id);
+        for window in block_app_desktop::desktop_host::listed(&[]) {
+            block_app_desktop::desktop_host::close(window.id);
         }
         block_app_base::host::wake();
     }

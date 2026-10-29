@@ -18,12 +18,14 @@ use block_plugin_api::{ChildId, EditorInstanceId, EditorRegion, FrameSpec};
 use block_plugin_manifest::PluginManifest;
 use uuid::Uuid;
 
-use crate::surfaces::HostItem;
+use block_app_desktop::host_item::HostItem;
 use block_app_plugin_host::{
     self, BlockDrag, EditorView, HostChild, InstanceRole, Piece, RegionPlacement, RegionSlot,
     RegionView,
 };
-use crate::surfaces::{CrashNotice, HostItemFace};
+use crate::surfaces::CrashNotice;
+use block_app_desktop::host_item::HostItemFace;
+use block_app_desktop::occlusion::{Occlusion, occlusion};
 use beui::native::draw_gpu;
 use beui::reactive::toggle_keyboard;
 
@@ -62,9 +64,6 @@ struct DrawingKey {
 
 pub(crate) type ChildView =
     Stored<Box<dyn Fn(ChildId, Memo<Option<HostChild>>, Memo<Rect>) -> NodeId>>;
-
-#[derive(Clone)]
-pub(crate) struct Occlusion(pub(crate) Memo<Vec<Rect>>);
 
 #[derive(Clone, Copy)]
 struct Presented(Memo<bool>);
@@ -165,10 +164,6 @@ impl Steering {
             modifiers: held.modifiers,
         })
     }
-}
-
-pub(crate) fn occlusion() -> Option<Memo<Vec<Rect>>> {
-    use_context::<Occlusion>().map(|Occlusion(rects)| rects)
 }
 
 fn next_mount() -> u64 {

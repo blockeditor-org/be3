@@ -17,7 +17,7 @@ struct Sizing {
 }
 
 #[derive(Clone, Debug, Default)]
-pub(crate) struct Shaping {
+pub struct Shaping {
     sizes: HashMap<EntryId, Sizing>,
     fullscreen: HashMap<EntryId, bool>,
     area: Option<Rect>,
@@ -31,7 +31,7 @@ fn frame_size(entry: &Entry) -> Pixels {
     (entry.frame.width(), entry.frame.height())
 }
 
-pub(crate) fn covers_a_monitor(snapshot: &Snapshot, entry: &Entry) -> bool {
+pub fn covers_a_monitor(snapshot: &Snapshot, entry: &Entry) -> bool {
     entry.kind == EntryKind::Window
         && snapshot
             .monitors
@@ -40,7 +40,7 @@ pub(crate) fn covers_a_monitor(snapshot: &Snapshot, entry: &Entry) -> bool {
 }
 
 impl Shaping {
-    pub(crate) fn observe(&mut self, snapshot: &Snapshot) {
+    pub fn observe(&mut self, snapshot: &Snapshot) {
         self.sizes.retain(|id, _| {
             snapshot
                 .entry(*id)
@@ -73,13 +73,13 @@ impl Shaping {
         });
     }
 
-    pub(crate) fn own_size(&self, entry: &Entry) -> Pixels {
+    pub fn own_size(&self, entry: &Entry) -> Pixels {
         self.sizes
             .get(&entry.id)
             .map_or_else(|| frame_size(entry), |sizing| sizing.own)
     }
 
-    pub(crate) fn placed(
+    pub fn placed(
         &mut self,
         snapshot: &Snapshot,
         id: EntryId,
@@ -116,20 +116,20 @@ impl Shaping {
         Some(wanted)
     }
 
-    pub(crate) fn set_area(&mut self, area: Rect) -> bool {
+    pub fn set_area(&mut self, area: Rect) -> bool {
         let changed = self.area != Some(area);
         self.area = Some(area);
         changed
     }
 
-    pub(crate) fn fullscreen_area(&self, snapshot: &Snapshot, entry: &Entry) -> Option<Rect> {
+    pub fn fullscreen_area(&self, snapshot: &Snapshot, entry: &Entry) -> Option<Rect> {
         let asked = self.fullscreen.contains_key(&entry.id) && entry.maximized;
         let fullscreen =
             entry.kind == EntryKind::Window && (asked || covers_a_monitor(snapshot, entry));
         self.area.filter(|_| fullscreen)
     }
 
-    pub(crate) fn enter_fullscreen(&mut self, snapshot: &Snapshot, id: EntryId) -> Option<Handle> {
+    pub fn enter_fullscreen(&mut self, snapshot: &Snapshot, id: EntryId) -> Option<Handle> {
         let entry = snapshot.entry(id)?;
         if entry.kind != EntryKind::Window || covers_a_monitor(snapshot, entry) {
             return None;
@@ -138,7 +138,7 @@ impl Shaping {
         (!entry.maximized).then_some(entry.handle)
     }
 
-    pub(crate) fn leave_fullscreen(&mut self, snapshot: &Snapshot, id: EntryId) -> Option<Handle> {
+    pub fn leave_fullscreen(&mut self, snapshot: &Snapshot, id: EntryId) -> Option<Handle> {
         self.fullscreen.remove(&id)?;
         let entry = snapshot.entry(id)?;
         entry.maximized.then_some(entry.handle)

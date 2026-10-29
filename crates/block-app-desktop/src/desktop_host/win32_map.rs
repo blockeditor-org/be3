@@ -8,17 +8,17 @@ use block_plugin_api::{
     HostImage, HostProgram, HostWindow, HostWindowId, Vec2, WindowKind, WindowOrigin,
 };
 
-pub(crate) const ELEVATED: &str = "This window runs as administrator, so Block can't control it. Run Block as administrator to use it.";
-pub(crate) const SECURE_DESKTOP: &str =
+pub const ELEVATED: &str = "This window runs as administrator, so Block can't control it. Run Block as administrator to use it.";
+pub const SECURE_DESKTOP: &str =
     "Windows is asking for permission on the secure desktop. Take off the headset to answer it.";
 
-pub(crate) const OFF_SCREEN: &str =
+pub const OFF_SCREEN: &str =
     "Off screen: drag the window by its title bar to reach this part";
-pub(crate) const PRESS_SLOP: f32 = 6.0;
+pub const PRESS_SLOP: f32 = 6.0;
 const FALLBACK_BACK: &str = "Alt+Tab";
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(crate) enum HotkeyState {
+pub enum HotkeyState {
     #[default]
     Waiting,
     Registered(Hotkey),
@@ -35,13 +35,13 @@ impl HotkeyState {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum Refusal {
+pub enum Refusal {
     Elevated,
     Focus(FocusError),
 }
 
 impl Refusal {
-    pub(crate) fn text(&self) -> String {
+    pub fn text(&self) -> String {
         match self {
             Self::Elevated => ELEVATED.to_owned(),
             Self::Focus(error) => format!("{}.", capitalised(&error.to_string())),
@@ -50,15 +50,15 @@ impl Refusal {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(crate) struct Notes {
-    pub(crate) focused: Option<EntryId>,
-    pub(crate) hovered: Option<EntryId>,
-    pub(crate) refused: HashMap<EntryId, Refusal>,
-    pub(crate) hotkey: HotkeyState,
+pub struct Notes {
+    pub focused: Option<EntryId>,
+    pub hovered: Option<EntryId>,
+    pub refused: HashMap<EntryId, Refusal>,
+    pub hotkey: HotkeyState,
 }
 
 impl Notes {
-    pub(crate) fn note(&self, entry: &Entry) -> Option<String> {
+    pub fn note(&self, entry: &Entry) -> Option<String> {
         if self.focused == Some(entry.id) {
             return Some(focused_note(&self.hotkey));
         }
@@ -69,7 +69,7 @@ impl Notes {
     }
 }
 
-pub(crate) fn focused_note(hotkey: &HotkeyState) -> String {
+pub fn focused_note(hotkey: &HotkeyState) -> String {
     let unclipped = |why: String| {
         format!("{FALLBACK_BACK} comes back to Block. The mouse is free, since {why}")
     };
@@ -85,7 +85,7 @@ pub(crate) fn focused_note(hotkey: &HotkeyState) -> String {
     }
 }
 
-pub(crate) fn hover_note(kind: EntryKind, hotkey: &HotkeyState) -> String {
+pub fn hover_note(kind: EntryKind, hotkey: &HotkeyState) -> String {
     let what = match kind {
         EntryKind::Window => "this window",
         EntryKind::Display => "the window under the pointer",
@@ -108,7 +108,7 @@ fn subtract(rect: Rect, cut: Rect) -> Vec<Rect> {
     .collect()
 }
 
-pub(crate) fn off_screen(frame: Rect, monitors: &[Rect]) -> Vec<Rect> {
+pub fn off_screen(frame: Rect, monitors: &[Rect]) -> Vec<Rect> {
     let mut parts = vec![frame]
         .into_iter()
         .filter(|rect| !rect.is_empty())
@@ -123,7 +123,7 @@ pub(crate) fn off_screen(frame: Rect, monitors: &[Rect]) -> Vec<Rect> {
     parts
 }
 
-pub(crate) fn off_screen_parts(snapshot: &Snapshot, entry: &Entry) -> Vec<block_plugin_api::Rect> {
+pub fn off_screen_parts(snapshot: &Snapshot, entry: &Entry) -> Vec<block_plugin_api::Rect> {
     if entry.kind != EntryKind::Window || entry.minimized || entry.frame.is_empty() {
         return Vec::new();
     }
@@ -155,16 +155,16 @@ pub(crate) fn off_screen_parts(snapshot: &Snapshot, entry: &Entry) -> Vec<block_
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub(crate) struct ContentPress {
+pub struct ContentPress {
     down: Option<(beui::PointerId, block_plugin_api::Pos2)>,
 }
 
 impl ContentPress {
-    pub(crate) fn down(&mut self, pointer: beui::PointerId, at: block_plugin_api::Pos2) {
+    pub fn down(&mut self, pointer: beui::PointerId, at: block_plugin_api::Pos2) {
         self.down = Some((pointer, at));
     }
 
-    pub(crate) fn moved(&mut self, pointer: beui::PointerId, at: block_plugin_api::Pos2) {
+    pub fn moved(&mut self, pointer: beui::PointerId, at: block_plugin_api::Pos2) {
         if let Some((held, from)) = self.down
             && held == pointer
             && (at - from).length() > PRESS_SLOP
@@ -173,7 +173,7 @@ impl ContentPress {
         }
     }
 
-    pub(crate) fn up(
+    pub fn up(
         &mut self,
         pointer: beui::PointerId,
         at: block_plugin_api::Pos2,
@@ -186,12 +186,12 @@ impl ContentPress {
         inside.then_some(at)
     }
 
-    pub(crate) fn cancel(&mut self) {
+    pub fn cancel(&mut self) {
         self.down = None;
     }
 }
 
-pub(crate) fn shell_focus(_window: HostWindowId) -> Option<EntryId> {
+pub fn shell_focus(_window: HostWindowId) -> Option<EntryId> {
     None
 }
 
@@ -203,33 +203,33 @@ fn capitalised(text: &str) -> String {
     }
 }
 
-pub(crate) fn ended_refusal(reason: be_win32::EndReason) -> Option<Refusal> {
+pub fn ended_refusal(reason: be_win32::EndReason) -> Option<Refusal> {
     match reason {
         be_win32::EndReason::NeverArrived => Some(Refusal::Focus(FocusError::ForegroundRefused)),
         _ => None,
     }
 }
 
-pub(crate) fn focus_refusal(error: &FocusError) -> Option<Refusal> {
+pub fn focus_refusal(error: &FocusError) -> Option<Refusal> {
     match error {
         FocusError::Returned | FocusError::OnBlock => None,
         error => Some(Refusal::Focus(error.clone())),
     }
 }
 
-pub(crate) fn secure_notice(snapshot: &Snapshot, entry: &Entry) -> bool {
+pub fn secure_notice(snapshot: &Snapshot, entry: &Entry) -> bool {
     snapshot.secure_desktop() && entry.kind == EntryKind::Display
 }
 
-pub(crate) fn window_id(id: EntryId) -> HostWindowId {
+pub fn window_id(id: EntryId) -> HostWindowId {
     HostWindowId(id.0)
 }
 
-pub(crate) fn entry_id(id: HostWindowId) -> EntryId {
+pub fn entry_id(id: HostWindowId) -> EntryId {
     EntryId(id.0)
 }
 
-pub(crate) fn scale_at(snapshot: &Snapshot, rect: Rect) -> f32 {
+pub fn scale_at(snapshot: &Snapshot, rect: Rect) -> f32 {
     let centre = rect.centre();
     snapshot
         .monitors
@@ -240,7 +240,7 @@ pub(crate) fn scale_at(snapshot: &Snapshot, rect: Rect) -> f32 {
         .max(0.1)
 }
 
-pub(crate) fn host_window(
+pub fn host_window(
     snapshot: &Snapshot,
     entry: &Entry,
     shaping: &Shaping,
@@ -279,7 +279,7 @@ pub(crate) fn host_window(
     }
 }
 
-pub(crate) fn listed(
+pub fn listed(
     snapshot: &Snapshot,
     hidden: &[HostWindowId],
     shaping: &Shaping,
@@ -297,7 +297,7 @@ pub(crate) fn listed(
         .collect()
 }
 
-pub(crate) fn power_availability(
+pub fn power_availability(
     available: be_win32::PowerAvailability,
 ) -> block_plugin_api::PowerAvailability {
     block_plugin_api::PowerAvailability {
@@ -310,7 +310,7 @@ pub(crate) fn power_availability(
     }
 }
 
-pub(crate) fn power_action(action: block_plugin_api::PowerAction) -> be_win32::PowerAction {
+pub fn power_action(action: block_plugin_api::PowerAction) -> be_win32::PowerAction {
     match action {
         block_plugin_api::PowerAction::Lock => be_win32::PowerAction::Lock,
         block_plugin_api::PowerAction::Suspend => be_win32::PowerAction::Suspend,
@@ -320,7 +320,7 @@ pub(crate) fn power_action(action: block_plugin_api::PowerAction) -> be_win32::P
     }
 }
 
-pub(crate) fn host_program(program: &Program, icon: Option<HostImage>) -> HostProgram {
+pub fn host_program(program: &Program, icon: Option<HostImage>) -> HostProgram {
     HostProgram {
         id: program.id.clone(),
         name: program.name.clone(),
@@ -332,7 +332,7 @@ pub(crate) fn host_program(program: &Program, icon: Option<HostImage>) -> HostPr
     }
 }
 
-pub(crate) fn frame_point(frame: Rect, panel: Vec2, local: block_plugin_api::Pos2) -> Point {
+pub fn frame_point(frame: Rect, panel: Vec2, local: block_plugin_api::Pos2) -> Point {
     let along = |at: f32, length: f32, pixels: i32| -> i32 {
         if length <= 0.0 || pixels <= 0 {
             return 0;
@@ -345,7 +345,7 @@ pub(crate) fn frame_point(frame: Rect, panel: Vec2, local: block_plugin_api::Pos
     )
 }
 
-pub(crate) fn popup_rect(frame: Rect, popup: Rect, panel: Vec2) -> block_plugin_api::Rect {
+pub fn popup_rect(frame: Rect, popup: Rect, panel: Vec2) -> block_plugin_api::Rect {
     let across = |length: f32, pixels: i32| match pixels > 0 {
         true => length / pixels as f32,
         false => 0.0,
@@ -361,7 +361,7 @@ pub(crate) fn popup_rect(frame: Rect, popup: Rect, panel: Vec2) -> block_plugin_
     )
 }
 
-pub(crate) fn popup_point(
+pub fn popup_point(
     frame: Rect,
     popup: Rect,
     shown: Vec2,
@@ -372,14 +372,14 @@ pub(crate) fn popup_point(
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum Recovery {
+pub enum Recovery {
     Restart,
     Notice(String),
     Stop,
 }
 
 impl Recovery {
-    pub(crate) fn notice(self) -> Option<String> {
+    pub fn notice(self) -> Option<String> {
         match self {
             Self::Notice(notice) => Some(notice),
             Self::Restart | Self::Stop => None,
@@ -387,7 +387,7 @@ impl Recovery {
     }
 }
 
-pub(crate) fn recovery(failed: Option<&str>, restarted: bool, title: &str) -> Recovery {
+pub fn recovery(failed: Option<&str>, restarted: bool, title: &str) -> Recovery {
     match failed {
         None => Recovery::Stop,
         Some(_) if !restarted => Recovery::Restart,

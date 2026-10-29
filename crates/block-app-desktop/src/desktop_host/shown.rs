@@ -1,13 +1,13 @@
 use block_plugin_api::HostWindowId;
 
 #[derive(Default)]
-pub(crate) struct Shown {
+pub struct Shown {
     hidden: Vec<HostWindowId>,
     changes: u64,
 }
 
 impl Shown {
-    pub(crate) fn set(&mut self, window: HostWindowId, shown: bool) -> bool {
+    pub fn set(&mut self, window: HostWindowId, shown: bool) -> bool {
         let was = !self.hidden.contains(&window);
         if was == shown {
             return false;
@@ -20,15 +20,15 @@ impl Shown {
         true
     }
 
-    pub(crate) fn shown(&self, window: HostWindowId) -> bool {
+    pub fn shown(&self, window: HostWindowId) -> bool {
         !self.hidden.contains(&window)
     }
 
-    pub(crate) fn keep_only(&mut self, listed: &[HostWindowId]) {
+    pub fn keep_only(&mut self, listed: &[HostWindowId]) {
         self.hidden.retain(|hidden| listed.contains(hidden));
     }
 
-    pub(crate) fn changes(&self) -> u64 {
+    pub fn changes(&self) -> u64 {
         self.changes
     }
 }

@@ -26,14 +26,14 @@ thread_local! {
     static PIPELINES: RefCell<Vec<Rc<Pipeline>>> = const { RefCell::new(Vec::new()) };
 }
 
-pub(crate) struct TextureDraw<K: 'static> {
+pub struct TextureDraw<K: 'static> {
     texture: wgpu::Texture,
     _kept: K,
     bound: RefCell<Option<Bound>>,
 }
 
 impl<K: 'static> TextureDraw<K> {
-    pub(crate) fn new(texture: wgpu::Texture, kept: K) -> Self {
+    pub fn new(texture: wgpu::Texture, kept: K) -> Self {
         Self {
             texture,
             _kept: kept,
@@ -42,7 +42,7 @@ impl<K: 'static> TextureDraw<K> {
     }
 }
 
-pub(crate) fn placed(at: &DrawAt) -> Option<([f32; 4], [f32; 4])> {
+pub fn placed(at: &DrawAt) -> Option<([f32; 4], [f32; 4])> {
     let rect = at.rect;
     let clip = [
         at.clip[0].max(rect[0]),

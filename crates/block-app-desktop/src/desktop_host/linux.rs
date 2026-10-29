@@ -63,7 +63,7 @@ fn launched(tag: Option<u64>) -> Launched {
     })
 }
 
-pub(crate) fn create() {
+pub fn create() {
     let windows = Windows::new();
     WINDOWS.set(Some(windows));
 }
@@ -72,7 +72,7 @@ fn windows() -> Option<Windows> {
     WINDOWS.get()
 }
 
-pub(crate) fn start(setup: &Setup) {
+pub fn start(setup: &Setup) {
     let (Some(windows), Some(gpu)) = (windows(), setup.get::<beui_host::native::GpuSetup>()) else {
         return;
     };
@@ -131,7 +131,7 @@ fn with<R>(act: impl FnOnce(&mut Running) -> R) -> Option<R> {
     RUNNING.with(|running| running.borrow_mut().as_mut().map(act))
 }
 
-pub(crate) fn environment() -> Vec<(String, String)> {
+pub fn environment() -> Vec<(String, String)> {
     with(|running| {
         running
             .compositor
@@ -143,11 +143,11 @@ pub(crate) fn environment() -> Vec<(String, String)> {
     .unwrap_or_default()
 }
 
-pub(crate) fn running() -> bool {
+pub fn running() -> bool {
     with(|_| ()).is_some()
 }
 
-pub(crate) fn before(context: &Context, rect: Rect, _document: &mut Document) {
+pub fn before(context: &Context, rect: Rect, _document: &mut Document) {
     with(|running| {
         let monitors: Vec<be_wayland::Monitor> = running
             .displays
@@ -195,7 +195,7 @@ pub(crate) fn before(context: &Context, rect: Rect, _document: &mut Document) {
     });
 }
 
-pub(crate) fn after(context: &Context, document: &mut Document) {
+pub fn after(context: &Context, document: &mut Document) {
     with(|running| {
         running.compositor.after(context, document);
         crate::remap::focus(running.compositor.keyboard_window());
@@ -228,35 +228,35 @@ pub(crate) fn after(context: &Context, document: &mut Document) {
     });
 }
 
-pub(crate) fn set_blank_after(after: Option<Duration>) {
+pub fn set_blank_after(after: Option<Duration>) {
     with(|running| running.compositor.set_blank_after(after));
 }
 
-pub(crate) fn set_lock_after(after: Option<Duration>) {
+pub fn set_lock_after(after: Option<Duration>) {
     with(|running| running.compositor.set_lock_after(after));
 }
 
-pub(crate) fn take_lock_due() -> bool {
+pub fn take_lock_due() -> bool {
     with(|running| std::mem::take(&mut running.lock_noticed)).unwrap_or(false)
 }
 
-pub(crate) fn set_locked(locked: bool) {
+pub fn set_locked(locked: bool) {
     with(|running| running.compositor.set_locked(locked));
 }
 
-pub(crate) fn set_owned(owned: bool) {
+pub fn set_owned(owned: bool) {
     with(|running| running.compositor.set_owned(owned));
 }
 
-pub(crate) fn set_primary_selection(on: bool) {
+pub fn set_primary_selection(on: bool) {
     with(|running| running.compositor.set_primary_selection(on));
 }
 
-pub(crate) fn set_keyboard(keyboard: &be_wayland::KeyboardConfig) -> bool {
+pub fn set_keyboard(keyboard: &be_wayland::KeyboardConfig) -> bool {
     with(|running| running.compositor.set_keyboard(keyboard)).unwrap_or(true)
 }
 
-pub(crate) fn replace_gpu(setup: &Setup) {
+pub fn replace_gpu(setup: &Setup) {
     let Some(gpu) = setup.get::<beui_host::native::GpuSetup>() else {
         return;
     };
@@ -267,14 +267,14 @@ pub(crate) fn replace_gpu(setup: &Setup) {
     });
 }
 
-pub(crate) fn exiting() {
+pub fn exiting() {
     with(|running| running.compositor.exiting());
     let running = RUNNING.with(|running| running.borrow_mut().take());
     drop(running);
     WINDOWS.set(None);
 }
 
-pub(crate) fn revision() -> u64 {
+pub fn revision() -> u64 {
     windows().map_or(0, |windows| windows.revision()) + SHOWN.with(|kept| kept.borrow().changes())
 }
 
@@ -284,15 +284,15 @@ fn set_shown(window: HostWindowId, shown: bool) {
     }
 }
 
-pub(crate) fn show(window: HostWindowId) {
+pub fn show(window: HostWindowId) {
     set_shown(window, true);
 }
 
-pub(crate) fn hide(window: HostWindowId) {
+pub fn hide(window: HostWindowId) {
     set_shown(window, false);
 }
 
-pub(crate) fn listed(hidden: &[HostWindowId]) -> Vec<HostWindow> {
+pub fn listed(hidden: &[HostWindowId]) -> Vec<HostWindow> {
     let Some(windows) = windows() else {
         return Vec::new();
     };
@@ -337,7 +337,7 @@ pub(crate) fn listed(hidden: &[HostWindowId]) -> Vec<HostWindow> {
         .collect()
 }
 
-pub(crate) fn opening_windows() -> Vec<(uuid::Uuid, HostWindowId)> {
+pub fn opening_windows() -> Vec<(uuid::Uuid, HostWindowId)> {
     let Some(windows) = windows() else {
         return Vec::new();
     };
@@ -350,7 +350,7 @@ pub(crate) fn opening_windows() -> Vec<(uuid::Uuid, HostWindowId)> {
         .collect()
 }
 
-pub(crate) fn close(window: HostWindowId) {
+pub fn close(window: HostWindowId) {
     if let Some(windows) = windows() {
         let id = WindowId(window.0);
         windows.close(id);
@@ -361,21 +361,21 @@ pub(crate) fn close(window: HostWindowId) {
     }
 }
 
-pub(crate) fn fullscreen(window: HostWindowId, fullscreen: bool) {
+pub fn fullscreen(window: HostWindowId, fullscreen: bool) {
     if let Some(windows) = windows() {
         windows.request_fullscreen(WindowId(window.0), fullscreen);
         block_app_base::host::wake();
     }
 }
 
-pub(crate) fn focus(window: HostWindowId) {
+pub fn focus(window: HostWindowId) {
     if let Some(windows) = windows() {
         windows.activate(WindowId(window.0));
         block_app_base::host::wake();
     }
 }
 
-pub(crate) fn launch(command: String) -> bool {
+pub fn launch(command: String) -> bool {
     let Some(windows) = windows().filter(|_| running()) else {
         return false;
     };
@@ -384,7 +384,7 @@ pub(crate) fn launch(command: String) -> bool {
     true
 }
 
-pub(crate) fn exec(arguments: Vec<String>, launch: Option<u64>) -> bool {
+pub fn exec(arguments: Vec<String>, launch: Option<u64>) -> bool {
     let Some(windows) = windows().filter(|_| running()) else {
         return false;
     };
@@ -415,14 +415,14 @@ enum Scanned {
     Icons(Vec<(String, HostImage)>),
 }
 
-pub(crate) struct Opener {
-    pub(crate) id: String,
-    pub(crate) name: String,
-    pub(crate) extensions: Vec<String>,
+pub struct Opener {
+    pub id: String,
+    pub name: String,
+    pub extensions: Vec<String>,
 }
 
 #[derive(Default)]
-pub(crate) struct Programs {
+pub struct Programs {
     environment: Environment,
     entries: Vec<DesktopEntry>,
     globs: MimeGlobs,
@@ -434,7 +434,7 @@ pub(crate) struct Programs {
 }
 
 impl Programs {
-    pub(crate) fn scan(&mut self, pixels: u32) {
+    pub fn scan(&mut self, pixels: u32) {
         if self.scanning.is_some() {
             self.rescan = Some(pixels);
             return;
@@ -479,7 +479,7 @@ impl Programs {
         }
     }
 
-    pub(crate) fn receive(&mut self) -> bool {
+    pub fn receive(&mut self) -> bool {
         let Some(receiver) = &self.scanning else {
             return false;
         };
@@ -515,7 +515,7 @@ impl Programs {
         changed
     }
 
-    pub(crate) fn listed(&self) -> Vec<HostProgram> {
+    pub fn listed(&self) -> Vec<HostProgram> {
         let mut room = ICON_BUDGET;
         self.entries
             .iter()
@@ -541,11 +541,11 @@ impl Programs {
             .collect()
     }
 
-    pub(crate) fn scanned(&self) -> bool {
+    pub fn scanned(&self) -> bool {
         self.scanned
     }
 
-    pub(crate) fn openers(&self) -> Vec<Opener> {
+    pub fn openers(&self) -> Vec<Opener> {
         self.entries
             .iter()
             .filter(|entry| !entry.mime_types.is_empty())
@@ -558,7 +558,7 @@ impl Programs {
             .collect()
     }
 
-    pub(crate) fn launch(&mut self, key: &str, launch: Option<u64>) -> bool {
+    pub fn launch(&mut self, key: &str, launch: Option<u64>) -> bool {
         if !self.scanned {
             self.waiting.push((key.to_owned(), launch));
             self.scan(WAITING_ICON_SIZE);
@@ -567,7 +567,7 @@ impl Programs {
         self.run(key, launch, None).is_ok()
     }
 
-    pub(crate) fn open_file(
+    pub fn open_file(
         &mut self,
         key: &str,
         file: &std::path::Path,
@@ -612,7 +612,7 @@ impl Programs {
 }
 
 #[component]
-pub(crate) fn WindowActions() -> NodeId {
+pub fn WindowActions() -> NodeId {
     if let Some(windows) = windows() {
         be_wayland::register_restore_shortcuts(windows);
     }
@@ -622,8 +622,8 @@ pub(crate) fn WindowActions() -> NodeId {
 }
 
 #[component]
-pub(crate) fn WindowSurface(window: HostWindowId) -> NodeId {
-    let occluders = crate::compositor::region::occlusion();
+pub fn WindowSurface(window: HostWindowId) -> NodeId {
+    let occluders = crate::occlusion::occlusion();
     let occluders = create_memo(move || {
         occluders
             .as_ref()

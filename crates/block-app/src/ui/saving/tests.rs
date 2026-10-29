@@ -33,7 +33,7 @@ impl Saving {
         let mut view = None;
         let document = build(|| {
             crate::compositor::install();
-            crate::desktop_host::create();
+            block_app_desktop::desktop_host::create();
             crate::surfaces::create_handles();
             let store = AppViewStore::new(saving(false, 0));
             view = Some(store);

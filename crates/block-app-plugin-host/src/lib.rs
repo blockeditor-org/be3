@@ -20,7 +20,6 @@ mod instances;
 mod pieces;
 mod presenter;
 mod previews;
-mod programs;
 mod published;
 mod runtime;
 mod sent;
@@ -40,7 +39,6 @@ pub use instances::EditorView;
 pub use pieces::uncovered as uncovered_pieces;
 pub use presenter::Piece;
 pub use presenter::Pieces;
-pub use programs::{program_editors, set_program_editors};
 pub use windows::{
     forget_windows, is_overlay, request_windows, serve_overlays, take_window_requests,
 };

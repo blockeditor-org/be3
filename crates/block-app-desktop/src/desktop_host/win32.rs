@@ -107,13 +107,13 @@ fn snapshot() -> Arc<Snapshot> {
     signals().map_or_else(Default::default, |signals| signals.snapshot.get_untracked())
 }
 
-pub(crate) fn create() {
+pub fn create() {
     SIGNALS.set(Some(Signals {
         snapshot: create_signal(Arc::new(Snapshot::default())),
     }));
 }
 
-pub(crate) fn start(setup: &Setup) {
+pub fn start(setup: &Setup) {
     if let Some(gpu) = setup.get::<beui_host::native::GpuSetup>() {
         GPU.set(Some(Gpu {
             device: gpu.device.clone(),
@@ -158,11 +158,11 @@ fn spawn() {
     }));
 }
 
-pub(crate) fn environment() -> Vec<(String, String)> {
+pub fn environment() -> Vec<(String, String)> {
     Vec::new()
 }
 
-pub(crate) fn running() -> bool {
+pub fn running() -> bool {
     HOST.with_borrow(Option::is_some)
 }
 
@@ -259,7 +259,7 @@ fn start_capture(target: Target) -> Result<Capture, String> {
     Capture::start(&device, target, |_| block_app_base::host::wake())
 }
 
-pub(crate) fn before(_context: &Context, rect: Rect, document: &mut Document) {
+pub fn before(_context: &Context, rect: Rect, document: &mut Document) {
     let Some(watcher) = watcher() else {
         return;
     };
@@ -414,15 +414,15 @@ pub(crate) fn before(_context: &Context, rect: Rect, document: &mut Document) {
     });
 }
 
-pub(crate) fn after(_context: &Context, _document: &mut Document) {}
+pub fn after(_context: &Context, _document: &mut Document) {}
 
-pub(crate) fn replace_gpu(setup: &Setup) {
+pub fn replace_gpu(setup: &Setup) {
     CAPTURES.with_borrow_mut(HashMap::clear);
     DEVICE.set(None);
     start(setup);
 }
 
-pub(crate) fn exiting() {
+pub fn exiting() {
     CAPTURES.with_borrow_mut(HashMap::clear);
     DEVICE.set(None);
     let host = HOST.with_borrow_mut(Option::take);
@@ -432,17 +432,17 @@ pub(crate) fn exiting() {
     drop(host);
 }
 
-pub(crate) fn set_owned(owned: bool) {
+pub fn set_owned(owned: bool) {
     if owned {
         spawn();
     }
 }
 
-pub(crate) fn revision() -> u64 {
+pub fn revision() -> u64 {
     watcher().map_or(0, |watcher| watcher.snapshot().revision) + CHANGES.get()
 }
 
-pub(crate) fn listed(hidden: &[HostWindowId]) -> Vec<HostWindow> {
+pub fn listed(hidden: &[HostWindowId]) -> Vec<HostWindow> {
     watcher().map_or_else(Vec::new, |watcher| {
         let snapshot = watcher.snapshot();
         SHAPING.with_borrow_mut(|shaping| {
@@ -452,11 +452,11 @@ pub(crate) fn listed(hidden: &[HostWindowId]) -> Vec<HostWindow> {
     })
 }
 
-pub(crate) fn opening_windows() -> Vec<(uuid::Uuid, HostWindowId)> {
+pub fn opening_windows() -> Vec<(uuid::Uuid, HostWindowId)> {
     Vec::new()
 }
 
-pub(crate) fn close(window: HostWindowId) {
+pub fn close(window: HostWindowId) {
     let snapshot = snapshot();
     let Some(entry) = snapshot.entry(entry_id(window)) else {
         return;
@@ -468,7 +468,7 @@ pub(crate) fn close(window: HostWindowId) {
     }
 }
 
-pub(crate) fn fullscreen(window: HostWindowId, fullscreen: bool) {
+pub fn fullscreen(window: HostWindowId, fullscreen: bool) {
     let Some(watcher) = watcher() else {
         return;
     };
@@ -495,13 +495,13 @@ fn resize(id: EntryId, size: Vec2) {
     }
 }
 
-pub(crate) fn show(window: HostWindowId) {
+pub fn show(window: HostWindowId) {
     if let Some(watcher) = watcher() {
         watcher.show(entry_id(window));
     }
 }
 
-pub(crate) fn hide(window: HostWindowId) {
+pub fn hide(window: HostWindowId) {
     if let Some(watcher) = watcher() {
         watcher.hide(entry_id(window));
     }
@@ -531,7 +531,7 @@ fn focus_entry(id: EntryId, at: Option<be_win32::Point>) {
     }
 }
 
-pub(crate) fn focus(window: HostWindowId) {
+pub fn focus(window: HostWindowId) {
     if let Some(id) = win32_map::shell_focus(window) {
         focus_entry(id, None);
     }
@@ -555,11 +555,11 @@ fn spawn_launch(work: impl FnOnce() -> std::io::Result<be_win32::Launch> + Send 
     }
 }
 
-pub(crate) fn launch(command: String) -> bool {
+pub fn launch(command: String) -> bool {
     exec(be_win32::command_line::split_arguments(&command), None)
 }
 
-pub(crate) fn exec(arguments: Vec<String>, launch: Option<u64>) -> bool {
+pub fn exec(arguments: Vec<String>, launch: Option<u64>) -> bool {
     if !running() || arguments.is_empty() {
         return false;
     }
@@ -568,7 +568,7 @@ pub(crate) fn exec(arguments: Vec<String>, launch: Option<u64>) -> bool {
 }
 
 #[component]
-pub(crate) fn WindowActions() -> NodeId {
+pub fn WindowActions() -> NodeId {
     view! {
         <Frame />
     }
@@ -780,7 +780,7 @@ fn PopupSurface(entry: EntryId, handle: Handle) -> NodeId {
 }
 
 #[component]
-pub(crate) fn WindowSurface(window: HostWindowId) -> NodeId {
+pub fn WindowSurface(window: HostWindowId) -> NodeId {
     let id = entry_id(window);
     let Some(signals) = signals() else {
         return view! {
@@ -919,14 +919,14 @@ enum Scanned {
     Icons(Vec<(String, HostImage)>),
 }
 
-pub(crate) struct Opener {
-    pub(crate) id: String,
-    pub(crate) name: String,
-    pub(crate) extensions: Vec<String>,
+pub struct Opener {
+    pub id: String,
+    pub name: String,
+    pub extensions: Vec<String>,
 }
 
 #[derive(Default)]
-pub(crate) struct Programs {
+pub struct Programs {
     programs: Vec<Program>,
     icons: HashMap<String, HostImage>,
     scanning: Option<Receiver<Scanned>>,
@@ -936,15 +936,15 @@ pub(crate) struct Programs {
 }
 
 impl Programs {
-    pub(crate) fn scanned(&self) -> bool {
+    pub fn scanned(&self) -> bool {
         self.scanned
     }
 
-    pub(crate) fn openers(&self) -> Vec<Opener> {
+    pub fn openers(&self) -> Vec<Opener> {
         Vec::new()
     }
 
-    pub(crate) fn open_file(
+    pub fn open_file(
         &mut self,
         _key: &str,
         _file: &std::path::Path,
@@ -953,7 +953,7 @@ impl Programs {
         Err("Files cannot be opened in Windows programs yet.".to_owned())
     }
 
-    pub(crate) fn scan(&mut self, pixels: u32) {
+    pub fn scan(&mut self, pixels: u32) {
         if self.scanning.is_some() {
             self.rescan = Some(pixels);
             return;
@@ -989,7 +989,7 @@ impl Programs {
         }
     }
 
-    pub(crate) fn receive(&mut self) -> bool {
+    pub fn receive(&mut self) -> bool {
         let Some(receiver) = &self.scanning else {
             return false;
         };
@@ -1023,7 +1023,7 @@ impl Programs {
         changed
     }
 
-    pub(crate) fn listed(&self) -> Vec<HostProgram> {
+    pub fn listed(&self) -> Vec<HostProgram> {
         let mut room = ICON_BUDGET;
         self.programs
             .iter()
@@ -1044,7 +1044,7 @@ impl Programs {
             .collect()
     }
 
-    pub(crate) fn launch(&mut self, key: &str, launch: Option<u64>) -> bool {
+    pub fn launch(&mut self, key: &str, launch: Option<u64>) -> bool {
         if !self.scanned {
             self.waiting.push((key.to_owned(), launch));
             self.scan(WAITING_ICON_SIZE);
@@ -1072,7 +1072,7 @@ thread_local! {
     static POWER: Cell<Option<block_plugin_api::PowerAvailability>> = const { Cell::new(None) };
 }
 
-pub(crate) fn frame() {
+pub fn frame() {
     if !running() {
         return;
     }

@@ -16,20 +16,20 @@ mod win32_overlay;
 mod win32_shape;
 
 #[cfg(target_os = "linux")]
-pub(crate) use linux::{
+pub use linux::{
     Opener, Programs, WindowActions, WindowSurface, after, before, close, create, environment,
     exec, exiting, focus, fullscreen, hide, launch, listed, opening_windows, replace_gpu, revision,
     running, set_blank_after, set_keyboard, set_lock_after, set_locked, set_owned,
     set_primary_selection, show, start, take_lock_due,
 };
 #[cfg(not(any(target_os = "linux", windows)))]
-pub(crate) use unsupported::{
+pub use unsupported::{
     Opener, Programs, WindowActions, WindowSurface, after, before, close, create, environment,
     exec, exiting, focus, fullscreen, hide, launch, listed, opening_windows, replace_gpu, revision,
     running, set_owned, show, start,
 };
 #[cfg(windows)]
-pub(crate) use win32::{
+pub use win32::{
     Opener, Programs, WindowActions, WindowSurface, after, before, close, create, environment,
     exec, exiting, focus, frame, fullscreen, hide, launch, listed, opening_windows, replace_gpu,
     revision, running, set_owned, show, start,

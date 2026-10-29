@@ -8,24 +8,24 @@ use uuid::Uuid;
 const RECORD: &str = ".written";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct Stamp {
+pub struct Stamp {
     len: u64,
     modified: u128,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct OnDisk {
-    pub(crate) path: PathBuf,
-    pub(crate) stamp: Stamp,
+pub struct OnDisk {
+    pub path: PathBuf,
+    pub stamp: Stamp,
 }
 
 #[derive(Debug, PartialEq)]
-pub(crate) struct Placed {
-    pub(crate) disk: OnDisk,
-    pub(crate) taken_back: Option<(String, Vec<u8>)>,
+pub struct Placed {
+    pub disk: OnDisk,
+    pub taken_back: Option<(String, Vec<u8>)>,
 }
 
-pub(crate) fn file_name(file: &PlainFile) -> String {
+pub fn file_name(file: &PlainFile) -> String {
     let name = file.name.as_deref().unwrap_or_default();
     let name = be_block::plain::export_name(name, &file.extension);
     match name.starts_with('.') {
@@ -34,7 +34,7 @@ pub(crate) fn file_name(file: &PlainFile) -> String {
     }
 }
 
-pub(crate) fn stamp(path: &Path) -> Option<Stamp> {
+pub fn stamp(path: &Path) -> Option<Stamp> {
     let metadata = std::fs::metadata(path).ok()?;
     let modified = metadata
         .modified()
@@ -61,7 +61,7 @@ fn recorded(dir: &Path, name: &str) -> Option<Stamp> {
     })
 }
 
-pub(crate) fn record(path: &Path, stamp: Stamp) -> io::Result<()> {
+pub fn record(path: &Path, stamp: Stamp) -> io::Result<()> {
     let (Some(dir), Some(name)) = (path.parent(), path.file_name()) else {
         return Err(io::Error::other("the file has no folder"));
     };
@@ -88,7 +88,7 @@ fn write(path: &Path, bytes: &[u8]) -> io::Result<Stamp> {
     Ok(stamp)
 }
 
-pub(crate) fn place(root: &Path, block: Uuid, file: &PlainFile) -> Result<Placed, String> {
+pub fn place(root: &Path, block: Uuid, file: &PlainFile) -> Result<Placed, String> {
     let dir = root.join(block.to_string());
     let name = file_name(file);
     let path = dir.join(&name);
@@ -128,7 +128,7 @@ pub(crate) fn place(root: &Path, block: Uuid, file: &PlainFile) -> Result<Placed
     placed().map_err(|error| format!("{} could not be written: {error}", path.display()))
 }
 
-pub(crate) fn changed(disk: &OnDisk) -> Option<(String, Vec<u8>, Stamp)> {
+pub fn changed(disk: &OnDisk) -> Option<(String, Vec<u8>, Stamp)> {
     let now = stamp(&disk.path)?;
     if now == disk.stamp {
         return None;

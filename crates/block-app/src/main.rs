@@ -4,15 +4,12 @@ mod arguments;
 mod compositor;
 mod contacts;
 mod debug;
-mod desktop_host;
 mod display;
 mod editors;
 mod frame;
 mod input;
 mod local_settings;
 mod members;
-mod programs;
-mod remap;
 mod root_settings;
 #[cfg(target_os = "linux")]
 mod session;
@@ -306,7 +303,7 @@ impl Shell {
         let mut view = None;
         let mut document = beui_host::native::build(|| {
             compositor::install();
-            desktop_host::create();
+            block_app_desktop::desktop_host::create();
             surfaces::create_handles();
             display::create_handle();
             let store = AppViewStore::new(AppView::default());
@@ -336,7 +333,7 @@ impl beui::native::App for Shell {
         host::install_waker(move || waker.wake());
         host::install_clock(beui::reactive::now);
         block_app_plugin_host::install(setup);
-        desktop_host::start(setup);
+        block_app_desktop::desktop_host::start(setup);
         input::start(setup);
         #[cfg(target_os = "linux")]
         if let Some(problems) = setup.get::<beui_platform_drm::Problems>() {
@@ -345,10 +342,10 @@ impl beui::native::App for Shell {
         #[cfg(target_os = "linux")]
         if self.app.desktop.is_none() && session::owns_a_seat(setup) {
             self.app.desktop = Some(session::DesktopSession::start());
-            session::export_environment(desktop_host::environment());
+            session::export_environment(block_app_desktop::desktop_host::environment());
         }
         display::start(setup);
-        remap::load_cached(self.app.app_state.remapper().unwrap_or_else(|error| {
+        block_app_desktop::remap::load_cached(self.app.app_state.remapper().unwrap_or_else(|error| {
             eprintln!("block-app: the input remapper kept for this session was not read: {error}");
             None
         }));
@@ -359,7 +356,7 @@ impl beui::native::App for Shell {
 
     fn renderer_replaced(&mut self, setup: &beui::native::Setup) {
         block_app_plugin_host::replace_gpu(setup);
-        desktop_host::replace_gpu(setup);
+        block_app_desktop::desktop_host::replace_gpu(setup);
     }
 
     fn update(&mut self, context: &beui::native::Context, rect: beui::Rect) {
@@ -377,7 +374,7 @@ impl beui::native::App for Shell {
             block_app_stack::retry_now();
             self.app.retry_organizations();
         }
-        desktop_host::before(context, rect, &mut self.document);
+        block_app_desktop::desktop_host::before(context, rect, &mut self.document);
         self.app.frame(context);
         self.app.sync_ui_settings();
         if let Some(preferences) = self.app.preferences.take() {
@@ -395,7 +392,7 @@ impl beui::native::App for Shell {
             self.document.open_inspector();
         }
         let view = self.app.view();
-        desktop_host::set_owned(
+        block_app_desktop::desktop_host::set_owned(
             view.screen == ui::Screen::Organization && self.app.shell.is_some(),
         );
         let store = self.view;
@@ -416,7 +413,7 @@ impl beui::native::App for Shell {
         if let Some(lock) = &mut self.app.screen_lock {
             lock.note_drawn(self.document.locked());
         }
-        desktop_host::after(context, &mut self.document);
+        block_app_desktop::desktop_host::after(context, &mut self.document);
         let commands = ui::take_commands();
         if !commands.is_empty() {
             for command in commands {
@@ -444,7 +441,7 @@ impl beui::native::App for Shell {
     }
 
     fn environment(&self) -> Vec<(String, String)> {
-        desktop_host::environment()
+        block_app_desktop::desktop_host::environment()
     }
 
     fn drawing(&self) -> bool {
@@ -473,7 +470,7 @@ impl beui::native::App for Shell {
     }
 
     fn exiting(&mut self) {
-        desktop_host::exiting();
+        block_app_desktop::desktop_host::exiting();
         block_app_plugin_host::exiting();
         display::stop();
         #[cfg(target_os = "linux")]
@@ -560,7 +557,7 @@ struct BlockApp {
     about_open: bool,
     unsent_open: bool,
     discarding_unsent: Option<Uuid>,
-    programs: programs::Programs,
+    programs: block_app_desktop::programs::Programs,
     app_menu: Option<ui::AppMenuView>,
     pending_destructive_action: Option<PendingDestructiveAction>,
     leaving: Option<Uuid>,
@@ -820,7 +817,7 @@ impl BlockApp {
             about_open: false,
             unsent_open: false,
             discarding_unsent: None,
-            programs: programs::Programs::default(),
+            programs: block_app_desktop::programs::Programs::default(),
             app_menu: None,
             pending_destructive_action: None,
             leaving: None,
@@ -916,15 +913,15 @@ impl BlockApp {
             return;
         };
         lock.frame();
-        if desktop_host::take_lock_due() {
+        if block_app_desktop::desktop_host::take_lock_due() {
             lock.lock(session::Trigger::Idle);
         }
         if let Some(desktop) = &mut self.desktop {
             desktop.frame(context, lock);
         }
         let locked = lock.locked();
-        desktop_host::set_locked(locked);
-        remap::set_locked(locked);
+        block_app_desktop::desktop_host::set_locked(locked);
+        block_app_desktop::remap::set_locked(locked);
         block_app_base::watches::publish::<block_plugin_api::ScreenLockedWatch>(&locked);
         if locked {
             self.app_menu = None;
@@ -2216,7 +2213,7 @@ impl BlockApp {
         if self.shell == Some(id) {
             return;
         }
-        programs::close(id);
+        block_app_desktop::programs::close(id);
         self.editors.forget_parent(id);
         self.focus_reports.remove(&id);
         if self.artifact_watches.remove(&id).is_some() {
@@ -2285,19 +2282,19 @@ impl BlockApp {
                 },
             );
         }
-        let hidden = programs::bound_windows();
-        if Some((desktop_host::revision(), hidden.clone())) != self.windows_sent {
-            block_app_base::watches::publish::<block_plugin_api::WindowsWatch>(&desktop_host::listed(&hidden));
-            self.windows_sent = Some((desktop_host::revision(), hidden));
+        let hidden = block_app_desktop::programs::bound_windows();
+        if Some((block_app_desktop::desktop_host::revision(), hidden.clone())) != self.windows_sent {
+            block_app_base::watches::publish::<block_plugin_api::WindowsWatch>(&block_app_desktop::desktop_host::listed(&hidden));
+            self.windows_sent = Some((block_app_desktop::desktop_host::revision(), hidden));
         }
         for action in block_app_base::watches::take_calls(block_plugin_api::requested::window) {
             match action {
-                block_plugin_api::WindowAction::Focus(window) => desktop_host::focus(window),
-                block_plugin_api::WindowAction::Close(window) => desktop_host::close(window),
-                block_plugin_api::WindowAction::Show(window) => desktop_host::show(window),
-                block_plugin_api::WindowAction::Hide(window) => desktop_host::hide(window),
+                block_plugin_api::WindowAction::Focus(window) => block_app_desktop::desktop_host::focus(window),
+                block_plugin_api::WindowAction::Close(window) => block_app_desktop::desktop_host::close(window),
+                block_plugin_api::WindowAction::Show(window) => block_app_desktop::desktop_host::show(window),
+                block_plugin_api::WindowAction::Hide(window) => block_app_desktop::desktop_host::hide(window),
                 block_plugin_api::WindowAction::Fullscreen { window, fullscreen } => {
-                    desktop_host::fullscreen(window, fullscreen);
+                    block_app_desktop::desktop_host::fullscreen(window, fullscreen);
                 }
             }
         }
@@ -2787,11 +2784,11 @@ impl BlockApp {
         self.process_pending_copies();
         self.show_shell();
         #[cfg(windows)]
-        desktop_host::frame();
+        block_app_desktop::desktop_host::frame();
         #[cfg(target_os = "linux")]
         {
             self.take_power_request();
-            remap::frame(&self.app_state);
+            block_app_desktop::remap::frame(&self.app_state);
         }
         self.poll_artifacts();
         self.record_plugins_in_use();

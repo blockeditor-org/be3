@@ -96,7 +96,7 @@ impl Filter {
     }
 }
 
-pub(crate) fn start(control: Option<InputControl>) {
+pub fn start(control: Option<InputControl>) {
     let Some(control) = control else {
         return;
     };
@@ -108,7 +108,7 @@ pub(crate) fn start(control: Option<InputControl>) {
     });
 }
 
-pub(crate) fn load_cached(cached: Option<Vec<u8>>) {
+pub fn load_cached(cached: Option<Vec<u8>>) {
     let Some((wanted, module)) = cached
         .and_then(|cached| decode::<(String, String, Vec<u8>, Vec<u8>)>(&cached).ok())
         .map(|(plugin, module_path, module, config)| {
@@ -128,7 +128,7 @@ pub(crate) fn load_cached(cached: Option<Vec<u8>>) {
     STATE.with_borrow_mut(|state| state.loader.installed(wanted));
 }
 
-pub(crate) fn configure(settings: &InputSettings) {
+pub fn configure(settings: &InputSettings) {
     let chosen = settings.remapper.map(|choice| choice.block);
     let cleared = STATE.with_borrow_mut(|state| {
         if state.chosen == chosen {
@@ -143,7 +143,7 @@ pub(crate) fn configure(settings: &InputSettings) {
     }
 }
 
-pub(crate) fn focus(window: Option<be_wayland::WindowInfo>) {
+pub fn focus(window: Option<be_wayland::WindowInfo>) {
     let window = window.map(|window| Window {
         exe: exe_name(&window.command),
         app_id: window.app_id,
@@ -161,12 +161,12 @@ pub(crate) fn focus(window: Option<be_wayland::WindowInfo>) {
     }
 }
 
-pub(crate) fn set_locked(locked: bool) {
+pub fn set_locked(locked: bool) {
     STATE.with_borrow_mut(|state| state.locked = locked);
     with_remapper(|remapper, _| remapper.set_locked(locked));
 }
 
-pub(crate) fn frame(store: &AppStateStore) {
+pub fn frame(store: &AppStateStore) {
     read_chosen();
     take_fetched();
     if let Some(save) = STATE.with_borrow_mut(|state| state.save.take())

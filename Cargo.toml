@@ -70,6 +70,7 @@ members = [
     "crates/block-accounts-ui",
     "crates/block-app",
     "crates/block-app-base",
+    "crates/block-app-desktop",
     "crates/block-app-plugin-host",
     "crates/block-app-services",
     "crates/block-app-stack",
