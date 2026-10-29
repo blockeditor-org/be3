@@ -1443,7 +1443,9 @@ impl EditorHost {
         matches!(
             shown,
             None | Some(
-                ViewPlacement::Parent(ParentView::Main) | ViewPlacement::Host(HostView::Display(_))
+                ViewPlacement::Parent(ParentView::Main)
+                    | ViewPlacement::Host(HostView::Display(_))
+                    | ViewPlacement::Dock
             )
         )
         .then(|| self.view.get())

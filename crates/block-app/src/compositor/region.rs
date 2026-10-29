@@ -693,7 +693,7 @@ pub(crate) fn PluginRegion(
         let size = state.with_untracked(|view| view.rect.size());
         region.is_main()
             && !placed.contains(local)
-            && block_app_plugin_host::frame_rects(&plugin_id.value(), instance).is_some_and(
+            && block_app_plugin_host::frame_rects(&plugin_id.value(), instance, region.id).is_some_and(
                 |frame| {
                     frame
                         .content(Rect::from_min_size(Pos2::ZERO, size))
@@ -760,6 +760,7 @@ pub(crate) fn PluginRegion(
             (true, Some(placed)) => block_app_plugin_host::frame_rects(
                 &plugin_id.value(),
                 instance,
+                region.id,
             )
             .map_or_else(beui::HitRegion::new, |frame| {
                 let size = state.with(|view| view.rect.size());

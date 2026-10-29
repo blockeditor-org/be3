@@ -349,7 +349,7 @@ fn report_layers(instances: &mut Instances, anchored: Vec<block_plugin_api::Anch
         .expect("the region has a screen");
     instances.set_frame_reports(vec![block_plugin_api::FrameReport {
         screen,
-        content: block_plugin_api::Insets::default(),
+        content: Some(block_plugin_api::Insets::default()),
         painted: Vec::new(),
         floating: Vec::new(),
         floating_painted: Vec::new(),

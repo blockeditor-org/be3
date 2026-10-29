@@ -532,7 +532,11 @@ interface types {
         screen: screen-id,
         /// The content area, as insets from the view's edges, so the host
         /// finds it for the view's current size while that size changes.
-        content: insets,
+        /// `none` when the view holds none of the editor's content (a dock
+        /// bar of its tools, a window of its own): the view that reports
+        /// it is where the editor's camera, its active child taking the
+        /// frame, and its frame's features are.
+        content: option<insets>,
         painted: list<rect>,
         /// Where the view's overlays take input: their content and the
         /// areas their scrims block, clear or not.

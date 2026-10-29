@@ -147,7 +147,7 @@ impl DockState {
         let focused = self.focused_tab() == Some(tab);
         let held: HashSet<TabId> = self.all_tabs().into_iter().collect();
         let group = self.build_group(key, true, root, &|inner| !held.contains(&inner))?;
-        self.forget_tab(tab);
+        self.forget_hosting_tab(tab);
         if let Some(holder) = self.leaf_mut(leaf) {
             holder.entries[index] = Entry::Group(group);
         }
@@ -222,6 +222,30 @@ impl DockState {
         }
         self.normalize();
         self.settle_focus();
+    }
+
+    fn forget_hosting_tab(&mut self, tab: TabId) {
+        self.recent.retain(|other| *other != tab);
+        self.forget_visits(tab);
+        if self.fullscreen.is_some_and(|shown| shown.tab == tab) {
+            self.fullscreen = None;
+        }
+    }
+
+    pub fn hosted_by(&self, tab: TabId) -> Option<GroupId> {
+        let key = joined_key(tab);
+        self.groups
+            .iter()
+            .find(|group| group.key.as_deref() == Some(key.as_str()))
+            .map(|group| group.id)
+    }
+
+    pub fn stands_for(&self, group: GroupId) -> Option<TabId> {
+        let host = joined_host(self.group(group)?.key.as_deref()?)?;
+        let [leaf] = self.tree_leaves(Tree::Group(group))[..] else {
+            return None;
+        };
+        self.is_bare(leaf).then_some(host)
     }
 
     fn forget_tab(&mut self, tab: TabId) {

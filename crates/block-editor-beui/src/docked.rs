@@ -84,6 +84,10 @@ impl DockedTabs {
         editor: Editor,
         frame: ReadSignal<Vec<MenuNode>>,
     ) -> Rc<dyn DockHostLink> {
+        let frame = create_memo(move || match editor.frame_child_menu() {
+            Some(child) => child.get(),
+            None => frame.get(),
+        });
         let link = Rc::new_cyclic(|this| ProtocolLink {
             this: Weak::clone(this),
             host,
@@ -163,6 +167,15 @@ impl DockedTabs {
         }
     }
 
+    pub(crate) fn is_bar(&self, tab: u64) -> bool {
+        self.link.borrow().as_ref().is_some_and(|link| {
+            link.declared
+                .borrow()
+                .as_ref()
+                .is_some_and(|declared| declared.bar(TabId::new(tab)).is_some())
+        })
+    }
+
     pub(crate) fn window_id(&self, tab: u64) -> beui::WindowId {
         *self
             .windows
@@ -230,7 +243,7 @@ struct ProtocolLink {
     bodies: RefCell<Option<DockBodies>>,
     panels: RefCell<HashMap<TabId, Panel>>,
     menus: OwnedSignal<DockMenus>,
-    frame: ReadSignal<Vec<MenuNode>>,
+    frame: Memo<Vec<MenuNode>>,
     declared: RefCell<Option<DockDeclaration>>,
     watched: Cell<Option<Memo<Option<DockHosted>>>>,
     empties: RefCell<HashMap<String, u64>>,

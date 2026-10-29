@@ -159,8 +159,12 @@ impl<A: BeuiApp> Parts<A> {
         let tabs = Rc::clone(&self.docked);
         RenderFn::new(move |_: WindowHandle| {
             let tabs = Rc::clone(&tabs);
+            let clear = match tabs.is_bar(tab) {
+                true => beui::styled::ColorRole::None,
+                false => beui::styled::ColorRole::Background,
+            };
             beui::reactive::view! {
-                <beui::styled::Root clear_color=beui::styled::ColorRole::None>
+                <beui::styled::Root clear_color=clear>
                     <DockedTabBody tabs tab />
                 </beui::styled::Root>
             }

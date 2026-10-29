@@ -43,10 +43,11 @@ fn a_focused_beui_childs_reported_content_is_its_own_canvas_not_the_whole_view()
     let report = session
         .report(ViewId::MAIN)
         .expect("the frame region reports its content rect");
+    let content = report.content.expect("the frame holds the content");
 
     assert!(
-        report.content.left >= 99.0,
+        content.left >= 99.0,
         "expected the reported content to start after the sidebar, got {:?}",
-        report.content
+        content
     );
 }

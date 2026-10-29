@@ -47,7 +47,7 @@ fn committed(children: ChildPlacements) -> FrameCommit {
 fn report(screen: u64, anchored: Vec<AnchoredView>) -> FrameReport {
     FrameReport {
         screen: ScreenId(screen),
-        content: Insets::default(),
+        content: Some(Insets::default()),
         painted: Vec::new(),
         floating: Vec::new(),
         floating_painted: Vec::new(),

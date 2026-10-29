@@ -524,10 +524,27 @@ A bar action of a docked child whose dock the host spliced (its frame is not
 shown), such as asking for its details, reaches its placer as a `child-bar` as
 if from its frame.
 
+An editor's features belong to the view that holds its content, not to view
+0. That view is the one whose frame report gives `content` (insets); a view
+holding none of the editor's content, such as a bar of its tools or a window
+of its own, reports `none`, and so does a docked main view whose content is in
+a dock tab. The host hands the camera to the view holding the content
+(`view-changed`, `change-view`), shows a child that takes the frame over (an
+`active` or `live` child placed without `own-frame`) over that view, and says
+whether the instance's chrome is drawn through that view's `frame` (a dock
+view holding the content is requested with one; the chrome of a docked main
+view counts for nothing). A child placed in a dock tab's body with
+`own-frame` joins the dock (`child-placement.docks`); a child placed anywhere
+else, such as a card on a canvas, draws its dock itself. A docked editor's
+tab carries its menu: its frame menu, or the menu of the child that took its
+frame over. A root showing a joined group of one bare pane in place of the tab
+that hosts it shows that group as the tab: the tab's title, icon, lock and
+close, and the bare pane's tab's menu followed by the hosting tab's.
+
 A frame surface is transparent wherever its owner does not paint, so whatever
 the host draws beneath shows through there. The plugin publishes, with every
 frame that laid it out again, the content area it laid out, as insets from
-the frame's edges, and the rectangles it painted and the rectangles its
+the frame's edges (or `none` where the view holds no content), and the rectangles it painted and the rectangles its
 floating layers took, in the frame's own logical coordinates. The host works
 out the view it hands a pan-and-zoom editor against the content area those
 insets leave of the frame's current size, so a frame resized since the

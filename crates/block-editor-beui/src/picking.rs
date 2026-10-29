@@ -179,15 +179,32 @@ fn PickerPopover(editor: Editor, picking: Picking) -> NodeId {
     let own = use_window();
     let viewport = use_viewport_size();
     let content_size = create_memo(move || size.get().unwrap_or(UNSIZED));
+    let window = match picking.0.anchor {
+        PickAnchor::Node(node) => node.try_get().map(window_of),
+        _ => None,
+    }
+    .or(own.map(|handle| handle.id));
+    let area = create_memo(move || {
+        let shown = Rect::from_min_size(Pos2::ZERO, viewport.get());
+        window
+            .filter(|window| own.is_none_or(|own| own.id != *window))
+            .and_then(|window| {
+                beui::native::try_with_document(|document| {
+                    document.context()?.layer_space(window).map(|space| space.area())
+                })
+                .flatten()
+            })
+            .unwrap_or(shown)
+    });
     let hung = create_memo(move || match (sheet, card.get()) {
         (true, _) => Hung {
             window: Rect::from_min_size(Pos2::ZERO, viewport.get()),
             pointing: None,
         },
-        (false, true) => card_hung(anchor, content_size.get(), viewport.get()),
+        (false, true) => card_hung(anchor, content_size.get(), area.get()),
         (false, false) => Hung {
             window: Rect::from_min_size(
-                hang(anchor, content_size.get(), viewport.get()),
+                hang(anchor, content_size.get(), area.get()),
                 content_size.get(),
             ),
             pointing: None,
@@ -199,11 +216,6 @@ fn PickerPopover(editor: Editor, picking: Picking) -> NodeId {
     });
     let shown = create_memo(move || hung.get().window.size());
     let at = create_memo(move || hung.get().window.min);
-    let window = match picking.0.anchor {
-        PickAnchor::Node(node) => node.try_get().map(window_of),
-        _ => None,
-    }
-    .or(own.map(|handle| handle.id));
     let placement = create_memo(move || match window {
         Some(window) => WindowPlacement::Over {
             window,
@@ -272,21 +284,21 @@ struct Hung {
     pointing: Option<Pointing>,
 }
 
-fn card_hung(anchor: Option<Rect>, content: Vec2, viewport: Vec2) -> Hung {
+fn card_hung(anchor: Option<Rect>, content: Vec2, area: Rect) -> Hung {
     let margin = f32::from(CARD_MARGIN);
     let face = content + Vec2::splat(2.0 * CARD_INSET);
     let Some(anchor) = anchor else {
         return Hung {
-            window: Rect::from_min_size(hang(None, face, viewport), face),
+            window: Rect::from_min_size(hang(None, face, area), face),
             pointing: None,
         };
     };
     let reach = f32::from(CARD_GAP) - CARD_POINTER;
     let x = (anchor.center().x - face.x / 2.0)
-        .min(viewport.x - face.x - margin)
-        .max(margin.min(viewport.x - face.x).max(0.0));
-    let below = anchor.max.y + reach + face.y <= viewport.y - margin;
-    let above = anchor.min.y - reach - face.y >= margin;
+        .min(area.max.x - face.x - margin)
+        .max((area.min.x + margin).min(area.max.x - face.x).max(area.min.x));
+    let below = anchor.max.y + reach + face.y <= area.max.y - margin;
+    let above = anchor.min.y - reach - face.y >= area.min.y + margin;
     let (y, side) = match (below, above) {
         (false, true) => (anchor.min.y - reach - face.y, PointerSide::Bottom),
         _ => (anchor.max.y + reach, PointerSide::Top),
@@ -300,18 +312,18 @@ fn card_hung(anchor: Option<Rect>, content: Vec2, viewport: Vec2) -> Hung {
     }
 }
 
-fn hang(anchor: Option<Rect>, size: Vec2, viewport: Vec2) -> Pos2 {
+fn hang(anchor: Option<Rect>, size: Vec2, area: Rect) -> Pos2 {
     let Some(anchor) = anchor else {
         return Pos2::new(
-            ((viewport.x - size.x) / 2.0).max(0.0),
-            ((viewport.y - size.y) / 2.0).max(0.0),
+            area.min.x + ((area.width() - size.x) / 2.0).max(0.0),
+            area.min.y + ((area.height() - size.y) / 2.0).max(0.0),
         );
     };
-    let below = anchor.max.y + size.y <= viewport.y;
-    let above = anchor.min.y - size.y >= 0.0;
+    let below = anchor.max.y + size.y <= area.max.y;
+    let above = anchor.min.y - size.y >= area.min.y;
     let y = match (below, above) {
         (false, true) => anchor.min.y - size.y,
         _ => anchor.max.y,
     };
-    Pos2::new(anchor.min.x.max(0.0), y)
+    Pos2::new(anchor.min.x.max(area.min.x), y)
 }

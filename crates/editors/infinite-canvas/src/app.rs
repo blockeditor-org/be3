@@ -5,7 +5,7 @@ use block_editor_beui::Loaded;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::Vec2;
 use block_editor_beui::beui::dock::styled::{DockBar, DockPane, DockTab, Docking, DockingLayout};
-use block_editor_beui::beui::dock::unstyled::{DockBarPlacement, DockEdge, DockHostSlot};
+use block_editor_beui::beui::dock::unstyled::{DockBarPlacement, DockEdge};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::{Creation, Editor};
@@ -108,7 +108,6 @@ fn CanvasEditor(editor: Editor) -> NodeId {
     let open = tools_open(state, chrome);
     let bar_size = create_signal(Vec2::ZERO);
     let layout = DockingLayout::<&'static str>::new();
-    provide_context(DockHostSlot::new(None));
     view! {
         <Docking layout>
             <DockPane id="canvas" bare=true>

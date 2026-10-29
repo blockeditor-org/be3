@@ -177,6 +177,7 @@ fn SubregionView(
         .as_ref()
         .map(|docked| docked.tab().value())
         .or_else(|| join.as_ref().map(|join| join.host().value()));
+    let claims = claims && own_frame.get_untracked();
     let (docks, link) = match (claims, &docked, &join) {
         (false, _, _) => (false, None),
         (true, Some(docked), _) => (docked.claim_body(), None),
@@ -222,6 +223,17 @@ fn SubregionView(
         }
     });
     let menu = create_memo(move || nodes.get());
+    let framing = create_memo(move || {
+        state.with(|state| state.active && !state.menu.is_empty())
+            && matches!(mode.get(), ChildMode::Active | ChildMode::Live)
+            && !own_frame.get()
+    });
+    let key = framing_key();
+    create_effect(move || {
+        let taken = framing.get().then_some(menu);
+        untrack(|| editor.hold_frame_child_menu(key, taken));
+    });
+    on_cleanup(move || editor.hold_frame_child_menu(key, None));
     let handle = ChildHandle { state, menu };
     let picture = view! {
         <PreviewPicture editor={editor} placed={placed} preview={preview} turn={turn} fade={fade} />
@@ -478,4 +490,15 @@ impl MenuMirror {
             })
             .collect()
     }
+}
+
+fn framing_key() -> u64 {
+    thread_local! {
+        static NEXT: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+    }
+    NEXT.with(|next| {
+        let key = next.get() + 1;
+        next.set(key);
+        key
+    })
 }

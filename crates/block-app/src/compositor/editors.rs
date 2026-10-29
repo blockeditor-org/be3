@@ -9,18 +9,18 @@ use beui::native::with_document;
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{
-    Color32, Dismiss, Key, KeyEvent, NodeId, Pos2, Rect, ScrollGesture, Vec2, ZoomGesture, vec2,
+    Color32, Dismiss, Key, KeyEvent, NodeId, Pos2, Rect, Vec2, vec2,
 };
 use block_plugin_api::{
     BarAction, ChildId, ChildMode, ChildPreview, CreationProgress, DialogFrame, DialogStatus,
-    EditorInstanceId, FitArea, FrameChrome, FrameSpec, HostPanel, HostWindowId, PanMode,
-    ParentView, TopBar, View, ViewChange, ViewId,
+    EditorInstanceId, FrameChrome, FrameSpec, HostPanel, HostWindowId, PanMode,
+    ParentView, TopBar, View, ViewId,
 };
 use uuid::Uuid;
 
 use block_app_desktop::desktop_host::WindowSurface;
 
-use super::region::{ChildView, PanDrag, PluginRegion, RegionEditor};
+use super::region::{ChildView, PluginRegion, RegionEditor};
 use crate::editors::plugin::{InstanceSource, PluginPicker};
 use crate::editors::{
     Chrome, EditorRegistry, PendingCreation, PluginEditor, editor_access_ceiling,
@@ -29,10 +29,8 @@ use crate::surfaces::{ConflictNotice, HostedRegion, HostedSurface, StaleBlock, S
 use crate::ui::HostPanelSurface;
 use beui::{Align, Direction, ItemSize, Placement};
 use block_app_desktop::host_item::{HostItem, HostItemFace};
-use block_app_plugin_host::{ChildCommit, EditorView, HostChild, HostChildStatus, HostContent};
+use block_app_plugin_host::{ChildCommit, HostChild, HostChildStatus, HostContent};
 
-const MIN_ZOOM: f32 = 1.0 / 64.0;
-const MAX_ZOOM: f32 = 32.0;
 const CHILD_UNAVAILABLE: &str = "the block is already open above this editor";
 const NO_PICKER: &str = "No editor can pick blocks here.";
 
@@ -883,11 +881,42 @@ fn TabFrame(
     top_bar: Prop<TopBar>,
     #[prop(default = ChildReporter::default())] reporter: ChildReporter,
 ) -> NodeId {
+    view! {
+        <FrameStack block top_bar holds=Prop::Static(true)>|stack: Memo<Vec<Uuid>>| {
+            let chrome = create_memo(move || match stack.get().is_empty() {
+                true => Chrome::Drawn,
+                false => Chrome::None,
+            });
+            view! {
+                <BlockFrame
+                    block
+                    chrome={chrome}
+                    content=None
+                    top_bar={top_bar}
+                    embedded=false
+                    passive=false
+                    reporter
+                />
+            }
+        }</FrameStack>
+    }
+}
+
+#[component]
+fn FrameStack(
+    block: Uuid,
+    top_bar: Prop<TopBar>,
+    holds: Prop<bool>,
+    #[prop(children)] body: RenderFn<Memo<Vec<Uuid>>, NodeId>,
+) -> NodeId {
     let editors = editors();
     let any = super::any();
     let stack = create_memo(move || {
         any.get();
         let mut stack = Vec::new();
+        if !holds.get() {
+            return stack;
+        }
         let mut next = frame_child(&editors, block);
         while let Some(id) = next {
             if id == block || stack.contains(&id) {
@@ -923,21 +952,10 @@ fn TabFrame(
                 .collect::<Vec<_>>()
         })
     });
-    let chrome = create_memo(move || match stack.get().is_empty() {
-        true => Chrome::Drawn,
-        false => Chrome::None,
-    });
+    let body = body.call(stack);
     view! {
         <Layers>
-            <BlockFrame
-                block
-                chrome={chrome}
-                content=None
-                top_bar={top_bar}
-                embedded=false
-                passive=false
-                reporter
-            />
+            {body}
             <ForEach keys={shown}>|id: Uuid| {
                 let node = create_memo(move || {
                     portals.with(|held| {
@@ -995,85 +1013,8 @@ fn revoke_frame_child(editors: &Editors, block: Uuid) {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-struct Viewport {
-    zoom: f32,
-    pan: Vec2,
-    moved: bool,
-}
-
-impl Default for Viewport {
-    fn default() -> Self {
-        Self {
-            zoom: 1.0,
-            pan: Vec2::ZERO,
-            moved: false,
-        }
-    }
-}
-
-impl Viewport {
-    fn shown(self, area: Rect, content: Vec2) -> Rect {
-        Rect::from_center_size(area.center() + self.pan, content * self.zoom)
-    }
-}
-
-thread_local! {
-    static VIEWPORTS: RefCell<HashMap<Uuid, Viewport>> = RefCell::new(HashMap::new());
-}
-
-#[derive(Clone, Copy)]
-struct CameraOwner(Callback<Command>);
-
-#[derive(Clone, Copy)]
-enum Command {
-    Pan(Vec2),
-    Zoom { factor: f32, anchor: Option<Pos2> },
-}
-
-fn settle(viewport: &mut Viewport, command: Command, rect: Rect, max_zoom: f32) {
-    match command {
-        Command::Pan(delta) => {
-            viewport.pan += delta;
-            viewport.moved = true;
-        }
-        Command::Zoom { factor, anchor } => {
-            zoom(
-                viewport,
-                factor,
-                anchor.unwrap_or_else(|| rect.center()),
-                rect,
-                max_zoom,
-            );
-            viewport.moved = true;
-        }
-    }
-}
-
-fn follow(
-    viewport: &mut Viewport,
-    area: Option<FitArea>,
-    rect: Rect,
-    content: Vec2,
-    max_zoom: f32,
-) {
-    let Some(area) = area.filter(|_| !viewport.moved) else {
-        return;
-    };
-    let (scale, centre) = area.fit(content, rect.size());
-    viewport.zoom = scale.clamp(MIN_ZOOM, max_zoom);
-    viewport.pan = (content * 0.5 - centre.to_vec2()) * viewport.zoom;
-}
-
-fn zoom(viewport: &mut Viewport, factor: f32, anchor: Pos2, rect: Rect, max_zoom: f32) {
-    let old = viewport.zoom;
-    let new = (old * factor).clamp(MIN_ZOOM, max_zoom);
-    if new != old {
-        let offset = anchor - rect.center();
-        viewport.pan = offset - (offset - viewport.pan) * (new / old);
-        viewport.zoom = new;
-    }
-}
+mod camera;
+use camera::{Camera, CameraSpec, CameraView};
 
 #[component]
 fn BlockFrame(
@@ -1387,138 +1328,22 @@ fn BlockFrameView(
         block_app_plugin_host::hold(&plugin_id.value(), instance, ViewId::MAIN);
     });
     let revision = super::listen(&plugin_id.value());
-    let rect_held = create_signal(Rect::ZERO);
-    let rect = rect_held.read_only();
     let read_only = !access.can_edit();
     let placed = embedded || content.get_untracked().is_some();
-    let pan_and_zoom = handle.pan_and_zoom && !placed;
-    let max_zoom = handle.max_zoom.map_or(MAX_ZOOM, |zoom| zoom as f32);
-    let viewport = create_signal(
-        VIEWPORTS
-            .with(|viewports| viewports.borrow().get(&block).copied())
-            .unwrap_or_default(),
-    );
-    create_effect(move || {
-        let state = viewport.get();
-        VIEWPORTS.with(|viewports| viewports.borrow_mut().insert(block, state));
-    });
-    let viewport_rect = create_memo(move || {
-        revision.get();
-        let rect = rect.get();
-        block_app_plugin_host::frame_rects(&plugin_id.value(), instance)
-            .map(|frame| frame.content(rect))
-            .filter(Rect::is_positive)
-            .unwrap_or(rect)
-    });
-    let content_size = create_memo(move || {
-        revision.get();
-        let size = viewport_rect.get().size().max(Vec2::splat(1.0));
-        let intrinsic = block_app_plugin_host::intrinsic_size(&plugin_id.value(), instance)
-            .unwrap_or(vec2(420.0, 240.0));
-        vec2(size.x.max(intrinsic.x), size.y.max(intrinsic.y))
-    });
-    let content_rect = create_memo(move || {
-        viewport
-            .get()
-            .shown(viewport_rect.get(), content_size.get())
-    });
-    let editor_view = create_memo(move || {
-        if !handle.pan_and_zoom {
-            return None;
-        }
-        let origin = rect.get().min;
-        if !placed {
-            let state = viewport.get();
-            return Some(EditorView {
-                rect: content_rect.get().translate(-origin.to_vec2()),
-                scale: state.zoom,
-            });
-        }
-        revision.get();
-        let shown = content.get().unwrap_or(rect.get());
-        let scale = block_app_plugin_host::intrinsic_size(&plugin_id.value(), instance)
-            .filter(|intrinsic| intrinsic.x > 0.0 && intrinsic.y > 0.0)
-            .map_or(1.0, |intrinsic| {
-                (shown.width() / intrinsic.x).min(shown.height() / intrinsic.y)
-            });
-        Some(EditorView {
-            rect: shown.translate(-origin.to_vec2()),
-            scale,
-        })
-    });
-    let fitted = create_signal(None::<FitArea>);
-    let fit = move || {
-        if !pan_and_zoom {
-            return;
-        }
-        let mut state = viewport.get_untracked();
-        state.moved = false;
-        follow(
-            &mut state,
-            fitted.get_untracked(),
-            viewport_rect.get_untracked(),
-            content_size.get_untracked(),
-            max_zoom,
-        );
-        if state != viewport.get_untracked() {
-            viewport.set(state);
-        }
+    let spec = CameraSpec {
+        block,
+        plugin_id,
+        instance,
+        view: ViewId::MAIN,
+        pan_and_zoom: handle.pan_and_zoom,
+        max_zoom: handle.max_zoom,
+        pan: handle.pan,
+        placed,
+        read_only,
+        revision,
     };
-    let owner = use_context::<CameraOwner>();
-    let command = move |command: Command| {
-        if !pan_and_zoom {
-            if let (Some(owner), true) = (owner, handle.pan_and_zoom) {
-                owner.0.call(command);
-            }
-            return;
-        }
-        let mut state = viewport.get_untracked();
-        settle(&mut state, command, viewport_rect.get_untracked(), max_zoom);
-        if state != viewport.get_untracked() {
-            viewport.set(state);
-        }
-    };
-    if pan_and_zoom {
-        provide_context(CameraOwner(Callback::new(command)));
-    }
-    create_effect(move || {
-        if !pan_and_zoom {
-            return;
-        }
-        let rect = viewport_rect.get();
-        let content = content_size.get();
-        let area = fitted.get().filter(|_| chrome.get() == Chrome::Drawn);
-        let mut state = viewport.get_untracked();
-        follow(&mut state, area, rect, content, max_zoom);
-        if state != viewport.get_untracked() {
-            viewport.set(state);
-        }
-    });
-    let pan_drags = create_signal(0u64);
     create_effect(move || {
         revision.get();
-        let rect = rect.get_untracked();
-        for change in block_app_plugin_host::take_view_changes(&plugin_id.value(), instance) {
-            command(match change {
-                ViewChange::Pan(by) => Command::Pan(by),
-                ViewChange::Zoom { factor, anchor } => Command::Zoom {
-                    factor,
-                    anchor: anchor.map(|at| rect.min + at.to_vec2()),
-                },
-                ViewChange::KeepFitted(area) => {
-                    fitted.set(area);
-                    continue;
-                }
-                ViewChange::Fit => {
-                    fit();
-                    continue;
-                }
-                ViewChange::PanDrag => {
-                    pan_drags.update(|asked| *asked += 1);
-                    continue;
-                }
-            });
-        }
         let actions = block_app_plugin_host::take_bar_actions(&plugin_id.value(), instance);
         for action in actions {
             on_bar_action.call(action);
@@ -1532,117 +1357,53 @@ fn BlockFrameView(
             }
         });
     }
-    let frame = create_memo(move || {
-        let origin = rect.get().min;
-        Some(FrameSpec {
-            chrome: match chrome.get() {
-                Chrome::Drawn => FrameChrome::Drawn,
-                Chrome::None => FrameChrome::None,
-            },
-            content: content
-                .get()
-                .map(|content| content.translate(-origin.to_vec2())),
-            top_bar: top_bar.get(),
-            dialog: None,
-        })
-    });
-    let gestures =
-        handle.pan != PanMode::None && (pan_and_zoom || owner.is_some() && handle.pan_and_zoom);
-    let pan_drag = (gestures && handle.pan == PanMode::OneFinger).then(|| PanDrag {
-        asked: pan_drags.read_only(),
-        pan: Callback::new(move |delta: Vec2| command(Command::Pan(delta))),
-    });
-    let steered =
-        create_memo(move || (!read_only && !handle.pan_and_zoom).then(|| content_rect.get()));
-    let scroll = move |gesture: ScrollGesture| {
-        if !gestures
-            || steered
-                .get_untracked()
-                .is_some_and(|rect| rect.contains(gesture.pos))
-        {
-            return;
-        }
-        match gesture.modifiers.ctrl && gesture.delta.y != 0.0 {
-            true => command(Command::Zoom {
-                factor: (gesture.delta.y * 0.002).exp(),
-                anchor: Some(gesture.pos),
-            }),
-            false => command(Command::Pan(gesture.delta)),
-        }
-    };
-    let zoom = move |gesture: ZoomGesture| {
-        if gestures {
-            command(Command::Zoom {
-                factor: gesture.factor,
-                anchor: Some(gesture.pos),
-            });
-        }
-    };
-    let pan = move |delta: Vec2| {
-        if gestures {
-            command(Command::Pan(delta));
-        }
-    };
-    let gesture_area = create_memo(move || {
-        if !gestures {
-            return beui::Area::Nowhere;
-        }
-        revision.get();
-        let origin = rect.get().min.to_vec2();
-        let mut area = beui::HitRegion::rect(viewport_rect.get().translate(-origin));
-        if let Some(steered) = steered.get() {
-            area = area.without(steered.translate(-origin));
-        }
-        if let Some(frame) = block_app_plugin_host::frame_rects(&plugin_id.value(), instance) {
-            for floating in frame.floating {
-                area = area.without(floating);
-            }
-        }
-        beui::Area::Within(area)
-    });
-    let recognised = beui::unstyled::gestures::pan_zoom(pan, zoom);
-    let placed_zoom = create_memo(move || {
-        if handle.pan_and_zoom || !embedded || content.get().is_some() {
-            return 1.0;
-        }
-        revision.get();
-        let shown = rect.get();
-        block_app_plugin_host::assigned_size(&plugin_id.value(), instance)
-            .filter(|assigned| assigned.x > 0.0 && assigned.y > 0.0)
-            .map_or(1.0, |assigned| {
-                (shown.width() / assigned.x).min(shown.height() / assigned.y)
-            })
-    });
+    let fits = create_memo(move || chrome.get() == Chrome::Drawn);
+    let zoomable = handle.pan_and_zoom;
     let child_view = child_view(block, View::MAIN);
-    let built = view! {
-        <Interactive
-            on_wheel={beui::unstyled::gestures::first_of([
-                recognised.wheel,
-                beui::unstyled::gestures::scroll_wheel(None, scroll),
-            ])}
-            on_pointer={recognised.pointer}
-            gesture_area={gesture_area}
-        >
-            <PluginRegion
-                editor={region_editor}
-                region=View::MAIN
-                frame={frame}
-                view={editor_view}
-                zoom={placed_zoom}
-                passive={passive}
-                pan_drag
-                on_focus
-                child_view
-            />
-        </Interactive>
-    };
-    let rect_measured = measure(built);
-    create_effect(move || {
-        if let Some(measured) = rect_measured.get() {
-            rect_held.set(measured.rect);
-        }
-    });
-    built
+    view! {
+        <Camera spec content fits={fits}>|camera: CameraView| {
+            let CameraView { view: editor_view, pan_drag, rect } = camera;
+            let frame = create_memo(move || {
+                let origin = rect.get().min;
+                Some(FrameSpec {
+                    chrome: match chrome.get() {
+                        Chrome::Drawn => FrameChrome::Drawn,
+                        Chrome::None => FrameChrome::None,
+                    },
+                    content: content
+                        .get()
+                        .map(|content| content.translate(-origin.to_vec2())),
+                    top_bar: top_bar.get(),
+                    dialog: None,
+                })
+            });
+            let placed_zoom = create_memo(move || {
+                if zoomable || !embedded || content.get().is_some() {
+                    return 1.0;
+                }
+                revision.get();
+                let shown = rect.get();
+                block_app_plugin_host::assigned_size(&plugin_id.value(), instance)
+                    .filter(|assigned| assigned.x > 0.0 && assigned.y > 0.0)
+                    .map_or(1.0, |assigned| {
+                        (shown.width() / assigned.x).min(shown.height() / assigned.y)
+                    })
+            });
+            view! {
+                <PluginRegion
+                    editor={region_editor.clone()}
+                    region=View::MAIN
+                    frame={frame}
+                    view={editor_view}
+                    zoom={placed_zoom}
+                    passive={passive}
+                    pan_drag
+                    on_focus
+                    child_view
+                />
+            }
+        }</Camera>
+    }
 }
 
 pub(super) fn child_view(parent: Uuid, region: View) -> ChildView {
@@ -2006,20 +1767,68 @@ fn HostedChild(
 fn DockTabSurface(block: Uuid, tab: u64, reporter: ChildReporter) -> NodeId {
     let editors = editors();
     let nesting = use_context::<Nesting>().unwrap_or_else(Nesting::root);
-    let Some(region_editor) = editors
+    let Some((handle, region_editor)) = editors
         .handle(block)
-        .and_then(|handle| editors.region(&handle))
+        .and_then(|handle| Some((handle.clone(), editors.region(&handle)?)))
     else {
         return view! {
             <Frame />
         };
     };
+    let access = editors.access(block, nesting.access);
     provide_context(FocusedWithin(reporter.focus));
-    provide_context(nesting.within(block, editors.access(block, nesting.access)));
+    provide_context(nesting.within(block, access));
     let region = View::dock(ViewId(tab));
+    let plugin_id = store(region_editor.plugin_id().to_owned());
+    let instance = region_editor.instance;
+    let revision = super::listen(&plugin_id.value());
+    let holds = create_memo(move || {
+        revision.get();
+        block_app_plugin_host::content_view(&plugin_id.value(), instance) == region.id
+    });
+    let spec = CameraSpec {
+        block,
+        plugin_id,
+        instance,
+        view: region.id,
+        pan_and_zoom: handle.pan_and_zoom,
+        max_zoom: handle.max_zoom,
+        pan: handle.pan,
+        placed: false,
+        read_only: !access.can_edit(),
+        revision,
+    };
     let child_view = child_view(block, region);
+    let on_focus = reporter.focus;
     view! {
-        <PluginRegion editor={region_editor} region child_view on_focus={reporter.focus} />
+        <FrameStack block top_bar=TopBar::Hidden holds={holds}>|stack: Memo<Vec<Uuid>>| {
+            let region_editor = region_editor.clone();
+            let frame = create_memo(move || {
+                holds.get().then(|| FrameSpec {
+                    chrome: match stack.get().is_empty() {
+                        true => FrameChrome::Drawn,
+                        false => FrameChrome::None,
+                    },
+                    ..FrameSpec::default()
+                })
+            });
+            view! {
+                <Camera spec>|camera: CameraView| {
+                    let CameraView { view: editor_view, pan_drag, .. } = camera;
+                    view! {
+                        <PluginRegion
+                            editor={region_editor.clone()}
+                            region
+                            frame={frame}
+                            view={editor_view}
+                            pan_drag
+                            child_view
+                            on_focus
+                        />
+                    }
+                }</Camera>
+            }
+        }</FrameStack>
     }
 }
 

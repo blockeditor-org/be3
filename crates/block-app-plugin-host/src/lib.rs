@@ -54,7 +54,7 @@ pub use runtime::{
 pub use runtime::{
     artifact, artifact_draft, aspect_ratio, assigned_size, busy, card, close, commit_creation,
     crash, creation, dialog_status, dismiss, drawing, flush, forget_dialog_answer, frame_child,
-    frame_placement, frame_rects, hold, in_use, install, intrinsic_size, kill, menu, menu_pick,
+    content_view, frame_placement, frame_rects, hold, in_use, install, intrinsic_size, kill, menu, menu_pick,
     picked, poll, present, presenting, preview_image, reanchor, record_pacing, regenerate_artifact,
     region_placement, region_size, replace_child, replace_gpu, report_child_bars,
     report_child_focus, report_children, request_painting, resized, revoke_frame_child, running,

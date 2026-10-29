@@ -609,6 +609,16 @@ pub(super) fn resolve(placer: EditorInstanceId, path: &DockTabPath) -> Option<(U
     DOCKS.with(|docks| docks.borrow().resolve(placer, path))
 }
 
+pub(super) fn is_bar(instance: EditorInstanceId, view: u64) -> bool {
+    DOCKS.with(|docks| {
+        docks
+            .borrow()
+            .declared
+            .get(&instance)
+            .is_some_and(|declaration| declaration.bar(&DockTabPath::own(view)).is_some())
+    })
+}
+
 pub(super) fn bar(instance: EditorInstanceId, action: BarAction) -> bool {
     with(|docks| docks.bar(instance, action))
 }

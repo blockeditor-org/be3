@@ -785,6 +785,24 @@ impl DockState {
         self.active_entry(leaf).and_then(Entry::tab)
     }
 
+    pub fn menu_tab(&self, leaf: LeafId) -> Option<TabId> {
+        let mut entry = self.active_entry(leaf)?;
+        for _ in 0..16 {
+            let group = match entry {
+                Entry::Tab(tab) => return Some(tab),
+                Entry::Group(group) => group,
+            };
+            let [inner] = self.tree_leaves(Tree::Group(group))[..] else {
+                return None;
+            };
+            if !self.is_bare(inner) {
+                return None;
+            }
+            entry = self.active_entry(inner)?;
+        }
+        None
+    }
+
     pub fn set_active_index(&mut self, leaf: LeafId, index: usize) {
         if let Some(leaf) = self.leaf_mut(leaf)
             && index < leaf.entries.len()
@@ -933,6 +951,16 @@ impl DockState {
 
     pub fn group_tabs(&self, group: GroupId) -> Vec<TabId> {
         self.tree_tabs(Tree::Group(group))
+    }
+
+    pub fn standing_tabs(&self, entry: Entry) -> Vec<TabId> {
+        match entry {
+            Entry::Group(group) => match self.stands_for(group) {
+                Some(host) => vec![host],
+                None => self.group_tabs(group),
+            },
+            Entry::Tab(tab) => vec![tab],
+        }
     }
 
     pub fn entry_tabs(&self, entry: Entry) -> Vec<TabId> {
@@ -1685,8 +1713,12 @@ impl DockState {
     }
 
     pub fn at_home(&self, tab: TabId) -> bool {
+        let placed = self.locate(Entry::Tab(tab)).or_else(|| {
+            self.hosted_by(tab)
+                .and_then(|group| self.locate(Entry::Group(group)))
+        });
         self.home(tab)
-            .zip(self.locate(Entry::Tab(tab)))
+            .zip(placed)
             .is_some_and(|(home, (leaf, _))| self.is_home(leaf, &home))
     }
 

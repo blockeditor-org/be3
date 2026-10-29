@@ -121,6 +121,7 @@ pub struct DockTabHandle {
     pub closable: Memo<bool>,
     pub waiting: Memo<bool>,
     pub host: Option<TabId>,
+    pub grouped: bool,
     pub notice: Memo<Option<String>>,
     pub close: ClickCallback,
 }
@@ -610,18 +611,20 @@ impl State {
         self.icon.call(tab)
     }
 
-    fn entry_picture(&self, entry: Entry) -> Option<Image> {
+    fn standing_tab(&self, entry: Entry) -> Option<TabId> {
         match entry {
-            Entry::Tab(tab) => self.picture.call(tab),
-            Entry::Group(_) => None,
+            Entry::Tab(tab) => Some(tab),
+            Entry::Group(group) => self.state.with(|state| state.stands_for(group)),
         }
     }
 
+    fn entry_picture(&self, entry: Entry) -> Option<Image> {
+        self.standing_tab(entry)
+            .and_then(|tab| self.picture.call(tab))
+    }
+
     fn entry_icon(&self, entry: Entry) -> Option<Glyph> {
-        match entry {
-            Entry::Tab(tab) => self.icon(tab),
-            Entry::Group(_) => None,
-        }
+        self.standing_tab(entry).and_then(|tab| self.icon(tab))
     }
 
     fn dragged_icon(&self, dragged: DockDragged) -> Option<Glyph> {
@@ -653,12 +656,18 @@ impl State {
     fn leaf_menu(&self, leaf: Option<LeafId>) -> Memo<Vec<MenuNode>> {
         let dock = *self;
         create_memo(move || {
-            let tab = leaf.and_then(|leaf| {
-                dock.state
-                    .with(|state| state.active_entry(leaf))
-                    .and_then(Entry::tab)
-            });
-            dock_menu_items(dock.menus.read_only(), tab)
+            let entry = leaf.and_then(|leaf| dock.state.with(|state| state.active_entry(leaf)));
+            let inner = leaf.and_then(|leaf| dock.state.with(|state| state.menu_tab(leaf)));
+            let host = entry.and_then(|entry| dock.standing_tab(entry));
+            let mut items = dock_menu_items(dock.menus.read_only(), inner);
+            if host != inner {
+                let held = dock_menu_items(dock.menus.read_only(), host);
+                if !items.is_empty() && !held.is_empty() {
+                    items.push(MenuNode::Separator);
+                }
+                items.extend(held);
+            }
+            items
         })
     }
 
@@ -1135,7 +1144,7 @@ impl State {
                     state
                         .entries(leaf)
                         .into_iter()
-                        .flat_map(|entry| state.entry_tabs(entry))
+                        .flat_map(|entry| state.standing_tabs(entry))
                         .collect::<Vec<_>>()
                 });
                 group_title(tabs.into_iter().map(|tab| self.title(tab)).collect())
@@ -2486,7 +2495,7 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
             state
                 .entries(leaf)
                 .into_iter()
-                .flat_map(|entry| state.entry_tabs(entry))
+                .flat_map(|entry| state.standing_tabs(entry))
                 .collect::<Vec<_>>()
         })
     });
@@ -2817,23 +2826,24 @@ fn DockTabView(
         Entry::Group(group) => dock.state.with_untracked(|state| state.is_pinned(group)),
         Entry::Tab(_) => false,
     };
-    let held = create_memo(move || match entry {
-        Entry::Tab(tab) => state.with(|state| {
+    let standing = create_memo(move || dock.standing_tab(entry));
+    let held = create_memo(move || match standing.get() {
+        Some(tab) => state.with(|state| {
             let pinned = state.is_tab_pinned(tab);
             (pinned || state.at_home(tab)).then_some(pinned)
         }),
-        Entry::Group(_) => None,
+        None => None,
     });
-    let locks = create_memo(move || match entry {
-        Entry::Tab(tab) => match state.with(|state| state.home(tab)) {
+    let locks = create_memo(move || match standing.get() {
+        Some(tab) => match state.with(|state| state.home(tab)) {
             Some(DockHome::Area(_)) => true,
             Some(DockHome::Group(group)) => dock.group_host.call(group).is_some(),
             None => false,
         },
-        Entry::Group(_) => false,
+        None => false,
     });
     let toggle_held = ClickCallback::new(move || {
-        if let Entry::Tab(tab) = entry {
+        if let Some(tab) = standing.get_untracked() {
             dock.edit(|state| {
                 let pinned = state.is_tab_pinned(tab);
                 state.set_tab_pinned(tab, !pinned);
@@ -2862,6 +2872,7 @@ fn DockTabView(
     let notice =
         create_memo(move || tabs.with(|tabs| tabs.iter().find_map(|tab| dock.notice(*tab))));
     let icons_only = dock.icons_only(Some(leaf));
+    let grouped = matches!(entry, Entry::Group(_)) && standing.get_untracked().is_none();
     let face = dock.tab.call(DockTabHandle {
         entry,
         leaf,
@@ -2883,11 +2894,11 @@ fn DockTabView(
         closable,
         waiting,
         host,
+        grouped,
         notice,
         close,
     });
     let menu = dock.menu;
-    let grouped = matches!(entry, Entry::Group(_));
     let fullscreen = create_memo(move || match entry {
         Entry::Tab(tab) => dock
             .offers_fullscreen(tab)
@@ -3380,11 +3391,20 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
     });
     let parent = dock.home();
     let placement = create_memo(move || dock.placement(surface, parent));
-    let contents = create_memo(move || state.with(|state| state.surface_tabs(surface)));
+    let contents = create_memo(move || {
+        state.with(|state| {
+            state
+                .leaves(surface)
+                .into_iter()
+                .flat_map(|leaf| state.entries(leaf))
+                .flat_map(|entry| state.standing_tabs(entry))
+                .collect::<Vec<_>>()
+        })
+    });
     let vacant = create_memo(move || contents.with(Vec::is_empty));
     let close = ClickCallback::new(move || {
-        for tab in dock.state.get_untracked().surface_tabs(surface) {
-            dock.close_tab(tab);
+        for leaf in dock.state.get_untracked().leaves(surface) {
+            dock.close_leaf(leaf);
         }
     });
     let hoisted = state.with_untracked(|state| state.leaves(surface).first().copied());

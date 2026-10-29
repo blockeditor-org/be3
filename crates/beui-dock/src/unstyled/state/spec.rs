@@ -936,7 +936,7 @@ fn area_tabs(entries: &[DockSpecEntry], out: &mut Vec<TabId>) {
                 root,
                 ..
             } => area_node_tabs(root, out),
-            DockSpecEntry::Group { .. } => {}
+            DockSpecEntry::Group { key, .. } => out.extend(super::joined_host(key)),
         }
     }
 }

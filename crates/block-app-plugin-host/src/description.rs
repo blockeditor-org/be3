@@ -51,6 +51,7 @@ pub fn describe(context: &beui::native::Context) {
             })
             .collect();
         for (instance, region, rect, clip, zoom) in placements {
+            let title = (!super::docks::is_bar(instance, region.0)).then_some(name.as_str());
             let Some(described) = runtime.instances.described(instance, region) else {
                 continue;
             };
@@ -65,7 +66,7 @@ pub fn describe(context: &beui::native::Context) {
                 })
                 .collect();
             let fragment = described.tree.fragment(
-                Some(name.as_str()),
+                title,
                 rect.intersect(clip),
                 rect.min.to_vec2(),
                 zoom,

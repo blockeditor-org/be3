@@ -5,7 +5,7 @@ use block_plugin_api::guest::{debug::debug, shell};
 use block_plugin_api::ops::guest::{Sender, spawn};
 use block_plugin_api::{
     AnchoredView, ArtifactDescription, BarAction, ChildId, ChildPlacement, ChildPlacements,
-    ChildStatus, EditorInstanceId, Failure, FrameChrome, FrameCommit, FrameReport, LayerSpace,
+    ChildStatus, EditorInstanceId, Failure, FrameChrome, FrameCommit, FrameReport, HostView, LayerSpace,
     MAX_CHILDREN, MAX_COLLECTION_ITEMS, MenuEntry, Occluder, ParentView, ScreenPlacement,
     ScreenRequest, ScreenWindow, Size, TimedInput, View, ViewId, ViewPlacement, ViewSize,
     ViewportMetrics, WebViewId,
@@ -104,6 +104,16 @@ struct ViewState {
     host_place: Option<String>,
     layer_space: Option<LayerSpace>,
     anchored: Vec<AnchoredSurface>,
+}
+
+fn holds_content_anyway(state: &ViewState) -> bool {
+    !state.docked
+        && matches!(
+            state.view_placement,
+            None | Some(
+                ViewPlacement::Parent(ParentView::Main) | ViewPlacement::Host(HostView::Display(_))
+            )
+        )
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -789,9 +799,17 @@ impl EditorSession {
         }
         let context = self.context(view);
         self.host.begin_view(view);
-        if view.is_main() {
+        let framed = self.views.get(&view).is_some_and(|state| state.frame.is_some());
+        let frames = match context.view.placement {
+            ViewPlacement::Parent(ParentView::Main) => !context.docked,
+            ViewPlacement::Dock => framed,
+            _ => false,
+        };
+        if frames {
             self.host
                 .set_chrome_shown(context.spec.chrome == FrameChrome::Drawn);
+        }
+        if view.is_main() {
             self.host.set_placed_content(context.spec.content);
         }
         let drag = self
@@ -857,8 +875,11 @@ impl EditorSession {
             .host
             .take_content(view)
             .map(|reported| reported.intersect(content))
-            .filter(|reported| reported.is_positive())
-            .unwrap_or(content);
+            .filter(|reported| reported.is_positive());
+        let reported_content = match self.views.get(&view) {
+            Some(state) if holds_content_anyway(state) => Some(reported_content.unwrap_or(content)),
+            _ => reported_content,
+        };
         if let (Some(state), Some(screen)) = (self.views.get_mut(&view), screen) {
             state.children = placed;
             state.occluders = occluders;
@@ -894,7 +915,8 @@ impl EditorSession {
             }
             state.report = reports.then(|| FrameReport {
                 screen,
-                content: block_plugin_api::Insets::between(host, reported_content),
+                content: reported_content
+                    .map(|reported| block_plugin_api::Insets::between(host, reported)),
                 painted: frame.painted.clone(),
                 floating: frame.floating.clone(),
                 floating_painted: frame.floating_painted.clone(),

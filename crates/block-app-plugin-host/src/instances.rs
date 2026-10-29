@@ -2394,8 +2394,34 @@ impl Instances {
             .is_some_and(|entry| std::mem::take(&mut entry.leaving))
     }
 
+    pub(super) fn content_view(&self, instance: EditorInstanceId) -> ViewId {
+        let Some(entry) = self.entries.get(&instance) else {
+            return ViewId::MAIN;
+        };
+        let holds = |view: &ViewId| {
+            entry.screens.get(view).is_some_and(|screen| {
+                screen.mounted > 0
+                    && screen
+                        .report
+                        .as_ref()
+                        .is_some_and(|report| report.content.is_some())
+            })
+        };
+        if holds(&ViewId::MAIN) {
+            return ViewId::MAIN;
+        }
+        entry
+            .screens
+            .iter()
+            .filter(|(_, screen)| screen.request.placement == ViewPlacement::Dock)
+            .map(|(view, _)| *view)
+            .find(holds)
+            .unwrap_or(ViewId::MAIN)
+    }
+
     pub(super) fn frame_child(&self, instance: EditorInstanceId) -> Option<Uuid> {
-        let screen = self.entries.get(&instance)?.screens.get(&ViewId::MAIN)?;
+        let view = self.content_view(instance);
+        let screen = self.entries.get(&instance)?.screens.get(&view)?;
         screen
             .children
             .children
@@ -2412,10 +2438,11 @@ impl Instances {
     }
 
     pub(super) fn revoke_frame_child(&mut self, instance: EditorInstanceId) {
+        let view = self.content_view(instance);
         let Some(screen) = self
             .entries
             .get_mut(&instance)
-            .and_then(|entry| entry.screens.get_mut(&ViewId::MAIN))
+            .and_then(|entry| entry.screens.get_mut(&view))
         else {
             return;
         };

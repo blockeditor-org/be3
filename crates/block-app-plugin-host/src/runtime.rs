@@ -1181,13 +1181,17 @@ pub fn replace_gpu(setup: &beui::native::Setup) {
 }
 
 pub struct HostFrame {
-    insets: block_plugin_api::Insets,
+    insets: Option<block_plugin_api::Insets>,
     pub floating: Vec<Rect>,
 }
 
 impl HostFrame {
     pub fn content(&self, region: Rect) -> Rect {
-        self.insets.inside(region)
+        self.insets.map_or(region, |insets| insets.inside(region))
+    }
+
+    pub fn holds_content(&self) -> bool {
+        self.insets.is_some()
     }
 }
 
@@ -1786,17 +1790,21 @@ pub fn hold(plugin_id: &str, instance: EditorInstanceId, region: ViewId) {
     });
 }
 
-pub fn frame_rects(plugin_id: &str, instance: EditorInstanceId) -> Option<HostFrame> {
+pub fn frame_rects(plugin_id: &str, instance: EditorInstanceId, view: ViewId) -> Option<HostFrame> {
     with(plugin_id, |runtime| {
         runtime
             .instances
-            .frame_report(instance, ViewId::MAIN)
+            .frame_report(instance, view)
             .map(|report| HostFrame {
                 insets: report.content,
                 floating: report.floating.clone(),
             })
     })
     .flatten()
+}
+
+pub fn content_view(plugin_id: &str, instance: EditorInstanceId) -> ViewId {
+    with(plugin_id, |runtime| runtime.instances.content_view(instance)).unwrap_or(ViewId::MAIN)
 }
 
 pub fn presenting(plugin_id: &str, instance: EditorInstanceId) -> bool {

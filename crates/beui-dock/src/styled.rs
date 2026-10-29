@@ -228,9 +228,9 @@ fn DockTabFace(handle: DockTabHandle) -> NodeId {
         vertical,
         icons_only,
         host,
+        grouped,
         ..
     } = handle;
-    let grouped = matches!(entry, Entry::Group(_));
     let noticed = create_memo(move || notice.with(Option::is_some));
     let title = create_memo(move || notice.get().unwrap_or_else(|| title.get()));
     view! {

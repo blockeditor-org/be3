@@ -55,7 +55,7 @@ fn commit(serial: u64, layers: Vec<AnchoredView>) {
             sizes: Vec::new(),
             reports: vec![block_plugin_api::FrameReport {
                 screen,
-                content: block_plugin_api::Insets::default(),
+                content: Some(block_plugin_api::Insets::default()),
                 painted: Vec::new(),
                 floating: Vec::new(),
                 floating_painted: Vec::new(),

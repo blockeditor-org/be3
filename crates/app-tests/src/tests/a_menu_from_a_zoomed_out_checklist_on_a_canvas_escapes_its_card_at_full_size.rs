@@ -30,7 +30,7 @@ fn a_menu_from_a_zoomed_out_checklist_on_a_canvas_escapes_its_card_at_full_size(
         row_x + row_width > pane_x + pane_width || row_y + row_height > pane_y + pane_height,
         "and reaches past the checklist's card"
     );
-    app.crop("#workspace.block");
+    app.crop("#infinite-canvas.canvas");
     app.snapshot("a_menu_from_a_zoomed_out_checklist_on_a_canvas_escapes_its_card_at_full_size");
     app.click(ROW);
     app.gone(ROW);

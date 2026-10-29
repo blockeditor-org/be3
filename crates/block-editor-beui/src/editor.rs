@@ -417,6 +417,7 @@ impl OwnedEditor {
         let revealed = create_signal(None::<u64>);
         let files = create_signal(None::<FileDrop>);
         let placed = create_signal(Rect::ZERO);
+        let frame_children = create_signal(Vec::<(u64, Memo<Vec<MenuNode>>)>::new());
         let picking = create_signal(None::<crate::picking::Picking>);
         let pushed = Mirror::new(&host);
         let state = OwnedStored::new(EditorState {
@@ -459,6 +460,7 @@ impl OwnedEditor {
             watches: RefCell::default(),
             files,
             placed,
+            frame_children,
         });
         Self {
             editor: Editor(state.handle()),
@@ -523,6 +525,7 @@ struct EditorState {
     watches: RefCell<std::collections::HashMap<std::any::TypeId, Revision>>,
     files: Signal<Option<FileDrop>>,
     placed: Signal<Rect>,
+    frame_children: Signal<Vec<(u64, Memo<Vec<MenuNode>>)>>,
 }
 
 impl Editor {
@@ -954,6 +957,28 @@ impl Editor {
             touch,
             Box::new(picked),
         )));
+    }
+
+    pub(crate) fn frame_child_menu(&self) -> Option<Memo<Vec<MenuNode>>> {
+        self.state()
+            .frame_children
+            .with(|held| held.last().map(|(_, menu)| *menu))
+    }
+
+    pub(crate) fn hold_frame_child_menu(&self, key: u64, menu: Option<Memo<Vec<MenuNode>>>) {
+        let Some(state) = self.0.try_value() else {
+            return;
+        };
+        let held = state.frame_children;
+        if !held.is_alive() {
+            return;
+        }
+        let present = held.with_untracked(|held| held.iter().any(|(at, _)| *at == key));
+        match menu {
+            Some(menu) if !present => held.update(|held| held.push((key, menu))),
+            None if present => held.update(|held| held.retain(|(at, _)| *at != key)),
+            _ => {}
+        }
     }
 
     pub(crate) fn picking(&self) -> ReadSignal<Option<crate::picking::Picking>> {
