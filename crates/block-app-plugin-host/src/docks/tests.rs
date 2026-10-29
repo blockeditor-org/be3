@@ -161,7 +161,7 @@ fn hosted_by_root() -> DockHosted {
     }
 }
 
-fn host(docks: &mut Docks, hosted: Option<DockHosted>) {
+fn host(docks: &mut Docks, hold: DockHold) {
     docks.heard(
         "shell",
         vec![DockMessage::Host(DockChildHosted {
@@ -169,7 +169,7 @@ fn host(docks: &mut Docks, hosted: Option<DockHosted>) {
                 instance: ROOT,
                 child: OUTER_CHILD,
             },
-            hosted,
+            hold,
         })],
     );
 }

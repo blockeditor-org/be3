@@ -67,7 +67,10 @@ fn a_root_dock_hosts_the_dock_its_child_declares_in_place_of_the_childs_tab() {
     let hosted: Vec<_> = dock_messages(&mut session)
         .into_iter()
         .filter_map(|message| match message {
-            DockMessage::Host(host) if host.child.child == child => host.hosted,
+            DockMessage::Host(host) if host.child.child == child => match host.hold {
+                block_plugin_api::DockHold::Hosted(hosted) => Some(hosted),
+                _ => None,
+            },
             _ => None,
         })
         .collect();

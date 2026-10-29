@@ -127,7 +127,10 @@ fn a_root_draws_a_joined_editors_bar_and_moves_it_as_the_editor_asks() {
     let hosted = dock_messages(&mut session)
         .into_iter()
         .filter_map(|message| match message {
-            DockMessage::Host(host) => host.hosted,
+            DockMessage::Host(host) => match host.hold {
+                block_plugin_api::DockHold::Hosted(hosted) => Some(hosted),
+                _ => None,
+            },
             _ => None,
         })
         .last()

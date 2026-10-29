@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::{
-    ChildId, DecodeError, DockBar, DockBarPlacement, DockDeclaration, DockGroup, DockHome,
+    ChildId, DecodeError, DockBar, DockBarPlacement, DockDeclaration, DockGroup, DockHold, DockHome,
     DockHosted, DockItem, DockItemKind, DockLayout, DockMessage, DockOutside, DockOutsidePlace,
     DockPane, DockPlace, DockPlacedBar, DockRequest, DockSplit, DockTab, DockTabPath, DockTree,
     DockUpdate, DockWindow, Rect, collection, nesting, string,
@@ -611,7 +611,10 @@ impl DockMessage {
                 .as_ref()
                 .map_or(Ok(()), DockDeclaration::validate_own),
             Self::Request(request) => request.request.validate(),
-            Self::Host(host) => host.hosted.as_ref().map_or(Ok(()), DockHosted::validate),
+            Self::Host(host) => match &host.hold {
+                DockHold::Hosted(hosted) => hosted.validate(),
+                DockHold::Placing | DockHold::Released => Ok(()),
+            },
             Self::Close(close) => close.tab.validate(),
             Self::Pick(pick) => {
                 pick.tab.validate()?;

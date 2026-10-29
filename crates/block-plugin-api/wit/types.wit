@@ -1037,9 +1037,21 @@ interface types {
         child: child-id,
     }
 
+    /// What the root does with a docked child's tab.
+    variant dock-hold {
+        /// It hosts the child's dock in place of the tab: what it holds of
+        /// it, replacing the last.
+        hosted(dock-hosted),
+        /// It stopped hosting the dock and shows the tab's body again, where
+        /// it places the child: the child stays docked until it is placed.
+        placing,
+        /// It let the tab go.
+        released,
+    }
+
     record dock-child-hosted {
         child: dock-child,
-        hosted: option<dock-hosted>,
+        hold: dock-hold,
     }
 
     /// `tab` is in the child's paths; the host closes it at its owner.
@@ -1062,9 +1074,9 @@ interface types {
     /// What a plugin's docks say, in a frame. A docked view (one whose
     /// screen request is `docked`) declares its dock, replacing the last
     /// declaration, `none` withdrawing it, and asks of the root. The root
-    /// hosts each docked child's spliced declaration: it hands the child
-    /// what it holds of it, replacing the last, `none` letting go; and it
-    /// passes on the user closing a tab or picking from a tab's menu.
+    /// hosts each docked child's spliced declaration: it says what it does
+    /// with the child's tab (`dock-hold`); and it passes on the user closing
+    /// a tab or picking from a tab's menu.
     variant dock-message {
         declare(dock-declare),
         request(dock-view-request),

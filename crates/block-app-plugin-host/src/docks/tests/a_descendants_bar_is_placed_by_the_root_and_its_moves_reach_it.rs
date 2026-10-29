@@ -19,7 +19,7 @@ fn a_descendants_bar_is_placed_by_the_root_and_its_moves_reach_it() {
         },
     });
     docks.heard("inner", vec![declare(INNER, Some(inner))]);
-    host(&mut docks, Some(hosted_by_root()));
+    host(&mut docks, DockHold::Hosted(hosted_by_root()));
 
     assert_eq!(
         docks.resolve(ROOT, &path(&[OUTER_CHILD, INNER_CHILD], 9)),

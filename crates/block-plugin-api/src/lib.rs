@@ -83,7 +83,7 @@ pub use types::{BlockFilter, BlockLocation, BlockPick, OpenPicker, OpenRename, P
 pub use types::{
     DockBar, DockBarMove, DockBarPlace, DockBarPlacement, DockBarWindow, DockChild, DockChildClose,
     DockChildHosted, DockChildPick, DockCover, DockDeclaration, DockDeclare, DockDialog,
-    DockDirection, DockDragStage, DockEdge, DockFullscreen, DockGroup, DockHome, DockHosted,
+    DockDirection, DockDragStage, DockEdge, DockFullscreen, DockGroup, DockHold, DockHome, DockHosted,
     DockItem, DockItemKind, DockLayout, DockMessage, DockOutside, DockOutsidePane,
     DockOutsidePlace, DockPane, DockPlace, DockPlacedBar, DockRequest, DockSplit, DockTab,
     DockTabPath, DockTree, DockViewRequest, DockWindow,

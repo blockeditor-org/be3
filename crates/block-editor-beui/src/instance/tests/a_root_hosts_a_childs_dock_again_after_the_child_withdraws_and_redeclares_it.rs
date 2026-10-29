@@ -1,7 +1,7 @@
 use super::*;
 use block_plugin_api::{
     ChildContent, DockDeclaration, DockDeclaredChild, DockItem, DockItemKind, DockPane, DockTab,
-    DockTabPath, DockTree, DockUpdate,
+    DockHold, DockMessage, DockTabPath, DockTree, DockUpdate,
 };
 
 fn inner() -> DockDeclaration {
@@ -42,7 +42,11 @@ fn inner() -> DockDeclaration {
     }
 }
 
-fn declare(session: &mut EditorSession, child: block_plugin_api::ChildId, declared: bool) {
+fn declare(
+    session: &mut EditorSession,
+    child: block_plugin_api::ChildId,
+    declared: bool,
+) -> Vec<DockHold> {
     session
         .host()
         .receive_dock_updates(vec![DockUpdate::Child(DockDeclaredChild {
@@ -51,7 +55,13 @@ fn declare(session: &mut EditorSession, child: block_plugin_api::ChildId, declar
         })]);
     show_docked(session, &[(View::MAIN, 0)], false);
     show_docked(session, &[(View::MAIN, 0)], false);
-    dock_messages(session);
+    dock_messages(session)
+        .into_iter()
+        .filter_map(|message| match message {
+            DockMessage::Host(host) if host.child.child == child => Some(host.hold),
+            _ => None,
+        })
+        .collect()
 }
 
 fn block_child(session: &EditorSession) -> Option<block_plugin_api::ChildId> {
@@ -82,7 +92,11 @@ fn a_root_hosts_a_childs_dock_again_after_the_child_withdraws_and_redeclares_it(
     declare(&mut session, child, true);
     assert_eq!(tab_bodies(&session), [DockTabPath::own(5).through(child)]);
 
-    declare(&mut session, child, false);
+    assert_eq!(
+        declare(&mut session, child, false),
+        [DockHold::Placing],
+        "the root says it places the child in its tab again"
+    );
     let layout = LAYOUT
         .with(std::cell::Cell::get)
         .expect("the app made its layout");

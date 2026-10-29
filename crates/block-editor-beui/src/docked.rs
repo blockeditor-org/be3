@@ -750,8 +750,13 @@ pub(crate) fn bridge_child_dock(
             let hosted = hosted.get();
             untrack(|| {
                 let paths = paths.borrow();
-                let hosted = hosted.map(|hosted| hosted_to_api(&hosted, &|tab| paths.path(tab)));
-                host.host_child_dock(child, hosted);
+                let hold = match hosted {
+                    Some(hosted) => {
+                        api::DockHold::Hosted(hosted_to_api(&hosted, &|tab| paths.path(tab)))
+                    }
+                    None => api::DockHold::Placing,
+                };
+                host.host_child_dock(child, hold);
             });
         });
     }
@@ -836,7 +841,7 @@ pub(crate) fn bridge_child_dock(
     }
     on_cleanup(move || {
         if let Some(child) = last.get() {
-            host.host_child_dock(child, None);
+            host.host_child_dock(child, api::DockHold::Released);
         }
         link.withdraw();
     });

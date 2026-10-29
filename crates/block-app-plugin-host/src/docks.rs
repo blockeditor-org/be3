@@ -5,7 +5,7 @@ use std::{
 
 use block_plugin_api::{
     BarAction, ChildId, DockBarPlacement, DockChild, DockChildRequest, DockClosedTab,
-    DockDeclaration, DockDeclaredChild, DockHosted, DockHostedView, DockMessage, DockPlacedBar,
+    DockDeclaration, DockDeclaredChild, DockHold, DockHosted, DockHostedView, DockMessage, DockPlacedBar,
     DockRequest, DockTabPath, DockTree, DockUpdate, EditorInstanceId, MAX_DOCK_NESTING, MenuItem,
     ViewId, dock_prefix,
 };
@@ -41,10 +41,8 @@ struct Placed {
 enum Hosting {
     Awaited,
     Hosted,
-    Released { reports: u8 },
+    Placing,
 }
-
-const RELEASED_REPORTS: u8 = 2;
 
 #[derive(Default)]
 pub(super) struct Docks {
@@ -135,12 +133,9 @@ impl Docks {
             changed |= record.placed != now;
             record.placed = now;
             let key = (placer, *child);
-            if let Some(Hosting::Released { reports }) = self.hosting.get_mut(&key) {
-                *reports = reports.saturating_sub(1);
-                if now || *reports == 0 {
-                    self.hosting.remove(&key);
-                    changed = true;
-                }
+            if now && self.hosting.get(&key) == Some(&Hosting::Placing) {
+                self.hosting.remove(&key);
+                changed = true;
             }
         }
         for docked in placed {
@@ -204,7 +199,7 @@ impl Docks {
                 }
                 DockMessage::Host(host) => {
                     if self.owns(plugin, host.child.instance) {
-                        self.host(host.child, host.hosted);
+                        self.host(host.child, host.hold);
                     }
                 }
                 DockMessage::Close(close) => {
@@ -553,7 +548,7 @@ impl Docks {
                 .hosting
                 .entry((root, child))
                 .or_insert(Hosting::Awaited);
-            if matches!(hosting, Hosting::Released { .. }) {
+            if *hosting == Hosting::Placing {
                 *hosting = Hosting::Awaited;
             }
             self.send(
@@ -677,7 +672,7 @@ impl Docks {
         }
     }
 
-    fn host(&mut self, child: DockChild, hosted: Option<DockHosted>) {
+    fn host(&mut self, child: DockChild, hold: DockHold) {
         let DockChild {
             instance: root,
             child,
@@ -693,19 +688,24 @@ impl Docks {
         else {
             return;
         };
-        match hosted.is_some() {
-            true => {
+        let hosted = match hold {
+            DockHold::Hosted(hosted) => {
                 self.hosting.insert((root, child), Hosting::Hosted);
+                Some(hosted)
             }
-            false => {
-                self.hosting.insert(
-                    (root, child),
-                    Hosting::Released {
-                        reports: RELEASED_REPORTS,
-                    },
-                );
+            DockHold::Placing if record.placed => {
+                self.hosting.remove(&(root, child));
+                None
             }
-        }
+            DockHold::Placing => {
+                self.hosting.insert((root, child), Hosting::Placing);
+                None
+            }
+            DockHold::Released => {
+                self.hosting.remove(&(root, child));
+                None
+            }
+        };
         if let Some(instance) = self.instance_of(root, &record) {
             self.split(instance, hosted, 0);
         }

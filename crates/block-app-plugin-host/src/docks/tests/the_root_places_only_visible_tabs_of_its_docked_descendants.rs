@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn the_root_places_only_visible_tabs_of_its_docked_descendants() {
     let mut docks = nested();
-    host(&mut docks, Some(hosted_by_root()));
+    host(&mut docks, DockHold::Hosted(hosted_by_root()));
     assert_eq!(
         docks.resolve(ROOT, &path(&[OUTER_CHILD, INNER_CHILD], 5)),
         Some((INNER_BLOCK, 5))

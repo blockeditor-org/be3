@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use block_plugin_api::{
     ChildId, DockChild, DockChildClose, DockChildHosted, DockChildPick, DockDeclaration,
-    DockDeclare, DockHosted, DockMessage, DockRequest, DockTabPath, DockUpdate, DockViewRequest,
+    DockDeclare, DockHold, DockHosted, DockMessage, DockRequest, DockTabPath, DockUpdate, DockViewRequest,
     EditorInstanceId, ViewId, ViewRef,
 };
 
@@ -15,8 +15,8 @@ pub(crate) struct Docks {
     declared: HashMap<ViewId, Option<DockDeclaration>>,
     sent: HashMap<ViewId, Option<DockDeclaration>>,
     requests: Vec<(ViewId, DockRequest)>,
-    hosting: HashMap<ChildId, Option<DockHosted>>,
-    hosted_sent: HashMap<ChildId, Option<DockHosted>>,
+    hosting: HashMap<ChildId, DockHold>,
+    hosted_sent: HashMap<ChildId, DockHold>,
     closing: Vec<(ChildId, DockTabPath)>,
     picking: Vec<(ChildId, DockTabPath, String)>,
     hosted: HashMap<ViewId, DockHosted>,
@@ -76,13 +76,13 @@ impl EditorHost {
         taken
     }
 
-    pub fn host_child_dock(&self, child: ChildId, hosted: Option<DockHosted>) {
+    pub fn host_child_dock(&self, child: ChildId, hold: DockHold) {
         let mut docks = self.docks.borrow_mut();
         docks.used = true;
-        if docks.hosting.get(&child) == Some(&hosted) {
+        if docks.hosting.get(&child) == Some(&hold) {
             return;
         }
-        docks.hosting.insert(child, hosted);
+        docks.hosting.insert(child, hold);
         drop(docks);
         self.changed_docks();
     }
@@ -148,7 +148,7 @@ impl EditorHost {
             .borrow()
             .hosting
             .iter()
-            .filter(|(_, hosted)| hosted.is_some())
+            .filter(|(_, hold)| !matches!(hold, DockHold::Released))
             .map(|(child, _)| *child)
             .collect()
     }
@@ -186,19 +186,19 @@ impl EditorHost {
         }
         let mut hosting: Vec<_> = docks.hosting.iter().collect();
         hosting.sort_by_key(|(child, _)| **child);
-        for (child, hosted) in hosting {
-            if docks.hosted_sent.get(child) == Some(hosted)
-                || (hosted.is_none() && !docks.hosted_sent.contains_key(child))
+        for (child, hold) in hosting {
+            if docks.hosted_sent.get(child) == Some(hold)
+                || (!matches!(hold, DockHold::Hosted(_)) && !docks.hosted_sent.contains_key(child))
             {
                 continue;
             }
-            docks.hosted_sent.insert(*child, hosted.clone());
+            docks.hosted_sent.insert(*child, hold.clone());
             messages.push(DockMessage::Host(DockChildHosted {
                 child: DockChild {
                     instance,
                     child: *child,
                 },
-                hosted: hosted.clone(),
+                hold: hold.clone(),
             }));
         }
         for (child, tab) in docks.closing.drain(..) {

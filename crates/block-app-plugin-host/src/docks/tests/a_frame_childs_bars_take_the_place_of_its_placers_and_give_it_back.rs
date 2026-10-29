@@ -25,7 +25,7 @@ fn root_hosts(docks: &mut Docks, bars: Vec<DockPlacedBar>, covers: Vec<DockCover
     let delivered = docks.delivered.get(&(ROOT, OUTER_CHILD)).unwrap().clone();
     host(
         docks,
-        Some(DockHosted {
+        DockHold::Hosted(DockHosted {
             layout: DockLayout {
                 tree: delivered.tree.clone(),
                 homes: Vec::new(),

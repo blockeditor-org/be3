@@ -522,8 +522,9 @@ layout also names where each tab moved out of the declaration's group went
 its own), so a `restore` puts them back; each docked instance saves its own
 layout, since the root saves only the tab it hosts in place of the group. The host keeps a docked
 child open while its placer places it or, once the child declares a dock, still
-declares the tab it was placed in (for the root, from the declaration it hears until it lets go with a `host`
-of `none`), requesting its frame at its last size without drawing it; a tab closes
+declares the tab it was placed in (for the root, from the declaration it hears
+while it hosts it, `dock-hold.hosted`, and after it stops, `placing`, until it
+places the child in the tab's body again or lets go, `released`), requesting its frame at its last size without drawing it; a tab closes
 when its owner stops declaring it. Every view has its own menu: an instance
 sends `shell.menu` for a view, and a pick from it, wherever it was shown,
 arrives as its `menu-pick` of that view. The host gives the root each
