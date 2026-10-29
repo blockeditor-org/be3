@@ -1,6 +1,6 @@
 use super::*;
 use beui_core::input::ScrollDelta;
-use beui_core::runner::{SCROLL_LINE, SCROLL_PAGE};
+use beui_runner::{SCROLL_LINE, SCROLL_PAGE};
 
 #[test]
 fn platform_scrolls_arrive_in_points() {

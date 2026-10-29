@@ -1,7 +1,7 @@
 use beui_core::clipboard::{PasteAnswer, PasteKind};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest};
 use beui_core::file_saver::{FileSaveAnswer, FileSaveRequest};
-use beui_core::runner::PlatformServices;
+use beui_runner::PlatformServices;
 use block_editor_plugin::accesskit::TreeUpdate;
 use block_editor_plugin::{EditorHost, EditorInstanceId};
 

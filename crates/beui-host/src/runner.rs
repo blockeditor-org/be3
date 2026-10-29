@@ -2,14 +2,14 @@ use std::error::Error;
 use std::sync::Arc;
 
 use beui_core::app::App;
-use beui_core::renderer::{Loaded, WindowHandle};
+use beui_runner::renderer::{Loaded, WindowHandle};
 use beui_layer_xr::Link;
 use beui_renderer_wgpu::present::OpenDevice;
 use beui_renderer_wgpu::window::WindowSurface;
 
-use beui_core::runner::{Launch, Layer, Platform, RunOptions};
+use beui_runner::{Launch, Layer, Platform, RunOptions};
 
-use beui_core::runner::environment::{Base, Choice, Stacked};
+use beui_runner::environment::{Base, Choice, Stacked};
 
 pub fn run_with(options: RunOptions, app: impl App + 'static) -> Result<(), Box<dyn Error>> {
     run_with_device(options, OpenDevice::default(), app)
@@ -55,7 +55,7 @@ const NATIVE: &str = "winit";
 
 #[cfg(not(target_os = "android"))]
 fn from_environment(native: &str) -> Result<Option<Choice>, Box<dyn Error>> {
-    let choice = beui_core::runner::environment::choose(native, |name| std::env::var(name).ok())?;
+    let choice = beui_runner::environment::choose(native, |name| std::env::var(name).ok())?;
     Ok(Some(choice))
 }
 
@@ -105,11 +105,11 @@ fn choose_platform(
             native()
         }
     };
-    let above = beui_core::runner::environment::drive_taps(&choice.layers);
+    let above = beui_runner::environment::drive_taps(&choice.layers);
     let mut taps: Vec<beui_layer_drive::Drive> = match above.is_empty() {
         true => Vec::new(),
         false => {
-            let path = std::env::var_os(beui_core::runner::environment::DRIVE_SOCKET)
+            let path = std::env::var_os(beui_runner::environment::DRIVE_SOCKET)
                 .ok_or("BEUI_LAYERS names drive without BEUI_DRIVE_SOCKET")?;
             let inbox = serve(std::path::Path::new(&path))?;
             let names: Vec<Option<&'static str>> =
@@ -150,7 +150,7 @@ fn stack(
 fn serve(path: &std::path::Path) -> Result<beui_layer_drive::Inbox, Box<dyn Error>> {
     use beui_layer_drive::socket;
     let inbox = beui_layer_drive::Inbox::default();
-    let served = match std::env::var(beui_core::runner::environment::DRIVE_LISTENER) {
+    let served = match std::env::var(beui_runner::environment::DRIVE_LISTENER) {
         Ok(fd) => {
             let fd: std::os::fd::RawFd = fd
                 .parse()
@@ -168,7 +168,7 @@ fn serve(path: &std::path::Path) -> Result<beui_layer_drive::Inbox, Box<dyn Erro
     served.map_err(|error| {
         format!(
             "{}: could not listen on {}: {error}",
-            beui_core::runner::environment::DRIVE_SOCKET,
+            beui_runner::environment::DRIVE_SOCKET,
             path.display()
         )
     })?;

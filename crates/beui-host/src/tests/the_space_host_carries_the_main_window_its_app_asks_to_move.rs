@@ -1,7 +1,7 @@
 use super::*;
 use beui_core::app::SafeArea;
-use beui_core::renderer::{Loaded, Renderer};
-use beui_core::runner::{Launch, RunOptions, Runner};
+use beui_runner::renderer::{Loaded, Renderer};
+use beui_runner::{Launch, RunOptions, Runner};
 use beui_core::window::{WindowId, WindowRequest};
 use std::cell::Cell;
 
@@ -44,7 +44,7 @@ impl App for Mover {
 
 struct Nowhere;
 
-impl beui_core::runner::PlatformServices for Nowhere {}
+impl beui_runner::PlatformServices for Nowhere {}
 
 #[test]
 fn the_space_host_carries_the_main_window_its_app_asks_to_move() {

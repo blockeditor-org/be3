@@ -8,7 +8,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     beui_host::native::run_with(
-        beui::native::RunOptions::default(),
+        beui_host::native::RunOptions::default(),
         beui_shared_tests::FixtureApp::new(fixture),
     )
 }

@@ -49,13 +49,13 @@ mod bench {
     use beui::reactive::view;
     use beui::{
         Color32, Input, PointerButton, Pos2, Rect, ScrollDelta, Vec2, native::Context,
-        native::Incoming, native::Launch, native::PlatformServices, native::RunOptions,
         native::Setup, native::Waker, native::WindowOutput,
     };
+use beui_host::native::{Incoming, Launch, PlatformServices, RunOptions};
     use beui_core::app::SafeArea;
     use beui_core::context::RendererInfo;
-    use beui_core::renderer::{Loaded, Renderer};
-    use beui_core::runner::Runner;
+    use beui_runner::renderer::{Loaded, Renderer};
+    use beui_runner::Runner;
     use beui_demo::DemoRoot;
     use beui_host::native::testing::Screen;
     use beui_renderer_wgpu::offscreen::OffscreenSurface;

@@ -1,8 +1,8 @@
 use super::*;
 use beui_core::app::SafeArea;
 use beui_core::context::FrameOutput;
-use beui_core::renderer::Loaded;
-use beui_core::runner::{Frame, Launch, Layer, LayerFrame, PlatformServices, RunOptions, Runner};
+use beui_runner::renderer::Loaded;
+use beui_runner::{Frame, Launch, Layer, LayerFrame, PlatformServices, RunOptions, Runner};
 use std::time::Instant;
 
 struct Nowhere;

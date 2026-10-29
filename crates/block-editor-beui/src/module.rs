@@ -82,16 +82,12 @@ impl Module {
         if self.launched.replace(true) {
             return;
         }
-        let options = beui::native::RunOptions {
-            accessibility_tree: keeps_accessibility,
-            ..beui::native::RunOptions::default()
-        };
         let app = ModuleApp {
             module: Rc::clone(self),
             views: None,
             requested: OwnedSignal::new(Vec::new()),
         };
-        if let Err(error) = beui_platform_plugin_api::runtime().launch(host, options, Box::new(app))
+        if let Err(error) = beui_platform_plugin_api::runtime().launch(host, keeps_accessibility, Box::new(app))
         {
             panic!("the plugin's beui app could not start: {error}");
         }

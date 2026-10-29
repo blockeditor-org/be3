@@ -25,6 +25,7 @@ web = [
 [dependencies]
 beui = { path = "../beui" }
 beui-core = { path = "../beui-core" }
+beui-runner = { path = "../beui-runner" }
 beui-font-freetype = { path = "../beui-font-freetype" }
 beui-inspector = { path = "../beui-inspector" }
 beui-keyboard = { path = "../beui-keyboard" }

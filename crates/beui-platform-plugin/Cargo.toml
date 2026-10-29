@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 beui-core = { path = "../beui-core" }
+beui-runner = { path = "../beui-runner" }
 beui-font-freetype = { path = "../beui-font-freetype" }
 beui-host = { path = "../beui-host", default-features = false }
 beui-platform-plugin-api = { path = "../beui-platform-plugin-api" }

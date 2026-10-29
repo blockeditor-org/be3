@@ -22,7 +22,7 @@ static TASKS: OnceLock<Tasks> = OnceLock::new();
 #[unsafe(no_mangle)]
 fn android_main(app: AndroidApp) {
     let files = app.internal_data_path().unwrap_or_default();
-    let options = beui::native::RunOptions::default();
+    let options = beui_host::native::RunOptions::default();
     let launcher = match LauncherApp::new(files) {
         Ok(launcher) => launcher,
         Err(error) => {

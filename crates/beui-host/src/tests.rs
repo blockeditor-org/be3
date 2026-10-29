@@ -2537,7 +2537,7 @@ struct DrivenPlatform {
     unanswered: Vec<crate::native::PasteAnswer>,
 }
 
-impl beui_core::runner::PlatformServices for DrivenPlatform {
+impl beui_runner::PlatformServices for DrivenPlatform {
     fn paste(&mut self, _kinds: &[crate::PasteKind], answer: crate::native::PasteAnswer) {
         self.unanswered.push(answer);
     }
@@ -2714,7 +2714,7 @@ pub(crate) struct IntakePlatform {
     pub(crate) pastes: Vec<Vec<crate::PasteKind>>,
 }
 
-impl beui_core::runner::PlatformServices for IntakePlatform {
+impl beui_runner::PlatformServices for IntakePlatform {
     fn paste(&mut self, kinds: &[crate::PasteKind], answer: crate::native::PasteAnswer) {
         self.pastes.push(kinds.to_vec());
         answer.send(kinds.iter().find_map(|kind| match kind {
@@ -2733,7 +2733,7 @@ impl beui_core::runner::PlatformServices for IntakePlatform {
 }
 
 pub(crate) struct Intaken {
-    pub(crate) runner: beui_core::runner::Runner,
+    pub(crate) runner: beui_runner::Runner,
     pub(crate) platform: IntakePlatform,
     pub(crate) ask: PasteAsk,
     seen: Rc<RefCell<Vec<Event>>>,
@@ -2743,15 +2743,15 @@ impl Intaken {
     pub(crate) fn new() -> Self {
         let seen = Rc::new(RefCell::new(Vec::new()));
         let ask = PasteAsk::default();
-        let mut runner = beui_core::runner::Runner::new(beui_core::runner::Launch {
-            options: beui_core::runner::RunOptions::default(),
+        let mut runner = beui_runner::Runner::new(beui_runner::Launch {
+            options: beui_runner::RunOptions::default(),
             context: context(),
             app: Box::new(Seeing(Rc::clone(&seen), Rc::clone(&ask))),
             layers: Vec::new(),
         });
         runner
             .start(
-                beui_core::renderer::Loaded {
+                beui_runner::renderer::Loaded {
                     renderer: Box::new(crate::native::testing::Screen(VIEWPORT)),
                     fonts: None,
                 },
@@ -2770,7 +2770,7 @@ impl Intaken {
     pub(crate) fn frame(
         &mut self,
         pixels_per_point: f32,
-        inputs: impl IntoIterator<Item = beui_core::runner::Incoming>,
+        inputs: impl IntoIterator<Item = beui_runner::Incoming>,
     ) -> Vec<Event> {
         self.runner.reports().scaled(pixels_per_point);
         for input in inputs {
@@ -2963,7 +2963,7 @@ pub(crate) const SPACE_SCREEN: Vec2 = Vec2::new(800.0, 600.0);
 
 struct SpaceScreen;
 
-impl beui_core::renderer::Renderer for SpaceScreen {
+impl beui_runner::renderer::Renderer for SpaceScreen {
     fn info(&self) -> RendererInfo {
         RendererInfo::default()
     }
@@ -2998,10 +2998,10 @@ impl crate::native::App for SharedDocument {
 
 struct Nowhere;
 
-impl beui_core::runner::PlatformServices for Nowhere {}
+impl beui_runner::PlatformServices for Nowhere {}
 
 pub(crate) struct InSpace {
-    runner: beui_core::runner::Runner,
+    runner: beui_runner::Runner,
     pub(crate) space: Rc<RefCell<beui_layer_space::Space>>,
     pub(crate) document: Rc<RefCell<Document>>,
 }
@@ -3011,15 +3011,15 @@ impl InSpace {
         let space = Rc::new(RefCell::new(beui_layer_space::Space::new()));
         let document = Rc::new(RefCell::new(document));
         let context = context();
-        let mut runner = beui_core::runner::Runner::new(beui_core::runner::Launch {
-            options: beui_core::runner::RunOptions::default(),
+        let mut runner = beui_runner::Runner::new(beui_runner::Launch {
+            options: beui_runner::RunOptions::default(),
             context: context.clone(),
             app: Box::new(SharedDocument(Rc::clone(&document))),
             layers: vec![Box::new(Rc::clone(&space))],
         });
         runner
             .start(
-                beui_core::renderer::Loaded {
+                beui_runner::renderer::Loaded {
                     renderer: Box::new(SpaceScreen),
                     fonts: None,
                 },
@@ -3049,7 +3049,7 @@ impl InSpace {
 
     pub(crate) fn controllers(
         &mut self,
-        controllers: impl IntoIterator<Item = beui_core::runner::Controller>,
+        controllers: impl IntoIterator<Item = beui_runner::Controller>,
     ) {
         for controller in controllers {
             self.runner.push(controller);
@@ -3065,8 +3065,8 @@ impl InSpace {
         }
     }
 
-    pub(crate) fn aim(&mut self, hand: beui_core::runner::Hand, window: crate::WindowId, at: Pos2) {
-        self.controllers([beui_core::runner::Controller::Toward { hand, window, at }]);
+    pub(crate) fn aim(&mut self, hand: beui_runner::Hand, window: crate::WindowId, at: Pos2) {
+        self.controllers([beui_runner::Controller::Toward { hand, window, at }]);
         for _ in 0..40 {
             self.runner
                 .context()
@@ -3075,9 +3075,9 @@ impl InSpace {
         }
     }
 
-    pub(crate) fn tap(&mut self, hand: beui_core::runner::Hand) {
+    pub(crate) fn tap(&mut self, hand: beui_runner::Hand) {
         for value in [1.0, 0.0] {
-            self.controllers([beui_core::runner::Controller::Trigger { hand, value }]);
+            self.controllers([beui_runner::Controller::Trigger { hand, value }]);
         }
         self.settle();
     }

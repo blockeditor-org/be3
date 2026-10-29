@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use beui_core::app::Setup;
 use beui_core::context::{Context, FrameOutput};
 use beui_core::geometry::{Pos2, vec2};
-use beui_core::runner::{Frame as RunnerFrame, Incoming, Layer, LayerFrame, LayerView, Shown};
+use beui_runner::{Frame as RunnerFrame, Incoming, Layer, LayerFrame, LayerView, Shown};
 use beui_core::window::WindowId;
 use beui_layer_space::head::{Fov, View, Views};
 use beui_layer_space::layers::Allowance;

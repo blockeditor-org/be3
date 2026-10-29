@@ -1,4 +1,4 @@
-use beui_core::runner::{Controller, Hand, HandPose};
+use beui_runner::{Controller, Hand, HandPose};
 
 use super::*;
 use crate::reactive::*;

@@ -1,4 +1,4 @@
-use beui_core::runner::Hand;
+use beui_runner::Hand;
 
 use super::*;
 use crate::keyboard::styled::close_center;

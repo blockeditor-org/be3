@@ -48,7 +48,7 @@ own to be driven:
 - `BEUI_PLATFORM` picks the platform: the platform's own (`winit`, or the one the program hands
   `run_on`, such as block-app's `drm`) by default, or `headless`. A
   name it does not know is an error that lists the ones it takes
-  (`beui_core::runner::environment::choose`).
+  (`beui_runner::environment::choose`).
 - `BEUI_LAYERS` stacks layers between the platform and the app (guides/beui.md, "Layers"):
   names separated by commas, the one nearest the platform first: `space` and `drive`; an
   unknown name is an error. Every `drive` named is a tap of one session, named by the layer
@@ -58,7 +58,7 @@ own to be driven:
   (1100x720 by default) is its window and `BEUI_HEADLESS_SCREEN=WIDTHxHEIGHT` the screen a
   fullscreen window grows to; either is an error under another platform.
 - `BEUI_RENDERER` picks the renderer: `wgpu` (the default) or `none`, which runs headless with no
-  GPU at all (`beui_core::renderer::NoRenderer`): every frame is laid out and painted as usual,
+  GPU at all (`beui_runner::renderer::NoRenderer`): every frame is laid out and painted as usual,
   but nothing draws the painting, so `drive paint` works and `drive shot` does not. block-app
   then gives its plugins surfaces it does not render, so they run their frames without a GPU
   either. `none` needs the headless platform.

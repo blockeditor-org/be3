@@ -1,8 +1,8 @@
 use std::error::Error;
 
 use beui_core::app::App;
-use beui_core::renderer::Loaded;
-use beui_core::runner::{Launch, Layer, Platform, RunOptions};
+use beui_runner::renderer::Loaded;
+use beui_runner::{Launch, Layer, Platform, RunOptions};
 use beui_platform_web::Web;
 
 pub async fn run_web(

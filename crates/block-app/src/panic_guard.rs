@@ -43,7 +43,7 @@ pub(crate) fn contain<R>(run: impl FnOnce() -> R) -> Result<R, String> {
     CONTAINING.with(|depth| depth.set(depth.get() + 1));
     let ran = catch_unwind(AssertUnwindSafe(run));
     CONTAINING.with(|depth| depth.set(depth.get() - 1));
-    ran.map_err(|payload| beui::native::panic_message(&*payload))
+    ran.map_err(|payload| beui_host::native::panic_message(&*payload))
 }
 
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]

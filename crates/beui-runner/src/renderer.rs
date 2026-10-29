@@ -3,11 +3,11 @@ use std::sync::Arc;
 
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
-use crate::app::Setup;
-use crate::color::Color32;
-use crate::context::{Context, RendererInfo, WindowOutput};
-use crate::font::FontBackend;
-use crate::geometry::Vec2;
+use beui_core::app::Setup;
+use beui_core::color::Color32;
+use beui_core::context::{Context, RendererInfo, WindowOutput};
+use beui_core::font::FontBackend;
+use beui_core::geometry::Vec2;
 
 #[derive(Clone)]
 pub struct Capture {

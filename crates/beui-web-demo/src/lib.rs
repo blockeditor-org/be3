@@ -7,7 +7,7 @@ use beui_demo::DemoRoot;
 #[wasm_bindgen::prelude::wasm_bindgen]
 pub async fn run_demo(root_id: String) -> Result<(), wasm_bindgen::JsValue> {
     wasi_threads::initialize_main_thread();
-    let options = beui::native::RunOptions::default();
+    let options = beui_host::native::RunOptions::default();
     let demo = beui_host::native::build(|| {
         view! {
             <DemoRoot today={Date::today()} />

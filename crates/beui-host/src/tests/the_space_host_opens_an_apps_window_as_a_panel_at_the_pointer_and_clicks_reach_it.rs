@@ -2,8 +2,8 @@ use super::*;
 use crate::{Window, WindowHandle};
 use crate::{WindowId, WindowReport};
 use beui_core::app::SafeArea;
-use beui_core::renderer::{Loaded, Renderer};
-use beui_core::runner::{Launch, RunOptions, Runner};
+use beui_runner::renderer::{Loaded, Renderer};
+use beui_runner::{Launch, RunOptions, Runner};
 
 struct Screen;
 
@@ -34,7 +34,7 @@ impl Renderer for Screen {
 
 struct Nowhere;
 
-impl beui_core::runner::PlatformServices for Nowhere {}
+impl beui_runner::PlatformServices for Nowhere {}
 
 #[test]
 fn the_space_host_opens_an_apps_window_as_a_panel_at_the_pointer_and_clicks_reach_it() {

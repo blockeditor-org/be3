@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use beui_core::runner::Incoming;
+use beui_runner::Incoming;
 use block_editor_plugin::TimedInput;
 
 pub(crate) fn translate(event: &TimedInput) -> Incoming {

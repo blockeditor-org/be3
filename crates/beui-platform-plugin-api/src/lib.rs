@@ -6,7 +6,6 @@ use beui::styled::Root;
 use beui_core::app::App;
 use beui_core::context::{Context, FrameOutput};
 use beui_core::document::Document;
-use beui_core::runner::RunOptions;
 use beui_core::window::WindowId;
 use block_editor_plugin::{EditorHost, RegionId, Regions};
 
@@ -16,7 +15,7 @@ pub trait PluginRuntime {
     fn launch(
         &self,
         host: &EditorHost,
-        options: RunOptions,
+        keeps_accessibility: bool,
         app: Box<dyn App>,
     ) -> Result<(), Box<dyn Error>>;
 

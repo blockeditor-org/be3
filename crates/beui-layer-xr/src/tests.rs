@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 use beui_core::app::{Setup, Waker};
 use beui_core::context::{Context, FrameOutput};
 use beui_core::geometry::vec2;
-use beui_core::runner::LayerView;
+use beui_runner::LayerView;
 use beui_renderer_wgpu::present::Gpu;
 
 use crate::XrSpace;

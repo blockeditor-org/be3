@@ -320,7 +320,8 @@ one direction:
 | `ui-types` | the vocabulary beui shares with the plugin protocol, which depends on nothing but serde, `geometry`, `ui-keys` and `ui-preferences`: the keys and preferences of those two, `PointerButton`, the touch, pen and back phases, `ImeEvent`, `CursorIcon`, `Pasted` and `PickedFile`; `Input`, the raw input every platform, drive's gestures, the on-screen keyboard and the plugin protocol produce; `WindowRequests` and `ImeArea`, what an app asks of its window; the window vocabulary of window-hosting layers (`WindowId`, `WindowPlacement`, `HostPlacement`, `WindowEdge`, `WindowRole`, `WindowRequest`, `WindowReport`, which `beui_core::window` re-exports) |
 | `beui-types` | the plain values components share whichever core draws them, with no nodes in them: colours (`Color32`, `Hsva`, `Oklch`, and `Color`, `ColorVar` and `color_var!`, which both cores resolve), `Image` and `Thumbhash`, the layout values (`Direction`, `Align`, `Justify`, `ItemSize`, `Sizing`, `Sides`, `Extent`, `Track`, `ScrollPosition`, `Corners`, `Outline`, `CanvasView`, and `Measured`, what `measure` answers), the text values (`FontId`, `TextAlign`, `Overflow`, `SpanStyle`, `TextMark`, `TextGlyph`, `TextCaret`), the layer values (`Placement`, `LayerPolicy`, `LayerLevel`, `Dismiss`), raw pointer and wheel input (`PointerId`, `PointerInput`, `PointerStage`, `WheelInput`), the declarative hit areas (`Area`, `HitRegion`, `Claim`) and the gestures (`PointerPress`, `ScrollGesture`, `DragGesture`, `ZoomGesture`), `KeyPhase` and `SystemBars`, with `geometry`, `ui-types`' input values and lucide's `icons` re-exported. beui-core re-exports each where it used to live; unstyled and styled reach them as `beui_view::types` and apps as `beui::`, and values that hold a node (`NodeId`, `OverlayAnchor`, `KeyAt`, `KeyEvent`, `ImeCursor`) through `beui::reactive` |
 | `beui-tree` | what makes a tree of components, whatever it is made of: `#[component]` and `view!`'s runtime, `Prop`, child slots (`Children`, `Run`, `SlotChild`, `SlotHost`) and `Show`, `ShowKeepAlive`, `Dynamic`, `Keyed` and `ForEach` |
-| `beui-core` | `Document` and `Context`, the retained nodes and their layout, input and its dispatch, accessibility, paint output and damage, the font and image interfaces, the icon codepoints, the `App` contract, and the `Runner` every platform drives it through |
+| `beui-core` | `Document` and `Context`, the retained nodes and their layout, input and its dispatch, accessibility, paint output and damage, the font and image interfaces, the icon codepoints and the `App` contract |
+| `beui-runner` | the `Runner` every platform drives a document through, the `Platform`, `PlatformServices` and `Layer` contracts, `RunOptions`, `Incoming` input, the `BEUI_*` environment (`environment`) and the `Renderer` trait (`beui_runner::renderer`); only the engine and hosts depend on it, so an edit here rebuilds no editor, and beui-host re-exports its host-facing items in `beui_host::native` |
 | `beui-font-freetype` | `FreetypeFonts`: FreeType and HarfBuzz shaping and rasterizing, and the fonts beui compiles in |
 | `beui-font-browser` | `BrowserFonts`: text measured with the browser's own fonts through a canvas; no fonts in the module, and nothing uses it yet |
 | `beui-view` | the API both cores share: `beui::reactive`, `beui-tree` re-exported with the rest of the framework (actions, timers, `NodeRef`, `measure`, and the node functions and `Inspect` through which components reach the tree); `beui::primitives`, the base components (`Frame`, `List`, `Text`, ...), each declared once in `src/components/` with a body per core in `src/native/` and `src/html/`; `CORE`; and under HTML, `running` (`beui::html`) |
@@ -365,11 +366,11 @@ hooks the higher crates fill in:
   component that first asked for it.
 - A gpu `Drawing` holds whatever its renderer draws; `beui::native::drawing` makes one
   for the wgpu renderer. It is native only.
-- Each platform is a `beui_core::runner::Platform`, a trait object beui-host
+- Each platform is a `beui_runner::Platform`, a trait object beui-host
   picks (`beui_host::native::native_platform`, `beui_host::native::web_platform`) and runs with a `Launch`
   (`RunOptions`, `Context`, the `App`). The platform owns the event loop and
   turns native input into `Event`s; everything one frame does is
-  `beui_core::runner::Runner::frame`, shared by all of them: it runs the
+  `beui_runner::Runner::frame`, shared by all of them: it runs the
   app, publishes accessibility, and tells the platform's `PlatformServices` (another
   trait object) what the app asked of the window. Everything the window
   shows for the app is one `beui_core::window::WindowState`: its `requests`
@@ -577,7 +578,7 @@ hooks the higher crates fill in:
   returns that as an error (`Runner::finish`), so whatever owns the screen is
   let go of in order. An app that can carry on after a panic in one part
   catches it there itself.
-- Every platform draws through a `beui_core::renderer::Renderer` trait object
+- Every platform draws through a `beui_runner::renderer::Renderer` trait object
   and names no renderer crate: wgpu's `WindowSurface` (native windows) and
   `CanvasSurface` (a browser canvas) implement it, and beui-host hands the
   runner a function that loads one (`Loaded`: the renderer, and the
@@ -3379,7 +3380,7 @@ frames.
 A driver is a layer, `beui_layer_drive::Drive` (guides/running/drive.md): the native run
 functions stack it where `BEUI_LAYERS` names `drive` and serve its commands on
 `BEUI_DRIVE_SOCKET`, pick their platform and renderer from `BEUI_PLATFORM` and
-`BEUI_RENDERER` (`beui_core::runner::environment`), and block-app's web build stacks one
+`BEUI_RENDERER` (`beui_runner::environment`), and block-app's web build stacks one
 its `automate` export feeds (`beui_host::native::run_web` takes the layers). `Drive::new(inbox)` is one
 drive layer with the app directly above it; `Drive::taps(inbox, under)` is a tap for each entry
 of `under`, bottom first, sharing one session, each named by the layer just above it (`None` for
@@ -3405,7 +3406,7 @@ the app's file and save dialogs itself (`Layer::pick_file`, `save_file`), so `up
 it keeps a clipboard, grows to its screen for fullscreen, and reports its size, scale and
 fullscreen through its `WindowReports`. beui's own tests drive one the same way, with a
 renderer that draws nothing. `Renderer::capture` reads the presented frame back as a
-`beui_core::renderer::Capture` for a screenshot.
+`beui_runner::renderer::Capture` for a screenshot.
 
 A window nobody can see is `Runner::set_occluded`: its frames still run (layout,
 paint, accessibility, the driver), but the runner hands each one's output to
@@ -3673,7 +3674,7 @@ plugin protocol's input too, and a plugin region is always one window.
 
 ### Layers
 
-A `beui_core::runner::Layer` is middleware between a platform and the app's
+A `beui_runner::Layer` is middleware between a platform and the app's
 runner. `Launch::layers` is the stack, the layer nearest the platform first;
 the native run functions (`beui_host::native::run_with`, `run_on`) build it from
 `BEUI_LAYERS` (`choose_platform` and `stack` in `crates/beui-host/src/runner.rs`).
@@ -4179,7 +4180,7 @@ it, and all its 3D (`glam`) stays in the crate.
   down in that window, else to the mouse. Two pointers never hold one panel,
   but both hands' grips together scale and turn it (below).
 - Lasers: controllers reach space as `Incoming::Controller`
-  (`beui_core::runner::Controller`, per `Hand::Left` or `Right`): `Pose { aim,
+  (`beui_runner::Controller`, per `Hand::Left` or `Right`): `Pose { aim,
   grip }` (`HandPose`, a position and an `xyzw` orientation whose -Z is where
   it points, in the world of the views, floor at y = 0), `Trigger` and
   `Squeeze` (0 to 1; a press at `laser::PRESS` (0.6), a release at

@@ -1,7 +1,7 @@
 use super::*;
 use beui_core::app::SafeArea;
-use beui_core::renderer::{Loaded, Renderer};
-use beui_core::runner::{Launch, PlatformServices, RunOptions, Runner};
+use beui_runner::renderer::{Loaded, Renderer};
+use beui_runner::{Launch, PlatformServices, RunOptions, Runner};
 
 type Log = Signal<Vec<&'static str>>;
 

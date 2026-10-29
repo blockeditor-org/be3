@@ -9,12 +9,12 @@ mod bench {
     use beui::native::Document;
     use beui::reactive::view;
     use beui::{
-        CursorIcon, Input, Pos2, Vec2, native::Context, native::Incoming, native::Launch,
-        native::PlatformServices, native::RunOptions, native::Setup, native::Waker,
+        CursorIcon, Input, Pos2, Vec2, native::Context, native::Setup, native::Waker,
     };
+use beui_host::native::{Incoming, Launch, PlatformServices, RunOptions};
     use beui_core::app::SafeArea;
-    use beui_core::renderer::{Loaded, Renderer};
-    use beui_core::runner::Runner;
+    use beui_runner::renderer::{Loaded, Renderer};
+    use beui_runner::Runner;
     use beui_demo::DemoRoot;
     use beui_host::native::testing::Screen;
     use beui_layer_space::Space;

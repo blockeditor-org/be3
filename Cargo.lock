@@ -832,8 +832,8 @@ dependencies = [
 name = "be-drive"
 version = "0.1.0"
 dependencies = [
- "beui-core",
  "beui-layer-drive",
+ "beui-runner",
  "image",
  "libc",
  "paint-snapshot",
@@ -1295,6 +1295,7 @@ dependencies = [
  "beui-inspector",
  "beui-layer-space",
  "beui-renderer-wgpu",
+ "beui-runner",
  "beui_macros",
  "block-ui-test",
  "pollster",
@@ -1390,6 +1391,7 @@ dependencies = [
  "beui-platform-web",
  "beui-platform-winit",
  "beui-renderer-wgpu",
+ "beui-runner",
  "beui-view",
  "beui_macros",
  "pollster",
@@ -1457,6 +1459,7 @@ version = "0.1.0"
 dependencies = [
  "accesskit",
  "beui-core",
+ "beui-runner",
 ]
 
 [[package]]
@@ -1469,6 +1472,7 @@ dependencies = [
  "beui-font-freetype",
  "beui-keyboard",
  "beui-renderer-wgpu",
+ "beui-runner",
  "beui-types",
  "beui-view",
  "beui_macros",
@@ -1488,6 +1492,7 @@ dependencies = [
  "beui-font-freetype",
  "beui-layer-space",
  "beui-renderer-wgpu",
+ "beui-runner",
  "glam",
  "libloading 0.9.0",
  "openxr",
@@ -1503,6 +1508,7 @@ dependencies = [
  "accesskit",
  "accesskit_android",
  "beui-core",
+ "beui-runner",
  "jni 0.22.4",
  "libc",
  "ndk 0.9.0",
@@ -1519,6 +1525,7 @@ dependencies = [
  "beui",
  "beui-core",
  "beui-host",
+ "beui-runner",
  "bytemuck",
  "rustix 1.1.4",
  "smithay",
@@ -1534,6 +1541,7 @@ dependencies = [
  "beui-core",
  "beui-layer-drive",
  "beui-renderer-wgpu",
+ "beui-runner",
  "pollster",
 ]
 
@@ -1547,6 +1555,7 @@ dependencies = [
  "beui-host",
  "beui-platform-plugin-api",
  "beui-renderer-wgpu",
+ "beui-runner",
  "block-editor-plugin",
  "block-plugin-api",
  "wgpu",
@@ -1567,6 +1576,7 @@ name = "beui-platform-web"
 version = "0.1.0"
 dependencies = [
  "beui-core",
+ "beui-runner",
  "beui-web-input",
  "futures-util",
  "js-sys",
@@ -1586,6 +1596,7 @@ dependencies = [
  "arboard",
  "ashpd",
  "beui-core",
+ "beui-runner",
  "futures-util",
  "image",
  "pollster",
@@ -1601,12 +1612,23 @@ dependencies = [
  "beui-core",
  "beui-draw",
  "beui-font-freetype",
+ "beui-runner",
  "beui-view",
  "beui_macros",
  "bytemuck",
  "pollster",
  "web-sys",
  "wgpu",
+]
+
+[[package]]
+name = "beui-runner"
+version = "0.1.0"
+dependencies = [
+ "accesskit",
+ "beui-core",
+ "beui-types",
+ "raw-window-handle",
 ]
 
 [[package]]

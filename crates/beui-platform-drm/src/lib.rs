@@ -36,7 +36,7 @@ pub use problems::Problems;
 pub use rotation::Rotation;
 pub use runner::{Loop, Session, run};
 
-use beui::{native::Launch, native::Platform};
+use beui_runner::{Launch, Platform};
 
 pub struct Drm;
 
@@ -45,7 +45,7 @@ impl Platform for Drm {
         "drm"
     }
 
-    fn run(self: Box<Self>, launch: Launch) -> beui::native::Running {
+    fn run(self: Box<Self>, launch: Launch) -> beui_runner::Running {
         Box::pin(async move { run(launch) })
     }
 }

@@ -86,8 +86,8 @@ pub(crate) fn build() -> &'static str {
     build_id::current().unwrap_or("no build id")
 }
 
-fn run_options() -> beui::native::RunOptions {
-    beui::native::RunOptions {
+fn run_options() -> beui_host::native::RunOptions {
+    beui_host::native::RunOptions {
         #[cfg(not(target_arch = "wasm32"))]
         app_id: Some(app_id().to_owned()),
         size: beui::vec2(1100.0, 720.0),
@@ -141,7 +141,7 @@ fn run_app(arguments: arguments::Arguments) -> Result<(), Box<dyn Error>> {
 
 #[cfg(target_os = "linux")]
 fn run_shell(
-    options: beui::native::RunOptions,
+    options: beui_host::native::RunOptions,
     shell: Shell,
     session: bool,
 ) -> Result<(), Box<dyn Error>> {
@@ -157,7 +157,7 @@ fn run_shell(
 
 #[cfg(windows)]
 fn run_shell(
-    options: beui::native::RunOptions,
+    options: beui_host::native::RunOptions,
     shell: Shell,
     _session: bool,
 ) -> Result<(), Box<dyn Error>> {
@@ -175,7 +175,7 @@ fn run_shell(
     not(target_arch = "wasm32")
 ))]
 fn run_shell(
-    options: beui::native::RunOptions,
+    options: beui_host::native::RunOptions,
     shell: Shell,
     _session: bool,
 ) -> Result<(), Box<dyn Error>> {
@@ -208,7 +208,7 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
         page.set_hash("");
         location.replace(&page.href())?;
     }
-    let mut layers: Vec<Box<dyn beui::native::Layer>> = Vec::new();
+    let mut layers: Vec<Box<dyn beui_host::native::Layer>> = Vec::new();
     if let Some(inbox) = automation()? {
         layers.push(Box::new(beui_host::native::drive::Drive::new(inbox)));
     }

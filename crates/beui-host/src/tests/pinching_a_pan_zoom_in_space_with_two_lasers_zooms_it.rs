@@ -1,4 +1,4 @@
-use beui_core::runner::{Controller, Hand};
+use beui_runner::{Controller, Hand};
 
 use super::*;
 use crate::unstyled::PanZoomApi;

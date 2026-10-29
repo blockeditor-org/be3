@@ -14,8 +14,8 @@ use beui_core::file_saver::{FileSave, FileSaveAnswer, FileSaveRequest};
 use beui_core::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use beui_core::input::Keyboard;
 use beui_core::input::{BackEdge, DroppedFile, FileDrag, Input, Key, PointerButton, TouchPhase};
-use beui_core::renderer::Capture;
-use beui_core::runner::{
+use beui_runner::renderer::Capture;
+use beui_runner::{
     Above, Frame, Incoming, Layer, LayerFrame, PlatformServices, Shown, Units,
 };
 use beui_core::window::{Resize, WindowId, WindowSize, WindowState};
@@ -1947,7 +1947,7 @@ fn controller(
     arguments: &[String],
     at: impl Fn(&str) -> Result<Pos2, String>,
 ) -> Result<Vec<Vec<Incoming>>, String> {
-    use beui_core::runner::{Controller, Hand, HandPose};
+    use beui_runner::{Controller, Hand, HandPose};
     let usage = "xr takes HAND pose X Y Z [YAW PITCH], HAND point TARGET, HAND trigger VALUE, \
                  HAND squeeze VALUE, HAND click TARGET or HAND lost, where HAND is left or right";
     let word = |index: usize| arguments.get(index).map(String::as_str).ok_or(usage);

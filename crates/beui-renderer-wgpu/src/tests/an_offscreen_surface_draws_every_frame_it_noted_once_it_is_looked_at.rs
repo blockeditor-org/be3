@@ -1,5 +1,5 @@
 use super::*;
-use beui_core::renderer::Renderer as _;
+use beui_runner::renderer::Renderer as _;
 
 #[test]
 fn an_offscreen_surface_draws_every_frame_it_noted_once_it_is_looked_at() {

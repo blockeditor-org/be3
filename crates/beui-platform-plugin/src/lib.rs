@@ -12,8 +12,8 @@ use beui_core::app::{App, SafeArea, Setup, Waker};
 use beui_core::context::{Context, FrameOutput};
 use beui_core::document::Document;
 use beui_core::geometry::{Rect, Vec2, vec2};
-use beui_core::renderer::Loaded;
-use beui_core::runner::{Incoming, Launch, Platform, RunOptions, Runner, Running};
+use beui_runner::renderer::Loaded;
+use beui_runner::{Incoming, Launch, Platform, RunOptions, Runner, Running};
 use beui_core::window::{
     HostPlacement, WindowEdge, WindowHosting, WindowId, WindowPlacement, WindowReport,
     WindowRequest, WindowRequests, WindowState,
@@ -92,9 +92,13 @@ impl PluginRuntime for Runtime {
     fn launch(
         &self,
         host: &EditorHost,
-        options: RunOptions,
+        keeps_accessibility: bool,
         app: Box<dyn App>,
     ) -> Result<(), Box<dyn Error>> {
+        let options = RunOptions {
+            accessibility_tree: keeps_accessibility,
+            ..RunOptions::default()
+        };
         launch(host, options, fonts::context(), app)
     }
 

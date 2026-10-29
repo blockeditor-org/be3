@@ -25,6 +25,7 @@ block-ui-test = { path = "../block-ui-test" }
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 beui-layer-space = { path = "../beui-layer-space" }
 beui-core = { path = "../beui-core" }
+beui-runner = { path = "../beui-runner" }
 beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
 pollster = "0.4"
 

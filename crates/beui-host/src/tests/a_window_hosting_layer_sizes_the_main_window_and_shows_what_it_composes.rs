@@ -1,8 +1,8 @@
 use super::*;
 use beui_core::app::SafeArea;
 use beui_core::damage::Region;
-use beui_core::renderer::{Loaded, Renderer};
-use beui_core::runner::{Incoming, Launch, Layer, LayerFrame, RunOptions, Runner, Shown};
+use beui_runner::renderer::{Loaded, Renderer};
+use beui_runner::{Incoming, Launch, Layer, LayerFrame, RunOptions, Runner, Shown};
 use beui_core::window::{WindowHosting, WindowId, WindowReport, WindowState};
 
 struct Screen(Rc<RefCell<Vec<Color32>>>);
@@ -81,7 +81,7 @@ impl Layer for Host {
 
 struct Nowhere;
 
-impl beui_core::runner::PlatformServices for Nowhere {}
+impl beui_runner::PlatformServices for Nowhere {}
 
 #[test]
 fn a_window_hosting_layer_sizes_the_main_window_and_shows_what_it_composes() {

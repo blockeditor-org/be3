@@ -1,10 +1,10 @@
 use std::time::Instant;
 
-use crate::geometry::{Pos2, Vec2};
-use crate::input::{
+use beui_core::geometry::{Pos2, Vec2};
+use beui_core::input::{
     Event, FileDrag, Input, Key, KeyPress, Keystroke, Modifiers, PointerButton, TouchId, TouchPhase,
 };
-use crate::window::{WindowId, WindowReport};
+use beui_core::window::{WindowId, WindowReport};
 
 pub use beui_types::input::{PINCH_SPEED, SCROLL_LINE, SCROLL_PAGE, scrolled};
 

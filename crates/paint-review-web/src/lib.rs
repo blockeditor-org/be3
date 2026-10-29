@@ -54,7 +54,7 @@ pub async fn run_review(root_id: String) -> Result<(), JsValue> {
         });
     });
 
-    let options = beui::native::RunOptions::default();
+    let options = beui_host::native::RunOptions::default();
     beui_host::native::run_web(&root_id, options, Vec::new(), app)
         .await
         .map_err(|error| JsValue::from_str(&error.to_string()))

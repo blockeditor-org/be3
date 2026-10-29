@@ -1,6 +1,6 @@
 use super::*;
 use beui_core::input::ScrollDelta;
-use beui_core::runner::Incoming;
+use beui_runner::Incoming;
 
 #[test]
 fn logical_input_arrives_in_points_at_the_zoom_of_the_frame() {

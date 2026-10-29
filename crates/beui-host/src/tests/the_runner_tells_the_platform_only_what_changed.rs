@@ -1,8 +1,8 @@
 use super::*;
 use crate::{PasteKind, Pasted, native::PasteAnswer};
 use beui_core::app::SafeArea;
-use beui_core::renderer::Loaded;
-use beui_core::runner::{Launch, PlatformServices, RunOptions, Runner};
+use beui_runner::renderer::Loaded;
+use beui_runner::{Launch, PlatformServices, RunOptions, Runner};
 use beui_core::window::WindowState;
 
 type Log = Signal<Vec<String>>;
