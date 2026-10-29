@@ -2786,7 +2786,8 @@ joins is grafted in once the group stands). An outer `restore` while an inner
 dock is joined keeps that dock's layout as it is. The seam is `docking/host.rs`'s
 `DockHostLink`, plain data both ways (`DockDeclaration`, `DockHosted`,
 `DockRequest`, `DockHostEvent`, `DockBodies`; `DockState::plain` and
-`from_plain` read and build a state as plain `DockPlain` data), and a platform
+`from_plain` read and build a state as plain `DockPlain` data, bars and
+`outside` included; `DockTree` keeps a pane's `bare` too), and a platform
 implements it too: a `Docking` that finds no outer dock claims the
 `DockHostSlot` context if one is provided above it, and joins that host the same
 way. block-editor-beui provides one in the frame of an editor whose dock joins
@@ -2940,6 +2941,15 @@ to move its window, and the menu docks it again. The styled `DockBarGrip`
 (`dock.bar.<bar>.grip`) is such a handle: a grip that drags the bar and opens
 its menu when clicked or pressed with Enter. A bar declared by a `Docking` that
 joins another is declared up to it (`DockDeclaration::bars`) and drawn by it. A
+platform that builds a joined bar's body itself provides
+`DockBarControl::hosted(bar, hosted, request)` there (`is_hosted` tells it
+apart): its reads follow the hosted state, and `place`, `pop_out` and
+`begin_move` become `DockRequest::PlaceBar` and `DockRequest::MoveBar` (a
+`DockBarMove`: the pointer in the body's own coordinates and a
+`DockDragStage`), which the root's `Docking` carries as if its own grip were
+dragged; such a handle calls `end_move` when its press ends, which drops the
+bar (a local control ignores it). `DockingLayout::place_bar` of a joined dock
+asks the root the same way. A
 `bare` `DockPane` draws no tab bar: it holds one tab, takes no tab dropped onto
 it (only a split at its edge), and is what a joined dock's single pane uses so
 its group shows no second tab strip. The demo's Dock bars page has both.

@@ -2,18 +2,19 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use beui_view::component_ref::ComponentRef;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::Image;
 use beui_view::types::icons::Glyph;
-use beui_view::types::{Rect, Vec2};
+use beui_view::types::{Pos2, Rect, Vec2};
 
-use super::super::DockMode;
 use super::super::dialog::DockDialogPresentation;
 use super::super::state::{
     DockBarPlacement, DockFullscreen, DockMapping, DockSpec, DockState, TabId, joined_host,
     joined_key, joined_prefix,
 };
+use super::super::{DockApi, DockMode};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct DockDeclaration {
@@ -85,6 +86,21 @@ pub enum DockRequest {
     Show(TabId),
     Restore(DockState),
     Fullscreen(Option<(TabId, Option<Rect>)>),
+    PlaceBar(TabId, Option<DockBarPlacement>),
+    MoveBar(TabId, DockBarMove),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DockBarMove {
+    pub at: Pos2,
+    pub stage: DockDragStage,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DockDragStage {
+    Move,
+    Drop,
+    Cancel,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -200,6 +216,7 @@ pub(crate) struct Registry {
     pub(crate) mode: Signal<DockMode>,
     pub(crate) above: Signal<Option<DockHosted>>,
     pub(crate) host: RefCell<Option<Rc<dyn DockHostLink>>>,
+    pub(crate) dock: Cell<Option<ComponentRef<DockApi>>>,
 }
 
 impl Registry {
@@ -349,6 +366,10 @@ impl JoinedLink {
                 DockRequest::Fullscreen(Some((self.outer(tab)?, area)))
             }
             DockRequest::Fullscreen(None) => DockRequest::Fullscreen(None),
+            DockRequest::PlaceBar(bar, placement) => {
+                DockRequest::PlaceBar(self.outer(bar)?, placement)
+            }
+            DockRequest::MoveBar(bar, moved) => DockRequest::MoveBar(self.outer(bar)?, moved),
             DockRequest::Restore(from) => {
                 let registry = &self.join.registry;
                 let mut state = registry.state.get_untracked();
@@ -360,6 +381,10 @@ impl JoinedLink {
                 DockRequest::Restore(state)
             }
         })
+    }
+
+    fn dock(&self) -> Option<DockApi> {
+        self.join.registry.dock.get()?.try_get()
     }
 
     fn edit(&self, change: impl FnOnce(&mut DockState)) {
@@ -444,6 +469,16 @@ impl DockHostLink for JoinedLink {
                         }
                     }
                 });
+            }
+            DockRequest::PlaceBar(bar, placement) => {
+                if let (Some(bar), Some(dock)) = (self.outer(bar), self.dock()) {
+                    dock.ask_bar(DockRequest::PlaceBar(bar, placement));
+                }
+            }
+            DockRequest::MoveBar(bar, moved) => {
+                if let (Some(bar), Some(dock)) = (self.outer(bar), self.dock()) {
+                    dock.ask_bar(DockRequest::MoveBar(bar, moved));
+                }
             }
             DockRequest::Restore(from) => {
                 let host = self.join.host;

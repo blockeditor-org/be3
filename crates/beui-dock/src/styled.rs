@@ -1038,6 +1038,7 @@ pub fn DockBarGrip(#[prop(default = None)] control: Option<DockBarControl>) -> N
             on_active_change={move |active: bool| {
                 if !active {
                     pressed.set(None);
+                    control.end_move();
                 }
             }}
         >

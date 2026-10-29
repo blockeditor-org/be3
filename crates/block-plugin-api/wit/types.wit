@@ -713,7 +713,8 @@ interface types {
     /// whose tabs stay in it: in a declaration the pane's own key, which
     /// locks it; in a layout also a pane split off a locked one. `empty`, in
     /// a declaration, names a body that is no tab of the tree: the `tab(t)`
-    /// region its owner draws in the pane while the pane holds no tab.
+    /// region its owner draws in the pane while the pane holds no tab. A
+    /// `bare` pane shows its one tab with no tab bar and takes no other.
     record dock-pane {
         key: string,
         active: option<u32>,
@@ -723,6 +724,7 @@ interface types {
         keep: bool,
         area: option<string>,
         empty: option<dock-tab-path>,
+        bare: bool,
     }
 
     /// A group of tabs shown as one entry of a pane, whose root (a split or
@@ -799,6 +801,43 @@ interface types {
         closable: bool,
     }
 
+    /// An edge of a pane's body.
+    enum dock-edge {
+        top,
+        bottom,
+        left,
+        right,
+    }
+
+    /// A bar popped out into a window of the dock, its top-left corner at
+    /// `origin` in the points of the root's dock, laid out as if along `edge`.
+    record dock-bar-window {
+        edge: dock-edge,
+        origin: pos2,
+    }
+
+    /// Where a bar sits: floating `over` an edge of its owner's body, in a
+    /// band `beside` the body inside its pane, or in a window.
+    variant dock-bar-placement {
+        over(dock-edge),
+        beside(dock-edge),
+        window(dock-bar-window),
+    }
+
+    /// A bar of the dock: an entry that belongs to the tab `owner` and shows
+    /// while it does, at `placement` (in a declaration the one it starts at).
+    /// Its body is the owner's `tab(t)` region for `tab`, which is no tab of
+    /// the tree, laid out along its placement's edge; `size` is that body's
+    /// size as its owner last laid it out, which the root gives it. `key`
+    /// names it for good, as a tab's does.
+    record dock-bar {
+        tab: dock-tab-path,
+        key: string,
+        owner: dock-tab-path,
+        placement: dock-bar-placement,
+        size: size,
+    }
+
     /// The dock a region declares, which its holder shows in place of the
     /// tab the region's instance was placed in, as a pinned group. Every tab
     /// of the tree is described in `tabs`, and only those. A plugin declares
@@ -807,6 +846,7 @@ interface types {
         tree: dock-tree,
         tabs: list<dock-tab>,
         dialogs: list<dock-dialog>,
+        bars: list<dock-bar>,
     }
 
     /// Where a tab moved out of its area belongs: a locked area, by its
@@ -822,10 +862,39 @@ interface types {
         pinned: bool,
     }
 
+    /// Where a bar of the layout sits now.
+    record dock-placed-bar {
+        bar: dock-tab-path,
+        owner: dock-tab-path,
+        placement: dock-bar-placement,
+    }
+
+    /// A pane of the root's outside the declaration's group, by its key, and
+    /// the index among its entries.
+    record dock-outside-pane {
+        key: string,
+        index: u32,
+    }
+
+    variant dock-outside-place {
+        pane(dock-outside-pane),
+        /// A floating window of its own, in the points of the root's dock.
+        window(rect),
+    }
+
+    /// A tab of the layout the user moved out of the declaration's group,
+    /// and where it went, so a `restore` moves it back there.
+    record dock-outside {
+        tab: dock-tab-path,
+        place: dock-outside-place,
+    }
+
     /// A dock as its holder holds it, which it hands back to `restore`.
     record dock-layout {
         tree: dock-tree,
         homes: list<dock-home>,
+        bars: list<dock-placed-bar>,
+        outside: list<dock-outside>,
     }
 
     /// What the root shows of a docked dock, in the declaring instance's own
@@ -852,13 +921,38 @@ interface types {
         area: option<rect>,
     }
 
+    /// `none` pops the bar out into a window where it now is.
+    record dock-bar-place {
+        bar: dock-tab-path,
+        placement: option<dock-bar-placement>,
+    }
+
+    enum dock-drag-stage {
+        move,
+        drop,
+        cancel,
+    }
+
+    /// The user dragging bar `bar` by a grip in its body: `at` is the
+    /// pointer in the points of the region showing the body. The first
+    /// `move` begins the drag, which the root carries, showing where the bar
+    /// would go; `drop` puts it there and `cancel` leaves it.
+    record dock-bar-move {
+        bar: dock-tab-path,
+        at: pos2,
+        stage: dock-drag-stage,
+    }
+
     /// What a hosted dock asks of its holder: to show a tab, to replace the
     /// group with a layout (restoring one saved, or a fresh one to reset),
-    /// or to show a tab full screen (`none` leaves full screen).
+    /// to show a tab full screen (`none` leaves full screen), or to place or
+    /// move one of its bars.
     variant dock-request {
         show(dock-tab-path),
         restore(dock-layout),
         fullscreen(option<dock-fullscreen>),
+        place-bar(dock-bar-place),
+        move-bar(dock-bar-move),
     }
 
     record dock-declare {

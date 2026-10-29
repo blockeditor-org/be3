@@ -38,6 +38,7 @@ fn one(key: &str, tab: u64, menu: &[&str]) -> DockDeclaration {
                         keep: false,
                         area: None,
                         empty: None,
+                        bare: false,
                     }),
                 },
                 DockItem {
@@ -56,6 +57,7 @@ fn one(key: &str, tab: u64, menu: &[&str]) -> DockDeclaration {
             menu: MenuEntry::flatten(&entries),
         }],
         dialogs: Vec::new(),
+        bars: Vec::new(),
     }
 }
 

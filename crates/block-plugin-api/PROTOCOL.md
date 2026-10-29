@@ -471,8 +471,20 @@ with the full path, and the host shows the owner's `tab(t)` region there,
 only for tabs the owner's `dock-hosted.visible` lists, and for the bodies a
 declaration names that are no tabs: a `dock-dialog`'s (which the root presents
 as it presents its own dialogs, over the dialog's parent, closing it with a
-`close` of the dialog's `tab`) and a pane's `empty` view, which the root shows
-while the pane holds no tab. The host keeps a docked
+`close` of the dialog's `tab`), a pane's `empty` view, which the root shows
+while the pane holds no tab, and a `dock-bar`'s. A bar belongs to a tab
+(`owner`) and shows while it does, over or beside an edge of its body or
+popped out (`dock-bar-placement`); the root gives its body the `size` the owner
+declares, measured as the owner last laid it out along the bar's edge, and
+the layout says where each bar is (`dock-layout.bars`). Its owner draws the
+grip too: placing it is a `place-bar` request, and dragging it a run of
+`move-bar` requests with the pointer in the bar body's own points (`move`,
+then `drop` or `cancel`), which the root carries as a drag of its own, showing
+where the bar would land. A `bare` pane shows its one tab with no tab bar. A
+layout also names where each tab moved out of the declaration's group went
+(`dock-layout.outside`: a pane of the root's by key and index, or a window of
+its own), so a `restore` puts them back; each docked instance saves its own
+layout, since the root saves only the tab it hosts in place of the group. The host keeps a docked
 child open while its placer places it or, once the child declares a dock, still
 declares the tab it was placed in (for the root, from the declaration it hears until it lets go with a `host`
 of `none`), requesting its frame at its last size without drawing it; a tab closes

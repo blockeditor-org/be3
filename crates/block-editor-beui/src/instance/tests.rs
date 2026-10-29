@@ -10,11 +10,13 @@ mod a_child_block_asks_the_host_for_the_frame_it_will_own;
 mod a_docked_editor_builds_a_tab_body_only_where_the_host_shows_it_and_keeps_it;
 mod a_docked_editor_declares_its_dock_and_draws_no_tab_body_in_its_frame;
 mod a_docked_editor_follows_the_roots_focus_and_closes_what_it_closes;
+mod a_docked_editors_bar_declares_its_size_and_asks_the_root_to_place_and_move_it;
 mod a_docked_editors_nested_dock_and_dialog_join_its_declaration;
 mod a_docked_editors_palette_opens_over_the_tab_whose_menu_asked;
 mod a_focused_beui_child_gets_the_whole_frame_not_just_its_embedded_rect;
 mod a_focused_beui_childs_reported_content_is_its_own_canvas_not_the_whole_view;
 mod a_root_dock_hosts_the_dock_its_child_declares_in_place_of_the_childs_tab;
+mod a_root_draws_a_joined_editors_bar_and_moves_it_as_the_editor_asks;
 mod a_root_gives_a_tab_two_levels_down_its_owners_menu_block_and_dialog;
 mod a_visible_editor_shows_its_user_as_active;
 mod a_window_opened_in_a_docked_tab_body_opens_over_that_tab;
@@ -160,6 +162,7 @@ fn hosted_tabs(
             keep: false,
             area: None,
             empty: None,
+            bare: false,
         }),
     }];
     items.extend(tabs.iter().map(|tab| DockItem {
@@ -176,6 +179,8 @@ fn hosted_tabs(
                     focus: focused.map(DockTabPath::own),
                 },
                 homes: Vec::new(),
+                bars: Vec::new(),
+                outside: Vec::new(),
             },
             tabs: own(tabs),
             focused: focused.map(DockTabPath::own),
@@ -193,6 +198,8 @@ thread_local! {
     static DOCK_TABS: std::cell::RefCell<Vec<(Option<Uuid>, beui::reactive::Memo<Vec<beui::reactive::MenuNode>>)>> =
         const { std::cell::RefCell::new(Vec::new()) };
     static LAYOUT: std::cell::Cell<Option<beui::dock::unstyled::DockingLayout<u64>>> =
+        const { std::cell::Cell::new(None) };
+    static BAR: std::cell::Cell<Option<beui::dock::unstyled::DockBarControl>> =
         const { std::cell::Cell::new(None) };
 }
 
@@ -258,4 +265,53 @@ fn docked_session() -> EditorSession {
     BODIES.with(|built| built.set(0));
     CLOSED.with(|closed| closed.set(false));
     session::<DockedApp>(Uuid::new_v4())
+}
+
+#[beui::reactive::component]
+fn BarProbe() -> beui::NodeId {
+    use beui::reactive::*;
+    let bar = beui::dock::unstyled::use_dock_bar();
+    BAR.with(|held| held.set(bar));
+    let vertical =
+        create_memo(move || bar.is_some_and(|bar| bar.direction() == beui::Direction::Vertical));
+    let length = |length: f32| beui::styled::Length::Size(beui::styled::Size::Custom(length));
+    let width = create_memo(move || length(if vertical.get() { 24.0 } else { 120.0 }));
+    let height = create_memo(move || length(if vertical.get() { 120.0 } else { 24.0 }));
+    view! {
+        <beui::styled::Frame width={width} height={height} />
+    }
+}
+
+struct BarredApp;
+
+#[beui::reactive::component]
+impl crate::BeuiApp for BarredApp {
+    #[beui::reactive::component]
+    fn View(editor: crate::Editor) -> beui::styled::Root {
+        use beui::dock::styled::{DockPane, DockTab, Docking, DockingLayout};
+        use beui::dock::unstyled::{DockBar, DockBarPlacement, DockEdge};
+        use beui::reactive::*;
+        let _ = editor;
+        let layout = DockingLayout::<u64>::new();
+        LAYOUT.with(|held| held.set(Some(layout)));
+        view! {
+            <beui::styled::Root>
+                <Docking layout>
+                    <DockPane id="stage" bare=true>
+                        <DockTab id=1u64 title="Stage">
+                            <beui::styled::Frame />
+                        </DockTab>
+                    </DockPane>
+                    <DockBar id=3u64 parent=1u64 placement=DockBarPlacement::Over(DockEdge::Top)>
+                        <BarProbe />
+                    </DockBar>
+                </Docking>
+            </beui::styled::Root>
+        }
+    }
+}
+
+fn barred_session() -> EditorSession {
+    BAR.with(|held| held.set(None));
+    session::<BarredApp>(Uuid::new_v4())
 }

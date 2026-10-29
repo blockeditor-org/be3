@@ -14,6 +14,7 @@ fn two_tabs_unpinned_from_a_group_can_be_grouped_outside_it() {
         vertical: false,
         icons_only: false,
         sidebar: SIDEBAR_WIDTH,
+        bare: false,
     };
     let group = state.insert_pinned_group(leaf, 1, &layout);
     for tab in [10, 11] {

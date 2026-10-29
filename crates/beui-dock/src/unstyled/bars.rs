@@ -18,7 +18,10 @@ use beui_view::types::{
 use beui_view::types::{Pos2, Rect, Sides, Vec2, pos2, vec2};
 use beui_view::window::{Window, WindowHandle};
 
-use super::{DockBarPlacement, DockDragged, DockEdge, DockMode, FLOAT_INSET, LeafId, State, TabId};
+use super::{
+    DockBarMove, DockBarPlacement, DockDragStage, DockDragged, DockEdge, DockHosted, DockMode,
+    DockRequest, FLOAT_INSET, LeafId, State, TabId,
+};
 
 const BAND_SHARE: f32 = 0.12;
 const BAND_MIN: f32 = 24.0;
@@ -51,21 +54,59 @@ pub struct DockBarTargetHandle {
 #[derive(Clone, Copy)]
 pub struct DockBarControl {
     bar: TabId,
-    dock: State,
+    backing: BarBacking,
     menu: Memo<Vec<MenuNode>>,
 }
 
+#[derive(Clone, Copy)]
+enum BarBacking {
+    Local(State),
+    Hosted {
+        hosted: Memo<Option<DockHosted>>,
+        request: Callback<DockRequest>,
+        last: Signal<Option<Pos2>>,
+    },
+}
+
 impl DockBarControl {
+    pub fn hosted(
+        bar: TabId,
+        hosted: Memo<Option<DockHosted>>,
+        request: Callback<DockRequest>,
+    ) -> Self {
+        let placement =
+            create_memo(move || hosted.with(|hosted| hosted.as_ref()?.state.bar_placement(bar)));
+        let place = Callback::new(move |placement: Option<DockBarPlacement>| {
+            request.call(DockRequest::PlaceBar(bar, placement));
+        });
+        Self {
+            bar,
+            backing: BarBacking::Hosted {
+                hosted,
+                request,
+                last: create_signal(None),
+            },
+            menu: bar_menu(placement, place),
+        }
+    }
+
     pub fn bar(&self) -> TabId {
         self.bar
     }
 
+    pub fn is_hosted(&self) -> bool {
+        matches!(self.backing, BarBacking::Hosted { .. })
+    }
+
     pub fn placement(&self) -> DockBarPlacement {
         let bar = self.bar;
-        self.dock
-            .state
-            .with(|state| state.bar_placement(bar))
-            .unwrap_or(DockBarPlacement::Over(DockEdge::Top))
+        let placement = match self.backing {
+            BarBacking::Local(dock) => dock.state.with(|state| state.bar_placement(bar)),
+            BarBacking::Hosted { hosted, .. } => {
+                hosted.with(|hosted| hosted.as_ref()?.state.bar_placement(bar))
+            }
+        };
+        placement.unwrap_or(DockBarPlacement::Over(DockEdge::Top))
     }
 
     pub fn edge(&self) -> DockEdge {
@@ -82,22 +123,48 @@ impl DockBarControl {
 
     pub fn moving(&self) -> bool {
         let bar = self.bar;
-        self.dock.drag.with(|drag| {
-            drag.as_ref()
-                .is_some_and(|drag| drag.dragged == DockDragged::Bar(bar))
-        })
+        match self.backing {
+            BarBacking::Local(dock) => dock.drag.with(|drag| {
+                drag.as_ref()
+                    .is_some_and(|drag| drag.dragged == DockDragged::Bar(bar))
+            }),
+            BarBacking::Hosted { last, .. } => last.with(Option::is_some),
+        }
     }
 
     pub fn place(&self, placement: DockBarPlacement) {
-        self.dock.place_bar(self.bar, placement);
+        match self.backing {
+            BarBacking::Local(dock) => dock.place_bar(self.bar, placement),
+            BarBacking::Hosted { request, .. } => {
+                request.call(DockRequest::PlaceBar(self.bar, Some(placement)));
+            }
+        }
     }
 
     pub fn pop_out(&self) {
-        self.dock.pop_out_bar(self.bar);
+        match self.backing {
+            BarBacking::Local(dock) => dock.pop_out_bar(self.bar),
+            BarBacking::Hosted { request, .. } => {
+                request.call(DockRequest::PlaceBar(self.bar, None));
+            }
+        }
     }
 
     pub fn begin_move(&self, press: PointerPress) {
-        let dock = self.dock;
+        let dock = match self.backing {
+            BarBacking::Local(dock) => dock,
+            BarBacking::Hosted { request, last, .. } => {
+                last.set(Some(press.pos));
+                request.call(DockRequest::MoveBar(
+                    self.bar,
+                    DockBarMove {
+                        at: press.pos,
+                        stage: DockDragStage::Move,
+                    },
+                ));
+                return;
+            }
+        };
         if !dock.panels.is_alive() || dock.mode.get_untracked() != DockMode::Tiled {
             return;
         }
@@ -125,6 +192,23 @@ impl DockBarControl {
             Rc::new(move |point: DragPoint| dock.bar_outside(bar, point)),
         );
     }
+
+    pub fn end_move(&self) {
+        let BarBacking::Hosted { request, last, .. } = self.backing else {
+            return;
+        };
+        let Some(at) = last.get_untracked() else {
+            return;
+        };
+        last.set(None);
+        request.call(DockRequest::MoveBar(
+            self.bar,
+            DockBarMove {
+                at,
+                stage: DockDragStage::Drop,
+            },
+        ));
+    }
 }
 
 pub fn use_dock_bar() -> Option<DockBarControl> {
@@ -139,10 +223,16 @@ impl State {
         let scope = self.open_scope();
         let dock = *self;
         let panel = scope.context().run(|| {
+            let state = dock.state;
+            let placement = create_memo(move || state.with(|state| state.bar_placement(bar)));
+            let place = Callback::new(move |placement: Option<DockBarPlacement>| match placement {
+                Some(placement) => dock.place_bar(bar, placement),
+                None => dock.pop_out_bar(bar),
+            });
             provide_context(DockBarControl {
                 bar,
-                dock,
-                menu: bar_menu(dock, bar),
+                backing: BarBacking::Local(dock),
+                menu: bar_menu(placement, place),
             });
             self.content.call(bar)
         });
@@ -174,6 +264,60 @@ impl State {
             .with_untracked(|state| state.bar_placement(bar))
             .map_or(DockEdge::Top, DockBarPlacement::edge);
         self.place_bar(bar, DockBarPlacement::Window { edge, origin });
+    }
+
+    pub(super) fn ask_bar(&self, request: DockRequest) {
+        match request {
+            DockRequest::PlaceBar(bar, Some(placement)) => self.place_bar(bar, placement),
+            DockRequest::PlaceBar(bar, None) => self.pop_out_bar(bar),
+            DockRequest::MoveBar(bar, moved) => self.carry_bar(bar, moved),
+            DockRequest::Show(_) | DockRequest::Restore(_) | DockRequest::Fullscreen(_) => {}
+        }
+    }
+
+    fn carry_bar(&self, bar: TabId, moved: DockBarMove) {
+        let carried = self.drag.with_untracked(|drag| {
+            drag.as_ref()
+                .is_some_and(|drag| drag.dragged == DockDragged::Bar(bar))
+        });
+        let rect = self.bar_panel_rect(bar);
+        let point = rect.map(|rect| {
+            let mut point = DragPoint::at(rect.min + moved.at.to_vec2(), Default::default());
+            point.window = self.home();
+            point
+        });
+        match moved.stage {
+            DockDragStage::Move if carried => self.drag_over(point),
+            DockDragStage::Move => {
+                if self.mode.get_untracked() != DockMode::Tiled {
+                    return;
+                }
+                let windowed = self
+                    .state
+                    .with_untracked(|state| state.bar_placement(bar))
+                    .is_some_and(DockBarPlacement::is_window);
+                if windowed && self.opens.get_untracked() {
+                    let handle = self.bar_windows.value().borrow().get(&bar).copied();
+                    if handle.is_some_and(WindowHandle::begin_move) {
+                        return;
+                    }
+                }
+                let Some(rect) = rect else {
+                    return;
+                };
+                self.bar_grab.set((moved.at.to_vec2(), rect.size()));
+                self.begin_drag(DockDragged::Bar(bar));
+                self.drag_over(point);
+            }
+            DockDragStage::Drop if carried => {
+                if let Some(point) = point {
+                    self.drop_bar(bar, point);
+                }
+                self.end_drag();
+            }
+            DockDragStage::Cancel if carried => self.end_drag(),
+            DockDragStage::Drop | DockDragStage::Cancel => {}
+        }
     }
 
     pub(super) fn keep_bar_panels(&self, bars: &[TabId]) {
@@ -288,9 +432,10 @@ impl State {
     }
 }
 
-fn bar_menu(dock: State, bar: TabId) -> Memo<Vec<MenuNode>> {
-    let state = dock.state;
-    let placement = create_memo(move || state.with(|state| state.bar_placement(bar)));
+fn bar_menu(
+    placement: Memo<Option<DockBarPlacement>>,
+    place: Callback<Option<DockBarPlacement>>,
+) -> Memo<Vec<MenuNode>> {
     let item = move |target: DockBarPlacement, label: String| {
         let id = match target {
             DockBarPlacement::Over(edge) => format!("dock.bar.over.{}", edge.name()),
@@ -303,8 +448,8 @@ fn bar_menu(dock: State, bar: TabId) -> Memo<Vec<MenuNode>> {
                 .is_some_and(|placement| placement.same_place(target))
         });
         let action = Action::new(id, label, move || match target {
-            DockBarPlacement::Window { .. } => dock.pop_out_bar(bar),
-            target => dock.place_bar(bar, target),
+            DockBarPlacement::Window { .. } => place.call(None),
+            target => place.call(Some(target)),
         })
         .radio(chosen)
         .detached();

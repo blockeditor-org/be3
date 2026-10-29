@@ -13,6 +13,7 @@ fn a_pinned_tab_stays_in_its_group_until_it_is_unpinned() {
         vertical: false,
         icons_only: false,
         sidebar: SIDEBAR_WIDTH,
+        bare: false,
     };
     let group = state.insert_pinned_group(leaf, 1, &layout);
     let window = DockDrop::Window {

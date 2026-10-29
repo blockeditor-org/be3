@@ -19,6 +19,7 @@ fn inner() -> DockDeclaration {
                         keep: false,
                         area: None,
                         empty: None,
+                        bare: false,
                     }),
                 },
                 DockItem {
@@ -37,6 +38,7 @@ fn inner() -> DockDeclaration {
             menu: Vec::new(),
         }],
         dialogs: Vec::new(),
+        bars: Vec::new(),
     }
 }
 

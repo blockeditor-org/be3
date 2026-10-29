@@ -2,8 +2,8 @@ use beui_view::types::Direction;
 use beui_view::types::Rect;
 
 use super::{
-    Bar, DockBarPlacement, DockHome, DockState, Entry, Group, GroupId, Home, MIN_FRACTION,
-    MIN_SIDEBAR_WIDTH, Node, Split, SplitId, Surface, SurfaceId, TabId,
+    Bar, DockBarPlacement, DockHome, DockOutside, DockState, Entry, Group, GroupId, Home,
+    MIN_FRACTION, MIN_SIDEBAR_WIDTH, Node, Split, SplitId, Surface, SurfaceId, TabId,
 };
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -13,6 +13,7 @@ pub struct DockPlain {
     pub focus: Option<TabId>,
     pub homes: Vec<DockPlainHome>,
     pub bars: Vec<DockPlainBar>,
+    pub outside: Vec<DockOutside>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -120,6 +121,7 @@ impl DockState {
                 placement: bar.placement,
             })
             .collect();
+        plain.outside = self.outside.clone();
         plain
     }
 
@@ -208,6 +210,7 @@ impl DockState {
                 placement: bar.placement,
             })
             .collect();
+        state.outside = plain.outside.clone();
         state.focus = plain
             .focus
             .and_then(|tab| state.find(tab))

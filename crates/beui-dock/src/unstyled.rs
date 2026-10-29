@@ -55,10 +55,11 @@ pub use bars::{DockBarControl, DockBarTargetHandle, use_dock_bar};
 use dialog::{DialogParts, DockDialogs};
 pub use dialog::{DockDialogHandle, DockDialogPresentation, DockSheetHandle};
 pub use docking::{
-    DockBar, DockBodies, DockDeclaration, DockDeclaredBar, DockDeclaredDialog, DockDeclaredTab,
-    DockDialog, DockEntry, DockGroup, DockHostEvent, DockHostLink, DockHostSlot, DockHosted,
-    DockJoin, DockKey, DockNode, DockPane, DockRequest, DockSplit, DockTab, DockWindow, Docking,
-    DockingLayout, DockingSnapshot, OwnedDockingLayout, use_dock_join,
+    DockBar, DockBarMove, DockBodies, DockDeclaration, DockDeclaredBar, DockDeclaredDialog,
+    DockDeclaredTab, DockDialog, DockDragStage, DockEntry, DockGroup, DockHostEvent, DockHostLink,
+    DockHostSlot, DockHosted, DockJoin, DockKey, DockNode, DockPane, DockRequest, DockSplit,
+    DockTab, DockWindow, Docking, DockingLayout, DockingSnapshot, OwnedDockingLayout,
+    use_dock_join,
 };
 pub use documents::{
     DockDocument, DockDocumentBody, DockDocumentTabs, DockDocuments, DockOpened, DockSlot,
@@ -3698,6 +3699,12 @@ pub struct DockApi(State);
 impl DockApi {
     pub fn state(&self) -> DockState {
         self.0.state.get()
+    }
+
+    pub(crate) fn ask_bar(&self, request: DockRequest) {
+        if self.0.panels.is_alive() {
+            self.0.ask_bar(request);
+        }
     }
 }
 

@@ -123,6 +123,7 @@ fn region_screen(
     }
 }
 
+mod a_childs_bar_and_bare_pane_splice_in_and_split_back_out_with_where_its_tabs_went;
 mod a_childs_dock_splices_in_place_of_its_tab_and_splits_back_out;
 mod a_description_keeps_every_kind_of_node_property;
 mod a_dock_declaration_round_trips_and_nests;
@@ -143,6 +144,7 @@ mod child_placements_round_trip;
 mod child_statuses_round_trip;
 mod creation_children_round_trip;
 mod creation_messages_round_trip;
+mod dock_bar_requests_round_trip_and_reach_the_root_through_their_owner;
 mod every_block_id_a_message_carries_is_visited;
 mod every_key_round_trips;
 mod frame_round_trips;
@@ -189,6 +191,7 @@ fn pane(depth: u32, key: &str, locked: bool) -> DockItem {
             keep: false,
             area: locked.then(|| key.into()),
             empty: None,
+            bare: false,
         }),
     }
 }
@@ -237,6 +240,7 @@ fn declaration() -> DockDeclaration {
             declared(DockTabPath::own(3), "nested"),
         ],
         dialogs: Vec::new(),
+        bars: Vec::new(),
     }
 }
 
@@ -248,5 +252,6 @@ fn child_declaration() -> DockDeclaration {
         },
         tabs: vec![declared(DockTabPath::own(4), "side-tab")],
         dialogs: Vec::new(),
+        bars: Vec::new(),
     }
 }

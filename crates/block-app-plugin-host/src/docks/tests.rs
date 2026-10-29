@@ -24,6 +24,7 @@ fn pane(depth: u32, key: &str) -> DockItem {
             keep: false,
             area: None,
             empty: None,
+            bare: false,
         }),
     }
 }
@@ -52,6 +53,7 @@ fn declaration(key: &str, tabs: &[(u64, &str)]) -> DockDeclaration {
             })
             .collect(),
         dialogs: Vec::new(),
+        bars: Vec::new(),
     }
 }
 
@@ -143,6 +145,8 @@ fn hosted_by_root() -> DockHosted {
         layout: DockLayout {
             tree: spliced.tree.clone(),
             homes: Vec::new(),
+            bars: Vec::new(),
+            outside: Vec::new(),
         },
         tabs: spliced.tabs.iter().map(|tab| tab.tab.clone()).collect(),
         focused: Some(path(&[INNER_CHILD], 5)),
@@ -167,6 +171,7 @@ fn host(docks: &mut Docks, hosted: Option<DockHosted>) {
 }
 
 mod a_closed_instance_withdraws_its_dock_from_the_root;
+mod a_descendants_bar_is_placed_by_the_root_and_its_moves_reach_it;
 mod a_docked_child_stays_open_while_its_placer_hosts_or_declares_its_tab;
 mod a_docked_child_that_declares_nothing_stays_a_plain_child;
 mod a_nested_dock_reaches_the_root_spliced_into_its_placers;

@@ -10,6 +10,7 @@ fn a_pinned_group_only_takes_the_tabs_that_live_in_it() {
         vertical: false,
         icons_only: false,
         sidebar: SIDEBAR_WIDTH,
+        bare: false,
     };
     let group = state.insert_pinned_group(leaf, 1, &layout);
     let inner = state.tree_leaves(Tree::Group(group))[0];

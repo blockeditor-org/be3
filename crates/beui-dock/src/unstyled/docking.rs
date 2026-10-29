@@ -35,8 +35,9 @@ use beui_components_unstyled::menu_popup::MenuStyle;
 const MAX_JOINED_DEPTH: usize = 16;
 
 pub use host::{
-    DockBodies, DockDeclaration, DockDeclaredBar, DockDeclaredDialog, DockDeclaredTab,
-    DockHostEvent, DockHostLink, DockHostSlot, DockHosted, DockJoin, DockRequest, use_dock_join,
+    DockBarMove, DockBodies, DockDeclaration, DockDeclaredBar, DockDeclaredDialog, DockDeclaredTab,
+    DockDragStage, DockHostEvent, DockHostLink, DockHostSlot, DockHosted, DockJoin, DockRequest,
+    use_dock_join,
 };
 use host::{Joined, Registry};
 
@@ -431,6 +432,7 @@ impl<K: DockKey> DockingLayout<K> {
             mode,
             above: hosted,
             host: RefCell::default(),
+            dock: std::cell::Cell::new(None),
         });
         let inner = LayoutInner {
             _scope: owner.into_scope(),
@@ -638,6 +640,10 @@ impl<K: DockKey> DockingLayout<K> {
         let Some(bar) = self.tab_of(key) else {
             return;
         };
+        if let Some(host) = self.host() {
+            host.request(DockRequest::PlaceBar(bar, Some(placement)));
+            return;
+        }
         self.edit(|state| state.set_bar_placement(bar, placement));
     }
 
@@ -1443,6 +1449,7 @@ where
         };
     }
     let registry = Rc::clone(&layout.inner().registry);
+    registry.dock.set(Some(api));
     let version = registry.version;
     create_effect(move || {
         layout.restores.get();

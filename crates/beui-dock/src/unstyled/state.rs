@@ -314,6 +314,7 @@ pub enum DockTree {
         vertical: bool,
         icons_only: bool,
         sidebar: f32,
+        bare: bool,
     },
     Split {
         direction: Direction,
@@ -337,6 +338,7 @@ impl Default for DockTree {
             vertical: false,
             icons_only: false,
             sidebar: SIDEBAR_WIDTH,
+            bare: false,
         }
     }
 }
@@ -373,6 +375,7 @@ impl DockTree {
                 vertical,
                 icons_only,
                 sidebar,
+                bare,
             } => {
                 let shown = entries.get(*active);
                 let kept: Vec<DockTreeEntry> = entries
@@ -396,6 +399,7 @@ impl DockTree {
                     vertical: *vertical,
                     icons_only: *icons_only,
                     sidebar: *sidebar,
+                    bare: *bare,
                 }
             }
             DockTree::Split {
@@ -1883,6 +1887,7 @@ impl DockState {
                 vertical: leaf.vertical,
                 icons_only: leaf.icons_only,
                 sidebar: leaf.sidebar,
+                bare: leaf.bare,
             },
             Node::Split(split) => DockTree::Split {
                 direction: split.direction,
@@ -1968,6 +1973,7 @@ impl DockState {
                 vertical,
                 icons_only,
                 sidebar,
+                bare,
             } => {
                 let entries: Vec<Entry> = entries
                     .iter()
@@ -1992,6 +1998,7 @@ impl DockState {
                 leaf.vertical = *vertical;
                 leaf.icons_only = *icons_only;
                 leaf.sidebar = sidebar.max(MIN_SIDEBAR_WIDTH);
+                leaf.bare = *bare;
                 Node::Leaf(leaf)
             }
             DockTree::Split {

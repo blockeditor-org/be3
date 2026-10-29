@@ -1,7 +1,7 @@
 use super::{DockEntry, DockFloating, DockNode, DockNodes};
 use crate::{
-    ChildId, DecodeError, DockDeclaration, DockGroup, DockHome, DockHosted, DockLayout, DockPane,
-    DockPlace, DockRequest, DockTab, DockTabPath, DockTree,
+    ChildId, DecodeError, DockBar, DockDeclaration, DockGroup, DockHome, DockHosted, DockLayout,
+    DockOutside, DockPane, DockPlace, DockPlacedBar, DockRequest, DockTab, DockTabPath, DockTree,
 };
 
 pub fn dock_prefix(host_key: &str, block: [u8; 16]) -> String {
@@ -148,6 +148,27 @@ impl Mapping<'_> {
                 .iter()
                 .filter_map(|home| self.home(home))
                 .collect(),
+            bars: layout
+                .bars
+                .iter()
+                .filter_map(|bar| {
+                    Some(DockPlacedBar {
+                        bar: (self.tab)(&bar.bar)?,
+                        owner: (self.tab)(&bar.owner)?,
+                        placement: bar.placement.clone(),
+                    })
+                })
+                .collect(),
+            outside: layout
+                .outside
+                .iter()
+                .filter_map(|outside| {
+                    Some(DockOutside {
+                        tab: (self.tab)(&outside.tab)?,
+                        place: outside.place.clone(),
+                    })
+                })
+                .collect(),
         }
     }
 }
@@ -167,6 +188,7 @@ fn empty_pane(key: String) -> DockNode {
             keep: false,
             area: None,
             empty: None,
+            bare: false,
         },
         entries: Vec::new(),
     }
@@ -273,6 +295,13 @@ impl DockDeclaration {
                 parent: dialog.parent.clone().through(child),
                 ..dialog.clone()
             }));
+        self.bars.retain(|bar| bar.owner != host);
+        self.bars.extend(inner.bars.iter().map(|bar| DockBar {
+            tab: bar.tab.clone().through(child),
+            key: prefixed(prefix, &bar.key),
+            owner: bar.owner.clone().through(child),
+            ..bar.clone()
+        }));
         Ok(true)
     }
 }
@@ -300,6 +329,14 @@ impl DockRequest {
                     area: fullscreen.area,
                 }))
             }
+            Self::PlaceBar(place) => Self::PlaceBar(crate::DockBarPlace {
+                bar: place.bar.clone().through(child),
+                placement: place.placement.clone(),
+            }),
+            Self::MoveBar(moved) => Self::MoveBar(crate::DockBarMove {
+                bar: moved.bar.clone().through(child),
+                ..moved.clone()
+            }),
         })
     }
 }
