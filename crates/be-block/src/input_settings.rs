@@ -6,7 +6,8 @@ use crate::Root;
 use crate::setting::Setting;
 use crate::settings::Layered;
 pub use ui_preferences::{
-    InputDevice, MAX_POINTER_SPEED, MIN_POINTER_SPEED, PointerSetting, PointerSettings, PointerSpeed,
+    InputDevice, MAX_POINTER_SPEED, MIN_POINTER_SPEED, PointerSetting, PointerSettings,
+    PointerSpeed,
 };
 
 pub const MIN_REPEAT_DELAY: u32 = 150;

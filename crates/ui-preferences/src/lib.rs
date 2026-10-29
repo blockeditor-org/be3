@@ -19,6 +19,7 @@ pub mod preferences;
 
 pub use display::{DisplayMode, Rotation};
 pub use pointer::{
-    InputDevice, MAX_POINTER_SPEED, MIN_POINTER_SPEED, PointerSetting, PointerSettings, PointerSpeed,
+    InputDevice, MAX_POINTER_SPEED, MIN_POINTER_SPEED, PointerSetting, PointerSettings,
+    PointerSpeed,
 };
 pub use preferences::{CanvasTouch, Motion, PreferenceLayer, Preferences, ThemeKind};
