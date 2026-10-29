@@ -155,15 +155,15 @@ and an instantiation per thread:
 | Library | Holds |
 |---|---|
 | base | std, alloc, the allocator, the panic runtime, wasi-libc, libc++ and libc++abi (whole), the forced C math and libc functions, wgpu with the custom backend (block-gpu-guest), be-ops, block-plugin-api, block-editor-plugin, geometry, serde, postcard, serde_json, uuid |
-| beui | reactive, block-editor-reactive (below), beui and everything under it, beui-platform-plugin, block-editor-beui, FreeType, HarfBuzz |
+| beui | reactive, beui and everything under it, beui-platform-plugin, block-editor-beui, FreeType, HarfBuzz |
 
 serde, postcard and uuid go in base: block-plugin-api and be-ops encode every
 frame with postcard over serde, and block ids are uuids. `reactive` does not:
 only a retained, fine-grained framework needs signals, and an immediate-mode
 one rereads its state every frame and only needs to know when to run one.
-Taking it out of base needs the refactor in "Reactivity out of base" below. If
-another framework ever wants `reactive` without beui, it becomes a library of
-its own. Triangle links base;
+A framework with signals of its own (SolidJS-style, say) would want its own,
+not `reactive`'s, so `reactive` is beui's and goes with it. Taking it out of
+base needs the refactor in "Reactivity out of base" below. Triangle links base;
 every beui editor links base and beui. Split base further only when a module
 needs part of it, for example a type module that wants std without wgpu.
 
@@ -231,12 +231,24 @@ block-editor-plugin keeps its state and drops `reactive`:
   `content.rs` stay as they are, since they do not use signals. A change also
   wakes the plugin, as now.
 
-A new crate, block-editor-reactive, in the beui library, puts signals back on
-top: `ContentProjection`'s `project`, `field`, `object`, `objects`,
-`project_keyed` and `ready` become signals fed by those callbacks, and a
-graph or host read tracks a signal its revision callback bumps.
-block-editor-beui re-exports it, so the editors' imports change in one place
-and their code does not.
+These callbacks are the boundary every framework builds on: an immediate-mode
+one ignores them and runs a frame on the wake, and a framework with its own
+signals turns them into its signals. So make them easy to adapt:
+- as fine-grained as the state: per `Touched` key for content, per query for
+  the graph, per watch for host values, so an adapter makes one signal per
+  thing a view reads, not one for everything;
+- delivered once per change, after the state is consistent (after a whole
+  operation or delivery has been applied), so an adapter can batch;
+- returning a handle that unsubscribes when dropped, so a signal that is
+  cleaned up stops listening.
+
+beui's adapter, in block-editor-beui, puts `reactive` signals back on top:
+`ContentProjection`'s `project`, `field`, `object`, `objects`,
+`project_keyed` and `ready` become signals fed by those callbacks, and a graph
+or host read tracks a signal its callback bumps. block-editor-beui exports
+them under the names editors use now, so the editors' imports change in one
+place and their code does not. A second framework writes its own adapter over
+the same callbacks.
 
 Do this before splitting the SDK into base and beui (step 5 in Order), since
 the split needs it.
@@ -345,8 +357,8 @@ beui, so a second framework would add views and a thin adapter only.
 Take the parts of `block-editor-beui` that are state over `EditorHost` rather
 than views, and split each in two: the logic (the calls to the host, the
 bookkeeping) moves into block-editor-plugin as plain state with change
-callbacks, and the signals over it move into block-editor-reactive. The
-candidates:
+callbacks, and the signals over it stay in block-editor-beui as part of its
+adapter. The candidates:
 - `Editor`, `OwnedEditor`, `Artifacts`, `Creation` and `ChildState` from
   `editor.rs`, which has no `view!`. It still uses `beui::native::Document`,
   `EmbedSlot` and `CanvasView`; split those uses off into what stays in
@@ -355,8 +367,8 @@ candidates:
   geometry.
 - The data halves of `version_control.rs` and `layered_settings.rs`.
 
-An immediate-mode framework then uses block-editor-plugin alone; a reactive
-one uses block-editor-reactive too.
+Every framework then uses block-editor-plugin for the logic and adapts its
+change callbacks to its own way of updating.
 
 ### The region driver
 
