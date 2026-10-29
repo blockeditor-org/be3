@@ -452,6 +452,23 @@ pub fn use_dock_tab() -> Option<DockTabControl> {
     use_context::<DockTabControl>()
 }
 
+#[derive(Clone, Copy)]
+struct ShowsThrough(Memo<bool>);
+
+/// While `shows` is true, every dock built below shows what is drawn under it: none of its panes on the main surface,
+/// nor a stacked dock, fills behind its tabs, as if each showed a `see_through` tab. An editor keeping to a card
+/// of its parent's while it holds the parent's frame provides it, so the parent shows around the card.
+pub fn provide_dock_shows_through(shows: Memo<bool>) {
+    provide_context(ShowsThrough(shows));
+}
+
+pub(crate) fn dock_shows_through() -> Memo<bool> {
+    match use_context::<ShowsThrough>() {
+        Some(ShowsThrough(shows)) => shows,
+        None => create_memo(|| false),
+    }
+}
+
 pub type DockMenus = HashMap<TabId, (u64, Memo<Vec<MenuNode>>)>;
 
 type DockNotices = HashMap<TabId, (u64, Memo<Option<String>>)>;
@@ -2378,8 +2395,10 @@ fn DockChrome(dock: State, parts: ChromeParts) -> NodeId {
         </List>
     };
     let state = dock.state;
+    let through = dock_shows_through();
     let see_through = create_memo(move || {
-        leaf.is_some_and(|leaf| state.with(|state| state.shows_see_through(leaf)))
+        (!floating && through.get())
+            || leaf.is_some_and(|leaf| state.with(|state| state.shows_see_through(leaf)))
     });
     dock.chrome.call(DockChromeHandle {
         floating,

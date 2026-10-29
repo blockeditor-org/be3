@@ -102,9 +102,10 @@ where
     let theme = use_theme();
     let dialog_scrim = create_memo(move || ColorRole::Scrim.resolve(&theme));
     let back_shade = create_memo(move || ColorRole::ScrimSoft.resolve(&theme));
+    let through = dock::dock_shows_through();
     let fill = create_memo(move || match mode.get() {
-        DockMode::Tiled => ColorRole::None,
-        DockMode::Stacked => ColorRole::Background,
+        DockMode::Stacked if !through.get() => ColorRole::Background,
+        DockMode::Tiled | DockMode::Stacked => ColorRole::None,
     });
     view! {
         <dock::Docking

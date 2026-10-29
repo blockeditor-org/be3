@@ -2479,7 +2479,7 @@ keep its tabs in its area (below). `DockWindow` floats one
 tree at a `rect`. A `see_through` tab shows something drawn under the dock, as the inspector's App tab shows the
 app: neither its pane nor a stacked dock fills behind it, so the pane's chrome learns it from
 `DockChromeHandle::see_through`, and it stays on the main surface, where nothing of the dock is
-under it (`DockState::admits` refuses it a window). A tab's key is any `Clone + Eq + Hash` type; a key that is a
+under it (`DockState::admits` refuses it a window). `provide_dock_shows_through(memo)` makes every dock built below show through the same way while it is true, except in floating windows: an editor keeping to its card on its parent's stage while it holds the parent's frame provides it (block-editor-beui's frame chrome, from `Editor::placed_content`), so the parent's stage shows around the card. A tab's key is any `Clone + Eq + Hash` type; a key that is a
 `TabId` or a `u64` names the tab's `TabId` too, which is what the test ids of its
 close button and switcher row carry (`dock.tab.<tab>.close`; a group's close button
 carries its hosting tab's). Every container has an `id`, saved with the
