@@ -7,7 +7,10 @@ fn the_filmstrip_pops_out_into_a_window_once_its_area_is_unlocked() {
     test.run();
     let docked = test.rect_of("presentation.filmstrip");
     let stage = editor.content_rect();
-    assert!(docked.right() <= stage.left(), "the filmstrip stands left of the stage");
+    assert!(
+        docked.right() <= stage.left(),
+        "the filmstrip stands left of the stage"
+    );
 
     test.click_with("dock.grip.filmstrip", PointerButton::Secondary);
     test.run();
@@ -24,6 +27,9 @@ fn the_filmstrip_pops_out_into_a_window_once_its_area_is_unlocked() {
         editor.content_rect().width() > stage.width(),
         "the stage takes the deck's whole width"
     );
-    assert!(test.shown("presentation.filmstrip"), "the filmstrip shows in its window");
+    assert!(
+        test.shown("presentation.filmstrip"),
+        "the filmstrip shows in its window"
+    );
     test.snapshot("the_filmstrip_pops_out_into_a_window_once_its_area_is_unlocked");
 }

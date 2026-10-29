@@ -16,7 +16,10 @@ fn a_hosting_tabs_bar_is_lent_to_the_dock_that_joins_in_its_place() {
     };
     let mut spliced = declaration();
     spliced.bars.push(toolbar.clone());
-    assert_eq!(spliced.splice(3, child, &prefix, &child_declaration()), Ok(true));
+    assert_eq!(
+        spliced.splice(3, child, &prefix, &child_declaration()),
+        Ok(true)
+    );
     assert_eq!(spliced.validate(), Ok(()));
     let side = DockTabPath::own(4).through(child);
     assert_eq!(
@@ -54,5 +57,13 @@ fn a_hosting_tabs_bar_is_lent_to_the_dock_that_joins_in_its_place() {
         }],
         "its owner hears it back on its own tab"
     );
-    assert!(hosted.child(child, &prefix).unwrap().unwrap().layout.bars.is_empty());
+    assert!(
+        hosted
+            .child(child, &prefix)
+            .unwrap()
+            .unwrap()
+            .layout
+            .bars
+            .is_empty()
+    );
 }

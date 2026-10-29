@@ -13,9 +13,20 @@ fn a_slides_canvas_bar_stacks_with_the_presentation_toolbar() {
     app.gone("#picker.slides");
     app.wait("#infinite-canvas.dock");
     app.run(&["settle"]);
-    assert_eq!(app.count("#presentation.toolbar "), 1, "the deck keeps its toolbar");
-    assert_eq!(app.count("#infinite-canvas.dock "), 1, "the slide's canvas joins with its bar");
-    assert!(app.shown("#presentation.filmstrip"), "and the filmstrip stays");
+    assert_eq!(
+        app.count("#presentation.toolbar "),
+        1,
+        "the deck keeps its toolbar"
+    );
+    assert_eq!(
+        app.count("#infinite-canvas.dock "),
+        1,
+        "the slide's canvas joins with its bar"
+    );
+    assert!(
+        app.shown("#presentation.filmstrip"),
+        "and the filmstrip stays"
+    );
 
     app.click("#infinite-canvas.dock.grip");
     app.click("#grip.dock.bar.beside.top");

@@ -2,13 +2,13 @@ use beui::Overflow;
 use std::cell::Cell;
 use std::rc::Rc;
 
-use block_editor_beui::beui::icons::{
-    ICON_ARROW_LEFT, ICON_ARROW_RIGHT, ICON_MAXIMIZE, ICON_TRASH, ICON_X,
-};
 use block_editor_beui::beui::dock::styled::{
     DockBar, DockBarGrip, DockPane, DockSplit, DockTab, Docking, DockingLayout, use_dock_bar,
 };
 use block_editor_beui::beui::dock::unstyled::{DockBarPlacement, DockEdge};
+use block_editor_beui::beui::icons::{
+    ICON_ARROW_LEFT, ICON_ARROW_RIGHT, ICON_MAXIMIZE, ICON_TRASH, ICON_X,
+};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{Color32, CursorIcon, Key, KeyPress, NodeId, Vec2};
@@ -96,7 +96,12 @@ pub fn PresentationView(editor: Editor) -> NodeId {
 }
 
 #[component]
-fn DeckDock(editor: Editor, slides: Slides, stage: NodeRef, selected: Memo<Option<Uuid>>) -> NodeId {
+fn DeckDock(
+    editor: Editor,
+    slides: Slides,
+    stage: NodeRef,
+    selected: Memo<Option<Uuid>>,
+) -> NodeId {
     let layout = DockingLayout::<&'static str>::new();
     view! {
         <Docking layout focus={Some(STAGE)}>

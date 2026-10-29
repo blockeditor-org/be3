@@ -306,14 +306,11 @@ impl DockDeclaration {
                 parent: dialog.parent.clone().through(child),
                 ..dialog.clone()
             }));
-        let lent = inner_nodes
-            .main
-            .as_ref()
-            .and_then(|main| {
-                let mut tabs = Vec::new();
-                main.tabs(&mut tabs);
-                tabs.first().map(|tab| (*tab).clone().through(child))
-            });
+        let lent = inner_nodes.main.as_ref().and_then(|main| {
+            let mut tabs = Vec::new();
+            main.tabs(&mut tabs);
+            tabs.first().map(|tab| (*tab).clone().through(child))
+        });
         self.bars.retain_mut(|bar| {
             if bar.owner != host {
                 return true;

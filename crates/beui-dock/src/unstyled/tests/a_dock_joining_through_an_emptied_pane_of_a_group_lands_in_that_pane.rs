@@ -1,5 +1,7 @@
 use super::*;
-use crate::unstyled::state::{DockPlain, DockPlainEntry, DockPlainHome, DockPlainNode, DockPlainPlace};
+use crate::unstyled::state::{
+    DockPlain, DockPlainEntry, DockPlainHome, DockPlainNode, DockPlainPlace,
+};
 
 fn plain_pane(key: &str, area: bool, tabs: &[u64]) -> DockPlainNode {
     DockPlainNode::Pane {
@@ -131,7 +133,9 @@ fn a_dock_joining_through_an_emptied_pane_of_a_group_lands_in_that_pane() {
     state.reconcile(&joining);
     let (leaf, _) = state
         .locate(Entry::Group(
-            state.find_group("joined:2/stage/slide").expect("the joined dock is placed"),
+            state
+                .find_group("joined:2/stage/slide")
+                .expect("the joined dock is placed"),
         ))
         .expect("its group is placed");
     assert_eq!(

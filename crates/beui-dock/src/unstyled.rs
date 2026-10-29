@@ -3086,7 +3086,11 @@ fn TabMenu(
         <ContextMenu
             menu
             items={view! {
-                <MenuItem label="Pop out into a window" disabled={stuck} row_test_id="dock.tab.pop-out" />
+                <MenuItem
+                    label="Pop out into a window"
+                    disabled={stuck}
+                    row_test_id="dock.tab.pop-out"
+                />
                 <MenuItem label={group_label} disabled={alone} />
                 <MenuItem label={split_label} disabled={alone} />
                 <MenuItem label={close_label} disabled={unclosable} />
