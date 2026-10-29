@@ -1,6 +1,6 @@
-use block_editor_beui::be_block;
-use block_editor_beui::be_block::be_model::{Document as Content, Model, ObjectId, RichText};
-use block_editor_beui::block_editor_plugin::Waker;
+use be_block;
+use be_block::be_model::{Document as Content, Model, ObjectId, RichText};
+use block_editor_plugin::Waker;
 use text_editor_core::schema::basic::{BOLD, ITALIC};
 use text_editor_core::{Document, Expand, Name, Scope, Value};
 use uuid::Uuid;
@@ -14,17 +14,17 @@ mod plain_text_takes_no_formats;
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 struct Note {
     words: RichText,
-    plain: block_editor_beui::be_block::be_model::Text,
+    plain: be_block::be_model::Text,
 }
 
-impl block_editor_beui::be_block::Root for Note {
+impl be_block::Root for Note {
     const CONTENT_TYPE: Uuid = Uuid::from_u128(0x5ee0_0000_0000_0000_0000_0000_0000_0001);
 }
 
 fn note(text: &str) -> Content<Note> {
     Content::new(&Note {
         words: RichText::from(text),
-        plain: block_editor_beui::be_block::be_model::Text::from(text),
+        plain: be_block::be_model::Text::from(text),
     })
 }
 
@@ -50,10 +50,7 @@ fn formatted(text: &LiveText<FieldOf<Note>>, index: usize, key: &str) -> bool {
         .is_some_and(|marks| marks.has(key, &Value::Bool(true)))
 }
 
-fn send(
-    text: &LiveText<FieldOf<Note>>,
-    content: &mut Content<Note>,
-) -> Vec<block_editor_beui::be_block::Edit> {
+fn send(text: &LiveText<FieldOf<Note>>, content: &mut Content<Note>) -> Vec<be_block::Edit> {
     let operations = text.take_operations();
     for operation in &operations {
         content.apply(operation);

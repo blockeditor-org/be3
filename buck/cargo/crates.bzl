@@ -13914,8 +13914,9 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
-                    "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/text-editor-core:text-editor-core",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
@@ -13930,8 +13931,9 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
-                    "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/text-editor-core:text-editor-core",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
@@ -13946,8 +13948,9 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
-                    "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/text-editor-core:text-editor-core",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
@@ -13962,8 +13965,9 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
-                    "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/text-editor-core:text-editor-core",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
@@ -13978,8 +13982,9 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
-                    "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/text-editor-core:text-editor-core",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
@@ -13994,8 +13999,9 @@ crates = {
             "wasi-guest": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
-                    "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/text-editor-core:text-editor-core",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
@@ -14008,8 +14014,9 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
-                    "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/text-editor-core:text-editor-core",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
@@ -14024,8 +14031,9 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
-                    "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/text-editor-core:text-editor-core",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
@@ -15753,7 +15761,6 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-block:be-block",
                     "//crates/lucide:lucide",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -15765,7 +15772,6 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-block:be-block",
                     "//crates/lucide:lucide",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -15777,7 +15783,6 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-block:be-block",
                     "//crates/lucide:lucide",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -15789,7 +15794,6 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-block:be-block",
                     "//crates/lucide:lucide",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -15801,7 +15805,6 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-block:be-block",
                     "//crates/lucide:lucide",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -15813,7 +15816,6 @@ crates = {
             "wasi-guest": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-block:be-block",
                     "//crates/lucide:lucide",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -15825,7 +15827,6 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-block:be-block",
                     "//crates/lucide:lucide",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -15837,7 +15838,6 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-block:be-block",
                     "//crates/lucide:lucide",
                     "//third-party/rust:uuid-1.23.2",
                 ],

@@ -5,7 +5,6 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
-be-block = { path = "../be-block" }
 lucide = { path = "../lucide" }
 uuid = "1"
 

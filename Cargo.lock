@@ -1914,9 +1914,10 @@ dependencies = [
 name = "block-editor-text"
 version = "0.1.0"
 dependencies = [
+ "be-block",
  "be-model",
  "beui",
- "block-editor-beui",
+ "block-editor-plugin",
  "serde",
  "text-editor-core",
  "uuid",
@@ -2084,7 +2085,6 @@ dependencies = [
 name = "block-ui"
 version = "0.1.0"
 dependencies = [
- "be-block",
  "lucide",
  "uuid",
 ]

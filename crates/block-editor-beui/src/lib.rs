@@ -27,8 +27,6 @@ mod rotation;
 pub mod sections;
 pub mod version_control;
 
-use be_block::presence::PresenceColor;
-
 pub use beui_frame::phone_layout;
 pub use block_link::{BlockDisplay, BlockLink, label_glyph, watch_block_label};
 pub use child::{ChildBlock, ChildDockTab, ChildHandle as ChildBlockHandle, Subregion};
@@ -101,19 +99,6 @@ pub trait BeuiApp: 'static {
 
 pub fn context() -> beui::native::Context {
     beui_platform_plugin_api::runtime().context()
-}
-
-pub fn presence_color(color: PresenceColor) -> beui::Color32 {
-    match color {
-        PresenceColor::Red => beui::Color32::from_rgb(224, 82, 82),
-        PresenceColor::Orange => beui::Color32::from_rgb(230, 140, 50),
-        PresenceColor::Yellow => beui::Color32::from_rgb(214, 179, 41),
-        PresenceColor::Green => beui::Color32::from_rgb(84, 171, 90),
-        PresenceColor::Teal => beui::Color32::from_rgb(46, 173, 168),
-        PresenceColor::Blue => beui::Color32::from_rgb(74, 134, 227),
-        PresenceColor::Purple => beui::Color32::from_rgb(150, 100, 214),
-        PresenceColor::Pink => beui::Color32::from_rgb(224, 104, 168),
-    }
 }
 
 #[macro_export]

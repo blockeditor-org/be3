@@ -1,5 +1,4 @@
-use block_editor_beui::be_block::presence::PresenceColor;
-use block_editor_beui::presence_color;
+use be_block::presence::PresenceColor;
 use serde::{Deserialize, Serialize};
 use text_editor_core::Position;
 
@@ -41,4 +40,17 @@ pub fn remote_carets(
             })
             .collect()
     })
+}
+
+pub fn presence_color(color: PresenceColor) -> beui::Color32 {
+    match color {
+        PresenceColor::Red => beui::Color32::from_rgb(224, 82, 82),
+        PresenceColor::Orange => beui::Color32::from_rgb(230, 140, 50),
+        PresenceColor::Yellow => beui::Color32::from_rgb(214, 179, 41),
+        PresenceColor::Green => beui::Color32::from_rgb(84, 171, 90),
+        PresenceColor::Teal => beui::Color32::from_rgb(46, 173, 168),
+        PresenceColor::Blue => beui::Color32::from_rgb(74, 134, 227),
+        PresenceColor::Purple => beui::Color32::from_rgb(150, 100, 214),
+        PresenceColor::Pink => beui::Color32::from_rgb(224, 104, 168),
+    }
 }
