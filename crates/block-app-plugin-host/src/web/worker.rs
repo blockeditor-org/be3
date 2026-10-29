@@ -9,6 +9,7 @@ use std::{
 use wasm_bindgen::{JsCast, prelude::*};
 
 use super::canvases::{Canvases, Placement};
+use super::overlay::{self, Overlay};
 use block_guest_host::{Channel, Event, Presented, Produced, Received, StepTime};
 
 const WORKER_SOURCE: &str = r#"
@@ -23,9 +24,11 @@ const WORKER_SOURCE: &str = r#"
 // with what came out. A plugin that wakes between steps says so, so the page
 // steps it again. A preview the plugin draws leaves as a bitmap of the surfaces
 // the page asked to export, and a preview of another plugin's arrives as a
-// bitmap the plugin imports as a texture.
+// bitmap the plugin imports as a texture. The plugin's layers are drawn into one
+// more canvas, the page's overlay over the app, at the pieces the page lists.
 let plugin = null;
 const shown = new Map();
+let layers = null;
 let exported = [];
 const imports = [];
 
@@ -66,6 +69,8 @@ self.onmessage = async (event) => {
             );
             for (const pending of shown.values()) show(pending);
             shown.clear();
+            if (layers) plugin.layers(layers.canvas, layers.width, layers.height, layers.pieces);
+            layers = null;
             plugin.exportSurfaces(exported);
             for (const [image, bitmap] of imports) plugin.importImage(image, bitmap);
             imports.length = 0;
@@ -83,6 +88,13 @@ self.onmessage = async (event) => {
             } else {
                 const pending = shown.get(data.id);
                 shown.set(data.id, { ...data, canvas: data.canvas ?? pending?.canvas });
+            }
+        } else if (data.kind === "layers") {
+            if (plugin) {
+                plugin.layers(data.canvas ?? null, data.width, data.height, data.pieces);
+                plugin.paint();
+            } else {
+                layers = { ...data, canvas: data.canvas ?? layers?.canvas ?? null };
             }
         } else if (data.kind === "forget") {
             if (plugin) plugin.forget(data.id);
@@ -131,6 +143,7 @@ pub struct WorkerChannel {
     worker: web_sys::Worker,
     inbox: Rc<RefCell<Inbox>>,
     canvases: Canvases,
+    overlay: Option<overlay::Shown>,
     exported: HashSet<u32>,
     _onmessage: Closure<dyn FnMut(web_sys::MessageEvent)>,
 }
@@ -155,6 +168,7 @@ impl WorkerChannel {
             worker,
             inbox,
             canvases: Canvases::default(),
+            overlay: None,
             exported: HashSet::new(),
             _onmessage: onmessage,
         })
@@ -190,11 +204,40 @@ impl WorkerChannel {
         let _ = self.worker.post_message(&message);
     }
 
-    pub fn place(&mut self, placements: Vec<Placement>) -> Result<(), String> {
+    pub fn place(
+        &mut self,
+        placements: Vec<Placement>,
+        layers: Option<Overlay>,
+    ) -> Result<(), String> {
         let mut canvases = std::mem::take(&mut self.canvases);
         let placed = canvases.place(self, placements);
         self.canvases = canvases;
-        placed
+        let mut shown = self.overlay.take();
+        let layered = overlay::show(self, &mut shown, layers);
+        self.overlay = shown;
+        placed.and(layered)
+    }
+
+    pub(super) fn layers(
+        &self,
+        canvas: Option<&web_sys::OffscreenCanvas>,
+        (width, height): (u32, u32),
+        pieces: &[f32],
+    ) -> Result<(), String> {
+        let message = js_sys::Object::new();
+        set(&message, "kind", &"layers".into());
+        set(&message, "width", &width.into());
+        set(&message, "height", &height.into());
+        set(&message, "pieces", &js_sys::Float32Array::from(pieces));
+        let posted = match canvas {
+            Some(canvas) => {
+                set(&message, "canvas", canvas);
+                self.worker
+                    .post_message_with_transfer(&message, &js_sys::Array::of1(canvas))
+            }
+            None => self.worker.post_message(&message),
+        };
+        posted.map_err(|_| "a plugin's layers could not be handed to its worker".to_owned())
     }
 
     pub(super) fn show(
@@ -229,6 +272,9 @@ impl WorkerChannel {
 impl Drop for WorkerChannel {
     fn drop(&mut self) {
         self.canvases.clear();
+        if let Some(shown) = self.overlay.take() {
+            shown.remove();
+        }
         let message = js_sys::Object::new();
         set(&message, "kind", &"shutdown".into());
         let _ = self.worker.post_message(&message);

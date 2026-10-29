@@ -116,7 +116,12 @@ fn ArtifactSettingsDialog(workspace: Workspace) -> NodeId {
     };
     let editor = workspace.editor();
     view! {
-        <DialogFrame open={open} on_dismiss={dismiss}>|| {
+        <DialogFrame
+            open={open}
+            size=DialogSize::Large
+            anchor=DialogAnchor::Frame
+            on_dismiss={dismiss}
+        >|| {
             let height = create_memo(move || Length::Size(Size::Custom(height.get())));
             view! {
                 <Frame height>
@@ -275,6 +280,8 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
             open={open}
             title={title}
             width={Size::Custom(460.0)}
+            size=DialogSize::Large
+            anchor=DialogAnchor::Frame
             id="share"
             on_dismiss={move || workspace.close_dialog()}
         >

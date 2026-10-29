@@ -405,6 +405,8 @@ impl beui::native::App for Shell {
         #[cfg(target_arch = "wasm32")]
         block_app_plugin_host::place_screens(
             &block_app_plugin_host::shown_blits(),
+            rect.size(),
+            context.pixels_per_point(),
             context.pixels_per_point() / context.native_pixels_per_point(),
             beui::styled::Theme::of(self.document.preferences().theme).background,
         );

@@ -13,6 +13,7 @@ use crate::app::LogicGridApp;
 mod a_dragged_hotbar_slot_follows_the_pointer;
 mod a_number_key_picks_a_tool_and_a_click_places_a_gate;
 mod compiling_a_grid_seeds_the_component_it_creates;
+mod configuring_a_storage_opens_a_card_on_it;
 mod dragging_a_hotbar_slot_onto_another_moves_it_there;
 mod dragging_with_the_wire_tool_draws_a_wire;
 mod dropping_a_hotbar_slot_on_an_open_folder_puts_it_inside;

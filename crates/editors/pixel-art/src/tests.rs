@@ -16,6 +16,7 @@ use crate::artifact;
 mod choosing_a_tool_marks_it_in_the_sidebar;
 mod clearing_the_artwork_needs_the_dialog;
 mod drawing_on_the_canvas_paints_the_block;
+mod resizing_opens_a_card_on_the_resize_button;
 mod the_export_scale_setting_writes_the_artifact_draft;
 
 fn editor() -> BeuiTest<PixelArtApp> {

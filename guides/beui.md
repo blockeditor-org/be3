@@ -2192,7 +2192,18 @@ beak hanging from the control that opened it (`Popover`, no scrim), or from the 
 (`HangFrom`) when it has no control. The control is resolved when the dialog opens with
 `opener_of`: a control inside a menu that has closed, or inside a menu with a trigger, stands for
 what that menu hangs from (its trigger, or the node a `ContextMenu` was opened on), menu after
-menu. Anchored presentations escape a window that has a layer space; centred ones stay. It builds its content once, when it first
+menu. Anchored presentations escape a window that has a layer space; centred ones stay.
+Which to pass: a small form about one object, opened from a control, passes `Control` of
+that control (pixel-art's Resize button, database's Filter and display button). Opened from
+a menu row, it fills its `NodeRef` with `focused_node()` in the row's `on_click`, since a
+`MenuItem` is no node (file-tree's Inspect). Opened from a point on a canvas, it passes an
+empty `Frame` in a `CanvasItem` over that point (logic-grid's storage, a calendar slot).
+Opened from an action, which a host-drawn menu, the palette or a shortcut runs, it passes
+`Frame` (text settings, canvas Export). A large form or embedded editor passes
+`size=DialogSize::Large`, with `Frame` when it belongs to a frame (block-shell's Share and
+artifact settings); a host-drawn one with no frame (block-app's Members, Contacts, Agents,
+Unsent edits, the conflict compare) passes no anchor and stays centred. Alerts and
+app-level modals pass neither. It builds its content once, when it first
 opens, and moves it between the card and the sheet with a `Portal` if that changes
 while it is open; it provides the `DialogLayout` (`narrow`, `sheet`, `bottom_inset`)
 to what it holds. `DialogBody` is the title row, the content in a fitted `Scroll` with

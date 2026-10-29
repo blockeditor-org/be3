@@ -90,6 +90,7 @@ fn AgentsDialog(view: AppViewStore) -> NodeId {
             open={open}
             title={title}
             width={Size::Custom(460.0)}
+            size=DialogSize::Large
             id="app.agents"
             actions={vec![
                 DialogAction::primary("Add agent", move || send(UiCommand::CreateAgent(name.get_untracked())))
@@ -116,6 +117,7 @@ fn ContactsDialog(view: AppViewStore) -> NodeId {
             open={open}
             title="Contacts"
             width={Size::Custom(460.0)}
+            size=DialogSize::Large
             id="app.contacts"
             actions={vec![
                 DialogAction::primary("New contact link", || send(UiCommand::NewContactLink))
@@ -138,6 +140,7 @@ fn MembersDialog(view: AppViewStore) -> NodeId {
             open={open}
             title="Members"
             width={Size::Custom(480.0)}
+            size=DialogSize::Large
             id="app.members"
             actions={vec![
                 DialogAction::primary("Invite member", || {
@@ -529,6 +532,7 @@ fn UnsentDialog(view: AppViewStore) -> NodeId {
             open={open}
             title="Unsent edits"
             width={Size::Custom(460.0)}
+            size=DialogSize::Large
             id="app.unsent"
             on_dismiss={|| send(UiCommand::Unsent(false))}
         >

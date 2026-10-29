@@ -16,6 +16,9 @@ pub struct Placement {
 }
 
 pub fn placement(blit: &Blit, order: usize, scale: f32) -> Option<Placement> {
+    if blit.layer.is_some() {
+        return None;
+    }
     let shared = blit.shared.borrow();
     let placement = shared.layout.placement(blit.screen)?;
     if placement.width == 0

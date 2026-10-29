@@ -549,6 +549,11 @@ against the layer's pixels by its `layer`, clipped to the layer and hidden by
 no occluder; the child's own frame appears one frame after the layer that
 holds it. The host's embedded popups are such children: a block's rename form
 (`child-content.rename`) and the app's menu (`host-panel.app-menu`).
+In the browser, where a plugin draws in a worker of its own, the page gives
+that worker one canvas over the whole app on its first layer and keeps it; the
+worker draws each layer's `painted` rectangles into it where the page says,
+the page clips the canvas to the plugin's bounds, and the canvas of the plugin
+that opened the newest layer is on top.
 
 A frame report may also carry press claims: a set of modifiers and a
 rectangle. While every one of those modifiers is held, a pointer press inside

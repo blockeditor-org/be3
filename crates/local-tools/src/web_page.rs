@@ -45,6 +45,19 @@ html, body {
     top: 0;
     transform-origin: 0 0;
 }
+#layers {
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    overflow: hidden;
+    pointer-events: none;
+}
+#layers canvas {
+    position: absolute;
+    left: 0;
+    top: 0;
+    pointer-events: none;
+}
 #block {
     position: relative;
     z-index: 1;
@@ -104,6 +117,7 @@ pub(crate) fn page(kind: Page, base: Option<String>) -> String {
                 view! {
                     <html::Div id="plugins" />
                     <html::Canvas id="block" />
+                    <html::Div id="layers" />
                 },
             ),
         };

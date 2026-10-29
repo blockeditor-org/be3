@@ -687,6 +687,7 @@ fn ConflictDialog(comparison: Memo<Option<block_app_stack::conflicts::Comparison
             open={open}
             title="Both versions"
             width={Size::Custom(960.0)}
+            size=DialogSize::Large
             id="conflict.compare"
             actions={vec![
                 DialogAction::primary("Keep merged", move || {

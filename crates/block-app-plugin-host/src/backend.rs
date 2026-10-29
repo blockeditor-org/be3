@@ -250,11 +250,15 @@ impl Backend {
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub(super) fn place(&mut self, placements: Vec<super::web::Placement>) {
+    pub(super) fn place(
+        &mut self,
+        placements: Vec<super::web::Placement>,
+        layers: Option<super::web::Overlay>,
+    ) {
         let Some(worker) = &mut self.worker else {
             return;
         };
-        if let Err(error) = worker.channel.place(placements) {
+        if let Err(error) = worker.channel.place(placements, layers) {
             self.error.get_or_insert(error);
         }
     }

@@ -977,6 +977,7 @@ pub(crate) fn ExportDialog(exporter: Exporter) -> NodeId {
             open={open}
             title={title}
             id="infinite-canvas.export"
+            anchor=DialogAnchor::Frame
             actions={vec![
                 DialogAction::secondary("Copy", move || finish(ExportTo::Clipboard)).named("copy"),
                 DialogAction::cancel("Cancel"),
