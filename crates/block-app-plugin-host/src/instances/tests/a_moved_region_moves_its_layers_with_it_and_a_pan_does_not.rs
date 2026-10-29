@@ -34,6 +34,21 @@ fn a_moved_region_moves_its_layers_with_it_and_a_pan_does_not() {
     lay_out(&mut instances);
     report_layers(
         &mut instances,
+        vec![layer(1, block_plugin_api::LayerParent::Region, menu)],
+    );
+    assert_eq!(
+        shown_rects(&instances),
+        vec![moved],
+        "a move alone sends the plugin no new place, and its layers keep moving with the region"
+    );
+
+    assert!(
+        instances.refresh_layers(INSTANCE, REGION),
+        "input to the region sends it where it now is"
+    );
+    lay_out(&mut instances);
+    report_layers(
+        &mut instances,
         vec![layer(1, block_plugin_api::LayerParent::Region, moved)],
     );
     assert_eq!(
@@ -41,4 +56,5 @@ fn a_moved_region_moves_its_layers_with_it_and_a_pan_does_not() {
         vec![moved],
         "a layer laid out against the region's new place is not moved again"
     );
+    assert!(!instances.refresh_layers(INSTANCE, REGION));
 }

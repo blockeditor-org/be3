@@ -58,5 +58,6 @@ fn targets(runs: &[(Target, Vec<Forwarded>, bool)]) -> Vec<Target> {
 }
 
 mod a_child_region_s_layer_bounds_never_exceed_its_parent_s;
+mod a_layer_a_child_in_a_layer_opens_takes_presses_over_that_child;
 mod a_press_on_a_layer_keeps_its_drag_until_it_is_let_go;
 mod the_layer_opened_last_takes_a_press_where_layers_overlap;

@@ -15,6 +15,9 @@ use super::region::ChildView;
 #[derive(Clone, Copy)]
 pub(crate) struct LayerBounds(pub(crate) Memo<Rect>);
 
+#[derive(Clone, Copy)]
+pub(crate) struct NoLayers;
+
 #[derive(Clone)]
 pub(crate) struct LayerOwner {
     pub(crate) mount: u64,
@@ -128,32 +131,18 @@ fn topmost(shown: &[Shown], pos: Pos2) -> Option<Target> {
         .map(|shown| (shown.mount, shown.layer.id))
 }
 
-fn in_layers(owners: &[LayerOwner], shown: &[Shown]) -> Vec<(u64, ChildId, bool)> {
-    let opened = |mount: u64, id: LayerId| {
-        shown
+fn taken(shown: &[Shown], holes: &[(u64, LayerId, Rect)]) -> beui::HitRegion {
+    shown.iter().fold(beui::HitRegion::new(), |takes, shown| {
+        let takes = shown
+            .layer
+            .floating
             .iter()
-            .find(|shown| shown.mount == mount && shown.layer.id == id)
-            .map(|shown| shown.layer.opened)
-    };
-    let mut children: Vec<(u64, u64, ChildId, bool)> = owners
-        .iter()
-        .flat_map(|owner| {
-            owner.state.with(|view| {
-                view.children
-                    .iter()
-                    .filter_map(|child| {
-                        let opened = opened(owner.mount, child.in_layer?)?;
-                        Some((opened, owner.mount, child.child, child.is_below()))
-                    })
-                    .collect::<Vec<_>>()
-            })
-        })
-        .collect();
-    children.sort_by_key(|(opened, ..)| *opened);
-    children
-        .into_iter()
-        .map(|(_, mount, child, below)| (mount, child, below))
-        .collect()
+            .fold(takes, |takes, rect| takes.with(*rect));
+        holes
+            .iter()
+            .filter(|(mount, layer, _)| *mount == shown.mount && *layer == shown.layer.id)
+            .fold(takes, |takes, (_, _, hole)| takes.without(*hole))
+    })
 }
 
 type Target = (u64, LayerId);
@@ -259,79 +248,20 @@ pub(crate) fn PluginLayers() -> NodeId {
         let owners: Vec<LayerOwner> = owners.get().into_iter().filter_map(owner).collect();
         shown_layers(&owners)
     });
-    let children = create_memo(move || {
-        let owners: Vec<LayerOwner> = owners.get().into_iter().filter_map(owner).collect();
-        shown.with(|shown| in_layers(&owners, shown))
-    });
-    let scrims = create_memo(move || {
+    let keys = create_memo(move || {
         shown.with(|shown| {
             shown
                 .iter()
-                .flat_map(|shown| shown.layer.scrims.clone())
+                .map(|shown| (shown.mount, shown.layer.id))
                 .collect::<Vec<_>>()
         })
-    });
-    let scrim_draw = Prop::dynamic(move || -> Draw {
-        let scrims = scrims.get();
-        Rc::new(move |painter: &Painter, rect: Rect| {
-            for (scrim, color) in &scrims {
-                painter.rect_filled(
-                    scrim.translate(rect.min.to_vec2()),
-                    0.0,
-                    beui::color::Color::literal(*color),
-                );
-            }
-        })
-    });
-    let blits: LayerBlits = Rc::new(RefCell::new(Vec::new()));
-    let held: Rc<RefCell<Option<beui::native::Drawing>>> = Rc::new(RefCell::new(None));
-    let latest: Rc<RefCell<Option<beui::native::Drawing>>> = Rc::new(RefCell::new(None));
-    let pixels = create_memo(move || {
-        let layers = shown.get();
-        let mut drawn = Vec::new();
-        for mount in owners.get() {
-            let Some(owner) = owner(mount) else {
-                continue;
-            };
-            owner.revision.get();
-            for shown in layers.iter().filter(|shown| shown.mount == mount) {
-                drawn.push((
-                    shown.layer.opened,
-                    block_app_plugin_host::layer_blits(
-                        &owner.plugin,
-                        owner.instance,
-                        owner.region,
-                        &shown.layer,
-                    ),
-                ));
-            }
-        }
-        drawn.sort_by_key(|(opened, _)| *opened);
-        let drawn: Vec<_> = drawn.into_iter().flat_map(|(_, blits)| blits).collect();
-        if drawn.is_empty() && blits.borrow().is_empty() {
-            return latest.borrow().clone();
-        }
-        let damage = blits
-            .borrow()
-            .iter()
-            .chain(drawn.iter())
-            .fold(Region::default(), |damage, blit| {
-                damage.union(Region::from(blit.rect().expand(1.0)))
-            });
-        *blits.borrow_mut() = drawn;
-        let drawing = held
-            .borrow_mut()
-            .get_or_insert_with(|| block_app_plugin_host::layers_drawing(Rc::clone(&blits)))
-            .redrawn(damage);
-        *latest.borrow_mut() = Some(drawing.clone());
-        Some(drawing)
     });
     let pressing: Rc<Cell<Option<Target>>> = Rc::new(Cell::new(None));
     let on_forward = move |input: ForwardedInput| {
         shown.with_untracked(|shown| forward(input, shown, &pressing));
     };
     let hit_area = create_memo(move || {
-        let holes: Vec<Rect> = owners
+        let holes: Vec<(u64, LayerId, Rect)> = owners
             .get()
             .into_iter()
             .filter_map(owner)
@@ -339,8 +269,14 @@ pub(crate) fn PluginLayers() -> NodeId {
                 owner.state.with(|view| {
                     view.children
                         .iter()
-                        .filter(|child| child.in_layer.is_some() && child.is_active())
-                        .map(|child| child.rect.intersect(child.clip))
+                        .filter(|child| child.is_active())
+                        .filter_map(|child| {
+                            Some((
+                                owner.mount,
+                                child.in_layer?,
+                                child.rect.intersect(child.clip),
+                            ))
+                        })
                         .collect::<Vec<_>>()
                 })
             })
@@ -349,38 +285,15 @@ pub(crate) fn PluginLayers() -> NodeId {
             if shown.is_empty() {
                 return beui::Area::Nowhere;
             }
-            let takes = shown
-                .iter()
-                .flat_map(|shown| shown.layer.floating.iter().copied())
-                .fold(beui::HitRegion::new(), beui::HitRegion::with);
-            beui::Area::Within(holes.iter().fold(takes, |takes, hole| takes.without(*hole)))
+            beui::Area::Within(taken(shown, &holes))
         })
     });
     let watched = create_memo(move || shown.with(|shown| !shown.is_empty()));
-    let below = create_memo(move || {
-        children.with(|children| {
-            children
-                .iter()
-                .filter(|(_, _, below)| *below)
-                .map(|(mount, child, _)| (*mount, *child))
-                .collect::<Vec<_>>()
-        })
-    });
-    let above = create_memo(move || {
-        children.with(|children| {
-            children
-                .iter()
-                .filter(|(_, _, below)| !*below)
-                .map(|(mount, child, _)| (*mount, *child))
-                .collect::<Vec<_>>()
-        })
-    });
     view! {
         <Layers>
-            <Drawing draw={scrim_draw} />
-            <LayerChildren keys={below} />
-            <Drawing draw={Prop::dynamic(move || draw_gpu(pixels.get()))} />
-            <LayerChildren keys={above} />
+            <ForEach keys={keys}>|(mount, id): (u64, LayerId)|
+                <PluginLayer mount id shown />
+            </ForEach>
             <Interactive hit_area={hit_area} on_forward={on_forward} press_focus=false />
             <Show condition={watched}>||
                 <Canvas>
@@ -392,6 +305,95 @@ pub(crate) fn PluginLayers() -> NodeId {
                     </CanvasItem>
                 </Canvas>
             </Show>
+        </Layers>
+    }
+}
+
+#[component]
+fn PluginLayer(mount: u64, id: LayerId, shown: Memo<Vec<Shown>>) -> NodeId {
+    let layer = create_memo(move || {
+        shown.with(|shown| {
+            shown
+                .iter()
+                .find(|shown| shown.mount == mount && shown.layer.id == id)
+                .map(|shown| shown.layer.clone())
+        })
+    });
+    let scrim_draw = Prop::dynamic(move || -> Draw {
+        let scrims = layer.with(|layer| {
+            layer
+                .as_ref()
+                .map(|layer| layer.scrims.clone())
+                .unwrap_or_default()
+        });
+        Rc::new(move |painter: &Painter, rect: Rect| {
+            for (scrim, color) in &scrims {
+                painter.rect_filled(
+                    scrim.translate(rect.min.to_vec2()),
+                    0.0,
+                    beui::color::Color::literal(*color),
+                );
+            }
+        })
+    });
+    let children = create_memo(move || {
+        let Some(owner) = owner(mount).filter(|owner| owner.state.is_alive()) else {
+            return Vec::new();
+        };
+        owner.state.with(|view| {
+            view.children
+                .iter()
+                .filter(|child| child.in_layer == Some(id))
+                .map(|child| (child.child, child.is_below()))
+                .collect::<Vec<_>>()
+        })
+    });
+    let below = create_memo(move || {
+        children.with(|children| {
+            children
+                .iter()
+                .filter(|(_, below)| *below)
+                .map(|(child, _)| (mount, *child))
+                .collect::<Vec<_>>()
+        })
+    });
+    let above = create_memo(move || {
+        children.with(|children| {
+            children
+                .iter()
+                .filter(|(_, below)| !*below)
+                .map(|(child, _)| (mount, *child))
+                .collect::<Vec<_>>()
+        })
+    });
+    let blits: LayerBlits = Rc::new(RefCell::new(Vec::new()));
+    let held: Rc<RefCell<Option<beui::native::Drawing>>> = Rc::new(RefCell::new(None));
+    let pixels = create_memo(move || {
+        let owner = owner(mount)?;
+        owner.revision.get();
+        let drawn = layer.get().map_or_else(Vec::new, |layer| {
+            block_app_plugin_host::layer_blits(&owner.plugin, owner.instance, owner.region, &layer)
+        });
+        let damage = blits
+            .borrow()
+            .iter()
+            .chain(drawn.iter())
+            .fold(Region::default(), |damage, blit| {
+                damage.union(Region::from(blit.rect().expand(1.0)))
+            });
+        *blits.borrow_mut() = drawn;
+        Some(
+            held.borrow_mut()
+                .get_or_insert_with(|| block_app_plugin_host::layers_drawing(Rc::clone(&blits)))
+                .redrawn(damage),
+        )
+    });
+    view! {
+        <Layers>
+            <Drawing draw={scrim_draw} />
+            <LayerChildren keys={below} />
+            <Drawing draw={Prop::dynamic(move || draw_gpu(pixels.get()))} />
+            <LayerChildren keys={above} />
         </Layers>
     }
 }

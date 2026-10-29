@@ -225,9 +225,11 @@ impl Document {
                 self.painting_bounds(paint, overlay, to_host),
                 |bounds, rect| bounds.union(*rect),
             );
+            let drawn = drawn.intersect(space.bounds);
+            let painted: Vec<Rect> = drawn.is_positive().then_some(drawn).into_iter().collect();
             let rect = match node.placement() {
                 Placement::Edge(_) => space.bounds,
-                _ => drawn.intersect(space.bounds),
+                _ => drawn,
             };
             escaped.push(EscapedLayer {
                 id,
@@ -325,7 +327,13 @@ impl Document {
                 id: paint,
                 size,
                 layers: Rc::new(shown),
-                window: WindowState::default(),
+                window: WindowState {
+                    appearance: crate::window::Appearance {
+                        clear_color: Color32::TRANSPARENT,
+                        ..crate::window::Appearance::default()
+                    },
+                    ..WindowState::default()
+                },
                 changed,
                 damage: match changed {
                     true => Region::from(Rect::from_min_size(Pos2::ZERO, size)),

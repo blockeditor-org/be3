@@ -560,6 +560,7 @@ struct Screen {
     frame_revoked: HashSet<ChildId>,
     scales: Sent<f32>,
     spaces: Sent<Option<(LayerSpace, f32)>>,
+    fresh_layers: Option<LayerSpace>,
     opened: HashMap<LayerId, u64>,
     serial: u64,
     kept: Option<ViewportMetrics>,
@@ -580,7 +581,8 @@ impl Screen {
     }
 
     fn layer_shift(&self) -> Option<(LayerSpace, Vec2, f32)> {
-        let now = self.request.layers?;
+        self.request.layers?;
+        let now = self.fresh_layers.or(self.request.layers)?;
         let (laid, raster) = self
             .spaces
             .at(self.serial)
@@ -924,6 +926,7 @@ impl Instances {
                 frame_revoked: HashSet::new(),
                 scales: Sent::default(),
                 spaces: Sent::default(),
+                fresh_layers: None,
                 opened: HashMap::new(),
                 serial: 0,
                 kept: None,
@@ -1047,7 +1050,10 @@ impl Instances {
         let Some(screen) = self.screen_mut(instance, region) else {
             return;
         };
-        screen.request.layers = layers;
+        screen.fresh_layers = layers;
+        if !only_moved(screen.request.layers, layers) {
+            screen.request.layers = layers;
+        }
         let metrics = viewport_metrics(size, visible, scale_factor, raster);
         if region == EditorRegion::Frame && metrics.pixel_width > 0 && metrics.pixel_height > 0 {
             screen.kept = Some(metrics);
@@ -1062,6 +1068,20 @@ impl Instances {
             screen.request.windows = windows;
             screen.request.placement = placement;
         }
+    }
+
+    pub(super) fn refresh_layers(
+        &mut self,
+        instance: EditorInstanceId,
+        region: EditorRegion,
+    ) -> bool {
+        let Some(screen) = self.screen_mut(instance, region) else {
+            return false;
+        };
+        let fresh = screen.fresh_layers;
+        let changed = screen.request.layers != fresh;
+        screen.request.layers = fresh;
+        changed
     }
 
     pub(super) fn stopped(
@@ -3344,6 +3364,15 @@ fn allowed(url: &str, hosts: &[String]) -> bool {
     };
     let host = rest.split(['/', '?', '#']).next().unwrap_or_default();
     hosts.iter().any(|allowed| allowed == host)
+}
+
+fn only_moved(sent: Option<LayerSpace>, now: Option<LayerSpace>) -> bool {
+    match (sent, now) {
+        (Some(sent), Some(now)) => {
+            sent.bounds == now.bounds && sent.to_host.scale == now.to_host.scale
+        }
+        _ => false,
+    }
 }
 
 #[cfg(test)]

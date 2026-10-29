@@ -418,6 +418,12 @@ impl Runtime {
         self.update(messages);
     }
 
+    fn refresh_layers(&mut self, instance: EditorInstanceId, region: EditorRegion) {
+        if self.instances.refresh_layers(instance, region) {
+            self.update(Vec::new());
+        }
+    }
+
     fn update(&mut self, mut messages: Vec<Outbound>) {
         let drawing = self.session.granted_surface().is_some();
         let next = self.instances.next_screens(self.since);
@@ -560,12 +566,18 @@ impl Runtime {
         self.painting = false;
         let mut shared = self.shared.borrow_mut();
         shared.paintings.clear();
+        shared.layer_paintings.clear();
         shared.overflows.clear();
         let Ok(paintings) = beui::native::painting::ScreenPaintings::decode(payload) else {
             return;
         };
         for (screen, painting) in paintings.screens {
             shared.paintings.insert(ScreenId(screen), painting);
+        }
+        for (screen, layer, painting) in paintings.layers {
+            shared
+                .layer_paintings
+                .insert((ScreenId(screen), layer), painting);
         }
         for (screen, overflows) in paintings.overflows {
             shared.overflows.insert(ScreenId(screen), overflows);
@@ -2202,6 +2214,7 @@ pub fn forward_layer(
     input: &beui::ForwardedInput,
 ) {
     with(plugin_id, |runtime| {
+        runtime.refresh_layers(instance, region);
         let messages = runtime
             .instances
             .forward_layer(instance, region, layer, input);
@@ -2236,6 +2249,7 @@ pub fn forward_region(
     target: &dyn Fn(beui::NodeId) -> Option<(EditorInstanceId, EditorRegion)>,
 ) {
     with(plugin_id, |runtime| {
+        runtime.refresh_layers(instance, region);
         let (messages, revoked) = runtime
             .instances
             .forward(instance, region, input, aim, target);
@@ -2744,6 +2758,7 @@ pub fn layer_blits(
                         drawn: None,
                         requested: None,
                         layer: Some(LayerSource {
+                            layer: layer.id.0,
                             surface: layer.surface,
                             bounds: layer.bounds,
                             pixels: Rect::from_min_max(

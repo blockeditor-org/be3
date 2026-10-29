@@ -202,6 +202,14 @@ impl Screens {
                     paintings.screens.pop();
                 }
             }
+            for (layer, painting) in session.layer_paintings(placement.region) {
+                paintings
+                    .layers
+                    .push((placement.screen.0, layer.0, painting));
+                if paintings.encode().len() > block_plugin_api::MAX_BLOB_BYTES {
+                    paintings.layers.pop();
+                }
+            }
         }
         paintings.encode()
     }

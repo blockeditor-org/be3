@@ -1402,25 +1402,33 @@ impl Editor {
         let shown = document
             .window_rect(document.window_of(node))
             .unwrap_or_else(|| document.viewport_rect());
-        Some(state.host.place_child(
-            content.wire(),
-            rect.scaled(unscale),
-            placement.clip.scaled(unscale),
-            record.mode.get_untracked(),
-            record.layer.get_untracked(),
-            record.own_frame.get_untracked(),
-            record.top_bar.get_untracked(),
-            record.rotation.get_untracked(),
-            record.opacity.get_untracked(),
-            record.intrinsic.get_untracked(),
-            document.panned_by_canvas(node),
-            record.dialog.get_untracked().map(|dialog| DialogFrame {
-                bottom_inset: dialog.bottom_inset.max(rect.max.y - shown.max.y) * unscale,
-                ..dialog
-            }),
-            record.dock_tab,
-            record.docks,
-        ))
+        let escaped = document.escaped_layer_of(node);
+        let to_placed = |rect: Rect| match escaped {
+            Some((_, to_host)) => to_host.rect(rect),
+            None => rect.scaled(unscale),
+        };
+        let layer = escaped.map(|(id, _)| block_plugin_api::LayerId(id));
+        Some(state.host.in_layer(layer, || {
+            state.host.place_child(
+                content.wire(),
+                to_placed(rect),
+                to_placed(placement.clip),
+                record.mode.get_untracked(),
+                record.layer.get_untracked(),
+                record.own_frame.get_untracked(),
+                record.top_bar.get_untracked(),
+                record.rotation.get_untracked(),
+                record.opacity.get_untracked(),
+                record.intrinsic.get_untracked(),
+                document.panned_by_canvas(node),
+                record.dialog.get_untracked().map(|dialog| DialogFrame {
+                    bottom_inset: dialog.bottom_inset.max(rect.max.y - shown.max.y) * unscale,
+                    ..dialog
+                }),
+                record.dock_tab,
+                record.docks,
+            )
+        }))
     }
 }
 

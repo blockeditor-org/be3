@@ -769,23 +769,23 @@ impl Document {
     }
 
     fn place_space(&self, node: &mut Node, space: SpaceId, key: Spot) -> bool {
-        let (Some((translation, scale)), Some(host)) =
-            (self.rects.space_of(space), self.rects.placed(&space.node()))
+        let (Some(_), Some(host)) = (self.rects.space_of(space), self.rects.get(&space.node()))
         else {
             return false;
         };
-        let offset = key.at.to_vec2() + translation * key.scale;
+        let around = self.rects.transform(key.frame);
+        let inner = self.rects.transform(Some(space));
+        let at = around.local_pos(Pos2::ZERO + inner.offset);
+        let scale = inner.scale / around.scale;
         node.set_transform(
-            Affine::translate((offset.x as f64, offset.y as f64))
-                * Affine::scale((scale * key.scale) as f64),
+            Affine::translate((at.x as f64, at.y as f64)) * Affine::scale(scale as f64),
         );
-        let size = host.rect.size();
-        let seen = |at: f32, shift: f32| ((at - shift) / scale) as f64;
+        let seen = inner.local_rect(host);
         node.set_bounds(AccessRect::new(
-            seen(0.0, translation.x),
-            seen(0.0, translation.y),
-            seen(size.x, translation.x),
-            seen(size.y, translation.y),
+            seen.min.x as f64,
+            seen.min.y as f64,
+            seen.max.x as f64,
+            seen.max.y as f64,
         ));
         true
     }

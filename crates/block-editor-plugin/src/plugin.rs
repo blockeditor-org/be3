@@ -81,6 +81,14 @@ pub trait Regions: std::any::Any {
         None
     }
 
+    fn layer_painting(
+        &mut self,
+        _region: RegionId,
+        _layer: LayerId,
+    ) -> Option<paint_format::Painting> {
+        None
+    }
+
     fn overflows(&mut self, _region: RegionId) -> Vec<String> {
         Vec::new()
     }

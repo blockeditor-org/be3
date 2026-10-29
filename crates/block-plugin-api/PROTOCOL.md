@@ -542,7 +542,9 @@ nothing of a layer outside `painted`, and the report that opens a layer draws
 it in the same host frame.
 When a region moves, the host moves its layers rigidly by the difference
 between the `to-host` it shows the region at and the one the frame was laid
-out against; a pan of the region's camera does nothing to them, and the
+out against, so a move alone need not send the plugin a new `to-host`: the
+host may keep sending the origin it sent last while only the origin changes,
+and sends where the region now is with the next input it gives the region; a pan of the region's camera does nothing to them, and the
 plugin repositions or closes them on its next layout. The host hit-tests
 layers before any region, and input that lands on one reaches its owning
 screen tagged with its id (`timed-input.layer`), in that screen's own

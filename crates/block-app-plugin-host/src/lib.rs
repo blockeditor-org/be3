@@ -64,9 +64,7 @@ pub use runtime::{
     take_crashed, take_created, take_focus_report, take_leaving, take_steps, take_view_changes,
     warm,
 };
-pub use windows::{
-    forget_windows, is_overlay, request_windows, serve_overlays, take_window_requests,
-};
+pub use windows::{forget_windows, request_windows, take_window_requests};
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn cache_in(directory: std::path::PathBuf) {

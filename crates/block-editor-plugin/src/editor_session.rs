@@ -929,6 +929,26 @@ impl EditorSession {
         self.module.with_handler(|handler| handler.painting(id))?
     }
 
+    pub(crate) fn layer_paintings(
+        &mut self,
+        region: EditorRegion,
+    ) -> Vec<(LayerId, paint_format::Painting)> {
+        let id = self.id(region);
+        let layers: Vec<LayerId> = self
+            .layer_surfaces(region)
+            .iter()
+            .map(|surface| surface.layer)
+            .collect();
+        self.module
+            .with_handler(|handler| {
+                layers
+                    .into_iter()
+                    .filter_map(|layer| Some((layer, handler.layer_painting(id, layer)?)))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     pub(crate) fn overflows(&mut self, region: EditorRegion) -> Vec<String> {
         let id = self.id(region);
         self.module
@@ -948,7 +968,6 @@ impl EditorSession {
             .unwrap_or_default()
     }
 
-    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     pub(crate) fn layer_surfaces(&self, region: EditorRegion) -> &[LayerSurface] {
         self.regions
             .get(&region)

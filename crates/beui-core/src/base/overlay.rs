@@ -658,19 +658,7 @@ impl Document {
             }
             None => node,
         };
-        let overlay = self.arena.kind_of::<OverlayNode>(node)?;
-        let shows = self
-            .overlay_window(overlay)
-            .is_some_and(|spec| spec.role == crate::window::WindowRole::Overlay);
-        if !shows {
-            return Some(overlay);
-        }
-        let shown = self.overlay_content(overlay).and_then(|content| {
-            self.children(content)
-                .iter()
-                .find_map(|child| self.arena.kind_of::<OverlayNode>(*child))
-        });
-        Some(shown.unwrap_or(overlay))
+        self.arena.kind_of::<OverlayNode>(node)
     }
 
     pub fn overlay_window(&self, overlay: NodeOf<OverlayNode>) -> Option<&WindowSpec> {

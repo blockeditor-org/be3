@@ -1,5 +1,6 @@
 mod fonts;
 mod input;
+mod layers;
 mod platform;
 mod surface;
 
@@ -20,8 +21,8 @@ use beui_runner::renderer::Loaded;
 use beui_runner::{Incoming, Launch, Platform, RunOptions, Runner, Running};
 use block_editor_plugin::accesskit::{ActionRequest, Affine, TreeUpdate};
 use block_editor_plugin::{
-    Claim, DescribedAction, Description, EditorHost, EditorRegion, Frame, Input, Region, RegionId,
-    Regions, TimedInput,
+    Claim, DescribedAction, Description, EditorHost, EditorRegion, Frame, Input, LayerId, Region,
+    RegionId, Regions, TimedInput,
 };
 #[cfg(target_arch = "wasm32")]
 use block_editor_plugin::{PaintTarget, SurfaceRect};
@@ -53,7 +54,6 @@ impl Platform for PluginPlatform {
             runner.context().set_window_hosting(WindowHosting::Placed);
             runner.context().set_shows_main(false);
             runner.context().set_hosts_scrims(true);
-            runner.context().set_overlays_in_windows(true);
             let waker = self
                 .host
                 .module()
@@ -79,6 +79,7 @@ impl Platform for PluginPlatform {
                 overflows: Vec::new(),
                 floated: HashMap::new(),
                 asks: Vec::new(),
+                layers: HashMap::new(),
             };
             self.host.handle_regions(Box::new(handler));
             Ok(())
@@ -161,6 +162,7 @@ struct ModuleRunner {
     overflows: Vec<(WindowId, String)>,
     floated: HashMap<WindowId, Floated>,
     asks: Vec<(RegionId, block_plugin_api::WindowRequest)>,
+    layers: HashMap<RegionId, Vec<layers::Shown>>,
 }
 
 struct Floated {
@@ -220,9 +222,11 @@ impl ModuleRunner {
         self.toggles.retain(|id, _| shown(id));
         let windows: HashSet<WindowId> = self.windows.values().copied().collect();
         self.sized.retain(|window, _| windows.contains(window));
+        self.layers.retain(|id, _| shown(id));
         for region in regions {
             let id = region.id();
             if let Some(window) = self.windows.get(&id).copied() {
+                layers::set_space(self.runner.context(), window, region.layers, ratio);
                 let raster = match region.raster.is_finite() && region.raster > 0.0 {
                     true => region.raster,
                     false => region.scale_factor,
@@ -567,6 +571,11 @@ impl Regions for ModuleRunner {
             if was != now {
                 self.runner.push(Incoming::logical(Input::Focus(now)));
             }
+        } else if let Some(layer) = event.layer {
+            if let Some(space) = region.layers {
+                let input = layers::to_host(event.input.clone(), space.to_host);
+                self.runner.push(Incoming::layer(layer.0, input));
+            }
         } else {
             let incoming = input::translate(event);
             let window = over
@@ -579,6 +588,13 @@ impl Regions for ModuleRunner {
         }
         if let Some(at) = input::time(event) {
             self.runner.push(Incoming::Time(at));
+        }
+    }
+
+    fn dismiss_layers(&mut self, region: &Region, layers: &[LayerId]) {
+        self.services.serve(region.instance);
+        for layer in layers {
+            self.runner.context().dismiss_layer(layer.0);
         }
     }
 
@@ -625,6 +641,11 @@ impl Regions for ModuleRunner {
             .map(|output| output.window_overflows.clone())
             .unwrap_or_default();
         let keyboard = self.keyboard_region(regions);
+        let escaped = self
+            .runner
+            .output()
+            .map(|output| output.escaped.clone())
+            .unwrap_or_default();
         let mut asks = std::mem::take(&mut self.asks);
         let fallback = regions.first().map(Region::id);
         regions
@@ -658,8 +679,17 @@ impl Regions for ModuleRunner {
                 if let Some(output) = &output {
                     surface.note(output);
                 }
-                let changed = surface.unpainted();
+                let mut changed = surface.unpainted();
                 surface.settle();
+                let held = self.layers.entry(id).or_default();
+                changed |= match window {
+                    Some(window) => layers::follow(held, &escaped, window),
+                    None => !std::mem::take(held).is_empty(),
+                };
+                for shown in held.iter_mut() {
+                    shown.surface.settle();
+                }
+                let layers = layers::report(held, ratio);
                 let report = self.views.take_report(id);
                 let to_region = |rect: Rect| rect.scaled(ratio.recip());
                 Frame {
@@ -699,7 +729,7 @@ impl Regions for ModuleRunner {
                     description: region.describe.map(|_| self.describe(id, region, ratio)),
                     stopped: None,
                     asks,
-                    layers: Vec::new(),
+                    layers,
                 }
             })
             .collect()
@@ -727,6 +757,27 @@ impl Regions for ModuleRunner {
         .ok()
     }
 
+    fn layer_painting(
+        &mut self,
+        region: RegionId,
+        layer: LayerId,
+    ) -> Option<beui_core::painting::Painting> {
+        let shown = self
+            .layers
+            .get(&region)?
+            .iter()
+            .find(|shown| shown.escaped.layer.id == layer.0)?;
+        let output = &shown.escaped.output;
+        beui_core::painting::painting(
+            output,
+            output.size,
+            output.pixels_per_point,
+            beui_core::color::Color32::TRANSPARENT,
+            beui_core::painting::Punches::Erase,
+        )
+        .ok()
+    }
+
     fn overflows(&mut self, region: RegionId) -> Vec<String> {
         let Some(window) = self.windows.get(&region) else {
             return Vec::new();
@@ -744,6 +795,23 @@ impl Regions for ModuleRunner {
             .get_mut(&region)
             .map(|surface| surface.paint(target))
             .unwrap_or_default()
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn paint_layer(
+        &mut self,
+        region: RegionId,
+        layer: LayerId,
+        target: &PaintTarget<'_>,
+    ) -> Vec<SurfaceRect> {
+        let Some(shown) = self.layers.get_mut(&region).and_then(|held| {
+            held.iter_mut()
+                .find(|shown| shown.escaped.layer.id == layer.0)
+        }) else {
+            return Vec::new();
+        };
+        shown.surface.size = (target.width, target.height);
+        shown.surface.paint(target)
     }
 }
 

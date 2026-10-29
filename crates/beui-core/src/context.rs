@@ -93,7 +93,6 @@ struct Inner {
     window_hosting: Cell<WindowHosting>,
     shows_main: Cell<bool>,
     hosts_scrims: Cell<bool>,
-    overlays_in_windows: Cell<bool>,
     layer_spaces: RefCell<foldhash::HashMap<WindowId, LayerSpace>>,
     layer_dismissals: RefCell<Vec<u64>>,
     escaped: RefCell<Vec<EscapedOutput>>,
@@ -371,7 +370,6 @@ impl Context {
                 window_hosting: Cell::new(WindowHosting::None),
                 shows_main: Cell::new(true),
                 hosts_scrims: Cell::new(false),
-                overlays_in_windows: Cell::new(false),
                 layer_spaces: RefCell::new(foldhash::HashMap::default()),
                 layer_dismissals: RefCell::new(Vec::new()),
                 escaped: RefCell::new(Vec::new()),
@@ -1051,14 +1049,6 @@ impl Context {
 
     pub fn set_hosts_scrims(&self, hosts: bool) {
         self.inner.hosts_scrims.set(hosts);
-    }
-
-    pub fn overlays_in_windows(&self) -> bool {
-        self.inner.overlays_in_windows.get()
-    }
-
-    pub fn set_overlays_in_windows(&self, shows: bool) {
-        self.inner.overlays_in_windows.set(shows);
     }
 
     pub fn set_layer_space(&self, window: WindowId, space: Option<LayerSpace>) {

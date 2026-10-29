@@ -2039,14 +2039,9 @@ Each layer has one `policy` (`LayerPolicy`):
 An overlay that is not a window of its own is shown in the window it was
 opened in, unless `shown_in` names another of the document's windows where
 windows open: it is then laid out in that window's viewport, painted in it and
-counts as in it (`Document::window_of`). Where the context says the host shows
-overlays in windows (`Context::overlays_in_windows`, which the plugin platform
-sets) and the window it was opened in is hosted, the `Overlay` component opens
-a transparent `Window` of role `Overlay` the size of that window, placed `Over`
-it at its corner, while the overlay is open or lingers, and shows the overlay
-in it through `shown_in`, so the host stacks the overlay's menus, tooltips and
-dialogs with its other windows rather than drawing them in the window's own
-picture.
+counts as in it (`Document::window_of`). An anchored overlay of a window that
+has a layer space escapes it instead (Layers that escape their window, below), which is how a
+plugin's menus, tooltips and popovers reach past its frame.
 
 `traps_focus` (on unless a caller turns it off) keeps Tab inside the layer and
 makes it a boundary for keys (see the keyboard guide): a menu, a dialog and a
@@ -2398,7 +2393,9 @@ content sits in a zoomed space of its overlay (slot 1, scale `1 / to_host.scale`
 mapped through `to_host`, so it flips, slides and shrinks against the bounds and a menu from a
 region shown at half size is as large as any other. An `Edge` sheet fills the bounds, so a `ModalSheet` works out its stops from them. Its rects as `Rects::get`, hit testing and
 accessibility see them are still window coordinates, which `to_host` maps to where it is drawn
-(`Document::escaped_layer_of(node)` answers with the layer and that `to_host`). A blocking scrim
+(`Document::escaped_layer_of(node)` answers with the layer and that `to_host`). The accessibility
+tree places every space node, this one included, from the space's own transform rather than its
+host node's, so an escaped layer opened from deep in the window is described where its rects are. A blocking scrim
 still covers only its window, in window coordinates. Hit testing, focus, trapping, Escape and back
 are unchanged. It is left out of the window's painting and of the
 window's `overlay_rects`, `overlay_painted_rects`, `floating_rects` and `overlay_scrims`, and
@@ -2409,7 +2406,7 @@ window, in host coordinates for one nested in a layer; or `Edge(edge)`), `rect`,
 `floating` (the content of every layer that takes input) and `scrims` in host coordinates, and
 `dismiss_on_outside_press` (dismissable and not inert), `keyboard` (traps focus) and
 `blocks_owner` (blocks everything or its parent). Each frame's `FrameOutput::escaped` carries an
-`EscapedOutput` per layer: that record and a `WindowOutput` painted in host units from the
+`EscapedOutput` per layer: that record and a `WindowOutput` (clear colour transparent) painted in host units from the
 layer's top-left at `pixels_per_point = window raster / to_host.scale` (the app window's density,
 since a zoomed window's raster counts its zoom), ready for a surface of its own; `composite_layers` draws a window and its layers as the host would, which
 `DocumentTest::snapshot_layers` paints.

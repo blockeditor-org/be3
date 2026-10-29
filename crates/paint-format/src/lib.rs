@@ -254,6 +254,8 @@ pub fn previewed(key: TextureKey) -> Option<u64> {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ScreenPaintings {
     pub screens: Vec<(u64, Painting)>,
+    #[serde(default)]
+    pub layers: Vec<(u64, u64, Painting)>,
     pub overflows: Vec<(u64, Vec<String>)>,
 }
 

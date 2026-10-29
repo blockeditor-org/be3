@@ -157,7 +157,10 @@ block-app (guides/testing_a_gui.md, 6).
 Coordinates are pixels from the window's corner. `offscreen` marks a node scrolled or clipped
 out of view, `focused` the one with keyboard focus and `selected` a selected row or option. In block-app each plugin region is a
 `Pane` named after its plugin, holding the nodes its editor describes (guides/adding_a_plugin_editor.md),
-so dialogs, the file tree and every editor read like the host's own controls.
+so dialogs, the file tree and every editor read like the host's own controls. A plugin's menu,
+tooltip or popover that reaches past its frame (an anchored layer, crates/block-plugin-api/PROTOCOL.md,
+Layers) stays in its region's `Pane`, at the place it is drawn, so `find` and `click` reach its rows
+like any other.
 
 - `drive ids` lists every test id in the tree with where it is, the plugins' included (with
   the bodies of a docked plugin's tabs, each a `Pane` of its own wherever the workspace dock

@@ -207,6 +207,7 @@ pub(super) struct Shared {
     pub(super) layout: ScreenLayout,
     pub(super) frames: Vec<Frame>,
     pub(super) paintings: std::collections::HashMap<ScreenId, Painting>,
+    pub(super) layer_paintings: std::collections::HashMap<(ScreenId, u64), Painting>,
     pub(super) overflows: std::collections::HashMap<ScreenId, Vec<String>>,
     pub(super) published: Published,
     pub(super) layer_surfaces: Vec<u32>,
@@ -278,6 +279,7 @@ pub struct Blit {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct LayerSource {
+    pub(super) layer: u64,
     pub(super) surface: u32,
     pub(super) pixels: Rect,
     pub(super) bounds: Rect,
@@ -578,14 +580,46 @@ impl Paints for LayersDrawing {
     }
 
     fn painting(&self, _rect: Rect) -> Option<Painting> {
+        let mut primitives = Vec::new();
+        let mut textures = std::collections::BTreeMap::new();
+        for blit in self.blits.borrow().iter() {
+            let Some(layer) = blit.layer else {
+                continue;
+            };
+            let shared = blit.shared.borrow();
+            let Some(painting) = shared.layer_paintings.get(&(blit.screen, layer.layer)) else {
+                continue;
+            };
+            let [width, height] = painting.frame.size.map(|side| side.max(1) as f32);
+            let pixels = layer.pixels;
+            let quad = blit.quad;
+            primitives.extend(painting.placed(Placement {
+                source: [
+                    pixels.min.x / width,
+                    pixels.min.y / height,
+                    pixels.max.x / width,
+                    pixels.max.y / height,
+                ],
+                corners: quad.corners.map(|corner| [corner.x, corner.y]),
+                clip: [
+                    quad.rect.min.x,
+                    quad.rect.min.y,
+                    quad.rect.max.x,
+                    quad.rect.max.y,
+                ],
+            }));
+            for (key, pixels) in &painting.textures {
+                textures.entry(*key).or_insert_with(|| pixels.clone());
+            }
+        }
         Some(Painting {
             frame: beui::native::painting::Frame {
                 size: [1, 1],
                 pixels_per_point: 1.0,
                 background: [0; 4],
-                primitives: Vec::new(),
+                primitives,
             },
-            textures: std::collections::BTreeMap::new(),
+            textures,
         })
     }
 }
