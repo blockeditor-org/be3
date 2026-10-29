@@ -16,6 +16,9 @@ shift 5
 scratch="$(mktemp -d)"
 mkdir -p "$out"
 cp -RL "$workspace/." "$scratch/workspace"
+# buck2 hands the action its inputs read-only, and cp keeps their modes, but
+# cargo rewrites Cargo.lock in place when the manifests have changed.
+chmod -R u+w "$scratch/workspace"
 cd "$scratch/workspace"
 while IFS= read -r path || [ -n "$path" ]; do
     mkdir -p "$(dirname "$path")"
