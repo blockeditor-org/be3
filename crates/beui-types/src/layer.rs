@@ -1,4 +1,7 @@
-use geometry::{Rect, Vec2, pos2};
+use geometry::{Pos2, Rect, Vec2, pos2};
+
+use crate::color::Color32;
+use crate::window::WindowId;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
 pub enum LayerPolicy {
@@ -42,6 +45,116 @@ pub enum Placement {
     CenterOn,
     HangFrom(u16),
     Popover { gap: u16, margin: u16 },
+    Edge(LayerEdge),
+}
+
+impl Placement {
+    pub fn escapes(self) -> bool {
+        match self {
+            Placement::Above
+            | Placement::Over(_)
+            | Placement::Around
+            | Placement::BelowStart
+            | Placement::RightStart
+            | Placement::CenterOn
+            | Placement::HangFrom(_)
+            | Placement::Popover { .. }
+            | Placement::Edge(_) => true,
+            Placement::At
+            | Placement::Center
+            | Placement::Fill
+            | Placement::InsideTop
+            | Placement::InsideTopEnd
+            | Placement::InsideBottom
+            | Placement::InsideBottomEnd => false,
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum LayerEdge {
+    Top,
+    Bottom,
+    Left,
+    Right,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct HostTransform {
+    pub origin: Pos2,
+    pub scale: Vec2,
+}
+
+impl HostTransform {
+    pub const IDENTITY: Self = Self {
+        origin: Pos2::ZERO,
+        scale: Vec2::splat(1.0),
+    };
+
+    pub fn point(self, point: Pos2) -> Pos2 {
+        pos2(
+            self.origin.x + point.x * self.scale.x,
+            self.origin.y + point.y * self.scale.y,
+        )
+    }
+
+    pub fn rect(self, rect: Rect) -> Rect {
+        Rect::from_points(&[self.point(rect.min), self.point(rect.max)])
+    }
+
+    pub fn inverse_point(self, point: Pos2) -> Pos2 {
+        pos2(
+            (point.x - self.origin.x) / self.scale.x,
+            (point.y - self.origin.y) / self.scale.y,
+        )
+    }
+
+    pub fn inverse_rect(self, rect: Rect) -> Rect {
+        Rect::from_points(&[self.inverse_point(rect.min), self.inverse_point(rect.max)])
+    }
+
+    pub fn inverse_vec(self, by: Vec2) -> Vec2 {
+        Vec2::new(by.x / self.scale.x, by.y / self.scale.y)
+    }
+}
+
+impl Default for HostTransform {
+    fn default() -> Self {
+        Self::IDENTITY
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct LayerSpace {
+    pub to_host: HostTransform,
+    pub bounds: Rect,
+}
+
+impl LayerSpace {
+    pub fn area(self) -> Rect {
+        self.to_host.inverse_rect(self.bounds)
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum LayerPlacement {
+    Anchored(Rect),
+    Edge(LayerEdge),
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct EscapedLayer {
+    pub id: u64,
+    pub parent: Option<u64>,
+    pub window: WindowId,
+    pub placement: LayerPlacement,
+    pub rect: Rect,
+    pub painted: Vec<Rect>,
+    pub floating: Vec<Rect>,
+    pub scrims: Vec<(Rect, Color32)>,
+    pub dismiss_on_outside_press: bool,
+    pub keyboard: bool,
+    pub blocks_owner: bool,
 }
 
 pub fn resolve_rect(
@@ -116,7 +229,7 @@ pub fn resolve_rect(
         let room = viewport.shrink(f32::from(margin));
         return resolve_rect(room, reach, Placement::BelowStart, content_size);
     }
-    if placement == Placement::Fill {
+    if let Placement::Fill | Placement::Edge(_) = placement {
         return viewport;
     }
     if placement == Placement::Center {
@@ -193,7 +306,8 @@ pub fn resolve_rect(
         | Placement::InsideBottomEnd
         | Placement::CenterOn
         | Placement::HangFrom(_)
-        | Placement::Popover { .. } => {
+        | Placement::Popover { .. }
+        | Placement::Edge(_) => {
             unreachable!("a centred or pinned overlay is placed above")
         }
     };

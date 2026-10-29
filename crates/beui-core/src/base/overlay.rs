@@ -168,6 +168,7 @@ pub struct OverlayNode {
     pub(crate) open: bool,
     pub(crate) anchor: OverlayAnchor,
     anchored: Option<Rect>,
+    pub(crate) anchor_rect: Option<Rect>,
     pinned: Option<Pin>,
     pointer: Option<NodeRef>,
     beak: Option<NodeOf<BeakNode>>,
@@ -191,6 +192,7 @@ impl OverlayNode {
             open: false,
             anchor,
             anchored: None,
+            anchor_rect: None,
             pinned: None,
             pointer: None,
             beak: None,
@@ -209,6 +211,10 @@ impl OverlayNode {
 
     pub fn policy(&self) -> LayerPolicy {
         self.policy
+    }
+
+    pub fn placement(&self) -> Placement {
+        self.placement
     }
 
     pub(crate) fn anchor_node(&self) -> Option<NodeId> {
@@ -242,7 +248,9 @@ impl OverlayNode {
             OverlayAnchor::Pinned { rect, .. } => Some(self.pinned_rect(rect, anchored)),
             OverlayAnchor::Node(_) | OverlayAnchor::Point(_) | OverlayAnchor::Rect(_) => anchored,
         };
-        let area = viewport;
+        let area = doc
+            .escape_space(self.placement, doc.viewport_window())
+            .map_or(viewport, |space| space.area());
         let anchor_rect = match &self.anchor {
             OverlayAnchor::Node(_) => anchored.unwrap_or(area),
             OverlayAnchor::Pinned { .. } => target.unwrap_or(area),
@@ -273,6 +281,7 @@ impl OverlayNode {
             true => measured.min(available),
             false => measured,
         };
+        self.anchor_rect = Some(anchor_rect);
         let rect = beui_types::layer::resolve_rect(area, anchor_rect, self.placement, content_size);
         crate::layout::layout(doc, painter, content, rect, out);
         self.stand_off(doc, painter, content, rect, anchor_rect, out);
@@ -682,8 +691,12 @@ impl Document {
     }
 
     pub fn set_overlay_placement(&mut self, overlay: NodeOf<OverlayNode>, placement: Placement) {
-        if self.arena.get_as::<OverlayNode>(overlay).placement != placement {
+        let held = self.arena.get_as::<OverlayNode>(overlay).placement;
+        if held != placement {
             self.arena.get_mut_as::<OverlayNode>(overlay).placement = placement;
+            if held.escapes() != placement.escapes() {
+                self.layers_changed();
+            }
         }
     }
 

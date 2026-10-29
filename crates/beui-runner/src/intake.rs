@@ -4,6 +4,7 @@ use beui_core::geometry::{Pos2, Vec2};
 use beui_core::input::{
     Event, FileDrag, Input, Key, KeyPress, Keystroke, Modifiers, PointerButton, TouchId, TouchPhase,
 };
+use beui_core::escape::HostTransform;
 use beui_core::window::{WindowId, WindowReport};
 
 pub use beui_types::input::{PINCH_SPEED, SCROLL_LINE, SCROLL_PAGE, scrolled};
@@ -20,6 +21,10 @@ pub enum Incoming {
     Input {
         units: Units,
         window: WindowId,
+        input: Input,
+    },
+    Layer {
+        layer: u64,
         input: Input,
     },
     FileDrag(FileDrag),
@@ -45,11 +50,50 @@ impl Incoming {
         Self::new(Units::Points, input)
     }
 
+    pub fn layer(layer: u64, input: Input) -> Self {
+        Self::Layer { layer, input }
+    }
+
     pub fn in_window(mut self, id: WindowId) -> Self {
         if let Self::Input { window, .. } = &mut self {
             *window = id;
         }
         self
+    }
+}
+
+fn from_host(input: Input, to_host: HostTransform) -> Input {
+    let at = |pos: Pos2| to_host.inverse_point(pos);
+    match input {
+        Input::PointerMoved(pos) => Input::PointerMoved(at(pos)),
+        Input::PointerButton {
+            pos,
+            button,
+            pressed,
+        } => Input::PointerButton {
+            pos: at(pos),
+            button,
+            pressed,
+        },
+        Input::PointerMotion(delta) => Input::PointerMotion(to_host.inverse_vec(delta)),
+        Input::Touch {
+            id,
+            phase,
+            pos,
+            force,
+        } => Input::Touch {
+            id,
+            phase,
+            pos: at(pos),
+            force,
+        },
+        Input::Pen { phase, pos, pen } => Input::Pen {
+            phase,
+            pos: at(pos),
+            pen,
+        },
+        Input::Predicted(pos) => Input::Predicted(at(pos)),
+        other => other,
     }
 }
 
@@ -108,6 +152,7 @@ pub(crate) struct Drain<'a> {
     pub native_pixels_per_point: f32,
     pub touch_emulation: bool,
     pub window_size: &'a dyn Fn(WindowId) -> Option<Vec2>,
+    pub layer_target: &'a dyn Fn(u64) -> Option<(WindowId, HostTransform)>,
 }
 
 impl Intake {
@@ -137,6 +182,18 @@ impl Intake {
                 }
                 Incoming::Window(report) => self.reports.push(report),
                 Incoming::Controller(_) => {}
+                Incoming::Layer { layer, input } => {
+                    let Some((window, to_host)) = (drain.layer_target)(layer) else {
+                        continue;
+                    };
+                    if window != self.window && points_into_window(&input) {
+                        self.window = window;
+                        events.push(Event::PointerWindow(window));
+                    }
+                    let before = events.len();
+                    self.input(from_host(input, to_host), 1.0, drain, events);
+                    produced = events.len() > before;
+                }
                 Incoming::Input {
                     units,
                     window,

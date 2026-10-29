@@ -42,6 +42,7 @@ mod a_catcher_that_declines_a_press_declines_the_embed_inside_it;
 mod a_catcher_that_lost_its_release_lets_go_of_the_pointer;
 mod a_catcher_under_a_dialog_that_is_under_another_hears_no_pointer;
 mod a_catcher_under_an_open_dialog_hears_no_press;
+mod a_centred_dialog_stays_in_its_region_given_a_layer_space;
 mod a_change_inside_a_fixed_size_frame_lays_out_only_that_frame;
 mod a_change_inside_a_turned_child_still_paints_turned;
 mod a_child_tilted_by_an_angle_keeps_its_box_and_its_clips_take_the_tilt;
@@ -74,9 +75,11 @@ mod a_container_in_a_zoomed_canvas_item_answers_with_its_unzoomed_size;
 mod a_containers_content_reads_the_context_its_caller_provides;
 mod a_context_menu_as_tall_as_the_window_allows_shows_every_item;
 mod a_context_menu_item_follows_the_signals_its_tag_was_written_with;
+mod a_context_menu_near_the_edge_of_its_region_escapes_into_its_layer_space;
 mod a_context_menu_opens_at_the_press_when_measurement_comes_late;
 mod a_context_menu_reads_its_rows_as_named_menu_items;
 mod a_context_menu_too_long_for_the_window_stays_inside_it_and_scrolls;
+mod a_context_menu_without_a_layer_space_stays_in_its_window;
 mod a_copyable_text_input_copies_from_its_button_without_selecting;
 mod a_covering_picture_paints_only_the_part_inside_its_frame;
 mod a_crowded_dock_tab_bar_scrolls_rather_than_spilling;
@@ -321,6 +324,7 @@ mod a_press_just_outside_a_windows_border_resizes_it;
 mod a_press_on_a_scaled_canvas_item_reaches_what_takes_presses_in_its_own_units;
 mod a_press_outside_an_interactive_is_reported_to_it;
 mod a_press_released_in_the_frame_it_began_drags_once_where_it_was;
+mod a_press_sent_to_an_escaped_layer_reaches_the_row_under_it;
 mod a_press_that_dismisses_an_overlay_does_not_reach_the_catcher_beneath;
 mod a_pressed_forwarding_catcher_keeps_the_pointer_until_it_is_released;
 mod a_progress_reads_as_busy_until_it_has_a_value_and_then_holds_still;
@@ -372,6 +376,7 @@ mod a_selection_across_text_with_spans_is_painted;
 mod a_selection_handle_takes_a_tap_before_the_button_it_covers;
 mod a_selection_in_a_virtual_list_clamps_when_its_rows_are_removed;
 mod a_separator_keeps_the_length_it_is_given_where_its_row_centres_it;
+mod a_sheet_escapes_attached_to_the_bottom_of_its_layer_space;
 mod a_sheet_is_never_taller_than_what_it_holds;
 mod a_sheet_opened_as_another_closes_takes_its_place_without_sliding;
 mod a_sheet_pulled_past_its_top_stretches_and_springs_back;
@@ -406,6 +411,7 @@ mod a_stopped_clock_lets_an_animating_app_settle_and_pause_moves_it;
 mod a_style_provider_sizes_and_colours_the_text_inside_it;
 mod a_styled_scroll_fades_its_content_only_toward_an_edge_with_more_beyond_it;
 mod a_styled_scroll_lays_its_scrollbar_over_the_edge_of_its_content;
+mod a_submenu_escapes_as_a_layer_nested_in_its_menu;
 mod a_switcher_card_offers_its_tabs_menu_and_closes_when_an_item_runs;
 mod a_tab_clicked_within_one_frame_does_not_start_a_drag;
 mod a_tab_dragged_from_one_hosted_dock_window_onto_anothers_bar_joins_it;
@@ -439,6 +445,7 @@ mod a_timer_asks_for_frames_until_its_work_settles;
 mod a_toast_goes_away_when_dismissed_or_when_its_time_is_up;
 mod a_toast_with_actions_reports_them_and_stays_until_answered;
 mod a_tooltip_appears_after_a_dwell_and_leaves_the_control_clickable;
+mod a_tooltip_escapes_its_region_and_takes_no_input;
 mod a_touch_beside_a_control_reaches_the_nearest_one;
 mod a_touch_fling_glides_to_a_stop_and_stops_asking_for_frames;
 mod a_touch_fling_that_ends_without_moving_keeps_its_momentum;
@@ -605,6 +612,7 @@ mod ctrl_tab_walks_the_tabs_of_the_pane_the_focus_is_in;
 mod ctrl_v_asks_for_what_the_focus_accepts_and_the_paste_reaches_it;
 mod ctrl_v_taken_by_a_listener_asks_for_no_paste_unless_it_asks_itself;
 mod ctrl_z_undoes_what_was_typed_into_a_text_input;
+mod dismissing_an_escaped_layer_asks_it_to_close_as_a_press_outside_does;
 mod disposing_a_scope_removes_the_nodes_it_owns;
 mod dock_tabs_are_the_same_height_whether_or_not_they_close;
 mod dock_tabs_moved_into_a_sidebar_stack_beside_the_panel;
@@ -3186,4 +3194,34 @@ pub(crate) fn bar_dock(
         }
     });
     (document, built.get().expect("the dock was built"))
+}
+
+pub(crate) const LAYER_SPACE: crate::LayerSpace = crate::LayerSpace {
+    to_host: crate::HostTransform {
+        origin: pos2(200.0, 100.0),
+        scale: Vec2::splat(1.0),
+    },
+    bounds: Rect::from_min_max(pos2(0.0, 0.0), pos2(1000.0, 700.0)),
+};
+
+pub(crate) fn give_layer_space(harness: &mut Harness) {
+    harness
+        .context()
+        .set_layer_space(WindowId::MAIN, Some(LAYER_SPACE));
+    harness.frame(Vec::new());
+}
+
+pub(crate) fn press_secondary(harness: &mut Harness, pos: Pos2) {
+    harness.frame(vec![Input::PointerMoved(pos)]);
+    harness.frame(vec![Input::PointerButton {
+        pos,
+        button: PointerButton::Secondary,
+        pressed: true,
+    }]);
+    harness.frame(vec![Input::PointerButton {
+        pos,
+        button: PointerButton::Secondary,
+        pressed: false,
+    }]);
+    harness.frame(Vec::new());
 }

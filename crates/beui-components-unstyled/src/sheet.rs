@@ -1266,7 +1266,7 @@ pub fn ModalSheet(
         <Modal
             open
             scrim
-            placement=ModalPlacement::Fill
+            placement=ModalPlacement::Sheet
             motion=ModalMotion::Reported
             on_dismiss={on_close}
         >|modal: ModalHandle|

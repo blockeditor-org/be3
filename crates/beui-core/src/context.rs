@@ -21,6 +21,7 @@ use crate::geometry::Vec2;
 use crate::geometry::{Pos2, Rect, pos2};
 use crate::input::{CursorIcon, Event, ImeArea, InputState, KeyChord};
 use crate::node::NodeId;
+use beui_types::layer::{EscapedLayer, HostTransform, LayerSpace};
 use crate::paint::{Item, Recorded, Recording};
 use crate::painter::{Painter, PainterState, Scope, Shape};
 use crate::preferences::{PreferenceLayer, PreferenceLayers, PreferenceSource, Preferences};
@@ -92,6 +93,10 @@ struct Inner {
     shows_main: Cell<bool>,
     hosts_scrims: Cell<bool>,
     overlays_in_windows: Cell<bool>,
+    layer_spaces: RefCell<foldhash::HashMap<WindowId, LayerSpace>>,
+    layer_dismissals: RefCell<Vec<u64>>,
+    escaped: RefCell<Vec<EscapedOutput>>,
+    escaped_targets: RefCell<Vec<(u64, WindowId, HostTransform)>>,
     keyboard_in_a_window: Cell<bool>,
     fullscreen: Cell<Option<bool>>,
     fullscreen_shown: Cell<bool>,
@@ -238,8 +243,15 @@ impl WindowOutput {
     }
 }
 
+#[derive(Clone)]
+pub struct EscapedOutput {
+    pub layer: EscapedLayer,
+    pub output: WindowOutput,
+}
+
 pub struct FrameOutput {
     pub windows: Vec<WindowOutput>,
+    pub escaped: Vec<EscapedOutput>,
     pub window_requests: Vec<WindowRequest>,
     dump: Option<AccessibilityDump>,
     pub fullscreen: Option<bool>,
@@ -358,6 +370,10 @@ impl Context {
                 shows_main: Cell::new(true),
                 hosts_scrims: Cell::new(false),
                 overlays_in_windows: Cell::new(false),
+                layer_spaces: RefCell::new(foldhash::HashMap::default()),
+                layer_dismissals: RefCell::new(Vec::new()),
+                escaped: RefCell::new(Vec::new()),
+                escaped_targets: RefCell::new(Vec::new()),
                 keyboard_in_a_window: Cell::new(false),
                 fullscreen: Cell::new(None),
                 fullscreen_shown: Cell::new(false),
@@ -633,6 +649,7 @@ impl Context {
         self.inner.fullscreen.set(None);
         self.inner.window_requests.borrow_mut().clear();
         self.inner.shown_windows.borrow_mut().clear();
+        self.inner.escaped.borrow_mut().clear();
         self.inner.keyboard_window.set(WindowId::MAIN);
         self.inner.close_requested.set(false);
         self.inner.accessibility.borrow_mut().clear();
@@ -776,6 +793,7 @@ impl Context {
         let window_overflows = std::mem::take(&mut *self.inner.overflows.borrow_mut());
         FrameOutput {
             windows,
+            escaped: std::mem::take(&mut *self.inner.escaped.borrow_mut()),
             window_requests: std::mem::take(&mut *self.inner.window_requests.borrow_mut()),
             dump,
             copied_text,
@@ -1031,6 +1049,51 @@ impl Context {
 
     pub fn set_overlays_in_windows(&self, shows: bool) {
         self.inner.overlays_in_windows.set(shows);
+    }
+
+    pub fn set_layer_space(&self, window: WindowId, space: Option<LayerSpace>) {
+        let mut spaces = self.inner.layer_spaces.borrow_mut();
+        let held = spaces.get(&window).copied();
+        if held == space {
+            return;
+        }
+        match space {
+            Some(space) => spaces.insert(window, space),
+            None => spaces.remove(&window),
+        };
+        drop(spaces);
+        self.request_repaint();
+    }
+
+    pub fn layer_space(&self, window: WindowId) -> Option<LayerSpace> {
+        self.inner.layer_spaces.borrow().get(&window).copied()
+    }
+
+    pub(crate) fn layer_spaces(&self) -> foldhash::HashMap<WindowId, LayerSpace> {
+        self.inner.layer_spaces.borrow().clone()
+    }
+
+    pub fn dismiss_layer(&self, id: u64) {
+        self.inner.layer_dismissals.borrow_mut().push(id);
+        self.request_repaint();
+    }
+
+    pub(crate) fn take_layer_dismissals(&self) -> Vec<u64> {
+        std::mem::take(&mut *self.inner.layer_dismissals.borrow_mut())
+    }
+
+    pub fn layer_target(&self, id: u64) -> Option<(WindowId, HostTransform)> {
+        self.inner
+            .escaped_targets
+            .borrow()
+            .iter()
+            .find(|(held, _, _)| *held == id)
+            .map(|(_, window, to_host)| (*window, *to_host))
+    }
+
+    pub(crate) fn show_escaped(&self, escaped: Vec<EscapedOutput>, targets: Vec<(u64, WindowId, HostTransform)>) {
+        *self.inner.escaped_targets.borrow_mut() = targets;
+        *self.inner.escaped.borrow_mut() = escaped;
     }
 
     pub fn window_size(&self, window: WindowId) -> Option<Vec2> {

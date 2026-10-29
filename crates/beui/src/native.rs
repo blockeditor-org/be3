@@ -4,8 +4,9 @@ pub use beui_core::app::{App, FrameTimes, Lifecycle, NativeWindow, Setup, Waker}
 pub use beui_core::base::embed::{EmbedPlacement, EmbedSlot};
 pub use beui_core::clipboard::{PasteAnswer, PasteRequest};
 pub use beui_core::context::{
-    Context, FrameOutput, InputSimulation, Moved, RendererInfo, WindowOutput,
+    Context, EscapedOutput, FrameOutput, InputSimulation, Moved, RendererInfo, WindowOutput,
 };
+pub use beui_core::escape::composite_layers;
 pub use beui_core::current::{
     enter, last_pointer, try_with_document, with_document, with_reactive_scope,
 };

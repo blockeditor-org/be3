@@ -133,6 +133,27 @@ impl DocumentTest {
         overflow::assert_fits(name, overflow::overflows(self.stepped.document()));
     }
 
+    pub fn snapshot_layers(&mut self, name: &str) {
+        self.refresh();
+        let output = self
+            .latest
+            .as_ref()
+            .expect("the document has not drawn a frame yet");
+        let space = self
+            .context()
+            .layer_space(beui::WindowId::MAIN)
+            .expect("snapshot_layers shows the main window in the layer space it was given");
+        let composite = beui::native::composite_layers(
+            output.main(),
+            &output.escaped,
+            space,
+            background(output),
+        );
+        let painting = capture::capture_window(&composite, output.pixels_per_point(), HOST)
+            .expect("the painting could not be rendered");
+        snapshot::assert_snapshot(name, &painting);
+    }
+
     pub fn snapshot_window(&mut self, name: &str, window: beui::WindowId) {
         self.refresh();
         let output = self
@@ -153,6 +174,8 @@ impl DocumentTest {
         }
     }
 }
+
+const HOST: Color32 = Color32::from_rgb(24, 26, 32);
 
 fn background(output: &FrameOutput) -> Color32 {
     output.main().window.appearance.clear_color
