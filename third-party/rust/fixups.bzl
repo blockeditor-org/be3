@@ -143,8 +143,8 @@ FIXUPS = {
     "wgpu": {
         "overlay": {
             "src/api/render_bundle_encoder.rs": "overlays/wgpu/render_bundle_encoder.rs",
-            "src/backend/wgpu_core.rs": "overlays/wgpu/wgpu_core.rs",
             "src/backend/webgpu.rs": "overlays/wgpu/webgpu.rs",
+            "src/backend/wgpu_core.rs": "overlays/wgpu/wgpu_core.rs",
             "src/dispatch.rs": "overlays/wgpu/dispatch.rs",
         }
     },

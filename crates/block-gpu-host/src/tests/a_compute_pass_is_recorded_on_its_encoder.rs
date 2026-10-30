@@ -21,10 +21,13 @@ fn a_compute_pass_is_recorded_on_its_encoder() {
         .create_command_encoder(abi::CommandEncoderDescriptor { label: None })
         .unwrap();
     let pass = gpu
-        .command_encoder_begin_compute_pass(encoder, abi::ComputePassDescriptor {
-            label: None,
-            timestamp_writes: None,
-        })
+        .command_encoder_begin_compute_pass(
+            encoder,
+            abi::ComputePassDescriptor {
+                label: None,
+                timestamp_writes: None,
+            },
+        )
         .unwrap();
     gpu.compute_pass_set_pipeline(pass, pipeline);
     gpu.compute_pass_dispatch_workgroups(pass, 2, 1, 1);

@@ -40,5 +40,8 @@ fn a_compute_pass_is_timed_by_its_timestamp_writes() {
     }
     let stamps = resolved(&device, &queue, encoder, &queries, 2);
     assert!(stamps[1] > 0, "the pass was timed: {stamps:?}");
-    assert!(stamps[0] <= stamps[1], "the pass ended after it began: {stamps:?}");
+    assert!(
+        stamps[0] <= stamps[1],
+        "the pass ended after it began: {stamps:?}"
+    );
 }

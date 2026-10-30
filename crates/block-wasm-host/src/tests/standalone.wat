@@ -30,12 +30,12 @@
   (data (i32.const 32) "\00")
   ;; A render-pass-descriptor: no label, one color attachment on view 1 with
   ;; no resolve target, cleared to (1, 0.5, 0, 1) and stored, no depth slice,
-  ;; and no depth-stencil attachment.
+  ;; no depth-stencil attachment, occlusion query set or timestamp writes.
   (data (i32.const 48)
     "\00\01\01\01\00\00"
     "\00\00\00\00\00\00\f0\3f" "\00\00\00\00\00\00\e0\3f"
     "\00\00\00\00\00\00\00\00" "\00\00\00\00\00\00\f0\3f"
-    "\00\00\00")
+    "\00\00\00\00\00")
   ;; The frames it sends.
   (data (i32.const 112) "\01\02")
 
@@ -61,7 +61,7 @@
     (drop (call $expect
       (call $create_view (call $expect (call $acquire (global.get $surface))) (i32.const 16) (i32.const 8))))
     (local.set $encoder (call $expect (call $create_encoder (i32.const 32) (i32.const 1))))
-    (local.set $pass (call $expect (call $begin (local.get $encoder) (i32.const 48) (i32.const 41))))
+    (local.set $pass (call $expect (call $begin (local.get $encoder) (i32.const 48) (i32.const 43))))
     (call $end (local.get $pass))
     (i32.store (i32.const 128) (call $expect (call $finish (local.get $encoder))))
     (call $submit (i32.const 128) (i32.const 1))
