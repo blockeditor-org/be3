@@ -1,10 +1,10 @@
 use super::*;
 use beui::dock::unstyled::{DockBarPlacement as Placement, DockEdge as Edge};
 use block_plugin_api::{
-    DockAlign, DockBarOver,    ChildContent, ChildId, DockBar, DockBarMove, DockBarPlace, DockBarPlacement, DockChildRequest,
-    DockDeclaration, DockDeclaredChild, DockDragStage, DockEdge, DockItem, DockItemKind,
-    DockMessage, DockPane, DockRequest, DockTab, DockTabPath, DockTree, DockUpdate, Pos2, Rect,
-    Size,
+    ChildContent, ChildId, DockAlign, DockBar, DockBarMove, DockBarOver, DockBarPlace,
+    DockBarPlacement, DockChildRequest, DockDeclaration, DockDeclaredChild, DockDragStage,
+    DockEdge, DockItem, DockItemKind, DockMessage, DockPane, DockRequest, DockTab, DockTabPath,
+    DockTree, DockUpdate, Pos2, Rect, Size,
 };
 
 fn barred() -> DockDeclaration {
@@ -46,7 +46,10 @@ fn barred() -> DockDeclaration {
             key: "tools".to_owned(),
             kind: "canvas/tools".to_owned(),
             owner: DockTabPath::own(5),
-            placement: DockBarPlacement::Over(DockBarOver { edge: DockEdge::Top, align: DockAlign::Center }),
+            placement: DockBarPlacement::Over(DockBarOver {
+                edge: DockEdge::Top,
+                align: DockAlign::Center,
+            }),
             size: Size {
                 width: 100.0,
                 height: 20.0,
@@ -111,7 +114,13 @@ fn a_root_draws_a_joined_editors_bar_and_moves_it_as_the_editor_asks() {
     show_docked(&mut session, &[(View::MAIN, 6)], false);
     show_docked(&mut session, &[(View::MAIN, 6)], false);
 
-    assert_eq!(placement(), Some(Placement::Over(Edge::Top, beui::dock::unstyled::DockAlign::Center)));
+    assert_eq!(
+        placement(),
+        Some(Placement::Over(
+            Edge::Top,
+            beui::dock::unstyled::DockAlign::Center
+        ))
+    );
     let bar = body(&session, child, 9);
     assert_eq!((bar.width(), bar.height()), (100.0, 20.0));
 

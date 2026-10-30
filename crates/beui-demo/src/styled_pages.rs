@@ -4312,10 +4312,18 @@ pub(crate) fn DockBarsPage() -> NodeId {
                     <BarsStage />
                 </DockTab>
             </DockPane>
-            <DockBar id=2u64 parent=1u64 placement={DockBarPlacement::Over(DockEdge::Left, DockAlign::Center)}>
+            <DockBar
+                id=2u64
+                parent=1u64
+                placement={DockBarPlacement::Over(DockEdge::Left, DockAlign::Center)}
+            >
                 <DemoToolBar name="tools" tools={DRAWING_TOOLS.to_vec()} />
             </DockBar>
-            <DockBar id=3u64 parent=1u64 placement={DockBarPlacement::Over(DockEdge::Left, DockAlign::Center)}>
+            <DockBar
+                id=3u64
+                parent=1u64
+                placement={DockBarPlacement::Over(DockEdge::Left, DockAlign::Center)}
+            >
                 <DemoToolBar name="style" tools={STYLE_TOOLS.to_vec()} />
             </DockBar>
         </Docking>
@@ -4362,19 +4370,19 @@ fn DemoToolBar(name: &'static str, tools: Vec<(&'static str, Glyph)>) -> NodeId 
     };
     view! {
         <DockBarSurface @test_id={format!("bars.{name}")}>
-                <Frame @test_id={grip}>
-                    <DockBarGrip />
-                </Frame>
-                <ForEach keys={tools}>|(label, glyph): (&'static str, Glyph)|
-                    <Button
-                        @test_id={format!("bars.tool.{}", label.to_lowercase())}
-                        label
-                        glyph={Some(glyph)}
-                        icon_only=true
-                        variant=ButtonVariant::Ghost
-                        size=ButtonSize::Toolbar
-                    />
-                </ForEach>
+            <Frame @test_id={grip}>
+                <DockBarGrip />
+            </Frame>
+            <ForEach keys={tools}>|(label, glyph): (&'static str, Glyph)|
+                <Button
+                    @test_id={format!("bars.tool.{}", label.to_lowercase())}
+                    label
+                    glyph={Some(glyph)}
+                    icon_only=true
+                    variant=ButtonVariant::Ghost
+                    size=ButtonSize::Toolbar
+                />
+            </ForEach>
         </DockBarSurface>
     }
 }

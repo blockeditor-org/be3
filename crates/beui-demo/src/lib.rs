@@ -7,9 +7,9 @@ use beui::Overflow;
 use beui::datetime::{Date, DateTime, HourCycle, Time};
 use beui::dock::styled::{DockBarGrip, DockBarSurface, Docking};
 use beui::dock::unstyled::{
-    DockAlign, DockBar, DockBarPlacement, DockDialog, DockDocument, DockDocumentBody, DockDocumentTabs,
-    DockDocuments, DockEdge, DockOpened, DockPane, DockSlot, DockSplit, DockTab, DockTabControl,
-    DockingLayout, TabId, dock_menu, use_dock_tab,
+    DockAlign, DockBar, DockBarPlacement, DockDialog, DockDocument, DockDocumentBody,
+    DockDocumentTabs, DockDocuments, DockEdge, DockOpened, DockPane, DockSlot, DockSplit, DockTab,
+    DockTabControl, DockingLayout, TabId, dock_menu, use_dock_tab,
 };
 use beui::icons::Glyph;
 use beui::icons::{

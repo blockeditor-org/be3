@@ -1,7 +1,7 @@
 use super::*;
 use crate::dock::unstyled::{
-    DockAlign,    DockBar, DockBarPlacement, DockEdge, DockPane, DockSplit, DockTab, DockingLayout, TabId,
-    use_dock_bar,
+    DockAlign, DockBar, DockBarPlacement, DockEdge, DockPane, DockSplit, DockTab, DockingLayout,
+    TabId, use_dock_bar,
 };
 
 #[component]
@@ -36,7 +36,11 @@ fn SharedCanvas(id: u64, tools: usize, pressed: Signal<Vec<u64>>) -> NodeId {
                     <Frame @test_id={format!("content.{id}")} />
                 </DockTab>
             </DockPane>
-            <DockBar id="tools" parent="stage" placement={DockBarPlacement::Over(DockEdge::Bottom, DockAlign::Center)}>
+            <DockBar
+                id="tools"
+                parent="stage"
+                placement={DockBarPlacement::Over(DockEdge::Bottom, DockAlign::Center)}
+            >
                 <SharedTools id tools pressed />
             </DockBar>
         </dock::styled::Docking>

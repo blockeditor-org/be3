@@ -237,26 +237,26 @@ fn Toolbar(editor: Editor, slides: Slides) -> NodeId {
     let present = move || editor.present(true);
     view! {
         <DockBarSurface spacing=Space::Md @test_id={"presentation.toolbar"}>
-                <Frame @test_id={"presentation.toolbar.grip"}>
-                    <DockBarGrip />
-                </Frame>
-                <Text style=TextStyle::CAPTION @test_id={"presentation.position"}>{position}</Text>
-                <Button
-                    @node_ref={&add_button}
-                    label="Add slide"
-                    variant=ButtonVariant::Primary
-                    disabled={read_only}
-                    on_click={add}
-                    @test_id={"presentation.add"}
-                />
-                <Button
-                    icon_only=true
-                    glyph=ICON_MAXIMIZE
-                    label="Present"
-                    disabled={empty}
-                    on_click={present}
-                    @test_id={"presentation.present"}
-                />
+            <Frame @test_id={"presentation.toolbar.grip"}>
+                <DockBarGrip />
+            </Frame>
+            <Text style=TextStyle::CAPTION @test_id={"presentation.position"}>{position}</Text>
+            <Button
+                @node_ref={&add_button}
+                label="Add slide"
+                variant=ButtonVariant::Primary
+                disabled={read_only}
+                on_click={add}
+                @test_id={"presentation.add"}
+            />
+            <Button
+                icon_only=true
+                glyph=ICON_MAXIMIZE
+                label="Present"
+                disabled={empty}
+                on_click={present}
+                @test_id={"presentation.present"}
+            />
         </DockBarSurface>
     }
 }

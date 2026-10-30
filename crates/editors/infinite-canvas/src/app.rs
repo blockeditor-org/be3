@@ -130,10 +130,18 @@ fn CanvasEditor(editor: Editor) -> NodeId {
                     </List>
                 </DockTab>
             </DockPane>
-            <DockBar id=TOOLS parent=STAGE placement={DockBarPlacement::Over(DockEdge::Bottom, DockAlign::Center)}>
+            <DockBar
+                id=TOOLS
+                parent=STAGE
+                placement={DockBarPlacement::Over(DockEdge::Bottom, DockAlign::Center)}
+            >
                 <ToolBar state open size={bar_size} />
             </DockBar>
-            <DockBar id=ZOOM parent=STAGE placement={DockBarPlacement::Over(DockEdge::Top, DockAlign::End)}>
+            <DockBar
+                id=ZOOM
+                parent=STAGE
+                placement={DockBarPlacement::Over(DockEdge::Top, DockAlign::End)}
+            >
                 <ZoomBar state open />
             </DockBar>
         </Docking>

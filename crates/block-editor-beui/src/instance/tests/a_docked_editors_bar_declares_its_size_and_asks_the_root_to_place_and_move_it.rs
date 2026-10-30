@@ -1,9 +1,9 @@
 use super::*;
 use beui::dock::unstyled::{DockBarPlacement as Placement, DockEdge as Edge};
 use block_plugin_api::{
-    DockAlign, DockBarOver,    DockBarMove, DockBarPlace, DockBarPlacement, DockDragStage, DockEdge, DockHosted,
-    DockHostedView, DockItem, DockItemKind, DockLayout, DockMessage, DockPane, DockPlacedBar,
-    DockRequest, DockTabPath, DockTree, DockUpdate,
+    DockAlign, DockBarMove, DockBarOver, DockBarPlace, DockBarPlacement, DockDragStage, DockEdge,
+    DockHosted, DockHostedView, DockItem, DockItemKind, DockLayout, DockMessage, DockPane,
+    DockPlacedBar, DockRequest, DockTabPath, DockTree, DockUpdate,
 };
 
 fn hosted(bar: u64, placement: DockBarPlacement) -> DockUpdate {
@@ -109,7 +109,13 @@ fn a_docked_editors_bar_declares_its_size_and_asks_the_root_to_place_and_move_it
         bar.kind
     );
     assert_eq!(bar.owner, DockTabPath::own(1));
-    assert_eq!(bar.placement, DockBarPlacement::Over(DockBarOver { edge: DockEdge::Top, align: DockAlign::Center }));
+    assert_eq!(
+        bar.placement,
+        DockBarPlacement::Over(DockBarOver {
+            edge: DockEdge::Top,
+            align: DockAlign::Center
+        })
+    );
     let id = bar.tab.tab;
     let pane = declaration.nest().unwrap();
     assert!(pane.panes()[0].bare, "the bare pane says so");

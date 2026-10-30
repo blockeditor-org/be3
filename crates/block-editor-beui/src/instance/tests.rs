@@ -306,7 +306,11 @@ impl crate::BeuiApp for BarredApp {
                             <beui::styled::Frame />
                         </DockTab>
                     </DockPane>
-                    <DockBar id=3u64 parent=1u64 placement=DockBarPlacement::Over(DockEdge::Top, beui::dock::unstyled::DockAlign::Center)>
+                    <DockBar
+                        id=3u64
+                        parent=1u64
+                        placement=DockBarPlacement::Over(DockEdge::Top, beui::dock::unstyled::DockAlign::Center)
+                    >
                         <BarProbe />
                     </DockBar>
                 </Docking>

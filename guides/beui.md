@@ -2935,8 +2935,8 @@ tool bar that belongs to a tab: `<DockBar id parent placement>body</DockBar>`
 `DockBarPlacement` is `Over(edge, align)`, floating over the tab's body at a
 `DockEdge` and a `DockAlign` along it (its start, its centre or its end, so the
 corners too; Docking's `bar_margin` in from it, the body keeping its full size;
-bars at different alignments of one edge sit side by side, bars at one
-alignment stack), `Beside(edge)`, a band the whole length of that edge of the
+bars at different alignments of one edge sit side by side, the centred ones
+moving aside only as far as the others need, and bars at one alignment stack), `Beside(edge)`, a band the whole length of that edge of the
 pane that the body gives up room for (the styled Docking draws it with
 `bar_band`: the band's fill and one line on the side facing the body), or `Window { edge, origin }`, popped out into a dock window sized to
 the bar, `origin` being relative to the dock. A bar shows only while its tab
@@ -2970,8 +2970,8 @@ shows that slot. The bars floating over an edge are kept clear together
 to move its window, and the menu docks it again. The styled `DockBarGrip`
 (`dock.bar.<bar>.grip`) is such a handle: a grip that drags the bar and opens
 its menu when clicked or pressed with Enter (its rows are `grip.dock.bar.` and
-`DockBarPlacement::name()`: `over.top`, `over.top.left`, `beside.left`,
-`window`). A bar's body draws on the styled `DockBarSurface`, a `ToolPill` along the
+`DockBarPlacement::name()`: `over.top`, `beside.left`, `window`, and in the
+submenu `grip.dock.bar.over.ends` the ends of each edge, `over.top.left`). A bar's body draws on the styled `DockBarSurface`, a `ToolPill` along the
 bar's direction that is a pill while the bar floats or is popped out and the
 band's fill while it is docked beside an edge (a joined bar's body is cut out
 of the root's band, so it draws the fill itself). A bar declared by a `Docking` that

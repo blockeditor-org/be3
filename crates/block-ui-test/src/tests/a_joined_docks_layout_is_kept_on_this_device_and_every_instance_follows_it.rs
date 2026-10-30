@@ -3,9 +3,9 @@ use beui::dock::styled::{DockPane, DockTab, Docking, DockingLayout};
 use beui::dock::unstyled::{DockBar, DockBarPlacement as Placement, DockEdge as Edge};
 use block_editor_beui::be_block::{DisplaySettings, DisplaySettingsContent};
 use block_plugin_api::{
-    DockAlign, DockBarOver,    DockBarPlacement, DockEdge, DockHosted, DockHostedView, DockItem, DockItemKind, DockLayout,
-    DockMessage, DockOutside, DockOutsidePane, DockOutsidePlace, DockPane as Pane, DockPlacedBar,
-    DockRequest, DockTabPath, DockTree, DockUpdate, ViewId,
+    DockAlign, DockBarOver, DockBarPlacement, DockEdge, DockHosted, DockHostedView, DockItem,
+    DockItemKind, DockLayout, DockMessage, DockOutside, DockOutsidePane, DockOutsidePlace,
+    DockPane as Pane, DockPlacedBar, DockRequest, DockTabPath, DockTree, DockUpdate, ViewId,
 };
 
 const BARRED_TYPE: Uuid = Uuid::from_u128(0x0b42);
@@ -26,7 +26,11 @@ impl BeuiApp for BarredApp {
                             <Frame />
                         </DockTab>
                     </DockPane>
-                    <DockBar id=3u64 parent=1u64 placement=Placement::Over(Edge::Top, beui::dock::unstyled::DockAlign::Center)>
+                    <DockBar
+                        id=3u64
+                        parent=1u64
+                        placement=Placement::Over(Edge::Top, beui::dock::unstyled::DockAlign::Center)
+                    >
                         <Frame width={Size::Custom(120.0)} height={Size::Custom(24.0)} />
                     </DockBar>
                 </Docking>
@@ -161,7 +165,10 @@ fn a_joined_docks_layout_is_kept_on_this_device_and_every_instance_follows_it() 
     first.receive_dock_updates(vec![hosted(
         stage,
         bar,
-        DockBarPlacement::Over(DockBarOver { edge: DockEdge::Bottom, align: DockAlign::Center }),
+        DockBarPlacement::Over(DockBarOver {
+            edge: DockEdge::Bottom,
+            align: DockAlign::Center,
+        }),
     )]);
     let (_, changed) = saved(&first, display);
     assert_ne!(changed, layout);
@@ -171,7 +178,10 @@ fn a_joined_docks_layout_is_kept_on_this_device_and_every_instance_follows_it() 
     );
     assert_eq!(
         restored(&mut reopened).bars[0].placement,
-        DockBarPlacement::Over(DockBarOver { edge: DockEdge::Bottom, align: DockAlign::Center }),
+        DockBarPlacement::Over(DockBarOver {
+            edge: DockEdge::Bottom,
+            align: DockAlign::Center
+        }),
         "an open instance follows the layout another one kept"
     );
 }

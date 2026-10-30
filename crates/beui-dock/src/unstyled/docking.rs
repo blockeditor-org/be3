@@ -21,14 +21,14 @@ use serde::{Deserialize, Serialize};
 
 use super::dialog::{DialogParts, DockDialogHandle};
 use super::state::{
-    DockAlign, DockBarPlacement, DockEdge, DockFullscreen, DockSpec, DockSpecBar, DockSpecEntry, DockSpecNode,
-    DockSpecPane, DockSpecWindow, joined_host, joined_key, joined_prefix,
+    DockAlign, DockBarPlacement, DockEdge, DockFullscreen, DockSpec, DockSpecBar, DockSpecEntry,
+    DockSpecNode, DockSpecPane, DockSpecWindow, joined_host, joined_key, joined_prefix,
 };
 use super::{
-    Dock, DockApi, DockAwayHandle, DockBarBandHandle, DockBarControl, DockBarHandle, DockBarTargetHandle,
-    DockChromeHandle, DockConfig, DockGripHandle, DockMode, DockPreviewHandle, DockSplitterHandle,
-    DockStackHandle, DockState, DockSwitchHandle, DockSwitcherHandle, DockTabControl,
-    DockTabHandle, DockTabMenu, GroupId, LeafId, SIDEBAR_WIDTH, TabId,
+    Dock, DockApi, DockAwayHandle, DockBarBandHandle, DockBarControl, DockBarHandle,
+    DockBarTargetHandle, DockChromeHandle, DockConfig, DockGripHandle, DockMode, DockPreviewHandle,
+    DockSplitterHandle, DockStackHandle, DockState, DockSwitchHandle, DockSwitcherHandle,
+    DockTabControl, DockTabHandle, DockTabMenu, GroupId, LeafId, SIDEBAR_WIDTH, TabId,
 };
 use beui_components_unstyled::DialogLayout;
 use beui_components_unstyled::menu_popup::MenuStyle;
@@ -236,7 +236,8 @@ where
 pub fn DockBar<K>(
     id: K,
     parent: K,
-    #[prop(default = DockBarPlacement::Over(DockEdge::Top, DockAlign::Center))] placement: DockBarPlacement,
+    #[prop(default = DockBarPlacement::Over(DockEdge::Top, DockAlign::Center))]
+    placement: DockBarPlacement,
     #[prop(children)] content: RenderFn<()>,
 ) -> DockNode<K>
 where

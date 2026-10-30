@@ -1,6 +1,7 @@
 use super::*;
 use block_plugin_api::{
-    DockAlign, DockBarOver,    DockBar, DockBarMove, DockBarPlacement, DockDragStage, DockEdge, Pos2, Size,
+    DockAlign, DockBar, DockBarMove, DockBarOver, DockBarPlacement, DockDragStage, DockEdge, Pos2,
+    Size,
 };
 
 #[test]
@@ -12,7 +13,10 @@ fn a_descendants_bar_is_placed_by_the_root_and_its_moves_reach_it() {
         key: "tools".to_owned(),
         kind: "canvas/tools".to_owned(),
         owner: path(&[], 5),
-        placement: DockBarPlacement::Over(DockBarOver { edge: DockEdge::Bottom, align: DockAlign::Center }),
+        placement: DockBarPlacement::Over(DockBarOver {
+            edge: DockEdge::Bottom,
+            align: DockAlign::Center,
+        }),
         size: Size {
             width: 160.0,
             height: 32.0,

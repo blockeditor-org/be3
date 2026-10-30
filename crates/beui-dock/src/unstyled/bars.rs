@@ -20,8 +20,8 @@ use beui_view::window::{Window, WindowHandle};
 
 use super::state::DockState;
 use super::{
-    DockAlign, DockBarMove, DockBarPlacement, DockDragStage, DockDragged, DockEdge, DockHosted, DockMode,
-    DockRequest, FLOAT_INSET, LeafId, State, TabId,
+    DockAlign, DockBarMove, DockBarPlacement, DockDragStage, DockDragged, DockEdge, DockHosted,
+    DockMode, DockRequest, FLOAT_INSET, LeafId, State, TabId,
 };
 
 const BAND_SHARE: f32 = 0.12;
@@ -344,18 +344,28 @@ impl State {
 
     fn bar_home_rect(&self, bar: TabId) -> Option<Rect> {
         let rect = self.bar_panel_rect(bar)?;
-        let placement = self.state.with_untracked(|state| state.bar_placement(bar))?;
+        let placement = self
+            .state
+            .with_untracked(|state| state.bar_placement(bar))?;
         let DockBarPlacement::Window { origin, .. } = placement else {
             return Some(rect);
         };
         let key = self.window_key(bar);
-        let window = self.bar_windows.value().borrow().get(&key).map(|handle| handle.id);
+        let window = self
+            .bar_windows
+            .value()
+            .borrow()
+            .get(&key)
+            .map(|handle| handle.id);
         if let Some(min) = window.and_then(|window| window_point(rect.min, window, self.home())) {
             return Some(Rect::from_min_size(min, rect.size()));
         }
         let dock = self.rect.get_untracked();
         let origin = self.clamped_origin(Rect::from_min_size(origin, rect.size()), dock.size());
-        Some(Rect::from_min_size(dock.min + origin.to_vec2(), rect.size()))
+        Some(Rect::from_min_size(
+            dock.min + origin.to_vec2(),
+            rect.size(),
+        ))
     }
 
     pub(super) fn keep_bar_panels(&self, bars: &[TabId]) {
@@ -571,15 +581,25 @@ fn bar_menu(
         MenuNode::action(&action)
     };
     let mut nodes = Vec::new();
+    let mut ends = Vec::new();
     for edge in DockEdge::ALL {
-        for align in DockAlign::ALL {
-            let label = match align.side(edge) {
-                Some(side) => format!("Float over the {}, at the {side}", edge.name()),
-                None => format!("Float over the {}", edge.name()),
-            };
-            nodes.push(item(DockBarPlacement::Over(edge, align), label));
+        nodes.push(item(
+            DockBarPlacement::Over(edge, DockAlign::Center),
+            format!("Float over the {}", edge.name()),
+        ));
+        for align in [DockAlign::Start, DockAlign::End] {
+            if let Some(side) = align.side(edge) {
+                let label = format!("Over the {}, at the {side}", edge.name());
+                ends.push(item(DockBarPlacement::Over(edge, align), label));
+            }
         }
     }
+    nodes.push(MenuNode::submenu(
+        "dock.bar.over.ends",
+        "Float at an end of an edge",
+        None,
+        ends,
+    ));
     nodes.push(MenuNode::Separator);
     for edge in DockEdge::ALL {
         nodes.push(item(
@@ -781,6 +801,8 @@ pub(super) fn DockBarred(
             });
         });
     }
+    let ends = [(); 4].map(|()| create_signal([0.0_f32; 2]));
+    let [top, bottom, left, right] = ends;
     view! {
         <List @node_ref=&pane direction=Direction::Vertical spacing=0.0>
             <DockBarBand dock tab edge=DockEdge::Top />
@@ -788,18 +810,102 @@ pub(super) fn DockBarred(
                 <DockBarBand dock tab edge=DockEdge::Left />
                 <Layers @node_ref=&body @sizing=ItemSize::Percent(100.0)>
                     {children}
-                    <DockBarFloat dock tab edge=DockEdge::Top align=DockAlign::Start stacked />
-                    <DockBarFloat dock tab edge=DockEdge::Top align=DockAlign::Center stacked />
-                    <DockBarFloat dock tab edge=DockEdge::Top align=DockAlign::End stacked />
-                    <DockBarFloat dock tab edge=DockEdge::Bottom align=DockAlign::Start stacked />
-                    <DockBarFloat dock tab edge=DockEdge::Bottom align=DockAlign::Center stacked />
-                    <DockBarFloat dock tab edge=DockEdge::Bottom align=DockAlign::End stacked />
-                    <DockBarFloat dock tab edge=DockEdge::Left align=DockAlign::Start stacked />
-                    <DockBarFloat dock tab edge=DockEdge::Left align=DockAlign::Center stacked />
-                    <DockBarFloat dock tab edge=DockEdge::Left align=DockAlign::End stacked />
-                    <DockBarFloat dock tab edge=DockEdge::Right align=DockAlign::Start stacked />
-                    <DockBarFloat dock tab edge=DockEdge::Right align=DockAlign::Center stacked />
-                    <DockBarFloat dock tab edge=DockEdge::Right align=DockAlign::End stacked />
+                    <DockBarFloat
+                        dock
+                        tab
+                        edge=DockEdge::Top
+                        align=DockAlign::Start
+                        ends={top}
+                        stacked
+                    />
+                    <DockBarFloat
+                        dock
+                        tab
+                        edge=DockEdge::Top
+                        align=DockAlign::Center
+                        ends={top}
+                        stacked
+                    />
+                    <DockBarFloat
+                        dock
+                        tab
+                        edge=DockEdge::Top
+                        align=DockAlign::End
+                        ends={top}
+                        stacked
+                    />
+                    <DockBarFloat
+                        dock
+                        tab
+                        edge=DockEdge::Bottom
+                        align=DockAlign::Start
+                        ends={bottom}
+                        stacked
+                    />
+                    <DockBarFloat
+                        dock
+                        tab
+                        edge=DockEdge::Bottom
+                        align=DockAlign::Center
+                        ends={bottom}
+                        stacked
+                    />
+                    <DockBarFloat
+                        dock
+                        tab
+                        edge=DockEdge::Bottom
+                        align=DockAlign::End
+                        ends={bottom}
+                        stacked
+                    />
+                    <DockBarFloat
+                        dock
+                        tab
+                        edge=DockEdge::Left
+                        align=DockAlign::Start
+                        ends={left}
+                        stacked
+                    />
+                    <DockBarFloat
+                        dock
+                        tab
+                        edge=DockEdge::Left
+                        align=DockAlign::Center
+                        ends={left}
+                        stacked
+                    />
+                    <DockBarFloat
+                        dock
+                        tab
+                        edge=DockEdge::Left
+                        align=DockAlign::End
+                        ends={left}
+                        stacked
+                    />
+                    <DockBarFloat
+                        dock
+                        tab
+                        edge=DockEdge::Right
+                        align=DockAlign::Start
+                        ends={right}
+                        stacked
+                    />
+                    <DockBarFloat
+                        dock
+                        tab
+                        edge=DockEdge::Right
+                        align=DockAlign::Center
+                        ends={right}
+                        stacked
+                    />
+                    <DockBarFloat
+                        dock
+                        tab
+                        edge=DockEdge::Right
+                        align=DockAlign::End
+                        ends={right}
+                        stacked
+                    />
                 </Layers>
                 <DockBarBand dock tab edge=DockEdge::Right />
             </List>
@@ -832,6 +938,7 @@ fn DockBarFloat(
     tab: Memo<Option<TabId>>,
     edge: DockEdge,
     align: DockAlign,
+    ends: Signal<[f32; 2]>,
     stacked: bool,
 ) -> NodeId {
     let bars = dock.bars_at(tab, edge, move |placement| match placement {
@@ -843,8 +950,9 @@ fn DockBarFloat(
     });
     let margin = dock.bar_margin;
     let held = NodeRef::new();
+    let padding = create_signal(Sides::all(margin));
     let built = view! {
-        <Frame align={float_align(edge, align)} padding={Sides::all(margin)}>
+        <Frame align={float_align(edge, align)} padding={padding}>
             <List @node_ref=&held direction={across(edge)} spacing={margin}>
                 <ForEach keys={bars}>|bar: TabId| {
                     let dock = dock;
@@ -860,6 +968,44 @@ fn DockBarFloat(
     };
     let area = measure(built);
     let covered = measure(list);
+    let along = move |size: Vec2| match edge.direction() {
+        Direction::Horizontal => size.x,
+        Direction::Vertical => size.y,
+    };
+    match align {
+        DockAlign::Center => create_effect(move || {
+            let [start, end] = ends.get();
+            let (Some(area), Some(own)) = (area.get(), covered.get()) else {
+                return;
+            };
+            let room = along(area.rect.size()) - margin * 2.0;
+            let length = along(own.rect.size());
+            let centred = (room - length) / 2.0;
+            let at = centred.min(room - end - length).max(start);
+            let shift = (at - centred) * 2.0;
+            let mut sides = Sides::all(margin);
+            match (edge.direction(), shift >= 0.0) {
+                (Direction::Horizontal, true) => sides.left += shift,
+                (Direction::Horizontal, false) => sides.right -= shift,
+                (Direction::Vertical, true) => sides.top += shift,
+                (Direction::Vertical, false) => sides.bottom -= shift,
+            }
+            if padding.get_untracked() != sides {
+                padding.set(sides);
+            }
+        }),
+        DockAlign::Start | DockAlign::End => create_effect(move || {
+            let length = covered.get().map_or(0.0, |own| along(own.rect.size()));
+            let extent = match length > 0.0 {
+                true => length + margin,
+                false => 0.0,
+            };
+            let side = usize::from(align == DockAlign::End);
+            if ends.with_untracked(|ends| ends[side] != extent) {
+                ends.update(|ends| ends[side] = extent);
+            }
+        }),
+    };
     keep_clear(
         list,
         create_memo(move || {

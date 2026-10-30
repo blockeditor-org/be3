@@ -4,14 +4,18 @@ use crate::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
 #[test]
 fn a_dock_bar_sits_at_each_placement_of_its_pane() {
     let _root = crate::reactive::RootScope::new();
-    let (document, dock) = bar_dock(DockBarPlacement::Over(DockEdge::Top, DockAlign::Center), false);
+    let (document, dock) = bar_dock(
+        DockBarPlacement::Over(DockEdge::Top, DockAlign::Center),
+        false,
+    );
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     let body = harness.rect(harness.find("content.1"));
     for edge in DockEdge::ALL {
         for align in DockAlign::ALL {
-            dock.layout.place_bar(&9, DockBarPlacement::Over(edge, align));
+            dock.layout
+                .place_bar(&9, DockBarPlacement::Over(edge, align));
             harness.frame(Vec::new());
             harness.frame(Vec::new());
             let bar = harness.rect(harness.find("bar.9"));

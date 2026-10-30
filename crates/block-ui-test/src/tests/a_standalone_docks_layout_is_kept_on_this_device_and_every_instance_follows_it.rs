@@ -17,7 +17,10 @@ fn a_standalone_docks_layout_is_kept_on_this_device_and_every_instance_follows_i
         "a moved bar survives reopening"
     );
 
-    layout.place_bar(&3, DockBarPlacement::Over(DockEdge::Bottom, DockAlign::Center));
+    layout.place_bar(
+        &3,
+        DockBarPlacement::Over(DockEdge::Bottom, DockAlign::Center),
+    );
     first.run();
     let (_, changed) = kept_dock(&first, display);
     assert_ne!(changed, saved);

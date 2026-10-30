@@ -4,12 +4,12 @@ use std::rc::{Rc, Weak};
 
 use beui::NodeId;
 use beui::dock::unstyled::{
-    DockAlign, DockBarControl, DockBarMove, DockBarPlacement, DockBodies, DockDeclaration, DockDeclaredBar,
-    DockDeclaredDialog, DockDeclaredTab, DockDragStage, DockEdge, DockHostEvent, DockHostLink,
-    DockHostSlot, DockHosted, DockMapping, DockMode, DockOutside, DockOutsidePlace, DockPlain,
-    DockPlainBar, DockPlainEntry, DockPlainHome, DockPlainNode, DockPlainPlace, DockPlainWindow,
-    DockRequest, DockSpec, DockSpecEntry, DockSpecNode, DockSpecPane, DockSpecWindow, DockState,
-    TabId,
+    DockAlign, DockBarControl, DockBarMove, DockBarPlacement, DockBodies, DockDeclaration,
+    DockDeclaredBar, DockDeclaredDialog, DockDeclaredTab, DockDragStage, DockEdge, DockHostEvent,
+    DockHostLink, DockHostSlot, DockHosted, DockMapping, DockMode, DockOutside, DockOutsidePlace,
+    DockPlain, DockPlainBar, DockPlainEntry, DockPlainHome, DockPlainNode, DockPlainPlace,
+    DockPlainWindow, DockRequest, DockSpec, DockSpecEntry, DockSpecNode, DockSpecPane,
+    DockSpecWindow, DockState, TabId,
 };
 use beui::dock::unstyled::{DockMenus, DockTabControl, DockTabMenu, dock_menu};
 use beui::icons::Glyph;
