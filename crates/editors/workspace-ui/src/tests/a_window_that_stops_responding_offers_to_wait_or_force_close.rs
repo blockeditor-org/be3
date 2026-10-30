@@ -57,7 +57,11 @@ fn a_window_that_stops_responding_offers_to_wait_or_force_close() {
     fixture.test.click("workspace.window.wait");
     fixture.settle();
     assert!(
-        fixture.test.occluders().iter().all(|occluder| splitter(occluder.rect)),
+        fixture
+            .test
+            .occluders()
+            .iter()
+            .all(|occluder| splitter(occluder.rect)),
         "waiting puts the banner away"
     );
     assert!(!force_closed(&fixture));
@@ -75,7 +79,11 @@ fn a_window_that_stops_responding_offers_to_wait_or_force_close() {
         .set_watched::<WindowsWatch>(&vec![frozen(3, "Terminal")]);
     fixture.settle();
     assert!(
-        !fixture.test.occluders().iter().all(|occluder| splitter(occluder.rect)),
+        !fixture
+            .test
+            .occluders()
+            .iter()
+            .all(|occluder| splitter(occluder.rect)),
         "freezing again brings the banner back"
     );
 
