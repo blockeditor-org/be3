@@ -8,7 +8,9 @@ use super::*;
 #[component]
 fn Probe(held: Signal<Option<Memo<WindowId>>>) -> NodeId {
     held.set(Some(host_window()));
-    view! { <Text>"probe"</Text> }
+    view! {
+        <Text>"probe"</Text>
+    }
 }
 
 #[test]
