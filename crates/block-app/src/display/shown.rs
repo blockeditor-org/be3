@@ -21,6 +21,10 @@ pub(crate) fn create_handle() {
     SHOWN.set(Some(create_signal(Vec::new())));
 }
 
+pub(crate) fn made() -> Option<Signal<Vec<ShownDisplay>>> {
+    SHOWN.get()
+}
+
 pub(crate) fn shown() -> Signal<Vec<ShownDisplay>> {
     SHOWN
         .get()

@@ -992,6 +992,9 @@ impl EditorSession {
                     }
                 }),
                 anchored: state.anchored,
+                work_area: frame
+                    .work_area
+                    .map(|area| block_plugin_api::Insets::between(host, area)),
             });
         }
         frame

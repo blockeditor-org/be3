@@ -199,6 +199,7 @@ impl<A: BeuiApp> Parts<A> {
                 .into_iter()
                 .map(|(modifiers, rect)| block_editor_plugin::Claim { modifiers, rect })
                 .collect(),
+            work_area: document.work_area(window),
         }
     }
 
@@ -264,6 +265,7 @@ impl<A: BeuiApp> Parts<A> {
                 .into_iter()
                 .map(|(modifiers, rect)| block_editor_plugin::Claim { modifiers, rect })
                 .collect(),
+            work_area: document.work_area(window),
         };
         (report, views.chrome.exit().take())
     }

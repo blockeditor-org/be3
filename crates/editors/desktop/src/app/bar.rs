@@ -4,15 +4,18 @@ use std::time::Duration;
 use block_editor_beui::be_block::DisplaySettings;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::datetime::{HourCycle, Time};
+use block_editor_beui::be_block::ViewState;
 use block_editor_beui::beui::dock::styled::{
-    DockAlign, DockBarGrip, DockBarPlacement, DockBarSurface, DockEdge, TabId, use_dock_bar,
+    DockAlign, DockBarGrip, DockBarPlacement, DockBarSurface, DockEdge, DockingLayout,
+    DockingSnapshot, TabId, use_dock_bar,
 };
+use block_editor_beui::beui::dock::unstyled::DockState;
 use block_editor_beui::beui::icons::{ICON_KEYBOARD, ICON_REFRESH_CW};
 use block_editor_beui::beui::reactive::toggle_keyboard;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::{
-    DisplaysWatch, EpaperWatch, MediaWatch, PowerWatch, WifiWatch, utc_offset,
+    DisplaysWatch, Editor, EpaperWatch, MediaWatch, PowerWatch, WifiWatch, utc_offset,
 };
 use block_shell::{SHELL_BARS, Workspace};
 
@@ -23,21 +26,17 @@ use super::rotate::RotateButton;
 use super::status::{Status, StatusButton};
 use super::tray::TrayItems;
 use super::windows::{DeskWindows, WindowChips};
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
-pub(crate) const APPS_BAR: TabId = TabId::new(SHELL_BARS);
-pub(crate) const WINDOWS_BAR: TabId = TabId::new(SHELL_BARS + 1);
-pub(crate) const STATUS_BAR: TabId = TabId::new(SHELL_BARS + 2);
-pub(crate) const BARS: [TabId; 3] = [APPS_BAR, WINDOWS_BAR, STATUS_BAR];
 pub(crate) const APPS_PLACE: DockBarPlacement =
     DockBarPlacement::Beside(DockEdge::Bottom, DockAlign::Start);
 pub(crate) const WINDOWS_PLACE: DockBarPlacement =
     DockBarPlacement::Beside(DockEdge::Bottom, DockAlign::Center);
 pub(crate) const STATUS_PLACE: DockBarPlacement =
     DockBarPlacement::Beside(DockEdge::Bottom, DockAlign::End);
+const PLACES: [DockBarPlacement; 3] = [APPS_PLACE, WINDOWS_PLACE, STATUS_PLACE];
+const DISPLAY_BARS: &str = "display-bars";
 
-const ROW_PADDING: Space = Space::Sm;
-const ROW_SPACING: Space = Space::Md;
 const STATUS_SPACING: Space = Space::Xs2;
 const SECONDS_PER_MINUTE: u64 = 60;
 const SECONDS_PER_DAY: i64 = 24 * 60 * 60;
@@ -62,6 +61,75 @@ fn wall_clock() -> ReadSignal<String> {
     });
     ticking.start(until_next_minute());
     clock.read_only()
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Bars {
+    pub(crate) apps: TabId,
+    pub(crate) windows: TabId,
+    pub(crate) status: TabId,
+}
+
+impl Bars {
+    pub(crate) const fn of(display: u32) -> Self {
+        let first = SHELL_BARS + 3 * display as u64;
+        Self {
+            apps: TabId::new(first),
+            windows: TabId::new(first + 1),
+            status: TabId::new(first + 2),
+        }
+    }
+
+    pub(crate) fn all(self) -> [TabId; 3] {
+        [self.apps, self.windows, self.status]
+    }
+}
+
+pub(crate) fn display_layout(
+    editor: Editor,
+    first: DockingLayout<TabId>,
+    display: u32,
+) -> DockingLayout<TabId> {
+    let layout = DockingLayout::new();
+    let saved = untrack(|| saved_bars(editor))
+        .into_iter()
+        .find(|(held, _)| *held == display)
+        .map(|(_, snapshot)| snapshot);
+    let snapshot = saved.unwrap_or_else(|| untrack(|| like_the_first(first, display)));
+    layout.restore(snapshot);
+    create_effect(move || {
+        let snapshot = layout.snapshot();
+        untrack(|| save_bars(editor, display, snapshot));
+    });
+    layout
+}
+
+fn like_the_first(first: DockingLayout<TabId>, display: u32) -> DockingSnapshot<TabId> {
+    let mut state = DockState::default();
+    let bars = Bars::of(display).all();
+    for ((bar, from), placement) in bars.into_iter().zip(Bars::of(0).all()).zip(PLACES) {
+        state.add_bar(bar, None, first.bar_placement(&from).unwrap_or(placement));
+        state.set_bar_hidden(bar, first.is_bar_hidden(&from));
+    }
+    DockingSnapshot::new(state, bars.map(|bar| (bar, bar)))
+}
+
+fn saved_bars(editor: Editor) -> Vec<(u32, DockingSnapshot<TabId>)> {
+    editor
+        .view_state(DISPLAY_BARS)
+        .and_then(|state| state.value::<Vec<(u32, DockingSnapshot<TabId>)>>())
+        .unwrap_or_default()
+}
+
+fn save_bars(editor: Editor, display: u32, snapshot: DockingSnapshot<TabId>) {
+    let mut saved = saved_bars(editor);
+    match saved.iter_mut().find(|(held, _)| *held == display) {
+        Some((_, held)) if *held == snapshot => return,
+        Some((_, held)) => *held = snapshot,
+        None => saved.push((display, snapshot)),
+    }
+    saved.sort_by_key(|(held, _)| *held);
+    editor.set_view_state(DISPLAY_BARS, Some(&ViewState::new(&saved, Vec::new())));
 }
 
 pub(crate) fn bar_direction() -> Memo<Direction> {
@@ -110,14 +178,14 @@ impl Shell {
 }
 
 #[component]
-pub(crate) fn AppsBar(shell: Shell, display: u32) -> NodeId {
+pub(crate) fn AppsBar(shell: Shell, display: u32, layout: DockingLayout<TabId>) -> NodeId {
     let bar = use_dock_bar();
     let shown = create_memo(move || bar.is_none_or(|bar| !bar.is_hidden()));
     view! {
         <DockBarSurface @test_id={"desktop.bar.apps"}>
             <DockBarGrip />
             <Show condition={shown}>
-                <AppsButton apps={shell.apps} display />
+                <AppsButton apps={shell.apps} display layout />
             </Show>
         </DockBarSurface>
     }
@@ -141,22 +209,6 @@ pub(crate) fn StatusBar(shell: Shell, display: u32) -> NodeId {
             <DockBarGrip />
             <StatusItems shell display />
         </DockBarSurface>
-    }
-}
-
-#[component]
-pub(crate) fn DisplayRow(shell: Shell, display: u32) -> NodeId {
-    view! {
-        <List spacing=Space::None>
-            <Separator />
-            <Frame fill=ColorRole::Surface padding=ROW_PADDING @test_id={"desktop.bar"}>
-                <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                    <AppsButton apps={shell.apps} display />
-                    <WindowChips @sizing=ItemSize::Percent(100.0) windows={shell.windows} display />
-                    <StatusItems shell display />
-                </List>
-            </Frame>
-        </List>
     }
 }
 

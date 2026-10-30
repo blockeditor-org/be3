@@ -1619,7 +1619,7 @@ fn track(doc: &mut Document, frame: &Frame) {
     let Some(pos) = pointer.map(|pos| pos + shift) else {
         return;
     };
-    doc.last_pointer = Some(PointerSample { pos, touch });
+    doc.last_pointer = Some(PointerSample { pos, window, touch });
     let board = doc.drag_board();
     board.order(doc);
     board.track(crate::drag_board::DragPoint::at(pos, modifiers).in_window(window));

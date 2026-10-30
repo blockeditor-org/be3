@@ -48,7 +48,9 @@ use beui_view::types::{Area, Claim, HitRegion, TouchDrags};
 use beui_view::types::{CanvasArrangement, Direction, ItemSize};
 use beui_view::types::{CursorIcon, Key, KeyPress, Modifiers, PointerPress};
 use beui_view::types::{Pos2, Rect, Vec2, pos2, vec2};
-use beui_view::window::{Window, WindowHandle, opens_windows, use_window, window_origin};
+use beui_view::window::{
+    Window, WindowHandle, opens_windows, set_work_area, use_window, window_origin,
+};
 
 pub(crate) use bars::BarCovers;
 use bars::{BarHolder, BarPanels, DockBarTargets, DockBarWindows, DockBarred};
@@ -1982,7 +1984,32 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
             }
         });
     }
+    share_work_area(dock);
     built
+}
+
+fn share_work_area(dock: State) {
+    let home = dock.watch_home();
+    let opens = dock.opens;
+    let area = dock.rect;
+    let shared = Rc::new(Cell::new(None::<WindowId>));
+    let held = Rc::clone(&shared);
+    create_effect(move || {
+        let window = home.get();
+        let area = area.get();
+        let shown = opens.get() && area.is_positive();
+        if let Some(was) = held.replace(shown.then_some(window))
+            && was != window
+        {
+            set_work_area(was, None);
+        }
+        set_work_area(window, shown.then_some(area));
+    });
+    on_cleanup(move || {
+        if let Some(window) = shared.take() {
+            set_work_area(window, None);
+        }
+    });
 }
 
 #[component]

@@ -58,7 +58,10 @@ mod alt_tab_switches_to_the_window_two_back_once_alt_is_let_go;
 mod bars_docked_down_the_left_lay_their_parts_out_down_it;
 mod clicking_the_clock_opens_the_desktops_calendar_and_clicking_away_closes_it;
 mod clicking_the_focused_windows_chip_hides_it_and_the_next_window_takes_the_focus;
-mod each_display_shows_its_own_bar_at_its_own_foot;
+mod a_bar_moved_on_one_display_stays_put_on_the_others;
+mod a_display_plugged_in_later_starts_from_the_first_displays_bars;
+mod a_window_on_the_second_display_is_kept_above_its_bars;
+mod each_display_has_its_own_three_bars_along_its_foot;
 mod escape_closes_the_apps_panel_and_gives_the_focus_back_to_its_button;
 mod escape_leaves_the_window_switcher_without_switching;
 mod floating_bars_float_over_the_windows_and_toasts_follow_the_status_bar;
@@ -66,6 +69,7 @@ mod picking_a_turned_monitor_writes_its_rotation_for_every_device;
 mod picking_a_turned_screen_writes_its_rotation_into_this_devices_display_settings;
 mod quick_settings_offers_the_keyboard_rotation_and_refresh_the_screen_has;
 mod super_f_toggles_fullscreen_on_the_window_with_the_keyboard;
+mod super_opens_apps_on_the_display_the_pointer_is_on_with_its_own_hidden_bars;
 mod the_apps_button_opens_a_grid_of_the_programs_the_host_lists;
 mod the_calendar_popup_fits_a_narrow_screen;
 mod the_clock_lists_the_notifications_that_arrived_and_answers_them;
@@ -438,6 +442,33 @@ impl Fixture {
             self.test.click(&format!("grip.dock.bar.{row}"));
             self.settle();
         }
+    }
+
+    fn desk_click(&mut self, test_id: &str, on: Rect) {
+        let rect = self
+            .test
+            .desk_rects_of(test_id)
+            .into_iter()
+            .find(|rect| on.contains_rect(*rect))
+            .unwrap_or_else(|| panic!("{test_id} is shown on {on:?}"));
+        self.test.desk_press(rect.center());
+        self.test.desk_release(rect.center());
+        self.settle();
+    }
+
+    fn display_bar_menu(&mut self, display: u64, bar: u64, on: Rect, rows: &[&str]) {
+        self.desk_click(&format!("dock.bar.{}.grip", SHELL_BARS + 3 * display + bar), on);
+        for row in rows {
+            self.desk_click(&format!("grip.dock.bar.{row}"), on);
+        }
+    }
+
+    fn shown_on(&self, test_id: &str, on: Rect) -> Vec<Rect> {
+        self.test
+            .desk_rects_of(test_id)
+            .into_iter()
+            .filter(|rect| on.contains_rect(*rect))
+            .collect()
     }
 
     fn close_a_tab(&mut self) {

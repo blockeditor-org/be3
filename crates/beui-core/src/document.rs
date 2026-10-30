@@ -75,6 +75,7 @@ pub struct Document {
     inspector_requested: bool,
     screen_pointer: Option<Pos2>,
     pub last_pointer: Option<crate::input::PointerSample>,
+    work_areas: HashMap<WindowId, Rect>,
     pub acted: Acted,
     placement: Option<(Rect, Option<Placement>)>,
     pub portal_holders: stable_hash::HashMap<NodeId, NodeOf<crate::base::portal::PortalNode>>,
@@ -309,6 +310,7 @@ impl Document {
             inspector_requested: false,
             screen_pointer: None,
             last_pointer: None,
+            work_areas: HashMap::default(),
             acted: Acted::Nothing,
             placement: None,
             portal_holders: stable_hash::HashMap::default(),
@@ -2774,6 +2776,17 @@ fn failing_unsettled_layout() -> bool {
 const LAYOUTS_PER_FRAME: usize = 8;
 
 impl Document {
+    pub fn set_work_area(&mut self, window: WindowId, area: Option<Rect>) {
+        match area {
+            Some(area) => self.work_areas.insert(window, area),
+            None => self.work_areas.remove(&window),
+        };
+    }
+
+    pub fn work_area(&self, window: WindowId) -> Option<Rect> {
+        self.work_areas.get(&window).copied()
+    }
+
     fn lay_out_boundaries(&mut self, ctx: &Context, rects: &Rects) {
         for boundary in self.arena.take_boundaries() {
             if !self.arena.contains(boundary)

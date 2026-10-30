@@ -381,6 +381,7 @@ fn report_anchored(instances: &mut Instances, layers: Vec<Layer>) {
                 claims: Vec::new(),
                 description: None,
                 anchored: Some(layer.placement),
+                work_area: None,
             }
         })
         .collect();

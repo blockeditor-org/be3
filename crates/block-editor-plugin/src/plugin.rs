@@ -139,6 +139,7 @@ pub struct Frame {
     pub scrims: Vec<block_plugin_api::Scrim>,
     pub drawing: Vec<Rect>,
     pub claims: Vec<Claim>,
+    pub work_area: Option<Rect>,
     pub window: WindowRequests,
     pub description: Option<block_plugin_api::Description>,
     pub stopped: Option<block_plugin_api::Stopped>,

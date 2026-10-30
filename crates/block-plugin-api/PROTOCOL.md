@@ -465,7 +465,12 @@ draws the screen as it opened it until the host's screens name it or it
 closes the window. The other requests, `begin-move` and `begin-resize`, which
 hand the pointer to the host until the press is let go, `raise`, `resize`,
 `place` (put it, at the size it has, where a placement says) and `close`, each
-name the window's view. block-app says `windows` for every
+name the window's view. A view that windows open from may report a
+`work-area` (insets) in its frame report: the part of it the plugin keeps clear
+of its own bars. The host keeps each of the plugin's windows on a display
+wholly inside the work area reported there, on the edges where it is inset,
+and leaves other edges open, so a window still crosses onto another display.
+block-app says `windows` for every
 main view it shows and, where it opens no windows of its own, draws each one
 over its own window at the point asked for, moved back inside it, or shrunk
 to the room below that point when there is enough. Without `windows` the plugin draws its

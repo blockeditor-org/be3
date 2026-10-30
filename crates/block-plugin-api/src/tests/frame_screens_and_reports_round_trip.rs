@@ -94,6 +94,7 @@ fn frame_screens_and_reports_round_trip() {
                 }],
             }),
             anchored: None,
+            work_area: None,
         }],
         ..frame(1)
     };

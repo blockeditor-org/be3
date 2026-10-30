@@ -2358,6 +2358,7 @@ pub struct PlacedView {
     pub pastes: Vec<beui::PasteKind>,
     pub clipboard_keys: bool,
     pub every_sample: bool,
+    pub work_area: Option<Rect>,
 }
 
 impl PlacedView {
@@ -2388,6 +2389,7 @@ impl PlacedView {
             pastes: Vec::new(),
             clipboard_keys: false,
             every_sample: false,
+            work_area: None,
         }
     }
 
@@ -2638,6 +2640,9 @@ fn shown_view(
                 .unwrap_or_default(),
             clipboard_keys: window.is_some_and(|window| window.clipboard_keys),
             every_sample: window.is_some_and(|window| window.every_sample),
+            work_area: report
+                .and_then(|report| report.work_area)
+                .map(|insets| insets.inside(Rect::from_min_size(Pos2::ZERO, rect.size()))),
         }
     }
 }

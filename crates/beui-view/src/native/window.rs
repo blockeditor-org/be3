@@ -1,4 +1,4 @@
-use beui_core::geometry::Pos2;
+use beui_core::geometry::{Pos2, Rect};
 use beui_core::window::{WindowId, WindowRequest};
 
 use crate::reactive::ReadSignal;
@@ -18,4 +18,8 @@ pub(crate) fn placed_windows() -> ReadSignal<bool> {
 
 pub(crate) fn window_origin(window: WindowId) -> Option<Pos2> {
     with_document(|document| document.context()?.window_origin(window))
+}
+
+pub(crate) fn set_work_area(window: WindowId, area: Option<Rect>) {
+    beui_core::current::try_with_document(|document| document.set_work_area(window, area));
 }

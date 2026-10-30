@@ -41,6 +41,7 @@ pub struct Report {
     pub scrims: Vec<(Rect, beui_core::color::Color32)>,
     pub drawing: Vec<Rect>,
     pub claims: Vec<Claim>,
+    pub work_area: Option<Rect>,
 }
 
 #[derive(Default)]

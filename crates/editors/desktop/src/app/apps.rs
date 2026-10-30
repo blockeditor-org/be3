@@ -2,15 +2,19 @@ use beui::KeyAt;
 use block_editor_beui::beui::icons::{
     ICON_BOXES, ICON_LAYOUT_GRID, ICON_MENU, ICON_PANEL_BOTTOM_OPEN, ICON_PLUS,
 };
+use block_editor_beui::beui::dock::styled::{DockingLayout, TabId};
+use block_editor_beui::beui::native::last_pointer;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{Anchored, AnchoredHandle};
+use block_editor_beui::beui::window_origin;
 use block_editor_beui::beui::{Key, LayerPolicy, NodeId, Placement, Rect};
 use block_editor_beui::{Editor, PickAnchor};
 use block_shell::Workspace;
 use uuid::Uuid;
 
-use super::bar::BARS;
+use super::bar::Bars;
+use super::windows::DeskWindows;
 use super::launcher::{ProgramSearch, Programs};
 use super::popup::BarPopup;
 use super::sessions::Sessions;
@@ -53,10 +57,10 @@ impl Apps {
         self.open.set(display);
     }
 
-    fn toggle(&self, display: u32) {
-        match self.open.get_untracked() == Some(display) {
-            true => self.show(None),
-            false => self.show(Some(display)),
+    fn toggle(&self, display: impl FnOnce() -> u32) {
+        match self.open.get_untracked() {
+            Some(_) => self.show(None),
+            None => self.show(Some(display())),
         }
     }
 
@@ -85,8 +89,22 @@ impl Apps {
 }
 
 #[component]
-pub(crate) fn AppsKey(apps: Apps) -> NodeId {
-    Action::new("desktop.apps.toggle", "Apps", move || apps.toggle(0))
+pub(crate) fn AppsKey(apps: Apps, windows: DeskWindows, layout: DockingLayout<TabId>) -> NodeId {
+    let pointed = move || {
+        let displays = windows.displays();
+        let pointer = last_pointer().and_then(|sample| {
+            let at = window_origin(sample.window)? + sample.pos.to_vec2();
+            displays.iter().position(|display| display.contains(at))
+        });
+        let focused = || {
+            let window = layout.focused().and_then(|key| layout.window_rect(&key))?;
+            Some(super::windows::holder(Some(window), &displays) as usize)
+        };
+        pointer.or_else(focused).unwrap_or(0) as u32
+    };
+    Action::new("desktop.apps.toggle", "Apps", move || {
+        apps.toggle(|| untrack(pointed))
+    })
         .glyph(ICON_LAYOUT_GRID)
         .shortcut(Chord::tap(Key::Logo))
         .at(KeyAt::Window)
@@ -98,7 +116,7 @@ pub(crate) fn AppsKey(apps: Apps) -> NodeId {
 }
 
 #[component]
-pub(crate) fn AppsButton(apps: Apps, display: u32) -> NodeId {
+pub(crate) fn AppsButton(apps: Apps, display: u32, layout: DockingLayout<TabId>) -> NodeId {
     apps.buttons.update(|buttons| buttons.push(display));
     on_cleanup(move || {
         if !apps.buttons.is_alive() {
@@ -124,6 +142,7 @@ pub(crate) fn AppsButton(apps: Apps, display: u32) -> NodeId {
             <AppsPanel
                 apps
                 display
+                layout
                 shown={handle.shown}
                 close={handle.close}
                 menu={PickAnchor::Node(button)}
@@ -133,7 +152,12 @@ pub(crate) fn AppsButton(apps: Apps, display: u32) -> NodeId {
 }
 
 #[component]
-pub(crate) fn AppsOverlay(apps: Apps, display: u32, area: Memo<Rect>) -> NodeId {
+pub(crate) fn AppsOverlay(
+    apps: Apps,
+    display: u32,
+    layout: DockingLayout<TabId>,
+    area: Memo<Rect>,
+) -> NodeId {
     let open = apps.open;
     let buttoned = apps.has_button(display);
     let shown = create_memo(move || open.get() == Some(display) && !buttoned.get());
@@ -148,7 +172,14 @@ pub(crate) fn AppsOverlay(apps: Apps, display: u32, area: Memo<Rect>) -> NodeId 
             open={shown}
             on_dismiss={move || apps.close(display)}
         >|handle: AnchoredHandle|
-            <AppsPanel apps display shown={handle.shown} close menu={PickAnchor::Centre} />
+            <AppsPanel
+                apps
+                display
+                layout
+                shown={handle.shown}
+                close
+                menu={PickAnchor::Centre}
+            />
         </Anchored>
     }
 }
@@ -157,18 +188,18 @@ pub(crate) fn AppsOverlay(apps: Apps, display: u32, area: Memo<Rect>) -> NodeId 
 fn AppsPanel(
     apps: Apps,
     display: u32,
+    layout: DockingLayout<TabId>,
     shown: Memo<bool>,
     close: Callback<()>,
     menu: PickAnchor,
 ) -> NodeId {
     let launches = apps.programs.offered;
     let editor = apps.editor;
-    let layout = apps.workspace.layout();
-    let hidden =
-        create_memo(move || display == 0 && BARS.iter().any(|bar| layout.is_bar_hidden(bar)));
+    let bars = Bars::of(display).all();
+    let hidden = create_memo(move || bars.iter().any(|bar| layout.is_bar_hidden(bar)));
     let show_bars = move || {
         close.call(());
-        for bar in BARS {
+        for bar in bars {
             layout.show_bar(&bar);
         }
     };

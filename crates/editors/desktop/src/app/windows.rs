@@ -130,6 +130,10 @@ impl DeskWindows {
         }
     }
 
+    pub(crate) fn displays(&self) -> Vec<Rect> {
+        self.displays.get()
+    }
+
     pub(crate) fn block_windows(&self) -> Memo<Vec<TabId>> {
         let tabs = self.tabs;
         let hidden = self.hidden;

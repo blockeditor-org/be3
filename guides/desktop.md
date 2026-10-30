@@ -43,7 +43,8 @@ The shell is three dock-level `DockBar`s of the desktop's own dock (`desktop.doc
 - Status (`desktop.bar.status`, `StatusBar`): the tray, the device tools, the status button and
   the clock.
 
-Their keys are block-shell's `SHELL_BARS` and the two after it. By default all three sit beside the
+Every display has its own three (`bar::Bars::of(display)`: block-shell's `SHELL_BARS + 3 * display`
+and the two after it), which it places and hides by itself. By default all three sit beside the
 bottom edge in one band (`dock.bar.band.bottom`): Apps at its start, Windows centred, Status at its
 end. A grip moves its bar like any dock bar: beside any edge at its start, centre or end, floated over
 one, or popped out into a window; the dock saves where each is and whether it is hidden, in the
@@ -54,17 +55,32 @@ opens away from the bar's edge, toward the windows: below or above a bar along t
 (`PopoverPlacement::Below`, which turns up when there is no room below), beside one down a side
 (`PopoverPlacement::Beside`).
 
-The grip menu's Hide hides a bar; the Apps panel then offers "Show this display's bars"
-(`desktop.apps.bars`), which shows them all again, and Super still opens Apps, centred over the
-windows' area while the Apps bar is hidden. The windows' area is the dock inside its bands
+The grip menu's Hide hides a bar on its display; that display's Apps panel then offers "Show this
+display's bars" (`desktop.apps.bars`), which shows its three again, and Super still opens Apps,
+centred over that display's windows' area (`AppsOverlay`) while its Apps bar is hidden. Super opens
+Apps on the display the pointer was last over (`beui::native::last_pointer`, its window's
+`window_origin`), else the one holding the focused window, else the first. The windows' area is the dock inside its bands
 (`DockingLayout::area`), where floating windows go: the level display (`desktop.osd.0`) is centred
 low over it, and notification toasts gather in its corner nearest the Status bar
 (`bar::toast_corner`, bottom right by default, bottom left with the bar down the left side). A
 fullscreen window covers the bars, as it covers the whole display.
 
-The bars are the main view's, display 0's. A further display's `Display` view still draws one plain
-row along its foot (`DisplayRow`, `desktop.bar`) with the same Apps button, its own chips and status
-items, laid out across.
+Display 0's bars are dock bars of the main view's dock, which holds every window. A further
+display's `Display` view holds a dock of its own (`desktop.dock.{n}`) with no panes and that
+display's three bars as its dock bars, on its own `DockingLayout` (`bar::display_layout`). The main
+dock's state is saved in the session's layout as ever; each further display's is saved beside it,
+under the session view's `display-bars` state, by the display's place in the list. A display that has
+none saved starts from display 0's placements and hidden bars. Toasts stay on display 0, in the
+corner nearest its Status bar.
+
+Each display's work area is that display less its own bars' bands: the dock's area
+(`DockingLayout::area`). A root dock whose windows the host shows tells its window's work area to
+beui (`beui::window::set_work_area`), the plugin reports it on the view's frame report
+(`frame-report.work-area`, insets), and block-app (`compositor/desktop.rs`,
+`keep_in_work_areas`, `walled`) and block-ui-test's desk keep each of the plugin's windows on a
+display wholly inside that display's work area on every edge where a band insets it, as the dock's
+`reachable_origin` walls do for windows it draws itself; other edges, and so other displays, stay
+open. A window being moved or resized is let go first, and kept once released.
 
 The Status bar holds the tray, the device tools (the on-screen keyboard, `desktop.keyboard`,
 while the display settings' `keyboard_in_bar` is on, which does not take the focus from the
@@ -225,9 +241,9 @@ and hosts the windows as block-app does, takes input in desktop points (`desk_pr
 
 The shell learns the displays from `DisplaysWatch`: each `HostDisplay` carries its `rect` in the
 desktop's points and its `scale`. The desktop plugin draws, in every view, a level display (`desktop.osd.{n}`, n the view's
-display), and in the frame alone its dock with the three bars (The bars, above), pickers and
-notification toasts; `BeuiApp::Display` draws the further displays' views, each with a plain row
-along its foot, from what the frame's view shares (`app.rs`, `Desktop`). The dock fills the frame,
+display), a dock with that display's three bars and its Apps overlay, and in the frame alone the
+windows, pickers and notification toasts; `BeuiApp::Display` draws the further displays' views
+from what the frame's view shares (`app.rs`, `Desktop`). The dock fills the frame,
 and its windows open over it.
 
 ## A shell that stops

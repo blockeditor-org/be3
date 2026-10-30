@@ -611,6 +611,7 @@ impl ModuleRunner {
                     rect: to_region(claim.rect),
                 })
                 .collect(),
+            work_area: report.work_area.map(to_region),
             window: self.requests(id, keyboard, ratio),
             description: region.describe.map(|_| self.describe(id, region, ratio)),
             stopped: None,

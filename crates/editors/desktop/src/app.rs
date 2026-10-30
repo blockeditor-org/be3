@@ -35,8 +35,7 @@ use uuid::Uuid;
 
 use apps::{Apps, AppsKey, AppsOverlay};
 use bar::{
-    APPS_BAR, APPS_PLACE, AppsBar, DisplayRow, STATUS_BAR, STATUS_PLACE, Shell, StatusBar,
-    WINDOWS_BAR, WINDOWS_PLACE, WindowsBar,
+    APPS_PLACE, AppsBar, Bars, STATUS_PLACE, Shell, StatusBar, WINDOWS_PLACE, WindowsBar,
 };
 use beui::ItemSize;
 use media::MediaKeys;
@@ -124,13 +123,37 @@ fn publish(block: Uuid, desktop: Desktop) {
 
 #[component]
 fn DisplayBody(desktop: Desktop, display: u32) -> NodeId {
-    let area = region_area();
+    let shell = desktop.shell;
+    let editor = shell.workspace.editor();
+    let main = shell.workspace.layout();
+    let layout = bar::display_layout(editor, main, display);
+    let launches = shell.apps.launches();
+    let area = windows_area(layout, region_area());
+    let bars = Bars::of(display);
     view! {
         <Frame>
             <List spacing=Space::None>
-                <Spacer @sizing=ItemSize::Percent(100.0) />
-                <DisplayRow shell={desktop.shell} display />
+                <Docking
+                    @sizing=ItemSize::Percent(100.0)
+                    @test_id={format!("desktop.dock.{display}")}
+                    layout
+                    drag_modifier={Some(Modifiers::LOGO)}
+                >
+                    <DockBar id={bars.apps} placement=APPS_PLACE>
+                        <AppsBar shell display layout />
+                    </DockBar>
+                    <DockBar id={bars.windows} placement=WINDOWS_PLACE>
+                        <WindowsBar shell display />
+                    </DockBar>
+                    <DockBar id={bars.status} placement=STATUS_PLACE>
+                        <StatusBar shell display />
+                    </DockBar>
+                </Docking>
                 <media::LevelDisplay osd={desktop.osd} area display />
+                <Show condition={launches}>
+                    <AppsKey apps={shell.apps} windows={shell.windows} layout={main} />
+                </Show>
+                <AppsOverlay apps={shell.apps} display layout area />
             </List>
         </Frame>
     }
@@ -180,10 +203,11 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
     let notifications = DesktopNotifications::new(editor);
     let region = region_area();
     let area = windows_area(layout, region);
+    let bars = Bars::of(0);
     let corner = create_memo(move || {
-        let placement = match layout.is_bar_hidden(&STATUS_BAR) {
+        let placement = match layout.is_bar_hidden(&bars.status) {
             true => None,
-            false => layout.bar_placement(&STATUS_BAR),
+            false => layout.bar_placement(&bars.status),
         };
         bar::toast_corner(placement)
     });
@@ -212,13 +236,13 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                     <ForEach keys={panels}>|panel: HostPanel|
                         <PanelWindow workspace panel />
                     </ForEach>
-                    <DockBar id=APPS_BAR placement=APPS_PLACE>
-                        <AppsBar shell display=0 />
+                    <DockBar id={bars.apps} placement=APPS_PLACE>
+                        <AppsBar shell display=0 layout />
                     </DockBar>
-                    <DockBar id=WINDOWS_BAR placement=WINDOWS_PLACE>
+                    <DockBar id={bars.windows} placement=WINDOWS_PLACE>
                         <WindowsBar shell display=0 />
                     </DockBar>
-                    <DockBar id=STATUS_BAR placement=STATUS_PLACE>
+                    <DockBar id={bars.status} placement=STATUS_PLACE>
                         <StatusBar shell display=0 />
                     </DockBar>
                 </Docking>
@@ -228,9 +252,9 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                 </Show>
                 <media::LevelDisplay osd area display=0 />
                 <Show condition={launches}>
-                    <AppsKey apps />
+                    <AppsKey apps windows layout />
                 </Show>
-                <AppsOverlay apps display=0 area />
+                <AppsOverlay apps display=0 layout area />
                 <DesktopToasts notifications area corner />
             </List>
         </Frame>

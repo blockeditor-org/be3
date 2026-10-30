@@ -369,6 +369,17 @@ pub(crate) fn PluginView(
             view.get(),
         )
     });
+    if shows_desktop {
+        let key = (plugin_id.value().to_string(), instance, region.id);
+        let held = key.clone();
+        create_effect(move || {
+            let origin = origin.get().unwrap_or(Pos2::ZERO);
+            let area = state.with(|view| view.work_area);
+            let area = area.map(|area| area.translate(origin.to_vec2()));
+            untrack(|| super::desktop::note_work_area(held.clone(), area));
+        });
+        on_cleanup(move || super::desktop::note_work_area(key, None));
+    }
     create_effect(move || {
         revision.get();
         let actions = block_app_plugin_host::take_view_actions(&plugin_id.value(), instance);

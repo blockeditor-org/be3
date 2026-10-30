@@ -1139,6 +1139,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.docks.extend(commit.docks);
         let view = self.view().id;
         let asked = commit.window_requests;
+        let reports = commit.reports.clone();
         if let Some(placements) = commit
             .children
             .into_iter()
@@ -1163,7 +1164,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         {
             self.window = window.window;
         }
-        self.desk_asked(asked);
+        self.desk_asked(asked, &reports);
     }
 
     fn call(&mut self, call: impl FnOnce(Editor, &mut Connection)) {

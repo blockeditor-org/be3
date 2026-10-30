@@ -2,7 +2,7 @@ use crate::reactive::{NodeId, OverlayAnchor};
 use crate::types::window::{
     WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest, WindowRole, WindowSpec,
 };
-use crate::types::{LayerLevel, LayerPolicy, Placement, Pos2, Vec2};
+use crate::types::{LayerLevel, LayerPolicy, Placement, Pos2, Rect, Vec2};
 use beui_macros::{component, view};
 
 use crate::components::frame::Frame;
@@ -170,4 +170,8 @@ pub fn opens_windows() -> crate::reactive::ReadSignal<bool> {
 
 pub fn window_origin(window: WindowId) -> Option<Pos2> {
     crate::core::window::window_origin(window)
+}
+
+pub fn set_work_area(window: WindowId, area: Option<Rect>) {
+    crate::core::window::set_work_area(window, area);
 }

@@ -188,6 +188,7 @@ pub struct PointerPress {
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct PointerSample {
     pub pos: Pos2,
+    pub window: ui_types::window::WindowId,
     pub touch: bool,
 }
 

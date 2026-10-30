@@ -3730,7 +3730,11 @@ space all the host's windows share, as beui-platform-drm's desktop is), `Closed(
 window focus, as a window manager moves it on a click or to a window it
 opens). The runner applies them before the frame
 lays out, and `Context::window_size`, `Context::window_placement` and
-`Context::window_origin` read them (`beui::window::window_origin` in a component). `Context::window_hosting` says which windows a host opens, as a
+`Context::window_origin` read them (`beui::window::window_origin` in a component). The other way,
+`beui::set_work_area(window, area)` keeps on the document the part of a window its windows
+should stay in (`Document::work_area`); a root `Docking` whose windows the host opens sets it to its
+area inside its dock-level bands, and the plugin platform reports it to the host as the view's
+`work-area`. `Context::window_hosting` says which windows a host opens, as a
 `WindowHosting`: `None` (every platform on its own: a window is shown inside
 the main one instead), `Any` (a layer opens every window, as space does) or `Placed`
 (the platform opens only the windows it placed itself: a `Window` opened with

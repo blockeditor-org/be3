@@ -559,6 +559,13 @@ interface types {
         /// The view closes when the plugin's layout no longer lists its
         /// screen.
         anchored: option<anchored-placement>,
+        /// Where the windows the plugin opens from this view are kept, as
+        /// insets from the view's edges: the view less the bars it keeps
+        /// along them. The host keeps each window it shows for the plugin
+        /// wholly inside the work area of the display the window is on,
+        /// on the edges where that area is inset. `none` when the view
+        /// keeps no such area.
+        work-area: option<insets>,
     }
 
     record screen-window {

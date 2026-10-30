@@ -57,6 +57,7 @@ fn anchored_report(screen: ScreenId, placement: AnchoredPlacement) -> FrameRepor
         claims: Vec::new(),
         description: None,
         anchored: Some(placement),
+        work_area: None,
     }
 }
 

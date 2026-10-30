@@ -10,12 +10,14 @@ use super::{BeuiTest, INSTANCE, SCREEN};
 const OPEN_GRAB: Vec2 = vec2(24.0, 16.0);
 const FIRST_DISPLAY_SCREEN: u64 = 100;
 const FIRST_WINDOW_SCREEN: u64 = 1000;
+const WALL: f32 = 0.5;
 
 #[derive(Clone, Copy, Debug)]
 struct Display {
     rect: Rect,
     scale: f32,
     screen: ScreenId,
+    work: Option<Rect>,
 }
 
 #[derive(Clone, Debug)]
@@ -56,6 +58,7 @@ impl Desk {
                         0 => SCREEN,
                         index => ScreenId(FIRST_DISPLAY_SCREEN + index as u64),
                     },
+                    work: None,
                 })
                 .collect(),
             next_screen: FIRST_WINDOW_SCREEN,
@@ -74,6 +77,44 @@ impl Desk {
             .max_by(|a, b| area(a).total_cmp(&area(b)))
             .filter(|display| area(display) > 0.0)
             .unwrap_or(self.displays[0])
+    }
+
+    fn reported(&mut self, reports: &[block_plugin_api::FrameReport]) -> bool {
+        let mut changed = false;
+        for display in &mut self.displays {
+            let Some(report) = reports.iter().find(|report| report.screen == display.screen)
+            else {
+                continue;
+            };
+            let work = report
+                .work_area
+                .map(|insets| insets.inside(display.rect));
+            changed |= display.work != work;
+            display.work = work;
+        }
+        changed
+    }
+
+    fn keep(&mut self) -> bool {
+        let moving = self.gesture.map(|(window, _)| window);
+        let mut moved = false;
+        for index in 0..self.windows.len() {
+            let held = &self.windows[index];
+            if Some(held.window) == moving {
+                continue;
+            }
+            let display = self.owner(held.rect);
+            let Some(work) = display.work else {
+                continue;
+            };
+            let to = walled(held.rect, display.rect, work);
+            if to != held.rect.min {
+                let size = held.rect.size();
+                self.windows[index].rect = Rect::from_min_size(to, size);
+                moved = true;
+            }
+        }
+        moved
     }
 
     fn origin(&self, screen: ScreenId) -> Pos2 {
@@ -305,6 +346,23 @@ impl Desk {
     }
 }
 
+fn walled(rect: Rect, display: Rect, work: Rect) -> Pos2 {
+    let mut min = rect.min;
+    if work.max.x < display.max.x - WALL {
+        min.x = min.x.min(work.max.x - rect.width()).max(work.min.x.min(rect.min.x));
+    }
+    if work.max.y < display.max.y - WALL {
+        min.y = min.y.min(work.max.y - rect.height()).max(work.min.y.min(rect.min.y));
+    }
+    if work.min.x > display.min.x + WALL {
+        min.x = min.x.max(work.min.x);
+    }
+    if work.min.y > display.min.y + WALL {
+        min.y = min.y.max(work.min.y);
+    }
+    min
+}
+
 fn resized(rect: Rect, edge: WindowEdge, moved: Vec2) -> Rect {
     let (mut min, mut max) = (rect.min, rect.max);
     match edge {
@@ -347,17 +405,25 @@ impl<A: BeuiApp> BeuiTest<A> {
         Some(self.desk.as_ref()?.requests(self.frame))
     }
 
-    pub(super) fn desk_asked(&mut self, requests: Vec<WindowRequest>) {
+    pub(super) fn desk_asked(
+        &mut self,
+        requests: Vec<WindowRequest>,
+        reports: &[block_plugin_api::FrameReport],
+    ) {
         let Some(desk) = self.desk.as_mut() else {
             return;
         };
-        if requests.is_empty() {
+        let reported = desk.reported(reports);
+        let asked = !requests.is_empty();
+        if !asked && !reported {
             return;
         }
         for request in requests {
             desk.ask(request);
         }
-        self.place();
+        if desk.keep() || asked {
+            self.place();
+        }
     }
 
     pub fn desk_windows(&self) -> Vec<Rect> {
@@ -483,6 +549,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             desk.gesture.take().is_some()
         };
         if ended {
+            desk.keep();
             self.place();
         }
         self.desk_batches.push(InputBatch {
