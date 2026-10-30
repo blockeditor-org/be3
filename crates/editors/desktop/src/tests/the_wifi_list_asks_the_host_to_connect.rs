@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn the_wifi_popup_asks_the_host_to_connect() {
+fn the_wifi_list_asks_the_host_to_connect() {
     let mut fixture = Fixture::new();
     fixture.settle();
     fixture.wifi(nearby());
