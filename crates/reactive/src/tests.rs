@@ -8,6 +8,7 @@ use crate::{
 };
 
 mod a_binding_inside_an_effect_tracks_for_itself;
+mod a_binding_reading_a_memo_whose_scope_went_waits_for_the_flush_that_disposes_it;
 mod a_binding_reads_the_context_of_the_scope_it_runs_in;
 mod a_binding_runs_at_once_and_again_only_for_what_it_read;
 mod a_binding_that_reads_nothing_leaves_nothing_to_run;

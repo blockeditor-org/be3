@@ -36,7 +36,7 @@ pub fn create_memo<T: PartialEq + 'static>(mut compute: impl FnMut() -> T + 'sta
         computation.watch(probed.read, probed.owner);
     }
     Memo {
-        key: arena::insert_owned(output),
+        key: arena::insert_owned_tracked(output),
         ty: PhantomData,
     }
 }

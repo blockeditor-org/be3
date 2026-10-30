@@ -3,6 +3,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::scope::{Cleanup, current_owner};
+use crate::signal::Tracked;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub(crate) struct Key {
@@ -13,6 +14,7 @@ pub(crate) struct Key {
 struct Slot {
     generation: u32,
     value: Option<Rc<dyn Any>>,
+    tracked: Option<Rc<dyn Tracked>>,
 }
 
 struct Arena {
@@ -30,12 +32,21 @@ thread_local! {
 }
 
 pub(crate) fn insert(value: Rc<dyn Any>) -> Key {
+    insert_slot(value, None)
+}
+
+pub(crate) fn insert_tracked<V: Tracked + 'static>(value: Rc<V>) -> Key {
+    insert_slot(value.clone(), Some(value))
+}
+
+fn insert_slot(value: Rc<dyn Any>, tracked: Option<Rc<dyn Tracked>>) -> Key {
     ARENA.with(|arena| {
         let mut arena = arena.borrow_mut();
         match arena.free.pop() {
             Some(index) => {
                 let slot = &mut arena.slots[index as usize];
                 slot.value = Some(value);
+                slot.tracked = tracked;
                 Key {
                     index,
                     generation: slot.generation,
@@ -46,6 +57,7 @@ pub(crate) fn insert(value: Rc<dyn Any>) -> Key {
                 arena.slots.push(Slot {
                     generation: 0,
                     value: Some(value),
+                    tracked,
                 });
                 Key {
                     index,
@@ -59,6 +71,13 @@ pub(crate) fn insert(value: Rc<dyn Any>) -> Key {
 pub(crate) fn insert_owned(value: Rc<dyn Any>) -> Key {
     let owner = current_owner();
     let key = insert(value);
+    owner.add(Cleanup::Free(key));
+    key
+}
+
+pub(crate) fn insert_owned_tracked<V: Tracked + 'static>(value: Rc<V>) -> Key {
+    let owner = current_owner();
+    let key = insert_tracked(value);
     owner.add(Cleanup::Free(key));
     key
 }
@@ -82,10 +101,14 @@ pub(crate) fn remove(key: Key) {
             return None;
         }
         let value = slot.value.take();
+        let tracked = slot.tracked.take();
         slot.generation = slot.generation.wrapping_add(1);
         arena.free.push(key.index);
-        value
+        Some((value, tracked))
     });
+    if let Ok(Some((_, Some(tracked)))) = &removed {
+        tracked.source().freed.set(true);
+    }
     drop(removed);
 }
 
