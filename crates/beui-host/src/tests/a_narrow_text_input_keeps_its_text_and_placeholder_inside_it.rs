@@ -1,6 +1,6 @@
 use super::*;
-use crate::painter::Shape;
 use crate::base::Direction;
+use crate::painter::Shape;
 use crate::reactive::*;
 use crate::styled::{self, Size, TextInput};
 
@@ -25,11 +25,11 @@ fn a_narrow_text_input_keeps_its_text_and_placeholder_inside_it() {
         [view! {
             <styled::List direction=Direction::Horizontal spacing=styled::Space::None>
                 <styled::Frame width={Size::Custom(90.0)}>
-                <TextInput
-                    @node_ref=&field
-                    value={value}
-                    placeholder="A placeholder much longer than the field"
-                />
+                    <TextInput
+                        @node_ref=&field
+                        value={value}
+                        placeholder="A placeholder much longer than the field"
+                    />
                 </styled::Frame>
             </styled::List>
         }]
@@ -48,7 +48,9 @@ fn a_narrow_text_input_keeps_its_text_and_placeholder_inside_it() {
     inside(&output, "the placeholder");
 
     harness.click(field.center());
-    harness.frame(vec![Input::Text("a long line typed into the field".to_owned())]);
+    harness.frame(vec![Input::Text(
+        "a long line typed into the field".to_owned(),
+    )]);
     let output = harness.frame(Vec::new());
     inside(&output, "typed text scrolled along");
 
