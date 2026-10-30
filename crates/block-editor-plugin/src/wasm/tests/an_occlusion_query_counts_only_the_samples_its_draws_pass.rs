@@ -27,6 +27,9 @@ fn an_occlusion_query_counts_only_the_samples_its_draws_pass() {
         pass.end_occlusion_query();
     }
     let counts = resolved(&device, &queue, encoder, &queries, 2);
-    assert!(counts[0] > 0, "the covering draw passed samples: {counts:?}");
+    assert!(
+        counts[0] > 0,
+        "the covering draw passed samples: {counts:?}"
+    );
     assert_eq!(counts[1], 0, "the empty draw passed none");
 }

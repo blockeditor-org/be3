@@ -955,14 +955,13 @@ impl CommandEncoderInterface for CommandEncoder {
             occlusion_query_set: desc
                 .occlusion_query_set
                 .map(|set| custom::<QuerySet>(set.as_custom()).0.handle()),
-            timestamp_writes: desc
-                .timestamp_writes
-                .as_ref()
-                .map(|writes| abi::PassTimestampWrites {
+            timestamp_writes: desc.timestamp_writes.as_ref().map(|writes| {
+                abi::PassTimestampWrites {
                     query_set: custom::<QuerySet>(writes.query_set.as_custom()).0.handle(),
                     beginning_of_pass_write_index: writes.beginning_of_pass_write_index,
                     end_of_pass_write_index: writes.end_of_pass_write_index,
-                }),
+                }
+            }),
         };
         DispatchRenderPass::custom(RenderPass::created(self.0.begin_render_pass(&descriptor)))
     }
@@ -1246,10 +1245,7 @@ impl RenderPassInterface for RenderPass {
         unimplemented!("pipeline statistics queries are not in browser WebGPU")
     }
 
-    fn execute_bundles(
-        &mut self,
-        render_bundles: &mut dyn Iterator<Item = &DispatchRenderBundle>,
-    ) {
+    fn execute_bundles(&mut self, render_bundles: &mut dyn Iterator<Item = &DispatchRenderBundle>) {
         let bundles: Vec<&gpu::RenderBundle> = render_bundles
             .map(|bundle| &custom::<RenderBundle>(bundle.as_custom()).0)
             .collect();

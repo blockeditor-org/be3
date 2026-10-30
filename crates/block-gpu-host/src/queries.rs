@@ -5,10 +5,6 @@ pub(crate) struct QuerySet {
     pub(crate) timestamps: bool,
 }
 
-/// Browsers hand out timestamps in nanoseconds, coarsened to 100
-/// microseconds so that a page cannot time the gpu finely; Chrome does it with
-/// a compute pass after each resolve, as this does. A device counts in ticks
-/// of `Queue::get_timestamp_period` nanoseconds, so the pass also converts.
 pub(crate) const QUANTUM_NANOSECONDS: u32 = 100_000;
 
 const WORKGROUP: u32 = 64;
@@ -78,9 +74,6 @@ impl Coarsening {
         Self { pipeline }
     }
 
-    /// Whether a resolve into this range is valid as far as the coarsening
-    /// pass's own binding goes. When it is not, the resolve itself is refused,
-    /// and the pass is left out so that the resolve's error is the one told.
     pub(crate) fn fits(buffer: &wgpu::Buffer, offset: u64, count: u32) -> bool {
         let end = offset.checked_add(u64::from(count) * 8);
         count > 0
@@ -126,9 +119,11 @@ impl Gpu {
             .get_or_insert_with(|| Coarsening::new(device, queue.get_timestamp_period()))
     }
 
-    /// A buffer queries resolve into is also bound by the coarsening pass.
     pub(crate) fn resolvable(&self, usage: wgpu::BufferUsages) -> wgpu::BufferUsages {
-        let timestamps = self.device.features().contains(wgpu::Features::TIMESTAMP_QUERY);
+        let timestamps = self
+            .device
+            .features()
+            .contains(wgpu::Features::TIMESTAMP_QUERY);
         match timestamps && usage.contains(wgpu::BufferUsages::QUERY_RESOLVE) {
             true => usage | wgpu::BufferUsages::STORAGE,
             false => usage,

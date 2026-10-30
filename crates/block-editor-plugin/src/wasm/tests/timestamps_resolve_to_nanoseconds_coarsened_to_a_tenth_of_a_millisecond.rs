@@ -37,8 +37,15 @@ fn timestamps_resolve_to_nanoseconds_coarsened_to_a_tenth_of_a_millisecond() {
     }
     let stamps = resolved(&device, &queue, encoder, &queries, 2);
     assert!(stamps[1] > 0, "the pass was timed: {stamps:?}");
-    assert!(stamps[0] <= stamps[1], "the pass ended after it began: {stamps:?}");
+    assert!(
+        stamps[0] <= stamps[1],
+        "the pass ended after it began: {stamps:?}"
+    );
     for stamp in stamps {
-        assert_eq!(stamp % 100_000, 0, "{stamp} is coarsened to 100 microseconds");
+        assert_eq!(
+            stamp % 100_000,
+            0,
+            "{stamp} is coarsened to 100 microseconds"
+        );
     }
 }

@@ -4,12 +4,8 @@ use block_gpu_abi::device as abi;
 
 use crate::{Outcome, convert, slice};
 
-/// wgpu-hal's `MAX_COLOR_ATTACHMENTS`, which wgpu-core holds a bundle to.
 const MAX_COLOR_ATTACHMENTS: usize = 8;
 
-/// A render bundle being recorded. wgpu's own encoder borrows what it is
-/// given for its whole life, so the commands are kept here, each with the
-/// objects it names, and replayed into one when the bundle is finished.
 pub(crate) struct BundleEncoder {
     label: Option<String>,
     color_formats: Vec<Option<wgpu::TextureFormat>>,
@@ -30,8 +26,6 @@ pub(crate) enum Command {
 }
 
 impl BundleEncoder {
-    /// wgpu panics on a descriptor it cannot make an encoder from, so those
-    /// are refused here, as WebGPU refuses them.
     pub(crate) fn new(descriptor: abi::RenderBundleEncoderDescriptor) -> Outcome<Self> {
         let colors = descriptor.color_formats.len();
         if colors > MAX_COLOR_ATTACHMENTS {
@@ -80,13 +74,14 @@ impl BundleEncoder {
         device: &wgpu::Device,
         descriptor: &abi::RenderBundleDescriptor,
     ) -> Outcome<wgpu::RenderBundle> {
-        let mut encoder = device.create_render_bundle_encoder(&wgpu::RenderBundleEncoderDescriptor {
-            label: convert::label(&self.label),
-            color_formats: &self.color_formats,
-            depth_stencil: self.depth_stencil,
-            sample_count: self.sample_count,
-            multiview: None,
-        });
+        let mut encoder =
+            device.create_render_bundle_encoder(&wgpu::RenderBundleEncoderDescriptor {
+                label: convert::label(&self.label),
+                color_formats: &self.color_formats,
+                depth_stencil: self.depth_stencil,
+                sample_count: self.sample_count,
+                multiview: None,
+            });
         for command in &self.commands {
             match command {
                 Command::Pipeline(pipeline) => encoder.set_pipeline(pipeline),

@@ -296,8 +296,10 @@ compute pass (`queries.rs` in block-gpu-host) that converts the device's ticks
 encoder at `finish` (`bundles.rs`), since wgpu's encoder borrows what it is given. Two
 of wgpu's gaps are filled by an overlay of the wgpu crate (`third-party/rust/overlays/wgpu`,
 see `fixups.bzl`): a custom backend's bundle encoder can be finished (`finish_custom`),
-and a bundle that fails validation goes to the device's error scope instead of panicking
-the host; refresh or drop it when wgpu is upgraded.
+a bundle that fails validation goes to the device's error scope instead of panicking
+the host, and a render pass's occlusion query set reaches the browser's pass; refresh or
+drop it when wgpu is upgraded. On WebGL, indirect draws are refused (wgpu's
+`INDIRECT_EXECUTION` downlevel flag), which a plugin cannot ask about beforehand.
 
 A *pure guest* has only those imports: no gpu, no SDK, no WASI, no threads, no shared memory, no
 clock. It is a `wasm32_module` (wasm32-unknown-unknown) rather than an `editor()`, and exports its

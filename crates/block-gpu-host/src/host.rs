@@ -221,7 +221,11 @@ impl Gpu {
             .transpose()?;
         let occlusion = descriptor
             .occlusion_query_set
-            .map(|set| self.query_sets.get(set.0, "query set").map(|set| set.set.clone()))
+            .map(|set| {
+                self.query_sets
+                    .get(set.0, "query set")
+                    .map(|set| set.set.clone())
+            })
             .transpose()?;
         let timestamps = descriptor
             .timestamp_writes
@@ -1275,7 +1279,9 @@ impl Host for Gpu {
     ) {
         let result = self.buffers.get(indirect_buffer.0, "buffer").cloned();
         if let Some(buffer) = self.fail(result.map(Some), None) {
-            self.pass(this, |pass| pass.draw_indexed_indirect(&buffer, indirect_offset));
+            self.pass(this, |pass| {
+                pass.draw_indexed_indirect(&buffer, indirect_offset)
+            });
         }
     }
 
@@ -1287,7 +1293,11 @@ impl Host for Gpu {
         self.pass(this, |pass| pass.end_occlusion_query());
     }
 
-    fn render_pass_execute_bundles(&mut self, this: abi::RenderPass, bundles: &[abi::RenderBundle]) {
+    fn render_pass_execute_bundles(
+        &mut self,
+        this: abi::RenderPass,
+        bundles: &[abi::RenderBundle],
+    ) {
         let found = bundles
             .iter()
             .map(|bundle| self.bundles.get(bundle.0, "render bundle").cloned())
