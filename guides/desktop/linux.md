@@ -97,8 +97,8 @@ puts each in front of the person, as an error toast that stays until it is dismi
 `notices::report_with` also keeps a full report (a crashed plugin's error, or the backtrace of
 the panic that ended the last session) behind the toast's Copy report button. The host draws these itself, so they show before any shell
 plugin runs (signing in, choosing an organization) and over either shell; they stack in the
-top-right corner (`Toasts` with `edge=Edge::TopEnd`), clear of the desktop plugin's bar and its
-notification toasts at the bottom.
+top-right corner (`Toasts` with `edge=Edge::TopEnd`), clear of the desktop plugin's notification
+toasts, which gather at the bottom unless its Status bar is moved.
 
 A panic must not take every program's window with it, so block-app's `panic_guard` sorts
 panics by where they happen. Every panic is logged with its backtrace. One inside
@@ -138,7 +138,7 @@ modifiers over. A frame that cannot be shown sets its output up again once; if t
 the output stops drawing and the problem is reported once through `Problems`, until the seat
 comes back or a display is plugged in or out.
 
-The power row in the bar's Quick settings locks, suspends, restarts, powers off or logs out. The desktop
+The power row in the Status bar's Quick settings locks, suspends, restarts, powers off or logs out. The desktop
 plugin watches `PowerWatch` for what it may offer and sends `power::request(PowerAction)`;
 `src/login_session/power.rs` decides what happens (programs are asked to close, and are given five
 seconds before the session ends or logind is asked to restart or power off) and
@@ -174,8 +174,8 @@ five seconds, 0 and critical urgency never), actions, `resident` and `transient`
 toast whose time is up only hides: the notification stays until it is dismissed, an action
 is taken or its program closes it, which is the `persistence` capability, except a transient
 one, which closes as expired. The toasts are a `beui::styled::Toasts` (title, picture and
-action buttons; clicking the body is the `default` action) anchored to the first display with
-its bar cut off it, with ids from `TOAST_IDS` up so other toasts can share the stack.
+action buttons; clicking the body is the `default` action) in the corner of the first display's
+windows' area nearest its Status bar (guides/desktop.md, The bars), with ids from `TOAST_IDS` up so other toasts can share the stack.
 They make way while the clock's panel, with the list of notifications, is open.
 
 To try it, start a session bus of its own (`dbus-daemon --session --fork --print-address`
@@ -215,7 +215,7 @@ order, each one deeper than the submenu it is in; the host builds that list stra
 dbusmenu's layout, and the shell nests it into `TrayMenuEntry` trees with
 `HostTrayItem::entries`, the helper the shell's own menus nest with (block-plugin-api's
 `nesting.rs`), which refuses a menu nested deeper than `MAX_MENU_DEPTH`. The desktop plugin's `src/app/tray.rs` shows each
-item that is not `Passive` as a `MenuButton` with a picture face in the bar: a click is `Activate` (or opens
+item that is not `Passive` as a `MenuButton` with a picture face in the Status bar: a click is `Activate` (or opens
 the menu of an `ItemIsMenu` item), a right click opens the menu, a middle click is
 `SecondaryActivate` and the wheel `Scroll`s, 120 to a notch. Opening the menu sends
 `MenuOpened`, which the host turns into `AboutToShow` and the `opened` event, or into the item's
@@ -235,7 +235,7 @@ intercepting actions, so the host hands them to the shell even while a program h
 and a held key repeats. Each key sends a `MediaRequest` (`media::request` inside
 `editor.act`), and a volume, mute or brightness key shows `LevelOsd` (`app/osd.rs`), an icon and
 a `styled::Progress` bar on every display (one card in each display's view, `desktop.osd.{n}`) that fades out after 1.5 seconds, with the levels the host reports
-(`editor.watch::<MediaWatch>()`). The bar's status button shows
+(`editor.watch::<MediaWatch>()`). The Status bar's status button shows
 the output's volume icon while the host reports one, and Quick settings (`app/volume.rs`) sets the volume, the mute and
 the default output (`MediaRequest::SetVolume`, `SetMute`, `ChooseOutput`) from the sinks the
 host lists in `MediaLevels::outputs`.
@@ -261,7 +261,7 @@ and change them from outside the app with `pactl set-sink-volume`, `set-sink-mut
 
 ## Wi-Fi
 
-The bar's status button shows a Wi-Fi icon, and Quick settings a Wi-Fi tile, while the host
+The Status bar's status button shows a Wi-Fi icon, and Quick settings a Wi-Fi tile, while the host
 reports a Wi-Fi device (`WifiStatus::available` in `WifiWatch`'s value): the icon is the joined
 network's strength, and the tile opens the network list (the desktop plugin's `app/wifi.rs`),
 which turns Wi-Fi on and off, lists the networks in range and joins or leaves one with
@@ -286,7 +286,7 @@ The VM has no Wi-Fi device, so under `:dev -- --desktop` neither the icon nor th
 ## The on-screen keyboard
 
 beui's own on-screen keyboard (guides/beui.md, The on-screen keyboard) is the desktop's. In a login session it opens by itself when a field is tapped and no libinput device with letter keys is
-plugged in; the Keyboard tile in the bar's Quick settings (`desktop.quick.keyboard`, which calls
+plugged in; the Keyboard tile in the Status bar's Quick settings (`desktop.quick.keyboard`, which calls
 `toggle_keyboard()` and so goes to the host as `WindowRequests::keyboard_toggles`) opens and closes
 it whatever is plugged in. It is drawn by the host along the bottom of the window the focused field
 is in (in a login session, a display's window), and that window is laid out above it.
@@ -299,8 +299,11 @@ with the keyboard focus, and while one of the focused window's is enabled the wi
 asks for the keyboard again. Keys reach a program as any key does, by scan code; text no key types
 (é, π, an emoji) reaches it as `commit_string`, and a program without an enabled text input never
 gets it. X11 programs, and programs such as foot that use no text input, take the keyboard's keys
-but never open it by themselves, so the bar's button is how it comes up over them. Pressing the
-button gives the shell the focus, so tap the window again before typing into it.
+but never open it by themselves, so a button is how it comes up over them: the Status bar's
+(`desktop.keyboard`, there while the display settings' `keyboard_in_bar` is on, by default on the
+Tablet and E-paper tablet classes), which leaves the focus where it was, or the Quick settings
+tile, whose panel gives the shell the focus as it closes, so tap the window again before typing
+into it.
 
 ## Input remaps
 
@@ -359,7 +362,7 @@ or Wine game is the Windows path of its `.exe`. Outside a login session nothing 
 
 ## The lock screen
 
-In the desktop shell (`--desktop`, in a window or as a login session) the screen locks on Super+L, the bar's power
+In the desktop shell (`--desktop`, in a window or as a login session) the screen locks on Super+L, the Status bar's power
 menu's Lock, idling for the display settings' "Lock the screen after" (by default when the screens
 turn off), and, in a login session, logind's `Lock` for the app's own login session (`loginctl
 lock-session`) and before every suspend: `LoginSession` holds a logind `delay` inhibitor for
@@ -400,7 +403,7 @@ When that is unset, as it is under `:dev`, be-wayland (`src/runtime_dir.rs`) mak
 one, `/tmp/be-wayland-<pid>`, with the socket `wayland-0` in it, gives it to the programs it
 starts as their `XDG_RUNTIME_DIR` and removes it when the server goes; at start it removes
 those that processes now ended left behind (by name and owner). In the desktop shell
-the Apps panel, which tapping Super alone or the bar's Apps button opens (guides/desktop.md, The
+the Apps panel, which tapping Super alone or the Apps bar's button opens (guides/desktop.md, The
 Apps panel), lists the `.desktop` programs of the XDG data dirs and starts the one picked, or what
 was typed as a command, with the variables of `Compositor::environment` (`XDG_RUNTIME_DIR`, `WAYLAND_DISPLAY`,
 `DISPLAY` for Xwayland and `DCONF_PROFILE`). The desktop plugin draws it; block-app only reads the
@@ -468,8 +471,8 @@ with it. A relative pointer is already in the picture's terms. A rotation applie
 the output's `Screen` as a mode change does, and never asks to be kept.
 
 The rotation is picked with `block_editor_beui::RotationPicker`, which both the Display page
-and the bar use. When the display settings' `rotate_in_bar` is on and the host reports a
-screen, the desktop plugin's bar shows a rotate button (`desktop.rotate`, `app/rotate.rs`) whose
+and the Status bar use. When the display settings' `rotate_in_bar` is on and the host reports a
+screen, the desktop plugin's Status bar shows a rotate button (`desktop.rotate`, `app/rotate.rs`) whose
 popover holds the picker for the first display in `Displays`. It reads and writes the setting
 through `block_editor_beui::LayeredSettings::this_device`, as the Display page does, so the
 rotation of a monitor known by its EDID serial goes to every device and that of a panel known
@@ -549,7 +552,7 @@ the dock has no way yet to mark a tab as wanting attention.
 A desktop session keeps its program windows: the next time it is opened with none of them
 running, as after the computer restarts, each one's tab is where the window was and shows a
 placeholder instead, with the program's icon and name, the window's old title, Open and
-Dismiss, and the bar offers to open them all. block-shell's `Workspace` (with `keeps_windows`,
+Dismiss, and the Windows bar's Restore chip opens them all. block-shell's `Workspace` (with `keeps_windows`,
 which only the desktop plugin sets) saves a `KeptWindow` per top-level window beside the dock layout
 in its `layout` view state. Each window tab is keyed by a kept key that outlives the window
 (`window_tab(key)`), and `kept.rs` binds live windows to keys: a window a record names is bound

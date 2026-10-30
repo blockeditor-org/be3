@@ -125,7 +125,7 @@ pub(super) struct Bar {
     pub(super) bar: TabId,
     pub(super) owner: Option<TabId>,
     pub(super) placement: DockBarPlacement,
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[serde(default)]
     pub(super) hidden: bool,
 }
 

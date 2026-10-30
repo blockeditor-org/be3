@@ -3,6 +3,9 @@ use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::popover::PANEL_MAX_WIDTH;
 use block_editor_beui::beui::styled::*;
+use beui::Direction;
+
+use super::bar::bar_direction;
 
 #[component]
 pub(crate) fn BarPopup(
@@ -14,6 +17,11 @@ pub(crate) fn BarPopup(
     leading: Option<Child>,
     #[prop(children)] content: RenderFn<PopoverHandle>,
 ) -> NodeId {
+    let direction = bar_direction();
+    let placement = create_memo(move || match direction.get() {
+        Direction::Horizontal => PopoverPlacement::Below,
+        Direction::Vertical => PopoverPlacement::Beside,
+    });
     view! {
         <Popover
             label
@@ -22,6 +30,7 @@ pub(crate) fn BarPopup(
             variant=ButtonVariant::Ghost
             max_width=width
             open
+            placement
             leading
         >|handle: PopoverHandle| {
             content.call(handle)

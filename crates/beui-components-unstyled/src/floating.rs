@@ -9,9 +9,11 @@ use beui_view::types::Placement;
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub enum Edge {
     Top,
+    TopStart,
     TopEnd,
     #[default]
     Bottom,
+    BottomStart,
     BottomEnd,
 }
 
@@ -26,8 +28,10 @@ pub fn Floating(
 ) -> NodeId {
     let placement = edge.map(|edge| match edge {
         Edge::Top => Placement::InsideTop,
+        Edge::TopStart => Placement::InsideTopStart,
         Edge::TopEnd => Placement::InsideTopEnd,
         Edge::Bottom => Placement::InsideBottom,
+        Edge::BottomStart => Placement::InsideBottomStart,
         Edge::BottomEnd => Placement::InsideBottomEnd,
     });
     let mode = interactive.map(|interactive| match interactive {

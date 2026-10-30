@@ -19,7 +19,9 @@ mod volume;
 mod wifi;
 mod windows;
 
-use block_editor_beui::beui::dock::styled::{DockNode, DockPane, DockWindow, Docking, TabId};
+use block_editor_beui::beui::dock::styled::{
+    DockBar, DockNode, DockPane, DockWindow, Docking, DockingLayout, TabId,
+};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{Modifiers, NodeId, Pos2, Rect, Vec2, pos2, vec2};
@@ -32,7 +34,10 @@ use block_shell::{
 use uuid::Uuid;
 
 use apps::{Apps, AppsKey, AppsOverlay};
-use bar::DesktopBar;
+use bar::{
+    APPS_BAR, APPS_PLACE, AppsBar, DisplayRow, STATUS_BAR, STATUS_PLACE, Shell, StatusBar,
+    WINDOWS_BAR, WINDOWS_PLACE, WindowsBar,
+};
 use beui::ItemSize;
 use media::MediaKeys;
 use notifications::{DesktopNotifications, DesktopToasts};
@@ -82,10 +87,7 @@ impl block_editor_beui::BeuiApp for DesktopApp {
 
 #[derive(Clone, Copy)]
 struct Desktop {
-    workspace: Workspace,
-    notifications: DesktopNotifications,
-    apps: Apps,
-    windows: DeskWindows,
+    shell: Shell,
     osd: media::Osd,
 }
 
@@ -127,13 +129,7 @@ fn DisplayBody(desktop: Desktop, display: u32) -> NodeId {
         <Frame>
             <List spacing=Space::None>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
-                <DesktopBar
-                    workspace={desktop.workspace}
-                    notifications={desktop.notifications}
-                    apps={desktop.apps}
-                    windows={desktop.windows}
-                    display
-                />
+                <DisplayRow shell={desktop.shell} display />
                 <media::LevelDisplay osd={desktop.osd} area display />
             </List>
         </Frame>
@@ -180,28 +176,25 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
     let editor = workspace.editor();
     let apps = Apps::new(workspace);
     let launches = apps.launches();
-    let dock = NodeRef::new();
     let keyed = editor.offered::<MediaWatch>();
     let notifications = DesktopNotifications::new(editor);
-    let bar_node = NodeRef::new();
-    let area = region_area();
+    let region = region_area();
+    let area = windows_area(layout, region);
+    let corner = create_memo(move || {
+        let placement = match layout.is_bar_hidden(&STATUS_BAR) {
+            true => None,
+            false => layout.bar_placement(&STATUS_BAR),
+        };
+        bar::toast_corner(placement)
+    });
     let osd = media::Osd::new(editor);
-    publish(
-        editor.block_id(),
-        Desktop {
-            workspace,
-            notifications,
-            apps,
-            windows,
-            osd,
-        },
-    );
+    let shell = Shell::new(workspace, notifications, apps, windows);
+    publish(editor.block_id(), Desktop { shell, osd });
     view! {
         <Frame @node_ref={&surface}>
             <List spacing=Space::None>
                 <Failure failed={failed} reason={reason} />
                 <Docking
-                    @node_ref=&dock
                     @sizing=ItemSize::Percent(100.0)
                     @test_id={"desktop.dock"}
                     layout
@@ -219,15 +212,16 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                     <ForEach keys={panels}>|panel: HostPanel|
                         <PanelWindow workspace panel />
                     </ForEach>
+                    <DockBar id=APPS_BAR placement=APPS_PLACE>
+                        <AppsBar shell display=0 />
+                    </DockBar>
+                    <DockBar id=WINDOWS_BAR placement=WINDOWS_PLACE>
+                        <WindowsBar shell display=0 />
+                    </DockBar>
+                    <DockBar id=STATUS_BAR placement=STATUS_PLACE>
+                        <StatusBar shell display=0 />
+                    </DockBar>
                 </Docking>
-                <DesktopBar
-                    @node_ref=&bar_node
-                    workspace
-                    notifications={notifications}
-                    apps
-                    windows
-                    display=0
-                />
                 <WorkspaceDialogs workspace />
                 <Show condition={keyed}>
                     <MediaKeys editor osd />
@@ -236,8 +230,8 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                 <Show condition={launches}>
                     <AppsKey apps />
                 </Show>
-                <AppsOverlay apps display=0 area={dock} />
-                <DesktopToasts notifications bar={bar_node} area />
+                <AppsOverlay apps display=0 area />
+                <DesktopToasts notifications area corner />
             </List>
         </Frame>
     }
@@ -246,6 +240,16 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
 fn region_area() -> Memo<Rect> {
     let area = container_size();
     create_memo(move || Rect::from_min_size(Pos2::ZERO, area.map_or(Vec2::ZERO, |area| area.get())))
+}
+
+fn windows_area(layout: DockingLayout<TabId>, region: Memo<Rect>) -> Memo<Rect> {
+    create_memo(move || {
+        let inside = layout.area();
+        match inside.is_positive() {
+            true => inside,
+            false => region.get(),
+        }
+    })
 }
 
 fn hold_saving_while_ending(workspace: Workspace) {

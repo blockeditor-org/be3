@@ -160,8 +160,8 @@ fn RevealButton(handle: TreeRevealHandle, named: String) -> NodeId {
         reveal,
     } = handle;
     let glyph = create_memo(move || match edge.get() {
-        Edge::Top | Edge::TopEnd => ICON_ARROW_UP,
-        Edge::Bottom | Edge::BottomEnd => ICON_ARROW_DOWN,
+        Edge::Top | Edge::TopStart | Edge::TopEnd => ICON_ARROW_UP,
+        Edge::Bottom | Edge::BottomStart | Edge::BottomEnd => ICON_ARROW_DOWN,
     });
     view! {
         <Frame padding=REVEAL_PADDING>

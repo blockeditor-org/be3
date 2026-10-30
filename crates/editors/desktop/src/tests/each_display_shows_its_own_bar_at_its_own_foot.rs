@@ -13,7 +13,8 @@ fn each_display_shows_its_own_bar_at_its_own_foot() {
     ]);
     fixture.test.show_on_displays(&[(left, 1.0), (right, 2.0)]);
     fixture.settle();
-    let bars = fixture.test.desk_rects_of("desktop.bar");
+    let mut bars = fixture.test.desk_rects_of("dock.bar.band.bottom");
+    bars.extend(fixture.test.desk_rects_of("desktop.bar"));
     assert_eq!(bars.len(), 2, "one bar per display: {bars:?}");
     for display in [left, right] {
         let bar = bars

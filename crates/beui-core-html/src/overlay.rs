@@ -388,6 +388,10 @@ fn anchored_styles(placement: Placement, name: Option<&str>) -> Vec<(&'static st
             put("left", "anchor(center)".to_owned());
             put("translate", "-50% 0".to_owned());
         }
+        Placement::InsideTopStart => {
+            put("top", "anchor(top)".to_owned());
+            put("left", "anchor(left)".to_owned());
+        }
         Placement::InsideTopEnd => {
             put("top", "anchor(top)".to_owned());
             put("right", "anchor(right)".to_owned());
@@ -396,6 +400,10 @@ fn anchored_styles(placement: Placement, name: Option<&str>) -> Vec<(&'static st
             put("bottom", "anchor(bottom)".to_owned());
             put("left", "anchor(center)".to_owned());
             put("translate", "-50% 0".to_owned());
+        }
+        Placement::InsideBottomStart => {
+            put("bottom", "anchor(bottom)".to_owned());
+            put("left", "anchor(left)".to_owned());
         }
         Placement::InsideBottomEnd => {
             put("bottom", "anchor(bottom)".to_owned());

@@ -17,7 +17,7 @@ use block_editor_beui::{
 };
 
 use block_editor_beui::be_block::{EditorView, EditorViewContent};
-use block_shell::{KeptWindow, saved_windows};
+use block_shell::{KeptWindow, SHELL_BARS, saved_windows};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -25,6 +25,12 @@ use crate::app::DesktopApp;
 use crate::app::media::{BINDINGS, BRIGHTNESS_STEP, VOLUME_STEP};
 
 mod a_block_shown_on_the_desktop_opens_in_its_own_window;
+mod the_keyboard_button_shows_when_the_display_settings_ask_for_it;
+mod the_desktops_three_bars_share_one_band_along_its_foot;
+mod floating_bars_float_over_the_windows_and_toasts_follow_the_status_bar;
+mod bars_docked_down_the_left_lay_their_parts_out_down_it;
+mod a_hidden_bar_stays_hidden_and_the_apps_panel_shows_it_again;
+mod a_fullscreen_window_covers_the_bars;
 mod a_calendar_the_desktop_no_longer_holds_is_replaced;
 mod a_desktop_resumed_after_a_restart_shows_each_window_where_it_was;
 mod a_desktop_started_again_adopts_live_windows_instead_of_placeholders;
@@ -86,6 +92,9 @@ mod windows_that_close_as_the_session_ends_are_kept;
 mod with_instant_motion_the_level_keeps_its_time_and_goes_without_fading;
 
 const MAX_TAB: u64 = 64;
+const APPS_BAR: u64 = 0;
+const WINDOWS_BAR: u64 = 1;
+const STATUS_BAR: u64 = 2;
 const WINDOW_TABS: u64 = 1 << 41;
 const EVERYTHING: PowerAvailability = PowerAvailability {
     lock: true,
@@ -417,6 +426,16 @@ impl Fixture {
             [] => None,
             [(block, _, _)] => Some(block),
             ref placed => panic!("only the calendar is placed: {placed:?}"),
+        }
+    }
+
+    fn bar_menu(&mut self, bar: u64, rows: &[&str]) {
+        self.test
+            .click(&format!("dock.bar.{}.grip", SHELL_BARS + bar));
+        self.settle();
+        for row in rows {
+            self.test.click(&format!("grip.dock.bar.{row}"));
+            self.settle();
         }
     }
 

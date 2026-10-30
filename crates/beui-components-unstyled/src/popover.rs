@@ -14,6 +14,7 @@ use beui_view::types::Placement;
 pub enum PopoverPlacement {
     #[default]
     Below,
+    Beside,
     Over(u16),
 }
 
@@ -42,7 +43,7 @@ pub fn Popover(
     #[prop(default = false)] icon_only: Prop<bool>,
     #[prop(default = false)] open: Binding<bool>,
     anchor: Option<NodeRef>,
-    #[prop(default = PopoverPlacement::Below)] placement: PopoverPlacement,
+    #[prop(default = PopoverPlacement::Below)] placement: Prop<PopoverPlacement>,
     #[prop(default = true)] refocus_trigger: Prop<bool>,
     accessibility: Option<Prop<Node>>,
 ) -> NodeId {
@@ -71,10 +72,11 @@ pub fn Popover(
         }
     });
     let anchor = anchor.unwrap_or(trigger_ref);
-    let placement = match placement {
+    let placement = placement.map(|placement| match placement {
         PopoverPlacement::Below => Placement::BelowStart,
+        PopoverPlacement::Beside => Placement::RightStart,
         PopoverPlacement::Over(inset) => Placement::Over(inset),
-    };
+    });
     view! {
         <List spacing=0.0>
             <PopupTrigger

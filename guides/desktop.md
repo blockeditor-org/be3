@@ -33,7 +33,43 @@ history `NotificationsWatch`, the power row `PowerWatch`, the media keys `MediaW
 volume icon and controls, its `output`), the Wi-Fi icon and tile `WifiWatch` (its `available`),
 and the tray its items.
 
-The status side of the bar is the tray, the device buttons (refresh on e-paper, rotate), then
+## The bars
+
+The shell is three dock-level `DockBar`s of the desktop's own dock (`desktop.dock`), declared in
+`DesktopBody` (`app/bar.rs`), each a `DockBarSurface` with a `DockBarGrip` first:
+
+- Apps (`desktop.bar.apps`, `AppsBar`): the Apps button (The Apps panel, below).
+- Windows (`desktop.bar.windows`, `WindowsBar`): the window chips (Shown and hidden entries).
+- Status (`desktop.bar.status`, `StatusBar`): the tray, the device tools, the status button and
+  the clock.
+
+Their keys are block-shell's `SHELL_BARS` and the two after it. By default all three sit beside the
+bottom edge in one band (`dock.bar.band.bottom`): Apps at its start, Windows centred, Status at its
+end. A grip moves its bar like any dock bar: beside any edge at its start, centre or end, floated over
+one, or popped out into a window; the dock saves where each is and whether it is hidden, in the
+session's layout. Every part lays itself out along its bar (`bar::bar_direction`, from
+`use_dock_bar().direction()`): down a left or right edge the chips show only their icons, the clock
+stacks its hours over its minutes and the status icons stack too. A button's panel (`BarPopup`)
+opens away from the bar's edge, toward the windows: below or above a bar along the top or bottom
+(`PopoverPlacement::Below`, which turns up when there is no room below), beside one down a side
+(`PopoverPlacement::Beside`).
+
+The grip menu's Hide hides a bar; the Apps panel then offers "Show this display's bars"
+(`desktop.apps.bars`), which shows them all again, and Super still opens Apps, centred over the
+windows' area while the Apps bar is hidden. The windows' area is the dock inside its bands
+(`DockingLayout::area`), where floating windows go: the level display (`desktop.osd.0`) is centred
+low over it, and notification toasts gather in its corner nearest the Status bar
+(`bar::toast_corner`, bottom right by default, bottom left with the bar down the left side). A
+fullscreen window covers the bars, as it covers the whole display.
+
+The bars are the main view's, display 0's. A further display's `Display` view still draws one plain
+row along its foot (`DisplayRow`, `desktop.bar`) with the same Apps button, its own chips and status
+items, laid out across.
+
+The Status bar holds the tray, the device tools (the on-screen keyboard, `desktop.keyboard`,
+while the display settings' `keyboard_in_bar` is on, which does not take the focus from the
+field being typed in; rotate while `rotate_in_bar` is on and the host reports a screen; refresh
+while the display is e-paper), then
 one status button (`desktop.status`, `app/status.rs`) and the clock (`desktop.clock`,
 `app/clock.rs`). The status button's face is the Wi-Fi, volume and power icons that apply
 (`desktop.status.{wifi,volume,power}`), and it opens Quick settings (`desktop.quick`): tiles
@@ -71,12 +107,12 @@ texture back, opaque), so paintings and `drive paint` show what programs drew.
 
 ## The Apps panel
 
-The bar starts with one icon-only Apps button (`desktop.apps`, `app/apps.rs`, labelled Apps for
+The Apps bar holds one icon-only Apps button (`desktop.apps`, `app/apps.rs`, labelled Apps for
 its tooltip and screen readers), and a tap of Super alone opens the same panel (the
 `desktop.apps.toggle` action, captured from programs too, registered while the host offers
 `ProgramsWatch`). The panel (`desktop.apps.panel`) is a popover of the button, and when no Apps
-button shows on the display it opens on (`Apps` keeps which displays have one) it is centred over
-the dock instead (`AppsOverlay`). It holds, top to bottom:
+button shows on the display it opens on (`Apps` keeps which displays have one), as while the Apps
+bar is hidden, it is centred over the windows' area instead (`AppsOverlay`). It holds, top to bottom:
 
 - while the host offers `ProgramsWatch`, a `styled::SearchList` of the programs (`app/launcher.rs`):
   opening the panel asks the host to list them with icons at the display's scale, an empty query
@@ -91,6 +127,7 @@ the dock instead (`AppsOverlay`). It holds, top to bottom:
   window) that opens it in a floating window, or brings its window to the front if it is already
   open, and New session (`desktop.apps.sessions.new`), which adds one to the settings and opens it
   (disabled, saying why, while the workspace has no settings block);
+- while one of the display's bars is hidden, "Show this display's bars" (`desktop.apps.bars`);
 - Menu (`desktop.apps.menu`), which closes the panel and opens the app menu at the Apps button.
 
 ## Notes
@@ -109,7 +146,7 @@ its name). Each has `shown`, which the host keeps, so a shell started again show
 The shells draw only shown entries: block-shell's `Workspace` keeps the whole list
 (`Workspace::entries`) and lays out `shown_windows` of it, so a hidden window is no tab, no
 floating window and no saved window, and a dialog whose toplevel is hidden is hidden with it.
-The desktop plugin's bar has a row of window chips (`WindowChips`, `desktop.windows`,
+The desktop plugin's Windows bar has a row of window chips (`WindowChips`, `desktop.windows`,
 `app/windows.rs`): one chip per toplevel entry, displays first and then windows in the host's
 order, then the block windows the shell opened itself (sessions and shown blocks), each with its
 icon (the window's own, else a display, block or window glyph) and its title, ellipsised (icon only
@@ -186,11 +223,11 @@ and hosts the windows as block-app does, takes input in desktop points (`desk_pr
 (`desk_snapshot`); without it a plugin draws its windows inside its frame.
 
 The shell learns the displays from `DisplaysWatch`: each `HostDisplay` carries its `rect` in the
-desktop's points and its `scale`. The desktop plugin draws, in every view, a bar along its foot and
-a level display (`desktop.osd.{n}`, n the view's display), and in the frame alone its dock,
-pickers and notification toasts (above that display's bar); `BeuiApp::Display`
-draws the further displays' views from what the frame's view shares (`app.rs`, `Desktop`).
-The dock fills the frame above the bar, and its windows open over it.
+desktop's points and its `scale`. The desktop plugin draws, in every view, a level display (`desktop.osd.{n}`, n the view's
+display), and in the frame alone its dock with the three bars (The bars, above), pickers and
+notification toasts; `BeuiApp::Display` draws the further displays' views, each with a plain row
+along its foot, from what the frame's view shares (`app.rs`, `Desktop`). The dock fills the frame,
+and its windows open over it.
 
 ## A shell that stops
 

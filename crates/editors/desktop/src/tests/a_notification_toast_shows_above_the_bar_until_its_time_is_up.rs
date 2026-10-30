@@ -36,7 +36,7 @@ fn a_notification_toast_shows_above_the_bar_until_its_time_is_up() {
         },
     ]);
     fixture.test.settle();
-    let bar = fixture.test.rect_of("desktop.bar");
+    let bar = fixture.test.rect_of("dock.bar.band.bottom");
     let card = fixture.test.rect_of(&toast(2));
     assert!(
         card.bottom() <= bar.top(),
@@ -69,10 +69,10 @@ fn a_notification_toast_shows_above_the_bar_until_its_time_is_up() {
         cards.len() == 1 && right.contains_rect(cards[0]),
         "the toasts show on the first display the host reports: {cards:?}"
     );
-    let bars = fixture.test.desk_rects_of("desktop.bar");
+    let bars = fixture.test.desk_rects_of("dock.bar.band.bottom");
     assert!(
         bars.iter()
             .any(|bar| right.contains_rect(*bar) && cards[0].bottom() <= bar.top()),
-        "above that display's own bar: {cards:?} {bars:?}"
+        "above that display's own bars: {cards:?} {bars:?}"
     );
 }

@@ -42,6 +42,7 @@ use beui::ItemSize;
 pub const FILES: TabId = TabId::new(1);
 pub const SETTINGS: TabId = TabId::new(1 << 39);
 pub const REVISIONS: TabId = TabId::new((1 << 39) + 1);
+pub const SHELL_BARS: u64 = 1 << 42;
 const FIRST_BLOCK_TAB: u64 = 2;
 const MAX_OPENED_VIA_HOPS: usize = 64;
 const PANEL_PADDING: Space = Space::Lg;

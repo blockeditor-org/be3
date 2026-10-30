@@ -1,11 +1,11 @@
 use std::time::{Duration, Instant};
 
-use beui::{Align, Align2, Direction, Sides};
+use beui::{Align, Direction, Sides};
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{
-    LayerLevel, LayerPolicy, NodeId, OverlayAnchor, Placement, Pos2, Rect, TextAlign,
+    LayerLevel, LayerPolicy, NodeId, OverlayAnchor, Placement, Rect, TextAlign,
 };
 
 pub(crate) const OSD_DURATION: Duration = Duration::from_millis(1500);
@@ -79,20 +79,14 @@ pub(crate) fn LevelOsd(
     let below = create_memo(move || area.get().height() * (1.0 - SCREEN_HEIGHT_FRACTION));
     view! {
         <Overlay
-            anchor=OverlayAnchor::Point(Pos2::ZERO)
-            placement=Placement::Fill
+            anchor={create_memo(move || OverlayAnchor::Rect(area.get()))}
+            placement=Placement::InsideBottom
             policy=LayerPolicy::Inert
             level=LayerLevel::Top
             traps_focus=false
             open={open}
             content={move || { let id = id.clone(); view! {
-                <Frame
-                    width=Length::FILL
-                    height=Length::FILL
-                    align={Align2::new(Align::Center, Align::End)}
-                >
-                    <OsdCard level opacity={opacity.read_only()} below id />
-                </Frame>
+                <OsdCard level opacity={opacity.read_only()} below id />
             } }}
         />
     }

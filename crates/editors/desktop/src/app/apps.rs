@@ -1,13 +1,16 @@
 use beui::KeyAt;
-use block_editor_beui::beui::icons::{ICON_BOXES, ICON_LAYOUT_GRID, ICON_MENU, ICON_PLUS};
+use block_editor_beui::beui::icons::{
+    ICON_BOXES, ICON_LAYOUT_GRID, ICON_MENU, ICON_PANEL_BOTTOM_OPEN, ICON_PLUS,
+};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{Anchored, AnchoredHandle};
-use block_editor_beui::beui::{Key, LayerPolicy, NodeId, Placement};
+use block_editor_beui::beui::{Key, LayerPolicy, NodeId, Placement, Rect};
 use block_editor_beui::{Editor, PickAnchor};
 use block_shell::Workspace;
 use uuid::Uuid;
 
+use super::bar::BARS;
 use super::launcher::{ProgramSearch, Programs};
 use super::popup::BarPopup;
 use super::sessions::Sessions;
@@ -120,6 +123,7 @@ pub(crate) fn AppsButton(apps: Apps, display: u32) -> NodeId {
         >|handle: PopoverHandle|
             <AppsPanel
                 apps
+                display
                 shown={handle.shown}
                 close={handle.close}
                 menu={PickAnchor::Node(button)}
@@ -129,7 +133,7 @@ pub(crate) fn AppsButton(apps: Apps, display: u32) -> NodeId {
 }
 
 #[component]
-pub(crate) fn AppsOverlay(apps: Apps, display: u32, area: NodeRef) -> NodeId {
+pub(crate) fn AppsOverlay(apps: Apps, display: u32, area: Memo<Rect>) -> NodeId {
     let open = apps.open;
     let buttoned = apps.has_button(display);
     let shown = create_memo(move || open.get() == Some(display) && !buttoned.get());
@@ -138,21 +142,35 @@ pub(crate) fn AppsOverlay(apps: Apps, display: u32, area: NodeRef) -> NodeId {
     view! {
         <Anchored
             style={surface}
-            anchor={OverlayAnchor::Node(area)}
+            anchor={create_memo(move || OverlayAnchor::Rect(area.get()))}
             placement=Placement::CenterOn
             policy=LayerPolicy::Pass
             open={shown}
             on_dismiss={move || apps.close(display)}
         >|handle: AnchoredHandle|
-            <AppsPanel apps shown={handle.shown} close menu={PickAnchor::Centre} />
+            <AppsPanel apps display shown={handle.shown} close menu={PickAnchor::Centre} />
         </Anchored>
     }
 }
 
 #[component]
-fn AppsPanel(apps: Apps, shown: Memo<bool>, close: Callback<()>, menu: PickAnchor) -> NodeId {
+fn AppsPanel(
+    apps: Apps,
+    display: u32,
+    shown: Memo<bool>,
+    close: Callback<()>,
+    menu: PickAnchor,
+) -> NodeId {
     let launches = apps.programs.offered;
     let editor = apps.editor;
+    let layout = apps.workspace.layout();
+    let hidden = create_memo(move || display == 0 && BARS.iter().any(|bar| layout.is_bar_hidden(bar)));
+    let show_bars = move || {
+        close.call(());
+        for bar in BARS {
+            layout.show_bar(&bar);
+        }
+    };
     let open_menu = move || {
         close.call(());
         editor.show_app_menu(menu);
@@ -164,6 +182,15 @@ fn AppsPanel(apps: Apps, shown: Memo<bool>, close: Callback<()>, menu: PickAncho
             </Show>
             <SessionRows apps close />
             <Separator />
+            <Show condition={hidden}>
+                <ListRow
+                    @test_id={"desktop.apps.bars"}
+                    label="Show this display's bars"
+                    glyph={Some(ICON_PANEL_BOTTOM_OPEN)}
+                    size=RowSize::Large
+                    on_click={show_bars}
+                />
+            </Show>
             <ListRow
                 @test_id={"desktop.apps.menu"}
                 label="Menu"

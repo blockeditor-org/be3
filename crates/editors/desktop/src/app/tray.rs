@@ -43,7 +43,10 @@ fn scrolled(gesture: ScrollGesture) -> Option<(i32, bool)> {
 }
 
 #[component]
-pub(crate) fn TrayItems(editor: Editor) -> NodeId {
+pub(crate) fn TrayItems(
+    editor: Editor,
+    #[prop(default = Direction::Horizontal)] direction: Prop<Direction>,
+) -> NodeId {
     let listed = editor.watch::<TrayWatch>();
     let keys = create_memo(move || {
         listed.with(|items| {
@@ -56,7 +59,7 @@ pub(crate) fn TrayItems(editor: Editor) -> NodeId {
     });
     view! {
         <List
-            direction=Direction::Horizontal
+            direction
             align=Align::Center
             spacing=TRAY_SPACING
             @test_id={"desktop.tray"}

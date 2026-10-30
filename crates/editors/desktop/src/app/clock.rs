@@ -18,12 +18,22 @@ const STACKED_CALENDAR_SHARE: f32 = 0.45;
 const STACKED_HISTORY_SHARE: f32 = 0.2;
 const BESIDE_HISTORY_SHARE: f32 = 0.6;
 
+fn hour_and_minute(shown: &str) -> (&str, &str) {
+    shown.split_once(':').unwrap_or((shown, ""))
+}
+
 #[component]
 pub(crate) fn ClockButton(
     editor: Editor,
     notifications: DesktopNotifications,
     clock: ReadSignal<String>,
+    #[prop(default = Direction::Horizontal)] direction: Prop<Direction>,
 ) -> NodeId {
+    let direction = create_memo(move || direction.get());
+    let across = create_memo(move || direction.get() == Direction::Horizontal);
+    let down = create_memo(move || direction.get() == Direction::Vertical);
+    let hours = create_memo(move || clock.with(|shown| hour_and_minute(shown).0.to_owned()));
+    let minutes = create_memo(move || clock.with(|shown| hour_and_minute(shown).1.to_owned()));
     let listed = notifications.listed();
     let offered = notifications.offered;
     let count = create_memo(move || match offered.get() {
@@ -55,8 +65,16 @@ pub(crate) fn ClockButton(
             @test_id={"desktop.clock"}
             open={notifications.browsing()}
             leading={view! {
-                <List direction=Direction::Horizontal align=Align::Center spacing=COUNT_SPACING>
-                    <Text>{clock}</Text>
+                <List direction align=Align::Center spacing=COUNT_SPACING>
+                    <Show condition={across}>
+                        <Text>{clock}</Text>
+                    </Show>
+                    <Show condition={down}>
+                        <List align=Align::Center spacing=Space::None>
+                            <Text>{hours}</Text>
+                            <Text>{minutes}</Text>
+                        </List>
+                    </Show>
                     <Show condition={unread}>
                         <Frame
                             fill=ColorRole::Accent

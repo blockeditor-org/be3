@@ -60,7 +60,10 @@ fn label(status: Status) -> String {
 }
 
 #[component]
-pub(crate) fn StatusButton(status: Status) -> NodeId {
+pub(crate) fn StatusButton(
+    status: Status,
+    #[prop(default = Direction::Horizontal)] direction: Prop<Direction>,
+) -> NodeId {
     let Status {
         wifi,
         wireless,
@@ -91,7 +94,7 @@ pub(crate) fn StatusButton(status: Status) -> NodeId {
                 @test_id={"desktop.status"}
                 open
                 leading={view! {
-                    <List direction=Direction::Horizontal align=Align::Center spacing=ICON_SPACING>
+                    <List direction align=Align::Center spacing=ICON_SPACING>
                         <Show condition={wireless}>
                             <Text @test_id={"desktop.status.wifi"}>
                                 <Icon glyph={wifi_glyph} />

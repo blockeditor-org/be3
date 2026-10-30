@@ -7,7 +7,9 @@ fn the_desktop_away_from_linux_hides_what_its_host_does_not_offer() {
     fixture.test.settle();
 
     for shown in [
-        "desktop.bar",
+        "desktop.bar.apps",
+        "desktop.bar.windows",
+        "desktop.bar.status",
         "desktop.apps",
         "desktop.clock",
         "desktop.status",

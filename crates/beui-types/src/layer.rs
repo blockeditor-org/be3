@@ -55,8 +55,10 @@ pub enum Placement {
     Center,
     Fill,
     InsideTop,
+    InsideTopStart,
     InsideTopEnd,
     InsideBottom,
+    InsideBottomStart,
     InsideBottomEnd,
     CenterOn,
     Popover { gap: u16, margin: u16 },
@@ -78,8 +80,10 @@ impl Placement {
             | Placement::Center
             | Placement::Fill
             | Placement::InsideTop
+            | Placement::InsideTopStart
             | Placement::InsideTopEnd
             | Placement::InsideBottom
+            | Placement::InsideBottomStart
             | Placement::InsideBottomEnd => false,
         }
     }
@@ -246,15 +250,20 @@ pub fn resolve_rect(
             content_size,
         );
     }
-    if let Placement::InsideTopEnd | Placement::InsideBottomEnd = placement {
+    if let Placement::InsideTopStart
+    | Placement::InsideTopEnd
+    | Placement::InsideBottomStart
+    | Placement::InsideBottomEnd = placement
+    {
         let y = match placement {
-            Placement::InsideTopEnd => anchor_rect.top(),
+            Placement::InsideTopStart | Placement::InsideTopEnd => anchor_rect.top(),
             _ => (anchor_rect.bottom() - content_size.y).max(anchor_rect.top()),
         };
-        let origin = pos2(
-            (anchor_rect.right() - content_size.x).max(anchor_rect.left()),
-            y,
-        );
+        let x = match placement {
+            Placement::InsideTopStart | Placement::InsideBottomStart => anchor_rect.left(),
+            _ => (anchor_rect.right() - content_size.x).max(anchor_rect.left()),
+        };
+        let origin = pos2(x, y);
         return Rect::from_min_size(
             pos2(origin.x.max(viewport.left()), origin.y.max(viewport.top())),
             content_size,
@@ -304,8 +313,10 @@ pub fn resolve_rect(
         | Placement::Center
         | Placement::Fill
         | Placement::InsideTop
+        | Placement::InsideTopStart
         | Placement::InsideTopEnd
         | Placement::InsideBottom
+        | Placement::InsideBottomStart
         | Placement::InsideBottomEnd
         | Placement::CenterOn
         | Placement::Popover { .. }

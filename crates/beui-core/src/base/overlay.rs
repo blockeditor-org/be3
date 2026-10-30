@@ -304,8 +304,10 @@ impl OverlayNode {
         let inside = matches!(
             self.placement,
             Placement::InsideTop
+                | Placement::InsideTopStart
                 | Placement::InsideTopEnd
                 | Placement::InsideBottom
+                | Placement::InsideBottomStart
                 | Placement::InsideBottomEnd
         );
         let available = match (inside, self.placement) {
