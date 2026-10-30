@@ -1,5 +1,8 @@
 use block_editor_beui::beui::Key;
-use block_editor_beui::{BlockInfo, BlockParent, ChildContent};
+use block_editor_beui::beui::icons::ICON_FILE_TEXT;
+use block_editor_beui::{
+    BlockInfo, BlockParent, BlockTypeDescriptor, Catalog, ChildContent, ChildOperations,
+};
 
 use super::*;
 
@@ -7,7 +10,20 @@ use super::*;
 fn renaming_a_row_edits_its_name_in_place() {
     let mut fixture = editor();
     let notes = Uuid::from_u128(5);
-    let mut listed = BlockInfo::new(notes, Uuid::from_u128(1), BlockParent::Block(MY_FILES));
+    let kind = Uuid::from_u128(1);
+    fixture.test.catalog(Catalog {
+        types: vec![BlockTypeDescriptor {
+            block_type: kind.into_bytes(),
+            display_name: "Note".to_owned(),
+            color: None,
+            icon_codepoint: ICON_FILE_TEXT.as_str().to_owned(),
+            children: ChildOperations::default(),
+            press: block_editor_beui::Press::Open,
+            plain_file: false,
+        }],
+        ..Catalog::default()
+    });
+    let mut listed = BlockInfo::new(notes, kind, BlockParent::Block(MY_FILES));
     listed.set_name("Notes");
     let files = my_files(&mut fixture, vec![listed]);
     fixture.settle();
@@ -15,6 +31,12 @@ fn renaming_a_row_edits_its_name_in_place() {
 
     fixture.choose(notes, "Rename");
     assert!(fixture.test.shown(&field), "Rename edits the row in place");
+    let icon = fixture.test.rect_of(&format!("file-tree.{notes}.row"));
+    let edited = fixture.test.rect_of(&field);
+    assert!(
+        edited.min.x > icon.min.x + 8.0,
+        "the field starts after the row's icon, which stays while the name is edited: {edited:?} in {icon:?}"
+    );
     fixture
         .test
         .snapshot("renaming_a_row_edits_its_name_in_place");

@@ -2332,7 +2332,10 @@ take what is over it.
 
 A row's name is edited in place through the controlled `editing` prop, the
 key being renamed or `None`. While it names a row, the row's face gives way
-to a field of the row's height holding `TreeItem::label`, focused with all of
+to a field of the row's height holding `TreeItem::label`, after what `leading`
+built for the row: `leading`, given, builds a row's icon (any run of children,
+from the same `TreeRowFace`) ahead of its content and keeps it beside the field
+while the name is edited, so a row with an icon keeps it. The field is focused with all of
 it selected and scrolled into view, named `<id>.rename` for tests. Enter and
 losing the focus, to a press elsewhere or to the window losing the keyboard,
 report `on_rename` with the trimmed name; Escape, or a name left empty or

@@ -42,6 +42,7 @@ fn leaving_a_workspace_someone_shared_asks_first() {
     app.pause(500);
     app.gone("Dialog \"Contacts\"");
 
+    app.click("#file-tree.more");
     app.click("#file-tree.new-workspace");
     app.wait("TextInput \"Name\"");
     app.type_text("Team");

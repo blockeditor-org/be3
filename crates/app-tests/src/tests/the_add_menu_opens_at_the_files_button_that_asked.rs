@@ -12,8 +12,8 @@ fn the_add_menu_opens_at_the_files_button_that_asked() {
         "the menu hangs just under the button, at {menu_y} under {button_y} + {button_height}"
     );
     assert!(
-        menu_x < button_x,
-        "and starts at the row the button belongs to, at {menu_x} left of {button_x}"
+        (menu_x - button_x).abs() < 8.0,
+        "and starts under the button, at {menu_x} beside {button_x}"
     );
     app.snapshot("the_add_menu_opens_at_the_files_button_that_asked");
     app.key("Escape");

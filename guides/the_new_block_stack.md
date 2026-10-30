@@ -1452,14 +1452,15 @@ beside Files, which shows the account's `Settings` block in the settings editor,
 a list whose rows open each kind (or, behind Devices and profiles, each profile) in a
 tab of the editors pane. A
 section's header has its own menu (add, rename, share, delete, and leave on a
-workspace someone else made) and, where the account may edit the workspace, a
-"+" that adds a block into it, as a row's "+" adds into that row; the toolbar
-has no add of its own, only New workspace, which makes one at the root and
-opens the rename dialog. Every picker places a new block in a workspace, My
+workspace someone else made), as every row's menu has Add; rows show no add
+button of their own. The toolbar has New, which adds into the nearest folder
+or workspace holding the open block (or the open block itself when it holds
+others), My files when nothing is open; Collapse all folders; and a More menu
+whose New workspace makes one at the root and names it in place. Every picker places a new block in a workspace, My
 files when nothing else is named.
 A block moves between workspaces with the host's `move_block`, by dragging it
 or from its Move to menu. A phone shows the same tree with taller rows, under a
-title with New workspace and the account button in place of the toolbar.
+title with New, More and the account button in place of the toolbar.
 Pressing a folder, a workspace or one of the other sections zooms into it rather
 than opening it: the tree then holds only what it holds, under a bar with the
 path, a back button (or, on a phone, a swipe back) and a New that adds into it

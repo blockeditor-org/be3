@@ -123,7 +123,7 @@ fn first_device(
     app.click("Button \"Personal\"")?;
     app.wait("Pane \"Files\"")?;
     app.run(&["settle"])?;
-    app.click("Button \"Add to My files\"")?;
+    app.click("#file-tree.new-block")?;
     app.click("MenuItem \"Folder\"")?;
     app.wait("TextInput \"Name\" value=\"Folder\" focused")?;
     app.run(&["key", "Enter"])?;

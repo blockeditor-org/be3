@@ -139,4 +139,4 @@ fn open_beui_demo(app: &mut AppTest) {
     app.run(&["settle"]);
 }
 
-const ADD_TO_MY_FILES: &str = "Button \"Add to My files\"";
+const ADD_TO_MY_FILES: &str = "#file-tree.new-block";
