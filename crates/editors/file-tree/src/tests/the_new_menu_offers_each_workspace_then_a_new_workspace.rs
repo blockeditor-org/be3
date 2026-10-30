@@ -67,4 +67,17 @@ fn the_new_menu_offers_each_workspace_then_a_new_workspace() {
         unreachable!("placed_picker finds a picker")
     };
     assert_eq!(filter.place, Some(BlockParent::Block(team).encode()));
+
+    fixture.test.click("file-tree.new");
+    fixture.settle();
+    assert!(
+        fixture.test.placed_picker().is_none(),
+        "opening the New menu closes the picker open behind it"
+    );
+    fixture.test.click(format!("file-tree.new-in.{team}"));
+    fixture.settle();
+    assert!(
+        fixture.test.placed_picker().is_some(),
+        "choosing the workspace whose picker was open opens it again rather than toggling it shut"
+    );
 }

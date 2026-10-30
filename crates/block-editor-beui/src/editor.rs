@@ -947,13 +947,11 @@ impl Editor {
     ) {
         let state = self.state();
         let anchor = anchor.into();
-        if let Some(open) = state
-            .picking
-            .get_untracked()
-            .filter(|open| anchor.reopens(open.anchor()) && open.places_like(&filter))
-        {
+        if let Some(open) = state.picking.get_untracked() {
             self.finish_pick(open.serial(), Ok(None));
-            return;
+            if anchor.reopens(open.anchor()) && open.places_like(&filter) {
+                return;
+            }
         }
         let serial = state.next_pick.get() + 1;
         state.next_pick.set(serial);
@@ -1062,6 +1060,12 @@ impl Editor {
 
     pub(crate) fn remember_picker_size(&self, size: Vec2) {
         self.state().picker_size.set(Some(size));
+    }
+
+    pub fn cancel_pick(&self) {
+        if let Some(open) = self.state().picking.get_untracked() {
+            self.finish_pick(open.serial(), Ok(None));
+        }
     }
 
     pub(crate) fn picking(&self) -> ReadSignal<Option<crate::picking::Picking>> {

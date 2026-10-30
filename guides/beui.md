@@ -1058,7 +1058,8 @@ or a signal of one.
 `Lg` 32, `Xl` 40, `Xl2` 48, `Xl3` 64, then the named `Row`, `Toolbar`,
 `Field`, `TouchRow`, `Menu`, `Popover` and `Dialog`. Both resolve through
 `use_density()`: under `Density::Comfortable` each `Space` from `Xs` up is one
-step larger and a `Size::Row` is tall enough to tap. `Space::Custom` and
+step larger, a `Size::Row` is tall enough to tap, and a `Size::Field` grows as
+much as a regular button does, so a field and a button in one row stay level. `Space::Custom` and
 `Size::Custom` are for lengths that come from content (a measured indent, a
 board cell, a canvas), never for a gap the scale has. `use_space` and
 `use_size` resolve a token to the pixels an unstyled prop takes. A styled prop

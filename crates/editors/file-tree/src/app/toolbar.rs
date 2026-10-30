@@ -132,6 +132,7 @@ fn NewButton(adding: Adding) -> NodeId {
         if let Some((key, true)) = key {
             tree.toggle(&key, Some(id), false);
         }
+        editor.cancel_pick();
         add_to_section(editor, picker, id, menu_button);
     };
     let add_here = move || {
@@ -145,6 +146,13 @@ fn NewButton(adding: Adding) -> NodeId {
             );
         }
     };
+    let menu_open = create_signal(false);
+    let opening = Binding::new(menu_open, move |open: bool| {
+        menu_open.set(open);
+        if open {
+            editor.cancel_pick();
+        }
+    });
     let new_workspace = move || {
         query.set(String::new());
         super::ui::new_workspace(editor, renaming);
@@ -167,6 +175,7 @@ fn NewButton(adding: Adding) -> NodeId {
                     label="New"
                     icon_only=true
                     disabled={zoomed}
+                    open={opening}
                     @test_id={"file-tree.new"}
                     leading={view! {
                         <List
