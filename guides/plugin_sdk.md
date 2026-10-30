@@ -1,9 +1,11 @@
 # The plugin SDK
 
-Every plugin is linked against one shared module, the plugin SDK (`crates/block-plugin-sdk`),
+Every editor is linked against one shared module, the plugin SDK (`crates/block-plugin-sdk`),
 instead of carrying its own copy of std, beui, wgpu, FreeType, HarfBuzz and the rest. A plugin
 module holds only its own code and the generics instantiated for its own types; the host links
-it to the SDK when it loads it, on wasmtime and in the browser alike, from the same files.
+it to the SDK when it loads it, on wasmtime and in the browser alike, from the same files. A
+plugin may instead be standalone, one module with everything it uses in it, written against the
+raw plugin interface below in any language.
 
 ## What is in it
 
@@ -60,6 +62,15 @@ otherwise passes the link to rust-lld unchanged.
 Every crate on the plugins' platform is already compiled position-independent (buck2's default),
 so nothing else changes about how they build.
 
+`editor(libraries = [])` links an editor standalone instead (`editor_module` in
+`buck/wasm/defs.bzl`, which also builds a second module of one editor, such as triangle's
+`:standalone`): every crate it uses linked into one plain module, no `--be3-*` flag, with
+wasi-libc's `crt1-reactor.o` so it is a WASI reactor whose `_initialize` sets up libc's main
+thread (`__wasi_init_tp`) and runs the constructors. lld places the main thread's thread-locals
+itself in a module that is not position-independent, so it needs no `plugin_initialize_tls`.
+block-app-plugin-host's `a_standalone_triangle_paints_what_the_triangle_linked_against_the_sdk_paints`
+loads triangle both ways on a real device and compares the pixels.
+
 ## Thread-locals
 
 LLVM compiles a thread-local access as an offset from the module's own `__tls_base`
@@ -111,10 +122,22 @@ in Chromium, each with a small loader for a list of modules of its own. A librar
 section lists the archives it linked, which a link that needs it leaves out.
 
 Still to wire up: editors and the SDK keep the reserve above until the loaders link a list of
-modules (plans/plugin_libraries.md, Order 3 and 4); then `dylink.rs` and `dylink.js` take over
+modules (plans/plugin_libraries.md, Order 4); then `dylink.rs` and `dylink.js` take over
 the test loaders' thread-local part, the loader allocates every thread's blocks from a region it
 manages and frees them when the thread ends (the tests' blocks are never freed), and the
 reserve, the mirror object and `PLUGIN_TLS` go.
+
+One module stays the root of every linked closure: the one holding std and wasi-libc. Rust's
+prebuilt std for wasm32-wasip1-threads and both wasi-libc builds for it (Rust's self-contained
+one and `third-party/wasi`'s) are compiled with absolute addresses (`R_WASM_MEMORY_ADDR_SLEB`),
+which rust-lld refuses in a `-shared` link; only wasm32-wasip1's wasi-libc has a
+position-independent `libc.so`. So the root is linked at fixed addresses, and brings its own
+static data, stack, `__stack_pointer`, heap (`__heap_base` to the memory's end, then
+`memory.grow`), table and main-thread block. The loader owns everything above it: it creates the
+memory from the root's import, places every other module's static data in pages it grows the
+memory by before that module's code runs, and gives each module its table slots. Making the
+root position-independent too needs std built from source (`-Zbuild-std`) and wasi-libc built
+with `-fPIC` for threads.
 
 ## Loading
 
@@ -124,8 +147,11 @@ plain data. `crates/block-wasm-host/src/dylink.rs` (wasmtime) and
 `crates/block-app/web/dylink.js` (the browser, which reaches the planner through
 block-gpu-shim) only carry it out:
 1. Instantiate the SDK against the plugin's shared memory, and run its constructors.
-2. Plan: allocate the plugin's memory with the SDK's `malloc`, and pick table slots after the
-   SDK's own for the plugin's functions and for every function whose address it takes.
+2. Plan: grow the memory by the pages the plugin's static data needs (`Declared::pages`) and
+   place it there, where the SDK's allocator never reaches (wasi-libc's `sbrk` grows from
+   wherever the memory ends, and dlmalloc takes what it gets as a new segment), and pick table
+   slots after the SDK's own for the plugin's functions and for every function whose address it
+   takes.
 3. Instantiate the plugin, answering its `env` imports with the SDK's exports, `GOT.mem` with
    addresses and `GOT.func` with table slots, and apply its data relocations.
 4. Set up thread-local storage as above, then run the plugin's constructors.
@@ -139,15 +165,59 @@ Natively the host keeps one compiled SDK per identity (`Host` in block-wasm-host
 engine per cache directory), so every plugin after the first only compiles itself. In a browser
 each plugin's worker fetches and compiles the SDK itself.
 
-## Guests without the SDK
+## The raw plugin interface
 
-Every wasm guest, an editor plugin or a module with no GPU, speaks the same small ABI, in
-`crates/block-guest-abi`: it exports `plugin_start`, `plugin_step` and `plugin_shutdown`, and
-imports `host_send`, `host_receive`, `host_wake` and `host_panic` from `be3_host`. A guest
-implements `block_guest_abi::Guest` (`start` and `step`, with the frames in and out as plain
-bytes) and `block_guest_abi::guest!(Type)` exports it; the panic hook, the receive buffer and the
-wake flag are the crate's. block-editor-plugin's `plugin!` is one such guest, plus the gpu, WASI
-and thread-local storage an editor has.
+A plugin needs no SDK, no Rust and no library: a standalone plugin is one plain wasm module, with
+no `dylink.0` section and no `__be3_sdk_*` export, which the host instantiates as it is, on
+wasmtime (`Program::Whole` in block-wasm-host) and in the browser (`boot` in
+`block-app/web/plugin.js`). `crates/block-wasm-host/src/tests/standalone.wat` is one, in
+WebAssembly text, that paints through the gpu; block-wasm-host's tests run it on wasmtime and
+`//crates/block-wasm-host:standalone-web-test` in Chromium.
+
+Every guest, an editor plugin or a module with no GPU, speaks the same small ABI, in
+`crates/block-guest-abi`. What a standalone plugin exports:
+- `plugin_start`, `plugin_step` and `plugin_shutdown`, with no parameters or results. Required.
+  The host calls `plugin_start` once, `plugin_step` whenever frames wait or the plugin woke, and
+  `plugin_shutdown` as it stops it.
+- `memory`: the memory every pointer it passes points into, unless it imports one. Not shared,
+  unless it spawns threads.
+- `_initialize`, the WASI reactor's: called once after instantiation, before anything else.
+  Without it the host calls `__wasm_call_ctors` if it is exported, which is what LLVM's
+  constructors are run by. Optional.
+- Its world's sync exports, each `(has_parent: i32, parent: i64, pointer, length) -> i64` (the
+  result's pointer and length packed), with `plugin_alloc(length) -> pointer` for the host to
+  write the arguments into (guides/type_modules.md, "Operations and WIT"). Only those its world
+  has.
+- `wasi_thread_start(thread, argument)`, if it imports `wasi.thread-spawn`.
+
+What it may import, each only if it uses it (anything else is answered by a function that
+fails when called):
+- From `be3_host`: `host_send(pointer, length)` and `host_receive(pointer, capacity) -> i64`,
+  which carry the frames of its world (postcard, as in guides/type_modules.md; `NO_MESSAGE`
+  when nothing waits, and the length needed when the buffer is too small), `host_wake()`, which
+  asks to be stepped again, and `host_panic(pointer, length)`, which stops it with that message.
+- Its world's sync imports, `(has_parent: i32, parent: i64, pointer, length)` with no result,
+  under the interface's name (an editor's, `crates/block-plugin-api/wit`).
+- The `be3:gpu/device@0.1.0` imports (below): one per func, resources as `i32` handles that start
+  at 1 for each kind, a record of plain values flattened into parameters, and anything else as
+  the pointer and length of its postcard encoding; `gpu_local_imports!` in block-gpu-abi lists
+  every import and its parameters.
+- One memory, under any name, shared or not, in place of exporting one.
+- `wasi_snapshot_preview1`, for a plugin built for WASI.
+- `wasi.thread-spawn(argument) -> i32`, for a plugin with threads, which then has to import a
+  shared memory: each thread instantiates the module again against it and calls
+  `wasi_thread_start`. A thread may only call `host_wake` and `host_panic`.
+
+A guest written in Rust implements `block_guest_abi::Guest` (`start` and `step`, with the frames
+in and out as plain bytes) and `block_guest_abi::guest!(Type)` exports it; the panic hook, the
+receive buffer and the wake flag are the crate's. block-editor-plugin's `plugin!` is one such
+guest, plus the gpu, WASI and threads an editor has.
+
+A plugin linked against the SDK follows the linked-module convention on top of this, which
+belongs to the link, not to the interface: it and the SDK import one shared `env.memory`, the
+plugin exports `plugin_initialize_tls(size, align)` (block-editor-plugin's `platform_entry!`),
+which the host calls with the SDK's `__tls_size` and `__tls_align` to set up the main thread's
+storage, and the exports and imports under "How the links are made" and "Loading".
 
 ### The gpu
 
