@@ -24,8 +24,8 @@
 
   (memory (export "memory") 1)
 
-  ;; A texture-view-descriptor: no label, format, dimension or counts, every aspect.
-  (data (i32.const 16) "\00\00\00\00\00\00\00\00")
+  ;; A texture-view-descriptor: no label, format, dimension, usage or counts, every aspect.
+  (data (i32.const 16) "\00\00\00\00\00\00\00\00\00")
   ;; A command-encoder-descriptor with no label.
   (data (i32.const 32) "\00")
   ;; A render-pass-descriptor: no label, one color attachment on view 1 with
@@ -59,7 +59,7 @@
         (call $send (i32.const 113) (i32.const 1))
         (return)))
     (drop (call $expect
-      (call $create_view (call $expect (call $acquire (global.get $surface))) (i32.const 16) (i32.const 8))))
+      (call $create_view (call $expect (call $acquire (global.get $surface))) (i32.const 16) (i32.const 9))))
     (local.set $encoder (call $expect (call $create_encoder (i32.const 32) (i32.const 1))))
     (local.set $pass (call $expect (call $begin (local.get $encoder) (i32.const 48) (i32.const 43))))
     (call $end (local.get $pass))

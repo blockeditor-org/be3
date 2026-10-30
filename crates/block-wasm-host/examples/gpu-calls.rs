@@ -54,6 +54,7 @@ fn guest() -> String {
         label: None,
         format: None,
         dimension: None,
+        usage: None,
         aspect: abi::TextureAspect::All,
         base_mip_level: 0,
         mip_level_count: None,

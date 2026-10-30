@@ -81,16 +81,23 @@ impl ComputePassInterface for ComputePass {
 
     fn pop_debug_group(&mut self) {}
 
-    fn write_timestamp(&mut self, _query_set: &DispatchQuerySet, _query_index: u32) {}
+    fn write_timestamp(&mut self, _query_set: &DispatchQuerySet, _query_index: u32) {
+        unimplemented!(
+            "timestamps written inside passes are not in browser WebGPU: use the pass's timestamp writes"
+        )
+    }
 
     fn begin_pipeline_statistics_query(
         &mut self,
         _query_set: &DispatchQuerySet,
         _query_index: u32,
     ) {
+        unimplemented!("pipeline statistics queries are not in browser WebGPU")
     }
 
-    fn end_pipeline_statistics_query(&mut self) {}
+    fn end_pipeline_statistics_query(&mut self) {
+        unimplemented!("pipeline statistics queries are not in browser WebGPU")
+    }
 
     fn dispatch_workgroups(&mut self, x: u32, y: u32, z: u32) {
         self.0.dispatch_workgroups(x, y, z);

@@ -280,7 +280,17 @@ textures, `clear_buffer`, compute pipelines and passes (`dispatch_workgroups` an
 them. A compute pass's calls, like a render pass's, take only wasm values. A device without
 compute (the WebGL fallback) reports zero compute workgroups per dimension in its limits
 and refuses a compute pipeline as a validation error. Textures stay
-on the gpu; only a mapped read crosses into the plugin's memory.
+on the gpu; only a mapped read crosses into the plugin's memory. Render and compute
+pipelines pass their stages' overridable `constants` (keyed by name or `@id`);
+`zero_initialize_workgroup_memory` is not WebGPU's and the host always zeroes. A texture
+view's `usage` narrows its texture's. `destroy` frees a buffer (failing its pending map) or
+a texture the plugin created; a surface's or imported texture is the host's, and
+destroying it does nothing.
+
+Some core WebGPU calls are still answered without reaching the host, and are gaps:
+debug markers and groups (on encoders and passes) are dropped, `on_submitted_work_done`
+calls back at once, `get_compilation_info` has no messages (errors still reach error
+scopes), and a device is never reported lost nor destroyed by `Device::destroy`.
 
 Occlusion and timestamp query sets, `resolve_query_set`, a render pass's
 `occlusion_query_set` and occlusion queries, render and compute passes' `timestamp_writes`, render bundles

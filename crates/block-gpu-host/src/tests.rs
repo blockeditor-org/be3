@@ -98,3 +98,4 @@ mod a_surface_reports_how_many_presents_ago_its_texture_was_drawn;
 mod a_texture_copy_is_recorded_on_its_encoder;
 mod an_unknown_pass_handle_is_reported;
 mod every_webgpu_limit_of_the_device_is_forwarded;
+mod only_a_texture_the_plugin_created_is_destroyed;

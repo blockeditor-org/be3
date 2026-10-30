@@ -392,7 +392,10 @@ impl Host for Gpu {
                 }))
             },
         )
-        .map(abi::Texture)
+        .map(|handle| {
+            self.made_textures.insert(handle);
+            abi::Texture(handle)
+        })
     }
 
     fn create_sampler(&mut self, descriptor: abi::SamplerDescriptor) -> Option<abi::Sampler> {
@@ -669,6 +672,11 @@ impl Host for Gpu {
         self.guard(|gpu| gpu.buffers.get(this.0, "buffer").map(wgpu::Buffer::unmap));
     }
 
+    fn buffer_destroy(&mut self, this: abi::Buffer) {
+        self.maps.forget(this.0);
+        self.guard(|gpu| gpu.buffers.get(this.0, "buffer").map(wgpu::Buffer::destroy));
+    }
+
     fn buffer_drop(&mut self, this: abi::Buffer) {
         self.maps.forget(this.0);
         self.buffers.remove(this.0);
@@ -687,7 +695,7 @@ impl Host for Gpu {
                     label: convert::label(&descriptor.label),
                     format: descriptor.format.map(convert::texture_format),
                     dimension: descriptor.dimension.map(convert::texture_view_dimension),
-                    usage: None,
+                    usage: descriptor.usage.map(wgpu::TextureUsages::from_bits_truncate),
                     aspect: convert::texture_aspect(descriptor.aspect),
                     base_mip_level: descriptor.base_mip_level,
                     mip_level_count: descriptor.mip_level_count,
@@ -719,7 +727,15 @@ impl Host for Gpu {
         self.fail(described.map(Some), None)
     }
 
+    fn texture_destroy(&mut self, this: abi::Texture) {
+        if !self.made_textures.contains(&this.0) {
+            return;
+        }
+        self.guard(|gpu| gpu.textures.get(this.0, "texture").map(wgpu::Texture::destroy));
+    }
+
     fn texture_drop(&mut self, this: abi::Texture) {
+        self.made_textures.remove(&this.0);
         self.textures.remove(this.0);
     }
 

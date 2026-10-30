@@ -797,7 +797,12 @@ impl BufferInterface for Buffer {
         checked();
     }
 
-    fn destroy(&self) {}
+    fn destroy(&self) {
+        FRESH.with(|fresh| fresh.borrow_mut().remove(&self.0.handle().0));
+        abort_maps(self.0.handle());
+        self.0.destroy();
+        checked();
+    }
 }
 
 impl TextureInterface for Texture {
@@ -806,6 +811,7 @@ impl TextureInterface for Texture {
             label: convert::label(desc.label),
             format: desc.format.map(convert::texture_format),
             dimension: desc.dimension.map(convert::texture_view_dimension),
+            usage: desc.usage.map(|usage| usage.bits()),
             aspect: convert::texture_aspect(desc.aspect),
             base_mip_level: desc.base_mip_level,
             mip_level_count: desc.mip_level_count,
@@ -815,7 +821,10 @@ impl TextureInterface for Texture {
         DispatchTextureView::custom(TextureView::created(self.0.create_view(&descriptor)))
     }
 
-    fn destroy(&self) {}
+    fn destroy(&self) {
+        self.0.destroy();
+        checked();
+    }
 }
 
 // unsafe(ffi)

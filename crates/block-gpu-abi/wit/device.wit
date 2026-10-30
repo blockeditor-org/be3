@@ -190,6 +190,8 @@ interface device {
         /// Writes into a range mapped for writing, or at creation.
         write-mapped: func(offset: u64, data: list<u8>);
         unmap: func();
+        /// Frees the buffer's memory now; any later use of it is an error.
+        destroy: func();
     }
 
     record buffer-descriptor {
@@ -202,6 +204,10 @@ interface device {
     resource texture {
         create-view: func(descriptor: texture-view-descriptor) -> option<texture-view>;
         describe: func() -> option<texture-info>;
+        /// Frees a texture the plugin created; any later use of it is an
+        /// error. The host owns surface and imported textures, and destroying
+        /// one does nothing.
+        destroy: func();
     }
 
     record texture-descriptor {
@@ -230,6 +236,8 @@ interface device {
         label: option<string>,
         format: option<texture-format>,
         dimension: option<texture-view-dimension>,
+        /// A subset of the texture's usages; none means all of them.
+        usage: option<u32>,
         aspect: texture-aspect,
         base-mip-level: u32,
         mip-level-count: option<u32>,

@@ -9,7 +9,7 @@ pub mod transport;
 #[cfg(test)]
 mod tests;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::pin::pin;
 use std::sync::{Arc, Mutex};
@@ -36,6 +36,7 @@ pub struct Gpu {
     limits: abi::SupportedLimits,
     buffers: Table<wgpu::Buffer>,
     textures: Table<wgpu::Texture>,
+    made_textures: HashSet<u32>,
     views: Table<wgpu::TextureView>,
     samplers: Table<wgpu::Sampler>,
     group_layouts: Table<wgpu::BindGroupLayout>,
@@ -113,6 +114,7 @@ impl Gpu {
             limits,
             buffers: Table::new(),
             textures: Table::new(),
+            made_textures: HashSet::new(),
             views: Table::new(),
             samplers: Table::new(),
             group_layouts: Table::new(),
