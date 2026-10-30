@@ -283,7 +283,7 @@ and refuses a compute pipeline as a validation error. Textures stay
 on the gpu; only a mapped read crosses into the plugin's memory.
 
 Occlusion and timestamp query sets, `resolve_query_set`, a render pass's
-`occlusion_query_set`, occlusion queries and `timestamp_writes`, render bundles
+`occlusion_query_set` and occlusion queries, render and compute passes' `timestamp_writes`, render bundles
 (`create_render_bundle_encoder`, `execute_bundles`) and `draw_indirect` and
 `draw_indexed_indirect` are WebGPU's. Timestamps inside encoders and passes
 (`write_timestamp`) and pipeline statistics are native-only and not in browser WebGPU.
