@@ -12,7 +12,7 @@ load(
     "time_limited",
 )
 load("@root//buck/platforms:cross.bzl", "per_cross_platform")
-load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "dev_only", "keep_profile")
+load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "RELEASE_SYMBOL_FLAGS", "dev_only", "keep_profile")
 load("@root//buck/wasm:libraries.bzl", "WasmLibrariesInfo")
 
 # WebAssembly modules, depended on from targets that are not WebAssembly: the
@@ -166,7 +166,7 @@ def _needs(libraries):
 def wasm_library(module, libraries = [], rustc_flags = []):
     facts = cargo_wasm_facts()
     linker_flags = _needs(libraries) + ["--be3-library=" + module]
-    rustc_flags = plugin_exports + rustc_flags + ([] if libraries else _reactor)
+    rustc_flags = plugin_exports + rustc_flags + ([] if libraries else _reactor) + RELEASE_SYMBOL_FLAGS
     if native.glob(["library.rs"]):
         cargo_library(rustc_flags = rustc_flags)
         native.rust_library(
@@ -221,7 +221,7 @@ def linked_plugin(module, libraries, rustc_flags = []):
         linker_flags = _needs(libraries),
         mapped_srcs = cargo_manifest_sources(),
         preferred_linkage = "shared",
-        rustc_flags = plugin_exports + rustc_flags,
+        rustc_flags = plugin_exports + rustc_flags + RELEASE_SYMBOL_FLAGS,
         srcs = cargo_library_sources(),
         target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
     )
@@ -257,7 +257,7 @@ def editor_module(name, module, libraries = None, extra_deps = [], visibility = 
         linker_flags = linker_flags,
         mapped_srcs = cargo_manifest_sources(),
         preferred_linkage = "shared",
-        rustc_flags = plugin_exports + rustc_flags + dev_only(["-Copt-level=0"]),
+        rustc_flags = plugin_exports + rustc_flags + dev_only(["-Copt-level=0"]) + RELEASE_SYMBOL_FLAGS,
         srcs = cargo_library_sources() + ["manifest.json"],
         target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
         visibility = visibility,
