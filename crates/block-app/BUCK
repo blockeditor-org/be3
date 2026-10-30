@@ -274,7 +274,8 @@ app(
 headless(
     name = "dev",
     app_name = "dev",
+    archive = "$(location :dev-app[archive])",
     args = ["--dev-workspace"],
     data = True,
-    program = "$(location :dev-app)/block-app",
+    program = "block-app",
 )

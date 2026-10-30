@@ -352,6 +352,11 @@ A native target depends on a wasm one through a transition in
   build the workers can run. `plugins.json` lists the manifests: every
   platform finds its plugins through it, beside the executable, in the APK's
   assets, or at the bundle root.
+- Every `app()` also has `[archive]`, its directory as one zstd-compressed file
+  (`crates/app-archive`, packed on a worker): a quarter of the release app and a
+  seventh of a debug one, since zstd's long matching finds the code the plugins
+  share. `buck2 run` and `:dev` download only that, unpack it into
+  `target/apps/<name>-<hash>/` when it changed, and run the program there.
 - `:native-dist` is a platform's release, `:plugins` the plugins once for
   all, and `//crates/be-server-bin:dist` the server with its build id.
 - `:web` is block-app for `wasi` and `block-gpu-shim` for `wasm32`, each run

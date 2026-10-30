@@ -12,6 +12,7 @@ name = "be-drive"
 path = "src/main.rs"
 
 [dependencies]
+app-archive = { path = "../app-archive" }
 beui-runner = { path = "../beui-runner" }
 beui-layer-drive = { path = "../beui-layer-drive" }
 image = { version = "0.25", default-features = false, features = ["png"] }

@@ -1,0 +1,13 @@
+[package]
+name = "app-archive"
+description = "An app's staged directory as one compressed file, so a run downloads a fraction of it from the build server"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+sha2 = "0.10"
+zstd = { version = "0.13", default-features = false }
+
+[lints]
+workspace = true
