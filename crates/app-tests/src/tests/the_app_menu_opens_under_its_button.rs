@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn the_app_menu_opens_under_its_button() {
     let mut app = AppTest::start();
-    let button = "#file-tree.desktop-app-menu";
+    let button = "#file-tree.app-menu";
     app.click(button);
     app.wait("#app.menu.status");
     let (button_x, button_y, button_width, button_height) = app.place(button);

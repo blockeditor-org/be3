@@ -45,6 +45,7 @@ mod adding_an_account_chooses_a_local_or_custom_server;
 mod an_active_child_pans_in_the_frame_its_canvas_pans;
 mod an_invitation_shows_the_link_to_send_the_invited_person;
 mod choosing_a_scale_draws_the_app_larger;
+mod choosing_another_workspace_on_the_add_pickers_location_page_moves_it_there;
 mod closing_a_demos_block_tab_closes_the_tabs_its_dock_put_in_the_workspace;
 mod closing_a_tab_shuts_its_editor_down;
 mod fit_on_an_active_child_fits_its_content_in_its_view;
@@ -93,7 +94,7 @@ fn add_to_my_files(app: &mut AppTest, label: &str) {
 }
 
 fn start_adding_to_my_files(app: &mut AppTest, label: &str) {
-    app.click(ADD_TO_MY_FILES);
+    open_add_to_my_files(app);
     choose_type(app, label);
     app.wait(&format!("Pane \"{label}\""));
     app.wait(&format!("TextInput \"Name\" value=\"{label}\" focused"));
@@ -136,7 +137,7 @@ fn row_menu(app: &mut AppTest, title: &str) -> String {
 }
 
 fn open_beui_demo(app: &mut AppTest) {
-    app.click(ADD_TO_MY_FILES);
+    open_add_to_my_files(app);
     choose_type(app, "beui demo");
     app.wait("Tab \"Components\"");
     app.wait("Tab \"Docking\"");
@@ -145,4 +146,10 @@ fn open_beui_demo(app: &mut AppTest) {
     app.run(&["settle"]);
 }
 
-const ADD_TO_MY_FILES: &str = "#file-tree.new-block";
+fn open_add_to_my_files(app: &mut AppTest) {
+    app.click(NEW);
+    app.click(NEW_IN_MY_FILES);
+}
+
+const NEW: &str = "#file-tree.new";
+const NEW_IN_MY_FILES: &str = "MenuItem \"New in My files…\"";

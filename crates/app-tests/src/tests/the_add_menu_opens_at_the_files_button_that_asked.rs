@@ -3,9 +3,9 @@ use super::*;
 #[test]
 fn the_add_menu_opens_at_the_files_button_that_asked() {
     let mut app = AppTest::start();
-    app.click(ADD_TO_MY_FILES);
+    open_add_to_my_files(&mut app);
     app.wait("#picker.more");
-    let (button_x, button_y, _, button_height) = app.place(ADD_TO_MY_FILES);
+    let (button_x, button_y, _, button_height) = app.place(NEW);
     let (menu_x, menu_y, _, _) = app.place("#picker.location");
     assert!(
         menu_y >= button_y + button_height && menu_y < button_y + button_height + 40.0,

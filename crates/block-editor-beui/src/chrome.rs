@@ -297,7 +297,7 @@ fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> DynamicS
                                 @sizing=ItemSize::Percent(100.0)
                                 direction=Direction::Horizontal
                             >
-                                <Frame padding=BAND_PADDING>
+                                <Frame @sizing=ItemSize::Percent(100.0) padding=BAND_PADDING>
                                     <Portal node={scrolled} />
                                 </Frame>
                             </Scroll>

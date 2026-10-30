@@ -5,7 +5,7 @@ fn on_a_narrow_window_the_add_menu_from_the_files_rises_as_a_sheet() {
     let mut app = AppTest::start();
     app.run(&["resize", "390x800"]);
     app.run(&["clock", "run"]);
-    app.click(ADD_TO_MY_FILES);
+    open_add_to_my_files(&mut app);
     app.wait("#picker.more");
     app.run(&["pause", "600"]);
     app.run(&["clock", "stop"]);

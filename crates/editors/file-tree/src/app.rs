@@ -7,6 +7,7 @@ mod kinds;
 mod menu;
 mod rename;
 mod rows;
+mod toolbar;
 mod ui;
 mod zoom;
 

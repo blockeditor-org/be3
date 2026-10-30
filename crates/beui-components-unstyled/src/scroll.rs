@@ -989,10 +989,7 @@ fn BrowserScroll(
             escape.style("scrollbar-width", "none".to_owned());
         }
         escape.style("display", "grid".to_owned());
-        let track = match fit {
-            true => "minmax(100%, max-content)",
-            false => "max-content",
-        };
+        let track = "minmax(100%, max-content)";
         for (property, vertical, sideways) in [
             ("overflow-y", "auto", "hidden"),
             ("overflow-x", "hidden", "auto"),

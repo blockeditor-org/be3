@@ -9,8 +9,7 @@ fn cancelling_the_add_picker_adds_nothing() {
     my_files(&mut fixture, Vec::new());
     fixture.settle();
 
-    fixture.test.click("file-tree.new-block");
-    fixture.settle();
+    fixture.new_in(MY_FILES);
     let picker = fixture
         .test
         .placed_picker()

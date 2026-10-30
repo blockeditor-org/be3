@@ -167,7 +167,7 @@ them in the handoff.
   public key into its contact row, so every device of the creator can share
   with it; the dialog shows the JSON credentials once in a selectable text box, with a
   Copy credentials button. Share a workspace with
-  it to write in (New workspace from the files pane's More menu, then Share), which is where
+  it to write in (New workspace from the files pane's New menu, then Share), which is where
   `be` puts what it makes. An agent sees and opens
   only what is shared with it: sharing a block with it (`Peer::share`) makes the block a scope of its own and seals that scope's key
   to the agent (the stack guide's Keys), and `be` opens that key with the

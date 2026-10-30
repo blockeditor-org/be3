@@ -950,7 +950,7 @@ impl Editor {
         if let Some(open) = state
             .picking
             .get_untracked()
-            .filter(|open| anchor.reopens(open.anchor()))
+            .filter(|open| anchor.reopens(open.anchor()) && open.places_like(&filter))
         {
             self.finish_pick(open.serial(), Ok(None));
             return;

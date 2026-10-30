@@ -482,28 +482,6 @@ impl Tree {
         self.expanded.update(|open| open.extend(ancestors));
     }
 
-    pub(crate) fn collapse_all(&self) {
-        self.expanded.set(HashSet::new());
-        let folded = self.folded.get_untracked();
-        self.folded.set(Folded {
-            orphans_open: false,
-            system_open: false,
-            ..folded
-        });
-    }
-
-    pub(crate) fn nothing_open(&self) -> Memo<bool> {
-        let (expanded, folded) = (self.expanded, self.folded);
-        create_memo(move || {
-            let Folded {
-                orphans_open,
-                system_open,
-                ..
-            } = folded.get();
-            expanded.with(HashSet::is_empty) && !orphans_open && !system_open
-        })
-    }
-
     pub(crate) fn show_orphans(&self) {
         let folded = self.folded.get_untracked();
         self.folded.set(Folded {

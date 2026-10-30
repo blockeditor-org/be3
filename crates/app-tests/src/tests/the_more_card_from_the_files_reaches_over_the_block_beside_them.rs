@@ -5,8 +5,8 @@ fn the_more_card_from_the_files_reaches_over_the_block_beside_them() {
     let mut app = AppTest::start();
     add_to_my_files(&mut app, "Text");
     app.wait("Tab \"Text\"");
-    app.click(ADD_TO_MY_FILES);
-    let (_, button_y, _, button_height) = app.place(ADD_TO_MY_FILES);
+    open_add_to_my_files(&mut app);
+    let (_, button_y, _, button_height) = app.place(NEW);
     app.click("#picker.more");
     app.wait("#picker.search");
     let (files_x, _, files_width, _) = app.place("#workspace.files");

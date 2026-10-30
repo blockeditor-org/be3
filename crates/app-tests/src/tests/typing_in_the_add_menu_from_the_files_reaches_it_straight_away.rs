@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn typing_in_the_add_menu_from_the_files_reaches_it_straight_away() {
     let mut app = AppTest::start();
-    app.click(ADD_TO_MY_FILES);
+    open_add_to_my_files(&mut app);
     app.wait("#picker.more");
     let tree = app.tree();
     let rows: Vec<&str> = tree

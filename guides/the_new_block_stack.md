@@ -1453,18 +1453,24 @@ a list whose rows open each kind (or, behind Devices and profiles, each profile)
 tab of the editors pane. A
 section's header has its own menu (add, rename, share, delete, and leave on a
 workspace someone else made), as every row's menu has Add; rows show no add
-button of their own. The toolbar has New, which adds into the nearest folder
-or workspace holding the open block (or the open block itself when it holds
-others), My files when nothing is open; Collapse all folders; and a More menu
-whose New workspace makes one at the root and names it in place. Every picker places a new block in a workspace, My
-files when nothing else is named.
+button of their own. One toolbar, the same on a desktop and a phone, sits over
+the tree whenever the frame's chrome shows: a filter field filling the width,
+New, and the account button. At the top level New is a menu listing
+New in each workspace the account may add to, in tree order, which opens the
+add picker there anchored to New, then New workspace, which makes one at the
+root and names it in place. The field shows only the rows already listed whose
+name holds its text, with the rows that hold them, highlights the match, counts
+the matches above the rows, and clears on Escape; it never changes which rows
+are open. Every picker places a new block in a workspace, My files when nothing
+else is named.
 A block moves between workspaces with the host's `move_block`, by dragging it
-or from its Move to menu. A phone shows the same tree with taller rows, under a
-title with New, More and the account button in place of the toolbar.
+or from its Move to menu. A phone shows the same toolbar and tree with taller rows.
 Pressing a folder, a workspace or one of the other sections zooms into it rather
-than opening it: the tree then holds only what it holds, under a bar with the
-path, a back button (or, on a phone, a swipe back) and a New that adds into it
-where the account may. Every row's menu has Zoom in too, so a block that holds
+than opening it: the tree then holds only what it holds, the field filters only
+inside it, and the toolbar gains a second line with Up, the ancestors (each
+zooming out to itself) and the zoomed block's name; on a phone a swipe goes back
+too. New is then a primary button that adds straight into the zoomed block
+where the account may, and a disabled menu where it may not. Every row's menu has Zoom in too, so a block that holds
 others without being a folder, a text block with a subtree, can be zoomed
 into as well. The folder editor (crates/editors/workspace-index) still edits
 folders and workspaces wherever they are embedded, and opens from Open with.

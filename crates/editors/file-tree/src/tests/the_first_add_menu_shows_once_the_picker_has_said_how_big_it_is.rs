@@ -7,8 +7,7 @@ fn the_first_add_menu_shows_once_the_picker_has_said_how_big_it_is() {
     my_files(&mut fixture, Vec::new());
     fixture.settle();
 
-    fixture.test.click("file-tree.new-block");
-    fixture.settle();
+    fixture.new_in(MY_FILES);
     let guessed = fixture
         .test
         .placed_picker()

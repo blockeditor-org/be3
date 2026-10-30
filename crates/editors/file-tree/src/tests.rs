@@ -14,6 +14,7 @@ mod a_folder_still_loading_says_so_only_after_a_moment;
 mod a_folder_that_could_not_be_listed_says_why;
 mod a_link_to_a_deleted_block_is_marked_and_can_restore_it;
 mod a_linked_block_it_cannot_see_shows_no_access_rather_than_locked;
+mod a_narrow_files_pane_gives_its_filter_the_width_between_the_buttons;
 mod a_narrow_files_pane_on_a_desktop_keeps_the_tree;
 mod a_new_workspace_is_made_at_the_top_and_named_in_place;
 mod a_phone_lists_what_is_shared_with_it;
@@ -43,13 +44,14 @@ mod reopening_a_folder_shows_its_children_at_once;
 mod swiping_back_in_a_folder_shows_the_one_above_it;
 mod the_account_s_system_blocks_are_reached_from_the_bottom_of_the_files;
 mod the_add_card_points_at_the_button_that_asked_and_a_press_beside_it_cancels;
-mod the_desktop_files_toolbar_adds_beside_the_open_block_and_collapses_folders;
-mod the_desktop_files_toolbar_opens_the_app_menu;
 mod the_files_are_shown_by_workspace_then_what_is_shared;
+mod the_files_toolbar_opens_the_app_menu_on_a_desktop_and_a_phone;
+mod the_filter_shows_the_rows_that_match_and_what_holds_them;
 mod the_first_add_menu_shows_once_the_picker_has_said_how_big_it_is;
 mod the_folder_zoomed_into_is_kept_in_the_view_and_reopens_zoomed;
 mod the_inspect_dialog_stays_on_a_narrow_screen;
-mod the_phone_files_header_opens_the_app_menu;
+mod the_new_menu_offers_each_workspace_then_a_new_workspace;
+mod zoomed_into_a_folder_new_adds_straight_into_it;
 
 struct Fixture {
     test: BeuiTest<FileTreeApp>,
@@ -89,6 +91,13 @@ impl Fixture {
             button: PointerButton::Secondary,
             pressed: false,
         }]);
+        self.settle();
+    }
+
+    fn new_in(&mut self, workspace: Uuid) {
+        self.test.click("file-tree.new");
+        self.settle();
+        self.test.click(format!("file-tree.new-in.{workspace}"));
         self.settle();
     }
 

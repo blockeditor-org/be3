@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn a_contact_link_asks_before_connecting_two_accounts() {
     let mut app = AppTest::start();
-    app.click("#file-tree.desktop-app-menu");
+    app.click("#file-tree.app-menu");
     app.click("#app.menu.contacts");
     app.click("#app.contacts.new-link");
     app.wait("#app.contacts.link");
@@ -20,7 +20,7 @@ fn a_contact_link_asks_before_connecting_two_accounts() {
     app.pause(500);
     app.gone("Dialog \"Contacts\"");
 
-    app.click("#file-tree.desktop-app-menu");
+    app.click("#file-tree.app-menu");
     app.click("#app.menu.accounts");
     app.click("Button \"Add account\"");
     app.click("#account.local");
@@ -31,7 +31,7 @@ fn a_contact_link_asks_before_connecting_two_accounts() {
     confirm_phrase(&mut app);
     app.click("Button \"Personal\"");
 
-    app.click("#file-tree.desktop-app-menu");
+    app.click("#file-tree.app-menu");
     app.click("#app.menu.contacts");
     app.click("#app.contacts.paste");
     app.type_text(&link);

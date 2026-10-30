@@ -96,6 +96,10 @@ impl Picking {
         self.0.anchor
     }
 
+    pub(crate) fn places_like(&self, filter: &BlockFilter) -> bool {
+        self.0.filter.place == filter.place
+    }
+
     pub(crate) fn answer(&self, answer: BlockPick) {
         let Some(answer_with) = self.0.answer.borrow_mut().take() else {
             return;

@@ -1466,6 +1466,10 @@ is padded back in by as much, so it lines up as before and its rings have the pa
 in. The unstyled `Scroll` takes the same as `Sides`, which it builds from a `Frame` with that much
 negative padding around it; a negative side of a `Frame`'s padding lays its child out that far
 past the frame. `on_change` still reports the position for anything else that wants it.
+Content shorter than the scroll is laid out as long as the scroll, as a browser's
+`minmax(100%, max-content)` track is, so a percent-sized child of a scroll (a
+`Spacer`, a field filling a toolbar that scrolls when narrow) fills the rest of it
+whether or not the content overflows.
 With `fit` it measures as long as its content, so a box sized by what it holds
 can still scroll once it is squeezed.
 With `max_length` the scroll is as long as what it holds, up to that length, and
