@@ -51,6 +51,9 @@ fn only_a_texture_the_plugin_created_is_destroyed() {
     assert_eq!(gpu.take_error(), None);
     gpu.texture_destroy(made);
     assert_eq!(gpu.take_error(), None);
-    assert!(view(&mut gpu, made).is_none(), "a destroyed texture made a view");
+    assert!(
+        view(&mut gpu, made).is_none(),
+        "a destroyed texture made a view"
+    );
     assert!(gpu.take_error().is_some());
 }

@@ -695,7 +695,9 @@ impl Host for Gpu {
                     label: convert::label(&descriptor.label),
                     format: descriptor.format.map(convert::texture_format),
                     dimension: descriptor.dimension.map(convert::texture_view_dimension),
-                    usage: descriptor.usage.map(wgpu::TextureUsages::from_bits_truncate),
+                    usage: descriptor
+                        .usage
+                        .map(wgpu::TextureUsages::from_bits_truncate),
                     aspect: convert::texture_aspect(descriptor.aspect),
                     base_mip_level: descriptor.base_mip_level,
                     mip_level_count: descriptor.mip_level_count,
@@ -731,7 +733,11 @@ impl Host for Gpu {
         if !self.made_textures.contains(&this.0) {
             return;
         }
-        self.guard(|gpu| gpu.textures.get(this.0, "texture").map(wgpu::Texture::destroy));
+        self.guard(|gpu| {
+            gpu.textures
+                .get(this.0, "texture")
+                .map(wgpu::Texture::destroy)
+        });
     }
 
     fn texture_drop(&mut self, this: abi::Texture) {

@@ -13,8 +13,7 @@ fn drawn_into(device: &wgpu::Device, view: &wgpu::TextureView) -> Option<wgpu::E
         ..Default::default()
     });
     drop(encoder.finish());
-    let Poll::Ready(error) = pin!(scope.pop()).poll(&mut Context::from_waker(Waker::noop()))
-    else {
+    let Poll::Ready(error) = pin!(scope.pop()).poll(&mut Context::from_waker(Waker::noop())) else {
         panic!("the error scope did not settle");
     };
     error
