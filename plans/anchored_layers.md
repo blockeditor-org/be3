@@ -1,6 +1,6 @@
 # Anchored layers, dock bars, and a camera that follows its region
 
-One pull request, built by parallel agents (guides/parallel_agents.md). This file is the design and the plan; agents read it before starting and the coordinator keeps it current.
+One pull request, built by parallel agents (guides/parallel_agents.md). Done: the design below is what was built, with the differences listed at the end; the protocol, guides/adding_a_plugin_editor.md and guides/beui.md describe it as it is.
 
 ## Goals
 
@@ -92,16 +92,15 @@ Today an editor shows things through region kinds that each carry their own feat
 
 V runs after B4 and before C, F, I and D4, which build on views. D3's phase 2 (generalizing the frame to the tab that holds the content) is part of V.
 
-## Workstreams and waves
+## What was built
 
-| Wave | Work |
-|---|---|
-| 0 | B0 protocol types and PROTOCOL.md (no behaviour) · A1 camera · D1 beui-dock bars in-process with a beui-demo page |
-| 1 | B1 host (block-app compositor, routing, dismissal) · B2 plugin runtime (layer surfaces, commit, input) · B3 beui (layer space, escaping overlays, `Dialog` anchor and presentation) · D1 then E1 |
-| 2 | B4 integration, app tests, accessibility, `drive`, delete Overlay windows and `overlays_in_windows` · D2 bars across plugins |
-| 3 | G web · D3 phase 1 (bars outside the compositor) · E2 settings · H dialog call sites |
-| 4 | V views: V0 protocol, then host and plugin side, then migrating every region kind and feature, the canvas joining the root (D3 phase 2) |
-| 5 | C picker, rename, app menu as views · F dock dialogs · I tab anchors and one small-dialog placement · D4 shared window |
-| 6 | cleanup of dead mechanisms · guides (PROTOCOL.md, adding_a_plugin_editor.md, beui.md, pan_and_zoom.md, desktop guides) |
+Every workstream landed (A, B0-B4, C, D1-D4, E1-E2, F, G, H, I, K, P, R, T, V0-V4, CL1-CL3, BG and the final pass). The design above is what the code does, with these differences:
 
-File ownership, to keep parallel agents apart: B1 `crates/block-app/src/compositor/*`, `plugin_host/runtime.rs`, `plugin_host/instances.rs`; B2 `crates/block-editor-plugin`, `crates/block-gpu-guest`, `crates/beui-platform-plugin`; B3 `crates/beui-core`, `crates/beui-view`, `crates/beui-types`, `crates/beui-components-*`; D1 and E1 `crates/beui-dock`; G `crates/beui-platform-web`, `crates/block-app/src/plugin_host/web`.
+- **Names.** "Layer" became the *anchored view* and "layer space" the *anchor space* (`screen-request.anchor-space`): an anchored view is a screen the plugin numbers itself (`ScreenId::opened`) and reports like any other, so `frame-commit.layers`, `layer-id`, `child-placement.in-layer` and `timed-input.layer` went with V4. beui keeps its own words: an overlay that escapes its window is an escaped layer, its window's space a layer space; beui-platform-plugin (`escaped.rs`) maps each escaped layer to one anchored view. The host and compositor say view too (`PlacedView`, `PluginView`, `HostAnchored`, `AnchoredViews`), and block-editor-plugin's `Regions`/`Region` are `ViewHandler`/`ShownView`.
+- **Sheets.** On touch or a phone every embedded popup (picker, rename, app menu) is a bare view the asker attaches to the bottom edge; the host tells a child placed in a view attached to an edge that it is a sheet (`open-picker.sheet`, `open-rename.sheet`, `PanelReport::sheet`) and the child draws the sheet.
+- **Popping out** a dock tab keeps the root as its placer (V4): the root draws the dock window's chrome in a window view it creates with no frame of delay and places the tab's body in it. No "change of placer" request exists.
+- **Stacked or tiled** is still decided from the dock's measured width, inside the layout loop (one frame late on native, within the frame on HTML); panes and splitters are arranged in the same layout (K1).
+- **The presentation** keeps its own chrome when a slide's editor takes its frame over; the slide's editor joins through the stage tab.
+- **Dialogs** have no `HangFrom` or `DialogAnchor::Frame`: a small dialog points at its control, the tab (`use_frame_anchor`) or a zero-height rect at the top centre (FI).
+
+Left: a joined bar's drop across layers only reorders within its own layer (K2); a child placed Above the pixels of an anchored view shows under them on the web (G); a popup child resized before it draws again is shown stretched to its new rect for a frame.
