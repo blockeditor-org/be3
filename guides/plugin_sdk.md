@@ -188,6 +188,24 @@ names one. The host refuses the rest against its own device. A query set, indire
 or bind group gains the same check (timestamps, `indirect-first-instance`,
 `float32-filterable`) when it is added.
 
+Buffer mapping is asynchronous on both hosts, as in a browser. `map_async` asks the host
+(`buffer.map-async`), which maps the buffer and wakes the plugin once the map settles:
+natively a thread of the `Gpu`'s own polls the device while a map is pending, and the
+waker is the guest's `Wake` (block-wasm-host's `State::gpu`); in a browser the map settles
+on the worker's event loop and the shim calls the wake `plugin.js` binds with `bind_wake`.
+The guest answers the map's callback only when it polls: `device.poll` (which waits for
+the gpu natively and cannot in a browser) or `block_gpu_guest::poll`, which
+block-editor-plugin calls at the start of every step. It asks `buffer.map-state`, WebGPU's
+`mapState`, of each pending map. `get_mapped_range` copies a range once out of a map
+(`buffer.read-mapped`, whose bytes come back raw), except for a buffer mapped at
+creation, which starts zeroed; a range written through `get_mapped_range_mut` goes back
+when it is dropped (`buffer.write-mapped`). Unmapping or dropping a buffer fails its
+pending map. The host refuses, as an error rather than a panic, a read or write outside
+the mapped range, misaligned, or a write to a read map. Copies between buffers and
+textures, `clear_buffer`, and implicit bind group layouts (`layout: None` and
+`get_bind_group_layout`) are recorded as wgpu records them. Textures stay on the gpu;
+only a mapped read crosses into the plugin's memory.
+
 A *pure guest* has only those imports: no gpu, no SDK, no WASI, no threads, no shared memory, no
 clock. It is a `wasm32_module` (wasm32-unknown-unknown) rather than an `editor()`, and exports its
 own memory. `crates/block-guest-echo` is the smallest one, which the tests start every way. A

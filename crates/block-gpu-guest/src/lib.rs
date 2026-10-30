@@ -37,6 +37,10 @@ pub fn request_device(
     ))
 }
 
+pub fn poll() {
+    objects::settle(false);
+}
+
 fn with_surface<R>(surface: u32, act: impl FnOnce(&gpu::Surface) -> R) -> R {
     SURFACES.with(|surfaces| {
         let mut surfaces = surfaces.borrow_mut();

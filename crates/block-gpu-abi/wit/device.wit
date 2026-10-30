@@ -174,8 +174,20 @@ interface device {
         primitive-index,
     }
 
+    enum map-mode { read, write }
+
+    /// WebGPU's `GPUBufferMapState`.
+    enum map-state { unmapped, pending, mapped }
+
     resource buffer {
-        /// Writes into the range mapped at creation.
+        /// Starts mapping a range of the buffer. It is pending until the gpu
+        /// is done with the buffer, then mapped, or unmapped again if the map
+        /// failed. The host wakes the plugin when it settles.
+        map-async: func(mode: map-mode, offset: u64, size: u64);
+        map-state: func() -> map-state;
+        /// Copies a mapped range out.
+        read-mapped: func(offset: u64, size: u64) -> list<u8>;
+        /// Writes into a range mapped for writing, or at creation.
         write-mapped: func(offset: u64, data: list<u8>);
         unmap: func();
     }
@@ -320,7 +332,11 @@ interface device {
         wgsl: string,
     }
 
-    resource render-pipeline;
+    resource render-pipeline {
+        /// The layout of a bind group the pipeline was made with, or worked
+        /// out from its shaders when it was made without a layout.
+        get-bind-group-layout: func(index: u32) -> option<bind-group-layout>;
+    }
 
     record vertex-attribute {
         format: vertex-format,
@@ -419,11 +435,29 @@ interface device {
 
     resource command-encoder {
         begin-render-pass: func(descriptor: render-pass-descriptor) -> option<render-pass>;
+        copy-buffer-to-buffer: func(
+            source: borrow<buffer>,
+            source-offset: u64,
+            destination: borrow<buffer>,
+            destination-offset: u64,
+            size: option<u64>,
+        );
+        copy-buffer-to-texture: func(
+            source: texel-copy-buffer-info,
+            destination: texel-copy-texture-info,
+            size: extent3d,
+        );
+        copy-texture-to-buffer: func(
+            source: texel-copy-texture-info,
+            destination: texel-copy-buffer-info,
+            size: extent3d,
+        );
         copy-texture-to-texture: func(
             source: texel-copy-texture-info,
             destination: texel-copy-texture-info,
             size: extent3d,
         );
+        clear-buffer: func(buffer: borrow<buffer>, offset: u64, size: option<u64>);
         /// Ends the encoder: anything it is asked after this is an error.
         finish: func() -> option<command-buffer>;
     }
@@ -517,6 +551,11 @@ interface device {
         rows-per-image: option<u32>,
     }
 
+    record texel-copy-buffer-info {
+        buffer: borrow<buffer>,
+        layout: texel-copy-buffer-layout,
+    }
+
     record surface-configuration {
         width: u32,
         height: u32,
@@ -567,6 +606,10 @@ interface device {
         size: extent3d,
     );
     submit: func(command-buffers: list<command-buffer>);
+    /// Settles the maps the gpu is done with. Waiting blocks until the work
+    /// submitted so far is done where the host can block (natively), and is
+    /// the same as not waiting in a browser, where maps settle on their own.
+    poll: func(wait: bool);
 
     /// A texture the host shares with every plugin under an image id, such as
     /// a preview another plugin painted; none when no such image is shared.

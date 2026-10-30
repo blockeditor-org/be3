@@ -1,5 +1,6 @@
 mod convert;
 mod host;
+mod maps;
 mod tables;
 pub mod transport;
 
@@ -13,7 +14,10 @@ use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Waker};
 
 use block_gpu_abi::device as abi;
+use maps::Maps;
 use tables::Table;
+
+pub use maps::Wake;
 
 pub use block_gpu_abi;
 pub use wgpu;
@@ -37,6 +41,7 @@ pub struct Gpu {
     pipeline_layouts: Table<wgpu::PipelineLayout>,
     modules: Table<wgpu::ShaderModule>,
     pipelines: Table<wgpu::RenderPipeline>,
+    maps: Maps,
     encoders: Table<wgpu::CommandEncoder>,
     command_buffers: Table<wgpu::CommandBuffer>,
     passes: Table<wgpu::RenderPass<'static>>,
@@ -107,6 +112,7 @@ impl Gpu {
             pipeline_layouts: Table::new(),
             modules: Table::new(),
             pipelines: Table::new(),
+            maps: Maps::new(),
             encoders: Table::new(),
             command_buffers: Table::new(),
             passes: Table::new(),
@@ -121,6 +127,11 @@ impl Gpu {
 
     pub fn sharing(mut self, imports: Imports) -> Self {
         self.imports = imports;
+        self
+    }
+
+    pub fn waking(mut self, wake: Wake) -> Self {
+        self.maps.waking(wake);
         self
     }
 
@@ -239,6 +250,20 @@ fn texel_copy_texture(
             z: info.origin.z,
         },
         aspect: convert::texture_aspect(info.aspect),
+    }
+}
+
+fn texel_copy_buffer(
+    buffer: &wgpu::Buffer,
+    layout: abi::TexelCopyBufferLayout,
+) -> wgpu::TexelCopyBufferInfo<'_> {
+    wgpu::TexelCopyBufferInfo {
+        buffer,
+        layout: wgpu::TexelCopyBufferLayout {
+            offset: layout.offset,
+            bytes_per_row: layout.bytes_per_row,
+            rows_per_image: layout.rows_per_image,
+        },
     }
 }
 

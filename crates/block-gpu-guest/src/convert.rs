@@ -211,6 +211,23 @@ pub(crate) fn texel_copy_texture(
     }
 }
 
+pub(crate) fn texel_copy_buffer(value: wgpu::TexelCopyBufferInfo<'_>) -> abi::TexelCopyBufferInfo {
+    abi::TexelCopyBufferInfo {
+        buffer: custom::<Buffer>(value.buffer.as_custom()).0.handle(),
+        layout: texel_copy_buffer_layout(value.layout),
+    }
+}
+
+pub(crate) fn texel_copy_buffer_layout(
+    value: wgpu::TexelCopyBufferLayout,
+) -> abi::TexelCopyBufferLayout {
+    abi::TexelCopyBufferLayout {
+        offset: value.offset,
+        bytes_per_row: value.bytes_per_row,
+        rows_per_image: value.rows_per_image,
+    }
+}
+
 pub(crate) fn extent(value: wgpu::Extent3d) -> abi::Extent3d {
     abi::Extent3d {
         width: value.width,

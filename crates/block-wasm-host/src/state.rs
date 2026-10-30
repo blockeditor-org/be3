@@ -113,9 +113,14 @@ impl State {
     pub(crate) fn gpu(&mut self) -> Result<&mut Gpu, String> {
         if let Device::Unconnected(connect) = &self.device {
             self.device = match connect() {
-                Ok((device, queue)) => Device::Ready(Box::new(
-                    Gpu::new(device, queue).sharing(Arc::clone(&self.imports)),
-                )),
+                Ok((device, queue)) => {
+                    let wake = Arc::clone(&self.wake);
+                    Device::Ready(Box::new(
+                        Gpu::new(device, queue)
+                            .sharing(Arc::clone(&self.imports))
+                            .waking(Arc::new(move || wake.wake())),
+                    ))
+                }
                 Err(message) => Device::Unavailable(format!(
                     "the plugin used the gpu, and no device could be opened: {message}"
                 )),

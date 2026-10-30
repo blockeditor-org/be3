@@ -1,7 +1,12 @@
 use std::pin::pin;
 use std::task::{Context, Poll, Waker};
 
+mod a_buffer_mapped_for_reading_holds_what_was_copied_into_it;
+mod a_buffer_mapped_for_writing_keeps_what_was_written;
 mod a_child_placed_in_an_anchored_view_is_placed_in_its_own_points;
+mod a_cleared_range_of_a_buffer_reads_back_as_zeros;
+mod a_map_still_pending_when_its_buffer_is_unmapped_fails;
+mod a_pipeline_made_without_a_layout_draws_with_the_layout_its_shaders_imply;
 mod a_plugin_device_has_only_the_features_and_limits_it_requested;
 mod a_rejected_shader_is_caught_by_an_error_scope;
 mod a_surface_the_host_does_not_render_runs_its_frames_without_a_gpu;
@@ -11,6 +16,7 @@ mod a_window_is_committed_with_its_own_screen_in_the_frame_that_opens_it;
 mod an_anchored_view_is_a_screen_committed_in_the_frame_that_opens_it;
 mod an_anchored_views_surface_is_kept_while_it_is_open_and_released_once_it_closes;
 mod dismissed_anchored_views_are_heard_before_the_batchs_events;
+mod texels_copied_through_two_textures_read_back_unchanged;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -304,4 +310,45 @@ impl Rig {
             .map(|placement| (placement.view, placement.surface))
             .collect()
     }
+}
+
+fn gpu() -> (wgpu::Device, wgpu::Queue) {
+    block_gpu_guest::request_device(&wgpu::DeviceDescriptor {
+        required_limits: block_gpu_guest::limits(),
+        ..Default::default()
+    })
+    .unwrap()
+}
+
+type Answer = std::sync::Arc<std::sync::Mutex<Option<Result<(), wgpu::BufferAsyncError>>>>;
+
+fn map(buffer: &wgpu::Buffer, mode: wgpu::MapMode) -> Answer {
+    let answer = Answer::default();
+    let answered = std::sync::Arc::clone(&answer);
+    buffer.map_async(mode, .., move |result| {
+        *answered.lock().unwrap() = Some(result);
+    });
+    answer
+}
+
+fn read_back(device: &wgpu::Device, buffer: &wgpu::Buffer) -> Vec<u8> {
+    let answer = map(buffer, wgpu::MapMode::Read);
+    device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+    assert_eq!(
+        *answer.lock().unwrap(),
+        Some(Ok(())),
+        "the read map settled"
+    );
+    let bytes = buffer.get_mapped_range(..).to_vec();
+    buffer.unmap();
+    bytes
+}
+
+fn readable(device: &wgpu::Device, size: u64) -> wgpu::Buffer {
+    device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("read back"),
+        size,
+        usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+        mapped_at_creation: false,
+    })
 }

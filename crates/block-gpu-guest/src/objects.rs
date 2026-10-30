@@ -1,5 +1,9 @@
 use core::{fmt, future::ready, mem::ManuallyDrop, ops::Range, pin::Pin};
-use std::{cell::RefCell, sync::Arc};
+use std::{
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use block_gpu_abi::{device as abi, guest::device as gpu};
 use wgpu::custom::*;
@@ -16,8 +20,15 @@ struct Scope {
     error: Option<wgpu::Error>,
 }
 
+struct Map {
+    buffer: abi::Buffer,
+    callback: BufferMapCallback,
+}
+
 thread_local! {
     static SCOPES: RefCell<Vec<Scope>> = const { RefCell::new(Vec::new()) };
+    static MAPS: RefCell<Vec<Map>> = const { RefCell::new(Vec::new()) };
+    static FRESH: RefCell<HashSet<u32>> = RefCell::new(HashSet::new());
     static UNCAPTURED: RefCell<Option<Arc<dyn wgpu::UncapturedErrorHandler>>> =
         const { RefCell::new(None) };
 }
@@ -71,6 +82,49 @@ fn checked() {
     }
 }
 
+pub(crate) fn settle(wait: bool) -> bool {
+    if MAPS.with(|maps| maps.borrow().is_empty()) {
+        return true;
+    }
+    gpu::poll(wait);
+    let mut states = HashMap::new();
+    let settled: Vec<(Map, abi::MapState)> = MAPS.with(|maps| {
+        let mut maps = maps.borrow_mut();
+        let mut settled = Vec::new();
+        let mut index = 0;
+        while index < maps.len() {
+            let buffer = maps[index].buffer;
+            let state = *states
+                .entry(buffer.0)
+                .or_insert_with(|| ManuallyDrop::new(gpu::Buffer::from_handle(buffer)).map_state());
+            match state {
+                abi::MapState::Pending => index += 1,
+                _ => settled.push((maps.remove(index), state)),
+            }
+        }
+        settled
+    });
+    for (map, state) in settled {
+        (map.callback)(match state {
+            abi::MapState::Mapped => Ok(()),
+            _ => Err(wgpu::BufferAsyncError),
+        });
+    }
+    MAPS.with(|maps| maps.borrow().is_empty())
+}
+
+fn abort_maps(buffer: abi::Buffer) {
+    let aborted: Vec<Map> = MAPS.with(|maps| {
+        let mut maps = maps.borrow_mut();
+        let (aborted, kept) = maps.drain(..).partition(|map| map.buffer == buffer);
+        *maps = kept;
+        aborted
+    });
+    for map in aborted {
+        (map.callback)(Err(wgpu::BufferAsyncError));
+    }
+}
+
 macro_rules! resource {
     ($name:ident) => {
         #[derive(Debug)]
@@ -105,6 +159,14 @@ resource!(RenderPipeline);
 resource!(CommandBuffer);
 resource!(CommandEncoder);
 resource!(RenderPass);
+
+impl Drop for Buffer {
+    fn drop(&mut self) {
+        let handle = self.0.handle();
+        FRESH.with(|fresh| fresh.borrow_mut().remove(&handle.0));
+        abort_maps(handle);
+    }
+}
 
 impl Drop for RenderPass {
     fn drop(&mut self) {
@@ -394,7 +456,11 @@ impl DeviceInterface for Device {
             usage: desc.usage.bits(),
             mapped_at_creation: desc.mapped_at_creation,
         };
-        DispatchBuffer::custom(Buffer::created(gpu::create_buffer(&descriptor)))
+        let buffer = Buffer::created(gpu::create_buffer(&descriptor));
+        if desc.mapped_at_creation {
+            FRESH.with(|fresh| fresh.borrow_mut().insert(buffer.0.handle().0));
+        }
+        DispatchBuffer::custom(buffer)
     }
 
     fn create_texture(&self, desc: &wgpu::TextureDescriptor<'_>) -> DispatchTexture {
@@ -511,9 +577,13 @@ impl DeviceInterface for Device {
 
     fn poll(
         &self,
-        _poll_type: wgpu::wgt::PollType<u64>,
+        poll_type: wgpu::wgt::PollType<u64>,
     ) -> Result<wgpu::PollStatus, wgpu::PollError> {
-        Ok(wgpu::PollStatus::QueueEmpty)
+        let wait = matches!(poll_type, wgpu::wgt::PollType::Wait { .. });
+        Ok(match settle(wait) {
+            true => wgpu::PollStatus::QueueEmpty,
+            false => wgpu::PollStatus::Poll,
+        })
     }
 
     fn get_internal_counters(&self) -> wgpu::InternalCounters {
@@ -570,11 +640,7 @@ impl QueueInterface for Queue {
         gpu::write_texture(
             convert::texel_copy_texture(texture),
             data,
-            abi::TexelCopyBufferLayout {
-                offset: data_layout.offset,
-                bytes_per_row: data_layout.bytes_per_row,
-                rows_per_image: data_layout.rows_per_image,
-            },
+            convert::texel_copy_buffer_layout(data_layout),
             convert::extent(size),
         );
         checked();
@@ -632,32 +698,54 @@ impl PipelineLayoutInterface for PipelineLayout {}
 impl CommandBufferInterface for CommandBuffer {}
 
 impl RenderPipelineInterface for RenderPipeline {
-    fn get_bind_group_layout(&self, _index: u32) -> DispatchBindGroupLayout {
-        unimplemented!("implicit bind group layouts are not available to plugins yet")
+    fn get_bind_group_layout(&self, index: u32) -> DispatchBindGroupLayout {
+        DispatchBindGroupLayout::custom(BindGroupLayout::created(
+            self.0.get_bind_group_layout(index),
+        ))
     }
 }
 
 impl BufferInterface for Buffer {
     fn map_async(
         &self,
-        _mode: wgpu::MapMode,
-        _range: Range<wgpu::BufferAddress>,
+        mode: wgpu::MapMode,
+        range: Range<wgpu::BufferAddress>,
         callback: BufferMapCallback,
     ) {
-        callback(Err(wgpu::BufferAsyncError));
+        let mode = match mode {
+            wgpu::MapMode::Read => abi::MapMode::Read,
+            wgpu::MapMode::Write => abi::MapMode::Write,
+        };
+        self.0
+            .map_async(mode, range.start, range.end.saturating_sub(range.start));
+        checked();
+        MAPS.with(|maps| {
+            maps.borrow_mut().push(Map {
+                buffer: self.0.handle(),
+                callback,
+            })
+        });
     }
 
     fn get_mapped_range(&self, sub_range: Range<wgpu::BufferAddress>) -> DispatchBufferMappedRange {
-        let length = sub_range.end.saturating_sub(sub_range.start) as usize;
+        let length = sub_range.end.saturating_sub(sub_range.start);
+        let fresh = FRESH.with(|fresh| fresh.borrow().contains(&self.0.handle().0));
+        let bytes = match fresh {
+            true => vec![0u8; length as usize],
+            false => self.0.read_mapped(sub_range.start, length),
+        };
+        checked();
         DispatchBufferMappedRange::custom(MappedRange {
             buffer: self.0.handle(),
             offset: sub_range.start,
-            bytes: vec![0u8; length],
+            bytes,
             written: false,
         })
     }
 
     fn unmap(&self) {
+        FRESH.with(|fresh| fresh.borrow_mut().remove(&self.0.handle().0));
+        abort_maps(self.0.handle());
         self.0.unmap();
         checked();
     }
@@ -713,31 +801,48 @@ impl BufferMappedRangeInterface for MappedRange {
 impl CommandEncoderInterface for CommandEncoder {
     fn copy_buffer_to_buffer(
         &self,
-        _source: &DispatchBuffer,
-        _source_offset: wgpu::BufferAddress,
-        _destination: &DispatchBuffer,
-        _destination_offset: wgpu::BufferAddress,
-        _copy_size: Option<wgpu::BufferAddress>,
+        source: &DispatchBuffer,
+        source_offset: wgpu::BufferAddress,
+        destination: &DispatchBuffer,
+        destination_offset: wgpu::BufferAddress,
+        copy_size: Option<wgpu::BufferAddress>,
     ) {
-        unimplemented!("buffer copies are not available to plugins yet")
+        self.0.copy_buffer_to_buffer(
+            &custom::<Buffer>(source.as_custom()).0,
+            source_offset,
+            &custom::<Buffer>(destination.as_custom()).0,
+            destination_offset,
+            copy_size,
+        );
+        checked();
     }
 
     fn copy_buffer_to_texture(
         &self,
-        _source: wgpu::TexelCopyBufferInfo<'_>,
-        _destination: wgpu::TexelCopyTextureInfo<'_>,
-        _copy_size: wgpu::Extent3d,
+        source: wgpu::TexelCopyBufferInfo<'_>,
+        destination: wgpu::TexelCopyTextureInfo<'_>,
+        copy_size: wgpu::Extent3d,
     ) {
-        unimplemented!("buffer copies are not available to plugins yet")
+        self.0.copy_buffer_to_texture(
+            convert::texel_copy_buffer(source),
+            convert::texel_copy_texture(destination),
+            convert::extent(copy_size),
+        );
+        checked();
     }
 
     fn copy_texture_to_buffer(
         &self,
-        _source: wgpu::TexelCopyTextureInfo<'_>,
-        _destination: wgpu::TexelCopyBufferInfo<'_>,
-        _copy_size: wgpu::Extent3d,
+        source: wgpu::TexelCopyTextureInfo<'_>,
+        destination: wgpu::TexelCopyBufferInfo<'_>,
+        copy_size: wgpu::Extent3d,
     ) {
-        unimplemented!("texture copies are not available to plugins yet")
+        self.0.copy_texture_to_buffer(
+            convert::texel_copy_texture(source),
+            convert::texel_copy_buffer(destination),
+            convert::extent(copy_size),
+        );
+        checked();
     }
 
     fn copy_texture_to_texture(
@@ -751,6 +856,7 @@ impl CommandEncoderInterface for CommandEncoder {
             convert::texel_copy_texture(destination),
             convert::extent(copy_size),
         );
+        checked();
     }
 
     fn begin_compute_pass(&self, _desc: &wgpu::ComputePassDescriptor<'_>) -> DispatchComputePass {
@@ -819,11 +925,13 @@ impl CommandEncoderInterface for CommandEncoder {
 
     fn clear_buffer(
         &self,
-        _buffer: &DispatchBuffer,
-        _offset: wgpu::BufferAddress,
-        _size: Option<wgpu::BufferAddress>,
+        buffer: &DispatchBuffer,
+        offset: wgpu::BufferAddress,
+        size: Option<wgpu::BufferAddress>,
     ) {
-        unimplemented!("buffer clears are not available to plugins yet")
+        self.0
+            .clear_buffer(&custom::<Buffer>(buffer.as_custom()).0, offset, size);
+        checked();
     }
 
     fn insert_debug_marker(&self, _label: &str) {}

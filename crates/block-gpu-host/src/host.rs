@@ -1,6 +1,6 @@
 use block_gpu_abi::{device as abi, embed::device::Host};
 
-use crate::{Gpu, Outcome, SURFACE_USAGE, convert, slice, texel_copy_texture};
+use crate::{Gpu, Outcome, SURFACE_USAGE, convert, slice, texel_copy_buffer, texel_copy_texture};
 
 impl Gpu {
     fn try_create_bind_group(
@@ -269,6 +269,34 @@ impl Gpu {
             .forget_lifetime())
     }
 
+    fn encode(
+        &mut self,
+        encoder: abi::CommandEncoder,
+        act: impl FnOnce(&mut Self) -> Outcome<Box<dyn FnOnce(&mut wgpu::CommandEncoder)>>,
+    ) {
+        self.guard(|gpu| {
+            let record = act(gpu)?;
+            record(gpu.encoders.get_mut(encoder.0, "command encoder")?);
+            Ok(())
+        });
+    }
+
+    fn mapped_range(
+        &self,
+        buffer: abi::Buffer,
+        offset: u64,
+        size: u64,
+        writing: bool,
+    ) -> Outcome<(wgpu::Buffer, std::ops::Range<u64>)> {
+        let mapped = self.buffers.get(buffer.0, "buffer")?.clone();
+        let range = offset
+            .checked_add(size)
+            .map(|end| offset..end)
+            .ok_or_else(|| "a mapped range ran past the end of its buffer".to_owned())?;
+        self.maps.mapped(buffer.0, &range, writing)?;
+        Ok((mapped, range))
+    }
+
     fn pass(&mut self, pass: abi::RenderPass, act: impl FnOnce(&mut wgpu::RenderPass<'static>)) {
         let result = self.passes.get_mut(pass.0, "render pass").map(act);
         self.fail(result, ());
@@ -285,7 +313,8 @@ impl Host for Gpu {
     }
 
     fn create_buffer(&mut self, descriptor: abi::BufferDescriptor) -> Option<abi::Buffer> {
-        self.create(
+        let (mapped, size) = (descriptor.mapped_at_creation, descriptor.size);
+        let created = self.create(
             |gpu| &mut gpu.buffers,
             |gpu| {
                 Ok(gpu.device.create_buffer(&wgpu::BufferDescriptor {
@@ -295,8 +324,13 @@ impl Host for Gpu {
                     mapped_at_creation: descriptor.mapped_at_creation,
                 }))
             },
-        )
-        .map(abi::Buffer)
+        );
+        if let Some(handle) = created
+            && mapped
+        {
+            self.maps.mapped_at_creation(handle, size);
+        }
+        created.map(abi::Buffer)
     }
 
     fn create_texture(&mut self, descriptor: abi::TextureDescriptor) -> Option<abi::Texture> {
@@ -506,6 +540,16 @@ impl Host for Gpu {
         });
     }
 
+    fn poll(&mut self, wait: bool) {
+        let poll = match wait {
+            true => wgpu::PollType::wait_indefinitely(),
+            false => wgpu::PollType::Poll,
+        };
+        if let Err(error) = self.device.poll(poll) {
+            self.report(format!("the gpu could not be polled: {error}"));
+        }
+    }
+
     fn import_texture(&mut self, image: u64) -> Option<abi::Texture> {
         let texture = self
             .imports
@@ -526,26 +570,58 @@ impl Host for Gpu {
         Gpu::take_error(self)
     }
 
-    fn buffer_write_mapped(&mut self, this: abi::Buffer, offset: u64, data: &[u8]) {
+    fn buffer_map_async(&mut self, this: abi::Buffer, mode: abi::MapMode, offset: u64, size: u64) {
         self.guard(|gpu| {
-            let buffer = gpu.buffers.get(this.0, "buffer")?;
+            let buffer = gpu.buffers.get(this.0, "buffer")?.clone();
             let end = offset
-                .checked_add(data.len() as u64)
-                .filter(|end| *end <= buffer.size())
-                .ok_or_else(|| "a mapped write ran past the end of its buffer".to_owned())?;
-            buffer
-                .slice(offset..end)
-                .get_mapped_range_mut()
-                .copy_from_slice(data);
-            Ok(())
+                .checked_add(size)
+                .filter(|end| size > 0 && *end <= buffer.size())
+                .ok_or_else(|| {
+                    format!(
+                        "a map of {offset}..{} is empty or runs past the end of its buffer",
+                        offset.saturating_add(size)
+                    )
+                })?;
+            gpu.maps
+                .map(&gpu.device, &buffer, this.0, mode, offset..end)
         });
     }
 
+    fn buffer_map_state(&mut self, this: abi::Buffer) -> abi::MapState {
+        self.maps.state(this.0)
+    }
+
+    fn buffer_read_mapped(&mut self, this: abi::Buffer, offset: u64, size: u64) -> Vec<u8> {
+        let read = self
+            .mapped_range(this, offset, size, false)
+            .map(|(buffer, range)| match range.is_empty() {
+                true => Vec::new(),
+                false => buffer.slice(range).get_mapped_range().to_vec(),
+            });
+        self.fail(read, Vec::new())
+    }
+
+    fn buffer_write_mapped(&mut self, this: abi::Buffer, offset: u64, data: &[u8]) {
+        let written = self
+            .mapped_range(this, offset, data.len() as u64, true)
+            .map(|(buffer, range)| {
+                if !range.is_empty() {
+                    buffer
+                        .slice(range)
+                        .get_mapped_range_mut()
+                        .copy_from_slice(data);
+                }
+            });
+        self.fail(written, ());
+    }
+
     fn buffer_unmap(&mut self, this: abi::Buffer) {
+        self.maps.forget(this.0);
         self.guard(|gpu| gpu.buffers.get(this.0, "buffer").map(wgpu::Buffer::unmap));
     }
 
     fn buffer_drop(&mut self, this: abi::Buffer) {
+        self.maps.forget(this.0);
         self.buffers.remove(this.0);
     }
 
@@ -622,6 +698,21 @@ impl Host for Gpu {
         self.modules.remove(this.0);
     }
 
+    fn render_pipeline_get_bind_group_layout(
+        &mut self,
+        this: abi::RenderPipeline,
+        index: u32,
+    ) -> Option<abi::BindGroupLayout> {
+        self.create(
+            |gpu| &mut gpu.group_layouts,
+            |gpu| {
+                let pipeline = gpu.pipelines.get(this.0, "render pipeline")?;
+                Ok(pipeline.get_bind_group_layout(index))
+            },
+        )
+        .map(abi::BindGroupLayout)
+    }
+
     fn render_pipeline_drop(&mut self, this: abi::RenderPipeline) {
         self.pipelines.remove(this.0);
     }
@@ -638,6 +729,64 @@ impl Host for Gpu {
         .map(abi::RenderPass)
     }
 
+    fn command_encoder_copy_buffer_to_buffer(
+        &mut self,
+        this: abi::CommandEncoder,
+        source: abi::Buffer,
+        source_offset: u64,
+        destination: abi::Buffer,
+        destination_offset: u64,
+        size: Option<u64>,
+    ) {
+        self.encode(this, |gpu| {
+            let from = gpu.buffers.get(source.0, "buffer")?.clone();
+            let to = gpu.buffers.get(destination.0, "buffer")?.clone();
+            Ok(Box::new(move |encoder| {
+                encoder.copy_buffer_to_buffer(&from, source_offset, &to, destination_offset, size)
+            }))
+        });
+    }
+
+    fn command_encoder_copy_buffer_to_texture(
+        &mut self,
+        this: abi::CommandEncoder,
+        source: abi::TexelCopyBufferInfo,
+        destination: abi::TexelCopyTextureInfo,
+        size: abi::Extent3d,
+    ) {
+        self.encode(this, |gpu| {
+            let from = gpu.buffers.get(source.buffer.0, "buffer")?.clone();
+            let to = gpu.textures.get(destination.texture.0, "texture")?.clone();
+            Ok(Box::new(move |encoder| {
+                encoder.copy_buffer_to_texture(
+                    texel_copy_buffer(&from, source.layout),
+                    texel_copy_texture(&to, destination),
+                    convert::extent(size),
+                )
+            }))
+        });
+    }
+
+    fn command_encoder_copy_texture_to_buffer(
+        &mut self,
+        this: abi::CommandEncoder,
+        source: abi::TexelCopyTextureInfo,
+        destination: abi::TexelCopyBufferInfo,
+        size: abi::Extent3d,
+    ) {
+        self.encode(this, |gpu| {
+            let from = gpu.textures.get(source.texture.0, "texture")?.clone();
+            let to = gpu.buffers.get(destination.buffer.0, "buffer")?.clone();
+            Ok(Box::new(move |encoder| {
+                encoder.copy_texture_to_buffer(
+                    texel_copy_texture(&from, source),
+                    texel_copy_buffer(&to, destination.layout),
+                    convert::extent(size),
+                )
+            }))
+        });
+    }
+
     fn command_encoder_copy_texture_to_texture(
         &mut self,
         this: abi::CommandEncoder,
@@ -645,19 +794,32 @@ impl Host for Gpu {
         destination: abi::TexelCopyTextureInfo,
         size: abi::Extent3d,
     ) {
-        let result = (|| {
-            let from = self.textures.get(source.texture.0, "texture")?.clone();
-            let to = self.textures.get(destination.texture.0, "texture")?.clone();
-            self.encoders
-                .get_mut(this.0, "command encoder")?
-                .copy_texture_to_texture(
+        self.encode(this, |gpu| {
+            let from = gpu.textures.get(source.texture.0, "texture")?.clone();
+            let to = gpu.textures.get(destination.texture.0, "texture")?.clone();
+            Ok(Box::new(move |encoder| {
+                encoder.copy_texture_to_texture(
                     texel_copy_texture(&from, source),
                     texel_copy_texture(&to, destination),
                     convert::extent(size),
-                );
-            Ok(())
-        })();
-        self.fail(result, ());
+                )
+            }))
+        });
+    }
+
+    fn command_encoder_clear_buffer(
+        &mut self,
+        this: abi::CommandEncoder,
+        buffer: abi::Buffer,
+        offset: u64,
+        size: Option<u64>,
+    ) {
+        self.encode(this, |gpu| {
+            let buffer = gpu.buffers.get(buffer.0, "buffer")?.clone();
+            Ok(Box::new(move |encoder| {
+                encoder.clear_buffer(&buffer, offset, size)
+            }))
+        });
     }
 
     fn command_encoder_finish(&mut self, this: abi::CommandEncoder) -> Option<abi::CommandBuffer> {

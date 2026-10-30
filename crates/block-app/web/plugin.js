@@ -236,6 +236,7 @@ export async function boot(shimUrl, moduleUrl, wake, direct) {
     shimModule.bind(memory);
     threads.bindThreads(first, memory);
     threads.bindWake(wake);
+    shimModule.bind_wake(wake);
     const frames = transport(memory, direct);
     const runtime = new WebAssembly.Instance(first, resolve(first, memory, shim, frames));
     runtime.exports.__wasm_call_ctors?.();
