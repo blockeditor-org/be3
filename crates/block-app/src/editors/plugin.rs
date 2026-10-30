@@ -98,10 +98,15 @@ impl PluginPicker {
         }
     }
 
-    pub(crate) fn rename(plugin: Arc<PluginManifest>, editor: Uuid, block: Uuid) -> Self {
+    pub(crate) fn rename(
+        plugin: Arc<PluginManifest>,
+        editor: Uuid,
+        block: Uuid,
+        sheet: bool,
+    ) -> Self {
         Self {
             plugin,
-            role: InstanceRole::Rename(editor, block),
+            role: InstanceRole::Rename(editor, block, sheet),
             instance: next_instance(),
         }
     }

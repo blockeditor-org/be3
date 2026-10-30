@@ -25,7 +25,6 @@ pub(crate) enum Face {
 pub(crate) enum Shown {
     Anchored,
     Sheet,
-    Filled,
 }
 
 #[component]
@@ -55,17 +54,11 @@ pub(crate) fn ChildPopover(
             on_state={move |state: ChildState| on_state.call(state)}
         />
     };
-    let height = create_memo(move || Size::Custom(size.get().y));
     let inner = match shown {
         Shown::Anchored => view! {
             <AnchoredPopover window anchor face child size on_dismiss />
         },
         Shown::Sheet => view! {
-            <ModalSheet open=true fit=true on_close={move || on_dismiss.call()}>
-                <Frame width=Length::FILL height>{child}</Frame>
-            </ModalSheet>
-        },
-        Shown::Filled => view! {
             <Overlay
                 anchor={OverlayAnchor::Point(Pos2::ZERO)}
                 placement={Placement::Edge(beui::layer::LayerEdge::Bottom)}

@@ -701,6 +701,7 @@ fn host_layers(root: &Screen, anchored: &[AnchoredScreen], region: ViewId) -> Ve
                 dismiss_on_outside_press: placement.dismiss_on_outside_press,
                 keyboard: placement.keyboard,
                 blocks_owner: placement.blocks_owner,
+                edge: matches!(placement.anchor, ViewAnchor::Edge(_)),
             })
         })
         .collect()
@@ -1950,16 +1951,17 @@ impl Instances {
                             editor: editor.into_bytes(),
                             filter: picker.filter,
                             parent: picker.parent,
-                            touch: picker.touch,
+                            sheet: picker.sheet,
                             account_id,
                             organization_id,
                             client_id,
                         })
                     }
-                    InstanceRole::Rename(editor, block) => Opening::Rename(OpenRename {
+                    InstanceRole::Rename(editor, block, sheet) => Opening::Rename(OpenRename {
                         instance,
                         editor: editor.into_bytes(),
                         block_id: block.into_bytes(),
+                        sheet,
                         account_id,
                         organization_id,
                         client_id,
@@ -2470,14 +2472,9 @@ impl Instances {
                     }
                     _ => continue,
                 },
-                ChildContent::Picker {
-                    filter,
-                    parent,
-                    touch,
-                } => super::HostContent::Picker {
+                ChildContent::Picker { filter, parent } => super::HostContent::Picker {
                     filter: filter.clone(),
                     parent: *parent,
-                    touch: *touch,
                 },
                 ChildContent::Rename(block) => super::HostContent::Rename(Uuid::from_bytes(*block)),
                 ChildContent::WebView(_) => continue,
@@ -2569,6 +2566,7 @@ impl Instances {
                         first
                     }
                 }),
+                sheet: layer.is_some_and(|layer| layer.edge),
                 anchor,
             });
         }

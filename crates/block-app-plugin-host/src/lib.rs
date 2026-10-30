@@ -130,6 +130,7 @@ pub struct HostChild {
     pub dialog: Option<block_plugin_api::DialogFrame>,
     pub anchored: Option<block_plugin_api::ViewId>,
     pub keyboard: bool,
+    pub sheet: bool,
     pub anchor: Option<Rect>,
 }
 
@@ -149,6 +150,7 @@ pub struct HostLayer {
     pub dismiss_on_outside_press: bool,
     pub keyboard: bool,
     pub blocks_owner: bool,
+    pub edge: bool,
 }
 
 impl HostLayer {
@@ -213,7 +215,6 @@ pub enum HostContent {
     Picker {
         filter: block_plugin_api::BlockFilter,
         parent: block_plugin_api::BlockLocation,
-        touch: bool,
     },
     Rename(Uuid),
 }
@@ -293,7 +294,7 @@ pub struct ChildCommit {
 pub struct PickerRequest {
     pub filter: block_plugin_api::BlockFilter,
     pub parent: block_plugin_api::BlockLocation,
-    pub touch: bool,
+    pub sheet: bool,
 }
 
 impl Default for PickerRequest {
@@ -301,7 +302,7 @@ impl Default for PickerRequest {
         Self {
             filter: block_plugin_api::BlockFilter::default(),
             parent: block_plugin_api::BlockLocation::Root,
-            touch: false,
+            sheet: false,
         }
     }
 }
@@ -408,7 +409,7 @@ pub enum InstanceRole {
     Creation(Uuid, &'static str),
     Artifact(Uuid, EditorBlock, Uuid),
     Picker(Uuid),
-    Rename(Uuid, Uuid),
+    Rename(Uuid, Uuid, bool),
 }
 
 impl InstanceRole {

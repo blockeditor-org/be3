@@ -30,7 +30,7 @@ pub struct Picker {
 impl Picker {
     pub fn new(editor: Editor) -> Option<Self> {
         let request = editor.host().picker()?;
-        let sheet = request.touch;
+        let sheet = request.sheet;
         Some(Self {
             state: store(State {
                 handles: RefCell::new(HashMap::new()),

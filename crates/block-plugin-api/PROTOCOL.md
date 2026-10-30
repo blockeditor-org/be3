@@ -673,7 +673,11 @@ arriving as the child's `child-status.dialog`) and shows the app's menu
 its size as the child's intrinsic size). The instance marks the view
 `keyboard`, so the child takes the keyboard when it opens and gives it back
 when it closes. A press outside the view closes it and removes the child,
-which closes the editor in it.
+which closes the editor in it. On touch or a phone the instance instead
+attaches a bare view to the bottom edge of its bounds and has the child fill
+it; the host tells a child placed in a view attached to an edge that it is a
+sheet (`open-picker.sheet`, `open-rename.sheet`, and the app menu it draws
+itself), and the child draws the sheet.
 In the browser, where a plugin draws in a worker of its own, the page gives
 that worker one canvas over the whole app on its first anchored view and keeps
 it; the worker draws each anchored view's `painted` rectangles into it where

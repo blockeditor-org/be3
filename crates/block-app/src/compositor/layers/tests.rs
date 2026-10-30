@@ -19,6 +19,7 @@ fn shown(mount: u64, id: u64, opened: u64, rect: Rect) -> Shown {
             dismiss_on_outside_press: true,
             keyboard: false,
             blocks_owner: false,
+            edge: false,
         },
     }
 }

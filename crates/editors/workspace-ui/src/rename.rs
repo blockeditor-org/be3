@@ -9,16 +9,21 @@ pub struct RenameApp;
 impl block_editor_beui::BeuiApp for RenameApp {
     #[component]
     fn View(editor: Editor) -> Root {
-        let shown = match editor.host().renaming() {
-            Some(block) => view! {
-                <RenameView editor block />
+        let renaming = editor.host().renaming();
+        let clear_color = match renaming.is_some_and(|rename| rename.sheet) {
+            true => ColorRole::None,
+            false => ColorRole::SurfaceRaised,
+        };
+        let shown = match renaming {
+            Some(rename) => view! {
+                <RenameView editor block={rename.block} sheet={rename.sheet} />
             },
             None => view! {
                 <Frame />
             },
         };
         view! {
-            <Root clear_color=ColorRole::SurfaceRaised>{shown}</Root>
+            <Root clear_color>{shown}</Root>
         }
     }
 }

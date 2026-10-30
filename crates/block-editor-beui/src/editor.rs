@@ -182,7 +182,6 @@ pub enum SubregionContent {
     Picker {
         filter: BlockFilter,
         parent: BlockParent,
-        touch: bool,
     },
     DockTab(block_plugin_api::DockTabPath),
     Rename(Uuid),
@@ -213,14 +212,9 @@ impl SubregionContent {
             Self::ArtifactSettings { block } => ChildContent::ArtifactSettings {
                 block_id: block.into_bytes(),
             },
-            Self::Picker {
-                filter,
-                parent,
-                touch,
-            } => ChildContent::Picker {
+            Self::Picker { filter, parent } => ChildContent::Picker {
                 filter: filter.clone(),
                 parent: parent.encode(),
-                touch: *touch,
             },
             Self::DockTab(tab) => ChildContent::DockTab(tab.clone()),
             Self::Rename(block) => ChildContent::Rename(block.into_bytes()),

@@ -1450,6 +1450,7 @@ enum Kind {
 pub(crate) struct PanelReport {
     pub(crate) done: Signal<bool>,
     pub(crate) size: Signal<Option<Vec2>>,
+    pub(crate) sheet: Memo<bool>,
 }
 
 pub(crate) fn hosted_parent(instance: EditorInstanceId) -> Uuid {
@@ -1488,9 +1489,11 @@ fn HostedChild(
         child.with(|child| child.as_ref().is_some_and(|child| child.keyboard))
     })));
     let content = create_memo(move || child.get().map(|child| child.content));
+    let sheet = create_memo(move || child.with(|child| child.as_ref().is_some_and(|child| child.sheet)));
     let panel = PanelReport {
         done: create_signal(false),
         size: create_signal(None),
+        sheet,
     };
     provide_context(panel);
     let creation_key: CreationKey = (parent, region, key);
@@ -1531,15 +1534,11 @@ fn HostedChild(
                     false => Kind::Unavailable,
                 };
             }
-            Some(HostContent::Picker {
-                filter,
-                parent,
-                touch,
-            }) => {
+            Some(HostContent::Picker { filter, parent }) => {
                 let request = block_app_plugin_host::PickerRequest {
                     filter,
                     parent,
-                    touch,
+                    sheet: sheet.get(),
                 };
                 return match editors
                     .ensure_picker(creation_key, |registry| registry.picker(request))
@@ -1549,7 +1548,9 @@ fn HostedChild(
                 };
             }
             Some(HostContent::Rename(block)) => {
-                return match editors.ensure_picker(creation_key, |registry| registry.rename(block))
+                let sheet = sheet.get();
+                return match editors
+                    .ensure_picker(creation_key, |registry| registry.rename(block, sheet))
                 {
                     true => Kind::Picker,
                     false => Kind::Unavailable,

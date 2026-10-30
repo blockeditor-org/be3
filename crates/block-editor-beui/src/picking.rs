@@ -131,7 +131,6 @@ fn PickerPopover(editor: Editor, picking: Picking) -> NodeId {
     let content = SubregionContent::Picker {
         filter: picking.0.filter.clone(),
         parent: picking.0.parent,
-        touch: sheet,
     };
     let size = create_signal(LAST_SIZE.with(Cell::get));
     let card = create_signal(false);
@@ -167,7 +166,7 @@ fn PickerPopover(editor: Editor, picking: Picking) -> NodeId {
             content
             anchor={picking.0.anchor}
             shown={match sheet {
-                true => Shown::Filled,
+                true => Shown::Sheet,
                 false => Shown::Anchored,
             }}
             face

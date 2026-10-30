@@ -560,9 +560,12 @@ impl Screens {
             Opening::Picker(open) => session.connect_picker(crate::host::PickerRequest {
                 filter: open.filter,
                 parent: crate::graph::BlockParent::decode(open.parent),
-                touch: open.touch,
+                sheet: open.sheet,
             }),
-            Opening::Rename(open) => session.connect_rename(Uuid::from_bytes(open.block_id)),
+            Opening::Rename(open) => session.connect_rename(crate::host::RenameRequest {
+                block: Uuid::from_bytes(open.block_id),
+                sheet: open.sheet,
+            }),
             Opening::Artifact(open) => session.connect_artifact(
                 crate::Artifact {
                     block_id: Uuid::from_bytes(open.block_id),

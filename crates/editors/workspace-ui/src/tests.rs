@@ -326,7 +326,7 @@ fn picking_with(
     let request = block_editor_beui::PickerRequest {
         filter,
         parent: BlockParent::decode(parent),
-        touch,
+        sheet: touch,
     };
     let test =
         BeuiTest::picker_beside(&beside.test, host.clone(), request).with_size(beside.test.size());

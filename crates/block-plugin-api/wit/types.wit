@@ -395,12 +395,10 @@ interface types {
 
     /// A picker for a block: the host runs it in the editor whose manifest
     /// accepts `pick`, which makes new blocks in `parent` unless the filter
-    /// places them, and lays it out for touch when `touch` is set. Its answer
-    /// arrives as the child's `child-status.picked`.
+    /// places them. Its answer arrives as the child's `child-status.picked`.
     record picker-child {
         filter: block-filter,
         parent: block-location,
-        touch: bool,
     }
 
     /// What a child an editor placed shows.
@@ -700,7 +698,9 @@ interface types {
         editor: editor-id,
         filter: block-filter,
         parent: block-location,
-        touch: bool,
+        /// Placed in a view attached to an edge: the picker draws itself as
+        /// a sheet, laid out for touch.
+        sheet: bool,
         account-id: account-id,
         organization-id: organization-id,
         client-id: installation-id,
@@ -712,6 +712,9 @@ interface types {
         instance: editor-instance-id,
         editor: editor-id,
         block-id: block-id,
+        /// Placed in a view attached to an edge: the form draws itself as a
+        /// sheet.
+        sheet: bool,
         account-id: account-id,
         organization-id: organization-id,
         client-id: installation-id,

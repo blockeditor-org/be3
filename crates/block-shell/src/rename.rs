@@ -16,6 +16,7 @@ const TILE: Size = Size::Xl;
 const TILE_SPACING: Space = Space::Xs;
 const SWATCH_SPACING: Space = Space::Xs2;
 const NEUTRAL: [u8; 3] = [135, 139, 148];
+const SHEET_HEIGHT: Size = Size::Custom(560.0);
 
 pub(crate) const COLORS: [(&str, [u8; 3]); 8] = [
     ("Blue", [65, 145, 210]),
@@ -64,7 +65,7 @@ pub(crate) fn matching(search: &str) -> Vec<&'static str> {
 }
 
 #[component]
-pub fn RenameView(editor: Editor, block: Uuid) -> NodeId {
+pub fn RenameView(editor: Editor, block: Uuid, sheet: bool) -> NodeId {
     let watched = editor.blocks().watch(BlockQuery::Block(block));
     let blocks = editor.blocks();
     let info = store(move || {
@@ -134,8 +135,16 @@ pub fn RenameView(editor: Editor, block: Uuid) -> NodeId {
             type_color: block_type.and_then(|block_type| types.color(block_type)),
         }
     });
-    view! {
+    let body = view! {
         <RenameBody editor block look name known invalid accept dismiss />
+    };
+    match sheet {
+        true => view! {
+            <ModalSheet open=true fit=true on_close={move || dismiss.call(())}>
+                <Frame width=Length::FILL height=SHEET_HEIGHT>{body}</Frame>
+            </ModalSheet>
+        },
+        false => body,
     }
 }
 

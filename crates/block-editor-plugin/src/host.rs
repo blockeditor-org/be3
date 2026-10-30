@@ -132,7 +132,13 @@ pub(crate) struct ChildCommit {
 pub struct PickerRequest {
     pub filter: BlockFilter,
     pub parent: BlockParent,
-    pub touch: bool,
+    pub sheet: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RenameRequest {
+    pub block: Uuid,
+    pub sheet: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -450,7 +456,7 @@ pub struct EditorHost {
     shown_panels: Rc<RefCell<Vec<HostPanel>>>,
     watches: Rc<RefCell<Watches>>,
     picker: Rc<RefCell<Option<PickerRequest>>>,
-    renaming: Rc<Cell<Option<Uuid>>>,
+    renaming: Rc<Cell<Option<RenameRequest>>>,
     picked: Rc<RefCell<Option<BlockPick>>>,
     card: Rc<Cell<bool>>,
     dialog_requests: Rc<RefCell<Vec<(Uuid, ShellDialog)>>>,
@@ -624,12 +630,12 @@ impl EditorHost {
         self.push(Pushed::Shows);
     }
 
-    pub fn renaming(&self) -> Option<Uuid> {
+    pub fn renaming(&self) -> Option<RenameRequest> {
         self.renaming.get()
     }
 
-    pub(crate) fn set_renaming(&self, block: Uuid) {
-        self.renaming.set(Some(block));
+    pub(crate) fn set_renaming(&self, rename: RenameRequest) {
+        self.renaming.set(Some(rename));
         self.push(Pushed::Shows);
     }
 

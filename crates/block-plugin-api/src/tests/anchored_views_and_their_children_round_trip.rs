@@ -83,7 +83,6 @@ fn anchored_views_and_their_children_round_trip() {
                 content: ChildContent::Picker {
                     filter: BlockFilter::default(),
                     parent: BlockLocation::Root,
-                    touch: true,
                 },
                 rect: Rect::from_min_size(Pos2::ZERO, sheet_rect.size()),
                 clip: Rect::from_min_size(Pos2::ZERO, sheet_rect.size()),
