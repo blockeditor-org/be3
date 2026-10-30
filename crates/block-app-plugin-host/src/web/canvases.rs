@@ -1,11 +1,12 @@
-use std::{cell::RefCell, collections::HashMap};
+use stable_hash::HashMap;
+use std::cell::RefCell;
 
 use beui::{Color32, pos2};
 use block_plugin_api::ScreenId;
 use wasm_bindgen::JsCast;
 
 use super::worker::WorkerChannel;
-use crate::presenter::{Blit, unstretched};
+use crate::presenter::Blit;
 
 const LAYER: &str = "plugins";
 
@@ -21,21 +22,10 @@ pub fn placement(blit: &Blit, order: usize, scale: f32) -> Option<Placement> {
     }
     let shared = blit.shared.borrow();
     let placement = shared.layout.placement(blit.screen)?;
-    if placement.width == 0
-        || placement.height == 0
-        || blit
-            .drawn
-            .is_some_and(|drawn| drawn != (placement.width, placement.height))
-    {
+    if placement.width == 0 || placement.height == 0 {
         return None;
     }
-    let painted = (placement.width, placement.height);
-    let (quad, source) = match (blit.drawn, blit.requested) {
-        (None, Some(requested)) if requested != painted => {
-            unstretched(blit.quad, blit.source, requested, painted)?
-        }
-        _ => (blit.quad, blit.source),
-    };
+    let (quad, source) = blit.shown_at((placement.width, placement.height))?;
     if !source.is_positive() {
         return None;
     }
@@ -50,10 +40,22 @@ pub fn placement(blit: &Blit, order: usize, scale: f32) -> Option<Placement> {
         return None;
     }
     let percent = |value: f32| (value * 100.0).clamp(0.0, 100.0);
+    let radius = quad.corner_radius.max(0.0) * scale;
+    let round = |left: bool, top: bool| {
+        let reaches = |near: bool, min: f32, max: f32| match near {
+            true => min <= 0.0,
+            false => max >= 1.0,
+        };
+        match reaches(left, source.min.x, source.max.x) && reaches(top, source.min.y, source.max.y)
+        {
+            true => radius,
+            false => 0.0,
+        }
+    };
     let style = format!(
         "width:{width}px;height:{height}px;\
          transform:matrix({},{},{},{},{},{});\
-         clip-path:inset({}% {}% {}% {}%);opacity:{};z-index:{order}",
+         clip-path:inset({}% {}% {}% {}% round {}px {}px {}px {}px);opacity:{};z-index:{order}",
         across.x / width,
         across.y / width,
         down.x / height,
@@ -64,6 +66,10 @@ pub fn placement(blit: &Blit, order: usize, scale: f32) -> Option<Placement> {
         percent(1.0 - source.max.x),
         percent(1.0 - source.max.y),
         percent(source.min.x),
+        round(true, true),
+        round(false, true),
+        round(false, false),
+        round(true, false),
         quad.opacity.clamp(0.0, 1.0),
     );
     Some(Placement {
@@ -107,8 +113,8 @@ impl Canvases {
         channel: &WorkerChannel,
         placements: Vec<Placement>,
     ) -> Result<(), String> {
-        let mut seen = HashMap::<ScreenId, usize>::new();
-        let mut kept = HashMap::with_capacity(placements.len());
+        let mut seen = HashMap::<ScreenId, usize>::default();
+        let mut kept = HashMap::with_capacity_and_hasher(placements.len(), Default::default());
         let mut result = Ok(());
         for placement in placements {
             let occurrence = seen.entry(placement.screen).or_default();

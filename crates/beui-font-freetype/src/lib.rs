@@ -7,9 +7,9 @@ use std::cell::{Cell, RefCell};
 use std::ptr;
 use std::rc::Rc;
 
-use foldhash::HashMap;
 use freetype::freetype as ft;
 use harfbuzz_rs::{Blob, Face as HbFace, Font as HbFont, Owned, Tag, UnicodeBuffer, shape};
+use stable_hash::HashMap;
 use unicode_script::{Script, UnicodeScript};
 
 use beui_core::font::{

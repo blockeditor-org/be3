@@ -1,4 +1,4 @@
-use foldhash::{HashMap, HashSet};
+use stable_hash::{HashMap, HashSet};
 use std::rc::Rc;
 use std::time::Instant;
 

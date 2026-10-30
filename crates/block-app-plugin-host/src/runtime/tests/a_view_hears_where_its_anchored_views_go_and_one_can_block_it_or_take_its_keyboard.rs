@@ -31,6 +31,7 @@ fn sheet(blocks_owner: bool, keyboard: bool) -> AnchoredPlacement {
         anchor: ViewAnchor::Edge(ViewEdge::Bottom),
         rect: Rect::from_min_size(pos2(0.0, 400.0), vec2(800.0, 200.0)),
         dismiss_on_outside_press: false,
+        trigger: None,
         keyboard,
         blocks_owner,
     }

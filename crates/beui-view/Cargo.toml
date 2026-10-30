@@ -11,6 +11,7 @@ beui-tree = { path = "../beui-tree" }
 beui-types = { path = "../beui-types" }
 beui_macros = { path = "../beui-macros" }
 reactive = { path = "../reactive" }
+stable-hash = { path = "../stable-hash" }
 
 [target.'cfg(beui_html)'.dependencies]
 beui-core-html = { path = "../beui-core-html" }

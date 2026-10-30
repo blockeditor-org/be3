@@ -1,5 +1,5 @@
 use super::*;
-use std::collections::HashSet;
+use stable_hash::HashSet;
 
 use beui_core::display::{Display, Layer, Part};
 use beui_core::node::NodeId;
@@ -19,7 +19,7 @@ fn the_app_and_the_inspector_paint_displays_a_renderer_can_tell_apart() {
         "the app and the inspector painted from {} documents",
         documents.len()
     );
-    let mut keys = HashSet::new();
+    let mut keys = HashSet::default();
     for key in &seen {
         assert!(keys.insert(*key), "two displays were painted as {key:?}");
     }

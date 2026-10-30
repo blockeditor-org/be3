@@ -13,7 +13,7 @@ use super::kinds::{HomeItems, OpensIn, TagsMenu};
 use super::rename::Renaming;
 use super::rows::{Inspection, Row, RowKey, Tree as FileTree};
 use super::ui::{ExportAs, OpenWith, Picker, add_to_section, leavable};
-use super::zoom::{Zoom, zooms};
+use super::zoom::Zoom;
 
 #[derive(Clone, Copy)]
 pub(crate) struct RowTools {
@@ -31,37 +31,30 @@ pub(crate) struct RowTools {
 pub(crate) fn RowMenu(tools: RowTools, key: RowKey) -> Option<TreeMenu> {
     let row = tools.tree.row(key.clone());
     let shown = row.get_untracked()?;
-    let zoomed = tools.zoom.zoomed();
-    let entered = key.clone();
-    let unzoomable = create_memo(move || {
-        zoomed.get().as_ref() == Some(&entered)
-            || !row.get().is_some_and(|row| zooms(&row) || row.expandable)
-    });
     let zoom = tools.zoom;
     let zoom_in = move || zoom.enter(key.clone());
     match (shown.id, shown.is_workspace()) {
         (None, _) if !shown.section => None,
         (None, _) => Some(TreeMenu {
             items: Children::from([into_segment(view! {
-                <ZoomIn disabled={unzoomable} on_click={zoom_in} />
+                <ZoomIn on_click={zoom_in} />
             })]),
         }),
         (Some(_), true) => Some(view! {
-            <SectionMenu tools row unzoomable zoom_in />
+            <SectionMenu tools row zoom_in />
         }),
         (Some(_), false) => Some(view! {
-            <BlockMenu tools row unzoomable zoom_in />
+            <BlockMenu tools row zoom_in />
         }),
     }
 }
 
 #[component]
-fn ZoomIn(disabled: Memo<bool>, on_click: ClickCallback) -> MenuItem {
+fn ZoomIn(on_click: ClickCallback) -> MenuItem {
     view! {
         <MenuItem
             label="Zoom in"
             glyph=ICON_ZOOM_IN
-            disabled={disabled}
             row_test_id={"file-tree.zoom-in".to_owned()}
             on_click
         />
@@ -69,12 +62,7 @@ fn ZoomIn(disabled: Memo<bool>, on_click: ClickCallback) -> MenuItem {
 }
 
 #[component]
-fn SectionMenu<F: Fn() + 'static>(
-    tools: RowTools,
-    row: Memo<Option<Row>>,
-    unzoomable: Memo<bool>,
-    zoom_in: F,
-) -> TreeMenu {
+fn SectionMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in: F) -> TreeMenu {
     let RowTools {
         editor,
         picker,
@@ -120,7 +108,7 @@ fn SectionMenu<F: Fn() + 'static>(
     };
     TreeMenu {
         items: view! {
-            <ZoomIn disabled={unzoomable} on_click={zoom_in} />
+            <ZoomIn on_click={zoom_in} />
             <MenuItem
                 label="Add"
                 glyph=ICON_FILE_PLUS
@@ -168,12 +156,7 @@ fn SectionMenu<F: Fn() + 'static>(
 }
 
 #[component]
-fn BlockMenu<F: Fn() + 'static>(
-    tools: RowTools,
-    row: Memo<Option<Row>>,
-    unzoomable: Memo<bool>,
-    zoom_in: F,
-) -> TreeMenu {
+fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in: F) -> TreeMenu {
     let RowTools {
         editor,
         tree,
@@ -292,7 +275,7 @@ fn BlockMenu<F: Fn() + 'static>(
     };
     TreeMenu {
         items: view! {
-            <ZoomIn disabled={unzoomable} on_click={zoom_in} />
+            <ZoomIn on_click={zoom_in} />
             <OpenWith editor={editor} row={row} />
             <MenuItem label="Add" glyph=ICON_FILE_PLUS disabled={add} on_click={add_into} />
             <MenuItem

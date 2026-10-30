@@ -1,5 +1,5 @@
+use stable_hash::HashSet;
 use std::cell::RefCell;
-use std::collections::HashSet;
 use std::fmt;
 use std::ops::Deref;
 use std::rc::Rc;
@@ -124,7 +124,7 @@ impl FontLibrary {
             sources,
             generation: 0,
             resolve: None,
-            asked: HashSet::new(),
+            asked: HashSet::default(),
         })))
     }
 

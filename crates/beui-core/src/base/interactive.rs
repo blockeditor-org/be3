@@ -544,6 +544,10 @@ impl Document {
         }
     }
 
+    pub fn forwards_keys(&self) -> bool {
+        crate::interact::forward::takes_keys(self)
+    }
+
     pub fn clipboard_keys(&self) -> bool {
         let mut current = self.focused.filter(|focused| self.arena.contains(*focused));
         for _ in 0..crate::node::ANCESTOR_LIMIT {

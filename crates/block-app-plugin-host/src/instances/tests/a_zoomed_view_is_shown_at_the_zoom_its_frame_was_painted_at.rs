@@ -9,7 +9,7 @@ fn a_zoomed_view_is_shown_at_the_zoom_its_frame_was_painted_at() {
         Rect::from_min_size(pos2(0.0, 25.0), vec2(10.0, 10.0)),
         false,
     ));
-    instances.confirm(1, &HashSet::new());
+    instances.confirm(1, &HashSet::default());
     let rect = Rect::from_min_size(pos2(10.0, 10.0), SIZE);
 
     resize(&mut instances, vec2(25.0, 25.0), 4.0);
@@ -21,7 +21,7 @@ fn a_zoomed_view_is_shown_at_the_zoom_its_frame_was_painted_at() {
         "a frame painted at twice its size is shown at that until the plugin paints the new zoom"
     );
 
-    instances.confirm(2, &HashSet::new());
+    instances.confirm(2, &HashSet::default());
     let (children, _) = instances.host_children(INSTANCE, REGION, rect, rect, None);
     assert_eq!(
         children[0].rect,

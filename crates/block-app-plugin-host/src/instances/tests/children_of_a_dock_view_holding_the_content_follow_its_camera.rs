@@ -37,7 +37,7 @@ fn children_of_a_dock_view_holding_the_content_follow_its_camera() {
     );
     placements.view = TAB;
     instances.set_children(placements);
-    instances.confirm(instances.serial(), &HashSet::new());
+    instances.confirm(instances.serial(), &HashSet::default());
 
     let panned = EditorView {
         rect: Rect::from_min_size(pos2(0.0, -40.0), vec2(100.0, 100.0)),

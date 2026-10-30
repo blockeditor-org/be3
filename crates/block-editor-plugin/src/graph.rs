@@ -1,8 +1,9 @@
 use reactive::Get;
 use reactive::Set;
 use reactive::{Pending, Ready, wait_while};
+use stable_hash::HashMap;
 use std::cell::{Cell, RefCell};
-use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::collections::{BTreeMap, VecDeque};
 use std::rc::Rc;
 
 use be_block::{BlockMetadata, Definition, Entries};

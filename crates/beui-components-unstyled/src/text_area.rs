@@ -9,8 +9,9 @@ pub mod look;
 pub mod rows;
 pub mod state;
 
+use stable_hash::HashMap;
 use std::cell::{Cell, RefCell};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::ops::Range;
 use std::rc::Rc;
 use std::time::Duration;
@@ -1377,11 +1378,17 @@ pub fn TextArea(
     state.publish_layout(TextAreaLayout::new(Rc::new(cx)));
 
     if single_line {
+        let content = state.content();
         create_effect(move || {
             let width = text_extent.get().x;
             view_width.get();
+            content.get();
+            let empty = state.with_snapshot(|snapshot| snapshot.bytes.is_empty());
             let room = untrack(|| cx.room());
-            let most = (width - room).max(0.0);
+            let most = match empty {
+                true => 0.0,
+                false => (width - room).max(0.0),
+            };
             if shift.get_untracked() > most {
                 shift.set(most);
             }

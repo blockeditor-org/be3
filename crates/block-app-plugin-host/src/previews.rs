@@ -1,8 +1,5 @@
-use std::{
-    cell::RefCell,
-    collections::{HashMap, HashSet},
-    rc::Rc,
-};
+use stable_hash::{HashMap, HashSet};
+use std::{cell::RefCell, rc::Rc};
 
 use beui::native::painting::Painting;
 use block_plugin_api::{EditorInstanceId, PreviewImage, ScreenId};

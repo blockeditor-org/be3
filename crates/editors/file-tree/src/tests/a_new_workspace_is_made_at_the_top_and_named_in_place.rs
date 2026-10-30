@@ -11,6 +11,8 @@ fn a_new_workspace_is_made_at_the_top_and_named_in_place() {
     my_files(&mut fixture, Vec::new());
     fixture.settle();
 
+    fixture.test.click("file-tree.new");
+    fixture.settle();
     fixture.test.click("file-tree.new-workspace");
     fixture.settle();
     let store = fixture.test.store();

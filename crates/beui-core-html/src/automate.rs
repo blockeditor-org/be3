@@ -286,7 +286,7 @@ pub use web::{automate, lines};
 
 #[cfg(target_arch = "wasm32")]
 mod web {
-    use std::collections::HashMap;
+    use stable_hash::HashMap;
     use std::time::Duration;
 
     use beui_types::{Rect, pos2, vec2};
@@ -482,7 +482,7 @@ mod web {
         });
         let abouts = about_elements();
         let keys = js_sys::Map::new();
-        let mut by_index = HashMap::new();
+        let mut by_index = HashMap::default();
         for (index, about) in abouts.iter().enumerate() {
             if let Some(dom) = about.element.dom() {
                 keys.set(&dom, &(index as f64).into());

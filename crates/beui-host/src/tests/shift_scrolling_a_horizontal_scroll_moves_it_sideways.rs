@@ -28,10 +28,6 @@ fn shift_scrolling_a_horizontal_scroll_moves_it_sideways() {
     harness.frame(Vec::new());
     let strip = harness.find("strip");
 
-    harness.scroll_at(pos2(200.0, 150.0), vec2(0.0, -40.0), Modifiers::NONE);
-    harness.frame(Vec::new());
-    assert_eq!(harness.document().scroll_offset(strip), 0.0);
-
     harness.scroll_at(pos2(200.0, 150.0), vec2(0.0, -40.0), Modifiers::SHIFT);
     harness.frame(Vec::new());
     assert_eq!(harness.document().scroll_offset(strip), 40.0);

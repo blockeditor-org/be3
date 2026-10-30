@@ -1,8 +1,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use foldhash::HashMap;
 use kurbo::Shape as _;
+use stable_hash::HashMap;
 
 pub use beui_types::path::{FillRule, LineCap, LineJoin, Path, PathElement, PathStyle, Stroke};
 

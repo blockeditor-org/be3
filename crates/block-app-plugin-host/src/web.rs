@@ -1,7 +1,5 @@
-use std::{
-    collections::HashSet,
-    sync::{Arc, atomic::AtomicBool},
-};
+use stable_hash::HashSet;
+use std::sync::{Arc, atomic::AtomicBool};
 
 use block_plugin_api::ScreenDamage;
 use block_plugin_manifest::PluginManifest;

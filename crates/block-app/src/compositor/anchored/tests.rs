@@ -17,6 +17,7 @@ fn shown(mount: u64, id: u64, opened: u64, rect: Rect) -> Shown {
             surface: 1,
             pixels_per_point: 1.0,
             dismiss_on_outside_press: true,
+            trigger: None,
             keyboard: false,
             blocks_owner: false,
             edge: false,
@@ -62,4 +63,6 @@ mod a_child_in_an_anchored_view_goes_with_its_view_before_what_the_view_owns;
 mod a_child_views_anchor_bounds_never_exceed_its_parents;
 mod a_press_on_an_anchored_view_keeps_its_drag_until_it_is_let_go;
 mod a_view_a_child_in_an_anchored_view_anchors_takes_presses_over_that_child;
+mod an_anchored_view_hears_the_pointer_leave_it;
+mod an_anchored_view_hears_the_pointer_leave_the_window;
 mod the_anchored_view_opened_last_takes_a_press_where_they_overlap;

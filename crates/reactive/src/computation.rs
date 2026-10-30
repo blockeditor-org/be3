@@ -189,6 +189,9 @@ impl Computation {
             let dependencies = self.dependencies.borrow().clone();
             for (source, version, _) in dependencies {
                 let source = source.source();
+                if source.freed.get() {
+                    continue;
+                }
                 let producer = source.producer.borrow().upgrade();
                 if let Some(producer) = producer {
                     producer.refresh();
@@ -254,6 +257,15 @@ impl Computation {
         if self.is_spent() {
             self.dispose();
         }
+    }
+
+    pub(crate) fn reads_freed(&self) -> bool {
+        self.state.get() != State::Clean
+            && self
+                .dependencies
+                .borrow()
+                .iter()
+                .any(|(source, _, _)| source.source().freed.get())
     }
 
     pub(crate) fn owned_within(&self, root: &Owner) -> bool {

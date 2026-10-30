@@ -1,4 +1,4 @@
-use foldhash::HashMap;
+use stable_hash::HashMap;
 use std::any::{Any, TypeId};
 use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};

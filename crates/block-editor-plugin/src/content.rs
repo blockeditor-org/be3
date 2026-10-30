@@ -1,6 +1,6 @@
+use stable_hash::{HashMap, HashSet};
 use std::{
     cell::{Cell, RefCell},
-    collections::{HashMap, HashSet},
     hash::Hash,
     rc::Rc,
 };
@@ -26,7 +26,7 @@ impl<C> Watchers<C> {
     fn new() -> Self {
         Self {
             unkeyed: Vec::new(),
-            keyed: HashMap::new(),
+            keyed: HashMap::default(),
         }
     }
 
@@ -439,7 +439,7 @@ where
                 })
                 .collect();
             let kept: HashMap<ObjectId, Rc<T>> = match everything {
-                true => HashMap::new(),
+                true => HashMap::default(),
                 false => held
                     .iter()
                     .filter(|(id, _)| !changed.contains(id))

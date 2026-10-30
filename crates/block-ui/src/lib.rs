@@ -4,7 +4,7 @@ pub mod datetime;
 #[cfg(test)]
 mod tests;
 
-use std::collections::HashMap;
+use stable_hash::HashMap;
 
 use uuid::Uuid;
 

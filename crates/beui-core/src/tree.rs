@@ -1,6 +1,6 @@
+use stable_hash::HashMap;
 use std::any::Any;
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
 use std::rc::Rc;
 
 use std::rc::Weak;

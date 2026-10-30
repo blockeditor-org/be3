@@ -75,14 +75,18 @@ fn within(before: &Frame, after: &Frame) -> String {
     match index {
         Some(index) if before.primitives[index].content == after.primitives[index].content => {
             let (before, after) = (&before.primitives[index], &after.primitives[index]);
-            match before.clip == after.clip {
-                true => format!(
+            match (before.clip == after.clip, before.fade == after.fade) {
+                (false, _) => format!(
+                    "shape {index} is clipped to {:?}, it used to be clipped to {:?}",
+                    after.clip, before.clip
+                ),
+                (true, false) => format!(
                     "shape {index} fades {:?} across {:?}, it used to fade {:?} across {:?}",
                     after.fade.widths, after.fade.rect, before.fade.widths, before.fade.rect
                 ),
-                false => format!(
-                    "shape {index} is clipped to {:?}, it used to be clipped to {:?}",
-                    after.clip, before.clip
+                (true, true) => format!(
+                    "shape {index} is rounded by {:?}, it used to be rounded by {:?}",
+                    after.rounds, before.rounds
                 ),
             }
         }

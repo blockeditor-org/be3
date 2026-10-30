@@ -8,7 +8,7 @@ fn a_press_on_the_files_add_button_closes_a_canvas_menu_and_opens_theirs() {
     app.wait("#picker.more");
 
     let (canvas_more_x, _, _, _) = app.place("#picker.more");
-    app.click(ADD_TO_MY_FILES);
+    open_add_to_my_files(&mut app);
     app.wait("#picker.more");
     let (files_x, _, files_width, _) = app.place("#workspace.files");
     let (more_x, _, _, _) = app.place("#picker.more");

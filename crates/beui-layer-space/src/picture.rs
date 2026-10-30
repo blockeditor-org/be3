@@ -36,6 +36,7 @@ pub fn painting(frame: &Frame, rect: Rect) -> Option<Painting> {
         primitives: vec![Primitive {
             clip: whole,
             fade: Fade::NONE,
+            rounds: Vec::new(),
             content: Content::RoundedRect(RoundedRect {
                 rect: whole,
                 corner_radius: 0.0,
@@ -133,6 +134,7 @@ impl Out {
         self.primitives.push(Primitive {
             clip: [rect.min.x, rect.min.y, rect.max.x, rect.max.y],
             fade: Fade::NONE,
+            rounds: Vec::new(),
             content: Content::Mesh(triangles),
         });
     }

@@ -1,4 +1,5 @@
-use std::collections::{BTreeMap, HashMap};
+use stable_hash::HashMap;
+use std::collections::BTreeMap;
 
 use super::calls::{EditorAnswer, EditorCall, Heard, PluginCall};
 use block_plugin_api::{Encoded, Watch};
@@ -102,21 +103,21 @@ impl Default for Wire {
         Self {
             connection: Connection::new(Side::Host),
             connecting: None,
-            editors: HashMap::new(),
+            editors: HashMap::default(),
             draws: BTreeMap::new(),
             answering: BTreeMap::new(),
-            painting: HashMap::new(),
-            audio: HashMap::new(),
-            published: HashMap::new(),
+            painting: HashMap::default(),
+            audio: HashMap::default(),
+            published: HashMap::default(),
             extensions: Vec::new(),
-            web_views: HashMap::new(),
+            web_views: HashMap::default(),
             preferences: Watch::default(),
             utc_offset: Watch::default(),
             fonts: Watch::default(),
             input: Watch::default(),
-            serving: HashMap::new(),
-            child_statuses: HashMap::new(),
-            docks: HashMap::new(),
+            serving: HashMap::default(),
+            child_statuses: HashMap::default(),
+            docks: HashMap::default(),
             block_types: Watch::default(),
             debug_templates: Watch::default(),
             held: Held::default(),

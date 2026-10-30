@@ -1,7 +1,5 @@
-use std::{
-    cell::RefCell,
-    collections::{BTreeMap, HashMap, HashSet},
-};
+use stable_hash::{HashMap, HashSet};
+use std::{cell::RefCell, collections::BTreeMap};
 
 use block_plugin_api::{
     BarAction, ChildId, DockBarPlacement, DockChild, DockChildRequest, DockClosedTab,
@@ -387,7 +385,7 @@ impl Docks {
     }
 
     fn framed_set(&self, docked: &HashSet<EditorInstanceId>) -> HashSet<EditorInstanceId> {
-        let mut framed = HashSet::new();
+        let mut framed = HashSet::default();
         for _ in 0..=MAX_DOCK_NESTING {
             let next: HashSet<EditorInstanceId> = self
                 .children
@@ -504,7 +502,7 @@ impl Docks {
                 }),
             );
         }
-        let mut wanted: HashMap<(EditorInstanceId, ChildId), DockDeclaration> = HashMap::new();
+        let mut wanted: HashMap<(EditorInstanceId, ChildId), DockDeclaration> = HashMap::default();
         for (placer, children) in &self.children {
             if self.joins(*placer) {
                 continue;

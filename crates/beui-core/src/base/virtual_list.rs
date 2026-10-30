@@ -1,4 +1,4 @@
-use foldhash::{HashMap, HashSet};
+use stable_hash::{HashMap, HashSet};
 use std::any::Any;
 use std::collections::VecDeque;
 use std::hash::Hash;

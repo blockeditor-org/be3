@@ -3,10 +3,10 @@ use beui::KeyAt;
 use beui::TextAlign;
 use beui::icons::Glyph;
 use beui::icons::{
-    ICON_A_LARGE_SMALL, ICON_CIRCLE, ICON_CIRCLE_CHECK, ICON_CLOCK, ICON_COPY_PLUS, ICON_FILE_UP,
-    ICON_FOLDER, ICON_IMAGE, ICON_INFO, ICON_PAPERCLIP, ICON_PLUS, ICON_QUOTE, ICON_SAVE,
-    ICON_SQUARE, ICON_STAR, ICON_TABLE, ICON_TEXT_ALIGN_START, ICON_TRIANGLE, ICON_TRIANGLE_ALERT,
-    ICON_UNDO_2, ICON_WIFI, ICON_ZOOM_IN, ICON_ZOOM_OUT,
+    ICON_A_LARGE_SMALL, ICON_CIRCLE, ICON_CIRCLE_CHECK, ICON_CLOCK, ICON_COPY_PLUS, ICON_FILE,
+    ICON_FILE_UP, ICON_FOLDER, ICON_IMAGE, ICON_INFO, ICON_PAPERCLIP, ICON_PLUS, ICON_QUOTE,
+    ICON_SAVE, ICON_SQUARE, ICON_STAR, ICON_TABLE, ICON_TEXT_ALIGN_START, ICON_TRIANGLE,
+    ICON_TRIANGLE_ALERT, ICON_UNDO_2, ICON_WIFI, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
 use beui::keyboard::styled::SoftwareKeyboard;
 use beui::{Align, CanvasView, Extent};
@@ -3456,6 +3456,17 @@ fn ProjectTree() -> NodeId {
                 on_select={move |row: usize| {
                     chosen.set(None);
                     selected.set(Some(row));
+                }}
+                leading={|row: TreeRowFace<usize>| {
+                    let glyph = match has_children(row.key) {
+                        true => ICON_FOLDER,
+                        false => ICON_FILE,
+                    };
+                    Children::from([into_segment(view! {
+                        <Text color=TextColor::Muted>
+                            <Icon glyph=glyph />
+                        </Text>
+                    })])
                 }}
                 on_expand={move |(row, expanded): (usize, bool)| {
                     collapsed.update(|collapsed| {

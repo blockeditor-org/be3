@@ -11,6 +11,7 @@ path = "src/main.rs"
 [dependencies]
 beui = { path = "../beui" }
 beui_macros = { path = "../beui-macros" }
+stable-hash = { path = "../stable-hash" }
 text-editor-core = { path = "../text-editor-core" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

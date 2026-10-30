@@ -3,7 +3,7 @@ use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use foldhash::HashMap;
+use stable_hash::HashMap;
 
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect};

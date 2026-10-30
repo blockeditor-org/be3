@@ -1,7 +1,7 @@
 use block_plugin_api::{
     EditorInstanceId, Hello, HelloAccepted, PluginIdentity, ScreenId, SurfaceSpec, SurfaceSupport,
 };
-use std::collections::HashSet;
+use stable_hash::HashSet;
 
 use crate::wire::Delivery;
 
@@ -30,13 +30,13 @@ impl ClientSession {
     pub fn new(id: &str, name: &str, version: &str) -> Self {
         Self {
             state: State::AwaitingHello,
-            screens: HashSet::new(),
+            screens: HashSet::default(),
             plugin: PluginIdentity {
                 id: id.into(),
                 name: name.into(),
                 version: version.into(),
             },
-            instances: HashSet::new(),
+            instances: HashSet::default(),
             surface: None,
         }
     }

@@ -3,8 +3,8 @@ use super::*;
 #[test]
 fn a_tooltip_from_the_files_reaches_past_them() {
     let mut app = AppTest::start();
-    app.wait(ADD_TO_MY_FILES);
-    app.run(&["move", ADD_TO_MY_FILES]);
+    app.wait("#file-tree.shared.more");
+    app.run(&["move", "#file-tree.shared.more"]);
     app.run(&["pause", "1500"]);
     let (files_x, _, files_width, _) = app.place("#workspace.files");
     let (tip_x, _, tip_width, _) = app.place("#tooltip");

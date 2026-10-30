@@ -124,9 +124,9 @@ pub struct Session {
 #[derive(Default)]
 struct Windows {
     hosted: bool,
-    shown: std::collections::HashMap<String, WindowId>,
-    sized: std::collections::HashMap<WindowId, beui::Rect>,
-    scaled: std::collections::HashMap<WindowId, f32>,
+    shown: stable_hash::HashMap<String, WindowId>,
+    sized: stable_hash::HashMap<WindowId, beui::Rect>,
+    scaled: stable_hash::HashMap<WindowId, f32>,
     focused: Option<WindowId>,
 }
 

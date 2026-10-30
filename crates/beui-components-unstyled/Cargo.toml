@@ -12,6 +12,7 @@ emojis = "0.9"
 foldhash = "0.2"
 memchr = "2"
 reactive = { path = "../reactive" }
+stable-hash = { path = "../stable-hash" }
 text-editor-core = { path = "../text-editor-core" }
 
 [lints]

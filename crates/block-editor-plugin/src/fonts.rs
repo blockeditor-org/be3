@@ -1,5 +1,5 @@
+use stable_hash::HashSet;
 use std::cell::RefCell;
-use std::collections::HashSet;
 use std::rc::Rc;
 use std::sync::Arc;
 

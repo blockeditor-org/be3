@@ -4,8 +4,8 @@ use super::*;
 fn the_add_menu_reaches_past_narrow_files_and_closes_on_a_press_outside() {
     let mut app = AppTest::start();
     app.run(&["resize", "720x640"]);
-    app.wait(ADD_TO_MY_FILES);
-    app.click(ADD_TO_MY_FILES);
+    app.wait(NEW);
+    open_add_to_my_files(&mut app);
     app.wait("#picker.more");
     let (files_x, _, files_width, _) = app.place("#workspace.files");
     let (more_x, _, more_width, _) = app.place("#picker.more");

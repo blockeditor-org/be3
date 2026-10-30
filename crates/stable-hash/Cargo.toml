@@ -1,0 +1,12 @@
+[package]
+name = "stable-hash"
+description = "Hash maps and sets that iterate in the same order on every run"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+foldhash = "0.2"
+
+[lints]
+workspace = true

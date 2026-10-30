@@ -12,6 +12,7 @@ beui-core = { path = "../beui-core" }
 beui-runner = { path = "../beui-runner" }
 beui-draw = { path = "../beui-draw" }
 bytemuck = { version = "1", features = ["derive"] }
+stable-hash = { path = "../stable-hash" }
 wgpu = { version = "29", default-features = false, features = ["std", "wgsl"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

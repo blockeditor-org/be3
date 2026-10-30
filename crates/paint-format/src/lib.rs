@@ -32,7 +32,51 @@ pub struct Primitive {
     pub clip: [f32; 4],
     #[serde(default, skip_serializing_if = "Fade::is_none")]
     pub fade: Fade,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub rounds: Vec<Round>,
     pub content: Content,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Round {
+    pub rect: [f32; 4],
+    pub radius: f32,
+    pub turn: Turn,
+}
+
+impl Round {
+    pub fn scaled(self, scale: f32) -> Self {
+        Self {
+            rect: self.rect.map(|value| value * scale),
+            radius: self.radius * scale,
+            turn: self.turn.scaled(scale),
+        }
+    }
+
+    fn moved(self, by: [f32; 2]) -> Self {
+        Self {
+            rect: [
+                self.rect[0] + by[0],
+                self.rect[1] + by[1],
+                self.rect[2] + by[0],
+                self.rect[3] + by[1],
+            ],
+            turn: Turn {
+                pivot: [self.turn.pivot[0] + by[0], self.turn.pivot[1] + by[1]],
+                angle: self.turn.angle,
+            },
+            radius: self.radius,
+        }
+    }
+
+    fn mapped(self, map: &Map) -> Self {
+        let (rect, turn) = map.rect(self.rect, self.turn);
+        Self {
+            rect,
+            radius: self.radius * map.scale,
+            turn,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -272,6 +316,7 @@ pub struct Placement {
     pub source: [f32; 4],
     pub corners: [[f32; 2]; 4],
     pub clip: [f32; 4],
+    pub corner_radius: f32,
 }
 
 struct Map {
@@ -402,6 +447,9 @@ impl Painting {
             }
             primitive.clip = moved(clip);
             primitive.fade = primitive.fade.moved([-left, -top]);
+            for round in &mut primitive.rounds {
+                *round = round.moved([-left, -top]);
+            }
             match &mut primitive.content {
                 Content::Mesh(triangles) => {
                     for triangle in triangles {
@@ -478,6 +526,7 @@ impl Painting {
                 source: [0.0, 0.0, 1.0, 1.0],
                 corners,
                 clip: primitive.clip,
+                corner_radius: 0.0,
             }));
             for (key, pixels) in preview.textures {
                 self.textures.entry(key).or_insert(pixels);
@@ -538,6 +587,14 @@ impl Painting {
         };
         let source = [left * width, top * height, right * width, bottom * height];
         let shown = intersect(placement.clip, map.bounds(source));
+        let round = (placement.corner_radius > 0.0).then(|| {
+            let (rect, turn) = map.rect([0.0, 0.0, width, height], Turn::NONE);
+            Round {
+                rect,
+                radius: placement.corner_radius,
+                turn,
+            }
+        });
         let scaled_rect = |shape: RoundedRect| {
             let (rect, turn) = map.rect(shape.rect, shape.turn);
             RoundedRect {
@@ -551,6 +608,7 @@ impl Painting {
         let background = (frame.background[3] > 0).then(|| Primitive {
             clip: shown,
             fade: Fade::NONE,
+            rounds: round.into_iter().collect(),
             content: Content::RoundedRect(scaled_rect(RoundedRect {
                 rect: source,
                 corner_radius: 0.0,
@@ -606,9 +664,16 @@ impl Painting {
                         opacity: primitive.fade.opacity,
                     },
                 };
+                let rounds = primitive
+                    .rounds
+                    .iter()
+                    .map(|held| held.mapped(&map))
+                    .chain(round)
+                    .collect();
                 Some(Primitive {
                     clip,
                     fade,
+                    rounds,
                     content,
                 })
             }))

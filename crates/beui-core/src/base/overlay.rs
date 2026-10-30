@@ -777,12 +777,16 @@ impl Document {
     }
 
     pub(crate) fn on_overlay_trigger(&self, overlay: NodeOf<OverlayNode>, pos: Pos2) -> bool {
+        self.overlay_trigger_rect(overlay)
+            .is_some_and(|rect| rect.contains_half_open(pos))
+    }
+
+    pub(crate) fn overlay_trigger_rect(&self, overlay: NodeOf<OverlayNode>) -> Option<Rect> {
         self.arena
             .get_as::<OverlayNode>(overlay)
             .trigger
             .as_ref()
             .and_then(NodeRef::try_get)
             .and_then(|trigger| self.node_rect(trigger))
-            .is_some_and(|rect| rect.contains_half_open(pos))
     }
 }

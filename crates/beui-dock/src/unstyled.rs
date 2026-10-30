@@ -11,9 +11,9 @@ mod switch;
 #[cfg(test)]
 mod tests;
 
-use beui_view::types::LayerPolicy;
+use beui_view::types::{AboveEmbeds, LayerPolicy};
+use stable_hash::HashMap;
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
 use std::rc::Rc;
 
 use accesskit::{Node, Role};
@@ -160,6 +160,11 @@ pub struct DockBarHandle {
     pub menu: Memo<Vec<MenuNode>>,
     pub close: ClickCallback,
     pub test_prefix: String,
+}
+
+pub struct DockStripHandle {
+    pub direction: Direction,
+    pub tabs: NodeId,
 }
 
 pub struct DockSplitterHandle {
@@ -565,6 +570,7 @@ struct State {
     chrome: RenderFn<DockChromeHandle>,
     bar: RenderFn<DockBarHandle>,
     splitter: RenderFn<DockSplitterHandle>,
+    strip: RenderFn<DockStripHandle>,
     grip: RenderFn<DockGripHandle>,
     highlight: RenderFn<()>,
     refused: RenderFn<()>,
@@ -577,6 +583,7 @@ struct State {
     dialog: Func<TabId, Option<DialogParts>>,
     dialog_chrome: RenderFn<DockDialogHandle>,
     dialog_outset: Vec2,
+    window_border: f32,
     dialog_frames: Stored<RefCell<HashMap<TabId, NodeRef>>>,
     dialog_bodies: Stored<RefCell<HashMap<TabId, NodeRef>>>,
     dialog_focus: Signal<Option<TabId>>,
@@ -1578,8 +1585,8 @@ impl Grip {
         }
     }
 
-    fn rect(self, upright: bool, size: Vec2) -> Rect {
-        let (reach, corner) = (HANDLE_REACH, GRIP_CORNER);
+    fn rect(self, upright: bool, size: Vec2, border: f32) -> Rect {
+        let (reach, corner) = (HANDLE_REACH + border, GRIP_CORNER);
         let far = pos2(size.x - reach, size.y - reach);
         let along = vec2(size.x - corner * 2.0, reach);
         let down = vec2(reach, size.y - corner * 2.0);
@@ -1670,6 +1677,7 @@ pub(crate) struct DockConfig {
     pub(crate) chrome: Option<RenderFn<DockChromeHandle>>,
     pub(crate) bar: Option<RenderFn<DockBarHandle>>,
     pub(crate) splitter: Option<RenderFn<DockSplitterHandle>>,
+    pub(crate) strip: Option<RenderFn<DockStripHandle>>,
     pub(crate) grip: Option<RenderFn<DockGripHandle>>,
     pub(crate) highlight: Option<RenderFn<()>>,
     pub(crate) refused: Option<RenderFn<()>>,
@@ -1681,6 +1689,7 @@ pub(crate) struct DockConfig {
     pub(crate) dialog: Func<TabId, Option<DialogParts>>,
     pub(crate) dialog_chrome: Option<RenderFn<DockDialogHandle>>,
     pub(crate) dialog_outset: Vec2,
+    pub(crate) window_border: f32,
     pub(crate) bar_margin: f32,
     pub(crate) covers: Signal<BarCovers>,
     pub(crate) bar_target: Option<RenderFn<DockBarTargetHandle>>,
@@ -1722,6 +1731,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         chrome,
         bar,
         splitter,
+        strip,
         grip,
         highlight,
         refused,
@@ -1733,6 +1743,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         dialog,
         dialog_chrome,
         dialog_outset,
+        window_border,
         bar_margin,
         bar_target,
         bar_band,
@@ -1754,9 +1765,9 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
     let dialog_focus = create_signal(None);
     let attention = create_signal((0, None));
     let given = create_signal((0, None));
-    let menus = create_signal(DockMenus::new());
-    let notices = create_signal(DockNotices::new());
-    let offers = create_signal(HashMap::new());
+    let menus = create_signal(DockMenus::default());
+    let notices = create_signal(DockNotices::default());
+    let offers = create_signal(HashMap::default());
     let drag = create_signal(None);
     let dock = State {
         state,
@@ -1764,7 +1775,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         fullscreen_layer: NodeRef::new(),
         fullscreen_window: NodeRef::new(),
         panels: store(RefCell::default()),
-        handles: create_signal(HashMap::new()),
+        handles: create_signal(HashMap::default()),
         owner: store(owner_scope()),
         on_close,
         drag,
@@ -1788,6 +1799,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         dialog_chrome: dialog_chrome
             .unwrap_or_else(|| RenderFn::new(|handle: DockDialogHandle| handle.body)),
         dialog_outset,
+        window_border,
         dialog_frames: store(RefCell::default()),
         dialog_bodies: store(RefCell::default()),
         dialog_focus,
@@ -1797,7 +1809,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         bar_panels: store(RefCell::default()),
         bodies: store(RefCell::default()),
         bar_windows: store(RefCell::default()),
-        bar_placements: create_signal(HashMap::new()),
+        bar_placements: create_signal(HashMap::default()),
         bar_key,
         bar_grab: StoredCell::new((Vec2::ZERO, Vec2::ZERO)),
         bar_margin,
@@ -1823,7 +1835,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         rect: dock_rect,
         opens: opens_windows(),
         home: use_window(),
-        placements: create_signal(HashMap::new()),
+        placements: create_signal(HashMap::default()),
         panes: store(RefCell::default()),
         bars: store(RefCell::default()),
         tab,
@@ -1855,6 +1867,14 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
             RenderFn::new(|_| {
                 view! {
                     <Frame />
+                }
+            })
+        }),
+        strip: strip.unwrap_or_else(|| {
+            RenderFn::new(|handle: DockStripHandle| {
+                let DockStripHandle { direction, tabs } = handle;
+                view! {
+                    <Scroll direction>{tabs}</Scroll>
                 }
             })
         }),
@@ -2812,53 +2832,54 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
     let state = dock.state;
     let entries = create_memo(move || state.with(|state| state.entries(leaf)));
     let selected = create_memo(move || Some(state.with(|state| state.active_index(leaf))));
-    view! {
-        <Scroll direction @node_ref=&strip>
-            <Choice
-                @node_ref=&tab_list
-                options={view! {
-                    <ForEach keys={entries}>|entry: Entry| {
-                        let dock = dock;
-                        let label = create_memo(move || dock.entry_title(entry));
-                        view! {
-                            <ChoiceOption label={label} />
-                        }
-                    }</ForEach>
-                }}
-                selected={Binding::new(selected, move |index: Option<usize>| {
-                    let Some(index) = index else {
-                        return;
-                    };
-                    dock.edit(|state| {
-                        state.set_active_index(leaf, index);
-                        state.focus(leaf);
-                    });
-                    dock.release_dialog_focus();
-                    let picked = tab_list
-                        .try_get()
-                        .is_some_and(|tabs| tabs.focus_is_within());
-                    let shown = dock.state.with_untracked(|state| state.active_tab(leaf));
-                    if let Some(tab) = shown.filter(|_| !picked) {
-                        dock.give_keyboard(tab);
+    let tabs = view! {
+        <Choice
+            @node_ref=&tab_list
+            options={view! {
+                <ForEach keys={entries}>|entry: Entry| {
+                    let dock = dock;
+                    let label = create_memo(move || dock.entry_title(entry));
+                    view! {
+                        <ChoiceOption label={label} />
                     }
-                })}
-                kind=ChoiceKind::Tabs
-                direction
-                spacing={dock.tab_spacing}
-            >|handle: ChoiceOptionHandle| {
-                let dock = dock;
-                let entry = dock.state.get_untracked().entries(leaf).get(handle.index).copied();
-                match entry {
-                    Some(entry) => view! {
-                        <DockTabView dock leaf entry handle vertical />
-                    },
-                    None => view! {
-                        <Frame />
-                    },
+                }</ForEach>
+            }}
+            selected={Binding::new(selected, move |index: Option<usize>| {
+                let Some(index) = index else {
+                    return;
+                };
+                dock.edit(|state| {
+                    state.set_active_index(leaf, index);
+                    state.focus(leaf);
+                });
+                dock.release_dialog_focus();
+                let picked = tab_list
+                    .try_get()
+                    .is_some_and(|tabs| tabs.focus_is_within());
+                let shown = dock.state.with_untracked(|state| state.active_tab(leaf));
+                if let Some(tab) = shown.filter(|_| !picked) {
+                    dock.give_keyboard(tab);
                 }
-            }</Choice>
-        </Scroll>
-    }
+            })}
+            kind=ChoiceKind::Tabs
+            direction
+            spacing={dock.tab_spacing}
+        >|handle: ChoiceOptionHandle| {
+            let dock = dock;
+            let entry = dock.state.get_untracked().entries(leaf).get(handle.index).copied();
+            match entry {
+                Some(entry) => view! {
+                    <DockTabView dock leaf entry handle vertical />
+                },
+                None => view! {
+                    <Frame />
+                },
+            }
+        }</Choice>
+    };
+    let scroll = dock.strip.call(DockStripHandle { direction, tabs });
+    strip.fill(scroll);
+    scroll
 }
 
 #[component]
@@ -3222,7 +3243,7 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
             .map_or_else(|| fraction.get_untracked(), |splitter| splitter.fraction)
     });
     let start = shown.clone();
-    view! {
+    let node = view! {
         <Interactive
             @test_id={dock.splitter_test_id(split)}
             capture_presses=true
@@ -3276,7 +3297,9 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
         >
             <Frame>{face}</Frame>
         </Interactive>
-    }
+    };
+    above_embeds(node, Some(AboveEmbeds::Reaches));
+    node
 }
 
 fn fitted(size: Vec2, bounds: Vec2) -> Vec2 {
@@ -3315,7 +3338,7 @@ fn DockSidebarSplitter(dock: State, leaf: LeafId) -> NodeId {
     });
     let held: Rc<Cell<Option<(f32, Pos2, f32)>>> = Rc::new(Cell::new(None));
     let grabbed = held.clone();
-    view! {
+    let node = view! {
         <Interactive
             @test_id={dock.pane_test_id("dock.sidebar", leaf)}
             focusable=true
@@ -3370,7 +3393,9 @@ fn DockSidebarSplitter(dock: State, leaf: LeafId) -> NodeId {
             }}
             children={face}
         />
-    }
+    };
+    above_embeds(node, Some(AboveEmbeds::Reaches));
+    node
 }
 
 #[component]
@@ -3728,7 +3753,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                 </CanvasItem>
                                 <ForEach keys={GRIPS.to_vec()}>|(grip, upright): (Grip, bool)| {
                                     let dock = dock;
-                                    let handle_rect = create_memo(move || grip.rect(upright, size.get()));
+                                    let handle_rect = create_memo(move || grip.rect(upright, size.get(), dock.window_border));
                                     let x = create_memo(move || handle_rect.get().min.x);
                                     let y = create_memo(move || handle_rect.get().min.y);
                                     let width = create_memo(move || handle_rect.get().width());

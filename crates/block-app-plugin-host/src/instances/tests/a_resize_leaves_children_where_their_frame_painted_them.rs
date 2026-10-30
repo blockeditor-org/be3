@@ -23,7 +23,7 @@ fn a_resize_leaves_children_where_their_frame_painted_them() {
             ..WindowRequests::default()
         },
     }]);
-    instances.confirm(1, &HashSet::new());
+    instances.confirm(1, &HashSet::default());
 
     let shrunk = vec2(100.0, 60.0);
     resize(&mut instances, shrunk, 1.0);
@@ -42,7 +42,7 @@ fn a_resize_leaves_children_where_their_frame_painted_them() {
         "the text input area stays where the frame painted it"
     );
 
-    instances.confirm(2, &HashSet::new());
+    instances.confirm(2, &HashSet::default());
     let (children, _) = instances.host_children(INSTANCE, REGION, rect, rect, None);
     assert_eq!(
         children[0].rect,

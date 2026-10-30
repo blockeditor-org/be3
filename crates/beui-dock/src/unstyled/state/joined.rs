@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use stable_hash::{HashMap, HashSet};
 
 use beui_view::types::Rect;
 use serde::{Deserialize, Serialize};

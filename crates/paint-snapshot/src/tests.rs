@@ -36,6 +36,7 @@ fn frame(colour: [u8; 4]) -> Frame {
         primitives: vec![Primitive {
             clip: [0.0, 0.0, 8.0, 8.0],
             fade: Fade::NONE,
+            rounds: Vec::new(),
             content: Content::Mesh(vec![Triangle {
                 texture: 0,
                 corners: [corner(0.0, 0.0), corner(8.0, 0.0), corner(0.0, 8.0)],

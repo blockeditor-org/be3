@@ -4,8 +4,8 @@ mod input;
 mod platform;
 mod surface;
 
+use stable_hash::{HashMap, HashSet};
 use std::any::Any;
-use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::task::{Context as TaskContext, Poll, Waker as TaskWaker};
 
@@ -71,18 +71,18 @@ impl Platform for PluginPlatform {
                 runner,
                 services: HostPlatform::new(self.host.clone()),
                 views,
-                surfaces: HashMap::new(),
-                windows: HashMap::new(),
-                sized: HashMap::new(),
+                surfaces: HashMap::default(),
+                windows: HashMap::default(),
+                sized: HashMap::default(),
                 described: Vec::new(),
-                focused: HashSet::new(),
+                focused: HashSet::default(),
                 active: None,
-                toggles: HashMap::new(),
+                toggles: HashMap::default(),
                 overflows: Vec::new(),
-                floated: HashMap::new(),
+                floated: HashMap::default(),
                 asks: Vec::new(),
-                escaped: HashMap::new(),
-                placements: HashMap::new(),
+                escaped: HashMap::default(),
+                placements: HashMap::default(),
                 ratio: 1.0,
             };
             self.host.handle_views(Box::new(handler));

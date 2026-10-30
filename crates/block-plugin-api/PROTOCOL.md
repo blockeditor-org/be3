@@ -655,7 +655,8 @@ ignores input for one it has closed since. A press outside a chain of anchored v
 `dismiss-on-outside-press` (a view and those hanging from it) closes the
 chain: the instance hears the views in `input-batch.dismissed` of the screen
 the chain hangs from, before that batch's events, and the press still reaches
-whatever it landed on. A press on a menu closes only the submenus hanging
+whatever it landed on, except a press on the view's `trigger`, the control
+that opened it, which closes nothing: that control's click closes the view. A press on a menu closes only the submenus hanging
 from it. A view marked `keyboard` gives the instance the keyboard while it is
 open, or, when the view holds a child, gives it to the first child placed in
 it instead, and the instance does not take it while such a view is open; and one marked `blocks-owner` keeps presses on the view the chain hangs
@@ -738,7 +739,7 @@ the screen's own logical coordinates. A child
 carries its own identifier, what it shows - a block and its block type, one
 of the instance's web views, a panel the host draws itself, or a window of a
 program the host runs - the rectangle
-and clip it was placed at, the corner radius of the hole cut for it, whether
+and clip it was placed at, the radius its corners are rounded by, whether
 it composites below or above the instance's own pixels, and whether the host
 should draw it as a preview, a passive editor, an active one, or a live one.
 Occluders are ordered against the children: a child's interactive area is
@@ -747,7 +748,10 @@ subtraction that decides what the host draws over it.
 
 A child placed below is cut out of the instance's own surface, which is
 cleared transparent, so the host composites the child's editor under the
-instance and anything the instance draws after the child covers it again. A
+instance and anything the instance draws after the child covers it again. The
+host clips a child with a corner radius to its rectangle with those corners
+rounded, on the GPU, so a child shown in a rounded card does not show its
+square corners past the card's edge. A
 child placed above composites against the instance's pixels instead and cannot
 be drawn over. The host draws the children below a view, then the view,
 then the children above it. A painting is never stretched: the host shows each

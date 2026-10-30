@@ -14,13 +14,10 @@ fn a_folder_still_loading_says_so_only_after_a_moment() {
     fixture.settle();
     let chevron = format!("file-tree.{folder}.chevron");
 
-    fixture.test.click(&chevron);
-    fixture.settle();
     fixture
-        .host
-        .fail_blocks(BlockQuery::References(folder), "Offline".to_owned());
-    fixture.test.click(&chevron);
-    fixture.settle();
+        .test
+        .store()
+        .leave_listing(BlockQuery::References(folder));
     fixture.test.click(&chevron);
     fixture.settle();
     assert!(
@@ -32,5 +29,14 @@ fn a_folder_still_loading_says_so_only_after_a_moment() {
     assert!(
         fixture.says("Loading…"),
         "a folder still unanswered after a moment says it is loading"
+    );
+
+    fixture
+        .host
+        .set_blocks(BlockQuery::References(folder), Vec::new());
+    fixture.settle();
+    assert!(
+        fixture.says("No references") && !fixture.says("Loading…"),
+        "once the host lists the folder as holding nothing, it says so"
     );
 }

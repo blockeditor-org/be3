@@ -27,8 +27,8 @@ fn a_phone_walks_into_folders_and_opens_files() {
     assert!(fixture.says("My files"));
     assert!(fixture.test.shown("file-tree.shared.row"));
     assert!(
-        !fixture.test.shown("file-tree.new"),
-        "the top level holds workspaces, so a new file is made from inside one"
+        fixture.test.shown("file-tree.new"),
+        "a phone has the same toolbar, whose New asks which workspace to add to"
     );
     fixture
         .test

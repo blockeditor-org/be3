@@ -1,7 +1,7 @@
 #[cfg(test)]
 extern crate beui_view as beui;
 
-use std::collections::HashMap;
+use stable_hash::HashMap;
 use std::rc::Rc;
 
 use bytemuck::{Pod, Zeroable};
@@ -133,7 +133,7 @@ impl Atlas {
             texel: format.block_copy_size(None).unwrap_or(1),
             texture,
             view,
-            entries: HashMap::new(),
+            entries: HashMap::default(),
             row_y: 0,
             row_height: 0,
             cursor_x: 0,
@@ -304,7 +304,7 @@ pub struct Renderer {
     list_top: usize,
     generation: u64,
     lists: HashMap<ListKey, Encoded>,
-    drawn: std::collections::HashSet<ListKey>,
+    drawn: stable_hash::HashSet<ListKey>,
     frames: u64,
     live: usize,
     atlas_epoch: u64,
@@ -766,8 +766,8 @@ impl Renderer {
             list_capacity: LISTED,
             list_top: 0,
             generation: 0,
-            lists: HashMap::new(),
-            drawn: std::collections::HashSet::new(),
+            lists: HashMap::default(),
+            drawn: stable_hash::HashSet::default(),
             frames: 0,
             live: 0,
             atlas_epoch: 0,
@@ -777,7 +777,7 @@ impl Renderer {
             origin: Vec2::ZERO,
             atlas,
             colors,
-            pictures: HashMap::new(),
+            pictures: HashMap::default(),
             samplers: [nearest, sampler],
             filters: Vec::new(),
             effects: Vec::new(),
@@ -1004,7 +1004,7 @@ impl Renderer {
                 screen,
                 pixels_per_point,
                 spaces: Vec::new(),
-                slots: HashMap::new(),
+                slots: HashMap::default(),
                 staging: Vec::new(),
                 drawings: Vec::new(),
                 overflow: false,
@@ -1491,7 +1491,7 @@ impl Renderer {
     }
 
     fn sweep(&mut self, output: &WindowOutput, pixels_per_point: f32) {
-        let mut live = std::collections::HashSet::new();
+        let mut live = stable_hash::HashSet::default();
         let at = Walk {
             factor: pixels_per_point,
             space: 0,
@@ -1886,7 +1886,7 @@ fn frame_run(punch: bool, picture: Option<(ImageId, bool)>, space: u32, at: usiz
     }
 }
 
-fn mark(display: &Display, at: Walk, live: &mut std::collections::HashSet<ListKey>) {
+fn mark(display: &Display, at: Walk, live: &mut stable_hash::HashSet<ListKey>) {
     let reach = at.reach(display);
     if reach[0] >= reach[2] || reach[1] >= reach[3] {
         return;
@@ -1895,7 +1895,7 @@ fn mark(display: &Display, at: Walk, live: &mut std::collections::HashSet<ListKe
     mark_parts(&display.parts, at, live);
 }
 
-fn mark_parts(parts: &[Part], at: Walk, live: &mut std::collections::HashSet<ListKey>) {
+fn mark_parts(parts: &[Part], at: Walk, live: &mut stable_hash::HashSet<ListKey>) {
     for part in parts {
         match part {
             Part::Shapes { .. } => {}
@@ -1905,7 +1905,7 @@ fn mark_parts(parts: &[Part], at: Walk, live: &mut std::collections::HashSet<Lis
     }
 }
 
-fn mark_layers(layers: &[Layer], at: Walk, live: &mut std::collections::HashSet<ListKey>) {
+fn mark_layers(layers: &[Layer], at: Walk, live: &mut stable_hash::HashSet<ListKey>) {
     for layer in layers {
         match layer {
             Layer::Shape(_) => {}

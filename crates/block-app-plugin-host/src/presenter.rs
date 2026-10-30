@@ -113,6 +113,7 @@ pub struct Quad {
     pub rect: Rect,
     pub corners: [Pos2; 4],
     pub opacity: f32,
+    pub corner_radius: f32,
 }
 
 impl Quad {
@@ -126,6 +127,7 @@ impl Quad {
                 rect.left_bottom(),
             ],
             opacity: 1.0,
+            corner_radius: 0.0,
         }
     }
 
@@ -165,6 +167,7 @@ impl Quad {
                 rect: Rect::from_points(&corners),
                 corners,
                 opacity: self.opacity,
+                corner_radius: self.corner_radius,
             },
             source,
         ))
@@ -198,6 +201,10 @@ impl Region {
             values[5 + index * 2] = 1.0 - corner.y * scale / screen.y * 2.0;
         }
         values[12] = self.quad.opacity.clamp(0.0, 1.0);
+        let [first, along, _, below] = self.quad.corners;
+        values[13] = (along - first).length() / self.scale[0].max(f32::EPSILON);
+        values[14] = (below - first).length() / self.scale[1].max(f32::EPSILON);
+        values[15] = self.quad.corner_radius.max(0.0);
         values
     }
 }
@@ -206,8 +213,8 @@ impl Region {
 pub(super) struct Shared {
     pub(super) layout: ScreenLayout,
     pub(super) frames: Vec<Frame>,
-    pub(super) paintings: std::collections::HashMap<ScreenId, Painting>,
-    pub(super) overflows: std::collections::HashMap<ScreenId, Vec<String>>,
+    pub(super) paintings: stable_hash::HashMap<ScreenId, Painting>,
+    pub(super) overflows: stable_hash::HashMap<ScreenId, Vec<String>>,
     pub(super) published: Published,
 }
 
@@ -301,6 +308,18 @@ impl Blit {
         self.quad.rect
     }
 
+    pub(super) fn shown_at(&self, painted: (u32, u32)) -> Option<(Quad, Rect)> {
+        if self.drawn.is_some_and(|drawn| drawn != painted) {
+            return None;
+        }
+        match (self.drawn, self.requested) {
+            (None, Some(requested)) if requested != painted => {
+                unstretched(self.quad, self.source, requested, painted)
+            }
+            _ => Some((self.quad, self.source)),
+        }
+    }
+
     pub(super) fn damage(&self, pieces: &[Piece], seen: u64) -> Option<Vec<Rect>> {
         let shared = self.shared.borrow();
         let damage = shared.published.since(seen)?;
@@ -332,19 +351,29 @@ pub(super) fn unstretched(
     requested: (u32, u32),
     drawn: (u32, u32),
 ) -> Option<(Quad, Rect)> {
-    let axis = |min: f32, max: f32, requested: u32, drawn: u32| {
-        let (from, to) = (min * requested as f32, max * requested as f32);
-        let end = to.min(drawn as f32);
-        (end > from && drawn > 0).then(|| {
-            (
-                from / drawn as f32,
-                end / drawn as f32,
-                (end - from) / (to - from),
-            )
-        })
+    if drawn.0 == 0 || drawn.1 == 0 {
+        return None;
+    }
+    let (across, down) = (
+        requested.0 as f32 / drawn.0 as f32,
+        requested.1 as f32 / drawn.1 as f32,
+    );
+    within_texture(
+        quad,
+        Rect::from_min_max(
+            pos2(source.min.x * across, source.min.y * down),
+            pos2(source.max.x * across, source.max.y * down),
+        ),
+    )
+}
+
+pub(super) fn within_texture(quad: Quad, source: Rect) -> Option<(Quad, Rect)> {
+    let axis = |min: f32, max: f32| {
+        let end = max.min(1.0);
+        (end > min).then(|| (end, (end - min) / (max - min)))
     };
-    let (left, right, across) = axis(source.min.x, source.max.x, requested.0, drawn.0)?;
-    let (top, bottom, down) = axis(source.min.y, source.max.y, requested.1, drawn.1)?;
+    let (right, across) = axis(source.min.x, source.max.x)?;
+    let (bottom, down) = axis(source.min.y, source.max.y)?;
     let [origin, along, _, below] = quad.corners;
     let at = |x: f32, y: f32| origin + (along - origin) * x + (below - origin) * y;
     let corners = [
@@ -358,8 +387,9 @@ pub(super) fn unstretched(
             rect: Rect::from_points(&corners),
             corners,
             opacity: quad.opacity,
+            corner_radius: quad.corner_radius,
         },
-        Rect::from_min_max(pos2(left, top), pos2(right, bottom)),
+        Rect::from_min_max(source.min, pos2(right, bottom)),
     ))
 }
 
@@ -430,6 +460,7 @@ pub struct ViewDrawing {
     #[cfg(target_arch = "wasm32")]
     id: u64,
     template: Blit,
+    made_for: Option<Vec2>,
     pieces: Pieces,
     held: Option<Rect>,
     rotation: f32,
@@ -439,11 +470,18 @@ pub struct ViewDrawing {
 pub type Pieces = Rc<RefCell<Vec<Piece>>>;
 
 impl ViewDrawing {
-    pub(super) fn new(template: Blit, pieces: Pieces, held: Option<Rect>, rotation: f32) -> Self {
+    pub(super) fn new(
+        template: Blit,
+        made_for: Option<Vec2>,
+        pieces: Pieces,
+        held: Option<Rect>,
+        rotation: f32,
+    ) -> Self {
         Self {
             #[cfg(target_arch = "wasm32")]
             id: next_drawing(),
             template,
+            made_for,
             pieces,
             held,
             rotation,
@@ -461,6 +499,13 @@ impl ViewDrawing {
 
     fn blits_in(&self, laid: Rect) -> Vec<Blit> {
         let rect = self.held.unwrap_or(laid);
+        let requested = match (self.template.requested, self.made_for) {
+            (Some((width, height)), Some(made)) if made.x > 0.0 && made.y > 0.0 => Some((
+                (width as f32 * rect.width() / made.x).round() as u32,
+                (height as f32 * rect.height() / made.y).round() as u32,
+            )),
+            (requested, _) => requested,
+        };
         let center = rect.center();
         let (sin, cos) = self.rotation.sin_cos();
         let turn = |point: Pos2| {
@@ -493,8 +538,10 @@ impl ViewDrawing {
                         rect: Rect::from_points(&corners),
                         corners,
                         opacity: self.template.quad.opacity,
+                        corner_radius: self.template.quad.corner_radius,
                     },
                     source: piece.source,
+                    requested,
                     ..self.template.clone()
                 }
             })
@@ -551,6 +598,7 @@ impl beui::native::Draw for AnchoredDrawing {
                         rect: blit.quad.rect.translate(offset),
                         corners,
                         opacity: blit.quad.opacity,
+                        corner_radius: blit.quad.corner_radius,
                     },
                     layer: blit.layer.map(|layer| AnchoredSource {
                         bounds: layer.bounds.translate(offset),
@@ -589,14 +637,17 @@ impl Paints for AnchoredDrawing {
             };
             let [width, height] = painting.frame.size.map(|side| side.max(1) as f32);
             let pixels = layer.pixels;
-            let quad = blit.quad;
+            let Some((quad, source)) = within_texture(
+                blit.quad,
+                Rect::from_min_max(
+                    pos2(pixels.min.x / width, pixels.min.y / height),
+                    pos2(pixels.max.x / width, pixels.max.y / height),
+                ),
+            ) else {
+                continue;
+            };
             primitives.extend(painting.placed(Placement {
-                source: [
-                    pixels.min.x / width,
-                    pixels.min.y / height,
-                    pixels.max.x / width,
-                    pixels.max.y / height,
-                ],
+                source: [source.min.x, source.min.y, source.max.x, source.max.y],
                 corners: quad.corners.map(|corner| [corner.x, corner.y]),
                 clip: [
                     quad.rect.min.x,
@@ -604,6 +655,7 @@ impl Paints for AnchoredDrawing {
                     quad.rect.max.x,
                     quad.rect.max.y,
                 ],
+                corner_radius: 0.0,
             }));
             for (key, pixels) in &painting.textures {
                 textures.entry(*key).or_insert_with(|| pixels.clone());
@@ -623,8 +675,8 @@ impl Paints for AnchoredDrawing {
 
 #[cfg(target_arch = "wasm32")]
 thread_local! {
-    static SHOWN: RefCell<std::collections::HashMap<u64, (u64, Vec<Blit>)>> =
-        RefCell::new(std::collections::HashMap::new());
+    static SHOWN: RefCell<stable_hash::HashMap<u64, (u64, Vec<Blit>)>> =
+        RefCell::new(stable_hash::HashMap::default());
     static PREPARED: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
 
@@ -719,16 +771,7 @@ impl Paints for ViewDrawing {
             let Some(placement) = shared.layout.placement(blit.screen) else {
                 continue;
             };
-            let size = (placement.width, placement.height);
-            if blit.drawn.is_some_and(|drawn| drawn != size) {
-                continue;
-            }
-            let placed = match (blit.drawn, blit.requested) {
-                (None, Some(requested)) if requested != size => {
-                    unstretched(blit.quad, blit.source, requested, size)
-                }
-                _ => Some((blit.quad, blit.source)),
-            };
+            let placed = blit.shown_at((placement.width, placement.height));
             let (Some((quad, source)), Some(screen)) = (placed, shared.paintings.get(&blit.screen))
             else {
                 continue;
@@ -744,6 +787,7 @@ impl Paints for ViewDrawing {
                     quad.rect.max.x,
                     quad.rect.max.y,
                 ],
+                corner_radius: quad.corner_radius,
             }));
             for (key, pixels) in &screen.textures {
                 textures.entry(*key).or_insert_with(|| pixels.clone());
@@ -819,16 +863,7 @@ impl beui::native::Draw for PluginDrawing {
                     let mut shared = blit.shared.borrow_mut();
                     let frames = shared.take_frames();
                     let laid = |placement: &ScreenPlacement| {
-                        let size = (placement.width, placement.height);
-                        if blit.drawn.is_some_and(|drawn| drawn != size) {
-                            return None;
-                        }
-                        let (quad, source) = match (blit.drawn, blit.requested) {
-                            (None, Some(requested)) if requested != size => {
-                                unstretched(blit.quad, blit.source, requested, size)?
-                            }
-                            _ => (blit.quad, blit.source),
-                        };
+                        let (quad, source) = blit.shown_at((placement.width, placement.height))?;
                         Some((placement.surface, Region::of(quad, source)))
                     };
                     let region = match blit.layer {
@@ -864,8 +899,9 @@ impl beui::native::Draw for PluginDrawing {
                                     pos2(layer.pixels.min.x / width, layer.pixels.min.y / height),
                                     pos2(layer.pixels.max.x / width, layer.pixels.max.y / height),
                                 );
-                                (width > 0.0 && height > 0.0)
-                                    .then(|| (layer.surface, Region::of(blit.quad, source)))
+                                let (quad, source) = (width > 0.0 && height > 0.0)
+                                    .then(|| within_texture(blit.quad, source))??;
+                                Some((layer.surface, Region::of(quad, source)))
                             },
                         ),
                         None => region,

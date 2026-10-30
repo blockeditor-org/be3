@@ -375,8 +375,8 @@ type Pump = Rc<dyn Fn()>;
 
 #[derive(Default)]
 pub(crate) struct Contents {
-    projections: RefCell<std::collections::HashMap<Option<Uuid>, Box<dyn std::any::Any>>>,
-    pumps: RefCell<std::collections::HashMap<Option<Uuid>, Pump>>,
+    projections: RefCell<stable_hash::HashMap<Option<Uuid>, Box<dyn std::any::Any>>>,
+    pumps: RefCell<stable_hash::HashMap<Option<Uuid>, Pump>>,
     due: Rc<RefCell<Vec<Option<Uuid>>>>,
 }
 
@@ -528,7 +528,7 @@ struct EditorState {
     children_moved: Cell<bool>,
     wakes: Rc<RefCell<Vec<Wake>>>,
     pushed: Mirror,
-    watches: RefCell<std::collections::HashMap<std::any::TypeId, Revision>>,
+    watches: RefCell<stable_hash::HashMap<std::any::TypeId, Revision>>,
     files: Signal<Option<FileDrop>>,
     placed: Signal<Rect>,
     frame_children: Signal<Vec<(u64, Memo<Vec<MenuNode>>)>>,
@@ -946,6 +946,13 @@ impl Editor {
         picked: impl FnOnce(Result<PickedBlock, block_editor_plugin::Failure>) + 'static,
     ) {
         let state = self.state();
+        let anchor = anchor.into();
+        if let Some(open) = state.picking.get_untracked() {
+            self.finish_pick(open.serial(), Ok(None));
+            if anchor.reopens(open.anchor()) && open.places_like(&filter) {
+                return;
+            }
+        }
         let serial = state.next_pick.get() + 1;
         state.next_pick.set(serial);
         let mut filter = filter;
@@ -963,7 +970,7 @@ impl Editor {
             serial,
             filter,
             parent,
-            anchor.into(),
+            anchor,
             touch,
             Box::new(picked),
         )));
@@ -979,6 +986,14 @@ impl Editor {
 
     fn pop(&self, asked: crate::popover::Asked, anchor: crate::PickAnchor) {
         let state = self.state();
+        if let Some(open) = state
+            .popped
+            .get_untracked()
+            .filter(|open| open.asked == asked && anchor.reopens(open.anchor))
+        {
+            self.close_popped(open.serial);
+            return;
+        }
         let serial = state.next_pick.get() + 1;
         state.next_pick.set(serial);
         let touch = beui::native::try_with_document(|document| document.touched()).unwrap_or(false);
@@ -1045,6 +1060,12 @@ impl Editor {
 
     pub(crate) fn remember_picker_size(&self, size: Vec2) {
         self.state().picker_size.set(Some(size));
+    }
+
+    pub fn cancel_pick(&self) {
+        if let Some(open) = self.state().picking.get_untracked() {
+            self.finish_pick(open.serial(), Ok(None));
+        }
     }
 
     pub(crate) fn picking(&self) -> ReadSignal<Option<crate::picking::Picking>> {
@@ -1396,7 +1417,7 @@ impl Editor {
         let pumps: Vec<_> = {
             let state = self.state();
             let held = state.contents.pumps.borrow();
-            let mut pumped = std::collections::HashSet::new();
+            let mut pumped = stable_hash::HashSet::default();
             blocks
                 .into_iter()
                 .filter(|block| pumped.insert(*block))
@@ -1525,6 +1546,11 @@ impl Editor {
                 record.top_bar.get_untracked(),
                 record.rotation.get_untracked(),
                 record.opacity.get_untracked(),
+                to_placed(Rect::from_min_size(
+                    rect.min,
+                    beui::Vec2::new(placement.radius, 0.0),
+                ))
+                .width(),
                 record.intrinsic.get_untracked(),
                 document.panned_by_canvas(node),
                 record.dialog.get_untracked().map(|dialog| DialogFrame {

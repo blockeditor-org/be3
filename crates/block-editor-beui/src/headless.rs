@@ -1,6 +1,6 @@
+use stable_hash::HashMap;
 use std::any::Any;
 use std::cell::{Ref, RefMut};
-use std::collections::HashMap;
 use std::rc::Rc;
 
 use block_editor_plugin::headless::HeadlessPlugin as Core;
@@ -79,7 +79,7 @@ impl HeadlessPlugin {
         Self {
             core,
             module,
-            access: HashMap::new(),
+            access: HashMap::default(),
         }
     }
 

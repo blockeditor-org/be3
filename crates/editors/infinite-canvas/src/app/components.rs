@@ -4,7 +4,6 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::block_ui::BlockLabel;
-use block_editor_beui::node_anchor;
 use block_editor_database::DatabaseBlockPickRequest;
 use block_editor_database::{DatabaseValueEditor, RowValues, ValueLabels};
 use block_ui_database::DatabaseValueChange;
@@ -32,7 +31,7 @@ pub(crate) fn CanvasComponents(state: CanvasState) -> NodeId {
         seen
     });
     let add_button = NodeRef::new();
-    let add = move || state.open_component_picker(node_anchor(&add_button));
+    let add = move || state.open_component_picker(add_button);
     view! {
         <Accordion title="Components" open={open}>
             <List spacing=SPACING>

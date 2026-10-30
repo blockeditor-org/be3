@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use stable_hash::HashMap;
 
 use block_plugin_api::{
     ChildId, DockChild, DockChildClose, DockChildHosted, DockChildPick, DockDeclaration,

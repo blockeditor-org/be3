@@ -3,8 +3,9 @@ use super::*;
 #[test]
 fn a_popup_in_space_closes_on_a_press_in_another_panel() {
     let mut app = AppTest::start_in_space();
-    app.wait(ADD_TO_MY_FILES);
-    app.run(&["--into=space", "click", ADD_TO_MY_FILES]);
+    app.wait(NEW);
+    app.run(&["--into=space", "click", NEW]);
+    app.run(&["--into=space", "click", NEW_IN_MY_FILES]);
     app.wait("#picker.more");
     app.snapshot("a_popup_in_space_closes_on_a_press_in_another_panel");
 

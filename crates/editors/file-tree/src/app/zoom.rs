@@ -1,19 +1,13 @@
-use beui::Overflow;
 use block_editor_beui::be_block::ViewState;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use block_editor_beui::Editor;
 use block_editor_beui::Press;
-use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::icons::{ICON_ARROW_UP, ICON_PLUS};
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::beui::styled::*;
 
 use super::rows::{Row, RowKey, Tree as FileTree};
-use beui::{Align, Direction, ItemSize};
 
-const PADDING: Space = Space::Md;
 const ZOOMED: &str = "zoomed";
 
 #[derive(Clone, PartialEq)]
@@ -21,7 +15,7 @@ pub(crate) struct Focus {
     at: usize,
     depth: usize,
     pub(crate) row: Row,
-    pub(crate) path: String,
+    pub(crate) trail: Vec<(RowKey, String)>,
 }
 
 #[derive(Clone, Copy)]
@@ -40,7 +34,7 @@ pub(crate) fn zooms(row: &Row) -> bool {
 
 impl Zoom {
     pub(crate) fn new(editor: Editor, tree: FileTree) -> Self {
-        let zoomed = create_signal(None::<RowKey>);
+        let zoomed = tree.entered();
         let rows = tree.rows();
         let focus = create_memo(move || {
             let key = zoomed.get()?;
@@ -51,19 +45,16 @@ impl Zoom {
                 let mut reach = depth;
                 for row in rows[..at].iter().rev() {
                     if row.depth < reach {
-                        above.push(row.label.clone());
+                        above.push((row.key.clone(), row.label.clone()));
                         reach = row.depth;
                     }
                 }
-                let path = std::iter::once("Files".to_owned())
-                    .chain(above.into_iter().rev())
-                    .collect::<Vec<_>>()
-                    .join(" / ");
+                above.reverse();
                 Some(Focus {
                     at,
                     depth,
                     row: rows[at].clone(),
-                    path,
+                    trail: above,
                 })
             })
         });
@@ -114,10 +105,6 @@ impl Zoom {
 
     pub(crate) fn focus(&self) -> Memo<Option<Focus>> {
         self.focus
-    }
-
-    pub(crate) fn zoomed(&self) -> ReadSignal<Option<RowKey>> {
-        self.zoomed.read_only()
     }
 
     pub(crate) fn keys(&self) -> Memo<Vec<RowKey>> {
@@ -175,6 +162,10 @@ impl Zoom {
         self.zoomed.set(parent);
     }
 
+    pub(crate) fn out_to(&self, key: RowKey) {
+        self.zoomed.set(Some(key));
+    }
+
     pub(crate) fn leave_for(&self, key: &RowKey) {
         let inside = match (self.zoomed.get_untracked(), key) {
             (None, _) => true,
@@ -184,44 +175,5 @@ impl Zoom {
         if !inside {
             self.zoomed.set(None);
         }
-    }
-}
-
-#[component]
-pub(crate) fn ZoomBar(
-    zoom: Zoom,
-    addable: Memo<bool>,
-    new_button: NodeRef,
-    on_new: ClickCallback,
-) -> NodeId {
-    let focus = zoom.focus();
-    let path = create_memo(move || focus.get().map(|focus| focus.path).unwrap_or_default());
-    let name = create_memo(move || focus.get().map(|focus| focus.row.label).unwrap_or_default());
-    view! {
-        <Frame fill=ColorRole::Background padding=PADDING>
-            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
-                <Button
-                    icon_only=true
-                    @test_id={"file-tree.back"}
-                    glyph=ICON_ARROW_UP
-                    label="Up one level"
-                    on_click={move || zoom.up()}
-                />
-                <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
-                    <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{path}</Text>
-                    <Text style=TextStyle::HEADING overflow=Overflow::Ellipsis>{name}</Text>
-                </List>
-                <Show condition={addable}>
-                    <Button
-                        icon_only=true
-                        @node_ref={&new_button}
-                        @test_id={"file-tree.new"}
-                        glyph=ICON_PLUS
-                        label="New"
-                        on_click={on_new}
-                    />
-                </Show>
-            </List>
-        </Frame>
     }
 }

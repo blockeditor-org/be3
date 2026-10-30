@@ -6,8 +6,8 @@ use block_plugin_api::{
 };
 use block_ui::{BlockCatalog, BlockTypeEntry, EditorEntry, TemplateEntry};
 use lucide::Glyph;
+use stable_hash::{HashMap, HashSet};
 use std::{
-    collections::{HashMap, HashSet},
     rc::Rc,
     sync::{Arc, Mutex},
 };
@@ -64,7 +64,7 @@ impl Dirty {
 impl Screens {
     pub(crate) fn new(apps: Vec<(Uuid, Opener)>, waker: Waker) -> Self {
         Self {
-            sessions: HashMap::new(),
+            sessions: HashMap::default(),
             module: Module::default(),
             apps,
             waker,
@@ -79,9 +79,9 @@ impl Screens {
             surface: None,
             dirty: Arc::default(),
             everything: true,
-            reporting: HashSet::new(),
+            reporting: HashSet::default(),
             reporting_everything: true,
-            laid_out: HashSet::new(),
+            laid_out: HashSet::default(),
             serial: 0,
         }
     }
@@ -678,7 +678,7 @@ impl Screens {
                 .placement(screen)
                 .map_or_else(new_surface, |placement| placement.surface)
         });
-        let mut placements: HashMap<EditorInstanceId, Vec<_>> = HashMap::new();
+        let mut placements: HashMap<EditorInstanceId, Vec<_>> = HashMap::default();
         for placement in &self.layout.screens {
             placements
                 .entry(placement.instance)

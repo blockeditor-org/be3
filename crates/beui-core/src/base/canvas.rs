@@ -2,7 +2,7 @@ use std::any::Any;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use foldhash::{HashMap, HashSet};
+use stable_hash::{HashMap, HashSet};
 
 use crate::callback::Callback;
 use crate::child_list::{ChildHost, ChildList, NodeChildren};
@@ -23,7 +23,7 @@ impl ChildHost for CanvasNode {
 
     fn children_changed(&mut self) {
         self.index.stale = true;
-        let items: std::collections::HashSet<NodeId> = self.items.nodes().into_iter().collect();
+        let items: stable_hash::HashSet<NodeId> = self.items.nodes().into_iter().collect();
         self.laid.retain(|(item, _)| items.contains(item));
     }
 }
@@ -213,6 +213,16 @@ impl CanvasNode {
                 .pixel_grid()
                 .snap_vec(view.origin.to_vec2() - painter.origin()),
             None => Vec2::ZERO,
+        }
+    }
+
+    fn clip(&self, rect: Rect) -> Rect {
+        match self.scrolls_across {
+            true => Rect::from_min_max(
+                pos2(rect.min.x, Rect::EVERYTHING.min.y),
+                pos2(rect.max.x, Rect::EVERYTHING.max.y),
+            ),
+            false => rect,
         }
     }
 
@@ -424,7 +434,7 @@ impl Element for CanvasNode {
         self.host = Some(host);
         self.shift = shift;
         self.zoom = zoom;
-        let clipped = doc.enter_space(host, CLIPPED, painter, shift, rect, out);
+        let clipped = doc.enter_space(host, CLIPPED, painter, shift, self.clip(rect), out);
         let unclipped = doc.enter_space(host, UNCLIPPED, painter, shift, Rect::EVERYTHING, out);
         let scaled = doc.enter_zoomed_space(host, SCALED, painter, shift, zoom, rect, out);
         let visible = rect.translate(-shift);
@@ -488,7 +498,7 @@ impl Element for CanvasNode {
         let Some(host) = self.host else {
             return;
         };
-        let clipped = painter.shifted(SpaceId::inside(host, CLIPPED), self.shift, rect);
+        let clipped = painter.shifted(SpaceId::inside(host, CLIPPED), self.shift, self.clip(rect));
         let unclipped = painter.shifted(
             SpaceId::inside(host, UNCLIPPED),
             self.shift,

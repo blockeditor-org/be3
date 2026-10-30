@@ -1,5 +1,5 @@
 use accesskit::{Affine, Node, NodeId as AccessNodeId, Rect as AccessRect, Role, TreeUpdate};
-use foldhash::{HashMap, HashMapExt, HashSet, HashSetExt};
+use stable_hash::{HashMap, HashSet};
 
 use super::{DOCUMENT_SHIFT, Fragment};
 use crate::geometry::{Rect, Vec2};
@@ -24,14 +24,14 @@ impl Embedded {
     pub fn new(document: u32) -> Self {
         Self {
             document,
-            nodes: HashMap::new(),
+            nodes: HashMap::default(),
             root: None,
             focus: None,
-            local: HashMap::new(),
-            remote: HashMap::new(),
-            parents: HashMap::new(),
+            local: HashMap::default(),
+            remote: HashMap::default(),
+            parents: HashMap::default(),
             next: PANE + 1,
-            changed: HashSet::new(),
+            changed: HashSet::default(),
             restructured: false,
             placed: None,
         }
@@ -142,7 +142,7 @@ impl Embedded {
 
     fn restructure(&mut self) {
         self.parents.clear();
-        let mut reached = HashSet::with_capacity(self.nodes.len());
+        let mut reached = HashSet::with_capacity_and_hasher(self.nodes.len(), Default::default());
         let mut pending = Vec::new();
         if let Some(root) = self.root.filter(|root| self.nodes.contains_key(root)) {
             reached.insert(root);
@@ -173,7 +173,7 @@ impl Embedded {
 
     fn translate(&mut self, id: AccessNodeId, origin: Vec2, scale: f32) -> Node {
         let mut node = self.nodes[&id].clone();
-        let mut seen = HashSet::new();
+        let mut seen = HashSet::default();
         let children: Vec<AccessNodeId> = node
             .children()
             .iter()

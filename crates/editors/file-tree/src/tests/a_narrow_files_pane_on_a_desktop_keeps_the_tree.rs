@@ -12,11 +12,7 @@ fn a_narrow_files_pane_on_a_desktop_keeps_the_tree() {
     fixture.host.set_blocks(BlockQuery::Roots, vec![listed]);
     fixture.settle();
 
-    assert!(fixture.test.shown("file-tree.desktop-app-menu"));
-    assert!(
-        !fixture.test.shown("file-tree.app-menu"),
-        "the phone's title is only for a phone"
-    );
+    assert!(fixture.test.shown("file-tree.app-menu"));
     let compact = fixture.test.rect_of("file-tree.shared.row").height();
 
     let mut phone = phone();

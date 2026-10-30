@@ -7,9 +7,9 @@ license.workspace = true
 [dependencies]
 beui-core = { path = "../beui-core" }
 beui-fonts = { path = "../beui-fonts" }
-foldhash = "0.2"
 freetype = "0.7"
 harfbuzz_rs = "2"
+stable-hash = { path = "../stable-hash" }
 unicode-script = "0.5"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

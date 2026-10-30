@@ -1,6 +1,6 @@
+use stable_hash::HashMap;
 use std::any::Any;
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
 use beui_html::Node;
@@ -400,7 +400,7 @@ pub fn about_elements() -> Vec<About> {
     ARENA.with(|arena| {
         let arena = arena.borrow();
         let mut found: Vec<(About, u32)> = Vec::new();
-        let mut by_element: HashMap<*const RefCell<Shared>, usize> = HashMap::new();
+        let mut by_element: HashMap<*const RefCell<Shared>, usize> = HashMap::default();
         for (index, (generation, entry)) in arena.slots.iter().enumerate() {
             let Some(entry) = entry.as_ref() else {
                 continue;

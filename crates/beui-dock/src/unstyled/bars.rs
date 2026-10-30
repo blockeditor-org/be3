@@ -1,5 +1,5 @@
+use stable_hash::HashMap;
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::Rc;
 
 use beui_macros::{component, view};
@@ -1095,7 +1095,7 @@ fn DockBarWindow(dock: State, key: String) -> NodeId {
     });
     let followed =
         create_memo(move || bars.with(|bars| state.with(|state| state.followed_bar(bars))));
-    let sizes = create_signal(HashMap::<TabId, Vec2>::new());
+    let sizes = create_signal(HashMap::<TabId, Vec2>::default());
     let size = create_signal(
         followed
             .get_untracked()

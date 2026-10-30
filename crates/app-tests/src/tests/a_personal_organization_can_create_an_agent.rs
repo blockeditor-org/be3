@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn a_personal_organization_can_create_an_agent() {
     let mut app = AppTest::start();
-    app.click("#file-tree.desktop-app-menu");
+    app.click("#file-tree.app-menu");
     app.click("#app.menu.agents");
     app.wait("Dialog \"Agents\"");
     app.crop("Dialog \"Agents\"");
@@ -54,7 +54,7 @@ fn a_personal_organization_can_create_an_agent() {
     app.crop("Dialog \"Agent credentials\"");
     app.snapshot("agent_account_token_is_supplied_by_proxy");
     app.click("#app.agents.cancel");
-    app.click("#file-tree.desktop-app-menu");
+    app.click("#file-tree.app-menu");
     app.click("#app.menu.agents");
     app.wait("#app.agents.name");
     let tree = app.tree();

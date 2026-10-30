@@ -133,6 +133,8 @@ pub(crate) fn request_paste() {}
 
 pub(crate) fn keep_clear(_node: NodeId, _rects: Prop<Vec<crate::types::Rect>>) {}
 
+pub(crate) fn above_embeds(_node: NodeId, _above: Prop<Option<crate::types::AboveEmbeds>>) {}
+
 pub(crate) fn window_point(
     _pos: crate::types::Pos2,
     _from: crate::types::WindowId,

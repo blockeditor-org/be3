@@ -3,7 +3,7 @@ use block_editor_beui::beui::icons::{
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::{Fitting, Toolbar, node_anchor};
+use block_editor_beui::{Fitting, Toolbar};
 
 use super::state::{MapState, ZOOM_STEP};
 
@@ -27,7 +27,7 @@ pub(crate) fn MapToolbar(
                 glyph=ICON_PLUS
                 label="Add a point of interest at the centre of the view"
                 @test_id={"map.add-point"}
-                on_click={move || state.open_picker(None, node_anchor(&add))}
+                on_click={move || state.open_picker(None, add)}
             />
             <Button
                 icon_only=true

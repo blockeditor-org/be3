@@ -1,6 +1,6 @@
 use beui_view::types::LayerPolicy;
 use beui_view::types::Overflow;
-use std::collections::HashMap;
+use stable_hash::HashMap;
 use std::rc::Rc;
 
 use beui_macros::{component, view};
@@ -169,7 +169,7 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
     let text_height = create_memo(move || text.get().y);
     let built = view! {
         <Canvas @node_ref=&canvas width={canvas_width} height={canvas_height} scrolls_across=true>
-            <CanvasItem x={x} y={y} width={text_width} height={text_height} clip=false>
+            <CanvasItem x={x} y={y} width={text_width} height={text_height}>
                 <AreaText cx={cx} model={model} geometry bounds />
             </CanvasItem>
         </Canvas>
@@ -746,7 +746,7 @@ enum PieceKey {
 }
 
 fn piece_keys(row: &Row) -> Vec<(PieceKey, usize)> {
-    let mut seen: HashMap<PieceKey, usize> = HashMap::new();
+    let mut seen: HashMap<PieceKey, usize> = HashMap::default();
     row.spans
         .iter()
         .map(|span| {

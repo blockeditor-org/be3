@@ -203,6 +203,7 @@ pub(crate) struct Tree {
     expanded: Signal<HashSet<Uuid>>,
     collapsed: Signal<HashSet<Uuid>>,
     remembered: Signal<u64>,
+    entered: Signal<Option<RowKey>>,
 }
 
 struct Inner {
@@ -220,6 +221,7 @@ impl Tree {
         let folded = create_signal(Folded::default());
         let rows = create_signal(Vec::<Row>::new());
         let remembered = create_signal(0_u64);
+        let entered = create_signal(None::<RowKey>);
         let tick = create_signal(0_u64);
         let timer = create_timer(move || {
             tick.update(|count| *count += 1);
@@ -271,8 +273,17 @@ impl Tree {
                 shared_closed,
                 system_open,
             } = folded.get();
-            watched.expanded.retain(|id, _| open.contains(id));
-            for id in &open {
+            let inside = entered.get();
+            let inside = match &inside {
+                Some(RowKey::Block(path)) => path.last().copied(),
+                Some(RowKey::Pinned(path)) if path.len() > 1 => path.last().copied(),
+                _ => None,
+            }
+            .filter(|id| !watched.workspaces.contains(id));
+            watched
+                .expanded
+                .retain(|id, _| open.contains(id) || inside == Some(*id));
+            for id in open.iter().chain(&inside) {
                 watched
                     .expanded
                     .entry(*id)
@@ -330,6 +341,7 @@ impl Tree {
                 rows: Vec::new(),
                 pinned,
                 seen: HashSet::new(),
+                entered: entered.get(),
             };
             match listed {
                 Ok(_) if sections.is_empty() => {
@@ -390,7 +402,12 @@ impl Tree {
             expanded,
             collapsed,
             remembered,
+            entered,
         }
+    }
+
+    pub(crate) fn entered(&self) -> Signal<Option<RowKey>> {
+        self.entered
     }
 
     pub(crate) fn rows(&self) -> Memo<Vec<Row>> {
@@ -529,6 +546,7 @@ struct Builder<'a> {
     rows: Vec<Row>,
     pinned: HashMap<Uuid, Vec<Uuid>>,
     seen: HashSet<Uuid>,
+    entered: Option<RowKey>,
 }
 
 fn note_for(
@@ -685,7 +703,11 @@ impl Builder<'_> {
             row.expandable = false;
             row.can_delete = false;
             row.tags = self.tags_of(&info);
+            let entered = self.entered.as_ref() == Some(&row.key);
             self.rows.push(row);
+            if entered {
+                self.push_inside(id, 2, &mut vec![id], false, "Nothing here yet");
+            }
         }
     }
 
@@ -745,7 +767,7 @@ impl Builder<'_> {
             &self.watched.block_types,
             &reference,
             Placement {
-                key: RowKey::Block(key_path.clone()),
+                key: RowKey::Block(key_path),
                 depth,
                 container,
                 expanded,
@@ -757,25 +779,44 @@ impl Builder<'_> {
                     .map_or_else(|| id.to_string(), |row| format!("{} ({id})", row.label))
             },
         );
-        let expanded = row.expanded;
+        let entered = self.entered.as_ref() == Some(&row.key);
+        let open = row.expanded || entered;
         let trashed = trashed || row.deleted;
         let mut row = row;
         row.tags = self.tags_of(&reference);
         self.rows.push(row);
-        if !expanded || path.contains(&reference.id) {
+        if !open || path.contains(&reference.id) {
             return;
         }
-        let listed = self.clock.listed(&self.watched.expanded[&reference.id]);
-        let Some(children) = note_for(&mut self.rows, listed, "No references", |label| {
-            Row::note(key_path.clone(), depth + 1, label)
+        let empty = match entered {
+            true => "Nothing here yet",
+            false => "No references",
+        };
+        path.push(reference.id);
+        self.push_inside(reference.id, depth, path, trashed, empty);
+        path.pop();
+    }
+
+    fn push_inside(
+        &mut self,
+        id: Uuid,
+        depth: usize,
+        path: &mut Vec<Uuid>,
+        trashed: bool,
+        empty: &str,
+    ) {
+        let Some(listing) = self.watched.expanded.get(&id) else {
+            return;
+        };
+        let listed = self.clock.listed(listing);
+        let Some(children) = note_for(&mut self.rows, listed, empty, |label| {
+            Row::note(path.clone(), depth + 1, label)
         }) else {
             return;
         };
-        path.push(reference.id);
         for child in children {
-            self.push(child, depth + 1, Some(reference.id), path, trashed);
+            self.push(child, depth + 1, Some(id), path, trashed);
         }
-        path.pop();
     }
 }
 

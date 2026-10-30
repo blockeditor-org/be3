@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn adding_an_account_chooses_a_local_or_custom_server() {
     let mut app = AppTest::start();
-    app.click("#file-tree.desktop-app-menu");
+    app.click("#file-tree.app-menu");
     app.click("#app.menu.accounts");
     app.click("Button \"Add account\"");
     assert!(!app.tree().contains("#account.default"));

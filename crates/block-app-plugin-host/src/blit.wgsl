@@ -2,6 +2,8 @@ struct BlitOutput {
     @builtin(position) position: vec4<f32>,
     @location(0) uv: vec2<f32>,
     @location(1) opacity: f32,
+    @location(2) size: vec2<f32>,
+    @location(3) corner_radius: f32,
 };
 
 struct Region {
@@ -12,9 +14,9 @@ struct Region {
     corner_2: vec2<f32>,
     corner_3: vec2<f32>,
     opacity: f32,
-    padding_0: f32,
-    padding_1: f32,
-    padding_2: f32,
+    size_x: f32,
+    size_y: f32,
+    corner_radius: f32,
 };
 
 @group(1) @binding(0)
@@ -40,6 +42,8 @@ fn blit_vertex(@builtin(vertex_index) index: u32) -> BlitOutput {
     output.position = vec4<f32>(corners[corner], 0.0, 1.0);
     output.uv = region.offset + uvs[corner] * region.scale;
     output.opacity = region.opacity;
+    output.size = vec2<f32>(region.size_x, region.size_y);
+    output.corner_radius = region.corner_radius;
     return output;
 }
 
@@ -56,6 +60,15 @@ fn to_linear(gamma: vec3<f32>) -> vec3<f32> {
     return select(high, low, gamma <= vec3<f32>(0.04045));
 }
 
+fn rounded(uv: vec2<f32>, size: vec2<f32>, radius: f32) -> f32 {
+    let half = size * 0.5;
+    let corner = min(radius, min(half.x, half.y));
+    let inside = abs(uv * size - half) - (half - vec2<f32>(corner));
+    let distance = length(max(inside, vec2<f32>(0.0))) + min(max(inside.x, inside.y), 0.0) - corner;
+    let pixel = max(fwidth(distance), 0.0001);
+    return select(1.0, clamp(0.5 - distance / pixel, 0.0, 1.0), corner > 0.0);
+}
+
 @fragment
 fn blit_fragment(input: BlitOutput) -> @location(0) vec4<f32> {
     let color = textureSampleLevel(counter_texture, counter_sampler, input.uv, 0.0);
@@ -63,5 +76,6 @@ fn blit_fragment(input: BlitOutput) -> @location(0) vec4<f32> {
     if decode_srgb && color.a > 0.0 {
         rgb = to_linear(rgb / color.a) * color.a;
     }
-    return vec4<f32>(rgb, color.a) * input.opacity;
+    let covered = rounded(input.uv, input.size, input.corner_radius);
+    return vec4<f32>(rgb, color.a) * input.opacity * covered;
 }

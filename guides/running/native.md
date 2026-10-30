@@ -49,6 +49,15 @@ the drive layer stacked `drive --socket=/tmp/block.sock tree` reads the tree and
 `drive --socket=/tmp/block.sock settle` waits for the app to settle in between. xdotool
 returns before the app has drawn, so settle before reading anything.
 
+A window also shows how plugins' frames arrive relative to each other, which the headless
+platform hides: dragging workspace-ui's splitter between Files and an editor, say. Drag in
+small steps (`mousedown 1`, then `mousemove` one step at a time) and run `import -window root`
+after each step to see every frame. `WINIT_X11_SCALE_FACTOR=1.5` gives the window a fractional
+scale. To skip building every plugin, run the binary that `:dev` built
+(`buck-out/v2/art/root/crates/block-app/__dev-app__/*/dev-app/block-app`, with the
+`LD_LIBRARY_PATH` and `XDG_DATA_HOME` that `:dev` gives it, read from `/proc/PID/environ`,
+then stop that headless app) with the variables above in place of `:native`.
+
 ## Profiling
 
 Profile a release build: `./scripts/buck run //crates/beui-demo:dev -m release` (or block-app's

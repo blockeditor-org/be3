@@ -27,6 +27,7 @@ build-id = { path = "../build-id" }
 futures-util = { version = "0.3", features = ["io"] }
 host-types = { path = "../host-types" }
 serde_json = "1"
+stable-hash = { path = "../stable-hash" }
 tokio = { version = "1", features = ["sync"] }
 uuid = { version = "1", features = ["serde", "v4", "v7"] }
 wasi-threads = { path = "../wasi-threads" }

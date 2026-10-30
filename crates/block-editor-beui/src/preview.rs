@@ -61,6 +61,7 @@ impl Paints for PicturePaints {
                 primitives: vec![Primitive {
                     clip: [f32::MIN, f32::MIN, f32::MAX, f32::MAX],
                     fade: beui::native::painting::Fade::NONE,
+                    rounds: Vec::new(),
                     content: Content::Mesh(vec![
                         Triangle {
                             texture: key,

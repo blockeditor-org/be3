@@ -1058,7 +1058,8 @@ or a signal of one.
 `Lg` 32, `Xl` 40, `Xl2` 48, `Xl3` 64, then the named `Row`, `Toolbar`,
 `Field`, `TouchRow`, `Menu`, `Popover` and `Dialog`. Both resolve through
 `use_density()`: under `Density::Comfortable` each `Space` from `Xs` up is one
-step larger and a `Size::Row` is tall enough to tap. `Space::Custom` and
+step larger, a `Size::Row` is tall enough to tap, and a `Size::Field` grows as
+much as a regular button does, so a field and a button in one row stay level. `Space::Custom` and
 `Size::Custom` are for lengths that come from content (a measured indent, a
 board cell, a canvas), never for a gap the scale has. `use_space` and
 `use_size` resolve a token to the pixels an unstyled prop takes. A styled prop
@@ -1125,6 +1126,18 @@ window finer or coarser), announced again when a `WindowReport::Rastered`
 changes it, so whatever the host composites there can be drawn as sharp as
 the window around it. `punch=false`
 keeps the surface whole, for something the host draws over it instead.
+What the host draws there covers the document, overlays aside. A node that
+must stay above the embeds painted before it marks itself with
+`above_embeds(node, Some(AboveEmbeds::Reaches))`, which keeps its rectangle
+for its own input (a dock splitter's reach over a child editor), or
+`AboveEmbeds::Paints`, which also has the host draw the document's pixels
+there over them (the splitter's line and focus ring). The marks join the
+overlays in `Document::overlay_layers` (by paint order, so only embeds painted
+earlier are covered), `overlay_rects` and, for `Paints`,
+`overlay_painted_rects`, which a plugin reports as occluders, floating and
+floating painted rectangles. Mark only what paints a few pixels: the host
+draws the document over the embed there, so a mark over a large empty area
+hides the embed under it.
 `Offset` takes exactly one child, lays it out at its full length along a
 `direction` and shows it from an offset; a run of rows goes in a `List` inside
 it. It answers no input at all, so nothing scrolls by putting one in a view
@@ -1454,6 +1467,10 @@ is padded back in by as much, so it lines up as before and its rings have the pa
 in. The unstyled `Scroll` takes the same as `Sides`, which it builds from a `Frame` with that much
 negative padding around it; a negative side of a `Frame`'s padding lays its child out that far
 past the frame. `on_change` still reports the position for anything else that wants it.
+Content shorter than the scroll is laid out as long as the scroll, as a browser's
+`minmax(100%, max-content)` track is, so a percent-sized child of a scroll (a
+`Spacer`, a field filling a toolbar that scrolls when narrow) fills the rest of it
+whether or not the content overflows.
 With `fit` it measures as long as its content, so a box sized by what it holds
 can still scroll once it is squeezed.
 With `max_length` the scroll is as long as what it holds, up to that length, and
@@ -2332,7 +2349,10 @@ take what is over it.
 
 A row's name is edited in place through the controlled `editing` prop, the
 key being renamed or `None`. While it names a row, the row's face gives way
-to a field of the row's height holding `TreeItem::label`, focused with all of
+to a field of the row's height holding `TreeItem::label`, after what `leading`
+built for the row: `leading`, given, builds a row's icon (any run of children,
+from the same `TreeRowFace`) ahead of its content and keeps it beside the field
+while the name is edited, so a row with an icon keeps it. The field is focused with all of
 it selected and scrolled into view, named `<id>.rename` for tests. Enter and
 losing the focus, to a press elsewhere or to the window losing the keyboard,
 report `on_rename` with the trimmed name; Escape, or a name left empty or
@@ -4657,6 +4677,16 @@ the inspector's overlays or a press that began on one is held. Each tree tool ke
 its own rows, and the inspector collects rows only for the tree tools on show. The tree tools pin a
 Pick toggle (`inspector.pick`, an icon pin, checked while picking) to the dock's bar, and every tool
 pins Close (`inspector.close`), so the inspector has no header of its own.
+
+The inspector's chords (Ctrl+Shift+I, C, M and F) belong to the innermost document that has the
+keyboard: while the focus is on a node that forwards keys (`Document::forwards_keys`, such as
+block-app's plugin region), the host leaves them to the plugin it forwards to, so only the focused
+plugin's inspector opens. A document whose main window is not shown (`Context::shows_main` false: a
+plugin, whose views are windows of its own, or the DRM session) cannot hold its app in the App tab,
+so its inspector is built without one and leaves the app where it is: the tools are drawn over the
+right edge of the window that has the keyboard (`software_keyboard::typing_window`), drawn after
+that window's own painting and with that window's input, and the pointer over them is kept from the
+app.
 Its Comp tab lists the
 `#[component]`s that built the tree rather than its base nodes: every
 component records its name against the node it returns, so components that

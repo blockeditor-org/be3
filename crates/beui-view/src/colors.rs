@@ -30,7 +30,7 @@ fn registry() -> Registry {
         let defined = create_signal(Vec::<(u64, ColorDefinitions)>::new());
         let merged = create_memo(move || {
             defined.with(|defined| {
-                let mut merged = ColorDefinitions::new();
+                let mut merged = ColorDefinitions::default();
                 for (_, definitions) in defined {
                     merged.extend(definitions.iter().map(|(var, colors)| (*var, *colors)));
                 }
