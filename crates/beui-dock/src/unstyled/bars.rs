@@ -1490,13 +1490,12 @@ fn DockBarWindow(dock: State, key: String) -> NodeId {
         )
     });
     let at = create_memo(move || dock.rect.get().min + origin.get().to_vec2());
-    let parent = dock.home();
     let placed = key.clone();
     let placement = create_memo(move || {
         dock.bar_placements
             .with(|placements| placements.get(&placed).cloned())
-            .unwrap_or(WindowPlacement::Over {
-                window: parent,
+            .unwrap_or_else(|| WindowPlacement::Over {
+                window: dock.home(),
                 at: at.get(),
             })
     });

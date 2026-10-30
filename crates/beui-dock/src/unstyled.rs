@@ -3551,9 +3551,29 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
             })
             .and_then(|tab| dock.notice(tab))
     });
-    let parent = dock.home();
-    let placement = create_memo(move || dock.placement(surface, parent));
+    let parent = create_memo(move || dock.home());
+    let placement = create_memo(move || dock.placement(surface, parent.get()));
     let shown_at = StoredCell::new(None::<Pos2>);
+    let area_was = StoredCell::new(None::<Pos2>);
+    create_effect(move || {
+        let corner = area.get().min;
+        let Some(was) = area_was.replace(Some(corner)) else {
+            return;
+        };
+        let Some(shown) = shown_at.get() else {
+            return;
+        };
+        if was == corner || !hosted.get_untracked() {
+            return;
+        }
+        let kept = was - corner;
+        shown_at.set(Some(shown + kept));
+        dock.edit(|state| {
+            if let Some(rect) = state.window_rect(surface) {
+                state.set_window_rect(surface, rect.translate(kept));
+            }
+        });
+    });
     let contents = create_memo(move || {
         state.with(|state| {
             state
@@ -3597,7 +3617,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
             notice={window_notice}
             on_report={move |report: WindowReport| {
                 if let WindowReport::Moved { origin, .. } = report
-                    && let Some(home) = window_origin(parent)
+                    && let Some(home) = window_origin(parent.get_untracked())
                 {
                     let min = origin - home.to_vec2() + outset - area.get_untracked().min.to_vec2();
                     shown_at.set(Some(min));
@@ -3617,7 +3637,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                 }
                 shown_at.set(Some(min));
                 handle.place(WindowPlacement::Over {
-                    window: parent,
+                    window: parent.get_untracked(),
                     at: area.get_untracked().min + min.to_vec2() - outset,
                 });
             });

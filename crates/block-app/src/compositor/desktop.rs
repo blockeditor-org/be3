@@ -370,8 +370,8 @@ pub(crate) fn apply() {
                 if let Some(index) = find(&windows, place.view)
                     && windows[index].panel.is_none()
                 {
-                    let held = &mut windows[index];
-                    held.rect = Rect::from_min_size(origin, held.rect.size());
+                    let key = windows[index].key.clone();
+                    move_in(&mut windows, &key, origin);
                 }
             }
         }
@@ -831,6 +831,9 @@ pub(crate) fn follow(key: &FloatedKey, input: ForwardedInput, origin: Vec2) -> F
             Kind::Resize(edge) => resized(start_rect, edge, moved),
         };
         floated.update(|windows| {
+            if held.kind == Kind::Move {
+                move_in(windows, key, rect.min);
+            }
             if let Some(window) = windows.iter_mut().find(|window| window.key == *key) {
                 window.rect = rect;
                 if held.kind == Kind::Move {
@@ -885,23 +888,48 @@ fn raise(key: &FloatedKey) {
     }
 }
 
-fn raise_in(windows: &mut Vec<Floated>, key: &FloatedKey) {
-    let mut raised = vec![key.window];
+fn with_children(windows: &[Floated], key: &FloatedKey) -> Vec<ViewId> {
+    let mut family = vec![key.window];
     let mut index = 0;
-    while index < raised.len() {
-        let parent = raised[index];
+    while index < family.len() {
+        let parent = family[index];
         let children: Vec<ViewId> = windows
             .iter()
             .filter(|window| {
                 window.key.plugin == key.plugin
                     && window.parent == Some(parent)
-                    && !raised.contains(&window.key.window)
+                    && !family.contains(&window.key.window)
             })
             .map(|window| window.key.window)
             .collect();
-        raised.extend(children);
+        family.extend(children);
         index += 1;
     }
+    family
+}
+
+fn move_in(windows: &mut [Floated], key: &FloatedKey, to: Pos2) {
+    let Some(from) = windows
+        .iter()
+        .find(|window| window.key == *key)
+        .map(|window| window.rect.min)
+    else {
+        return;
+    };
+    let moved = to - from;
+    let family = with_children(windows, key);
+    for window in windows.iter_mut() {
+        if window.key.plugin == key.plugin
+            && window.panel.is_none()
+            && family.contains(&window.key.window)
+        {
+            window.rect = window.rect.translate(moved);
+        }
+    }
+}
+
+fn raise_in(windows: &mut Vec<Floated>, key: &FloatedKey) {
+    let raised = with_children(windows, key);
     let (on_top, mut below): (Vec<Floated>, Vec<Floated>) = std::mem::take(windows)
         .into_iter()
         .partition(|window| window.key.plugin == key.plugin && raised.contains(&window.key.window));

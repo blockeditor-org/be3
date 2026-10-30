@@ -26,7 +26,7 @@ impl WindowHandle {
     }
 
     pub fn real_window(self) -> Option<WindowId> {
-        self.real.get_untracked()
+        self.real.get()
     }
 
     pub fn following(

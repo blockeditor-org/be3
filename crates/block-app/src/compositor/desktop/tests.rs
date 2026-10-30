@@ -8,6 +8,7 @@ use block_plugin_api::{Size, ViewRef, WindowOpen, WindowOver};
 
 use super::*;
 mod a_closed_window_takes_the_windows_it_opened_with_it;
+mod a_moved_window_brings_the_windows_opened_over_it_along;
 mod a_raised_window_brings_the_windows_opened_over_it_along;
 mod a_window_held_past_the_edge_of_the_app_stretches_and_springs_back_when_let_go;
 mod a_window_moved_off_the_bottom_of_the_app_keeps_its_size_and_its_top_in_view;

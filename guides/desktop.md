@@ -182,7 +182,7 @@ in `compositor/desktop.rs`: a list of `Floated` windows, each its rect in deskto
 stacking order. A press on one raises it, and so does the plugin's `raise` window request,
 which the dock sends when a window takes the focus (a press on a program's content focuses the
 program, which focuses its tab); raising a window brings the windows opened over it, its dialogs
-and popups, along in front of it. The dock's windows clear to transparent, so the margin their
+and popups, along in front of it, and moving one (a drag or a `place` request) moves them with it. The dock's windows clear to transparent, so the margin their
 resize grips reach into and their rounded corners show what is behind them. The shell's view on each display draws, between its own
 surface and its floating layers (menus, popovers, toasts), the windows that display holds most
 of (`desktop::shown_on`, `DesktopWindows` in `compositor/plugin_view.rs`), each a `PluginView` of
@@ -194,7 +194,8 @@ placement on the window's screen request, which the dock keeps. Every screen req
 frame, display and window views also carries the view's `origin`, its top-left corner in desktop
 points, asked again whenever it changes; beui-platform-plugin reports it as each window's
 `WindowReport::Moved`, and the dock keeps a window's rect (`DockingLayout::window_rect`, in its
-own window's points) from it, so it stays true after the host moves a window. A dock window whose
+own window's points) from it, so it stays true after the host moves a window, and when a dock bar
+beside its top or left edge moves the dock's own area. A dock window whose
 rect the dock changes itself (`DockingLayout::move_window`) asks the host for its new place with
 the protocol's `place` window request (beui's `WindowRequest::Place`, an `Over` its home view).
 The Windows bar on each display lists the windows mostly on that display, and a chip's menu

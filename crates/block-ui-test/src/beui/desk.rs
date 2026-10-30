@@ -23,6 +23,7 @@ struct Hosted {
     window: ViewId,
     screen: ScreenId,
     rect: Rect,
+    parent: Option<ViewId>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -181,6 +182,7 @@ impl Desk {
             WindowRequest::Open(open) => {
                 let origin = self.point_of(open.placement);
                 let rect = Rect::from_min_size(origin, vec2(open.size.width, open.size.height));
+                let parent = find(&self.windows, open.opener.view).map(|_| open.opener.view);
                 match find(&self.windows, open.view) {
                     Some(index) => self.windows[index].rect = rect,
                     None => {
@@ -195,6 +197,7 @@ impl Desk {
                             window: open.view,
                             screen,
                             rect,
+                            parent,
                         });
                     }
                 }
@@ -225,10 +228,7 @@ impl Desk {
             }
             WindowRequest::Place(place) => {
                 let origin = self.point_of(place.placement);
-                if let Some(index) = find(&self.windows, place.view) {
-                    let held = &mut self.windows[index];
-                    held.rect = Rect::from_min_size(origin, held.rect.size());
-                }
+                self.move_to(place.view, origin);
             }
         }
     }
@@ -264,14 +264,44 @@ impl Desk {
             return false;
         }
         let moved = at - pressed;
-        let placed = match gesture {
-            Gesture::Move => rect.translate(moved),
-            Gesture::Resize(edge) => resized(rect, edge, moved),
-        };
-        if let Some(window) = self.windows.iter_mut().find(|held| held.window == window) {
-            window.rect = placed;
+        match gesture {
+            Gesture::Move => self.move_to(window, rect.min + moved),
+            Gesture::Resize(edge) => {
+                if let Some(window) = self.windows.iter_mut().find(|held| held.window == window) {
+                    window.rect = resized(rect, edge, moved);
+                }
+            }
         }
         true
+    }
+
+    fn move_to(&mut self, window: ViewId, to: Pos2) {
+        let Some(from) = self
+            .windows
+            .iter()
+            .find(|held| held.window == window)
+            .map(|held| held.rect.min)
+        else {
+            return;
+        };
+        let mut family = vec![window];
+        let mut index = 0;
+        while index < family.len() {
+            let parent = family[index];
+            family.extend(
+                self.windows
+                    .iter()
+                    .filter(|held| held.parent == Some(parent) && !family.contains(&held.window))
+                    .map(|held| held.window)
+                    .collect::<Vec<_>>(),
+            );
+            index += 1;
+        }
+        for held in &mut self.windows {
+            if family.contains(&held.window) {
+                held.rect = held.rect.translate(to - from);
+            }
+        }
     }
 }
 

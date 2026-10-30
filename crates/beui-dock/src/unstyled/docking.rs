@@ -327,6 +327,7 @@ struct KeyMap<K> {
     tabs: HashMap<K, TabId>,
     keys: HashMap<TabId, K>,
     next: u64,
+    changed: bool,
 }
 
 impl<K> Default for KeyMap<K> {
@@ -335,6 +336,7 @@ impl<K> Default for KeyMap<K> {
             tabs: HashMap::default(),
             keys: HashMap::default(),
             next: 1,
+            changed: true,
         }
     }
 }
@@ -348,6 +350,7 @@ struct ForeignDialog {
 struct LayoutInner<K> {
     _scope: Scope,
     keys: RefCell<KeyMap<K>>,
+    keyed: Signal<u64>,
     registry: Rc<Registry>,
     host: RefCell<Option<Rc<dyn DockHostLink>>>,
     hosted: Signal<Option<DockHosted>>,
@@ -444,6 +447,7 @@ impl<K: DockKey> DockingLayout<K> {
         let inner = LayoutInner {
             _scope: owner.into_scope(),
             keys: RefCell::default(),
+            keyed: create_signal(0),
             registry,
             host: RefCell::default(),
             hosted,
@@ -586,11 +590,23 @@ impl<K: DockKey> DockingLayout<K> {
     }
 
     pub fn tab_of(&self, key: &K) -> Option<TabId> {
-        self.inner().keys.borrow().tabs.get(key).copied()
+        let inner = self.inner();
+        inner.keyed.get();
+        inner.keys.borrow().tabs.get(key).copied()
     }
 
     pub fn key_of(&self, tab: TabId) -> Option<K> {
-        self.inner().keys.borrow().keys.get(&tab).cloned()
+        let inner = self.inner();
+        inner.keyed.get();
+        inner.keys.borrow().keys.get(&tab).cloned()
+    }
+
+    fn announce_keys(&self) {
+        let inner = self.inner();
+        let changed = std::mem::take(&mut inner.keys.borrow_mut().changed);
+        if changed {
+            inner.keyed.update(|keyed| *keyed += 1);
+        }
     }
 
     pub fn contains(&self, key: &K) -> bool {
@@ -640,8 +656,8 @@ impl<K: DockKey> DockingLayout<K> {
     }
 
     pub fn window_rect(&self, key: &K) -> Option<Rect> {
+        let tab = self.tab_of(key)?;
         let rect = self.state.with(|state| {
-            let tab = self.tab_of(key)?;
             let surface = state.find(standing_in(state, tab))?.surface;
             state.window_rect(surface)
         })?;
@@ -837,6 +853,7 @@ impl<K: DockKey> DockingLayout<K> {
         keys.next = keys.next.max(tab.value() + 1);
         keys.tabs.insert(key.clone(), tab);
         keys.keys.insert(tab, key.clone());
+        keys.changed = true;
         tab
     }
 
@@ -851,6 +868,7 @@ impl<K: DockKey> DockingLayout<K> {
             tab = TabId::new(tab.value() + 1);
         }
         keys.next = keys.next.max(tab.value() + 1);
+        keys.changed = true;
         layout
             .registry
             .foreign
@@ -914,13 +932,16 @@ impl<K: DockKey> DockingLayout<K> {
         if next != current {
             self.state.set(next);
         }
+        self.announce_keys();
     }
 
     fn retain_keys(&self, kept: &HashSet<TabId>) {
         let inner = self.inner();
         let mut keys = inner.keys.borrow_mut();
+        let held = keys.keys.len();
         keys.keys.retain(|tab, _| kept.contains(tab));
         keys.tabs.retain(|_, tab| kept.contains(tab));
+        keys.changed |= keys.keys.len() != held;
     }
 
     fn declared(&self, spec: &DockSpec, dialogs: &[(TabId, TabId)], hosts: &[TabId]) {
@@ -947,6 +968,7 @@ impl<K: DockKey> DockingLayout<K> {
             .borrow_mut()
             .retain(|tab| kept.contains(&tab));
         *self.inner().declared.borrow_mut() = Some(spec.clone());
+        self.announce_keys();
     }
 
     fn foreign_tabs(&self, found: &Found<K>) -> Vec<DockDeclaredTab> {
