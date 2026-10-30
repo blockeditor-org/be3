@@ -142,7 +142,11 @@ is never reported. `Key` also has the volume, mic mute, brightness and media
 transport keys, mapped wherever the platform reports them, and the Menu key
 (`Key::ContextMenu`: the W3C `ContextMenu` value that the web and winit report,
 Windows' VK_APPS included, the xkb keysym `Menu` on drm, Android's
-`KEYCODE_MENU`, and evdev `KEY_COMPOSE` or `KEY_MENU`). `Key`, `Modifiers`,
+`KEYCODE_MENU`, and evdev `KEY_COMPOSE` or `KEY_MENU`). In a browser the Menu key and
+Shift+F10 also send a `contextmenu` event, at a place of the browser's choosing: a
+handled keydown keeps Chromium from sending it, the canvas platform cancels it, and
+the HTML core never takes one that comes from those keys (button -1, or no press
+since the key) for a secondary press, so the menu opens once, beneath the control. `Key`, `Modifiers`,
 `KeyChord` and the rest of the input vocabulary (pointer buttons, touch, pen and
 back phases, IME events, `CursorIcon`, pastes and picked files, and the raw
 `Input` a platform produces) live in the framework-free `ui-types` crate (the keys
