@@ -1484,6 +1484,9 @@ fn HostedChild(
             rects
         },
     )));
+    provide_context(super::region::GivenKeyboard(create_memo(move || {
+        child.with(|child| child.as_ref().is_some_and(|child| child.keyboard))
+    })));
     let content = create_memo(move || child.get().map(|child| child.content));
     let panel = PanelReport {
         done: create_signal(false),
@@ -1639,6 +1642,9 @@ fn HostedChild(
         });
         create_effect(move || {
             let status = status.get();
+            if !reports.statuses.is_alive() || !reports.tick.is_alive() {
+                return;
+            }
             reports.statuses.with(|statuses| {
                 let mut statuses = statuses.borrow_mut();
                 match status {
@@ -1649,10 +1655,12 @@ fn HostedChild(
             reports.tick.update(|tick| *tick += 1);
         });
         on_cleanup(move || {
-            reports
-                .statuses
-                .with(|statuses| statuses.borrow_mut().remove(&key.0));
-            reports.tick.update(|tick| *tick += 1);
+            if reports.statuses.is_alive() && reports.tick.is_alive() {
+                reports
+                    .statuses
+                    .with(|statuses| statuses.borrow_mut().remove(&key.0));
+                reports.tick.update(|tick| *tick += 1);
+            }
         });
     }
     let local = create_memo(move || {

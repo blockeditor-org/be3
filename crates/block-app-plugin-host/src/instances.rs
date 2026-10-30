@@ -5,8 +5,8 @@ use block_plugin_api::{
     ChildContent, ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, DialogStatus,
     EditorInstanceId, FrameReport, FrameSpec, LayerSpace, MenuEntry, Occluder, OpenArtifact,
     OpenBlock, OpenCreation, OpenPicker, OpenRename, Opening, PerformanceMeasurement, ScreenId,
-    ScreenLayout, ScreenRequest, ScreenWindow, ShellCommand, Size, Stopped, View, ViewChange,
-    ViewId, ViewPlacement, ViewSize, ViewportMetrics, WebViewEvent, WebViewId,
+    ScreenLayout, ScreenRequest, ScreenWindow, ShellCommand, Size, Stopped, View, ViewAnchor,
+    ViewChange, ViewId, ViewPlacement, ViewSize, ViewportMetrics, WebViewEvent, WebViewId,
 };
 use block_plugin_api::{
     DescribedAction, HostView, WindowOpen, WindowRequests,
@@ -656,6 +656,10 @@ fn host_layers(root: &Screen, anchored: &[AnchoredScreen], region: ViewId) -> Ve
         .filter_map(|anchored| {
             let report = anchored.screen.report.as_ref()?;
             let placement = &anchored.placement;
+            let shift = match placement.anchor {
+                ViewAnchor::Edge(_) => Vec2::ZERO,
+                ViewAnchor::Rect(_) => shift,
+            };
             let to_host = placement.rect.min.to_vec2() + shift;
             let within = |rects: &[Rect]| -> Vec<Rect> {
                 rects
@@ -1098,6 +1102,24 @@ impl Instances {
             screen.request.windows = windows;
             screen.request.host_place = host_place;
         }
+    }
+
+    pub(super) fn refresh_hosting_layers(&mut self) -> bool {
+        let hosting: Vec<(EditorInstanceId, ViewId)> = self
+            .entries
+            .iter()
+            .flat_map(|(instance, entry)| {
+                entry
+                    .anchored
+                    .iter()
+                    .map(move |anchored| (*instance, anchored.root))
+            })
+            .collect();
+        hosting
+            .into_iter()
+            .fold(false, |refreshed, (instance, region)| {
+                self.refresh_layers(instance, region) || refreshed
+            })
     }
 
     pub(super) fn refresh_layers(&mut self, instance: EditorInstanceId, region: ViewId) -> bool {
@@ -2350,9 +2372,6 @@ impl Instances {
         let mut live = 0;
         let mut shown_tabs = HashSet::new();
         let layers = host_layers(screen, &entry.anchored, region);
-        let shift = screen
-            .layer_shift()
-            .map_or(Vec2::ZERO, |(_, shift, _)| shift);
         if let Some(report) = &screen.report {
             let painted: Vec<Rect> = report
                 .painted
@@ -2370,11 +2389,13 @@ impl Instances {
         }
         let in_layers = entry.anchored.iter().filter_map(|held| {
             let layer = layers.iter().find(|layer| layer.id == held.view)?;
-            let from = held.placement.rect.min.to_vec2();
+            let from = layer.rect.min.to_vec2();
+            let moved = layer.rect.min - held.placement.rect.min;
             Some(held.screen.children.children.iter().map(move |child| {
                 let mut child = child.clone();
                 child.rect = child.rect.translate(from);
                 child.clip = child.clip.translate(from);
+                child.anchor = child.anchor.map(|anchor| anchor.translate(moved));
                 (usize::MAX, child, Some(layer))
             }))
         });
@@ -2385,6 +2406,7 @@ impl Instances {
             .map(|(index, child)| (index, child.clone(), None))
             .chain(in_layers.flatten())
             .collect();
+        let mut keyboards = Vec::new();
         for (index, child, layer) in placed {
             let child = &child;
             if self
@@ -2481,17 +2503,13 @@ impl Instances {
                 }
             };
             let anchor = child.anchor.map(|anchor| match layer {
-                Some(_) => anchor.translate(shift),
+                Some(_) => anchor,
                 None => host_rect(anchor, origin, scale),
             });
             let (child_rect, view_rect, child_clip, occluders) = match layer {
                 Some(layer) => {
-                    let rect = child.rect.translate(shift);
-                    let clip = child
-                        .clip
-                        .translate(shift)
-                        .intersect(layer.rect)
-                        .intersect(layer.bounds);
+                    let rect = child.rect;
+                    let clip = child.clip.intersect(layer.rect).intersect(layer.bounds);
                     (rect, rect, clip, Vec::new())
                 }
                 None => {
@@ -2544,6 +2562,13 @@ impl Instances {
                 opacity: child.opacity,
                 dialog: child.dialog,
                 anchored: layer.map(|layer| layer.id),
+                keyboard: layer.is_some_and(|layer| {
+                    layer.keyboard && {
+                        let first = !keyboards.contains(&layer.id);
+                        keyboards.push(layer.id);
+                        first
+                    }
+                }),
                 anchor,
             });
         }

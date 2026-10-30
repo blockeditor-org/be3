@@ -147,7 +147,11 @@ pub fn TextInput(
     create_effect(move || {
         let value = value.get();
         if text_of(state) != value {
+            let whole = untrack(|| select_on_focus.get() && is_focused.get()) && selects_all(state);
             state.execute(EditorCommand::ReplaceWholeFile(value.as_bytes()));
+            if whole {
+                state.execute(EditorCommand::SelectAll);
+            }
         }
     });
     let edited = state.content();
@@ -486,6 +490,11 @@ fn plain_text(value: &str) -> TextAreaState {
         focus: end,
     });
     state
+}
+
+fn selects_all(state: TextAreaState) -> bool {
+    let length = text_of(state).len();
+    length == 0 || state.selection_ranges() == [0..length]
 }
 
 fn text_of(state: TextAreaState) -> String {

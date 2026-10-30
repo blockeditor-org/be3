@@ -1560,6 +1560,7 @@ impl Document {
             ctx.report_overflows(self.out_of_bounds.as_deref().unwrap_or_default());
         }
         self.send_file_dialogs(ctx);
+        let regrouped = self.escapes.take_regrouped();
         FrameMeasurement::measure(&mut measurement.timings.accessibility, || {
             if !ctx.accessibility_active() {
                 let mut tree = self.accessibility_tree.borrow_mut();
@@ -1569,7 +1570,7 @@ impl Document {
                 }
                 return;
             }
-            let full = !ctx.accessibility_known(self.accessibility_id);
+            let full = !ctx.accessibility_known(self.accessibility_id) || regrouped;
             if let Some(fragment) = self.accessibility_update(full) {
                 ctx.publish_accessibility(self.accessibility_id, fragment);
             }

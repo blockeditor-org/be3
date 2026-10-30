@@ -146,6 +146,10 @@ pub fn window_tree_update(
         .find_map(|fragment| fragment.focus)
         .filter(|focus| !escaped.contains(focus))
         .unwrap_or(WINDOW_NODE);
+    let escaped_roots: HashSet<AccessNodeId> = fragments
+        .iter()
+        .flat_map(|fragment| fragment.escaped_roots.iter().map(|(_, root, _)| *root))
+        .collect();
     let mut nodes = vec![(WINDOW_NODE, root)];
     for fragment in fragments {
         nodes.extend(
@@ -153,7 +157,23 @@ pub fn window_tree_update(
                 .nodes
                 .iter()
                 .filter(|(id, _)| in_window(fragment, *id))
-                .cloned(),
+                .map(|(id, node)| {
+                    let mut node = node.clone();
+                    if node
+                        .children()
+                        .iter()
+                        .any(|child| escaped_roots.contains(child))
+                    {
+                        let kept: Vec<AccessNodeId> = node
+                            .children()
+                            .iter()
+                            .copied()
+                            .filter(|child| !escaped_roots.contains(child))
+                            .collect();
+                        node.set_children(kept);
+                    }
+                    (*id, node)
+                }),
         );
     }
     TreeUpdate {
@@ -366,6 +386,10 @@ impl AccessibilityTree {
                 ..Self::default()
             };
         }
+    }
+
+    pub(crate) fn describes(&self, id: NodeId) -> bool {
+        self.entries.contains_key(&id)
     }
 
     pub fn take_inspected(&mut self) -> bool {

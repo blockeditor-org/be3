@@ -67,6 +67,7 @@ fn read_path(path: &std::path::Path) -> Option<Vec<u8>> {
 #[derive(Default)]
 pub(super) struct InputForwarder {
     replay: Replay,
+    started: bool,
 }
 
 impl InputForwarder {
@@ -84,7 +85,15 @@ impl InputForwarder {
         screen_of: &dyn Fn(beui::NodeId) -> Option<ScreenId>,
     ) -> Vec<super::calls::PluginCall> {
         let mut batch = InputBatch::new(screen, every_sample);
-        for Replayed { input, time, over } in self.replay.replay(input, zoom, aim) {
+        let input = match std::mem::replace(&mut self.started, true) || !input.focused {
+            true => std::borrow::Cow::Borrowed(input),
+            false => {
+                let mut focused = input.clone();
+                focused.events.insert(0, beui::Forwarded::Focus(true));
+                std::borrow::Cow::Owned(focused)
+            }
+        };
+        for Replayed { input, time, over } in self.replay.replay(&input, zoom, aim) {
             match input {
                 Input::Paste(Pasted::Text(text)) => {
                     for piece in block_plugin_api::paste_events(&text) {

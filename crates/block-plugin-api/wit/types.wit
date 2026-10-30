@@ -508,8 +508,9 @@ interface types {
     /// and the views hanging from it) closes the chain: the instance hears
     /// `input-batch.dismissed`, and the press still reaches what it landed
     /// on. `keyboard` gives the instance the keyboard while the view is
-    /// open; `blocks-owner` keeps presses on the view the chain hangs from
-    /// from reaching its content.
+    /// open, or the first child the view places when it places one;
+    /// `blocks-owner` keeps presses on the view the chain hangs from from
+    /// reaching its content.
     record anchored-placement {
         parent: view-id,
         anchor: view-anchor,

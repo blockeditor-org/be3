@@ -34,6 +34,7 @@ pub(crate) struct Escapes {
     next: u64,
     pub(crate) paintings: Vec<(WindowId, Painting)>,
     asked: Vec<NodeOf<OverlayNode>>,
+    regrouped: bool,
 }
 
 impl Escapes {
@@ -62,6 +63,10 @@ impl Escapes {
 
     pub(crate) fn paints_into(&self, window: WindowId) -> bool {
         self.held.iter().any(|escape| escape.paint == window)
+    }
+
+    pub(crate) fn take_regrouped(&mut self) -> bool {
+        std::mem::take(&mut self.regrouped)
     }
 }
 
@@ -132,13 +137,21 @@ impl Document {
             .filter(|layer| layer.escapes)
             .filter_map(|layer| layer.overlay)
             .collect();
+        let open: Vec<NodeOf<OverlayNode>> =
+            layers.iter().filter_map(|layer| layer.overlay).collect();
+        let returned =
+            self.escapes.held.iter().any(|escape| {
+                !escaping.contains(&escape.overlay) && open.contains(&escape.overlay)
+            });
         self.escapes
             .held
             .retain(|escape| escaping.contains(&escape.overlay));
+        let mut regrouped = returned;
         for overlay in escaping {
             if self.escapes.paint_window(overlay).is_some() {
                 continue;
             }
+            regrouped |= self.accessibility_tree.borrow().describes(overlay.id());
             self.escapes.next += 1;
             let id = self.escapes.next;
             self.escapes.held.push(Escape {
@@ -148,6 +161,7 @@ impl Document {
                 shown: None,
             });
         }
+        self.escapes.regrouped |= regrouped;
     }
 
     fn escape_id(&self, overlay: NodeOf<OverlayNode>) -> Option<u64> {

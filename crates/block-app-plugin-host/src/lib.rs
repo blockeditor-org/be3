@@ -129,6 +129,7 @@ pub struct HostChild {
     pub opacity: f32,
     pub dialog: Option<block_plugin_api::DialogFrame>,
     pub anchored: Option<block_plugin_api::ViewId>,
+    pub keyboard: bool,
     pub anchor: Option<Rect>,
 }
 

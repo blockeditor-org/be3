@@ -75,6 +75,9 @@ struct Presented(Memo<bool>);
 struct Enclosing(NodeRef);
 
 #[derive(Clone, Copy)]
+pub(crate) struct GivenKeyboard(pub(crate) Memo<bool>);
+
+#[derive(Clone, Copy)]
 pub(crate) struct PanDrag {
     pub(crate) asked: ReadSignal<u64>,
     pub(crate) pan: Callback<Vec2>,
@@ -85,6 +88,7 @@ struct Steering {
     pressed: Option<(PointerEvent, Pos2)>,
     panning: Option<PointerEvent>,
     rect: Rect,
+    focused: bool,
 }
 
 impl Steering {
@@ -92,10 +96,12 @@ impl Steering {
         pressed: None,
         panning: None,
         rect: Rect::ZERO,
+        focused: false,
     };
 
     fn steer(&mut self, input: ForwardedInput, pan: Callback<Vec2>) -> ForwardedInput {
         self.rect = input.rect;
+        self.focused = input.focused;
         let mut events = Vec::with_capacity(input.events.len());
         for forwarded in input.events {
             let Forwarded::Pointer { event, .. } = &forwarded else {
@@ -162,7 +168,7 @@ impl Steering {
             events: vec![cancel],
             rect: self.rect,
             hovered: false,
-            focused: true,
+            focused: self.focused,
             pointer: None,
             modifiers: held.modifiers,
         })
@@ -537,12 +543,14 @@ pub(crate) fn PluginRegion(
     let catcher = NodeRef::new();
     let enclosing = use_context::<Enclosing>();
     provide_context(Enclosing(catcher));
+    let given = use_context::<GivenKeyboard>().map(|GivenKeyboard(given)| given);
+    provide_context(GivenKeyboard(create_memo(|| false)));
     super::intercept::intercept_keys(plugin_id, instance, region.id, intercepted, move || {
         primary.get_untracked()
             && (hosts_windows
                 || (region.is_main() && block.is_some() && shell.get_untracked() == block))
     });
-    take_keyboard(state, &catcher, primary);
+    take_keyboard(state, given, &catcher, primary);
     focus_when_presenting(presenting, presented, &catcher, primary);
     toggle_keyboard_when_asked(state, primary);
     focus_when_asked(revision, plugin_id, instance, region, &catcher, primary);
@@ -1281,8 +1289,16 @@ fn toggle_keyboard_when_asked(state: Memo<RegionView>, primary: Memo<bool>) {
     });
 }
 
-fn take_keyboard(state: Memo<RegionView>, catcher: &NodeRef, primary: Memo<bool>) {
-    let wants = create_memo(move || state.with(|view| view.wants_keyboard) && primary.get());
+fn take_keyboard(
+    state: Memo<RegionView>,
+    given: Option<Memo<bool>>,
+    catcher: &NodeRef,
+    primary: Memo<bool>,
+) {
+    let wants = create_memo(move || {
+        (state.with(|view| view.wants_keyboard) || given.is_some_and(|given| given.get()))
+            && primary.get()
+    });
     let catcher = *catcher;
     create_effect(move || {
         let wanted = wants.get();

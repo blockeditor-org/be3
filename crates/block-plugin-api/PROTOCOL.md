@@ -640,7 +640,10 @@ rigidly by the difference between the `to-host` it shows that view at and the
 one the frame was laid out against, so a move alone need not send the plugin
 a new `to-host`: the host may keep sending the origin it sent last while only
 the origin changes, and sends where the view now is with the next input it
-gives the view; a pan of the view's camera does nothing to them, and the
+gives the view, or once the plugin commits a frame with anchored views hanging
+from a view laid out against an older origin; a view attached to an edge of the bounds hangs from the
+bounds rather than from the view, so a move leaves it (and what it holds)
+where it is; a pan of the view's camera does nothing to them, and the
 plugin repositions or closes them on its next layout. The host hit-tests
 anchored views before any other view, over their `floating` rectangles, the
 one opened last first, and input that lands on one reaches its own screen in
@@ -651,7 +654,8 @@ chain: the instance hears the views in `input-batch.dismissed` of the screen
 the chain hangs from, before that batch's events, and the press still reaches
 whatever it landed on. A press on a menu closes only the submenus hanging
 from it. A view marked `keyboard` gives the instance the keyboard while it is
-open, and one marked `blocks-owner` keeps presses on the view the chain hangs
+open, or, when the view holds a child, gives it to the first child placed in
+it instead, and the instance does not take it while such a view is open; and one marked `blocks-owner` keeps presses on the view the chain hangs
 from from its content.
 
 A popup that embeds another editor is an anchored view holding a child
@@ -663,8 +667,10 @@ instance asks for a block (the picker, below), renames one
 opened as `opening.rename`, which says it is done with `close-dialog`,
 arriving as the child's `child-status.dialog`) and shows the app's menu
 (`host-panel.app-menu`, which the host draws and reports done the same way,
-its size as the child's intrinsic size). A press outside the view closes it
-and removes the child, which closes the editor in it.
+its size as the child's intrinsic size). The instance marks the view
+`keyboard`, so the child takes the keyboard when it opens and gives it back
+when it closes. A press outside the view closes it and removes the child,
+which closes the editor in it.
 In the browser, where a plugin draws in a worker of its own, the page gives
 that worker one canvas over the whole app on its first anchored view and keeps
 it; the worker draws each anchored view's `painted` rectangles into it where

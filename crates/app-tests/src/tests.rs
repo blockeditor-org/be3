@@ -69,9 +69,11 @@ mod the_more_card_from_the_files_reaches_over_the_block_beside_them;
 mod the_more_card_hangs_on_its_tab_and_leaves_the_files_usable;
 mod the_organizations_screen_takes_an_invite_link;
 mod the_rename_card_from_the_files_reaches_past_them;
+mod the_rename_card_takes_the_keyboard_with_its_name_selected;
 mod the_text_settings_point_at_the_tab_from_its_menu_and_the_palette;
 mod two_canvas_tabs_share_one_popped_out_tool_bar_that_follows_the_tab_shown;
 mod typing_after_a_pause_undoes_as_its_own_step;
+mod typing_in_the_add_menu_from_the_files_reaches_it_straight_away;
 
 fn add_to_my_files(app: &mut AppTest, label: &str) {
     start_adding_to_my_files(app, label);

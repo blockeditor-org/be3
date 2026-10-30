@@ -2408,7 +2408,10 @@ and described on their own by `FrameOutput::escaped_accessibility_tree(layer, si
 rooted at the layer's overlay node and mapped into points from `origin` (the layer's top-left in
 host coordinates), so a platform that shows each layer as a view of its own (the plugin platform's
 anchored views) describes it there; `Fragment::escaped` and `escaped_roots` carry which nodes belong
-to which layer. A blocking scrim
+to which layer, and the window's tree drops escaped roots from its nodes' children. An overlay that
+starts escaping after it was described in its window (its window's layer space arrived late), or
+that falls back into its window while open, makes the next accessibility update a full one, so
+neither tree keeps a stale copy. A blocking scrim
 still covers only its window, in window coordinates. Hit testing, focus, trapping, Escape and back
 are unchanged. It is left out of the window's painting and of the
 window's `overlay_rects`, `overlay_painted_rects`, `floating_rects` and `overlay_scrims`, and

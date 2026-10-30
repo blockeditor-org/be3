@@ -25,6 +25,7 @@ pub(crate) enum Face {
 pub(crate) enum Shown {
     Anchored,
     Sheet,
+    Filled,
 }
 
 #[component]
@@ -63,6 +64,21 @@ pub(crate) fn ChildPopover(
             <ModalSheet open=true fit=true on_close={move || on_dismiss.call()}>
                 <Frame width=Length::FILL height>{child}</Frame>
             </ModalSheet>
+        },
+        Shown::Filled => view! {
+            <Overlay
+                anchor={OverlayAnchor::Point(Pos2::ZERO)}
+                placement={Placement::Edge(beui::layer::LayerEdge::Bottom)}
+                policy=LayerPolicy::Pass
+                open=true
+                on_dismiss={move |why: Dismiss| {
+                    if matches!(why, Dismiss::Escape | Dismiss::Back) {
+                        on_dismiss.call();
+                    }
+                }}
+            >
+                <Frame width=Length::FILL height=Length::FILL>{child}</Frame>
+            </Overlay>
         },
     };
     view! {
@@ -172,7 +188,6 @@ fn AnchoredPopover(
             anchor={at}
             placement
             policy=LayerPolicy::Pass
-            traps_focus=false
             pointer={pointer}
             beak
             open=true

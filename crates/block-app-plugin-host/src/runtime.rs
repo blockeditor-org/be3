@@ -1054,6 +1054,7 @@ impl Runtime {
             windows,
             children,
         });
+        changed |= self.instances.refresh_hosting_layers();
         super::docks::heard(&self.plugin.identity.id, docks);
         changed
     }
@@ -2585,6 +2586,16 @@ fn placed_view(
         };
         let loading = screen.is_none_or(|screen| runtime.layout.placement(screen).is_none());
         let layers = runtime.instances.layers(instance, region);
+        let gives_keyboard = |layer: &HostLayer| {
+            layer.keyboard
+                && children
+                    .iter()
+                    .any(|child| child.anchored == Some(layer.id))
+        };
+        let child_keyboard = layers.iter().any(gives_keyboard);
+        let layer_keyboard = layers
+            .iter()
+            .any(|layer| layer.keyboard && !gives_keyboard(layer));
         RegionView {
             error: None,
             rect,
@@ -2609,8 +2620,8 @@ fn placed_view(
             },
             ime: runtime.instances.ime(instance, region, rect),
             handles_back,
-            wants_keyboard: window.is_some_and(|window| window.wants_keyboard)
-                || layers.iter().any(|layer| layer.keyboard),
+            wants_keyboard: (window.is_some_and(|window| window.wants_keyboard) && !child_keyboard)
+                || layer_keyboard,
             layers,
             keyboard_toggles: window.map(|window| window.keyboard_toggles),
             intercepted_keys,
