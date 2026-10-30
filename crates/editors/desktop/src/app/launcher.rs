@@ -98,24 +98,30 @@ pub(super) fn ProgramSearch(
     focused: Memo<bool>,
     close: Callback<()>,
 ) -> NodeId {
-    let listed = programs.editor.watch::<ProgramsWatch>();
+    let catalog = programs.editor.watch::<ProgramsWatch>();
     let query = programs.query;
     let searching = create_memo(move || !query.with(|query| query.trim().is_empty()));
     let items = create_memo(move || {
         let query = query.get();
-        listed.with(|listed| {
-            listed
+        catalog.with(|catalog| {
+            catalog
+                .programs
                 .iter()
                 .map(item)
                 .chain((!query.trim().is_empty()).then(|| run_item(&query)))
                 .collect::<Vec<_>>()
         })
     });
+    let waiting = create_memo(move || !searching.get() && catalog.with(|catalog| !catalog.listed));
+    let none = create_memo(move || {
+        !searching.get() && catalog.with(|catalog| catalog.listed && catalog.programs.is_empty())
+    });
     let columns = create_memo(move || match searching.get() {
         true => 1,
         false => COLUMNS,
     });
     view! {
+        <List spacing=Space::Sm>
         <SearchList
             items
             score
@@ -131,5 +137,12 @@ pub(super) fn ProgramSearch(
                 close.call(());
             }}
         />
+        <Show condition={waiting}>
+            <Text style=TextStyle::CAPTION>"Loading programs…"</Text>
+        </Show>
+        <Show condition={none}>
+            <Text style=TextStyle::CAPTION>"No programs found."</Text>
+        </Show>
+        </List>
     }
 }

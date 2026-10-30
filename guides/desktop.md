@@ -83,11 +83,14 @@ the dock instead (`AppsOverlay`). It holds, top to bottom:
   shows them as a grid of tiles (`desktop.apps.item.ID`) that the arrow keys walk, and typing
   narrows them to a list by name, keywords and comment, ending with a row that runs the query as
   a command (`desktop.apps.item.run`); choosing one launches it (`ProgramAction::Launch` or `Run`)
-  and closes the panel;
+  and closes the panel. The watch's `ProgramCatalog::listed` is false until the host has looked for
+  the programs once, so the panel says "Loading programs…" until then and "No programs found." only
+  when the host found none;
 - the sessions (`app/sessions.rs`): every block-app session the account's settings list, other
   than desktop sessions, each a row (`desktop.apps.sessions.UUID`, "Open" under one already in a
   window) that opens it in a floating window, or brings its window to the front if it is already
-  open, and New session (`desktop.apps.sessions.new`), which adds one to the settings and opens it;
+  open, and New session (`desktop.apps.sessions.new`), which adds one to the settings and opens it
+  (disabled, saying why, while the workspace has no settings block);
 - Menu (`desktop.apps.menu`), which closes the panel and opens the app menu at the Apps button.
 
 ## Notes

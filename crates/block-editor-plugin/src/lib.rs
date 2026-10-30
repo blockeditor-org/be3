@@ -48,7 +48,7 @@ pub use block_plugin_api::{
     NotificationCloseReason, NotificationInbox, NotificationReport, NotificationRequest,
     NotificationSignal, NotificationUrgency, NotificationsWatch, Occluder, PenPhase, PickedBlock,
     PlayerCommand, PointerButton, PowerAction, PowerAvailability, PowerWatch, Press, PreviewImage,
-    ProgramAction, ProgramsWatch, RemapState, RemapsWatch, ResizeMode, Revision, Rotation,
+    ProgramAction, ProgramCatalog, ProgramsWatch, RemapState, RemapsWatch, ResizeMode, Revision, Rotation,
     ScreenLockedWatch, ScreenPlacement, ScrollDelta, ShellCommand, ShellDialog, Size, Stopped,
     SurfaceRect, TemplateCategory, TemplateDescriptor, TimedInput, TopBar, TouchPhase,
     TrayMenuEntry, TrayMenuItem, TrayRequest, TrayStatus, TrayToggle, TrayWatch, VersionBranch,

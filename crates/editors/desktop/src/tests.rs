@@ -11,7 +11,7 @@ use block_editor_beui::{
     HostDisplay, HostImage, HostProgram, HostWindow, HostWindowId, IncomingNotification,
     MediaLevel, MediaLevels, MediaRequest, MediaWatch, NotificationInbox, NotificationRequest,
     NotificationSignal, NotificationsWatch, OwnedEditor, PlayerCommand, PowerAction,
-    PowerAvailability, PowerWatch, ProgramAction, ProgramsWatch, WifiLink, WifiNetwork,
+    PowerAvailability, PowerWatch, ProgramAction, ProgramCatalog, ProgramsWatch, WifiLink, WifiNetwork,
     WifiRequest, WifiSecurity, WifiStatus, WifiWatch, WindowAction, WindowKind, WindowOrigin,
     WindowsWatch,
 };
@@ -156,7 +156,9 @@ impl Fixture {
 
     fn holding(view: EditorViewContent) -> Self {
         let mut fixture = Self::unserved(view);
-        fixture.test.set_watched::<ProgramsWatch>(&Vec::new());
+        fixture
+            .test
+            .set_watched::<ProgramsWatch>(&ProgramCatalog::default());
         fixture
             .test
             .set_watched::<NotificationsWatch>(&NotificationInbox::default());
@@ -558,13 +560,13 @@ fn notes(id: u64) -> HostWindow {
     )
 }
 
-fn programs() -> Vec<HostProgram> {
+fn programs() -> ProgramCatalog {
     const SIDE: u32 = 32;
     let icon = (0..SIDE * SIDE).flat_map(|at| match (at % SIDE + at / SIDE) % 8 < 4 {
         true => [0x2e, 0x7d, 0x32, 0xff],
         false => [0x1b, 0x5e, 0x20, 0xff],
     });
-    vec![
+    let programs = vec![
         HostProgram {
             id: "files.desktop".to_owned(),
             name: "Files".to_owned(),
@@ -587,7 +589,11 @@ fn programs() -> Vec<HostProgram> {
                 rgba: icon.collect(),
             }),
         },
-    ]
+    ];
+    ProgramCatalog {
+        listed: true,
+        programs,
+    }
 }
 
 fn kept_keys(fixture: &Fixture) -> Vec<u64> {

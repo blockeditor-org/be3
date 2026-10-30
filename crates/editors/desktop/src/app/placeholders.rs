@@ -24,7 +24,8 @@ pub(crate) struct Placeholders {
 impl Placeholders {
     pub(crate) fn new(workspace: Workspace) -> Self {
         let editor = workspace.editor();
-        let programs = editor.watch::<ProgramsWatch>();
+        let catalog = editor.watch::<ProgramsWatch>();
+        let programs = create_memo(move || catalog.with(|catalog| catalog.programs.clone()));
         let keys = workspace.placeholders();
         let scale = pixels_per_point();
         let listed = StoredCell::new(false);

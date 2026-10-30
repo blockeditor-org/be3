@@ -36,7 +36,7 @@ be_ops_bindgen::generate!({
         "host-contact", "host-image", "window-origin", "remap-state",
         "power-availability", "media-level", "audio-output", "media-levels", "wifi-security",
         "wifi-network", "wifi-link", "wifi-status", "incoming-notification", "notification-inbox",
-        "notification-report", "host-program", "tray-toggle", "tray-menu-item", "host-tray-item",
+        "notification-report", "host-program", "program-catalog", "tray-toggle", "tray-menu-item", "host-tray-item",
         "dialog-status", "dialog-frame", "window-kind", "insets",
     ],
     inline: [
@@ -106,7 +106,7 @@ pub use desktop::{
         NotificationReport, NotificationRequest, NotificationSignal, NotificationUrgency,
     },
     power::{PowerAction, PowerAvailability},
-    programs::{HostProgram, ProgramAction},
+    programs::{HostProgram, ProgramAction, ProgramCatalog},
     tray::{HostTrayItem, TrayMenuItem, TrayRequest, TrayStatus, TrayToggle},
     types::HostImage,
     wifi::{WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus},

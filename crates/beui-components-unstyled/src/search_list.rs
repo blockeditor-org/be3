@@ -37,6 +37,7 @@ struct State<K: 'static> {
     shown: Memo<Vec<K>>,
     enabled: Func<K, bool>,
     highlighted: Signal<Option<K>>,
+    quiet: Stored<RefCell<Option<K>>>,
     rows: Stored<RefCell<HashMap<K, NodeRef>>>,
     page: usize,
     columns: Memo<usize>,
@@ -64,6 +65,23 @@ impl<K: Clone + Eq + Hash + 'static> State<K> {
     fn choose(&self, key: K) {
         if untrack(|| self.enabled.call(key.clone())) {
             self.on_choose.call(key);
+        }
+    }
+
+    fn highlight_quietly(&self, key: Option<K>) {
+        if self.highlighted.get_untracked() != key {
+            *self.quiet.value().borrow_mut() = key.clone();
+            self.highlighted.set(key);
+        }
+    }
+
+    fn reveal(&self, key: &K) {
+        let row = self.rows.try_value().and_then(|rows| {
+            let rows = rows.borrow();
+            rows.get(key).and_then(NodeRef::try_get)
+        });
+        if let Some(row) = row {
+            row.reveal();
         }
     }
 
@@ -105,15 +123,8 @@ impl<K: Clone + Eq + Hash + 'static> State<K> {
             _ => last,
         };
         let key = choosable[next].clone();
-        self.highlighted.set(Some(key.clone()));
-        if columns > 1
-            && let Some(row) = self.rows.try_value().and_then(|rows| {
-                let rows = rows.borrow();
-                rows.get(&key).and_then(NodeRef::try_get)
-            })
-        {
-            row.reveal();
-        }
+        self.highlight_quietly(Some(key.clone()));
+        self.reveal(&key);
         true
     }
 }
@@ -158,6 +169,7 @@ where
         shown,
         enabled,
         highlighted,
+        quiet: store(RefCell::default()),
         rows: store(RefCell::default()),
         page,
         columns,
@@ -178,19 +190,13 @@ where
                 return;
             }
             let first = shown.iter().find(|key| choosable(key)).cloned();
-            if current != first {
-                highlighted.set(first);
-            }
+            state.highlight_quietly(first);
         });
     });
 
     let highlight = create_selector(move || highlighted.get());
-    let reveal = create_memo(move || {
-        let highlighted = highlighted.get().filter(|_| listed.get())?;
-        shown.with(|shown| shown.iter().position(|key| *key == highlighted))
-    });
     let tracks = create_memo(move || vec![Track::Fraction(1.0); columns.get()]);
-    on_key(KeyAt::Node(state.search), KeyPhase::Capture, move |event| {
+    on_scroll_key(KeyAt::Node(state.search), KeyPhase::Capture, move |event| {
         event.press().is_some_and(|press| state.navigate(press))
     });
     let search_accessibility = crate::labelled_node(
@@ -198,7 +204,7 @@ where
         search_accessibility,
         Prop::Static(String::new()),
     );
-    view! {
+    let list = view! {
         <List spacing>
             <TextInput
                 @node_ref={&state.search}
@@ -215,7 +221,6 @@ where
             <Scroll
                 @sizing={list_height.map(|height| ItemSize::Intrinsic.max(height).shrink(1.0))}
                 fit=true
-                reveal
                 scrollbar
             >
                 <Show condition={listed}>
@@ -232,7 +237,17 @@ where
                 </Show>
             </Scroll>
         </List>
-    }
+    };
+    create_effect(move || {
+        let Some(key) = highlighted.get() else {
+            return;
+        };
+        let quiet = state.quiet.value().borrow_mut().take();
+        if quiet.as_ref() != Some(&key) {
+            untrack(|| state.reveal(&key));
+        }
+    });
+    list
 }
 
 #[component]
@@ -280,7 +295,7 @@ where
             let hover_key = hover_key.clone();
             create_effect(move || {
                 if hovered.get() && enabled.get_untracked() {
-                    state.highlighted.set(Some(hover_key.clone()));
+                    untrack(|| state.highlight_quietly(Some(hover_key.clone())));
                 }
             });
             row.call(SearchRowHandle {

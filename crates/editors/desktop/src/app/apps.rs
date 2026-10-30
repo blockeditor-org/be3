@@ -190,6 +190,10 @@ fn SessionRows(apps: Apps, close: Callback<()>) -> NodeId {
     });
     let settings = sessions.settings;
     let unready = create_memo(move || settings.get().is_none());
+    let why = create_memo(move || match unready.get() {
+        true => "Needs this workspace's settings block".to_owned(),
+        false => String::new(),
+    });
     let create = move || {
         close.call(());
         sessions.create();
@@ -203,6 +207,7 @@ fn SessionRows(apps: Apps, close: Callback<()>) -> NodeId {
             <ListRow
                 @test_id={"desktop.apps.sessions.new"}
                 label="New session"
+                detail={why}
                 glyph={Some(ICON_PLUS)}
                 size=RowSize::Large
                 disabled={unready}

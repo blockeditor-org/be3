@@ -21,8 +21,30 @@ fn the_apps_button_opens_a_grid_of_the_programs_the_host_lists() {
         fixture.test.wants_keyboard(),
         "the open panel asks the host for the keyboard"
     );
+    assert!(
+        fixture.says("Loading programs"),
+        "the panel says the programs are coming until the host lists them"
+    );
+    assert!(!fixture.says("No programs found."));
+    fixture.test.snapshot("the_apps_panel_loading");
+    fixture.test.set_watched::<ProgramsWatch>(&ProgramCatalog {
+        listed: true,
+        programs: Vec::new(),
+    });
+    fixture.settle();
+    assert!(
+        fixture.says("No programs found."),
+        "a host that lists no programs is said to"
+    );
+    assert!(!fixture.says("Loading programs"));
+    fixture.test.snapshot("the_apps_panel_with_no_programs");
+    assert!(
+        fixture.says("Needs this workspace's settings block"),
+        "New session says why it is disabled"
+    );
     fixture.test.set_watched::<ProgramsWatch>(&programs());
     fixture.settle();
+    assert!(!fixture.says("No programs found."));
     let files = fixture.test.rect_of("desktop.apps.item.files.desktop");
     let foot = fixture.test.rect_of("desktop.apps.item.foot.desktop");
     assert!(
