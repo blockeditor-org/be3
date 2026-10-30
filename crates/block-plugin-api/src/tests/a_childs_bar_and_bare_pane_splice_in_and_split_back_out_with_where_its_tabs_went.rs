@@ -1,4 +1,5 @@
 use super::*;
+use crate::{DockAlign, DockBarOver};
 
 fn barred() -> DockDeclaration {
     let mut declaration = child_declaration();
@@ -10,7 +11,7 @@ fn barred() -> DockDeclaration {
         key: "tools".into(),
         kind: "canvas/tools".to_owned(),
         owner: DockTabPath::own(4),
-        placement: DockBarPlacement::Over(DockEdge::Top),
+        placement: DockBarPlacement::Over(DockBarOver { edge: DockEdge::Top, align: DockAlign::Center }),
         size: Size {
             width: 200.0,
             height: 32.0,

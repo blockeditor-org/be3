@@ -1,7 +1,7 @@
 use super::*;
 use crate::unstyled::state::{DockSpecBar, joined_key};
 
-const TOP: DockBarPlacement = DockBarPlacement::Over(DockEdge::Top);
+const TOP: DockBarPlacement = DockBarPlacement::Over(DockEdge::Top, DockAlign::Center);
 
 fn bar(bar: u64, owner: u64) -> DockSpecBar {
     DockSpecBar {

@@ -1,10 +1,10 @@
 use super::*;
-use crate::dock::unstyled::{DockBarPlacement, DockEdge};
+use crate::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
 
 #[test]
 fn a_bare_dock_pane_draws_no_tab_bar() {
     let _root = crate::reactive::RootScope::new();
-    let (document, _) = bar_dock(DockBarPlacement::Over(DockEdge::Top), true);
+    let (document, _) = bar_dock(DockBarPlacement::Over(DockEdge::Top, DockAlign::Center), true);
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     harness.frame(Vec::new());

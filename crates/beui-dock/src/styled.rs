@@ -8,17 +8,18 @@ use beui_macros::{component, view};
 
 use crate::unstyled as dock;
 pub use crate::unstyled::{
-    DockApi, DockBar, DockBarControl, DockBarPlacement, DockDialog, DockDocument, DockDocumentBody,
+    DockAlign, DockApi, DockBar, DockBarControl, DockBarPlacement, DockDialog, DockDocument, DockDocumentBody,
     DockDocumentTabs, DockDocuments, DockEdge, DockEntry, DockMode, DockNode, DockPane, DockSlot,
     DockSplit, DockTab, DockWindow, DockingLayout, DockingSnapshot, TabId, dock_menu, use_dock_bar,
     use_dock_tab,
 };
 use crate::unstyled::{
-    DockAwayHandle, DockBarHandle, DockBarTargetHandle, DockChromeHandle, DockDialogHandle,
+    DockAwayHandle, DockBarBandHandle, DockBarHandle, DockBarTargetHandle, DockChromeHandle, DockDialogHandle,
     DockDragged, DockGripHandle, DockKey, DockPreviewHandle, DockSplitterHandle, DockStackHandle,
     DockSwitchHandle, DockSwitcherHandle, DockTabHandle, Entry,
 };
-use beui_components_styled::List;
+use beui_components_styled::tool_pill::{BAND_FILL, ToolPill};
+use beui_components_styled::{Length, List, Separator};
 use beui_components_styled::action_bar::{ActionBar, ActionLabels};
 use beui_components_styled::button::{Button, ButtonSize, ButtonVariant};
 use beui_components_styled::context_menu::menu_style;
@@ -162,6 +163,9 @@ where
             bar_margin={BAR_MARGIN.px()}
             bar_target={move |handle: DockBarTargetHandle| view! {
                 <DockBarTargetFace handle />
+            }}
+            bar_band={move |handle: DockBarBandHandle| view! {
+                <DockBarBandFace handle />
             }}
             refused={move || view! {
                 <DockDropRefused />
@@ -966,12 +970,58 @@ fn DockBarTargetFace(handle: DockBarTargetHandle) -> NodeId {
         false => Some(Border::DEFAULT),
     });
     let marker = match placement {
-        DockBarPlacement::Over(edge) => format!("dock.bar.target.over.{}", edge.name()),
-        DockBarPlacement::Beside(edge) => format!("dock.bar.target.beside.{}", edge.name()),
         DockBarPlacement::Window { .. } => String::new(),
+        placement => format!("dock.bar.target.{}", placement.name()),
     };
     view! {
         <Frame @test_id={marker} fill={fill} border={border} radius=Radius::Sm />
+    }
+}
+
+#[component]
+fn DockBarBandFace(handle: DockBarBandHandle) -> NodeId {
+    let DockBarBandHandle { edge, body } = handle;
+    let along = edge.direction();
+    let across = match along {
+        Direction::Horizontal => Direction::Vertical,
+        Direction::Vertical => Direction::Horizontal,
+    };
+    let held = view! {
+        <Frame>{body}</Frame>
+    };
+    let line = view! {
+        <Separator direction=along length=Length::FILL />
+    };
+    let parts = match edge {
+        DockEdge::Top | DockEdge::Left => [held, line],
+        DockEdge::Bottom | DockEdge::Right => [line, held],
+    };
+    let [first, second] = parts;
+    view! {
+        <Frame fill=BAND_FILL @test_id={format!("dock.bar.band.{}", edge.name())}>
+            <List direction=across spacing=Space::None>
+                {first}
+                {second}
+            </List>
+        </Frame>
+    }
+}
+
+/// The surface a dock bar's body draws on: a `ToolPill`, the pill while the
+/// bar floats or is popped out and the band's fill while it is docked beside
+/// an edge, in the band the dock draws along the whole edge.
+#[component]
+pub fn DockBarSurface(
+    #[prop(default = Space::Xs2)] spacing: Prop<Space>,
+    children: Children<ListChild>,
+) -> NodeId {
+    let bar = use_dock_bar();
+    let direction = create_memo(move || bar.map_or(Direction::Horizontal, |bar| bar.direction()));
+    let band = create_memo(move || {
+        bar.is_some_and(|bar| matches!(bar.placement(), DockBarPlacement::Beside(_)))
+    });
+    view! {
+        <ToolPill direction={direction} band={band} spacing={spacing} children />
     }
 }
 

@@ -506,13 +506,16 @@ which the root presents as it presents its own dialogs, over the dialog's
 parent, closing it with a `close` of the dialog's `tab`; a popover-style
 dialog is no dock dialog, its owner draws it as an anchored view of its own), a pane's `empty` view, which the root shows
 while the pane holds no tab, and a `dock-bar`'s. A bar belongs to a tab
-(`owner`) and shows while it does, over or beside an edge of its body or
-popped out (`dock-bar-placement`); the root gives its body the `size` the owner
+(`owner`) and shows while it does, floating over an edge of its body at its
+start, centre or end (`dock-bar-over`), in a band along the whole edge beside
+it, or popped out (`dock-bar-placement`); the root gives its body the `size` the owner
 declares, measured as the owner last laid it out along the bar's edge, and
 the layout says where each bar is (`dock-layout.bars`). Its owner draws the
 grip too: placing it is a `place-bar` request, and dragging it a run of
 `move-bar` requests with the pointer in the bar body's own points (`move`,
-then `drop` or `cancel`), which the root carries as a drag of its own, showing
+then `drop` or `cancel`; while the pointer is over another view of the owner,
+the owner maps the position it hears there back into the bar's view through
+the views' layer spaces), which the root carries as a drag of its own, showing
 where the bar would land. A bar's `kind` (`{block type}/{key}`, set by the
 declaring editor and passed on unchanged by the host) says which bars are one
 bar of different tabs: the root places every bar of a kind the same way and

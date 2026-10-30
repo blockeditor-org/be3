@@ -4,7 +4,7 @@ use std::rc::{Rc, Weak};
 
 use beui::NodeId;
 use beui::dock::unstyled::{
-    DockBarControl, DockBarMove, DockBarPlacement, DockBodies, DockDeclaration, DockDeclaredBar,
+    DockAlign, DockBarControl, DockBarMove, DockBarPlacement, DockBodies, DockDeclaration, DockDeclaredBar,
     DockDeclaredDialog, DockDeclaredTab, DockDragStage, DockEdge, DockHostEvent, DockHostLink,
     DockHostSlot, DockHosted, DockMapping, DockMode, DockOutside, DockOutsidePlace, DockPlain,
     DockPlainBar, DockPlainEntry, DockPlainHome, DockPlainNode, DockPlainPlace, DockPlainWindow,
@@ -1630,7 +1630,14 @@ fn edge_from_api(edge: api::DockEdge) -> DockEdge {
 
 fn placement_to_api(placement: DockBarPlacement) -> api::DockBarPlacement {
     match placement {
-        DockBarPlacement::Over(edge) => api::DockBarPlacement::Over(edge_to_api(edge)),
+        DockBarPlacement::Over(edge, align) => api::DockBarPlacement::Over(api::DockBarOver {
+            edge: edge_to_api(edge),
+            align: match align {
+                DockAlign::Start => api::DockAlign::Start,
+                DockAlign::Center => api::DockAlign::Center,
+                DockAlign::End => api::DockAlign::End,
+            },
+        }),
         DockBarPlacement::Beside(edge) => api::DockBarPlacement::Beside(edge_to_api(edge)),
         DockBarPlacement::Window { edge, origin } => {
             api::DockBarPlacement::Window(api::DockBarWindow {
@@ -1643,7 +1650,14 @@ fn placement_to_api(placement: DockBarPlacement) -> api::DockBarPlacement {
 
 fn placement_from_api(placement: &api::DockBarPlacement) -> DockBarPlacement {
     match placement {
-        api::DockBarPlacement::Over(edge) => DockBarPlacement::Over(edge_from_api(*edge)),
+        api::DockBarPlacement::Over(over) => DockBarPlacement::Over(
+            edge_from_api(over.edge),
+            match over.align {
+                api::DockAlign::Start => DockAlign::Start,
+                api::DockAlign::Center => DockAlign::Center,
+                api::DockAlign::End => DockAlign::End,
+            },
+        ),
         api::DockBarPlacement::Beside(edge) => DockBarPlacement::Beside(edge_from_api(*edge)),
         api::DockBarPlacement::Window(window) => DockBarPlacement::Window {
             edge: edge_from_api(window.edge),

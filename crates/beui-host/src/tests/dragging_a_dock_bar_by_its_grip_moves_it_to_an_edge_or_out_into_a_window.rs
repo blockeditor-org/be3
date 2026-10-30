@@ -1,10 +1,10 @@
 use super::*;
-use crate::dock::unstyled::{DockBarPlacement, DockEdge};
+use crate::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
 
 #[test]
 fn dragging_a_dock_bar_by_its_grip_moves_it_to_an_edge_or_out_into_a_window() {
     let _root = crate::reactive::RootScope::new();
-    let (document, dock) = bar_dock(DockBarPlacement::Over(DockEdge::Top), false);
+    let (document, dock) = bar_dock(DockBarPlacement::Over(DockEdge::Top, DockAlign::Center), false);
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
@@ -25,7 +25,7 @@ fn dragging_a_dock_bar_by_its_grip_moves_it_to_an_edge_or_out_into_a_window() {
     harness.frame(Vec::new());
     assert_eq!(
         dock.layout.bar_placement(&9),
-        Some(DockBarPlacement::Over(DockEdge::Bottom)),
+        Some(DockBarPlacement::Over(DockEdge::Bottom, DockAlign::Center)),
         "dropped a little in from the edge, the bar floats over the body"
     );
 

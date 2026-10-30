@@ -15,7 +15,7 @@ fn bars_of_one_key_share_one_window_that_follows_the_tab_shown_last() {
     let bar = |bar: u64, owner: u64| DockSpecBar {
         bar: TabId::new(bar),
         owner: TabId::new(owner),
-        placement: DockBarPlacement::Over(DockEdge::Bottom),
+        placement: DockBarPlacement::Over(DockEdge::Bottom, DockAlign::Center),
     };
     let declared = DockSpec {
         bars: vec![bar(20, 1), bar(21, 2), bar(22, 1)],
@@ -42,7 +42,7 @@ fn bars_of_one_key_share_one_window_that_follows_the_tab_shown_last() {
     );
     assert_eq!(
         state.bar_placement(TabId::new(22)),
-        Some(DockBarPlacement::Over(DockEdge::Bottom)),
+        Some(DockBarPlacement::Over(DockEdge::Bottom, DockAlign::Center)),
         "a bar of another key stays where it was"
     );
     assert_eq!(

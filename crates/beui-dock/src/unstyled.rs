@@ -52,7 +52,7 @@ use beui_view::window::{Window, WindowHandle, opens_windows, use_window};
 
 pub(crate) use bars::BarCovers;
 use bars::{BarPanels, DockBarTargets, DockBarWindows, DockBarred};
-pub use bars::{DockBarControl, DockBarTargetHandle, use_dock_bar};
+pub use bars::{DockBarBandHandle, DockBarControl, DockBarTargetHandle, use_dock_bar};
 pub use dialog::DockDialogHandle;
 use dialog::{DialogParts, DockDialogs};
 pub use docking::{
@@ -69,7 +69,7 @@ use fullscreen::DockAway;
 pub use fullscreen::DockAwayHandle;
 use modifier_drag::{Resized, modifier_resize};
 pub use state::{
-    DockBarPlacement, DockDrop, DockEdge, DockFullscreen, DockHome, DockLayout, DockMapping,
+    DockAlign, DockBarPlacement, DockDrop, DockEdge, DockFullscreen, DockHome, DockLayout, DockMapping,
     DockOutside, DockOutsidePlace, DockPlain, DockPlainBar, DockPlainEntry, DockPlainHome,
     DockPlainNode, DockPlainPlace, DockPlainWindow, DockSpec, DockSpecBar, DockSpecEntry,
     DockSpecNode, DockSpecPane, DockSpecWindow, DockSplitter, DockState, DockSwitch, DockTree,
@@ -593,6 +593,7 @@ struct State {
     covers: Signal<BarCovers>,
     bars_away: Memo<bool>,
     bar_target: RenderFn<DockBarTargetHandle>,
+    bar_band: RenderFn<DockBarBandHandle>,
     dragged_edits: Stored<RefCell<Vec<Box<dyn FnOnce(&mut DockState)>>>>,
 }
 
@@ -1683,6 +1684,7 @@ pub(crate) struct DockConfig {
     pub(crate) bar_margin: f32,
     pub(crate) covers: Signal<BarCovers>,
     pub(crate) bar_target: Option<RenderFn<DockBarTargetHandle>>,
+    pub(crate) bar_band: Option<RenderFn<DockBarBandHandle>>,
     pub(crate) bars_away: Memo<bool>,
     pub(crate) bar_key: Func<TabId, Option<String>>,
 }
@@ -1733,6 +1735,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         dialog_outset,
         bar_margin,
         bar_target,
+        bar_band,
         covers,
         bars_away,
         bar_key,
@@ -1800,6 +1803,8 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         bar_margin,
         covers,
         bars_away,
+        bar_band: bar_band
+            .unwrap_or_else(|| RenderFn::new(|handle: DockBarBandHandle| handle.body)),
         bar_target: bar_target.unwrap_or_else(|| {
             RenderFn::new(|_| {
                 view! {

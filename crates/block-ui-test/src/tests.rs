@@ -176,7 +176,7 @@ impl BeuiApp for StandaloneApp {
                             </DockTab>
                         </DockPane>
                     </DockSplit>
-                    <DockBar id=3u64 parent=1u64 placement=DockBarPlacement::Over(DockEdge::Top)>
+                    <DockBar id=3u64 parent=1u64 placement=DockBarPlacement::Over(DockEdge::Top, beui::dock::unstyled::DockAlign::Center)>
                         <Frame width={Size::Custom(120.0)} height={Size::Custom(24.0)} />
                     </DockBar>
                 </Docking>

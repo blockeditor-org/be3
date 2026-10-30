@@ -2932,10 +2932,13 @@ body is built once when it is declared and kept while its tab is hidden.
 A `DockBar`, declared beside the dock's other children like a `DockDialog`, is a
 tool bar that belongs to a tab: `<DockBar id parent placement>body</DockBar>`
 (`placement` is where it starts). Its owner draws all of it, the grip included. A
-`DockBarPlacement` is `Over(edge)`, floating over the tab's body at a `DockEdge`
-(centred along it, Docking's `bar_margin` in from it, the body keeping its full
-size), `Beside(edge)`, a band along that edge of the pane that the body gives up
-room for, or `Window { edge, origin }`, popped out into a dock window sized to
+`DockBarPlacement` is `Over(edge, align)`, floating over the tab's body at a
+`DockEdge` and a `DockAlign` along it (its start, its centre or its end, so the
+corners too; Docking's `bar_margin` in from it, the body keeping its full size;
+bars at different alignments of one edge sit side by side, bars at one
+alignment stack), `Beside(edge)`, a band the whole length of that edge of the
+pane that the body gives up room for (the styled Docking draws it with
+`bar_band`: the band's fill and one line on the side facing the body), or `Window { edge, origin }`, popped out into a dock window sized to
 the bar, `origin` being relative to the dock. A bar shows only while its tab
 is shown, wherever that tab goes, since its placement is relative to whatever
 pane shows the tab; in a stacked dock a popped-out bar floats over the body at
@@ -2955,17 +2958,23 @@ items out, across for the top and bottom edges) are tracked reads, `place` and
 `pop_out` move it, `menu()` is the radio menu of every placement, and
 `begin_move(press)` starts a drag, called from the handle's `on_drag` once past
 the drag threshold with the press that went down, then with each move. The dock
-carries the drag: over the tab's body it draws Docking's `bar_target` for the 8
+carries the drag: over the tab's body it draws Docking's `bar_target` for the 16
 placements (the outer band of the pane, past any bars already beside that edge,
 docks the bar beside it, the next band in, or any bar already floating there,
-floats it over it), and dropped away from the pane it pops out where it was let
+floats it over it, at the start, centre or end by which third of the edge the
+pointer is over), and dropped away from the pane it pops out where it was let
 go. On an edge that already holds bars the drop slots the bar in among its own
 layer's bars by where the pointer is against their middles, and the highlight
 shows that slot. The bars floating over an edge are kept clear together
 (`keep_clear` on their list). Where a host opens windows, dragging a popped-out bar asks the host
 to move its window, and the menu docks it again. The styled `DockBarGrip`
 (`dock.bar.<bar>.grip`) is such a handle: a grip that drags the bar and opens
-its menu when clicked or pressed with Enter. A bar declared by a `Docking` that
+its menu when clicked or pressed with Enter (its rows are `grip.dock.bar.` and
+`DockBarPlacement::name()`: `over.top`, `over.top.left`, `beside.left`,
+`window`). A bar's body draws on the styled `DockBarSurface`, a `ToolPill` along the
+bar's direction that is a pill while the bar floats or is popped out and the
+band's fill while it is docked beside an edge (a joined bar's body is cut out
+of the root's band, so it draws the fill itself). A bar declared by a `Docking` that
 joins another is declared up to it (`DockDeclaration::bars`) and drawn by it. A
 platform that builds a joined bar's body itself provides
 `DockBarControl::hosted(bar, hosted, request)` there (`is_hosted` tells it
@@ -2973,7 +2982,12 @@ apart): its reads follow the hosted state, and `place`, `pop_out` and
 `begin_move` become `DockRequest::PlaceBar` and `DockRequest::MoveBar` (a
 `DockBarMove`: the pointer in the body's own coordinates and a
 `DockDragStage`), which the root's `Docking` carries as if its own grip were
-dragged; such a handle calls `end_move` when its press ends, which drops the
+dragged, a popped-out bar from where its window is in the dock. A press held in
+one window that the pointer carries over another of the same program reports
+its position in that other window (`PointerPress::window`); `begin_move` turns
+it back into the bar's own window with `window_point(pos, from, to)`, which maps
+a point between windows through their layer spaces, so the move stays in the
+body's points wherever the pointer goes; such a handle calls `end_move` when its press ends, which drops the
 bar (a local control ignores it). `DockingLayout::place_bar` of a joined dock
 asks the root the same way.
 
@@ -5500,7 +5514,9 @@ it shows nothing while that is `None`. Its test ids are `{id}` and
 region labelled with the message.
 
 `ToolPill` is the raised, bordered, fully rounded bar a floating set of tools
-sits in (a canvas's zoom controls and its tool bar): its children in a row,
+sits in, or with `band` set the flat fill of a toolbar band (`BAND_FILL`, which
+beui-dock's band is drawn with too; a dock bar's body uses `DockBarSurface`,
+which sets `band` while the bar is docked beside an edge): its children in a row,
 or a column with `direction=Direction::Vertical` (a dock bar on a side edge),
 with arrow-key focus along it, scrolling when the bar is offered less than it
 needs. Placing it (a `Floating`, a dock bar, a margin) is the caller's.

@@ -8,7 +8,7 @@ fn a_bar_keeps_its_placement_wherever_its_tab_goes() {
         DockSpecBar {
             bar: TabId::new(20),
             owner: TabId::new(1),
-            placement: DockBarPlacement::Over(DockEdge::Left),
+            placement: DockBarPlacement::Over(DockEdge::Left, DockAlign::Center),
         },
         DockSpecBar {
             bar: TabId::new(21),
@@ -33,7 +33,7 @@ fn a_bar_keeps_its_placement_wherever_its_tab_goes() {
     );
     assert_eq!(
         state.bar_placement(TabId::new(20)),
-        Some(DockBarPlacement::Over(DockEdge::Left)),
+        Some(DockBarPlacement::Over(DockEdge::Left, DockAlign::Center)),
         "a bar starts where it is declared"
     );
 

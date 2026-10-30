@@ -1,6 +1,6 @@
 use super::*;
 use crate::dock::unstyled::{
-    DockBar, DockBarPlacement, DockEdge, DockPane, DockSplit, DockTab, DockingLayout, TabId,
+    DockAlign,    DockBar, DockBarPlacement, DockEdge, DockPane, DockSplit, DockTab, DockingLayout, TabId,
     use_dock_bar,
 };
 
@@ -36,7 +36,7 @@ fn SharedCanvas(id: u64, tools: usize, pressed: Signal<Vec<u64>>) -> NodeId {
                     <Frame @test_id={format!("content.{id}")} />
                 </DockTab>
             </DockPane>
-            <DockBar id="tools" parent="stage" placement={DockBarPlacement::Over(DockEdge::Bottom)}>
+            <DockBar id="tools" parent="stage" placement={DockBarPlacement::Over(DockEdge::Bottom, DockAlign::Center)}>
                 <SharedTools id tools pressed />
             </DockBar>
         </dock::styled::Docking>
@@ -163,7 +163,7 @@ fn bars_of_one_key_from_two_docked_tabs_share_one_window_that_follows_the_tab_sh
     pick(&mut harness, "grip.1", "Float over the bottom");
     assert_eq!(
         placements(),
-        vec![Some(DockBarPlacement::Over(DockEdge::Bottom)); 2],
+        vec![Some(DockBarPlacement::Over(DockEdge::Bottom, DockAlign::Center)); 2],
         "docking one back docks them all"
     );
 }

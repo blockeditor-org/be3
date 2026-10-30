@@ -1,6 +1,6 @@
 use super::*;
 use block_plugin_api::{
-    DockBar, DockBarPlace, DockBarPlacement, DockChildRequest, DockDeclaration, DockDeclaredChild,
+    DockAlign, DockBarOver,    DockBar, DockBarPlace, DockBarPlacement, DockChildRequest, DockDeclaration, DockDeclaredChild,
     DockEdge, DockItem, DockItemKind, DockPane, DockRequest, DockTab, DockTabPath, DockTree,
     DockUpdate, Size,
 };
@@ -11,7 +11,7 @@ fn bar(tab: u64, key: &str, kind: &str) -> DockBar {
         key: key.to_owned(),
         kind: kind.to_owned(),
         owner: DockTabPath::own(5),
-        placement: DockBarPlacement::Over(DockEdge::Top),
+        placement: DockBarPlacement::Over(DockBarOver { edge: DockEdge::Top, align: DockAlign::Center }),
         size: Size {
             width: 100.0,
             height: 20.0,
@@ -103,7 +103,7 @@ fn a_root_places_bars_of_one_kind_together_and_others_apart() {
         vec![
             Some(Placement::Beside(Edge::Left)),
             Some(Placement::Beside(Edge::Left)),
-            Some(Placement::Over(Edge::Top)),
+            Some(Placement::Over(Edge::Top, beui::dock::unstyled::DockAlign::Center)),
         ],
         "a bar of the same kind follows, one of the same key but another kind stays"
     );

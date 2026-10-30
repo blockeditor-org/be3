@@ -15,7 +15,7 @@ mod spec;
 mod switch;
 
 use bars::Bar;
-pub use bars::{DockBarPlacement, DockEdge};
+pub use bars::{DockAlign, DockBarPlacement, DockEdge};
 pub use history::DockVisit;
 pub use joined::{
     DockMapping, DockOutside, DockOutsidePlace, joined_host, joined_key, joined_prefix,

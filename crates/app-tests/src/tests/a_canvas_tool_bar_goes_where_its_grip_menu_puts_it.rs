@@ -35,6 +35,15 @@ fn a_canvas_tool_bar_goes_where_its_grip_menu_puts_it() {
         "docked along the bottom, it lies against it, at {bottom:?} in {pane:?}"
     );
 
+    let band = app.place("#dock.bar.band.bottom");
+    assert!(
+        (band.0 - pane.0).abs() < 1.0 && (band.2 - pane.2).abs() < 1.0,
+        "a bar docked along an edge sits in a band the whole length of it, {band:?}"
+    );
+
+    put(&mut app, "#grip.dock.bar.beside.top");
+    app.snapshot("a_canvas_tool_bar_docked_along_the_top_sits_in_a_band");
+
     let popped = put(&mut app, "#grip.dock.bar.window");
     assert_ne!(popped, bottom, "popped out, it leaves the edge");
     app.snapshot("a_canvas_tool_bar_popped_out_from_its_grip_menu");

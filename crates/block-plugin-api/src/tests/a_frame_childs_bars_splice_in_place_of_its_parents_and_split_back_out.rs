@@ -1,4 +1,5 @@
 use super::*;
+use crate::{DockAlign, DockBarOver};
 
 fn bar(tab: u64, key: &str, owner: u64, edge: DockEdge) -> DockBar {
     DockBar {
@@ -6,7 +7,10 @@ fn bar(tab: u64, key: &str, owner: u64, edge: DockEdge) -> DockBar {
         key: key.into(),
         kind: format!("canvas/{key}"),
         owner: DockTabPath::own(owner),
-        placement: DockBarPlacement::Over(edge),
+        placement: DockBarPlacement::Over(DockBarOver {
+            edge,
+            align: DockAlign::Center,
+        }),
         size: Size {
             width: 200.0,
             height: 32.0,

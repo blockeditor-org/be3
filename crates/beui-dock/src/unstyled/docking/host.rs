@@ -372,7 +372,7 @@ impl Registry {
                 mode,
                 covers: covers
                     .iter()
-                    .filter_map(|((tab, _), rect)| Some((inner(*tab)?, *rect)))
+                    .filter_map(|((tab, ..), rect)| Some((inner(*tab)?, *rect)))
                     .collect(),
             })
         })

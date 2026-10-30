@@ -1,6 +1,8 @@
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::dock::styled::{DockBarGrip, DockingLayout, use_dock_bar};
-use block_editor_beui::beui::dock::unstyled::{DockBarPlacement, DockEdge};
+use block_editor_beui::beui::dock::styled::{
+    DockBarGrip, DockBarSurface, DockingLayout, use_dock_bar,
+};
+use block_editor_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::sheet_open;
@@ -28,6 +30,7 @@ const BAR_MARGIN: Space = Space::Md;
 
 pub(crate) const STAGE: &str = "stage";
 pub(crate) const TOOLS: &str = "tools";
+pub(crate) const ZOOM: &str = "zoom";
 
 pub(crate) fn tools_open(state: CanvasState, shown: ReadSignal<bool>) -> Memo<bool> {
     let previewing = state.previewing();
@@ -60,7 +63,7 @@ pub(crate) fn ToolBar(state: CanvasState, open: Memo<bool>, size: Signal<Vec2>) 
     let content = Render::new(move |()| {
         let tools = actions.clone();
         let pill = view! {
-            <ToolPill direction={direction} @test_id={"infinite-canvas.dock"}>
+            <DockBarSurface @test_id={"infinite-canvas.dock"}>
                 <Frame @test_id={"infinite-canvas.dock.grip"}>
                     <DockBarGrip />
                 </Frame>
@@ -90,7 +93,7 @@ pub(crate) fn ToolBar(state: CanvasState, open: Memo<bool>, size: Signal<Vec2>) 
                     action={actions.ignore_touch.clone()}
                     @test_id={"infinite-canvas.dock.ignore-touch"}
                 />
-            </ToolPill>
+            </DockBarSurface>
         };
         let measured = measure(pill);
         create_effect(move || {
@@ -105,19 +108,10 @@ pub(crate) fn ToolBar(state: CanvasState, open: Memo<bool>, size: Signal<Vec2>) 
         pill
     })
     .once();
-    let beside = create_memo(move || {
-        bar.is_some_and(|bar| matches!(bar.placement(), DockBarPlacement::Beside(_)))
-    });
-    let padding = create_memo(move || match beside.get() {
-        true => Padding::all(Space::Sm),
-        false => Padding::ZERO,
-    });
     view! {
-        <Frame padding={padding}>
-            <List spacing=Space::None>
-                <ShowKeepAlive condition={open}>{content.call(())}</ShowKeepAlive>
-            </List>
-        </Frame>
+        <List spacing=Space::None>
+            <ShowKeepAlive condition={open}>{content.call(())}</ShowKeepAlive>
+        </List>
     }
 }
 
@@ -131,7 +125,7 @@ pub(crate) fn SelectionDock(
     let placement = create_memo(move || {
         layout
             .bar_placement(&TOOLS)
-            .unwrap_or(DockBarPlacement::Over(DockEdge::Bottom))
+            .unwrap_or(DockBarPlacement::Over(DockEdge::Bottom, DockAlign::Center))
     });
     let edge = create_memo(move || placement.get().edge());
     let direction = create_memo(move || edge.get().direction());
@@ -150,7 +144,7 @@ pub(crate) fn SelectionDock(
     });
     let padding = create_memo(move || {
         let away = match placement.get() {
-            DockBarPlacement::Over(edge) => {
+            DockBarPlacement::Over(edge, _) => {
                 let bar = bar.get();
                 let thickness = match edge.direction() {
                     Direction::Horizontal => bar.y,
@@ -189,51 +183,49 @@ pub(crate) fn SelectionDock(
 }
 
 #[component]
-pub(crate) fn ZoomPill(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -> NodeId {
+pub(crate) fn ZoomBar(state: CanvasState, open: Memo<bool>) -> NodeId {
     let actions = use_context::<CanvasActions>().expect("the canvas provides its actions");
-    let sheet = sheet_open();
-    let previewing = state.previewing();
-    let open = create_memo(move || shown.get() && !sheet.get() && !previewing);
     let scale = state.editor().scale();
     let readout = create_memo(move || format!("{:.0}%", scale.get() * 100.0));
     let reset = actions.zoom_reset.clone();
-    let content = RenderFn::new(move |()| {
-        let actions = actions.clone();
+    let content = Render::new(move |()| {
         let reset = reset.clone();
         view! {
-            <Frame padding=PILL_MARGIN>
-                <ToolPill @test_id={"infinite-canvas.zoom-pill"}>
-                    <Button
-                        icon_only=true
-                        @test_id={"infinite-canvas.pill.zoom-out"}
-                        action={actions.zoom_out}
-                    />
-                    <Button
-                        label={readout}
-                        variant=ButtonVariant::Ghost
-                        @test_id={"infinite-canvas.pill.zoom"}
-                        on_click={move || {
-                            reset.run();
-                        }}
-                    />
-                    <Button
-                        icon_only=true
-                        @test_id={"infinite-canvas.pill.zoom-in"}
-                        action={actions.zoom_in}
-                    />
-                    <Button
-                        icon_only=true
-                        @test_id={"infinite-canvas.pill.fit"}
-                        action={actions.fit_all}
-                    />
-                </ToolPill>
-            </Frame>
+            <DockBarSurface @test_id={"infinite-canvas.zoom-pill"}>
+                <Frame @test_id={"infinite-canvas.zoom.grip"}>
+                    <DockBarGrip />
+                </Frame>
+                <Button
+                    icon_only=true
+                    @test_id={"infinite-canvas.pill.zoom-out"}
+                    action={actions.zoom_out.clone()}
+                />
+                <Button
+                    label={readout}
+                    variant=ButtonVariant::Ghost
+                    @test_id={"infinite-canvas.pill.zoom"}
+                    on_click={move || {
+                        reset.run();
+                    }}
+                />
+                <Button
+                    icon_only=true
+                    @test_id={"infinite-canvas.pill.zoom-in"}
+                    action={actions.zoom_in.clone()}
+                />
+                <Button
+                    icon_only=true
+                    @test_id={"infinite-canvas.pill.fit"}
+                    action={actions.fit_all.clone()}
+                />
+            </DockBarSurface>
         }
-    });
+    })
+    .once();
     view! {
-        <Floating anchor={anchor} edge=Edge::TopEnd open={open} keep_alive=true>
-            {content.call(())}
-        </Floating>
+        <List spacing=Space::None>
+            <ShowKeepAlive condition={open}>{content.call(())}</ShowKeepAlive>
+        </List>
     }
 }
 

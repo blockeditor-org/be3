@@ -1,10 +1,10 @@
 use super::*;
-use crate::dock::unstyled::{DockBarPlacement, DockEdge};
+use crate::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
 
 #[test]
 fn a_dock_bars_grip_menu_moves_it_without_dragging() {
     let _root = crate::reactive::RootScope::new();
-    let (document, dock) = bar_dock(DockBarPlacement::Over(DockEdge::Top), false);
+    let (document, dock) = bar_dock(DockBarPlacement::Over(DockEdge::Top, DockAlign::Center), false);
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     harness.frame(Vec::new());

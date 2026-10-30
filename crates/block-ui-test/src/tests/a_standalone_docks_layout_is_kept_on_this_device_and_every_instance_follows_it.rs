@@ -1,5 +1,5 @@
 use super::*;
-use beui::dock::styled::{DockBarPlacement, DockEdge};
+use beui::dock::styled::{DockAlign, DockBarPlacement, DockEdge};
 
 #[test]
 fn a_standalone_docks_layout_is_kept_on_this_device_and_every_instance_follows_it() {
@@ -17,7 +17,7 @@ fn a_standalone_docks_layout_is_kept_on_this_device_and_every_instance_follows_i
         "a moved bar survives reopening"
     );
 
-    layout.place_bar(&3, DockBarPlacement::Over(DockEdge::Bottom));
+    layout.place_bar(&3, DockBarPlacement::Over(DockEdge::Bottom, DockAlign::Center));
     first.run();
     let (_, changed) = kept_dock(&first, display);
     assert_ne!(changed, saved);
@@ -27,7 +27,7 @@ fn a_standalone_docks_layout_is_kept_on_this_device_and_every_instance_follows_i
     );
     assert_eq!(
         reopened_layout.bar_placement(&3),
-        Some(DockBarPlacement::Over(DockEdge::Bottom)),
+        Some(DockBarPlacement::Over(DockEdge::Bottom, DockAlign::Center)),
         "an open instance follows the layout another one kept"
     );
 }

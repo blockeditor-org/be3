@@ -21,11 +21,11 @@ use serde::{Deserialize, Serialize};
 
 use super::dialog::{DialogParts, DockDialogHandle};
 use super::state::{
-    DockBarPlacement, DockEdge, DockFullscreen, DockSpec, DockSpecBar, DockSpecEntry, DockSpecNode,
+    DockAlign, DockBarPlacement, DockEdge, DockFullscreen, DockSpec, DockSpecBar, DockSpecEntry, DockSpecNode,
     DockSpecPane, DockSpecWindow, joined_host, joined_key, joined_prefix,
 };
 use super::{
-    Dock, DockApi, DockAwayHandle, DockBarControl, DockBarHandle, DockBarTargetHandle,
+    Dock, DockApi, DockAwayHandle, DockBarBandHandle, DockBarControl, DockBarHandle, DockBarTargetHandle,
     DockChromeHandle, DockConfig, DockGripHandle, DockMode, DockPreviewHandle, DockSplitterHandle,
     DockStackHandle, DockState, DockSwitchHandle, DockSwitcherHandle, DockTabControl,
     DockTabHandle, DockTabMenu, GroupId, LeafId, SIDEBAR_WIDTH, TabId,
@@ -236,7 +236,7 @@ where
 pub fn DockBar<K>(
     id: K,
     parent: K,
-    #[prop(default = DockBarPlacement::Over(DockEdge::Top))] placement: DockBarPlacement,
+    #[prop(default = DockBarPlacement::Over(DockEdge::Top, DockAlign::Center))] placement: DockBarPlacement,
     #[prop(children)] content: RenderFn<()>,
 ) -> DockNode<K>
 where
@@ -1448,6 +1448,7 @@ pub fn Docking<K>(
     #[prop(default = Vec2::ZERO)] dialog_outset: Vec2,
     #[prop(default = 0.0)] bar_margin: f32,
     bar_target: Option<RenderFn<DockBarTargetHandle>>,
+    bar_band: Option<RenderFn<DockBarBandHandle>>,
     children: Children<DockNode<K>>,
 ) -> NodeId
 where
@@ -1745,6 +1746,7 @@ where
                 dialog_outset,
                 bar_margin,
                 bar_target,
+                bar_band,
                 covers: layout.covers,
                 bars_away: create_memo(move || bars_hosted.with(Option::is_some)),
                 bar_key: Func::new(move |bar: TabId| found.with(|found| found.bar_key(bar))),

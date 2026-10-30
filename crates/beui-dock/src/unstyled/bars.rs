@@ -20,7 +20,7 @@ use beui_view::window::{Window, WindowHandle};
 
 use super::state::DockState;
 use super::{
-    DockBarMove, DockBarPlacement, DockDragStage, DockDragged, DockEdge, DockHosted, DockMode,
+    DockAlign, DockBarMove, DockBarPlacement, DockDragStage, DockDragged, DockEdge, DockHosted, DockMode,
     DockRequest, FLOAT_INSET, LeafId, State, TabId,
 };
 
@@ -34,18 +34,28 @@ const WINDOW_ROOM: f32 = 4096.0;
 const WINDOW_SIZE: Vec2 = Vec2::new(240.0, 40.0);
 const POP_OFFSET: Vec2 = Vec2::new(16.0, 16.0);
 
-const CHIPS: [usize; 8] = [0, 1, 2, 3, 4, 5, 6, 7];
+const TARGETS: [DockBarPlacement; 16] = targets();
 
-const TARGETS: [DockBarPlacement; 8] = [
-    DockBarPlacement::Beside(DockEdge::Top),
-    DockBarPlacement::Over(DockEdge::Top),
-    DockBarPlacement::Beside(DockEdge::Bottom),
-    DockBarPlacement::Over(DockEdge::Bottom),
-    DockBarPlacement::Beside(DockEdge::Left),
-    DockBarPlacement::Over(DockEdge::Left),
-    DockBarPlacement::Beside(DockEdge::Right),
-    DockBarPlacement::Over(DockEdge::Right),
-];
+const fn targets() -> [DockBarPlacement; 16] {
+    let mut targets = [DockBarPlacement::Beside(DockEdge::Top); 16];
+    let mut edge = 0;
+    while edge < 4 {
+        let held = DockEdge::ALL[edge];
+        targets[edge * 4] = DockBarPlacement::Beside(held);
+        let mut align = 0;
+        while align < 3 {
+            targets[edge * 4 + 1 + align] = DockBarPlacement::Over(held, DockAlign::ALL[align]);
+            align += 1;
+        }
+        edge += 1;
+    }
+    targets
+}
+
+pub struct DockBarBandHandle {
+    pub edge: DockEdge,
+    pub body: NodeId,
+}
 
 pub struct DockBarTargetHandle {
     pub placement: DockBarPlacement,
@@ -107,7 +117,7 @@ impl DockBarControl {
                 hosted.with(|hosted| hosted.as_ref()?.state.bar_placement(bar))
             }
         };
-        placement.unwrap_or(DockBarPlacement::Over(DockEdge::Top))
+        placement.unwrap_or(DockBarPlacement::Over(DockEdge::Top, DockAlign::Center))
     }
 
     pub fn edge(&self) -> DockEdge {
@@ -426,15 +436,16 @@ impl State {
             let (edge, distance) = nearest_edge(pane, point.pos);
             let beside = reach(pane, body, edge);
             let band = band(body);
+            let align = along_third(body, edge, point.pos);
             let over_far = self
-                .stacked_on(bar, DockBarPlacement::Over(edge))
+                .stacked_on(bar, DockBarPlacement::Over(edge, align))
                 .iter()
                 .map(|(_, rect)| reach_far(pane, *rect, edge))
                 .fold(0.0_f32, f32::max);
             let placement = if distance < beside + band {
                 DockBarPlacement::Beside(edge)
             } else if distance < (beside + band * 2.0).max(over_far + band) {
-                DockBarPlacement::Over(edge)
+                DockBarPlacement::Over(edge, align)
             } else {
                 return (None, None);
             };
@@ -455,7 +466,7 @@ impl State {
                 (Some((_, rect)), _) => reach(pane, *rect, edge),
                 (None, Some((_, rect))) => reach_far(pane, *rect, edge),
                 (None, None) => match placement {
-                    DockBarPlacement::Over(_) => beside + self.bar_margin,
+                    DockBarPlacement::Over(..) => beside + self.bar_margin,
                     _ => 0.0,
                 },
             };
@@ -545,11 +556,7 @@ fn bar_menu(
     place: Callback<Option<DockBarPlacement>>,
 ) -> Memo<Vec<MenuNode>> {
     let item = move |target: DockBarPlacement, label: String| {
-        let id = match target {
-            DockBarPlacement::Over(edge) => format!("dock.bar.over.{}", edge.name()),
-            DockBarPlacement::Beside(edge) => format!("dock.bar.beside.{}", edge.name()),
-            DockBarPlacement::Window { .. } => "dock.bar.window".to_owned(),
-        };
+        let id = format!("dock.bar.{}", target.name());
         let chosen = create_memo(move || {
             placement
                 .get()
@@ -565,10 +572,13 @@ fn bar_menu(
     };
     let mut nodes = Vec::new();
     for edge in DockEdge::ALL {
-        nodes.push(item(
-            DockBarPlacement::Over(edge),
-            format!("Float over the {}", edge.name()),
-        ));
+        for align in DockAlign::ALL {
+            let label = match align.side(edge) {
+                Some(side) => format!("Float over the {}, at the {side}", edge.name()),
+                None => format!("Float over the {}", edge.name()),
+            };
+            nodes.push(item(DockBarPlacement::Over(edge, align), label));
+        }
     }
     nodes.push(MenuNode::Separator);
     for edge in DockEdge::ALL {
@@ -590,6 +600,21 @@ fn bar_menu(
 
 fn band(body: Rect) -> f32 {
     (body.width().min(body.height()) * BAND_SHARE).clamp(BAND_MIN, BAND_MAX)
+}
+
+fn along_third(body: Rect, edge: DockEdge, pos: Pos2) -> DockAlign {
+    let (start, length, at) = match edge.direction() {
+        Direction::Horizontal => (body.left(), body.width(), pos.x),
+        Direction::Vertical => (body.top(), body.height(), pos.y),
+    };
+    let share = (at - start) / length.max(1.0);
+    if share < 1.0 / 3.0 {
+        DockAlign::Start
+    } else if share > 2.0 / 3.0 {
+        DockAlign::End
+    } else {
+        DockAlign::Center
+    }
 }
 
 fn nearest_edge(body: Rect, pos: Pos2) -> (DockEdge, f32) {
@@ -640,6 +665,20 @@ fn edge_rect(body: Rect, edge: DockEdge, depth: f32, along: f32, across: f32) ->
     Rect::from_center_size(center, size)
 }
 
+fn aligned(rect: Rect, body: Rect, edge: DockEdge, align: DockAlign, inset: f32) -> Rect {
+    let shift = match (edge.direction(), align) {
+        (_, DockAlign::Center) => return rect,
+        (Direction::Horizontal, DockAlign::Start) => body.left() + inset - rect.left(),
+        (Direction::Horizontal, DockAlign::End) => body.right() - inset - rect.right(),
+        (Direction::Vertical, DockAlign::Start) => body.top() + inset - rect.top(),
+        (Direction::Vertical, DockAlign::End) => body.bottom() - inset - rect.bottom(),
+    };
+    match edge.direction() {
+        Direction::Horizontal => rect.translate(vec2(shift, 0.0)),
+        Direction::Vertical => rect.translate(vec2(0.0, shift)),
+    }
+}
+
 pub(super) fn bar_chip(body: Rect, placement: DockBarPlacement) -> Rect {
     let band = band(body);
     let edge = placement.edge();
@@ -648,11 +687,17 @@ pub(super) fn bar_chip(body: Rect, placement: DockBarPlacement) -> Rect {
         Direction::Vertical => body.height(),
     };
     let depth = match placement {
-        DockBarPlacement::Over(_) => band * (1.0 + CHIP_DEPTH),
+        DockBarPlacement::Over(..) => band * (1.0 + CHIP_DEPTH),
         _ => band * CHIP_DEPTH,
     };
     let along = (length * CHIP_SHARE).min(CHIP_LENGTH);
-    edge_rect(body, edge, depth, along, band * CHIP_DEPTH)
+    let chip = edge_rect(body, edge, depth, along, band * CHIP_DEPTH);
+    match placement {
+        DockBarPlacement::Over(edge, align) => {
+            aligned(chip, body, edge, align, band * (1.0 + CHIP_DEPTH * 2.0))
+        }
+        _ => chip,
+    }
 }
 
 fn slot_highlight(
@@ -670,20 +715,25 @@ fn slot_highlight(
     };
     let thickness = size.x.min(size.y).max(1.0);
     let along = match placement {
-        DockBarPlacement::Over(_) => size.x.max(size.y).min((length - margin * 2.0).max(1.0)),
+        DockBarPlacement::Over(..) => size.x.max(size.y).min((length - margin * 2.0).max(1.0)),
         _ => length,
+    };
+    let align = match placement {
+        DockBarPlacement::Over(_, align) => align,
+        _ => DockAlign::Center,
     };
     let centre = match edge.direction() {
         Direction::Horizontal => pos2(body.center().x, pane.center().y),
         Direction::Vertical => pos2(pane.center().x, body.center().y),
     };
-    edge_rect(
+    let rect = edge_rect(
         Rect::from_center_size(centre, pane.size()),
         edge,
         boundary + thickness / 2.0,
         along,
         thickness,
-    )
+    );
+    aligned(rect, body, edge, align, margin)
 }
 
 fn across(edge: DockEdge) -> Direction {
@@ -693,12 +743,17 @@ fn across(edge: DockEdge) -> Direction {
     }
 }
 
-fn float_align(edge: DockEdge) -> Align2 {
+fn float_align(edge: DockEdge, align: DockAlign) -> Align2 {
+    let along = match align {
+        DockAlign::Start => Align::Start,
+        DockAlign::Center => Align::Center,
+        DockAlign::End => Align::End,
+    };
     match edge {
-        DockEdge::Top => Align2::new(Align::Center, Align::Start),
-        DockEdge::Bottom => Align2::new(Align::Center, Align::End),
-        DockEdge::Left => Align2::new(Align::Start, Align::Center),
-        DockEdge::Right => Align2::new(Align::End, Align::Center),
+        DockEdge::Top => Align2::new(along, Align::Start),
+        DockEdge::Bottom => Align2::new(along, Align::End),
+        DockEdge::Left => Align2::new(Align::Start, along),
+        DockEdge::Right => Align2::new(Align::End, along),
     }
 }
 
@@ -733,10 +788,18 @@ pub(super) fn DockBarred(
                 <DockBarBand dock tab edge=DockEdge::Left />
                 <Layers @node_ref=&body @sizing=ItemSize::Percent(100.0)>
                     {children}
-                    <DockBarFloat dock tab edge=DockEdge::Top stacked />
-                    <DockBarFloat dock tab edge=DockEdge::Bottom stacked />
-                    <DockBarFloat dock tab edge=DockEdge::Left stacked />
-                    <DockBarFloat dock tab edge=DockEdge::Right stacked />
+                    <DockBarFloat dock tab edge=DockEdge::Top align=DockAlign::Start stacked />
+                    <DockBarFloat dock tab edge=DockEdge::Top align=DockAlign::Center stacked />
+                    <DockBarFloat dock tab edge=DockEdge::Top align=DockAlign::End stacked />
+                    <DockBarFloat dock tab edge=DockEdge::Bottom align=DockAlign::Start stacked />
+                    <DockBarFloat dock tab edge=DockEdge::Bottom align=DockAlign::Center stacked />
+                    <DockBarFloat dock tab edge=DockEdge::Bottom align=DockAlign::End stacked />
+                    <DockBarFloat dock tab edge=DockEdge::Left align=DockAlign::Start stacked />
+                    <DockBarFloat dock tab edge=DockEdge::Left align=DockAlign::Center stacked />
+                    <DockBarFloat dock tab edge=DockEdge::Left align=DockAlign::End stacked />
+                    <DockBarFloat dock tab edge=DockEdge::Right align=DockAlign::Start stacked />
+                    <DockBarFloat dock tab edge=DockEdge::Right align=DockAlign::Center stacked />
+                    <DockBarFloat dock tab edge=DockEdge::Right align=DockAlign::End stacked />
                 </Layers>
                 <DockBarBand dock tab edge=DockEdge::Right />
             </List>
@@ -754,25 +817,34 @@ fn DockBarBand(dock: State, tab: Memo<Option<TabId>>, edge: DockEdge) -> NodeId 
         <List direction={across(edge)} spacing=0.0>
             <ForEach keys={bars}>|bar: TabId| {
                 let dock = dock;
-                view! {
+                let body = view! {
                     <Portal node={Some(dock.bar_panel(bar))} />
-                }
+                };
+                dock.bar_band.call(DockBarBandHandle { edge, body })
             }</ForEach>
         </List>
     }
 }
 
 #[component]
-fn DockBarFloat(dock: State, tab: Memo<Option<TabId>>, edge: DockEdge, stacked: bool) -> NodeId {
+fn DockBarFloat(
+    dock: State,
+    tab: Memo<Option<TabId>>,
+    edge: DockEdge,
+    align: DockAlign,
+    stacked: bool,
+) -> NodeId {
     let bars = dock.bars_at(tab, edge, move |placement| match placement {
-        DockBarPlacement::Over(held) => held == edge,
-        DockBarPlacement::Window { edge: held, .. } => stacked && held == edge,
+        DockBarPlacement::Over(held, at) => held == edge && at == align,
+        DockBarPlacement::Window { edge: held, .. } => {
+            stacked && held == edge && align == DockAlign::Center
+        }
         DockBarPlacement::Beside(_) => false,
     });
     let margin = dock.bar_margin;
     let held = NodeRef::new();
     let built = view! {
-        <Frame align={float_align(edge)} padding={Sides::all(margin)}>
+        <Frame align={float_align(edge, align)} padding={Sides::all(margin)}>
             <List @node_ref=&held direction={across(edge)} spacing={margin}>
                 <ForEach keys={bars}>|bar: TabId| {
                     let dock = dock;
@@ -804,7 +876,7 @@ fn DockBarFloat(dock: State, tab: Memo<Option<TabId>>, edge: DockEdge, stacked: 
             held_tab.set(None);
             if covers.is_alive() {
                 covers.update(|covers| {
-                    covers.remove(&(tab, edge));
+                    covers.remove(&(tab, edge, align));
                 });
             }
         }
@@ -822,9 +894,9 @@ fn DockBarFloat(dock: State, tab: Memo<Option<TabId>>, edge: DockEdge, stacked: 
             }
             if let Some((tab, rect)) = cover {
                 held_tab.set(Some(tab));
-                if covers.with(|covers| covers.get(&(tab, edge)) != Some(&rect)) {
+                if covers.with(|covers| covers.get(&(tab, edge, align)) != Some(&rect)) {
                     covers.update(|covers| {
-                        covers.insert((tab, edge), rect);
+                        covers.insert((tab, edge, align), rect);
                     });
                 }
             }
@@ -947,7 +1019,7 @@ fn DockBarWindow(dock: State, key: String) -> NodeId {
                         .state
                         .with_untracked(|state| state.bar_placement(bar))
                         .map_or(DockEdge::Top, DockBarPlacement::edge);
-                    dock.place_bar(bar, DockBarPlacement::Over(edge));
+                    dock.place_bar(bar, DockBarPlacement::Over(edge, DockAlign::Center));
                 }
                 _ => {}
             }}
@@ -1046,7 +1118,7 @@ pub(super) fn DockBarTargets(dock: State) -> NodeId {
             >
                 <Frame width=width height=height>
                     <Canvas>
-                        <ForEach keys={CHIPS.to_vec()}>|index: usize| {
+                        <ForEach keys={(0..TARGETS.len()).collect::<Vec<usize>>()}>|index: usize| {
                             let dock = dock;
                             let placement = TARGETS[index];
                             let rect = create_memo(move || {
@@ -1077,4 +1149,4 @@ pub(super) fn DockBarTargets(dock: State) -> NodeId {
 
 pub(super) type BarPanels = RefCell<HashMap<TabId, (NodeId, Scope)>>;
 
-pub(crate) type BarCovers = HashMap<(TabId, DockEdge), Rect>;
+pub(crate) type BarCovers = HashMap<(TabId, DockEdge, DockAlign), Rect>;

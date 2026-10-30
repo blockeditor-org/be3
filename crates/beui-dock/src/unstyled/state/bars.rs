@@ -39,9 +39,31 @@ impl DockEdge {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq, Serialize, Deserialize)]
+pub enum DockAlign {
+    Start,
+    #[default]
+    Center,
+    End,
+}
+
+impl DockAlign {
+    pub const ALL: [DockAlign; 3] = [DockAlign::Start, DockAlign::Center, DockAlign::End];
+
+    pub fn side(self, edge: DockEdge) -> Option<&'static str> {
+        match (self, edge.direction()) {
+            (DockAlign::Center, _) => None,
+            (DockAlign::Start, Direction::Horizontal) => Some("left"),
+            (DockAlign::End, Direction::Horizontal) => Some("right"),
+            (DockAlign::Start, Direction::Vertical) => Some("top"),
+            (DockAlign::End, Direction::Vertical) => Some("bottom"),
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum DockBarPlacement {
-    Over(DockEdge),
+    Over(DockEdge, DockAlign),
     Beside(DockEdge),
     Window {
         edge: DockEdge,
@@ -53,7 +75,7 @@ pub enum DockBarPlacement {
 impl DockBarPlacement {
     pub fn edge(self) -> DockEdge {
         match self {
-            DockBarPlacement::Over(edge)
+            DockBarPlacement::Over(edge, _)
             | DockBarPlacement::Beside(edge)
             | DockBarPlacement::Window { edge, .. } => edge,
         }
@@ -65,6 +87,17 @@ impl DockBarPlacement {
 
     pub fn is_window(self) -> bool {
         matches!(self, DockBarPlacement::Window { .. })
+    }
+
+    pub fn name(self) -> String {
+        match self {
+            DockBarPlacement::Over(edge, align) => match align.side(edge) {
+                Some(side) => format!("over.{}.{side}", edge.name()),
+                None => format!("over.{}", edge.name()),
+            },
+            DockBarPlacement::Beside(edge) => format!("beside.{}", edge.name()),
+            DockBarPlacement::Window { .. } => "window".to_owned(),
+        }
     }
 
     pub fn same_place(self, other: DockBarPlacement) -> bool {

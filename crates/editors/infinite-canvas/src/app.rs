@@ -5,7 +5,7 @@ use block_editor_beui::Loaded;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::Vec2;
 use block_editor_beui::beui::dock::styled::{DockBar, DockPane, DockTab, Docking, DockingLayout};
-use block_editor_beui::beui::dock::unstyled::{DockBarPlacement, DockEdge};
+use block_editor_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::{Creation, Editor};
@@ -36,7 +36,7 @@ use canvas::CanvasStage;
 use export::ExportDialog;
 use sidebar::CanvasSidebar;
 use state::CanvasState;
-use toolbar::{ImportError, STAGE, SelectionDock, TOOLS, ToolBar, ZoomPill, tools_open};
+use toolbar::{ImportError, STAGE, SelectionDock, TOOLS, ToolBar, ZOOM, ZoomBar, tools_open};
 use touch::TouchSetting;
 
 use crate::geometry::MIN_SIZE;
@@ -127,12 +127,14 @@ fn CanvasEditor(editor: Editor) -> NodeId {
                             </Layers>
                             <CanvasSidebar state={state} shown={inspected} />
                         </List>
-                        <ZoomPill state={state} anchor={content} shown={chrome} />
                     </List>
                 </DockTab>
             </DockPane>
-            <DockBar id=TOOLS parent=STAGE placement={DockBarPlacement::Over(DockEdge::Bottom)}>
+            <DockBar id=TOOLS parent=STAGE placement={DockBarPlacement::Over(DockEdge::Bottom, DockAlign::Center)}>
                 <ToolBar state open size={bar_size} />
+            </DockBar>
+            <DockBar id=ZOOM parent=STAGE placement={DockBarPlacement::Over(DockEdge::Top, DockAlign::End)}>
+                <ZoomBar state open />
             </DockBar>
         </Docking>
     }

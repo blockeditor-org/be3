@@ -2,7 +2,7 @@ use super::*;
 use beui::dock::styled::{DockPane, DockTab, Docking, DockingLayout};
 use beui::dock::unstyled::{DockBar, DockBarPlacement as Placement, DockEdge as Edge};
 use block_plugin_api::{
-    DockBarPlacement, DockEdge, DockHosted, DockHostedView, DockItem, DockItemKind, DockLayout,
+    DockAlign, DockBarOver,    DockBarPlacement, DockEdge, DockHosted, DockHostedView, DockItem, DockItemKind, DockLayout,
     DockMessage, DockPane as Pane, DockPlacedBar, DockRequest, DockTabPath, DockTree, DockUpdate,
     ViewId,
 };
@@ -39,7 +39,7 @@ fn Deck() -> NodeId {
                     <Frame />
                 </DockTab>
             </DockPane>
-            <DockBar id=3u64 parent=1u64 placement=Placement::Over(Edge::Top)>
+            <DockBar id=3u64 parent=1u64 placement=Placement::Over(Edge::Top, beui::dock::unstyled::DockAlign::Center)>
                 <Frame width={Size::Custom(120.0)} height={Size::Custom(24.0)} />
             </DockBar>
         </Docking>
@@ -182,7 +182,7 @@ fn a_joined_dock_built_again_comes_back_in_the_layout_this_device_kept() {
     test.receive_dock_updates(vec![hosted(
         stage,
         bar,
-        DockBarPlacement::Over(DockEdge::Top),
+        DockBarPlacement::Over(DockBarOver { edge: DockEdge::Top, align: DockAlign::Center }),
     )]);
     assert_eq!(
         kept(&test, display),

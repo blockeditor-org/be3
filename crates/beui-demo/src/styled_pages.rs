@@ -4312,10 +4312,10 @@ pub(crate) fn DockBarsPage() -> NodeId {
                     <BarsStage />
                 </DockTab>
             </DockPane>
-            <DockBar id=2u64 parent=1u64 placement={DockBarPlacement::Over(DockEdge::Left)}>
+            <DockBar id=2u64 parent=1u64 placement={DockBarPlacement::Over(DockEdge::Left, DockAlign::Center)}>
                 <DemoToolBar name="tools" tools={DRAWING_TOOLS.to_vec()} />
             </DockBar>
-            <DockBar id=3u64 parent=1u64 placement={DockBarPlacement::Over(DockEdge::Left)}>
+            <DockBar id=3u64 parent=1u64 placement={DockBarPlacement::Over(DockEdge::Left, DockAlign::Center)}>
                 <DemoToolBar name="style" tools={STYLE_TOOLS.to_vec()} />
             </DockBar>
         </Docking>
@@ -4356,21 +4356,12 @@ const STYLE_TOOLS: [(&str, Glyph); 3] = [
 
 #[component]
 fn DemoToolBar(name: &'static str, tools: Vec<(&'static str, Glyph)>) -> NodeId {
-    let bar = use_dock_bar();
-    let direction = create_memo(move || bar.map_or(Direction::Horizontal, |bar| bar.direction()));
     let grip = match name {
         "tools" => "bars.grip".to_owned(),
         name => format!("bars.{name}.grip"),
     };
     view! {
-        <Frame
-            @test_id={format!("bars.{name}")}
-            fill=ColorRole::SurfaceRaised
-            border={Border::DEFAULT}
-            radius=Radius::Md
-            padding=Space::Xs
-        >
-            <List direction={direction} align=Align::Center spacing=Space::Xs>
+        <DockBarSurface @test_id={format!("bars.{name}")}>
                 <Frame @test_id={grip}>
                     <DockBarGrip />
                 </Frame>
@@ -4384,7 +4375,6 @@ fn DemoToolBar(name: &'static str, tools: Vec<(&'static str, Glyph)>) -> NodeId 
                         size=ButtonSize::Toolbar
                     />
                 </ForEach>
-            </List>
-        </Frame>
+        </DockBarSurface>
     }
 }

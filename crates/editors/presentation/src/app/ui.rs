@@ -3,7 +3,7 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use block_editor_beui::beui::dock::styled::{
-    DockBar, DockBarGrip, DockPane, DockSplit, DockTab, Docking, DockingLayout, use_dock_bar,
+    DockBar, DockBarGrip, DockBarSurface, DockPane, DockSplit, DockTab, Docking, DockingLayout,
 };
 use block_editor_beui::beui::dock::unstyled::{DockBarPlacement, DockEdge};
 use block_editor_beui::beui::icons::{
@@ -27,7 +27,6 @@ const PLAYBACK_HEIGHT: Size = Size::Xl2;
 const SLIDE_HEIGHT: f32 = 540.0;
 const DEFAULT_RATIO: f32 = 16.0 / 9.0;
 const FILL: f32 = 0.0;
-const PANEL_PADDING: Space = Space::Md;
 const FILMSTRIP_PADDING: Space = Space::Sm;
 const TILE_INSET: Space = Space::Xs;
 const TILE_SPACING: Space = Space::Md;
@@ -236,11 +235,8 @@ fn Toolbar(editor: Editor, slides: Slides) -> NodeId {
         slides.add(index, add_button);
     };
     let present = move || editor.present(true);
-    let bar = use_dock_bar();
-    let direction = create_memo(move || bar.map_or(Direction::Horizontal, |bar| bar.direction()));
     view! {
-        <Frame fill=ColorRole::Surface padding=PANEL_PADDING @test_id={"presentation.toolbar"}>
-            <List direction={direction} align=Align::Center spacing=Space::Md>
+        <DockBarSurface spacing=Space::Md @test_id={"presentation.toolbar"}>
                 <Frame @test_id={"presentation.toolbar.grip"}>
                     <DockBarGrip />
                 </Frame>
@@ -261,8 +257,7 @@ fn Toolbar(editor: Editor, slides: Slides) -> NodeId {
                     on_click={present}
                     @test_id={"presentation.present"}
                 />
-            </List>
-        </Frame>
+        </DockBarSurface>
     }
 }
 
