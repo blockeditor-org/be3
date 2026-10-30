@@ -648,6 +648,7 @@ impl State {
     pub(crate) fn notice(&self, tab: TabId) -> Option<String> {
         self.notices
             .with(|notices| notices.get(&tab).map(|(_, notice)| *notice))
+            .filter(|notice| notice.is_alive())
             .and_then(|notice| notice.get())
     }
 

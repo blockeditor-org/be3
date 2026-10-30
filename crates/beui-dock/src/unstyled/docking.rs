@@ -619,6 +619,27 @@ impl<K: DockKey> DockingLayout<K> {
         self.key_of(self.outermost(tab))
     }
 
+    pub fn recent(&self) -> Vec<K> {
+        let tabs = self.state.with(DockState::recent_tabs);
+        let mut keys: Vec<K> = Vec::new();
+        for tab in tabs {
+            if let Some(key) = self.key_of(self.outermost(tab))
+                && !keys.contains(&key)
+            {
+                keys.push(key);
+            }
+        }
+        keys
+    }
+
+    pub fn window_rect(&self, key: &K) -> Option<Rect> {
+        let tab = self.tab_of(key)?;
+        self.state.with(|state| {
+            let surface = state.find(standing_in(state, tab))?.surface;
+            state.window_rect(surface)
+        })
+    }
+
     fn outermost(&self, tab: TabId) -> TabId {
         let inner = self.inner();
         let foreign = inner.registry.foreign.borrow();
@@ -1410,7 +1431,7 @@ impl<K: DockKey> Found<K> {
 
     fn picture(&self, tab: TabId) -> Option<Image> {
         match &self.tabs.get(&tab)?.kind {
-            EntryKind::Tab { picture, .. } => picture.get(),
+            EntryKind::Tab { picture, .. } => picture.is_alive().then(|| picture.get()).flatten(),
             EntryKind::Group { .. } => None,
         }
     }
@@ -1590,7 +1611,8 @@ where
             return declared.title;
         }
         found
-            .with(|found| found.tab(tab, |title, _, _, _| title.get()))
+            .with(|found| found.tab(tab, |title, _, _, _| title.is_alive().then(|| title.get())))
+            .flatten()
             .unwrap_or_default()
     });
     let icon = Func::new(move |tab: TabId| {
@@ -1598,7 +1620,8 @@ where
             return declared.icon;
         }
         found
-            .with(|found| found.tab(tab, |_, icon, _, _| icon.get()))
+            .with(|found| found.tab(tab, |_, icon, _, _| icon.is_alive().then(|| icon.get())))
+            .flatten()
             .unwrap_or_default()
     });
     let picture = Func::new(move |tab: TabId| {

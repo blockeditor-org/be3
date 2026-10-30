@@ -256,21 +256,3 @@ fn PlaceholderBody(
         </Frame>
     }
 }
-
-#[component]
-pub(crate) fn OpenAllButton(placeholders: Placeholders) -> NodeId {
-    let keys = placeholders.keys;
-    let label = create_memo(move || match keys.with(Vec::len) {
-        1 => "Open the window from last time".to_owned(),
-        count => format!("Open the {count} windows from last time"),
-    });
-    view! {
-        <Button
-            icon_only=true
-            glyph=ICON_APP_WINDOW
-            label={label}
-            @test_id={"desktop.placeholders.open_all"}
-            on_click={move || placeholders.open_all()}
-        />
-    }
-}

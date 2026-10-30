@@ -37,6 +37,7 @@ use beui::ItemSize;
 use media::MediaKeys;
 use notifications::{DesktopNotifications, DesktopToasts};
 use placeholders::{Placeholder, Placeholders};
+use windows::DeskWindows;
 
 const WINDOW_ORIGIN: f32 = 48.0;
 const WINDOW_CASCADE: f32 = 32.0;
@@ -84,7 +85,7 @@ struct Desktop {
     workspace: Workspace,
     notifications: DesktopNotifications,
     apps: Apps,
-    placeholders: Placeholders,
+    windows: DeskWindows,
     osd: media::Osd,
 }
 
@@ -130,7 +131,7 @@ fn DisplayBody(desktop: Desktop, display: u32) -> NodeId {
                     workspace={desktop.workspace}
                     notifications={desktop.notifications}
                     apps={desktop.apps}
-                    placeholders={desktop.placeholders}
+                    windows={desktop.windows}
                     display
                 />
                 <media::LevelDisplay osd={desktop.osd} area display />
@@ -164,9 +165,10 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
     let failure = workspace.error();
     let failed = create_memo(move || failure.get().is_some());
     let reason = create_memo(move || failure.get().unwrap_or_default());
-    let block_tabs = workspace.block_tabs();
     let desk = workspace.desk();
     let placeholders = Placeholders::new(workspace);
+    let windows = DeskWindows::new(workspace, placeholders);
+    let block_windows = windows.block_windows();
     hold_saving_while_ending(workspace);
     let placeholder = RenderFn::new(move |key: HostWindowId| {
         view! {
@@ -190,7 +192,7 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
             workspace,
             notifications,
             apps,
-            placeholders,
+            windows,
             osd,
         },
     );
@@ -205,7 +207,7 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                     layout
                     drag_modifier={Some(Modifiers::LOGO)}
                 >
-                    <ForEach keys={block_tabs}>|tab: TabId|
+                    <ForEach keys={block_windows}>|tab: TabId|
                         <BlockWindow workspace tab />
                     </ForEach>
                     <ForEach keys={desk}>|key: HostWindowId|
@@ -223,7 +225,7 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                     workspace
                     notifications={notifications}
                     apps
-                    placeholders
+                    windows
                     display=0
                 />
                 <WorkspaceDialogs workspace />

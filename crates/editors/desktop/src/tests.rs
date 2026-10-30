@@ -52,6 +52,7 @@ mod a_windows_tab_menu_makes_it_full_screen;
 mod alt_tab_or_a_click_brings_a_fullscreen_window_back_in_front;
 mod alt_tab_switches_to_the_window_two_back_once_alt_is_let_go;
 mod clicking_the_clock_opens_the_desktops_calendar_and_clicking_away_closes_it;
+mod clicking_the_focused_windows_chip_hides_it_and_the_next_window_takes_the_focus;
 mod each_display_shows_its_own_bar_at_its_own_foot;
 mod escape_closes_the_apps_panel_and_gives_the_focus_back_to_its_button;
 mod escape_leaves_the_window_switcher_without_switching;
@@ -71,6 +72,7 @@ mod the_power_row_asks_before_ending_the_session;
 mod the_power_row_locks_the_screen_without_asking;
 mod the_power_row_offers_only_what_the_host_allows;
 mod the_refresh_button_shows_on_an_epaper_display_and_asks_the_host_to_refresh;
+mod the_restore_chip_leads_the_windows_bar_while_windows_from_last_time_wait;
 mod the_rotate_button_shows_when_the_display_settings_ask_for_it_and_a_screen_is_reported;
 mod the_status_button_shows_the_volume_and_opens_its_controls;
 mod the_tray_shows_its_items_and_answers_their_clicks_and_menus;
@@ -78,7 +80,7 @@ mod the_volume_controls_ask_the_host_for_a_level_a_mute_and_an_output;
 mod the_volume_shows_on_every_monitor;
 mod the_wifi_list_asks_the_host_to_connect;
 mod the_wifi_tile_lists_the_networks_the_host_reports;
-mod the_window_picker_lists_displays_then_windows_and_shows_or_hides_them;
+mod the_windows_bar_shows_a_chip_per_window_and_shows_hides_or_closes_it;
 mod windows_that_close_as_the_session_ends_are_kept;
 mod with_instant_motion_the_level_keeps_its_time_and_goes_without_fading;
 
@@ -344,6 +346,13 @@ impl Fixture {
             .is_some_and(|root| text_within(&document, root, words).is_some())
     }
 
+    fn times_said(&self, words: &str) -> usize {
+        let document = self.test.document();
+        document
+            .root()
+            .map_or(0, |root| texts_within(&document, root, words))
+    }
+
     fn click_text(&mut self, words: &str) {
         let document = self.test.document();
         let node = document
@@ -601,6 +610,19 @@ fn text_within(document: &Document, id: NodeId, words: &str) -> Option<NodeId> {
         .children(id)
         .into_iter()
         .find_map(|child| text_within(&document, child, words))
+}
+
+fn texts_within(document: &Document, id: NodeId, words: &str) -> usize {
+    let own = document
+        .arena
+        .kind_of(id)
+        .is_some_and(|node| document.text(node).contains(words));
+    usize::from(own)
+        + document
+            .children(id)
+            .into_iter()
+            .map(|child| texts_within(document, child, words))
+            .sum::<usize>()
 }
 
 fn text_under(document: &Document, id: NodeId) -> Option<String> {

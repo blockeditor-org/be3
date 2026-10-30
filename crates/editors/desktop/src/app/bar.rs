@@ -8,18 +8,17 @@ use block_editor_beui::beui::icons::ICON_REFRESH_CW;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::{
-    DisplaysWatch, EpaperWatch, MediaWatch, PowerWatch, WifiWatch, WindowsWatch, utc_offset,
+    DisplaysWatch, EpaperWatch, MediaWatch, PowerWatch, WifiWatch, utc_offset,
 };
 use block_shell::Workspace;
 
 use super::apps::{Apps, AppsButton};
 use super::clock::ClockButton;
 use super::notifications::DesktopNotifications;
-use super::placeholders::{OpenAllButton, Placeholders};
 use super::rotate::RotateButton;
 use super::status::{Status, StatusButton};
 use super::tray::TrayItems;
-use super::windows::WindowPicker;
+use super::windows::{DeskWindows, WindowChips};
 use beui::{Align, Direction, ItemSize};
 
 const BAR_PADDING: Space = Space::Sm;
@@ -56,7 +55,7 @@ pub(crate) fn DesktopBar(
     workspace: Workspace,
     notifications: DesktopNotifications,
     apps: Apps,
-    placeholders: Placeholders,
+    windows: DeskWindows,
     display: u32,
 ) -> NodeId {
     let clock = wall_clock();
@@ -65,11 +64,7 @@ pub(crate) fn DesktopBar(
     let audible = create_memo(move || levels.with(|levels| levels.output.is_some()));
     let wifi = editor.watch::<WifiWatch>();
     let wireless = create_memo(move || wifi.with(|wifi| wifi.available));
-    let kept = placeholders.keys;
-    let launches = placeholders.launchable;
-    let waiting = create_memo(move || launches.get() && !kept.with(Vec::is_empty));
     let powered = editor.offered::<PowerWatch>();
-    let windowed = editor.offered::<WindowsWatch>();
     let epaper = editor.watch::<EpaperWatch>();
     let refresh = move || editor.act(desktop::epaper::refresh);
     let displays = editor.watch::<DisplaysWatch>();
@@ -95,13 +90,7 @@ pub(crate) fn DesktopBar(
             <Frame fill=ColorRole::Surface padding=BAR_PADDING @test_id={"desktop.bar"}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
                     <AppsButton apps display />
-                    <Show condition={windowed}>
-                        <WindowPicker workspace />
-                    </Show>
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
-                    <Show condition={waiting}>
-                        <OpenAllButton placeholders />
-                    </Show>
+                    <WindowChips @sizing=ItemSize::Percent(100.0) windows />
                     <TrayItems editor={editor} />
                     <Show condition={epaper}>
                         <Button

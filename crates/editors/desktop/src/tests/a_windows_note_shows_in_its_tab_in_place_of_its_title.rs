@@ -13,9 +13,10 @@ fn a_windows_note_shows_in_its_tab_in_place_of_its_title() {
         fixture.says("Ctrl+Alt+Space comes back to Block"),
         "the note is in the window's tab"
     );
-    assert!(
-        !fixture.says("Program 1"),
-        "the note takes the title's place while it is set"
+    assert_eq!(
+        fixture.times_said("Program 1"),
+        1,
+        "the note takes the title's place in the tab while it is set, and the bar's chip keeps it"
     );
     fixture.test.snapshot("a_windows_note_in_its_tab");
 

@@ -13,7 +13,7 @@ use std::rc::Rc;
 use block_editor_beui::beui::dock::styled::{
     DockDialog, DockEntry, DockNode, DockPane, DockTab, DockWindow, DockingLayout, TabId,
 };
-use block_editor_beui::beui::icons::ICON_APP_WINDOW;
+use block_editor_beui::beui::icons::{Glyph, ICON_APP_WINDOW};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, Rect, Vec2};
@@ -235,6 +235,31 @@ impl Workspace {
 
     fn window_key(&self, window: HostWindowId) -> HostWindowId {
         self.desk.with_untracked(|desk| desk.key(window))
+    }
+
+    pub fn window_tab_of(&self, window: HostWindowId) -> TabId {
+        window_tab(self.desk.with(|desk| desk.key(window)))
+    }
+
+    pub fn tab_title(&self, tab: TabId) -> Memo<String> {
+        let titles = self.titles;
+        create_memo(move || {
+            titles.with(|titles| {
+                titles
+                    .get(&tab)
+                    .cloned()
+                    .unwrap_or_else(|| "Untitled".to_owned())
+            })
+        })
+    }
+
+    pub fn tab_glyph(&self, tab: TabId) -> Memo<Option<Glyph>> {
+        let workspace = *self;
+        create_memo(move || {
+            workspace.tab(tab).and_then(|item| {
+                block_editor_beui::label_glyph(&workspace.label(item.id, item.block_type))
+            })
+        })
     }
 
     pub fn placeholders(&self) -> Memo<Vec<HostWindowId>> {
@@ -955,7 +980,7 @@ impl Workspace {
         })
     }
 
-    fn close(&self, tab: TabId) {
+    pub fn close(&self, tab: TabId) {
         if let Some(key) = tab_window(tab) {
             match self.desk.with_untracked(|desk| desk.window(key)) {
                 Some(window) => self
@@ -1155,20 +1180,8 @@ impl Workspace {
 
 #[component]
 pub fn BlockTab(workspace: Workspace, tab: TabId) -> DockEntry<TabId> {
-    let titles = workspace.titles;
-    let title = create_memo(move || {
-        titles.with(|titles| {
-            titles
-                .get(&tab)
-                .cloned()
-                .unwrap_or_else(|| "Untitled".to_owned())
-        })
-    });
-    let icon = create_memo(move || {
-        workspace.tab(tab).and_then(|item| {
-            block_editor_beui::label_glyph(&workspace.label(item.id, item.block_type))
-        })
-    });
+    let title = workspace.tab_title(tab);
+    let icon = workspace.tab_glyph(tab);
     view! {
         <DockTab id=tab title icon on_close={move || workspace.close(tab)}>
             <BlockPanel workspace={workspace} tab />

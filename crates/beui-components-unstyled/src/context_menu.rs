@@ -10,6 +10,7 @@ use crate::menu::MenuItem;
 use crate::menu_popup::{MenuPopup, MenuStyle};
 use beui_view::components::overlay::Overlay;
 use beui_view::primitives::*;
+use beui_view::reactive::KeyAt;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
@@ -18,6 +19,7 @@ use beui_view::types::PointerPress;
 use beui_view::types::icons::ICON_ELLIPSIS;
 use beui_view::types::{Align, Direction, ItemSize};
 use beui_view::types::{Dismiss, LayerPolicy};
+use beui_view::types::{Key, KeyPhase};
 use beui_view::types::{Pos2, Rect, Vec2, pos2};
 
 #[derive(Clone, Copy)]
@@ -52,6 +54,29 @@ pub fn ContextMenu(
     let anchor = create_memo(move || OverlayAnchor::Pinned {
         node: holder,
         rect: Rect::from_min_size(position.get(), Vec2::ZERO),
+    });
+    on_key(KeyAt::Node(holder), KeyPhase::Bubble, move |event| {
+        let Some(press) = event.press() else {
+            return false;
+        };
+        let held = press.modifiers;
+        let menu_key = press.key == Key::F10 && held.shift && !held.ctrl && !held.alt;
+        if !menu_key || disabled.get_untracked() {
+            return false;
+        }
+        let Some(rect) = holder
+            .try_get()
+            .and_then(|node| measure(node).get_untracked())
+            .map(|measured| measured.rect)
+        else {
+            return false;
+        };
+        if press.pressed {
+            position.set(pos2(rect.min.x, rect.max.y));
+            focusing.set(true);
+            open.set(true);
+        }
+        true
     });
     let (overlay, content) = (NodeRef::new(), NodeRef::new());
     let (toolbar, bar, more_button) = (NodeRef::new(), NodeRef::new(), NodeRef::new());

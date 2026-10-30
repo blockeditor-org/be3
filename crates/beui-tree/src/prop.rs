@@ -68,6 +68,14 @@ impl<T: 'static> Getter<T> {
             Source::Memo(memo, read) => read(memo),
         }
     }
+
+    pub fn is_alive(&self) -> bool {
+        match &self.0 {
+            Source::Function(read) => read.try_with(|_| ()).is_some(),
+            Source::Signal(signal, _) => signal.is_alive(),
+            Source::Memo(memo, _) => memo.is_alive(),
+        }
+    }
 }
 
 impl<T: 'static> Prop<T> {
@@ -79,6 +87,13 @@ impl<T: 'static> Prop<T> {
         match self {
             Prop::Static(value) => Prop::Static(f(value)),
             Prop::Dynamic(read) => Prop::dynamic(move || f(read.get())),
+        }
+    }
+
+    pub fn is_alive(&self) -> bool {
+        match self {
+            Prop::Static(_) => true,
+            Prop::Dynamic(read) => read.is_alive(),
         }
     }
 }

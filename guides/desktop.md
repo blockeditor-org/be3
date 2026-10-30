@@ -106,11 +106,21 @@ its name). Each has `shown`, which the host keeps, so a shell started again show
 The shells draw only shown entries: block-shell's `Workspace` keeps the whole list
 (`Workspace::entries`) and lays out `shown_windows` of it, so a hidden window is no tab, no
 floating window and no saved window, and a dialog whose toplevel is hidden is hidden with it.
-The desktop plugin's bar has a picker (`desktop.windows`, `app/windows.rs`, shown while the host
-offers `WindowsWatch`) listing every toplevel entry, displays first and then windows in the
-host's order, each with its icon (the window's own, else a display or window glyph) and title:
-choosing one sends `show` (when hidden) then `focus`, and a shown entry's Hide control
-(`desktop.windows.entry.ID.hide`) sends `hide`; closing stays `close`. On Linux it is a window
+The desktop plugin's bar has a row of window chips (`WindowChips`, `desktop.windows`,
+`app/windows.rs`): one chip per toplevel entry, displays first and then windows in the host's
+order, then the block windows the shell opened itself (sessions and shown blocks), each with its
+icon (the window's own, else a display, block or window glyph) and its title, ellipsised (icon only
+with the title as tooltip when the row is given `Direction::Vertical`). The focused chip (the dock's
+focused tab) is drawn pressed and a hidden one hollow. A click shows a hidden entry (`show`) and
+focuses it (`focus`); a click on the focused chip hides it (`hide`, or for a block window the shell
+stops declaring it) and the next shown window in the dock's focus order takes the focus. Each chip
+has a context menu (secondary click, long press or Shift+F10): Hide or Show, and Close for a
+window (`close`). While placeholders from last time wait, a Restore chip
+(`desktop.windows.restore`) leads the row and launches them all. `WindowChips` takes a `display`
+to list only the windows mostly on that display, but the plugin learns a window's place only from
+its own dock state, which the host does not update when it moves a window, so the bars on every
+display still list every window. Moving a window to another display is not offered: the protocol
+has no request for it. On Linux it is a window
 switcher too. block-app's Wayland host opens every window shown and lists no displays; `hide`
 only stops the shells drawing it (the client keeps running and connected), and the shown state
 lives in `block-app-desktop/src/desktop_host/shown.rs` for as long as block-app runs, forgotten when the window closes.
