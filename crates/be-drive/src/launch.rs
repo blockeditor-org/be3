@@ -13,11 +13,13 @@ use beui_runner::environment;
 use crate::{Unanswered, request};
 
 const USAGE: &str = "usage: be-drive launch --program=PATH [--name=NAME] [--data] [--libraries=DIR]
-       [--size=WIDTHxHEIGHT[@SCALE]] [--screen=WIDTHxHEIGHT] [--latency=MS] [--fresh] [--stop]
-       [PROGRAM ARGUMENTS...]
+       [--size=WIDTHxHEIGHT[@SCALE]] [--screen=WIDTHxHEIGHT] [--latency=MS] [--pin-clock]
+       [--fresh] [--stop] [PROGRAM ARGUMENTS...]
 Starts a beui program headless with a drive socket, waits until it settles, and writes
 an env file that puts `drive` on PATH pointed at it. --latency adds MS milliseconds to every
-round trip between the program and its server. Arguments it does not know go to the program.";
+round trip between the program and its server. --pin-clock starts its wall clock at the fixed
+moment tests use (2026-03-02 09:41 UTC) in the UTC time zone, instead of the real time and zone.
+Arguments it does not know go to the program.";
 const STARTUP: Duration = Duration::from_secs(120);
 const SOCKET_PATH: usize = 107;
 const SCREEN: &str = "1440x900";
@@ -33,6 +35,7 @@ struct Launch {
     latency: Option<String>,
     fresh: bool,
     stop: bool,
+    pin_clock: bool,
     space: bool,
     arguments: Vec<String>,
 }
@@ -40,8 +43,9 @@ struct Launch {
 const RUN_USAGE: &str =
     "usage: be-drive run --program=PATH [--name=NAME] [--data] [--libraries=DIR]
        [--size=WIDTHxHEIGHT[@SCALE]] [--screen=WIDTHxHEIGHT] [--latency=MS] [PROGRAM ARGUMENTS...] < COMMANDS
-Starts a beui program headless as launch does, with fresh data and its output on this one's,
-runs COMMANDS against it one a line as `drive -` does, then waits for it to exit. It fails
+Starts a beui program headless as launch does, with fresh data, its clock pinned as
+--pin-clock pins it, and its output on this one's, runs COMMANDS against it one a line as
+`drive -` does, then waits for it to exit. It fails
 unless every command succeeded and the program exited cleanly, so COMMANDS end with close.";
 const EXIT: Duration = Duration::from_secs(60);
 
@@ -53,6 +57,7 @@ fn parse(arguments: &[String], usage: &str) -> Result<Launch, String> {
             "--data" => launch.data = true,
             "--fresh" => launch.fresh = true,
             "--stop" => launch.stop = true,
+            "--pin-clock" => launch.pin_clock = true,
             "--help" => return Err(usage.to_owned()),
             _ => {
                 if let Some(program) = value("--program=") {
@@ -136,7 +141,6 @@ impl Launch {
             )
             .env(environment::DRIVE_SOCKET, &socket)
             .env(environment::DRIVE_LISTENER, listening.to_string())
-            .env("TZ", "UTC")
             .env_remove("DISPLAY")
             .env_remove("WAYLAND_DISPLAY")
             .stdin(Stdio::null())
@@ -154,6 +158,11 @@ impl Launch {
             command
                 .stdout(file.try_clone().map_err(|error| error.to_string())?)
                 .stderr(file);
+        }
+        if self.pin_clock {
+            command
+                .env(environment::HEADLESS_CLOCK, "pinned")
+                .env("TZ", "UTC");
         }
         if let Some(latency) = &self.latency {
             command.env("BE_LATENCY", latency);
@@ -230,6 +239,7 @@ pub(crate) fn start(
         program: Some(program.to_owned()),
         data: true,
         fresh: true,
+        pin_clock: true,
         space,
         libraries,
         size: Some(size.to_owned()),
@@ -266,6 +276,7 @@ pub(crate) fn kill(pid: u32) {
 pub fn run_script(arguments: &[String]) -> Result<(), String> {
     let mut launch = parse(arguments, RUN_USAGE)?;
     launch.fresh = true;
+    launch.pin_clock = true;
     let name = launch.name();
     let dir = directory(&name)?;
     fs::create_dir_all(&dir)

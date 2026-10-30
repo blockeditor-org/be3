@@ -116,6 +116,11 @@ Arguments after `--` go to the launcher, which passes on those it does not know:
   reads, so a program started any other way can set it too. `settle` waits only until nothing
   is left to draw, not for the server, so wait for what should appear with `wait`, or poll
   `tree` after an input sent with `--no-settle`.
+- `--pin-clock` starts the program's wall clock (the date and time of day beui and every plugin
+  read) at the moment tests use, 2026-03-02 09:41 UTC (`beui_core::timer::TEST_WALL_CLOCK`), in
+  the UTC time zone, and moves it on with the app's clock, so `clock stop` stops it too.
+  Without it the program runs on the real time in the machine's time zone. It sets
+  `BEUI_HEADLESS_CLOCK=pinned` and `TZ=UTC`.
 - Anything else, such as block-app's `--desktop` (guides/desktop.md), goes to the program.
 
 A program's output goes to `~/.cache/be3/NAME/app.log`. `BE_DRIVE_DIR` moves the directory,
@@ -134,11 +139,11 @@ tells drive the variables a program needs to open its windows inside it (`App::e
 terminal (end the line with `&` to go on driving), and `eval "$(drive env)"` sets them in the
 shell.
 
-`be-drive run` takes the same options and is for tests: it starts the program with fresh data
-and its output on its own, runs the commands on its standard input as `drive -` does, then
+`be-drive run` takes the same options and is for tests: it starts the program with fresh data,
+its clock pinned as `--pin-clock` pins it, and its output on its own, runs the commands on its standard input as `drive -` does, then
 waits for the program to exit, and fails unless every command succeeded and the program exited
-cleanly. From Rust, `be_drive::Driven` does the same: it starts a program with fresh data in a
-directory of its own, sends it commands and closes it, which is how crates/app-tests drives
+cleanly. From Rust, `be_drive::Driven` does the same: it starts a program with fresh data and
+its clock pinned in a directory of its own, sends it commands and closes it, which is how crates/app-tests drives
 block-app (guides/testing_a_gui.md, 6).
 
 ## Reading the screen

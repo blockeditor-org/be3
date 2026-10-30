@@ -150,9 +150,13 @@ its frame time (`wall-micros`), and the harness hands one fixed moment plus its 
 a clock or a calendar paints the same on every run. beui's own date and time components (a
 calendar's today, a picker's now) read `beui::reactive::wall_clock()`, which the plugin runner
 pins to that clock each frame; a beui test without a plugin pins it with
-`beui::reactive::pin_wall_clock(Some((timer::now(), since_epoch)))`, and the headless platform
-pins it as it starts, so block-app under `drive` (and the app tests) hands every plugin that
-fixed moment too; `drive` also starts the app with `TZ=UTC`.
+`beui::reactive::pin_wall_clock(Some((timer::now(), since_epoch)))`. The fixed moment is
+`beui_core::timer::TEST_WALL_CLOCK` (2026-03-02 09:41 UTC). The app tests and every other test
+that starts a program through `be_drive::Driven` or `be-drive run` start it with its clock
+pinned (`be-drive launch --pin-clock`, guides/running/drive.md): the headless platform pins
+beui's wall clock to that moment as it starts and runs the app in UTC, so block-app hands every
+plugin that moment too. An agent's `:dev` runs on the real time unless started with
+`-- --pin-clock`.
 
 An editor whose manifest claims pan_and_zoom draws into a view the host owns, so its test
 calls in_viewport() on the harness. The harness then does what the host does around the main

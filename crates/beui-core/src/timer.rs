@@ -76,6 +76,8 @@ pub fn now() -> Instant {
     try_with_document(|document| document.now()).unwrap_or_else(Instant::now)
 }
 
+pub const TEST_WALL_CLOCK: Duration = Duration::from_secs(1_772_444_460);
+
 thread_local! {
     static PINNED_WALL_CLOCK: Cell<Option<(Instant, Duration)>> = const { Cell::new(None) };
 }

@@ -6,6 +6,7 @@ pub const LAYERS: &str = "BEUI_LAYERS";
 pub const RENDERER: &str = "BEUI_RENDERER";
 pub const HEADLESS_WINDOW: &str = "BEUI_HEADLESS_WINDOW";
 pub const HEADLESS_SCREEN: &str = "BEUI_HEADLESS_SCREEN";
+pub const HEADLESS_CLOCK: &str = "BEUI_HEADLESS_CLOCK";
 pub const DRIVE_SOCKET: &str = "BEUI_DRIVE_SOCKET";
 pub const DRIVE_LISTENER: &str = "BEUI_DRIVE_LISTENER";
 
@@ -15,6 +16,7 @@ pub const VARIABLES: &[&str] = &[
     RENDERER,
     HEADLESS_WINDOW,
     HEADLESS_SCREEN,
+    HEADLESS_CLOCK,
     DRIVE_SOCKET,
     DRIVE_LISTENER,
 ];
@@ -34,6 +36,7 @@ pub enum Base {
     Headless {
         window: WindowSize,
         screen: Option<Vec2>,
+        pinned_clock: bool,
     },
 }
 
@@ -163,7 +166,18 @@ pub fn choose(natives: &[&str], var: impl Fn(&str) -> Option<String>) -> Result<
                 window.scale,
             ));
         }
-        Base::Headless { window, screen }
+        let pinned_clock = match var(HEADLESS_CLOCK).as_deref() {
+            None | Some("real") => false,
+            Some("pinned") => true,
+            Some(other) => {
+                return Err(format!("{HEADLESS_CLOCK} takes real or pinned, not {other}"));
+            }
+        };
+        Base::Headless {
+            window,
+            screen,
+            pinned_clock,
+        }
     } else {
         for variable in [HEADLESS_WINDOW, HEADLESS_SCREEN] {
             if var(variable).is_some() {

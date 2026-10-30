@@ -26,6 +26,7 @@ fn layers_stack_bottom_first_over_any_platform() {
             platform: Base::Headless {
                 window: WindowSize::parse(HEADLESS_WINDOW_SIZE).unwrap(),
                 screen: None,
+                pinned_clock: false,
             },
             layers: vec![Stacked::Space],
             render: true,

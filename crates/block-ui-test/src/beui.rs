@@ -71,7 +71,6 @@ thread_local! {
 
 const ADOPTED_EDITOR: [u8; 16] = [0; 16];
 const SCREEN: ScreenId = ScreenId(1);
-const WALL_CLOCK: std::time::Duration = std::time::Duration::from_secs(1_772_444_460);
 
 pub struct BeuiTest<A: BeuiApp> {
     plugin: HeadlessPlugin,
@@ -1089,7 +1088,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             inbox.push(Inbound::pushed(move |plugin| plugin.input(batch)));
         }
         let now_micros = self.clock.as_micros() as u64;
-        let wall_micros = (WALL_CLOCK + self.clock).as_micros() as u64;
+        let wall_micros = (beui_core::timer::TEST_WALL_CLOCK + self.clock).as_micros() as u64;
         inbox.push(Inbound::pushed(move |plugin| {
             plugin.draw_frame(now_micros, wall_micros, true)
         }));

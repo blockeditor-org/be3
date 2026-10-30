@@ -18,6 +18,7 @@ fn the_headless_platform_takes_its_window_and_screen() {
                     scale: 2.0,
                 },
                 screen: Some(Vec2::new(1440.0, 900.0)),
+                pinned_clock: false,
             },
             ..NATIVE
         })
@@ -38,6 +39,7 @@ fn the_headless_platform_takes_its_window_and_screen() {
             platform: Base::Headless {
                 window: WindowSize::parse(HEADLESS_WINDOW_SIZE).unwrap(),
                 screen: Some(Vec2::new(8000.0, 8000.0)),
+                pinned_clock: false,
             },
             ..NATIVE
         })

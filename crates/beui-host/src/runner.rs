@@ -129,11 +129,16 @@ fn choose_platform(
     let platform = match choice.platform {
         Base::Native(index) => native(index),
         #[cfg(not(target_os = "android"))]
-        Base::Headless { window, screen } => Box::new(beui_platform_headless::Headless {
+        Base::Headless {
+            window,
+            screen,
+            pinned_clock,
+        } => Box::new(beui_platform_headless::Headless {
             window,
             screen,
             open_device,
             render: choice.render,
+            pinned_clock,
         }),
         #[cfg(target_os = "android")]
         Base::Headless { .. } => {
