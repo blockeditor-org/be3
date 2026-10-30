@@ -50,7 +50,7 @@ own to be driven:
   name it does not know is an error that lists the ones it takes
   (`beui_runner::environment::choose`).
 - `BEUI_LAYERS` stacks layers between the platform and the app (guides/beui.md, "Layers"):
-  names separated by commas, the one nearest the platform first: `space` and `drive`; an
+  names separated by commas, the one nearest the platform first: `space`, `xr` and `drive`; an
   unknown name is an error. Every `drive` named is a tap of one session, named by the layer
   just above it; `drive` twice in a row, or two taps under the same layer, is an error.
 - `BEUI_PLATFORM=headless` runs it on `beui_host::native::Headless` (crates/beui-platform-headless), which draws

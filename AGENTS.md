@@ -11,7 +11,7 @@ Guides:
 - guides/beui.md
 - guides/beui_keyboard.md
 - guides/buck2.md
-- guides/common_commands.md: the commands for running the app natively, on Android, as the desktop and as a login session, and beui's demo
+- guides/common_commands.md: for people too: running things as a person (a window, the VR simulator and an XR headset, the displays and the login session, an Android device) and as an agent (headless `:dev`, `drive`), and every buck2 target
 - guides/build_server.md
 - guides/frozen_formats.md: the formats every later build must keep reading, how to change them, and the tests that hold them
 - guides/hosting.md
