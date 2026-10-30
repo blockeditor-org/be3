@@ -29,6 +29,7 @@ use beui_core::layer::LayerPolicy;
 use beui_core::node::NodeId;
 use beui_core::preferences::{PreferenceLayer, PreferenceSource};
 use beui_core::screen_simulation::ScreenSimulation;
+use beui_core::window::WindowId;
 use beui_dock::unstyled::{DockMode, DockingLayout};
 use beui_view::reactive::*;
 
@@ -400,6 +401,8 @@ pub struct Inspector {
     parked: bool,
     seen: u64,
     overlay_bounds: Cell<Rect>,
+    embeds_app: bool,
+    over: Option<(WindowId, Rect)>,
     _panel_scope: ::reactive::Scope,
     state: OwnedStored<State>,
 }
@@ -407,7 +410,8 @@ pub struct Inspector {
 impl Inspector {
     pub fn new(ctx: &Context, rect: Rect) -> Self {
         let state = OwnedStored::new(State::new(ctx));
-        let panel = panel::build(state.handle(), rect.width() / scale(ctx));
+        let embeds_app = ctx.shows_main();
+        let panel = panel::build(state.handle(), rect.width() / scale(ctx), embeds_app);
         let toolbar = responsive::build(state.handle());
         Self {
             toolbar,
@@ -434,6 +438,8 @@ impl Inspector {
             parked: false,
             seen: 0,
             overlay_bounds: Cell::new(Rect::NOTHING),
+            embeds_app,
+            over: None,
         }
     }
 
@@ -572,6 +578,29 @@ impl Inspector {
         }
     }
 
+    fn show_over(&mut self, target: &Document, ctx: &Context, keyboard_interactive: bool) {
+        let window = beui_core::software_keyboard::typing_window(target, ctx);
+        self.over = target.window_rect(window).map(|shown| {
+            let width = (DEFAULT_WIDTH * scale(ctx)).min(shown.width());
+            let left = shown.right() - width;
+            (
+                window,
+                Rect::from_min_max(pos2(left, shown.top()), shown.max),
+            )
+        });
+        let Some((window, rect)) = self.over else {
+            return;
+        };
+        ctx.with_input(
+            |input| input.seen_from(window),
+            || {
+                ctx.draw_into(window, || {
+                    self.show_panel(target, ctx, rect, keyboard_interactive);
+                });
+            },
+        );
+    }
+
     pub fn hold(&mut self, ctx: &Context) {
         if std::mem::take(&mut self.letting_go) {
             self.held = false;
@@ -585,6 +614,14 @@ impl Inspector {
     }
 
     pub fn covers(&self, ctx: &Context, pos: Pos2) -> bool {
+        if let Some((window, rect)) = self.over {
+            if ctx.input(|input| input.pointer.window) != window {
+                return false;
+            }
+            if rect.contains(pos) {
+                return true;
+            }
+        }
         let scale = scale(ctx);
         let pos = pos2(pos.x / scale, pos.y / scale);
         let layers = self.document.layers();
@@ -1212,6 +1249,7 @@ fn bounds_label(rect: Rect) -> String {
 pub struct InspectorTools {
     pub inspector: Option<Box<Inspector>>,
     withheld: Withheld,
+    over: Option<(WindowId, Rect)>,
 }
 
 #[derive(Clone, Copy, Default, PartialEq)]
@@ -1229,19 +1267,25 @@ impl Tools for InspectorTools {
         let viewport = rect;
         let rect = trim_bottom(rect, ctx.measure_mouse_simulation(viewport)).0;
         let open = || Box::new(Inspector::new(ctx, rect));
-        if chord_pressed(ctx, InputKey::I) {
+        let focused = self
+            .inspector
+            .as_ref()
+            .is_some_and(|inspector| inspector.has_focus());
+        let forwarded = document.forwards_keys() && !focused;
+        let chord_pressed = |chord| !forwarded && chord_pressed(ctx, chord);
+        if chord_pressed(InputKey::I) {
             self.inspector = match self.inspector {
                 Some(_) => None,
                 None => Some(open()),
             };
         }
-        if chord_pressed(ctx, InputKey::C) && !document.clipboard_keys() {
+        if chord_pressed(InputKey::C) && !document.clipboard_keys() {
             self.inspector.get_or_insert_with(open).toggle_picking();
         }
-        if chord_pressed(ctx, InputKey::M) {
+        if chord_pressed(InputKey::M) {
             self.inspector.get_or_insert_with(open).toggle_responsive();
         }
-        if chord_pressed(ctx, InputKey::F)
+        if chord_pressed(InputKey::F)
             && let Some(inspector) = self.inspector.as_mut()
         {
             inspector.toggle_focus();
@@ -1257,10 +1301,10 @@ impl Tools for InspectorTools {
             .as_ref()
             .is_some_and(|inspector| inspector.has_focus());
         let (mut layout, panel) = match &mut self.inspector {
-            Some(inspector) => {
+            Some(inspector) if inspector.embeds_app => {
                 ctx.set_aside(|| inspector.show_panel(document, ctx, rect, inspector_has_focus))
             }
-            None => (Layout::app(rect), Vec::new()),
+            Some(_) | None => (Layout::app(rect), Vec::new()),
         };
         let reserved = match &self.inspector {
             Some(inspector) if layout.app_visible => inspector.readout_height(ctx),
@@ -1320,13 +1364,30 @@ impl Tools for InspectorTools {
         } else {
             document.hide();
         }
+        if let Some(inspector) = self
+            .inspector
+            .as_mut()
+            .filter(|inspector| !inspector.embeds_app)
+        {
+            inspector.show_over(document, ctx, inspector_has_focus);
+        }
         if let Some(mut inspector) = self.inspector.take() {
+            let layout = Layout {
+                app_visible: layout.app_visible && inspector.embeds_app,
+                ..layout
+            };
             inspector.show(document, ctx, &layout, inspector_has_focus);
             if !inspector.closed() {
                 self.inspector = Some(inspector);
             }
         }
         ctx.put_back(panel);
+        let over = self.inspector.as_ref().and_then(|inspector| inspector.over);
+        if let Some((window, rect)) = std::mem::replace(&mut self.over, over)
+            && over != Some((window, rect))
+        {
+            ctx.draw_into(window, || ctx.report_damage(rect));
+        }
         if document.take_inspector_request() && self.inspector.is_none() {
             self.inspector = Some(open());
             ctx.request_repaint();

@@ -332,7 +332,8 @@ pub struct RuntimeStatus {
     pub plugin_id: String,
     pub state: String,
     pub surface: SurfaceStatus,
-    pub pass: u64,
+    pub steps: u64,
+    pub frames: u64,
     pub uptime: Option<std::time::Duration>,
     pub instances: Vec<InstanceStatus>,
 }

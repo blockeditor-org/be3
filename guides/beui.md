@@ -4660,6 +4660,16 @@ the inspector's overlays or a press that began on one is held. Each tree tool ke
 its own rows, and the inspector collects rows only for the tree tools on show. The tree tools pin a
 Pick toggle (`inspector.pick`, an icon pin, checked while picking) to the dock's bar, and every tool
 pins Close (`inspector.close`), so the inspector has no header of its own.
+
+The inspector's chords (Ctrl+Shift+I, C, M and F) belong to the innermost document that has the
+keyboard: while the focus is on a node that forwards keys (`Document::forwards_keys`, such as
+block-app's plugin region), the host leaves them to the plugin it forwards to, so only the focused
+plugin's inspector opens. A document whose main window is not shown (`Context::shows_main` false: a
+plugin, whose views are windows of its own, or the DRM session) cannot hold its app in the App tab,
+so its inspector is built without one and leaves the app where it is: the tools are drawn over the
+right edge of the window that has the keyboard (`software_keyboard::typing_window`), drawn after
+that window's own painting and with that window's input, and the pointer over them is kept from the
+app.
 Its Comp tab lists the
 `#[component]`s that built the tree rather than its base nodes: every
 component records its name against the node it returns, so components that

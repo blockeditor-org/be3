@@ -162,6 +162,7 @@ pub(super) struct Runtime {
     fallbacks: super::fonts::Fallbacks,
     presents: Presents,
     frames: u64,
+    steps: u64,
 }
 
 enum Answer {
@@ -355,6 +356,7 @@ impl Runtime {
             fallbacks: super::fonts::Fallbacks::new(),
             presents: Presents::default(),
             frames: 0,
+            steps: 0,
         }
     }
 
@@ -723,6 +725,7 @@ impl Runtime {
         }
         self.hear(forwarded);
         let (count, longest) = self.backend.stepped();
+        self.steps += count;
         if count > 0 {
             STEPS.with(|steps| {
                 steps
@@ -1945,7 +1948,8 @@ pub fn running() -> Vec<RuntimeStatus> {
                         .sum(),
                     placements: runtime.layout.screens.len(),
                 },
-                pass: runtime.pass,
+                steps: runtime.steps,
+                frames: runtime.frames,
                 uptime: runtime.backend.uptime(),
                 instances: runtime.instances.statuses(&runtime.layout, runtime.pass),
             })

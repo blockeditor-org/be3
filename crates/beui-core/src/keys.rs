@@ -19,7 +19,22 @@ struct Listener {
 #[derive(Default)]
 pub struct KeyListeners {
     listeners: RefCell<Vec<Listener>>,
-    pub(crate) held: Vec<(Key, Rc<KeyHandler>, bool)>,
+    pub(crate) held: Vec<(Key, Handler, bool)>,
+}
+
+#[derive(Clone)]
+pub(crate) enum Handler {
+    Own(Rc<KeyHandler>),
+    Listening(Weak<KeyHandler>),
+}
+
+impl Handler {
+    pub(crate) fn call(&self, event: KeyEvent) -> bool {
+        match self {
+            Self::Own(handler) => handler(event),
+            Self::Listening(handler) => handler.upgrade().is_some_and(|handler| handler(event)),
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -29,7 +44,7 @@ pub(crate) enum Stop {
 }
 
 pub(crate) struct Placed {
-    pub handler: Rc<KeyHandler>,
+    pub handler: Handler,
     pub reveal: bool,
 }
 
@@ -82,11 +97,9 @@ impl KeyListeners {
                     (KeyAt::Host, Stop::Host) | (KeyAt::Window, Stop::Window)
                 )
             })
-            .filter_map(|listener| {
-                Some(Placed {
-                    handler: listener.handler.upgrade()?,
-                    reveal: listener.reveal,
-                })
+            .map(|listener| Placed {
+                handler: Handler::Listening(listener.handler.clone()),
+                reveal: listener.reveal,
             })
             .collect()
     }
@@ -99,7 +112,7 @@ impl KeyListeners {
                 Some(AtNode {
                     node: listener.at.node(root)?,
                     placed: Placed {
-                        handler: listener.handler.upgrade()?,
+                        handler: Handler::Listening(listener.handler.clone()),
                         reveal: listener.reveal,
                     },
                 })

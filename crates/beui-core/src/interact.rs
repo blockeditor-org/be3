@@ -10,7 +10,7 @@ use crate::base::overlay::OverlayNode;
 use crate::context::Context;
 use crate::geometry::Vec2;
 use crate::input::{BackGesture, Event, ImeEvent, Key, KeyPress, Modifiers};
-use crate::keys::{AtNode, KeyEvent, KeyHandler, KeyInput, KeyPhase, KeyTarget, Placed, Stop};
+use crate::keys::{AtNode, Handler, KeyEvent, KeyInput, KeyPhase, KeyTarget, Placed, Stop};
 use crate::layer::Dismiss;
 
 use crate::current::{run_in, with_document};
@@ -253,12 +253,12 @@ fn event_for(input: KeyInput, route: &Route) -> KeyEvent {
 }
 
 fn answer(placed: Vec<Placed>, event: KeyEvent) -> Option<Placed> {
-    placed.into_iter().find(|placed| (placed.handler)(event))
+    placed.into_iter().find(|placed| placed.handler.call(event))
 }
 
 fn outer(doc: &Document, route: &Route, phase: KeyPhase) -> Vec<Placed> {
     let own = |handler: fn(KeyEvent) -> bool| Placed {
-        handler: Rc::new(handler),
+        handler: Handler::Own(Rc::new(handler)),
         reveal: true,
     };
     let listening = |stop: Stop| match route.window && !(stop == Stop::Window && route.inhibited) {
@@ -355,18 +355,18 @@ mod builtin {
     }
 }
 
-fn hold(doc: &mut Document, press: KeyPress, handler: Rc<KeyHandler>, repeats: bool) {
+fn hold(doc: &mut Document, press: KeyPress, handler: Handler, repeats: bool) {
     if press.pressed && !press.repeat {
         doc.keys.held.push((press.key, handler, repeats));
     }
 }
 
-fn target_holder(node: NodeId) -> Rc<KeyHandler> {
-    Rc::new(move |event: KeyEvent| {
+fn target_holder(node: NodeId) -> Handler {
+    Handler::Own(Rc::new(move |event: KeyEvent| {
         event
             .press()
             .is_some_and(|press| with_document(|doc| doc.target_key(node, press)))
-    })
+    }))
 }
 
 fn key_press(doc: &mut Document, press: KeyPress) -> Fate {
@@ -431,10 +431,10 @@ fn held_key(doc: &mut Document, press: KeyPress) -> Option<Fate> {
     }
     let route = route(doc, press.key);
     let handler = match press.pressed {
-        true => Rc::clone(&doc.keys.held[at].1),
+        true => doc.keys.held[at].1.clone(),
         false => doc.keys.held.remove(at).1,
     };
-    handler(KeyEvent {
+    handler.call(KeyEvent {
         input: KeyInput::Press(press),
         phase: KeyPhase::Held,
         target: route.target,

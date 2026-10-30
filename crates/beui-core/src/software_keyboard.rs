@@ -250,7 +250,7 @@ impl KeyboardState {
     }
 }
 
-fn typing_window(document: &Document, ctx: &Context) -> WindowId {
+pub fn typing_window(document: &Document, ctx: &Context) -> WindowId {
     let hosted = |window: &WindowId| !window.is_main() && document.window_rect(*window).is_some();
     document
         .key_window()

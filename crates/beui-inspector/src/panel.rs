@@ -205,7 +205,7 @@ pub struct Panel {
     pub width: Signal<f32>,
 }
 
-pub fn build(state: Stored<State>, width: f32) -> Panel {
+pub fn build(state: Stored<State>, width: f32, embeds_app: bool) -> Panel {
     let owner = RootScope::new();
     let trees = [TreeView::new(), TreeView::new(), TreeView::new()];
     let tools = DockingLayout::new();
@@ -220,54 +220,49 @@ pub fn build(state: Stored<State>, width: f32) -> Panel {
     let root = enter(&mut document, || {
         provide_context(ThemeStore::new(ThemeTokens::literal(&Theme::DARK)));
         let [beui, components, accesskit] = trees;
+        let tool_pane = view! {
+            <DockPane id="tools">
+                <DockTab id=InspectorTab::Beui title={InspectorTab::Beui.title()}>
+                    <TreePanel view=beui noun="node" state summary />
+                </DockTab>
+                <DockTab id=InspectorTab::Components title={InspectorTab::Components.title()}>
+                    <TreePanel view=components noun="component" state summary />
+                </DockTab>
+                <DockTab id=InspectorTab::AccessKit title={InspectorTab::AccessKit.title()}>
+                    <TreePanel view=accesskit noun="node" state summary />
+                </DockTab>
+                <DockTab id=InspectorTab::Performance title={InspectorTab::Performance.title()}>
+                    <PerformanceTool
+                        performance={performance.read_only()}
+                        renderer={renderer.read_only()}
+                        state
+                    />
+                </DockTab>
+                <DockTab id=InspectorTab::Simulation title={InspectorTab::Simulation.title()}>
+                    <SimulationTool state summary />
+                </DockTab>
+            </DockPane>
+        };
+        let layout = match embeds_app {
+            true => view! {
+                <DockSplit id="inspector" direction=Direction::Horizontal fraction={fraction}>
+                    <DockPane id="app">
+                        <DockTab
+                            id=InspectorTab::App
+                            title={InspectorTab::App.title()}
+                            see_through=true
+                        >
+                            <AppTool app state />
+                        </DockTab>
+                    </DockPane>
+                    {tool_pane}
+                </DockSplit>
+            },
+            false => tool_pane,
+        };
         view! {
             <Frame @test_id={"inspector.dock"}>
-                <Docking layout=tools focus={Some(InspectorTab::Beui)}>
-                    <DockSplit id="inspector" direction=Direction::Horizontal fraction={fraction}>
-                        <DockPane id="app">
-                            <DockTab
-                                id=InspectorTab::App
-                                title={InspectorTab::App.title()}
-                                see_through=true
-                            >
-                                <AppTool app state />
-                            </DockTab>
-                        </DockPane>
-                        <DockPane id="tools">
-                            <DockTab id=InspectorTab::Beui title={InspectorTab::Beui.title()}>
-                                <TreePanel view=beui noun="node" state summary />
-                            </DockTab>
-                            <DockTab
-                                id=InspectorTab::Components
-                                title={InspectorTab::Components.title()}
-                            >
-                                <TreePanel view=components noun="component" state summary />
-                            </DockTab>
-                            <DockTab
-                                id=InspectorTab::AccessKit
-                                title={InspectorTab::AccessKit.title()}
-                            >
-                                <TreePanel view=accesskit noun="node" state summary />
-                            </DockTab>
-                            <DockTab
-                                id=InspectorTab::Performance
-                                title={InspectorTab::Performance.title()}
-                            >
-                                <PerformanceTool
-                                    performance={performance.read_only()}
-                                    renderer={renderer.read_only()}
-                                    state
-                                />
-                            </DockTab>
-                            <DockTab
-                                id=InspectorTab::Simulation
-                                title={InspectorTab::Simulation.title()}
-                            >
-                                <SimulationTool state summary />
-                            </DockTab>
-                        </DockPane>
-                    </DockSplit>
-                </Docking>
+                <Docking layout=tools focus={Some(InspectorTab::Beui)}>{layout}</Docking>
             </Frame>
         }
     });
