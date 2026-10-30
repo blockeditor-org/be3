@@ -687,7 +687,12 @@ fn glyph_size() -> Memo<TextSize> {
     })
 }
 
-pub(crate) fn add_to_section(editor: Editor, picker: Picker, id: Uuid, anchor: impl Into<block_editor_beui::PickAnchor>) {
+pub(crate) fn add_to_section(
+    editor: Editor,
+    picker: Picker,
+    id: Uuid,
+    anchor: impl Into<block_editor_beui::PickAnchor>,
+) {
     picker.open(
         editor,
         id,
