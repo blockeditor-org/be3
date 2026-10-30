@@ -32,4 +32,16 @@ fn a_painting_drawn_at_another_size_is_cropped_rather_than_stretched() {
         unstretched(slot, right, (100, 50), (40, 50)).is_none(),
         "a piece the painting does not reach yet is left out"
     );
+
+    let beyond = Rect::from_min_max(Pos2::ZERO, pos2(1.25, 1.0));
+    let (layer, source) = within_texture(slot, beyond)
+        .expect("an anchored view whose pixels reach past its painting shows what it has");
+    assert_eq!(
+        (layer.rect, source),
+        (
+            Rect::from_min_size(pos2(10.0, 20.0), vec2(80.0, 50.0)),
+            whole
+        ),
+        "an anchored view that grew before its plugin drew the new size shows its last frame at its own size"
+    );
 }

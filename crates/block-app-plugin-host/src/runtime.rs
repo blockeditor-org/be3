@@ -2719,9 +2719,20 @@ pub fn view_drawing(
         let screen = runtime.instances.screen_id(instance, region)?;
         let mut template = runtime.template(screen, view.drawn);
         template.quad.opacity = opacity;
+        let shown_once = region != ViewId::PREVIEW
+            && runtime
+                .offers
+                .get(&(instance, region))
+                .is_some_and(|offers| offers.len() == 1);
+        let made_for = runtime
+            .placements
+            .get(&(instance, region))
+            .filter(|_| shown_once)
+            .map(|placed| placed.rect.size());
         let shared = Rc::new(RefCell::new(pieces.to_vec()));
         let drawing = beui::native::painted_drawing(ViewDrawing::new(
             template,
+            made_for,
             Rc::clone(&shared),
             view.held,
             rotation,

@@ -5,7 +5,7 @@ use block_plugin_api::ScreenId;
 use wasm_bindgen::JsCast;
 
 use super::worker::WorkerChannel;
-use crate::presenter::{Blit, unstretched};
+use crate::presenter::Blit;
 
 const LAYER: &str = "plugins";
 
@@ -21,21 +21,10 @@ pub fn placement(blit: &Blit, order: usize, scale: f32) -> Option<Placement> {
     }
     let shared = blit.shared.borrow();
     let placement = shared.layout.placement(blit.screen)?;
-    if placement.width == 0
-        || placement.height == 0
-        || blit
-            .drawn
-            .is_some_and(|drawn| drawn != (placement.width, placement.height))
-    {
+    if placement.width == 0 || placement.height == 0 {
         return None;
     }
-    let painted = (placement.width, placement.height);
-    let (quad, source) = match (blit.drawn, blit.requested) {
-        (None, Some(requested)) if requested != painted => {
-            unstretched(blit.quad, blit.source, requested, painted)?
-        }
-        _ => (blit.quad, blit.source),
-    };
+    let (quad, source) = blit.shown_at((placement.width, placement.height))?;
     if !source.is_positive() {
         return None;
     }
