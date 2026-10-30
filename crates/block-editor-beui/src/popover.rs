@@ -55,6 +55,10 @@ pub(crate) fn ChildPopover(
                 true => 1.0,
                 false => 0.0,
             })}
+            radius={create_memo(move || match (shown, face.get()) {
+                (Shown::Anchored, Face::Card) => Radius::Lg.px(),
+                _ => 0.0,
+            })}
             @test_id={testing}
             on_state={move |state: ChildState| on_state.call(state)}
         />

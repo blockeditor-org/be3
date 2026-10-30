@@ -428,6 +428,9 @@ interface types {
         clip: rect,
         own-frame: bool,
         top-bar: top-bar,
+        /// The radius, in the view's points, the host rounds the child's
+        /// corners by: it shows the child clipped to its rect with those
+        /// corners rounded, as the editor rounds the hole it cuts for it.
         corner-radius: f32,
         layer: child-layer,
         mode: child-mode,

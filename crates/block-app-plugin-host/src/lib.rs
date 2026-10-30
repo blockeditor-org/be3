@@ -127,6 +127,7 @@ pub struct HostChild {
     pub intrinsic: Option<Vec2>,
     pub rotation: f32,
     pub opacity: f32,
+    pub corner_radius: f32,
     pub dialog: Option<block_plugin_api::DialogFrame>,
     pub anchored: Option<block_plugin_api::ViewId>,
     pub keyboard: bool,

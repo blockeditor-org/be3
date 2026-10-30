@@ -39,10 +39,22 @@ pub fn placement(blit: &Blit, order: usize, scale: f32) -> Option<Placement> {
         return None;
     }
     let percent = |value: f32| (value * 100.0).clamp(0.0, 100.0);
+    let radius = quad.corner_radius.max(0.0) * scale;
+    let round = |left: bool, top: bool| {
+        let reaches = |near: bool, min: f32, max: f32| match near {
+            true => min <= 0.0,
+            false => max >= 1.0,
+        };
+        match reaches(left, source.min.x, source.max.x) && reaches(top, source.min.y, source.max.y)
+        {
+            true => radius,
+            false => 0.0,
+        }
+    };
     let style = format!(
         "width:{width}px;height:{height}px;\
          transform:matrix({},{},{},{},{},{});\
-         clip-path:inset({}% {}% {}% {}%);opacity:{};z-index:{order}",
+         clip-path:inset({}% {}% {}% {}% round {}px {}px {}px {}px);opacity:{};z-index:{order}",
         across.x / width,
         across.y / width,
         down.x / height,
@@ -53,6 +65,10 @@ pub fn placement(blit: &Blit, order: usize, scale: f32) -> Option<Placement> {
         percent(1.0 - source.max.x),
         percent(1.0 - source.max.y),
         percent(source.min.x),
+        round(true, true),
+        round(false, true),
+        round(false, false),
+        round(true, false),
         quad.opacity.clamp(0.0, 1.0),
     );
     Some(Placement {

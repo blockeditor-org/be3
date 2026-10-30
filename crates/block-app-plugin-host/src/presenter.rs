@@ -113,6 +113,7 @@ pub struct Quad {
     pub rect: Rect,
     pub corners: [Pos2; 4],
     pub opacity: f32,
+    pub corner_radius: f32,
 }
 
 impl Quad {
@@ -126,6 +127,7 @@ impl Quad {
                 rect.left_bottom(),
             ],
             opacity: 1.0,
+            corner_radius: 0.0,
         }
     }
 
@@ -165,6 +167,7 @@ impl Quad {
                 rect: Rect::from_points(&corners),
                 corners,
                 opacity: self.opacity,
+                corner_radius: self.corner_radius,
             },
             source,
         ))
@@ -198,6 +201,10 @@ impl Region {
             values[5 + index * 2] = 1.0 - corner.y * scale / screen.y * 2.0;
         }
         values[12] = self.quad.opacity.clamp(0.0, 1.0);
+        let [first, along, _, below] = self.quad.corners;
+        values[13] = (along - first).length() / self.scale[0].max(f32::EPSILON);
+        values[14] = (below - first).length() / self.scale[1].max(f32::EPSILON);
+        values[15] = self.quad.corner_radius.max(0.0);
         values
     }
 }
@@ -380,6 +387,7 @@ pub(super) fn within_texture(quad: Quad, source: Rect) -> Option<(Quad, Rect)> {
             rect: Rect::from_points(&corners),
             corners,
             opacity: quad.opacity,
+            corner_radius: quad.corner_radius,
         },
         Rect::from_min_max(source.min, pos2(right, bottom)),
     ))
@@ -530,6 +538,7 @@ impl ViewDrawing {
                         rect: Rect::from_points(&corners),
                         corners,
                         opacity: self.template.quad.opacity,
+                        corner_radius: self.template.quad.corner_radius,
                     },
                     source: piece.source,
                     requested,
@@ -589,6 +598,7 @@ impl beui::native::Draw for AnchoredDrawing {
                         rect: blit.quad.rect.translate(offset),
                         corners,
                         opacity: blit.quad.opacity,
+                        corner_radius: blit.quad.corner_radius,
                     },
                     layer: blit.layer.map(|layer| AnchoredSource {
                         bounds: layer.bounds.translate(offset),
@@ -645,6 +655,7 @@ impl Paints for AnchoredDrawing {
                     quad.rect.max.x,
                     quad.rect.max.y,
                 ],
+                corner_radius: 0.0,
             }));
             for (key, pixels) in &painting.textures {
                 textures.entry(*key).or_insert_with(|| pixels.clone());
@@ -776,6 +787,7 @@ impl Paints for ViewDrawing {
                     quad.rect.max.x,
                     quad.rect.max.y,
                 ],
+                corner_radius: quad.corner_radius,
             }));
             for (key, pixels) in &screen.textures {
                 textures.entry(*key).or_insert_with(|| pixels.clone());

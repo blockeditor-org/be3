@@ -2711,6 +2711,7 @@ pub fn view_drawing(
     pieces: &[Piece],
     rotation: f32,
     opacity: f32,
+    corner_radius: f32,
 ) -> Option<(beui::native::Drawing, super::presenter::Pieces)> {
     if view.loading {
         return None;
@@ -2719,6 +2720,7 @@ pub fn view_drawing(
         let screen = runtime.instances.screen_id(instance, region)?;
         let mut template = runtime.template(screen, view.drawn);
         template.quad.opacity = opacity;
+        template.quad.corner_radius = corner_radius;
         let shown_once = region != ViewId::PREVIEW
             && runtime
                 .offers

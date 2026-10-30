@@ -102,6 +102,7 @@ impl ViewHandler for AnchoringViews {
                             TopBar::Hidden,
                             0.0,
                             1.0,
+                            0.0,
                             None,
                             false,
                             None,

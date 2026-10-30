@@ -1546,6 +1546,8 @@ impl Editor {
                 record.top_bar.get_untracked(),
                 record.rotation.get_untracked(),
                 record.opacity.get_untracked(),
+                to_placed(Rect::from_min_size(rect.min, beui::Vec2::new(placement.radius, 0.0)))
+                    .width(),
                 record.intrinsic.get_untracked(),
                 document.panned_by_canvas(node),
                 record.dialog.get_untracked().map(|dialog| DialogFrame {

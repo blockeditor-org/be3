@@ -4,6 +4,7 @@ fn square(rect: [f32; 4], color: [u8; 4]) -> Primitive {
     Primitive {
         clip: [-100.0, -100.0, 100.0, 100.0],
         fade: Fade::NONE,
+        rounds: Vec::new(),
         content: Content::RoundedRect(RoundedRect {
             rect,
             corner_radius: 0.0,
@@ -25,6 +26,7 @@ fn shown(image: u64, rect: [f32; 4]) -> Primitive {
     Primitive {
         clip: [0.0, 0.0, 50.0, 50.0],
         fade: Fade::NONE,
+        rounds: Vec::new(),
         content: Content::Mesh(vec![
             Triangle {
                 texture: key,

@@ -739,7 +739,7 @@ the screen's own logical coordinates. A child
 carries its own identifier, what it shows - a block and its block type, one
 of the instance's web views, a panel the host draws itself, or a window of a
 program the host runs - the rectangle
-and clip it was placed at, the corner radius of the hole cut for it, whether
+and clip it was placed at, the radius its corners are rounded by, whether
 it composites below or above the instance's own pixels, and whether the host
 should draw it as a preview, a passive editor, an active one, or a live one.
 Occluders are ordered against the children: a child's interactive area is
@@ -748,7 +748,10 @@ subtraction that decides what the host draws over it.
 
 A child placed below is cut out of the instance's own surface, which is
 cleared transparent, so the host composites the child's editor under the
-instance and anything the instance draws after the child covers it again. A
+instance and anything the instance draws after the child covers it again. The
+host clips a child with a corner radius to its rectangle with those corners
+rounded, on the GPU, so a child shown in a rounded card does not show its
+square corners past the card's edge. A
 child placed above composites against the instance's pixels instead and cannot
 be drawn over. The host draws the children below a view, then the view,
 then the children above it. A painting is never stretched: the host shows each

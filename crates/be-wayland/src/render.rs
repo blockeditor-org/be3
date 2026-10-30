@@ -584,6 +584,7 @@ impl Paints for WindowDraw {
             primitives.push(Primitive {
                 clip: [rect.min.x, rect.min.y, rect.max.x, rect.max.y],
                 fade: Fade::NONE,
+                rounds: Vec::new(),
                 content: Content::Mesh(vec![
                     Triangle {
                         texture: key,

@@ -57,6 +57,7 @@ impl ViewEditor {
 struct DrawingKey {
     rotation: f32,
     opacity: f32,
+    corner_radius: f32,
     pieces: Vec<Piece>,
     drawn: Option<(u32, u32)>,
     held: Option<Rect>,
@@ -75,6 +76,9 @@ struct Enclosing(NodeRef);
 
 #[derive(Clone, Copy)]
 pub(crate) struct GivenKeyboard(pub(crate) Memo<bool>);
+
+#[derive(Clone, Copy)]
+pub(crate) struct Rounded(pub(crate) Memo<f32>);
 
 #[derive(Clone, Copy)]
 pub(crate) struct PanDrag {
@@ -273,6 +277,8 @@ pub(crate) fn PluginView(
             block_app_plugin_host::set_presented(&plugin_id.value(), instance, false);
         }
     });
+    let corner_radius = use_context::<Rounded>().map(|Rounded(radius)| radius);
+    provide_context(Rounded(create_memo(|| 0.0)));
     let revision = super::listen(&plugin_id.value());
     let placed = store(Cell::new(None::<EmbedPlacement>));
     let window = super::anchored::host_window();
@@ -321,6 +327,7 @@ pub(crate) fn PluginView(
         let placement = EmbedPlacement {
             rect: at,
             clip: at,
+            radius: 0.0,
             raster: 1.0,
         };
         placed.with(|placed| placed.set(Some(placement)));
@@ -435,7 +442,10 @@ pub(crate) fn PluginView(
             });
             (
                 frames.get(),
-                rotation.get(),
+                (
+                    rotation.get(),
+                    corner_radius.map_or(0.0, |radius| radius.get()),
+                ),
                 opacity.get(),
                 pieces,
                 (loading, drawn, held, size),
@@ -453,12 +463,13 @@ pub(crate) fn PluginView(
             >,
         > = Rc::new(RefCell::new(None));
         let drawn = create_memo(move || {
-            let (_, rotation, opacity, pieces, _, placed) = shown.get();
+            let (_, (rotation, corner_radius), opacity, pieces, _, placed) = shown.get();
             let (drawn, held_rect, size) =
                 state.with_untracked(|view| (view.drawn, view.held, view.rect.size()));
             let key = DrawingKey {
                 rotation,
                 opacity,
+                corner_radius,
                 pieces: pieces.clone(),
                 drawn,
                 held: held_rect,
@@ -520,6 +531,7 @@ pub(crate) fn PluginView(
                     &pieces,
                     rotation,
                     opacity,
+                    corner_radius,
                 )
             });
             *held.borrow_mut() = drawing

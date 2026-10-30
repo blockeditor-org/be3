@@ -1488,6 +1488,9 @@ fn HostedChild(
     provide_context(super::plugin_view::GivenKeyboard(create_memo(move || {
         child.with(|child| child.as_ref().is_some_and(|child| child.keyboard))
     })));
+    provide_context(super::plugin_view::Rounded(create_memo(move || {
+        child.with(|child| child.as_ref().map_or(0.0, |child| child.corner_radius))
+    })));
     let content = create_memo(move || child.get().map(|child| child.content));
     let sheet =
         create_memo(move || child.with(|child| child.as_ref().is_some_and(|child| child.sheet)));

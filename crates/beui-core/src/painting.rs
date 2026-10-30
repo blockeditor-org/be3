@@ -75,6 +75,7 @@ pub fn painting(
         primitives.push(Primitive {
             clip: whole,
             fade: Fade::NONE,
+            rounds: Vec::new(),
             content: Content::RoundedRect(RoundedRect {
                 rect: whole,
                 corner_radius: 0.0,
@@ -113,10 +114,12 @@ pub fn painting(
                     clip: held,
                     fade: was,
                     content: Content::Mesh(triangles),
+                    ..
                 }) if joining && *held == clip && *was == fade => triangles.push(triangle),
                 _ => primitives.push(Primitive {
                     clip,
                     fade,
+                    rounds: Vec::new(),
                     content: Content::Mesh(vec![triangle]),
                 }),
             }
@@ -164,6 +167,7 @@ pub fn painting(
                         .map(move |clip| Primitive {
                             clip,
                             fade: primitive.fade,
+                            rounds: primitive.rounds.clone(),
                             content: primitive.content.clone(),
                         })
                 })
@@ -270,6 +274,7 @@ pub fn painting(
         primitives.push(Primitive {
             clip,
             fade,
+            rounds: Vec::new(),
             content,
         });
     }

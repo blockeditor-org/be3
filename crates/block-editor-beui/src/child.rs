@@ -58,6 +58,7 @@ pub fn ChildBlock(
         punch,
         rotation,
         opacity,
+        radius: Prop::Static(0.0),
         intrinsic,
         dialog: Prop::Static(None),
         on_state,
@@ -81,6 +82,7 @@ pub fn Subregion(
     #[prop(default = true)] punch: Prop<bool>,
     #[prop(default = 0.0)] rotation: Prop<f32>,
     #[prop(default = 1.0)] opacity: Prop<f32>,
+    #[prop(default = 0.0)] radius: Prop<f32>,
     #[prop(default = None)] intrinsic: Prop<Option<beui::Vec2>>,
     #[prop(default = false)] dialog: bool,
     on_state: Callback<ChildState>,
@@ -108,6 +110,7 @@ pub fn Subregion(
         punch,
         rotation,
         opacity,
+        radius,
         intrinsic,
         dialog,
         on_state,
@@ -130,6 +133,7 @@ struct Placing {
     punch: Prop<bool>,
     rotation: Prop<f32>,
     opacity: Prop<f32>,
+    radius: Prop<f32>,
     intrinsic: Prop<Option<beui::Vec2>>,
     dialog: Prop<Option<DialogFrame>>,
     on_state: Callback<ChildState>,
@@ -154,6 +158,7 @@ fn SubregionView(
         punch,
         rotation,
         opacity,
+        radius,
         intrinsic,
         dialog,
         on_state,
@@ -246,7 +251,7 @@ fn SubregionView(
         None => picture,
     };
     view! {
-        <Embed slot={slot} punch={punch} rotation={turn} children={Some(inner)} />
+        <Embed slot={slot} punch={punch} rotation={turn} radius={radius} children={Some(inner)} />
     }
 }
 

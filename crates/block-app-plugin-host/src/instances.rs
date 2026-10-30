@@ -2577,6 +2577,10 @@ impl Instances {
                 intrinsic: child.intrinsic.map(|size| vec2(size.width, size.height)),
                 rotation: child.rotation,
                 opacity: child.opacity,
+                corner_radius: match layer {
+                    Some(_) => child.corner_radius,
+                    None => child.corner_radius * scale.x.min(scale.y),
+                },
                 dialog: child.dialog,
                 anchored: layer.map(|layer| layer.id),
                 keyboard: layer.is_some_and(|layer| {
