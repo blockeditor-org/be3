@@ -152,7 +152,6 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
     let filtering = create_memo(move || !filter.with(String::is_empty));
     let found = create_memo(move || filter.with(|filter| filtered(rows, keys, filter)));
     let shown_keys = create_memo(move || found.get().keys);
-    let empty = create_memo(move || zoomed.get() && !filtering.get() && keys.with(Vec::is_empty));
     let count = create_memo(move || {
         let hits = found.with(|found| found.hits);
         match hits {
@@ -196,11 +195,6 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                                     <Text style=TextStyle::CAPTION color=TextColor::Danger>
                                         {reason}
                                     </Text>
-                                </Frame>
-                            </Show>
-                            <Show condition={empty}>
-                                <Frame padding=PADDING @test_id={"file-tree.empty"}>
-                                    <Text style=TextStyle::CAPTION>"Nothing here yet"</Text>
                                 </Frame>
                             </Show>
                             <Tree
