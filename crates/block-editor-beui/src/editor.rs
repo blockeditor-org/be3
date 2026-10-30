@@ -1,8 +1,6 @@
 use beui::dock::unstyled::DockTabControl;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
 
 use be_block::presence::{ChannelKind, PresenceKind};
 use be_block::{EditorViewContent, ViewState};
@@ -12,53 +10,46 @@ use beui::native::try_with_document;
 use beui::reactive::*;
 use beui::{CanvasView, Pos2, Rect, Vec2};
 use block_plugin_api::{
-    BarAction, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPreview,
-    CreationProgress, DialogFrame, DialogStatus, EditorCapabilities, HostPanel, HostWindowId,
-    InteractionMode, MenuEntry, ResizeMode, TopBar, Watched, WebViewId,
+    BarAction, BlockPick, ChildId, ChildLayer, ChildMode, DialogFrame, HostPanel, TopBar, Watched,
 };
 use block_ui::BlockCatalog;
 use uuid::Uuid;
 
 use crate::{
-    BlockFilter, BlockList, BlockParent, BlockQuery, Blocks, ContentProjection, EditorHost,
-    OwnedContentProjection, PickedBlock, Subscription, Task, Waker,
+    ArtifactsCore, BlockFilter, BlockList, BlockParent, BlockQuery, Blocks, ChildState,
+    ContentCache, ContentProjection, CreationCore, Drag, EditorCore, EditorHost,
+    OwnedContentProjection, PickedBlock, PlacedChild, PointScale, ShownEditor, SubregionContent,
+    Subscription, Task, Waker,
 };
 use crate::{BlockHistory, FileDrop, FocusedBlock, Pushed};
 use block_plugin_api::{AudioStatus, FitArea};
 
-type Regenerate = Rc<dyn Fn(&[u8])>;
-type PollArtifact = Rc<dyn Fn() -> Option<Result<(), String>>>;
-type ReplaceChild = Rc<dyn Fn(Uuid, Uuid) -> bool>;
+#[derive(Clone)]
+pub struct Artifacts(Rc<ArtifactSignals>);
 
-pub struct Artifacts(Rc<ArtifactState>);
-
-struct ArtifactState {
-    host: EditorHost,
-    artifact: crate::Artifact,
-    regenerate: RefCell<Option<Regenerate>>,
-    poll: RefCell<Option<PollArtifact>>,
+struct ArtifactSignals {
+    core: ArtifactsCore,
     settings: OwnedSignal<Vec<u8>>,
     saved: OwnedSignal<Vec<u8>>,
-    edit: RefCell<Option<Vec<u8>>>,
-}
-
-impl Clone for Artifacts {
-    fn clone(&self) -> Self {
-        Self(Rc::clone(&self.0))
-    }
+    _changes: [Subscription; 2],
 }
 
 impl Artifacts {
     pub fn new(host: EditorHost, artifact: crate::Artifact) -> Self {
         defer_graph_changes(&host);
-        Self(Rc::new(ArtifactState {
-            host,
-            artifact,
-            regenerate: RefCell::new(None),
-            poll: RefCell::new(None),
-            settings: OwnedSignal::new(Vec::new()),
-            saved: OwnedSignal::new(Vec::new()),
-            edit: RefCell::new(None),
+        let core = ArtifactsCore::new(host, artifact);
+        let settings = OwnedSignal::new(core.settings());
+        let saved = OwnedSignal::new(core.saved_settings());
+        let (drafted, kept) = (settings.handle(), saved.handle());
+        let changes = [
+            core.on_settings(move |data| drafted.set(data.to_vec())),
+            core.on_saved_settings(move |data| kept.set(data.to_vec())),
+        ];
+        Self(Rc::new(ArtifactSignals {
+            core,
+            settings,
+            saved,
+            _changes: changes,
         }))
     }
 
@@ -66,211 +57,20 @@ impl Artifacts {
         self.0.settings.read_only()
     }
 
-    pub fn edit_settings(&self, data: Vec<u8>) {
-        self.0.settings.set(data.clone());
-        *self.0.edit.borrow_mut() = Some(data);
-    }
-
     pub fn saved_settings(&self) -> ReadSignal<Vec<u8>> {
         self.0.saved.read_only()
     }
 
-    pub fn receive_settings(&self, saved: &[u8], draft: &[u8]) {
-        if self.0.saved.get_untracked() != saved {
-            self.0.saved.set(saved.to_vec());
-        }
-        if self.0.settings.get_untracked() != draft {
-            self.0.settings.set(draft.to_vec());
-        }
-    }
-
-    pub fn take_settings_edit(&self) -> Option<Vec<u8>> {
-        self.0.edit.borrow_mut().take()
-    }
-
-    pub fn host(&self) -> &EditorHost {
-        &self.0.host
-    }
-
     pub fn blocks(&self) -> Blocks {
-        Blocks::of(&self.0.host)
-    }
-
-    pub fn block_id(&self) -> Uuid {
-        self.0.artifact.block_id
-    }
-
-    pub fn block_type(&self) -> Uuid {
-        self.0.artifact.block_type
-    }
-
-    pub fn source(&self) -> Uuid {
-        self.0.artifact.source
-    }
-
-    pub fn on_regenerate(&self, work: impl Fn(&[u8]) + 'static) {
-        *self.0.regenerate.borrow_mut() = Some(Rc::new(work));
-    }
-
-    pub fn on_poll(&self, work: impl Fn() -> Option<Result<(), String>> + 'static) {
-        *self.0.poll.borrow_mut() = Some(Rc::new(work));
-    }
-
-    pub fn regenerate(&self, data: &[u8]) {
-        let work = self.0.regenerate.borrow().clone();
-        if let Some(work) = work {
-            work(data);
-        }
-    }
-
-    pub fn poll(&self) -> Option<Result<(), String>> {
-        let work = self.0.poll.borrow().clone();
-        work.and_then(|work| work())
+        Blocks::of(self.0.core.host())
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Drag {
-    pub position: Pos2,
-    pub block_id: Uuid,
-    pub block_type: Uuid,
-    pub dropped: bool,
-}
+impl std::ops::Deref for Artifacts {
+    type Target = ArtifactsCore;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ChildTarget {
-    pub id: Uuid,
-    pub block_type: Uuid,
-    pub view_block: Option<Uuid>,
-    pub editor: Option<Uuid>,
-}
-
-impl ChildTarget {
-    pub fn new(id: Uuid, block_type: Uuid) -> Self {
-        Self {
-            id,
-            block_type,
-            view_block: None,
-            editor: None,
-        }
-    }
-
-    pub fn edited_with(mut self, editor: Option<Uuid>) -> Self {
-        self.editor = editor;
-        self
-    }
-
-    pub fn viewed_by(mut self, view_block: Uuid) -> Self {
-        self.view_block = Some(view_block);
-        self
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum SubregionContent {
-    Block(ChildTarget),
-    WebView(WebViewId),
-    Host(HostPanel),
-    Window(HostWindowId),
-    Creation {
-        editor: Uuid,
-        template: String,
-    },
-    ArtifactSettings {
-        block: Uuid,
-    },
-    Picker {
-        filter: BlockFilter,
-        parent: BlockParent,
-    },
-    DockTab(block_plugin_api::DockTabPath),
-    Rename(Uuid),
-}
-
-impl From<ChildTarget> for SubregionContent {
-    fn from(target: ChildTarget) -> Self {
-        Self::Block(target)
-    }
-}
-
-impl SubregionContent {
-    fn wire(&self) -> ChildContent {
-        match self {
-            Self::Block(target) => ChildContent::Block {
-                block_id: target.id.into_bytes(),
-                block_type: target.block_type.into_bytes(),
-                view_block: target.view_block.map(Uuid::into_bytes),
-                editor: target.editor.map(Uuid::into_bytes),
-            },
-            Self::WebView(web_view) => ChildContent::WebView(*web_view),
-            Self::Host(panel) => ChildContent::Host(*panel),
-            Self::Window(window) => ChildContent::Window(*window),
-            Self::Creation { editor, template } => ChildContent::Creation {
-                editor: editor.into_bytes(),
-                template: template.clone(),
-            },
-            Self::ArtifactSettings { block } => ChildContent::ArtifactSettings {
-                block_id: block.into_bytes(),
-            },
-            Self::Picker { filter, parent } => ChildContent::Picker {
-                filter: filter.clone(),
-                parent: parent.encode(),
-            },
-            Self::DockTab(tab) => ChildContent::DockTab(tab.clone()),
-            Self::Rename(block) => ChildContent::Rename(block.into_bytes()),
-        }
-    }
-}
-
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct ChildState {
-    pub placed: bool,
-    pub available: bool,
-    pub active: bool,
-    pub intrinsic_size: Option<Vec2>,
-    pub aspect_ratio: Option<f32>,
-    pub interaction: Option<InteractionMode>,
-    pub capabilities: EditorCapabilities,
-    pub resize: ResizeMode,
-    pub error: Option<String>,
-    pub child: Option<ChildId>,
-    pub menu: Vec<MenuEntry>,
-    pub creation: Option<CreationProgress>,
-    pub preview: ChildPreview,
-    pub dialog: DialogStatus,
-    pub picked: Option<BlockPick>,
-    pub card: bool,
-}
-
-impl ChildState {
-    fn of(host: &EditorHost, child: Option<ChildId>) -> Self {
-        let Some(status) = child.and_then(|child| host.child_status(child)) else {
-            return Self {
-                placed: child.is_some(),
-                child,
-                ..Self::default()
-            };
-        };
-        Self {
-            placed: true,
-            available: status.available,
-            active: status.active,
-            intrinsic_size: status
-                .intrinsic
-                .map(|size| Vec2::new(size.width, size.height)),
-            aspect_ratio: status.aspect_ratio,
-            interaction: Some(status.interaction),
-            capabilities: status.capabilities,
-            resize: status.resize,
-            error: status.error,
-            child,
-            menu: block_plugin_api::MenuEntry::nest(status.menu).unwrap_or_default(),
-            creation: status.creation,
-            preview: status.preview,
-            dialog: status.dialog,
-            picked: status.picked,
-            card: status.card,
-        }
+    fn deref(&self) -> &ArtifactsCore {
+        &self.0.core
     }
 }
 
@@ -285,11 +85,7 @@ struct ChildRecord {
     opacity: Prop<f32>,
     intrinsic: Prop<Option<Vec2>>,
     dialog: Prop<Option<DialogFrame>>,
-    state: Signal<ChildState>,
-    report: Callback<ChildState>,
-    bar: Callback<BarAction>,
-    focus: Callback<()>,
-    child: Cell<Option<ChildId>>,
+    placed: PlacedChild,
     zone: u64,
     dock_tab: Option<u64>,
     docks: bool,
@@ -297,8 +93,6 @@ struct ChildRecord {
 }
 
 type Revision = OwnedSignal<u64>;
-
-type Wake = (Arc<AtomicU64>, Signal<u64>);
 
 fn then<T: 'static>(
     host: &EditorHost,
@@ -400,49 +194,14 @@ impl Mirror {
     }
 }
 
-pub fn fit_content(available: Rect, content: Vec2) -> Rect {
-    if content.x <= 0.0 || content.y <= 0.0 {
-        return Rect::ZERO;
-    }
-    let scale = (available.width() / content.x)
-        .min(available.height() / content.y)
-        .max(f32::EPSILON);
-    let size = Vec2::new(content.x * scale, content.y * scale);
-    Rect::from_min_size(
-        beui::Pos2::new(
-            available.center().x - size.x / 2.0,
-            available.center().y - size.y / 2.0,
-        ),
-        size,
-    )
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct BeuiScale {
-    pub(crate) ratio: f32,
-    pub(crate) pixels_per_point: f32,
-}
-
-impl Default for BeuiScale {
-    fn default() -> Self {
-        Self {
-            ratio: 1.0,
-            pixels_per_point: 1.0,
-        }
-    }
-}
-
 pub(crate) fn defer_graph_changes(host: &EditorHost) {
     host.defer_graph_changes_unless(|| beui::native::try_with_document(|_| ()).is_some());
 }
 
-type Pump = Rc<dyn Fn()>;
-
 #[derive(Default)]
 pub(crate) struct Contents {
+    live: Rc<ContentCache>,
     projections: RefCell<std::collections::HashMap<Option<Uuid>, Box<dyn std::any::Any>>>,
-    pumps: RefCell<std::collections::HashMap<Option<Uuid>, Pump>>,
-    due: Rc<RefCell<Vec<Option<Uuid>>>>,
 }
 
 #[derive(Clone, Copy)]
@@ -453,6 +212,65 @@ pub struct OwnedEditor {
     _state: OwnedStored<EditorState>,
 }
 
+#[derive(Clone, Copy)]
+struct ShownSignals {
+    files: Signal<Option<FileDrop>>,
+    chrome: Signal<bool>,
+    placed_content: Signal<Option<Rect>>,
+    frame_anchor: Signal<Option<Rect>>,
+    editable: Signal<bool>,
+    presenting: Signal<bool>,
+    drag: Signal<Option<Drag>>,
+    placed: Signal<Rect>,
+    canvas: Signal<Option<CanvasView>>,
+    world: Signal<Option<Vec2>>,
+    scale: Signal<f32>,
+    pixels_per_point: Signal<f32>,
+    resized: Signal<Option<Vec2>>,
+    presence_visible: Signal<bool>,
+    revealed: Signal<Option<u64>>,
+}
+
+impl ShownSignals {
+    fn new(shown: &ShownEditor) -> Self {
+        Self {
+            files: create_signal(shown.files.clone()),
+            chrome: create_signal(shown.chrome),
+            placed_content: create_signal(shown.placed_content),
+            frame_anchor: create_signal(shown.frame_anchor),
+            editable: create_signal(shown.editable),
+            presenting: create_signal(shown.presenting),
+            drag: create_signal(shown.drag),
+            placed: create_signal(shown.placed),
+            canvas: create_signal(shown.canvas),
+            world: create_signal(shown.world),
+            scale: create_signal(shown.scale),
+            pixels_per_point: create_signal(shown.pixels_per_point),
+            resized: create_signal(shown.resized),
+            presence_visible: create_signal(shown.presence_visible),
+            revealed: create_signal(shown.revealed),
+        }
+    }
+
+    fn set(&self, shown: &ShownEditor) {
+        self.files.set(shown.files.clone());
+        self.chrome.set(shown.chrome);
+        self.placed_content.set(shown.placed_content);
+        self.frame_anchor.set(shown.frame_anchor);
+        self.editable.set(shown.editable);
+        self.presenting.set(shown.presenting);
+        self.drag.set(shown.drag);
+        self.placed.set(shown.placed);
+        self.canvas.set(shown.canvas);
+        self.world.set(shown.world);
+        self.scale.set(shown.scale);
+        self.pixels_per_point.set(shown.pixels_per_point);
+        self.resized.set(shown.resized);
+        self.presence_visible.set(shown.presence_visible);
+        self.revealed.set(shown.revealed);
+    }
+}
+
 impl OwnedEditor {
     pub fn new(host: EditorHost, block: Uuid) -> Self {
         Self::scaled(host, block, Rc::default(), Rc::default())
@@ -461,58 +279,27 @@ impl OwnedEditor {
     pub(crate) fn scaled(
         host: EditorHost,
         block: Uuid,
-        beui: Rc<Cell<BeuiScale>>,
+        scale: Rc<Cell<PointScale>>,
         contents: Rc<Contents>,
     ) -> Self {
         defer_graph_changes(&host);
+        let core = EditorCore::scaled(host.clone(), block, scale, Rc::clone(&contents.live));
         let owner = RootScope::new();
-        let canvas = create_signal(None::<CanvasView>);
-        let world = create_signal(None::<Vec2>);
-        let scale = create_signal(1.0_f32);
-        let chrome = create_signal(true);
-        let placed_content = create_signal(None::<Rect>);
-        let frame_anchor = create_signal(None::<Rect>);
-        let editable = create_signal(host.editable());
-        let presenting = create_signal(false);
-        let drag = create_signal(None::<Drag>);
-        let pixels_per_point = create_signal(1.0_f32);
-        let resized = create_signal(None::<Vec2>);
-        let presence_visible = create_signal(false);
-        let revealed = create_signal(None::<u64>);
-        let files = create_signal(None::<FileDrop>);
-        let placed = create_signal(Rect::ZERO);
+        let shown = ShownSignals::new(&core.shown());
+        let showing = core.on_shown(move |now| shown.set(now));
         let frame_children = create_signal(Vec::<(u64, Memo<Vec<MenuNode>>)>::new());
         let picking = create_signal(None::<crate::picking::Picking>);
         let popped = create_signal(None::<crate::popover::Popped>);
         let pushed = Mirror::new(&host);
         let state = OwnedStored::new(EditorState {
             _scope: owner.into_scope(),
-            host,
-            beui,
-            block,
+            core,
+            _showing: showing,
+            shown,
             roots: RefCell::new(None),
             settings: RefCell::default(),
-            canvas,
-            world,
-            scale,
-            chrome,
-            placed_content,
-            frame_anchor,
-            editable,
-            presenting,
-            drag,
-            pixels_per_point,
-            resized,
-            pending_resize: Cell::new(None),
-            presence_visible,
-            pending_presence: Cell::new(None),
-            revealed,
-            pending_reveal: Cell::new(None),
-            replace: RefCell::new(None),
             content: RefCell::new(None),
             contents,
-            content_rect: Cell::new(Rect::ZERO),
-            intrinsic: Cell::new(None),
             children: RefCell::new(Vec::new()),
             next_child: Cell::new(0),
             picking,
@@ -520,13 +307,7 @@ impl OwnedEditor {
             next_pick: Cell::new(0),
             picker_size: Cell::new(None),
             fitted: Cell::new(None),
-            seen: Cell::new(None),
-            shown_rect: Cell::new(None),
-            children_moved: Cell::new(false),
-            wakes: Rc::default(),
             pushed,
-            files,
-            placed,
             frame_children,
         });
         Self {
@@ -554,32 +335,13 @@ impl std::ops::Deref for OwnedEditor {
 
 struct EditorState {
     _scope: Scope,
-    host: EditorHost,
-    beui: Rc<Cell<BeuiScale>>,
-    block: Uuid,
+    core: EditorCore,
+    _showing: Subscription,
+    shown: ShownSignals,
     roots: RefCell<Option<BlockList>>,
     settings: RefCell<settings::SettingsCache>,
-    canvas: Signal<Option<CanvasView>>,
-    world: Signal<Option<Vec2>>,
-    scale: Signal<f32>,
-    chrome: Signal<bool>,
-    placed_content: Signal<Option<Rect>>,
-    frame_anchor: Signal<Option<Rect>>,
-    editable: Signal<bool>,
-    presenting: Signal<bool>,
-    drag: Signal<Option<Drag>>,
-    pixels_per_point: Signal<f32>,
-    resized: Signal<Option<Vec2>>,
-    pending_resize: Cell<Option<Vec2>>,
-    presence_visible: Signal<bool>,
-    pending_presence: Cell<Option<bool>>,
-    revealed: Signal<Option<u64>>,
-    pending_reveal: Cell<Option<u64>>,
-    replace: RefCell<Option<ReplaceChild>>,
     content: RefCell<Option<(NodeRef, u64)>>,
     contents: Rc<Contents>,
-    content_rect: Cell<Rect>,
-    intrinsic: Cell<Option<Vec2>>,
     children: RefCell<Vec<(u64, Rc<ChildRecord>)>>,
     next_child: Cell<u64>,
     picking: Signal<Option<crate::picking::Picking>>,
@@ -587,13 +349,7 @@ struct EditorState {
     next_pick: Cell<u64>,
     picker_size: Cell<Option<Vec2>>,
     fitted: Cell<Option<NodeRef>>,
-    seen: Cell<Option<(u64, f32)>>,
-    shown_rect: Cell<Option<Rect>>,
-    children_moved: Cell<bool>,
-    wakes: Rc<RefCell<Vec<Wake>>>,
     pushed: Mirror,
-    files: Signal<Option<FileDrop>>,
-    placed: Signal<Rect>,
     frame_children: Signal<Vec<(u64, Memo<Vec<MenuNode>>)>>,
 }
 
@@ -602,16 +358,20 @@ impl Editor {
         self.0.value()
     }
 
+    pub fn core(&self) -> EditorCore {
+        self.state().core.clone()
+    }
+
     pub fn host(&self) -> EditorHost {
-        self.state().host.clone()
+        self.state().core.host().clone()
     }
 
     pub fn blocks(&self) -> Blocks {
-        Blocks::of(&self.state().host)
+        Blocks::of(self.state().core.host())
     }
 
     pub fn block_id(&self) -> Uuid {
-        self.state().block
+        self.state().core.block_id()
     }
 
     pub fn watch_blocks(&self, query: BlockQuery) -> Memo<Ready<Vec<crate::BlockInfo>>> {
@@ -620,11 +380,11 @@ impl Editor {
     }
 
     pub fn editable(&self) -> ReadSignal<bool> {
-        self.state().editable.read_only()
+        self.state().shown.editable.read_only()
     }
 
     pub fn read_only(&self) -> Memo<bool> {
-        let editable = self.state().editable;
+        let editable = self.state().shown.editable;
         create_memo(move || !editable.get())
     }
 
@@ -639,10 +399,9 @@ impl Editor {
     where
         C: be_block::LiveEdit + Clone + Default,
     {
-        if block == self.state().block {
+        if block == self.block_id() {
             return self.block_content();
         }
-        self.state().host.watch_content(block, C::CONTENT_TYPE);
         let projection = self.projection_of(Some(block));
         if Boundary::current().is_none() {
             return projection;
@@ -666,7 +425,7 @@ impl Editor {
     }
 
     pub fn view_block(&self) -> Option<Uuid> {
-        self.state().host.view_block()
+        self.state().core.host().view_block()
     }
 
     pub fn view_content(&self) -> Option<ContentProjection<EditorViewContent>> {
@@ -682,20 +441,7 @@ impl Editor {
     }
 
     pub fn set_view_state(&self, key: &str, state: Option<&ViewState>) {
-        let Some(view) = self.view_content() else {
-            return;
-        };
-        let client = self.state().host.client_id();
-        let now = now_milliseconds();
-        let edit = untrack(|| {
-            view.read(|held| {
-                let root = held.root();
-                (root.state(key) != state).then(|| root.set_state(key, state, now, client))
-            })
-        });
-        if let Some(edit) = edit.ok().flatten() {
-            view.operate_anyway(edit);
-        }
+        self.state().core.set_view_state(key, state);
     }
 
     pub fn related_content<C>(&self, block: Memo<Option<Uuid>>) -> crate::RelatedContent<C>
@@ -706,20 +452,19 @@ impl Editor {
     }
 
     pub fn seed_content<C: be_block::BlockContent>(&self, block: Uuid, content: &C) {
-        self.state().host.seed_content(block, content);
+        self.state().core.host().seed_content(block, content);
     }
 
     pub fn replace_content<C: be_block::BlockContent>(&self, block: Uuid, content: &C) {
-        self.state().host.replace_content(block, content);
+        self.state().core.host().replace_content(block, content);
     }
 
     pub fn create_child<C: be_block::BlockContent>(&self, content: &C) -> Uuid {
-        self.blocks()
-            .create(content, BlockParent::Block(self.state().block))
+        self.state().core.create_child(content)
     }
 
     pub fn stored_head(&self, block: Uuid) -> Memo<crate::HeadRead> {
-        let host = self.state().host.clone();
+        let host = self.host();
         host.watch_head(block);
         let revision = self.pushed(Pushed::Heads);
         let read = create_memo(move || {
@@ -763,20 +508,12 @@ impl Editor {
         if let Some(source) = cached {
             return source;
         }
-        let owned = OwnedContentProjection::<C>::new(state.host.clone(), block);
+        let live = match block {
+            Some(block) => state.core.content_of::<C>(block),
+            None => state.core.content::<C>(None),
+        };
+        let owned = OwnedContentProjection::from(live);
         let source = owned.handle();
-        let due = Rc::downgrade(&state.contents.due);
-        source.on_due(move || {
-            if let Some(due) = due.upgrade() {
-                due.borrow_mut().push(block);
-            }
-        });
-        state
-            .contents
-            .pumps
-            .borrow_mut()
-            .insert(block, Rc::new(move || source.pump()));
-        state.contents.due.borrow_mut().push(block);
         state
             .contents
             .projections
@@ -794,30 +531,18 @@ impl Editor {
         asked: impl std::future::Future<Output = Option<T>> + 'static,
         answered: impl FnOnce(T) + 'static,
     ) -> Task {
-        then(&self.state().host, asked, answered)
+        then(self.state().core.host(), asked, answered)
     }
 
     pub fn woken(&self) -> (Waker, ReadSignal<u64>) {
-        let count = Arc::new(AtomicU64::new(0));
         let woken = create_signal(0);
-        self.state()
-            .wakes
-            .borrow_mut()
-            .push((Arc::clone(&count), woken));
-        let wakes = Rc::downgrade(&self.state().wakes);
-        let counted = Arc::clone(&count);
-        on_cleanup(move || {
-            if let Some(wakes) = wakes.upgrade() {
-                wakes
-                    .borrow_mut()
-                    .retain(|(held, _)| !Arc::ptr_eq(held, &counted));
-            }
-        });
-        (self.state().host.waker().counting(count), woken.read_only())
+        let (waker, wakes) = self.state().core.woken(move |count| woken.set(count));
+        crate::content::keep(wakes);
+        (waker, woken.read_only())
     }
 
     pub fn audio(&self) -> Memo<AudioStatus> {
-        let host = self.state().host.clone();
+        let host = self.host();
         let revision = self.pushed(Pushed::Audio);
         create_memo(move || {
             revision.get();
@@ -826,7 +551,7 @@ impl Editor {
     }
 
     pub fn history(&self, block: Uuid) -> Memo<BlockHistory> {
-        let host = self.state().host.clone();
+        let host = self.host();
         host.watch_history([block]);
         let revision = self.pushed(Pushed::Histories);
         create_memo(move || {
@@ -836,7 +561,7 @@ impl Editor {
     }
 
     pub fn version_status(&self) -> Memo<block_editor_plugin::VersionStatus> {
-        let host = self.state().host.clone();
+        let host = self.host();
         host.watch_version();
         let revision = self.pushed(Pushed::Version);
         let known = create_memo({
@@ -850,14 +575,15 @@ impl Editor {
             true => Ok(()),
             false => Err(Pending::Loading),
         });
+        let core = self.core();
         create_memo(move || {
             revision.get();
-            host.version_status()
+            core.version_status().unwrap_or_default()
         })
     }
 
     pub fn version(&self, command: block_editor_plugin::VersionCommand) {
-        self.state().host.version(self.state().block, command);
+        self.state().core.version(command);
     }
 
     pub fn histories(&self) -> ReadSignal<u64> {
@@ -869,7 +595,7 @@ impl Editor {
     }
 
     pub fn focused_block(&self) -> Memo<FocusedBlock> {
-        let host = self.state().host.clone();
+        let host = self.host();
         let revision = self.pushed(Pushed::Focus);
         create_memo(move || {
             revision.get();
@@ -878,14 +604,14 @@ impl Editor {
     }
 
     pub fn take_panel_requests(&self) -> Vec<HostPanel> {
-        self.state().host.take_panel_requests()
+        self.state().core.host().take_panel_requests()
     }
 
     pub fn watch<W: Watched>(&self) -> Memo<W::Value>
     where
         W::Value: Default,
     {
-        let host = self.state().host.clone();
+        let host = self.host();
         let revision = self.watch_revision::<W>();
         create_memo(move || {
             revision.get();
@@ -894,7 +620,7 @@ impl Editor {
     }
 
     pub fn offered<W: Watched>(&self) -> Memo<bool> {
-        let host = self.state().host.clone();
+        let host = self.host();
         let revision = self.watch_revision::<W>();
         create_memo(move || {
             revision.get();
@@ -907,7 +633,7 @@ impl Editor {
     }
 
     pub fn act(&self, call: impl FnOnce() + 'static) {
-        self.state().host.act(call);
+        self.state().core.host().act(call);
     }
 
     pub fn web_view_events(&self) -> ReadSignal<u64> {
@@ -915,48 +641,48 @@ impl Editor {
     }
 
     pub fn files(&self) -> ReadSignal<Option<FileDrop>> {
-        self.state().files.read_only()
+        self.state().shown.files.read_only()
     }
 
     pub fn canvas(&self) -> ReadSignal<Option<CanvasView>> {
-        self.state().canvas.read_only()
+        self.state().shown.canvas.read_only()
     }
 
     pub fn world(&self) -> ReadSignal<Option<Vec2>> {
-        self.state().world.read_only()
+        self.state().shown.world.read_only()
     }
 
     pub fn scale(&self) -> ReadSignal<f32> {
-        self.state().scale.read_only()
+        self.state().shown.scale.read_only()
     }
 
     pub fn chrome_shown(&self) -> ReadSignal<bool> {
-        self.state().chrome.read_only()
+        self.state().shown.chrome.read_only()
     }
 
     pub fn placed_content(&self) -> ReadSignal<Option<Rect>> {
-        self.state().placed_content.read_only()
+        self.state().shown.placed_content.read_only()
     }
 
     pub fn frame_anchor(&self) -> ReadSignal<Option<Rect>> {
-        self.state().frame_anchor.read_only()
+        self.state().shown.frame_anchor.read_only()
     }
 
     pub fn presenting(&self) -> ReadSignal<bool> {
-        self.state().presenting.read_only()
+        self.state().shown.presenting.read_only()
     }
 
     pub fn present(&self, presenting: bool) {
-        self.state().host.present(presenting);
+        self.state().core.host().present(presenting);
     }
 
     pub fn block_types(&self) -> Rc<BlockCatalog> {
         self.state().pushed.track(Pushed::Catalog);
-        self.state().host.block_types()
+        self.state().core.host().block_types()
     }
 
     pub fn block_types_known(&self) -> Memo<bool> {
-        let host = self.state().host.clone();
+        let host = self.host();
         let revision = self.pushed(Pushed::Catalog);
         let known = create_memo(move || {
             revision.get();
@@ -989,11 +715,11 @@ impl Editor {
     }
 
     pub fn set_intrinsic_size(&self, size: Option<Vec2>) {
-        self.state().intrinsic.set(size);
+        self.state().core.set_intrinsic_size(size);
     }
 
     pub fn intrinsic_size(&self) -> Option<Vec2> {
-        self.state().intrinsic.get()
+        self.state().core.intrinsic_size()
     }
 
     pub fn pick_block(
@@ -1142,6 +868,14 @@ impl Editor {
     ) -> ReadSignal<ChildState> {
         let editor_state = self.state();
         let state = create_signal(ChildState::default());
+        let placed = editor_state.core.add_child(
+            move |now: &ChildState| {
+                state.set(now.clone());
+                report.call(now.clone());
+            },
+            move |action| bar.call(action),
+            move || focus.call(()),
+        );
         let key = editor_state.next_child.get();
         editor_state.next_child.set(key + 1);
         editor_state.children.borrow_mut().push((
@@ -1157,11 +891,7 @@ impl Editor {
                 opacity,
                 intrinsic,
                 dialog,
-                state,
-                report,
-                bar,
-                focus,
-                child: Cell::new(None),
+                placed,
                 zone: document_zone(),
                 dock_tab,
                 docks,
@@ -1194,28 +924,27 @@ impl Editor {
     }
 
     pub fn content_rect(&self) -> Rect {
-        self.state().content_rect.get()
+        self.state().core.content_rect()
     }
 
     pub fn placed(&self) -> ReadSignal<Rect> {
-        self.state().placed.read_only()
+        self.state().shown.placed.read_only()
     }
 
     pub fn pixels_per_point(&self) -> ReadSignal<f32> {
-        self.state().pixels_per_point.read_only()
+        self.state().shown.pixels_per_point.read_only()
     }
 
     pub fn resized(&self) -> ReadSignal<Option<Vec2>> {
-        self.state().resized.read_only()
+        self.state().shown.resized.read_only()
     }
 
     pub fn report_resize(&self, size: Vec2) {
-        self.state().pending_resize.set(Some(size));
+        self.state().core.report_resize(size);
     }
 
     pub fn show<P: PresenceKind>(&self, value: Option<&P>) {
-        let value = value.and_then(|value| serde_json::to_vec(value).ok());
-        self.state().host.show_presence(None, P::ID, value);
+        self.state().core.show(value);
     }
 
     pub fn peers<P>(&self) -> ReadSignal<Vec<(u64, P)>>
@@ -1223,257 +952,102 @@ impl Editor {
         P: PresenceKind + Clone + PartialEq + 'static,
     {
         let peers = create_signal(Vec::new());
-        let host = self.state().host.clone();
-        host.ask_for_peers(None);
+        let core = self.core();
+        core.host().ask_for_peers(None);
         let revision = self.pushed(Pushed::Peers);
         let seen = Cell::new(0);
         create_effect(move || {
             revision.get();
-            let Some((latest, held)) = host.peers_since(None, seen.get()) else {
-                return;
-            };
-            seen.set(latest);
-            let decoded: Vec<(u64, P)> = held
-                .iter()
-                .filter(|peer| peer.kind == P::ID)
-                .filter_map(|peer| {
-                    serde_json::from_slice(&peer.value)
-                        .ok()
-                        .map(|value| (peer.client, value))
-                })
-                .collect();
-            peers.set(decoded);
+            if let Some(decoded) = core.new_peers::<P>(&seen) {
+                peers.set(decoded);
+            }
         });
         peers.read_only()
     }
 
     pub fn send_to_peers<M: ChannelKind>(&self, to: Option<u64>, message: &M) {
-        self.state()
-            .host
-            .send_to_peers(None, to, M::ID, message.encode());
+        self.state().core.send_to_peers(to, message);
     }
 
     pub fn on_peer_message<M>(&self, receive: impl Fn(u64, M) + 'static)
     where
         M: ChannelKind + 'static,
     {
-        let host = self.state().host.clone();
-        host.ask_for_peers(None);
+        let core = self.core();
+        core.host().ask_for_peers(None);
         let revision = self.pushed(Pushed::PeerMessages);
-        let seen = Cell::new(host.peer_messages_seen());
+        let seen = Cell::new(core.host().peer_messages_seen());
         create_effect(move || {
             revision.get();
-            let received = host.peer_messages_since(None, seen.get());
-            let Some((last, _)) = received.last() else {
-                return;
-            };
-            seen.set(*last);
+            let received = core.new_peer_messages::<M>(&seen);
             untrack(|| {
-                for (_, message) in received {
-                    if message.channel != M::ID {
-                        continue;
-                    }
-                    if let Some(decoded) = M::decode(&message.payload) {
-                        receive(message.from, decoded);
-                    }
+                for (from, message) in received {
+                    receive(from, message);
                 }
             });
         });
     }
 
     pub fn presence_visible(&self) -> ReadSignal<bool> {
-        self.state().presence_visible.read_only()
+        self.state().shown.presence_visible.read_only()
     }
 
     pub fn report_presence_visible(&self, visible: bool) {
-        self.state().pending_presence.set(Some(visible));
+        self.state().core.report_presence_visible(visible);
     }
 
     pub fn revealed(&self) -> ReadSignal<Option<u64>> {
-        self.state().revealed.read_only()
+        self.state().shown.revealed.read_only()
     }
 
     pub fn report_reveal(&self, client_id: u64) {
-        self.state().pending_reveal.set(Some(client_id));
+        self.state().core.report_reveal(client_id);
     }
 
     pub fn on_replace_child(&self, replace: impl Fn(Uuid, Uuid) -> bool + 'static) {
-        *self.state().replace.borrow_mut() = Some(Rc::new(replace));
+        self.state().core.on_replace_child(replace);
     }
 
     pub fn replace_child(&self, old: Uuid, new: Uuid) -> bool {
-        let replace = self.state().replace.borrow().clone();
-        replace.is_some_and(|replace| replace(old, new))
+        self.state().core.replace_child(old, new)
     }
 
     pub fn drag(&self) -> ReadSignal<Option<Drag>> {
-        self.state().drag.read_only()
+        self.state().shown.drag.read_only()
     }
 
     pub fn accept_drag(&self, accepted: bool) {
-        self.state().host.accept_drag(accepted);
-    }
-
-    fn ratio(&self) -> f32 {
-        self.state().beui.get().ratio
-    }
-
-    fn view_rect(&self) -> Option<Rect> {
-        let ratio = self.ratio();
-        self.state().host.view().map(|rect| rect.scaled(ratio))
-    }
-
-    fn view_scale(&self) -> f32 {
-        self.state().host.view_scale().unwrap_or(1.0)
-    }
-
-    fn view_canvas(&self) -> Option<CanvasView> {
-        let scale = self.view_scale();
-        self.view_rect()
-            .map(|rect| CanvasView::new(rect.min, scale))
+        self.state().core.host().accept_drag(accepted);
     }
 
     pub fn pan(&self, delta: Vec2) {
-        self.state().host.pan_view(delta / self.ratio());
+        self.state().core.pan(delta);
     }
 
     pub fn zoom(&self, factor: f32) {
-        self.state().host.zoom_view(factor, None);
+        self.state().core.zoom(factor);
     }
 
     pub fn zoom_at(&self, factor: f32, anchor: Pos2) {
-        let ratio = self.ratio();
-        self.state()
-            .host
-            .zoom_view(factor, Some(Pos2::new(anchor.x / ratio, anchor.y / ratio)));
+        self.state().core.zoom_at(factor, anchor);
     }
 
     pub(crate) fn keep_fitted_area(&self, area: Option<FitArea>) {
-        self.state().host.keep_fitted(area);
-    }
-
-    pub(crate) fn fit_view(&self) {
-        self.state().host.fit_view();
-    }
-
-    pub(crate) fn host_rect(&self, rect: Rect) -> FitArea {
-        let ratio = self.ratio();
-        FitArea::Rect(rect.scaled(1.0 / ratio))
+        self.state().core.keep_fitted(area);
     }
 
     pub fn pan_drag(&self) {
-        self.state().host.pan_drag_view();
+        self.state().core.pan_drag();
     }
 
     pub fn reveal(&self, target: Rect) {
-        let Some(placement) = self.view_canvas() else {
-            return;
-        };
-        let shown = placement.rect_to_screen(target).center();
-        self.pan(self.state().content_rect.get().center() - shown);
+        self.state().core.reveal(target);
     }
 
     pub fn begin_frame(&self) {
         let state = self.state();
-        let ratio = self.ratio();
-        let seen = Some((state.host.changes(), ratio));
-        let pushed = state.seen.replace(seen) != seen;
-        if pushed {
-            state.host.flush_graph();
-        }
-        let mut due = std::mem::take(&mut *state.contents.due.borrow_mut());
-        if pushed {
-            due.extend(state.host.updated_content());
-        }
-        self.pump(due);
-        let wakes = state.wakes.borrow().clone();
-        for (count, woken) in wakes {
-            woken.set(count.load(Ordering::Acquire));
-        }
+        state.core.begin_frame();
         state.pushed.sync();
-        if pushed {
-            state
-                .files
-                .set(state.host.files().map(|files| crate::FileDrop {
-                    position: Pos2::new(files.position.x * ratio, files.position.y * ratio),
-                    ..files
-                }));
-            state.chrome.set(state.host.chrome_shown());
-            state
-                .placed_content
-                .set(state.host.placed_content().map(|rect| rect.scaled(ratio)));
-            let anchor = state.host.frame_anchor().map(|rect| rect.scaled(ratio));
-            if state.frame_anchor.get_untracked() != anchor {
-                state.frame_anchor.set(anchor);
-            }
-            state.editable.set(state.host.editable());
-            state.presenting.set(state.host.presenting());
-            state.drag.set(state.host.drag().map(|drag| Drag {
-                position: Pos2::new(drag.position.x * ratio, drag.position.y * ratio),
-                block_id: drag.block_id,
-                block_type: drag.block_type,
-                dropped: drag.dropped,
-            }));
-        }
-        let rect = state.content_rect.get();
-        if pushed || state.shown_rect.replace(Some(rect)) != Some(rect) {
-            state.placed.set(rect);
-            let scale = self.view_scale();
-            let divisor = scale.max(f32::EPSILON);
-            state.canvas.set(self.view_canvas());
-            state.world.set(
-                self.view_rect()
-                    .map(|rect| Vec2::new(rect.width() / divisor, rect.height() / divisor)),
-            );
-            state.scale.set(scale);
-        }
-        state
-            .pixels_per_point
-            .set(state.beui.get().pixels_per_point);
-        state.resized.set(state.pending_resize.take());
-        if let Some(visible) = state.pending_presence.take() {
-            state.presence_visible.set(visible);
-        }
-        state.revealed.set(state.pending_reveal.take());
-        if pushed || state.children_moved.take() {
-            self.follow_children();
-        }
-    }
-
-    fn pump(&self, blocks: Vec<Option<Uuid>>) {
-        let pumps: Vec<_> = {
-            let state = self.state();
-            let held = state.contents.pumps.borrow();
-            let mut pumped = std::collections::HashSet::new();
-            blocks
-                .into_iter()
-                .filter(|block| pumped.insert(*block))
-                .filter_map(|block| held.get(&block).cloned())
-                .collect()
-        };
-        for pump in pumps {
-            pump();
-        }
-    }
-
-    fn follow_children(&self) {
-        let state = self.state();
-        for record in self.records() {
-            if let Some(child) = record.child.get() {
-                for action in state.host.take_child_bar_actions(child) {
-                    record.bar.call(action);
-                }
-                if state.host.take_child_focus(child) {
-                    record.focus.call(());
-                }
-            }
-            let state = ChildState::of(&state.host, record.child.get());
-            if record.state.get_untracked() == state {
-                continue;
-            }
-            record.state.set(state.clone());
-            record.report.call(state);
-        }
     }
 
     pub fn end_frame(&self, document: &Document, window: beui::WindowId) {
@@ -1499,20 +1073,16 @@ impl Editor {
             })
             .collect();
         records.sort_by(|(left, _), (right, _)| left.cmp(right));
-        let unscale = self.ratio().recip();
         let overlays = document.overlay_layers(window);
         let mut overlays = overlays.iter().peekable();
         for (order, record) in records {
             while let Some((_, rect)) = overlays.next_if(|(layer, _)| *layer < order) {
-                state.host.occlude(rect.scaled(unscale));
+                state.core.occlude(*rect);
             }
-            let child = self.place_child(document, &record);
-            if record.child.replace(child) != child {
-                state.children_moved.set(true);
-            }
+            record.placed.place(self.place_child(document, &record));
         }
         for (_, rect) in overlays {
-            state.host.occlude(rect.scaled(unscale));
+            state.core.occlude(*rect);
         }
         let node = state
             .content
@@ -1524,11 +1094,7 @@ impl Editor {
         let Some(rect) = node.and_then(|node| document.node_rect(node)) else {
             return;
         };
-        state.content_rect.set(rect);
-        if state.placed.get_untracked() != rect {
-            state.host.request_frame_in(std::time::Duration::ZERO);
-        }
-        state.host.report_content(rect.scaled(unscale));
+        state.core.report_content(rect);
     }
 }
 
@@ -1543,7 +1109,7 @@ impl Editor {
         let rect = document.node_rect(node)?;
         let placement = record.slot.placement()?;
         let content = record.content.get_untracked()?;
-        let unscale = self.ratio().recip();
+        let unscale = state.core.ratio().recip();
         let shown = document
             .window_rect(document.window_of(node))
             .unwrap_or_else(|| document.viewport_rect());
@@ -1559,11 +1125,11 @@ impl Editor {
             Some(tab) if untrack(|| tab.fullscreen()) => None,
             Some(tab) => match tab.handle() {
                 Some(handle) => document.node_rect(handle).map(to_placed),
-                None => state.host.frame_anchor(),
+                None => state.core.host().frame_anchor(),
             },
         };
         let placed = || {
-            state.host.place_child(
+            state.core.host().place_child(
                 content.wire(),
                 to_placed(rect),
                 to_placed(placement.clip),
@@ -1585,7 +1151,7 @@ impl Editor {
             )
         };
         Some(match escaped {
-            Some((id, _)) => state.host.in_view(
+            Some((id, _)) => state.core.host().in_view(
                 block_plugin_api::View::anchored(beui_platform_plugin_api::anchored_view(id)),
                 placed,
             ),
@@ -1594,22 +1160,18 @@ impl Editor {
     }
 }
 
-type Maker = Rc<dyn Fn() -> Result<Uuid, String>>;
-
 #[derive(Clone)]
-pub struct Creation(Rc<CreationState>);
+pub struct Creation(Rc<CreationSignals>);
 
-struct CreationState {
-    host: EditorHost,
+struct CreationSignals {
+    core: CreationCore,
     children: OwnedEditor,
-    template: String,
-    maker: RefCell<Option<Maker>>,
     pushed: Mirror,
     seen: Cell<Option<u64>>,
 }
 
 impl Creation {
-    pub const MAIN: &str = "main";
+    pub const MAIN: &str = CreationCore::MAIN;
 
     pub fn new(host: EditorHost) -> Self {
         Self::for_template(host, Self::MAIN)
@@ -1617,50 +1179,16 @@ impl Creation {
 
     pub fn for_template(host: EditorHost, template: impl Into<String>) -> Self {
         defer_graph_changes(&host);
-        Self(Rc::new(CreationState {
+        Self(Rc::new(CreationSignals {
             pushed: Mirror::new(&host),
             children: OwnedEditor::new(host.clone(), Uuid::nil()),
-            host,
-            template: template.into(),
-            maker: RefCell::new(None),
+            core: CreationCore::new(host, template),
             seen: Cell::new(None),
         }))
     }
 
-    pub fn host(&self) -> &EditorHost {
-        &self.0.host
-    }
-
-    pub fn template(&self) -> &str {
-        &self.0.template
-    }
-
     pub fn blocks(&self) -> Blocks {
-        Blocks::of(&self.0.host)
-    }
-
-    pub fn create<C: be_block::BlockContent>(&self, content: &C) -> Uuid {
-        self.blocks().create(content, BlockParent::Detached)
-    }
-
-    pub fn seed_content<C: be_block::BlockContent>(&self, block: Uuid, content: &C) {
-        self.0.host.seed_content(block, content);
-    }
-
-    pub fn accept(&self) {
-        self.0
-            .host
-            .close_dialog(block_plugin_api::DialogAnswer::Accepted);
-    }
-
-    pub fn cancel(&self) {
-        self.0
-            .host
-            .close_dialog(block_plugin_api::DialogAnswer::Dismissed);
-    }
-
-    pub fn on_create(&self, make: impl Fn() -> Result<Uuid, String> + 'static) {
-        *self.0.maker.borrow_mut() = Some(Rc::new(make));
+        Blocks::of(self.0.core.host())
     }
 
     pub fn then<T: 'static>(
@@ -1668,19 +1196,11 @@ impl Creation {
         asked: impl std::future::Future<Output = Option<T>> + 'static,
         answered: impl FnOnce(T) + 'static,
     ) -> Task {
-        then(&self.0.host, asked, answered)
-    }
-
-    pub fn create_block(&self) -> Result<Uuid, String> {
-        let maker = self.0.maker.borrow().clone();
-        match maker {
-            Some(make) => make(),
-            None => Err("this editor does not create blocks".to_owned()),
-        }
+        then(self.0.core.host(), asked, answered)
     }
 
     pub fn begin_frame(&self) {
-        let changes = Some(self.0.host.changes());
+        let changes = Some(self.0.core.host().changes());
         if self.0.seen.replace(changes) != changes {
             self.0.pushed.sync();
         }
@@ -1701,6 +1221,14 @@ impl Creation {
     }
 }
 
+impl std::ops::Deref for Creation {
+    type Target = CreationCore;
+
+    fn deref(&self) -> &CreationCore {
+        &self.0.core
+    }
+}
+
 impl crate::root_settings::SettingsGraph for Editor {
     fn roots(&self) -> Option<Vec<(Uuid, Uuid, Uuid)>> {
         let state = self.state();
@@ -1714,7 +1242,7 @@ impl crate::root_settings::SettingsGraph for Editor {
     }
 
     fn account(&self) -> Uuid {
-        self.state().host.account_id()
+        self.state().core.host().account_id()
     }
 
     fn settings(&self, block: Uuid) -> Option<be_block::Settings> {
@@ -1761,11 +1289,3 @@ pub use settings::{KindsAbove, OrganizationLayers, SetKind};
 
 #[cfg(test)]
 mod tests;
-
-fn now_milliseconds() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |elapsed| {
-            u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX)
-        })
-}

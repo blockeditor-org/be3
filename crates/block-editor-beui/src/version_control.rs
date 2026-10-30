@@ -2,17 +2,10 @@ use beui::NodeId;
 use beui::icons::ICON_UNDO_2;
 use beui::reactive::*;
 use beui::styled::*;
-use block_editor_plugin::{VersionCommand, VersionCommit, VersionOperation};
+use block_editor_plugin::{VersionCommand, VersionCommit, VersionOperation, short_id};
 
 use crate::Editor;
 use beui::{Align, Direction, ItemSize};
-
-pub fn short_id(id: &[u8]) -> String {
-    id.iter()
-        .take(4)
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
-}
 
 #[component]
 pub fn VersionHistory(log: Memo<Vec<VersionCommit>>) -> NodeId {

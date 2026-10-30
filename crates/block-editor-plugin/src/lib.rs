@@ -9,10 +9,12 @@ mod cooldown;
 mod docks;
 pub mod driver;
 pub mod editor_session;
+mod editor_state;
 pub mod fonts;
 mod graph;
 pub mod headless;
 mod host;
+mod layered_settings;
 mod link;
 mod module;
 #[cfg(target_arch = "wasm32")]
@@ -70,6 +72,10 @@ pub use block_ui;
 pub use clock::{frame_time, instant_at, pin_wall_clock, utc_offset, wall_clock};
 pub use content::{LiveContent, Objects, Projected};
 pub use geometry::{Pos2, Rect, Vec2, pos2, vec2};
+pub use editor_state::{
+    ArtifactsCore, ChildState, ChildTarget, ContentCache, CreationCore, Drag, EditorCore, Fit,
+    PlacedChild, PointScale, ShownEditor, SubregionContent, fit_content, short_id,
+};
 pub use graph::{BlockGraph, BlockInfo, BlockParent, BlockQuery, BlockWatch, GraphCommand};
 pub use host::{
     Artifact, ArtifactState, BlockDrag, BlockHistory, EditorHost, FileDrop, FileFilter,
@@ -78,6 +84,7 @@ pub use host::{
     RenameRequest, SavedFile, SeededContent, SentToPeers, ShowRequest, ShownPresence, StoredHead,
     Waker,
 };
+pub use layered_settings::{SettingsAnswer, SettingsChangeLog, SettingsLayers, SettingsTarget};
 pub use module::Module;
 pub use plugin::{Anchored, Claim, Frame, Instance, Plugin, SettingsDraft, ShownView, ViewHandler};
 #[cfg(target_arch = "wasm32")]

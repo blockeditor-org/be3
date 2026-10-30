@@ -1,5 +1,5 @@
 use beui_tree::reactive::{Get, IntoProp, Memo, Prop, ReadSignal, Signal};
-use geometry::{Pos2, Rect, Vec2, pos2, vec2};
+use geometry::{Rect, Vec2, vec2};
 
 use crate::color::Color;
 
@@ -578,39 +578,7 @@ impl std::fmt::Debug for CanvasArrangement {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub struct CanvasView {
-    pub origin: Pos2,
-    pub scale: f32,
-}
-
-impl CanvasView {
-    pub fn new(origin: Pos2, scale: f32) -> Self {
-        Self { origin, scale }
-    }
-
-    pub fn to_screen(self, point: Pos2) -> Pos2 {
-        pos2(
-            self.origin.x + point.x * self.scale,
-            self.origin.y + point.y * self.scale,
-        )
-    }
-
-    pub fn to_canvas(self, point: Pos2) -> Pos2 {
-        pos2(
-            (point.x - self.origin.x) / self.scale,
-            (point.y - self.origin.y) / self.scale,
-        )
-    }
-
-    pub fn rect_to_screen(self, rect: Rect) -> Rect {
-        Rect::from_min_max(self.to_screen(rect.min), self.to_screen(rect.max))
-    }
-
-    pub fn rect_to_canvas(self, rect: Rect) -> Rect {
-        Rect::from_min_max(self.to_canvas(rect.min), self.to_canvas(rect.max))
-    }
-}
+pub use geometry::CanvasView;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Measured {

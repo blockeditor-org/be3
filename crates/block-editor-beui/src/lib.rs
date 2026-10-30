@@ -38,11 +38,10 @@ pub use chrome::{
 };
 pub use content::{ContentProjection, OwnedContentProjection};
 pub use editor::{
-    Artifacts, ChildState, ChildTarget, Creation, Drag, Editor, KindsAbove, OrganizationLayers,
-    OwnedEditor, SetKind, SubregionContent, fit_content, node_anchor,
+    Artifacts, Creation, Editor, KindsAbove, OrganizationLayers, OwnedEditor, SetKind, node_anchor,
 };
 pub use file_chooser::{ContentFileCreation, FileChooser};
-pub use fitting::{Fit, Fitting};
+pub use fitting::Fitting;
 pub use graph::{BlockList, Blocks};
 pub use instance::BeuiPlugin;
 pub use layered_settings::{
@@ -52,7 +51,7 @@ pub use loading::{FailedPane, Loaded, LoadingPane};
 pub use picking::PickAnchor;
 pub use related_content::RelatedContent;
 pub use rotation::RotationPicker;
-pub use version_control::{VersionHistory, VersionSteps, short_id};
+pub use version_control::{VersionHistory, VersionSteps};
 
 #[beui::reactive::component]
 pub trait BeuiApp: 'static {

@@ -1,6 +1,3 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use be_block::be_model::Document;
 use be_block::{
     BlockContent, Layered, Layers, LiveEdit, Resolution, Setting, SettingsLayer, SettingsSource,
@@ -11,8 +8,11 @@ use beui::reactive::*;
 use beui::styled::*;
 use uuid::Uuid;
 
-use crate::Editor;
-use crate::root_settings::{RootSetting, SettingsGraph, own_settings_blocks};
+use crate::root_settings::{SettingsGraph, own_settings_blocks};
+use crate::{
+    Editor, SettingsAnswer, SettingsChangeLog, SettingsLayers, SettingsTarget as Target,
+    Subscription,
+};
 
 const KEPT: &str = "Kept on this device";
 const IN_PROFILE: &str = "Kept in this profile";
@@ -22,24 +22,9 @@ const ORGANIZATION: &str = "Set by your organization";
 const KEEP_ACTION: &str = "keep";
 const UNDO_ACTION: &str = "undo";
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-enum Target {
-    ThisDevice,
-    Block(Uuid),
-}
-
-#[derive(Clone)]
-struct Changed {
-    key: String,
-    name: String,
-    undo: Rc<dyn Fn()>,
-    keep: Rc<dyn Fn()>,
-}
-
-impl PartialEq for Changed {
-    fn eq(&self, other: &Self) -> bool {
-        self.key == other.key && Rc::ptr_eq(&self.undo, &other.undo)
-    }
+struct ChangeLog {
+    log: SettingsChangeLog,
+    _changed: Subscription,
 }
 
 pub struct LayeredSettings<R: 'static> {
@@ -53,9 +38,9 @@ pub struct LayeredSettings<R: 'static> {
     effective: Memo<R>,
     resolved: Memo<Resolution<R>>,
     ready: Memo<bool>,
-    blocks: Stored<RefCell<RootSetting<Document<R>>>>,
-    changes: Signal<Vec<Changed>>,
-    round: Signal<u64>,
+    blocks: Stored<SettingsLayers<R>>,
+    changes: Stored<ChangeLog>,
+    changed: Signal<u64>,
 }
 
 impl<R: 'static> Clone for LayeredSettings<R> {
@@ -94,18 +79,11 @@ where
     }
 
     fn new(editor: Editor, page: bool) -> Self {
-        let client = editor.host().client_id();
-        let blocks = store(RefCell::new(RootSetting::<Document<R>>::default()));
-        let layers = create_memo(move || {
-            blocks.with(|blocks| blocks.borrow().layer_blocks(&editor, client))
-        });
+        let blocks = store(SettingsLayers::<R>::new(editor.core()));
+        let layers = create_memo(move || blocks.with(|blocks| blocks.layer_blocks(&editor)));
         let block = editor.block_id();
-        let target = create_memo(move || {
-            match page && layers.with(|layers| layers.every_device != Some(block)) {
-                true => Target::Block(block),
-                false => Target::ThisDevice,
-            }
-        });
+        let target =
+            create_memo(move || layers.with(|layers| Target::choose(page, block, layers)));
         let content = move |block: Option<Uuid>| -> R {
             block
                 .and_then(|block| {
@@ -146,6 +124,8 @@ where
             true => Ok(()),
             false => Err(Pending::Loading),
         });
+        let log = SettingsChangeLog::default();
+        let changed = create_signal(0_u64);
         Self {
             editor,
             target,
@@ -158,8 +138,11 @@ where
             resolved: editor.resolved_settings::<R>(editor.block_id()),
             ready,
             blocks,
-            changes: create_signal(Vec::new()),
-            round: create_signal(0),
+            changes: store(ChangeLog {
+                _changed: log.on_change(move || changed.update(|count| *count += 1)),
+                log,
+            }),
+            changed,
         }
     }
 
@@ -334,20 +317,13 @@ where
     }
 
     pub fn changes(&self) -> SettingsChanges {
-        let (changes, round) = (self.changes, self.round);
+        let (changes, changed) = (self.changes, self.changed);
         let toasts = create_memo(move || {
-            let names = changes.with(|changes| {
-                let mut names: Vec<String> = Vec::new();
-                for changed in changes {
-                    if !names.contains(&changed.name) {
-                        names.push(changed.name.clone());
-                    }
-                }
-                names
-            });
-            match changes_message(&names) {
+            changed.get();
+            let (message, round) = changes.with(|changes| (changes.log.message(), changes.log.round()));
+            match message {
                 Some(message) => vec![Toast {
-                    id: round.get(),
+                    id: round,
                     message,
                     actions: vec![
                         ToastAction {
@@ -365,108 +341,60 @@ where
                 None => Vec::new(),
             }
         });
-        let finish = move || {
-            changes.set(Vec::new());
-            round.update(|round| *round += 1);
-        };
         SettingsChanges {
             toasts,
             on_action: Callback::new(move |key: String| {
-                let answered = changes.get_untracked();
-                finish();
-                for changed in answered {
-                    match key.as_str() {
-                        KEEP_ACTION => (changed.keep)(),
-                        UNDO_ACTION => (changed.undo)(),
-                        _ => {}
-                    }
-                }
+                let answer = match key.as_str() {
+                    KEEP_ACTION => Some(SettingsAnswer::KeepOnThisDevice),
+                    UNDO_ACTION => Some(SettingsAnswer::Undo),
+                    _ => None,
+                };
+                changes.with(|changes| match answer {
+                    Some(answer) => changes.log.answer(answer),
+                    None => changes.log.dismiss(),
+                });
             }),
-            on_dismiss: Callback::new(move |()| finish()),
+            on_dismiss: Callback::new(move |()| changes.with(|changes| changes.log.dismiss())),
         }
     }
 
     fn note<V: Clone + PartialEq + 'static>(&self, setting: &Setting<R, V>, old: Option<V>) {
-        if self
-            .changes
-            .with_untracked(|changes| changes.iter().any(|changed| changed.key == setting.key()))
-        {
-            return;
-        }
         let this = *self;
         let undo = {
             let (setting, old) = (setting.clone(), old.clone());
-            Rc::new(move || this.write(SettingsLayer::EveryDevice, &setting, old.clone()))
+            move || this.write(SettingsLayer::EveryDevice, &setting, old.clone())
         };
         let keep = {
             let setting = setting.clone();
-            Rc::new(move || {
+            move || {
                 let now = this.every.with_untracked(|every| setting.get(every));
                 this.write(SettingsLayer::ThisDevice, &setting, now);
                 this.write(SettingsLayer::EveryDevice, &setting, old.clone());
-            })
+            }
         };
-        let changed = Changed {
-            key: setting.key().to_owned(),
-            name: setting.name().to_owned(),
-            undo,
-            keep,
-        };
-        self.changes.update(|changes| changes.push(changed));
+        self.changes
+            .with(|changes| changes.log.note(setting.key(), setting.name(), undo, keep));
     }
 
     fn ensure(&self, layer: SettingsLayer) -> Option<Uuid> {
-        self.layers
-            .get_untracked()
-            .block(layer)
-            .or_else(|| self.create(layer, Document::new(&R::default())))
-    }
-
-    fn create(&self, layer: SettingsLayer, content: Document<R>) -> Option<Uuid> {
-        let client = self.editor.host().client_id();
-        let mut blocks = self.blocks.with(|blocks| blocks.take());
-        let block = untrack(|| blocks.create_layer(&self.editor, client, layer, content));
-        self.blocks.with(|held| held.replace(blocks));
-        block
+        let layers = self.layers.get_untracked();
+        untrack(|| self.blocks.with(|blocks| blocks.ensure(layers, layer)))
     }
 
     fn write<V: Clone>(&self, layer: SettingsLayer, setting: &Setting<R, V>, value: Option<V>) {
-        if let Some(block) = self.layers.get_untracked().block(layer) {
-            self.write_block(block, setting, value);
-            return;
-        }
-        let mut content = Document::new(&R::default());
-        content.apply(&setting.set(&R::default(), value.clone()));
-        if self.create(layer, content).is_none()
-            && let Some(block) = self.layers.get_untracked().top()
-        {
-            self.write_block(block, setting, value);
-        }
+        let layers = self.layers.get_untracked();
+        untrack(|| {
+            self.blocks
+                .with(|blocks| blocks.write(layers, layer, setting, value))
+        });
     }
 
     fn write_block<V: Clone>(&self, block: Uuid, setting: &Setting<R, V>, value: Option<V>) {
-        let content = self.editor.content_of::<Document<R>>(block);
-        let own = untrack(|| content.read(|content| content.root())).unwrap_or_default();
-        content.operate(setting.set(&own, value));
+        untrack(|| {
+            self.blocks
+                .with(|blocks| blocks.write_block(block, setting, value))
+        });
     }
-}
-
-fn changes_message(names: &[String]) -> Option<String> {
-    let lower = |name: &String| {
-        let mut chars = name.chars();
-        chars.next().map_or_else(String::new, |first| {
-            first.to_lowercase().chain(chars).collect()
-        })
-    };
-    let listed = match names {
-        [] => return None,
-        [one] => return Some(format!("{one} now applies on your devices")),
-        [first, second] => format!("{first} and {}", lower(second)),
-        [first, second, rest @ ..] => {
-            format!("{first}, {} and {} more", lower(second), rest.len())
-        }
-    };
-    Some(format!("{listed} now apply on your devices"))
 }
 
 #[derive(Clone, Copy)]
