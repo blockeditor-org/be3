@@ -2833,49 +2833,49 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
     let entries = create_memo(move || state.with(|state| state.entries(leaf)));
     let selected = create_memo(move || Some(state.with(|state| state.active_index(leaf))));
     let tabs = view! {
-            <Choice
-                @node_ref=&tab_list
-                options={view! {
-                    <ForEach keys={entries}>|entry: Entry| {
-                        let dock = dock;
-                        let label = create_memo(move || dock.entry_title(entry));
-                        view! {
-                            <ChoiceOption label={label} />
-                        }
-                    }</ForEach>
-                }}
-                selected={Binding::new(selected, move |index: Option<usize>| {
-                    let Some(index) = index else {
-                        return;
-                    };
-                    dock.edit(|state| {
-                        state.set_active_index(leaf, index);
-                        state.focus(leaf);
-                    });
-                    dock.release_dialog_focus();
-                    let picked = tab_list
-                        .try_get()
-                        .is_some_and(|tabs| tabs.focus_is_within());
-                    let shown = dock.state.with_untracked(|state| state.active_tab(leaf));
-                    if let Some(tab) = shown.filter(|_| !picked) {
-                        dock.give_keyboard(tab);
+        <Choice
+            @node_ref=&tab_list
+            options={view! {
+                <ForEach keys={entries}>|entry: Entry| {
+                    let dock = dock;
+                    let label = create_memo(move || dock.entry_title(entry));
+                    view! {
+                        <ChoiceOption label={label} />
                     }
-                })}
-                kind=ChoiceKind::Tabs
-                direction
-                spacing={dock.tab_spacing}
-            >|handle: ChoiceOptionHandle| {
-                let dock = dock;
-                let entry = dock.state.get_untracked().entries(leaf).get(handle.index).copied();
-                match entry {
-                    Some(entry) => view! {
-                        <DockTabView dock leaf entry handle vertical />
-                    },
-                    None => view! {
-                        <Frame />
-                    },
+                }</ForEach>
+            }}
+            selected={Binding::new(selected, move |index: Option<usize>| {
+                let Some(index) = index else {
+                    return;
+                };
+                dock.edit(|state| {
+                    state.set_active_index(leaf, index);
+                    state.focus(leaf);
+                });
+                dock.release_dialog_focus();
+                let picked = tab_list
+                    .try_get()
+                    .is_some_and(|tabs| tabs.focus_is_within());
+                let shown = dock.state.with_untracked(|state| state.active_tab(leaf));
+                if let Some(tab) = shown.filter(|_| !picked) {
+                    dock.give_keyboard(tab);
                 }
-            }</Choice>
+            })}
+            kind=ChoiceKind::Tabs
+            direction
+            spacing={dock.tab_spacing}
+        >|handle: ChoiceOptionHandle| {
+            let dock = dock;
+            let entry = dock.state.get_untracked().entries(leaf).get(handle.index).copied();
+            match entry {
+                Some(entry) => view! {
+                    <DockTabView dock leaf entry handle vertical />
+                },
+                None => view! {
+                    <Frame />
+                },
+            }
+        }</Choice>
     };
     let scroll = dock.strip.call(DockStripHandle { direction, tabs });
     strip.fill(scroll);

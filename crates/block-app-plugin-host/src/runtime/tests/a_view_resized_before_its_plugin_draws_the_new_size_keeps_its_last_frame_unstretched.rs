@@ -92,8 +92,8 @@ fn a_view_resized_before_its_plugin_draws_the_new_size_keeps_its_last_frame_unst
 
     let wider = Rect::from_min_size(Pos2::ZERO, vec2(400.0, 200.0));
     place(wider);
-    let template = with(PLUGIN, |runtime| runtime.template(screen, None))
-        .expect("the runtime is running");
+    let template =
+        with(PLUGIN, |runtime| runtime.template(screen, None)).expect("the runtime is running");
     let requested = template
         .requested
         .expect("the view asks for the size it is now laid out at");

@@ -15,7 +15,9 @@ fn focusing_the_focused_node_again_keeps_a_pointer_focus_unringed() {
         }
     });
     let mut harness = Harness::new(document);
-    let tree = harness.frame(Vec::new()).accessibility_tree("Test", VIEWPORT);
+    let tree = harness
+        .frame(Vec::new())
+        .accessibility_tree("Test", VIEWPORT);
     let button = |label: &str| {
         tree.nodes
             .iter()
@@ -34,7 +36,10 @@ fn focusing_the_focused_node_again_keeps_a_pointer_focus_unringed() {
     harness.frame(vec![Input::Focus(false)]);
     harness.frame(vec![Input::Focus(true)]);
     assert_eq!(harness.document().focused_node(), Some(first.into()));
-    assert!(!visible.get_untracked(), "regaining the window's focus shows no ring");
+    assert!(
+        !visible.get_untracked(),
+        "regaining the window's focus shows no ring"
+    );
     let focus = |target_node| ActionRequest {
         action: Action::Focus,
         target_tree: TreeId::ROOT,

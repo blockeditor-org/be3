@@ -28,8 +28,8 @@ use super::{
     Dock, DockApi, DockAwayHandle, DockBarBandHandle, DockBarControl, DockBarHandle,
     DockBarTargetHandle, DockChromeHandle, DockConfig, DockGripHandle, DockMode, DockPreviewHandle,
     DockSplitterHandle, DockStackHandle, DockState, DockStripHandle, DockSwitchHandle,
-    DockSwitcherHandle,
-    DockTabControl, DockTabHandle, DockTabMenu, GroupId, LeafId, SIDEBAR_WIDTH, TabId,
+    DockSwitcherHandle, DockTabControl, DockTabHandle, DockTabMenu, GroupId, LeafId, SIDEBAR_WIDTH,
+    TabId,
 };
 use beui_components_unstyled::DialogLayout;
 use beui_components_unstyled::menu_popup::MenuStyle;
