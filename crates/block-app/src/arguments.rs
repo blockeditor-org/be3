@@ -39,12 +39,6 @@ pub(crate) fn parse(
                 beui_host::native::environment::PLATFORM
             ));
         }
-        if !parsed.desktop {
-            return Err(format!(
-                "{}={DRM} runs the app on the displays and input devices themselves, which only the desktop shell can: add --desktop",
-                beui_host::native::environment::PLATFORM
-            ));
-        }
         parsed.drm = true;
     }
     Ok(parsed)

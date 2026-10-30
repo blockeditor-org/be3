@@ -111,6 +111,10 @@ fn run_app(arguments: arguments::Arguments) -> Result<(), Box<dyn Error>> {
     panic_guard::install();
     let mut app = BlockApp::new(None).map_err(|error| error.to_string())?;
     app.login_session_mode = arguments.drm;
+    #[cfg(target_os = "linux")]
+    if arguments.drm {
+        app.start_screen_lock();
+    }
     let options = run_options();
     if arguments.dev_workspace {
         app.open_dev_workspace(None);
@@ -843,13 +847,20 @@ impl BlockApp {
         self.root_settings = RootSettings::new(be_block::DESKTOP_EDITOR);
         #[cfg(target_os = "linux")]
         {
-            self.screen_lock = Some(login_session::ScreenLock::start());
+            self.start_screen_lock();
             if self.notifications.is_none() {
                 self.notifications = Some(notifications::Notifications::start());
             }
             if self.tray.is_none() {
                 self.tray = Some(tray::Tray::start());
             }
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    fn start_screen_lock(&mut self) {
+        if self.screen_lock.is_none() {
+            self.screen_lock = Some(login_session::ScreenLock::start());
         }
     }
 

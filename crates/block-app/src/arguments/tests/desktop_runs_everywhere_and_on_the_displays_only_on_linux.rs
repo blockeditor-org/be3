@@ -33,10 +33,13 @@ fn desktop_runs_everywhere_and_on_the_displays_only_on_linux() {
         }),
         "beui checks every other platform name"
     );
-    let workspace = parse(&words(""), Some("drm"), true).expect_err("drm needs the desktop shell");
-    assert!(
-        workspace.contains("add --desktop"),
-        "refusing the workspace on the displays asks for --desktop: {workspace}"
+    assert_eq!(
+        parse(&words(""), Some("drm"), true),
+        Ok(Arguments {
+            drm: true,
+            ..Arguments::default()
+        }),
+        "the workspace shell may run on the displays too"
     );
     assert_eq!(
         parse(&words("--install-login-session /opt"), None, true),

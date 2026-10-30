@@ -10,7 +10,8 @@ guide is for what that does not cover.
   open the last organization, or the first one (the server's personal organization, which
   registering joins), on the account's My files workspace. `:dev` passes it.
 - `--desktop` (every native platform): the desktop shell in a window; with `BEUI_PLATFORM=drm`
-  (Linux), a login session on the displays themselves (guides/desktop/linux.md).
+  (Linux), a login session on the displays themselves (guides/desktop/linux.md). `BEUI_PLATFORM=drm`
+  without `--desktop` runs the workspace shell on the displays instead.
   `./scripts/buck run //crates/block-app:dev -- --desktop` drives the desktop shell headless.
 - `--install-login-session [PREFIX]` (Linux): install the app as a login session
   (guides/desktop/linux.md).
