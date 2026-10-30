@@ -2,10 +2,9 @@ use super::*;
 use beui::dock::styled::{DockAlign as Align, DockBarPlacement as Placement, DockEdge as Edge};
 use beui::dock::unstyled::DockOutsidePlace as Outside;
 use block_plugin_api::{
-    DockAlign, DockBarEdge,
-    DockBarPlacement, DockEdge, DockHosted, DockHostedView, DockItem, DockItemKind, DockLayout,
-    DockMessage, DockOutside, DockOutsidePlace, DockPane, DockPlacedBar, DockTabPath, DockTree,
-    DockUpdate, Rect, ViewId,
+    DockAlign, DockBarEdge, DockBarPlacement, DockEdge, DockHosted, DockHostedView, DockItem,
+    DockItemKind, DockLayout, DockMessage, DockOutside, DockOutsidePlace, DockPane, DockPlacedBar,
+    DockTabPath, DockTree, DockUpdate, Rect, ViewId,
 };
 use std::collections::HashMap;
 
@@ -75,9 +74,9 @@ fn a_layout_kept_while_joined_comes_back_in_a_standalone_dock() {
                     bar: DockTabPath::own(bar),
                     owner: Some(DockTabPath::own(stage)),
                     placement: DockBarPlacement::Beside(DockBarEdge {
- edge: DockEdge::Left,
- align: DockAlign::Center,
- }),
+                        edge: DockEdge::Left,
+                        align: DockAlign::Center,
+                    }),
                 }],
                 outside: vec![DockOutside {
                     tab: DockTabPath::own(notes),

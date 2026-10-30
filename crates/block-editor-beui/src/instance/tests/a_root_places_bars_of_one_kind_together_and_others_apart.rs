@@ -87,9 +87,9 @@ fn a_root_places_bars_of_one_kind_together_and_others_apart() {
             request: DockRequest::PlaceBar(DockBarPlace {
                 bar: DockTabPath::own(7),
                 placement: Some(DockBarPlacement::Beside(DockBarEdge {
- edge: DockEdge::Left,
- align: DockAlign::Center,
- })),
+                    edge: DockEdge::Left,
+                    align: DockAlign::Center,
+                })),
             }),
         })]);
     show_docked(&mut session, &[(View::MAIN, 6)], false);
@@ -103,7 +103,9 @@ fn a_root_places_bars_of_one_kind_together_and_others_apart() {
         .into_iter()
         .map(|bar| state.bar_placement(bar))
         .collect();
-    use beui::dock::unstyled::{DockAlign as Align, DockBarPlacement as Placement, DockEdge as Edge};
+    use beui::dock::unstyled::{
+        DockAlign as Align, DockBarPlacement as Placement, DockEdge as Edge,
+    };
     assert_eq!(
         placements,
         vec![

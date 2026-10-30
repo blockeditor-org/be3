@@ -1,6 +1,6 @@
 use super::*;
 use block_plugin_api::{
-    DockAlign, DockBar, DockBarMove, DockBarEdge, DockBarPlacement, DockCover, DockDragStage,
+    DockAlign, DockBar, DockBarEdge, DockBarMove, DockBarPlacement, DockCover, DockDragStage,
     DockEdge, Pos2, Rect, Size,
 };
 
@@ -82,9 +82,9 @@ fn a_frame_childs_bars_take_the_place_of_its_placers_and_give_it_back() {
     ));
     docks.heard("outer", vec![declare(OUTER, Some(outer))]);
     let moved = DockBarPlacement::Beside(DockBarEdge {
- edge: DockEdge::Left,
- align: DockAlign::Center,
- });
+        edge: DockEdge::Left,
+        align: DockAlign::Center,
+    });
     root_hosts(
         &mut docks,
         vec![DockPlacedBar {

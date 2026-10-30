@@ -1,6 +1,6 @@
 use super::*;
 use block_plugin_api::{
-    DockAlign, DockBar, DockBarMove, DockBarEdge, DockBarPlacement, DockDragStage, DockEdge, Pos2,
+    DockAlign, DockBar, DockBarEdge, DockBarMove, DockBarPlacement, DockDragStage, DockEdge, Pos2,
     Size,
 };
 

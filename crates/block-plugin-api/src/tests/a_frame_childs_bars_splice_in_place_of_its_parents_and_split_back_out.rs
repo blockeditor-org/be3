@@ -73,9 +73,9 @@ fn a_frame_childs_bars_splice_in_place_of_its_parents_and_split_back_out() {
                 bar: tools.clone(),
                 owner: Some(DockTabPath::own(2)),
                 placement: DockBarPlacement::Beside(DockBarEdge {
- edge: DockEdge::Right,
- align: DockAlign::Center,
- }),
+                    edge: DockEdge::Right,
+                    align: DockAlign::Center,
+                }),
             }],
             outside: Vec::new(),
         },
@@ -106,9 +106,9 @@ fn a_frame_childs_bars_splice_in_place_of_its_parents_and_split_back_out() {
             bar: DockTabPath::own(7),
             owner: Some(DockTabPath::own(4)),
             placement: DockBarPlacement::Beside(DockBarEdge {
- edge: DockEdge::Right,
- align: DockAlign::Center,
- }),
+                edge: DockEdge::Right,
+                align: DockAlign::Center,
+            }),
         }]
     );
     assert_eq!(
