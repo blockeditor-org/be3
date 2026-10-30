@@ -1672,12 +1672,29 @@ where
         if let Some(joined) = joined {
             return joined;
         }
-        let empty = key.and_then(|key| found.with_untracked(|found| found.empty(&key)));
-        match empty {
-            Some(empty) => empty.call(()),
-            None => view! {
+        let Some(key) = key else {
+            return view! {
                 <Frame />
-            },
+            };
+        };
+        if let Some(empty) = found.with_untracked(|found| found.empty(&key)) {
+            return empty.call(());
+        }
+        let declared = {
+            let key = key.clone();
+            create_memo(move || found.with(|found| found.empty(&key).is_some()))
+        };
+        view! {
+            <Layers>
+                <Dynamic value={declared}>|_: bool| {
+                    match found.with_untracked(|found| found.empty(&key)) {
+                        Some(empty) => empty.call(()),
+                        None => view! {
+                            <Frame />
+                        },
+                    }
+                }</Dynamic>
+            </Layers>
         }
     });
     let group_host = Func::new(move |group: GroupId| {
