@@ -1327,6 +1327,7 @@ dependencies = [
  "beui-components-unstyled",
  "beui-view",
  "beui_macros",
+ "postcard",
  "reactive",
  "serde",
  "stable-hash",

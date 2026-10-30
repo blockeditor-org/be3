@@ -710,7 +710,7 @@ impl<K: DockKey> DockingLayout<K> {
     }
 
     pub fn bar_placement(&self, key: &K) -> Option<DockBarPlacement> {
-        let bar = self.state.with(|_| self.tab_of(key))?;
+        let bar = self.tab_of(key)?;
         let own = self.state.with(|state| state.is_dock_bar(bar));
         let hosted = self.inner().bars_hosted.with(|hosted| {
             hosted
@@ -738,7 +738,7 @@ impl<K: DockKey> DockingLayout<K> {
     }
 
     pub fn is_bar_hidden(&self, key: &K) -> bool {
-        let Some(bar) = self.state.with(|_| self.tab_of(key)) else {
+        let Some(bar) = self.tab_of(key) else {
             return false;
         };
         let own = self.state.with(|state| state.is_dock_bar(bar));
