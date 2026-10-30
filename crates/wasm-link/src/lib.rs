@@ -1,25 +1,40 @@
+pub mod archive;
+pub mod inputs;
 pub mod map;
 pub mod module;
 pub mod object;
+pub mod tls;
 
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
     process::Command,
 };
 
-use sha2::{Digest, Sha256};
-use wasm_dylink::{ENV, GOT_FUNCTION, GOT_MEMORY, MEMORY_BASE, STACK_POINTER, TABLE, TABLE_BASE};
+use wasm_dylink::{
+    Declared, ENV, GOT_FUNCTION, GOT_MEMORY, GOT_THREAD_LOCAL, MEMORY_BASE, STACK_POINTER, TABLE,
+    TABLE_BASE, TLS_ALIGN, TLS_SIZE,
+};
 
-pub const SDK_FLAG: &str = "--be3-sdk";
-pub const PLUGIN_FLAG: &str = "--be3-plugin=";
-pub const SDK_SECTION: &str = "be3.sdk";
-pub use wasm_dylink::{LAYOUT_EXPORT_PREFIX, PLUGIN_TLS, PLUGIN_TLS_SIZE, SDK_EXPORT_PREFIX};
-const PLUGIN_TLS_ALIGN_LOG2: u32 = 4;
-const SDK_TLS_SEGMENT: &str = ".tbss.__be3_sdk_tls";
-const PLUGIN_TLS_SEGMENT: &str = ".tbss.__be3_plugin_tls";
+pub const NEEDS_FLAG: &str = "--be3-needs=";
+pub const LIBRARY_FLAG: &str = "--be3-library=";
+pub const LIBRARY_SECTION: &str = "be3.lib";
 
 const LINKED_BY_LOADER: [&str; 5] = ["memory", TABLE, STACK_POINTER, MEMORY_BASE, TABLE_BASE];
+const SYNTHESIZED: [&str; 12] = [
+    "__dso_handle",
+    "__data_end",
+    "__global_base",
+    "__heap_base",
+    "__heap_end",
+    "__stack_low",
+    "__stack_high",
+    "__tls_base",
+    "__tls_size",
+    "__tls_align",
+    "__wasm_call_ctors",
+    "__wasm_apply_data_relocs",
+];
 const DROPPED_FROM_PLUGINS: [&str; 5] = [
     "--import-memory",
     "--export-memory",
@@ -36,14 +51,27 @@ const PLUGIN_FLAGS: [&str; 7] = [
     "--export=__tls_align",
     "--export=__tls_base",
 ];
-const SDK_FLAGS: [&str; 3] = ["--export-all", "--export-table", "--growable-table"];
+const ROOT_FLAGS: [&str; 3] = ["--export-all", "--export-table", "--growable-table"];
 const UNUSED_SECTIONS: [&str; 3] = [".rmeta", ".rmeta-link", "__wasm_bindgen_unstable"];
 const WHOLE_LIBRARIES: [&str; 2] = ["-lc++", "-lc++abi"];
-const LIBC: [&str; 41] = [
+const LIBC: [&str; 63] = [
+    "__assert_fail",
     "atof",
     "atoi",
     "atol",
+    "fclose",
+    "fdopen",
+    "feof",
+    "ferror",
+    "fflush",
+    "fopen",
+    "fprintf",
+    "fputc",
+    "fread",
+    "fseek",
+    "ftell",
     "gettimeofday",
+    "gmtime",
     "isalnum",
     "isalpha",
     "isdigit",
@@ -51,13 +79,13 @@ const LIBC: [&str; 41] = [
     "isprint",
     "isspace",
     "isupper",
-    "isxdigit",
     "iswalnum",
     "iswalpha",
     "iswdigit",
     "iswlower",
     "iswspace",
     "iswupper",
+    "isxdigit",
     "pthread_cond_broadcast",
     "pthread_cond_destroy",
     "pthread_cond_init",
@@ -69,6 +97,14 @@ const LIBC: [&str; 41] = [
     "pthread_mutex_trylock",
     "pthread_mutex_unlock",
     "pthread_once",
+    "setlocale",
+    "snprintf",
+    "strcat",
+    "strchr",
+    "strcmp",
+    "strncpy",
+    "strrchr",
+    "strstr",
     "strtod",
     "strtol",
     "strtoul",
@@ -77,6 +113,7 @@ const LIBC: [&str; 41] = [
     "toupper",
     "towlower",
     "towupper",
+    "vsnprintf",
     "wcslen",
     "wmemcmp",
     "wmemcpy",
@@ -132,8 +169,10 @@ const MATH: [&str; 44] = [
 #[derive(Debug, PartialEq, Eq)]
 pub enum Mode {
     Plain,
-    Sdk,
-    Plugin(PathBuf),
+    Linked {
+        needs: Vec<PathBuf>,
+        library: Option<String>,
+    },
 }
 
 pub fn run(linker: &str, arguments: Vec<String>) -> Result<(), String> {
@@ -141,8 +180,11 @@ pub fn run(linker: &str, arguments: Vec<String>) -> Result<(), String> {
     let (mode, arguments) = mode(arguments);
     match mode {
         Mode::Plain => link(linker, &arguments),
-        Mode::Sdk => link_sdk(linker, arguments),
-        Mode::Plugin(sdk) => link_plugin(linker, arguments, &sdk),
+        Mode::Linked {
+            needs,
+            library: Some(name),
+        } if needs.is_empty() => link_root(linker, arguments, &name),
+        Mode::Linked { needs, library } => link_linked(linker, arguments, &needs, library),
     }
 }
 
@@ -201,17 +243,25 @@ pub fn tokenize(contents: &str) -> Vec<String> {
 }
 
 pub fn mode(arguments: Vec<String>) -> (Mode, Vec<String>) {
-    let mut mode = Mode::Plain;
+    let mut needs = Vec::new();
+    let mut library = None;
+    let mut linked = false;
     let mut kept = Vec::with_capacity(arguments.len());
     for argument in arguments {
-        if argument == SDK_FLAG {
-            mode = Mode::Sdk;
-        } else if let Some(sdk) = argument.strip_prefix(PLUGIN_FLAG) {
-            mode = Mode::Plugin(PathBuf::from(sdk));
+        if let Some(needed) = argument.strip_prefix(NEEDS_FLAG) {
+            needs.push(PathBuf::from(needed));
+            linked = true;
+        } else if let Some(name) = argument.strip_prefix(LIBRARY_FLAG) {
+            library = Some(name.to_owned());
+            linked = true;
         } else if !argument.starts_with("-fuse-ld=") {
             kept.push(argument);
         }
     }
+    let mode = match linked {
+        true => Mode::Linked { needs, library },
+        false => Mode::Plain,
+    };
     (mode, kept)
 }
 
@@ -248,9 +298,9 @@ fn is_archive(argument: &str) -> bool {
     argument.ends_with(".rlib") || argument.ends_with(".a")
 }
 
-pub fn sdk_arguments(arguments: Vec<String>) -> (Vec<String>, Vec<String>) {
+pub fn root_arguments(arguments: Vec<String>) -> (Vec<String>, Vec<String>) {
     let mut linked = Vec::new();
-    let mut rewritten = Vec::with_capacity(arguments.len() + SDK_FLAGS.len());
+    let mut rewritten = Vec::with_capacity(arguments.len() + ROOT_FLAGS.len());
     let mut arguments = arguments.into_iter();
     let mut whole = HashSet::new();
     while let Some(argument) = arguments.next() {
@@ -288,7 +338,7 @@ pub fn sdk_arguments(arguments: Vec<String>) -> (Vec<String>, Vec<String>) {
             rewritten.push(argument);
         }
     }
-    rewritten.extend(SDK_FLAGS.map(str::to_owned));
+    rewritten.extend(ROOT_FLAGS.map(str::to_owned));
     for function in MATH {
         rewritten.push(format!("--undefined={function}"));
         rewritten.push(format!("--undefined={function}f"));
@@ -324,175 +374,163 @@ fn link_mapped(
     )
 }
 
-pub fn sdk_listing(linked: &[String], thread_locals: &map::ThreadLocals) -> Result<String, String> {
-    let Some((reserve, shared)) = thread_locals.symbols.split_last() else {
-        return Err(
-            "the SDK has no thread-local storage, not even the plugins' reserve".to_owned(),
-        );
-    };
-    if reserve.name != PLUGIN_TLS {
-        return Err(format!(
-            "{PLUGIN_TLS} is not the last of the SDK's thread-locals ({} is), so the plugins' \
-             thread-locals would not be laid out after the SDK's",
-            reserve.name
-        ));
+pub fn listing(
+    name: &str,
+    needs: &[&str],
+    linked: &[String],
+    thread_locals: &map::ThreadLocals,
+) -> String {
+    let mut listing = format!("name {name}\n");
+    for identity in needs {
+        listing.push_str(&format!("need {identity}\n"));
     }
-    let mut listing = String::new();
-    for library in linked {
-        listing.push_str(&format!("link {library}\n"));
+    for archive in linked {
+        listing.push_str(&format!("link {archive}\n"));
     }
     let mut seen = HashSet::new();
-    for symbol in shared {
+    for symbol in &thread_locals.symbols {
         if seen.insert(&symbol.name) {
-            listing.push_str(&format!(
-                "tls {} {} {}\n",
-                symbol.offset, symbol.size, symbol.name
-            ));
+            listing.push_str(&format!("tls {}\n", symbol.name));
         }
     }
-    listing.push_str(&format!("reserve {} {}\n", reserve.offset, reserve.size));
-    Ok(listing)
+    listing
 }
 
-fn link_sdk(linker: &str, arguments: Vec<String>) -> Result<(), String> {
+fn link_root(linker: &str, arguments: Vec<String>, name: &str) -> Result<(), String> {
     let out = output(&arguments)?;
-    let reserve = scratch(&out, ".reserve.o");
-    write(
-        &reserve,
-        &object::thread_local_segment(
-            PLUGIN_TLS_SEGMENT,
-            PLUGIN_TLS_SIZE,
-            PLUGIN_TLS_ALIGN_LOG2,
-            &[object::Symbol {
-                name: PLUGIN_TLS,
-                offset: 0,
-                size: PLUGIN_TLS_SIZE,
-            }],
-            object::SYMBOL_NO_STRIP,
-        ),
-    )?;
-    let (mut arguments, linked) = sdk_arguments(arguments);
-    arguments.push(reserve.display().to_string());
-    let thread_locals = link_mapped(linker, arguments, &scratch(&out, ".map"));
-    let _ = std::fs::remove_file(&reserve);
-    let listing = sdk_listing(&linked, &thread_locals?)?;
+    let (arguments, linked) = root_arguments(arguments);
+    let thread_locals = link_mapped(linker, arguments, &scratch(&out, ".map"))?;
     let bytes = without_unused_sections(&read(&out)?)?;
+    let listing = listing(name, &[], &linked, &thread_locals);
     write(
         &out,
-        &module::with_custom(&bytes, SDK_SECTION, listing.as_bytes()),
+        &module::with_custom(&bytes, LIBRARY_SECTION, listing.as_bytes()),
     )
 }
 
-pub struct ThreadLocal {
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Library {
     pub name: String,
-    pub offset: u32,
-    pub size: u32,
-}
-
-pub struct Sdk {
     pub identity: String,
-    pub linked: HashSet<String>,
-    pub importable: HashSet<String>,
-    pub exports: HashSet<String>,
-    pub thread_locals: Vec<ThreadLocal>,
-    pub reserve: (u32, u32),
+    pub needs: Vec<String>,
+    pub linked: Vec<String>,
+    pub thread_locals: HashSet<String>,
+    pub functions: HashSet<String>,
+    pub globals: HashSet<String>,
 }
 
-fn number(token: Option<&str>, line: &str) -> Result<u32, String> {
-    token
-        .and_then(|token| token.parse().ok())
-        .ok_or_else(|| format!("the be3.sdk line {line:?} is not one this reads"))
-}
-
-impl Sdk {
-    pub fn without_unused_sections(bytes: &[u8]) -> Result<Vec<u8>, String> {
-        module::without_custom(bytes, |name| UNUSED_SECTIONS.contains(&name))
-    }
-
+impl Library {
     fn read(path: &Path) -> Result<Self, String> {
         let bytes = read(path)?;
         Self::parse(&bytes).map_err(|error| format!("{}: {error}", path.display()))
     }
 
     pub fn parse(bytes: &[u8]) -> Result<Self, String> {
-        let listing = module::custom(bytes, SDK_SECTION)?
-            .ok_or("it is not a plugin SDK: it has no be3.sdk section")?;
-        let mut linked = HashSet::new();
-        let mut thread_locals = Vec::new();
-        let mut reserve = None;
+        let listing = module::custom(bytes, LIBRARY_SECTION)?
+            .ok_or("it is not a library: it has no be3.lib section")?;
+        let mut library = Library {
+            identity: wasm_dylink::identity(bytes),
+            ..Library::default()
+        };
         for line in String::from_utf8_lossy(listing).lines() {
-            let mut tokens = line.split(' ');
-            match tokens.next() {
-                Some("link") => {
-                    linked.insert(tokens.collect::<Vec<_>>().join(" "));
-                }
-                Some("tls") => {
-                    let offset = number(tokens.next(), line)?;
-                    let size = number(tokens.next(), line)?;
-                    let name = tokens
-                        .next()
-                        .ok_or_else(|| format!("{line:?} names no symbol"))?;
-                    thread_locals.push(ThreadLocal {
-                        name: name.to_owned(),
-                        offset,
-                        size,
-                    });
-                }
-                Some("reserve") => {
-                    reserve = Some((number(tokens.next(), line)?, number(tokens.next(), line)?));
+            let Some((kind, value)) = line.split_once(' ') else {
+                continue;
+            };
+            match kind {
+                "name" => library.name = value.to_owned(),
+                "need" => library.needs.push(value.to_owned()),
+                "link" => library.linked.push(value.to_owned()),
+                "tls" => {
+                    library.thread_locals.insert(value.to_owned());
                 }
                 _ => {}
             }
         }
-        let exports = module::exports(bytes)?;
-        Ok(Self {
-            identity: identity(bytes),
-            linked,
-            importable: exports
-                .iter()
-                .filter(|export| matches!(export.kind, module::FUNCTION | module::TAG))
-                .map(|export| export.name.clone())
-                .collect(),
-            exports: exports.into_iter().map(|export| export.name).collect(),
-            thread_locals,
-            reserve: reserve.ok_or("the SDK reserves no thread-local storage for plugins")?,
-        })
-    }
-
-    pub fn mirror(&self) -> Vec<u8> {
-        let symbols: Vec<object::Symbol<'_>> = self
-            .thread_locals
-            .iter()
-            .map(|local| object::Symbol {
-                name: &local.name,
-                offset: local.offset,
-                size: local.size,
-            })
-            .collect();
-        object::thread_local_segment(
-            SDK_TLS_SEGMENT,
-            self.reserve.0,
-            PLUGIN_TLS_ALIGN_LOG2,
-            &symbols,
-            object::SYMBOL_HIDDEN,
-        )
+        for export in module::exports(bytes)? {
+            match export.kind {
+                module::FUNCTION | module::TAG => library.functions.insert(export.name),
+                module::GLOBAL_KIND => library.globals.insert(export.name),
+                _ => false,
+            };
+        }
+        Ok(library)
     }
 }
 
-pub fn identity(bytes: &[u8]) -> String {
-    Sha256::digest(bytes)
+pub fn crate_of(archive: &str) -> String {
+    if let Some(library) = archive.strip_prefix("-l") {
+        return format!("the C library {library}");
+    }
+    let Some(stem) = archive.strip_suffix(".rlib") else {
+        return format!("the archive {archive}");
+    };
+    let stem = stem.strip_prefix("lib").unwrap_or(stem);
+    let name = match stem.rsplit_once('-') {
+        Some((name, _)) => name,
+        None => stem,
+    };
+    format!("the crate {name}")
+}
+
+pub fn closure(given: Vec<Library>) -> Result<Vec<Library>, String> {
+    let named: HashSet<String> = given
         .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
+        .map(|library| library.identity.clone())
+        .collect();
+    for library in &given {
+        if let Some(missing) = library.needs.iter().find(|need| !named.contains(*need)) {
+            return Err(format!(
+                "{} needs the library {missing}, which this link does not name: name every \
+                 library under a module in its libraries",
+                library.name
+            ));
+        }
+    }
+    let mut ordered: Vec<Library> = Vec::with_capacity(given.len());
+    let mut waiting = given;
+    while !waiting.is_empty() {
+        let placed: HashSet<&str> = ordered
+            .iter()
+            .map(|library| library.identity.as_str())
+            .collect();
+        let Some(next) = waiting.iter().position(|library| {
+            library
+                .needs
+                .iter()
+                .all(|need| placed.contains(need.as_str()))
+        }) else {
+            return Err("the libraries need each other in a cycle".to_owned());
+        };
+        let library = waiting.remove(next);
+        if !placed.contains(library.identity.as_str()) {
+            ordered.push(library);
+        }
+    }
+    let mut owners: HashMap<&str, &str> = HashMap::new();
+    for library in &ordered {
+        for archive in &library.linked {
+            if let Some(owner) = owners.insert(archive, &library.name)
+                && owner != library.name
+            {
+                return Err(format!(
+                    "{} is in both {owner} and {}: a crate or C library may be in only one module \
+                     of a plugin's closure",
+                    crate_of(archive),
+                    library.name
+                ));
+            }
+        }
+    }
+    Ok(ordered)
 }
 
-pub fn plugin_arguments(arguments: Vec<String>, sdk: &Sdk) -> Vec<String> {
+pub fn plugin_arguments(arguments: Vec<String>, linked: &HashSet<String>) -> Vec<String> {
     let mut rewritten = Vec::with_capacity(arguments.len() + PLUGIN_FLAGS.len());
     let mut arguments = arguments.into_iter();
     while let Some(argument) = arguments.next() {
         if argument == "-l" || argument == "-z" {
             if let Some(value) = arguments.next() {
-                let dropped = (argument == "-l" && sdk.linked.contains(&format!("-l{value}")))
+                let dropped = (argument == "-l" && linked.contains(&format!("-l{value}")))
                     || (argument == "-z" && value.starts_with("stack-size="));
                 if !dropped {
                     rewritten.extend([argument, value]);
@@ -501,8 +539,8 @@ pub fn plugin_arguments(arguments: Vec<String>, sdk: &Sdk) -> Vec<String> {
             continue;
         }
         let dropped = DROPPED_FROM_PLUGINS.contains(&argument.as_str())
-            || (argument.starts_with("-l") && sdk.linked.contains(&argument))
-            || (is_archive(&argument) && sdk.linked.contains(basename(&argument)));
+            || (argument.starts_with("-l") && linked.contains(&argument))
+            || (is_archive(&argument) && linked.contains(basename(&argument)));
         if !dropped {
             rewritten.push(argument);
         }
@@ -511,117 +549,168 @@ pub fn plugin_arguments(arguments: Vec<String>, sdk: &Sdk) -> Vec<String> {
     rewritten
 }
 
-pub fn unresolved(bytes: &[u8], sdk: &Sdk) -> Result<Vec<String>, String> {
+pub fn kept(arguments: &[String]) -> Vec<String> {
+    let mut kept = Vec::new();
+    let mut arguments = arguments.iter();
+    while let Some(argument) = arguments.next() {
+        if argument == "-l" {
+            if let Some(library) = arguments.next() {
+                kept.push(format!("-l{library}"));
+            }
+        } else if argument.starts_with("-l") {
+            kept.push(argument.clone());
+        } else if argument == "-o" || argument == "-L" || argument == "-z" {
+            arguments.next();
+        } else if is_archive(argument) {
+            kept.push(basename(argument).to_owned());
+        }
+    }
+    kept
+}
+
+pub fn unresolved(bytes: &[u8], name: &str, closure: &[Library]) -> Result<(), String> {
     let own: HashSet<String> = module::exports(bytes)?
         .into_iter()
         .map(|export| export.name)
         .collect();
-    Ok(module::imports(bytes)?
-        .into_iter()
-        .filter(|import| match import.module.as_str() {
-            ENV => {
-                !LINKED_BY_LOADER.contains(&import.name.as_str())
-                    && !sdk.importable.contains(&import.name)
-            }
-            GOT_MEMORY | GOT_FUNCTION => {
-                !sdk.exports.contains(&import.name) && !own.contains(&import.name)
-            }
+    let mut missing = Vec::new();
+    let mut twice = Vec::new();
+    for import in module::imports(bytes)? {
+        let wanted = import.name.as_str();
+        let definers: Vec<&str> = closure
+            .iter()
+            .filter(|library| match import.module.as_str() {
+                ENV | GOT_FUNCTION => library.functions.contains(wanted),
+                GOT_MEMORY => library.globals.contains(wanted),
+                GOT_THREAD_LOCAL => library.thread_locals.contains(wanted),
+                _ => false,
+            })
+            .map(|library| library.name.as_str())
+            .collect();
+        let checked = match import.module.as_str() {
+            ENV => !LINKED_BY_LOADER.contains(&wanted),
+            GOT_MEMORY | GOT_FUNCTION => !own.contains(wanted),
+            GOT_THREAD_LOCAL => true,
             _ => false,
-        })
-        .map(|import| format!("{}.{}", import.module, import.name))
-        .collect())
-}
-
-pub fn describe(bytes: &[u8], sdk: &Sdk) -> Result<Vec<u8>, String> {
-    let info = module::memory_info(bytes)?.ok_or("the plugin has no dylink.0 section")?;
-    let layout = format!(
-        "{LAYOUT_EXPORT_PREFIX}{}_{}_{}_{}",
-        info.memory_size, info.memory_align, info.table_size, info.table_align
-    );
-    let globals = [
-        (format!("{SDK_EXPORT_PREFIX}{}", sdk.identity), 0),
-        (layout, 0),
-    ];
-    module::with_exported_globals(bytes, &globals)
-}
-
-pub fn check_thread_locals(
-    thread_locals: &map::ThreadLocals,
-    mirror: &Path,
-    sdk: &Sdk,
-) -> Result<(), String> {
-    let mirror = mirror.display().to_string();
-    if thread_locals
-        .inputs
-        .first()
-        .is_some_and(|first| !first.starts_with(&mirror))
-    {
+        };
+        if !checked {
+            continue;
+        }
+        let symbol = format!("{}.{wanted}", import.module);
+        match definers[..] {
+            [] => missing.push(symbol),
+            [_] => {}
+            _ if SYNTHESIZED.contains(&wanted) => {}
+            _ => twice.push(format!("{symbol} (in {})", definers.join(" and "))),
+        }
+    }
+    if !missing.is_empty() {
         return Err(format!(
-            "the SDK's thread-locals were not laid out first in the plugin's ({})",
-            thread_locals.inputs[0]
+            "{name} imports {} symbols that no library it is linked with exports; add the crate \
+             or C library that defines them to one of its libraries:\n  {}",
+            missing.len(),
+            missing.join("\n  ")
         ));
     }
-    let (start, size) = sdk.reserve;
-    let mirrored: HashSet<&str> = sdk
-        .thread_locals
-        .iter()
-        .map(|local| local.name.as_str())
-        .collect();
-    let own: Vec<&map::Placed> = thread_locals
-        .symbols
-        .iter()
-        .filter(|symbol| !mirrored.contains(symbol.name.as_str()))
-        .collect();
-    if let Some(low) = own.iter().find(|symbol| symbol.offset < start) {
+    if !twice.is_empty() {
         return Err(format!(
-            "the plugin's thread-local {} was laid out among the SDK's",
-            low.name
-        ));
-    }
-    let needed = own
-        .iter()
-        .map(|symbol| u64::from(symbol.offset) + u64::from(symbol.size))
-        .max()
-        .unwrap_or(u64::from(start));
-    if needed > u64::from(start) + u64::from(size) {
-        return Err(format!(
-            "the plugin's thread-locals take {} bytes, more than the {size} the SDK reserves \
-             for them (PLUGIN_TLS_SIZE in crates/wasm-link)",
-            needed - u64::from(start)
+            "{name} imports {} symbols that more than one library defines:\n  {}",
+            twice.len(),
+            twice.join("\n  ")
         ));
     }
     Ok(())
 }
 
-pub fn with_mirror(mut arguments: Vec<String>, mirror: &Path) -> Vec<String> {
-    let first = arguments
-        .iter()
-        .position(|argument| is_rust(argument) || is_archive(argument))
-        .unwrap_or(arguments.len());
-    arguments.insert(first, mirror.display().to_string());
-    arguments
+pub fn declared(bytes: &[u8]) -> Result<Declared, String> {
+    let info = module::memory_info(bytes)?.ok_or("the module has no dylink.0 section")?;
+    let constant = |name: &str, default: u32| -> Result<u32, String> {
+        Ok(module::exported_constant(bytes, name)?.map_or(default, |value| value as u32))
+    };
+    Ok(Declared {
+        memory_size: info.memory_size,
+        memory_align: info.memory_align,
+        table_size: info.table_size,
+        table_align: info.table_align,
+        tls_size: constant(TLS_SIZE, 0)?,
+        tls_align: constant(TLS_ALIGN, 1)?,
+    })
 }
 
-fn link_plugin(linker: &str, arguments: Vec<String>, sdk: &Path) -> Result<(), String> {
-    let out = output(&arguments)?;
-    let sdk = Sdk::read(sdk)?;
-    let mirror = scratch(&out, ".sdk-tls.o");
-    write(&mirror, &sdk.mirror())?;
-    let arguments = with_mirror(plugin_arguments(arguments, &sdk), &mirror);
-    let thread_locals = link_mapped(linker, arguments, &scratch(&out, ".map"));
-    let _ = std::fs::remove_file(&mirror);
-    check_thread_locals(&thread_locals?, &mirror, &sdk)?;
-    let bytes = without_unused_sections(&read(&out)?)?;
-    let missing = unresolved(&bytes, &sdk)?;
-    if !missing.is_empty() {
-        return Err(format!(
-            "the plugin needs {} symbols the plugin SDK does not export; add the crate or \
-             C library that defines them to crates/block-plugin-sdk:\n  {}",
-            missing.len(),
-            missing.join("\n  ")
-        ));
+pub fn described(bytes: &[u8], closure: &[Library]) -> Result<Vec<u8>, String> {
+    let mut globals = vec![(declared(bytes)?.export(), 0)];
+    for (position, library) in closure.iter().enumerate() {
+        globals.push((wasm_dylink::library_export(position, &library.identity), 0));
     }
-    write(&out, &describe(&bytes, &sdk)?)
+    module::with_exported_globals(bytes, &globals)
+}
+
+pub fn library_arguments(arguments: Vec<String>) -> Vec<String> {
+    let mut rewritten = Vec::with_capacity(arguments.len() + 1);
+    for argument in arguments {
+        match is_rust(&argument) {
+            true => rewritten.extend([
+                "--whole-archive".to_owned(),
+                argument,
+                "--no-whole-archive".to_owned(),
+            ]),
+            false => rewritten.push(argument),
+        }
+    }
+    rewritten.push("--export-all".to_owned());
+    rewritten
+}
+
+fn link_linked(
+    linker: &str,
+    arguments: Vec<String>,
+    needs: &[PathBuf],
+    library: Option<String>,
+) -> Result<(), String> {
+    let out = output(&arguments)?;
+    let name = library.clone().unwrap_or_else(|| {
+        out.file_stem().map_or_else(
+            || out.display().to_string(),
+            |stem| stem.to_string_lossy().into_owned(),
+        )
+    });
+    let closure = closure(
+        needs
+            .iter()
+            .map(|path| Library::read(path))
+            .collect::<Result<_, _>>()?,
+    )?;
+    let dropped: HashSet<String> = closure
+        .iter()
+        .flat_map(|library| library.linked.iter().cloned())
+        .collect();
+    let arguments = plugin_arguments(arguments, &dropped);
+    let kept = kept(&arguments);
+    let arguments = match library {
+        Some(_) => library_arguments(arguments),
+        None => arguments,
+    };
+    let (arguments, rewritten) = inputs::through_got(arguments, &out)?;
+    let thread_locals = link_mapped(linker, arguments, &scratch(&out, ".map"));
+    for path in rewritten {
+        let _ = std::fs::remove_file(path);
+    }
+    let thread_locals = thread_locals?;
+    let bytes = without_unused_sections(&read(&out)?)?;
+    unresolved(&bytes, &name, &closure)?;
+    let needs: Vec<&str> = closure
+        .iter()
+        .map(|library| library.identity.as_str())
+        .collect();
+    let listing = listing(&name, &needs, &kept, &thread_locals);
+    write(
+        &out,
+        &module::with_custom(
+            &described(&bytes, &closure)?,
+            LIBRARY_SECTION,
+            listing.as_bytes(),
+        ),
+    )
 }
 
 fn without_unused_sections(bytes: &[u8]) -> Result<Vec<u8>, String> {

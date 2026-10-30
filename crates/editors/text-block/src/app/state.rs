@@ -145,7 +145,7 @@ impl State {
         let first = !inner.adopted.get();
         let synced = inner
             .document
-            .sync(&inner.content, &self.host(), self.block_id, first);
+            .sync(&inner.content.live(), &self.host(), self.block_id, first);
         match synced {
             Synced::Waiting => return,
             Synced::External => self.text.external_edit(),

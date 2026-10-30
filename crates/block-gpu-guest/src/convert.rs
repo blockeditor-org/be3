@@ -9,14 +9,19 @@ fn unsupported(name: &str, value: &dyn core::fmt::Debug) -> ! {
 }
 
 macro_rules! plain_map {
-    ($function:ident, $reverse:ident, $from:path, $to:path, { $($variant:ident),+ $(,)? }) => {
+    ($function:ident, $reverse:ident, $from:path, $to:path, { $($variant:ident),+ $(,)? } $(, { $($named:ident = $value:expr),+ $(,)? })?) => {
         #[allow(unreachable_patterns)]
         pub(crate) fn $function(value: $from) -> $to {
             use $from as From;
             use $to as To;
             match value {
                 $(From::$variant => To::$variant,)+
-                other => unsupported(stringify!($from), &other),
+                other => {
+                    $($(if other == $value {
+                        return To::$named;
+                    })+)?
+                    unsupported(stringify!($from), &other)
+                }
             }
         }
 
@@ -26,9 +31,20 @@ macro_rules! plain_map {
             use $to as To;
             match value {
                 $(To::$variant => From::$variant,)+
+                $($(To::$named => $value,)+)?
             }
         }
     };
+}
+
+const fn astc(block: wgpu::AstcBlock, srgb: bool) -> wgpu::TextureFormat {
+    wgpu::TextureFormat::Astc {
+        block,
+        channel: match srgb {
+            true => wgpu::AstcChannel::UnormSrgb,
+            false => wgpu::AstcChannel::Unorm,
+        },
+    }
 }
 
 plain_map!(texture_format, wgpu_texture_format, wgpu::TextureFormat, abi::TextureFormat, {
@@ -44,6 +60,42 @@ plain_map!(texture_format, wgpu_texture_format, wgpu::TextureFormat, abi::Textur
     Rgba16Uint, Rgba16Sint, Rgba16Float,
     Rgba32Uint, Rgba32Sint, Rgba32Float,
     Stencil8, Depth16Unorm, Depth24Plus, Depth24PlusStencil8, Depth32Float, Depth32FloatStencil8,
+    Bc1RgbaUnorm, Bc1RgbaUnormSrgb, Bc2RgbaUnorm, Bc2RgbaUnormSrgb, Bc3RgbaUnorm, Bc3RgbaUnormSrgb,
+    Bc4RUnorm, Bc4RSnorm, Bc5RgUnorm, Bc5RgSnorm, Bc6hRgbUfloat, Bc6hRgbFloat,
+    Bc7RgbaUnorm, Bc7RgbaUnormSrgb,
+    Etc2Rgb8Unorm, Etc2Rgb8UnormSrgb, Etc2Rgba8Unorm, Etc2Rgba8UnormSrgb,
+    EacR11Unorm, EacR11Snorm, EacRg11Unorm, EacRg11Snorm,
+}, {
+    Etc2Rgb8a1Unorm = wgpu::TextureFormat::Etc2Rgb8A1Unorm,
+    Etc2Rgb8a1UnormSrgb = wgpu::TextureFormat::Etc2Rgb8A1UnormSrgb,
+    Astc4x4Unorm = astc(wgpu::AstcBlock::B4x4, false),
+    Astc4x4UnormSrgb = astc(wgpu::AstcBlock::B4x4, true),
+    Astc5x4Unorm = astc(wgpu::AstcBlock::B5x4, false),
+    Astc5x4UnormSrgb = astc(wgpu::AstcBlock::B5x4, true),
+    Astc5x5Unorm = astc(wgpu::AstcBlock::B5x5, false),
+    Astc5x5UnormSrgb = astc(wgpu::AstcBlock::B5x5, true),
+    Astc6x5Unorm = astc(wgpu::AstcBlock::B6x5, false),
+    Astc6x5UnormSrgb = astc(wgpu::AstcBlock::B6x5, true),
+    Astc6x6Unorm = astc(wgpu::AstcBlock::B6x6, false),
+    Astc6x6UnormSrgb = astc(wgpu::AstcBlock::B6x6, true),
+    Astc8x5Unorm = astc(wgpu::AstcBlock::B8x5, false),
+    Astc8x5UnormSrgb = astc(wgpu::AstcBlock::B8x5, true),
+    Astc8x6Unorm = astc(wgpu::AstcBlock::B8x6, false),
+    Astc8x6UnormSrgb = astc(wgpu::AstcBlock::B8x6, true),
+    Astc8x8Unorm = astc(wgpu::AstcBlock::B8x8, false),
+    Astc8x8UnormSrgb = astc(wgpu::AstcBlock::B8x8, true),
+    Astc10x5Unorm = astc(wgpu::AstcBlock::B10x5, false),
+    Astc10x5UnormSrgb = astc(wgpu::AstcBlock::B10x5, true),
+    Astc10x6Unorm = astc(wgpu::AstcBlock::B10x6, false),
+    Astc10x6UnormSrgb = astc(wgpu::AstcBlock::B10x6, true),
+    Astc10x8Unorm = astc(wgpu::AstcBlock::B10x8, false),
+    Astc10x8UnormSrgb = astc(wgpu::AstcBlock::B10x8, true),
+    Astc10x10Unorm = astc(wgpu::AstcBlock::B10x10, false),
+    Astc10x10UnormSrgb = astc(wgpu::AstcBlock::B10x10, true),
+    Astc12x10Unorm = astc(wgpu::AstcBlock::B12x10, false),
+    Astc12x10UnormSrgb = astc(wgpu::AstcBlock::B12x10, true),
+    Astc12x12Unorm = astc(wgpu::AstcBlock::B12x12, false),
+    Astc12x12UnormSrgb = astc(wgpu::AstcBlock::B12x12, true),
 });
 
 plain_map!(texture_dimension, wgpu_texture_dimension, wgpu::TextureDimension, abi::TextureDimension, {
@@ -109,6 +161,7 @@ plain_map!(blend_factor, wgpu_blend_factor, wgpu::BlendFactor, abi::BlendFactor,
     Zero, One, Src, OneMinusSrc, SrcAlpha, OneMinusSrcAlpha,
     Dst, OneMinusDst, DstAlpha, OneMinusDstAlpha,
     SrcAlphaSaturated, Constant, OneMinusConstant,
+    Src1, OneMinusSrc1, Src1Alpha, OneMinusSrc1Alpha,
 });
 
 plain_map!(blend_operation, wgpu_blend_operation, wgpu::BlendOperation, abi::BlendOperation, {
@@ -139,6 +192,14 @@ pub(crate) fn mipmap_filter_mode(value: wgpu::MipmapFilterMode) -> abi::FilterMo
     }
 }
 
+pub(crate) fn constants(options: &wgpu::PipelineCompilationOptions<'_>) -> Vec<(String, f64)> {
+    options
+        .constants
+        .iter()
+        .map(|&(key, value)| (key.to_owned(), value))
+        .collect()
+}
+
 pub(crate) fn label(value: Option<&str>) -> Option<String> {
     value.map(str::to_owned)
 }
@@ -155,6 +216,23 @@ pub(crate) fn texel_copy_texture(
             z: value.origin.z,
         },
         aspect: texture_aspect(value.aspect),
+    }
+}
+
+pub(crate) fn texel_copy_buffer(value: wgpu::TexelCopyBufferInfo<'_>) -> abi::TexelCopyBufferInfo {
+    abi::TexelCopyBufferInfo {
+        buffer: custom::<Buffer>(value.buffer.as_custom()).0.handle(),
+        layout: texel_copy_buffer_layout(value.layout),
+    }
+}
+
+pub(crate) fn texel_copy_buffer_layout(
+    value: wgpu::TexelCopyBufferLayout,
+) -> abi::TexelCopyBufferLayout {
+    abi::TexelCopyBufferLayout {
+        offset: value.offset,
+        bytes_per_row: value.bytes_per_row,
+        rows_per_image: value.rows_per_image,
     }
 }
 
@@ -291,5 +369,25 @@ pub(crate) fn color(value: wgpu::Color) -> abi::Color {
         g: value.g,
         b: value.b,
         a: value.a,
+    }
+}
+
+pub(crate) fn compilation_message(value: &abi::CompilationMessage) -> wgpu::CompilationMessage {
+    wgpu::CompilationMessage {
+        message: value.message.clone(),
+        message_type: match value.message_type {
+            abi::CompilationMessageType::Error => wgpu::CompilationMessageType::Error,
+            abi::CompilationMessageType::Warning => wgpu::CompilationMessageType::Warning,
+            abi::CompilationMessageType::Info => wgpu::CompilationMessageType::Info,
+        },
+        location: value
+            .location
+            .as_ref()
+            .map(|location| wgpu::SourceLocation {
+                line_number: location.line_number,
+                line_position: location.line_position,
+                offset: location.offset,
+                length: location.length,
+            }),
     }
 }

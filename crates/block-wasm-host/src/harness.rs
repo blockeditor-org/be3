@@ -155,7 +155,7 @@ impl Host {
         let woken: Arc<wake::Wake> = Arc::default();
         let state = State {
             wasi: builder.build_p1(),
-            memory: memory.clone(),
+            memory: crate::state::Memory::Shared(memory.clone()),
             device: self.devices.open(&self.imports),
             imports: Arc::clone(&self.imports),
             error: None,
@@ -167,7 +167,7 @@ impl Host {
             threads: threads::Spawner::new(
                 self.engine.clone(),
                 crate::dylink::Program::Whole(module.clone()),
-                memory.clone(),
+                Some(memory.clone()),
                 Arc::clone(&woken),
                 Arc::clone(&self.interrupt),
             ),

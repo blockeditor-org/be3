@@ -1,57 +1,92 @@
 #[cfg(test)]
 mod tests;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-pub const SDK_EXPORT_PREFIX: &str = "__be3_sdk_";
+pub const LIBRARY_EXPORT_PREFIX: &str = "__be3_lib_";
 pub const LAYOUT_EXPORT_PREFIX: &str = "__be3_dylink_";
-pub const SDK_FILE_PREFIX: &str = "sdk-";
-pub const PLUGIN_TLS: &str = "__be3_plugin_tls";
-pub const PLUGIN_TLS_SIZE: u32 = 16 * 1024;
+pub const LIBRARY_FILE_PREFIX: &str = "lib-";
 pub const TABLE: &str = "__indirect_function_table";
 pub const STACK_POINTER: &str = "__stack_pointer";
 pub const MEMORY_BASE: &str = "__memory_base";
 pub const TABLE_BASE: &str = "__table_base";
 pub const TLS_BASE: &str = "__tls_base";
 pub const TLS_SIZE: &str = "__tls_size";
-pub const MALLOC: &str = "malloc";
+pub const TLS_ALIGN: &str = "__tls_align";
+pub const INIT_TLS: &str = "__wasm_init_tls";
 pub const APPLY_DATA_RELOCS: &str = "__wasm_apply_data_relocs";
+pub const CONSTRUCTORS: &str = "__wasm_call_ctors";
+pub const PAGE_SIZE: u32 = 65536;
 pub const ENV: &str = "env";
 pub const GOT_MEMORY: &str = "GOT.mem";
 pub const GOT_FUNCTION: &str = "GOT.func";
+pub const GOT_THREAD_LOCAL: &str = "GOT.tls";
 pub const START_ARGUMENT_TLS: u32 = 4;
+pub const REGION_HEADER: u32 = 8;
 const MAX_ALIGN_LOG2: u32 = 16;
 const IDENTITY_LENGTH: usize = 64;
+const BLOCKS_PER_GROWTH: u32 = 16;
 
-pub fn sdk_identity<'a>(
-    exports: impl IntoIterator<Item = &'a str>,
-) -> Option<Result<String, String>> {
-    exports
-        .into_iter()
-        .find_map(|export| export.strip_prefix(SDK_EXPORT_PREFIX))
-        .map(|identity| {
-            let valid = identity.len() == IDENTITY_LENGTH
-                && identity
-                    .bytes()
-                    .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte));
-            valid.then(|| identity.to_owned()).ok_or_else(|| {
-                format!("the plugin names {identity:?} as its plugin SDK, which is not a SHA-256")
-            })
-        })
-}
-
-pub fn sdk_file_name(identity: &str) -> String {
-    format!("{SDK_FILE_PREFIX}{identity}.wasm")
-}
-
-pub fn check_sdk(bytes: &[u8], identity: &str) -> Result<(), String> {
-    let digest: String = Sha256::digest(bytes)
+pub fn identity(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
         .iter()
         .map(|byte| format!("{byte:02x}"))
-        .collect();
+        .collect()
+}
+
+fn is_identity(identity: &str) -> bool {
+    identity.len() == IDENTITY_LENGTH
+        && identity
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+pub fn library_export(position: usize, identity: &str) -> String {
+    format!("{LIBRARY_EXPORT_PREFIX}{position}_{identity}")
+}
+
+pub fn libraries<'a>(exports: impl IntoIterator<Item = &'a str>) -> Result<Vec<String>, String> {
+    let mut named = Vec::new();
+    for export in exports {
+        let Some(library) = export.strip_prefix(LIBRARY_EXPORT_PREFIX) else {
+            continue;
+        };
+        let unreadable = || {
+            format!(
+                "the module names {export:?} as a library it needs, which is not \
+                 {LIBRARY_EXPORT_PREFIX}<position>_<SHA-256>"
+            )
+        };
+        let (position, identity) = library.split_once('_').ok_or_else(unreadable)?;
+        let position: usize = position.parse().map_err(|_| unreadable())?;
+        if !is_identity(identity) {
+            return Err(unreadable());
+        }
+        named.push((position, identity.to_owned()));
+    }
+    named.sort();
+    let positions: Vec<usize> = named.iter().map(|(position, _)| *position).collect();
+    if positions
+        .iter()
+        .enumerate()
+        .any(|(at, position)| at != *position)
+    {
+        return Err(format!(
+            "the module numbers its libraries {positions:?}, not from 0 up"
+        ));
+    }
+    Ok(named.into_iter().map(|(_, identity)| identity).collect())
+}
+
+pub fn library_file_name(identity: &str) -> String {
+    format!("{LIBRARY_FILE_PREFIX}{identity}.wasm")
+}
+
+pub fn check_library(bytes: &[u8], identity: &str) -> Result<(), String> {
+    let digest = self::identity(bytes);
     if digest == identity {
         Ok(())
     } else {
@@ -67,21 +102,43 @@ pub struct Declared {
     pub memory_align: u32,
     pub table_size: u32,
     pub table_align: u32,
+    pub tls_size: u32,
+    pub tls_align: u32,
 }
 
 impl Declared {
+    pub fn export(&self) -> String {
+        format!(
+            "{LAYOUT_EXPORT_PREFIX}{}_{}_{}_{}_{}_{}",
+            self.memory_size,
+            self.memory_align,
+            self.table_size,
+            self.table_align,
+            self.tls_size,
+            self.tls_align
+        )
+    }
+
     pub fn of<'a>(exports: impl IntoIterator<Item = &'a str>) -> Result<Self, String> {
         let layout = exports
             .into_iter()
             .find_map(|export| export.strip_prefix(LAYOUT_EXPORT_PREFIX))
-            .ok_or("the plugin does not say how much memory and table it needs")?;
-        let unreadable = || format!("the plugin's layout {layout} is not one this reads");
+            .ok_or("it does not say how much memory, table and thread-local storage it needs")?;
+        let unreadable = || format!("its layout {layout} is not one this reads");
         let numbers: Vec<u32> = layout
             .split('_')
             .map(|number| number.parse::<u32>())
             .collect::<Result<_, _>>()
             .map_err(|_| unreadable())?;
-        let [memory_size, memory_align, table_size, table_align] = numbers[..] else {
+        let [
+            memory_size,
+            memory_align,
+            table_size,
+            table_align,
+            tls_size,
+            tls_align,
+        ] = numbers[..]
+        else {
             return Err(unreadable());
         };
         Ok(Self {
@@ -89,153 +146,240 @@ impl Declared {
             memory_align: memory_align.min(MAX_ALIGN_LOG2),
             table_size,
             table_align: table_align.min(MAX_ALIGN_LOG2),
+            tls_size,
+            tls_align: tls_align.clamp(1, 1 << MAX_ALIGN_LOG2),
         })
     }
-
-    pub fn allocation(&self) -> Result<u32, String> {
-        self.memory_size
-            .checked_add(1 << self.memory_align)
-            .ok_or_else(too_big)
-    }
 }
 
-#[derive(Default)]
-pub struct Sdk {
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Described {
+    pub name: String,
+    pub imports: Vec<(String, String)>,
     pub functions: HashSet<String>,
-    pub addresses: HashMap<String, i32>,
-}
-
-impl Sdk {
-    pub fn reserve(&self) -> Result<u32, String> {
-        self.addresses
-            .get(PLUGIN_TLS)
-            .map(|reserve| *reserve as u32)
-            .ok_or_else(|| format!("the plugin SDK does not export {PLUGIN_TLS}"))
-    }
+    pub globals: HashSet<String>,
+    pub exports: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", content = "value", rename_all = "lowercase")]
+#[serde(tag = "kind", content = "value", rename_all = "camelCase")]
 pub enum Import {
     Table,
     StackPointer,
     Constant(i32),
-    Slot(i32),
-    Address(i32),
-    Own,
+    Function(usize),
+    Address(usize),
+    FunctionSlot(i32),
+    ThreadLocal(usize),
     Elsewhere,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Layout {
+pub struct Placed {
     pub memory_base: u32,
-    pub memory_size: u32,
     pub table_base: u32,
-    pub table_grow: u64,
-    pub sdk_slots: Vec<(u64, String)>,
-    pub plugin_slots: Vec<(u64, String)>,
+    pub block: u32,
     pub imports: Vec<Import>,
-    pub reserve: u32,
-    pub tls_size: u32,
-    pub image: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Slot {
+    pub slot: u64,
+    pub module: usize,
+    pub name: String,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Blocks {
+    pub size: u32,
+    pub align: u32,
+    pub pages: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Plan {
+    pub modules: Vec<Placed>,
+    pub table_grow: u64,
+    pub slots: Vec<Slot>,
+    pub blocks: Blocks,
+    pub region: u32,
 }
 
 fn too_big() -> String {
-    "the plugin asks for more than a 32-bit address space holds".to_owned()
+    "the modules ask for more than a 32-bit address space holds".to_owned()
 }
 
-fn aligned(value: u32, align_log2: u32) -> Option<u32> {
-    value.div_ceil(1 << align_log2).checked_mul(1 << align_log2)
+fn aligned(value: u64, align: u64) -> u64 {
+    value.div_ceil(align.max(1)) * align.max(1)
 }
 
-pub fn plan<'a>(
-    declared: Declared,
-    allocated: u32,
-    table_size: u64,
-    imports: impl IntoIterator<Item = (&'a str, &'a str)>,
-    sdk: &Sdk,
-) -> Result<Layout, String> {
-    let reserve = sdk.reserve()?;
-    if allocated == 0 {
-        return Err("the plugin SDK could not allocate the plugin's memory".to_owned());
+fn declared(modules: &[Described]) -> Result<Vec<Declared>, String> {
+    modules
+        .iter()
+        .skip(1)
+        .map(|module| {
+            Declared::of(module.exports.iter().map(String::as_str))
+                .map_err(|error| format!("{} cannot be linked: {error}", module.name))
+        })
+        .collect()
+}
+
+fn images(declared: &[Declared]) -> (Vec<u64>, u64) {
+    let mut next = 0;
+    let mut bases = Vec::with_capacity(declared.len());
+    for module in declared {
+        let base = aligned(next, 1 << module.memory_align);
+        bases.push(base);
+        next = base + u64::from(module.memory_size);
     }
-    let memory_base = aligned(allocated, declared.memory_align).ok_or_else(too_big)?;
-    let table_base = u32::try_from(table_size)
-        .ok()
-        .and_then(|size| aligned(size, declared.table_align))
-        .ok_or_else(too_big)?;
-    let mut next = u64::from(table_base) + u64::from(declared.table_size);
-    let mut sdk_slots = Vec::new();
-    let mut plugin_slots = Vec::new();
-    let mut resolved = Vec::new();
-    for (module, name) in imports {
-        let import = match (module, name) {
-            (ENV, TABLE) => Import::Table,
-            (ENV, STACK_POINTER) => Import::StackPointer,
-            (ENV, MEMORY_BASE) => Import::Constant(memory_base as i32),
-            (ENV, TABLE_BASE) => Import::Constant(table_base as i32),
-            (GOT_FUNCTION, _) => {
-                let slots = match sdk.functions.contains(name) {
-                    true => &mut sdk_slots,
-                    false => &mut plugin_slots,
-                };
-                slots.push((next, name.to_owned()));
-                next += 1;
-                Import::Slot((next - 1) as i32)
-            }
-            (GOT_MEMORY, _) => match sdk.addresses.get(name) {
-                Some(address) => Import::Address(*address),
-                None => Import::Own,
-            },
-            _ => Import::Elsewhere,
+    (bases, aligned(next, 8) + u64::from(REGION_HEADER))
+}
+
+pub fn pages(modules: &[Described]) -> Result<u32, String> {
+    let (_, end) = images(&declared(modules)?);
+    u32::try_from(end.div_ceil(u64::from(PAGE_SIZE))).map_err(|_| too_big())
+}
+
+fn defined(modules: &[Described], below: usize, has: impl Fn(&Described) -> bool) -> Option<usize> {
+    modules[..below].iter().position(has)
+}
+
+pub fn plan(modules: &[Described], placed: u32, table_size: u64) -> Result<Plan, String> {
+    if modules.is_empty() {
+        return Err("there is no module to link".to_owned());
+    }
+    let declared = declared(modules)?;
+    let (bases, end) = images(&declared);
+    let address = |offset: u64| u32::try_from(u64::from(placed) + offset).map_err(|_| too_big());
+    address(end)?;
+    let region = address(end - u64::from(REGION_HEADER))?;
+    let mut next = table_size;
+    let mut table_bases = Vec::with_capacity(declared.len());
+    for module in &declared {
+        let base = aligned(next, 1 << module.table_align);
+        table_bases.push(base);
+        next = base + u64::from(module.table_size);
+    }
+    let mut size = 0;
+    let mut align = 1;
+    let mut block_offsets = Vec::with_capacity(declared.len());
+    for module in &declared {
+        let offset = aligned(size, u64::from(module.tls_align));
+        block_offsets.push(offset);
+        size = offset + u64::from(module.tls_size);
+        align = align.max(module.tls_align);
+    }
+    let align = align.max(4);
+    let size = u32::try_from(aligned(size, u64::from(align))).map_err(|_| too_big())?;
+    let blocks = Blocks {
+        size,
+        align,
+        pages: u32::try_from(
+            (u64::from(size) * u64::from(BLOCKS_PER_GROWTH)).div_ceil(u64::from(PAGE_SIZE)),
+        )
+        .map_err(|_| too_big())?,
+    };
+    let mut placed_modules = vec![Placed {
+        memory_base: 0,
+        table_base: 0,
+        block: 0,
+        imports: Vec::new(),
+    }];
+    let mut slots = Vec::new();
+    for (index, module) in modules.iter().enumerate().skip(1) {
+        let memory_base = address(bases[index - 1])?;
+        let table_base = u32::try_from(table_bases[index - 1]).map_err(|_| too_big())?;
+        let missing = |from: &str, name: &str, what: &str| {
+            format!(
+                "{} imports {from}.{name}, which {what} exports",
+                module.name
+            )
         };
-        resolved.push(import);
+        let mut imports = Vec::with_capacity(module.imports.len());
+        for (from, name) in &module.imports {
+            let (from, name) = (from.as_str(), name.as_str());
+            let import = match (from, name) {
+                (ENV, TABLE) => Import::Table,
+                (ENV, STACK_POINTER) => Import::StackPointer,
+                (ENV, MEMORY_BASE) => Import::Constant(memory_base as i32),
+                (ENV, TABLE_BASE) => Import::Constant(table_base as i32),
+                (ENV, "memory") => Import::Elsewhere,
+                (ENV, _) => Import::Function(
+                    defined(modules, index, |module| module.functions.contains(name))
+                        .ok_or_else(|| missing(from, name, "no library under it"))?,
+                ),
+                (GOT_FUNCTION, _) => {
+                    let module =
+                        defined(modules, index + 1, |module| module.functions.contains(name))
+                            .ok_or_else(|| missing(from, name, "nothing it is linked with"))?;
+                    slots.push(Slot {
+                        slot: next,
+                        module,
+                        name: name.to_owned(),
+                    });
+                    next += 1;
+                    Import::FunctionSlot((next - 1) as i32)
+                }
+                (GOT_MEMORY, _) => Import::Address(
+                    defined(modules, index + 1, |module| module.globals.contains(name))
+                        .ok_or_else(|| missing(from, name, "nothing it is linked with"))?,
+                ),
+                (GOT_THREAD_LOCAL, _) => Import::ThreadLocal(
+                    defined(modules, index, |module| module.globals.contains(name))
+                        .ok_or_else(|| missing(from, name, "no library under it"))?,
+                ),
+                _ => Import::Elsewhere,
+            };
+            imports.push(import);
+        }
+        placed_modules.push(Placed {
+            memory_base,
+            table_base,
+            block: u32::try_from(block_offsets[index - 1]).map_err(|_| too_big())?,
+            imports,
+        });
     }
-    Ok(Layout {
-        memory_base,
-        memory_size: declared.memory_size,
-        table_base,
+    Ok(Plan {
+        modules: placed_modules,
         table_grow: next - table_size,
-        sdk_slots,
-        plugin_slots,
-        imports: resolved,
-        reserve,
-        tls_size: 0,
-        image: 0,
+        slots,
+        blocks,
+        region,
     })
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Image {
-    pub from: u32,
-    pub to: u32,
-    pub length: u32,
+impl Blocks {
+    pub fn carve(&self, start: u32, pages: u32) -> Vec<u32> {
+        if self.size == 0 {
+            return Vec::new();
+        }
+        let size = u64::from(self.size);
+        let end =
+            (u64::from(start) + u64::from(pages) * u64::from(PAGE_SIZE)).min(u64::from(u32::MAX));
+        let mut at = aligned(u64::from(start), u64::from(self.align));
+        let mut carved = Vec::new();
+        while at + size <= end {
+            carved.push(at as u32);
+            at += size;
+        }
+        carved
+    }
 }
 
-impl Layout {
-    pub fn own_address(&self, name: &str, offset: i32) -> Result<u32, String> {
-        self.memory_base
-            .checked_add_signed(offset)
-            .ok_or_else(|| format!("{name} lies past a 32-bit address space"))
+impl Plan {
+    pub fn address(&self, module: usize, value: i32) -> Result<u32, String> {
+        self.modules[module]
+            .memory_base
+            .checked_add_signed(value)
+            .ok_or_else(|| "an address lies past a 32-bit address space".to_owned())
     }
 
-    pub fn relocated(&mut self, image: u32, tls_size: u32) {
-        self.image = image;
-        self.tls_size = tls_size;
-    }
-
-    pub fn thread_locals(&self, base: u32) -> Result<Option<Image>, String> {
-        let start = self.reserve;
-        if self.tls_size <= start {
-            return Ok(None);
-        }
-        let overflow = || "the plugin's thread-locals lie past a 32-bit address space".to_owned();
-        Ok(Some(Image {
-            from: self.image.checked_add(start).ok_or_else(overflow)?,
-            to: base.checked_add(start).ok_or_else(overflow)?,
-            length: self.tls_size - start,
-        }))
+    pub fn block(&self, blocks: u32, module: usize) -> u32 {
+        blocks.wrapping_add(self.modules[module].block)
     }
 }
 
@@ -245,4 +389,8 @@ pub fn spawned_thread_locals(start_argument: i32) -> Result<u32, String> {
         .ok_or_else(|| {
             "a spawned thread's start argument lies past a 32-bit address space".to_owned()
         })
+}
+
+pub fn thread_local_slot(address: u32, own_base: u32) -> i32 {
+    address.wrapping_sub(own_base) as i32
 }

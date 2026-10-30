@@ -3,9 +3,10 @@
 # Lays out the app as it runs: the executable under cargo's name, --file beside
 # it as it is, and each plugin's manifest renamed <id>.plugin.json with
 # the module it names and its .cwasm, and --data, the plugin's read-only data
-# (plugin_data), under data/<id>/. --sdk is the plugin SDK the modules are
-# linked against, staged as sdk-<its SHA-256>.wasm, which is the name a plugin
-# finds it by, with --sdk-artifact, its .cwasm. --index writes plugins.json,
+# (plugin_data), under data/<id>/. Each --library is a library the modules
+# are linked against (guides/plugin_libraries.md), staged as lib-<its SHA-256>.wasm,
+# which is the name a module finds it by, with --library-artifact, its .cwasm.
+# --index writes plugins.json,
 # the list of manifests the app finds its plugins through. For the web bundle,
 # --tree copies in what wasm-bindgen wrote. --plugin-type, after a plugin's
 # MANIFEST=MODULE, stages that plugin's type module (guides/type_modules.md)
@@ -16,7 +17,7 @@
 #
 # Usage:
 #   stage.sh OUT [--executable=EXECUTABLE=NAME] [--file=FILE]... [--tree=DIR]...
-#            [--index] [--compiled-only] [--sdk=SDK [--sdk-artifact=CWASM]]
+#            [--index] [--compiled-only] [--library=MODULE [--library-artifact=CWASM]]...
 #            (MANIFEST=MODULE [--data=DIR] [--artifact=CWASM]
 #             [--plugin-type=MODULE [--type-artifact=CWASM]])...
 set -eu
@@ -51,14 +52,14 @@ for argument in "$@"; do
         --compiled-only)
             compiled_only=true
             ;;
-        --sdk=*)
-            sdk="${argument#--sdk=}"
-            identity="$(sha256sum "$sdk" | cut -d ' ' -f 1)"
-            staged="$out/sdk-$identity.wasm"
-            cp "$sdk" "$staged"
+        --library=*)
+            library="${argument#--library=}"
+            identity="$(sha256sum "$library" | cut -d ' ' -f 1)"
+            staged="$out/lib-$identity.wasm"
+            cp "$library" "$staged"
             ;;
-        --sdk-artifact=*)
-            cp "${argument#--sdk-artifact=}" "${staged%.wasm}.cwasm"
+        --library-artifact=*)
+            cp "${argument#--library-artifact=}" "${staged%.wasm}.cwasm"
             if $compiled_only; then
                 rm "$staged"
             fi

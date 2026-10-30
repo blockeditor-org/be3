@@ -122,7 +122,13 @@ _wasi_flags = [
     "-msimd128",
     "-O2",
     "-w",
-]
+] + select({
+    # A plugin's C and C++ is linked into position-independent modules
+    # (guides/plugin_libraries.md), and cc-rs leaves -fPIC out on wasm, so the
+    # build scripts' FreeType and HarfBuzz ask for it here.
+    "DEFAULT": [],
+    "root//buck/constraints:guest": ["-fPIC"],
+})
 
 # Two of them, because only one of the wasm platforms has C in it. A plugin's
 # freetype and harfbuzz are compiled against the WASI sysroot; a game module is

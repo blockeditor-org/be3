@@ -2,7 +2,7 @@ use block_gpu_host::{block_gpu_abi::embed::device::Caller as _, transport::Trans
 use block_guest_abi::direct;
 use wasmtime::{Caller, Instance, Linker, Store};
 
-use crate::State;
+use crate::state::{Guest, State};
 
 pub(crate) fn link(linker: &mut Linker<State>, imports: &[(String, String)]) -> Result<(), String> {
     for (module, name) in imports {
@@ -17,10 +17,10 @@ pub(crate) fn link(linker: &mut Linker<State>, imports: &[(String, String)]) -> 
                       pointer: u32,
                       length: u32|
                       -> wasmtime::Result<()> {
-                    let state = caller.data_mut();
-                    let args = state.read(pointer, length).map_err(wasmtime::Error::msg)?;
+                    let mut guest = Guest::calling(&mut caller);
+                    let args = guest.read(pointer, length).map_err(wasmtime::Error::msg)?;
                     let parent = (has_parent != 0).then_some(parent as u64);
-                    state
+                    guest
                         .transport()
                         .outbox
                         .push(direct::call(&full, parent, false, &args));
@@ -49,8 +49,7 @@ pub(crate) fn call(
     };
     let length = call.args.len() as u32;
     let pointer = alloc.call(&mut *store, length).map_err(failed)?;
-    store
-        .data_mut()
+    Guest::of(&mut *store)
         .write(pointer, call.args)
         .map_err(|error| format!("the plugin's argument buffer is outside its memory: {error}"))?;
     let packed = export
@@ -65,5 +64,5 @@ pub(crate) fn call(
         )
         .map_err(failed)?;
     let (pointer, length) = direct::unpack(packed);
-    store.data_mut().read(pointer, length)
+    Guest::of(store).read(pointer, length)
 }

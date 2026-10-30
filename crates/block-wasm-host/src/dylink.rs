@@ -1,49 +1,110 @@
+use std::sync::{Arc, Mutex};
+
 use wasm_dylink::{
-    APPLY_DATA_RELOCS, Declared, ENV, Import, MALLOC, STACK_POINTER, Sdk, TABLE, TLS_BASE, TLS_SIZE,
+    APPLY_DATA_RELOCS, CONSTRUCTORS, Described, INIT_TLS, Import, PAGE_SIZE, Plan, STACK_POINTER,
+    TABLE, TLS_BASE,
 };
 use wasmtime::{
-    Error, Extern, Func, Global, GlobalType, Instance, Linker, Module, Mutability, Ref,
-    SharedMemory, Store, Table, TypedFunc, Val, ValType,
+    Error, Extern, ExternType, Func, Global, GlobalType, Instance, Linker, Module, Mutability, Ref,
+    SharedMemory, Store, Table, Val, ValType,
 };
-
-pub(crate) use wasm_dylink::Layout;
 
 #[derive(Clone)]
 pub(crate) enum Program {
     Whole(Module),
-    Linked { sdk: Module, plugin: Module },
+    Linked(Arc<[Module]>),
 }
 
 impl Program {
     pub(crate) fn first(&self) -> &Module {
         match self {
             Self::Whole(module) => module,
-            Self::Linked { sdk, .. } => sdk,
+            Self::Linked(modules) => &modules[0],
         }
     }
 
-    pub(crate) fn modules(&self) -> Vec<&Module> {
+    pub(crate) fn modules(&self) -> &[Module] {
         match self {
-            Self::Whole(module) => vec![module],
-            Self::Linked { sdk, plugin } => vec![sdk, plugin],
+            Self::Whole(module) => std::slice::from_ref(module),
+            Self::Linked(modules) => modules,
         }
     }
 }
 
-pub(crate) fn sdk_identity(module: &Module) -> Option<Result<String, String>> {
-    wasm_dylink::sdk_identity(module.exports().map(|export| export.name()))
+pub(crate) fn libraries(module: &Module) -> Result<Vec<String>, String> {
+    wasm_dylink::libraries(module.exports().map(|export| export.name()))
 }
 
-fn exported_i32<T>(
-    instance: &Instance,
-    store: &mut Store<T>,
-    name: &str,
-    what: &str,
-) -> Result<i32, String> {
+pub(crate) struct Linked {
+    pub(crate) plan: Plan,
+    free: Mutex<Vec<u32>>,
+}
+
+impl Linked {
+    pub(crate) fn take(&self, memory: &SharedMemory) -> Result<u32, String> {
+        let blocks = self.plan.blocks;
+        if blocks.size == 0 {
+            return Ok(0);
+        }
+        let mut free = self
+            .free
+            .lock()
+            .map_err(|_| "the thread-local blocks were poisoned".to_owned())?;
+        if free.is_empty() {
+            let pages = blocks.pages;
+            let start = memory.grow(u64::from(pages)).map_err(|error| {
+                format!("the memory could not grow for thread-local storage: {error}")
+            })?;
+            let start = u32::try_from(start * u64::from(PAGE_SIZE))
+                .map_err(|_| "thread-local storage lies past a 32-bit address space".to_owned())?;
+            free.extend(blocks.carve(start, pages).into_iter().rev());
+        }
+        let block = free
+            .pop()
+            .ok_or("no thread-local block fits in the pages grown for them")?;
+        write(memory, block, &vec![0; blocks.size as usize])?;
+        Ok(block)
+    }
+
+    pub(crate) fn give(&self, block: u32) {
+        if self.plan.blocks.size == 0 {
+            return;
+        }
+        if let Ok(mut free) = self.free.lock() {
+            free.push(block);
+        }
+    }
+}
+
+fn describe(module: &Module, name: String) -> Described {
+    let mut described = Described {
+        name,
+        imports: module
+            .imports()
+            .map(|import| (import.module().to_owned(), import.name().to_owned()))
+            .collect(),
+        ..Described::default()
+    };
+    for export in module.exports() {
+        let name = export.name().to_owned();
+        match export.ty() {
+            ExternType::Func(_) | ExternType::Tag(_) => {
+                described.functions.insert(name.clone());
+            }
+            ExternType::Global(_) => {
+                described.globals.insert(name.clone());
+            }
+            _ => {}
+        }
+        described.exports.push(name);
+    }
+    described
+}
+
+fn exported_i32<T>(instance: &Instance, store: &mut Store<T>, name: &str) -> Option<i32> {
     instance
         .get_global(&mut *store, name)
         .and_then(|global| global.get(&mut *store).i32())
-        .ok_or_else(|| format!("the {what} does not export {name}"))
 }
 
 fn global<T>(store: &mut Store<T>, value: i32, mutability: Mutability) -> Result<Global, String> {
@@ -55,9 +116,9 @@ fn global<T>(store: &mut Store<T>, value: i32, mutability: Mutability) -> Result
     .map_err(|error| format!("a plugin global could not be made: {error}"))
 }
 
-fn table<T>(sdk: &Instance, store: &mut Store<T>) -> Result<Table, String> {
-    sdk.get_table(&mut *store, TABLE)
-        .ok_or_else(|| format!("the plugin SDK does not export {TABLE}"))
+fn table<T>(root: &Instance, store: &mut Store<T>) -> Result<Table, String> {
+    root.get_table(&mut *store, TABLE)
+        .ok_or_else(|| format!("the root library does not export {TABLE}"))
 }
 
 fn write(memory: &SharedMemory, at: u32, bytes: &[u8]) -> Result<(), String> {
@@ -65,7 +126,7 @@ fn write(memory: &SharedMemory, at: u32, bytes: &[u8]) -> Result<(), String> {
     let end = (at as usize)
         .checked_add(bytes.len())
         .filter(|end| *end <= data.len())
-        .ok_or("the plugin's memory ran past the end of the shared memory")?;
+        .ok_or("thread-local storage ran past the end of the shared memory")?;
     for (cell, byte) in data[at as usize..end].iter().zip(bytes) {
         // unsafe(ffi)
         unsafe { *cell.get() = *byte };
@@ -73,180 +134,199 @@ fn write(memory: &SharedMemory, at: u32, bytes: &[u8]) -> Result<(), String> {
     Ok(())
 }
 
-fn exports<T>(sdk: &Instance, store: &mut Store<T>) -> Sdk {
-    let mut exports = Sdk::default();
-    let named: Vec<(String, Extern)> = sdk
-        .exports(&mut *store)
-        .map(|export| (export.name().to_owned(), export.into_extern()))
-        .collect();
-    for (name, export) in named {
-        match export {
-            Extern::Func(_) => {
-                exports.functions.insert(name);
-            }
-            Extern::Global(global) => {
-                if let Some(address) = global.get(&mut *store).i32() {
-                    exports.addresses.insert(name, address);
-                }
-            }
-            _ => {}
-        }
+fn name(modules: &[Module], index: usize, identities: &[String]) -> String {
+    match identities.get(index) {
+        _ if index + 1 == modules.len() => "the plugin".to_owned(),
+        Some(identity) => format!("the library {identity}"),
+        None => format!("module {index}"),
     }
-    exports
 }
 
 pub(crate) fn plan<T>(
     store: &mut Store<T>,
-    sdk: &Instance,
-    plugin: &Module,
+    modules: &[Module],
+    identities: &[String],
+    root: &Instance,
     memory: &SharedMemory,
-) -> Result<Layout, String> {
-    let declared = Declared::of(plugin.exports().map(|export| export.name()))?;
-    let malloc: TypedFunc<u32, u32> = sdk
-        .get_typed_func(&mut *store, MALLOC)
-        .map_err(|error| format!("the plugin SDK has no usable {MALLOC}: {error}"))?;
-    let allocated = malloc
-        .call(&mut *store, declared.allocation()?)
-        .map_err(|error| format!("the plugin's memory could not be allocated: {error}"))?;
-    let size = table(sdk, store)?.size(&mut *store);
-    let layout = wasm_dylink::plan(
-        declared,
-        allocated,
-        size,
-        plugin
-            .imports()
-            .map(|import| (import.module(), import.name())),
-        &exports(sdk, store),
-    )?;
-    write(
-        memory,
-        layout.memory_base,
-        &vec![0; layout.memory_size as usize],
-    )?;
-    Ok(layout)
+) -> Result<Arc<Linked>, String> {
+    let described: Vec<Described> = modules
+        .iter()
+        .enumerate()
+        .map(|(index, module)| describe(module, name(modules, index, identities)))
+        .collect();
+    let pages = wasm_dylink::pages(&described)?;
+    let placed = memory
+        .grow(u64::from(pages))
+        .map_err(|error| format!("the memory could not grow to hold the plugin: {error}"))?;
+    let placed = u32::try_from(placed * u64::from(PAGE_SIZE))
+        .map_err(|_| "the plugin lies past a 32-bit address space".to_owned())?;
+    let size = table(root, store)?.size(&mut *store);
+    Ok(Arc::new(Linked {
+        plan: wasm_dylink::plan(&described, placed, size)?,
+        free: Mutex::new(Vec::new()),
+    }))
 }
 
-pub(crate) fn instantiate<T>(
+pub(crate) struct Thread {
+    pub(crate) blocks: u32,
+    pub(crate) root_block: u32,
+    pub(crate) main: bool,
+}
+
+fn fill_slots<T>(
     store: &mut Store<T>,
-    linker: &Linker<T>,
-    sdk: &Instance,
-    plugin: &Module,
-    layout: &Layout,
-) -> Result<Instance, String> {
-    let table = table(sdk, store)?;
-    table
-        .grow(&mut *store, layout.table_grow, Ref::Func(None))
-        .map_err(|error| format!("the function table could not grow for the plugin: {error}"))?;
-    for (slot, name) in &layout.sdk_slots {
-        let function = sdk
-            .get_func(&mut *store, name)
-            .ok_or_else(|| format!("the plugin SDK does not export {name}"))?;
-        table
-            .set(&mut *store, *slot, Ref::Func(Some(function)))
-            .map_err(|error| format!("{name} could not be put in the function table: {error}"))?;
-    }
-    let stack_pointer = sdk
-        .get_global(&mut *store, STACK_POINTER)
-        .ok_or_else(|| format!("the plugin SDK does not export {STACK_POINTER}"))?;
-    let mut imports = Vec::new();
-    let mut own = Vec::new();
-    for (import, resolution) in plugin.imports().zip(&layout.imports) {
-        let (module, name) = (import.module(), import.name());
-        let resolved: Extern = match *resolution {
-            Import::Table => table.into(),
-            Import::StackPointer => stack_pointer.into(),
-            Import::Constant(value) => global(store, value, Mutability::Const)?.into(),
-            Import::Slot(value) | Import::Address(value) => {
-                global(store, value, Mutability::Var)?.into()
-            }
-            Import::Own => {
-                let entry = global(store, 0, Mutability::Var)?;
-                own.push((name.to_owned(), entry));
-                entry.into()
-            }
-            Import::Elsewhere => match linker.get_by_import(&mut *store, &import) {
-                Some(answered) => answered,
-                None if module == ENV => sdk
-                    .get_export(&mut *store, name)
-                    .filter(|export| matches!(export, Extern::Func(_) | Extern::Tag(_)))
-                    .ok_or_else(|| {
-                        format!("the plugin imports {name}, which the plugin SDK does not export")
-                    })?,
-                None => {
-                    let signature = import.ty().func().cloned().ok_or_else(|| {
-                        format!(
-                            "the plugin imports {module}.{name}, which its host does not answer"
-                        )
-                    })?;
-                    let refusal = format!(
-                        "the plugin called {module}.{name}, which its host does not answer"
-                    );
-                    Func::new(&mut *store, signature, move |_, _, _| {
-                        Err(Error::msg(refusal.clone()))
-                    })
-                    .into()
-                }
-            },
-        };
-        imports.push(resolved);
-    }
-    let instance = Instance::new(&mut *store, plugin, &imports)
-        .map_err(|error| format!("the plugin could not be instantiated: {error}"))?;
-    for (name, entry) in own {
-        let offset = exported_i32(&instance, store, &name, "plugin")?;
-        let address = layout.own_address(&name, offset)?;
-        entry
-            .set(&mut *store, Val::I32(address as i32))
-            .map_err(|error| format!("{name} could not be relocated: {error}"))?;
-    }
-    for (slot, name) in &layout.plugin_slots {
-        let function = instance.get_func(&mut *store, name).ok_or_else(|| {
-            format!("the plugin takes the address of {name}, which nothing exports")
+    table: &Table,
+    plan: &Plan,
+    instance: &Instance,
+    module: usize,
+) -> Result<(), String> {
+    for slot in plan.slots.iter().filter(|slot| slot.module == module) {
+        let function = instance.get_func(&mut *store, &slot.name).ok_or_else(|| {
+            format!(
+                "the address of {} is taken, and nothing exports it",
+                slot.name
+            )
         })?;
         table
-            .set(&mut *store, *slot, Ref::Func(Some(function)))
-            .map_err(|error| format!("{name} could not be put in the function table: {error}"))?;
+            .set(&mut *store, slot.slot, Ref::Func(Some(function)))
+            .map_err(|error| {
+                format!(
+                    "{} could not be put in the function table: {error}",
+                    slot.name
+                )
+            })?;
     }
-    Ok(instance)
+    Ok(())
 }
 
-pub(crate) fn relocate<T>(
-    store: &mut Store<T>,
-    plugin: &Instance,
-    layout: &mut Layout,
-) -> Result<(), String> {
-    layout.relocated(
-        exported_i32(plugin, store, TLS_BASE, "plugin")? as u32,
-        exported_i32(plugin, store, TLS_SIZE, "plugin")? as u32,
-    );
-    let relocate: TypedFunc<(), ()> = plugin
-        .get_typed_func(&mut *store, APPLY_DATA_RELOCS)
-        .map_err(|error| format!("the plugin has no usable {APPLY_DATA_RELOCS}: {error}"))?;
-    relocate
-        .call(&mut *store, ())
-        .map_err(|error| format!("the plugin's data could not be relocated: {error}"))
+fn unexported(name: &str) -> String {
+    format!("{name} is imported, and the module the plan names does not export it")
 }
 
-pub(crate) fn place_thread_locals<T>(
+fn answered<T>(
     store: &mut Store<T>,
-    plugin: &Instance,
-    memory: &SharedMemory,
-    layout: &Layout,
-    base: u32,
-) -> Result<(), String> {
-    if let Some(image) = layout.thread_locals(base)? {
-        let bytes = crate::state::read(memory, image.from, image.length)?;
-        write(memory, image.to, &bytes)?;
+    linker: &Linker<T>,
+    import: &wasmtime::ImportType<'_>,
+) -> Result<Extern, String> {
+    if let Some(answered) = linker.get_by_import(&mut *store, import) {
+        return Ok(answered);
     }
-    plugin
-        .get_global(&mut *store, TLS_BASE)
-        .ok_or_else(|| format!("the plugin does not export {TLS_BASE}"))?
-        .set(&mut *store, Val::I32(base as i32))
-        .map_err(|error| format!("the plugin's thread-locals could not be placed: {error}"))
+    let (from, name) = (import.module(), import.name());
+    let signature = import.ty().func().cloned().ok_or_else(|| {
+        format!("the plugin imports {from}.{name}, which its host does not answer")
+    })?;
+    let refusal = format!("the plugin called {from}.{name}, which its host does not answer");
+    Ok(Func::new(&mut *store, signature, move |_, _, _| {
+        Err(Error::msg(refusal.clone()))
+    })
+    .into())
 }
 
-pub(crate) fn main_thread_locals<T>(store: &mut Store<T>, sdk: &Instance) -> Result<u32, String> {
-    exported_i32(sdk, store, TLS_BASE, "plugin SDK").map(|base| base as u32)
+pub(crate) fn link<T>(
+    store: &mut Store<T>,
+    linker: &Linker<T>,
+    modules: &[Module],
+    linked: &Linked,
+    root: Instance,
+    thread: &Thread,
+) -> Result<Instance, String> {
+    let plan = &linked.plan;
+    let table = table(&root, store)?;
+    table
+        .grow(&mut *store, plan.table_grow, Ref::Func(None))
+        .map_err(|error| format!("the function table could not grow for the plugin: {error}"))?;
+    fill_slots(store, &table, plan, &root, 0)?;
+    let stack_pointer = root
+        .get_global(&mut *store, STACK_POINTER)
+        .ok_or_else(|| format!("the root library does not export {STACK_POINTER}"))?;
+    let mut instances = vec![root];
+    for (index, module) in modules.iter().enumerate().skip(1) {
+        let placed = &plan.modules[index];
+        let mut imports = Vec::new();
+        let mut own = Vec::new();
+        let mut thread_locals = Vec::new();
+        for (import, resolution) in module.imports().zip(&placed.imports) {
+            let name = import.name();
+            let resolved: Extern = match *resolution {
+                Import::Table => table.into(),
+                Import::StackPointer => stack_pointer.into(),
+                Import::Constant(value) => global(store, value, Mutability::Const)?.into(),
+                Import::FunctionSlot(value) => global(store, value, Mutability::Var)?.into(),
+                Import::Function(definer) => instances[definer]
+                    .get_export(&mut *store, name)
+                    .filter(|export| matches!(export, Extern::Func(_) | Extern::Tag(_)))
+                    .ok_or_else(|| unexported(name))?,
+                Import::Address(definer) if definer < index => {
+                    let value = exported_i32(&instances[definer], store, name)
+                        .ok_or_else(|| unexported(name))?;
+                    global(store, plan.address(definer, value)? as i32, Mutability::Var)?.into()
+                }
+                Import::Address(_) => {
+                    let entry = global(store, 0, Mutability::Var)?;
+                    own.push((name.to_owned(), entry));
+                    entry.into()
+                }
+                Import::ThreadLocal(definer) => {
+                    let entry = global(store, 0, Mutability::Var)?;
+                    thread_locals.push((name.to_owned(), definer, entry));
+                    entry.into()
+                }
+                Import::Elsewhere => answered(store, linker, &import)?,
+            };
+            imports.push(resolved);
+        }
+        let instance = Instance::new(&mut *store, module, &imports)
+            .map_err(|error| format!("the plugin could not be instantiated: {error}"))?;
+        for (name, entry) in own {
+            let value = exported_i32(&instance, store, &name).ok_or_else(|| unexported(&name))?;
+            entry
+                .set(&mut *store, Val::I32(plan.address(index, value)? as i32))
+                .map_err(|error| format!("{name} could not be relocated: {error}"))?;
+        }
+        fill_slots(store, &table, plan, &instance, index)?;
+        if thread.main
+            && let Ok(relocate) = instance.get_typed_func::<(), ()>(&mut *store, APPLY_DATA_RELOCS)
+        {
+            relocate
+                .call(&mut *store, ())
+                .map_err(|error| format!("the plugin's data could not be relocated: {error}"))?;
+        }
+        if let Ok(initialize) = instance.get_typed_func::<u32, ()>(&mut *store, INIT_TLS) {
+            initialize
+                .call(&mut *store, plan.block(thread.blocks, index))
+                .map_err(|error| format!("thread-local storage could not be set up: {error}"))?;
+        }
+        let own_base = exported_i32(&instance, store, TLS_BASE).unwrap_or(0) as u32;
+        for (name, definer, entry) in thread_locals {
+            let base = match definer {
+                0 => thread.root_block,
+                _ => exported_i32(&instances[definer], store, TLS_BASE).unwrap_or(0) as u32,
+            };
+            let offset =
+                exported_i32(&instances[definer], store, &name).ok_or_else(|| unexported(&name))?;
+            let slot = wasm_dylink::thread_local_slot(base.wrapping_add_signed(offset), own_base);
+            entry
+                .set(&mut *store, Val::I32(slot))
+                .map_err(|error| format!("the thread-local {name} could not be placed: {error}"))?;
+        }
+        if thread.main
+            && let Ok(constructors) = instance.get_typed_func::<(), ()>(&mut *store, CONSTRUCTORS)
+        {
+            constructors
+                .call(&mut *store, ())
+                .map_err(|error| format!("the plugin could not run its constructors: {error}"))?;
+        }
+        instances.push(instance);
+    }
+    instances
+        .pop()
+        .ok_or_else(|| "there is no module to link".to_owned())
+}
+
+pub(crate) fn main_thread_locals<T>(store: &mut Store<T>, root: &Instance) -> Result<u32, String> {
+    exported_i32(root, store, TLS_BASE)
+        .map(|base| base as u32)
+        .ok_or_else(|| format!("the root library does not export {TLS_BASE}"))
 }
 
 pub(crate) fn spawned_thread_locals(

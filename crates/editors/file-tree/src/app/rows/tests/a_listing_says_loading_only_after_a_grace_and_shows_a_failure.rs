@@ -4,7 +4,7 @@ use super::*;
 fn a_listing_says_loading_only_after_a_grace_and_shows_a_failure() {
     let host = EditorHost::default();
     let query = BlockQuery::References(CONTAINER);
-    let listing = Listing::watch(&host.blocks(), query);
+    let listing = Listing::watch(&Blocks::of(&host), query);
     let mut clock = Clock {
         now: listing.since + GRACE / 2,
         due: None,

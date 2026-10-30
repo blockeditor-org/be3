@@ -51,6 +51,7 @@ impl Editor {
         woken: bool,
         outbound: &mut Vec<Vec<u8>>,
     ) -> Result<Flow, String> {
+        block_gpu_guest::poll();
         self.executor
             .step(inbound, outbound)
             .map_err(|error| failed(format!("a frame did not decode: {error}")))?;
@@ -66,10 +67,6 @@ impl Editor {
             false => Flow::Running,
         })
     }
-}
-
-pub(crate) fn initialize_storage(size: usize, align: usize) {
-    wasi_threads::initialize_main_thread_storage(size, align);
 }
 
 fn failed(error: String) -> String {

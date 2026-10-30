@@ -414,6 +414,7 @@ def cargo_wasm_facts():
     crate = _crate()
     library = crate["library"]
     return struct(
+        name = crate["name"],
         crate = library["crate"],
         crate_root = library["crate_root"],
         deps = _per_platform(crate, lambda entry: entry["deps"]),

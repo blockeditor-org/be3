@@ -50,7 +50,6 @@ app(
     plugin_types = ["//{}:types".format(package) for package in editor_packages()],
     precompile_target = per_cross_platform("x86_64-unknown-linux-gnu", cross_triple),
     precompiler = "//crates/plugin-test-runner:precompiler",
-    sdk = "//crates/block-plugin-sdk:module",
     visibility = ["//crates/app-tests:", "//crates/bench:", "//crates/local-tools:"],
 )
 
@@ -64,7 +63,6 @@ app(
     manifests = ["//{}:manifest".format(package) for package in editor_packages()],
     modules = ["//{}:module".format(package) for package in editor_packages()],
     plugin_types = ["//{}:types".format(package) for package in editor_packages()],
-    sdk = "//crates/block-plugin-sdk:module",
 )
 
 # What CI ships per platform: the app under cargo's name; the plugins ship
@@ -91,7 +89,8 @@ wasi_app_module(
 web_files = glob(["web/*.js"]) + ["//crates/local-tools:block-index"] + ["//buck/app:build-info.json"]
 
 # The WASI and wasi-threads shims, which beui-web-demo and paint-review-web
-# need too, with what thread.js imports.
+# need too, with what thread.js imports, and plugin.js, which boots a plugin
+# in its worker (block-wasm-host's :standalone-web-test boots one with it).
 [
     export_file(
         name = shim,
@@ -102,10 +101,12 @@ web_files = glob(["web/*.js"]) + ["//crates/local-tools:block-index"] + ["//buck
             "//crates/beui-html-spike:",
             "//crates/beui-shared-tests:",
             "//crates/beui-web-demo:",
+            "//crates/block-wasm-host:",
             "//crates/paint-review-web:",
+            "//crates/tls-diamond:",
         ],
     )
-    for shim in ["wasi.js", "threads.js", "thread.js", "dylink.js", "env.js"]
+    for shim in ["wasi.js", "threads.js", "thread.js", "dylink.js", "env.js", "plugin.js"]
 ]
 
 app(
@@ -124,7 +125,6 @@ app(
         "$(location :Caddyfile)",
         "$(location //crates/be-server-bin:bin)",
     ],
-    sdk = "//crates/block-plugin-sdk:module",
     wasm_bindgen = "//buck/cargo:wasm-bindgen",
     visibility = ["//crates/local-tools:"],
 )
@@ -185,7 +185,6 @@ app(
     plugin_types = ["//{}:types".format(package) for package in editor_packages()],
     precompile_target = "aarch64-linux-android",
     precompiler = "//crates/plugin-test-runner:precompiler",
-    sdk = "//crates/block-plugin-sdk:module",
 )
 
 # The build helper finalizes :android-dist with CI's key; deploy finalizes :android-release
@@ -264,7 +263,6 @@ app(
     modules = ["//{}:module".format(package) for package in dev_plugins],
     plugin_types = ["//{}:types".format(package) for package in dev_plugins],
     precompiler = "//crates/plugin-test-runner:precompiler",
-    sdk = "//crates/block-plugin-sdk:module",
 )
 
 headless(

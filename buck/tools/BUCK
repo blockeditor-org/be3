@@ -104,7 +104,7 @@ genrule(
 )
 
 # wasm-opt, which a release build runs over every plugin and game module
-# (buck/wasm/defs.bzl).
+# (buck/wasm/defs.bzl), and wasm-as.
 binaryen_version = "133"
 
 http_archive(
@@ -118,6 +118,14 @@ http_archive(
 command_alias(
     name = "wasm-opt",
     args = ["$(location :binaryen)/bin/wasm-opt"],
+    visibility = ["PUBLIC"],
+)
+
+# Binaryen's assembler, which turns a test's hand-written WebAssembly text
+# into a module (block-wasm-host's standalone guest).
+command_alias(
+    name = "wasm-as",
+    args = ["$(location :binaryen)/bin/wasm-as"],
     visibility = ["PUBLIC"],
 )
 
@@ -412,8 +420,8 @@ command_alias(
 
 # Every wasm link: rust-lld, through crates/wasm-link, which drops the
 # -fuse-ld=lld prelude//os_lookup adds (it has no case for WebAssembly and falls
-# back to linux) and makes the plugin SDK's and the plugins' links
-# (guides/plugin_sdk.md).
+# back to linux) and makes the links of the libraries plugins share and of the
+# plugins linked against them (guides/plugin_libraries.md).
 command_alias(
     name = "wasm-ld",
     args = [

@@ -108,6 +108,10 @@ pub fn open_vulkan_device(
     None
 }
 
+pub fn browser_features(adapter: &wgpu::Adapter) -> wgpu::Features {
+    adapter.features() & wgpu::Features::all_webgpu_mask()
+}
+
 #[derive(Clone)]
 pub struct GpuSetup {
     pub device: wgpu::Device,
@@ -153,7 +157,7 @@ async fn open(
     };
     let descriptor = wgpu::DeviceDescriptor {
         label: Some("beui device"),
-        required_features: wgpu::Features::empty(),
+        required_features: browser_features(&adapter),
         required_limits: adapter.limits(),
         experimental_features: wgpu::ExperimentalFeatures::disabled(),
         memory_hints: wgpu::MemoryHints::Performance,

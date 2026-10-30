@@ -13,7 +13,6 @@ block-ui = { path = "../block-ui" }
 lucide = { path = "../lucide" }
 geometry = { path = "../geometry" }
 paint-format = { path = "../paint-format" }
-reactive = { path = "../reactive" }
 serde_bytes = "0.11"
 serde_json = "1"
 stable-hash = { path = "../stable-hash" }
@@ -28,7 +27,6 @@ uuid = { version = "1", features = ["v7"] }
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 block-guest-abi = { path = "../block-guest-abi" }
 block-gpu-guest = { path = "../block-gpu-guest" }
-wasi-threads = { path = "../wasi-threads" }
 wgpu = { version = "29", default-features = false, features = ["custom", "std", "web", "wgsl"] }
 
 [dev-dependencies]

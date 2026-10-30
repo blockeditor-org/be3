@@ -9,11 +9,13 @@ use block_editor_plugin::{Anchored, Frame};
 use block_plugin_api::accessibility::Color;
 use block_plugin_api::{AnchoredPlacement, Scrim, ViewAnchor, ViewEdge, ViewId};
 
-use crate::surface::Surface;
+use block_editor_plugin::driver::Surface;
+
+use crate::surface::{Painter, note};
 
 pub(crate) struct Shown {
     pub(crate) escaped: EscapedOutput,
-    pub(crate) surface: Surface,
+    pub(crate) surface: Surface<Painter>,
     pub(crate) changed: bool,
 }
 
@@ -53,7 +55,11 @@ pub(crate) fn follow(held: &mut Vec<Shown>, escaped: &[EscapedOutput], window: W
             },
         };
         shown.changed |= escaped.output.changed || shown.escaped.layer != escaped.layer;
-        shown.surface.note(&escaped.output);
+        note(
+            &mut shown.surface,
+            &escaped.output,
+            beui_core::geometry::Vec2::ZERO,
+        );
         shown.escaped = escaped.clone();
         next.push(shown);
     }
@@ -95,10 +101,8 @@ pub(crate) fn framed(
     let own = |rects: &[beui_core::geometry::Rect]| -> Vec<beui_core::geometry::Rect> {
         rects.iter().map(|rect| rect.translate(-from)).collect()
     };
-    let changed = std::mem::take(&mut shown.changed) || shown.surface.unpainted();
-    shown.surface.settle();
     Frame {
-        changed,
+        changed: std::mem::take(&mut shown.changed),
         painted: own(&layer.painted),
         floating: own(&layer.floating),
         scrims: layer

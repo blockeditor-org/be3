@@ -1192,7 +1192,7 @@ guides/type_modules.md.
 On the plugin side that is `editor.block_content::<C>()`, one `ContentProjection`
 per editor, built on `block_type_guest::editor::EditorMirror<C>` (which keeps the
 settled content, the unsettled and pending operations, what an update touched,
-`revision()` and the `Projected` log `LiveText` reads), plus the reactive watchers. `operate` applies an operation to what the view sees and queues it
+`revision()` and the `Projected` log `LiveText` reads), plus the watchers. `operate` applies an operation to what the view sees and queues it
 for the host. An operation that comes back `mine` only confirms what is already
 shown; one from anyone else is applied on top of it, unless an edit of this
 instance's is still in flight, in which case it goes beneath that edit
@@ -1210,6 +1210,104 @@ PDF pane that re-renders on a change rather than projecting.
 
 `block_editor_beui` re-exports `be_block`, so an editor names its content type
 without depending on the crate itself.
+
+### State and change callbacks
+
+block-editor-plugin holds the plugin's state as plain values and knows nothing of
+any UI framework or signal library: `LiveContent<C>` (the projection without
+signals: `read`, `ready`, `revision` and `visible`, which reads what the view
+sees even before the content arrived), `BlockGraph` (`EditorHost::graph()`:
+the commands, `info(id)`, and `watch(query)`, a `BlockWatch` whose `read` is
+the query's answer) and `EditorHost`'s pushed and watched values. A read that
+may not have arrived answers `Result<T, Unready>` (`Loading` or `Failed`).
+Every change is announced through a callback that returns a `Subscription`,
+which unregisters it when dropped:
+
+- content: `on_touched(key, run)` for one `Touched` key, `on_change(run)` for
+  any touch (both get the content and what was touched), `on_revision(run)`
+  when the revision `read` and `ready` answer from moves;
+- the graph: `BlockWatch::on_change` for one query, `BlockGraph::on_info(id)`
+  for one block's `BlockInfo`;
+- the host: `on_pushed(Pushed, run)` for one pushed kind, `on_watched::<W>(run)`
+  for one host watch.
+
+A callback runs once per change, after the whole operation, delivery or answer
+has been applied, so state read from inside it is consistent; callbacks run in
+the order they were registered. Graph callbacks wait while
+`EditorHost::defer_graph_changes_unless` says so, until `flush_graph`.
+Content callbacks run inside `pump` and `operate`, which the framework calls
+where it can take them; pushed and watched values change while the host's
+frames are delivered, so an adapter queues them and applies them when it next
+runs a frame. A framework adapts these and nothing else: an immediate-mode one
+ignores them and rereads on the wake, and block-editor-beui's
+`ContentProjection`, `Blocks`, `BlockList` and `Editor` turn each into a signal
+(one per thing a view reads), so editors read signals and never see the
+callbacks.
+
+The state an editor keeps over `EditorHost` lives there too, as plain values
+with callbacks, so another framework needs only its own views and an adapter
+(`block-editor-plugin/src/editor_state.rs`):
+
+- `EditorCore` is the editor of one block: its content cache (`content`,
+  `content_of`, each a `LiveContent` pumped from `begin_frame`), the view state,
+  peers (`new_peers`, `new_peer_messages`), panning and zooming (`pan`,
+  `zoom_at`, `reveal`, `fit`, `fit_now` for a `Fit`), the sizes and visibility
+  the instance reports, `woken(run)`, and the children it places
+  (`add_child(on_state, on_bar, on_focus)` gives a `PlacedChild`, which the
+  framework moves with `place(child)` after laying out; `begin_frame` reports
+  each `ChildState` that changed). `begin_frame` reads what the host shows of
+  the editor into a `ShownEditor` (the canvas, the placed rect, chrome, drag,
+  files, editability and so on, in the framework's points: `PointScale::ratio`
+  is points per host point) and calls `on_shown` when it changed (after
+  pumping content it first calls `on_pumped`, where an adapter applies the
+  pushed and watched values it queued);
+  `report_content(rect)` and `occlude(rect)` send rects back.
+- `ArtifactsCore` (the artifact settings draft and saved values, with
+  `on_settings`/`on_saved_settings`, and the regenerate and poll handlers) and
+  `CreationCore` (a creation dialog's template, `create`, `accept`, `cancel`,
+  `on_create`).
+- `SettingsLayers<R>` writes a layered setting into the right layer block,
+  through the `SettingsGraph` it is given, and
+  `SettingsChangeLog` holds the "now applies on your devices" changes until
+  they are kept or undone.
+
+block-editor-beui's `Editor`, `Artifacts`, `Creation`, `Fitting` and
+`LayeredSettings` hold these and add the signals (`Editor::core()` reaches the
+plain state); `Artifacts` and `Creation` deref to their cores. What stays in
+block-editor-beui is what needs beui: placing children from the document
+(`EmbedSlot`, overlay layers, docks), measuring the intrinsic size, picking and
+popovers, the settings walks in `editor/settings.rs`, which read through signals
+so memos re-run, and the views.
+
+### The region driver
+
+What a framework does with the views the host shows is split the same way.
+`block_editor_plugin::driver` holds the framework-neutral half: `Driver<R>`
+implements `ViewHandler` for any `R: Regions`, and is what the framework
+registers with `EditorHost::handle_views`. The driver keeps:
+
+- each view's `Surface` (its size, age and visible offset from the
+  `ShownView`, created when the host first shows the view and dropped when a
+  frame no longer lists it), the damage the framework reports into it
+  (`Surface::damage`, a `Damage` of a `geometry::Region` or everything), and on
+  wasm the damage of the last presents, so `paint` repaints only what the
+  target's age needs; `Frame::changed` is set while a surface has damage not
+  yet painted;
+- the `Frame` accounting that does not depend on the framework: a framework
+  that stopped reports `Stopped` on every view, each window ask goes on the
+  first shown view of the instance that made it, and only the view with the
+  keyboard carries `repaint_after`;
+- `HostServices`: copy, paste, and the file pick and save dialogs, through the
+  `EditorHost` of the instance whose view last took input.
+
+A framework implements `Regions`: `input` for one view, `frame` over every
+shown view (returning `Ran`: the keyboard's view, the asks, the repaint wait,
+or `Err` when it stopped), `framed` for one view's rects, window requests,
+description and anchored views, and `paint` of its per-surface `Painter` into
+a `PaintTarget`. beui's half is `ModuleRunner` in beui-platform-plugin.
+Anchored views, floated windows and scrims are the overlay API and stay the
+framework's: `Regions::anchored` hands the driver an anchored view's surface,
+whose lifetime the framework keeps.
 
 ### The graph on the plugin protocol
 

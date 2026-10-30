@@ -1,0 +1,32 @@
+load("@root//buck/app:defs.bzl", "app")
+load("@root//buck/app:drive.bzl", "page_test")
+
+# The thread-local diamond in Chromium (guides/plugin_libraries.md, "Thread-locals"):
+# the plugin booted by block-app's plugin.js against block-gpu-shim, as a
+# plugin's worker boots one, with base, left and right staged beside it as
+# libraries. block-wasm-host's tests run it on wasmtime.
+app(
+    name = "web-bundle",
+    bindgen = ["//crates/block-gpu-shim:module"],
+    files = [
+        "//crates/block-app:dylink.js",
+        "//crates/block-app:env.js",
+        "//crates/block-app:plugin.js",
+        "//crates/block-app:thread.js",
+        "//crates/block-app:threads.js",
+        "//crates/block-app:wasi.js",
+    ],
+    linked = ["//crates/tls-diamond/plugin:module"],
+    manifests = [],
+    modules = [],
+    wasm_bindgen = "//buck/cargo:wasm-bindgen",
+)
+
+page_test(
+    name = "web-test",
+    files = {
+        "bundle": ":web-bundle",
+        "diamond.js": "web/diamond.js",
+        "index.html": "web/index.html",
+    },
+)

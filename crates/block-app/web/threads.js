@@ -7,10 +7,11 @@
 // the very same module against the very same shared memory and calls the
 // module's wasi_thread_start with the id and argument agreed here.
 //
-// A plugin linked against the plugin SDK is two modules: the thread
-// instantiates the SDK, links the plugin to it by the plan the plugin's own
-// thread made (dylink.js), and points the plugin's thread-locals at the block
-// wasi-libc laid out for the new thread.
+// A plugin linked against libraries is a list of modules, the root library
+// first: the thread instantiates the root, and links the rest by the plan the
+// plugin's own thread made (dylink.js), with thread-local blocks for the
+// modules above the root that the spawning thread takes for it here and the
+// thread gives back when it ends.
 //
 // Only the modules and their memory are shared. Apart from the wake, which the
 // thread reports back here as a message, every other import the thread's
@@ -19,13 +20,13 @@
 // belongs to the thread that made it. A thread is for computing, and reaching
 // out of the module from one is a mistake worth hearing about.
 
-import { spawnedThreadLocals } from "./dylink.js";
+import { spawnedThreadLocals, takeBlocks } from "./dylink.js";
 import { filesChannel } from "./wasi.js";
 
 /** @type {{module: WebAssembly.Module, memory: WebAssembly.Memory} | null} */
 let context = null;
 
-/** @type {{plugin: WebAssembly.Module, layout: object} | null} */
+/** @type {{modules: WebAssembly.Module[], plan: object} | null} */
 let linked = null;
 
 /** @type {(() => void) | null} */
@@ -54,16 +55,20 @@ export function bindThreads(module, memory) {
 }
 
 /**
- * Says that the module bound is the plugin SDK, with this plugin linked to it
- * by this plan, so that a thread links the plugin too.
+ * Says that the module bound is the root library of these modules, linked by
+ * this plan, so that a thread links them too.
  */
-export function bindPlugin(plugin, layout) {
-    linked = { plugin, layout };
+export function bindLinked(modules, plan) {
+    linked = { modules, plan };
 }
 
 function threadSpawn(startArgument) {
     if (context === null) {
         console.error("a thread was spawned before bindThreads was called");
+        return -1;
+    }
+    if (!(context.memory.buffer instanceof SharedArrayBuffer)) {
+        console.error("a thread was spawned by a module whose memory is not shared");
         return -1;
     }
     const id = nextId++;
@@ -81,9 +86,10 @@ function threadSpawn(startArgument) {
         memory: context.memory,
         id,
         startArgument,
-        plugin: linked?.plugin,
-        layout: linked?.layout,
-        threadLocals: linked && spawnedThreadLocals(context.memory, startArgument),
+        modules: linked?.modules,
+        plan: linked?.plan,
+        blocks: linked && takeBlocks(context.memory, linked.plan),
+        rootBlock: linked && spawnedThreadLocals(context.memory, startArgument),
         files: filesChannel(),
     });
     return id;

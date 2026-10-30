@@ -36,6 +36,7 @@ fn a_window_the_app_opens_is_painted_in_the_frame_that_opens_it() {
         "the window is drawn with the frame that opened it, before the host asks for it"
     );
     let shown = surface
+        .regions()
         .window(window.id())
         .expect("the window's view is the app's window at once");
     assert_eq!(window_view(shown), opened.view);
@@ -46,7 +47,7 @@ fn a_window_the_app_opens_is_painted_in_the_frame_that_opens_it() {
 
     surface.frame(&[frame.clone(), window.clone()]);
     assert_eq!(
-        surface.window(window.id()),
+        surface.regions().window(window.id()),
         Some(shown),
         "the host asking for the window goes on showing the same window"
     );

@@ -2109,12 +2109,10 @@ dependencies = [
  "geometry",
  "lucide",
  "paint-format",
- "reactive",
  "serde_bytes",
  "serde_json",
  "stable-hash",
  "uuid",
- "wasi-threads",
  "wgpu",
 ]
 
@@ -2233,19 +2231,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "block-plugin-sdk"
-version = "0.1.0"
-dependencies = [
- "beui",
- "beui-platform-plugin",
- "block-editor-beui",
- "block-editor-plugin",
- "serde",
- "serde_json",
- "uuid",
-]
-
-[[package]]
 name = "block-shell"
 version = "0.1.0"
 dependencies = [
@@ -2343,7 +2328,6 @@ dependencies = [
  "block-type-api",
  "bytes",
  "rustc-demangle",
- "sha2 0.10.9",
  "tokio",
  "uuid",
  "wasm-dylink",
@@ -6607,6 +6591,31 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b4596b6d070b27117e987119b4dac604f3c58cfb0b191112e24771b2faeac1a6"
 
 [[package]]
+name = "plugin-library-base"
+version = "0.1.0"
+dependencies = [
+ "be-ops",
+ "block-editor-plugin",
+ "block-gpu-guest",
+ "block-plugin-api",
+ "geometry",
+ "postcard",
+ "serde",
+ "serde_json",
+ "uuid",
+ "wgpu",
+]
+
+[[package]]
+name = "plugin-library-beui"
+version = "0.1.0"
+dependencies = [
+ "beui",
+ "beui-platform-plugin",
+ "block-editor-beui",
+]
+
+[[package]]
 name = "plugin-test-runner"
 version = "0.1.0"
 dependencies = [
@@ -8451,6 +8460,33 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
+name = "tls-diamond-base"
+version = "0.1.0"
+
+[[package]]
+name = "tls-diamond-left"
+version = "0.1.0"
+dependencies = [
+ "tls-diamond-base",
+]
+
+[[package]]
+name = "tls-diamond-plugin"
+version = "0.1.0"
+dependencies = [
+ "tls-diamond-base",
+ "tls-diamond-left",
+ "tls-diamond-right",
+]
+
+[[package]]
+name = "tls-diamond-right"
+version = "0.1.0"
+dependencies = [
+ "tls-diamond-base",
+]
+
+[[package]]
 name = "tls_codec"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9174,7 +9210,6 @@ dependencies = [
 name = "wasm-link"
 version = "0.1.0"
 dependencies = [
- "sha2 0.10.9",
  "wasm-dylink",
 ]
 

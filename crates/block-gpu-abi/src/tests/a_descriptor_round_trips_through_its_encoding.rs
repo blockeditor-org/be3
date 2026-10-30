@@ -20,6 +20,8 @@ fn a_descriptor_round_trips_through_its_encoding() {
             }),
         ],
         depth_stencil_attachment: None,
+        occlusion_query_set: None,
+        timestamp_writes: None,
     };
     let bytes = be_ops::encode(&descriptor);
     assert_eq!(be_ops::decode(&bytes), Some(descriptor));

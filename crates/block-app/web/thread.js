@@ -6,7 +6,8 @@
 // thread-local block the spawning thread already laid out for it. The module's
 // start function is deliberately not run: memory, and everything in it, is
 // already initialised by the thread that got there first. A plugin linked
-// against the plugin SDK is linked again here, by its own thread's plan.
+// against libraries is linked again here, by its own thread's plan, and its
+// thread-local blocks are given back when the thread ends.
 //
 // The one call out of the module a thread may make is the wake, which says a
 // job it was started for has landed and the module should be stepped again.
@@ -54,22 +55,25 @@ function imports(module, memory) {
 }
 
 self.onmessage = (event) => {
-    const { module, memory, id, startArgument, plugin, layout, threadLocals, files } = event.data;
+    const { module, memory, id, startArgument, modules, plan, blocks, rootBlock, files } = event.data;
     wasi.bindMemory(memory);
     wasi.bindFiles(files);
     environment.bindMemory(memory);
     threads.bindThreads(module, memory);
-    const instance = new WebAssembly.Instance(module, imports(module, memory));
-    if (plugin) {
-        threads.bindPlugin(plugin, layout);
-        const linked = dylink.instantiate(instance, plugin, layout, imports(plugin, memory));
-        dylink.placeThreadLocals(linked, memory, layout, threadLocals);
-    }
     try {
+        const instance = new WebAssembly.Instance(module, imports(module, memory));
+        if (modules) {
+            threads.bindLinked(modules, plan);
+            const thread = { blocks, rootBlock, main: false };
+            dylink.link(modules, plan, instance, thread, (linked) => imports(linked, memory));
+        }
         instance.exports.wasi_thread_start(id, startArgument);
     } catch (error) {
         console.error(`thread ${id} stopped`, error);
     } finally {
+        if (modules) {
+            dylink.freeBlocks(memory, plan, blocks);
+        }
         self.close();
     }
 };

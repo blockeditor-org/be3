@@ -1,4 +1,5 @@
 load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "keep_profile")
+load("@root//buck/wasm:libraries.bzl", "WasmLibrariesInfo")
 
 # A plugin's read-only data, which the app stages beside it under
 # data/<plugin id>/ and a plugin reads through the host (ReadData): each file at
@@ -76,9 +77,9 @@ def _precompile(ctx: AnalysisContext, wasm: Artifact, name: [str, None] = None) 
 # The app as it runs (buck/app/stage.sh): the executable under cargo's name, and
 # beside it every plugin, each module precompiled for precompile_target in an
 # action of its own by the precompiler, plugin-test-runner as the workers run
-# it, whatever the app is built for, and the plugin SDK they are linked against
-# (guides/plugin_sdk.md), with its .cwasm, and the type modules; with no precompiler, each plugin is
-# its module alone. With no binary it
+# it, whatever the app is built for, and every library in their closures
+# (guides/plugin_libraries.md), each with its .cwasm, and the type modules; with no
+# precompiler, each plugin is its module alone. With no binary it
 # is the plugins alone. `index` writes the plugins.json the app finds the
 # plugins through. The web bundle is this rule too: `bindgen` runs
 # wasm-bindgen over each module. `buck2 run` runs the executable, or for a
@@ -96,11 +97,19 @@ def _app_impl(ctx: AnalysisContext) -> list[Provider]:
         command.add(cmd_args("--executable=", executable, "=", name, delimiter = ""))
     for file in ctx.attrs.files:
         command.add(cmd_args("--file=", file, delimiter = ""))
-    if ctx.attrs.sdk:
-        sdk = ctx.attrs.sdk[DefaultInfo].default_outputs[0]
-        command.add(cmd_args("--sdk=", sdk, delimiter = ""))
+    libraries = []
+    for module in ctx.attrs.modules + ctx.attrs.linked:
+        info = module.get(WasmLibrariesInfo)
+        for library in info.closure if info else []:
+            if library not in libraries:
+                libraries.append(library)
+    for index, library in enumerate(libraries):
+        command.add(cmd_args("--library=", library, delimiter = ""))
         if ctx.attrs.precompiler:
-            command.add(cmd_args("--sdk-artifact=", _precompile(ctx, sdk), delimiter = ""))
+            name = "library{}-{}".format(index, library.basename.removesuffix(".wasm"))
+            command.add(cmd_args("--library-artifact=", _precompile(ctx, library, name), delimiter = ""))
+    for module in ctx.attrs.linked:
+        command.add(cmd_args("--file=", module[DefaultInfo].default_outputs[0], delimiter = ""))
     data = ctx.attrs.data or [None] * len(ctx.attrs.manifests)
     plugin_types = ctx.attrs.plugin_types or [None] * len(ctx.attrs.manifests)
     for manifest, module, files, types in zip(ctx.attrs.manifests, ctx.attrs.modules, data, plugin_types):
@@ -153,6 +162,10 @@ app = rule(
         "executable_name": attrs.string(default = ""),
         "files": attrs.list(attrs.source(), default = []),
         "index": attrs.bool(default = False),
+        # Modules staged as they are, like files, with every library they
+        # need: a linked module that is not a plugin with a manifest, such as
+        # a test's.
+        "linked": attrs.list(attrs.dep(), default = []),
         "manifests": attrs.list(attrs.source()),
         "modules": attrs.list(attrs.dep()),
         # Each plugin's type module (plugin_types), in the order of manifests:
@@ -164,9 +177,6 @@ app = rule(
         # What `buck2 run` runs a bundle without an executable with, followed
         # by the bundle.
         "run_with": attrs.list(attrs.arg(), default = []),
-        # The plugin SDK the modules are linked against, staged under the name
-        # they find it by.
-        "sdk": attrs.option(attrs.dep(), default = None),
         "wasm_bindgen": attrs.option(attrs.exec_dep(providers = [RunInfo]), default = None),
         "_stage": attrs.default_only(attrs.source(default = "root//buck/app:stage.sh")),
     },
