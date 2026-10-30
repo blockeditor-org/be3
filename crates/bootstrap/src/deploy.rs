@@ -46,6 +46,8 @@ pub fn main(arguments: Vec<String>) -> Result<ExitCode> {
         "-m".to_owned(),
         "release".to_owned(),
         "-c".to_owned(),
+        "be3.lto=true".to_owned(),
+        "-c".to_owned(),
         format!("be3.deploy_downloads={downloads}"),
         "-c".to_owned(),
         format!("be3.deploy_android={android}"),

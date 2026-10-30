@@ -267,6 +267,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
+name = "app-archive"
+version = "0.1.0"
+dependencies = [
+ "sha2 0.10.9",
+ "zstd",
+]
+
+[[package]]
 name = "app-bench"
 version = "0.1.0"
 dependencies = [
@@ -832,6 +840,7 @@ dependencies = [
 name = "be-drive"
 version = "0.1.0"
 dependencies = [
+ "app-archive",
  "beui-layer-drive",
  "beui-runner",
  "image",

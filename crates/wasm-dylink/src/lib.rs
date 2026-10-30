@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests;
 
-use std::collections::HashSet;
+use std::{borrow::Cow, collections::HashSet};
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -29,12 +29,33 @@ pub const REGION_HEADER: u32 = 8;
 const MAX_ALIGN_LOG2: u32 = 16;
 const IDENTITY_LENGTH: usize = 64;
 const BLOCKS_PER_GROWTH: u32 = 16;
+pub const SHORT_SYMBOL_PREFIX: char = '#';
+const SHORTENED: [&str; 3] = ["_R", "_Z", "anon."];
+const SHORT_SYMBOL_BYTES: usize = 12;
+const BASE64: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
 pub fn identity(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect()
+}
+
+pub fn short_symbol(symbol: &str) -> Cow<'_, str> {
+    let short_length = 1 + SHORT_SYMBOL_BYTES * 4 / 3;
+    if symbol.len() <= short_length || !SHORTENED.iter().any(|prefix| symbol.starts_with(prefix)) {
+        return Cow::Borrowed(symbol);
+    }
+    let digest = Sha256::digest(symbol.as_bytes());
+    let mut short = String::with_capacity(short_length);
+    short.push(SHORT_SYMBOL_PREFIX);
+    for chunk in digest[..SHORT_SYMBOL_BYTES].chunks(3) {
+        let bits = u32::from(chunk[0]) << 16 | u32::from(chunk[1]) << 8 | u32::from(chunk[2]);
+        for shift in [18, 12, 6, 0] {
+            short.push(char::from(BASE64[(bits >> shift & 63) as usize]));
+        }
+    }
+    Cow::Owned(short)
 }
 
 fn is_identity(identity: &str) -> bool {

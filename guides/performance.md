@@ -262,7 +262,36 @@ session left, with every step that can overlap running at once. What keeps it th
 - workspace-ui keeps each tab's title in the view state's `titles`, so a restored tab is
   named before its block's info arrives.
 
-5. Ideas tried and set aside
+5. Size
+
+What ships is `./scripts/deploy`'s `-m release -c be3.lto=true //crates/block-app:native`:
+the app, every plugin and type module, the two libraries (guides/plugin_libraries.md), and a
+`.cwasm` of each. In October 2026 on Linux x86_64 that was 896 MB, 297 MB gzipped:
+
+- `.cwasm`, 595 MB (198 MB gzipped): Cranelift's machine code is about two and a half times
+  the wasm code it compiles, so it shrinks only as the wasm code does. Shipping without
+  it moves 95 seconds of compiling (four cores) to the first start, 42 of them the beui
+  library's.
+- `.wasm`, 198 MB: 151 MB of code, of which plugins are most; each instantiates beui's and
+  `reactive`'s generics for its own types, which no library can hold. Type modules are
+  standalone, 1.8 MB each, mostly `be-model`, `sequence` and `block-type-guest` again.
+- block-app, 102 MB: 66 MB of code, 24 MB of symbols, the rest unwind tables and data.
+
+To see where it goes: `size -A` and `nm -S --size-sort -C` for the app, twiggy
+(`cargo install twiggy`, `twiggy top -n 100000 --format csv`) for a module, and
+`size -A` on a `.cwasm`, which is an ELF file. Attribute a generic instance to the
+innermost first-party type in its name, not to `core` or `alloc`: that is what put
+`reactive` first. Keep code that does not depend on a type parameter out of generic
+functions (`probe_erased`, `Computation::new`'s `parts`), since every closure type copies it.
+
+What is already in place: fat LTO with one codegen unit for the deploy only (`be3.lto`, a ten
+minute link), legacy symbol mangling in release (buck/platforms/profile.bzl) and the hashed
+export names of linked modules (guides/plugin_libraries.md). Thin LTO left the app as it was,
+and `opt-level=s` for wasm took a twentieth off the plugins while growing both libraries and
+beui-gallery by four fifths. Stripping the app's symbols or the modules' name sections
+would take 24 MB and 27 MB more, but the panic guard's reports and a guest's backtrace read them.
+
+6. Ideas tried and set aside
 
 Each of these helped, but works around a cost rather than removing it. Keep them for when
 nothing better is left.

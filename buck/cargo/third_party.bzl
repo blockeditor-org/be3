@@ -1,7 +1,7 @@
 load("@prelude//rust:cargo_buildscript.bzl", "buildscript_run")
 load("@prelude//rust:cargo_package.bzl", "cargo")
 load("@root//buck/platforms:cross.bzl", "PLAN_SETTINGS")
-load("@root//buck/platforms:profile.bzl", "dev_only")
+load("@root//buck/platforms:profile.bzl", "RELEASE_SYMBOL_FLAGS", "dev_only")
 load(":crates.bzl", "third_party")
 
 # The rules for every third-party crate a workspace crate depends on, from
@@ -104,7 +104,7 @@ def _crate(key, crate, fixup):
         mapped_srcs = overlay,
         platform = _platforms(crate, fixup),
         proc_macro = library["proc_macro"],
-        rustc_flags = dev_only(crate.get("profile_flags", [])) + rustc_flags + _plan_flags(fixup),
+        rustc_flags = dev_only(crate.get("profile_flags", [])) + RELEASE_SYMBOL_FLAGS + rustc_flags + _plan_flags(fixup),
         srcs = [":" + unpacked],
         visibility = ["PUBLIC"],
     )

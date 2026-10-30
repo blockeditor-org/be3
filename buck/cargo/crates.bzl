@@ -3,6 +3,138 @@
 # and buck/cargo/defs.bzl and buck/cargo/third_party.bzl read it.
 
 crates = {
+    "crates/app-archive": {
+        "binaries": [
+            {
+                "crate_root": "src/main.rs",
+                "name": "app-archive",
+            },
+        ],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "app_archive",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "app-archive",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {
+                    "app-archive": [
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:zstd-0.13.3",
+                    ],
+                },
+                "deps": [
+                    "//third-party/rust:sha2-0.10.9",
+                    "//third-party/rust:zstd-0.13.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {
+                    "app-archive": [
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:zstd-0.13.3",
+                    ],
+                },
+                "deps": [
+                    "//third-party/rust:sha2-0.10.9",
+                    "//third-party/rust:zstd-0.13.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {
+                    "app-archive": [
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:zstd-0.13.3",
+                    ],
+                },
+                "deps": [
+                    "//third-party/rust:sha2-0.10.9",
+                    "//third-party/rust:zstd-0.13.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {
+                    "app-archive": [
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:zstd-0.13.3",
+                    ],
+                },
+                "deps": [
+                    "//third-party/rust:sha2-0.10.9",
+                    "//third-party/rust:zstd-0.13.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {
+                    "app-archive": [
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:zstd-0.13.3",
+                    ],
+                },
+                "deps": [
+                    "//third-party/rust:sha2-0.10.9",
+                    "//third-party/rust:zstd-0.13.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {
+                    "app-archive": [
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:zstd-0.13.3",
+                    ],
+                },
+                "deps": [
+                    "//third-party/rust:sha2-0.10.9",
+                    "//third-party/rust:zstd-0.13.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {
+                    "app-archive": [
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:zstd-0.13.3",
+                    ],
+                },
+                "deps": [
+                    "//third-party/rust:sha2-0.10.9",
+                    "//third-party/rust:zstd-0.13.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
     "crates/app-bench": {
         "binaries": [
             {
@@ -1596,6 +1728,7 @@ crates = {
             "android-arm64": {
                 "binaries": {
                     "be-drive": [
+                        "//crates/app-archive:app-archive",
                         "//crates/beui-layer-drive:beui-layer-drive",
                         "//crates/beui-runner:beui-runner",
                         "//crates/paint-snapshot:paint-snapshot",
@@ -1604,6 +1737,7 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/app-archive:app-archive",
                     "//crates/beui-layer-drive:beui-layer-drive",
                     "//crates/beui-runner:beui-runner",
                     "//crates/paint-snapshot:paint-snapshot",
@@ -1618,6 +1752,7 @@ crates = {
             "linux-arm64": {
                 "binaries": {
                     "be-drive": [
+                        "//crates/app-archive:app-archive",
                         "//crates/beui-layer-drive:beui-layer-drive",
                         "//crates/beui-runner:beui-runner",
                         "//crates/paint-snapshot:paint-snapshot",
@@ -1626,6 +1761,7 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/app-archive:app-archive",
                     "//crates/beui-layer-drive:beui-layer-drive",
                     "//crates/beui-runner:beui-runner",
                     "//crates/paint-snapshot:paint-snapshot",
@@ -1640,6 +1776,7 @@ crates = {
             "linux-x86_64": {
                 "binaries": {
                     "be-drive": [
+                        "//crates/app-archive:app-archive",
                         "//crates/beui-layer-drive:beui-layer-drive",
                         "//crates/beui-runner:beui-runner",
                         "//crates/paint-snapshot:paint-snapshot",
@@ -1648,6 +1785,7 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/app-archive:app-archive",
                     "//crates/beui-layer-drive:beui-layer-drive",
                     "//crates/beui-runner:beui-runner",
                     "//crates/paint-snapshot:paint-snapshot",
@@ -1662,6 +1800,7 @@ crates = {
             "macos-arm64": {
                 "binaries": {
                     "be-drive": [
+                        "//crates/app-archive:app-archive",
                         "//crates/beui-layer-drive:beui-layer-drive",
                         "//crates/beui-runner:beui-runner",
                         "//crates/paint-snapshot:paint-snapshot",
@@ -1670,6 +1809,7 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/app-archive:app-archive",
                     "//crates/beui-layer-drive:beui-layer-drive",
                     "//crates/beui-runner:beui-runner",
                     "//crates/paint-snapshot:paint-snapshot",
@@ -1684,6 +1824,7 @@ crates = {
             "macos-x86_64": {
                 "binaries": {
                     "be-drive": [
+                        "//crates/app-archive:app-archive",
                         "//crates/beui-layer-drive:beui-layer-drive",
                         "//crates/beui-runner:beui-runner",
                         "//crates/paint-snapshot:paint-snapshot",
@@ -1692,6 +1833,7 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/app-archive:app-archive",
                     "//crates/beui-layer-drive:beui-layer-drive",
                     "//crates/beui-runner:beui-runner",
                     "//crates/paint-snapshot:paint-snapshot",
@@ -1706,6 +1848,7 @@ crates = {
             "windows-arm64": {
                 "binaries": {
                     "be-drive": [
+                        "//crates/app-archive:app-archive",
                         "//crates/beui-layer-drive:beui-layer-drive",
                         "//crates/beui-runner:beui-runner",
                         "//crates/paint-snapshot:paint-snapshot",
@@ -1714,6 +1857,7 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/app-archive:app-archive",
                     "//crates/beui-layer-drive:beui-layer-drive",
                     "//crates/beui-runner:beui-runner",
                     "//crates/paint-snapshot:paint-snapshot",
@@ -1728,6 +1872,7 @@ crates = {
             "windows-x86_64": {
                 "binaries": {
                     "be-drive": [
+                        "//crates/app-archive:app-archive",
                         "//crates/beui-layer-drive:beui-layer-drive",
                         "//crates/beui-runner:beui-runner",
                         "//crates/paint-snapshot:paint-snapshot",
@@ -1736,6 +1881,7 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/app-archive:app-archive",
                     "//crates/beui-layer-drive:beui-layer-drive",
                     "//crates/beui-runner:beui-runner",
                     "//crates/paint-snapshot:paint-snapshot",

@@ -82,7 +82,10 @@ def _precompile(ctx: AnalysisContext, wasm: Artifact, name: [str, None] = None) 
 # precompiler, each plugin is its module alone. With no binary it
 # is the plugins alone. `index` writes the plugins.json the app finds the
 # plugins through. The web bundle is this rule too: `bindgen` runs
-# wasm-bindgen over each module. `buck2 run` runs the executable, or for a
+# wasm-bindgen over each module. `[archive]` is the whole directory as one
+# compressed file (crates/app-archive), a quarter of its size or less, made on a
+# worker. `buck2 run` runs the executable from it, unpacked into target/apps
+# once for each new archive, so a run downloads only the archive; or, for a
 # bundle without one, `run_with` followed by the bundle, which is how the web
 # bundle serves itself.
 def _app_impl(ctx: AnalysisContext) -> list[Provider]:
@@ -106,8 +109,8 @@ def _app_impl(ctx: AnalysisContext) -> list[Provider]:
     for index, library in enumerate(libraries):
         command.add(cmd_args("--library=", library, delimiter = ""))
         if ctx.attrs.precompiler:
-            name = "library{}-{}".format(index, library.basename.removesuffix(".wasm"))
-            command.add(cmd_args("--library-artifact=", _precompile(ctx, library, name), delimiter = ""))
+            artifact = "library{}-{}".format(index, library.basename.removesuffix(".wasm"))
+            command.add(cmd_args("--library-artifact=", _precompile(ctx, library, artifact), delimiter = ""))
     for module in ctx.attrs.linked:
         command.add(cmd_args("--file=", module[DefaultInfo].default_outputs[0], delimiter = ""))
     data = ctx.attrs.data or [None] * len(ctx.attrs.manifests)
@@ -143,9 +146,19 @@ def _app_impl(ctx: AnalysisContext) -> list[Provider]:
     if ctx.attrs.index:
         command.add("--index")
     ctx.actions.run(command, category = "app")
-    providers = [DefaultInfo(default_output = out)]
+    archive = ctx.actions.declare_output(ctx.label.name + ".appz")
+    ctx.actions.run(
+        cmd_args(ctx.attrs._archiver[RunInfo], "pack", out, archive.as_output()),
+        category = "app_archive",
+    )
+    providers = [
+        DefaultInfo(
+            default_output = out,
+            sub_targets = {"archive": [DefaultInfo(default_output = archive)]},
+        )
+    ]
     if name:
-        providers.append(RunInfo(args = cmd_args(out.project(name))))
+        providers.append(RunInfo(args = cmd_args(ctx.attrs._unpacker[RunInfo], "run", archive, name)))
     elif ctx.attrs.run_with:
         providers.append(RunInfo(args = cmd_args(ctx.attrs.run_with, out)))
     return providers
@@ -178,7 +191,9 @@ app = rule(
         # by the bundle.
         "run_with": attrs.list(attrs.arg(), default = []),
         "wasm_bindgen": attrs.option(attrs.exec_dep(providers = [RunInfo]), default = None),
+        "_archiver": attrs.default_only(attrs.exec_dep(default = "root//crates/app-archive:bin")),
         "_stage": attrs.default_only(attrs.source(default = "root//buck/app:stage.sh")),
+        "_unpacker": attrs.default_only(attrs.dep(default = "root//crates/app-archive:bin")),
     },
     impl = _app_impl,
 )

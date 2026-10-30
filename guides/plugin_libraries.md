@@ -93,6 +93,11 @@ link that needs libraries reads their `be3.lib` sections and:
 - checks every import of the linked module against the closure (`unresolved`): a symbol no library
   exports fails, naming it and the importing module, and so does one more than one library defines,
   apart from what lld defines in every module (`SYNTHESIZED`);
+- renames every mangled symbol it imports or exports (`_R`, `_Z` and LLVM's `anon.`) to `#` and
+  sixteen characters of its SHA-256 (`wasm_dylink::short_symbol`), as the root's link does its
+  exports: a library exports every symbol it has, and their names were a third of its module.
+  The loaders only ever match names, so nothing else changes; the `name` section keeps the readable
+  names for backtraces, and `unresolved` and the `be3.lib` listing name symbols as they were;
 - adds the `__be3_lib_*` globals, and `__be3_dylink_<memory size>_<memory align>_<table size>_<table
   align>_<tls size>_<tls align>`, which a host reads from the compiled module before
   instantiating it.

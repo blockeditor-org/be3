@@ -400,7 +400,7 @@ fn link_root(linker: &str, arguments: Vec<String>, name: &str) -> Result<(), Str
     let out = output(&arguments)?;
     let (arguments, linked) = root_arguments(arguments);
     let thread_locals = link_mapped(linker, arguments, &scratch(&out, ".map"))?;
-    let bytes = without_unused_sections(&read(&out)?)?;
+    let bytes = module::with_short_symbols(&without_unused_sections(&read(&out)?)?)?;
     let listing = listing(name, &[], &linked, &thread_locals);
     write(
         &out,
@@ -441,7 +441,9 @@ impl Library {
                 "need" => library.needs.push(value.to_owned()),
                 "link" => library.linked.push(value.to_owned()),
                 "tls" => {
-                    library.thread_locals.insert(value.to_owned());
+                    library
+                        .thread_locals
+                        .insert(wasm_dylink::short_symbol(value).into_owned());
                 }
                 _ => {}
             }
@@ -577,12 +579,13 @@ pub fn unresolved(bytes: &[u8], name: &str, closure: &[Library]) -> Result<(), S
     let mut twice = Vec::new();
     for import in module::imports(bytes)? {
         let wanted = import.name.as_str();
+        let short = wasm_dylink::short_symbol(wanted);
         let definers: Vec<&str> = closure
             .iter()
             .filter(|library| match import.module.as_str() {
-                ENV | GOT_FUNCTION => library.functions.contains(wanted),
-                GOT_MEMORY => library.globals.contains(wanted),
-                GOT_THREAD_LOCAL => library.thread_locals.contains(wanted),
+                ENV | GOT_FUNCTION => library.functions.contains(short.as_ref()),
+                GOT_MEMORY => library.globals.contains(short.as_ref()),
+                GOT_THREAD_LOCAL => library.thread_locals.contains(short.as_ref()),
                 _ => false,
             })
             .map(|library| library.name.as_str())
@@ -698,6 +701,7 @@ fn link_linked(
     let thread_locals = thread_locals?;
     let bytes = without_unused_sections(&read(&out)?)?;
     unresolved(&bytes, &name, &closure)?;
+    let bytes = module::with_short_symbols(&bytes)?;
     let needs: Vec<&str> = closure
         .iter()
         .map(|library| library.identity.as_str())

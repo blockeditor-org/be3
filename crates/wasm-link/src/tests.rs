@@ -119,6 +119,7 @@ fn archive(members: &[(&str, &[u8])], symbol: &str) -> Vec<u8> {
 
 mod a_crate_in_two_modules_of_a_closure_is_refused;
 mod a_library_the_link_does_not_name_is_refused;
+mod a_linked_modules_mangled_symbols_are_shortened;
 mod a_missing_symbol_names_it_and_its_importer;
 mod a_plugin_link_leaves_out_what_its_libraries_link;
 mod a_response_file_is_split_as_lld_splits_it;
