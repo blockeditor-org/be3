@@ -170,10 +170,16 @@ pub(crate) fn note_work_area(view: StatusKey, area: Option<Rect>) {
 pub(crate) fn walled(rect: Rect, display: Rect, work: Rect) -> Pos2 {
     let mut min = rect.min;
     if work.max.x < display.max.x - WALL {
-        min.x = min.x.min(work.max.x - rect.width()).max(work.min.x.min(rect.min.x));
+        min.x = min
+            .x
+            .min(work.max.x - rect.width())
+            .max(work.min.x.min(rect.min.x));
     }
     if work.max.y < display.max.y - WALL {
-        min.y = min.y.min(work.max.y - rect.height()).max(work.min.y.min(rect.min.y));
+        min.y = min
+            .y
+            .min(work.max.y - rect.height())
+            .max(work.min.y.min(rect.min.y));
     }
     if work.min.x > display.min.x + WALL {
         min.x = min.x.max(work.min.x);

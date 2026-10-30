@@ -82,13 +82,13 @@ impl Desk {
     fn reported(&mut self, reports: &[block_plugin_api::FrameReport]) -> bool {
         let mut changed = false;
         for display in &mut self.displays {
-            let Some(report) = reports.iter().find(|report| report.screen == display.screen)
+            let Some(report) = reports
+                .iter()
+                .find(|report| report.screen == display.screen)
             else {
                 continue;
             };
-            let work = report
-                .work_area
-                .map(|insets| insets.inside(display.rect));
+            let work = report.work_area.map(|insets| insets.inside(display.rect));
             changed |= display.work != work;
             display.work = work;
         }
@@ -349,10 +349,16 @@ impl Desk {
 fn walled(rect: Rect, display: Rect, work: Rect) -> Pos2 {
     let mut min = rect.min;
     if work.max.x < display.max.x - WALL {
-        min.x = min.x.min(work.max.x - rect.width()).max(work.min.x.min(rect.min.x));
+        min.x = min
+            .x
+            .min(work.max.x - rect.width())
+            .max(work.min.x.min(rect.min.x));
     }
     if work.max.y < display.max.y - WALL {
-        min.y = min.y.min(work.max.y - rect.height()).max(work.min.y.min(rect.min.y));
+        min.y = min
+            .y
+            .min(work.max.y - rect.height())
+            .max(work.min.y.min(rect.min.y));
     }
     if work.min.x > display.min.x + WALL {
         min.x = min.x.max(work.min.x);

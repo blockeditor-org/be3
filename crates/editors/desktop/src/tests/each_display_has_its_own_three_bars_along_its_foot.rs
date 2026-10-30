@@ -18,7 +18,11 @@ fn each_display_has_its_own_three_bars_along_its_foot() {
             .unwrap_or_else(|| panic!("a band lies on {display:?}: {bands:?}"));
         assert_eq!(band.width(), display.width(), "and spans it");
         assert_eq!(band.bottom(), display.bottom(), "along its foot");
-        for bar in ["desktop.bar.apps", "desktop.bar.windows", "desktop.bar.status"] {
+        for bar in [
+            "desktop.bar.apps",
+            "desktop.bar.windows",
+            "desktop.bar.status",
+        ] {
             assert!(
                 matches!(fixture.shown_on(bar, display)[..], [shown] if shown.intersects(band)),
                 "{bar} sits in the band of {display:?}: {:?}",

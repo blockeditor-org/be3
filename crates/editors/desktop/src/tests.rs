@@ -24,12 +24,14 @@ use uuid::Uuid;
 use crate::app::DesktopApp;
 use crate::app::media::{BINDINGS, BRIGHTNESS_STEP, VOLUME_STEP};
 
+mod a_bar_moved_on_one_display_stays_put_on_the_others;
 mod a_block_shown_on_the_desktop_opens_in_its_own_window;
 mod a_calendar_the_desktop_no_longer_holds_is_replaced;
 mod a_desktop_resumed_after_a_restart_shows_each_window_where_it_was;
 mod a_desktop_started_again_adopts_live_windows_instead_of_placeholders;
 mod a_desktop_started_again_adopts_the_windows_the_host_kept;
 mod a_desktop_whose_layout_cannot_be_read_keeps_it_until_reset;
+mod a_display_plugged_in_later_starts_from_the_first_displays_bars;
 mod a_dock_bar_of_the_desktops_dock_spans_it_beneath_its_windows;
 mod a_first_desktop_with_no_sessions_offers_a_new_one;
 mod a_fullscreen_window_covers_the_bars;
@@ -48,6 +50,7 @@ mod a_toast_answers_its_actions_and_hides_while_the_history_is_open;
 mod a_volume_key_shows_the_level_the_host_reports_until_it_fades;
 mod a_window_launched_from_a_placeholder_takes_its_place;
 mod a_window_moved_to_another_display_lists_its_chip_on_that_displays_bar;
+mod a_window_on_the_second_display_is_kept_above_its_bars;
 mod a_window_the_host_focuses_leads_the_window_switcher;
 mod a_windows_note_shows_in_its_tab_in_place_of_its_title;
 mod a_windows_tab_dragged_onto_a_window_on_another_display_joins_it;
@@ -58,9 +61,6 @@ mod alt_tab_switches_to_the_window_two_back_once_alt_is_let_go;
 mod bars_docked_down_the_left_lay_their_parts_out_down_it;
 mod clicking_the_clock_opens_the_desktops_calendar_and_clicking_away_closes_it;
 mod clicking_the_focused_windows_chip_hides_it_and_the_next_window_takes_the_focus;
-mod a_bar_moved_on_one_display_stays_put_on_the_others;
-mod a_display_plugged_in_later_starts_from_the_first_displays_bars;
-mod a_window_on_the_second_display_is_kept_above_its_bars;
 mod each_display_has_its_own_three_bars_along_its_foot;
 mod escape_closes_the_apps_panel_and_gives_the_focus_back_to_its_button;
 mod escape_leaves_the_window_switcher_without_switching;
@@ -457,7 +457,10 @@ impl Fixture {
     }
 
     fn display_bar_menu(&mut self, display: u64, bar: u64, on: Rect, rows: &[&str]) {
-        self.desk_click(&format!("dock.bar.{}.grip", SHELL_BARS + 3 * display + bar), on);
+        self.desk_click(
+            &format!("dock.bar.{}.grip", SHELL_BARS + 3 * display + bar),
+            on,
+        );
         for row in rows {
             self.desk_click(&format!("grip.dock.bar.{row}"), on);
         }

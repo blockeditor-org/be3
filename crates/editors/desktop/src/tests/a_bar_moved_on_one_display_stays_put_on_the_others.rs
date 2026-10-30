@@ -25,9 +25,10 @@ fn a_bar_moved_on_one_display_stays_put_on_the_others() {
     fixture.on_two_displays((LEFT, 1.0), (RIGHT, 1.0));
     fixture.display_bar_menu(1, STATUS_BAR, RIGHT, &["beside.ends", "beside.left.top"]);
     status_down_the_left_of_the_right_display_only(&fixture);
-    fixture
-        .test
-        .desk_snapshot("a_status_bar_moved_down_the_left_of_the_second_display_only", 1);
+    fixture.test.desk_snapshot(
+        "a_status_bar_moved_down_the_left_of_the_second_display_only",
+        1,
+    );
 
     let mut fixture = Fixture::resumed(fixture.saved());
     fixture.on_two_displays((LEFT, 1.0), (RIGHT, 1.0));

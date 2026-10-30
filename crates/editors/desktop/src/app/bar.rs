@@ -2,9 +2,9 @@ use block_editor_beui::desktop;
 use std::time::Duration;
 
 use block_editor_beui::be_block::DisplaySettings;
+use block_editor_beui::be_block::ViewState;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::datetime::{HourCycle, Time};
-use block_editor_beui::be_block::ViewState;
 use block_editor_beui::beui::dock::styled::{
     DockAlign, DockBarGrip, DockBarPlacement, DockBarSurface, DockEdge, DockingLayout,
     DockingSnapshot, TabId, use_dock_bar,

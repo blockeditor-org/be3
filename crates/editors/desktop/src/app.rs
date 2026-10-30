@@ -34,9 +34,7 @@ use block_shell::{
 use uuid::Uuid;
 
 use apps::{Apps, AppsKey, AppsOverlay};
-use bar::{
-    APPS_PLACE, AppsBar, Bars, STATUS_PLACE, Shell, StatusBar, WINDOWS_PLACE, WindowsBar,
-};
+use bar::{APPS_PLACE, AppsBar, Bars, STATUS_PLACE, Shell, StatusBar, WINDOWS_PLACE, WindowsBar};
 use beui::ItemSize;
 use media::MediaKeys;
 use notifications::{DesktopNotifications, DesktopToasts};

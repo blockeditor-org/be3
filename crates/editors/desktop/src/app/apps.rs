@@ -1,8 +1,8 @@
 use beui::KeyAt;
+use block_editor_beui::beui::dock::styled::{DockingLayout, TabId};
 use block_editor_beui::beui::icons::{
     ICON_BOXES, ICON_LAYOUT_GRID, ICON_MENU, ICON_PANEL_BOTTOM_OPEN, ICON_PLUS,
 };
-use block_editor_beui::beui::dock::styled::{DockingLayout, TabId};
 use block_editor_beui::beui::native::last_pointer;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -14,10 +14,10 @@ use block_shell::Workspace;
 use uuid::Uuid;
 
 use super::bar::Bars;
-use super::windows::DeskWindows;
 use super::launcher::{ProgramSearch, Programs};
 use super::popup::BarPopup;
 use super::sessions::Sessions;
+use super::windows::DeskWindows;
 
 const PANEL_WIDTH: Size = Size::Custom(400.0);
 const SECTION_SPACING: Space = Space::Md;
@@ -105,11 +105,11 @@ pub(crate) fn AppsKey(apps: Apps, windows: DeskWindows, layout: DockingLayout<Ta
     Action::new("desktop.apps.toggle", "Apps", move || {
         apps.toggle(|| untrack(pointed))
     })
-        .glyph(ICON_LAYOUT_GRID)
-        .shortcut(Chord::tap(Key::Logo))
-        .at(KeyAt::Window)
-        .capture()
-        .register();
+    .glyph(ICON_LAYOUT_GRID)
+    .shortcut(Chord::tap(Key::Logo))
+    .at(KeyAt::Window)
+    .capture()
+    .register();
     view! {
         <Frame />
     }
@@ -172,14 +172,7 @@ pub(crate) fn AppsOverlay(
             open={shown}
             on_dismiss={move || apps.close(display)}
         >|handle: AnchoredHandle|
-            <AppsPanel
-                apps
-                display
-                layout
-                shown={handle.shown}
-                close
-                menu={PickAnchor::Centre}
-            />
+            <AppsPanel apps display layout shown={handle.shown} close menu={PickAnchor::Centre} />
         </Anchored>
     }
 }

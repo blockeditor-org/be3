@@ -9,9 +9,10 @@ fn a_window_on_the_second_display_is_kept_above_its_bars() {
     let mut fixture = Fixture::new();
     fixture.on_two_displays((left, 1.0), (right, 1.0));
     fixture.show_windows(&[host_window(1, true)]);
-    fixture
-        .test
-        .click_with("desktop.windows.1", block_editor_beui::beui::PointerButton::Secondary);
+    fixture.test.click_with(
+        "desktop.windows.1",
+        block_editor_beui::beui::PointerButton::Secondary,
+    );
     fixture.settle();
     fixture.test.click("desktop.windows.1.display.1");
     fixture.settle();

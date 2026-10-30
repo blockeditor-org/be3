@@ -1,6 +1,6 @@
 use crate::reactive::{ReadSignal, create_signal};
-use crate::types::{Pos2, Rect};
 use crate::types::window::{WindowId, WindowRequest};
+use crate::types::{Pos2, Rect};
 
 pub(crate) fn request_window(_request: WindowRequest) -> bool {
     false
