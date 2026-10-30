@@ -11,7 +11,7 @@ use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
-use beui_view::types::window::{WindowPlacement, WindowReport};
+use beui_view::types::window::{WindowId, WindowPlacement, WindowReport};
 use beui_view::types::{
     Align, Align2, Color, Direction, ItemSize, LayerPolicy, Placement, PointerPress,
 };
@@ -65,7 +65,7 @@ enum BarBacking {
     Hosted {
         hosted: Memo<Option<DockHosted>>,
         request: Callback<DockRequest>,
-        last: Signal<Option<Pos2>>,
+        last: Signal<Option<(WindowId, Pos2)>>,
     },
 }
 
@@ -155,11 +155,16 @@ impl DockBarControl {
         let dock = match self.backing {
             BarBacking::Local(dock) => dock,
             BarBacking::Hosted { request, last, .. } => {
-                last.set(Some(press.pos));
+                let home = last.with_untracked(|last| last.map(|(home, _)| home));
+                let home = home.unwrap_or(press.window);
+                let Some(at) = window_point(press.pos, press.window, home) else {
+                    return;
+                };
+                last.set(Some((home, at)));
                 request.call(DockRequest::MoveBar(
                     self.bar,
                     DockBarMove {
-                        at: press.pos,
+                        at,
                         stage: DockDragStage::Move,
                     },
                 ));
@@ -199,7 +204,7 @@ impl DockBarControl {
         let BarBacking::Hosted { request, last, .. } = self.backing else {
             return;
         };
-        let Some(at) = last.get_untracked() else {
+        let Some((_, at)) = last.get_untracked() else {
             return;
         };
         last.set(None);
@@ -297,7 +302,7 @@ impl State {
             drag.as_ref()
                 .is_some_and(|drag| drag.dragged == DockDragged::Bar(bar))
         });
-        let rect = self.bar_panel_rect(bar);
+        let rect = self.bar_home_rect(bar);
         let point = rect.map(|rect| {
             let mut point = DragPoint::at(rect.min + moved.at.to_vec2(), Default::default());
             point.window = self.home();
@@ -308,17 +313,6 @@ impl State {
             DockDragStage::Move => {
                 if self.mode.get_untracked() != DockMode::Tiled {
                     return;
-                }
-                let windowed = self
-                    .state
-                    .with_untracked(|state| state.bar_placement(bar))
-                    .is_some_and(DockBarPlacement::is_window);
-                if windowed && self.opens.get_untracked() {
-                    let key = self.window_key(bar);
-                    let handle = self.bar_windows.value().borrow().get(&key).copied();
-                    if handle.is_some_and(WindowHandle::begin_move) {
-                        return;
-                    }
                 }
                 let Some(rect) = rect else {
                     return;
@@ -336,6 +330,22 @@ impl State {
             DockDragStage::Cancel if carried => self.end_drag(),
             DockDragStage::Drop | DockDragStage::Cancel => {}
         }
+    }
+
+    fn bar_home_rect(&self, bar: TabId) -> Option<Rect> {
+        let rect = self.bar_panel_rect(bar)?;
+        let placement = self.state.with_untracked(|state| state.bar_placement(bar))?;
+        let DockBarPlacement::Window { origin, .. } = placement else {
+            return Some(rect);
+        };
+        let key = self.window_key(bar);
+        let window = self.bar_windows.value().borrow().get(&key).map(|handle| handle.id);
+        if let Some(min) = window.and_then(|window| window_point(rect.min, window, self.home())) {
+            return Some(Rect::from_min_size(min, rect.size()));
+        }
+        let dock = self.rect.get_untracked();
+        let origin = self.clamped_origin(Rect::from_min_size(origin, rect.size()), dock.size());
+        Some(Rect::from_min_size(dock.min + origin.to_vec2(), rect.size()))
     }
 
     pub(super) fn keep_bar_panels(&self, bars: &[TabId]) {

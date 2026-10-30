@@ -983,6 +983,7 @@ pub fn DockBarGrip(#[prop(default = None)] control: Option<DockBarControl>) -> N
         };
     };
     let pressed = StoredCell::new(None::<PointerPress>);
+    let moved = StoredCell::new(false);
     let glyph = create_memo(move || match control.direction() {
         Direction::Horizontal => ICON_GRIP_VERTICAL,
         Direction::Vertical => ICON_GRIP_HORIZONTAL,
@@ -991,12 +992,18 @@ pub fn DockBarGrip(#[prop(default = None)] control: Option<DockBarControl>) -> N
     view! {
         <Interactive
             cursor=beui_view::types::CursorIcon::Grab
-            on_press={move |press: PointerPress| pressed.set(Some(press))}
+            on_press={move |press: PointerPress| {
+                pressed.set(Some(press));
+                moved.set(false);
+            }}
             on_drag={move |press: PointerPress| {
                 let Some(down) = pressed.get() else {
                     return;
                 };
-                if (press.pos - down.pos).length() >= beui_components_unstyled::DRAG_THRESHOLD {
+                if moved.get() {
+                    control.begin_move(press);
+                } else if (press.pos - down.pos).length() >= beui_components_unstyled::DRAG_THRESHOLD {
+                    moved.set(true);
                     control.begin_move(down);
                     control.begin_move(press);
                 }
@@ -1004,6 +1011,7 @@ pub fn DockBarGrip(#[prop(default = None)] control: Option<DockBarControl>) -> N
             on_active_change={move |active: bool| {
                 if !active {
                     pressed.set(None);
+                    moved.set(false);
                     control.end_move();
                 }
             }}

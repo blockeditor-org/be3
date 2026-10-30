@@ -133,6 +133,14 @@ pub(crate) fn request_paste() {}
 
 pub(crate) fn keep_clear(_node: NodeId, _rects: Prop<Vec<crate::types::Rect>>) {}
 
+pub(crate) fn window_point(
+    _pos: crate::types::Pos2,
+    _from: crate::types::WindowId,
+    _to: crate::types::WindowId,
+) -> Option<crate::types::Pos2> {
+    None
+}
+
 pub(crate) fn arrow_focus(row: NodeRef, direction: Prop<crate::types::Direction>) {
     on_key(KeyAt::Node(row), KeyPhase::Bubble, move |event| {
         let Some(press) = event.press() else {

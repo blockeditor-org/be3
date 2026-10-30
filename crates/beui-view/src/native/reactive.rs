@@ -109,6 +109,19 @@ pub(crate) fn keep_clear(node: NodeId, rects: Prop<Vec<crate::types::Rect>>) {
     });
 }
 
+pub(crate) fn window_point(
+    pos: crate::types::Pos2,
+    from: crate::types::WindowId,
+    to: crate::types::WindowId,
+) -> Option<crate::types::Pos2> {
+    try_with_document(|document| {
+        let context = document.context()?;
+        let host = context.layer_space(from)?.to_host.point(pos);
+        Some(context.layer_space(to)?.to_host.inverse_point(host))
+    })
+    .flatten()
+}
+
 pub(crate) fn arrow_focus(row: NodeRef, direction: Prop<Direction>) {
     on_key(KeyAt::Node(row), KeyPhase::Bubble, move |event| {
         let Some(press) = event.press() else {

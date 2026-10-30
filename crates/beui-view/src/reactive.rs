@@ -196,6 +196,13 @@ pub fn keep_clear(node: NodeId, rects: impl IntoProp<Vec<crate::types::Rect>>) {
     core::keep_clear(node, rects.into_prop());
 }
 
+pub fn window_point(pos: Pos2, from: WindowId, to: WindowId) -> Option<Pos2> {
+    match from == to {
+        true => Some(pos),
+        false => core::window_point(pos, from, to),
+    }
+}
+
 pub fn arrow_focus(row: NodeRef, direction: impl IntoProp<Direction>) {
     core::arrow_focus(row, direction.into_prop());
 }
