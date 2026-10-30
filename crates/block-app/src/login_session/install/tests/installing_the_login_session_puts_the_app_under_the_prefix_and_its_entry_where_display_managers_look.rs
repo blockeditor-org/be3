@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn installing_the_login_session_puts_the_app_under_the_prefix_and_its_entry_where_display_managers_look()
-{
+ {
     let root = std::env::temp_dir().join(format!("block-app-install-{}", uuid::Uuid::new_v4()));
     let source = root.join("app");
     let prefix = root.join("prefix");

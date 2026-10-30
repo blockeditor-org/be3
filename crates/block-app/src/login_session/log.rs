@@ -11,7 +11,9 @@ const PREVIOUS_LOG: &str = "login-session.previous.log";
 
 pub(crate) fn start_log() -> Option<File> {
     let Some(directory) = log_directory() else {
-        eprintln!("block-app: no directory for the login session's log; set XDG_STATE_HOME or HOME");
+        eprintln!(
+            "block-app: no directory for the login session's log; set XDG_STATE_HOME or HOME"
+        );
         return None;
     };
     let path = directory.join(LOG);

@@ -9,10 +9,10 @@ mod editors;
 mod frame;
 mod input;
 mod local_settings;
-mod members;
-mod root_settings;
 #[cfg(target_os = "linux")]
 mod login_session;
+mod members;
+mod root_settings;
 mod shell_route;
 mod surfaces;
 mod ui;
@@ -879,7 +879,11 @@ impl BlockApp {
     }
 
     #[cfg(target_os = "linux")]
-    fn request_power(&mut self, action: block_plugin_api::PowerAction, trigger: login_session::Trigger) {
+    fn request_power(
+        &mut self,
+        action: block_plugin_api::PowerAction,
+        trigger: login_session::Trigger,
+    ) {
         match action {
             block_plugin_api::PowerAction::Lock => {
                 if let Some(lock) = &mut self.screen_lock {

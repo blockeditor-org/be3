@@ -46,7 +46,10 @@ pub fn run_with_platforms(
                 .as_ref()
                 .is_some_and(|choice| choice.layers.contains(&Stacked::Xr))
             {
-                eprintln!("beui: {} cannot show space on a headset", natives[index + 1]);
+                eprintln!(
+                    "beui: {} cannot show space on a headset",
+                    natives[index + 1]
+                );
             }
             None
         }
@@ -65,12 +68,13 @@ pub fn run_with_platforms(
         ) => Box::new(crate::saved_preferences::SavedPreferences::new(app, path)),
         _ => Box::new(app),
     };
-    let (platform, layers) = choose_platform(choice, link, open_device.clone(), |index| {
-        match index.checked_sub(1) {
-            Some(other) => others.remove(other),
-            None => native_platform(open_device),
-        }
-    })?;
+    let (platform, layers) =
+        choose_platform(choice, link, open_device.clone(), |index| {
+            match index.checked_sub(1) {
+                Some(other) => others.remove(other),
+                None => native_platform(open_device),
+            }
+        })?;
     let launch = Launch {
         options,
         context: crate::native::system_context(),
