@@ -1,3 +1,7 @@
+use std::collections::HashMap;
+
+use wasm_dylink::{ENV, GOT_FUNCTION, GOT_MEMORY, GOT_THREAD_LOCAL, short_symbol};
+
 pub const CUSTOM: u8 = 0;
 pub(crate) const IMPORT: u8 = 2;
 const GLOBAL: u8 = 6;
@@ -290,6 +294,82 @@ pub fn with_custom(bytes: &[u8], wanted: &str, payload: &[u8]) -> Vec<u8> {
     let mut out = bytes.to_vec();
     section(CUSTOM, &contents, &mut out);
     out
+}
+
+pub fn with_short_symbols(bytes: &[u8]) -> Result<Vec<u8>, String> {
+    let mut out = bytes[..HEADER].to_vec();
+    for current in sections(bytes)? {
+        match current.id {
+            IMPORT => section(IMPORT, &short_imports(current.contents)?, &mut out),
+            EXPORT => section(EXPORT, &short_exports(current.contents)?, &mut out),
+            id => section(id, current.contents, &mut out),
+        }
+    }
+    Ok(out)
+}
+
+fn short_imports(contents: &[u8]) -> Result<Vec<u8>, String> {
+    let mut reader = Reader::new(contents);
+    let count = reader.u32()?;
+    let mut out = Vec::with_capacity(contents.len());
+    unsigned(u64::from(count), &mut out);
+    for _ in 0..count {
+        let module = reader.name()?;
+        let symbol = reader.name()?;
+        name(&module, &mut out);
+        match module.as_str() {
+            ENV | GOT_FUNCTION | GOT_MEMORY | GOT_THREAD_LOCAL => {
+                name(&short_symbol(&symbol), &mut out);
+            }
+            _ => name(&symbol, &mut out),
+        }
+        let start = reader.at;
+        let kind = reader.byte()?;
+        match kind {
+            FUNCTION => {
+                reader.u32()?;
+            }
+            TABLE => {
+                reader.byte()?;
+                reader.limits()?;
+            }
+            MEMORY => reader.limits()?,
+            GLOBAL_KIND => {
+                reader.byte()?;
+                reader.byte()?;
+            }
+            TAG => {
+                reader.byte()?;
+                reader.u32()?;
+            }
+            other => return Err(format!("an import of an unknown kind {other}")),
+        }
+        out.extend_from_slice(&contents[start..reader.at]);
+    }
+    Ok(out)
+}
+
+fn short_exports(contents: &[u8]) -> Result<Vec<u8>, String> {
+    let mut reader = Reader::new(contents);
+    let count = reader.u32()?;
+    let mut out = Vec::with_capacity(contents.len());
+    unsigned(u64::from(count), &mut out);
+    let mut seen = HashMap::new();
+    for _ in 0..count {
+        let symbol = reader.name()?;
+        let short = short_symbol(&symbol);
+        if let Some(other) = seen.insert(short.clone().into_owned(), symbol.clone())
+            && other != symbol
+        {
+            return Err(format!("{other} and {symbol} are both exported as {short}"));
+        }
+        name(&short, &mut out);
+        let start = reader.at;
+        reader.byte()?;
+        reader.u32()?;
+        out.extend_from_slice(&contents[start..reader.at]);
+    }
+    Ok(out)
 }
 
 fn rank(id: u8) -> Option<usize> {

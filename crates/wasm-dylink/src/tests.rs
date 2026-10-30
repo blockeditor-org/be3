@@ -59,6 +59,7 @@ fn diamond() -> Vec<Described> {
 }
 
 mod a_library_that_is_not_what_it_is_named_is_refused;
+mod a_mangled_symbol_is_shortened_and_others_are_kept;
 mod a_missing_symbol_names_it_and_its_importer;
 mod a_plan_places_every_module_after_the_ones_it_needs;
 mod a_thread_local_slot_is_relative_to_the_importing_block;

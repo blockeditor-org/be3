@@ -209,6 +209,19 @@ pub fn check_tracked_read<T: ?Sized>() {
 }
 
 pub(crate) fn probe<T>(memo: bool, f: impl FnOnce() -> T) -> Probed<T> {
+    let mut f = Some(f);
+    let mut value = None;
+    let probe = probe_erased(memo, &mut || {
+        value = Some(f.take().expect("a probe runs its function once")());
+    });
+    Probed {
+        value: value.expect("the probe ran its function"),
+        read: probe.read,
+        owner: probe.owner,
+    }
+}
+
+fn probe_erased(memo: bool, f: &mut dyn FnMut()) -> Probe {
     let parent = Rc::downgrade(&crate::scope::current_owner());
     let memo_depth = RUNTIME.with(|runtime| runtime.memo_depth.get());
     let _memo_depth = Reset::set(
@@ -228,24 +241,16 @@ pub(crate) fn probe<T>(memo: bool, f: impl FnOnce() -> T) -> Probed<T> {
                 owner: None,
             }))
         });
-        let value = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)) {
-            Ok(value) => value,
-            Err(panic) => {
-                let owner = RUNTIME.with(|runtime| runtime.probe.take()?.owner);
-                if let Some(owner) = owner {
-                    owner.dispose();
-                }
-                std::panic::resume_unwind(panic);
+        if let Err(panic) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)) {
+            let owner = RUNTIME.with(|runtime| runtime.probe.take()?.owner);
+            if let Some(owner) = owner {
+                owner.dispose();
             }
-        };
-        let probe = RUNTIME
-            .with(|runtime| runtime.probe.take())
-            .expect("the probe is still running");
-        Probed {
-            value,
-            read: probe.read,
-            owner: probe.owner,
+            std::panic::resume_unwind(panic);
         }
+        RUNTIME
+            .with(|runtime| runtime.probe.take())
+            .expect("the probe is still running")
     })
 }
 

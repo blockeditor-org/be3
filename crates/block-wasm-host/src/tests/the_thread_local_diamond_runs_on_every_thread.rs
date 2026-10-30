@@ -17,9 +17,12 @@ fn the_thread_local_diamond_runs_on_every_thread() {
         .filter(|import| import.module() == "GOT.tls")
         .map(|import| import.name())
         .collect();
-    for local in ["BASE", "LEFT", "RIGHT"] {
+    for (local, library) in [("BASE", BASE), ("LEFT", LEFT), ("RIGHT", RIGHT)] {
+        let library = wasmtime::Module::new(&engine, library).unwrap();
         assert!(
-            reached.iter().any(|name| name.contains(local)),
+            library
+                .exports()
+                .any(|export| reached.contains(&export.name())),
             "the plugin reaches {local} without GOT.tls: {reached:?}"
         );
     }
