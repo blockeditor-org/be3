@@ -612,7 +612,6 @@ fn RowGlyph(row: Memo<Option<Row>>) -> Children<ListChild> {
     let glyph_size = glyph_size();
     let glyph_color = create_memo(move || {
         row.get()
-            .filter(|row| !row.is_workspace())
             .and_then(|row| row.icon_color)
             .map_or(TextColor::Muted, |[r, g, b]| {
                 TextColor::Custom(Color32::from_rgb(r, g, b).into())
