@@ -122,27 +122,27 @@ pub(super) fn ProgramSearch(
     });
     view! {
         <List spacing=Space::Sm>
-        <SearchList
-            items
-            score
-            query
-            columns
-            focused
-            list_height=RESULTS_HEIGHT
-            placeholder="Search programs, or type a command"
-            label="Search programs"
-            id="desktop.apps"
-            on_choose={move |key: String| {
-                programs.choose(key);
-                close.call(());
-            }}
-        />
-        <Show condition={waiting}>
-            <Text style=TextStyle::CAPTION>"Loading programs…"</Text>
-        </Show>
-        <Show condition={none}>
-            <Text style=TextStyle::CAPTION>"No programs found."</Text>
-        </Show>
+            <SearchList
+                items
+                score
+                query
+                columns
+                focused
+                list_height=RESULTS_HEIGHT
+                placeholder="Search programs, or type a command"
+                label="Search programs"
+                id="desktop.apps"
+                on_choose={move |key: String| {
+                    programs.choose(key);
+                    close.call(());
+                }}
+            />
+            <Show condition={waiting}>
+                <Text style=TextStyle::CAPTION>"Loading programs…"</Text>
+            </Show>
+            <Show condition={none}>
+                <Text style=TextStyle::CAPTION>"No programs found."</Text>
+            </Show>
         </List>
     }
 }

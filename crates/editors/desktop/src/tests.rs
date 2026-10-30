@@ -11,9 +11,9 @@ use block_editor_beui::{
     HostDisplay, HostImage, HostProgram, HostWindow, HostWindowId, IncomingNotification,
     MediaLevel, MediaLevels, MediaRequest, MediaWatch, NotificationInbox, NotificationRequest,
     NotificationSignal, NotificationsWatch, OwnedEditor, PlayerCommand, PowerAction,
-    PowerAvailability, PowerWatch, ProgramAction, ProgramCatalog, ProgramsWatch, WifiLink, WifiNetwork,
-    WifiRequest, WifiSecurity, WifiStatus, WifiWatch, WindowAction, WindowKind, WindowOrigin,
-    WindowsWatch,
+    PowerAvailability, PowerWatch, ProgramAction, ProgramCatalog, ProgramsWatch, WifiLink,
+    WifiNetwork, WifiRequest, WifiSecurity, WifiStatus, WifiWatch, WindowAction, WindowKind,
+    WindowOrigin, WindowsWatch,
 };
 
 use block_editor_beui::be_block::{EditorView, EditorViewContent};
