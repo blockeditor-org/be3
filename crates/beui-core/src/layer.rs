@@ -843,13 +843,18 @@ impl Document {
         window: WindowId,
         painted: bool,
     ) -> impl Iterator<Item = (NodeId, Rect)> + '_ {
-        self.above_embeds
+        let mut found: Vec<(Vec<usize>, NodeId, Rect)> = self
+            .above_embeds
             .iter()
             .filter(move |(_, above)| !painted || **above == AboveEmbeds::Paints)
             .filter(|(node, _)| self.arena.contains(**node))
             .filter(move |(node, _)| self.window_of(**node) == window)
             .filter_map(|(node, _)| Some((*node, self.node_rect(*node)?)))
             .filter(|(_, rect)| rect.is_positive())
+            .map(|(node, rect)| (self.paint_order(node), node, rect))
+            .collect();
+        found.sort_by(|(left, ..), (right, ..)| left.cmp(right));
+        found.into_iter().map(|(_, node, rect)| (node, rect))
     }
 
     pub fn set_kept_clear(&mut self, node: NodeId, rects: Option<Vec<Rect>>) {
@@ -860,9 +865,16 @@ impl Document {
     }
 
     pub fn kept_clear(&self, window: WindowId) -> Vec<Rect> {
-        self.clear_of
+        let mut nodes: Vec<(Vec<usize>, &NodeId, &Vec<Rect>)> = self
+            .clear_of
             .iter()
             .filter(|(node, _)| self.arena.contains(**node) && self.window_of(**node) == window)
+            .map(|(node, rects)| (self.paint_order(*node), node, rects))
+            .collect();
+        nodes.sort_by(|(left, ..), (right, ..)| left.cmp(right));
+        nodes
+            .into_iter()
+            .map(|(_, node, rects)| (node, rects))
             .filter_map(|(node, rects)| Some((self.node_rect(*node)?, rects)))
             .flat_map(|(at, rects)| {
                 rects
