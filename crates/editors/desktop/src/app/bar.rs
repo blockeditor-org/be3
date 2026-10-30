@@ -12,8 +12,8 @@ use block_editor_beui::{
 };
 use block_shell::Workspace;
 
-use super::clock::ClockButton;
 use super::apps::{Apps, AppsButton};
+use super::clock::ClockButton;
 use super::notifications::DesktopNotifications;
 use super::placeholders::{OpenAllButton, Placeholders};
 use super::rotate::RotateButton;
