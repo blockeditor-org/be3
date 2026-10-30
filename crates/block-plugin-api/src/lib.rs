@@ -90,8 +90,8 @@ pub use types::{
 };
 pub use types::{MenuCheck, MenuCommand, MenuHeading, MenuItem, MenuItemKind, MenuPin};
 pub use types::{
-    ViewRef, WindowEdge, WindowOpen, WindowOver, WindowPlacement, WindowRequest, WindowResize,
-    WindowResizeBegin,
+    ViewRef, WindowEdge, WindowOpen, WindowOver, WindowPlace, WindowPlacement, WindowRequest,
+    WindowResize, WindowResizeBegin,
 };
 
 pub use account::HostPreferenceSources;

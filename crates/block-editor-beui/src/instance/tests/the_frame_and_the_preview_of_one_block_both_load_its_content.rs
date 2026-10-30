@@ -65,6 +65,7 @@ fn screen(shown: View, screen: u32) -> (ScreenPlacement, ScreenRequest) {
         frame: shown.is_main().then(FrameSpec::default),
         windows: false,
         host_place: None,
+        origin: None,
         docked: false,
         anchor_space: None,
     };

@@ -73,6 +73,7 @@ fn frame(session: &mut EditorSession, content: Option<Rect>, top_bar: TopBar) {
             }),
             windows: false,
             host_place: None,
+            origin: None,
             docked: false,
             anchor_space: None,
         }],
@@ -110,6 +111,7 @@ fn dock_screen(shown: View, screen: u64, docked: bool) -> (ScreenPlacement, Scre
         frame: shown.is_main().then(FrameSpec::default),
         windows: false,
         host_place: None,
+        origin: None,
         docked: docked && shown.is_main(),
         anchor_space: None,
     };

@@ -153,6 +153,7 @@ impl Desk {
                 },
                 windows: true,
                 host_place: None,
+                origin: Some(display.rect.min),
                 docked: false,
                 anchor_space: None,
             });
@@ -165,6 +166,7 @@ impl Desk {
             frame: None,
             windows: true,
             host_place: Some(placement(window.rect)),
+            origin: Some(window.rect.min),
             docked: false,
             anchor_space: None,
         });
@@ -177,16 +179,7 @@ impl Desk {
         };
         match request {
             WindowRequest::Open(open) => {
-                let origin = match open.placement {
-                    WindowPlacement::Over(over) => {
-                        let screen = self.view_screen(over.view.view);
-                        screen.map_or(Pos2::ZERO, |screen| self.origin(screen)) + over.at.to_vec2()
-                    }
-                    WindowPlacement::Host(placement) => {
-                        read(&placement).unwrap_or(self.pointer - OPEN_GRAB)
-                    }
-                    WindowPlacement::AtPointer => self.pointer - OPEN_GRAB,
-                };
+                let origin = self.point_of(open.placement);
                 let rect = Rect::from_min_size(origin, vec2(open.size.width, open.size.height));
                 match find(&self.windows, open.view) {
                     Some(index) => self.windows[index].rect = rect,
@@ -230,6 +223,24 @@ impl Desk {
                     self.windows.remove(index);
                 }
             }
+            WindowRequest::Place(place) => {
+                let origin = self.point_of(place.placement);
+                if let Some(index) = find(&self.windows, place.view) {
+                    let held = &mut self.windows[index];
+                    held.rect = Rect::from_min_size(origin, held.rect.size());
+                }
+            }
+        }
+    }
+
+    fn point_of(&self, placement: WindowPlacement) -> Pos2 {
+        match placement {
+            WindowPlacement::Over(over) => {
+                let screen = self.view_screen(over.view.view);
+                screen.map_or(Pos2::ZERO, |screen| self.origin(screen)) + over.at.to_vec2()
+            }
+            WindowPlacement::Host(placement) => read(&placement).unwrap_or(self.pointer - OPEN_GRAB),
+            WindowPlacement::AtPointer => self.pointer - OPEN_GRAB,
         }
     }
 

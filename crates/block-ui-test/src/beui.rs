@@ -466,6 +466,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                 frame: self.frame,
                 windows: false,
                 host_place: None,
+                origin: None,
                 docked: self.docked,
                 anchor_space: None,
             }]

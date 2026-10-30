@@ -6,7 +6,7 @@ use block_plugin_api::{
     AnchorSpace, AnchoredPlacement, EditorInstanceId, FrameChrome, FrameSpec, TimedInput, View,
     ViewId, ViewRef, WindowRequests,
 };
-use geometry::{Rect, Vec2};
+use geometry::{Pos2, Rect, Vec2};
 use uuid::Uuid;
 
 use crate::{Artifact, EditorHost};
@@ -111,6 +111,7 @@ pub struct ShownView {
     pub docked: bool,
     pub host_place: Option<String>,
     pub anchor_space: Option<AnchorSpace>,
+    pub origin: Option<Pos2>,
 }
 
 impl ShownView {

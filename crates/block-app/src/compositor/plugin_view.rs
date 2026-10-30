@@ -232,6 +232,12 @@ pub(crate) fn PluginView(
     };
     let floated_rect = floated_key.clone().map(super::desktop::rect_of);
     let floated_placement = floated_key.clone().map(super::desktop::placement_memo);
+    let floated_origin = floated_key.clone().map(super::desktop::origin_memo);
+    let origin = create_memo(move || match floated_origin {
+        Some(origin) => origin.get(),
+        None if shows_desktop => Some(place.map_or(Pos2::ZERO, |place| place.display.get().min)),
+        None => None,
+    });
     let desktop_editor = store(editor.clone());
     let name = editor.plugin.identity.name.clone();
     let crash_id = format!("{plugin_id}.{}.{}.crashed", instance.0, region.id.0);
@@ -308,6 +314,7 @@ pub(crate) fn PluginView(
                 windows: hosts_windows || windowed,
                 placement: stored_key
                     .with(|key| key.as_ref().and_then(super::desktop::placement_of)),
+                origin: origin.get_untracked(),
                 anchor_bounds: (!offscreen && !region.is_preview())
                     .then(|| anchor_bounds.get_untracked()),
             },
@@ -339,13 +346,13 @@ pub(crate) fn PluginView(
         let _ = zoom.get();
         let _ = floated_rect.map(|rect| rect.get());
         let _ = floated_placement.map(|placement| placement.get());
+        let _ = origin.get();
         let _ = anchor_bounds.get();
         placer.call(placed.with(Cell::get));
     });
     if shows_desktop {
-        let origin = create_memo(move || place.map_or(Pos2::ZERO, |place| place.display.get().min));
         create_effect(move || {
-            let origin = origin.get();
+            let origin = origin.get().unwrap_or(Pos2::ZERO);
             untrack(|| {
                 super::desktop::note_origin(&plugin_id.value(), instance, region.id, origin)
             });

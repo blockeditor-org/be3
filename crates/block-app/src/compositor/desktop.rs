@@ -294,19 +294,7 @@ pub(crate) fn apply() {
                     }),
                     (panel, _) => panel,
                 };
-                let origin = match open.placement {
-                    WindowPlacement::Over(over) => point_in(
-                        &plugin,
-                        over.view.instance,
-                        over.view.view,
-                        over.at,
-                        &windows,
-                    ),
-                    WindowPlacement::Host(placement) => {
-                        read_placement(&placement).unwrap_or_else(|| POINTER.get() - OPEN_GRAB)
-                    }
-                    WindowPlacement::AtPointer => POINTER.get() - OPEN_GRAB,
-                };
+                let origin = origin_of(&plugin, open.placement, &windows);
                 let opener = windows
                     .iter()
                     .find(|held| held.key.plugin == plugin && held.key.window == open.opener.view);
@@ -377,6 +365,15 @@ pub(crate) fn apply() {
                     windows.remove(index);
                 }
             }
+            WindowRequest::Place(place) => {
+                let origin = origin_of(&plugin, place.placement, &windows);
+                if let Some(index) = find(&windows, place.view)
+                    && windows[index].panel.is_none()
+                {
+                    let held = &mut windows[index];
+                    held.rect = Rect::from_min_size(origin, held.rect.size());
+                }
+            }
         }
     }
     if floated.with_untracked(|held| *held != windows) {
@@ -385,6 +382,18 @@ pub(crate) fn apply() {
     if let Some(mut gesture) = gesture {
         gesture.began_on = owner_index(&gesture.key);
         gesture_signal().set(Some(gesture));
+    }
+}
+
+fn origin_of(plugin: &str, placement: WindowPlacement, windows: &[Floated]) -> Pos2 {
+    match placement {
+        WindowPlacement::Over(over) => {
+            point_in(plugin, over.view.instance, over.view.view, over.at, windows)
+        }
+        WindowPlacement::Host(placement) => {
+            read_placement(&placement).unwrap_or_else(|| POINTER.get() - OPEN_GRAB)
+        }
+        WindowPlacement::AtPointer => POINTER.get() - OPEN_GRAB,
     }
 }
 
@@ -646,6 +655,17 @@ pub(crate) fn placement_memo(key: FloatedKey) -> Memo<Option<String>> {
             held.iter()
                 .find(|window| window.key == key)
                 .and_then(Floated::placement)
+        })
+    })
+}
+
+pub(crate) fn origin_memo(key: FloatedKey) -> Memo<Option<Pos2>> {
+    let floated = floated();
+    create_memo(move || {
+        floated.with(|held| {
+            held.iter()
+                .find(|window| window.key == key && window.panel.is_none())
+                .map(|window| window.rect.min)
         })
     })
 }

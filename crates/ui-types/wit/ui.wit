@@ -351,8 +351,15 @@ interface types {
         size: vec2,
     }
 
+    record window-request-place {
+        window: window-id,
+        placement: window-placement,
+    }
+
     /// What an app asks of the host that shows its windows. `raise` puts a
     /// window in front of the app's others, as when it takes the focus.
+    /// `place` moves an open window to where its placement says, as `open`
+    /// would have put it, keeping its size.
     variant window-request {
         open(window-request-open),
         begin-move(window-id),
@@ -360,6 +367,7 @@ interface types {
         begin-resize(window-request-begin-resize),
         resize(window-request-resize),
         close(window-id),
+        place(window-request-place),
     }
 
     record window-report-resized {

@@ -102,6 +102,7 @@ struct ViewState {
     docked: bool,
     view_placement: Option<ViewPlacement>,
     host_place: Option<String>,
+    origin: Option<Pos2>,
     anchor_space: Option<AnchorSpace>,
     anchored: Option<AnchoredPlacement>,
 }
@@ -400,6 +401,7 @@ impl EditorSession {
             state.docked = request.docked;
             state.view_placement = Some(request.placement);
             state.host_place.clone_from(&request.host_place);
+            state.origin = request.origin;
             state.anchor_space.clone_from(&request.anchor_space);
         }
     }
@@ -820,6 +822,7 @@ impl EditorSession {
             docked: state.is_some_and(|state| state.docked),
             host_place: state.and_then(|state| state.host_place.clone()),
             anchor_space: state.and_then(|state| state.anchor_space.clone()),
+            origin: state.and_then(|state| state.origin),
         }
     }
 

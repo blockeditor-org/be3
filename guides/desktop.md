@@ -153,7 +153,16 @@ its window view placed at its rect less the display's corner, whose children are
 windows and block editors the shell placed in it. A window opens where the plugin asked: at a
 point of the view it opened from (`Over`, measured from that view's corner on the desktop),
 at the pointer, or at the `placement` it kept (`desktop X Y`); the host answers with that
-placement on the window's screen request, which the dock keeps. `BeginMove` and `BeginResize`
+placement on the window's screen request, which the dock keeps. Every screen request of the shell's
+frame, display and window views also carries the view's `origin`, its top-left corner in desktop
+points, asked again whenever it changes; beui-platform-plugin reports it as each window's
+`WindowReport::Moved`, and the dock keeps a window's rect (`DockingLayout::window_rect`, in its
+own window's points) from it, so it stays true after the host moves a window. A dock window whose
+rect the dock changes itself (`DockingLayout::move_window`) asks the host for its new place with
+the protocol's `place` window request (beui's `WindowRequest::Place`, an `Over` its home view).
+The Windows bar on each display lists the windows mostly on that display, and a chip's menu
+offers "Move to display N" (`<chip>.display.<n>`, `app/windows.rs`), which keeps the window's size
+and its relative place on the display, held inside it. `BeginMove` and `BeginResize`
 hand the press to the host: the window follows the pointer from where it was pressed (the
 press's point and the window's rect are noted on the press, `desktop::follow`), the plugin sees
 no moves meanwhile, and the release ends it and gives the new placement. In the app's own window (`OverlaidWindows`, no desktop) a window the user has moved is kept where its top-left corner, its left 96 points and the point it was held by stay in view (`desktop::reachable`), pulled past that it stretches like a rubber band and springs back when let go (`desktop::carried`), and one never moved is kept inside the app, shrinking rather than covering what opened it (`desktop::clamped`). While one moves it is

@@ -298,6 +298,7 @@ fn place_layered(instances: &mut Instances, origin: Pos2, bounds: Rect) {
         1.0,
         false,
         None,
+        None,
         Some(block_plugin_api::AnchorSpace {
             to_host: block_plugin_api::HostTransform {
                 origin,

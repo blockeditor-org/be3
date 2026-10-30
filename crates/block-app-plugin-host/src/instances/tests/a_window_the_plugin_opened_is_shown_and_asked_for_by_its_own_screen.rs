@@ -82,6 +82,7 @@ fn a_window_the_plugin_opened_is_shown_and_asked_for_by_its_own_screen() {
         true,
         None,
         None,
+        None,
     );
     let asked = instances.next_screens(PASS).screens;
     assert!(

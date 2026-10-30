@@ -231,7 +231,11 @@ interface types {
     /// (`dock-message.declare`) and draws no chrome, and the host shows each
     /// of its tabs' bodies as a view placed by the dock. `anchor-space` is where
     /// the view may anchor views of its own (`frame-report.anchored`),
-    /// `none` where it may anchor none.
+    /// `none` where it may anchor none. `origin` is where the host shows the
+    /// view's top-left corner in the one space it places the plugin's windows
+    /// and views in (a desktop's points), for a window and for each view its
+    /// windows open from; `none` where the host does not say. The host asks
+    /// again when it changes, as when the user has moved a window.
     record screen-request {
         screen: screen-id,
         instance: editor-instance-id,
@@ -243,6 +247,7 @@ interface types {
         host-place: option<string>,
         docked: bool,
         anchor-space: option<anchor-space>,
+        origin: option<pos2>,
     }
 
     /// Maps a view's logical points to the app window's (host
@@ -632,11 +637,19 @@ interface types {
         size: size,
     }
 
+    /// Moves an open window, keeping its size, to where `placement` says, as
+    /// `open` would have put it there.
+    record window-place {
+        view: view-id,
+        placement: window-placement,
+    }
+
     /// What the plugin asks of the host about a window it shows: to open it
     /// (as a view of the instance it opened from, which the host places and
     /// shows from the screen the plugin opened it with),
     /// move or resize it with the pointer as a window manager does, raise it
-    /// in front of the plugin's others, give it another size, or close it.
+    /// in front of the plugin's others, give it another size, put it
+    /// somewhere else, or close it.
     /// The host answers through the window's screen: its size and scale, its
     /// `host-place`, focus as input, and closing as the screen going.
     variant window-request {
@@ -646,6 +659,7 @@ interface types {
         begin-resize(window-resize-begin),
         resize(window-resize),
         close(view-id),
+        place(window-place),
     }
 
     /// What a plugin drew: the frame the host composites, with what each

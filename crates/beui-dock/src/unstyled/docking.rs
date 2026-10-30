@@ -16,7 +16,7 @@ use beui_view::types::Color;
 use beui_view::types::Direction;
 use beui_view::types::Image;
 use beui_view::types::Modifiers;
-use beui_view::types::{Rect, Vec2};
+use beui_view::types::{Pos2, Rect, Vec2};
 use serde::{Deserialize, Serialize};
 
 use super::dialog::{DialogParts, DockDialogHandle};
@@ -363,6 +363,7 @@ pub struct DockingLayout<K: 'static> {
     mode: Signal<DockMode>,
     restores: Signal<u64>,
     covers: Signal<BarCovers>,
+    area: Signal<Rect>,
     inner: Stored<LayoutInner<K>>,
 }
 
@@ -428,6 +429,7 @@ impl<K: DockKey> DockingLayout<K> {
         let hosted = create_signal(None);
         let bars_hosted = create_signal(None);
         let covers = create_signal(BarCovers::default());
+        let area = create_signal(Rect::ZERO);
         let registry = Rc::new(Registry {
             covers,
             version: create_signal(0),
@@ -456,6 +458,7 @@ impl<K: DockKey> DockingLayout<K> {
             mode,
             restores,
             covers,
+            area,
             inner,
         };
         (layout, inner)
@@ -633,11 +636,28 @@ impl<K: DockKey> DockingLayout<K> {
     }
 
     pub fn window_rect(&self, key: &K) -> Option<Rect> {
-        let tab = self.tab_of(key)?;
-        self.state.with(|state| {
+        let rect = self.state.with(|state| {
+            let tab = self.tab_of(key)?;
             let surface = state.find(standing_in(state, tab))?.surface;
             state.window_rect(surface)
-        })
+        })?;
+        Some(rect.translate(self.area.get().min.to_vec2()))
+    }
+
+    pub fn move_window(&self, key: &K, to: Pos2) {
+        let Some(tab) = self.tab_of(key) else {
+            return;
+        };
+        let at = to - self.area.get_untracked().min.to_vec2();
+        self.state.update(|state| {
+            let Some(surface) = state.find(standing_in(state, tab)).map(|found| found.surface)
+            else {
+                return;
+            };
+            if let Some(rect) = state.window_rect(surface) {
+                state.set_window_rect(surface, Rect::from_min_size(at, rect.size()));
+            }
+        });
     }
 
     fn outermost(&self, tab: TabId) -> TabId {
@@ -1808,6 +1828,7 @@ where
                 bar_target,
                 bar_band,
                 covers: layout.covers,
+                area: layout.area,
                 bars_away: create_memo(move || bars_hosted.with(Option::is_some)),
                 bar_key: Func::new(move |bar: TabId| found.with(|found| found.bar_key(bar))),
             }}

@@ -6,7 +6,7 @@ use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::button::ButtonFace;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled;
-use block_editor_beui::beui::{Align, Direction, ItemSize, NodeId, Rect};
+use block_editor_beui::beui::{Align, Direction, ItemSize, NodeId, Pos2, Rect, Vec2};
 use block_editor_beui::desktop;
 use block_editor_beui::{DisplaysWatch, HostWindow, HostWindowId, WindowAction, WindowKind};
 use block_shell::{Workspace, window_picture, window_title};
@@ -58,6 +58,24 @@ pub(crate) fn holder(window: Option<Rect>, displays: &[Rect]) -> u32 {
         }
     }
     best.0
+}
+
+pub(crate) fn moved_onto(window: Rect, from: Rect, to: Rect) -> Pos2 {
+    let along = |offset: f32, length: f32| match length > 0.0 {
+        true => offset / length,
+        false => 0.0,
+    };
+    let offset = window.min - from.min;
+    let wanted = to.min
+        + Vec2::new(
+            along(offset.x, from.width()) * to.width(),
+            along(offset.y, from.height()) * to.height(),
+        );
+    let room = to.max - window.size();
+    Pos2::new(
+        wanted.x.min(room.x).max(to.min.x),
+        wanted.y.min(room.y).max(to.min.y),
+    )
 }
 
 #[derive(Clone, Copy)]
@@ -142,6 +160,42 @@ impl DeskWindows {
             false => None,
         };
         self.displays.with(|displays| holder(rect, displays))
+    }
+
+    fn targets(&self, chip: ChipKey) -> Memo<Vec<u32>> {
+        let windows = *self;
+        create_memo(move || {
+            let count = windows.displays.with(Vec::len) as u32;
+            let floating = windows.shown(chip)
+                && windows
+                    .workspace
+                    .layout()
+                    .window_rect(&windows.tab(chip))
+                    .is_some();
+            if count < 2 || !floating {
+                return Vec::new();
+            }
+            let own = windows.display_of(chip);
+            (0..count).filter(|display| *display != own).collect()
+        })
+    }
+
+    fn move_to(&self, chip: ChipKey, display: u32) {
+        let layout = self.workspace.layout();
+        let tab = self.tab(chip);
+        let Some(rect) = untrack(|| layout.window_rect(&tab)) else {
+            return;
+        };
+        let from = untrack(|| self.display_of(chip));
+        let placed = self.displays.with_untracked(|displays| {
+            let first = displays.first()?.min.to_vec2();
+            let from = *displays.get(from as usize)?;
+            let to = *displays.get(display as usize)?;
+            Some(moved_onto(rect.translate(first), from, to) - first)
+        });
+        if let Some(placed) = placed {
+            layout.move_window(&tab, placed);
+        }
     }
 
     fn tab(&self, chip: ChipKey) -> TabId {
@@ -347,6 +401,8 @@ fn WindowChip(windows: DeskWindows, chip: ChipKey, vertical: Memo<bool>) -> Node
     });
     let prefix = chip.test_id();
     let close_id = format!("{prefix}.close");
+    let targets = windows.targets(chip);
+    let display_prefix = prefix.clone();
     view! {
         <ContextMenu
             items={view! {
@@ -359,6 +415,14 @@ fn WindowChip(windows: DeskWindows, chip: ChipKey, vertical: Memo<bool>) -> Node
                         false => windows.show(chip),
                     }}
                 />
+                <ForEach keys={targets}>|target: u32|
+                    <MenuItem
+                        label={format!("Move to display {}", target + 1)}
+                        glyph=ICON_MONITOR
+                        row_test_id={format!("{display_prefix}.display.{target}")}
+                        on_click={move || windows.move_to(chip, target)}
+                    />
+                </ForEach>
                 <Show condition={closable}>
                     <MenuItem
                         label="Close"

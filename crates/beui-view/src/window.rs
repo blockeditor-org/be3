@@ -72,6 +72,13 @@ impl WindowHandle {
     pub fn close(self) -> bool {
         crate::core::request_window(WindowRequest::Close(self.id))
     }
+
+    pub fn place(self, placement: WindowPlacement) -> bool {
+        crate::core::request_window(WindowRequest::Place {
+            window: self.id,
+            placement,
+        })
+    }
 }
 
 fn provided(handle: WindowHandle, content: RenderFn<WindowHandle>) -> NodeId {
@@ -159,4 +166,8 @@ pub fn Window(
 
 pub fn opens_windows() -> crate::reactive::ReadSignal<bool> {
     crate::core::window::opens_windows()
+}
+
+pub fn window_origin(window: WindowId) -> Option<Pos2> {
+    crate::core::window::window_origin(window)
 }

@@ -457,12 +457,15 @@ host gave says). A window is always a window of its own; what points back to
 where it came from (a menu, a picker, a popover) is an anchored view. The host shows the window from that
 screen in the frame that commits it, where the placement says, moved back
 inside its bounds, and from then on asks for the view with that same screen,
-placed by the host, whose size, scale and `host-place` are the host's answer,
+placed by the host, whose size, scale, `host-place` and `origin` (its corner
+in the one space the host places the plugin's windows and views in, sent too for
+the views windows open from) are the host's answer,
 whose focus arrives as input, and whose going away closes it; the plugin
 draws the screen as it opened it until the host's screens name it or it
 closes the window. The other requests, `begin-move` and `begin-resize`, which
-hand the pointer to the host until the press is let go, `raise`, `resize`
-and `close`, each name the window's view. block-app says `windows` for every
+hand the pointer to the host until the press is let go, `raise`, `resize`,
+`place` (put it, at the size it has, where a placement says) and `close`, each
+name the window's view. block-app says `windows` for every
 main view it shows and, where it opens no windows of its own, draws each one
 over its own window at the point asked for, moved back inside it, or shrunk
 to the room below that point when there is enough. Without `windows` the plugin draws its

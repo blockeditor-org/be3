@@ -788,6 +788,7 @@ fn anchored_request(
         frame: None,
         windows: false,
         host_place: None,
+        origin: None,
         docked: false,
         anchor_space: Some(AnchorSpace {
             to_host: HostTransform {
@@ -830,6 +831,7 @@ fn opened_window(region: &ShownView, view: ViewId, screen: ScreenId, size: Size)
         frame: None,
         windows: true,
         host_place: None,
+        origin: None,
         docked: false,
         anchor_space: None,
     }

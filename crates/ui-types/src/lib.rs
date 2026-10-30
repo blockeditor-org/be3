@@ -25,7 +25,7 @@ be_ops_bindgen::generate!({
         "back-gesture-started", "ime-event-replace-text", "ime-event-delete-surrounding",
         "ime-event-set-selection", "keyboard-shown", "input-pointer-button", "input-touch",
         "input-pen", "input-intercepted-key", "window-placement-over", "window-request-open",
-        "window-request-begin-resize", "window-request-resize", "window-report-resized",
+        "window-request-begin-resize", "window-request-resize", "window-request-place", "window-report-resized",
         "window-report-placed", "window-report-rastered", "window-report-moved",
         "window-report-focused",
     ],

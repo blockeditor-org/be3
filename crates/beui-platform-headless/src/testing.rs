@@ -242,7 +242,8 @@ impl Layer for TestHost {
                 WindowRequest::Resize { window, size } => windows.resized(*window, *size),
                 WindowRequest::BeginMove(_)
                 | WindowRequest::BeginResize { .. }
-                | WindowRequest::Raise(_) => {}
+                | WindowRequest::Raise(_)
+                | WindowRequest::Place { .. } => {}
             }
         }
         for window in shown.windows.iter().filter(|window| !window.id.is_main()) {

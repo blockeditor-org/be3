@@ -12,7 +12,7 @@ use std::task::{Context as TaskContext, Poll, Waker as TaskWaker};
 use beui_core::app::{App, SafeArea, Setup, Waker};
 use beui_core::context::{Context, FrameOutput};
 use beui_core::document::Document;
-use beui_core::geometry::{Rect, Vec2, vec2};
+use beui_core::geometry::{Pos2, Rect, Vec2, vec2};
 use beui_core::window::{
     HostPlacement, WindowEdge, WindowHosting, WindowId, WindowPlacement, WindowReport,
     WindowRequest, WindowRequests, WindowState,
@@ -74,6 +74,7 @@ impl Platform for PluginPlatform {
                 surfaces: HashMap::default(),
                 windows: HashMap::default(),
                 sized: HashMap::default(),
+                origins: HashMap::default(),
                 described: Vec::new(),
                 focused: HashSet::default(),
                 active: None,
@@ -159,6 +160,7 @@ struct ModuleRunner {
     surfaces: HashMap<ViewRef, Surface>,
     windows: HashMap<ViewRef, WindowId>,
     sized: HashMap<WindowId, (Vec2, f32)>,
+    origins: HashMap<WindowId, Pos2>,
     described: Vec<(ViewRef, u64)>,
     focused: HashSet<ViewRef>,
     active: Option<ViewRef>,
@@ -229,6 +231,7 @@ impl ModuleRunner {
         self.toggles.retain(|id, _| shown(id));
         let windows: HashSet<WindowId> = self.windows.values().copied().collect();
         self.sized.retain(|window, _| windows.contains(window));
+        self.origins.retain(|window, _| windows.contains(window));
         self.escaped.retain(|id, _| shown(id));
         self.placements = regions
             .iter()
@@ -252,6 +255,13 @@ impl ModuleRunner {
                         window,
                         pixels_per_point: sized.1,
                     }));
+                }
+                if let Some(origin) = region.origin {
+                    let origin = Pos2::ZERO + origin.to_vec2() * ratio;
+                    if self.origins.insert(window, origin) != Some(origin) {
+                        self.runner
+                            .push(Incoming::Window(WindowReport::Moved { window, origin }));
+                    }
                 }
             }
             let surface = self.surfaces.entry(id).or_default();
@@ -334,21 +344,7 @@ impl ModuleRunner {
                 let Some(opener) = opener else {
                     return;
                 };
-                let placement = match placement {
-                    WindowPlacement::AtPointer => block_plugin_api::WindowPlacement::AtPointer,
-                    WindowPlacement::Over { window: over, at } => match self.region_of(over) {
-                        Some(region) => {
-                            block_plugin_api::WindowPlacement::Over(block_plugin_api::WindowOver {
-                                view: region,
-                                at: beui_core::geometry::Pos2::new(at.x / ratio, at.y / ratio),
-                            })
-                        }
-                        None => block_plugin_api::WindowPlacement::AtPointer,
-                    },
-                    WindowPlacement::Host(HostPlacement(placement)) => {
-                        block_plugin_api::WindowPlacement::Host(placement)
-                    }
-                };
+                let placement = self.placement_of(placement, ratio);
                 let region = ViewRef {
                     instance: opener.instance,
                     view: window_view(window),
@@ -394,6 +390,38 @@ impl ModuleRunner {
             WindowRequest::Close(window) => {
                 self.push_ask(window, Ask::Close(window_view(window)));
                 self.floated.remove(&window);
+            }
+            WindowRequest::Place { window, placement } => {
+                let placement = self.placement_of(placement, ratio);
+                self.push_ask(
+                    window,
+                    Ask::Place(block_plugin_api::WindowPlace {
+                        view: window_view(window),
+                        placement,
+                    }),
+                );
+            }
+        }
+    }
+
+    fn placement_of(
+        &self,
+        placement: WindowPlacement,
+        ratio: f32,
+    ) -> block_plugin_api::WindowPlacement {
+        match placement {
+            WindowPlacement::AtPointer => block_plugin_api::WindowPlacement::AtPointer,
+            WindowPlacement::Over { window: over, at } => match self.region_of(over) {
+                Some(region) => {
+                    block_plugin_api::WindowPlacement::Over(block_plugin_api::WindowOver {
+                        view: region,
+                        at: Pos2::new(at.x / ratio, at.y / ratio),
+                    })
+                }
+                None => block_plugin_api::WindowPlacement::AtPointer,
+            },
+            WindowPlacement::Host(HostPlacement(placement)) => {
+                block_plugin_api::WindowPlacement::Host(placement)
             }
         }
     }

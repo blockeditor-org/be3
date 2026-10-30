@@ -48,7 +48,7 @@ use beui_view::types::{Area, Claim, HitRegion, TouchDrags};
 use beui_view::types::{CanvasArrangement, Direction, ItemSize};
 use beui_view::types::{CursorIcon, Key, KeyPress, Modifiers, PointerPress};
 use beui_view::types::{Pos2, Rect, Vec2, pos2, vec2};
-use beui_view::window::{Window, WindowHandle, opens_windows, use_window};
+use beui_view::window::{Window, WindowHandle, opens_windows, use_window, window_origin};
 
 pub(crate) use bars::BarCovers;
 use bars::{BarHolder, BarPanels, DockBarTargets, DockBarWindows, DockBarred};
@@ -1696,6 +1696,7 @@ pub(crate) struct DockConfig {
     pub(crate) window_border: f32,
     pub(crate) bar_margin: f32,
     pub(crate) covers: Signal<BarCovers>,
+    pub(crate) area: Signal<Rect>,
     pub(crate) bar_target: Option<RenderFn<DockBarTargetHandle>>,
     pub(crate) bar_band: Option<RenderFn<DockBarBandHandle>>,
     pub(crate) bars_away: Memo<bool>,
@@ -1752,10 +1753,10 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         bar_target,
         bar_band,
         covers,
+        area: dock_rect_held,
         bars_away,
         bar_key,
     } = config;
-    let dock_rect_held = create_signal(Rect::ZERO);
     let dock_rect = dock_rect_held.read_only();
     let outer_held = create_signal(Rect::ZERO);
     let outer = outer_held.read_only();
@@ -3523,6 +3524,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
     });
     let parent = dock.home();
     let placement = create_memo(move || dock.placement(surface, parent));
+    let shown_at = StoredCell::new(None::<Pos2>);
     let contents = create_memo(move || {
         state.with(|state| {
             state
@@ -3564,8 +3566,32 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
             placement={placement}
             title={window_title}
             notice={window_notice}
-            on_report={move |report: WindowReport| dock.window_reported(surface, report)}
+            on_report={move |report: WindowReport| {
+                if let WindowReport::Moved { origin, .. } = report
+                    && let Some(home) = window_origin(parent)
+                {
+                    let min = origin - home.to_vec2() + outset - area.get_untracked().min.to_vec2();
+                    shown_at.set(Some(min));
+                    dock.edit(|state| {
+                        if let Some(rect) = state.window_rect(surface) {
+                            state.set_window_rect(surface, Rect::from_min_size(min, rect.size()));
+                        }
+                    });
+                }
+                dock.window_reported(surface, report);
+            }}
         >|handle: WindowHandle| {
+            create_effect(move || {
+                let min = rect.get().min;
+                if !hosted.get() || shown_at.get().is_none_or(|shown| shown == min) {
+                    return;
+                }
+                shown_at.set(Some(min));
+                handle.place(WindowPlacement::Over {
+                    window: parent,
+                    at: area.get_untracked().min + min.to_vec2() - outset,
+                });
+            });
             let grabbed = StoredCell::new(None::<(Rect, Pos2)>);
             let resized = Callback::new(modifier_resize(dock, Resized::Window(surface, handle)));
             let catcher = NodeRef::new();

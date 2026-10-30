@@ -2082,6 +2082,7 @@ pub struct ViewPlace {
     pub raster: f32,
     pub windows: bool,
     pub placement: Option<String>,
+    pub origin: Option<Pos2>,
     pub anchor_bounds: Option<Rect>,
 }
 
@@ -2152,6 +2153,7 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: ViewI
         .map(|offer| offer.placement.raster);
     let windows = chosen.placement.windows;
     let host_placement = chosen.placement.placement.clone();
+    let origin = chosen.placement.origin;
     let anchor_bounds = chosen.placement.anchor_bounds;
     let frame = chosen.frame;
     let view = chosen.view;
@@ -2207,6 +2209,7 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: ViewI
         raster,
         windows,
         host_placement,
+        origin,
         anchor_space,
     );
     if let Some(view) = view {

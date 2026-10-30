@@ -90,7 +90,7 @@ pub(crate) fn DesktopBar(
             <Frame fill=ColorRole::Surface padding=BAR_PADDING @test_id={"desktop.bar"}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
                     <AppsButton apps display />
-                    <WindowChips @sizing=ItemSize::Percent(100.0) windows />
+                    <WindowChips @sizing=ItemSize::Percent(100.0) windows display />
                     <TrayItems editor={editor} />
                     <Show condition={epaper}>
                         <Button

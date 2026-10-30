@@ -3693,7 +3693,9 @@ hosted window, as a dock does when one of its windows takes the focus, so the ho
 stacks its windows as the document does; the host keeps the windows opened over it,
 its dialogs and popups, in front of it; the document sends a frame's requests for windows already open
 before the `Open`s of new ones, so a window opened in that frame ends up in front), `Resize { window, size }` (the app wants another size; the
-host answers with the size it gives) and `Close(window)`. A `WindowPlacement` is `AtPointer`,
+host answers with the size it gives), `Close(window)` and `Place { window, placement }` (move an open
+window, keeping its size, to where the placement says, as `Open` would have put it;
+`WindowHandle::place`; hosts that have nowhere to put it, a space, ignore it). A `WindowPlacement` is `AtPointer`,
 `Over { window, at }` (its top-left corner at `at` in that window's points, where
 the app would draw it inside that window), or `Host(HostPlacement)`: a value only the host
 understands (a screen position, a 3D pose), which the app stores and hands
@@ -3704,7 +3706,7 @@ space all the host's windows share, as beui-platform-drm's desktop is), `Closed(
 window focus, as a window manager moves it on a click or to a window it
 opens). The runner applies them before the frame
 lays out, and `Context::window_size`, `Context::window_placement` and
-`Context::window_origin` read them. `Context::window_hosting` says which windows a host opens, as a
+`Context::window_origin` read them (`beui::window::window_origin` in a component). `Context::window_hosting` says which windows a host opens, as a
 `WindowHosting`: `None` (every platform on its own: a window is shown inside
 the main one instead), `Any` (a layer opens every window, as space does) or `Placed`
 (the platform opens only the windows it placed itself: a `Window` opened with
