@@ -274,6 +274,7 @@ pub struct AccessibilityTree {
     pass: u64,
     focus: Option<AccessNodeId>,
     changed: Vec<SpaceId>,
+    orphaned: Vec<AccessNodeId>,
     inspected: bool,
     scale: Option<f32>,
 }
@@ -365,7 +366,9 @@ impl AccessibilityTree {
 
     pub fn forget(&mut self, id: NodeId, arena: &Arena) {
         self.mark(id, arena);
-        self.entries.remove(&id);
+        if let Some(entry) = self.entries.remove(&id) {
+            self.orphaned.extend_from_slice(entry.node.children());
+        }
         self.parents.remove(&id);
         self.marks.remove(&id);
         self.reached.remove(&id);
@@ -373,7 +376,9 @@ impl AccessibilityTree {
         self.detached.remove(&id);
         if !self.spaces.is_empty() {
             for slot in 1..SPACE_SLOTS {
-                self.spaces.remove(&SpaceId::inside(id, slot as u8));
+                if let Some((entry, _)) = self.spaces.remove(&SpaceId::inside(id, slot as u8)) {
+                    self.orphaned.extend_from_slice(entry.node.children());
+                }
             }
         }
     }
@@ -783,8 +788,13 @@ impl Document {
         };
         let mut top = Gathered::default();
         pass.visit(root, None, Frame::SCREEN, true, &mut top);
-        let (dropped, described, walked) = (pass.dropped, pass.described, pass.walked);
+        let (mut dropped, described, walked) = (pass.dropped, pass.described, pass.walked);
         self.work.note_described(described, walked);
+        dropped.extend(
+            std::mem::take(&mut tree.orphaned)
+                .into_iter()
+                .filter_map(|child| self.local_key(child)),
+        );
         tree.purge(self, dropped);
         tree.follow_moved_spaces(self);
         tree.pass = tree.pass.wrapping_add(1);

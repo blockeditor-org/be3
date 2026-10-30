@@ -3482,7 +3482,12 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
             let reach = reach();
             let walls = walls.get_untracked();
             let limit = |origin: Pos2| {
-                reachable_origin(Rect::from_min_size(origin, window.size()), bounds, reach, walls)
+                reachable_origin(
+                    Rect::from_min_size(origin, window.size()),
+                    bounds,
+                    reach,
+                    walls,
+                )
             };
             let banding = motion().animates();
             let mut origin = window.min;

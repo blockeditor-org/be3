@@ -4418,8 +4418,8 @@ fn BarsStage(layout: DockingLayout<u64>) -> NodeId {
         <Frame @test_id="bars.stage" fill=ColorRole::Background>
             <Frame padding=PAGE_PADDING align=Align::Center>
                 <List spacing=SECTION_SPACING>
-                <Text style=TextStyle::PARAGRAPH color=TextColor::Muted>
-                    "This page is a Docking of its own with a bare stage with two tool bars, a side \
+                    <Text style=TextStyle::PARAGRAPH color=TextColor::Muted>
+                        "This page is a Docking of its own with a bare stage with two tool bars, a side \
                      pane and three status bars of the whole dock. Drag a bar by its grip to float it over an edge of the stage, to dock it along an edge \
                      beside the stage, or away from the stage to pop it out into a window. Bars \
                      floating over one edge stack, bars docked along one edge share its band side \
@@ -4427,19 +4427,19 @@ fn BarsStage(layout: DockingLayout<u64>) -> NodeId {
                      grip's menu moves it without dragging, or hides it: a hidden bar takes no \
                      room until the button below shows it again. Bars floating over the whole \
                      dock and popped-out bars stay above its floating windows."
-                </Text>
-                <Show condition={hidden}>
-                    <Button
-                        @test_id="bars.show"
-                        label="Show hidden bars"
-                        glyph={Some(beui::icons::ICON_EYE)}
-                        on_click={move || {
-                            for bar in BARS {
-                                layout.show_bar(&bar);
-                            }
-                        }}
-                    />
-                </Show>
+                    </Text>
+                    <Show condition={hidden}>
+                        <Button
+                            @test_id="bars.show"
+                            label="Show hidden bars"
+                            glyph={Some(beui::icons::ICON_EYE)}
+                            on_click={move || {
+                                for bar in BARS {
+                                    layout.show_bar(&bar);
+                                }
+                            }}
+                        />
+                    </Show>
                 </List>
             </Frame>
         </Frame>

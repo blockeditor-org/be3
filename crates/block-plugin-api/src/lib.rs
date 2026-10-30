@@ -81,12 +81,13 @@ pub use types::{
 };
 pub use types::{BlockFilter, BlockLocation, BlockPick, OpenPicker, OpenRename, PickedBlock};
 pub use types::{
-    DockAlign, DockBar, DockBarEdge, DockBarHide, DockBarMove, DockBarPlace, DockBarPlacement, DockBarWindow,
-    DockChild, DockChildClose, DockChildHosted, DockChildPick, DockCover, DockDeclaration,
-    DockDeclare, DockDialog, DockDirection, DockDragStage, DockEdge, DockFullscreen, DockGroup,
-    DockHold, DockHome, DockHosted, DockItem, DockItemKind, DockLayout, DockMessage, DockOutside,
-    DockOutsidePane, DockOutsidePlace, DockPane, DockPlace, DockPlacedBar, DockRequest, DockSplit,
-    DockTab, DockTabPath, DockTree, DockViewRequest, DockWindow,
+    DockAlign, DockBar, DockBarEdge, DockBarHide, DockBarMove, DockBarPlace, DockBarPlacement,
+    DockBarWindow, DockChild, DockChildClose, DockChildHosted, DockChildPick, DockCover,
+    DockDeclaration, DockDeclare, DockDialog, DockDirection, DockDragStage, DockEdge,
+    DockFullscreen, DockGroup, DockHold, DockHome, DockHosted, DockItem, DockItemKind, DockLayout,
+    DockMessage, DockOutside, DockOutsidePane, DockOutsidePlace, DockPane, DockPlace,
+    DockPlacedBar, DockRequest, DockSplit, DockTab, DockTabPath, DockTree, DockViewRequest,
+    DockWindow,
 };
 pub use types::{MenuCheck, MenuCommand, MenuHeading, MenuItem, MenuItemKind, MenuPin};
 pub use types::{

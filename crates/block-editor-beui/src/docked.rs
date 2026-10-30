@@ -1611,9 +1611,7 @@ fn request_from_api(request: &api::DockRequest, paths: &mut Paths) -> Option<Doc
             paths.tab(&place.bar),
             place.placement.as_ref().map(placement_from_api),
         ),
-        api::DockRequest::HideBar(hide) => {
-            DockRequest::HideBar(paths.tab(&hide.bar), hide.hidden)
-        }
+        api::DockRequest::HideBar(hide) => DockRequest::HideBar(paths.tab(&hide.bar), hide.hidden),
         api::DockRequest::MoveBar(moved) => DockRequest::MoveBar(
             paths.tab(&moved.bar),
             DockBarMove {

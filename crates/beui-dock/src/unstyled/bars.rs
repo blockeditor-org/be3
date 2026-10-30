@@ -13,8 +13,7 @@ use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
 use beui_view::types::window::{WindowId, WindowPlacement, WindowReport};
 use beui_view::types::{
-    Align, Align2, Color, Direction, ItemSize, LayerLevel, LayerPolicy, Placement,
-    PointerPress,
+    Align, Align2, Color, Direction, ItemSize, LayerLevel, LayerPolicy, Placement, PointerPress,
 };
 use beui_view::types::{Pos2, Rect, Sides, Vec2, pos2, vec2};
 use beui_view::window::{Window, WindowHandle};
@@ -1309,13 +1308,18 @@ fn DockBarFloat(
 #[component]
 fn DockBarOverlay(dock: State, edge: DockEdge, align: DockAlign, ends: Signal<[f32; 2]>) -> NodeId {
     let mode = dock.mode;
-    let bars = dock.bars_at(BarHolder::Dock, edge, true, move |placement| match placement {
-        DockBarPlacement::Over(held, at) => held == edge && at == align,
-        DockBarPlacement::Window { edge: held, .. } => {
-            held == edge && align == DockAlign::Center && mode.get() == DockMode::Stacked
-        }
-        DockBarPlacement::Beside(..) => false,
-    });
+    let bars = dock.bars_at(
+        BarHolder::Dock,
+        edge,
+        true,
+        move |placement| match placement {
+            DockBarPlacement::Over(held, at) => held == edge && at == align,
+            DockBarPlacement::Window { edge: held, .. } => {
+                held == edge && align == DockAlign::Center && mode.get() == DockMode::Stacked
+            }
+            DockBarPlacement::Beside(..) => false,
+        },
+    );
     let margin = dock.bar_margin;
     let line = view! {
         <List direction={across(edge)} spacing={margin}>

@@ -785,10 +785,8 @@ impl Docks {
         self.shown_bars.retain(|(held, _)| *held != instance);
         for bar in &own.layout.bars {
             self.shown_bars.insert((instance, bar.bar.tab));
-            self.parked.insert(
-                (instance, bar.bar.tab),
-                (bar.placement.clone(), bar.hidden),
-            );
+            self.parked
+                .insert((instance, bar.bar.tab), (bar.placement.clone(), bar.hidden));
         }
         let Some((_, record)) = self.frame_record(instance) else {
             return;
