@@ -12,10 +12,7 @@ use geometry::{CanvasView, Pos2, Rect, Vec2};
 use uuid::Uuid;
 
 use crate::state::{Callbacks, Subscription};
-use crate::{
-    BlockFilter, BlockGraph, BlockParent, EditorHost, FileDrop,
-    LiveContent, Waker,
-};
+use crate::{BlockFilter, BlockGraph, BlockParent, EditorHost, FileDrop, LiveContent, Waker};
 
 mod artifacts;
 mod children;
