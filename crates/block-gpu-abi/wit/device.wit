@@ -333,7 +333,29 @@ interface device {
         bind-group-layouts: list<option<borrow<bind-group-layout>>>,
     }
 
-    resource shader-module;
+    enum compilation-message-type { error, warning, info }
+
+    /// Where a message points in the WGSL, in bytes (UTF-8, not UTF-16 as in
+    /// browser WebGPU); lines and positions count from 1.
+    record source-location {
+        line-number: u32,
+        line-position: u32,
+        offset: u32,
+        length: u32,
+    }
+
+    record compilation-message {
+        message: string,
+        message-type: compilation-message-type,
+        location: option<source-location>,
+    }
+
+    resource shader-module {
+        /// The messages of the module's compilation: none until the host has
+        /// them, and it wakes the plugin when it does. A module whose WGSL
+        /// was rejected is still made, and its messages say why.
+        get-compilation-info: func() -> option<list<compilation-message>>;
+    }
 
     record shader-module-descriptor {
         label: option<string>,
@@ -479,6 +501,9 @@ interface device {
             destination: borrow<buffer>,
             destination-offset: u64,
         );
+        insert-debug-marker: func(label: string);
+        push-debug-group: func(label: string);
+        pop-debug-group: func();
         /// Ends the encoder: anything it is asked after this is an error.
         finish: func() -> option<command-buffer>;
     }
@@ -562,6 +587,9 @@ interface device {
         begin-occlusion-query: func(query-index: u32);
         end-occlusion-query: func();
         execute-bundles: func(bundles: list<borrow<render-bundle>>);
+        insert-debug-marker: func(label: string);
+        push-debug-group: func(label: string);
+        pop-debug-group: func();
         /// Records the pass into its encoder.
         end: func();
     }
@@ -596,6 +624,9 @@ interface device {
         dispatch-workgroups: func(x: u32, y: u32, z: u32);
         /// Dispatches the three workgroup counts the buffer holds at the offset.
         dispatch-workgroups-indirect: func(buffer: borrow<buffer>, offset: u64);
+        insert-debug-marker: func(label: string);
+        push-debug-group: func(label: string);
+        pop-debug-group: func();
         /// Records the pass into its encoder.
         end: func();
     }
@@ -682,6 +713,13 @@ interface device {
         layout: texel-copy-buffer-layout,
     }
 
+    enum device-lost-reason { unknown, destroyed }
+
+    record device-lost-info {
+        reason: device-lost-reason,
+        message: string,
+    }
+
     record surface-configuration {
         width: u32,
         height: u32,
@@ -707,6 +745,17 @@ interface device {
     features: func() -> list<feature-name>;
     /// The host device's limits.
     limits: func() -> supported-limits;
+    /// Starts the plugin's view of the device afresh: one it destroyed works
+    /// again. A device the host lost stays lost.
+    request-device: func();
+    /// Destroys the plugin's view of the device, never the host's device:
+    /// frees the buffers and textures the plugin made, fails its pending maps,
+    /// and drops whatever it asks of the gpu after, without errors, until it
+    /// requests the device again.
+    destroy-device: func();
+    /// Why the device was lost: destroyed by the plugin, or lost by the host.
+    /// None while it is not. The host wakes the plugin when it is lost.
+    device-lost: func() -> option<device-lost-info>;
 
     create-buffer: func(descriptor: buffer-descriptor) -> option<buffer>;
     create-texture: func(descriptor: texture-descriptor) -> option<texture>;
@@ -739,10 +788,18 @@ interface device {
         size: extent3d,
     );
     submit: func(command-buffers: list<command-buffer>);
-    /// Settles the maps the gpu is done with. Waiting blocks until the work
-    /// submitted so far is done where the host can block (natively), and is
-    /// the same as not waiting in a browser, where maps settle on their own.
+    /// Settles the maps and submitted work the gpu is done with. Waiting
+    /// blocks until the work submitted so far is done where the host can
+    /// block (natively), and is the same as not waiting in a browser, where
+    /// they settle on their own.
     poll: func(wait: bool);
+    /// Asks to be told when the gpu has done the work submitted so far, and
+    /// answers a ticket to ask `submitted-work-done` about. The host wakes the
+    /// plugin when the work is done.
+    on-submitted-work-done: func() -> u64;
+    /// Whether the work a ticket waits on is done. A ticket that answers true
+    /// is forgotten.
+    submitted-work-done: func(ticket: u64) -> bool;
 
     /// A texture the host shares with every plugin under an image id, such as
     /// a preview another plugin painted; none when no such image is shared.

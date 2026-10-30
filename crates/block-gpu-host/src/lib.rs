@@ -1,8 +1,8 @@
 mod bundles;
 mod convert;
 mod host;
-mod maps;
 mod queries;
+mod settling;
 mod tables;
 pub mod transport;
 
@@ -11,15 +11,15 @@ mod tests;
 
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
-use std::pin::pin;
+use std::pin::{Pin, pin};
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Waker};
 
 use block_gpu_abi::device as abi;
-use maps::Maps;
+use settling::Settling;
 use tables::Table;
 
-pub use maps::Wake;
+pub use settling::Wake;
 
 pub use block_gpu_abi;
 pub use wgpu;
@@ -43,8 +43,10 @@ pub struct Gpu {
     groups: Table<wgpu::BindGroup>,
     pipeline_layouts: Table<wgpu::PipelineLayout>,
     modules: Table<wgpu::ShaderModule>,
+    compilations: HashMap<u32, Compilation>,
     pipelines: Table<wgpu::RenderPipeline>,
-    maps: Maps,
+    settling: Settling,
+    destroyed: bool,
     encoders: Table<wgpu::CommandEncoder>,
     command_buffers: Table<wgpu::CommandBuffer>,
     passes: Table<wgpu::RenderPass<'static>>,
@@ -63,6 +65,11 @@ pub struct Gpu {
 }
 
 type Outcome<T> = Result<T, String>;
+
+#[cfg(not(target_arch = "wasm32"))]
+type Compilation = Pin<Box<dyn Future<Output = wgpu::CompilationInfo> + Send>>;
+#[cfg(target_arch = "wasm32")]
+type Compilation = Pin<Box<dyn Future<Output = wgpu::CompilationInfo>>>;
 
 struct Surface {
     textures: Vec<(wgpu::Texture, u64)>,
@@ -121,8 +128,10 @@ impl Gpu {
             groups: Table::new(),
             pipeline_layouts: Table::new(),
             modules: Table::new(),
+            compilations: HashMap::new(),
             pipelines: Table::new(),
-            maps: Maps::new(),
+            settling: Settling::new(),
+            destroyed: false,
             encoders: Table::new(),
             command_buffers: Table::new(),
             passes: Table::new(),
@@ -147,7 +156,17 @@ impl Gpu {
     }
 
     pub fn waking(mut self, wake: Wake) -> Self {
-        self.maps.waking(wake);
+        self.settling.waking(wake);
+        self
+    }
+
+    /// For a device the plugin is the only user of, as in a browser worker:
+    /// the `Gpu` takes the device's lost callback and tells the plugin when it
+    /// is lost. A device the host shares keeps its own callback, and the host
+    /// restarts its plugins on a new device when it is lost.
+    pub fn owning_device(self) -> Self {
+        self.device
+            .set_device_lost_callback(self.settling.losing());
         self
     }
 
@@ -204,7 +223,7 @@ impl Gpu {
     }
 
     pub fn report(&mut self, message: String) {
-        if self.error.is_none() {
+        if self.error.is_none() && !self.lost() {
             self.error = Some(message);
         }
     }
@@ -219,11 +238,18 @@ impl Gpu {
         }
     }
 
+    fn lost(&self) -> bool {
+        self.destroyed || self.settling.lost().is_some()
+    }
+
     fn create<T>(
         &mut self,
         table: fn(&mut Self) -> &mut Table<T>,
         act: impl FnOnce(&mut Self) -> Outcome<T>,
     ) -> Option<u32> {
+        if self.destroyed {
+            return Some(table(self).skip());
+        }
         let scope = self.device.push_error_scope(wgpu::ErrorFilter::Validation);
         let created = act(self);
         let caught = caught(scope.pop());

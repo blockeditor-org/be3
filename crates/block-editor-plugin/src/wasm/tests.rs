@@ -2,6 +2,10 @@ use std::pin::pin;
 use std::task::{Context, Poll, Waker};
 
 mod a_buffer_mapped_for_reading_holds_what_was_copied_into_it;
+mod submitted_work_calls_back_once_the_gpu_has_done_it;
+mod a_shader_module_says_where_its_wgsl_went_wrong;
+mod a_destroyed_device_is_reported_lost_and_drops_what_it_is_asked;
+mod debug_groups_reach_the_host_and_must_balance;
 mod a_buffer_mapped_for_writing_keeps_what_was_written;
 mod a_child_placed_in_an_anchored_view_is_placed_in_its_own_points;
 mod a_cleared_range_of_a_buffer_reads_back_as_zeros;

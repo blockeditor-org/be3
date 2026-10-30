@@ -1,4 +1,11 @@
-use core::{fmt, future::ready, mem::ManuallyDrop, ops::Range, pin::Pin};
+use core::{
+    fmt,
+    future::{Future, ready},
+    mem::ManuallyDrop,
+    ops::Range,
+    pin::Pin,
+    task::{Context, Poll, Waker},
+};
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
@@ -27,9 +34,23 @@ struct Map {
     callback: BufferMapCallback,
 }
 
+struct Work {
+    ticket: u64,
+    callback: BoxSubmittedWorkDoneCallback,
+}
+
+#[derive(Default)]
+struct Lost {
+    lost: bool,
+    callback: Option<BoxDeviceLostCallback>,
+}
+
 thread_local! {
     static SCOPES: RefCell<Vec<Scope>> = const { RefCell::new(Vec::new()) };
     static MAPS: RefCell<Vec<Map>> = const { RefCell::new(Vec::new()) };
+    static WORK: RefCell<Vec<Work>> = const { RefCell::new(Vec::new()) };
+    static COMPILING: RefCell<Vec<Waker>> = const { RefCell::new(Vec::new()) };
+    static LOST: RefCell<Lost> = RefCell::new(Lost::default());
     static FRESH: RefCell<HashSet<u32>> = RefCell::new(HashSet::new());
     static UNCAPTURED: RefCell<Option<Arc<dyn wgpu::UncapturedErrorHandler>>> =
         const { RefCell::new(None) };
@@ -47,6 +68,9 @@ impl fmt::Display for Rejected {
 impl std::error::Error for Rejected {}
 
 fn reject(message: String) {
+    if LOST.with(|lost| lost.borrow().lost) {
+        return;
+    }
     let error = wgpu::Error::Validation {
         source: Box::new(Rejected(message.clone())),
         description: message,
@@ -84,11 +108,66 @@ fn checked() {
     }
 }
 
+pub(crate) fn fresh_device() {
+    gpu::request_device();
+    LOST.with(|lost| *lost.borrow_mut() = Lost::default());
+}
+
 pub(crate) fn settle(wait: bool) -> bool {
-    if MAPS.with(|maps| maps.borrow().is_empty()) {
-        return true;
+    let settling = || {
+        MAPS.with(|maps| !maps.borrow().is_empty()) || WORK.with(|work| !work.borrow().is_empty())
+    };
+    if settling() {
+        gpu::poll(wait);
     }
-    gpu::poll(wait);
+    settle_maps();
+    settle_work();
+    for waker in COMPILING.with(|compiling| compiling.take()) {
+        waker.wake();
+    }
+    settle_loss();
+    !settling()
+}
+
+fn settle_work() {
+    let done: Vec<Work> = WORK.with(|work| {
+        let mut work = work.borrow_mut();
+        let (done, waiting) = work
+            .drain(..)
+            .partition(|work| gpu::submitted_work_done(work.ticket));
+        *work = waiting;
+        done
+    });
+    for work in done {
+        (work.callback)();
+    }
+}
+
+fn settle_loss() {
+    if LOST.with(|lost| lost.borrow().callback.is_none()) {
+        return;
+    }
+    let Some(info) = gpu::device_lost() else {
+        return;
+    };
+    let callback = LOST.with(|lost| {
+        let mut lost = lost.borrow_mut();
+        lost.lost = true;
+        lost.callback.take()
+    });
+    if let Some(callback) = callback {
+        let reason = match info.reason {
+            abi::DeviceLostReason::Unknown => wgpu::DeviceLostReason::Unknown,
+            abi::DeviceLostReason::Destroyed => wgpu::DeviceLostReason::Destroyed,
+        };
+        callback(reason, info.message);
+    }
+}
+
+fn settle_maps() {
+    if MAPS.with(|maps| maps.borrow().is_empty()) {
+        return;
+    }
     let mut states = HashMap::new();
     let settled: Vec<(Map, abi::MapState)> = MAPS.with(|maps| {
         let mut maps = maps.borrow_mut();
@@ -112,7 +191,6 @@ pub(crate) fn settle(wait: bool) -> bool {
             _ => Err(wgpu::BufferAsyncError),
         });
     }
-    MAPS.with(|maps| maps.borrow().is_empty())
 }
 
 fn abort_maps(buffer: abi::Buffer) {
@@ -158,7 +236,6 @@ resource!(Sampler);
 resource!(BindGroupLayout);
 resource!(BindGroup);
 resource!(PipelineLayout);
-resource!(ShaderModule);
 resource!(RenderPipeline);
 resource!(CommandBuffer);
 resource!(CommandEncoder);
@@ -166,6 +243,50 @@ resource!(RenderPass);
 resource!(QuerySet);
 resource!(RenderBundleEncoder);
 resource!(RenderBundle);
+
+#[derive(Debug)]
+pub(crate) struct ShaderModule(pub(crate) gpu::ShaderModule, Option<String>);
+
+impl ShaderModule {
+    fn refused(message: String) -> Self {
+        reject(message.clone());
+        Self(
+            gpu::ShaderModule::from_handle(abi::ShaderModule(0)),
+            Some(message),
+        )
+    }
+}
+
+struct Compiling {
+    module: abi::ShaderModule,
+    refused: Option<String>,
+}
+
+impl Future for Compiling {
+    type Output = wgpu::CompilationInfo;
+
+    fn poll(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Self::Output> {
+        if let Some(message) = &self.refused {
+            return Poll::Ready(wgpu::CompilationInfo {
+                messages: vec![wgpu::CompilationMessage {
+                    message: message.clone(),
+                    message_type: wgpu::CompilationMessageType::Error,
+                    location: None,
+                }],
+            });
+        }
+        let module = ManuallyDrop::new(gpu::ShaderModule::from_handle(self.module));
+        match module.get_compilation_info() {
+            Some(messages) => Poll::Ready(wgpu::CompilationInfo {
+                messages: messages.iter().map(convert::compilation_message).collect(),
+            }),
+            None => {
+                COMPILING.with(|compiling| compiling.borrow_mut().push(context.waker().clone()));
+                Poll::Pending
+            }
+        }
+    }
+}
 
 impl Drop for Buffer {
     fn drop(&mut self) {
@@ -272,9 +393,17 @@ impl DeviceInterface for Device {
             label: convert::label(desc.label),
             wgsl,
         };
-        DispatchShaderModule::custom(ShaderModule::created(gpu::create_shader_module(
-            &descriptor,
-        )))
+        let made = gpu::create_shader_module(&descriptor);
+        let message = last_error();
+        DispatchShaderModule::custom(match made {
+            Some(module) => {
+                if !message.is_empty() {
+                    reject(message);
+                }
+                ShaderModule(module, None)
+            }
+            None => ShaderModule::refused(message),
+        })
     }
 
     unsafe fn create_shader_module_passthrough(
@@ -590,7 +719,9 @@ impl DeviceInterface for Device {
         ))
     }
 
-    fn set_device_lost_callback(&self, _device_lost_callback: BoxDeviceLostCallback) {}
+    fn set_device_lost_callback(&self, device_lost_callback: BoxDeviceLostCallback) {
+        LOST.with(|lost| lost.borrow_mut().callback = Some(device_lost_callback));
+    }
 
     fn on_uncaptured_error(&self, handler: Arc<dyn wgpu::UncapturedErrorHandler>) {
         UNCAPTURED.with(|held| *held.borrow_mut() = Some(handler));
@@ -639,7 +770,10 @@ impl DeviceInterface for Device {
         None
     }
 
-    fn destroy(&self) {}
+    fn destroy(&self) {
+        gpu::destroy_device();
+        LOST.with(|lost| lost.borrow_mut().lost = true);
+    }
 }
 
 impl QueueInterface for Queue {
@@ -719,7 +853,8 @@ impl QueueInterface for Queue {
     }
 
     fn on_submitted_work_done(&self, callback: BoxSubmittedWorkDoneCallback) {
-        callback();
+        let ticket = gpu::on_submitted_work_done();
+        WORK.with(|work| work.borrow_mut().push(Work { ticket, callback }));
     }
 
     fn compact_blas(&self, _blas: &DispatchBlas) -> (Option<u64>, DispatchBlas) {
@@ -729,9 +864,10 @@ impl QueueInterface for Queue {
 
 impl ShaderModuleInterface for ShaderModule {
     fn get_compilation_info(&self) -> Pin<Box<dyn ShaderCompilationInfoFuture>> {
-        Box::pin(ready(wgpu::CompilationInfo {
-            messages: Vec::new(),
-        }))
+        Box::pin(Compiling {
+            module: self.0.handle(),
+            refused: self.1.clone(),
+        })
     }
 }
 
@@ -1000,11 +1136,20 @@ impl CommandEncoderInterface for CommandEncoder {
         checked();
     }
 
-    fn insert_debug_marker(&self, _label: &str) {}
+    fn insert_debug_marker(&self, label: &str) {
+        self.0.insert_debug_marker(label);
+        checked();
+    }
 
-    fn push_debug_group(&self, _label: &str) {}
+    fn push_debug_group(&self, label: &str) {
+        self.0.push_debug_group(label);
+        checked();
+    }
 
-    fn pop_debug_group(&self) {}
+    fn pop_debug_group(&self) {
+        self.0.pop_debug_group();
+        checked();
+    }
 
     fn write_timestamp(&self, _query_set: &DispatchQuerySet, _query_index: u32) {
         unimplemented!("timestamps written inside command encoders are not in browser WebGPU")
@@ -1224,11 +1369,17 @@ impl RenderPassInterface for RenderPass {
         unimplemented!("mesh shaders are not in browser WebGPU")
     }
 
-    fn insert_debug_marker(&mut self, _label: &str) {}
+    fn insert_debug_marker(&mut self, label: &str) {
+        self.0.insert_debug_marker(label);
+    }
 
-    fn push_debug_group(&mut self, _group_label: &str) {}
+    fn push_debug_group(&mut self, group_label: &str) {
+        self.0.push_debug_group(group_label);
+    }
 
-    fn pop_debug_group(&mut self) {}
+    fn pop_debug_group(&mut self) {
+        self.0.pop_debug_group();
+    }
 
     fn write_timestamp(&mut self, _query_set: &DispatchQuerySet, _query_index: u32) {
         unimplemented!(

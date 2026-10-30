@@ -287,10 +287,27 @@ view's `usage` narrows its texture's. `destroy` frees a buffer (failing its pend
 a texture the plugin created; a surface's or imported texture is the host's, and
 destroying it does nothing.
 
-Some core WebGPU calls are still answered without reaching the host, and are gaps:
-debug markers and groups (on encoders and passes) are dropped, `on_submitted_work_done`
-calls back at once, `get_compilation_info` has no messages (errors still reach error
-scopes), and a device is never reported lost nor destroyed by `Device::destroy`.
+The guest's other asynchronous answers settle the way maps do: the host wakes the plugin,
+and the guest calls back when it polls. `on_submitted_work_done` takes a ticket from the host
+(`on-submitted-work-done`), which asks its queue and polls in the background like a map, and
+the guest asks `submitted-work-done` of each ticket. `get_compilation_info` is a future that asks
+`shader-module.get-compilation-info`, which polls wgpu's future on the host with a waker that
+wakes the plugin (natively the answer is there at once; in a browser it comes from a promise),
+and a pending future is woken on the guest's next poll. The host keeps a module whose WGSL was
+rejected, as WebGPU does, so its messages say where the WGSL went wrong; one the guest refused
+answers its refusal. Device loss is per plugin: `Device::destroy` destroys only the plugin's
+view (`destroy-device`), never the host's shared device: the host destroys the buffers and
+textures the plugin made, fails its pending maps, and from then on drops creates (answering
+handles to nothing), writes, submits and maps, and reports no errors, until the plugin
+requests a device again (`request-device`, which `block_gpu_guest::request_device` calls).
+`device-lost` answers why the device was lost, and the guest's poll calls the lost callback
+with it. A device lost by the host reaches the plugin only where the plugin is the device's
+only user: the shim's `Gpu::owning_device` takes the device's lost callback. Natively the app
+shares its device, keeps its own lost callback, and restarts every plugin on its new device
+(`replace_gpu`). Debug markers and groups reach the host on encoders and passes; a pass's take
+the label as the pointer and length of its UTF-8 in the plugin's memory (a `string` parameter
+of a `local` func), so they stay wasm values. wgpu has no debug markers on render bundle
+encoders (and wgpu-core refuses them in bundles), so a plugin cannot ask for them.
 
 Occlusion and timestamp query sets, `resolve_query_set`, a render pass's
 `occlusion_query_set` and occlusion queries, render and compute passes' `timestamp_writes`, render bundles

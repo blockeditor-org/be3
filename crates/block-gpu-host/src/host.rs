@@ -4,7 +4,10 @@ mod compute;
 
 use crate::bundles::{BundleEncoder, Command};
 use crate::queries::{Coarsening, QuerySet};
-use crate::{Gpu, Outcome, SURFACE_USAGE, convert, slice, texel_copy_buffer, texel_copy_texture};
+use crate::{
+    Gpu, Outcome, SURFACE_USAGE, caught, convert, slice, texel_copy_buffer, texel_copy_texture,
+};
+use std::task::{Context, Poll};
 
 impl Gpu {
     fn try_create_bind_group(
@@ -331,7 +334,7 @@ impl Gpu {
             .checked_add(size)
             .map(|end| offset..end)
             .ok_or_else(|| "a mapped range ran past the end of its buffer".to_owned())?;
-        self.maps.mapped(buffer.0, &range, writing)?;
+        self.settling.mapped(buffer.0, &range, writing)?;
         Ok((mapped, range))
     }
 
@@ -366,7 +369,7 @@ impl Host for Gpu {
         if let Some(handle) = created
             && mapped
         {
-            self.maps.mapped_at_creation(handle, size);
+            self.settling.mapped_at_creation(handle, size);
         }
         created.map(abi::Buffer)
     }
@@ -497,18 +500,20 @@ impl Host for Gpu {
         &mut self,
         descriptor: abi::ShaderModuleDescriptor,
     ) -> Option<abi::ShaderModule> {
-        self.create(
-            |gpu| &mut gpu.modules,
-            |gpu| {
-                Ok(gpu
-                    .device
-                    .create_shader_module(wgpu::ShaderModuleDescriptor {
-                        label: convert::label(&descriptor.label),
-                        source: wgpu::ShaderSource::Wgsl(descriptor.wgsl.as_str().into()),
-                    }))
-            },
-        )
-        .map(abi::ShaderModule)
+        if self.destroyed {
+            return Some(abi::ShaderModule(self.modules.skip()));
+        }
+        let scope = self.device.push_error_scope(wgpu::ErrorFilter::Validation);
+        let module = self
+            .device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: convert::label(&descriptor.label),
+                source: wgpu::ShaderSource::Wgsl(descriptor.wgsl.as_str().into()),
+            });
+        if let Some(error) = caught(scope.pop()) {
+            self.report(error);
+        }
+        Some(abi::ShaderModule(self.modules.insert(module)))
     }
 
     fn create_render_pipeline(
@@ -551,6 +556,9 @@ impl Host for Gpu {
     }
 
     fn write_buffer(&mut self, buffer: abi::Buffer, offset: u64, data: &[u8]) {
+        if self.destroyed {
+            return;
+        }
         self.guard(|gpu| {
             gpu.buffers
                 .get(buffer.0, "buffer")
@@ -565,6 +573,9 @@ impl Host for Gpu {
         layout: abi::TexelCopyBufferLayout,
         size: abi::Extent3d,
     ) {
+        if self.destroyed {
+            return;
+        }
         self.guard(|gpu| {
             let texture = gpu.textures.get(destination.texture.0, "texture")?;
             gpu.queue.write_texture(
@@ -587,7 +598,9 @@ impl Host for Gpu {
             for buffer in command_buffers {
                 buffers.push(gpu.command_buffers.take(buffer.0, "command buffer")?);
             }
-            gpu.queue.submit(buffers);
+            if !gpu.destroyed {
+                gpu.queue.submit(buffers);
+            }
             Ok(())
         });
     }
@@ -623,6 +636,9 @@ impl Host for Gpu {
     }
 
     fn buffer_map_async(&mut self, this: abi::Buffer, mode: abi::MapMode, offset: u64, size: u64) {
+        if self.destroyed {
+            return;
+        }
         self.guard(|gpu| {
             let buffer = gpu.buffers.get(this.0, "buffer")?.clone();
             let end = offset
@@ -634,13 +650,13 @@ impl Host for Gpu {
                         offset.saturating_add(size)
                     )
                 })?;
-            gpu.maps
+            gpu.settling
                 .map(&gpu.device, &buffer, this.0, mode, offset..end)
         });
     }
 
     fn buffer_map_state(&mut self, this: abi::Buffer) -> abi::MapState {
-        self.maps.state(this.0)
+        self.settling.state(this.0)
     }
 
     fn buffer_read_mapped(&mut self, this: abi::Buffer, offset: u64, size: u64) -> Vec<u8> {
@@ -668,17 +684,17 @@ impl Host for Gpu {
     }
 
     fn buffer_unmap(&mut self, this: abi::Buffer) {
-        self.maps.forget(this.0);
+        self.settling.forget(this.0);
         self.guard(|gpu| gpu.buffers.get(this.0, "buffer").map(wgpu::Buffer::unmap));
     }
 
     fn buffer_destroy(&mut self, this: abi::Buffer) {
-        self.maps.forget(this.0);
+        self.settling.forget(this.0);
         self.guard(|gpu| gpu.buffers.get(this.0, "buffer").map(wgpu::Buffer::destroy));
     }
 
     fn buffer_drop(&mut self, this: abi::Buffer) {
-        self.maps.forget(this.0);
+        self.settling.forget(this.0);
         self.buffers.remove(this.0);
     }
 
@@ -766,7 +782,124 @@ impl Host for Gpu {
     }
 
     fn shader_module_drop(&mut self, this: abi::ShaderModule) {
+        self.compilations.remove(&this.0);
         self.modules.remove(this.0);
+    }
+
+    fn shader_module_get_compilation_info(
+        &mut self,
+        this: abi::ShaderModule,
+    ) -> Option<Vec<abi::CompilationMessage>> {
+        let compilation = match self.compilations.remove(&this.0) {
+            Some(compilation) => compilation,
+            None => match self.modules.get(this.0, "shader module") {
+                Ok(module) => Box::pin(module.get_compilation_info()),
+                Err(message) => {
+                    self.report(message);
+                    return Some(Vec::new());
+                }
+            },
+        };
+        let mut compilation = compilation;
+        let waker = self.settling.waker();
+        match compilation.as_mut().poll(&mut Context::from_waker(&waker)) {
+            Poll::Ready(info) => Some(
+                info.messages
+                    .iter()
+                    .map(convert::compilation_message)
+                    .collect(),
+            ),
+            Poll::Pending => {
+                self.compilations.insert(this.0, compilation);
+                None
+            }
+        }
+    }
+
+    fn request_device(&mut self) {
+        self.destroyed = false;
+    }
+
+    fn destroy_device(&mut self) {
+        if self.destroyed {
+            return;
+        }
+        self.destroyed = true;
+        self.settling.forget_every_map();
+        for buffer in self.buffers.values() {
+            buffer.destroy();
+        }
+        for texture in &self.made_textures {
+            if let Ok(texture) = self.textures.get(*texture, "texture") {
+                texture.destroy();
+            }
+        }
+        self.error = None;
+        self.settling.wake();
+    }
+
+    fn device_lost(&mut self) -> Option<abi::DeviceLostInfo> {
+        if self.destroyed {
+            return Some(abi::DeviceLostInfo {
+                reason: abi::DeviceLostReason::Destroyed,
+                message: "the plugin destroyed its device".to_owned(),
+            });
+        }
+        self.settling.lost().map(|message| abi::DeviceLostInfo {
+            reason: abi::DeviceLostReason::Unknown,
+            message,
+        })
+    }
+
+    fn on_submitted_work_done(&mut self) -> u64 {
+        self.settling.work_done(&self.device, &self.queue)
+    }
+
+    fn submitted_work_done(&mut self, ticket: u64) -> bool {
+        let done = self.settling.is_work_done(ticket);
+        self.fail(done, true)
+    }
+
+    fn command_encoder_insert_debug_marker(&mut self, this: abi::CommandEncoder, label: &str) {
+        let label = label.to_owned();
+        self.encode(this, |_| {
+            Ok(Box::new(move |encoder| encoder.insert_debug_marker(&label)))
+        });
+    }
+
+    fn command_encoder_push_debug_group(&mut self, this: abi::CommandEncoder, label: &str) {
+        let label = label.to_owned();
+        self.encode(this, |_| {
+            Ok(Box::new(move |encoder| encoder.push_debug_group(&label)))
+        });
+    }
+
+    fn command_encoder_pop_debug_group(&mut self, this: abi::CommandEncoder) {
+        self.encode(this, |_| Ok(Box::new(|encoder| encoder.pop_debug_group())));
+    }
+
+    fn render_pass_insert_debug_marker(&mut self, this: abi::RenderPass, label: &str) {
+        self.pass(this, |pass| pass.insert_debug_marker(label));
+    }
+
+    fn render_pass_push_debug_group(&mut self, this: abi::RenderPass, label: &str) {
+        self.pass(this, |pass| pass.push_debug_group(label));
+    }
+
+    fn render_pass_pop_debug_group(&mut self, this: abi::RenderPass) {
+        self.pass(this, |pass| pass.pop_debug_group());
+    }
+
+    fn compute_pass_insert_debug_marker(&mut self, this: abi::ComputePass, label: &str) {
+        self.compute_pass(this, |pass| pass.insert_debug_marker(label));
+    }
+
+    fn compute_pass_push_debug_group(&mut self, this: abi::ComputePass, label: &str) {
+        self.compute_pass(this, |pass| pass.push_debug_group(label));
+    }
+
+    fn compute_pass_pop_debug_group(&mut self, this: abi::ComputePass) {
+        self.compute_pass(this, |pass| pass.pop_debug_group());
     }
 
     fn render_pipeline_get_bind_group_layout(

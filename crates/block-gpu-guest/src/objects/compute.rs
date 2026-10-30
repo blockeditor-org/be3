@@ -75,11 +75,17 @@ impl ComputePassInterface for ComputePass {
         unimplemented!("immediate data is not in browser WebGPU")
     }
 
-    fn insert_debug_marker(&mut self, _label: &str) {}
+    fn insert_debug_marker(&mut self, label: &str) {
+        self.0.insert_debug_marker(label);
+    }
 
-    fn push_debug_group(&mut self, _group_label: &str) {}
+    fn push_debug_group(&mut self, group_label: &str) {
+        self.0.push_debug_group(group_label);
+    }
 
-    fn pop_debug_group(&mut self) {}
+    fn pop_debug_group(&mut self) {
+        self.0.pop_debug_group();
+    }
 
     fn write_timestamp(&mut self, _query_set: &DispatchQuerySet, _query_index: u32) {
         unimplemented!(

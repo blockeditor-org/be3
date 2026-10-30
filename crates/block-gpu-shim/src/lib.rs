@@ -51,7 +51,9 @@ pub async fn start() -> Result<(), JsValue> {
         .await
         .map_err(|error| JsValue::from_str(&error))?;
     let shim = Shim {
-        gpu: Gpu::new(device, queue).waking(std::sync::Arc::new(wake)),
+        gpu: Gpu::new(device, queue)
+            .waking(std::sync::Arc::new(wake))
+            .owning_device(),
         screens,
         memory: None,
         returned: Vec::new(),

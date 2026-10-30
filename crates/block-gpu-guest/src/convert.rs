@@ -371,3 +371,20 @@ pub(crate) fn color(value: wgpu::Color) -> abi::Color {
         a: value.a,
     }
 }
+
+pub(crate) fn compilation_message(value: &abi::CompilationMessage) -> wgpu::CompilationMessage {
+    wgpu::CompilationMessage {
+        message: value.message.clone(),
+        message_type: match value.message_type {
+            abi::CompilationMessageType::Error => wgpu::CompilationMessageType::Error,
+            abi::CompilationMessageType::Warning => wgpu::CompilationMessageType::Warning,
+            abi::CompilationMessageType::Info => wgpu::CompilationMessageType::Info,
+        },
+        location: value.location.as_ref().map(|location| wgpu::SourceLocation {
+            line_number: location.line_number,
+            line_position: location.line_position,
+            offset: location.offset,
+            length: location.length,
+        }),
+    }
+}

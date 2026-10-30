@@ -440,3 +440,20 @@ reverse_map!(abi_texture_format, wgpu::TextureFormat, abi::TextureFormat, {
 reverse_map!(abi_texture_dimension, wgpu::TextureDimension, abi::TextureDimension, {
     D1, D2, D3,
 });
+
+pub(crate) fn compilation_message(value: &wgpu::CompilationMessage) -> abi::CompilationMessage {
+    abi::CompilationMessage {
+        message: value.message.clone(),
+        message_type: match value.message_type {
+            wgpu::CompilationMessageType::Error => abi::CompilationMessageType::Error,
+            wgpu::CompilationMessageType::Warning => abi::CompilationMessageType::Warning,
+            wgpu::CompilationMessageType::Info => abi::CompilationMessageType::Info,
+        },
+        location: value.location.map(|location| abi::SourceLocation {
+            line_number: location.line_number,
+            line_position: location.line_position,
+            offset: location.offset,
+            length: location.length,
+        }),
+    }
+}

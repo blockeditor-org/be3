@@ -45,6 +45,20 @@ fn the_calls_made_per_draw_take_only_wasm_values() {
         signature("[method]render-pass.begin-occlusion-query"),
         ("u32, u32", "")
     );
+    for pass in ["render-pass", "compute-pass"] {
+        assert_eq!(
+            signature(&format!("[method]{pass}.push-debug-group")),
+            ("u32, u32, u32", "")
+        );
+        assert_eq!(
+            signature(&format!("[method]{pass}.insert-debug-marker")),
+            ("u32, u32, u32", "")
+        );
+        assert_eq!(
+            signature(&format!("[method]{pass}.pop-debug-group")),
+            ("u32", "")
+        );
+    }
     assert_eq!(
         signature("[method]render-bundle-encoder.draw"),
         ("u32, u32, u32, u32, u32", "")

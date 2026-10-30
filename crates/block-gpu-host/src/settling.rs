@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::ops::Range;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
+use std::task::Waker;
 
 use block_gpu_abi::device as abi;
 
@@ -15,7 +16,10 @@ enum State {
 #[derive(Default)]
 struct Held {
     states: HashMap<u32, State>,
+    work: HashMap<u64, bool>,
+    tickets: u64,
     pending: usize,
+    lost: Option<String>,
     stopped: bool,
 }
 
@@ -25,7 +29,7 @@ pub(crate) struct Shared {
     changed: Condvar,
 }
 
-pub(crate) struct Maps {
+pub(crate) struct Settling {
     shared: Arc<Shared>,
     wake: Option<Wake>,
     #[cfg(not(target_arch = "wasm32"))]
@@ -38,7 +42,7 @@ impl Shared {
     }
 }
 
-impl Maps {
+impl Settling {
     pub(crate) fn new() -> Self {
         Self {
             shared: Arc::default(),
@@ -50,6 +54,88 @@ impl Maps {
 
     pub(crate) fn waking(&mut self, wake: Wake) {
         self.wake = Some(wake);
+    }
+
+    pub(crate) fn wake(&self) {
+        if let Some(wake) = &self.wake {
+            wake();
+        }
+    }
+
+    pub(crate) fn waker(&self) -> Waker {
+        Waker::from(Arc::new(Waking(self.wake.clone())))
+    }
+
+    pub(crate) fn losing(&self) -> impl Fn(wgpu::DeviceLostReason, String) + Send + Sync + 'static {
+        let shared = Arc::clone(&self.shared);
+        let wake = self.wake.clone();
+        move |reason, message| {
+            let message = match (reason, message.is_empty()) {
+                (_, false) => message,
+                (wgpu::DeviceLostReason::Destroyed, true) => {
+                    "the host's gpu device was destroyed".to_owned()
+                }
+                (_, true) => "the host's gpu device was lost".to_owned(),
+            };
+            shared.held().lost.get_or_insert(message);
+            if let Some(wake) = &wake {
+                wake();
+            }
+        }
+    }
+
+    pub(crate) fn lost(&self) -> Option<String> {
+        self.shared.held().lost.clone()
+    }
+
+    pub(crate) fn work_done(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) -> u64 {
+        let ticket = {
+            let mut held = self.shared.held();
+            held.tickets += 1;
+            let ticket = held.tickets;
+            held.work.insert(ticket, false);
+            held.pending += 1;
+            ticket
+        };
+        let shared = Arc::clone(&self.shared);
+        let wake = self.wake.clone();
+        queue.on_submitted_work_done(move || {
+            {
+                let mut held = shared.held();
+                if let Some(done) = held.work.get_mut(&ticket) {
+                    *done = true;
+                    held.pending -= 1;
+                }
+            }
+            if let Some(wake) = wake {
+                wake();
+            }
+        });
+        self.poll_in_background(device);
+        ticket
+    }
+
+    pub(crate) fn is_work_done(&mut self, ticket: u64) -> Result<bool, String> {
+        let mut held = self.shared.held();
+        match held.work.get(&ticket) {
+            None => Err(format!("no submitted work is awaited under ticket {ticket}")),
+            Some(false) => Ok(false),
+            Some(true) => {
+                held.work.remove(&ticket);
+                Ok(true)
+            }
+        }
+    }
+
+    pub(crate) fn forget_every_map(&mut self) {
+        let mut held = self.shared.held();
+        let pending = held
+            .states
+            .values()
+            .filter(|state| **state == State::Pending)
+            .count();
+        held.pending -= pending;
+        held.states.clear();
     }
 
     pub(crate) fn mapped_at_creation(&mut self, buffer: u32, size: u64) {
@@ -198,7 +284,21 @@ impl Maps {
     }
 }
 
-impl Drop for Maps {
+struct Waking(Option<Wake>);
+
+impl std::task::Wake for Waking {
+    fn wake(self: Arc<Self>) {
+        self.wake_by_ref();
+    }
+
+    fn wake_by_ref(self: &Arc<Self>) {
+        if let Some(wake) = &self.0 {
+            wake();
+        }
+    }
+}
+
+impl Drop for Settling {
     fn drop(&mut self) {
         self.shared.held().stopped = true;
         self.shared.changed.notify_all();

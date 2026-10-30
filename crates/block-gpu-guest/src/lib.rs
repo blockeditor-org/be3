@@ -26,6 +26,7 @@ pub fn request_device(
 ) -> Result<(wgpu::Device, wgpu::Queue), String> {
     let offered = features();
     features::requested(descriptor, offered, &limits())?;
+    objects::fresh_device();
     let device = objects::Device::new(
         descriptor.required_features,
         offered,
